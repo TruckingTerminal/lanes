@@ -1,0 +1,145 @@
+<title>LANES</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Pixelify+Sans:wght@400;600&family=Press+Start+2P&family=VT323&display=swap">
+<style>
+/* Layout: a dispatcher's console — the map is the window, the side rack holds the paperwork, the ticker runs underneath. */
+:root {
+  --ink0: #0a0d18; --ink1: #121829; --ink2: #1c2540; --ink3: #2b3a5a; --steel: #475a7c; --fog: #7d8fae; --mist: #b6c4d9;
+  --paper: #ece5d3; --amber: #f2a541; --amberD: #c4692a; --gold: #ffd36b; --red: #d6493a; --lime: #a6d65e; --cyan: #7fdcea;
+  --display: "Press Start 2P", ui-monospace, Menlo, monospace;
+  --body: "Pixelify Sans", "Trebuchet MS", system-ui, sans-serif;
+  --data: "VT323", ui-monospace, Menlo, monospace;
+  color-scheme: dark;
+}
+html, body { height: 100%; }
+[hidden] { display: none !important; }
+body { background: var(--ink1); color: var(--paper); font-family: var(--body); font-size: 16px; line-height: 1.35; }
+#app { min-height: 100%; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); padding-block: 12px; box-sizing: border-box; }
+button, input, select { font: inherit; color: inherit; }
+canvas { image-rendering: pixelated; image-rendering: crisp-edges; display: block; }
+img.px { image-rendering: pixelated; }
+:focus-visible { outline: 2px solid var(--cyan); outline-offset: 2px; }
+.num { font-family: var(--data); font-size: 1.25em; font-variant-numeric: tabular-nums; letter-spacing: 0.02em; }
+.label { font-family: var(--display); font-size: 9px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--fog); }
+h1, h2, h3 { font-family: var(--display); font-weight: 400; margin: 0; text-wrap: balance; }
+h2 { font-size: 12px; color: var(--amber); letter-spacing: 0.06em; }
+h3 { font-size: 10px; color: var(--paper); letter-spacing: 0.04em; }
+p { margin: 0; }
+.muted { color: var(--fog); }
+.good { color: var(--lime); }
+.bad { color: var(--red); }
+.warn { color: var(--amber); }
+
+/* Chunky beveled panels and buttons. */
+.panel { background: var(--ink2); border: 2px solid var(--ink0); box-shadow: inset 2px 2px 0 var(--ink3), inset -2px -2px 0 var(--ink1); padding: 12px; }
+.btn { background: var(--ink3); border: 2px solid var(--ink0); box-shadow: inset 2px 2px 0 var(--steel), inset -2px -2px 0 var(--ink2); padding: 6px 10px; cursor: pointer; font-family: var(--display); font-size: 9px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--paper); white-space: nowrap; }
+.btn:hover { background: var(--steel); }
+.btn:active { box-shadow: inset -2px -2px 0 var(--steel), inset 2px 2px 0 var(--ink2); transform: translateY(1px); }
+.btn.primary { background: var(--amberD); box-shadow: inset 2px 2px 0 var(--amber), inset -2px -2px 0 #8a4519; color: var(--ink0); }
+.btn.primary:hover { background: var(--amber); }
+.btn[disabled] { opacity: 0.45; cursor: not-allowed; }
+.btn.on { background: var(--amber); color: var(--ink0); box-shadow: inset 2px 2px 0 var(--gold), inset -2px -2px 0 var(--amberD); }
+input[type=text], input[type=number], select { background: var(--ink0); border: 2px solid var(--ink3); padding: 5px 7px; min-width: 0; }
+input[type=number] { width: 6.5em; font-family: var(--data); font-size: 1.2em; }
+.row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.stack { display: flex; flex-direction: column; gap: 10px; }
+.bar { height: 6px; background: var(--ink0); border: 1px solid var(--ink3); width: 80px; }
+.bar > i { display: block; height: 100%; }
+
+/* Title screen. */
+#title { display: grid; gap: 16px; justify-items: center; padding-top: 8px; }
+#titleCanvas { width: min(100%, 768px); height: auto; aspect-ratio: 16 / 9; border: 2px solid var(--ink0); box-shadow: 0 0 0 2px var(--ink3); }
+.logo { font-family: var(--display); font-size: clamp(28px, 7vw, 56px); color: var(--gold); letter-spacing: 0.12em; text-shadow: 4px 4px 0 var(--amberD), 8px 8px 0 var(--ink0); }
+.tagline { font-family: var(--display); font-size: 10px; color: var(--mist); letter-spacing: 0.1em; text-align: center; }
+.menu { width: min(100%, 560px); display: grid; gap: 12px; }
+.choice { display: grid; grid-template-columns: auto 1fr; gap: 10px; align-items: center; padding: 10px; border: 2px solid var(--ink3); cursor: pointer; background: var(--ink1); }
+.choice:has(input:checked) { border-color: var(--amber); background: var(--ink2); }
+.choice input { accent-color: var(--amber); }
+.field { display: grid; gap: 4px; }
+
+/* Game screen. */
+#game { display: grid; gap: 10px; }
+.hud { display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: center; justify-content: space-between; }
+.hud .clock { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+.hud .stats { display: flex; gap: 14px; flex-wrap: wrap; align-items: center; }
+.stat { display: flex; gap: 6px; align-items: center; }
+.speeds { display: flex; gap: 4px; }
+.speeds .btn { padding: 6px 8px; }
+.badge { font-family: var(--display); font-size: 9px; letter-spacing: 0.08em; padding: 5px 7px; border: 2px solid var(--ink0); }
+.badge.live { background: var(--red); color: var(--paper); box-shadow: inset 2px 2px 0 #f07a6a; }
+.badge.test { background: var(--gold); color: var(--ink0); }
+.badge.watch { background: var(--ink3); color: var(--mist); }
+@media (prefers-reduced-motion: no-preference) { .badge.live { animation: pulse 2s steps(2, end) infinite; } }
+@keyframes pulse { 50% { background: #a8352a; } }
+.board { display: grid; grid-template-columns: minmax(0, 1fr) minmax(320px, 400px); gap: 10px; align-items: start; }
+.mapwrap { position: relative; background: var(--ink0); border: 2px solid var(--ink0); box-shadow: 0 0 0 2px var(--ink3); overflow: hidden; display: flex; justify-content: center; }
+#map { width: 100%; height: auto; cursor: crosshair; max-width: 100%; }
+#tip { position: absolute; pointer-events: none; background: var(--ink0); border: 2px solid var(--amber); padding: 4px 6px; font-size: 14px; white-space: nowrap; }
+.maplegend { position: absolute; left: 8px; bottom: 8px; display: flex; gap: 10px; font-family: var(--display); font-size: 8px; color: var(--mist); background: rgba(10,13,24,0.7); padding: 4px 6px; }
+.dot { display: inline-block; width: 6px; height: 6px; margin-right: 4px; vertical-align: middle; }
+.side { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.tabs { display: flex; gap: 4px; flex-wrap: wrap; }
+.tabs .btn { flex: 1 1 auto; }
+#panel { max-height: calc(100vh - 160px); overflow: auto; min-height: 200px; }
+.card { border: 2px solid var(--ink3); background: var(--ink1); padding: 10px; display: grid; gap: 8px; }
+.card.sel { border-color: var(--cyan); }
+.truckhead { display: grid; grid-template-columns: auto 1fr; gap: 10px; align-items: center; }
+.kv { display: grid; grid-template-columns: max-content 1fr; gap: 2px 10px; font-size: 15px; }
+.kv dt { color: var(--fog); }
+.kv dd { margin: 0; }
+.loads { display: grid; gap: 6px; }
+.load { display: grid; grid-template-columns: 1fr auto; gap: 4px 10px; padding: 8px; border: 2px solid var(--ink3); background: var(--ink1); }
+.load.mine { border-color: var(--lime); }
+.lane { font-family: var(--display); font-size: 10px; letter-spacing: 0.04em; }
+.lane .arrow { color: var(--fog); font-size: 8px; }
+.ticker { display: flex; gap: 18px; overflow: hidden; white-space: nowrap; font-size: 15px; border-top: 2px solid var(--ink3); padding-top: 6px; min-height: 24px; }
+.ticker span { flex: none; }
+.toast { position: fixed; right: max(16px, env(safe-area-inset-right, 0px)); bottom: calc(16px + env(safe-area-inset-bottom, 0px)); background: var(--ink0); border: 2px solid var(--amber); padding: 8px 12px; max-width: min(360px, calc(100vw - 32px)); z-index: 20; }
+.toast.err { border-color: var(--red); }
+.spark { display: block; width: 100%; height: 48px; }
+table { border-collapse: collapse; width: 100%; font-size: 15px; }
+td, th { text-align: left; padding: 3px 6px; border-bottom: 1px solid var(--ink3); }
+th { font-family: var(--display); font-size: 8px; color: var(--fog); font-weight: 400; }
+tr.you td { color: var(--cyan); }
+.progress { width: min(100%, 420px); height: 14px; border: 2px solid var(--ink3); background: var(--ink0); }
+.progress > i { display: block; height: 100%; background: var(--amber); width: 0; }
+@media (max-width: 1240px) {
+  .board { grid-template-columns: minmax(0, 1fr); }
+  #panel { max-height: none; }
+}
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }
+</style>
+<div id="app">
+  <section id="title">
+    <canvas id="titleCanvas" width="768" height="432" aria-label="A truck driving a desert highway at dusk"></canvas>
+    <div class="logo">LANES</div>
+    <p class="tagline">One shared world on the real clock. Bid the board. Build the fleet.</p>
+    <div class="menu" id="menu"></div>
+  </section>
+  <section id="loading" hidden>
+    <div class="stack" style="align-items:center;padding-top:20vh">
+      <h2 id="loadtitle">Catching up</h2>
+      <p class="muted" id="loadnote"></p>
+      <div class="progress"><i id="loadbar"></i></div>
+    </div>
+  </section>
+  <section id="game" hidden>
+    <header class="hud panel" id="hud"></header>
+    <main class="board">
+      <div class="mapwrap" id="mapwrap">
+        <canvas id="map" width="400" height="248" aria-label="Map of hubs and trucks"></canvas>
+        <div id="tip" hidden></div>
+        <div class="maplegend"><span><i class="dot" style="background:var(--cyan)"></i>Your trucks</span><span><i class="dot" style="background:var(--lime)"></i>Other players</span><span><i class="dot" style="background:var(--paper)"></i>AI carriers</span></div>
+      </div>
+      <aside class="side">
+        <nav class="tabs" id="tabs"></nav>
+        <div class="panel" id="panel"></div>
+      </aside>
+    </main>
+    <footer class="ticker" id="ticker" aria-live="polite"></footer>
+  </section>
+  <div class="toast" id="toast" hidden></div>
+</div>
+<!--APP-->

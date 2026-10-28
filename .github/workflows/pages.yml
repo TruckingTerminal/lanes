@@ -1,0 +1,62 @@
+# Typechecks and tests every push. On main, it then publishes the test build of the game
+# to the public TruckingTerminal/lanes-play repo, which GitHub Pages serves.
+name: Test and deploy
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm test
+      - run: npm run build:site
+      - uses: actions/upload-artifact@v4
+        with:
+          name: site
+          path: apps/web/dist/site
+          retention-days: 7
+
+  deploy:
+    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: site
+          path: site
+      - name: Publish to lanes-play
+        env:
+          DEPLOY_KEY: ${{ secrets.LANES_PLAY_DEPLOY_KEY }}
+        run: |
+          mkdir -p ~/.ssh
+          printf '%s\n' "$DEPLOY_KEY" > ~/.ssh/deploy && chmod 600 ~/.ssh/deploy
+          export GIT_SSH_COMMAND="ssh -i ~/.ssh/deploy -o StrictHostKeyChecking=accept-new"
+          git clone --depth 1 git@github.com:TruckingTerminal/lanes-play.git out
+          cp site/index.html out/index.html
+          touch out/.nojekyll
+          cd out
+          git config user.name "lanes-ci"
+          git config user.email "lanes-ci@users.noreply.github.com"
+          git add -A
+          if git diff --cached --quiet; then echo "Site unchanged"; exit 0; fi
+          git commit -m "Deploy ${GITHUB_SHA::7} from lanes"
+          git push origin main
