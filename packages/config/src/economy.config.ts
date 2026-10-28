@@ -9,7 +9,7 @@ export type TractorTier = "workhorse" | "highwayPro" | "flagship";
 export type FacilityType = "warehouse" | "coldStorage" | "factory";
 
 export const economyConfig = {
-  version: "0.7.0-phase0.11",
+  version: "0.8.0-phase0.12",
 
   // §World, map and time
   time: {
@@ -48,6 +48,11 @@ export const economyConfig = {
   board: {
     scoreWeights: { price: 0.55, reputation: 0.25, deadhead: 0.2 },
     deadheadScaleMi: 150,
+    // Standing orders price in the empty miles expected after delivery: reloadDeadheadMi ÷ the
+    // destination's reload odds, clamped, at this weight.
+    reloadDeadheadMi: 60,
+    reloadDeadheadClamp: [20, 250] as const,
+    reloadWeight: 1, // the whole expected empty run (0.35–0.5 led to more failures in the 10-seed runs)
     rolloverCeilingStep: 0.05, // unfilled loads roll with ceiling +5%
     npcFallbackAfterRounds: 2,
     npcFallbackRateOfRef: 0.95,
@@ -80,12 +85,25 @@ export const economyConfig = {
     ratioClamp: [0.5, 2.5] as const, // PoC assumption: keeps ratio^0.35 within ≈0.78–1.38
     equipmentPremium: { van: 1.0, reefer: 1.18, flatbed: 1.12 } satisfies Record<Equipment, number>,
     npcCeilingMarkup: 1.15, // PoC assumption: NPC ceiling = ref × markup
-    seasonality: {
-      reeferMarToJul: 1.25,
-      vanAugToNov: 1.15,
-      lateDecVolume: 0.8,
-      lateDecRate: 1.1,
+    // Regional seasons (packages/data/src/seasons.ts): each hub's weekly $/mi swing ÷ a typical
+    // rate is its relative swing, which moves both freight volume and the posted rate. More
+    // freight also tightens the market, so the realized rate swing is larger than rateGain alone.
+    seasons: {
+      refRpm: { van: 2.3, reefer: 2.6 },
+      flatbedFromVan: 0.8, // no flatbed series: flatbed follows the van curve
+      volumeGain: 3,
+      rateGain: 2.5,
+      volumeClamp: [0.5, 2.5] as const,
+      rateClamp: [0.7, 1.6] as const,
+      lateDecVolume: 0.8, // holiday shutdowns
     },
+    // Destination reload odds = the hub's production/consumption balance for that trailer
+    // (hubs.ts imbalance; Miami van 0.55) × its live load-to-truck ratio against the national
+    // average. Freight into poor-reload markets pays more (the carrier prices in the empty miles
+    // out); freight into strong outbound markets pays less. Price factor = odds^-exponent.
+    reloadExponent: 0.2,
+    reloadClamp: [0.8, 1.3] as const,
+    reloadSmoothingRounds: 14,
     sectorClamp: [0.85, 1.15] as const,
   },
 

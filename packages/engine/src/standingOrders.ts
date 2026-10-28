@@ -1,4 +1,5 @@
 import { breakEvenPerMile, fuelPrice } from "./economics.js";
+import { expectedReloadDeadheadMi } from "./freight.js";
 import type { Bid, Company, Load, StandingOrder, Truck } from "./types.js";
 import { hubMiles, type World } from "./world.js";
 
@@ -87,7 +88,8 @@ function priceLoad(
   floor: Extract<StandingOrder, { kind: "floor" }> | undefined,
 ): { rate: number; breakEven: number } | null {
   const hubId = w.net.hubs[load.origin]!.id;
-  const breakEven = breakEvenPerMile(w.cfg, truck, fuel, load.miles, dh);
+  // Price in part of the empty run out of the destination, so a cheap load into a dead market isn't worth taking.
+  const breakEven = breakEvenPerMile(w.cfg, truck, fuel, load.miles, dh + w.cfg.board.reloadWeight * expectedReloadDeadheadMi(w, load.dest, load.equipment));
   for (const o of bidOrders) {
     if (o.equipment && !o.equipment.includes(load.equipment)) continue;
     if (o.originHubs && !o.originHubs.includes(hubId)) continue;

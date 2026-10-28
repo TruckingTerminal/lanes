@@ -1,24 +1,54 @@
-import type { EconomyConfig, Equipment, FacilityType } from "@lanes/config";
-import { monthOf } from "./clock.js";
+import type { Equipment, FacilityType } from "@lanes/config";
+import { HUB_SEASONS } from "@lanes/data";
 import { clamp } from "./economics.js";
 import type { Facility } from "./types.js";
 import type { World } from "./world.js";
 
 export const EQUIPMENT: readonly Equipment[] = ["van", "reefer", "flatbed"];
 
-/** season(t) from the in-game calendar (§Rates — load volume). */
-export function seasonality(cfg: EconomyConfig, day: number, eq: Equipment): { volume: number; rate: number } {
-  const s = cfg.rates.seasonality;
-  const month = monthOf(day, cfg);
-  const dayOfSeason = day % cfg.time.daysPerSeason;
-  let volume = 1;
-  let rate = 1;
-  if (eq === "reefer" && month >= 2 && month <= 6) volume *= s.reeferMarToJul;
-  if (eq === "van" && month >= 7 && month <= 10) volume *= s.vanAugToNov;
-  if (dayOfSeason >= cfg.time.daysPerSeason - 14) {
-    volume *= s.lateDecVolume;
-    rate *= s.lateDecRate;
-  }
+const seasonCache = new WeakMap<object, Float64Array>();
+
+/** Each hub's weekly relative swing per equipment, from the regional season table. */
+function seasonTable(w: World): Float64Array {
+  let t = seasonCache.get(w.net);
+  if (t) return t;
+  const { refRpm, flatbedFromVan } = w.cfg.rates.seasons;
+  t = new Float64Array(w.net.hubs.length * EQUIPMENT.length * 52);
+  w.net.hubs.forEach((h, i) => {
+    const s = HUB_SEASONS[h.id];
+    if (!s) return;
+    for (let wk = 0; wk < 52; wk++) {
+      t![(i * 3 + 0) * 52 + wk] = s.van[wk]! / refRpm.van;
+      t![(i * 3 + 1) * 52 + wk] = s.reefer[wk]! / refRpm.reefer;
+      t![(i * 3 + 2) * 52 + wk] = (flatbedFromVan * s.van[wk]!) / refRpm.van;
+    }
+  });
+  seasonCache.set(w.net, t);
+  return t;
+}
+
+/**
+ * A hub's seasonal swing for one equipment type on a given day, relative to that
+ * market's yearly average (+0.15 = rates 15% above normal), interpolated between weeks.
+ */
+export function seasonSwing(w: World, hubIdx: number, eq: Equipment, day: number): number {
+  const t = seasonTable(w);
+  const pos = ((day % w.cfg.time.daysPerSeason) - 6) / 7; // week 0 is the week of Jan 7
+  const i0 = Math.floor(pos);
+  const frac = pos - i0;
+  const base = (hubIdx * EQUIPMENT.length + EQUIPMENT.indexOf(eq)) * 52;
+  const a = t[base + (((i0 % 52) + 52) % 52)]!;
+  const b = t[base + ((((i0 + 1) % 52) + 52) % 52)]!;
+  return a + (b - a) * frac;
+}
+
+/** A hub's season (§Rates — load volume): the regional swing moves freight volume and the posted rate; late December slows down. */
+export function seasonality(w: World, hubIdx: number, eq: Equipment, day: number): { volume: number; rate: number } {
+  const s = w.cfg.rates.seasons;
+  const swing = seasonSwing(w, hubIdx, eq, day);
+  let volume = clamp(1 + s.volumeGain * swing, s.volumeClamp[0], s.volumeClamp[1]);
+  const rate = clamp(1 + s.rateGain * swing, s.rateClamp[0], s.rateClamp[1]);
+  if (day % w.cfg.time.daysPerSeason >= w.cfg.time.daysPerSeason - 14) volume *= s.lateDecVolume;
   return { volume, rate };
 }
 
@@ -40,7 +70,7 @@ export function hubDemandPerRound(w: World, hubIdx: number, eq: Equipment, day: 
   return (
     ((cfg.freight.baseLoadsPerRound * hub.weight) / totalWeight) *
     cfg.freight.equipmentShare[eq] *
-    seasonality(cfg, day, eq).volume *
+    seasonality(w, hubIdx, eq, day).volume *
     sectorFactor(w, hubIdx, day) *
     hub.imbalance[eq] *
     feeds.weather(hub.id, day) *
@@ -62,7 +92,7 @@ export function facilityNominalOutput(w: World, type: FacilityType, hubIdx: numb
   const hub = w.net.hubs[hubIdx]!;
   return (
     w.cfg.facilities.types[type].loadsPerRound *
-    seasonality(w.cfg, day, eq).volume *
+    seasonality(w, hubIdx, eq, day).volume *
     sectorFactor(w, hubIdx, day) *
     w.feeds.weather(hub.id, day) *
     w.feeds.cycle(day)

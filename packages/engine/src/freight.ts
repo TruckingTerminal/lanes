@@ -47,47 +47,71 @@ export function generateRoundFreight(w: World): RoundFreight {
   const plan = planFreight(w, day);
 
   // 1. Counts: NPC per hub and equipment, then each facility in id order.
-  const npcCounts = new Int32Array(n * EQUIPMENT.length);
-  const loadsAtHub = new Float64Array(n);
+  const E = EQUIPMENT.length;
+  const npcCounts = new Int32Array(n * E);
+  const loadsAt = new Float64Array(n * E);
   for (let i = 0; i < n; i++) {
-    for (let e = 0; e < EQUIPMENT.length; e++) {
+    for (let e = 0; e < E; e++) {
       const k = planIndex(i, e);
       npcCounts[k] = rng.count(plan.npcExpected[k]!);
-      loadsAtHub[i]! += npcCounts[k]!;
+      loadsAt[k]! += npcCounts[k]!;
     }
   }
   const facilityCounts = w.facilities.map((f, k) => {
     const c = rng.count(plan.facilityExpected[k]!);
-    loadsAtHub[f.hub]! += c;
+    loadsAt[planIndex(f.hub, EQUIPMENT.indexOf(f.equipment))]! += c;
     return c;
   });
-  for (const load of w.loads.values()) if (load.status === "open") loadsAtHub[load.origin]!++;
+  for (const load of w.loads.values()) if (load.status === "open") loadsAt[planIndex(load.origin, EQUIPMENT.indexOf(load.equipment))]!++;
 
-  // 2. Load-to-truck ratio within the nearby radius. Idle trucks that were priced
-  // out this round don't count as capacity: they won't haul at these rates, and
-  // counting them would push rates lower still.
-  const trucksAtHub = new Float64Array(n);
-  for (let i = 0; i < n; i++) trucksAtHub[i] = cfg.npc.trucksPerHubWeight * net.hubs[i]!.weight;
-  for (const truck of w.trucks) if (truck.status === "idle" && truck.pricedOutRound !== w.round) trucksAtHub[truck.hub]!++;
+  // 2. Load-to-truck ratio within the nearby radius, per trailer type: Miami can be
+  // swamped with idle vans while its reefer market is tight in produce season. Idle
+  // trucks that were priced out this round don't count as capacity: they won't haul
+  // at these rates, and counting them would push rates lower still.
+  const trucksAt = new Float64Array(n * E);
+  for (let i = 0; i < n; i++) {
+    for (let e = 0; e < E; e++) trucksAt[planIndex(i, e)] = cfg.npc.trucksPerHubWeight * net.hubs[i]!.weight * cfg.freight.equipmentShare[EQUIPMENT[e]!];
+  }
+  for (const truck of w.trucks) {
+    if (truck.status === "idle" && truck.pricedOutRound !== w.round) trucksAt[planIndex(truck.hub, EQUIPMENT.indexOf(truck.trailer))]!++;
+  }
+  const [lo, hi] = cfg.rates.ratioClamp;
   const ratio = new Float64Array(n);
+  const ratioEq = new Float64Array(n * E);
   for (let i = 0; i < n; i++) {
     let loads = 0;
     let trucks = 0;
-    for (const j of net.nearby[i]!) {
-      loads += loadsAtHub[j]!;
-      trucks += trucksAtHub[j]!;
+    for (let e = 0; e < E; e++) {
+      let l = 0;
+      let t = 0;
+      for (const j of net.nearby[i]!) {
+        l += loadsAt[planIndex(j, e)]!;
+        t += trucksAt[planIndex(j, e)]!;
+      }
+      ratioEq[planIndex(i, e)] = clamp(l / Math.max(1, t), lo, hi);
+      loads += l;
+      trucks += t;
     }
-    ratio[i] = clamp(loads / Math.max(1, trucks), cfg.rates.ratioClamp[0], cfg.rates.ratioClamp[1]);
+    ratio[i] = clamp(loads / Math.max(1, trucks), lo, hi);
   }
   w.lastRatio = ratio;
+  w.lastRatioEq = ratioEq;
+  // How easily a truck reloads after delivering at each hub, smoothed so one round doesn't swing prices.
+  const beta = 1 / cfg.rates.reloadSmoothingRounds;
+  for (let k = 0; k < n * E; k++) w.reloadIndex[k] = w.reloadIndex[k]! + beta * (ratioEq[k]! - w.reloadIndex[k]!);
+  for (let e = 0; e < E; e++) {
+    let sum = 0;
+    for (let i = 0; i < n; i++) sum += w.reloadIndex[planIndex(i, e)]!;
+    w.reloadMean[e] = sum / n;
+  }
 
   // Contract rates trail the spot market: smooth each hub's spot rate level over the contract lag.
   const alpha = 1 / (cfg.brokerRisk.contractLagDays * cfg.time.boardRoundHours.length);
   for (let i = 0; i < n; i++) {
     for (let e = 0; e < EQUIPMENT.length; e++) {
       const eq = EQUIPMENT[e]!;
-      const spot = dpow(ratio[i]!, cfg.rates.ratioExponent) * feeds.weather(net.hubs[i]!.id, day) * seasonality(cfg, day, eq).rate;
       const k = planIndex(i, e);
+      const spot = dpow(ratioEq[k]!, cfg.rates.ratioExponent) * feeds.weather(net.hubs[i]!.id, day) * seasonality(w, i, eq, day).rate;
       // The first round's contracts are signed at the market as it stands.
       w.contractIndex[k] = Number.isNaN(w.contractIndex[k]!) ? spot : w.contractIndex[k]! + alpha * (spot - w.contractIndex[k]!);
     }
@@ -95,10 +119,11 @@ export function generateRoundFreight(w: World): RoundFreight {
 
   const refRate = (lane: Lane, eq: Equipment) =>
     lane.baseRate *
-      dpow(ratio[lane.origin]!, cfg.rates.ratioExponent) *
+      dpow(ratioEq[planIndex(lane.origin, EQUIPMENT.indexOf(eq))]!, cfg.rates.ratioExponent) *
       feeds.weather(net.hubs[lane.origin]!.id, day) *
       cfg.rates.equipmentPremium[eq] *
-      seasonality(cfg, day, eq).rate +
+      seasonality(w, lane.origin, eq, day).rate *
+      reloadFactor(w, lane.dest, eq) +
     fsc;
 
   const newLoad = (lane: Lane, eq: Equipment, ref: number): Load => {
@@ -141,7 +166,7 @@ export function generateRoundFreight(w: World): RoundFreight {
         const lane = lanes[rng.weighted(weights)]!;
         const load = newLoad(lane, eq, refRate(lane, eq));
         if (rng.next() < cfg.freight.npcBrokerOnlyShare) {
-          const contractRef = lane.baseRate * w.contractIndex[planIndex(i, e)]! * cfg.rates.equipmentPremium[eq] + fsc;
+          const contractRef = lane.baseRate * w.contractIndex[planIndex(i, e)]! * cfg.rates.equipmentPremium[eq] * reloadFactor(w, lane.dest, eq) + fsc;
           tenderToBroker(w, load, brokers, contractRef * cfg.rates.npcCeilingMarkup);
         }
         w.loads.set(load.id, load);
@@ -195,4 +220,32 @@ function tenderToBroker(w: World, load: Load, brokers: Company[], contractShippe
   load.shipperRate = contractShipperRate;
   load.ceiling = contractShipperRate * (1 - margin);
   broker.openBrokerLoads++;
+}
+
+/**
+ * How easily a truck of this type reloads after delivering at a hub (1 = average):
+ * the hub's production/consumption balance for that trailer (Miami consumes far more
+ * than it ships), times its live load-to-truck ratio against the national average
+ * (Miami's reefer market is tight in May and dead in September).
+ */
+export function reloadOdds(w: World, hub: number, eq: Equipment): number {
+  const e = EQUIPMENT.indexOf(eq);
+  const live = w.reloadIndex[planIndex(hub, e)]! / Math.max(0.01, w.reloadMean[e]!);
+  return w.net.hubs[hub]!.imbalance[eq] * live;
+}
+
+/**
+ * Destination pricing: freight into a market where trucks of that type pile up
+ * (reloading is harder than average) pays a premium, because the carrier will run
+ * empty to reload; freight into a tight market pays a little less.
+ */
+export function reloadFactor(w: World, destHub: number, eq: Equipment): number {
+  const { reloadExponent, reloadClamp } = w.cfg.rates;
+  return clamp(dpow(reloadOdds(w, destHub, eq), -reloadExponent), reloadClamp[0], reloadClamp[1]);
+}
+
+/** Empty miles a truck of this type can expect to run to reload after delivering at a hub. */
+export function expectedReloadDeadheadMi(w: World, destHub: number, eq: Equipment): number {
+  const { reloadDeadheadMi, reloadDeadheadClamp } = w.cfg.board;
+  return clamp(reloadDeadheadMi / Math.max(0.01, reloadOdds(w, destHub, eq)), reloadDeadheadClamp[0], reloadDeadheadClamp[1]);
 }

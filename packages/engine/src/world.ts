@@ -60,6 +60,12 @@ export interface World {
    * seasonal rate) smoothed over the contract lag. Broker contract rates use it.
    */
   contractIndex: Float64Array;
+  /** Last round's load-to-truck ratio per hub and trailer type (planIndex order). */
+  lastRatioEq: Float64Array;
+  /** Smoothed load-to-truck ratio per hub and trailer type: how easily a truck reloads after delivering there. */
+  reloadIndex: Float64Array;
+  /** National average of reloadIndex per trailer type. */
+  reloadMean: Float64Array;
   /** The weekly buyback auction: standing offers, rolled-over budget, results, and each company's last fill. */
   buyback: {
     offers: Map<number, { amountFd: number; minPriceUsd: number }>;
@@ -141,6 +147,9 @@ export function createWorld(o: WorldOptions): World {
     lastRatio: new Float64Array(o.net.hubs.length).fill(1),
     fillRate: { van: 0.7, reefer: 0.7, flatbed: 0.7 },
     contractIndex: new Float64Array(o.net.hubs.length * 3).fill(NaN),
+    lastRatioEq: new Float64Array(o.net.hubs.length * 3).fill(1),
+    reloadIndex: new Float64Array(o.net.hubs.length * 3).fill(1),
+    reloadMean: new Float64Array(3).fill(1),
     buyback: { offers: new Map(), carryUsd: 0, weeks: [], lastFill: new Map() },
     token: {
       launchDay: null,

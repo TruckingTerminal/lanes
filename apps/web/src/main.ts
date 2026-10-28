@@ -8,6 +8,8 @@ import {
   condition,
   deliveryDays,
   depositorValue,
+  expectedReloadDeadheadMi,
+  reloadOdds,
   facilityOutlook,
   fdPriceUsd,
   fuelPrice,
@@ -22,6 +24,7 @@ import {
   poolCash,
   rebuildCost,
   sellableFd,
+  seasonality,
   tokenLive,
   type Action,
   type Company,
@@ -945,6 +948,35 @@ function nextRoundLabel(): string {
   return `${String(next % 24).padStart(2, "0")}:00 (in ${wait})`;
 }
 
+const signedPct = (x: number) => `${x >= 0 ? "+" : "−"}${Math.round(Math.abs(x) * 100)}%`;
+
+/** How easily a truck of this type reloads after delivering at a hub, against the national average. */
+function reloadLabel(hub: number, eq: Equipment): string {
+  const r = reloadOdds(game!.w, hub, eq);
+  return r >= 1.25 ? "good" : r >= 0.8 ? "fair" : "poor";
+}
+function reloadClass(hub: number, eq: Equipment): string {
+  const r = reloadOdds(game!.w, hub, eq);
+  return r >= 1.25 ? "good" : r >= 0.8 ? "" : "bad";
+}
+/** The origin's season for this trailer, when it's moving rates noticeably. */
+function seasonNote(hub: number, eq: Equipment): string {
+  const swing = seasonality(game!.w, hub, eq, Math.floor(clockMin() / 1440)).rate - 1;
+  if (Math.abs(swing) < 0.05) return "";
+  return ` · <span class="${swing > 0 ? "good" : "bad"}">${swing > 0 ? "in season" : "off season"} ${signedPct(swing)}</span>`;
+}
+
+/** Where the season has rates running hottest and coldest right now. */
+function seasonCard(day: number): string {
+  const w = game!.w;
+  const rows = (eq: Equipment) => {
+    const all = w.net.hubs.map((h, i) => ({ id: h.id, r: seasonality(w, i, eq, day).rate - 1 })).sort((a, b) => b.r - a.r);
+    const fmt = (x: { id: string; r: number }) => `${x.id} <span class="${x.r >= 0 ? "good" : "bad"}">${signedPct(x.r)}</span>`;
+    return `<dt>${TRAILER_NAME[eq]}</dt><dd>hot: ${all.slice(0, 3).map(fmt).join(", ")} · cold: ${all.slice(-2).map(fmt).join(", ")}</dd>`;
+  };
+  return `<div class="card"><h3>Seasons now</h3><p class="muted" style="font-size:14px">Seasonal rate swing by origin, against each market's yearly average. Produce moves from South Florida and the Rio Grande Valley in spring to Georgia and the Carolinas in summer and the West and North in fall; northern markets also tighten in winter.</p><dl class="kv">${rows("reefer")}${rows("van")}${rows("flatbed")}</dl></div>`;
+}
+
 function loadsPanel(): string {
   const g = game!;
   const w = g.w;
@@ -962,25 +994,28 @@ function loadsPanel(): string {
     const fuel = fuelPrice(w);
     const pending = w.manualBids.get(truck.id);
     const sent = g.kind === "live" ? g.pending().find((r) => r.a.type === "place_bid" && r.a.truckId === truck.id) : undefined;
-    const rows: { l: Load; dh: number; be: number; suggest: number; profit: number }[] = [];
+    const rows: { l: Load; dh: number; be: number; suggest: number; profit: number; reloadMi: number }[] = [];
     for (const l of w.loads.values()) {
       if (l.status !== "open" || l.equipment !== truck.trailer || l.brokerId === me().id) continue;
       const dh = hubMiles(w, truck.hub, l.origin);
       if (dh > MANUAL_BID_MAX_DEADHEAD_MI) continue;
-      const be = breakEvenPerMile(w.cfg, truck, fuel, l.miles, dh);
+      // Same break-even the dispatcher uses: part of the empty run out of the destination is priced in.
+      const reloadMi = expectedReloadDeadheadMi(w, l.dest, l.equipment);
+      const be = breakEvenPerMile(w.cfg, truck, fuel, l.miles, dh + w.cfg.board.reloadWeight * reloadMi);
       // Loads tend to clear near the lane's reference rate; the ceiling is the most the poster pays.
       const suggest = Math.min(l.ceiling, Math.max(be * 1.08, l.refRate * 0.97));
-      rows.push({ l, dh, be, suggest, profit: (suggest - be) * l.miles });
+      rows.push({ l, dh, be, suggest, profit: (suggest - be) * l.miles, reloadMi });
     }
     rows.sort((a, b) => b.profit - a.profit);
     const list = rows
       .slice(0, 25)
-      .map(({ l, dh, be, suggest, profit }) => {
+      .map(({ l, dh, be, suggest, profit, reloadMi }) => {
         const mine = pending?.loadId === l.id;
         const o = w.net.hubs[l.origin]!;
         const d = w.net.hubs[l.dest]!;
         return `<div class="load ${mine ? "mine" : ""}">
           <div><div class="lane">${o.id} <span class="arrow">to</span> ${d.id}</div><div class="muted" style="font-size:14px">${esc(o.name)} to ${esc(d.name)} · ${l.miles} mi${dh ? ` · ${dh} mi empty first` : ""}${l.brokerId !== null ? " · brokered" : ""}${l.shipperId !== null ? " · player shipper" : ""}</div>
+          <div style="font-size:14px">Reload at ${d.id}: <span class="${reloadClass(l.dest, l.equipment)}">${reloadLabel(l.dest, l.equipment)}</span> (about ${Math.round(reloadMi)} mi empty to the next load)${seasonNote(l.origin, l.equipment)}</div>
           <div style="font-size:14px">Pays up to <span class="num">${l.ceiling.toFixed(2)}</span>/mi (<span class="num">${fd(l.ceiling * l.miles)}</span> FD) · usually clears near <span class="num">${l.refRate.toFixed(2)}</span> · your break-even <span class="num">${be.toFixed(2)}</span>/mi · <span class="${profit > 0 ? "good" : "bad"}">about ${fd(profit)} FD profit</span></div></div>
           <div class="row" style="justify-content:end"><input type="number" id="bid-${l.id}" step="0.01" min="0.5" max="${l.ceiling.toFixed(2)}" value="${(mine ? pending!.rate : suggest).toFixed(2)}" aria-label="Your rate per mile">
           <button class="btn ${mine ? "on" : "primary"}" data-act="bid" data-load="${l.id}" data-truck="${truck.id}">${mine ? "Rebid" : "Bid"}</button></div>
@@ -1166,6 +1201,7 @@ function companyPanel(): string {
   return `<div class="stack"><h2>${c ? esc(c.name) : "The live world"}</h2>
     ${mine}
     ${players}
+    ${seasonCard(day)}
     <div class="card"><h3>Market report</h3><dl class="kv">
       <dt>Freight demand (Cass dial)</dt><dd class="num ${cyc > 1.1 ? "good" : cyc < 0.9 ? "bad" : ""}">${cyc.toFixed(2)} · ${cyc > 1.1 ? "boom" : cyc < 0.9 ? "slump" : "normal"}</dd>
       <dt>Average rate yesterday</dt><dd class="num">${lastDay ? lastDay.avgClearedRate.toFixed(2) : "–"} FD/mi</dd>
@@ -1328,7 +1364,10 @@ function showHubTip(ev: { clientX: number; clientY: number }): void {
     return;
   }
   const hub = game!.w.net.hubs[h]!;
-  tip.textContent = `${hub.name} (${hub.id}) · ${openLoadsAt(h).length} open loads · ratio ${game!.w.lastRatio[h]!.toFixed(2)}`;
+  const day = Math.floor(clockMin() / 1440);
+  const season = (["reefer", "van", "flatbed"] as Equipment[]).map((eq) => `${TRAILER_NAME[eq].toLowerCase()} ${signedPct(seasonality(game!.w, h, eq, day).rate - 1)}`).join(", ");
+  const eq: Equipment = myTrucks().find((t) => t.id === selTruck)?.trailer ?? "van";
+  tip.textContent = `${hub.name} (${hub.id}) · ${openLoadsAt(h).length} open loads · ${TRAILER_NAME[eq].toLowerCase()} reload ${reloadLabel(h, eq)} · season: ${season}`;
   tip.hidden = false;
   const wrap = $("mapwrap").getBoundingClientRect();
   tip.style.left = `${Math.min(wrap.width - 260, Math.max(4, ev.clientX - wrap.left + 12))}px`;

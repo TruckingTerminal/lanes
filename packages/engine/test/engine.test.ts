@@ -41,6 +41,8 @@ import {
   runDays,
   scoreBid,
   seasonality,
+  reloadFactor,
+  expectedReloadDeadheadMi,
   tripCost,
   type Load,
   type TruckSpec,
@@ -133,10 +135,39 @@ describe("spec formulas", () => {
     expect(scoreBid(w, 3, 2.7, 0.9, 50)).toBeGreaterThan(scoreBid(w, 3, 2.7, 0.2, 50));
   });
 
-  it("applies the in-game calendar", () => {
-    expect(seasonality(cfg, 100, "reefer").volume).toBe(1.25); // April
-    expect(seasonality(cfg, 250, "van").volume).toBe(1.15); // September
-    expect(seasonality(cfg, 360, "van")).toEqual({ volume: 0.8, rate: 1.1 }); // late December
+  it("follows each region's own season: Miami produce peaks in late spring, then goes dead; Georgia peaks later", () => {
+    const w = smallWorld(1);
+    const hub = (id: string) => w.net.hubs.findIndex((h) => h.id === id);
+    const mia = hub("MIA");
+    const sav = hub("SAV");
+    const rate = (i: number, eq: "van" | "reefer" | "flatbed", day: number) => seasonality(w, i, eq, day).rate;
+    // Slow build through winter, a frenzy in late May, dead from August through October.
+    expect(rate(mia, "reefer", 20)).toBeLessThan(1.02);
+    expect(rate(mia, "reefer", 75)).toBeLessThan(rate(mia, "reefer", 115));
+    expect(rate(mia, "reefer", 145)).toBeGreaterThan(1.15);
+    expect(rate(mia, "reefer", 270)).toBeLessThan(0.9);
+    expect(seasonality(w, mia, "reefer", 145).volume).toBeGreaterThan(seasonality(w, mia, "reefer", 270).volume * 1.5);
+    // Georgia's peak comes after Miami's: in July Savannah is still hot while Miami is falling.
+    expect(rate(sav, "reefer", 190) - rate(mia, "reefer", 190)).toBeGreaterThan(0.05);
+    // Dry van rises with the produce season too, by less; flatbed follows van.
+    expect(rate(mia, "van", 145)).toBeGreaterThan(1.05);
+    expect(rate(mia, "van", 145)).toBeLessThan(rate(mia, "reefer", 145));
+    expect(rate(mia, "flatbed", 145)).toBeGreaterThan(1);
+    // Late December slows freight everywhere.
+    expect(seasonality(w, mia, "van", 360).volume).toBeLessThan(seasonality(w, mia, "van", 345).volume);
+  });
+
+  it("prices destinations: freight into a slack market pays more, and dispatchers price in the empty run out", () => {
+    const w = smallWorld(1);
+    // Hub 0's vans pile up; hub 1's van market is tight; the national van average sits at 1.
+    w.reloadIndex[planIndex(0, 0)] = 0.5;
+    w.reloadIndex[planIndex(1, 0)] = 2;
+    w.reloadMean[0] = 1;
+    w.net.hubs[0]!.imbalance.van = 1;
+    w.net.hubs[1]!.imbalance.van = 1;
+    expect(reloadFactor(w, 0, "van")).toBeGreaterThan(1.1);
+    expect(reloadFactor(w, 1, "van")).toBeLessThan(0.9);
+    expect(expectedReloadDeadheadMi(w, 0, "van")).toBeGreaterThan(expectedReloadDeadheadMi(w, 1, "van") * 3);
   });
 
   it("maps live time at 6 real hours per in-game day", () => {

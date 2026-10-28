@@ -239,6 +239,33 @@ Design, levers and the full results are in [TOKENOMICS.md](TOKENOMICS.md); table
 - Free entry through NPC leases lets capacity follow the cycle; the PoC caps no longer bind.
 - The free path now depends on where in the cycle a player starts (7–328 of 400 across seeds).
 
+## Seasons and lanes (config 0.8.0)
+- **Regional seasons:** every hub follows its own weekly curve (`packages/data/src/seasons.ts`),
+  derived from beagl.ai's public seasonality map (seasonal RPM delta by origin, dry van and
+  reefer): each hub takes the nearest market's curve. Flatbed follows the van curve. The swing
+  moves both freight volume (×3) and the posted rate (×2.5), and more freight tightens the market.
+  Miami reefer builds slowly from winter, peaks in late spring and goes dead from August to
+  November; Georgia and the Carolinas peak a month or two later.
+- **Tightness per trailer type:** the load-to-truck ratio is computed per trailer, so Miami can be
+  swamped with idle vans while its reefer market is tight in season.
+- **Headhaul and backhaul:** each lane's rate includes a destination reload factor, from the
+  destination's production/consumption balance for that trailer (`imbalance` in hubs.ts) times its
+  live smoothed load-to-truck ratio against the national average. Freight into poor-reload markets
+  pays more; freight out of them stays cheap.
+- **Reload-aware dispatcher:** standing orders add the expected empty run out of the destination to
+  break-even (60 mi ÷ reload odds, 20–250 mi), so bots and players stop chasing cheap freight into
+  dead markets. The Load board shows each load's reload odds and the origin's season.
+- **Check it:** `npx tsx apps/sim/src/seasons.ts [seed]` runs the game world for a year and prints
+  realized rates by origin and month, and Miami inbound vs outbound van.
+- **10 seeds × 4 years, token on** (`runs/compare-v13-tuning3.md`, column f vs the 0.7.0 baseline):
+  liquidations 548 vs 561, companies in debt 107 vs 130, owner-operator profit 620 vs 344 FD per
+  truck-week, free-path median 116 vs 131 days, top strategy 2.29× vs 2.30×. The FD price ends
+  lower ($0.0061 vs $0.0073) and fleets end poorer (139k vs 183k). Without the reload-aware
+  dispatcher, the destination premium pulled trucks into dead markets and liquidations nearly
+  doubled.
+- **Not modeled yet:** an explicit commodity flow matrix (production and consumption by commodity
+  group, e.g. calibrated to FAF5) and shipper orders for player facilities.
+
 ## The live world (`apps/web`)
 One shared, permanent world. There is no game server: the world is a seed plus every player's
 actions, kept in the artifact's shared store, and the deterministic engine turns that log into the
