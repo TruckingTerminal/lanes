@@ -1146,6 +1146,7 @@ function readTest(): TestLog | null {
 
 async function bootTest(): Promise<void> {
   platform = { db: null, uid: null, owner: true, local: true };
+  document.querySelector(".tagline")!.textContent = "Test build: the full game against the AI, with pause and speed controls.";
   const log = readTest();
   if (!log) {
     showTitle(testMenu());
