@@ -75,7 +75,10 @@ input[type=number] { width: 6.5em; font-family: var(--data); font-size: 1.2em; }
 @keyframes pulse { 50% { background: #a8352a; } }
 .board { display: grid; grid-template-columns: minmax(0, 1fr) minmax(320px, 400px); gap: 10px; align-items: start; }
 .mapwrap { position: relative; background: var(--ink0); border: 2px solid var(--ink0); box-shadow: 0 0 0 2px var(--ink3); overflow: hidden; display: flex; justify-content: center; }
-#map { width: 100%; height: auto; cursor: crosshair; max-width: 100%; }
+#map { width: 100%; height: auto; cursor: crosshair; max-width: 100%; touch-action: none; }
+.mapzoom { position: absolute; right: 8px; top: 8px; display: flex; gap: 4px; align-items: center; background: rgba(10,13,24,0.7); padding: 4px; }
+.mapzoom .btn { padding: 5px 8px; font-size: 11px; }
+.mapzoom .label { min-width: 3.2em; text-align: center; color: var(--mist); }
 #tip { position: absolute; pointer-events: none; background: var(--ink0); border: 2px solid var(--amber); padding: 4px 6px; font-size: 14px; white-space: nowrap; }
 .maplegend { position: absolute; left: 8px; bottom: 8px; display: flex; gap: 10px; font-family: var(--display); font-size: 8px; color: var(--mist); background: rgba(10,13,24,0.7); padding: 4px 6px; }
 .dot { display: inline-block; width: 6px; height: 6px; margin-right: 4px; vertical-align: middle; }
@@ -131,6 +134,7 @@ tr.you td { color: var(--cyan); }
       <div class="mapwrap" id="mapwrap">
         <canvas id="map" width="400" height="248" aria-label="Map of hubs and trucks"></canvas>
         <div id="tip" hidden></div>
+        <div class="mapzoom" role="group" aria-label="Map zoom"><button class="btn" id="zoomout" title="Zoom out (-)" aria-label="Zoom out">-</button><span class="label" id="zoomlevel" aria-live="polite">1×</span><button class="btn" id="zoomin" title="Zoom in (+, wheel or double-click)" aria-label="Zoom in">+</button><button class="btn" id="zoomfit" title="Whole map (0)">Fit</button></div>
         <div class="maplegend"><span><i class="dot" style="background:var(--cyan)"></i>Your trucks</span><span><i class="dot" style="background:var(--lime)"></i>Other players</span><span><i class="dot" style="background:var(--paper)"></i>AI carriers</span></div>
       </div>
       <aside class="side">

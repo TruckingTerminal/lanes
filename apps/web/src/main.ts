@@ -463,20 +463,81 @@ function loop(now: number): void {
   schedule();
 }
 
-/** Whole-number scaling keeps every map pixel square; below 400 px wide it scales down to fit. */
+// --- Map view: whole-number fit, zoom levels and pan --------------------------------
+
+/** Whole-number zoom levels keep every map pixel square. */
+const ZOOMS = [1, 2, 3, 4, 6];
+/** Canvas pixels per map pixel at 1×: the largest whole number that fits the screen. */
+let fitScale = 1;
+let zoomIdx = 0;
+/** Top-left of the view, in canvas pixels of the zoomed map. */
+let panX = 0;
+let panY = 0;
+const zoom = () => ZOOMS[zoomIdx]!;
+/** Canvas pixels per map pixel right now. */
+const kScale = () => fitScale * zoom();
+
+/** Sizes the canvas to the largest whole-number scale that fits; below 400 px wide it scales down to fit. */
 function fitMap(): void {
   const wrap = $("mapwrap");
   const cv = $<HTMLCanvasElement>("map");
   // As big as the width allows, but not taller than the screen below the top bar (room left for the ticker).
   const tall = Math.floor((window.innerHeight - wrap.getBoundingClientRect().top - 48) / MAP_H);
   const s = Math.min(Math.floor(wrap.clientWidth / MAP_W), Math.max(1, tall));
-  if (s >= 1) {
-    cv.style.width = `${MAP_W * s}px`;
-    cv.style.height = `${MAP_H * s}px`;
-  } else {
-    cv.style.width = "100%";
-    cv.style.height = "auto";
+  const next = Math.max(1, s);
+  if (next !== fitScale || cv.width !== MAP_W * next) {
+    // Keep the same place in the middle of the view when the fit changes.
+    const [cx, cy] = toWorld(cv.width / 2, cv.height / 2);
+    fitScale = next;
+    cv.width = MAP_W * fitScale;
+    cv.height = MAP_H * fitScale;
+    centerOn(cx, cy);
   }
+  cv.style.width = s >= 1 ? `${MAP_W * s}px` : "100%";
+  cv.style.height = s >= 1 ? `${MAP_H * s}px` : "auto";
+  renderZoomUi();
+}
+
+function toScreen(x: number, y: number): [number, number] {
+  const k = kScale();
+  return [Math.round(x * k - panX), Math.round(y * k - panY)];
+}
+function toWorld(cx: number, cy: number): [number, number] {
+  const k = kScale();
+  return [(cx + panX) / k, (cy + panY) / k];
+}
+function clampPan(): void {
+  const extra = kScale() - fitScale;
+  panX = Math.round(Math.max(0, Math.min(MAP_W * extra, panX)));
+  panY = Math.round(Math.max(0, Math.min(MAP_H * extra, panY)));
+}
+function centerOn(wx: number, wy: number): void {
+  const cv = $<HTMLCanvasElement>("map");
+  panX = wx * kScale() - cv.width / 2;
+  panY = wy * kScale() - cv.height / 2;
+  clampPan();
+}
+/** Changes the zoom level, keeping the map point under canvas pixel (ax, ay) where it is. */
+function setZoom(idx: number, ax?: number, ay?: number): void {
+  const cv = $<HTMLCanvasElement>("map");
+  const next = Math.max(0, Math.min(ZOOMS.length - 1, idx));
+  if (next === zoomIdx) return;
+  const x = ax ?? cv.width / 2;
+  const y = ay ?? cv.height / 2;
+  const [wx, wy] = toWorld(x, y);
+  zoomIdx = next;
+  panX = wx * kScale() - x;
+  panY = wy * kScale() - y;
+  clampPan();
+  renderZoomUi();
+  $("tip").hidden = true;
+}
+function renderZoomUi(): void {
+  $("zoomlevel").textContent = `${zoom()}×`;
+  $<HTMLButtonElement>("zoomin").disabled = zoomIdx === ZOOMS.length - 1;
+  $<HTMLButtonElement>("zoomout").disabled = zoomIdx === 0;
+  $<HTMLButtonElement>("zoomfit").disabled = zoomIdx === 0;
+  $("map").style.cursor = zoomIdx > 0 ? "grab" : "crosshair";
 }
 
 /** Daily bookkeeping for the screen: the cash sparkline and the freight-cycle headlines. */
@@ -526,84 +587,144 @@ function truckXY(t: Truck): [number, number] | null {
   return [a[0] + (b[0] - a[0]) * k, a[1] + (b[1] - a[1]) * k];
 }
 
+const isMoving = (t: Truck) => (t.status === "toPickup" || t.status === "loaded" || t.status === "repositioning") && t.targetHub !== t.hub;
+
+/** Where a truck shows: on its lane, or, zoomed in, fanned out around its hub so each one is visible. */
+function truckPoint(t: Truck): [number, number] | null {
+  const p = truckXY(t);
+  if (!p || zoom() < 2 || isMoving(t)) return p;
+  const i = t.id % 48;
+  const r = 0.45 * Math.sqrt(i);
+  const a = i * 2.39996; // golden angle: an even spiral
+  return [p[0] + Math.cos(a) * r, p[1] + Math.sin(a) * r];
+}
+
 function drawMap(now: number): void {
   const cv = $<HTMLCanvasElement>("map");
   const ctx = cv.getContext("2d")!;
   const w = game!.w;
+  const W = cv.width;
+  const H = cv.height;
+  const k = kScale();
+  // Markers are drawn in their own pixels: the map's pixel size at 1×, doubled from 3×, so they stay sharp without ballooning.
+  const u = fitScale * (zoom() >= 3 ? 2 : 1);
+  const visible = (X: number, Y: number) => X > -16 * u && Y > -16 * u && X < W + 16 * u && Y < H + 16 * u;
   ctx.imageSmoothingEnabled = false;
+  ctx.setTransform(k, 0, 0, k, -panX, -panY);
   ctx.drawImage(art!.base, 0, 0);
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
   // Glints on the water.
   ctx.fillStyle = PAL.foam;
   for (let i = 0; i < art!.glints.length; i++) {
     if ((Math.floor(now / 450) + i * 7) % 11 === 0) {
-      const [x, y] = art!.glints[i]!;
-      ctx.fillRect(x, y, 2, 1);
+      const [X, Y] = toScreen(...art!.glints[i]!);
+      if (visible(X, Y)) ctx.fillRect(X, Y, 2 * u, u);
     }
   }
   const shade = nightShade(Math.floor(clockMin() / 60) % 24);
   if (shade > 0) {
     ctx.fillStyle = `rgba(10,13,24,${shade})`;
-    ctx.fillRect(0, 0, MAP_W, MAP_H);
+    ctx.fillRect(0, 0, W, H);
     ctx.fillStyle = PAL.gold;
     for (let i = 0; i < art!.lights.length; i++) {
       if ((i * 13 + Math.floor(now / 900)) % 17 === 0) continue;
-      const [x, y] = art!.lights[i]!;
-      ctx.fillRect(x, y, 1, 1);
+      const [X, Y] = toScreen(...art!.lights[i]!);
+      if (visible(X, Y)) ctx.fillRect(X, Y, u, u);
     }
   }
-  // AI carriers one pixel each; other players' trucks a size up, in lime.
+  if (zoom() >= 2) drawHubLabels(ctx, k, u, visible);
+  // AI carriers one dot each; other players' trucks a size up, in lime.
   const mine = game!.player?.id ?? -1;
   const humans = new Set(w.companies.filter(isHuman).map((c) => c.id));
   ctx.fillStyle = shade > 0.2 ? PAL.amber : PAL.paper;
   for (const t of w.trucks) {
     if (t.companyId === mine || humans.has(t.companyId)) continue;
-    const p = truckXY(t);
-    if (p) ctx.fillRect(Math.round(p[0]), Math.round(p[1]), 1, 1);
+    const p = truckPoint(t);
+    if (!p) continue;
+    const [X, Y] = toScreen(p[0], p[1]);
+    if (visible(X, Y)) ctx.fillRect(X, Y, u, u);
   }
   for (const t of w.trucks) {
     if (t.companyId === mine || !humans.has(t.companyId)) continue;
-    const p = truckXY(t);
+    const p = truckPoint(t);
     if (!p) continue;
+    const [X, Y] = toScreen(p[0], p[1]);
+    if (!visible(X, Y)) continue;
     ctx.fillStyle = PAL.ink0;
-    ctx.fillRect(Math.round(p[0]) - 1, Math.round(p[1]) - 1, 4, 4);
+    ctx.fillRect(X - u, Y - u, 4 * u, 4 * u);
     ctx.fillStyle = PAL.lime;
-    ctx.fillRect(Math.round(p[0]), Math.round(p[1]), 2, 2);
+    ctx.fillRect(X, Y, 2 * u, 2 * u);
   }
   // Selected hub marker.
   if (selHub !== null) {
-    const [x, y] = art!.hubXY[selHub]!.map(Math.round) as [number, number];
+    const [X, Y] = toScreen(...art!.hubXY[selHub]!);
     ctx.fillStyle = PAL.ink0;
-    ctx.fillRect(x - 4, y - 9, 9, 6);
+    ctx.fillRect(X - 4 * u, Y - 9 * u, 9 * u, 6 * u);
     ctx.fillStyle = PAL.amber;
-    ctx.fillRect(x - 3, y - 8, 7, 4);
-    ctx.fillRect(x, y - 4, 1, 3);
+    ctx.fillRect(X - 3 * u, Y - 8 * u, 7 * u, 4 * u);
+    ctx.fillRect(X, Y - 4 * u, u, 3 * u);
   }
   // Your trucks: outlined cyan, the selected one blinking with its route.
   for (const t of myTrucks()) {
-    const p = truckXY(t);
+    const p = truckPoint(t);
     if (!p) continue;
-    const x = Math.round(p[0]);
-    const y = Math.round(p[1]);
-    if (t.id === selTruck && (t.status === "toPickup" || t.status === "loaded" || t.status === "repositioning")) {
-      const [tx, ty] = art!.hubXY[t.targetHub]!;
-      const n = Math.max(1, Math.round(Math.hypot(tx - x, ty - y)));
+    const [X, Y] = toScreen(p[0], p[1]);
+    if (t.id === selTruck && isMoving(t)) {
+      const [TX, TY] = toScreen(...art!.hubXY[t.targetHub]!);
+      const n = Math.max(1, Math.round(Math.hypot(TX - X, TY - Y) / u));
       ctx.fillStyle = PAL.gold;
-      for (let i = 0; i < n; i += 3) ctx.fillRect(Math.round(x + ((tx - x) * i) / n), Math.round(y + ((ty - y) * i) / n), 1, 1);
+      for (let i = 0; i < n; i += 3) ctx.fillRect(Math.round(X + ((TX - X) * i) / n), Math.round(Y + ((TY - Y) * i) / n), u, u);
     }
+    if (!visible(X, Y)) continue;
     const blink = t.id === selTruck && Math.floor(now / 300) % 2 === 0;
     ctx.fillStyle = PAL.ink0;
-    ctx.fillRect(x - 2, y - 2, 5, 5);
+    ctx.fillRect(X - 2 * u, Y - 2 * u, 5 * u, 5 * u);
     ctx.fillStyle = blink ? PAL.white : t.status === "repair" ? PAL.red : PAL.cyan;
-    ctx.fillRect(x - 1, y - 1, 3, 3);
+    ctx.fillRect(X - u, Y - u, 3 * u, 3 * u);
   }
 }
 
-function mapPoint(ev: MouseEvent): [number, number] {
+/** Hub codes once zoomed in; from 3× each also shows its open loads. */
+function drawHubLabels(ctx: CanvasRenderingContext2D, k: number, u: number, visible: (X: number, Y: number) => boolean): void {
+  const w = game!.w;
+  const px = 8 * Math.max(1, Math.floor(k / 4));
+  const step = px / 8;
+  let open: Map<number, number> | null = null;
+  if (zoom() >= 3) {
+    open = new Map();
+    for (const l of w.loads.values()) if (l.status === "open") open.set(l.origin, (open.get(l.origin) ?? 0) + 1);
+  }
+  ctx.font = `${px}px "Press Start 2P", ui-monospace, monospace`;
+  ctx.textBaseline = "top";
+  w.net.hubs.forEach((h, i) => {
+    const [X, Y] = toScreen(...art!.hubXY[i]!);
+    if (!visible(X, Y)) return;
+    const x = X + 3 * u;
+    const y = Y - px - 2 * u;
+    const count = open ? ` ${open.get(i) ?? 0}` : "";
+    ctx.fillStyle = PAL.ink0;
+    ctx.fillText(h.id + count, x + step, y + step);
+    ctx.fillStyle = i === selHub ? PAL.amber : PAL.paper;
+    ctx.fillText(h.id, x, y);
+    if (count) {
+      ctx.fillStyle = PAL.gold;
+      ctx.fillText(count, x + ctx.measureText(h.id).width, y);
+    }
+  });
+}
+
+/** A pointer position in canvas pixels. */
+function canvasPoint(ev: { clientX: number; clientY: number }): [number, number] {
   const cv = $<HTMLCanvasElement>("map");
   const r = cv.getBoundingClientRect();
-  return [((ev.clientX - r.left) / r.width) * MAP_W, ((ev.clientY - r.top) / r.height) * MAP_H];
+  return [((ev.clientX - r.left) / r.width) * cv.width, ((ev.clientY - r.top) / r.height) * cv.height];
 }
-function nearestHub(x: number, y: number, max = 7): number | null {
+/** The map point under a pointer, in map pixels. */
+function mapPoint(ev: { clientX: number; clientY: number }): [number, number] {
+  return toWorld(...canvasPoint(ev));
+}
+/** The hub nearest a map point, within a reach that stays the same on screen at every zoom. */
+function nearestHub(x: number, y: number, max = 7 / zoom()): number | null {
   let best: number | null = null;
   let bd = max;
   art!.hubXY.forEach(([hx, hy], i) => {
@@ -1172,6 +1293,48 @@ function backToLive(): void {
   } else void boot();
 }
 
+/** Selects your truck under the pointer, else the nearest hub. */
+function selectOnMap(ev: { clientX: number; clientY: number }): void {
+  const [x, y] = mapPoint(ev);
+  let best: Truck | null = null;
+  let bd = 5 / zoom();
+  for (const t of myTrucks()) {
+    const p = truckPoint(t);
+    if (!p) continue;
+    const d = Math.hypot(p[0] - x, p[1] - y);
+    if (d < bd) {
+      bd = d;
+      best = t;
+    }
+  }
+  if (best) {
+    selTruck = best.id;
+    tab = best.status === "idle" ? "loads" : "fleet";
+  } else {
+    const h = nearestHub(x, y);
+    selHub = h;
+    if (h !== null) tab = "loads";
+  }
+  renderTabs();
+  panelDirty = true;
+}
+
+function showHubTip(ev: { clientX: number; clientY: number }): void {
+  const [x, y] = mapPoint(ev);
+  const h = nearestHub(x, y);
+  const tip = $("tip");
+  if (h === null) {
+    tip.hidden = true;
+    return;
+  }
+  const hub = game!.w.net.hubs[h]!;
+  tip.textContent = `${hub.name} (${hub.id}) · ${openLoadsAt(h).length} open loads · ratio ${game!.w.lastRatio[h]!.toFixed(2)}`;
+  tip.hidden = false;
+  const wrap = $("mapwrap").getBoundingClientRect();
+  tip.style.left = `${Math.min(wrap.width - 260, Math.max(4, ev.clientX - wrap.left + 12))}px`;
+  tip.style.top = `${Math.max(4, ev.clientY - wrap.top - 34)}px`;
+}
+
 function wireInput(): void {
   document.addEventListener("submit", (ev) => {
     const form = ev.target as HTMLFormElement;
@@ -1351,62 +1514,97 @@ function wireInput(): void {
     if (c && game) {
       selTruck = Number(c.dataset.select);
       panelDirty = true;
+      const truck = myTrucks().find((x) => x.id === selTruck);
+      const p = truck && zoomIdx > 0 ? truckPoint(truck) : null;
+      if (p) centerOn(p[0], p[1]);
     }
   });
   const cv = $<HTMLCanvasElement>("map");
-  cv.addEventListener("click", (ev) => {
+  // A tap or click selects; a drag pans once zoomed in; two fingers pinch to zoom.
+  const pointers = new Map<number, { x: number; y: number }>();
+  let drag: { x: number; y: number; panX: number; panY: number; moved: boolean } | null = null;
+  let pinch: { dist: number; idx: number } | null = null;
+  const spread = () => {
+    const [a, b] = [...pointers.values()];
+    return Math.hypot(a!.x - b!.x, a!.y - b!.y) || 1;
+  };
+  cv.addEventListener("pointerdown", (ev) => {
     if (!game) return;
-    const [x, y] = mapPoint(ev);
-    let best: Truck | null = null;
-    let bd = 5;
-    for (const t of myTrucks()) {
-      const p = truckXY(t);
-      if (!p) continue;
-      const d = Math.hypot(p[0] - x, p[1] - y);
-      if (d < bd) {
-        bd = d;
-        best = t;
-      }
+    cv.setPointerCapture(ev.pointerId);
+    pointers.set(ev.pointerId, { x: ev.clientX, y: ev.clientY });
+    if (pointers.size === 1) drag = { x: ev.clientX, y: ev.clientY, panX, panY, moved: false };
+    if (pointers.size === 2) {
+      pinch = { dist: spread(), idx: zoomIdx };
+      drag = null;
     }
-    if (best) {
-      selTruck = best.id;
-      tab = best.status === "idle" ? "loads" : "fleet";
-    } else {
-      const h = nearestHub(x, y);
-      selHub = h;
-      if (h !== null) tab = "loads";
-    }
-    renderTabs();
-    panelDirty = true;
   });
-  cv.addEventListener("mousemove", (ev) => {
+  cv.addEventListener("pointermove", (ev) => {
     if (!game) return;
-    const [x, y] = mapPoint(ev);
-    const h = nearestHub(x, y);
-    const tip = $("tip");
-    if (h === null) {
-      tip.hidden = true;
+    if (pointers.has(ev.pointerId)) pointers.set(ev.pointerId, { x: ev.clientX, y: ev.clientY });
+    if (pinch && pointers.size >= 2) {
+      const [a, b] = [...pointers.values()];
+      const [cx, cy] = canvasPoint({ clientX: (a!.x + b!.x) / 2, clientY: (a!.y + b!.y) / 2 });
+      setZoom(pinch.idx + Math.round(Math.log(spread() / pinch.dist) / Math.log(1.6)), cx, cy);
       return;
     }
-    const hub = game.w.net.hubs[h]!;
-    const loads = openLoadsAt(h).length;
-    tip.textContent = `${hub.name} (${hub.id}) · ${loads} open loads · ratio ${game.w.lastRatio[h]!.toFixed(2)}`;
-    tip.hidden = false;
-    const wrap = $("mapwrap").getBoundingClientRect();
-    tip.style.left = `${Math.min(wrap.width - 260, Math.max(4, ev.clientX - wrap.left + 12))}px`;
-    tip.style.top = `${Math.max(4, ev.clientY - wrap.top - 34)}px`;
+    if (drag) {
+      const r = cv.getBoundingClientRect();
+      const dx = ev.clientX - drag.x;
+      const dy = ev.clientY - drag.y;
+      if (!drag.moved && Math.hypot(dx, dy) > 4) drag.moved = true;
+      if (drag.moved && zoomIdx > 0) {
+        panX = drag.panX - dx * (cv.width / r.width);
+        panY = drag.panY - dy * (cv.height / r.height);
+        clampPan();
+        cv.style.cursor = "grabbing";
+        $("tip").hidden = true;
+      }
+      return;
+    }
+    if (ev.pointerType === "mouse") showHubTip(ev);
   });
+  const release = (ev: PointerEvent) => {
+    const tap = drag && !drag.moved && ev.type === "pointerup";
+    pointers.delete(ev.pointerId);
+    if (pointers.size < 2) pinch = null;
+    if (pointers.size === 0) drag = null;
+    if (tap) selectOnMap(ev);
+    renderZoomUi();
+  };
+  cv.addEventListener("pointerup", release);
+  cv.addEventListener("pointercancel", release);
   cv.addEventListener("mouseleave", () => ($("tip").hidden = true));
+  // The wheel and trackpad pinch zoom toward the cursor; small trackpad deltas add up to one step.
+  let wheel = 0;
+  cv.addEventListener(
+    "wheel",
+    (ev) => {
+      if (!game) return;
+      ev.preventDefault();
+      wheel += ev.deltaY * (ev.deltaMode === 1 ? 33 : 1);
+      if (Math.abs(wheel) < 80) return;
+      setZoom(zoomIdx + (wheel < 0 ? 1 : -1), ...canvasPoint(ev));
+      wheel = 0;
+    },
+    { passive: false },
+  );
+  cv.addEventListener("dblclick", (ev) => game && setZoom(zoomIdx + 1, ...canvasPoint(ev)));
+  $("zoomin").addEventListener("click", () => setZoom(zoomIdx + 1));
+  $("zoomout").addEventListener("click", () => setZoom(zoomIdx - 1));
+  $("zoomfit").addEventListener("click", () => setZoom(0));
   new ResizeObserver(() => game && fitMap()).observe($("mapwrap"));
   addEventListener("resize", () => game && fitMap());
   addEventListener("pagehide", () => persistTest(true));
   document.addEventListener("visibilitychange", () => document.hidden && persistTest(true));
   document.addEventListener("fullscreenchange", () => game && fitMap());
   document.addEventListener("webkitfullscreenchange", () => game && fitMap());
-  // F toggles full screen anywhere; in the test world only, space pauses and 1–3 set the speed.
+  // F toggles full screen and + - 0 zoom the map anywhere; in the test world only, space pauses and 1–3 set the speed.
   document.addEventListener("keydown", (ev) => {
     if ((ev.target as HTMLElement).closest("input,select,textarea")) return;
     if ((ev.key === "f" || ev.key === "F") && game && fsEnabled()) toggleFullscreen();
+    if (game && (ev.key === "+" || ev.key === "=")) setZoom(zoomIdx + 1);
+    if (game && (ev.key === "-" || ev.key === "_")) setZoom(zoomIdx - 1);
+    if (game && ev.key === "0") setZoom(0);
     if (game?.kind !== "test") return;
     if (ev.key === " ") {
       speed = speed === 0 ? 1 : 0;
