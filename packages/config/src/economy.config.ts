@@ -9,7 +9,7 @@ export type TractorTier = "workhorse" | "highwayPro" | "flagship";
 export type FacilityType = "warehouse" | "coldStorage" | "factory";
 
 export const economyConfig = {
-  version: "0.8.0-phase0.12",
+  version: "0.9.0-phase0.13",
 
   // §World, map and time
   time: {
@@ -315,10 +315,11 @@ export const economyConfig = {
   // ratio (see README).
   fleetOverhead: {
     brackets: [
-      { fromTruck: 4, weeklyFd: 350 },
-      { fromTruck: 6, weeklyFd: 550 },
-      { fromTruck: 11, weeklyFd: 700 },
-      { fromTruck: 21, weeklyFd: 800 },
+      // Dispatch moved out to hired dispatchers' salaries (labor), so ~100 FD/truck-week less than before.
+      { fromTruck: 4, weeklyFd: 250 },
+      { fromTruck: 6, weeklyFd: 450 },
+      { fromTruck: 11, weeklyFd: 600 },
+      { fromTruck: 21, weeklyFd: 700 },
     ],
   },
 
@@ -494,6 +495,188 @@ export const economyConfig = {
   // NPC capacity that keeps thin hubs trading (§World — NPC freight and trucks)
   npc: {
     trucksPerHubWeight: 6, // PoC assumption
+  },
+
+  // Design proposal (Jeff, 2026-10-28): staff. Every truck needs a driver, and the
+  // owner drives one truck and dispatches up to three; hired dispatchers take the
+  // rest. Skill runs 0–1 (shown as 1–5 stars) and moves costs and risk around 0.5;
+  // it comes from hiring (market pay rises with skill) and from experience. Staff
+  // quit when underpaid or pushed to break the rules, and other companies can poach
+  // them. Every number is an assumption to tune in simulation.
+  labor: {
+    driver: {
+      payPerMile: [0.62, 0.92] as const, // market pay at skill 0 and 1; ≈0.75 (the old flat wage) at the pool's typical 0.43
+      mpgRange: 0.2, // mpg × (1 + 0.2·(skill − 0.5)): ±10%
+      maintRange: 0.4, // maintenance and breakdowns × (1 − 0.4·(skill − 0.5)): ±20%
+      mphRange: 0.1, // speed ±5%
+      crash: [1.6, 0.4] as const, // crash odds multiplier at skill 0 and 1
+      learnMiles: 300_000, // skill closes (gap to potential) × miles / this
+      teamPayShare: 0.6, // each driver of a team earns 60% of their rate on every mile the truck runs
+    },
+    dispatcher: {
+      payPerWeek: [500, 1_900] as const, // quoted for a full span; billed for the trucks they actually run (labor.payDispatchers)
+      span: [5, 18] as const, // trucks one dispatcher can run
+      noise: [0.06, 0.01] as const, // σ of pricing mistakes: an inexperienced dispatcher misreads costs by ~6%
+      reloadAware: [0.7, 1.2] as const, // × board.reloadWeight: how much of the empty run out of the destination they price in
+      foresightDays: [0, 42] as const, // how far ahead on the season curves they position trucks
+      learnLoads: 1_500,
+    },
+    owner: {
+      span: 3, // the first three trucks: the same three that pay no fleet overhead
+      driverPayPerMile: 0.75, // the owner's draw when driving their own truck: fixed, never quits or gets poached
+      botSkill: [0.3, 0.7] as const, // AI owners average a typical driver
+      humanSkill: 0.3,
+      potential: 0.9,
+    },
+    pool: {
+      startDrivers: 450,
+      startDispatchers: 120,
+      targetShare: { driver: 0.1, dispatcher: 0.25 }, // the pool aims at this share of employed staff…
+      minTarget: { driver: 40, dispatcher: 10 },
+      fillShare: 0.5, // …closing this much of the gap (plus open seats) each week with new entrants
+      baseEntrants: { driver: 3, dispatcher: 1 },
+      rookieSkill: [0.02, 0.3] as const,
+      veteranShare: 0.3, // entrants coming back to the industry with experience
+      veteranSkill: [0.3, 0.85] as const,
+      potential: [0.35, 1.0] as const,
+      retireWeekly: 0.0015,
+      personal: [0.95, 1.08] as const, // what each person asks over market pay
+    },
+    // The market wage moves with the pool: a thin pool (a driver shortage) pushes pay up.
+    wageIndex: { range: [0.92, 1.15] as const, stepPerMonth: 0.015, tightPool: 0.05, slackPool: 0.15 },
+    morale: {
+      start: 0.65,
+      payWeight: 2.0, // target morale = 0.6 + 2 × (pay ÷ market − 1) …
+      pushedPenalty: 0.35, // … − this when the company runs illegal hours or speed, × integrity
+      wornTruckPenalty: 0.1,
+      badRatingPenalty: 0.1,
+      tenurePerYear: 0.05,
+      tenureCap: 0.15,
+      adjust: 0.35, // weekly step toward the target
+      quitBase: 0.003, // weekly quit odds = base + slope × max(0, 0.5 − morale)
+      quitSlope: 0.09,
+      loyalty: [0.04, 0.2] as const, // the raise it takes to poach, from morale 0 to 1
+      noticeDays: 2, // the employer has this long to match an offer
+      unseatedWeeks: 2, // a driver left without a truck this long walks
+    },
+  },
+
+  // Design proposal (Jeff, 2026-10-28): safety and compliance. Owners choose how
+  // legal to run; enforcement, crashes and audits make cutting corners pay now and
+  // cost later. Modeled on FMCSA's CSA BASICs, roadside inspections and ratings.
+  safety: {
+    hos: { overHours: 4, teamHours: 22 }, // illegal: 15 driving hours a day on falsified logs; a team runs 22 legally
+    speed: { fastMph: 56 },
+    maintenance: {
+      deferredCostMult: 0.55, // skipping preventive maintenance saves ~45% of it…
+      defectPer1000Mi: { full: 0.01, deferred: 0.12 }, // …and brakes, tires and lights go bad (one every ~8,000 miles)
+      fixFdPerDefect: 350,
+      breakdownPerDefect: 0.15,
+      crashPerDefect: 0.12,
+      knowinglyUnsafeDefects: 3, // running this many known defects counts as willful
+    },
+    crash: {
+      per1MMi: 0.4, // a typical legal truck: one crash per ~2.5M miles
+      fatiguePerOverHour: 0.3,
+      fastMult: 1.5,
+      injuryShare: 0.25,
+      fatalShare: 0.04,
+      fatalWorseMult: 1.6, // fatigue or speed makes a crash deadlier
+      atFault: 0.45,
+      atFaultWithViolation: 0.9,
+      truckRepairFd: { pdo: [2_000, 8_000] as const, injury: [8_000, 20_000] as const },
+      downDays: { pdo: [1, 3] as const, injury: [3, 7] as const }, // a fatal crash totals the truck
+      settlementFd: { pdo: [5_000, 25_000] as const, injury: [60_000, 400_000] as const, fatal: [1_000_000, 5_000_000] as const },
+      negligenceMult: [2, 4] as const, // juries punish crashes with violations behind them
+      insuranceLimitFd: 1_000_000,
+      deductibleFd: 5_000,
+      cargoDeductibleFd: 2_500,
+      leasedTotalLossFd: 6_000, // owed to the lessor for a leased truck written off
+      surcharge: { pdo: 0.25, injury: 0.6, fatal: 1.5 }, // insurance premium multiplier added per at-fault crash…
+      surchargeDecayPerMonth: 0.05, // …shrinking 5% a month
+      driverKilled: 0.15,
+    },
+    enforcement: {
+      stationRadiusMi: 25, // a weigh station within this of the route is on it
+      stationOpen: 0.6,
+      pullIn: { clean: 0.05, alert: 0.35, conditional: 0.5, unsatisfactory: 0.7, newEntrant: 0.2 },
+      inspectShare: 0.25, // pulled in: weighed, then inspected this often
+      levels: [0.3, 0.3, 0.4] as const, // level 1 (full), 2 (walk-around), 3 (driver and logs)
+      policePer1000Mi: 0.025,
+      fastStopMult: 3.5,
+      speedingTicket: 0.85,
+      stopInspect: 0.4,
+      logDetect: 0.5, // an inspection finds a falsified log day this often…
+      recentLogDays: 8, // …within this window
+      defectDetect: 0.7,
+      defectOos: 0.5,
+      fines: {
+        speeding: [150, 500] as const,
+        falseLog: [500, 2_500] as const,
+        hosOos: [500, 1_500] as const,
+        defect: [100, 500] as const,
+        tracked: 1_000, // a shipper's tracking shows illegal hours
+      },
+      oosRepairFd: [400, 1_500] as const,
+      oosHours: { hos: 10, defect: [4, 12] as const },
+      points: { falseLog: 10, hos: 7, speeding: 5, defect: 4, crash: { pdo: 1, injury: 2, fatal: 3 } },
+    },
+    score: {
+      // BASIC measure = time-weighted points ÷ (time-weighted inspections + prior); weights 3/2/1 for ≤180/≤365/≤730 days
+      inspectionPrior: 2,
+      thresholds: { hos: 5, unsafe: 4, maintenance: 6, crash: 1.5 }, // crash: time-weighted severity per truck
+    },
+    review: {
+      newEntrantDay: 90, // the new-entrant safety audit
+      alertsToReview: 2,
+      alertCooldownDays: 180,
+      rereviewDays: { conditional: 90, unsatisfactory: 45 },
+      hiddenDetect: 0.35, // an audit finds each falsified log day or deferred-maintenance week this often
+      fines: { falseLogDay: 1_000, maintenanceWeek: 300 },
+      finesCap: 60_000,
+      conditionalAt: 3,
+      unsatisfactoryAt: 10,
+    },
+    insurance: { conditional: 1.5, unsatisfactory: 2.5, newEntrant: 1.25 },
+    // Shutdowns. Authority revoked, the fleet wound down, then a bar on the account
+    // before it may file again: longer the worse the cause, permanent after repeat crimes.
+    bars: { unsatisfactory: 30, imminentHazard: 180, fraud: 90, criminal: 365, jail: 365 },
+    permanentAfterCrimes: 2,
+    hotLoads: {
+      share: 0.04,
+      premium: [1.6, 2.2] as const,
+      hoursPerDay: 15, // the window assumes 15 driving hours a day: illegal solo, easy for a team
+      slackMinutes: 120,
+      lateKeepsPremium: 0.5, // late, the shipper pays half the premium
+      equipmentShare: { van: 0.3, reefer: 0.5, flatbed: 0.2 } satisfies Record<Equipment, number>,
+    },
+  },
+
+  // Design proposal (Jeff, 2026-10-28): fraud — double brokering and freight theft,
+  // against players and AI alike — and the vetting brokers and shippers do to avoid it.
+  fraud: {
+    cargoMultiple: { npcDirect: 1.5, van: 6, reefer: 7, flatbed: 4, hot: 1.5 }, // cargo value ÷ the freight bill
+    // Vetting tiers a poster can require: 0 open (anyone), 1 standard, 2 strict (tracking required).
+    vetting: {
+      standard: { minAuthorityDays: 30 },
+      strict: { minAuthorityDays: 90, minDelivered: 25, orAuthorityDays: 365, revokedLookbackDays: 365 },
+    },
+    botBrokerVetting: [0.2, 0.4, 0.4] as const, // share of AI brokers posting open / standard / strict
+    theft: {
+      fenceShare: 0.3, // a fence pays 30% of cargo value — only once the case goes cold
+      fenceCut: 0.2, // paid out of a broker's escrowed claim, the fence keeps this share (burned)
+      brokerClaimShare: 0.3, // the broker on a stolen load pays this share of its value (negligent selection)
+      caught: { base: 0.55, tracked: 0.3, established: 0.15, establishedDays: 180 },
+      investigationDays: [5, 20] as const,
+      claimDays: 365, // an open theft claim follows the carrier this long
+    },
+    doubleBroker: {
+      detect: { paid: 0.15, unpaid: 0.9 },
+      investigationDays: { paid: [5, 30] as const, unpaid: [3, 10] as const },
+      fineFd: 5_000,
+      spreadMult: 2,
+      suspensionDays: 30,
+    },
   },
 } as const;
 

@@ -1,7 +1,20 @@
 import type { Equipment, FacilityType, TractorTier } from "@lanes/config";
 import {
+  askingPay,
   availableSupply,
   averagePriceUsd,
+  canMakeHot,
+  canRefile,
+  crewed,
+  dispatchProfile,
+  marketPay,
+  PERMANENT_BAR,
+  poolOf,
+  ratingLabel,
+  spanOf,
+  stars,
+  VETTING_NAMES,
+  vettingBlock,
   borrowingCapacity,
   breakEvenPerMile,
   companyAccount,
@@ -30,11 +43,16 @@ import {
   type Company,
   type GameEvent,
   type Load,
+  type Basic,
+  type CompliancePolicy,
+  type Staff,
   type StandingOrder,
   type Truck,
+  type VettingTier,
 } from "@lanes/engine";
 import { hubs as HUBS } from "@lanes/data";
 import { drawTitleScene, facilityUrl, iconUrl, PAL, truckUrl } from "./art.js";
+import { guidePages } from "./guide.js";
 import { DEFAULT_ORDERS, GAME_CONFIG, isHuman, RULESET, TestGame, type StartKind, type TestLog } from "./game.js";
 import { createMeta, LiveWorld, readMeta, type DbLike, type LiveAction, type WorldMeta } from "./live.js";
 import { buildMap, MAP_H, MAP_W, nightShade, type MapArt } from "./map.js";
@@ -132,7 +150,7 @@ let live: LiveWorld | null = null;
 let test: TestGame | null = null;
 let game: Session | null = null;
 let art: MapArt | null = null;
-type Tab = "fleet" | "loads" | "market" | "money" | "company";
+type Tab = "fleet" | "loads" | "staff" | "market" | "money" | "company" | "guide";
 let tab: Tab = "fleet";
 let selTruck: number | null = null;
 let selHub: number | null = null;
@@ -194,6 +212,10 @@ function onEvent(s: Session, e: GameEvent): void {
   if (e.kind === "breakdown") push(s, `Breakdown on truck ${truckNo(e.truckId)}${e.repairFd ? `: ${fd(e.repairFd)} FD repair bill` : " (lessor pays)"}`, "bad");
   if (e.kind === "truckDelivered") push(s, `New truck delivered: truck ${truckNo(e.truckId)} is ready`, "good");
   if (e.kind === "liquidated") push(s, "Your company went into liquidation: trucks are being sold and you'll restart on an NPC lease.", "bad");
+  if (e.kind === "notice") {
+    push(s, e.text, e.tone === "good" ? "good" : e.tone === "bad" ? "bad" : "");
+    if (s === game && (e.topic === "crash" || e.topic === "authority")) toast(e.text, e.tone === "bad");
+  }
 }
 
 function myTrucks(): Truck[] {
@@ -252,6 +274,24 @@ function describe(a: LiveAction): string {
       return `Sell ${fd(a.fd)} FD`;
     case "claim_airdrop_now":
       return "Claim the airdrop at half";
+    case "offer_staff":
+      return `Offer ${w.staff[a.staffId - 1]?.name ?? "someone"} a job`;
+    case "release_staff":
+      return `Let ${w.staff[a.staffId - 1]?.name ?? "someone"} go`;
+    case "set_staff_pay":
+      return `Change ${w.staff[a.staffId - 1]?.name ?? "someone"}'s pay`;
+    case "assign_driver":
+      return `Seat ${w.staff[a.staffId - 1]?.name ?? "a driver"}${a.truckId ? ` on truck ${truckNo(a.truckId)}` : ""}`;
+    case "set_auto_staff":
+      return a.on ? "Turn auto-staff on" : "Turn auto-staff off";
+    case "set_compliance":
+      return "Change the company's safety policy";
+    case "fix_defects":
+      return `Fix truck ${truckNo(a.truckId)}'s defects`;
+    case "set_vetting":
+      return `Require ${VETTING_NAMES[a.tier].toLowerCase()} vetting on your freight`;
+    case "refile_authority":
+      return "File for new authority";
     default:
       return a.type.replace(/_/g, " ");
   }
@@ -769,6 +809,7 @@ function renderHud(): void {
   stats += tokenNow
     ? `<span class="stat" title="FD price on the exchange">${img(iconUrl("usd", 2), "Price")}<span class="num">$${fdPriceUsd(w).toFixed(4)}</span></span>`
     : `<span class="stat label" title="FD launches on the exchange at the end of Year 2">Beta · launch in ${Math.max(0, GAME_CONFIG.token.betaYears * 365 - day)}d</span>`;
+  if (c && c.authority.status !== "active") stats += `<span class="badge test" title="Your authority isn't active">${c.authority.status === "revoked" ? "AUTHORITY REVOKED" : "SUSPENDED"}</span>`;
   if (g.kind === "live") stats += `<span class="label" title="Human players in the live world">${w.companies.filter(isHuman).length} players</span>`;
   if (fsEnabled()) stats += `<button class="btn" data-act="fullscreen" title="Full screen (F)">${fsActive() ? "Exit full screen" : "Full screen"}</button>`;
   const html = `
@@ -798,9 +839,11 @@ function renderTabs(): void {
   const tabs: [Tab, string][] = [
     ["fleet", "Fleet"],
     ["loads", "Load board"],
+    ["staff", "Staff"],
     ["market", "Dealer"],
     ["money", "Money"],
     ["company", "Company"],
+    ["guide", "Guide"],
   ];
   $("tabs").innerHTML = tabs.map(([k, l]) => `<button class="btn ${k === tab ? "on" : ""}" data-tab="${k}" aria-pressed="${k === tab}">${l}</button>`).join("");
 }
@@ -809,7 +852,16 @@ function renderTabs(): void {
 
 function renderPanel(): void {
   const p = $("panel");
-  const html = !game!.player && tab !== "company" ? watchPanel() : tab === "fleet" ? fleetPanel() : tab === "loads" ? loadsPanel() : tab === "market" ? marketPanel() : tab === "money" ? moneyPanel() : companyPanel();
+  const panels: Record<Tab, () => string> = {
+    fleet: fleetPanel,
+    loads: loadsPanel,
+    staff: staffPanel,
+    market: marketPanel,
+    money: moneyPanel,
+    company: companyPanel,
+    guide: guidePanel,
+  };
+  const html = !game!.player && tab !== "company" && tab !== "guide" ? watchPanel() : panels[tab]();
   if (p.dataset.html !== html) {
     const scroll = p.scrollTop;
     p.innerHTML = html;
@@ -862,7 +914,7 @@ function statusLine(t: Truck): string {
     case "repositioning":
       return `Running empty to ${hub(t.targetHub)} · ${Math.round(t.remainingMi)} mi`;
     case "repair":
-      return `In the shop for a rebuild`;
+      return `In the shop`;
     case "parked":
       return `Parked at ${hub(t.hub)} (off the road, 50 FD/day idle fee)`;
     case "listed":
@@ -903,10 +955,13 @@ function fleetPanel(): string {
       if (t.status === "parked") actions.push(`<button class="btn" data-act="unpark" data-truck="${t.id}">Back on the road</button>`);
       if (t.lease === "owned" && (t.status === "idle" || t.status === "parked") && trucks.length > 1) actions.push(`<button class="btn" data-act="sell" data-truck="${t.id}">Sell</button>`);
       if (t.lease === "lessor" && t.status === "idle") actions.push(`<button class="btn" data-act="return" data-truck="${t.id}">Return lease</button>`);
+      if (t.defects > 0 && (t.status === "idle" || t.status === "parked")) actions.push(`<button class="btn" data-act="fix" data-truck="${t.id}">Fix ${t.defects} defect${t.defects > 1 ? "s" : ""} · ${fd(t.defects * w.cfg.safety.maintenance.fixFdPerDefect)} FD</button>`);
+      if (!crewed(t)) actions.push(`<button class="btn primary" data-act="tostaff">Hire a driver</button>`);
       return `<div class="card ${t.id === selTruck ? "sel" : ""}" data-select="${t.id}">
         <div class="truckhead">${img(truckUrl(t.tier, t.trailer, leased, PAL.cyan, 2), `${TIER_NAME[t.tier]} with ${TRAILER_NAME[t.trailer]}`)}
           <div><h3>Truck ${idx + 1} · ${TIER_NAME[t.tier]}</h3><p class="muted">${TRAILER_NAME[t.trailer]} · ${kind}</p></div></div>
-        <p>${statusLine(t)}</p>
+        <p>${statusLine(t)}${t.breakdownMin > 0 && t.status !== "loaded" ? ' · <span class="bad">stopped</span>' : ""}</p>
+        <p style="font-size:15px">${crewLine(t)}</p>
         <div class="row"><span class="label">Condition</span><span class="bar"><i style="width:${Math.round(cond * 100)}%;background:${cond > 0.6 ? PAL.lime : cond > 0.35 ? PAL.amber : PAL.red}"></i></span><span class="num">${pct(cond)}</span><span class="label">Odometer</span><span class="num">${Math.round(t.odometer).toLocaleString("en-US")} mi</span></div>
         ${actions.length ? `<div class="row">${actions.join("")}</div>` : ""}
       </div>`;
@@ -1216,6 +1271,132 @@ function companyPanel(): string {
   </div>`;
 }
 
+// --- Staff --------------------------------------------------------------------------
+
+const starBar = (skill: number) => `<span class="stars" title="${Math.round(skill * 100)}% skill">${"★".repeat(stars(skill))}${"☆".repeat(5 - stars(skill))}</span>`;
+const moraleWord = (m: number) => (m >= 0.65 ? "happy" : m >= 0.45 ? "settled" : m >= 0.3 ? "restless" : "unhappy");
+const moraleClass = (m: number) => (m >= 0.45 ? "good" : m >= 0.3 ? "warn" : "bad");
+const staffPay = (s: Staff, x: number) => (s.kind === "driver" ? `${x.toFixed(2)} FD/mi` : `${fd(x)} FD/wk`);
+/** At a hub (or in the shop), where a crew can change. */
+const atHub = (t: Truck) => t.status === "idle" || t.status === "parked" || t.status === "repair";
+
+/** Who drives a truck, for its fleet card. */
+function crewLine(t: Truck): string {
+  const w = game!.w;
+  if (!crewed(t)) return `<span class="bad">No driver: the truck can't run.</span>`;
+  const d = w.staff[t.driverId - 1]!;
+  const co = t.coDriverId ? w.staff[t.coDriverId - 1]! : null;
+  const who = (s: Staff) => `${s.owner ? "You" : esc(s.name)} ${starBar(s.skill)}`;
+  const defects = t.defects > 0 ? ` · <span class="warn">${t.defects} defect${t.defects > 1 ? "s" : ""}</span>` : "";
+  return `Driver: ${who(d)}${co ? ` · team with ${who(co)}` : ""} · ${t.wagePerMile.toFixed(2)} FD/mi${defects}`;
+}
+
+/** Options for the player's trucks that pass `pick`, labelled by fleet number. */
+function truckOptions(pick: (t: Truck) => boolean): string {
+  return myTrucks()
+    .map((t, i) => (pick(t) ? `<option value="${t.id}">Truck ${i + 1} · ${TRAILER_NAME[t.trailer]}</option>` : ""))
+    .join("");
+}
+
+function staffPanel(): string {
+  const w = game!.w;
+  const c = me();
+  const trucks = myTrucks();
+  const operating = trucks.filter((t) => t.status !== "parked" && t.status !== "listed").length;
+  const prof = dispatchProfile(w, c, operating);
+  const team = w.staffByCompany.get(c.id) ?? [];
+  const owner = team.find((s) => s.owner);
+  const hired = team.filter((s) => !s.owner);
+  const openSeat = (t: Truck) => !crewed(t) && atHub(t);
+  const teamSeat = (t: Truck) => crewed(t) && t.coDriverId === 0 && atHub(t);
+
+  const ownerCard = `<div class="card"><h3>You</h3><dl class="kv">
+    <dt>Driving</dt><dd>${owner ? `${starBar(owner.skill)} · ${owner.truckId ? `truck ${truckNo(owner.truckId)}` : "not driving"} · ${fd(owner.experience + owner.pending)} mi driven` : "–"}</dd>
+    <dt>Dispatching</dt><dd>${starBar(c.ownerDispatch.skill)} · ${Math.round(c.ownerDispatch.experience)} loads booked · you can run ${w.cfg.labor.owner.span} trucks</dd>
+  </dl></div>`;
+
+  const dispatchCard = `<div class="card"><h3>Dispatch</h3><dl class="kv">
+    <dt>Coverage</dt><dd class="${prof.coverage < 1 ? "bad" : "good"}">${prof.span} trucks for the ${operating} you run${prof.coverage < 1 ? ` · about ${Math.round((1 - prof.coverage) * 100)}% of idle trucks sit out each round` : ""}</dd>
+    <dt>Skill</dt><dd>${starBar(prof.skill)} · costs misread by ~${Math.round(prof.noise * 100)}% · ${prof.reloadWeight.toFixed(2)}× the reload run priced in · ${prof.foresightDays} days of season foresight</dd>
+  </dl><p class="muted" style="font-size:14px">Your bids by hand aren't limited by any of this.</p>
+    <label class="row"><input type="checkbox" id="autostaff" ${c.autoStaff ? "checked" : ""} data-act="autostaff"> Auto-staff: fill empty seats and hire or let go a dispatcher as the fleet changes</label></div>`;
+
+  const offerLine = (s: Staff) => {
+    if (!s.offer) return "";
+    if (s.offer.companyId === 0) return `<p class="bad">Leaving once their truck is at a hub.</p>`;
+    const from = w.companies[s.offer.companyId - 1]!;
+    return `<div class="row"><span class="bad">${esc(from.name)} offered ${staffPay(s, s.offer.pay)}. They go unless you match.</span><button class="btn primary" data-act="setpay" data-staff="${s.id}" data-pay="${s.offer.pay}">Match</button></div>`;
+  };
+  const personCard = (s: Staff) => {
+    const seat =
+      s.kind === "dispatcher"
+        ? `runs up to ${spanOf(w, s)} trucks`
+        : s.truckId
+          ? `truck ${truckNo(s.truckId)}${w.trucks[s.truckId - 1]!.coDriverId === s.id ? " (co-driver)" : ""}`
+          : `<span class="bad">no truck</span>`;
+    const seats = s.kind === "driver" ? truckOptions(openSeat) : "";
+    const teams = s.kind === "driver" ? truckOptions((t) => teamSeat(t) && t.driverId !== s.id) : "";
+    const record = s.violations || s.crashes ? ` · <span class="warn">${s.violations} violations, ${s.crashes} crashes on record</span>` : "";
+    return `<div class="card">
+      <div class="row"><b>${esc(s.name)}</b>${starBar(s.skill)}<span class="muted">${s.kind === "driver" ? "Driver" : "Dispatcher"}</span><span class="${moraleClass(s.morale)}">${moraleWord(s.morale)}</span></div>
+      <p style="font-size:15px">${seat} · paid ${staffPay(s, s.pay)} · market ${staffPay(s, marketPay(w, s.kind, s.skill))}${record}</p>
+      ${offerLine(s)}
+      <div class="row"><input type="number" id="pay-${s.id}" step="${s.kind === "driver" ? "0.01" : "10"}" min="0" value="${s.kind === "driver" ? s.pay.toFixed(2) : Math.round(s.pay)}" aria-label="Pay"><button class="btn" data-act="setpay" data-staff="${s.id}">Set pay</button>
+      ${seats ? `<select id="seat-${s.id}" aria-label="Truck to drive">${seats}</select><button class="btn" data-act="seat" data-staff="${s.id}">Drive it</button>` : ""}
+      ${teams ? `<select id="team-${s.id}" aria-label="Truck to co-drive">${teams}</select><button class="btn" data-act="seat" data-staff="${s.id}" data-team="1">Co-drive</button>` : ""}
+      <button class="btn" data-act="release" data-staff="${s.id}">Let go</button></div>
+    </div>`;
+  };
+
+  // The pool, best value first: what they ask against what their skill saves.
+  const value = (s: Staff) => askingPay(w, s) - (s.kind === "driver" ? 0.35 * s.skill : 0);
+  const seatsOpen = truckOptions(openSeat);
+  const poolRow = (s: Staff) => {
+    const ask = askingPay(w, s);
+    const driver = s.kind === "driver";
+    const can = !driver || seatsOpen;
+    return `<tr><td>${esc(s.name)}</td><td>${starBar(s.skill)}</td><td class="num">${staffPay(s, ask)}</td><td>${driver ? `${s.violations}/${s.crashes}` : `${spanOf(w, s)} trucks`}</td>
+      <td>${can ? `${driver ? `<select id="hire-${s.id}" aria-label="Truck">${seatsOpen}</select>` : ""}<button class="btn" data-act="hire" data-staff="${s.id}" data-pay="${ask}">Hire</button>` : `<span class="muted">no open seat</span>`}</td></tr>`;
+  };
+  const poolDrivers = poolOf(w, "driver").sort((a, b) => value(a) - value(b) || a.id - b.id).slice(0, 10);
+  const poolDispatchers = poolOf(w, "dispatcher").sort((a, b) => askingPay(w, a) / spanOf(w, a) - askingPay(w, b) / spanOf(w, b) || a.id - b.id).slice(0, 6);
+
+  // Poaching: skilled people elsewhere, and what it would take to move them.
+  const poachable = w.staff
+    .filter((s) => s.status === "employed" && !s.owner && s.companyId !== c.id && s.skill >= 0.55 && !s.offer)
+    .sort((a, b) => b.skill - a.skill || a.id - b.id)
+    .slice(0, 8);
+  const poachRow = (s: Staff) => {
+    const needed = Math.max(askingPay(w, s), s.pay * (1 + w.cfg.labor.morale.loyalty[0] + (w.cfg.labor.morale.loyalty[1] - w.cfg.labor.morale.loyalty[0]) * s.morale));
+    const driver = s.kind === "driver";
+    const can = !driver || seatsOpen;
+    return `<tr><td>${esc(s.name)}<br><span class="muted">${esc(w.companies[s.companyId - 1]!.name)}</span></td><td>${starBar(s.skill)}</td><td class="num">${staffPay(s, s.pay)}</td><td class="${moraleClass(s.morale)}">${moraleWord(s.morale)}</td>
+      <td>${can ? `${driver ? `<select id="poach-${s.id}" aria-label="Truck">${seatsOpen}</select>` : ""}<button class="btn" data-act="poach" data-staff="${s.id}" data-pay="${needed}">Offer ${staffPay(s, needed)}</button>` : `<span class="muted">no open seat</span>`}</td></tr>`;
+  };
+
+  return `<div class="stack"><h2>Staff</h2>${pendingCard()}${ownerCard}${dispatchCard}
+    ${hired.length ? hired.map(personCard).join("") : `<p class="muted">Nobody on the payroll yet. You drive your own truck and dispatch it yourself.</p>`}
+    <div class="card"><h3>Hire a driver</h3><p class="muted" style="font-size:14px">Market pay rises with skill (wage index ${w.labor.wageIndex.toFixed(2)}). Drivers improve with every mile, and expect a raise as they do.</p>
+      <table><tr><th>Name</th><th>Skill</th><th>Asks</th><th>Viol./crashes</th><th></th></tr>${poolDrivers.map(poolRow).join("")}</table></div>
+    <div class="card"><h3>Hire a dispatcher</h3><p class="muted" style="font-size:14px">Pay is quoted for a full span and billed for the trucks they run past your own ${w.cfg.labor.owner.span}, with a quarter as a retainer.</p>
+      <table><tr><th>Name</th><th>Skill</th><th>Asks</th><th>Runs</th><th></th></tr>${poolDispatchers.map(poolRow).join("")}</table></div>
+    <div class="card"><h3>Hire away from other companies</h3><p class="muted" style="font-size:14px">Their employer gets ${w.cfg.labor.morale.noticeDays} days to match. Unhappy people come cheaper.</p>
+      <table><tr><th>Name</th><th>Skill</th><th>Paid</th><th>Mood</th><th></th></tr>${poachable.map(poachRow).join("")}</table></div>
+  </div>`;
+}
+
+// --- Guide ------------------------------------------------------------------------------
+
+let guidePage = "start";
+
+function guidePanel(): string {
+  const pages = guidePages(GAME_CONFIG);
+  const page = pages.find((p) => p.id === guidePage) ?? pages[0]!;
+  return `<div class="stack"><h2>Guide</h2>
+    <div class="row">${pages.map((p) => `<button class="btn ${p.id === page.id ? "on" : ""}" data-act="guide" data-page="${p.id}">${esc(p.title)}</button>`).join("")}</div>
+    <div class="card guide"><h3>${esc(page.title)}</h3>${page.html}</div></div>`;
+}
+
 // --- Input ---------------------------------------------------------------------------
 
 /**
@@ -1291,11 +1472,13 @@ function persistTest(force = false): void {
   persistedActs = log.acts.length;
 }
 
-function readTest(): TestLog | null {
+/** The stored test world, or "stale" when it was played under rules this build no longer runs. */
+function readTest(): TestLog | "stale" | null {
   try {
     const raw = localStorage.getItem(TEST_KEY);
     const log = raw ? (JSON.parse(raw) as TestLog) : null;
-    return log && log.v === 1 && Number.isInteger(log.seed) && Array.isArray(log.acts) ? log : null;
+    if (!log || log.v !== 1 || !Number.isInteger(log.seed) || !Array.isArray(log.acts)) return null;
+    return log.ruleset === RULESET ? log : "stale";
   } catch {
     return null;
   }
@@ -1305,8 +1488,9 @@ async function bootTest(): Promise<void> {
   platform = { db: null, uid: null, owner: true, local: true };
   document.querySelector(".tagline")!.textContent = "Test build: the full game against the AI, with pause and speed controls.";
   const log = readTest();
-  if (!log) {
+  if (!log || log === "stale") {
     showTitle(testMenu());
+    if (log === "stale") toast("The rules changed since your last visit (staff, safety and fraud are in), so your old test world can't be replayed. Start a new one.");
     return;
   }
   showLoading("Loading your test world", "Replaying its history in this browser.");
@@ -1543,6 +1727,47 @@ function wireInput(): void {
       case "claim":
         act({ type: "claim_airdrop_now" }, "Airdrop claimed at half");
         break;
+      case "guide":
+        guidePage = el.dataset.page ?? "start";
+        panelDirty = true;
+        break;
+      case "tostaff":
+        tab = "staff";
+        renderTabs();
+        panelDirty = true;
+        break;
+      case "fix":
+        act({ type: "fix_defects", truckId: truck }, "Defects fixed");
+        break;
+      case "autostaff":
+        act({ type: "set_auto_staff", on: $<HTMLInputElement>("autostaff").checked }, $<HTMLInputElement>("autostaff").checked ? "Auto-staff on" : "Auto-staff off");
+        break;
+      case "setpay": {
+        const id = Number(el.dataset.staff);
+        const pay = el.dataset.pay ? Number(el.dataset.pay) : num(`pay-${id}`);
+        act({ type: "set_staff_pay", staffId: id, pay }, "Pay changed");
+        break;
+      }
+      case "seat": {
+        const id = Number(el.dataset.staff);
+        const team = el.dataset.team === "1";
+        const truckId = Number($<HTMLSelectElement>(`${team ? "team" : "seat"}-${id}`).value);
+        act({ type: "assign_driver", staffId: id, truckId, team }, team ? "Co-driver seated: the truck runs as a team" : "Driver seated");
+        break;
+      }
+      case "release":
+        act({ type: "release_staff", staffId: Number(el.dataset.staff) }, "Let go");
+        break;
+      case "hire":
+      case "poach": {
+        const id = Number(el.dataset.staff);
+        const sel = document.getElementById(`${el.dataset.act}-${id}`) as HTMLSelectElement | null;
+        act(
+          { type: "offer_staff", staffId: id, pay: Number(el.dataset.pay), truckId: sel ? Number(sel.value) : undefined },
+          el.dataset.act === "hire" ? "Hired" : "Offer made: their employer has two days to match",
+        );
+        break;
+      }
     }
   });
   // Selecting a truck card by clicking its body.

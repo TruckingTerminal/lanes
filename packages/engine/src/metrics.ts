@@ -75,6 +75,29 @@ export interface DayMetrics {
   companies: number;
   profitTaxRate: number;
   demandScale: number;
+  /** Staff (labor.ts): employed drivers, drivers in the pool, operating trucks without a driver, the wage index, mean employed driver skill. */
+  drivers: number;
+  poolDrivers: number;
+  crewlessTrucks: number;
+  wageIndex: number;
+  avgDriverSkill: number;
+  dispatchers: number;
+  /** Safety and fraud (safety.ts, fraud.ts), today. */
+  crashes: number;
+  fatalCrashes: number;
+  atFaultCrashes: number;
+  willfulCrashes: number;
+  shutdowns: number;
+  reviews: number;
+  unsatisfactory: number;
+  thefts: number;
+  doubleBrokers: number;
+  convictions: number;
+  /** Carriers rated conditional / unsatisfactory, revoked, and running illegal hours or deferred maintenance. */
+  conditionalCarriers: number;
+  unsatCarriers: number;
+  revokedCarriers: number;
+  cheatingCarriers: number;
 }
 
 /** Collects the dashboard metrics every tick writes (§Tech — engineering rules). */
@@ -129,10 +152,35 @@ export class MetricsRecorder {
     this.acc.shipperDefaults++;
   }
 
+  onCrash(severity: "pdo" | "injury" | "fatal", atFault: boolean, willful: boolean): void {
+    this.acc.crashes++;
+    if (severity === "fatal") this.acc.fatalCrashes++;
+    if (atFault) this.acc.atFaultCrashes++;
+    if (willful) this.acc.willfulCrashes++;
+  }
+
+  onShutdown(): void {
+    this.acc.shutdowns++;
+  }
+
+  onReview(rating: string): void {
+    this.acc.reviews++;
+    if (rating === "unsatisfactory") this.acc.unsatisfactory++;
+  }
+
+  onFraud(kind: "theft" | "doubleBroker"): void {
+    if (kind === "theft") this.acc.thefts++;
+    else this.acc.doubleBrokers++;
+  }
+
+  onConviction(): void {
+    this.acc.convictions++;
+  }
+
   onDelivery(_w: World, _c: Company, _load: Load, gross: number, costs: number, onTime: number): void {
     this.acc.delivered++;
     if (onTime >= 1) this.acc.onTime++;
-    this.acc.marginSum += (gross - costs) / gross;
+    this.acc.marginSum += gross > 0 ? (gross - costs) / gross : -1;
   }
 
   closeDay(w: World, day: number, fuelPrice: number): DayMetrics {
@@ -174,6 +222,21 @@ export class MetricsRecorder {
         conditionSum += condition(w.cfg, t);
       }
     }
+    let drivers = 0;
+    let poolDrivers = 0;
+    let dispatchers = 0;
+    let skillSum = 0;
+    for (const s of w.staff) {
+      if (s.kind === "dispatcher") {
+        if (s.status === "employed") dispatchers++;
+      } else if (s.status === "employed" && !s.owner) {
+        drivers++;
+        skillSum += s.skill;
+      } else if (s.status === "pool") poolDrivers++;
+    }
+    let crewless = 0;
+    for (const t of w.trucks) if (t.companyId !== 0 && t.driverId === 0 && t.status !== "parked" && t.status !== "listed" && t.status !== "retired") crewless++;
+    const carriers = w.companies.filter((c) => c.role === "carrier");
     const a = this.acc;
     const m: DayMetrics = {
       day,
@@ -229,6 +292,26 @@ export class MetricsRecorder {
       companies: w.companies.length,
       profitTaxRate: w.token.launchDay !== null ? w.token.profitTaxRate : 0,
       demandScale: w.demandScale,
+      drivers,
+      poolDrivers,
+      crewlessTrucks: crewless,
+      wageIndex: w.labor.wageIndex,
+      avgDriverSkill: drivers ? skillSum / drivers : 0,
+      dispatchers,
+      crashes: a.crashes,
+      fatalCrashes: a.fatalCrashes,
+      atFaultCrashes: a.atFaultCrashes,
+      willfulCrashes: a.willfulCrashes,
+      shutdowns: a.shutdowns,
+      reviews: a.reviews,
+      unsatisfactory: a.unsatisfactory,
+      thefts: a.thefts,
+      doubleBrokers: a.doubleBrokers,
+      convictions: a.convictions,
+      conditionalCarriers: carriers.filter((c) => c.safety.rating === "conditional").length,
+      unsatCarriers: carriers.filter((c) => c.safety.rating === "unsatisfactory").length,
+      revokedCarriers: carriers.filter((c) => c.authority.status === "revoked").length,
+      cheatingCarriers: carriers.filter((c) => c.policy.hos !== "legal" || c.policy.maintenance === "deferred").length,
     };
     this.days.push(m);
     this.acc = emptyAcc();
@@ -257,5 +340,15 @@ function emptyAcc() {
     repoReturned: 0,
     bankruptcies: 0,
     shipperDefaults: 0,
+    crashes: 0,
+    fatalCrashes: 0,
+    atFaultCrashes: 0,
+    willfulCrashes: 0,
+    shutdowns: 0,
+    reviews: 0,
+    unsatisfactory: 0,
+    thefts: 0,
+    doubleBrokers: 0,
+    convictions: 0,
   };
 }

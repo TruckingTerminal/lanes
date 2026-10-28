@@ -1,6 +1,9 @@
 import { dayOf, MINUTES_PER_HOUR } from "./clock.js";
 import { clamp, fuelPrice, tripCost } from "./economics.js";
+import { settleDoubleBroker } from "./fraud.js";
+import { creditMiles } from "./labor.js";
 import { companyAccount } from "./ledger.js";
+import { closeDutyDay, drivingLimitMin, legalDrivingMin, mphFor, safetyTick } from "./safety.js";
 import type { Company, Load, Truck } from "./types.js";
 import { breakdownsPer1000Mi } from "./wear.js";
 import { companyById, type World } from "./world.js";
@@ -22,15 +25,24 @@ function startUnloading(w: World, truck: Truck): void {
   truck.dwellMin = w.rng.ops.int(lo, hi);
 }
 
-/** Driving minutes a truck has left in its current duty day; opens a new day if the last one ended. */
+/**
+ * Driving minutes a truck has left in its current duty day; opens a new day if
+ * the last one ended (closing the old one's log). The limit is 11 hours, 22 for a
+ * team, or 15 on falsified logs if the company runs that way (safety.ts).
+ */
 export function drivingMinutesLeft(w: World, truck: Truck, now: number): number {
   const { hos } = w.cfg;
   if (truck.shiftStartT === null || now >= truck.shiftStartT + hos.dutyDayHours * MINUTES_PER_HOUR) {
+    closeDutyDay(w, truck);
     truck.shiftStartT = now;
     truck.shiftDrivenMin = 0;
   }
-  return hos.drivingHoursPerDay * MINUTES_PER_HOUR - truck.shiftDrivenMin;
+  const limit = truck.companyId ? drivingLimitMin(w, truck, companyById(w, truck.companyId)) : hos.drivingHoursPerDay * MINUTES_PER_HOUR;
+  return limit - truck.shiftDrivenMin;
 }
+
+/** Identifies a leg (from, to, loaded or not), so a truck knows when it starts a new one and which weigh stations are ahead. */
+const legKey = (w: World, t: Truck) => (t.hub * w.net.hubs.length + t.targetHub) * 4 + (t.status === "loaded" ? 1 : t.status === "toPickup" ? 2 : 3);
 
 /**
  * Advances every working truck one in-game hour (§Summary — hours of service).
@@ -93,17 +105,28 @@ export function moveTrucks(w: World): void {
         budget = hourEnd - resetAt;
         continue;
       }
-      const minutes = Math.min(budget, hosLeft, (truck.remainingMi / cfg.hos.avgMph) * MINUTES_PER_HOUR);
-      const miles = Math.min(truck.remainingMi, (cfg.hos.avgMph * minutes) / MINUTES_PER_HOUR);
+      const mph = truck.companyId ? mphFor(w, truck, companyById(w, truck.companyId)) : cfg.hos.avgMph;
+      const minutes = Math.min(budget, hosLeft, (truck.remainingMi / mph) * MINUTES_PER_HOUR);
+      const miles = Math.min(truck.remainingMi, (mph * minutes) / MINUTES_PER_HOUR);
+      const key = legKey(w, truck);
+      if (truck.legKey !== key) {
+        truck.legKey = key;
+        truck.legMiles = truck.remainingMi;
+        truck.nextStation = 0;
+      }
       truck.remainingMi -= miles;
       truck.shiftDrivenMin += minutes;
+      truck.overMin = Math.max(0, truck.shiftDrivenMin - legalDrivingMin(w, truck));
       budget -= minutes;
       if (truck.status === "loaded") truck.loadedMi += miles;
       else truck.emptyMi += miles;
       truck.odometer += miles;
       if (truck.lease === "owned") truck.milesSinceRebuild += miles;
+      creditMiles(w, truck, miles);
       if (miles > 0 && w.rng.ops.next() < (breakdownsPer1000Mi(cfg, truck) * miles) / 1000) breakDown(w, truck);
       if (truck.remainingMi <= 1e-6) truck.remainingMi = 0;
+      // Enforcement and crashes (safety.ts): a crash ends the truck's hour; an out-of-service order stops it.
+      if (miles > 0 && safetyTick(w, truck, miles, truck.legMiles > 0 ? 1 - truck.remainingMi / truck.legMiles : 1) === "crash") break;
     }
   }
 }
@@ -155,14 +178,23 @@ function arriveEmpty(w: World, truck: Truck): void {
   setIdle(w, truck);
 }
 
-function deliver(w: World, truck: Truck, now: number): void {
-  const { cfg } = w;
-  const load = w.loads.get(truck.loadId!)!;
-  const carrier = companyById(w, truck.companyId);
-  const carrierAcct = companyAccount(carrier.id);
-  const ref = `load:${load.id}`;
-  const gross = load.clearedRate * load.miles;
+/** Stops a truck short of where it was headed (its load re-posted): it pays for the miles so far and is idle back at the hub it left. */
+export function abandonLeg(w: World, truck: Truck): void {
+  companyById(w, truck.companyId).operating.costFd += payTripCosts(w, truck, `abandon:${truck.id}`);
+  truck.targetHub = truck.hub;
+  truck.remainingMi = 0;
+  setIdle(w, truck);
+}
 
+/**
+ * Whoever owes for a delivered load pays `payee` `gross`: the broker (who is paid
+ * by its NPC shipper, minus the odd default), the player shipper (paid by the NPC
+ * market for the goods), or the NPC shipper directly. `factor` is what a late hot
+ * load still pays of the full amount.
+ */
+function collectUpstream(w: World, load: Load, payee: Company, gross: number, factor: number, ref: string): void {
+  const { cfg } = w;
+  const payeeAcct = companyAccount(payee.id);
   if (load.brokerId !== null) {
     const broker = companyById(w, load.brokerId);
     const brokerAcct = companyAccount(broker.id);
@@ -171,16 +203,17 @@ function deliver(w: World, truck: Truck, now: number): void {
     const { brokerRisk } = cfg;
     const slump = Math.max(0, 1 - w.feeds.cycle(dayOf(w.t, cfg)));
     const defaulted = w.rng.ops.next() < brokerRisk.defaultRate * (1 + brokerRisk.downturnSensitivity * slump);
+    const billed = load.shipperRate * load.miles * factor;
     if (!defaulted) {
-      w.ledger.post(w.t, "faucet:npc_shipper", brokerAcct, load.shipperRate * load.miles, ref);
-      w.ledger.post(w.t, brokerAcct, "sink:board_fee", cfg.board.posterFeePct * load.shipperRate * load.miles, ref);
+      w.ledger.post(w.t, "faucet:npc_shipper", brokerAcct, billed, ref);
+      w.ledger.post(w.t, brokerAcct, "sink:board_fee", cfg.board.posterFeePct * billed, ref);
       awardMiles(w, broker, cfg.miles.brokerPerMile * load.miles, load.laneId);
-      broker.operating.revenueFd += load.shipperRate * load.miles;
-      broker.operating.costFd += cfg.board.posterFeePct * load.shipperRate * load.miles;
+      broker.operating.revenueFd += billed;
+      broker.operating.costFd += cfg.board.posterFeePct * billed;
     } else {
       w.metrics.onShipperDefault();
     }
-    w.ledger.post(w.t, brokerAcct, carrierAcct, gross, ref);
+    w.ledger.post(w.t, brokerAcct, payeeAcct, gross, ref);
     broker.operating.costFd += gross;
     broker.openBrokerLoads--;
     broker.loadsThisWeek++;
@@ -191,27 +224,54 @@ function deliver(w: World, truck: Truck, now: number): void {
     const shipperAcct = companyAccount(shipper.id);
     const fee = cfg.board.posterFeePct * load.saleValue;
     w.ledger.post(w.t, "faucet:npc_market", shipperAcct, load.saleValue, ref);
-    if (shipper.id !== carrier.id) w.ledger.post(w.t, shipperAcct, carrierAcct, gross, ref);
+    if (shipper.id !== payee.id) w.ledger.post(w.t, shipperAcct, payeeAcct, gross, ref);
     w.ledger.post(w.t, shipperAcct, "sink:board_fee", fee, ref);
     const facility = w.facilities[load.facilityId! - 1];
     // Self-hauled freight's carrier side is the owner's own cost, so only the goods margin counts here.
-    if (facility) facility.netFd += load.saleValue - fee - (shipper.id !== carrier.id ? gross : 0);
-    if (shipper.id !== carrier.id) {
+    if (facility) facility.netFd += load.saleValue - fee - (shipper.id !== payee.id ? gross : 0);
+    if (shipper.id !== payee.id) {
       awardMiles(w, shipper, cfg.facilities.shipperMilesPerMile * load.miles, load.laneId);
       shipper.loadsThisWeek++;
     }
   } else {
-    w.ledger.post(w.t, "faucet:npc_shipper", carrierAcct, gross, ref);
+    w.ledger.post(w.t, "faucet:npc_shipper", payeeAcct, gross, ref);
   }
+}
+
+/** A double-brokered load nobody hauled: the double broker is paid for it and buys NPC capacity to cover it. */
+export function coverDoubleBrokered(w: World, load: Load, npcRate: number): void {
+  const db = companyById(w, load.doubleBroker!.companyId);
+  const upstream = load.doubleBroker!.upstreamRate * load.miles;
+  collectUpstream(w, load, db, upstream, 1, `load:${load.id}`);
+  w.ledger.post(w.t, companyAccount(db.id), "sink:npc_carrier", npcRate * load.miles, `load:${load.id}`);
+  db.operating.costFd += npcRate * load.miles;
+  settleDoubleBroker(w, { ...load, doubleBroker: { ...load.doubleBroker!, pays: true } }, null, 0, upstream);
+}
+
+function deliver(w: World, truck: Truck, now: number): void {
+  const { cfg } = w;
+  const load = w.loads.get(truck.loadId!)!;
+  const carrier = companyById(w, truck.companyId);
+  const carrierAcct = companyAccount(carrier.id);
+  const ref = `load:${load.id}`;
+  // A hot load delivered late pays only part of its premium.
+  const factor = load.hot > 0 && now > load.dueT ? (1 + cfg.safety.hotLoads.lateKeepsPremium * (load.hot - 1)) / load.hot : 1;
+  const gross = load.clearedRate * load.miles * factor;
+
+  // A double-brokered load pays the company that re-posted it, which then pays the hauler — or doesn't.
+  const db = load.doubleBroker ? companyById(w, load.doubleBroker.companyId) : null;
+  const upstream = db ? load.doubleBroker!.upstreamRate * load.miles * factor : gross;
+  collectUpstream(w, load, db ?? carrier, upstream, factor, ref);
+  const paid = db ? settleDoubleBroker(w, load, carrier, gross, upstream) : gross;
 
   let costs = payTripCosts(w, truck, ref);
   if (truck.lease !== "owned") {
-    const lease = gross * cfg.costs.npcLeaseShareOfGross;
+    const lease = paid * cfg.costs.npcLeaseShareOfGross;
     w.ledger.post(w.t, carrierAcct, "sink:npc_lease", lease, ref);
     truck.leaseShareWeekFd += lease;
     costs += lease;
   }
-  carrier.operating.revenueFd += gross;
+  carrier.operating.revenueFd += paid;
   carrier.operating.costFd += costs;
 
   // On-time and reputation.
@@ -227,14 +287,16 @@ function deliver(w: World, truck: Truck, now: number): void {
   carrier.reputation = (carrier.onTime + prior * cfg.reputation.start) / (carrier.delivered + prior);
 
   // Miles (§Points): loaded miles × on-time × margin factor × reputation × truck ladder.
-  const margin = (gross - costs) / gross;
+  const margin = paid > 0 ? (paid - costs) / paid : -1;
   const marginFactor = clamp(margin / cfg.miles.marginTarget, cfg.miles.marginClamp[0], cfg.miles.marginClamp[1]);
-  const outlier = Math.abs(load.clearedRate - load.refRate) / load.refRate > cfg.miles.rateOutlierPct;
+  // A hot load's premium is part of its reference, so paying it isn't an outlier.
+  const ref0 = load.refRate * (load.hot || 1);
+  const outlier = Math.abs(load.clearedRate - ref0) / ref0 > cfg.miles.rateOutlierPct;
   const amount = outlier ? 0 : load.miles * onTime * marginFactor * reputationFactor(w, carrier) * ladderFactor(w, truck);
   awardMiles(w, carrier, amount, load.laneId);
 
-  w.metrics.onDelivery(w, carrier, load, gross, costs, onTime);
-  w.listener?.({ kind: "delivered", companyId: carrier.id, truckId: truck.id, loadId: load.id, origin: load.origin, dest: load.dest, grossFd: gross, costFd: costs, onTime: now <= load.dueT });
+  w.metrics.onDelivery(w, carrier, load, paid, costs, onTime);
+  w.listener?.({ kind: "delivered", companyId: carrier.id, truckId: truck.id, loadId: load.id, origin: load.origin, dest: load.dest, grossFd: paid, costFd: costs, onTime: now <= load.dueT });
   load.status = "delivered";
   w.loads.delete(load.id);
   setIdle(w, truck);

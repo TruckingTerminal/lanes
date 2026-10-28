@@ -68,6 +68,7 @@ function testLoad(w: World, lane: { id: number; origin: number; dest: number; mi
     id: w.nextLoadId++, laneId: lane.id, origin: lane.origin, dest: lane.dest, miles: lane.miles, equipment: "van",
     brokerId: null, shipperId: null, facilityId: null, saleValue: 0, shipperRate: 10, spotShipperRate: 10, refRate: 10, ceiling: 10,
     postedRound: -1, roundsUnfilled: 0, status: "open", carrierId: null, truckId: null, clearedRate: 0, dueT: 0,
+    hot: 0, vet: 0, cargoValue: 0, doubleBroker: null,
   };
 }
 
@@ -186,6 +187,7 @@ describe("hours of service and dock time", () => {
       strategy: "test",
       orders: [{ kind: "bid", maxDeadheadMi: 0, price: { mode: "ceilingPct", pct: 1 } }],
       freePath: true,
+      ownerSkill: 0.5, // a typical driver: exactly 50 mph
     });
     const truck = w.trucksByCompany.get(co.id)![0]!;
     const lane = net.lanesFrom[truck.hub]!.reduce((a, b) => (b.miles > a.miles ? b : a));
@@ -266,11 +268,17 @@ describe("simulation", () => {
     expect(w.ledger.supply()).toBeCloseTo(faucets - sinks, 2);
   });
 
-  it("never lets a truck drive more than 11 hours in a duty day", () => {
+  it("never lets a truck drive past its company's hours limit in a duty day", () => {
     const w = smallWorld(3);
     for (let h = 0; h < 24 * 5; h++) {
       runDays(w, 1 / 24, ruleBotHook);
-      for (const t of w.trucks) expect(t.shiftDrivenMin).toBeLessThanOrEqual(11 * 60 + 1e-6);
+      for (const t of w.trucks) {
+        if (t.companyId === 0) continue;
+        const c = w.companies[t.companyId - 1]!;
+        // Legal: 11 hours solo, 22 for a team; a company running over hours gets 4 more.
+        const limit = (t.coDriverId ? cfg.safety.hos.teamHours : cfg.hos.drivingHoursPerDay) + (c.policy.hos === "legal" || t.coDriverId ? 0 : cfg.safety.hos.overHours);
+        expect(t.shiftDrivenMin).toBeLessThanOrEqual(limit * 60 + 1e-6);
+      }
     }
   });
 
@@ -337,7 +345,7 @@ describe("truck wear and rebuilds", () => {
     const w = createWorld({ cfg, net, feeds: neutralFeeds, seed: 4, keepLedgerEntries: true });
     populate(w, { freeOwnerOperators: 40, fleets: 20, brokers: 4 });
     runDays(w, 30, ruleBotHook);
-    const bills = w.ledger.entries.filter((e) => e.to === "sink:repairs");
+    const bills = w.ledger.entries.filter((e) => e.to === "sink:repairs" && e.ref.startsWith("breakdown:"));
     expect(w.metrics.days.reduce((s, d) => s + d.breakdowns, 0)).toBeGreaterThan(bills.length); // leased trucks: delay, no bill
     expect(bills.length).toBeGreaterThan(0);
     for (const b of bills) {
@@ -457,11 +465,11 @@ describe("fleet overhead", () => {
   it("leaves the first three trucks free and charges each later truck its bracket", () => {
     expect(fleetOverheadPerWeek(cfg, 1)).toBe(0);
     expect(fleetOverheadPerWeek(cfg, 3)).toBe(0);
-    expect(fleetOverheadPerWeek(cfg, 5)).toBe(2 * 350);
-    expect(fleetOverheadPerWeek(cfg, 10)).toBe(2 * 350 + 5 * 550);
-    expect(fleetOverheadPerWeek(cfg, 30)).toBe(2 * 350 + 5 * 550 + 10 * 700 + 10 * 800);
-    expect(marginalOverhead(cfg, 3)).toBe(350);
-    expect(marginalOverhead(cfg, 20)).toBe(800);
+    expect(fleetOverheadPerWeek(cfg, 5)).toBe(2 * 250);
+    expect(fleetOverheadPerWeek(cfg, 10)).toBe(2 * 250 + 5 * 450);
+    expect(fleetOverheadPerWeek(cfg, 30)).toBe(2 * 250 + 5 * 450 + 10 * 600 + 10 * 700);
+    expect(marginalOverhead(cfg, 3)).toBe(250);
+    expect(marginalOverhead(cfg, 20)).toBe(700);
   });
 
   it("is charged weekly on operating trucks only: parking a truck takes it off the bill", () => {

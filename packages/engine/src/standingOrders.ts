@@ -1,7 +1,15 @@
 import { breakEvenPerMile, fuelPrice } from "./economics.js";
 import { expectedReloadDeadheadMi } from "./freight.js";
+import { vettingBlock } from "./fraud.js";
+import { dispatchProfile, type DispatchProfile } from "./labor.js";
 import type { Bid, Company, Load, StandingOrder, Truck } from "./types.js";
-import { hubMiles, type World } from "./world.js";
+import { crewed, hubMiles, type World } from "./world.js";
+
+/** A solo truck makes a hot load's window only on falsified logs; a team makes it legally. */
+export const canMakeHot = (c: Company, t: Truck) => t.coDriverId !== 0 || c.policy.hos !== "legal";
+
+/** Would this load's tracking show the company's illegal hours? Dispatchers steer those trucks clear of it. */
+export const trackingWouldShow = (c: Company, load: Load) => load.vet === 2 && (c.policy.hos === "always" || (c.policy.hos === "hot" && load.hot > 0));
 
 /** Open loads indexed by origin hub and equipment, rebuilt each round. */
 export type BoardIndex = Map<string, Load[]>;
@@ -36,14 +44,20 @@ export function scoreBid(w: World, ceiling: number, rate: number, reputation: nu
  */
 export function bidsFromStandingOrders(w: World, company: Company, idx: BoardIndex): Bid[] {
   const bidOrders = company.orders.filter((o): o is Extract<StandingOrder, { kind: "bid" }> => o.kind === "bid");
-  if (bidOrders.length === 0) return [];
+  if (bidOrders.length === 0 || company.authority.status !== "active") return [];
   const floor = company.orders.find((o): o is Extract<StandingOrder, { kind: "floor" }> => o.kind === "floor");
   const fuel = fuelPrice(w);
   const maxDh = Math.max(...bidOrders.map((o) => o.maxDeadheadMi));
   const out: Bid[] = [];
+  const fleet = w.trucksByCompany.get(company.id)!;
+  // The dispatch team (labor.ts): past its span some trucks sit out each round, and the less skilled it is the noisier its pricing.
+  const team = dispatchProfile(w, company, fleet.filter((t) => t.status !== "parked" && t.status !== "listed").length);
+  const allowed = [true, vettingBlock(w, company, { vet: 1 } as Load) === null, vettingBlock(w, company, { vet: 2 } as Load) === null];
+  const rng = w.rng.dispatch;
 
-  for (const truck of w.trucksByCompany.get(company.id)!) {
-    if (truck.status !== "idle") continue;
+  for (const truck of fleet) {
+    if (truck.status !== "idle" || !crewed(truck)) continue;
+    if (team.coverage < 1 && rng.next() >= team.coverage) continue;
     const candidates: { bid: Bid; profit: number }[] = [];
     let inRange = 0;
     for (const hub of w.net.nearby[truck.hub]!) {
@@ -52,9 +66,12 @@ export function bidsFromStandingOrders(w: World, company: Company, idx: BoardInd
       const loads = idx.get(boardKey(hub, truck.trailer));
       if (!loads) continue;
       for (const load of loads) {
-        if (load.brokerId === company.id) continue;
+        if (load.brokerId === company.id || load.doubleBroker?.companyId === company.id) continue;
+        if (!allowed[load.vet]) continue;
+        if (load.hot > 0 && !canMakeHot(company, truck)) continue;
+        if (trackingWouldShow(company, load)) continue;
         inRange++;
-        const priced = priceLoad(w, truck, load, dh, fuel, bidOrders, floor);
+        const priced = priceLoad(w, truck, load, dh, fuel, bidOrders, floor, team);
         if (priced === null) continue;
         candidates.push({
           profit: (priced.rate - priced.breakEven) * load.miles,
@@ -86,10 +103,16 @@ function priceLoad(
   fuel: number,
   bidOrders: Extract<StandingOrder, { kind: "bid" }>[],
   floor: Extract<StandingOrder, { kind: "floor" }> | undefined,
+  team: DispatchProfile,
 ): { rate: number; breakEven: number } | null {
   const hubId = w.net.hubs[load.origin]!.id;
-  // Price in part of the empty run out of the destination, so a cheap load into a dead market isn't worth taking.
-  const breakEven = breakEvenPerMile(w.cfg, truck, fuel, load.miles, dh + w.cfg.board.reloadWeight * expectedReloadDeadheadMi(w, load.dest, load.equipment));
+  // Price in the empty run out of the destination, so a cheap load into a dead market isn't worth taking —
+  // as much of it as this dispatcher knows to, and as far ahead on the season as they can see.
+  const reloadMi = expectedReloadDeadheadMi(w, load.dest, load.equipment, team.foresightDays);
+  const trueBreakEven = breakEvenPerMile(w.cfg, truck, fuel, load.miles, dh + team.reloadWeight * reloadMi);
+  // Their read of their own costs is off by a few percent, more for an inexperienced dispatcher.
+  const z = (w.rng.dispatch.next() + w.rng.dispatch.next() + w.rng.dispatch.next() - 1.5) * 2;
+  const breakEven = trueBreakEven * (1 + team.noise * z);
   for (const o of bidOrders) {
     if (o.equipment && !o.equipment.includes(load.equipment)) continue;
     if (o.originHubs && !o.originHubs.includes(hubId)) continue;

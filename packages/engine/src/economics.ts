@@ -28,9 +28,9 @@ export function maintPerMile(cfg: EconomyConfig, tier: TractorTier, trailer: Equ
 export function tripCost(cfg: EconomyConfig, truck: TruckSpec, fuel: number, driven: number, loaded: number) {
   return {
     fuel: (driven / effectiveMpg(cfg, truck)) * fuel,
-    wages: driven * cfg.costs.driverWagePerMile,
+    wages: driven * (truck.wagePerMile ?? cfg.costs.driverWagePerMile),
     maintenance: driven * maintPerMile(cfg, truck.tier, truck.trailer) * maintMultiplier(cfg, truck),
-    insurance: loaded * cfg.costs.insurancePerLoadedMile,
+    insurance: loaded * cfg.costs.insurancePerLoadedMile * (truck.insuranceMult ?? 1),
   };
 }
 

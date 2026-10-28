@@ -32,7 +32,92 @@ export type StandingOrder =
       kind: "broker";
       marginPct: number;
       maxOpenLoads: number;
+    }
+  | {
+      /**
+       * Double brokering on autopilot (fraud.ts): re-post this share of loads the
+       * dispatcher wins (before pickup), keeping `keepPct` of the rate, and pay the
+       * hauler or not.
+       */
+      kind: "rebroker";
+      share: number;
+      keepPct: number;
+      pays: boolean;
     };
+
+/** How legal a company runs (safety.ts). "hot": only on hot loads that need it. */
+export type RuleScope = "legal" | "hot" | "always";
+export interface CompliancePolicy {
+  /** Falsified logs: 15 driving hours a day instead of 11. */
+  hos: RuleScope;
+  /** 56 mph instead of 50. */
+  speed: RuleScope;
+  /** Deferred: preventive maintenance skipped, so defects build up. */
+  maintenance: "full" | "deferred";
+}
+
+/** What a poster requires of carriers: 0 open, 1 standard, 2 strict (tracking required). */
+export type VettingTier = 0 | 1 | 2;
+
+export type SafetyRating = "none" | "satisfactory" | "conditional" | "unsatisfactory";
+export type Basic = "hos" | "unsafe" | "maintenance" | "crash";
+
+/** A violation on the company's record (an inspection, a stop, a crash, an audit). */
+export interface Violation {
+  day: number;
+  basic: Basic;
+  points: number;
+  what: string;
+}
+
+/** Something illegal nobody has found yet: a falsified log day, a week on deferred maintenance. */
+export interface HiddenViolation {
+  day: number;
+  kind: "falseLog" | "maintenance";
+  truckId: number;
+}
+
+export interface SafetyRecord {
+  rating: SafetyRating;
+  ratingDay: number | null;
+  /** Next scheduled review (new-entrant audit, or a follow-up), or null. */
+  reviewDay: number | null;
+  /** Unsatisfactory: authority is revoked on this day unless a follow-up review clears it. */
+  revokeDay: number | null;
+  /** A crash or a run of alerts asked for a review now. */
+  reviewWanted: boolean;
+  violations: Violation[];
+  inspections: number[];
+  hidden: HiddenViolation[];
+  crashes: { day: number; severity: CrashSeverity; atFault: boolean }[];
+  /** BASIC measures and which are over threshold, recomputed weekly. */
+  measures: Record<Basic, number>;
+  alerts: Basic[];
+  /** Insurance premium multiplier added by at-fault crashes; decays monthly. */
+  insuranceSurcharge: number;
+  finesFd: number;
+  outOfService: number;
+}
+
+export type AuthorityStatus = "active" | "suspended" | "revoked";
+export interface Authority {
+  /** Day the current authority was granted (the MC's age, for vetting). */
+  since: number;
+  status: AuthorityStatus;
+  suspendedUntil: number | null;
+  /** Revoked: no new authority until this day (null = never). */
+  barredUntil: number | null;
+  revocations: number;
+  crimes: number;
+  /** Double-brokering convictions. */
+  frauds: number;
+  /** Day of the last revocation, for vetting ("linked to a revoked authority"). */
+  lastRevokedDay: number | null;
+  /** Plain-language history, newest last. */
+  record: { day: number; text: string }[];
+}
+
+export type CrashSeverity = "pdo" | "injury" | "fatal";
 
 export interface Company {
   id: number;
@@ -94,6 +179,81 @@ export interface Company {
   loadsThisWeek: number;
   /** Operating result (freight and facilities) at the last profit-tax week. */
   taxBaseFd: number;
+  /** The owner dispatching their own trucks (labor.ts): skill grows with loads dispatched. */
+  ownerDispatch: { skill: number; potential: number; experience: number; learned: number };
+  policy: CompliancePolicy;
+  safety: SafetyRecord;
+  authority: Authority;
+  /** Vetting this company requires on freight it posts (brokered loads, facility loads). */
+  vetting: VettingTier;
+  /** The engine keeps seats filled: hires drivers for empty trucks and dispatchers past the owner's span. */
+  autoStaff: boolean;
+  /** Open claims against this company (theft, unpaid carriers), by the day each expires. */
+  claims: { day: number; until: number; kind: "theft" | "unpaid" }[];
+  /** Owed on a judgment or seizure, paid out of whatever the company still has. */
+  judgmentFd: number;
+}
+
+export type StaffKind = "driver" | "dispatcher";
+export type StaffStatus = "pool" | "employed" | "jailed" | "gone";
+
+/** A driver or dispatcher (labor.ts). */
+export interface Staff {
+  id: number;
+  kind: StaffKind;
+  name: string;
+  /** 0–1, shown as 1–5 stars; grows with experience toward `potential`. */
+  skill: number;
+  potential: number;
+  /** Drivers: miles driven; dispatchers: loads dispatched. Counted since the last skill update in `pending`. */
+  experience: number;
+  pending: number;
+  /** Over market pay, what this person asks. */
+  personal: number;
+  /** 0–1: how much they mind being pushed to break the rules (and how likely to refuse). */
+  integrity: number;
+  morale: number;
+  status: StaffStatus;
+  /** Employer, 0 in the pool. */
+  companyId: number;
+  /** Drivers: their truck, 0 for none. */
+  truckId: number;
+  /** Drivers: FD per mile; dispatchers: FD per week. */
+  pay: number;
+  hiredDay: number;
+  /** The company's owner: never quits, can't be poached, fired or hired. */
+  owner: boolean;
+  /** Jailed until this day. */
+  releaseDay: number | null;
+  /** Weeks without a truck (drivers); they walk after a while. */
+  unseatedWeeks: number;
+  /** An offer from another company, waiting on the current employer to match it. */
+  offer: { companyId: number; pay: number; truckId: number; day: number } | null;
+  /** Career record any employer can see. */
+  violations: number;
+  crashes: number;
+}
+
+/** An open fraud investigation (fraud.ts). */
+export interface FraudCase {
+  id: number;
+  kind: "theft" | "doubleBroker";
+  companyId: number;
+  /** Who lost money: a broker, a shipper, or the carrier left unpaid (0: an NPC). */
+  victimId: number;
+  loadId: number;
+  resolveDay: number;
+  caught: boolean;
+  /** Theft: the fence's payout if the case goes cold. Double brokering: the spread kept. */
+  amountFd: number;
+  /** What the victim lost, for restitution. */
+  lossFd: number;
+  /** A broker's cargo claim, held until the case resolves. */
+  escrowFd: number;
+  /** Theft: the truck that carried it (its driver goes to jail with the owner). */
+  truckId: number;
+  /** Double brokering: the carrier who hauled and wasn't paid, if any. */
+  unpaidCarrierId: number;
 }
 
 export interface Airdrop {
@@ -163,6 +323,24 @@ export interface Truck {
   /** Lessor trucks: the day the lease began, and the lease share paid this week (against the minimum rent). */
   leasedDay: number | null;
   leaseShareWeekFd: number;
+  /** Drivers (labor.ts): the driver, and a co-driver for a team (0 = none). */
+  driverId: number;
+  coDriverId: number;
+  /** Cached from the crew and the company's policy (labor.syncTruck): pay per mile, the driver's skill, cost multipliers. */
+  wagePerMile: number;
+  driverSkill: number;
+  maintPolicyMult: number;
+  insuranceMult: number;
+  /** Brake, tire and light defects from deferred maintenance (safety.ts). */
+  defects: number;
+  /** Minutes driven past the legal limit in the current duty day. */
+  overMin: number;
+  /** Days with falsified logs, recent first window (roadside inspections look back 8 days). */
+  logDays: number[];
+  /** The current leg (origin, target, loaded) and the next weigh station on it. */
+  legKey: number;
+  legMiles: number;
+  nextStation: number;
 }
 
 export type LoadStatus = "open" | "assigned" | "inTransit" | "delivered" | "npcCovered";
@@ -194,6 +372,14 @@ export interface Load {
   truckId: number | null;
   clearedRate: number;
   dueT: number;
+  /** A hot load's premium over the reference rate (0 if not hot): it pays for a window a solo driver can only make by breaking the rules. */
+  hot: number;
+  /** What the poster requires of carriers. Strict (2) requires tracking. */
+  vet: VettingTier;
+  /** What the goods are worth (FD), for theft and claims. */
+  cargoValue: number;
+  /** Re-posted by the carrier that won it (double brokering): who, at what rate it was won, and whether they'll pay. */
+  doubleBroker: { companyId: number; upstreamRate: number; pays: boolean } | null;
 }
 
 export interface Bid {
@@ -307,6 +493,22 @@ export type Action =
   /** Standing offer in the weekly buyback auction; amount 0 withdraws it. */
   | { type: "offer_fd"; amountFd: number; minPriceUsd: number }
   | { type: "return_lease"; truckId: number }
+  /** Hire from the pool, or poach from another company (they get the chance to match). Drivers: FD/mi and the truck; dispatchers: FD/week. */
+  | { type: "offer_staff"; staffId: number; pay: number; truckId?: number }
+  | { type: "release_staff"; staffId: number }
+  | { type: "set_staff_pay"; staffId: number; pay: number }
+  /** Seat a driver: as the driver, or as co-driver to make a team. truckId 0 takes them off their truck. */
+  | { type: "assign_driver"; staffId: number; truckId: number; team?: boolean }
+  | { type: "set_auto_staff"; on: boolean }
+  | { type: "set_compliance"; policy: CompliancePolicy }
+  | { type: "fix_defects"; truckId: number }
+  | { type: "set_vetting"; tier: VettingTier }
+  /** After a revocation and its bar: file for new authority and start over on the free path. */
+  | { type: "refile_authority" }
+  /** Double brokering: re-post a load you won (before pickup) at a lower rate, and pay the hauler or not. */
+  | { type: "rebroker_load"; loadId: number; rate: number; pay: boolean }
+  /** Freight theft: the load on this truck never arrives. */
+  | { type: "steal_load"; truckId: number }
   | { type: "wait" };
 
 /** One week's buyback auction. */
@@ -363,4 +565,6 @@ export type GameEvent =
   | { kind: "breakdown"; companyId: number; truckId: number; repairFd: number }
   | { kind: "truckDelivered"; companyId: number; truckId: number }
   | { kind: "liquidated"; companyId: number }
-  | { kind: "launched" };
+  | { kind: "launched" }
+  /** Staff, safety and fraud news for a company's feed. */
+  | { kind: "notice"; companyId: number; topic: "staff" | "safety" | "crash" | "fraud" | "authority"; text: string; tone: "good" | "bad" | "info"; truckId?: number };

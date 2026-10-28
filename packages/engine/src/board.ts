@@ -1,9 +1,13 @@
+import { seasonality } from "./demand.js";
+import { dayOf } from "./clock.js";
 import { generateRoundFreight } from "./freight.js";
+import { rebrokerLoad, vettingBlock } from "./fraud.js";
+import { creditDispatch, dispatchProfile } from "./labor.js";
 import { companyAccount } from "./ledger.js";
 import { bidsFromStandingOrders, boardKey, indexOpenLoads, scoreBid } from "./standingOrders.js";
-import { startLoading } from "./trips.js";
-import type { Bid, Load, Truck } from "./types.js";
-import { companyById, hubMiles, truckById, type World } from "./world.js";
+import { coverDoubleBrokered, startLoading } from "./trips.js";
+import type { Bid, Company, Load, StandingOrder, Truck } from "./types.js";
+import { companyById, crewed, hubMiles, truckById, type World } from "./world.js";
 
 export interface RoundResult {
   round: number;
@@ -50,6 +54,7 @@ export function runBoardRound(w: World): RoundResult {
   bids.sort((a, b) => b.score - a.score || a.tiebreak - b.tiebreak);
 
   const truckTaken = new Set<number>();
+  const rebrokered: [Company, Load, Extract<StandingOrder, { kind: "rebroker" }>][] = [];
   let cleared = 0;
   let clearedRateSum = 0;
   for (const bid of bids) {
@@ -58,6 +63,12 @@ export function runBoardRound(w: World): RoundResult {
     truckTaken.add(bid.truckId);
     assign(w, load, truckById(w, bid.truckId), bid);
     companyById(w, bid.companyId).bidStats.wins++;
+    if (!byHand.has(bid.truckId)) {
+      const company = companyById(w, bid.companyId);
+      creditDispatch(w, company);
+      const rb = company.orders.find((o): o is Extract<StandingOrder, { kind: "rebroker" }> => o.kind === "rebroker");
+      if (rb) rebrokered.push([company, load, rb]);
+    }
     w.listener?.({ kind: "won", companyId: bid.companyId, truckId: bid.truckId, loadId: load.id, origin: load.origin, dest: load.dest, miles: load.miles, rate: bid.rate, manual: byHand.has(bid.truckId) });
     clearedByEq[load.equipment]++;
     cleared++;
@@ -72,6 +83,11 @@ export function runBoardRound(w: World): RoundResult {
       if (!load) continue;
       w.listener({ kind: "lostBid", companyId: b.companyId, truckId: b.truckId, loadId: load.id, origin: load.origin, dest: load.dest, rate: b.rate, winningRate: load.status === "open" ? null : load.clearedRate });
     }
+  }
+
+  // A rebroker standing order re-posts some of what the dispatcher won, once clearing is done.
+  for (const [company, load, rb] of rebrokered) {
+    if (load.status === "assigned" && w.rng.fraud.next() < rb.share) rebrokerLoad(w, company, load, load.clearedRate * (1 - rb.keepPct), rb.pays);
   }
 
   for (const eq of ["van", "reefer", "flatbed"] as const) {
@@ -130,8 +146,9 @@ function manualRoundBids(w: World): Bid[] {
   for (const [truckId, mb] of w.manualBids) {
     const truck = truckById(w, truckId);
     const load = w.loads.get(mb.loadId);
-    if (!load || load.status !== "open" || truck.status !== "idle" || truck.trailer !== load.equipment || truck.companyId === 0) continue;
+    if (!load || load.status !== "open" || truck.status !== "idle" || truck.trailer !== load.equipment || truck.companyId === 0 || !crewed(truck)) continue;
     const company = companyById(w, truck.companyId);
+    if (company.authority.status !== "active" || vettingBlock(w, company, load) !== null || load.doubleBroker?.companyId === company.id) continue;
     const deadheadMi = hubMiles(w, truck.hub, load.origin);
     const rate = Math.min(mb.rate, load.ceiling);
     out.push({ loadId: load.id, truckId, companyId: company.id, rate, deadheadMi, score: scoreBid(w, load.ceiling, rate, company.reputation, deadheadMi), tiebreak: 0 });
@@ -148,11 +165,13 @@ function assign(w: World, load: Load, truck: Truck, bid: Bid): void {
   load.clearedRate = bid.rate;
   // Due = the HOS schedule (11 driving hours, then off until the 24-hour duty day
   // resets) + worst-case loading and unloading + slack. A long breakdown makes it late.
+  // A hot load's window assumes 15 driving hours a day and little slack: a solo driver makes it only on falsified logs.
+  const perDay = load.hot > 0 ? cfg.safety.hotLoads.hoursPerDay : cfg.hos.drivingHoursPerDay;
   const drivingH = (bid.deadheadMi + load.miles) / cfg.hos.avgMph;
-  const fullDays = Math.floor(drivingH / cfg.hos.drivingHoursPerDay);
-  const transitMin = (fullDays * cfg.hos.dutyDayHours + (drivingH - fullDays * cfg.hos.drivingHoursPerDay)) * 60;
+  const fullDays = Math.floor(drivingH / perDay);
+  const transitMin = (fullDays * cfg.hos.dutyDayHours + (drivingH - fullDays * perDay)) * 60;
   const dwellMin = cfg.dwell.loadMinutes[1] + cfg.dwell.unloadMinutes[1];
-  load.dueT = w.t + transitMin + dwellMin + cfg.freight.deliverySlackMinutes;
+  load.dueT = w.t + transitMin + dwellMin + (load.hot > 0 ? cfg.safety.hotLoads.slackMinutes : cfg.freight.deliverySlackMinutes);
   truck.loadId = load.id;
   truck.idleRounds = 0;
   if (bid.deadheadMi === 0) {
@@ -183,7 +202,10 @@ function rollover(w: World, load: Load): void {
  */
 function npcCover(w: World, load: Load): void {
   load.status = "npcCovered";
-  if (load.brokerId !== null) {
+  if (load.doubleBroker) {
+    // Nobody took the re-posted load: the double broker has to buy NPC capacity to cover it.
+    coverDoubleBrokered(w, load, Math.max(load.ceiling, w.cfg.board.npcFallbackRateOfRef * load.refRate));
+  } else if (load.brokerId !== null) {
     // The broker still owes the shipper the haul: it collects its contract rate
     // and buys NPC capacity at what it has been offering (the rolled-up ceiling),
     // or at the NPC fallback rate on spot if that's higher — so when spot has run
@@ -229,6 +251,11 @@ function openLoadSurplus(w: World): Map<string, number> {
 
 function maybeReposition(w: World, truck: Truck, surplus: Map<string, number>): void {
   const company = companyById(w, truck.companyId);
+  if (!crewed(truck) || company.authority.status !== "active") return;
+  const foresight = company.orders.some((o) => o.kind === "reposition" && typeof o.to === "object" && "openLoadsWithinMi" in o.to)
+    ? dispatchProfile(w, company, w.trucksByCompany.get(company.id)!.length).foresightDays
+    : 0;
+  const day = dayOf(w.t, w.cfg);
   for (const o of company.orders) {
     if (o.kind !== "reposition" || truck.idleRounds < o.afterIdleRounds) continue;
     let target = truck.hub;
@@ -243,8 +270,14 @@ function maybeReposition(w: World, truck: Truck, surplus: Map<string, number>): 
         const miles = hubMiles(w, truck.hub, j);
         if (j === truck.hub || miles > o.to.openLoadsWithinMi) continue;
         const open = surplus.get(boardKey(j, truck.trailer)) ?? 0;
-        const value = open - miles / 200;
-        if (open >= 1 && value > best) {
+        // A dispatcher who sees the season coming moves trucks toward markets about to heat up.
+        let rising = 0;
+        if (foresight > 0) {
+          const now = seasonality(w, j, truck.trailer, day).volume;
+          rising = 4 * Math.max(0, seasonality(w, j, truck.trailer, day + foresight).volume / Math.max(0.01, now) - 1);
+        }
+        const value = open + rising - miles / 200;
+        if ((open >= 1 || rising >= 0.6) && value > best) {
           best = value;
           target = j;
         }

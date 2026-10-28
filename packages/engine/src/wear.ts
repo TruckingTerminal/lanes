@@ -1,8 +1,15 @@
 import type { EconomyConfig } from "@lanes/config";
 import type { Truck } from "./types.js";
 
-/** The parts of a truck that set its running costs. */
-export type TruckSpec = Pick<Truck, "tier" | "trailer" | "lease" | "odometer" | "milesSinceRebuild">;
+/**
+ * The parts of a truck that set its running costs. The crew and policy fields
+ * (labor.ts, safety.ts) default to a typical driver on full maintenance.
+ */
+export type TruckSpec = Pick<Truck, "tier" | "trailer" | "lease" | "odometer" | "milesSinceRebuild"> &
+  Partial<Pick<Truck, "driverSkill" | "wagePerMile" | "maintPolicyMult" | "insuranceMult" | "defects">>;
+
+/** A driver's skill against the middle (0.5): positive is better than typical. */
+const skillOffset = (t: Partial<Pick<Truck, "driverSkill">>) => (t.driverSkill ?? 0.5) - 0.5;
 
 /**
  * Condition 1 (fresh) → 0 (worn out) with miles since the last rebuild
@@ -26,11 +33,12 @@ export function levelFuelBonus(cfg: EconomyConfig, odometer: number): number {
 
 export function effectiveMpg(cfg: EconomyConfig, t: TruckSpec): number {
   const wear = 1 - condition(cfg, t);
-  return cfg.tractors[t.tier].mpg * (1 - cfg.wear.mpgLossWorn * wear) * (1 + levelFuelBonus(cfg, t.odometer));
+  return cfg.tractors[t.tier].mpg * (1 - cfg.wear.mpgLossWorn * wear) * (1 + levelFuelBonus(cfg, t.odometer)) * (1 + cfg.labor.driver.mpgRange * skillOffset(t));
 }
 
+/** Maintenance per mile × this: wear, the driver (a good one is easier on the truck), and the company's policy (deferred is cheaper, for now). */
 export function maintMultiplier(cfg: EconomyConfig, t: TruckSpec): number {
-  return 1 + cfg.wear.maintRiseWorn * (1 - condition(cfg, t));
+  return (1 + cfg.wear.maintRiseWorn * (1 - condition(cfg, t))) * (1 - cfg.labor.driver.maintRange * skillOffset(t)) * (t.maintPolicyMult ?? 1);
 }
 
 /**
@@ -40,7 +48,9 @@ export function maintMultiplier(cfg: EconomyConfig, t: TruckSpec): number {
 export function breakdownsPer1000Mi(cfg: EconomyConfig, t: TruckSpec): number {
   const wear = 1 - condition(cfg, t);
   const age = t.lease !== "owned" ? 1 : 1 + t.odometer / cfg.breakdowns.ageMi;
-  return cfg.breakdowns.per1000MiNew * cfg.tractors[t.tier].breakdownMult * (1 + cfg.breakdowns.wornMultiplier * wear * wear) * age;
+  const crew = 1 - cfg.labor.driver.maintRange * skillOffset(t);
+  const defects = 1 + cfg.safety.maintenance.breakdownPerDefect * (t.defects ?? 0);
+  return cfg.breakdowns.per1000MiNew * cfg.tractors[t.tier].breakdownMult * (1 + cfg.breakdowns.wornMultiplier * wear * wear) * age * crew * defects;
 }
 
 /** What a rebuild costs: more the older the truck (×2 at 500k miles). */

@@ -4,11 +4,12 @@ import { ordersOf } from "./dealer.js";
 import { facilitiesOf } from "./demand.js";
 import { depositorValue, POOL_ACCOUNT, poolCash, withdraw } from "./finance.js";
 import { companyAccount } from "./ledger.js";
+import { releaseAll } from "./labor.js";
 import { listTruck } from "./market.js";
 import type { Company } from "./types.js";
 import { marketValue } from "./wear.js";
 import { forfeitAirdrop } from "./token.js";
-import { createTruck, type World } from "./world.js";
+import { createTruck, newSafetyRecord, type World } from "./world.js";
 
 /**
  * Without seasons the holding cost replaces the year-end burn; with seasons it's
@@ -67,6 +68,8 @@ export function startLiquidation(w: World, c: Company): void {
     w.facilitySupply[f.type]++;
   }
   c.bankruptcies++;
+  // The staff are let go: nobody keeps paying a dispatcher for a fleet that's being sold.
+  releaseAll(w, c);
   forfeitAirdrop(w, c);
   w.metrics.onBankruptcy();
   w.listener?.({ kind: "liquidated", companyId: c.id });
@@ -103,17 +106,38 @@ export function processLiquidations(w: World): void {
       );
     }
     const done = !fleet.some((t) => t.lease !== "npc") && ordersOf(w, c.id).length === 0 && c.openBrokerLoads === 0;
-    if (done) restart(w, c);
+    // A revoked authority waits out its bar; the owner then files again (refile_authority).
+    if (done && c.authority.status !== "revoked") restart(w, c);
   }
 }
 
-function restart(w: World, c: Company): void {
+/**
+ * New authority after a revocation and its bar: a new MC with no age, an empty
+ * safety record (the account's history stays on `authority`, where vetting sees
+ * it), and whatever was still owed discharged.
+ */
+export function refile(w: World, c: Company): void {
+  const day = dayOf(w.t, w.cfg);
+  c.authority.status = "active";
+  c.authority.since = day;
+  c.authority.barredUntil = null;
+  c.authority.record.push({ day, text: "Filed for new authority." });
+  c.safety = newSafetyRecord();
+  c.policy = { hos: "legal", speed: "legal", maintenance: "full" };
+  c.judgmentFd = 0;
+  c.claims = [];
+  if (c.liquidatingSince !== null) restart(w, c);
+}
+
+export function restart(w: World, c: Company): void {
   const acct = companyAccount(c.id);
   const owed = -w.ledger.balance(acct);
   // Unpaid debt is FD that was spent but never earned: writing it off is a faucet, tagged so it shows.
   if (owed > 0) w.ledger.post(w.t, "faucet:bankruptcy_writeoff", acct, owed, `writeoff:${c.id}`);
   c.liquidatingSince = null;
   c.weeksInDebt = 0;
+  // Judgments are discharged in the bankruptcy, like any other debt.
+  c.judgmentFd = 0;
   c.lockedFd = 0;
   c.weeklySpend = [];
   c.orders = c.suspendedOrders;

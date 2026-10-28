@@ -7,6 +7,9 @@ import { companyAccount } from "./ledger.js";
 import type { DayMetrics } from "./metrics.js";
 import { deliverOrders } from "./dealer.js";
 import { serviceLoans } from "./finance.js";
+import { dailyFraud } from "./fraud.js";
+import { dailyLabor, monthlyLabor, payDispatchers, weeklyLabor } from "./labor.js";
+import { dailySafety, monthlySafety, weeklySafety } from "./safety.js";
 import { repossessDefaults, stepListings } from "./market.js";
 import { fleetOverheadPerWeek } from "./overhead.js";
 import { closeSeason } from "./season.js";
@@ -48,6 +51,9 @@ function endOfDay(w: World, day: number, agents?: DailyAgentHook): void {
   deliverOrders(w);
   repossessDefaults(w);
   processLiquidations(w);
+  dailyFraud(w);
+  dailySafety(w);
+  dailyLabor(w);
 
   // Idle fee on owned assets unused for 7+ in-game days, parked ones included (§Owned vs. leased).
   for (const truck of w.trucks) {
@@ -77,6 +83,9 @@ function endOfDay(w: World, day: number, agents?: DailyAgentHook): void {
     if (cfg.freeEntry.leases.enabled) chargeMinimumRent(w);
     serviceLoans(w);
     stepListings(w);
+    payDispatchers(w);
+    weeklyLabor(w);
+    weeklySafety(w);
     // Each company's spending this week, for the season-close working-capital carryover.
     for (const c of w.companies) {
       const out = w.ledger.outflowCents(companyAccount(c.id));
@@ -122,6 +131,8 @@ function endOfDay(w: World, day: number, agents?: DailyAgentHook): void {
   if ((day + 1) % cfg.time.daysPerMonth === 0) {
     monthlyStabilizers(w);
     monthlyCapacity(w);
+    monthlyLabor(w);
+    monthlySafety(w);
     if (tokenLive(w)) scaleDemand(w);
   }
 }

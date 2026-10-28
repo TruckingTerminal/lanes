@@ -2,7 +2,8 @@ import type { EconomyConfig, Equipment, FacilityType, TractorTier } from "@lanes
 import type { Feeds, Network } from "@lanes/data";
 import { Ledger, companyAccount } from "./ledger.js";
 import { Rng } from "./rng.js";
-import type { BuybackWeek, GameEvent, TokenState, Company, Facility, FinancePool, LeaseKind, Listing, Load, Role, SeasonCloseRecord, StandingOrder, Truck, TruckOrder } from "./types.js";
+import type { BuybackWeek, GameEvent, TokenState, Company, Facility, FinancePool, FraudCase, LeaseKind, Listing, Load, Role, SeasonCloseRecord, Staff, StandingOrder, Truck, TruckOrder } from "./types.js";
+import { seedPool } from "./labor.js";
 import { MetricsRecorder } from "./metrics.js";
 
 export interface WorldOptions {
@@ -19,7 +20,7 @@ export interface World {
   net: Network;
   feeds: Feeds;
   seed: number;
-  rng: { freight: Rng; board: Rng; agents: Rng; ops: Rng };
+  rng: { freight: Rng; board: Rng; agents: Rng; ops: Rng; labor: Rng; safety: Rng; fraud: Rng; dispatch: Rng };
   t: number;
   round: number;
   ledger: Ledger;
@@ -79,6 +80,13 @@ export interface World {
   demandScale: number;
   /** Bids placed by hand for the next board round, by truck. */
   manualBids: Map<number, { loadId: number; rate: number }>;
+  /** Every driver and dispatcher, in the pool or employed (labor.ts). Ids are index + 1. */
+  staff: Staff[];
+  staffByCompany: Map<number, Staff[]>;
+  /** The labor market: the wage index (market pay × this). */
+  labor: { wageIndex: number };
+  /** Open and closed fraud investigations (fraud.ts). */
+  cases: FraudCase[];
   /** Optional listener for game events (a player's UI); never affects the simulation. */
   listener: ((e: GameEvent) => void) | null;
   metrics: MetricsRecorder;
@@ -87,12 +95,21 @@ export interface World {
 export function createWorld(o: WorldOptions): World {
   const root = new Rng(o.seed);
   const { cfg } = o;
-  return {
+  const w: World = {
     cfg,
     net: o.net,
     feeds: o.feeds,
     seed: o.seed,
-    rng: { freight: root.fork("freight"), board: root.fork("board"), agents: root.fork("agents"), ops: root.fork("ops") },
+    rng: {
+      freight: root.fork("freight"),
+      board: root.fork("board"),
+      agents: root.fork("agents"),
+      ops: root.fork("ops"),
+      labor: root.fork("labor"),
+      safety: root.fork("safety"),
+      fraud: root.fork("fraud"),
+      dispatch: root.fork("dispatch"),
+    },
     t: 0,
     round: 0,
     ledger: new Ledger(o.keepLedgerEntries ?? false),
@@ -164,9 +181,15 @@ export function createWorld(o: WorldOptions): World {
     },
     demandScale: 1,
     manualBids: new Map(),
+    staff: [],
+    staffByCompany: new Map(),
+    labor: { wageIndex: 1 },
+    cases: [],
     listener: null,
     metrics: new MetricsRecorder(),
   };
+  seedPool(w);
+  return w;
 }
 
 export interface NewCompany {
@@ -177,6 +200,159 @@ export interface NewCompany {
   orders: StandingOrder[];
   /** Carrier free start: one NPC-leased Workhorse + dry van (§Roles). */
   freePath: boolean;
+  /** The owner's skill as a driver and dispatcher (default: a new human owner's). */
+  ownerSkill?: number;
+  /** An established company: its authority is this many days old. */
+  authorityAgeDays?: number;
+}
+
+export function newSafetyRecord(): Company["safety"] {
+  return {
+    rating: "none",
+    ratingDay: null,
+    reviewDay: null,
+    revokeDay: null,
+    reviewWanted: false,
+    violations: [],
+    inspections: [],
+    hidden: [],
+    crashes: [],
+    measures: { hos: 0, unsafe: 0, maintenance: 0, crash: 0 },
+    alerts: [],
+    insuranceSurcharge: 0,
+    finesFd: 0,
+    outOfService: 0,
+  };
+}
+
+const FIRST = ["Alex", "Sam", "Jordan", "Casey", "Riley", "Morgan", "Taylor", "Jamie", "Avery", "Quinn", "Devon", "Rosa", "Luis", "Marcus", "Tanya", "Ray", "Dee", "Andre", "Kim", "Omar", "Lena", "Hector", "Bo", "Nia", "Vic", "Earl", "June", "Pat", "Cruz", "Ivy"];
+const LAST = ["Reyes", "Walker", "Nguyen", "Brooks", "Patel", "Hayes", "Moreno", "Kowalski", "Price", "Okafor", "Bell", "Duarte", "Fischer", "Lam", "Carter", "Ruiz", "Mills", "Haddad", "Stone", "Ortiz", "Grant", "Silva", "Boone", "Ward", "Lowe", "Vance", "Cole", "Diaz", "Ford", "Hart"];
+
+/** A person for the labor pool (or an owner). Names come from the labor stream, so they replay. */
+export function newStaff(w: World, kind: Staff["kind"], skill: number, potential: number): Staff {
+  const rng = w.rng.labor;
+  const [lo, hi] = w.cfg.labor.pool.personal;
+  const person: Staff = {
+    id: w.staff.length + 1,
+    kind,
+    name: `${FIRST[rng.int(0, FIRST.length - 1)]!} ${LAST[rng.int(0, LAST.length - 1)]!}`,
+    skill,
+    potential: Math.max(skill, potential),
+    experience: 0,
+    pending: 0,
+    personal: rng.range(lo, hi),
+    // The better people tend to be the ones who won't run illegal.
+    integrity: Math.min(1, Math.max(0, 0.35 + 0.5 * skill + rng.range(-0.3, 0.3))),
+    morale: w.cfg.labor.morale.start,
+    status: "pool",
+    companyId: 0,
+    truckId: 0,
+    pay: 0,
+    hiredDay: 0,
+    owner: false,
+    releaseDay: null,
+    unseatedWeeks: 0,
+    offer: null,
+    violations: 0,
+    crashes: 0,
+  };
+  w.staff.push(person);
+  return person;
+}
+
+function addOwner(w: World, c: Company, skill: number): Staff {
+  const owner = newStaff(w, "driver", skill, w.cfg.labor.owner.potential);
+  owner.name = "You (owner)";
+  owner.owner = true;
+  owner.integrity = 0;
+  owner.status = "employed";
+  owner.companyId = c.id;
+  owner.pay = w.cfg.labor.owner.driverPayPerMile;
+  owner.hiredDay = c.createdDay;
+  w.staffByCompany.get(c.id)!.push(owner);
+  return owner;
+}
+
+export const staffById = (w: World, id: number): Staff => w.staff[id - 1]!;
+
+export function ownerOf(w: World, companyId: number): Staff | undefined {
+  return w.staffByCompany.get(companyId)?.find((s) => s.owner);
+}
+
+/** Market pay for a skill level today: drivers FD/mi, dispatchers FD/week. */
+export function marketPay(w: World, kind: Staff["kind"], skill: number): number {
+  const [lo, hi] = kind === "driver" ? w.cfg.labor.driver.payPerMile : w.cfg.labor.dispatcher.payPerWeek;
+  return (lo + (hi - lo) * skill) * w.labor.wageIndex;
+}
+
+/** What someone asks to take a job (or to move). */
+export const askingPay = (w: World, s: Staff) => marketPay(w, s.kind, s.skill) * s.personal;
+
+/** The insurance premium multiplier for a company's trucks: crash history, rating, and a new authority's surcharge. */
+export function insuranceMultiplier(w: World, c: Company): number {
+  const { insurance } = w.cfg.safety;
+  const rating = c.safety.rating === "conditional" ? insurance.conditional : c.safety.rating === "unsatisfactory" ? insurance.unsatisfactory : 1;
+  const newEntrant = dayOfWorld(w) - c.authority.since < w.cfg.safety.review.newEntrantDay ? insurance.newEntrant : 1;
+  return (1 + c.safety.insuranceSurcharge) * rating * newEntrant;
+}
+
+const dayOfWorld = (w: World) => Math.floor(w.t / w.cfg.time.gameMinutesPerDay);
+
+/** Recomputes a truck's cached crew and policy numbers. Call after any seat, pay, skill or policy change. */
+export function syncTruck(w: World, truck: Truck): void {
+  const { cfg } = w;
+  const d = truck.driverId ? staffById(w, truck.driverId) : null;
+  const co = truck.coDriverId ? staffById(w, truck.coDriverId) : null;
+  if (d && co) {
+    truck.wagePerMile = (d.pay + co.pay) * cfg.labor.driver.teamPayShare;
+    truck.driverSkill = (d.skill + co.skill) / 2;
+  } else if (d) {
+    truck.wagePerMile = d.pay;
+    truck.driverSkill = d.skill;
+  } else {
+    truck.wagePerMile = cfg.costs.driverWagePerMile;
+    truck.driverSkill = 0.5;
+  }
+  const c = truck.companyId ? companyById(w, truck.companyId) : null;
+  truck.maintPolicyMult = c?.policy.maintenance === "deferred" ? cfg.safety.maintenance.deferredCostMult : 1;
+  truck.insuranceMult = c ? insuranceMultiplier(w, c) : 1;
+}
+
+export function syncFleet(w: World, companyId: number): void {
+  for (const t of w.trucksByCompany.get(companyId) ?? []) syncTruck(w, t);
+}
+
+/** Puts a driver on a truck (as co-driver if `team`). The caller checks the rules. */
+export function seatDriver(w: World, s: Staff, truck: Truck, team = false): void {
+  if (s.truckId) unseatDriver(w, s);
+  if (team) truck.coDriverId = s.id;
+  else {
+    if (truck.driverId) unseatDriver(w, staffById(w, truck.driverId));
+    truck.driverId = s.id;
+  }
+  s.truckId = truck.id;
+  s.unseatedWeeks = 0;
+  syncTruck(w, truck);
+}
+
+export function unseatDriver(w: World, s: Staff): void {
+  if (!s.truckId) return;
+  const truck = truckById(w, s.truckId);
+  if (truck.driverId === s.id) {
+    truck.driverId = truck.coDriverId;
+    truck.coDriverId = 0;
+  } else if (truck.coDriverId === s.id) truck.coDriverId = 0;
+  s.truckId = 0;
+  syncTruck(w, truck);
+}
+
+/** A truck with a driver can run; one without sits until someone is hired. */
+export const crewed = (t: Truck) => t.driverId !== 0;
+
+/** The owner takes the wheel of a new truck if they aren't driving one. */
+function seatOwnerIfFree(w: World, truck: Truck): void {
+  const owner = ownerOf(w, truck.companyId);
+  if (owner && owner.truckId === 0 && owner.status === "employed") seatDriver(w, owner, truck);
 }
 
 /**
@@ -229,9 +405,35 @@ export function formCompany(w: World, c: NewCompany): Company {
     airdrop: null,
     loadsThisWeek: 0,
     taxBaseFd: 0,
+    ownerDispatch: { skill: c.ownerSkill ?? w.cfg.labor.owner.humanSkill, potential: w.cfg.labor.owner.potential, experience: 0, learned: 0 },
+    policy: { hos: "legal", speed: "legal", maintenance: "full" },
+    safety: newSafetyRecord(),
+    authority: {
+      since: day - (c.authorityAgeDays ?? 0),
+      status: "active",
+      suspendedUntil: null,
+      barredUntil: null,
+      revocations: 0,
+      crimes: 0,
+      frauds: 0,
+      lastRevokedDay: null,
+      record: [],
+    },
+    vetting: 0,
+    autoStaff: true,
+    claims: [],
+    judgmentFd: 0,
   };
+  // An established company has passed its new-entrant audit long ago.
+  if ((c.authorityAgeDays ?? 0) >= w.cfg.safety.review.newEntrantDay) {
+    company.safety.rating = "satisfactory";
+    company.safety.ratingDay = company.authority.since;
+  }
   w.companies.push(company);
   w.trucksByCompany.set(company.id, []);
+  w.staffByCompany.set(company.id, []);
+  // A carrier's owner drives and dispatches for it (labor.ts).
+  if (c.role === "carrier") addOwner(w, company, c.ownerSkill ?? w.cfg.labor.owner.humanSkill);
   w.ledger.post(w.t, "faucet:starting_grant", companyAccount(company.id), w.cfg.company.startingGrantFd, `grant:${company.id}`);
   payPermits(w, company);
   if (c.role === "carrier" && c.freePath) addTruck(w, company, "npc", "workhorse", "van");
@@ -308,9 +510,23 @@ export function createTruck(
     loadedMi: 0,
     leasedDay: lease === "lessor" ? day : null,
     leaseShareWeekFd: 0,
+    driverId: 0,
+    coDriverId: 0,
+    wagePerMile: w.cfg.costs.driverWagePerMile,
+    driverSkill: 0.5,
+    maintPolicyMult: 1,
+    insuranceMult: 1,
+    defects: 0,
+    overMin: 0,
+    logDays: [],
+    legKey: -1,
+    legMiles: 0,
+    nextStation: 0,
   };
   w.trucks.push(truck);
   fleet.push(truck);
+  seatOwnerIfFree(w, truck);
+  syncTruck(w, truck);
   return truck;
 }
 
@@ -332,6 +548,9 @@ export function takeSupply(w: World, tier: TractorTier, trailer: Equipment, firs
 
 /** Takes a truck out of its company's fleet (sale, repossession, retirement). */
 export function detachTruck(w: World, truck: Truck): void {
+  // The crew stays with the company, without a truck.
+  if (truck.coDriverId) unseatDriver(w, staffById(w, truck.coDriverId));
+  if (truck.driverId) unseatDriver(w, staffById(w, truck.driverId));
   const fleet = w.trucksByCompany.get(truck.companyId);
   if (fleet) {
     const i = fleet.indexOf(truck);
@@ -348,6 +567,8 @@ export function attachTruck(w: World, truck: Truck, companyId: number): void {
   truck.idleSinceDay = Math.floor(w.t / w.cfg.time.gameMinutesPerDay);
   truck.targetHub = truck.hub;
   w.trucksByCompany.get(companyId)!.push(truck);
+  seatOwnerIfFree(w, truck);
+  syncTruck(w, truck);
 }
 
 /** Trucks registered to operate (§Owned vs. leased: unregistered assets can't run). */

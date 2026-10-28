@@ -136,6 +136,28 @@ rows.push(
   ["Free path: bought within 84 days (of all free starters)", (rs) => range(rs.map((r) => r.freePath.withinLimit), n0)],
   ["Free path median days", (rs) => range(rs.map((r) => r.freePath.medianDays ?? 999), n0)],
   ["Top strategy vs segment median", (rs) => range(rs.map((r) => r.strategies[0]?.vsMedian ?? 0), x2)],
+  // Staff, safety and fraud (config 0.9.0). Older runs have none of these fields.
+  ["Crashes (fatal / at fault / willful)", (rs) => {
+    const sum = (r: Run, f: (d: DayMetrics) => number | undefined) => r.daily.reduce((s, d) => s + (f(d) ?? 0), 0);
+    return `${n0(mean(rs.map((r) => sum(r, (d) => d.crashes))))} (${n0(mean(rs.map((r) => sum(r, (d) => d.fatalCrashes))))} / ${n0(mean(rs.map((r) => sum(r, (d) => d.atFaultCrashes))))} / ${n0(mean(rs.map((r) => sum(r, (d) => d.willfulCrashes))))})`;
+  }],
+  ["Compliance reviews / unsatisfactory / shutdowns", (rs) => {
+    const sum = (r: Run, f: (d: DayMetrics) => number | undefined) => r.daily.reduce((s, d) => s + (f(d) ?? 0), 0);
+    return [(d: DayMetrics) => d.reviews, (d: DayMetrics) => d.unsatisfactory, (d: DayMetrics) => d.shutdowns].map((f) => n0(mean(rs.map((r) => sum(r, f))))).join(" / ");
+  }],
+  ["Thefts / double-brokered loads / convictions", (rs) => {
+    const sum = (r: Run, f: (d: DayMetrics) => number | undefined) => r.daily.reduce((s, d) => s + (f(d) ?? 0), 0);
+    return [(d: DayMetrics) => d.thefts, (d: DayMetrics) => d.doubleBrokers, (d: DayMetrics) => d.convictions].map((f) => n0(mean(rs.map((r) => sum(r, f))))).join(" / ");
+  }],
+  ["Carriers at end: conditional / unsat / revoked / cutting corners", (rs) =>
+    [(d: DayMetrics) => d.conditionalCarriers, (d: DayMetrics) => d.unsatCarriers, (d: DayMetrics) => d.revokedCarriers, (d: DayMetrics) => d.cheatingCarriers].map((f) => n0(mean(rs.map((r) => f(r.daily.at(-1)!) ?? 0)))).join(" / ")],
+  ["Fines / liability / seized / cargo claims (sinks)", (rs) => ["fines", "liability", "seized", "cargo_claim"].map((t) => fd(mean(rs.map((r) => r.sinksByTag[t] ?? 0)))).join(" / ")],
+  ["Driver wages / dispatcher salaries (sinks)", (rs) => ["driver_wages", "dispatch"].map((t) => fd(mean(rs.map((r) => r.sinksByTag[t] ?? 0)))).join(" / ")],
+  ["Fence payouts / cargo insurance (faucets)", (rs) => ["fence", "cargo_insurance"].map((t) => fd(mean(rs.map((r) => r.faucetsByTag?.[t] ?? 0)))).join(" / ")],
+  ["Drivers employed / in pool / trucks without one, at end", (rs) =>
+    [(d: DayMetrics) => d.drivers, (d: DayMetrics) => d.poolDrivers, (d: DayMetrics) => d.crewlessTrucks].map((f) => n0(mean(rs.map((r) => f(r.daily.at(-1)!) ?? 0)))).join(" / ")],
+  ["Trucks without a driver, average", (rs) => range(rs.map((r) => r.daily.reduce((s, d) => s + (d.crewlessTrucks ?? 0), 0) / r.daily.length), n0)],
+  ["Wage index / mean employed driver skill, at end", (rs) => `${mean(rs.map((r) => r.daily.at(-1)!.wageIndex ?? 1)).toFixed(2)} / ${mean(rs.map((r) => r.daily.at(-1)!.avgDriverSkill ?? 0)).toFixed(2)}`],
 );
 
 console.log(`| Measure | ${dirs.join(" | ")} |`);

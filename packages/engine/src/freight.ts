@@ -2,6 +2,7 @@ import type { EconomyConfig, Equipment } from "@lanes/config";
 import { dexp, dpow, type Lane, type Network } from "@lanes/data";
 import { dayOf } from "./clock.js";
 import { EQUIPMENT, planFreight, planIndex, seasonality } from "./demand.js";
+import type { VettingTier } from "./types.js";
 import { clamp, fscPerMile, fuelPrice } from "./economics.js";
 import type { Company, Load } from "./types.js";
 import type { World } from "./world.js";
@@ -150,7 +151,29 @@ export function generateRoundFreight(w: World): RoundFreight {
       truckId: null,
       clearedRate: 0,
       dueT: 0,
+      hot: 0,
+      vet: 0,
+      cargoValue: 0,
+      doubleBroker: null,
     };
+  };
+
+  // Hot loads (safety.ts): long hauls with a window only falsified logs or a team can make, at a premium.
+  const hl = cfg.safety.hotLoads;
+  const hotOdds = (eq: Equipment) => (hl.share * hl.equipmentShare[eq]) / cfg.freight.equipmentShare[eq];
+  const makeHot = (load: Load) => {
+    if (load.miles < 500 || rng.next() >= hotOdds(load.equipment)) return;
+    load.hot = rng.range(hl.premium[0], hl.premium[1]);
+    load.ceiling *= load.hot;
+    load.shipperRate = load.ceiling;
+    load.spotShipperRate = load.ceiling;
+  };
+  /** What the goods are worth, and who the poster lets haul them. */
+  const finish = (load: Load, vet: VettingTier) => {
+    const m = cfg.fraud.cargoMultiple;
+    const bill = load.refRate * (load.hot || 1) * load.miles;
+    load.cargoValue = load.facilityId !== null ? load.saleValue : bill * (load.brokerId !== null ? m[load.equipment] : m.npcDirect) * (load.hot ? m.hot : 1);
+    load.vet = (load.hot > 0 ? Math.max(1, vet) : vet) as VettingTier;
   };
 
   // 3. NPC loads, half of them tendered to brokers.
@@ -165,10 +188,12 @@ export function generateRoundFreight(w: World): RoundFreight {
       for (let k = 0; k < npcCounts[planIndex(i, e)]!; k++) {
         const lane = lanes[rng.weighted(weights)]!;
         const load = newLoad(lane, eq, refRate(lane, eq));
+        makeHot(load);
         if (rng.next() < cfg.freight.npcBrokerOnlyShare) {
           const contractRef = lane.baseRate * w.contractIndex[planIndex(i, e)]! * cfg.rates.equipmentPremium[eq] * reloadFactor(w, lane.dest, eq) + fsc;
-          tenderToBroker(w, load, brokers, contractRef * cfg.rates.npcCeilingMarkup);
+          tenderToBroker(w, load, brokers, contractRef * cfg.rates.npcCeilingMarkup * (load.hot || 1));
         }
+        finish(load, load.brokerId !== null ? w.companies[load.brokerId - 1]!.vetting : 0);
         w.loads.set(load.id, load);
         created.push(load);
       }
@@ -188,6 +213,7 @@ export function generateRoundFreight(w: World): RoundFreight {
       load.shipperId = f.ownerId;
       load.facilityId = f.id;
       load.saleValue = ref * cfg.facilities.types[f.type].saleValueOfRef * lane.miles;
+      finish(load, w.companies[f.ownerId - 1]!.vetting);
       w.loads.set(load.id, load);
       created.push(load);
       facilityLoads++;
@@ -244,8 +270,17 @@ export function reloadFactor(w: World, destHub: number, eq: Equipment): number {
   return clamp(dpow(reloadOdds(w, destHub, eq), -reloadExponent), reloadClamp[0], reloadClamp[1]);
 }
 
-/** Empty miles a truck of this type can expect to run to reload after delivering at a hub. */
-export function expectedReloadDeadheadMi(w: World, destHub: number, eq: Equipment): number {
+/**
+ * Empty miles a truck of this type can expect to run to reload after delivering
+ * at a hub. Looking `aheadDays` out, the reload odds move with the hub's season:
+ * a market about to boom reloads easier than it does today.
+ */
+export function expectedReloadDeadheadMi(w: World, destHub: number, eq: Equipment, aheadDays = 0): number {
   const { reloadDeadheadMi, reloadDeadheadClamp } = w.cfg.board;
-  return clamp(reloadDeadheadMi / Math.max(0.01, reloadOdds(w, destHub, eq)), reloadDeadheadClamp[0], reloadDeadheadClamp[1]);
+  let odds = reloadOdds(w, destHub, eq);
+  if (aheadDays > 0) {
+    const day = dayOf(w.t, w.cfg);
+    odds *= seasonality(w, destHub, eq, day + aheadDays).volume / Math.max(0.01, seasonality(w, destHub, eq, day).volume);
+  }
+  return clamp(reloadDeadheadMi / Math.max(0.01, odds), reloadDeadheadClamp[0], reloadDeadheadClamp[1]);
 }

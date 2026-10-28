@@ -81,6 +81,8 @@ export const isHuman = (c: Company) => c.strategy.startsWith("player:");
 /** A test world's whole history: its seed, the start, and each action with the game minute it was taken. */
 export interface TestLog {
   v: 1;
+  /** The rules it was played under; a log from older rules can't replay. */
+  ruleset?: string;
   seed: number;
   name: string;
   start: StartKind;
@@ -102,7 +104,7 @@ export class TestGame {
   private listeners: ((e: GameEvent) => void)[] = [];
 
   constructor(name: string, start: StartKind, hub: string, seed = Math.floor(Math.random() * 1e9)) {
-    this.log = { v: 1, seed, name, start, hub, t: 0, acts: [] };
+    this.log = { v: 1, ruleset: RULESET, seed, name, start, hub, t: 0, acts: [] };
     this.w = newWorld(seed);
     this.player = joinCompany(this.w, "test", name, hub, start)!;
     this.w.listener = (e) => {

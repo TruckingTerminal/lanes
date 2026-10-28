@@ -266,6 +266,35 @@ Design, levers and the full results are in [TOKENOMICS.md](TOKENOMICS.md); table
 - **Not modeled yet:** an explicit commodity flow matrix (production and consumption by commodity
   group, e.g. calibrated to FAF5) and shipper orders for player facilities.
 
+## Staff, safety and fraud (config 0.9.0)
+- **Staff** (`packages/engine/src/labor.ts`): every truck needs a driver; the owner drives one and
+  dispatches up to three, hired dispatchers run the rest. Skill (1–5 stars) moves fuel, maintenance,
+  breakdowns, speed and crash odds for drivers, and pricing noise, reload awareness, season foresight
+  and span for dispatchers. It comes from hiring (market pay rises with skill, times a wage index
+  that follows the pool) and grows with experience. Morale follows pay against market; unhappy staff
+  quit, and other companies can poach anyone (the employer gets two days to match). Dispatchers are
+  billed per truck they run, with a 25% retainer. Fleet overhead brackets dropped ~100 FD/truck-week
+  to make room.
+- **Safety** (`safety.ts`): companies set a policy on hours, speed and maintenance. Defects,
+  weigh stations on real corridors (`packages/data/src/weighStations.ts`, approximate locations),
+  police stops and roadside inspections feed a CSA-style score; alerts, new-entrant audits and
+  serious crashes bring compliance reviews (satisfactory / conditional / unsatisfactory, then
+  revocation). Crash costs scale with the cause; tiered shutdowns bar the account for 30 days to a
+  year, permanently after repeat crimes. Hot loads pay a premium for windows only a team makes legally.
+- **Fraud** (`fraud.ts`): double brokering and cargo theft, run by the outlaw AI persona, with
+  investigations, claims on carriers' records, and poster vetting tiers (open / standard / strict).
+  Players face it as victims and defend with vetting; the guide leaves it out.
+- **AI personas:** clean 72%, corner-cutter 20% (over hours on hot loads, deferred maintenance when
+  short of cash), outlaw 8%. Cheaters straighten up after a bad rating.
+- **Check it:** `npx tsx apps/sim/src/safety.ts --seed 1 --days 1460` prints results by persona.
+- **10 seeds × 4 years, token on** (`runs/compare-v14-c.md` vs v13-f): liquidations 817 vs 548,
+  mostly cheaters (outlaws fail and get shut down repeatedly; corner-cutters end slightly richer than
+  clean carriers but fail ~4× as often); clean carriers still fail ~20% more than before. FD price
+  at end $0.0072 vs $0.0061, owner-operator profit 614 vs 620 FD per truck-week, fleet wealth 145k
+  vs 139k, free-path median 85 vs 116 days. ~250 crashes (10 fatal), ~130 shutdowns, ~14M FD fines.
+- **In the client:** a Staff tab (hire, pay, seat, team, poach, match offers) and a Guide tab. No
+  Safety screen yet: player companies run legal by default.
+
 ## The live world (`apps/web`)
 One shared, permanent world. There is no game server: the world is a seed plus every player's
 actions, kept in the artifact's shared store, and the deterministic engine turns that log into the

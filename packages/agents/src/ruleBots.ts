@@ -19,7 +19,13 @@ import {
   sellableFd,
   tokenLive,
   activeLoanOn,
+  askingPay,
+  autoStaff,
   borrowingCapacity,
+  canRefile,
+  crewed,
+  lerpLoyalty,
+  staffById,
   depositorValue,
   deliveryDays,
   holdingCostApplies,
@@ -33,6 +39,7 @@ import {
   poolCash,
   rebuildCost,
   type Company,
+  type CompliancePolicy,
   type Listing,
   type DailyAgentHook,
   type Rng,
@@ -105,9 +112,21 @@ interface BotProfile {
   traderFd: number;
   /** Token mode: takes the airdrop's rest at launch, haircut and all. */
   claimsEarly: boolean;
+  /**
+   * How legal it runs (safety.ts): clean; a corner-cutter that fakes logs for hot
+   * loads and skips maintenance when cash is short; or an outlaw that runs illegal
+   * hours on everything, double brokers, and steals when it's going under. Cutters
+   * and outlaws straighten up once a review rates them badly.
+   */
+  conduct: "clean" | "cutter" | "outlaw";
+  /** Gives unhappy staff a raise to market (greedy bots don't, and lose them). */
+  paysMarket: boolean;
 }
 
 const profiles = new WeakMap<Company, BotProfile>();
+
+/** A bot's persona, for reports (undefined for humans). */
+export const botConduct = (c: Company) => profiles.get(c)?.conduct;
 
 /** Win-rate band for adaptive pricing: below it the bot cuts its price, above it the bot raises it. */
 const WIN_RATE_BAND = [0.35, 0.6] as const;
@@ -121,8 +140,22 @@ const LEASE_HURDLE_FD = 400;
 const ASSUMED_CLEARED_OF_REF = 1.0;
 const TYPICAL_LANE_MI = 650;
 
+/** The persona mix (design proposal): most carriers run legal; a minority cut corners; a few are crooks. */
+const CONDUCT_MIX = { clean: 0.72, cutter: 0.2, outlaw: 0.08 };
+function conductOf(rng: Rng): BotProfile["conduct"] {
+  const r = rng.next();
+  return r < CONDUCT_MIX.clean ? "clean" : r < CONDUCT_MIX.clean + CONDUCT_MIX.cutter ? "cutter" : "outlaw";
+}
+
 function carrierProfile(strategy: Strategy, rng: Rng): BotProfile {
-  const base = { lastStats: { truckRounds: 0, wins: 0 }, opSnapshots: [] };
+  const p = carrierProfileFor(strategy, rng);
+  // Outlaws double broker some of what they win; most still pay the hauler.
+  if (p.conduct === "outlaw") p.otherOrders.push({ kind: "rebroker", share: 0.1, keepPct: 0.15, pays: rng.next() < 0.8 });
+  return p;
+}
+
+function carrierProfileFor(strategy: Strategy, rng: Rng): BotProfile {
+  const base = { lastStats: { truckRounds: 0, wins: 0 }, opSnapshots: [], conduct: conductOf(rng), paysMarket: strategy !== "greedy" };
   switch (strategy) {
     case "greedy":
       return {
@@ -209,6 +242,8 @@ function carrierProfile(strategy: Strategy, rng: Rng): BotProfile {
 
 function brokerProfile(strategy: Strategy, rng: Rng): BotProfile {
   return {
+    conduct: "clean",
+    paysMarket: true,
     pricing: null,
     maxDeadheadMi: 0,
     otherOrders: [],
@@ -295,6 +330,8 @@ const WALLETS = {
   newcomer: (rng: Rng) => (rng.next() < 0.5 ? 0 : lognormal(rng, 150)),
 };
 
+const ownerSkill = (w: World, rng: Rng) => rng.range(w.cfg.labor.owner.botSkill[0], w.cfg.labor.owner.botSkill[1]);
+
 export function populate(w: World, o: PopulationOptions): void {
   const rng = w.rng.agents.fork("populate");
   let n = 0;
@@ -310,9 +347,12 @@ export function populate(w: World, o: PopulationOptions): void {
       strategy: `oo:${strategy}`,
       orders: carrierOrders(profile),
       freePath: true,
+      ownerSkill: ownerSkill(w, rng),
+      authorityAgeDays: rng.int(0, 400),
     });
     profiles.set(c, profile);
     c.usd.wallet = WALLETS.oo(rng);
+    setConduct(w, c, profile);
   }
 
   for (let i = 0; i < o.fleets; i++) {
@@ -325,9 +365,12 @@ export function populate(w: World, o: PopulationOptions): void {
       strategy: `fleet:${strategy}`,
       orders: carrierOrders(profile),
       freePath: false,
+      ownerSkill: ownerSkill(w, rng),
+      authorityAgeDays: rng.int(365, 3000),
     });
     profiles.set(c, profile);
     c.usd.wallet = WALLETS.fleet(rng);
+    setConduct(w, c, profile);
     // Initial PoC allocation: these companies already hold used equipment, 0–4 years old.
     const size = rng.int(2, 6);
     for (let k = 0; k < size; k++) {
@@ -338,6 +381,8 @@ export function populate(w: World, o: PopulationOptions): void {
       const odometer = Math.max(milesSinceRebuild, years * rng.int(80_000, 130_000));
       addTruck(w, c, "owned", pick.tier, pick.trailer, false, { milesSinceRebuild, odometer, builtDay: -years * 365 - rng.int(0, 364) });
     }
+    // Drivers for the trucks the owner doesn't drive, and a dispatcher past the owner's three.
+    autoStaff(w, c);
   }
 
   for (let i = 0; i < o.brokers; i++) {
@@ -349,9 +394,12 @@ export function populate(w: World, o: PopulationOptions): void {
       strategy: `broker:${strategy}`,
       orders: brokerOrders(strategy, rng),
       freePath: false,
+      authorityAgeDays: rng.int(365, 3000),
     });
     profiles.set(c, brokerProfile(strategy, rng));
     c.usd.wallet = WALLETS.broker(rng);
+    // How carefully it picks carriers (fraud.ts): open, standard or strict.
+    c.vetting = rng.weighted(w.cfg.fraud.botBrokerVetting) as 0 | 1 | 2;
   }
 }
 
@@ -379,9 +427,67 @@ function admitNewcomers(w: World): void {
       strategy: `new:${strategy}`,
       orders: carrierOrders(profile),
       freePath: true,
+      ownerSkill: ownerSkill(w, rng),
     });
     profiles.set(c, profile);
     c.usd.wallet = WALLETS.newcomer(rng);
+    setConduct(w, c, profile);
+  }
+}
+
+/** The compliance policy this bot runs today, for its persona, cash and rating. */
+function setConduct(w: World, c: Company, p: BotProfile): void {
+  const scared = c.safety.rating === "conditional" || c.safety.rating === "unsatisfactory";
+  let policy: CompliancePolicy = { hos: "legal", speed: "legal", maintenance: "full" };
+  if (!scared && p.conduct === "cutter") {
+    const short = w.ledger.balance(companyAccount(c.id)) < reserve(w, c, p);
+    policy = { hos: "hot", speed: "legal", maintenance: short ? "deferred" : "full" };
+  } else if (!scared && p.conduct === "outlaw") policy = { hos: "always", speed: "hot", maintenance: "deferred" };
+  const cur = c.policy;
+  if (cur.hos !== policy.hos || cur.speed !== policy.speed || cur.maintenance !== policy.maintenance) applyAction(w, c.id, { type: "set_compliance", policy });
+}
+
+/**
+ * Staff, beyond the seat-filling the engine does: raises for unhappy people whose
+ * market pay has passed theirs (greedy bots skip it), defects fixed on full
+ * maintenance, and a poach when a truck sits empty and the pool is dry.
+ */
+function manageStaff(w: World, c: Company, p: BotProfile, rng: Rng, today: number): void {
+  if ((today + c.id) % 7 === 0 && p.paysMarket) {
+    for (const s of w.staffByCompany.get(c.id)!) {
+      if (s.owner || s.morale >= 0.45) continue;
+      const ask = askingPay(w, s);
+      if (ask > s.pay) applyAction(w, c.id, { type: "set_staff_pay", staffId: s.id, pay: ask });
+    }
+  }
+  // An offer on one of ours: match it if we would pay that.
+  for (const s of w.staffByCompany.get(c.id)!) {
+    if (s.offer && s.offer.companyId !== 0 && p.paysMarket && s.offer.pay <= askingPay(w, s) * 1.15) applyAction(w, c.id, { type: "set_staff_pay", staffId: s.id, pay: s.offer.pay });
+  }
+  const fleet = w.trucksByCompany.get(c.id)!;
+  if (c.policy.maintenance === "full") {
+    for (const t of fleet) if (t.defects > 0 && t.status === "idle") applyAction(w, c.id, { type: "fix_defects", truckId: t.id });
+  }
+  const empty = fleet.find((t) => !crewed(t) && t.status === "idle");
+  if (!empty || rng.next() > 0.3) return;
+  // Poach the least happy driver elsewhere, for just over what it would take.
+  let best: { id: number; pay: number } | null = null;
+  for (const s of w.staff) {
+    if (s.kind !== "driver" || s.status !== "employed" || s.owner || s.companyId === c.id || s.offer) continue;
+    const pay = Math.max(askingPay(w, s), s.pay * (1 + lerpLoyalty(w, s.morale))) + 0.005;
+    if (!best || pay < best.pay) best = { id: s.id, pay };
+  }
+  if (best && best.pay <= askingPay(w, staffById(w, best.id)) * 1.25) applyAction(w, c.id, { type: "offer_staff", staffId: best.id, pay: best.pay, truckId: empty.id });
+}
+
+/** Outlaws going under steal a valuable load that isn't tracked (their rebroker standing order does the double brokering). */
+function crookery(w: World, c: Company, rng: Rng): void {
+  if (c.authority.status !== "active") return;
+  const fleet = w.trucksByCompany.get(c.id)!;
+  const desperate = c.weeksInDebt >= 1 || w.ledger.balance(companyAccount(c.id)) < 0;
+  if (desperate && rng.next() < 0.15) {
+    const t = fleet.find((x) => x.status === "loaded" && x.loadId !== null && (w.loads.get(x.loadId)?.vet ?? 2) < 2 && (w.loads.get(x.loadId)?.cargoValue ?? 0) >= 15_000);
+    if (t) applyAction(w, c.id, { type: "steal_load", truckId: t.id });
   }
 }
 
@@ -655,6 +761,11 @@ export const ruleBotHook: DailyAgentHook = (w) => {
 
   for (const c of w.companies) {
     const p = profiles.get(c);
+    // Shut down: wait out the bar, then file again.
+    if (p && c.authority.status === "revoked") {
+      if (canRefile(w, c) === null) applyAction(w, c.id, { type: "refile_authority" });
+      continue;
+    }
     if (!p || c.liquidatingSince !== null) continue; // not a bot, or being wound up
     const acct = companyAccount(c.id);
     const fleet = w.trucksByCompany.get(c.id)!;
@@ -667,6 +778,9 @@ export const ruleBotHook: DailyAgentHook = (w) => {
     if (c.role === "carrier") {
       adaptPricing(w, c, p);
       recordOperating(c, p, dayOf(w.t, cfg));
+      setConduct(w, c, p);
+      manageStaff(w, c, p, rng, dayOf(w.t, cfg));
+      if (p.conduct === "outlaw") crookery(w, c, rng);
 
       // Worn trucks: rebuild, or past this bot's age limit sell and replace. A worn
       // truck's higher break-even loses bids; an old one costs more to rebuild.
