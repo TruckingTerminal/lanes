@@ -2,7 +2,7 @@ import { offerFd } from "./buyback.js";
 import { leaseTruck, returnLease } from "./capacity.js";
 import { buyFd, claimAirdropNow, sellFd } from "./token.js";
 import { dayOf } from "./clock.js";
-import { ordersOf, placeOrder } from "./dealer.js";
+import { dealerPrice, ordersOf, placeOrder } from "./dealer.js";
 import { facilitiesOf, facilityEquipment } from "./demand.js";
 import { borrow, deposit, repayLoan, withdraw } from "./finance.js";
 import { companyAccount } from "./ledger.js";
@@ -13,7 +13,7 @@ import { canRefile, notice } from "./safety.js";
 import { inCloseWindow } from "./season.js";
 import { refile } from "./solvency.js";
 import type { Action, RuleScope } from "./types.js";
-import { condition, newPrice, rebuildCost } from "./wear.js";
+import { condition, rebuildCost } from "./wear.js";
 import { availableSupply, companyById, crewed, hubMiles, seatDriver, staffById, syncFleet, takeSupply, truckById, unseatDriver, type World } from "./world.js";
 
 /** What a company whose authority was revoked can still do: wait out the bar, file again, and handle its money. */
@@ -155,7 +155,7 @@ export function applyAction(w: World, companyId: number, action: Action): Action
       if (!replacing && fleet.length + pending.length >= cfg.company.maxTrucks) return { ok: false, reason: "company truck cap" };
       const firstTruck = !fleet.some((t) => t.lease === "owned") && pending.length === 0;
       if (availableSupply(w, action.tier, action.trailer, firstTruck) <= 0) return { ok: false, reason: "PoC supply exhausted" };
-      const price = newPrice(cfg, action);
+      const price = dealerPrice(w, action);
       if (w.ledger.balance(acct) < price) return { ok: false, reason: "insufficient FD" };
 
       w.ledger.post(w.t, acct, "sink:equipment_dealer", price, `buy:${company.id}:${action.tier}:${action.trailer}`);

@@ -192,6 +192,19 @@ export interface Company {
   claims: { day: number; until: number; kind: "theft" | "unpaid" }[];
   /** Owed on a judgment or seizure, paid out of whatever the company still has. */
   judgmentFd: number;
+  /** The company's insurance policy (insurance.ts). */
+  insurance: InsurancePolicy;
+}
+
+/** A one-game-year insurance policy: the price per truck is fixed for the term. */
+export interface InsurancePolicy {
+  annualPerTruck: number;
+  signedDay: number;
+  renewDay: number;
+  /** What went into the price when it was signed. */
+  risk: number;
+  garaging: number;
+  market: number;
 }
 
 export type StaffKind = "driver" | "dispatcher";

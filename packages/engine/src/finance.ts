@@ -1,7 +1,7 @@
 import { dayOf } from "./clock.js";
 import { companyAccount } from "./ledger.js";
 import type { Loan, Truck } from "./types.js";
-import { marketValue } from "./wear.js";
+import { truckValue } from "./dealer.js";
 import type { World } from "./world.js";
 
 /**
@@ -55,7 +55,7 @@ export function activeLoanOn(w: World, truckId: number): Loan | undefined {
 /** Most a truck can secure: 35% of its market value, if it isn't already pledged. */
 export function borrowingCapacity(w: World, truck: Truck): number {
   if (truck.lease !== "owned" || activeLoanOn(w, truck.id)) return 0;
-  return w.cfg.equipmentFinance.maxLoanToValue * marketValue(w.cfg, truck, dayOf(w.t, w.cfg));
+  return w.cfg.equipmentFinance.maxLoanToValue * truckValue(w, truck);
 }
 
 export function borrow(w: World, companyId: number, truck: Truck, amountFd: number): string | null {

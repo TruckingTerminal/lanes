@@ -2,7 +2,7 @@ import { dayOf } from "./clock.js";
 import { activeLoanOn, closeLoanFromPoolProceeds, POOL_ACCOUNT, settleLoanFromSale, writeOffLoan } from "./finance.js";
 import { companyAccount } from "./ledger.js";
 import type { Listing, Truck } from "./types.js";
-import { marketValue } from "./wear.js";
+import { truckValue } from "./dealer.js";
 import { attachTruck, companyById, detachTruck, truckById, type World } from "./world.js";
 
 /**
@@ -114,7 +114,7 @@ export function repossessDefaults(w: World): void {
       if (own) own.status = "withdrawn";
     } else if (truck.status !== "idle" && truck.status !== "parked") continue;
     const borrower = companyById(w, loan.borrowerId);
-    const value = marketValue(w.cfg, truck, today);
+    const value = truckValue(w, truck);
     truck.status = "idle"; // listTruck sets "listed"
     const listing = listTruck(w, 0, truck, value * ef.repoStartPctOfValue, value * ef.repoFloorPctOfValue, value * ef.repoWeeklyStepPctOfValue);
     if (typeof listing === "string") continue;

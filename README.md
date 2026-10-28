@@ -10,6 +10,16 @@
 - **Locally:** `npm ci`, then `npm run build:site` and serve `apps/web/dist/site`, or `npm run build`
   and open `apps/web/dist/local-lanes.html` from a static server.
 
+## Docs
+- **For players:** https://truckingterminal.github.io/lanes-play/docs.html, and the Guide tab in the
+  game. Both render the same pages (`apps/web/src/guide/*.ts`, one file per section: getting started,
+  the market, running trucks, staff, growing the company, money, safety, reference), and every number
+  in them is read from the config the world runs on, so the docs can't drift from the rules. The
+  docs page is built at `npm run build:site` (`apps/web/src/docs.ts`) and deployed with the game.
+- Fraud (double brokering, cargo theft) is deliberately left out of the player docs.
+- **For developers:** this README (design notes and sim results by config version), `TOKENOMICS.md`
+  (the token), and the comments in `packages/config/src/economy.config.ts` (every tunable number).
+
 
 Pure, seeded simulation engine for the LANES proof of concept (spec v0.2, "Phase 0 build brief").
 
@@ -293,7 +303,32 @@ Design, levers and the full results are in [TOKENOMICS.md](TOKENOMICS.md); table
   at end $0.0072 vs $0.0061, owner-operator profit 614 vs 620 FD per truck-week, fleet wealth 145k
   vs 139k, free-path median 85 vs 116 days. ~250 crashes (10 fatal), ~130 shutdowns, ~14M FD fines.
 - **In the client:** a Staff tab (hire, pay, seat, team, poach, match offers) and a Guide tab. No
-  Safety screen yet: player companies run legal by default.
+  Safety screen yet: player companies run legal by default. A revoked authority files again
+  automatically when its bar ends.
+
+## Insurance, dealer prices and home markets (config 0.9.0)
+- **Insurance** (`insurance.ts`) is a one-game-year policy per company, priced at signing and each
+  renewal per truck on the road and billed weekly: 4,200 FD × record (rating, alerts, at-fault crash
+  surcharges, a new authority ×1.25, a long clean record ×0.9) × the home hub's garaging factor
+  (`garagingFactor` in hubs.ts: FL, LA, NJ, TX, GA, CA high; upper Midwest and Mountain West low) ×
+  the insurance market index, which moves 3% a month toward a 60% loss ratio (claims insurers paid ÷
+  premiums, trailing year). A serious at-fault crash or a review that changes the rating re-writes the policy at once.
+  Dispatchers spread the premium over 52,500 loaded miles in break-even.
+- **Dealer prices** (`dealer.ts`) move monthly per tractor tier and trailer type with the order
+  backlog and scarcity (under 25% of the cap left), within ×0.85–1.3 of list; used values follow.
+- **Home markets** (`home.ts`): a starter hub's crowding is the carriers based there ÷ its fair share
+  by freight volume. Loads from within 150 miles of home get a bid-score edge (0.04 at a fair share,
+  ×0.25–2 by 1 ÷ crowding), and a home base pays yard rent of 20 FD a week for each truck past the first × a metro factor ×
+  crowding. Fleet overhead brackets dropped another 40 FD to make room. The join screen shows each
+  starter hub's freight balance, insurance factor, yard rent and crowding.
+- **10 seeds × 4 years, token on** (`runs/compare-v15-d.md` vs v14-c and v13-f): liquidations 1,059
+  (817 with staff and safety alone, 548 before either), companies in debt at end 194 (153, 107),
+  owner-operator profit 590 FD per truck-week (614, 620), fleet wealth 154k (145k, 139k), free-path
+  median 93 days (85, 116), FD price at end $0.0070. Insurance takes less in total than before
+  (33.2M vs 39.4M) but as a fixed cost per truck it bites in slumps, which is most of the extra
+  failures; toggling yard rent, the home edge, dealer prices or the insurance market one at a time
+  moved liquidations by under ±40 on 3 seeds. The insurance market ranged ×0.83–1.39 and the
+  Workhorse + van price ×0.99–1.30.
 
 ## The live world (`apps/web`)
 One shared, permanent world. There is no game server: the world is a seed plus every player's

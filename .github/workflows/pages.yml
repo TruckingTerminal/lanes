@@ -51,7 +51,7 @@ jobs:
           printf '%s\n' "$DEPLOY_KEY" > ~/.ssh/deploy && chmod 600 ~/.ssh/deploy
           export GIT_SSH_COMMAND="ssh -i ~/.ssh/deploy -o StrictHostKeyChecking=accept-new"
           git clone --depth 1 git@github.com:TruckingTerminal/lanes-play.git out
-          cp site/index.html out/index.html
+          cp site/*.html out/
           touch out/.nojekyll
           cd out
           git config user.name "lanes-ci"

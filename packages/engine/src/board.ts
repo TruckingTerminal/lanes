@@ -2,6 +2,7 @@ import { seasonality } from "./demand.js";
 import { dayOf } from "./clock.js";
 import { generateRoundFreight } from "./freight.js";
 import { rebrokerLoad, vettingBlock } from "./fraud.js";
+import { homeEdge } from "./home.js";
 import { creditDispatch, dispatchProfile } from "./labor.js";
 import { companyAccount } from "./ledger.js";
 import { bidsFromStandingOrders, boardKey, indexOpenLoads, scoreBid } from "./standingOrders.js";
@@ -151,7 +152,7 @@ function manualRoundBids(w: World): Bid[] {
     if (company.authority.status !== "active" || vettingBlock(w, company, load) !== null || load.doubleBroker?.companyId === company.id) continue;
     const deadheadMi = hubMiles(w, truck.hub, load.origin);
     const rate = Math.min(mb.rate, load.ceiling);
-    out.push({ loadId: load.id, truckId, companyId: company.id, rate, deadheadMi, score: scoreBid(w, load.ceiling, rate, company.reputation, deadheadMi), tiebreak: 0 });
+    out.push({ loadId: load.id, truckId, companyId: company.id, rate, deadheadMi, score: scoreBid(w, load.ceiling, rate, company.reputation, deadheadMi, homeEdge(w, company, load.origin)), tiebreak: 0 });
   }
   w.manualBids.clear();
   return out;

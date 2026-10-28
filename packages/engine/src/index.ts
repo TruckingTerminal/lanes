@@ -8,6 +8,8 @@ export * from "./demand.js";
 export * from "./economics.js";
 export * from "./finance.js";
 export * from "./freight.js";
+export * from "./home.js";
+export * from "./insurance.js";
 export * from "./fraud.js";
 export * from "./labor.js";
 export * from "./ledger.js";

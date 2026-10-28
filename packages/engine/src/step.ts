@@ -5,9 +5,12 @@ import { dayOf, isRoundBoundary, MINUTES_PER_HOUR, seasonOf } from "./clock.js";
 import { clamp, fuelPrice } from "./economics.js";
 import { companyAccount } from "./ledger.js";
 import type { DayMetrics } from "./metrics.js";
-import { deliverOrders } from "./dealer.js";
+import { dealerPrice, deliverOrders } from "./dealer.js";
 import { serviceLoans } from "./finance.js";
 import { dailyFraud } from "./fraud.js";
+import { billInsurance, dailyInsurance, monthlyInsurance } from "./insurance.js";
+import { chargeYards } from "./home.js";
+import { monthlyDealerPrices } from "./dealer.js";
 import { dailyLabor, monthlyLabor, payDispatchers, weeklyLabor } from "./labor.js";
 import { dailySafety, monthlySafety, weeklySafety } from "./safety.js";
 import { repossessDefaults, stepListings } from "./market.js";
@@ -53,6 +56,7 @@ function endOfDay(w: World, day: number, agents?: DailyAgentHook): void {
   processLiquidations(w);
   dailyFraud(w);
   dailySafety(w);
+  dailyInsurance(w);
   dailyLabor(w);
 
   // Idle fee on owned assets unused for 7+ in-game days, parked ones included (§Owned vs. leased).
@@ -84,6 +88,8 @@ function endOfDay(w: World, day: number, agents?: DailyAgentHook): void {
     serviceLoans(w);
     stepListings(w);
     payDispatchers(w);
+    billInsurance(w);
+    chargeYards(w);
     weeklyLabor(w);
     weeklySafety(w);
     // Each company's spending this week, for the season-close working-capital carryover.
@@ -116,7 +122,7 @@ function endOfDay(w: World, day: number, agents?: DailyAgentHook): void {
 
   // Free-path affordability is tracked apart from purchases, so a run can tell
   // "couldn't earn it" from "nothing left to buy".
-  const starterPrice = cfg.dealerFd.tractor.workhorse + cfg.dealerFd.trailer.van;
+  const starterPrice = dealerPrice(w, { tier: "workhorse", trailer: "van" });
   for (const c of w.companies) {
     if (c.freePath && c.firstAffordDay === null && w.ledger.balance(companyAccount(c.id)) >= starterPrice) c.firstAffordDay = day;
   }
@@ -133,6 +139,8 @@ function endOfDay(w: World, day: number, agents?: DailyAgentHook): void {
     monthlyCapacity(w);
     monthlyLabor(w);
     monthlySafety(w);
+    monthlyInsurance(w);
+    monthlyDealerPrices(w);
     if (tokenLive(w)) scaleDemand(w);
   }
 }

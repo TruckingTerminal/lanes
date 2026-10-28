@@ -4,10 +4,11 @@ import { ordersOf } from "./dealer.js";
 import { facilitiesOf } from "./demand.js";
 import { depositorValue, POOL_ACCOUNT, poolCash, withdraw } from "./finance.js";
 import { companyAccount } from "./ledger.js";
+import { signPolicy } from "./insurance.js";
 import { releaseAll } from "./labor.js";
 import { listTruck } from "./market.js";
 import type { Company } from "./types.js";
-import { marketValue } from "./wear.js";
+import { truckValue } from "./dealer.js";
 import { forfeitAirdrop } from "./token.js";
 import { createTruck, newSafetyRecord, type World } from "./world.js";
 
@@ -95,7 +96,7 @@ export function processLiquidations(w: World): void {
         continue;
       }
       if (t.lease !== "owned" || (t.status !== "idle" && t.status !== "parked")) continue;
-      const value = marketValue(w.cfg, t, today);
+      const value = truckValue(w, t);
       listTruck(
         w,
         c.id,
@@ -126,6 +127,7 @@ export function refile(w: World, c: Company): void {
   c.policy = { hos: "legal", speed: "legal", maintenance: "full" };
   c.judgmentFd = 0;
   c.claims = [];
+  signPolicy(w, c);
   if (c.liquidatingSince !== null) restart(w, c);
 }
 

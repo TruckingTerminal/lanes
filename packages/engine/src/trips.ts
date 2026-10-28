@@ -169,8 +169,8 @@ function payTripCosts(w: World, truck: Truck, ref: string): number {
   w.ledger.post(w.t, acct, "sink:fuel", c.fuel, ref);
   w.ledger.post(w.t, acct, "sink:driver_wages", c.wages, ref);
   w.ledger.post(w.t, acct, "sink:maintenance", c.maintenance, ref);
-  w.ledger.post(w.t, acct, "sink:insurance", c.insurance, ref);
-  return c.fuel + c.wages + c.maintenance + c.insurance;
+  // Insurance isn't per trip: the yearly policy is billed weekly (insurance.ts).
+  return c.fuel + c.wages + c.maintenance;
 }
 
 function arriveEmpty(w: World, truck: Truck): void {

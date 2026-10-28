@@ -98,6 +98,9 @@ export interface DayMetrics {
   unsatCarriers: number;
   revokedCarriers: number;
   cheatingCarriers: number;
+  /** The insurance market index and the dealer's Workhorse + dry van price index. */
+  insuranceIndex: number;
+  dealerIndex: number;
 }
 
 /** Collects the dashboard metrics every tick writes (§Tech — engineering rules). */
@@ -312,6 +315,10 @@ export class MetricsRecorder {
       unsatCarriers: carriers.filter((c) => c.safety.rating === "unsatisfactory").length,
       revokedCarriers: carriers.filter((c) => c.authority.status === "revoked").length,
       cheatingCarriers: carriers.filter((c) => c.policy.hos !== "legal" || c.policy.maintenance === "deferred").length,
+      insuranceIndex: w.insuranceMarket.index,
+      dealerIndex:
+        (w.cfg.dealerFd.tractor.workhorse * w.dealerIndex.tractor.workhorse + w.cfg.dealerFd.trailer.van * w.dealerIndex.trailer.van) /
+        (w.cfg.dealerFd.tractor.workhorse + w.cfg.dealerFd.trailer.van),
     };
     this.days.push(m);
     this.acc = emptyAcc();

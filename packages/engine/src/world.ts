@@ -3,6 +3,7 @@ import type { Feeds, Network } from "@lanes/data";
 import { Ledger, companyAccount } from "./ledger.js";
 import { Rng } from "./rng.js";
 import type { BuybackWeek, GameEvent, TokenState, Company, Facility, FinancePool, FraudCase, LeaseKind, Listing, Load, Role, SeasonCloseRecord, Staff, StandingOrder, Truck, TruckOrder } from "./types.js";
+import { signPolicy } from "./insurance.js";
 import { seedPool } from "./labor.js";
 import { MetricsRecorder } from "./metrics.js";
 
@@ -87,6 +88,10 @@ export interface World {
   labor: { wageIndex: number };
   /** Open and closed fraud investigations (fraud.ts). */
   cases: FraudCase[];
+  /** The insurance market (insurance.ts): its price index and the last 12 months of premiums and claims. */
+  insuranceMarket: { index: number; premiums: number[]; claims: number[] };
+  /** Dealer price index by tractor tier and trailer type (dealer.ts). */
+  dealerIndex: { tractor: Record<TractorTier, number>; trailer: Record<Equipment, number> };
   /** Optional listener for game events (a player's UI); never affects the simulation. */
   listener: ((e: GameEvent) => void) | null;
   metrics: MetricsRecorder;
@@ -185,6 +190,8 @@ export function createWorld(o: WorldOptions): World {
     staffByCompany: new Map(),
     labor: { wageIndex: 1 },
     cases: [],
+    insuranceMarket: { index: 1, premiums: [0], claims: [0] },
+    dealerIndex: { tractor: { workhorse: 1, highwayPro: 1, flagship: 1 }, trailer: { van: 1, reefer: 1, flatbed: 1 } },
     listener: null,
     metrics: new MetricsRecorder(),
   };
@@ -288,15 +295,6 @@ export function marketPay(w: World, kind: Staff["kind"], skill: number): number 
 /** What someone asks to take a job (or to move). */
 export const askingPay = (w: World, s: Staff) => marketPay(w, s.kind, s.skill) * s.personal;
 
-/** The insurance premium multiplier for a company's trucks: crash history, rating, and a new authority's surcharge. */
-export function insuranceMultiplier(w: World, c: Company): number {
-  const { insurance } = w.cfg.safety;
-  const rating = c.safety.rating === "conditional" ? insurance.conditional : c.safety.rating === "unsatisfactory" ? insurance.unsatisfactory : 1;
-  const newEntrant = dayOfWorld(w) - c.authority.since < w.cfg.safety.review.newEntrantDay ? insurance.newEntrant : 1;
-  return (1 + c.safety.insuranceSurcharge) * rating * newEntrant;
-}
-
-const dayOfWorld = (w: World) => Math.floor(w.t / w.cfg.time.gameMinutesPerDay);
 
 /** Recomputes a truck's cached crew and policy numbers. Call after any seat, pay, skill or policy change. */
 export function syncTruck(w: World, truck: Truck): void {
@@ -315,7 +313,8 @@ export function syncTruck(w: World, truck: Truck): void {
   }
   const c = truck.companyId ? companyById(w, truck.companyId) : null;
   truck.maintPolicyMult = c?.policy.maintenance === "deferred" ? cfg.safety.maintenance.deferredCostMult : 1;
-  truck.insuranceMult = c ? insuranceMultiplier(w, c) : 1;
+  // Break-even spreads the policy's price over a typical truck's loaded miles.
+  truck.insuranceMult = c && c.insurance.annualPerTruck > 0 ? c.insurance.annualPerTruck / cfg.insurance.baseAnnualPerTruck : 1;
 }
 
 export function syncFleet(w: World, companyId: number): void {
@@ -423,6 +422,7 @@ export function formCompany(w: World, c: NewCompany): Company {
     autoStaff: true,
     claims: [],
     judgmentFd: 0,
+    insurance: { annualPerTruck: 0, signedDay: day, renewDay: day, risk: 1, garaging: 1, market: 1 },
   };
   // An established company has passed its new-entrant audit long ago.
   if ((c.authorityAgeDays ?? 0) >= w.cfg.safety.review.newEntrantDay) {
@@ -432,6 +432,7 @@ export function formCompany(w: World, c: NewCompany): Company {
   w.companies.push(company);
   w.trucksByCompany.set(company.id, []);
   w.staffByCompany.set(company.id, []);
+  signPolicy(w, company);
   // A carrier's owner drives and dispatches for it (labor.ts).
   if (c.role === "carrier") addOwner(w, company, c.ownerSkill ?? w.cfg.labor.owner.humanSkill);
   w.ledger.post(w.t, "faucet:starting_grant", companyAccount(company.id), w.cfg.company.startingGrantFd, `grant:${company.id}`);

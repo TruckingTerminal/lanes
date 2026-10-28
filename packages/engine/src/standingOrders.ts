@@ -1,6 +1,7 @@
 import { breakEvenPerMile, fuelPrice } from "./economics.js";
 import { expectedReloadDeadheadMi } from "./freight.js";
 import { vettingBlock } from "./fraud.js";
+import { homeEdge } from "./home.js";
 import { dispatchProfile, type DispatchProfile } from "./labor.js";
 import type { Bid, Company, Load, StandingOrder, Truck } from "./types.js";
 import { crewed, hubMiles, type World } from "./world.js";
@@ -29,12 +30,13 @@ export function indexOpenLoads(w: World): BoardIndex {
 }
 
 /** Bid score (§Load board — bid scoring), poster defaults. */
-export function scoreBid(w: World, ceiling: number, rate: number, reputation: number, deadheadMi: number): number {
+export function scoreBid(w: World, ceiling: number, rate: number, reputation: number, deadheadMi: number, homeEdge = 0): number {
   const s = w.cfg.board.scoreWeights;
   return (
     s.price * ((ceiling - rate) / ceiling) +
     s.reputation * reputation +
-    s.deadhead * (1 - deadheadMi / w.cfg.board.deadheadScaleMi)
+    s.deadhead * (1 - deadheadMi / w.cfg.board.deadheadScaleMi) +
+    homeEdge
   );
 }
 
@@ -81,7 +83,7 @@ export function bidsFromStandingOrders(w: World, company: Company, idx: BoardInd
             companyId: company.id,
             rate: priced.rate,
             deadheadMi: dh,
-            score: scoreBid(w, load.ceiling, priced.rate, company.reputation, dh),
+            score: scoreBid(w, load.ceiling, priced.rate, company.reputation, dh, homeEdge(w, company, load.origin)),
             tiebreak: 0,
           },
         });

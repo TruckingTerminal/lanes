@@ -6,6 +6,13 @@ import {
   canMakeHot,
   canRefile,
   crewed,
+  dealerPrice,
+  garagingOf,
+  homeCrowding,
+  homeEdge,
+  lossRatio,
+  yardPerTruck,
+  truckValue,
   dispatchProfile,
   marketPay,
   PERMANENT_BAR,
@@ -49,6 +56,7 @@ import {
   type StandingOrder,
   type Truck,
   type VettingTier,
+  type World,
 } from "@lanes/engine";
 import { hubs as HUBS } from "@lanes/data";
 import { drawTitleScene, facilityUrl, iconUrl, PAL, truckUrl } from "./art.js";
@@ -331,6 +339,7 @@ function joinMenu(): string {
     <p style="font-size:15px">One world, shared by every player, running on the real clock: one game day every 6 real hours. It never pauses and nothing resets. Every order you give stands.</p>
     <div class="field"><label class="label" for="cname">Company name</label><input type="text" id="cname" maxlength="32" value="Lone Star Freight" required></div>
     <div class="field"><label class="label" for="chub">Home hub</label><select id="chub">${starterOptions()}</select></div>
+    ${hubChoiceTable(live?.w ?? null)}
     <div class="choice" style="cursor:default">${img(truckUrl("workhorse", "van", true, PAL.blue, 2), "Leased truck")}<span><b>You start as an owner-operator,</b> like everyone: one NPC-leased Workhorse and dry van, 5,000 FD. The lessor takes 15% of every load. Go broke and you start over on a lease.</span></div>
     <div class="row"><button class="btn primary" type="submit">Start hauling</button>${testButton()}</div>
     <p class="muted" style="font-size:14px">Year 1–2 is the beta: FD is play money and you earn Miles. At the end of Year 2, FD launches on the exchange and Miles turn into an airdrop. This build uses play dollars only.</p>
@@ -351,6 +360,7 @@ function testMenu(): string {
       <label class="choice"><input type="radio" name="start" value="fleet"><span>${img(truckUrl("workhorse", "reefer", false, PAL.amber, 2), "Owned truck")}<br><b>Small fleet.</b> Two used trucks and 25,000 FD, to test the fleet game.</span></label>
     </div>
     <div class="field"><label class="label" for="thub">Home hub</label><select id="thub">${starterOptions()}</select></div>
+    ${hubChoiceTable(null)}
     <div class="row"><button class="btn primary" type="submit">${test ? "Start a new test world" : "Open the test world"}</button>${test ? `<button class="btn" type="button" data-act="backtest">Keep playing this one</button>` : ""}${live ? `<button class="btn" type="button" data-act="backlive">Back to the live world</button>` : ""}</div>
   </form>`;
 }
@@ -940,7 +950,7 @@ function fleetPanel(): string {
     .map((t, idx) => {
       const leased = t.lease !== "owned";
       const cond = condition(w.cfg, t);
-      const kind = t.lease === "npc" ? "NPC lease (15% of gross)" : t.lease === "lessor" ? "Extra lease (15% of gross, 250 FD/wk minimum)" : `Owned · worth ${fd(marketValue(w.cfg, t, today))} FD`;
+      const kind = t.lease === "npc" ? "NPC lease (15% of gross)" : t.lease === "lessor" ? "Extra lease (15% of gross, 250 FD/wk minimum)" : `Owned · worth ${fd(truckValue(w, t))} FD`;
       const actions: string[] = [];
       if (t.status === "idle") {
         actions.push(`<button class="btn" data-act="findloads" data-truck="${t.id}">Find loads</button>`);
@@ -1108,9 +1118,11 @@ function marketPanel(): string {
     .map((tier) =>
       trailers
         .map((tr) => {
-          const price = newPrice(w.cfg, { tier, trailer: tr });
+          const price = dealerPrice(w, { tier, trailer: tr });
+          const vsList = price / newPrice(w.cfg, { tier, trailer: tr }) - 1;
           const left = availableSupply(w, tier, tr, firstTruck);
-          return `<div class="card"><div class="truckhead">${img(truckUrl(tier, tr, false, PAL.amber, 2), `${TIER_NAME[tier]} with ${TRAILER_NAME[tr]}`)}<div><h3>${TIER_NAME[tier]} + ${TRAILER_NAME[tr]}</h3><p><span class="num">${fd(price)}</span> FD · ${left} left · ${lead} days to deliver</p></div></div>
+          const move = Math.abs(vsList) < 0.01 ? "list price" : `<span class="${vsList > 0 ? "bad" : "good"}">${signedPct(vsList)} vs list</span>`;
+          return `<div class="card"><div class="truckhead">${img(truckUrl(tier, tr, false, PAL.amber, 2), `${TIER_NAME[tier]} with ${TRAILER_NAME[tr]}`)}<div><h3>${TIER_NAME[tier]} + ${TRAILER_NAME[tr]}</h3><p><span class="num">${fd(price)}</span> FD (${move}) · ${left} left · ${lead} days to deliver</p></div></div>
           <div class="row"><button class="btn primary" data-act="buynew" data-tier="${tier}" data-trailer="${tr}" ${cash >= price && left > 0 ? "" : "disabled"}>Order${onLease ? " (replaces your lease)" : ""}</button></div></div>`;
         })
         .join(""),
@@ -1120,12 +1132,12 @@ function marketPanel(): string {
   const used = openListings(w)
     .filter((l) => l.formerOwnerId !== c.id && l.sellerId !== c.id)
     .map((l) => ({ l, t: w.trucks[l.truckId - 1]! }))
-    .sort((a, b) => a.l.askFd / Math.max(1, marketValue(w.cfg, a.t, today)) - b.l.askFd / Math.max(1, marketValue(w.cfg, b.t, today)))
+    .sort((a, b) => a.l.askFd / Math.max(1, truckValue(w, a.t)) - b.l.askFd / Math.max(1, truckValue(w, b.t)))
     .slice(0, 8)
     .map(
       ({ l, t }) => `<div class="card"><div class="truckhead">${img(truckUrl(t.tier, t.trailer, false, PAL.fog, 2), "Used truck")}<div><h3>${TIER_NAME[t.tier]} + ${TRAILER_NAME[t.trailer]}</h3>
       <p>${Math.round(t.odometer).toLocaleString("en-US")} mi · ${pct(condition(w.cfg, t))} condition · at ${esc(w.net.hubs[t.hub]!.id)}${l.sellerId === 0 ? ' · <span class="warn">repo</span>' : ""}</p>
-      <p>Asking <span class="num">${fd(l.askFd)}</span> FD (value ${fd(marketValue(w.cfg, t, today))})</p></div></div>
+      <p>Asking <span class="num">${fd(l.askFd)}</span> FD (value ${fd(truckValue(w, t))})</p></div></div>
       <div class="row"><button class="btn primary" data-act="buyused" data-listing="${l.id}" ${cash >= l.askFd ? "" : "disabled"}>Buy today</button></div></div>`,
     )
     .join("");
@@ -1220,7 +1232,7 @@ function companyPanel(): string {
   const cyc = w.feeds.cycle(day);
   const miles = (x: Company) => x.milesHistory.reduce((a, b) => a + b, 0) + x.milesTotal;
   const worth = (x: Company) =>
-    w.ledger.balance(companyAccount(x.id)) + w.trucksByCompany.get(x.id)!.reduce((s, t) => s + marketValue(w.cfg, t, day), 0);
+    w.ledger.balance(companyAccount(x.id)) + w.trucksByCompany.get(x.id)!.reduce((s, t) => s + truckValue(w, t), 0);
   const carriers = w.companies.filter((x) => x.role === "carrier");
   const byWorth = [...w.companies].sort((a, b) => worth(b) - worth(a));
   const top = byWorth.slice(0, 8);
@@ -1255,6 +1267,7 @@ function companyPanel(): string {
         : "";
   return `<div class="stack"><h2>${c ? esc(c.name) : "The live world"}</h2>
     ${mine}
+    ${c ? homeAndInsuranceCard(c) : ""}
     ${players}
     ${seasonCard(day)}
     <div class="card"><h3>Market report</h3><dl class="kv">
@@ -1385,16 +1398,68 @@ function staffPanel(): string {
   </div>`;
 }
 
+// --- Home market and insurance ------------------------------------------------------------
+
+const crowdWord = (r: number) => (r >= 1.5 ? "crowded" : r >= 1.1 ? "busy" : r >= 0.75 ? "fair share" : "wide open");
+
+function homeAndInsuranceCard(c: Company): string {
+  const w = game!.w;
+  const hub = w.net.hubs[c.homeHub]!;
+  const r = homeCrowding(w)[c.homeHub]!;
+  const p = c.insurance;
+  return `<div class="card"><h3>Home market: ${esc(hub.name)}</h3><dl class="kv">
+      <dt>Carriers based here</dt><dd>${r.toFixed(2)}× its fair share by freight · ${crowdWord(r)}</dd>
+      <dt>Local edge</dt><dd class="num">+${(homeEdge(w, c, c.homeHub) * 100).toFixed(1)} bid-score points on loads within ${w.cfg.map.nearbyRadiusMi} mi of home</dd>
+      <dt>Yard rent</dt><dd class="num">${fd(yardPerTruck(w, c))} FD a week for each truck past your first</dd>
+    </dl></div>
+    <div class="card"><h3>Insurance</h3><dl class="kv">
+      <dt>Policy</dt><dd class="num">${fd(p.annualPerTruck)} FD per truck a year (${fd(p.annualPerTruck / 52)} a week), renews ${dateLabel(p.renewDay)}</dd>
+      <dt>Priced from</dt><dd>your record ×${p.risk.toFixed(2)} · ${esc(hub.id)} garaging ×${p.garaging.toFixed(2)} · market ×${p.market.toFixed(2)}</dd>
+      <dt>Insurance market</dt><dd>index ×${w.insuranceMarket.index.toFixed(2)} · insurers paid out ${pct(lossRatio(w))} of premiums this year</dd>
+    </dl><p class="muted" style="font-size:14px">The price holds for the year. A serious at-fault crash, or a review that changes your rating, gets the policy re-written on the spot.</p></div>`;
+}
+
+/** Each starter hub as a home base: freight balance, insurance, yard rent and (in a running world) how crowded it is. */
+function hubChoiceTable(w: World | null): string {
+  const arrow = (x: number) => (x >= 1.15 ? `<span class="good">strong</span>` : x <= 0.75 ? `<span class="bad">weak</span>` : "even");
+  const cfg = GAME_CONFIG;
+  const rows = HUBS.filter((h) => h.isStarter).map((h) => {
+    const i = HUBS.indexOf(h);
+    const metro = cfg.homeBase.yardTier[0] + cfg.homeBase.yardTier[1] * h.weight;
+    const r = w ? homeCrowding(w)[i]! : 1;
+    const yard = cfg.homeBase.yardPerTruckWeek * metro * Math.min(cfg.homeBase.yardCrowdClamp[1], Math.max(cfg.homeBase.yardCrowdClamp[0], r));
+    return `<tr><td>${esc(h.name)}</td><td>${arrow(h.imbalance.van)} / ${arrow(h.imbalance.reefer)} / ${arrow(h.imbalance.flatbed)}</td><td class="num">×${garagingOf(h.id).toFixed(2)}</td><td class="num">${fd(yard)}</td>${w ? `<td>${crowdWord(r)}</td>` : ""}</tr>`;
+  });
+  return `<table><tr><th>Hub</th><th>Outbound van / reefer / flatbed</th><th>Insurance</th><th>Yard FD/wk per extra truck</th>${w ? "<th>Carriers</th>" : ""}</tr>${rows.join("")}</table>
+    <p class="muted" style="font-size:14px">Strong outbound means plenty of freight to reload on; weak means trucks pile up and outbound pays little (inbound pays more). Local shippers favor carriers based nearby, an edge that shrinks the more carriers share the hub.</p>`;
+}
+
 // --- Guide ------------------------------------------------------------------------------
 
 let guidePage = "start";
 
+const DOCS_URL = TEST_BUILD ? "docs.html" : "https://truckingterminal.github.io/lanes-play/docs.html";
+
 function guidePanel(): string {
   const pages = guidePages(GAME_CONFIG);
   const page = pages.find((p) => p.id === guidePage) ?? pages[0]!;
+  const sections = [...new Set(pages.map((p) => p.section))];
+  const nav = sections
+    .map(
+      (s) =>
+        `<div class="guidenav"><span class="label">${esc(s)}</span>${pages
+          .filter((p) => p.section === s)
+          .map((p) => `<button class="btn ${p.id === page.id ? "on" : ""}" data-act="guide" data-page="${p.id}">${esc(p.title)}</button>`)
+          .join("")}</div>`,
+    )
+    .join("");
+  const i = pages.indexOf(page);
+  const step = (p: (typeof pages)[number] | undefined, label: string) => (p ? `<button class="btn" data-act="guide" data-page="${p.id}">${label}: ${esc(p.title)}</button>` : "");
   return `<div class="stack"><h2>Guide</h2>
-    <div class="row">${pages.map((p) => `<button class="btn ${p.id === page.id ? "on" : ""}" data-act="guide" data-page="${p.id}">${esc(p.title)}</button>`).join("")}</div>
-    <div class="card guide"><h3>${esc(page.title)}</h3>${page.html}</div></div>`;
+    <div class="card guide"><span class="label">${esc(page.section)}</span><h3>${esc(page.title)}</h3>${page.html}
+      <div class="row">${step(pages[i - 1], "Back")}${step(pages[i + 1], "Next")}</div></div>
+    ${nav}
+    <p class="muted" style="font-size:14px">Every page, on one screen: <a href="${DOCS_URL}" target="_blank" rel="noopener">the LANES docs</a>.</p></div>`;
 }
 
 // --- Input ---------------------------------------------------------------------------
@@ -1658,7 +1723,7 @@ function wireInput(): void {
         break;
       case "sell": {
         const t = w.trucks[truck - 1]!;
-        const value = marketValue(w.cfg, t, Math.floor(w.t / 1440));
+        const value = truckValue(w, t);
         act({ type: "list_truck", truckId: truck, askFd: value, floorFd: value * 0.6, stepFd: value * 0.05 }, `Listed at ${fd(value)} FD; the price drops 5% a week until it sells`);
         break;
       }
@@ -1728,8 +1793,10 @@ function wireInput(): void {
         act({ type: "claim_airdrop_now" }, "Airdrop claimed at half");
         break;
       case "guide":
+        ev.preventDefault();
         guidePage = el.dataset.page ?? "start";
         panelDirty = true;
+        $("panel").scrollTop = 0;
         break;
       case "tostaff":
         tab = "staff";

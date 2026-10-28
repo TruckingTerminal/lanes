@@ -99,3 +99,18 @@ function toHub([id, name, lat, lon, weight, van, reefer, flatbed, sectors]: Row,
 }
 
 export const hubs: Hub[] = [...STARTERS.map((r) => toHub(r, true)), ...OTHERS.map((r) => toHub(r, false))];
+
+/**
+ * Insurance garaging factor by home hub: where a carrier is based moves its
+ * premium, the way real rates follow each state's lawsuit climate. Approximate,
+ * for the game: Florida, Louisiana, New Jersey, Texas, Georgia and California
+ * run high; the upper Midwest and Mountain West low. Unlisted hubs are 1.
+ */
+export const garagingFactor: Record<string, number> = {
+  MIA: 1.35, MCO: 1.3, TPA: 1.3, JAX: 1.25, MSY: 1.3, EWR: 1.3,
+  HOU: 1.25, DAL: 1.2, SAT: 1.2, LRD: 1.2, ELP: 1.15, AMA: 1.1,
+  ATL: 1.25, SAV: 1.2, LAX: 1.25, ONT: 1.25, OAK: 1.2, FAT: 1.15, SCK: 1.15,
+  PHL: 1.15, BOS: 1.1, LAS: 1.1,
+  MSP: 0.9, DSM: 0.85, OMA: 0.85, FAR: 0.85, ICT: 0.9, BOI: 0.85, SLC: 0.9, DEN: 0.95,
+  MKE: 0.9, IND: 0.9, CMH: 0.95, CVG: 0.95, SDF: 0.95, MKC: 0.95, OKC: 0.95, BUF: 0.95,
+};

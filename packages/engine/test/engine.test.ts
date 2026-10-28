@@ -465,11 +465,11 @@ describe("fleet overhead", () => {
   it("leaves the first three trucks free and charges each later truck its bracket", () => {
     expect(fleetOverheadPerWeek(cfg, 1)).toBe(0);
     expect(fleetOverheadPerWeek(cfg, 3)).toBe(0);
-    expect(fleetOverheadPerWeek(cfg, 5)).toBe(2 * 250);
-    expect(fleetOverheadPerWeek(cfg, 10)).toBe(2 * 250 + 5 * 450);
-    expect(fleetOverheadPerWeek(cfg, 30)).toBe(2 * 250 + 5 * 450 + 10 * 600 + 10 * 700);
-    expect(marginalOverhead(cfg, 3)).toBe(250);
-    expect(marginalOverhead(cfg, 20)).toBe(700);
+    expect(fleetOverheadPerWeek(cfg, 5)).toBe(2 * 210);
+    expect(fleetOverheadPerWeek(cfg, 10)).toBe(2 * 210 + 5 * 410);
+    expect(fleetOverheadPerWeek(cfg, 30)).toBe(2 * 210 + 5 * 410 + 10 * 560 + 10 * 660);
+    expect(marginalOverhead(cfg, 3)).toBe(210);
+    expect(marginalOverhead(cfg, 20)).toBe(660);
   });
 
   it("is charged weekly on operating trucks only: parking a truck takes it off the bill", () => {

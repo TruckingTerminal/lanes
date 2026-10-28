@@ -1,10 +1,9 @@
-import { ordersOf } from "./dealer.js";
+import { dealerPrice, ordersOf, truckValue } from "./dealer.js";
 import { facilitiesOf } from "./demand.js";
 import { depositorValue } from "./finance.js";
 import { companyAccount } from "./ledger.js";
 import type { DayMetrics } from "./metrics.js";
 import type { LaunchRecord } from "./types.js";
-import { marketValue, newPrice } from "./wear.js";
 import type { World } from "./world.js";
 
 export interface QuarterReport {
@@ -319,8 +318,8 @@ export function buildReport(w: World): RunReport {
   // Wealth concentration.
   const wealthOf = (companyId: number) => {
     let wealth = w.ledger.balance(companyAccount(companyId)) + depositorValue(w, companyId);
-    for (const t of w.trucksByCompany.get(companyId)!) wealth += marketValue(cfg, t, days.length);
-    for (const o of ordersOf(w, companyId)) wealth += newPrice(cfg, o);
+    for (const t of w.trucksByCompany.get(companyId)!) wealth += truckValue(w, t);
+    for (const o of ordersOf(w, companyId)) wealth += dealerPrice(w, o);
     for (const f of facilitiesOf(w, companyId)) wealth += cfg.facilities.types[f.type].priceFd;
     return wealth;
   };

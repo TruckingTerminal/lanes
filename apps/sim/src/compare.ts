@@ -157,6 +157,15 @@ rows.push(
   ["Drivers employed / in pool / trucks without one, at end", (rs) =>
     [(d: DayMetrics) => d.drivers, (d: DayMetrics) => d.poolDrivers, (d: DayMetrics) => d.crewlessTrucks].map((f) => n0(mean(rs.map((r) => f(r.daily.at(-1)!) ?? 0)))).join(" / ")],
   ["Trucks without a driver, average", (rs) => range(rs.map((r) => r.daily.reduce((s, d) => s + (d.crewlessTrucks ?? 0), 0) / r.daily.length), n0)],
+  ["Insurance (sink) / yard rent (sink)", (rs) => ["insurance", "yard"].map((t) => fd(mean(rs.map((r) => r.sinksByTag[t] ?? 0)))).join(" / ")],
+  ["Insurance market index: low / high / end", (rs) => {
+    const xs = rs.map((r) => r.daily.map((d) => d.insuranceIndex ?? 1));
+    return `${mean(xs.map((x) => Math.min(...x))).toFixed(2)} / ${mean(xs.map((x) => Math.max(...x))).toFixed(2)} / ${mean(xs.map((x) => x.at(-1)!)).toFixed(2)}`;
+  }],
+  ["Dealer price index (Workhorse + van): low / high / end", (rs) => {
+    const xs = rs.map((r) => r.daily.map((d) => d.dealerIndex ?? 1));
+    return `${mean(xs.map((x) => Math.min(...x))).toFixed(2)} / ${mean(xs.map((x) => Math.max(...x))).toFixed(2)} / ${mean(xs.map((x) => x.at(-1)!)).toFixed(2)}`;
+  }],
   ["Wage index / mean employed driver skill, at end", (rs) => `${mean(rs.map((r) => r.daily.at(-1)!.wageIndex ?? 1)).toFixed(2)} / ${mean(rs.map((r) => r.daily.at(-1)!.avgDriverSkill ?? 0)).toFixed(2)}`],
 );
 

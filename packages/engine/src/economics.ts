@@ -30,7 +30,8 @@ export function tripCost(cfg: EconomyConfig, truck: TruckSpec, fuel: number, dri
     fuel: (driven / effectiveMpg(cfg, truck)) * fuel,
     wages: driven * (truck.wagePerMile ?? cfg.costs.driverWagePerMile),
     maintenance: driven * maintPerMile(cfg, truck.tier, truck.trailer) * maintMultiplier(cfg, truck),
-    insurance: loaded * cfg.costs.insurancePerLoadedMile * (truck.insuranceMult ?? 1),
+    // Billed weekly per truck on a yearly policy (insurance.ts); here, its share per loaded mile.
+    insurance: ((loaded * cfg.insurance.baseAnnualPerTruck) / cfg.insurance.loadedMilesPerYear) * (truck.insuranceMult ?? 1),
   };
 }
 

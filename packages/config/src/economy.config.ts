@@ -119,7 +119,6 @@ export const economyConfig = {
   // §Rates — worked example
   costs: {
     driverWagePerMile: 0.75,
-    insurancePerLoadedMile: 0.08,
     npcLeaseShareOfGross: 0.15,
     idleFeeAfterDays: 7,
     idleFeePerDay: 50,
@@ -316,10 +315,11 @@ export const economyConfig = {
   fleetOverhead: {
     brackets: [
       // Dispatch moved out to hired dispatchers' salaries (labor), so ~100 FD/truck-week less than before.
-      { fromTruck: 4, weeklyFd: 250 },
-      { fromTruck: 6, weeklyFd: 450 },
-      { fromTruck: 11, weeklyFd: 600 },
-      { fromTruck: 21, weeklyFd: 700 },
+      // …and ~40 less again for yard rent, now charged by home hub (homeBase).
+      { fromTruck: 4, weeklyFd: 210 },
+      { fromTruck: 6, weeklyFd: 410 },
+      { fromTruck: 11, weeklyFd: 560 },
+      { fromTruck: 21, weeklyFd: 660 },
     ],
   },
 
@@ -637,7 +637,6 @@ export const economyConfig = {
       conditionalAt: 3,
       unsatisfactoryAt: 10,
     },
-    insurance: { conditional: 1.5, unsatisfactory: 2.5, newEntrant: 1.25 },
     // Shutdowns. Authority revoked, the fleet wound down, then a bar on the account
     // before it may file again: longer the worse the cause, permanent after repeat crimes.
     bars: { unsatisfactory: 30, imminentHazard: 180, fraud: 90, criminal: 365, jail: 365 },
@@ -650,6 +649,50 @@ export const economyConfig = {
       lateKeepsPremium: 0.5, // late, the shipper pays half the premium
       equipmentShare: { van: 0.3, reefer: 0.5, flatbed: 0.2 } satisfies Record<Equipment, number>,
     },
+  },
+
+  // Design proposal (Jeff, 2026-10-28): insurance on one-game-year contracts (insurance.ts).
+  // A policy is priced at signing and at each renewal per truck on the road, billed
+  // weekly: a base rate × the company's risk (safety rating, alerts, crash history,
+  // a new authority, a long clean record) × its home hub's garaging factor × the
+  // insurance market, which hardens after a year of heavy claims and softens after
+  // a light one. A serious at-fault crash or a bad rating makes the insurer
+  // re-write the policy on the spot.
+  insurance: {
+    baseAnnualPerTruck: 4_200, // ≈ the old 0.08 FD per loaded mile on a typical truck, after the starter hubs' ~1.15 average garaging
+    loadedMilesPerYear: 52_500, // dispatchers spread the premium over this many loaded miles in break-even
+    termDays: 365,
+    rating: { none: 1.25, satisfactory: 1, conditional: 1.5, unsatisfactory: 2.5 },
+    perAlert: 0.15,
+    cleanDiscount: 0.9, // no crashes or alerts and authority at least this old:
+    cleanYears: 3,
+    clamp: [0.7, 4] as const,
+    // The insurers' loss ratio (claims they paid ÷ premiums, trailing 12 months) against a target
+    // moves the market index a few points a month.
+    market: { targetLossRatio: 0.6, stepPerMonth: 0.03, range: [0.8, 1.6] as const },
+  },
+
+  // Design proposal (Jeff, 2026-10-28): home markets (home.ts). A starter hub's crowding is the
+  // carriers based there ÷ its fair share of all carriers by freight volume. Loads from within the
+  // nearby radius of home get a bid-score edge, larger where fewer carriers share the hub; and a
+  // home base pays yard rent per truck, dearer in big metros and in crowded ones.
+  homeBase: {
+    preference: 0.04, // bid-score edge at a fair share (≈ bidding 7% higher and still tying)
+    preferenceClamp: [0.25, 2] as const, // × 1 ÷ crowding
+    yardPerTruckWeek: 20, // each truck past the first: an owner-operator parks free
+    yardTier: [0.6, 0.3] as const, // metro factor = 0.6 + 0.3 × hub weight (Chicago 1.5, Miami 1.08)
+    yardCrowdClamp: [0.6, 2] as const, // × crowding
+  },
+
+  // Design proposal (Jeff, 2026-10-28): dealer prices follow supply and demand. Each month
+  // every tractor tier and trailer type moves a third of the way toward a target set by the
+  // dealer's order backlog and how much of its supply is left. Used values move with them.
+  dealerPrices: {
+    backlogWeight: 0.4, // + this × (lead time over base ÷ base, up to 1)
+    scarcityWeight: 0.35, // + this × (scarceBelow − share of supply left), within −0.15…+0.35
+    scarceBelow: 0.25,
+    stepShare: 1 / 3,
+    range: [0.85, 1.3] as const,
   },
 
   // Design proposal (Jeff, 2026-10-28): fraud — double brokering and freight theft,

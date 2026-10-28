@@ -24,6 +24,8 @@ import {
   borrowingCapacity,
   canRefile,
   crewed,
+  dealerPrice,
+  truckValue,
   lerpLoyalty,
   staffById,
   depositorValue,
@@ -562,7 +564,7 @@ function leaseIfWorth(w: World, c: Company, p: BotProfile, rng: Rng, today: numb
 /** Puts a truck up for sale at its used value, cutting 5% of value a week down to 60%. */
 function sell(w: World, c: Company, truckId: number): void {
   const truck = w.trucks[truckId - 1]!;
-  const value = marketValue(w.cfg, truck, dayOf(w.t, w.cfg));
+  const value = truckValue(w, truck);
   applyAction(w, c.id, { type: "list_truck", truckId, askFd: value, floorFd: value * 0.6, stepFd: value * 0.05 });
 }
 
@@ -605,9 +607,9 @@ function bestListing(w: World, budget: number, buyerId: number): Listing | null 
     if (l.askFd > budget || l.formerOwnerId === buyerId || l.sellerId === buyerId) continue;
     const t = w.trucks[l.truckId - 1]!;
     if (condition(w.cfg, t) < 0.3) continue;
-    const value = marketValue(w.cfg, t, today);
+    const value = truckValue(w, t);
     const score = l.askFd / Math.max(1, value);
-    if (score > 1.05 || l.askFd > 0.85 * newPrice(w.cfg, t)) continue;
+    if (score > 1.05 || l.askFd > 0.85 * dealerPrice(w, t)) continue;
     if (!best || score < best.score) best = { l, score };
   }
   return best?.l ?? null;
@@ -804,7 +806,7 @@ export const ruleBotHook: DailyAgentHook = (w) => {
           const used = npcTruck.status === "idle" ? bestListing(w, cash - p.firstTruckBuffer, c.id) : null;
           if (used) applyAction(w, c.id, { type: "buy_listing", listingId: used.id });
           else if (availableSupply(w, "workhorse", "van", true) > 0) {
-            const need = newPrice(cfg, { tier: "workhorse", trailer: "van" }) + p.firstTruckBuffer;
+            const need = dealerPrice(w, { tier: "workhorse", trailer: "van" }) + p.firstTruckBuffer;
             // Token mode: a paying player can buy the FD it's short instead of saving it up.
             const funded = cash >= need || (live && p.payToWin && buyFdFor(w, c, need - cash));
             if (funded) applyAction(w, c.id, { type: "buy_asset", tier: "workhorse", trailer: "van", replaceNpcLease: true });
@@ -833,7 +835,7 @@ export const ruleBotHook: DailyAgentHook = (w) => {
             if (deliveryDays(w) <= p.maxLeadDays) {
               const pick = pickEquipment(w, rng, false, true);
               if (pick) {
-                const price = newPrice(cfg, pick);
+                const price = dealerPrice(w, pick);
                 const short = price + need - cash;
                 if (short <= 0 || (p.leverage && borrowFor(w, c, short)) || (live && p.payToWin && buyFdFor(w, c, short))) {
                   ordered = applyAction(w, c.id, { type: "buy_asset", tier: pick.tier, trailer: pick.trailer, replaceNpcLease: false }).ok;

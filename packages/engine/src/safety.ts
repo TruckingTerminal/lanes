@@ -1,8 +1,9 @@
 import { stationsOnRoute, weighStations, type Network } from "@lanes/data";
 import { dayOf, MINUTES_PER_HOUR } from "./clock.js";
+import { recordClaim, signPolicy } from "./insurance.js";
 import { dispatchersOf, jail, pushesRules, releaseAll, removeStaff } from "./labor.js";
 import { companyAccount } from "./ledger.js";
-import { startLiquidation } from "./solvency.js";
+import { refile, startLiquidation } from "./solvency.js";
 import type { Basic, Company, CrashSeverity, Load, Truck } from "./types.js";
 import { condition } from "./wear.js";
 import { companyById, detachTruck, staffById, syncFleet, type World } from "./world.js";
@@ -373,7 +374,10 @@ export function crash(w: World, t: Truck, c: Company): void {
     const verdict = rng.range(sLo, sHi) * (contributing ? rng.range(k.negligenceMult[0], k.negligenceMult[1]) : 1);
     const ours = k.deductibleFd + Math.max(0, verdict - k.insuranceLimitFd);
     payOrBankrupt(w, c, ours);
+    // The insurer's share, for the market's loss ratio; a serious crash gets the policy re-written.
+    recordClaim(w, Math.max(0, Math.min(verdict, k.insuranceLimitFd) - k.deductibleFd));
     c.safety.insuranceSurcharge += k.surcharge[severity];
+    if (severity !== "pdo") signPolicy(w, c, "rewrite");
     violate(w, c, "crash", w.cfg.safety.enforcement.points.crash[severity], what);
     if (severity !== "pdo") c.safety.reviewWanted = true;
     lines.push(
@@ -494,10 +498,15 @@ export function measures(w: World, c: Company): Record<Basic, number> {
   return { hos: sum.hos / inspW, unsafe: sum.unsafe / inspW, maintenance: sum.maintenance / inspW, crash: sum.crash / trucks };
 }
 
-/** Daily: suspensions run out, and what's owed on judgments is taken from whatever came in. */
+/** Daily: suspensions run out, what's owed on judgments is taken from whatever came in, and a served bar ends in new authority. */
 export function dailySafety(w: World): void {
   const day = today(w);
   for (const c of w.companies) {
+    if (c.authority.status === "revoked" && canRefile(w, c) === null) {
+      refile(w, c);
+      notice(w, c.id, "authority", "Your bar is over: new authority granted, and you start over on a lease. Brokers can see the old revocation.", "info");
+      continue;
+    }
     if (c.judgmentFd > 0) collect(w, c, c.authority.status === "revoked" ? "sink:seized" : "sink:liability");
     if (c.authority.status === "suspended" && c.authority.suspendedUntil !== null && day >= c.authority.suspendedUntil) {
       c.authority.status = "active";
@@ -556,6 +565,7 @@ export function complianceReview(w: World, c: Company): void {
   const day = today(w);
   const s = c.safety;
   const wasUnsat = s.rating === "unsatisfactory";
+  const before = s.rating;
   let falseLogs = 0;
   let maintWeeks = 0;
   const kept: typeof s.hidden = [];
@@ -592,6 +602,8 @@ export function complianceReview(w: World, c: Company): void {
     s.reviewDay = rating === "conditional" ? day + review.rereviewDays.conditional : null;
   }
   record(w, c, `Compliance review: ${rating}.${found}`);
+  // A new rating re-prices the policy: down after a new authority's first clean audit, up after a bad one.
+  if (rating !== before) signPolicy(w, c, "rewrite");
   notice(
     w,
     c.id,
