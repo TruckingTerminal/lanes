@@ -211,6 +211,8 @@ export interface NewCompany {
   ownerSkill?: number;
   /** An established company: its authority is this many days old. */
   authorityAgeDays?: number;
+  /** Run by a person, not an agent. */
+  human?: boolean;
 }
 
 export function newSafetyRecord(): Company["safety"] {
@@ -371,6 +373,7 @@ export function formCompany(w: World, c: NewCompany): Company {
     role: c.role,
     homeHub,
     strategy: c.strategy,
+    human: c.human ?? false,
     freePath: c.freePath,
     orders: c.orders,
     reputation: w.cfg.reputation.start,

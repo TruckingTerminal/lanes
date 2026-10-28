@@ -171,6 +171,21 @@ describe("insurance and dealer prices", () => {
   });
 });
 
+describe("players", () => {
+  it("can't take the AI-only actions: an illegal policy, re-brokering or theft", () => {
+    const w = world(11);
+    const human = formCompany(w, { name: "Player", role: "carrier", homeHubId: "DAL", strategy: "player:test", orders: [], freePath: true, human: true });
+    const ai = carrier(w);
+    const illegal = { hos: "always", speed: "legal", maintenance: "full" } as const;
+    expect(applyAction(w, human.id, { type: "set_compliance", policy: illegal }).ok).toBe(false);
+    expect(applyAction(w, human.id, { type: "set_compliance", policy: { hos: "legal", speed: "legal", maintenance: "full" } }).ok).toBe(true);
+    expect(applyAction(w, human.id, { type: "set_standing_orders", orders: [{ kind: "rebroker", share: 1, keepPct: 0.1, pays: true }] }).ok).toBe(false);
+    const [truck] = w.trucksByCompany.get(human.id)!;
+    expect(applyAction(w, human.id, { type: "steal_load", truckId: truck!.id })).toEqual({ ok: false, reason: "that isn't available to players" });
+    expect(applyAction(w, ai.id, { type: "set_compliance", policy: illegal }).ok).toBe(true);
+  });
+});
+
 describe("home markets", () => {
   it("gives carriers in an uncrowded home hub a bigger local edge and cheaper yards", () => {
     const w = world(10);

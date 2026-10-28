@@ -19,6 +19,24 @@ import { availableSupply, companyById, crewed, hubMiles, seatDriver, staffById, 
 /** What a company whose authority was revoked can still do: wait out the bar, file again, and handle its money. */
 const ALLOWED_REVOKED = new Set<Action["type"]>(["wait", "refile_authority", "buy_fd", "sell_fd", "offer_fd", "claim_airdrop_now", "withdraw_finance", "withdraw_listing", "set_compliance", "set_vetting", "set_auto_staff"]);
 const SCOPES: RuleScope[] = ["legal", "hot", "always"];
+/**
+ * Actions only AI companies may take (Jeff, 2026-10-28): players always run
+ * legal and can't commit fraud, so the bad actors are all AI.
+ */
+function aiOnly(a: Action): boolean {
+  switch (a.type) {
+    case "rebroker_load":
+    case "steal_load":
+      return true;
+    case "set_compliance":
+      return a.policy.hos !== "legal" || a.policy.speed !== "legal" || a.policy.maintenance !== "full";
+    case "set_standing_orders":
+      return a.orders.some((o) => o.kind === "rebroker");
+    default:
+      return false;
+  }
+}
+
 /** A truck parked at a hub (or in the shop), where a crew can change. */
 const atHub = (status: string) => status === "idle" || status === "parked" || status === "repair";
 
@@ -36,6 +54,7 @@ export function applyAction(w: World, companyId: number, action: Action): Action
   const { cfg } = w;
   const acct = companyAccount(company.id);
   if (company.authority.status === "revoked" && !ALLOWED_REVOKED.has(action.type)) return { ok: false, reason: "your authority is revoked" };
+  if (company.human && aiOnly(action)) return { ok: false, reason: "that isn't available to players" };
   switch (action.type) {
     case "wait":
       return { ok: true };

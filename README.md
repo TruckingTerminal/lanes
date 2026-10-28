@@ -17,6 +17,9 @@
   in them is read from the config the world runs on, so the docs can't drift from the rules. The
   docs page is built at `npm run build:site` (`apps/web/src/docs.ts`) and deployed with the game.
 - Fraud (double brokering, cargo theft) is deliberately left out of the player docs.
+- **Bad actors are AI only** (config 0.9.1): the engine refuses an illegal compliance policy, a
+  rebroker standing order, re-brokering and theft from human companies (`aiOnly` in actions.ts),
+  whatever a page sends.
 - **For developers:** this README (design notes and sim results by config version), `TOKENOMICS.md`
   (the token), and the comments in `packages/config/src/economy.config.ts` (every tunable number).
 

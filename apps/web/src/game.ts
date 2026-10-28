@@ -64,6 +64,7 @@ export function joinCompany(w: World, key: string, name: string, hub: string, st
     role: "carrier",
     homeHubId: hub,
     strategy: `player:${key}`,
+    human: true,
     orders: DEFAULT_ORDERS,
     freePath: start === "oo",
   });
