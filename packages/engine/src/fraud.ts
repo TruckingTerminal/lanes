@@ -1,7 +1,8 @@
 import { dayOf } from "./clock.js";
+import { fmtInt } from "./economics.js";
 import { companyAccount } from "./ledger.js";
 import { criminal, loseLoad, notice, record, restitute, revoke } from "./safety.js";
-import { abandonLeg } from "./trips.js";
+import { abandonLeg, legKeyOf } from "./trips.js";
 import type { Company, FraudCase, Load, Truck } from "./types.js";
 import { companyById, staffById, type World } from "./world.js";
 
@@ -18,7 +19,8 @@ import { companyById, staffById, type World } from "./world.js";
  */
 
 const today = (w: World) => dayOf(w.t, w.cfg);
-const ESCROW = "escrow:theft";
+/** A company-side account, so escrowed claims stay inside the money supply while a case is open. */
+const ESCROW = "co:escrow:theft";
 
 export function openClaims(w: World, c: Company): number {
   const day = today(w);
@@ -83,7 +85,7 @@ export function rebrokerLoad(w: World, c: Company, load: Load, rate: number, pay
  * Settles a re-posted load after the upstream payer has paid the double broker:
  * it pays the hauler (or doesn't), and the fraud may come out.
  */
-export function settleDoubleBroker(w: World, load: Load, hauler: Company | null, gross: number, upstreamGross: number): number {
+export function settleDoubleBroker(w: World, load: Load, hauler: Company | null, gross: number, upstreamGross: number, coveredCostFd = 0): number {
   const db = load.doubleBroker!;
   const broker = companyById(w, db.companyId);
   const rng = w.rng.fraud;
@@ -95,11 +97,11 @@ export function settleDoubleBroker(w: World, load: Load, hauler: Company | null,
     broker.operating.costFd += gross;
     paid = gross;
   }
-  const spread = upstreamGross - paid;
+  const spread = upstreamGross - paid - coveredCostFd;
   const unpaid = hauler !== null && !db.pays;
   if (unpaid) {
     broker.claims.push({ day: today(w), until: today(w) + w.cfg.fraud.theft.claimDays, kind: "unpaid" });
-    notice(w, hauler.id, "fraud", `${broker.name} never paid you for load #${load.id} (${Math.round(gross).toLocaleString("en-US")} FD). You filed a claim; it's on their record.`, "bad");
+    notice(w, hauler.id, "fraud", `${broker.name} never paid you for load #${load.id} (${fmtInt(gross)} FD). You filed a claim; it's on their record.`, "bad");
   }
   const caught = rng.next() < (unpaid ? d.detect.unpaid : d.detect.paid);
   if (caught || unpaid) {
@@ -115,6 +117,7 @@ export function settleDoubleBroker(w: World, load: Load, hauler: Company | null,
       lossFd: unpaid ? gross : 0,
       escrowFd: 0,
       truckId: 0,
+      driverId: 0,
       unpaidCarrierId: unpaid ? hauler!.id : 0,
     });
   }
@@ -155,7 +158,7 @@ export function stealLoad(w: World, c: Company, truck: Truck): string | null {
     w.ledger.post(w.t, companyAccount(victimId), ESCROW, escrow, `theft:${load.id}`);
     payout = escrow * (1 - t.fenceCut);
     loss = escrow;
-    notice(w, victimId, "fraud", `Load #${load.id} you brokered to ${c.name} was stolen. You paid a ${Math.round(escrow).toLocaleString("en-US")} FD cargo claim; it comes back if they're caught.`, "bad");
+    notice(w, victimId, "fraud", `Load #${load.id} you brokered to ${c.name} was stolen. You paid a ${fmtInt(escrow)} FD cargo claim; it comes back if they're caught.`, "bad");
   } else if (load.shipperId !== null) {
     victimId = load.shipperId;
     loss = load.saleValue;
@@ -166,12 +169,15 @@ export function stealLoad(w: World, c: Company, truck: Truck): string | null {
   }
   if (load.doubleBroker) victimId = victimId || load.doubleBroker.companyId;
   loseLoad(w, load, "theft");
-  // The truck runs on empty to where it was going.
+  // The truck runs on empty to where it was going, past the same scales.
   truck.loadId = null;
   truck.status = "repositioning";
+  truck.legKey = legKeyOf(w, truck);
   c.claims.push({ day: today(w), until: today(w) + t.claimDays, kind: "theft" });
   c.delivered++;
   c.late++;
+  const prior = w.cfg.reputation.priorLoads;
+  c.reputation = (c.onTime + prior * w.cfg.reputation.start) / (c.delivered + prior);
   const [lo, hi] = t.investigationDays;
   newCase(w, {
     kind: "theft",
@@ -184,6 +190,7 @@ export function stealLoad(w: World, c: Company, truck: Truck): string | null {
     lossFd: loss,
     escrowFd: escrow,
     truckId: truck.id,
+    driverId: truck.driverId,
     unpaidCarrierId: 0,
   });
   w.metrics.onFraud("theft");
@@ -208,8 +215,8 @@ function resolveTheft(w: World, k: FraudCase, c: Company): void {
   if (k.caught) {
     // The broker's claim comes back out of escrow; a shipper is paid back out of the thief's cash.
     if (k.escrowFd > 0) w.ledger.post(w.t, ESCROW, companyAccount(k.victimId), k.escrowFd, `theft:${k.loadId}`);
-    const truck = k.truckId ? w.trucks[k.truckId - 1] : undefined;
-    const driver = truck && truck.driverId ? staffById(w, truck.driverId) : null;
+    // Whoever drove it that day, wherever they work now.
+    const driver = k.driverId ? staffById(w, k.driverId) : null;
     if (k.victimId > 0) notice(w, k.victimId, "fraud", `Police caught ${c.name} for stealing load #${k.loadId}.${k.escrowFd > 0 ? " Your claim was refunded." : " You'll be paid back from what they had."}`, "good");
     w.metrics.onConviction();
     criminal(w, c, `Convicted of stealing load #${k.loadId}.`, driver, k.escrowFd > 0 ? 0 : k.victimId, k.escrowFd > 0 ? 0 : k.lossFd);
@@ -222,7 +229,7 @@ function resolveTheft(w: World, k: FraudCase, c: Company): void {
     w.ledger.post(w.t, ESCROW, "sink:fence_cut", k.escrowFd - k.amountFd, `fence:${k.loadId}`);
   } else w.ledger.post(w.t, "faucet:fence", acct, k.amountFd, `fence:${k.loadId}`);
   record(w, c, `Suspected in the theft of load #${k.loadId}; the case went cold.`);
-  notice(w, c.id, "fraud", `The case on load #${k.loadId} went cold. A fence paid ${Math.round(k.amountFd).toLocaleString("en-US")} FD. The theft claim stays on your record for a year.`, "info");
+  notice(w, c.id, "fraud", `The case on load #${k.loadId} went cold. A fence paid ${fmtInt(k.amountFd)} FD. The theft claim stays on your record for a year.`, "info");
 }
 
 function resolveDoubleBroker(w: World, k: FraudCase, c: Company): void {
@@ -231,7 +238,7 @@ function resolveDoubleBroker(w: World, k: FraudCase, c: Company): void {
   w.metrics.onConviction();
   if (k.unpaidCarrierId > 0) {
     const back = restitute(w, c, k.unpaidCarrierId, k.lossFd);
-    notice(w, k.unpaidCarrierId, "fraud", `${c.name} was caught double brokering load #${k.loadId}. ${back > 0 ? `${Math.round(back).toLocaleString("en-US")} FD of what they owed you was recovered.` : "There was nothing left to recover."}`, back > 0 ? "good" : "bad");
+    notice(w, k.unpaidCarrierId, "fraud", `${c.name} was caught double brokering load #${k.loadId}. ${back > 0 ? `${fmtInt(back)} FD of what they owed you was recovered.` : "There was nothing left to recover."}`, back > 0 ? "good" : "bad");
     c.authority.frauds++;
     revoke(w, c, `Double brokering load #${k.loadId} and not paying the carrier.`, w.cfg.safety.bars.fraud);
     return;
@@ -250,6 +257,6 @@ function resolveDoubleBroker(w: World, k: FraudCase, c: Company): void {
     c.authority.status = "suspended";
     c.authority.suspendedUntil = today(w) + d.suspensionDays;
   }
-  record(w, c, `Caught double brokering load #${k.loadId}: ${Math.round(amount).toLocaleString("en-US")} FD fine, ${d.suspensionDays}-day suspension, Miles forfeited.`);
-  notice(w, c.id, "authority", `Caught double brokering load #${k.loadId}: ${Math.round(amount).toLocaleString("en-US")} FD fine, authority suspended ${d.suspensionDays} days, Miles zeroed. Again and it's revoked.`, "bad");
+  record(w, c, `Caught double brokering load #${k.loadId}: ${fmtInt(amount)} FD fine, ${d.suspensionDays}-day suspension, Miles forfeited.`);
+  notice(w, c.id, "authority", `Caught double brokering load #${k.loadId}: ${fmtInt(amount)} FD fine, authority suspended ${d.suspensionDays} days, Miles zeroed. Again and it's revoked.`, "bad");
 }

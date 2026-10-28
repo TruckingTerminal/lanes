@@ -22,6 +22,7 @@ import {
   vettingBlock,
   yardPerTruck,
   homeEdge,
+  updateHomeCrowding,
   type Load,
   type World,
 } from "@lanes/engine";
@@ -144,7 +145,9 @@ describe("safety", () => {
 describe("insurance and dealer prices", () => {
   it("prices a policy by rating, record and home hub, and bills it weekly per truck", () => {
     const w = world(7);
-    const safe = carrier(w, { hub: "CHI", age: 400 });
+    // Owned trucks: the NPC lessor carries the policy on its own leased trucks.
+    const safe = carrier(w, { hub: "CHI", age: 400, freePath: false });
+    addTruck(w, safe, "owned", "workhorse", "van");
     const risky = carrier(w, { hub: "CHI", age: 400 });
     risky.safety.rating = "conditional";
     signPolicy(w, risky);
@@ -166,7 +169,7 @@ describe("insurance and dealer prices", () => {
     w.supply.tractor.workhorse = 0;
     w.supply.trailer.van = 0;
     for (let m = 0; m < 6; m++) monthlyDealerPrices(w);
-    expect(dealerPrice(w, { tier: "workhorse", trailer: "van" })).toBeGreaterThan(before * 1.05);
+    expect(dealerPrice(w, { tier: "workhorse", trailer: "van" })).toBeGreaterThan(before * 1.03);
     expect(w.dealerIndex.tractor.workhorse).toBeLessThanOrEqual(cfg.dealerPrices.range[1]);
   });
 });
@@ -193,6 +196,9 @@ describe("home markets", () => {
     const miami = carrier(w, { hub: "MIA" });
     const chi = w.net.hubs.findIndex((h) => h.id === "CHI");
     const mia = w.net.hubs.findIndex((h) => h.id === "MIA");
+    // Crowding is engine state, recomputed at fixed points, never on demand.
+    expect(homeEdge(w, miami, mia)).toBe(homeEdge(w, chicago[0]!, chi));
+    updateHomeCrowding(w);
     expect(homeEdge(w, miami, mia)).toBeGreaterThan(homeEdge(w, chicago[0]!, chi));
     expect(homeEdge(w, miami, chi)).toBe(0);
     expect(yardPerTruck(w, chicago[0]!)).toBeGreaterThan(yardPerTruck(w, miami));

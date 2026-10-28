@@ -42,7 +42,8 @@ export function drivingMinutesLeft(w: World, truck: Truck, now: number): number 
 }
 
 /** Identifies a leg (from, to, loaded or not), so a truck knows when it starts a new one and which weigh stations are ahead. */
-const legKey = (w: World, t: Truck) => (t.hub * w.net.hubs.length + t.targetHub) * 4 + (t.status === "loaded" ? 1 : t.status === "toPickup" ? 2 : 3);
+export const legKeyOf = (w: World, t: Truck) => (t.hub * w.net.hubs.length + t.targetHub) * 4 + (t.status === "loaded" ? 1 : t.status === "toPickup" ? 2 : 3);
+const legKey = legKeyOf;
 
 /**
  * Advances every working truck one in-game hour (§Summary — hours of service).
@@ -160,12 +161,15 @@ function setIdle(w: World, truck: Truck): void {
   truck.idleSinceDay = dayOf(w.t, w.cfg);
   truck.emptyMi = 0;
   truck.loadedMi = 0;
+  truck.legKey = -1;
 }
 
 /** Pays operating costs for the miles driven since the last settlement. Returns their total. */
-function payTripCosts(w: World, truck: Truck, ref: string): number {
+export function payTripCosts(w: World, truck: Truck, ref: string): number {
   const acct = companyAccount(truck.companyId);
   const c = tripCost(w.cfg, truck, fuelPrice(w), truck.emptyMi + truck.loadedMi, truck.loadedMi);
+  truck.emptyMi = 0;
+  truck.loadedMi = 0;
   w.ledger.post(w.t, acct, "sink:fuel", c.fuel, ref);
   w.ledger.post(w.t, acct, "sink:driver_wages", c.wages, ref);
   w.ledger.post(w.t, acct, "sink:maintenance", c.maintenance, ref);
@@ -245,7 +249,7 @@ export function coverDoubleBrokered(w: World, load: Load, npcRate: number): void
   collectUpstream(w, load, db, upstream, 1, `load:${load.id}`);
   w.ledger.post(w.t, companyAccount(db.id), "sink:npc_carrier", npcRate * load.miles, `load:${load.id}`);
   db.operating.costFd += npcRate * load.miles;
-  settleDoubleBroker(w, { ...load, doubleBroker: { ...load.doubleBroker!, pays: true } }, null, 0, upstream);
+  settleDoubleBroker(w, { ...load, doubleBroker: { ...load.doubleBroker!, pays: true } }, null, 0, upstream, npcRate * load.miles);
 }
 
 function deliver(w: World, truck: Truck, now: number): void {
@@ -259,10 +263,12 @@ function deliver(w: World, truck: Truck, now: number): void {
   const gross = load.clearedRate * load.miles * factor;
 
   // A double-brokered load pays the company that re-posted it, which then pays the hauler — or doesn't.
+  // A company hauling its own freight pays itself nothing: no revenue, no lease share on it.
   const db = load.doubleBroker ? companyById(w, load.doubleBroker.companyId) : null;
   const upstream = db ? load.doubleBroker!.upstreamRate * load.miles * factor : gross;
   collectUpstream(w, load, db ?? carrier, upstream, factor, ref);
-  const paid = db ? settleDoubleBroker(w, load, carrier, gross, upstream) : gross;
+  const own = load.shipperId === carrier.id;
+  const paid = own ? 0 : db ? settleDoubleBroker(w, load, carrier, gross, upstream) : gross;
 
   let costs = payTripCosts(w, truck, ref);
   if (truck.lease !== "owned") {
@@ -287,7 +293,9 @@ function deliver(w: World, truck: Truck, now: number): void {
   carrier.reputation = (carrier.onTime + prior * cfg.reputation.start) / (carrier.delivered + prior);
 
   // Miles (§Points): loaded miles × on-time × margin factor × reputation × truck ladder.
-  const margin = paid > 0 ? (paid - costs) / paid : -1;
+  // Miles are earned on what the haul was worth, own freight included.
+  const earned = own ? gross : paid;
+  const margin = earned > 0 ? (earned - costs) / earned : -1;
   const marginFactor = clamp(margin / cfg.miles.marginTarget, cfg.miles.marginClamp[0], cfg.miles.marginClamp[1]);
   // A hot load's premium is part of its reference, so paying it isn't an outlier.
   const ref0 = load.refRate * (load.hot || 1);
@@ -295,7 +303,7 @@ function deliver(w: World, truck: Truck, now: number): void {
   const amount = outlier ? 0 : load.miles * onTime * marginFactor * reputationFactor(w, carrier) * ladderFactor(w, truck);
   awardMiles(w, carrier, amount, load.laneId);
 
-  w.metrics.onDelivery(w, carrier, load, paid, costs, onTime);
+  w.metrics.onDelivery(w, carrier, load, earned, costs, onTime);
   w.listener?.({ kind: "delivered", companyId: carrier.id, truckId: truck.id, loadId: load.id, origin: load.origin, dest: load.dest, grossFd: paid, costFd: costs, onTime: now <= load.dueT });
   load.status = "delivered";
   w.loads.delete(load.id);

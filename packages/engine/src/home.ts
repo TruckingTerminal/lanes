@@ -1,4 +1,3 @@
-import { dayOf } from "./clock.js";
 import { clamp } from "./economics.js";
 import { companyAccount } from "./ledger.js";
 import type { Company } from "./types.js";
@@ -12,13 +11,16 @@ import { hubMiles, type World } from "./world.js";
  * rent per truck, dearer in big metros and dearer again when crowded.
  */
 
-const cache = new WeakMap<World, { day: number; crowding: Float64Array }>();
+/**
+ * Carriers based at each hub ÷ its fair share of all carriers by freight volume
+ * (1 = fair; starter hubs only, others 1), as last computed by the engine. Never
+ * computed on demand: a query function must not cache mutable world state, or a
+ * client that happens to ask earlier in the day replays differently.
+ */
+export const homeCrowding = (w: World): Float64Array => w.homeCrowding;
 
-/** Carriers based at each hub ÷ its fair share of all carriers by freight volume (1 = fair; starter hubs only, others 1). */
-export function homeCrowding(w: World): Float64Array {
-  const day = dayOf(w.t, w.cfg);
-  const hit = cache.get(w);
-  if (hit && hit.day === day) return hit.crowding;
+/** Recomputes crowding. Called at fixed points of the simulation (each board round, the weekly yard bill). */
+export function updateHomeCrowding(w: World): void {
   const n = w.net.hubs.length;
   const counts = new Float64Array(n);
   let total = 0;
@@ -34,8 +36,7 @@ export function homeCrowding(w: World): Float64Array {
     const fair = (total * w.net.hubs[i]!.weight) / weight;
     crowding[i] = counts[i]! / Math.max(1, fair);
   }
-  cache.set(w, { day, crowding });
-  return crowding;
+  w.homeCrowding = crowding;
 }
 
 /** The bid-score edge on a load from near this carrier's home hub, larger the fewer carriers share that home. */
@@ -53,11 +54,12 @@ export function yardPerTruck(w: World, c: Company): number {
   return k.yardPerTruckWeek * metro * clamp(homeCrowding(w)[c.homeHub]!, k.yardCrowdClamp[0], k.yardCrowdClamp[1]);
 }
 
-/** Weekly: every company pays yard rent for each truck it keeps past its first (parked ones too: they still need a spot). */
+/** Weekly: every company pays yard rent for each truck it keeps past its first (parked and listed ones too: they still need a spot). */
 export function chargeYards(w: World): void {
+  updateHomeCrowding(w);
   for (const c of w.companies) {
     let trucks = -1;
-    for (const t of w.trucksByCompany.get(c.id) ?? []) if (t.status !== "listed" && t.status !== "retired") trucks++;
+    for (const t of w.trucksByCompany.get(c.id) ?? []) if (t.status !== "retired") trucks++;
     if (trucks <= 0) continue;
     const rent = trucks * yardPerTruck(w, c);
     w.ledger.post(w.t, companyAccount(c.id), "sink:yard", rent, `yard:${c.id}`);

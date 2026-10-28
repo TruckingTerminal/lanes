@@ -29,7 +29,12 @@ export function depositorValue(w: World, companyId: number): number {
 }
 
 export function deposit(w: World, companyId: number, amountFd: number): string | null {
-  if (amountFd <= 0 || w.ledger.balance(companyAccount(companyId)) < amountFd) return "insufficient FD";
+  if (!(amountFd > 0) || w.ledger.balance(companyAccount(companyId)) < amountFd) return "insufficient FD";
+  // A pool wiped out by write-offs starts over: the old shares are worth nothing.
+  if (w.finance.totalShares > 0 && poolValue(w) <= 0.01) {
+    w.finance.shares.clear();
+    w.finance.totalShares = 0;
+  }
   const shares = amountFd / sharePrice(w);
   w.ledger.post(w.t, companyAccount(companyId), POOL_ACCOUNT, amountFd, `deposit:${companyId}`);
   w.finance.shares.set(companyId, (w.finance.shares.get(companyId) ?? 0) + shares);
@@ -40,7 +45,7 @@ export function deposit(w: World, companyId: number, amountFd: number): string |
 /** Withdraws up to the depositor's value, as far as the pool's cash allows (lent-out FD stays lent). */
 export function withdraw(w: World, companyId: number, amountFd: number): string | null {
   const amount = Math.min(amountFd, depositorValue(w, companyId), poolCash(w));
-  if (amount <= 0.01) return "nothing to withdraw";
+  if (!(amount > 0.01)) return "nothing to withdraw";
   const shares = amount / sharePrice(w);
   w.ledger.post(w.t, POOL_ACCOUNT, companyAccount(companyId), amount, `withdraw:${companyId}`);
   w.finance.shares.set(companyId, (w.finance.shares.get(companyId) ?? 0) - shares);
@@ -107,6 +112,7 @@ export function serviceLoans(w: World): void {
         loan.principalFd = 0;
         loan.status = "repaid";
       }
+      if (f.outstandingFd < 0.005) f.outstandingFd = 0;
     } else {
       loan.missed++;
       loan.principalFd += interest;

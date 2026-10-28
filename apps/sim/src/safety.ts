@@ -52,7 +52,7 @@ for (const [k, cs] of groups) {
   const r = (x: Company["safety"]["rating"]) => cs.filter((c) => c.safety.rating === x).length;
   console.log(
     `${k.padEnd(8)} ${String(cs.length).padStart(4)}  ${String(cs.reduce((s, c) => s + c.authority.revocations, 0)).padStart(7)}  ${String(cs.reduce((s, c) => s + c.bankruptcies, 0)).padStart(7)}` +
-      `  ${String(crashesBy.get(k) ?? 0).padStart(7)} ${String(fatalBy.get(k) ?? 0).padStart(5)}  ${Math.round(cs.reduce((s, c) => s + c.safety.finesFd, 0) / cs.length).toString().padStart(8)}` +
+      `  ${String(crashesBy.get(k) ?? 0).padStart(7)} ${String(fatalBy.get(k) ?? 0).padStart(5)}  ${Math.round((flows.get(k)?.get("sink:fines") ?? 0) / cs.length).toString().padStart(8)}` +
       `  ${Math.round(cs.reduce((s, c) => s + wealth(c), 0) / cs.length).toString().padStart(10)}  ${r("none")}/${r("satisfactory")}/${r("conditional")}/${r("unsatisfactory")}`,
   );
 }

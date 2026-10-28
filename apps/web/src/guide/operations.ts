@@ -54,7 +54,7 @@ export function operationsPages(cfg: EconomyConfig): GuidePage[] {
           `A breakdown stops the truck ${bd.delayHours[0]}–${bd.delayHours[1]} hours and can make it late.`,
         ]) +
         h("Hot loads") +
-        p(`About ${pct(hl.share)} of long-haul freight (500 miles or more) is hot: it pays ${hl.premium[0]}–${hl.premium[1]}× for a window that assumes ${hl.hoursPerDay} driving hours a day with only ${hl.slackMinutes / 60} hours of slack. A solo driver can't make it legally; a team can. Delivered late, a hot load pays only ${pct(hl.lateKeepsPremium)} of its premium. Hot loads are at least standard-vetted.`),
+        p(`About ${pct(hl.share)} of long-haul freight (${hl.minMiles} miles or more) is hot: it pays ${hl.premium[0]}–${hl.premium[1]}× for a window that assumes ${hl.hoursPerDay} driving hours a day with only ${hl.slackMinutes / 60} hours of slack. A solo driver can't make it legally; a team can. Delivered late, a hot load pays only ${pct(hl.lateKeepsPremium)} of its premium. Hot loads are at least standard-vetted.`),
     },
     {
       id: "reputation",

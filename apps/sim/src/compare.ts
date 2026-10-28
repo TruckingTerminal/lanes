@@ -71,7 +71,7 @@ rows.push(
   ["Used-truck sales", (rs) => range(rs.map((r) => r.usedMarket.sales), n0)],
   ["Owned trucks at end", (rs) => range(rs.map((r) => r.daily.at(-1)!.ownedTrucks), n0)],
   ["Extra leases out, average", (rs) => range(rs.map((r) => r.daily.reduce((s, d) => s + (d.leasedTrucks ?? 0), 0) / r.daily.length), n0)],
-  ["Tractor cap at end", (rs) => range(rs.map((r) => r.daily.at(-1)!.tractorCap ?? 1800), n0)],
+  ["Tractor cap at end", (rs) => range(rs.map((r) => r.daily.at(-1)!.tractorCap ?? NaN).filter(Number.isFinite), n0)],
   ["Player trucks running in booms / busts", (rs) =>
     `${n0(mean(rs.map((r) => phase(r, true, (d) => d.ownedTrucks + (d.leasedTrucks ?? 0)))))} / ${n0(mean(rs.map((r) => phase(r, false, (d) => d.ownedTrucks + (d.leasedTrucks ?? 0)))))}`],
   ["Avg rate in booms / busts (FD/mi)", (rs) =>
@@ -134,7 +134,7 @@ rows.push(
   }],
   ["Token: newcomers after launch", (rs) => range(rs.map((r) => r.realMoney?.token?.newCompanies ?? NaN).filter(Number.isFinite), n0)],
   ["Free path: bought within 84 days (of all free starters)", (rs) => range(rs.map((r) => r.freePath.withinLimit), n0)],
-  ["Free path median days", (rs) => range(rs.map((r) => r.freePath.medianDays ?? 999), n0)],
+  ["Free path median days (seeds where half bought)", (rs) => range(rs.map((r) => r.freePath.medianDays ?? NaN).filter(Number.isFinite), n0)],
   ["Top strategy vs segment median", (rs) => range(rs.map((r) => r.strategies[0]?.vsMedian ?? 0), x2)],
   // Staff, safety and fraud (config 0.9.0). Older runs have none of these fields.
   ["Crashes (fatal / at fault / willful)", (rs) => {
@@ -159,14 +159,19 @@ rows.push(
   ["Trucks without a driver, average", (rs) => range(rs.map((r) => r.daily.reduce((s, d) => s + (d.crewlessTrucks ?? 0), 0) / r.daily.length), n0)],
   ["Insurance (sink) / yard rent (sink)", (rs) => ["insurance", "yard"].map((t) => fd(mean(rs.map((r) => r.sinksByTag[t] ?? 0)))).join(" / ")],
   ["Insurance market index: low / high / end", (rs) => {
-    const xs = rs.map((r) => r.daily.map((d) => d.insuranceIndex ?? 1));
+    const xs = rs.filter((r) => r.daily[0]?.insuranceIndex !== undefined).map((r) => r.daily.map((d) => d.insuranceIndex));
+    if (!xs.length) return "n/a";
     return `${mean(xs.map((x) => Math.min(...x))).toFixed(2)} / ${mean(xs.map((x) => Math.max(...x))).toFixed(2)} / ${mean(xs.map((x) => x.at(-1)!)).toFixed(2)}`;
   }],
   ["Dealer price index (Workhorse + van): low / high / end", (rs) => {
-    const xs = rs.map((r) => r.daily.map((d) => d.dealerIndex ?? 1));
+    const xs = rs.filter((r) => r.daily[0]?.dealerIndex !== undefined).map((r) => r.daily.map((d) => d.dealerIndex));
+    if (!xs.length) return "n/a";
     return `${mean(xs.map((x) => Math.min(...x))).toFixed(2)} / ${mean(xs.map((x) => Math.max(...x))).toFixed(2)} / ${mean(xs.map((x) => x.at(-1)!)).toFixed(2)}`;
   }],
-  ["Wage index / mean employed driver skill, at end", (rs) => `${mean(rs.map((r) => r.daily.at(-1)!.wageIndex ?? 1)).toFixed(2)} / ${mean(rs.map((r) => r.daily.at(-1)!.avgDriverSkill ?? 0)).toFixed(2)}`],
+  ["Wage index / mean employed driver skill, at end", (rs) => {
+    const xs = rs.filter((r) => r.daily.at(-1)!.wageIndex !== undefined);
+    return xs.length ? `${mean(xs.map((r) => r.daily.at(-1)!.wageIndex)).toFixed(2)} / ${mean(xs.map((r) => r.daily.at(-1)!.avgDriverSkill)).toFixed(2)}` : "n/a";
+  }],
 );
 
 console.log(`| Measure | ${dirs.join(" | ")} |`);

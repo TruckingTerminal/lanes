@@ -6,11 +6,13 @@ import type { World } from "./world.js";
 
 export const EQUIPMENT: readonly Equipment[] = ["van", "reefer", "flatbed"];
 
-const seasonCache = new WeakMap<object, Float64Array>();
+const seasonCache = new WeakMap<object, WeakMap<object, Float64Array>>();
 
-/** Each hub's weekly relative swing per equipment, from the regional season table. */
+/** Each hub's weekly relative swing per equipment, from the regional season table (static per network and config). */
 function seasonTable(w: World): Float64Array {
-  let t = seasonCache.get(w.net);
+  let byCfg = seasonCache.get(w.net);
+  if (!byCfg) seasonCache.set(w.net, (byCfg = new WeakMap()));
+  let t = byCfg.get(w.cfg);
   if (t) return t;
   const { refRpm, flatbedFromVan } = w.cfg.rates.seasons;
   t = new Float64Array(w.net.hubs.length * EQUIPMENT.length * 52);
@@ -23,7 +25,7 @@ function seasonTable(w: World): Float64Array {
       t![(i * 3 + 2) * 52 + wk] = (flatbedFromVan * s.van[wk]!) / refRpm.van;
     }
   });
-  seasonCache.set(w.net, t);
+  byCfg.set(w.cfg, t);
   return t;
 }
 
@@ -33,7 +35,9 @@ function seasonTable(w: World): Float64Array {
  */
 export function seasonSwing(w: World, hubIdx: number, eq: Equipment, day: number): number {
   const t = seasonTable(w);
-  const pos = ((day % w.cfg.time.daysPerSeason) - 6) / 7; // week 0 is the week of Jan 7
+  // Week 0 is the week of Jan 7; 52 weeks are spread over the 365-day year so Dec 31 runs on into Jan 1.
+  const D = w.cfg.time.daysPerSeason;
+  const pos = (((((day % D) - 6) % D) + D) % D) * (52 / D);
   const i0 = Math.floor(pos);
   const frac = pos - i0;
   const base = (hubIdx * EQUIPMENT.length + EQUIPMENT.indexOf(eq)) * 52;

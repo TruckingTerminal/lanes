@@ -10,14 +10,14 @@ import { listTruck } from "./market.js";
 import type { Company } from "./types.js";
 import { truckValue } from "./dealer.js";
 import { forfeitAirdrop } from "./token.js";
-import { createTruck, newSafetyRecord, type World } from "./world.js";
+import { createTruck, freshPaperwork, newSafetyRecord, type World } from "./world.js";
 
 /**
  * Without seasons the holding cost replaces the year-end burn; with seasons it's
  * off unless configured. Once FD can be sold for dollars, the exit does its job.
  */
 export function holdingCostApplies(w: World): boolean {
-  if (w.token.launchDay !== null && !w.cfg.token.holdingCostAfterLaunch) return false;
+  if (w.token.launchDay !== null) return w.cfg.token.holdingCostAfterLaunch;
   return !w.cfg.seasonClose.enabled || w.cfg.holdingCost.withSeasons;
 }
 
@@ -62,6 +62,7 @@ export function startLiquidation(w: World, c: Company): void {
   c.liquidatingSince = dayOf(w.t, w.cfg);
   c.suspendedOrders = c.orders;
   c.orders = [];
+  for (const t of w.trucksByCompany.get(c.id)!) w.manualBids.delete(t.id);
   const deposited = depositorValue(w, c.id);
   if (deposited > 0.01) withdraw(w, c.id, deposited);
   for (const f of facilitiesOf(w, c.id)) {
@@ -106,8 +107,10 @@ export function processLiquidations(w: World): void {
         value * insolvency.fireSaleStepPctOfValue,
       );
     }
-    const done = !fleet.some((t) => t.lease !== "npc") && ordersOf(w, c.id).length === 0 && c.openBrokerLoads === 0;
-    // A revoked authority waits out its bar; the owner then files again (refile_authority).
+    // Once the fleet is gone, a bankrupt still sits out a few weeks before the restart: going broke isn't a free reset.
+    const done =
+      !fleet.some((t) => t.lease !== "npc") && ordersOf(w, c.id).length === 0 && c.openBrokerLoads === 0 && today - c.liquidatingSince >= insolvency.restartAfterDays;
+    // A revoked authority waits out its bar; new authority comes with the restart (dailySafety).
     if (done && c.authority.status !== "revoked") restart(w, c);
   }
 }
@@ -127,6 +130,7 @@ export function refile(w: World, c: Company): void {
   c.policy = { hos: "legal", speed: "legal", maintenance: "full" };
   c.judgmentFd = 0;
   c.claims = [];
+  for (const t of w.trucksByCompany.get(c.id)!) freshPaperwork(t);
   signPolicy(w, c);
   if (c.liquidatingSince !== null) restart(w, c);
 }

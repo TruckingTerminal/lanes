@@ -3,7 +3,7 @@ import { dayOf } from "./clock.js";
 import { clamp } from "./economics.js";
 import type { Company, TruckOrder } from "./types.js";
 import { marketValue, newPrice, type TruckSpec } from "./wear.js";
-import { createTruck, type World } from "./world.js";
+import { createTruck, freshPaperwork, type World } from "./world.js";
 
 /** The dealer's price today for this tractor + trailer: list price × each part's supply-and-demand index. */
 export function dealerPrice(w: World, t: Pick<TruckSpec, "tier" | "trailer">): number {
@@ -86,9 +86,10 @@ export function deliverOrders(w: World): void {
         odometer: 0,
         milesSinceRebuild: 0,
         builtDay: day,
-        breakdownMin: 0,
         idleSinceDay: day,
+        defects: 0,
       });
+      freshPaperwork(npc);
     }
     const delivered = npc ?? createTruck(w, company, "owned", o.tier, o.trailer);
     w.metrics.onTruckDelivered();

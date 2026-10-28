@@ -7,14 +7,99 @@ import { facilitiesOf, facilityEquipment } from "./demand.js";
 import { borrow, deposit, repayLoan, withdraw } from "./finance.js";
 import { companyAccount } from "./ledger.js";
 import { rebrokerLoad, stealLoad, vettingBlock } from "./fraud.js";
-import { offerStaff, releaseStaff, setPay } from "./labor.js";
+import { finiteIn } from "./economics.js";
+import { offerStaff, releaseStaff, setPay, severance } from "./labor.js";
 import { buyListing, listTruck, withdrawListing } from "./market.js";
 import { canRefile, notice } from "./safety.js";
+import { canMakeHot } from "./standingOrders.js";
 import { inCloseWindow } from "./season.js";
 import { refile } from "./solvency.js";
 import type { Action, RuleScope } from "./types.js";
 import { condition, rebuildCost } from "./wear.js";
-import { availableSupply, companyById, crewed, hubMiles, seatDriver, staffById, syncFleet, takeSupply, truckById, unseatDriver, type World } from "./world.js";
+import { availableSupply, companyById, crewed, hubMiles, invalidOrders, seatDriver, staffById, syncFleet, takeSupply, truckById, unseatDriver, type World } from "./world.js";
+import type { EconomyConfig } from "@lanes/config";
+
+const TIERS = new Set(["workhorse", "highwayPro", "flagship"]);
+const TRAILERS = new Set(["van", "reefer", "flatbed"]);
+const FACILITIES = new Set(["warehouse", "coldStorage", "factory"]);
+const isId = (x: unknown): x is number => Number.isInteger(x) && (x as number) >= 0 && (x as number) <= 1e9;
+const isFd = (x: unknown): x is number => finiteIn(x, 0, 1e12);
+const isStr = (x: unknown): x is string => typeof x === "string" && x.length <= 64;
+
+/**
+ * Why an action's fields can't be trusted, or null. Actions arrive from players'
+ * browsers as JSON: a string where a number belongs, NaN, a negative price or a
+ * prototype key would reach the ledger or a bid score and stop the shared world
+ * for everyone, so every field is checked before anything looks at it.
+ */
+export function badInput(cfg: EconomyConfig, a: Action): string | null {
+  if (!a || typeof a !== "object" || typeof a.type !== "string") return "bad action";
+  switch (a.type) {
+    case "wait":
+    case "claim_airdrop_now":
+    case "refile_authority":
+      return null;
+    case "set_standing_orders":
+      return invalidOrders(cfg, a.orders);
+    case "buy_asset":
+      return TIERS.has(a.tier) && TRAILERS.has(a.trailer) && typeof a.replaceNpcLease === "boolean" ? null : "bad truck";
+    case "rebuild_truck":
+    case "park_truck":
+    case "unpark_truck":
+    case "cancel_bid":
+    case "fix_defects":
+    case "return_lease":
+    case "steal_load":
+      return isId(a.truckId) ? null : "bad truck id";
+    case "reposition_truck":
+      return isId(a.truckId) && isStr(a.hubId) ? null : "bad destination";
+    case "list_truck":
+      return isId(a.truckId) && isFd(a.askFd) && isFd(a.floorFd) && isFd(a.stepFd) ? null : "bad listing";
+    case "withdraw_listing":
+    case "buy_listing":
+      return isId(a.listingId) ? null : "bad listing id";
+    case "deposit_finance":
+    case "withdraw_finance":
+      return finiteIn(a.amountFd, 0.01, 1e12) ? null : "bad amount";
+    case "borrow":
+      return isId(a.truckId) && finiteIn(a.amountFd, 0.01, 1e12) ? null : "bad loan";
+    case "repay_loan":
+      return isId(a.loanId) ? null : "bad loan id";
+    case "buy_facility":
+      return FACILITIES.has(a.facility) && isStr(a.hubId) ? null : "bad facility";
+    case "lease_truck":
+      return TRAILERS.has(a.trailer) ? null : "bad trailer";
+    case "place_bid":
+      return isId(a.truckId) && isId(a.loadId) && finiteIn(a.rate, 0.01, 100) ? null : "bad bid";
+    case "buy_fd":
+      return finiteIn(a.usd, 0.01, 1e9) ? null : "bad amount";
+    case "sell_fd":
+      return finiteIn(a.fd, 0.01, 1e12) ? null : "bad amount";
+    case "offer_fd":
+      return isFd(a.amountFd) && finiteIn(a.minPriceUsd, 0, 1e6) ? null : "bad offer";
+    case "offer_staff":
+      return isId(a.staffId) && finiteIn(a.pay, 0.01, 1e6) && (a.truckId === undefined || isId(a.truckId)) ? null : "bad offer";
+    case "release_staff":
+      return isId(a.staffId) ? null : "bad staff id";
+    case "set_staff_pay":
+      return isId(a.staffId) && finiteIn(a.pay, 0.01, 1e6) ? null : "bad pay";
+    case "assign_driver":
+      return isId(a.staffId) && isId(a.truckId) && (a.team === undefined || typeof a.team === "boolean") ? null : "bad assignment";
+    case "set_auto_staff":
+      return typeof a.on === "boolean" ? null : "bad setting";
+    case "set_compliance":
+      return a.policy && typeof a.policy === "object" ? null : "bad policy";
+    case "set_vetting":
+      return a.tier === 0 || a.tier === 1 || a.tier === 2 ? null : "bad vetting tier";
+    case "rebroker_load":
+      return isId(a.loadId) && finiteIn(a.rate, 0.01, 100) && typeof a.pay === "boolean" ? null : "bad re-post";
+    default:
+      return "unknown action";
+  }
+}
+
+/** What a company being wound up can't do: it isn't buying, bidding or borrowing again until it restarts. */
+const LIQUIDATING_BLOCKED = new Set<Action["type"]>(["place_bid", "reposition_truck", "buy_asset", "buy_facility", "lease_truck", "borrow", "buy_listing", "unpark_truck", "offer_staff"]);
 
 /** What a company whose authority was revoked can still do: wait out the bar, file again, and handle its money. */
 const ALLOWED_REVOKED = new Set<Action["type"]>(["wait", "refile_authority", "buy_fd", "sell_fd", "offer_fd", "claim_airdrop_now", "withdraw_finance", "withdraw_listing", "set_compliance", "set_vetting", "set_auto_staff"]);
@@ -53,7 +138,10 @@ export function applyAction(w: World, companyId: number, action: Action): Action
   const company = companyById(w, companyId);
   const { cfg } = w;
   const acct = companyAccount(company.id);
+  const bad = badInput(cfg, action);
+  if (bad) return { ok: false, reason: bad };
   if (company.authority.status === "revoked" && !ALLOWED_REVOKED.has(action.type)) return { ok: false, reason: "your authority is revoked" };
+  if (company.liquidatingSince !== null && LIQUIDATING_BLOCKED.has(action.type)) return { ok: false, reason: "the company is being wound up" };
   if (company.human && aiOnly(action)) return { ok: false, reason: "that isn't available to players" };
   switch (action.type) {
     case "wait":
@@ -70,6 +158,12 @@ export function applyAction(w: World, companyId: number, action: Action): Action
       if (!s || s.companyId !== company.id || s.status !== "employed") return { ok: false, reason: "they don't work for you" };
       if (s.owner) return { ok: false, reason: "you can't fire yourself" };
       if (s.truckId && !atHub(truckById(w, s.truckId).status)) return { ok: false, reason: "wait until their truck is at a hub" };
+      // Hired and fired within a month: severance.
+      const sev = severance(w, s);
+      if (sev > 0) {
+        w.ledger.post(w.t, acct, "sink:severance", sev, `severance:${s.id}`);
+        company.operating.costFd += sev;
+      }
       releaseStaff(w, s);
       return { ok: true };
     }
@@ -78,7 +172,7 @@ export function applyAction(w: World, companyId: number, action: Action): Action
       const s = staffById(w, action.staffId);
       if (!s || s.companyId !== company.id || s.status !== "employed") return { ok: false, reason: "they don't work for you" };
       if (s.owner) return { ok: false, reason: "the owner's draw is fixed" };
-      if (!(action.pay > 0)) return { ok: false, reason: "pay above zero" };
+      if (!finiteIn(action.pay, 0.01, s.kind === "driver" ? 20 : 50_000)) return { ok: false, reason: "pay above zero" };
       setPay(w, s, action.pay);
       return { ok: true };
     }
@@ -156,12 +250,10 @@ export function applyAction(w: World, companyId: number, action: Action): Action
       return result(stealLoad(w, company, truck));
     }
 
-    case "set_standing_orders": {
-      const counted = action.orders.filter((o) => o.kind !== "floor").length;
-      if (counted > cfg.board.freeStandingOrders) return { ok: false, reason: "too many standing orders" };
+    case "set_standing_orders":
+      // Checked field by field in badInput (invalidOrders).
       company.orders = action.orders;
       return { ok: true };
-    }
 
     case "buy_asset": {
       // A dealer order: paid now, delivered after the lead time (see dealer.ts).
@@ -208,8 +300,8 @@ export function applyAction(w: World, companyId: number, action: Action): Action
       if (!truck || truck.companyId !== company.id) return { ok: false, reason: "not your truck" };
       if (truck.lease !== "owned") return { ok: false, reason: "only owned trucks can be parked" };
       if (truck.status !== "idle") return { ok: false, reason: "truck must be idle at a hub" };
+      // Parking doesn't restart the idle-fee clock: the truck is still unused.
       truck.status = "parked";
-      truck.idleSinceDay = dayOf(w.t, cfg);
       return { ok: true };
     }
 
@@ -219,7 +311,6 @@ export function applyAction(w: World, companyId: number, action: Action): Action
       if (truck.status !== "parked") return { ok: false, reason: "truck isn't parked" };
       truck.status = "idle";
       truck.idleRounds = 0;
-      truck.idleSinceDay = dayOf(w.t, cfg);
       return { ok: true };
     }
 
@@ -264,15 +355,19 @@ export function applyAction(w: World, companyId: number, action: Action): Action
       if (load.brokerId === company.id || load.doubleBroker?.companyId === company.id) return { ok: false, reason: "you posted that load" };
       const blocked = vettingBlock(w, company, load);
       if (blocked) return { ok: false, reason: `the poster won't load a carrier with ${blocked}` };
+      if (load.hot > 0 && !canMakeHot(company, truck)) return { ok: false, reason: "a hot load's window takes a team" };
       if (hubMiles(w, truck.hub, load.origin) > MANUAL_BID_MAX_DEADHEAD_MI) return { ok: false, reason: `more than ${MANUAL_BID_MAX_DEADHEAD_MI} miles empty to the pickup` };
       if (!(action.rate > 0)) return { ok: false, reason: "bid a rate per mile above zero" };
       w.manualBids.set(truck.id, { loadId: load.id, rate: action.rate });
       return { ok: true };
     }
 
-    case "cancel_bid":
+    case "cancel_bid": {
+      const truck = truckById(w, action.truckId);
+      if (!truck || truck.companyId !== company.id) return { ok: false, reason: "not your truck" };
       w.manualBids.delete(action.truckId);
       return { ok: true };
+    }
 
     case "reposition_truck": {
       const truck = truckById(w, action.truckId);
@@ -334,5 +429,8 @@ export function applyAction(w: World, companyId: number, action: Action): Action
       });
       return { ok: true };
     }
+
+    default:
+      return { ok: false, reason: "unknown action" };
   }
 }

@@ -18,11 +18,13 @@ export interface LedgerEntry {
 }
 
 /**
- * Refs of outflows that aren't spending: finance deposits, FD sold for dollars
- * (exchange or buyback), and burns of cash itself (season close, launch reset,
- * holding cost) — so a burn doesn't count toward the working capital it's measured against.
+ * Spending, for working capital, is what a company pays out to operate: outflows to
+ * sinks, except burns of cash itself (season close, launch reset, holding cost,
+ * exchange fees). Transfers to other companies (truck sales, loans, deposits) don't
+ * count: two accounts trading a truck back and forth would otherwise manufacture
+ * "spending" and shelter any amount from the season burn.
  */
-const NOT_SPENDING = ["deposit:", "swap:", "buyback:", "season:", "launch:", "holding:"];
+const NOT_SPENDING = ["season:", "launch:", "holding:", "swap:", "buyback:"];
 
 /** Cents, so balances are exact integers and replays compare bit-for-bit. */
 const toCents = (fd: number) => Math.round(fd * 100);
@@ -41,8 +43,10 @@ export class Ledger {
 
   post(t: number, from: string, to: string, amountFd: number, ref: string): void {
     const cents = toCents(amountFd);
+    if (!Number.isFinite(cents)) throw new Error(`Bad ledger amount ${amountFd} (${from} → ${to})`);
     if (cents === 0) return;
     if (cents < 0) throw new Error(`Negative ledger amount ${amountFd} (${from} → ${to})`);
+    if (from === to) throw new Error(`Ledger entry to itself (${from})`);
     const kind = classify(from, to);
     this.balances.set(from, (this.balances.get(from) ?? 0) - cents);
     this.balances.set(to, (this.balances.get(to) ?? 0) + cents);
@@ -53,7 +57,7 @@ export class Ledger {
       this.sinkCents += cents;
       this.totals.set(to, (this.totals.get(to) ?? 0) + cents);
     }
-    if (from.startsWith("co:") && !NOT_SPENDING.some((p) => ref.startsWith(p))) this.outflows.set(from, (this.outflows.get(from) ?? 0) + cents);
+    if (from.startsWith("co:") && kind === "sink" && !NOT_SPENDING.some((p) => ref.startsWith(p))) this.outflows.set(from, (this.outflows.get(from) ?? 0) + cents);
     if (this.keepEntries) this.entries.push({ t, from, to, amount: cents / 100, kind, ref });
   }
 

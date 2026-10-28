@@ -59,9 +59,9 @@ function endOfDay(w: World, day: number, agents?: DailyAgentHook): void {
   dailyInsurance(w);
   dailyLabor(w);
 
-  // Idle fee on owned assets unused for 7+ in-game days, parked ones included (§Owned vs. leased).
+  // Idle fee on owned assets unused for 7+ in-game days, parked and listed ones included (§Owned vs. leased).
   for (const truck of w.trucks) {
-    const unused = truck.status === "idle" || truck.status === "parked";
+    const unused = truck.status === "idle" || truck.status === "parked" || truck.status === "listed";
     if (truck.lease === "owned" && unused && day - truck.idleSinceDay >= cfg.costs.idleFeeAfterDays) {
       w.ledger.post(w.t, companyAccount(truck.companyId), "sink:idle_fee", cfg.costs.idleFeePerDay, `idle:${truck.id}`);
     }
@@ -107,7 +107,11 @@ function endOfDay(w: World, day: number, agents?: DailyAgentHook): void {
   }
 
   // The token launches at the end of beta; after that the treasury buys back daily.
-  if (cfg.token.enabled && !tokenLive(w) && day + 1 >= Math.round(cfg.token.betaYears * cfg.time.daysPerSeason)) launchToken(w);
+  let launchedToday = false;
+  if (cfg.token.enabled && !tokenLive(w) && day + 1 >= Math.round(cfg.token.betaYears * cfg.time.daysPerSeason)) {
+    launchToken(w);
+    launchedToday = true;
+  }
   if (tokenLive(w)) dailyBuyback(w);
 
   // Broker bond via the Surety Desk: 2–12% of 75,000 FD a year by credit, charged
@@ -129,7 +133,8 @@ function endOfDay(w: World, day: number, agents?: DailyAgentHook): void {
 
   agents?.(w, day);
   if ((day + 1) % cfg.time.daysPerSeason === 0) {
-    if (cfg.seasonClose.enabled) closeSeason(w, seasonOf(day, cfg), day);
+    // The launch has already reset FD: a season close the same day would burn the airdrop and the locked carryover.
+    if (cfg.seasonClose.enabled && !launchedToday) closeSeason(w, seasonOf(day, cfg), day);
     // Without seasons, authority and licenses still renew once a year (§Roles: "renew each season").
     else for (const c of w.companies) payPermits(w, c);
   }

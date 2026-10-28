@@ -1,5 +1,5 @@
 import { dayOf } from "./clock.js";
-import { clamp } from "./economics.js";
+import { clamp, finiteIn, fmtInt } from "./economics.js";
 import { companyAccount } from "./ledger.js";
 import type { Company, Staff, Truck } from "./types.js";
 import { condition } from "./wear.js";
@@ -131,14 +131,14 @@ export function offerStaff(w: World, c: Company, s: Staff, pay: number, truckId:
   if (s.status === "jailed") return `${s.name} is in jail`;
   if (s.status === "gone") return `${s.name} has left the industry`;
   if (s.companyId === c.id) return `${s.name} already works for you`;
-  if (!(pay > 0)) return "offer a wage above zero";
+  if (!finiteIn(pay, 0.01, s.kind === "driver" ? 20 : 50_000)) return "offer a wage above zero";
   let truck: Truck | null = null;
   if (s.kind === "driver") {
     if (!truckId) return "pick the truck they'll drive";
     truck = truckById(w, truckId);
     if (!truck || truck.companyId !== c.id) return "not your truck";
     if (crewed(truck)) return "that truck already has a driver";
-    if (truck.status === "retired" || truck.status === "listed") return "that truck isn't on the road";
+    if (truck.status === "retired" || truck.status === "listed" || truck.status === "parked") return "that truck isn't on the road";
   }
   const ask = askingPay(w, s);
   if (pay < ask) return `${s.name} asks at least ${fmtPay(s, ask)}`;
@@ -146,7 +146,10 @@ export function offerStaff(w: World, c: Company, s: Staff, pay: number, truckId:
     hire(w, c, s, pay, truck);
     return null;
   }
-  // A poach: it has to beat what they make by their loyalty premium.
+  // A poach: it has to beat what they make by their loyalty premium, and it costs a sign-on bonus up front.
+  if (s.offer && s.offer.companyId === 0) return `${s.name} has already given notice`;
+  const bonus = signOnBonus(w, s, pay);
+  if (w.ledger.balance(companyAccount(c.id)) < bonus) return `a sign-on bonus of ${fmtInt(bonus)} FD is due up front`;
   const needed = s.pay * (1 + lerp(morale.loyalty, s.morale));
   if (pay < needed) return `${s.name} would move for ${fmtPay(s, needed)} or more`;
   if (s.offer && s.offer.companyId !== 0 && s.offer.pay >= pay) return `${s.name} already has a better offer`;
@@ -156,14 +159,35 @@ export function offerStaff(w: World, c: Company, s: Staff, pay: number, truckId:
   return null;
 }
 
-const fmtPay = (s: Staff, x: number) => (s.kind === "driver" ? `${x.toFixed(2)} FD/mi` : `${Math.round(x).toLocaleString("en-US")} FD/wk`);
+const fmtPay = (s: Staff, x: number) => (s.kind === "driver" ? `${x.toFixed(2)} FD/mi` : `${fmtInt(x)} FD/wk`);
 
-function hire(w: World, c: Company, s: Staff, pay: number, truck: Truck | null): void {
+/** What it costs to hire someone away: two weeks of their new pay, paid to them on signing (and gone from the economy). */
+export function signOnBonus(w: World, s: Staff, pay: number): number {
+  const h = w.cfg.labor.hiring;
+  return s.kind === "driver" ? pay * h.milesPerWeek * h.signOnWeeks : pay * h.signOnWeeks;
+}
+
+/** Letting someone go soon after hiring them costs severance: two weeks of pay. */
+export function severance(w: World, s: Staff): number {
+  const h = w.cfg.labor.hiring;
+  if (dayOf(w.t, w.cfg) - s.hiredDay >= h.severanceWithinDays) return 0;
+  return s.kind === "driver" ? s.pay * h.milesPerWeek * h.severanceWeeks : s.pay * h.severanceWeeks;
+}
+
+function hire(w: World, c: Company, s: Staff, pay: number, truck: Truck | null, poached = false): void {
+  if (poached) {
+    const bonus = signOnBonus(w, s, pay);
+    w.ledger.post(w.t, companyAccount(c.id), "sink:signing_bonus", bonus, `signon:${s.id}`);
+    c.operating.costFd += bonus;
+  }
   s.status = "employed";
   s.companyId = c.id;
   s.pay = pay;
   s.hiredDay = dayOf(w.t, w.cfg);
   s.offer = null;
+  s.matchedPay = 0;
+  s.matchedDay = -1;
+  s.peakPay = pay;
   s.unseatedWeeks = 0;
   // Starting happy if paid well over market, less so if barely.
   s.morale = clamp(0.6 + w.cfg.labor.morale.payWeight * (pay / marketPay(w, s.kind, s.skill) - 1), 0.3, 0.95);
@@ -176,7 +200,8 @@ export function releaseStaff(w: World, s: Staff): void {
   if (s.owner || s.status !== "employed") return;
   unseatDriver(w, s);
   const list = w.staffByCompany.get(s.companyId);
-  if (list) list.splice(list.indexOf(s), 1);
+  const at = list ? list.indexOf(s) : -1;
+  if (list && at >= 0) list.splice(at, 1);
   s.status = "pool";
   s.companyId = 0;
   s.pay = 0;
@@ -186,14 +211,26 @@ export function releaseStaff(w: World, s: Staff): void {
 
 export function setPay(w: World, s: Staff, pay: number): void {
   const before = s.pay;
+  const today = dayOf(w.t, w.cfg);
   s.pay = pay;
-  // A cut stings at once; a raise lifts them at once (the weekly drift does the rest).
-  s.morale = clamp(s.morale + (pay / before - 1) * w.cfg.labor.morale.payWeight * 0.5, 0, 1);
+  // A cut stings at once; a raise lifts them at once, but only above the most they've made lately and only
+  // so far: the weekly drift does the rest. So cutting pay and restoring it is a loss, never a free reset.
+  const ref = Math.max(before, s.peakPay);
+  const change = clamp(pay / ref - 1, -0.5, 0.25);
+  s.morale = clamp(s.morale + change * w.cfg.labor.morale.payWeight * 0.5, 0, 1);
+  s.peakPay = Math.max(s.peakPay, pay);
   if (s.offer && s.offer.companyId !== 0 && pay >= s.offer.pay) {
     const other = companyById(w, s.offer.companyId);
     notice(w, other.id, `${s.name} stayed: their employer matched your offer.`, "bad");
     notice(w, s.companyId, `You kept ${s.name}.`, "good", s.truckId || undefined);
     s.offer = null;
+    s.matchedPay = pay;
+    s.matchedDay = today;
+  } else if (s.matchedPay > 0 && pay < s.matchedPay && today - s.matchedDay < w.cfg.labor.hiring.matchedPayHoldDays && !s.offer) {
+    // A match cut back soon after is a broken promise: they walk as soon as their truck is at a hub.
+    s.morale = 0;
+    s.offer = { companyId: 0, pay: 0, truckId: 0, day: today - w.cfg.labor.morale.noticeDays };
+    notice(w, s.companyId, `${label(s)} is leaving: you cut the pay you matched to keep them.`, "bad", s.truckId || undefined);
   }
   if (s.truckId) syncTruck(w, truckById(w, s.truckId));
 }
@@ -249,7 +286,7 @@ export function dailyLabor(w: World): void {
     }
     notice(w, from.id, `${label(s)} left for ${to.name}.`, "bad", s.truckId || undefined);
     releaseStaff(w, s);
-    hire(w, to, s, pay, truck);
+    hire(w, to, s, pay, truck, true);
     notice(w, to.id, `${label(s)} joined you from ${from.name}.`, "good", truck?.id);
   }
   for (const c of w.companies) if (c.autoStaff && c.role === "carrier") autoStaff(w, c);
@@ -263,7 +300,18 @@ export function dailyLabor(w: World): void {
 export function autoStaff(w: World, c: Company, minDriverSkill = 0, minDispatcherSkill = 0): void {
   if (c.authority.status === "revoked" || c.liquidatingSince !== null) return;
   const fleet = w.trucksByCompany.get(c.id)!;
-  const empty = fleet.filter((t) => !crewed(t) && (t.status === "idle" || t.status === "parked" || t.status === "repair"));
+  // The owner drives for free: if they have no truck, they take over from a hire at a hub.
+  const owner = fleet.length ? w.staffByCompany.get(c.id)!.find((s) => s.owner && s.status === "employed" && s.truckId === 0) : undefined;
+  if (owner) {
+    const seat = fleet.find((t) => (t.status === "idle" || t.status === "parked" || t.status === "repair") && crewed(t) && t.coDriverId === 0 && !staffById(w, t.driverId).owner);
+    if (seat) seatDriver(w, owner, seat);
+  }
+  // Seats to fill: trucks on the road first, parked ones last; a seat promised to someone we're hiring away is kept for them.
+  const promised = new Set<number>();
+  for (const s of w.staff) if (s.offer && s.offer.companyId === c.id && s.offer.truckId) promised.add(s.offer.truckId);
+  const empty = fleet
+    .filter((t) => !crewed(t) && (t.status === "idle" || t.status === "parked" || t.status === "repair") && !promised.has(t.id))
+    .sort((a, b) => Number(a.status === "parked") - Number(b.status === "parked") || a.id - b.id);
   if (empty.length > 0) {
     const spare = driversOf(w, c.id).filter((s) => s.truckId === 0 && !s.offer);
     while (empty.length > 0 && spare.length > 0) seatDriver(w, spare.shift()!, empty.shift()!);
@@ -335,6 +383,8 @@ export function weeklyLabor(w: World): void {
     }
     if (s.owner) continue;
     const c = companyById(w, s.companyId);
+    // What counts as "lately" fades over a couple of months.
+    s.peakPay = Math.max(s.pay, s.peakPay * 0.97);
 
     // Morale: pay against what they could get elsewhere, how they're treated, how long they've stayed.
     const truck = s.truckId ? truckById(w, s.truckId) : null;
@@ -345,7 +395,9 @@ export function weeklyLabor(w: World): void {
     target += Math.min(morale.tenureCap, morale.tenurePerYear * tenureYears(w, s));
     s.morale = clamp(s.morale + morale.adjust * (clamp(target, 0, 1) - s.morale), 0, 1);
 
-    if (s.kind === "driver" && s.truckId === 0) s.unseatedWeeks++;
+    // A driver without a truck, or on one that's parked or for sale, isn't working.
+    if (s.kind === "driver" && (s.truckId === 0 || truck?.status === "parked" || truck?.status === "listed")) s.unseatedWeeks++;
+    else if (s.kind === "driver") s.unseatedWeeks = 0;
     if (s.offer) continue;
     const quits = rng.next() < morale.quitBase + morale.quitSlope * Math.max(0, 0.5 - s.morale) || s.unseatedWeeks >= morale.unseatedWeeks;
     const retires = rng.next() < labor.pool.retireWeekly;
@@ -362,13 +414,18 @@ export function weeklyLabor(w: World): void {
   }
 
   // The pool: retirements, then new entrants sized to the gap and the open seats.
-  for (const s of w.staff) if (s.status === "pool" && rng.next() < labor.pool.retireWeekly * 2) s.status = "gone";
+  // The pool: people leave faster when work is scarce, and newcomers only come while wages are worth it.
+  const drivers = w.staff.filter((s) => s.kind === "driver" && s.status === "employed" && !s.owner).length;
+  const slack = drivers > 0 && poolOf(w, "driver").length / drivers > labor.wageIndex.slackPool;
+  const leave = labor.pool.retireWeekly * (slack ? labor.pool.slackAttrition : 2);
+  for (const s of w.staff) if (s.status === "pool" && rng.next() < leave) s.status = "gone";
+  const wagesDraw = w.labor.wageIndex > labor.wageIndex.range[0] + 1e-9;
   for (const kind of ["driver", "dispatcher"] as const) {
     const employed = w.staff.filter((s) => s.kind === kind && s.status === "employed" && !s.owner).length;
     const inPool = poolOf(w, kind).length;
     const target = Math.max(labor.pool.minTarget[kind], employed * labor.pool.targetShare[kind]);
     const open = kind === "driver" ? openSeats(w) : 0;
-    const n = Math.round(labor.pool.baseEntrants[kind] + labor.pool.fillShare * Math.max(0, target + open - inPool));
+    const n = Math.round((wagesDraw ? labor.pool.baseEntrants[kind] : 0) + labor.pool.fillShare * Math.max(0, target + open - inPool));
     for (let i = 0; i < n; i++) entrant(w, kind);
   }
 }
@@ -404,7 +461,12 @@ export function operatingCount(w: World, companyId: number): number {
 /** Operating trucks without a driver, across the world. */
 function openSeats(w: World): number {
   let n = 0;
-  for (const t of w.trucks) if (t.companyId !== 0 && !crewed(t) && t.status !== "parked" && t.status !== "listed" && t.status !== "retired") n++;
+  for (const t of w.trucks) {
+    if (t.companyId === 0 || crewed(t) || t.status === "parked" || t.status === "listed" || t.status === "retired") continue;
+    const c = companyById(w, t.companyId);
+    if (c.authority.status === "revoked" || c.liquidatingSince !== null) continue;
+    n++;
+  }
   return n;
 }
 

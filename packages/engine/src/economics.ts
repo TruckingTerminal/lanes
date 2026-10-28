@@ -48,6 +48,17 @@ export function breakEvenPerMile(cfg: EconomyConfig, truck: TruckSpec, fuel: num
   return variable / (loadedMi * keep);
 }
 
+/** A whole number with thousands separators, the same on every runtime (no locale). */
+export function fmtInt(x: number): string {
+  const s = String(Math.round(Math.abs(x)));
+  let out = "";
+  for (let i = 0; i < s.length; i++) out += (i > 0 && (s.length - i) % 3 === 0 ? "," : "") + s[i];
+  return (x < 0 ? "-" : "") + out;
+}
+
+/** A finite number within [lo, hi]: the check every player-supplied number gets before it touches the ledger. */
+export const finiteIn = (x: unknown, lo: number, hi: number): x is number => typeof x === "number" && Number.isFinite(x) && x >= lo && x <= hi;
+
 export function clamp(x: number, lo: number, hi: number): number {
   return x < lo ? lo : x > hi ? hi : x;
 }

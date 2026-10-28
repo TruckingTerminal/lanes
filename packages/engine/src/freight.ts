@@ -162,7 +162,7 @@ export function generateRoundFreight(w: World): RoundFreight {
   const hl = cfg.safety.hotLoads;
   const hotOdds = (eq: Equipment) => (hl.share * hl.equipmentShare[eq]) / cfg.freight.equipmentShare[eq];
   const makeHot = (load: Load) => {
-    if (load.miles < 500 || rng.next() >= hotOdds(load.equipment)) return;
+    if (load.miles < hl.minMiles || rng.next() >= hotOdds(load.equipment)) return;
     load.hot = rng.range(hl.premium[0], hl.premium[1]);
     load.ceiling *= load.hot;
     load.shipperRate = load.ceiling;
@@ -241,7 +241,7 @@ function tenderToBroker(w: World, load: Load, brokers: Company[], contractShippe
   if (eligible.length === 0) return;
   const broker = eligible[w.rng.freight.weighted(weights)]!;
   const order = broker.orders.find((o) => o.kind === "broker");
-  const margin = order && order.kind === "broker" ? order.marginPct : 0;
+  const margin = clamp(order && order.kind === "broker" ? order.marginPct : 0, 0, 0.9);
   load.brokerId = broker.id;
   load.shipperRate = contractShipperRate;
   load.ceiling = contractShipperRate * (1 - margin);

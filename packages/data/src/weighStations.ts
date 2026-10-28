@@ -1,4 +1,4 @@
-import { dcos } from "./dmath.js";
+import { dasin, datan2, dcos, dsin } from "./dmath.js";
 
 export interface WeighStation {
   id: string;
@@ -40,7 +40,7 @@ const ROWS: Row[] = [
   ["TN-ROB", "Robertson County", "I-65", 36.55, -86.62],
   ["TN-MON", "Monteagle", "I-24", 35.24, -85.84],
   ["GA-RIN", "Ringgold", "I-75", 34.92, -85.12],
-  ["GA-VAL", "Lake Park", "I-75", 30.73, -83.27],
+  ["GA-VAL", "Lake Park", "I-75", 30.72, -83.22],
   ["GA-KNG", "Kingsland", "I-95", 30.83, -81.67],
   ["GA-CAR", "Carnesville", "I-85", 34.38, -83.24],
   ["GA-TAL", "Tallapoosa", "I-20", 33.73, -85.29],
@@ -81,36 +81,68 @@ const ROWS: Row[] = [
 
 export const weighStations: WeighStation[] = ROWS.map(([id, name, route, lat, lon]) => ({ id, name, route, lat, lon }));
 
-const MI_PER_DEG_LAT = 69.0;
+const RAD = Math.PI / 180;
+const EARTH_MI = 3958.8;
+/** Points sampled along a route, about this far apart. */
+const SAMPLE_MI = 15;
+
+type LL = { lat: number; lon: number };
+
+function milesBetween(a: LL, b: LL): number {
+  const sLat = dsin(((b.lat - a.lat) * RAD) / 2);
+  const sLon = dsin(((b.lon - a.lon) * RAD) / 2);
+  const h = sLat * sLat + dcos(a.lat * RAD) * dcos(b.lat * RAD) * sLon * sLon;
+  return 2 * EARTH_MI * dasin(Math.sqrt(h));
+}
+
+/** Points along the great circle from a to b, as fractions of the way and positions, deterministic (dmath only). */
+function greatCirclePoints(a: LL, b: LL, n: number): { f: number; p: LL }[] {
+  const toVec = (p: LL): [number, number, number] => {
+    const la = p.lat * RAD;
+    const lo = p.lon * RAD;
+    return [dcos(la) * dcos(lo), dcos(la) * dsin(lo), dsin(la)];
+  };
+  const va = toVec(a);
+  const vb = toVec(b);
+  const chord = Math.sqrt((va[0] - vb[0]) ** 2 + (va[1] - vb[1]) ** 2 + (va[2] - vb[2]) ** 2);
+  const ang = 2 * dasin(Math.min(1, chord / 2));
+  const sinAng = dsin(ang);
+  const out: { f: number; p: LL }[] = [];
+  for (let i = 0; i <= n; i++) {
+    const f = i / n;
+    const A = sinAng > 1e-12 ? dsin((1 - f) * ang) / sinAng : 1 - f;
+    const B = sinAng > 1e-12 ? dsin(f * ang) / sinAng : f;
+    const x = A * va[0] + B * vb[0];
+    const y = A * va[1] + B * vb[1];
+    const z = A * va[2] + B * vb[2];
+    out.push({ f, p: { lat: datan2(z, Math.sqrt(x * x + y * y)) / RAD, lon: datan2(y, x) / RAD } });
+  }
+  return out;
+}
 
 /**
- * Stations within `radiusMi` of the straight route from a to b, as fractions of
- * the way along it (sorted). Flat-earth math around the route's mid-latitude:
- * plenty for corridors a few hundred miles wide.
+ * Stations within `radiusMi` of the great-circle route from a to b, as fractions
+ * of the way along it (sorted). The route is sampled every ~15 miles, so a station
+ * is matched to the nearest sample: good to about a mile. Stations within
+ * `endMarginMi` of either hub belong to the hub, not to the road between.
  */
-export function stationsOnRoute(
-  a: { lat: number; lon: number },
-  b: { lat: number; lon: number },
-  radiusMi: number,
-  stations: readonly WeighStation[] = weighStations,
-): { station: number; frac: number }[] {
-  const midLat = ((a.lat + b.lat) / 2) * (Math.PI / 180);
-  const kx = MI_PER_DEG_LAT * dcos(midLat);
-  const ax = a.lon * kx;
-  const ay = a.lat * MI_PER_DEG_LAT;
-  const dx = b.lon * kx - ax;
-  const dy = b.lat * MI_PER_DEG_LAT - ay;
-  const len2 = dx * dx + dy * dy;
+export function stationsOnRoute(a: LL, b: LL, radiusMi: number, stations: readonly WeighStation[] = weighStations, endMarginMi = 5): { station: number; frac: number }[] {
+  const total = milesBetween(a, b);
   const out: { station: number; frac: number }[] = [];
-  if (len2 === 0) return out;
+  if (total <= 2 * endMarginMi) return out;
+  const samples = greatCirclePoints(a, b, Math.max(2, Math.ceil(total / SAMPLE_MI)));
   stations.forEach((s, i) => {
-    const px = s.lon * kx - ax;
-    const py = s.lat * MI_PER_DEG_LAT - ay;
-    const f = (px * dx + py * dy) / len2;
-    if (f <= 0.02 || f >= 0.98) return; // at either end is the hub itself, not the road between
-    const ex = px - f * dx;
-    const ey = py - f * dy;
-    if (ex * ex + ey * ey <= radiusMi * radiusMi) out.push({ station: i, frac: f });
+    let best = Infinity;
+    let at = 0;
+    for (const { f, p } of samples) {
+      const d = milesBetween(s, p);
+      if (d < best) {
+        best = d;
+        at = f;
+      }
+    }
+    const along = at * total;
+    if (best <= radiusMi && along >= endMarginMi && total - along >= endMarginMi) out.push({ station: i, frac: at });
   });
   return out.sort((p, q) => p.frac - q.frac || p.station - q.station);
 }

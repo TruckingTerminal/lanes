@@ -99,7 +99,7 @@ export function safetyPages(cfg: EconomyConfig): GuidePage[] {
           [
             ["Open", "Anyone"],
             ["Standard", `Authority at least ${v.standard.minAuthorityDays} days old, no open claims, not rated unsatisfactory`],
-            ["Strict", `At least ${v.strict.minAuthorityDays} days and ${v.strict.minDelivered} loads delivered (or a year old), no conditional rating or alerts, no revocation in the past year; tracking on the load`],
+            ["Strict", `All of the above, plus at least ${v.strict.minAuthorityDays} days and ${v.strict.minDelivered} loads delivered (or a year old), no conditional rating or alerts, no revocation in the past year; tracking on the load`],
           ],
         ) +
         p(`Hot loads are at least standard. A new carrier starts on open freight and earns its way up. Open freight draws more bidders, so it tends to clear cheaper.`),

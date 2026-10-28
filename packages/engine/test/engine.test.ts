@@ -284,9 +284,10 @@ describe("simulation", () => {
 
   it("produces a report with every kill-criteria metric", () => {
     const w = smallWorld(5);
-    runDays(w, 92, ruleBotHook);
+    // Long enough for the six-month warm-up the supply check skips and the strategy table's minimum age.
+    runDays(w, 200, ruleBotHook);
     const r = buildReport(w);
-    expect(r.quarters).toHaveLength(1);
+    expect(r.quarters).toHaveLength(2);
     expect(r.supply.fromGrants).toBeGreaterThan(0);
     expect(r.supply.afterWarmup).toBeGreaterThan(0);
     expect(r.supply.yearOverYear).toBeNull(); // one partial season
@@ -649,7 +650,10 @@ describe("a seasons-off economy: holding cost, insolvency, broker risk", () => {
     addTruck(w, buyer, "owned", "workhorse", "van");
     fund(w, buyer.id, 50_000);
     expect(applyAction(w, buyer.id, { type: "buy_listing", listingId: listing.id })).toEqual({ ok: true });
+    // The fleet is gone, but a bankrupt sits out a couple of weeks before the restart.
     runDays(w, 1);
+    expect(failing.liquidatingSince).not.toBeNull();
+    runDays(w, cfg.insolvency.restartAfterDays);
     expect(failing.liquidatingSince).toBeNull();
     expect(failing.bankruptcies).toBe(1);
     expect(w.ledger.balance(companyAccount(failing.id))).toBeCloseTo(0, 2); // the rest of the debt written off

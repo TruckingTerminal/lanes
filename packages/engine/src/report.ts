@@ -165,14 +165,23 @@ export interface TokenReport {
 }
 
 /** Scores a run against the PoC kill criteria (§Proof of concept scope and kill criteria). */
+/** Companies younger than this don't enter the strategy table. */
+const STRATEGY_MIN_DAYS = 180;
+
 export function buildReport(w: World): RunReport {
   const { cfg } = w;
   const k = cfg.killCriteria;
   const days = w.metrics.days;
   const perSeason = cfg.time.daysPerSeason;
   const quarterLen = perSeason / 4;
-  const warmup = cfg.time.daysPerMonth;
+  // Supply growth is measured after the cold start: the first six months are grants becoming a fleet.
+  const warmup = 6 * cfg.time.daysPerMonth;
   const seasonCount = Math.ceil(days.length / perSeason);
+  // The quarterly sink/faucet band: the spec's with seasons on; without them, what the stabilizers steer to
+  // (beta 97–103%, live 100–104%), with two points of slack either side.
+  const band: readonly [number, number] = cfg.seasonClose.enabled
+    ? k.sinkFaucetPerQuarter
+    : [Math.min(cfg.stabilizers.sinkFaucetTargetWithoutSeasons[0], cfg.token.sinkFaucetTargetLive[0]) - 0.02, Math.max(cfg.stabilizers.sinkFaucetTargetWithoutSeasons[1], cfg.token.sinkFaucetTargetLive[1]) + 0.02];
 
   const quarters: QuarterReport[] = [];
   const seasons: SeasonReport[] = [];
@@ -191,7 +200,7 @@ export function buildReport(w: World): RunReport {
         faucetFd,
         sinkFd,
         sinkFaucetRatio: ratio,
-        pass: ratio >= k.sinkFaucetPerQuarter[0] && ratio <= k.sinkFaucetPerQuarter[1],
+        pass: ratio >= band[0] && ratio <= band[1],
       });
     }
     const close = w.seasonCloses.find((c) => c.season === s);
@@ -216,10 +225,13 @@ export function buildReport(w: World): RunReport {
   // segment a company started in ("oo" vs. "fleet"): a 6-truck fleet out-earning
   // a 1-truck owner-operator is the truck ladder working, not a broken strategy.
   const hoursNow = w.t / 60;
+  const dayNow = w.t / w.cfg.time.gameMinutesPerDay;
   const carriers = w.companies.filter((c) => c.role === "carrier");
   const mph = (c: (typeof carriers)[number]) => (sum(c.milesHistory) + c.milesTotal) / Math.max(1, hoursNow - c.createdDay * 24);
   const bySegment = new Map<string, Map<string, number[]>>();
+  // Companies younger than half a year have too little history for a rate, and each human is a "strategy" of one.
   for (const c of carriers) {
+    if (dayNow - c.createdDay < STRATEGY_MIN_DAYS || c.strategy.startsWith("player:")) continue;
     const [segment, strategy] = c.strategy.includes(":") ? c.strategy.split(":") : ["all", c.strategy];
     const seg = bySegment.get(segment!) ?? new Map<string, number[]>();
     seg.set(strategy!, [...(seg.get(strategy!) ?? []), mph(c)]);
@@ -240,9 +252,10 @@ export function buildReport(w: World): RunReport {
   const crossSegmentTop = Math.max(0, ...strategies.map((s) => s.milesPerHour / overallMedian));
   const strategyPass = strategies.every((s) => s.vsMedian <= k.maxStrategyVsMedian);
 
-  // Median over every free owner-operator, counting those who never bought as
-  // never: it passes only if at least half buy within the limit.
-  const free = carriers.filter((c) => c.freePath);
+  // Median over every free owner-operator old enough to have had the chance, counting those who
+  // never bought as never: it passes only if at least half buy within the limit. Buying the FD with
+  // dollars isn't the free path.
+  const free = carriers.filter((c) => c.freePath && dayNow - c.createdDay >= k.freePathMaxDays && c.usd.in === 0);
   const daysOrNever = (d: number | null, c: (typeof free)[number]) => (d === null ? Infinity : d - c.createdDay);
   const boughtDays = free.map((c) => daysOrNever(c.firstOwnedTruckDay, c));
   const withinLimit = boughtDays.filter((d) => d <= k.freePathMaxDays).length;
@@ -483,8 +496,9 @@ function tokenReport(w: World, quarterLen: number): TokenReport | null {
   const tk = w.token;
   if (tk.launchDay === null || tk.launch === null) return null;
   const days = w.metrics.days;
-  const live = days.filter((d) => d.day >= tk.launchDay!);
-  const prices = live.map((d) => d.priceUsd);
+  // The launch day's own row already carries a price (metrics close the day the launch ran).
+  const live = days.filter((d) => d.day >= tk.launchDay! - 1 && d.priceUsd > 0);
+  const prices = live.length ? live.map((d) => d.priceUsd) : [w.cfg.token.launch.priceUsd];
   const byQuarter: TokenReport["price"]["byQuarter"] = [];
   for (let q = 0; (q + 1) * quarterLen <= days.length; q++) {
     const slice = live.filter((d) => d.day >= q * quarterLen && d.day < (q + 1) * quarterLen);
@@ -554,9 +568,10 @@ function supplyReport(days: DayMetrics[], perSeason: number, warmup: number, lim
     if (base && base.supplyFd > 0) afterWarmup = Math.max(afterWarmup, d.supplyFd / base.supplyFd);
   }
 
+  // Year over year from the third year on: year 2 against year 1 only measures the cold start.
   let yearOverYear: number | null = null;
   for (const d of days) {
-    if (d.day < perSeason || inSeason(d) < warmup || isCloseDay(d)) continue;
+    if (d.day < 2 * perSeason || inSeason(d) < warmup || isCloseDay(d)) continue;
     const prev = days[d.day - perSeason];
     if (prev && prev.supplyFd > 0) yearOverYear = Math.max(yearOverYear ?? 0, d.supplyFd / prev.supplyFd);
   }

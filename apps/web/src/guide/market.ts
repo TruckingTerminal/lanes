@@ -17,7 +17,7 @@ export function marketPages(cfg: EconomyConfig): GuidePage[] {
         p(`Freight is sold in sealed-bid rounds at ${String(r1).padStart(2, "0")}:00 and ${r2}:00. Each load has a <b>ceiling</b>, the most its poster will pay per mile. You bid at or under it; nobody sees anyone else's bid.`) +
         h("How a round clears") +
         ul([
-          `Every bid gets a score: ${pct(b.scoreWeights.price)} for price (how far under the ceiling), ${pct(b.scoreWeights.reputation)} for reputation (your on-time record), ${pct(b.scoreWeights.deadhead)} for empty miles to the pickup (none is best, ${b.deadheadScaleMi} or more scores zero).`,
+          `Every bid gets a score: ${pct(b.scoreWeights.price)} for price (how far under the ceiling), ${pct(b.scoreWeights.reputation)} for reputation (your on-time record), ${pct(b.scoreWeights.deadhead)} for empty miles to the pickup (none is best; at ${b.deadheadScaleMi} it scores zero and past that it counts against you).`,
           `Bids clear best score first. A truck wins at most one load a round, and a load goes to one truck.`,
           `A load nobody takes rolls to the next round with its ceiling up ${pct(b.rolloverCeilingStep)}. After ${b.npcFallbackAfterRounds} rounds an NPC carrier takes NPC freight; a player shipper's freight goes to an NPC expediter at its cost.`,
         ]) +

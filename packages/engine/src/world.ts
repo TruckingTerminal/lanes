@@ -92,6 +92,8 @@ export interface World {
   insuranceMarket: { index: number; premiums: number[]; claims: number[] };
   /** Dealer price index by tractor tier and trailer type (dealer.ts). */
   dealerIndex: { tractor: Record<TractorTier, number>; trailer: Record<Equipment, number> };
+  /** Home-hub crowding per hub (home.ts), recomputed by the engine at fixed points. */
+  homeCrowding: Float64Array;
   /** Optional listener for game events (a player's UI); never affects the simulation. */
   listener: ((e: GameEvent) => void) | null;
   metrics: MetricsRecorder;
@@ -192,6 +194,7 @@ export function createWorld(o: WorldOptions): World {
     cases: [],
     insuranceMarket: { index: 1, premiums: [0], claims: [0] },
     dealerIndex: { tractor: { workhorse: 1, highwayPro: 1, flagship: 1 }, trailer: { van: 1, reefer: 1, flatbed: 1 } },
+    homeCrowding: new Float64Array(o.net.hubs.length).fill(1),
     listener: null,
     metrics: new MetricsRecorder(),
   };
@@ -262,6 +265,9 @@ export function newStaff(w: World, kind: Staff["kind"], skill: number, potential
     releaseDay: null,
     unseatedWeeks: 0,
     offer: null,
+    matchedPay: 0,
+    matchedDay: -1,
+    peakPay: 0,
     violations: 0,
     crashes: 0,
   };
@@ -283,6 +289,48 @@ function addOwner(w: World, c: Company, skill: number): Staff {
 }
 
 export const staffById = (w: World, id: number): Staff => w.staff[id - 1]!;
+
+const finite = (x: unknown, lo: number, hi: number): x is number => typeof x === "number" && Number.isFinite(x) && x >= lo && x <= hi;
+
+/**
+ * Why a set of standing orders can't be taken, or null. Orders come from players'
+ * browsers, so every field is checked: a bad number here would reach bid scores
+ * and the ledger and stop the shared world for everyone.
+ */
+export function invalidOrders(cfg: EconomyConfig, orders: unknown): string | null {
+  if (!Array.isArray(orders)) return "standing orders must be a list";
+  if (orders.length > 20) return "too many standing orders";
+  let counted = 0;
+  for (const o of orders as StandingOrder[]) {
+    if (!o || typeof o !== "object") return "bad standing order";
+    switch (o.kind) {
+      case "bid":
+        if (!finite(o.maxDeadheadMi, 0, 2_000)) return "bad max empty miles";
+        if (o.minCeilingPerMile !== undefined && !finite(o.minCeilingPerMile, 0, 100)) return "bad minimum ceiling";
+        if (!o.price || (o.price.mode !== "ceilingPct" && o.price.mode !== "breakEvenPlus") || !finite(o.price.pct, 0, 5)) return "bad bid price";
+        if (o.equipment !== undefined && (!Array.isArray(o.equipment) || !o.equipment.every((e) => e === "van" || e === "reefer" || e === "flatbed"))) return "bad equipment list";
+        if (o.originHubs !== undefined && (!Array.isArray(o.originHubs) || !o.originHubs.every((h) => typeof h === "string"))) return "bad origin list";
+        break;
+      case "floor":
+        if (!finite(o.breakEvenPlusPct, 0, 5)) return "bad floor";
+        continue;
+      case "reposition":
+        if (!finite(o.afterIdleRounds, 1, 1_000)) return "bad idle rounds";
+        if (o.to !== "nearestStarterHub" && !(o.to && typeof o.to === "object" && (("openLoadsWithinMi" in o.to && finite(o.to.openLoadsWithinMi, 0, 5_000)) || ("hubId" in o.to && typeof o.to.hubId === "string")))) return "bad destination";
+        break;
+      case "broker":
+        if (!finite(o.marginPct, 0, 0.9) || !finite(o.maxOpenLoads, 0, 10_000)) return "bad broker order";
+        break;
+      case "rebroker":
+        if (!finite(o.share, 0, 1) || !finite(o.keepPct, 0, 0.9) || typeof o.pays !== "boolean") return "bad rebroker order";
+        break;
+      default:
+        return "unknown standing order";
+    }
+    counted++;
+  }
+  return counted > cfg.board.freeStandingOrders ? "too many standing orders" : null;
+}
 
 export function ownerOf(w: World, companyId: number): Staff | undefined {
   return w.staffByCompany.get(companyId)?.find((s) => s.owner);
@@ -315,8 +363,8 @@ export function syncTruck(w: World, truck: Truck): void {
   }
   const c = truck.companyId ? companyById(w, truck.companyId) : null;
   truck.maintPolicyMult = c?.policy.maintenance === "deferred" ? cfg.safety.maintenance.deferredCostMult : 1;
-  // Break-even spreads the policy's price over a typical truck's loaded miles.
-  truck.insuranceMult = c && c.insurance.annualPerTruck > 0 ? c.insurance.annualPerTruck / cfg.insurance.baseAnnualPerTruck : 1;
+  // Break-even spreads the policy's price over a typical truck's loaded miles; the NPC lessor carries its own trucks' policy.
+  truck.insuranceMult = truck.lease === "npc" ? 0 : c && c.insurance.annualPerTruck > 0 ? c.insurance.annualPerTruck / cfg.insurance.baseAnnualPerTruck : 1;
 }
 
 export function syncFleet(w: World, companyId: number): void {
@@ -325,6 +373,9 @@ export function syncFleet(w: World, companyId: number): void {
 
 /** Puts a driver on a truck (as co-driver if `team`). The caller checks the rules. */
 export function seatDriver(w: World, s: Staff, truck: Truck, team = false): void {
+  // Already in that seat: nothing to do (re-seating would knock the other driver out).
+  if ((team && truck.coDriverId === s.id) || (!team && truck.driverId === s.id)) return;
+  if (team && truck.driverId === s.id) return;
   if (s.truckId) unseatDriver(w, s);
   if (team) truck.coDriverId = s.id;
   else {
@@ -347,6 +398,18 @@ export function unseatDriver(w: World, s: Staff): void {
   syncTruck(w, truck);
 }
 
+/** The previous owner's logs, hours, unsettled miles and leg don't follow a truck to its next owner (or its next authority). */
+export function freshPaperwork(truck: Truck): void {
+  truck.logDays = [];
+  truck.overMin = 0;
+  truck.shiftStartT = null;
+  truck.shiftDrivenMin = 0;
+  truck.emptyMi = 0;
+  truck.loadedMi = 0;
+  truck.breakdownMin = 0;
+  truck.legKey = -1;
+}
+
 /** A truck with a driver can run; one without sits until someone is hired. */
 export const crewed = (t: Truck) => t.driverId !== 0;
 
@@ -363,9 +426,8 @@ function seatOwnerIfFree(w: World, truck: Truck): void {
 export function formCompany(w: World, c: NewCompany): Company {
   const homeHub = w.net.hubs.findIndex((h) => h.id === c.homeHubId);
   if (homeHub < 0) throw new Error(`Unknown hub ${c.homeHubId}`);
-  if (c.orders.filter((o) => o.kind !== "floor").length > w.cfg.board.freeStandingOrders) {
-    throw new Error(`More than ${w.cfg.board.freeStandingOrders} standing orders`);
-  }
+  const bad = invalidOrders(w.cfg, c.orders);
+  if (bad) throw new Error(bad);
   const day = Math.floor(w.t / w.cfg.time.gameMinutesPerDay);
   const company: Company = {
     id: w.companies.length + 1,
@@ -570,6 +632,7 @@ export function attachTruck(w: World, truck: Truck, companyId: number): void {
   truck.idleRounds = 0;
   truck.idleSinceDay = Math.floor(w.t / w.cfg.time.gameMinutesPerDay);
   truck.targetHub = truck.hub;
+  freshPaperwork(truck);
   w.trucksByCompany.get(companyId)!.push(truck);
   seatOwnerIfFree(w, truck);
   syncTruck(w, truck);

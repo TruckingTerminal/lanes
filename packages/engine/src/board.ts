@@ -2,10 +2,10 @@ import { seasonality } from "./demand.js";
 import { dayOf } from "./clock.js";
 import { generateRoundFreight } from "./freight.js";
 import { rebrokerLoad, vettingBlock } from "./fraud.js";
-import { homeEdge } from "./home.js";
+import { homeEdge, updateHomeCrowding } from "./home.js";
 import { creditDispatch, dispatchProfile } from "./labor.js";
 import { companyAccount } from "./ledger.js";
-import { bidsFromStandingOrders, boardKey, indexOpenLoads, scoreBid } from "./standingOrders.js";
+import { bidsFromStandingOrders, boardKey, canMakeHot, indexOpenLoads, scoreBid } from "./standingOrders.js";
 import { coverDoubleBrokered, startLoading } from "./trips.js";
 import type { Bid, Company, Load, StandingOrder, Truck } from "./types.js";
 import { companyById, crewed, hubMiles, truckById, type World } from "./world.js";
@@ -30,6 +30,7 @@ export interface RoundResult {
  */
 export function runBoardRound(w: World): RoundResult {
   w.round++;
+  updateHomeCrowding(w);
   const idx = indexOpenLoads(w);
   const openByEq = { van: 0, reefer: 0, flatbed: 0 };
   for (const load of w.loads.values()) if (load.status === "open") openByEq[load.equipment]++;
@@ -150,6 +151,7 @@ function manualRoundBids(w: World): Bid[] {
     if (!load || load.status !== "open" || truck.status !== "idle" || truck.trailer !== load.equipment || truck.companyId === 0 || !crewed(truck)) continue;
     const company = companyById(w, truck.companyId);
     if (company.authority.status !== "active" || vettingBlock(w, company, load) !== null || load.doubleBroker?.companyId === company.id) continue;
+    if (load.hot > 0 && !canMakeHot(company, truck)) continue;
     const deadheadMi = hubMiles(w, truck.hub, load.origin);
     const rate = Math.min(mb.rate, load.ceiling);
     out.push({ loadId: load.id, truckId, companyId: company.id, rate, deadheadMi, score: scoreBid(w, load.ceiling, rate, company.reputation, deadheadMi, homeEdge(w, company, load.origin)), tiebreak: 0 });
@@ -169,7 +171,8 @@ function assign(w: World, load: Load, truck: Truck, bid: Bid): void {
   // A hot load's window assumes 15 driving hours a day and little slack: a solo driver makes it only on falsified logs.
   const perDay = load.hot > 0 ? cfg.safety.hotLoads.hoursPerDay : cfg.hos.drivingHoursPerDay;
   const drivingH = (bid.deadheadMi + load.miles) / cfg.hos.avgMph;
-  const fullDays = Math.floor(drivingH / perDay);
+  // Full rest days before the last driving day: a run of exactly one day's driving has none.
+  const fullDays = Math.max(0, Math.ceil(drivingH / perDay) - 1);
   const transitMin = (fullDays * cfg.hos.dutyDayHours + (drivingH - fullDays * perDay)) * 60;
   const dwellMin = cfg.dwell.loadMinutes[1] + cfg.dwell.unloadMinutes[1];
   load.dueT = w.t + transitMin + dwellMin + (load.hot > 0 ? cfg.safety.hotLoads.slackMinutes : cfg.freight.deliverySlackMinutes);
@@ -233,10 +236,12 @@ function expedite(w: World, load: Load): void {
   const acct = companyAccount(load.shipperId!);
   const ref = `load:${load.id}`;
   const cost = load.ceiling * w.cfg.facilities.expeditePremium * load.miles;
+  const fee = w.cfg.board.posterFeePct * load.saleValue;
   w.ledger.post(w.t, "faucet:npc_market", acct, load.saleValue, ref);
   w.ledger.post(w.t, acct, "sink:npc_expediter", cost, ref);
+  w.ledger.post(w.t, acct, "sink:board_fee", fee, ref);
   const facility = w.facilities[load.facilityId! - 1];
-  if (facility) facility.netFd += load.saleValue - cost;
+  if (facility) facility.netFd += load.saleValue - cost - fee;
   load.status = "npcCovered";
   w.loads.delete(load.id);
 }

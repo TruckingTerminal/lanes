@@ -387,7 +387,8 @@ async function boot(): Promise<void> {
   try {
     meta = await readMeta(platform.db);
   } catch {
-    meta = null;
+    showTitle(card("Couldn't reach the world", `<p>The store didn't answer. Reload in a moment.</p>`));
+    return;
   }
   if (!meta) {
     showTitle(
@@ -500,21 +501,33 @@ function loop(now: number): void {
     persistTest();
   }
   if (game) {
-    observe(game);
-    drawMap(now);
-    renderHud();
-    const refreshEvery = 1000;
-    if (panelDirty || now - lastPanelAt > refreshEvery) {
-      if (!(document.activeElement && $("panel").contains(document.activeElement) && document.activeElement.tagName !== "BUTTON")) {
-        renderPanel();
-        lastPanelAt = now;
-        panelDirty = false;
+    // A rendering slip must never stop the clock: the world keeps running whatever the screen does.
+    try {
+      observe(game);
+      drawMap(now);
+      renderHud();
+      const refreshEvery = 1000;
+      if (panelDirty || now - lastPanelAt > refreshEvery) {
+        const focus = document.activeElement;
+        const typing = focus && $("panel").contains(focus) && (focus.tagName === "INPUT" || focus.tagName === "SELECT" || focus.tagName === "TEXTAREA");
+        if (!typing) {
+          renderPanel();
+          lastPanelAt = now;
+          panelDirty = false;
+        }
       }
+      renderTicker();
+    } catch (e) {
+      console.error(e);
     }
-    renderTicker();
+    if (live?.broken && !brokenShown) {
+      brokenShown = true;
+      toast(`The live world stopped at ${hhmm(live.broken.at)}: ${live.broken.reason}. The owner has to repair the log.`, true);
+    }
   }
   schedule();
 }
+let brokenShown = false;
 
 // --- Map view: whole-number fit, zoom levels and pan --------------------------------
 
@@ -820,6 +833,7 @@ function renderHud(): void {
     ? `<span class="stat" title="FD price on the exchange">${img(iconUrl("usd", 2), "Price")}<span class="num">$${fdPriceUsd(w).toFixed(4)}</span></span>`
     : `<span class="stat label" title="FD launches on the exchange at the end of Year 2">Beta · launch in ${Math.max(0, GAME_CONFIG.token.betaYears * 365 - day)}d</span>`;
   if (c && c.authority.status !== "active") stats += `<span class="badge test" title="Your authority isn't active">${c.authority.status === "revoked" ? "AUTHORITY REVOKED" : "SUSPENDED"}</span>`;
+  if (g.kind === "live" && g.broken) stats += `<span class="badge test" title="${esc(g.broken.reason)}">WORLD STOPPED</span>`;
   if (g.kind === "live") stats += `<span class="label" title="Human players in the live world">${w.companies.filter(isHuman).length} players</span>`;
   if (fsEnabled()) stats += `<button class="btn" data-act="fullscreen" title="Full screen (F)">${fsActive() ? "Exit full screen" : "Full screen"}</button>`;
   const html = `
@@ -926,7 +940,7 @@ function statusLine(t: Truck): string {
     case "repair":
       return `In the shop`;
     case "parked":
-      return `Parked at ${hub(t.hub)} (off the road, 50 FD/day idle fee)`;
+      return `Parked at ${hub(t.hub)} (off the road; an owned truck unused ${w.cfg.costs.idleFeeAfterDays}+ days pays ${w.cfg.costs.idleFeePerDay} FD/day)`;
     case "listed":
       return `Listed for sale`;
     default:
@@ -1559,7 +1573,15 @@ async function bootTest(): Promise<void> {
     return;
   }
   showLoading("Loading your test world", "Replaying its history in this browser.");
-  const t = await TestGame.restore(log, (share) => ($("loadbar").style.width = `${Math.round(share * 100)}%`));
+  let t: TestGame;
+  try {
+    if (!log.acts.every((x) => Array.isArray(x) && Number.isFinite(x[0]) && x[1] && typeof x[1] === "object")) throw new Error("bad log");
+    t = await TestGame.restore(log, (share) => ($("loadbar").style.width = `${Math.round(share * 100)}%`));
+  } catch {
+    showTitle(testMenu());
+    toast("Your saved test world couldn't be replayed, so it was set aside. Start a new one.", true);
+    return;
+  }
   test = t;
   t.onEvent((e) => onEvent(t, e));
   persistedT = t.log.t;
@@ -1811,7 +1833,8 @@ function wireInput(): void {
         break;
       case "setpay": {
         const id = Number(el.dataset.staff);
-        const pay = el.dataset.pay ? Number(el.dataset.pay) : num(`pay-${id}`);
+        const s = w.staff[id - 1];
+        const pay = Math.min(s?.kind === "driver" ? 20 : 50_000, Math.max(0.01, el.dataset.pay ? Number(el.dataset.pay) : num(`pay-${id}`)));
         act({ type: "set_staff_pay", staffId: id, pay }, "Pay changed");
         break;
       }

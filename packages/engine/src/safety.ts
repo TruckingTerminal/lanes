@@ -1,11 +1,14 @@
 import { stationsOnRoute, weighStations, type Network } from "@lanes/data";
 import { dayOf, MINUTES_PER_HOUR } from "./clock.js";
+import { fmtInt } from "./economics.js";
+import { activeLoanOn, settleLoanFromSale } from "./finance.js";
 import { recordClaim, signPolicy } from "./insurance.js";
 import { dispatchersOf, jail, pushesRules, releaseAll, removeStaff } from "./labor.js";
 import { companyAccount } from "./ledger.js";
 import { refile, startLiquidation } from "./solvency.js";
 import type { Basic, Company, CrashSeverity, Load, Truck } from "./types.js";
 import { condition } from "./wear.js";
+import { payTripCosts } from "./trips.js";
 import { companyById, detachTruck, staffById, syncFleet, type World } from "./world.js";
 
 /**
@@ -255,6 +258,8 @@ export function inspect(w: World, t: Truck, c: Company, level: number, where: st
       t.shiftStartT = w.t + e.oosHours.hos * MINUTES_PER_HOUR;
       t.shiftDrivenMin = 0;
     }
+    // Only the last week or so of logs is on the truck.
+    t.logDays = t.logDays.filter((d) => d >= day - e.recentLogDays);
     const kept: number[] = [];
     for (const d of t.logDays) {
       if (rng.next() < e.logDetect) {
@@ -335,14 +340,23 @@ export function crash(w: World, t: Truck, c: Company): void {
   const what = severity === "fatal" ? "a fatal crash" : severity === "injury" ? "a crash with injuries" : "a property-damage crash";
   const lines: string[] = [`Truck ${t.id} was in ${what}${atFault ? ", at fault" : ", not at fault"}${causes ? ` (${causes})` : ""}.`];
 
-  // The load: lost, the carrier pays the cargo deductible and isn't paid for it.
+  // The miles driven so far are paid for now, not left for the next trip (or the next owner).
+  c.operating.costFd += payTripCosts(w, t, `crash:${t.id}`);
+
+  // The load. Cargo aboard is lost: the carrier pays the cargo deductible and isn't paid for it.
+  // A load not yet picked up goes back on the board for someone else.
   const load = currentLoad(w, t);
-  if (load) {
+  if (load && t.status === "toPickup") {
+    reopenLoad(w, load);
+    lines.push("The load it was heading for goes back on the board.");
+  } else if (load) {
     loseLoad(w, load, "crash");
     w.ledger.post(w.t, acct, "sink:cargo_claim", severity === "pdo" ? k.cargoDeductibleFd / 2 : k.cargoDeductibleFd, `cargo:${load.id}`);
     lines.push("The load was lost.");
   }
   t.loadId = null;
+  // Where it stops: the end of the leg it had mostly covered.
+  if (t.legMiles > 0 && t.remainingMi < t.legMiles / 2) t.hub = t.targetHub;
 
   // The truck.
   const [lo, hi] = severity === "injury" ? k.downDays.injury : k.downDays.pdo;
@@ -351,9 +365,13 @@ export function crash(w: World, t: Truck, c: Company): void {
       w.ledger.post(w.t, acct, "sink:npc_lease", k.leasedTotalLossFd, `totalloss:${t.id}`);
       w.lessor.out--;
     }
+    // A loan on a totaled truck has nothing left to repossess: the pool writes it off.
+    const loan = activeLoanOn(w, t.id);
+    if (loan) settleLoanFromSale(w, loan, acct, 0);
     detachTruck(w, t);
     t.status = "retired";
     t.remainingMi = 0;
+    t.legKey = -1;
     lines.push("The truck is a total loss.");
   } else {
     const days = severity === "fatal" ? 14 : rng.int(lo, hi);
@@ -366,6 +384,7 @@ export function crash(w: World, t: Truck, c: Company): void {
     t.targetHub = t.hub;
     t.breakdownMin = 0;
     t.defects = 0;
+    t.legKey = -1;
   }
 
   // Liability.
@@ -401,7 +420,17 @@ export function crash(w: World, t: Truck, c: Company): void {
   }
 }
 
-const fmt = (x: number) => Math.round(x).toLocaleString("en-US");
+const fmt = fmtInt;
+
+/** A load its carrier can't pick up after all goes back on the board, open to all. */
+export function reopenLoad(w: World, load: Load): void {
+  load.status = "open";
+  load.carrierId = null;
+  load.truckId = null;
+  load.clearedRate = 0;
+  load.postedRound = w.round;
+  load.roundsUnfilled = 0;
+}
 
 /**
  * A load that will never arrive: the broker loses its margin, a player shipper's
@@ -578,6 +607,8 @@ export function complianceReview(w: World, c: Company): void {
   s.hidden = kept;
   const fines = Math.min(review.finesCap, falseLogs * review.fines.falseLogDay + maintWeeks * review.fines.maintenanceWeek);
   if (fines > 0) fine(w, c, fines, `review:${c.id}`);
+  // What the auditor found follows the company to its insurer.
+  s.insuranceSurcharge = Math.min(s.insuranceSurcharge + review.surchargePerFinding * (falseLogs + maintWeeks), review.surchargeCap);
   const pts = w.cfg.safety.enforcement.points;
   for (let i = 0; i < falseLogs; i++) violate(w, c, "hos", pts.falseLog, "false log (audit)");
   for (let i = 0; i < maintWeeks; i++) violate(w, c, "maintenance", pts.defect, "deferred maintenance (audit)");

@@ -9,7 +9,7 @@ export type TractorTier = "workhorse" | "highwayPro" | "flagship";
 export type FacilityType = "warehouse" | "coldStorage" | "factory";
 
 export const economyConfig = {
-  version: "0.9.1-phase0.13",
+  version: "0.9.2-phase0.14",
 
   // §World, map and time
   time: {
@@ -121,7 +121,7 @@ export const economyConfig = {
     driverWagePerMile: 0.75,
     npcLeaseShareOfGross: 0.15,
     idleFeeAfterDays: 7,
-    idleFeePerDay: 50,
+    idleFeePerDay: 20, // was 50: on 10 seeds × 4 years it was the single biggest cause of honest single-truck owners failing
   },
 
   // §Assets and supply caps
@@ -275,6 +275,7 @@ export const economyConfig = {
   insolvency: {
     debtLimitFd: 2_000,
     weeksInDebt: 4,
+    restartAfterDays: 14, // a bankrupt sits out this long after its fleet is gone before the free-path restart
     fireSaleStartPctOfValue: 0.7,
     fireSaleStepPctOfValue: 0.1,
     fireSaleFloorPctOfValue: 0.25,
@@ -424,7 +425,7 @@ export const economyConfig = {
     // 5 points toward the sink target, within 20–70%. NPC freight volume moves only
     // once the rate is pinned at a limit — so the sink grows with the economy (more
     // players, more freight, more profit taxed) instead of starving operators of loads.
-    taxStabilizer: { enabled: true, stepPerMonth: 0.05, range: [0.2, 0.7] as const },
+    taxStabilizer: { enabled: true, stepPerMonth: 0.05, range: [0.2, 0.8] as const }, // 0.7 was pinned in every 4-year run
     // New players after launch: a base rate that rises when the price has been
     // rising and falls when it's been falling (a stand-in for hype).
     newCompanies: { perWeek: 2, hypeSensitivity: 2, hypeRange: [0.25, 3] as const, lookbackDays: 28 },
@@ -540,6 +541,7 @@ export const economyConfig = {
       veteranSkill: [0.3, 0.85] as const,
       potential: [0.35, 1.0] as const,
       retireWeekly: 0.0015,
+      slackAttrition: 8, // × retireWeekly for people in the pool while it's slack: they leave the industry
       personal: [0.95, 1.08] as const, // what each person asks over market pay
     },
     // The market wage moves with the pool: a thin pool (a driver shortage) pushes pay up.
@@ -559,6 +561,9 @@ export const economyConfig = {
       noticeDays: 2, // the employer has this long to match an offer
       unseatedWeeks: 2, // a driver left without a truck this long walks
     },
+    // Hiring away costs a sign-on bonus up front; letting someone go soon after hiring costs severance;
+    // a matched offer that's cut back within the hold period sends the person packing.
+    hiring: { signOnWeeks: 2, severanceWeeks: 2, severanceWithinDays: 28, matchedPayHoldDays: 56, milesPerWeek: 1_000 },
   },
 
   // Design proposal (Jeff, 2026-10-28): safety and compliance. Owners choose how
@@ -576,11 +581,11 @@ export const economyConfig = {
       knowinglyUnsafeDefects: 3, // running this many known defects counts as willful
     },
     crash: {
-      per1MMi: 0.4, // a typical legal truck: one crash per ~2.5M miles
+      per1MMi: 0.3, // a typical legal truck: with the risk factors, ≈0.4 crashes per million miles overall (US large trucks ≈0.3–0.5)
       fatiguePerOverHour: 0.3,
       fastMult: 1.5,
       injuryShare: 0.25,
-      fatalShare: 0.04,
+      fatalShare: 0.03, // ≈0.015 fatal per million miles overall
       fatalWorseMult: 1.6, // fatigue or speed makes a crash deadlier
       atFault: 0.45,
       atFaultWithViolation: 0.9,
@@ -636,6 +641,8 @@ export const economyConfig = {
       finesCap: 60_000,
       conditionalAt: 3,
       unsatisfactoryAt: 10,
+      surchargePerFinding: 0.03, // each falsified log day or deferred-maintenance week found adds this to the insurance surcharge…
+      surchargeCap: 1.5, // …up to this
     },
     // Shutdowns. Authority revoked, the fleet wound down, then a bar on the account
     // before it may file again: longer the worse the cause, permanent after repeat crimes.
@@ -643,6 +650,7 @@ export const economyConfig = {
     permanentAfterCrimes: 2,
     hotLoads: {
       share: 0.04,
+      minMiles: 700, // long enough that one legal driving day (550 mi) can't make the window
       premium: [1.6, 2.2] as const,
       hoursPerDay: 15, // the window assumes 15 driving hours a day: illegal solo, easy for a team
       slackMinutes: 120,
@@ -669,7 +677,7 @@ export const economyConfig = {
     clamp: [0.7, 4] as const,
     // The insurers' loss ratio (claims they paid ÷ premiums, trailing 12 months) against a target
     // moves the market index a few points a month.
-    market: { targetLossRatio: 0.6, stepPerMonth: 0.03, range: [0.8, 1.6] as const },
+    market: { targetLossRatio: 0.6, gain: 0.15, stepPerMonth: 0.03, range: [0.85, 1.4] as const }, // step = gain × the loss-ratio gap, capped
   },
 
   // Design proposal (Jeff, 2026-10-28): home markets (home.ts). A starter hub's crowding is the
@@ -690,7 +698,7 @@ export const economyConfig = {
   dealerPrices: {
     backlogWeight: 0.4, // + this × (lead time over base ÷ base, up to 1)
     scarcityWeight: 0.35, // + this × (scarceBelow − share of supply left), within −0.15…+0.35
-    scarceBelow: 0.25,
+    scarceBelow: 0.15, // with 1,800 tractors mostly owned, 0.25 was never cleared and prices only rose
     stepShare: 1 / 3,
     range: [0.85, 1.3] as const,
   },
@@ -708,7 +716,7 @@ export const economyConfig = {
     theft: {
       fenceShare: 0.3, // a fence pays 30% of cargo value — only once the case goes cold
       fenceCut: 0.2, // paid out of a broker's escrowed claim, the fence keeps this share (burned)
-      brokerClaimShare: 0.3, // the broker on a stolen load pays this share of its value (negligent selection)
+      brokerClaimShare: 0.1, // the broker on a stolen load pays this share of its value (negligent selection); at 0.3 a theft paid more than the haul
       caught: { base: 0.55, tracked: 0.3, established: 0.15, establishedDays: 180 },
       investigationDays: [5, 20] as const,
       claimDays: 365, // an open theft claim follows the carrier this long

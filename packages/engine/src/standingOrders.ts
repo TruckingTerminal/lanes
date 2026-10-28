@@ -32,6 +32,7 @@ export function indexOpenLoads(w: World): BoardIndex {
 /** Bid score (§Load board — bid scoring), poster defaults. */
 export function scoreBid(w: World, ceiling: number, rate: number, reputation: number, deadheadMi: number, homeEdge = 0): number {
   const s = w.cfg.board.scoreWeights;
+  if (!(ceiling > 0)) return -Infinity;
   return (
     s.price * ((ceiling - rate) / ceiling) +
     s.reputation * reputation +
@@ -124,6 +125,7 @@ function priceLoad(
     // ceiling, provided that still clears its floor.
     const ask = o.price.mode === "ceilingPct" ? load.ceiling * o.price.pct : breakEven * (1 + o.price.pct);
     const rate = Math.min(ask, load.ceiling);
+    if (!(rate > 0)) continue; // nobody hauls for nothing
     if (floor && rate < breakEven * (1 + floor.breakEvenPlusPct)) continue;
     return { rate, breakEven };
   }

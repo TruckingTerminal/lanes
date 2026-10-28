@@ -244,6 +244,11 @@ export interface Staff {
   unseatedWeeks: number;
   /** An offer from another company, waiting on the current employer to match it. */
   offer: { companyId: number; pay: number; truckId: number; day: number } | null;
+  /** Pay the employer matched to keep them, and when: a cut below it soon after is a broken promise. */
+  matchedPay: number;
+  matchedDay: number;
+  /** The most they've been paid lately: a raise only lifts morale above it, so a cut-and-restore isn't a raise. */
+  peakPay: number;
   /** Career record any employer can see. */
   violations: number;
   crashes: number;
@@ -265,8 +270,9 @@ export interface FraudCase {
   lossFd: number;
   /** A broker's cargo claim, held until the case resolves. */
   escrowFd: number;
-  /** Theft: the truck that carried it (its driver goes to jail with the owner). */
+  /** Theft: the truck that carried it, and who was driving (they go to jail with the owner). */
   truckId: number;
+  driverId: number;
   /** Double brokering: the carrier who hauled and wasn't paid, if any. */
   unpaidCarrierId: number;
 }

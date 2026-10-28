@@ -333,6 +333,16 @@ Design, levers and the full results are in [TOKENOMICS.md](TOKENOMICS.md); table
   moved liquidations by under ±40 on 3 seeds. The insurance market ranged ×0.83–1.39 and the
   Workhorse + van price ×0.99–1.30.
 
+## Audit (2026-10-28, config 0.9.2)
+Six audits of the whole project (engine, the new systems, bots and sim tools, client and shared world, data,
+and a simulation campaign); every finding verified, the fixes in `AUDIT.md` with the before/after numbers.
+Headline: the action boundary now validates everything a browser sends (one bad value used to freeze the
+shared world for everyone), home-hub crowding is engine state (it could split the world), staff pay and
+poaching exploits are closed, used trucks arrive with clean paperwork, and the bots stop cheating after a bad
+rating and keep working capital. 10 seeds × 4 years: liquidations 451 (548 before the staff/safety layer,
+1,059 last night), owner-operator profit 631 vs 620, FD price $0.0078, free path 66 days.
+Regression tests: `packages/engine/test/audit.test.ts`.
+
 ## The live world (`apps/web`)
 One shared, permanent world. There is no game server: the world is a seed plus every player's
 actions, kept in the artifact's shared store, and the deterministic engine turns that log into the

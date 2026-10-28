@@ -22,7 +22,6 @@ import {
   askingPay,
   autoStaff,
   borrowingCapacity,
-  canRefile,
   crewed,
   dealerPrice,
   truckValue,
@@ -32,8 +31,6 @@ import {
   deliveryDays,
   holdingCostApplies,
   marginalOverhead,
-  marketValue,
-  newPrice,
   openListings,
   operatingTrucks,
   ordersOf,
@@ -123,6 +120,11 @@ interface BotProfile {
   conduct: "clean" | "cutter" | "outlaw";
   /** Gives unhappy staff a raise to market (greedy bots don't, and lose them). */
   paysMarket: boolean;
+  /** An outlaw's double-brokering order, on the board only while it's cheating (setConduct). */
+  rebroker: StandingOrder | null;
+  cheating: boolean;
+  /** Trucks put up for sale: not unparked again before this day if they come back unsold. */
+  noUnpark: Map<number, number>;
 }
 
 const profiles = new WeakMap<Company, BotProfile>();
@@ -151,13 +153,13 @@ function conductOf(rng: Rng): BotProfile["conduct"] {
 
 function carrierProfile(strategy: Strategy, rng: Rng): BotProfile {
   const p = carrierProfileFor(strategy, rng);
-  // Outlaws double broker some of what they win; most still pay the hauler.
-  if (p.conduct === "outlaw") p.otherOrders.push({ kind: "rebroker", share: 0.1, keepPct: 0.15, pays: rng.next() < 0.8 });
+  // Outlaws double broker some of what they win; most still pay the hauler. The order goes on only while they're cheating.
+  if (p.conduct === "outlaw") p.rebroker = { kind: "rebroker", share: 0.1, keepPct: 0.15, pays: rng.next() < 0.8 };
   return p;
 }
 
 function carrierProfileFor(strategy: Strategy, rng: Rng): BotProfile {
-  const base = { lastStats: { truckRounds: 0, wins: 0 }, opSnapshots: [], conduct: conductOf(rng), paysMarket: strategy !== "greedy" };
+  const base = { lastStats: { truckRounds: 0, wins: 0 }, opSnapshots: [], conduct: conductOf(rng), paysMarket: strategy !== "greedy", rebroker: null, cheating: false, noUnpark: new Map<number, number>() };
   switch (strategy) {
     case "greedy":
       return {
@@ -246,6 +248,9 @@ function brokerProfile(strategy: Strategy, rng: Rng): BotProfile {
   return {
     conduct: "clean",
     paysMarket: true,
+    rebroker: null,
+    cheating: false,
+    noUnpark: new Map<number, number>(),
     pricing: null,
     maxDeadheadMi: 0,
     otherOrders: [],
@@ -279,7 +284,7 @@ function bidOrder(p: BotProfile): StandingOrder {
   return { kind: "bid", maxDeadheadMi: p.maxDeadheadMi, price: { mode: pricing.mode, pct: pricing.value } };
 }
 
-const carrierOrders = (p: BotProfile): StandingOrder[] => [bidOrder(p), ...p.otherOrders];
+const carrierOrders = (p: BotProfile): StandingOrder[] => [bidOrder(p), ...p.otherOrders, ...(p.cheating && p.rebroker ? [p.rebroker] : [])];
 
 function brokerOrders(strategy: Strategy, rng: Rng): StandingOrder[] {
   const marginPct = strategy === "greedy" ? 0.12 : strategy === "conservative" ? 0.07 : rng.range(0.06, 0.12);
@@ -439,7 +444,16 @@ function admitNewcomers(w: World): void {
 
 /** The compliance policy this bot runs today, for its persona, cash and rating. */
 function setConduct(w: World, c: Company, p: BotProfile): void {
-  const scared = c.safety.rating === "conditional" || c.safety.rating === "unsatisfactory";
+  // A bad rating, or a revocation in the last year, keeps a cheater straight for a while.
+  const today = dayOf(w.t, w.cfg);
+  const recentlyRevoked = c.authority.lastRevokedDay !== null && today - c.authority.lastRevokedDay < w.cfg.time.daysPerSeason;
+  const scared = c.safety.rating === "conditional" || c.safety.rating === "unsatisfactory" || recentlyRevoked;
+  const cheating = !scared && p.conduct !== "clean";
+  if (cheating !== p.cheating) {
+    p.cheating = cheating;
+    // The double-brokering order comes and goes with it.
+    if (p.rebroker && c.liquidatingSince === null) applyAction(w, c.id, { type: "set_standing_orders", orders: carrierOrders(p) });
+  }
   let policy: CompliancePolicy = { hos: "legal", speed: "legal", maintenance: "full" };
   if (!scared && p.conduct === "cutter") {
     const short = w.ledger.balance(companyAccount(c.id)) < reserve(w, c, p);
@@ -468,7 +482,7 @@ function manageStaff(w: World, c: Company, p: BotProfile, rng: Rng, today: numbe
   }
   const fleet = w.trucksByCompany.get(c.id)!;
   if (c.policy.maintenance === "full") {
-    for (const t of fleet) if (t.defects > 0 && t.status === "idle") applyAction(w, c.id, { type: "fix_defects", truckId: t.id });
+    for (const t of fleet) if (t.defects > 0 && (t.status === "idle" || t.status === "parked")) applyAction(w, c.id, { type: "fix_defects", truckId: t.id });
   }
   const empty = fleet.find((t) => !crewed(t) && t.status === "idle");
   if (!empty || rng.next() > 0.3) return;
@@ -561,11 +575,14 @@ function leaseIfWorth(w: World, c: Company, p: BotProfile, rng: Rng, today: numb
   applyAction(w, c.id, { type: "lease_truck", trailer });
 }
 
-/** Puts a truck up for sale at its used value, cutting 5% of value a week down to 60%. */
-function sell(w: World, c: Company, truckId: number): void {
+/** Puts a truck up for sale at its used value, cutting 5% of value a week down to 60%; in a hurry, cheaper and faster. */
+function sell(w: World, c: Company, p: BotProfile, truckId: number, hurry = false): void {
   const truck = w.trucks[truckId - 1]!;
   const value = truckValue(w, truck);
-  applyAction(w, c.id, { type: "list_truck", truckId, askFd: value, floorFd: value * 0.6, stepFd: value * 0.05 });
+  const ask = hurry ? value * 0.85 : value;
+  const r = applyAction(w, c.id, { type: "list_truck", truckId, askFd: ask, floorFd: value * 0.6, stepFd: value * (hurry ? 0.1 : 0.05) });
+  // If it comes back unsold it stays parked a while, instead of being put straight back on the road and relisted.
+  if (r.ok) p.noUnpark.set(truckId, dayOf(w.t, w.cfg) + 56);
 }
 
 /**
@@ -579,7 +596,8 @@ function rightSize(w: World, c: Company, p: BotProfile, today: number, active: n
   const slotOverhead = overheadForTruck(cfg, active);
   const profit = profitPerTruckWeek(c, p, today, active);
   const inDebt = w.ledger.balance(companyAccount(c.id)) < 0;
-  const unprofitable = slotOverhead > 0 && profit !== null && profit < slotOverhead - cfg.costs.idleFeePerDay * 7;
+  // A truck that doesn't earn its overhead bracket, or (with no bracket) loses money, goes.
+  const unprofitable = profit !== null && profit < (slotOverhead > 0 ? slotOverhead - cfg.costs.idleFeePerDay * 7 : 0);
   // Extra leases go back first: nothing to sell, and a leased truck earns less than an owned one.
   const leases = w.trucksByCompany.get(c.id)!.filter((t) => t.lease === "lessor" && t.status === "idle");
   const sitting = leases.find((t) => today - t.idleSinceDay >= 7);
@@ -592,7 +610,7 @@ function rightSize(w: World, c: Company, p: BotProfile, today: number, active: n
     .get(c.id)!
     .filter((t) => t.status === "idle" && t.lease === "owned")
     .sort((a, b) => condition(cfg, a) - condition(cfg, b) || a.id - b.id);
-  if (idle[0]) sell(w, c, idle[0].id);
+  if (idle[0]) sell(w, c, p, idle[0].id, inDebt);
 }
 
 /**
@@ -705,9 +723,10 @@ function tradeToken(w: World, c: Company, p: BotProfile, today: number): void {
 
 function reserve(w: World, c: Company, p: BotProfile): number {
   const trucks = operatingTrucks(w, c.id);
-  // FD left at the season close is mostly burned, so bots hold less back as it nears.
+  // FD left at the season close is mostly burned, so bots hold less back as it nears. Otherwise never
+  // below the working capital the economy lets a company hold free: stripping it is how greedy bots went broke.
   const nearClose = daysUntilLock(w) <= 45 ? 0.5 : 1;
-  return (p.reserveBase + p.reservePerTruck * trucks) * nearClose;
+  return Math.max(p.reserveBase + p.reservePerTruck * trucks, w.cfg.holdingCost.minProtectedFd) * nearClose;
 }
 
 /** Per-day cache of what a new facility of each type would ship at each hub. */
@@ -763,11 +782,8 @@ export const ruleBotHook: DailyAgentHook = (w) => {
 
   for (const c of w.companies) {
     const p = profiles.get(c);
-    // Shut down: wait out the bar, then file again.
-    if (p && c.authority.status === "revoked") {
-      if (canRefile(w, c) === null) applyAction(w, c.id, { type: "refile_authority" });
-      continue;
-    }
+    // Shut down: wait out the bar (new authority comes by itself when it ends).
+    if (p && c.authority.status === "revoked") continue;
     if (!p || c.liquidatingSince !== null) continue; // not a bot, or being wound up
     const acct = companyAccount(c.id);
     const fleet = w.trucksByCompany.get(c.id)!;
@@ -789,7 +805,7 @@ export const ruleBotHook: DailyAgentHook = (w) => {
       for (const t of [...fleet]) {
         if (t.lease !== "owned" || t.status !== "idle" || condition(cfg, t) > p.rebuildAt) continue;
         if (t.odometer >= p.replaceAtMi && fleet.length > 1) {
-          sell(w, c, t.id);
+          sell(w, c, p, t.id);
           continue;
         }
         if (w.ledger.balance(acct) < rebuildCost(cfg, t) + p.firstTruckBuffer) break;
@@ -821,10 +837,10 @@ export const ruleBotHook: DailyAgentHook = (w) => {
         }
         const idle = fleet.filter((t) => t.status === "idle").length;
         const pending = ordersOf(w, c.id).length;
-        if (active > 0 && active + pending < p.targetFleet && idle / active <= 0.3 && worthAnotherTruck(w, c, p, today, active)) {
+        if (active > 0 && active + pending < p.targetFleet && fleet.length + pending < cfg.company.maxTrucks && idle / active <= 0.3 && worthAnotherTruck(w, c, p, today, active)) {
           // Cheapest capacity first: a parked truck, then a used one (today), then
           // a new one (after the dealer's lead time), borrowing if this bot does.
-          const parked = fleet.find((t) => t.status === "parked");
+          const parked = fleet.find((t) => t.status === "parked" && (p.noUnpark.get(t.id) ?? 0) <= today);
           const cash = w.ledger.balance(acct);
           const need = reserve(w, c, p);
           const used = parked ? null : bestListing(w, cash - need, c.id);

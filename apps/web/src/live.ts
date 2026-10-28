@@ -73,10 +73,17 @@ export async function readMeta(db: DbLike): Promise<WorldMeta | null> {
 
 /** Opens the world now, at 06:00 on day 1 so the first board round is under way. */
 export async function createMeta(db: DbLike, now = Date.now()): Promise<WorldMeta> {
+  // Never over a world that exists: a double click or a second owner tab must not reseed everyone's history.
+  const existing = await readMeta(db);
+  if (existing) return existing;
   const meta: WorldMeta = { v: 1, seed: Math.floor(Math.random() * 1e9), epochMs: now - 6 * MS_PER_GAME_HOUR, msPerGameHour: MS_PER_GAME_HOUR, ruleset: RULESET };
   await db.doc("world/meta").set({ ...meta });
   return meta;
 }
+
+/** The most an action may take up in a player's document. */
+const MAX_ACTION_CHARS = 8_192;
+const MAX_NAME_CHARS = 32;
 
 /** Keeps only well-formed entries. Bodies are cloned, since store snapshots are frozen and the engine keeps some action fields. */
 export function parseActs(raw: unknown): ActRecord[] {
@@ -87,7 +94,15 @@ export function parseActs(raw: unknown): ActRecord[] {
     const { s, at, a } = r as { s: unknown; at: unknown; a: unknown };
     if (!Number.isInteger(s) || (s as number) < 0 || !Number.isInteger(at) || (at as number) < 0) continue;
     if (!a || typeof a !== "object" || typeof (a as { type?: unknown }).type !== "string") continue;
-    out.push({ s: s as number, at: at as number, a: JSON.parse(JSON.stringify(a)) as LiveAction });
+    const text = JSON.stringify(a);
+    if (text.length > MAX_ACTION_CHARS) continue;
+    const body = JSON.parse(text) as LiveAction;
+    if (body.type === "join") {
+      // The engine takes these on trust, so they're shaped here.
+      if (typeof body.name !== "string" || typeof body.hub !== "string") continue;
+      body.name = body.name.slice(0, MAX_NAME_CHARS);
+    }
+    out.push({ s: s as number, at: at as number, a: body });
   }
   return out;
 }
@@ -112,6 +127,8 @@ export class LiveWorld {
   lease: "held" | "busy" | "denied" | "none" = "none";
   /** Set when an action arrives for a moment already computed; the page then rebuilds from the log. */
   needRebuild = false;
+  /** Set when the engine threw while replaying: the world can't go on until the log is repaired. */
+  broken: { at: number; reason: string } | null = null;
   clockOffsetMs = 0;
 
   onOwnResult: ((r: ActRecord, res: ActionResult) => void) | null = null;
@@ -178,6 +195,7 @@ export class LiveWorld {
    * caught up. Actions apply at their minute; the hour steps when the clock passes it.
    */
   advance(budgetMs: number): boolean {
+    if (this.broken) return true;
     const end = performance.now() + budgetMs;
     const now = this.gameMinute();
     while (performance.now() < end) {
@@ -187,7 +205,14 @@ export class LiveWorld {
         this.replaying = false;
         return true;
       }
-      stepHour(this.w, ruleBotHook);
+      try {
+        stepHour(this.w, ruleBotHook);
+      } catch (e) {
+        // The engine should never throw on replayed input; if it does, stop here and say so rather than freeze every page silently.
+        this.broken = { at: this.w.t, reason: (e as { message?: string })?.message ?? String(e) };
+        this.replaying = false;
+        return true;
+      }
     }
     return false;
   }
@@ -317,9 +342,14 @@ export class LiveWorld {
       this.leaseTimer = setInterval(async () => {
         try {
           const r = await doc.acquire({ holder: this.holder, ttlMs: LEASE_TTL_MS });
-          if (!r.acquired) {
-            this.writer = false;
-            this.lease = "busy";
+          const had = this.writer;
+          this.writer = r.acquired;
+          this.lease = r.acquired ? "held" : "busy";
+          // Back in charge after another tab had it: pick up whatever that tab wrote.
+          if (r.acquired && !had && this.uid) {
+            const snap = await this.db.doc(`players/${this.uid}`).get();
+            const body = snap.data();
+            this.own = { acts: parseActs(body?.acts), archived: Number(body?.archived) || 0 };
           }
         } catch {
           /* transient: the next renewal tries again */
@@ -364,8 +394,14 @@ export class LiveWorld {
     let log = this.logs.get(uid);
     if (!log) this.logs.set(uid, (log = new Map()));
     for (const r of acts) {
-      if (log.has(r.s)) continue;
+      const seen = log.get(r.s);
+      if (seen) {
+        // The same sequence number with a different body: the document was rewritten. Take the store's version, like a late joiner would.
+        if (JSON.stringify(seen) === JSON.stringify(r)) continue;
+        this.needRebuild = true;
+      }
       log.set(r.s, r);
+      if (seen) continue;
       const e: Entry = { uid, r };
       // Too late for a moment already computed: the page rebuilds so it agrees with everyone else.
       if (r.at < this.w.t || (this.last && before(e, this.last) < 0)) {
@@ -383,7 +419,12 @@ export class LiveWorld {
     const { uid, r } = e;
     if (r.a.type === "join") {
       if (this.companies.has(uid)) return;
-      const c = joinCompany(this.w, uid, r.a.name, r.a.hub);
+      let c: ReturnType<typeof joinCompany>;
+      try {
+        c = joinCompany(this.w, uid, String(r.a.name ?? ""), String(r.a.hub ?? ""));
+      } catch {
+        return;
+      }
       if (!c) return;
       this.companies.set(uid, c.id);
       if (uid === this.uid) this.player = c;

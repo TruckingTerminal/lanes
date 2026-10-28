@@ -6,7 +6,7 @@ import { buildReport, createWorld, runDays, type RunReport } from "@lanes/engine
 import { populate, ruleBotHook } from "@lanes/agents";
 
 // Sim mode runner: rule-bot world, as fast as the machine allows.
-//   npm run sim -- --seeds 1,2,3,4,5,6,7,8,9,10 --quiet
+//   npm run sim -- --seeds 1,2,3,4,5,6,7,8,9,10 --quiet     (--seeds is a comma list: "--seeds 10" runs seed 10 only)
 //   npm run sim -- --seasons off --cycle on --days 1095 --out runs/no-seasons
 // Two seasons by default, so every run includes a season close and a
 // season-over-season supply comparison. Default population: free owner-operators
@@ -42,7 +42,10 @@ function applyOverrides(base: EconomyConfig, sets: string[]): EconomyConfig {
   if (sets.length === 0) return base;
   const out = structuredClone(base) as Record<string, unknown>;
   for (const s of sets) {
-    const [path, raw] = s.split("=") as [string, string];
+    const eq = s.indexOf("=");
+    if (eq < 0) throw new Error(`--set ${s}: expected path=value`);
+    const path = s.slice(0, eq);
+    const raw = s.slice(eq + 1);
     const keys = path.split(".");
     let node = out;
     for (const k of keys.slice(0, -1)) {
@@ -58,7 +61,8 @@ function applyOverrides(base: EconomyConfig, sets: string[]): EconomyConfig {
 
 const days = Number(values.days);
 const seeds = values.seeds!.split(",").map(Number);
-const net = buildNetwork(hubs, economyConfig);
+// The network bakes in map and base-rate settings, so it's built from the overridden config too.
+const net = buildNetwork(hubs, cfg);
 mkdirSync(values.out!, { recursive: true });
 
 console.log(

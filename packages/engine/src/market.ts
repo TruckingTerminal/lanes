@@ -3,7 +3,8 @@ import { activeLoanOn, closeLoanFromPoolProceeds, POOL_ACCOUNT, settleLoanFromSa
 import { companyAccount } from "./ledger.js";
 import type { Listing, Truck } from "./types.js";
 import { truckValue } from "./dealer.js";
-import { attachTruck, companyById, detachTruck, truckById, type World } from "./world.js";
+import { dealerPrice } from "./dealer.js";
+import { attachTruck, companyById, detachTruck, staffById, truckById, unseatDriver, type World } from "./world.js";
 
 /**
  * The used-truck market. Any owner can list an idle truck; Equipment Finance
@@ -20,7 +21,16 @@ export function listTruck(w: World, sellerId: number, truck: Truck, askFd: numbe
   if (sellerId !== 0 && truck.companyId !== sellerId) return "not your truck";
   if (truck.lease !== "owned") return "only owned trucks can be sold";
   if (sellerId !== 0 && truck.status !== "idle" && truck.status !== "parked") return "truck must be idle or parked";
+  if (!(stepFd > 0) || !(floorFd >= 0) || !(askFd >= floorFd)) return "ask at or above the floor, with a weekly price cut";
+  if (askFd > 2 * dealerPrice(w, truck)) return "asking more than twice what it costs new";
   const loan = activeLoanOn(w, truck.id);
+  // A sale has to clear the loan on the truck, or the pool's depositors would eat the shortfall (a liquidation writes it off anyway).
+  if (loan && sellerId !== 0 && companyById(w, sellerId).liquidatingSince === null && floorFd * (1 - w.cfg.usedMarket.feePct) < loan.principalFd) {
+    return `the floor must cover the ${Math.round(loan.principalFd)} FD loan on the truck`;
+  }
+  // The crew stays with the company, free for another truck.
+  if (truck.coDriverId) unseatDriver(w, staffById(w, truck.coDriverId));
+  if (truck.driverId) unseatDriver(w, staffById(w, truck.driverId));
   const listing: Listing = {
     id: w.listings.length + 1,
     truckId: truck.id,
@@ -44,7 +54,6 @@ export function withdrawListing(w: World, sellerId: number, listingId: number): 
   l.status = "withdrawn";
   const truck = truckById(w, l.truckId);
   truck.status = "parked";
-  truck.idleSinceDay = dayOf(w.t, w.cfg);
   return null;
 }
 
@@ -134,7 +143,7 @@ export function repossessDefaults(w: World): void {
  */
 export function stepListings(w: World): void {
   for (const l of openListings(w)) {
-    if (l.askFd - l.stepFd >= l.floorFd) {
+    if (l.stepFd > 0 && l.askFd - l.stepFd >= l.floorFd) {
       l.askFd -= l.stepFd;
       continue;
     }
@@ -143,7 +152,6 @@ export function stepListings(w: World): void {
     if (seller && seller.liquidatingSince === null) {
       l.status = "withdrawn";
       truck.status = "parked";
-      truck.idleSinceDay = dayOf(w.t, w.cfg);
       continue;
     }
     // Unsold repossessions and fire sales go back to dealer supply; the lender writes off what it can't recover.

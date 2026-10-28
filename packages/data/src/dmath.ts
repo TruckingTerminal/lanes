@@ -119,14 +119,17 @@ function cosKernel(r: number): number {
   return p;
 }
 
+/** The argument reduction is accurate to |x| ≤ 1e6 (2 ulp); nothing in the game goes past a few hundred radians. */
+const MAX_ARG = 1e6;
+
 export function dsin(x: number): number {
-  if (!Number.isFinite(x)) return NaN;
+  if (!Number.isFinite(x) || Math.abs(x) > MAX_ARG) return NaN;
   const [r, q] = reduce(x);
   return q === 0 ? sinKernel(r) : q === 1 ? cosKernel(r) : q === 2 ? -sinKernel(r) : -cosKernel(r);
 }
 
 export function dcos(x: number): number {
-  if (!Number.isFinite(x)) return NaN;
+  if (!Number.isFinite(x) || Math.abs(x) > MAX_ARG) return NaN;
   const [r, q] = reduce(x);
   return q === 0 ? cosKernel(r) : q === 1 ? -sinKernel(r) : q === 2 ? -cosKernel(r) : sinKernel(r);
 }
@@ -146,5 +149,14 @@ export function datan(x: number): number {
 
 export function dasin(x: number): number {
   if (x !== x || x < -1 || x > 1) return NaN;
-  return 2 * datan(x / (1 + Math.sqrt(1 - x * x)));
+  // (1 − x)(1 + x) rather than 1 − x²: no cancellation near ±1.
+  return 2 * datan(x / (1 + Math.sqrt((1 - x) * (1 + x))));
+}
+
+/** atan2 from datan, with the usual quadrant rules (the poles and the origin included). */
+export function datan2(y: number, x: number): number {
+  if (y !== y || x !== x) return NaN;
+  if (x > 0) return datan(y / x);
+  if (x < 0) return y >= 0 ? datan(y / x) + Math.PI : datan(y / x) - Math.PI;
+  return y > 0 ? Math.PI / 2 : y < 0 ? -Math.PI / 2 : 0;
 }

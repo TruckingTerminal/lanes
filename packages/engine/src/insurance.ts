@@ -1,6 +1,6 @@
 import { garagingFactor } from "@lanes/data";
 import { dayOf } from "./clock.js";
-import { clamp } from "./economics.js";
+import { clamp, fmtInt } from "./economics.js";
 import { companyAccount } from "./ledger.js";
 import type { Company, InsurancePolicy } from "./types.js";
 import { syncFleet, type World } from "./world.js";
@@ -56,7 +56,7 @@ export function signPolicy(w: World, c: Company, why?: "renewal" | "rewrite"): v
   });
 }
 
-const fmt = (x: number) => Math.round(x).toLocaleString("en-US");
+const fmt = fmtInt;
 
 /** Daily: policies whose term is up renew at today's price. */
 export function dailyInsurance(w: World): void {
@@ -68,8 +68,9 @@ export function dailyInsurance(w: World): void {
 export function billInsurance(w: World): void {
   const m = w.insuranceMarket;
   for (const c of w.companies) {
+    // The NPC lessor's policy covers its leased trucks (it maintains them too), so a free-path start pays nothing here.
     let trucks = 0;
-    for (const t of w.trucksByCompany.get(c.id) ?? []) if (t.status !== "parked" && t.status !== "listed" && t.status !== "retired") trucks++;
+    for (const t of w.trucksByCompany.get(c.id) ?? []) if (t.lease !== "npc" && t.status !== "parked" && t.status !== "listed" && t.status !== "retired") trucks++;
     if (trucks === 0) continue;
     const premium = (trucks * c.insurance.annualPerTruck) / 52;
     w.ledger.post(w.t, companyAccount(c.id), "sink:insurance", premium, `insurance:${c.id}`);
@@ -94,7 +95,8 @@ export function monthlyInsurance(w: World): void {
   const premiums = m.premiums.reduce((a, b) => a + b, 0);
   if (m.premiums.length >= 3 && premiums > 0) {
     const ratio = m.claims.reduce((a, b) => a + b, 0) / premiums;
-    const step = ratio > k.targetLossRatio * 1.1 ? k.stepPerMonth : ratio < k.targetLossRatio * 0.9 ? -k.stepPerMonth : 0;
+    // A step proportional to how far the loss ratio is from target, capped, so the market settles instead of swinging.
+    const step = clamp(((ratio - k.targetLossRatio) / k.targetLossRatio) * k.gain, -k.stepPerMonth, k.stepPerMonth);
     m.index = clamp(m.index * (1 + step), k.range[0], k.range[1]);
   }
   m.premiums.push(0);

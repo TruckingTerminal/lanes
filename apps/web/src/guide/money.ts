@@ -36,7 +36,7 @@ export function moneyPages(cfg: EconomyConfig): GuidePage[] {
             ["Conditional", `×${ins.rating.conditional}`],
             ["Unsatisfactory", `×${ins.rating.unsatisfactory}`],
             ["Each safety alert", `+${pct(ins.perAlert)}`],
-            ["At-fault crashes", `+25% (property), +60% (injury), +150% (fatal), wearing off ${pct(cfg.safety.crash.surchargeDecayPerMonth)} a month`],
+            ["At-fault crashes", `+${pct(cfg.safety.crash.surcharge.pdo)} (property), +${pct(cfg.safety.crash.surcharge.injury)} (injury), +${pct(cfg.safety.crash.surcharge.fatal)} (fatal), wearing off ${pct(cfg.safety.crash.surchargeDecayPerMonth)} a month`],
             [`Satisfactory, no crashes or alerts, ${ins.cleanYears}+ years`, `×${ins.cleanDiscount}`],
           ],
         ) +
