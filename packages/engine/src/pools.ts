@@ -38,7 +38,9 @@ export function poolDepositorValue(w: World, line: PoolLine, companyId: number):
 /** Capital against the line's exposure (the annual premiums it has written): the pricing signal. */
 export function capitalRatio(w: World, line: PoolLine): number {
   const p = w.pools[line];
-  return p.exposureFd > 0 ? poolLineCash(w, line) / p.exposureFd : Infinity;
+  const cash = poolLineCash(w, line);
+  if (cash <= 0) return 0; // an empty pool is thin whatever it has written: that is what draws the first capital
+  return p.exposureFd > 0 ? cash / p.exposureFd : Infinity;
 }
 
 /**

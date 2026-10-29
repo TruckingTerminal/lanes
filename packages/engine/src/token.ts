@@ -280,7 +280,11 @@ function chargeProfitTax(w: World): void {
     c.taxBaseFd = now;
     if (taxable <= 0 || c.liquidatingSince !== null) continue;
     const tax = Math.min(taxable * profitTaxRate, Math.max(0, w.ledger.balance(companyAccount(c.id))));
-    if (tax > 0.01) w.ledger.post(w.t, companyAccount(c.id), "sink:profit_tax", tax, `tax:${c.id}`);
+    if (tax <= 0.01) continue;
+    // The circular economy: a share of the tax still burns (circular.taxBurnShare), the rest refills the reserve.
+    const burn = w.cfg.token.circular.enabled ? tax * w.cfg.token.circular.taxBurnShare : 0;
+    if (burn > 0.01) w.ledger.post(w.t, companyAccount(c.id), "sink:profit_tax_burn", burn, `tax:${c.id}`);
+    if (tax - burn > 0.01) w.ledger.post(w.t, companyAccount(c.id), "sink:profit_tax", tax - burn, `tax:${c.id}`);
   }
 }
 

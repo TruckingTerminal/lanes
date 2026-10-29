@@ -527,6 +527,10 @@ export const economyConfig = {
       // the rest is held by the treasury, unissued.
       shares: { reserve: 0.6, pool: 0.025, airdrop: 0.023 },
       reserveFactor: { exponent: 1, clamp: [0.5, 2] as const }, // rates × (reserve ÷ genesis reserve)^exponent, clamped
+      // How much of the profit tax still burns under the cap; the rest refills the reserve. With none
+      // burning (runs/v25-a) the price ended $0.0044 against $0.0084 open: the dial Jeff weighs
+      // against "deflation only from dollars".
+      taxBurnShare: 0.5,
     },
     launch: {
       // Beta FD is play money: above working capital it's burned at launch, and the

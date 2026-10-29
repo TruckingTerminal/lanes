@@ -703,11 +703,17 @@ function manageCash(w: World, c: Company, p: BotProfile): void {
   }
   const spare = w.ledger.balance(acct) - need * 2;
   if (spare <= 20_000) return;
-  // Pools (0.18.0): a depositor splits spare FD between equipment finance and the insurance pool while the pool is thin enough to pay for capital.
-  if (w.cfg.token.pools.enabled && capitalRatio(w, "insurance") < 2 * w.cfg.token.pools.insurance.minCapitalRatio) {
-    applyAction(w, c.id, { type: "deposit_pool", line: "insurance", amountFd: spare / 2 });
-    applyAction(w, c.id, { type: "deposit_finance", amountFd: spare / 2 });
-  } else applyAction(w, c.id, { type: "deposit_finance", amountFd: spare });
+  // Pools (0.18.0): a depositor spreads spare FD over equipment finance and every pool still thin enough to pay for capital.
+  if (w.cfg.token.pools.enabled) {
+    const thin = (["insurance", "factoring", "surety"] as const).filter((line) => capitalRatio(w, line) < 2 * w.cfg.token.pools[line].minCapitalRatio);
+    if (thin.length > 0) {
+      const each = spare / (thin.length + 1);
+      for (const line of thin) applyAction(w, c.id, { type: "deposit_pool", line, amountFd: each });
+      applyAction(w, c.id, { type: "deposit_finance", amountFd: each });
+      return;
+    }
+  }
+  applyAction(w, c.id, { type: "deposit_finance", amountFd: spare });
 }
 
 /** FD this bot would turn into dollars this week: a share of what's above its reserve. Free-path drivers save for a truck instead. */
