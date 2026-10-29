@@ -6,6 +6,18 @@ import { dayOf } from "./clock.js";
 import { EQUIPMENT, planFreight, planIndex, seasonality } from "./demand.js";
 import type { VettingTier, Company } from "./types.js";
 import { clamp, fscPerMile, fuelPrice } from "./economics.js";
+
+/**
+ * The circular economy (0.18.0): what NPC shippers pay per mile follows the reserve against its
+ * genesis level, so FD hoarded away from the reserve lowers rates and FD spent back into it raises
+ * them. 1 in the open mode.
+ */
+export function reserveFactor(w: World): number {
+  const k = w.cfg.token.circular;
+  if (!k.enabled) return 1;
+  const genesis = k.capFd * k.shares.reserve;
+  return clamp(dpow(Math.max(0, w.ledger.reserve()) / genesis, k.reserveFactor.exponent), k.reserveFactor.clamp[0], k.reserveFactor.clamp[1]);
+}
 import type { Load } from "./types.js";
 import type { World } from "./world.js";
 
@@ -124,8 +136,10 @@ export function generateRoundFreight(w: World): RoundFreight {
   const tollPerMile = (lane: Lane) => (cfg.roads.tollsInRates ? lane.tollFd / lane.miles : 0);
   // Freight into a market trucks can't reload in carries part of the empty run out, per loaded mile.
   const exitPerMile = (lane: Lane, eq: Equipment) => (cfg.rates.exitDeadheadShare * cfg.rates.deadheadFdPerMile * expectedReloadDeadheadMi(w, lane.dest, eq)) / lane.miles;
+  const rf = reserveFactor(w);
   const refRate = (lane: Lane, eq: Equipment) =>
     lane.baseRate *
+      rf *
       dpow(ratioEq[planIndex(lane.origin, EQUIPMENT.indexOf(eq))]!, cfg.rates.ratioExponent) *
       feeds.weather(net.hubs[lane.origin]!.id, day) *
       cfg.rates.equipmentPremium[eq] *

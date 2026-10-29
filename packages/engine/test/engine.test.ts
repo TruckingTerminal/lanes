@@ -17,6 +17,7 @@ import {
   fscPerMile,
   inCloseWindow,
   Ledger,
+  RESERVE_ACCOUNT,
   liveGameMinutes,
   planFreight,
   hubDemandPerRound,
@@ -921,5 +922,45 @@ describe("real market (0.17.0): freight moves only on AI and player trucks", () 
     expect(beta.end).toBeLessThanOrEqual(beta.start * cfg.token.betaAiFleetCap!);
     const free = run(false);
     expect(free.end).toBeGreaterThan(free.start);
+  });
+});
+
+describe("circular economy (0.18.0): a capped supply with a reserve", () => {
+  const circular = { enabled: true, capFd: 1_000_000, shares: { reserve: 0.6, pool: 0.025, airdrop: 0.023 } };
+
+  it("mints only at genesis: faucets draw on the reserve or their allocation, sinks refill it, burns leave the cap", () => {
+    const l = new Ledger(true, circular);
+    expect(l.minted()).toBe(1_000_000);
+    expect(l.reserve()).toBe(600_000);
+    l.post(0, "faucet:npc_shipper", "co:1", 1_000, "load:1");
+    expect(l.reserve()).toBe(599_000);
+    expect(l.supply()).toBe(1_000);
+    l.post(0, "co:1", "sink:fuel", 400, "fuel:1");
+    expect(l.reserve()).toBe(599_400);
+    l.post(0, "co:1", "sink:buyback", 100, "buyback:1");
+    expect(l.burned()).toBe(100);
+    l.post(0, "faucet:airdrop", "co:1", 50, "airdrop:1");
+    expect(l.balance("alloc:airdrop")).toBe(23_000 - 50);
+    expect(l.supply() + l.reserve() + l.allocated() + l.burned()).toBeCloseTo(1_000_000, 6);
+    expect(l.totals.get("faucet:npc_shipper")).toBe(100_000); // the tags still count the flows, in cents
+    expect(l.entries.map((e) => e.from)).toContain("faucet:npc_shipper");
+    l.assertBalanced();
+  });
+
+  it("conserves the cap through a populated month, and pays less per mile when the reserve is drained", () => {
+    const circ: EconomyConfig = { ...calm, token: { ...calm.token, enabled: true, circular: { ...calm.token.circular, enabled: true } } };
+    const run = (drainShare: number) => {
+      const w = createWorld({ cfg: circ, net, feeds: neutralFeeds, seed: 44 });
+      populate(w, { freeOwnerOperators: 60, fleets: 20, brokers: 4 });
+      if (drainShare > 0) w.ledger.post(0, RESERVE_ACCOUNT, "sink:buyback", w.ledger.reserve() * drainShare, "test");
+      runDays(w, 30, ruleBotHook);
+      const l = w.ledger;
+      expect(l.supply() + l.reserve() + l.allocated() + l.burned()).toBeCloseTo(circ.token.circular.capFd, 1);
+      expect(l.reserve()).toBeGreaterThan(0);
+      return w.metrics.days.slice(-14).reduce((s, d) => s + d.avgClearedRate, 0) / 14;
+    };
+    const full = run(0);
+    const drained = run(0.5);
+    expect(drained).toBeLessThan(full * 0.8);
   });
 });

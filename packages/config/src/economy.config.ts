@@ -514,6 +514,20 @@ export const economyConfig = {
     // of its starting size (null: no cap). The market stays short of trucks until humans bring
     // them, so the airdrop season rewards early commitment; bots still replace and sell trucks.
     betaAiFleetCap: 1 as number | null,
+    // Design decision (Jeff, 2026-10-29; TOKENOMICS.md "The circular economy"): a capped supply.
+    // Nothing is minted after genesis. NPC shippers pay carriers out of a reserve that every sink
+    // refills (fuel, wages, fees, the profit tax, the launch reset…); only dollars and forfeits burn
+    // (buybacks, the sell fee, forfeited airdrop slices, the season-close burn when seasons run).
+    // Reference rates follow the reserve against its genesis level: hoarding drains it and lowers
+    // rates, spending refills it and raises them. Off by default so the sims can compare both.
+    circular: {
+      enabled: false,
+      capFd: 1_000_000_000,
+      // Genesis: the reserve, the launch pool (25M FD at $0.01) and four airdrop seasons (23M);
+      // the rest is held by the treasury, unissued.
+      shares: { reserve: 0.6, pool: 0.025, airdrop: 0.023 },
+      reserveFactor: { exponent: 1, clamp: [0.5, 2] as const }, // rates × (reserve ÷ genesis reserve)^exponent, clamped
+    },
     launch: {
       // Beta FD is play money: above working capital it's burned at launch, and the
       // working capital kept is locked — it can be spent in the game, not sold.

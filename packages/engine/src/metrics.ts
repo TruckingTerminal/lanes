@@ -17,6 +17,8 @@ export interface DayMetrics {
   day: number;
   season: number;
   supplyFd: number;
+  /** Circular mode: what the reserve holds (0 in the open mode). */
+  reserveFd: number;
   /** FD created today by NPC demand (excludes one-time starting grants). */
   faucetFd: number;
   faucetByTag: Record<string, number>;
@@ -244,6 +246,7 @@ export class MetricsRecorder {
       day,
       season: seasonOf(day, w.cfg),
       supplyFd: w.ledger.supply(),
+      reserveFd: w.ledger.reserve(),
       faucetFd,
       faucetByTag,
       grantFd,

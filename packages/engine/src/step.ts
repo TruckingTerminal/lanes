@@ -188,6 +188,7 @@ function monthlyStabilizers(w: World): void {
     if (wanted >= ts.range[0] && wanted <= ts.range[1]) return;
   }
   const [vMin, vMax] = tokenLive(w) ? w.cfg.token.volumeRangeLive : stabilizers.volumeRange;
-  w.stab.volumeMult = clamp(w.stab.volumeMult * (1 + pressure * stabilizers.volumeStepPerMonth), vMin, vMax);
+  // The circular economy prices freight off the reserve instead (freight.ts reserveFactor); the volume dial stays at 1.
+  if (!w.cfg.token.circular.enabled) w.stab.volumeMult = clamp(w.stab.volumeMult * (1 + pressure * stabilizers.volumeStepPerMonth), vMin, vMax);
   w.stab.rackSpread = clamp(w.stab.rackSpread - pressure * stabilizers.rackStepPerMonth, 1 - stabilizers.rackSpreadBand, 1 + stabilizers.rackSpreadBand);
 }
