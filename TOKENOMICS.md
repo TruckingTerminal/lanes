@@ -357,3 +357,15 @@ What the runs settled so far:
   (10.6k against 3.2k).
 - **Liquidations fell by more than half** against 0.17.0 (610 against 1,424): staking tiers hold the
   fleets back, factoring keeps the short ones afloat, and brokers restart bonded.
+
+### Contract terms (Jeff, 2026-10-29; built as commit 991498a)
+
+Quick pay 10%, an emergency tool. Factoring is a one-year contract with a stake behind it (two weeks
+of invoices by the fleet, 50k for a broker or shipper): 4% per 30-day invoice on an NPC shipper's
+paper, 6% on a player's, times the pool's markup; leaving early forfeits the stake to the pool, at
+term it renews or comes home. A pool-written insurance policy locks the deductible per covered
+truck and pays it from the stake on a claim; the pool prices at 80% of the NPC base to aim at a 75%
+loss ratio. The broker licence stake is the surety bond. On liquidation the contract stakes go first
+to the pool holding the company's paper, then the licence stake to the creditors. The NPC lessor
+pays its leased trucks on delivery and takes the paper, so the free path runs on no working
+capital. Expected: 60–80M FD locked against a sellable float of 70–90M after launch (runs/v26-*).

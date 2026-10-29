@@ -18,9 +18,14 @@ Order is the working order. Design records live in TOKENOMICS.md (economy) and R
 6. ✅ Insurance pool (pools.ts): pool-written policies at a capital-ratio markup, premiums to the pool,
    crash and cargo claims paid from it, exit queue, depositor bots.
 7. ✅ Payment terms and factoring (receivables.ts): net-30 for NPC shippers, brokers and player shippers;
-   quick pay at 3%; the factoring pool advances invoices at 2.5% × its markup (NPC factor as backstop);
-   bots factor when short of working capital. ✅ Surety line: the pool carries broker bonds while
-   capitalised and covers a wound-up broker's carrier up to the bond. Later: equipment finance, fuel hedge.
+   quick pay at 10% (an emergency tool); factoring as a one-year contract with a stake behind it (two
+   weeks of invoices by the fleet, 50k for a broker), 4% on NPC paper and 6% on a player's × the pool's
+   markup, forfeited on an early exit; the NPC lessor pays leased trucks on delivery so the free path
+   needs no working capital; bots sign when short and able. ✅ Surety line: the pool carries broker
+   bonds while capitalised and covers a wound-up broker's carrier up to the bond per broker.
+   ✅ Insurance: a pool-written policy locks the deductible per truck and pays it from the stake on a
+   claim; the pool aims at a 75% loss ratio. Contract stakes go to the pool first on liquidation.
+   Later: recourse on fraud-voided invoices, equipment finance, fuel hedge.
 8. ✅ Airdrop seasons (6 / 4 / 3M after the 10M launch pot, scaled down when the season's price ran below
    launch). Still to do: the unlock boosts (achievements, FD-burning shop items) once the client has a shop.
 9. Ten-seed runs with circular + staking + pools + payment on (runs/v25-*): size the cap, reserve share,
