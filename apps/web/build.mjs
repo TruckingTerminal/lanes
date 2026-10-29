@@ -39,7 +39,7 @@ rmSync(assetsOut, { recursive: true, force: true });
 let copied = 0;
 // The map layers and the sprites ride outside the page whole; the scenes, people and the loading
 // strip keep their stills inside it and only their loops outside.
-const RULES = { map: (f) => f !== "l0-summer.png", cities: () => true, towns: () => true, scenes: (f) => f.endsWith(".loop.png"), people: (f) => f.endsWith(".loop.png"), loading: (f) => f.endsWith(".loop.png"), title: (f) => f.endsWith(".loop.png") };
+const RULES = { map: (f) => f !== "l0-summer.png", cities: () => true, towns: () => true, scenes: (f) => f.endsWith(".loop.png"), people: (f) => f.endsWith(".loop.png"), loading: (f) => f.endsWith(".loop.png"), title: (f) => f.endsWith(".loop.png"), rigs: (f) => f.endsWith(".loop.png") };
 for (const [sub, keep] of Object.entries(RULES)) {
   const src = join(here, "assets", sub);
   if (!existsSync(src)) continue;

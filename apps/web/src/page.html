@@ -100,6 +100,11 @@ tbody tr.open td { background: color-mix(in srgb, var(--accent) 10%, transparent
 .truckhead { display: grid; grid-template-columns: auto 1fr; gap: 12px; align-items: center; }
 .truckhead img.px { width: 172px; height: auto; }
 .truckhead img.rig { width: 320px; max-width: 100%; }
+.rig { image-rendering: pixelated; }
+/* A rig's cab repainted by hue: the cyan paint turns red, lime or grey; the white trailer keeps its colour. */
+.paint-red { filter: hue-rotate(165deg) saturate(1.1); }
+.paint-lime { filter: hue-rotate(-85deg); }
+.paint-grey { filter: saturate(0.25); }
 .portrait { width: 48px; height: 48px; image-rendering: pixelated; border-radius: var(--radius); background: var(--bg-input); border: 1px solid var(--border); }
 .portrait.sm { width: 32px; height: 32px; }
 .scene { display: block; width: 512px; max-width: 100%; height: auto; image-rendering: pixelated; border: 1px solid var(--border); border-radius: var(--radius); margin: 0 auto; }

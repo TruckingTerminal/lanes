@@ -1,7 +1,8 @@
 import type { JSX } from "preact";
 import { useEffect, useRef } from "preact/hooks";
 import { ASSETS, hasAsset, seasonOf } from "../mapart.js";
-import { PEOPLE, PEOPLE_FILE, type Person } from "../assets.js";
+import { PEOPLE, PEOPLE_FILE, rig, type Person } from "../assets.js";
+import type { Equipment } from "@lanes/config";
 import { clockMin, S, useData } from "../state.js";
 import { cls } from "../format.js";
 import { PAL } from "../art.js";
@@ -112,6 +113,11 @@ function Sky(): JSX.Element {
     return () => cancelAnimationFrame(raf);
   }, []);
   return <canvas ref={ref} class="sky" width={256} height={144} aria-hidden="true" />;
+}
+
+/** A side-view rig for the cards and the start form: 256 × 96 with its rolling loop; `paint` recolours the cab by hue. */
+export function Rig({ eq, paint, alt, scale = 1 }: { eq: Equipment; paint?: "red" | "lime" | "grey"; alt?: string; scale?: number }): JSX.Element {
+  return <Loop name={`rigs/${eq}`} still={rig(eq)} w={256} h={96} scale={scale} class={cls("rig", paint ? `paint-${paint}` : "")} alt={alt ?? ""} />;
 }
 
 /** Someone's portrait: a 128 × 128 painting with its idle loop, 48 CSS px (32 when small). */
