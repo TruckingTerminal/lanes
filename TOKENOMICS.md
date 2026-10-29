@@ -334,6 +334,13 @@ Against the 0.17.0 release run (runs/v24-c; runs/compare-v25-a.md, compare-v25-b
 | v24-c | 0.17.0, open mode | 1,424 | 53k | $0.0084 | 97% |
 | v25-a | circular + staking + pools + payment, tax all to the reserve | 501 | 10k | $0.0044 | 95% |
 | v25-b | pools draw capital, brokers restart bonded, half the tax burns | 610 | 72k | $0.0054 | 89% |
+| v25-c | the whole tax burns | 632 | 75k | $0.0063 | 83% |
+| v25-d | …and rates follow the reserve squared | 603 | 75k | $0.0070 | 84% |
+
+v25-d's reserve: 592M → ~395M at year one → 560M after the launch reset → 208–270M at year four. The
+rate factor sits on its 0.5 floor by year three, so the reserve still drains ~100M a year after
+launch: the next runs try the monthly volume stabilizer kept on under the cap (fewer loads in a
+slump, `circular.volumeStabilizer`) and a lower floor on the rate factor.
 
 What the runs settled so far:
 - **The reserve holds.** Genesis 592M; the starved beta pays it down to ~340M by year one; the

@@ -531,6 +531,10 @@ export const economyConfig = {
       // burning (runs/v25-a) the price ended $0.0044 against $0.0084 open: the dial Jeff weighs
       // against "deflation only from dollars".
       taxBurnShare: 0.5,
+      // Whether the monthly sinks-over-faucets stabilizer may still cut NPC freight volume under the
+      // cap (fewer loads in a slump) beside the reserve pricing them lower. runs/v25-d: with rates alone
+      // (floor 0.5×) the reserve kept draining ~100M a year after launch.
+      volumeStabilizer: false,
     },
     launch: {
       // Beta FD is play money: above working capital it's burned at launch, and the
