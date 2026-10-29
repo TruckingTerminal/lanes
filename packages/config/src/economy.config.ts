@@ -9,7 +9,7 @@ export type TractorTier = "workhorse" | "highwayPro" | "flagship";
 export type FacilityType = "warehouse" | "coldStorage" | "factory";
 
 export const economyConfig = {
-  version: "0.13.1-phase0.19",
+  version: "0.14.0-phase0.20",
 
   // §World, map and time
   time: {
@@ -99,6 +99,13 @@ export const economyConfig = {
       awayDays: 14, // …and is fully desperate this many days later
       atHomeMult: 0.5, // sitting at home is half as pressing: no per diem, the driver is home
     },
+  },
+
+  // Places and commodities (DESIGN-PLACES.md): every load is a commodity between two places,
+  // with a delivery appointment; perishables delivered past their spoil time are a total loss.
+  commodities: {
+    spoilClaimShare: 0.5, // the carrier's cargo claim on a spoiled load, as a share of cargo value
+    placeSlackMi: 150, // markets this far beyond a dispatcher's empty-mile limit are still scanned (a place can be nearer than its hub)
   },
 
   // Design decision (Jeff, 2026-10-28): driver fatigue. More than three weeks on the road

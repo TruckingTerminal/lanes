@@ -343,8 +343,11 @@ export interface Truck {
   tier: TractorTier;
   trailer: Equipment;
   status: TruckStatus;
-  hub: number; // current hub when idle; origin of current leg otherwise
+  hub: number; // current market when idle; the leg's origin market otherwise
   targetHub: number;
+  /** The place the truck stands at (or left), and the place it's heading for. */
+  place: number;
+  targetPlace: number;
   remainingMi: number;
   loadId: number | null;
   /** Start of the current 24-hour duty day, or null before the first one. */
@@ -435,6 +438,15 @@ export interface Load {
   cargoValue: number;
   /** Re-posted by the carrier that won it (double brokering): who, at what rate it was won, and whether they'll pay. */
   doubleBroker: { companyId: number; upstreamRate: number; pays: boolean } | null;
+  /** What's in the trailer (packages/data commodities.ts), and the places it ships between (origin/dest are their markets). */
+  commodity: number;
+  originPlace: number;
+  destPlace: number;
+  /** The delivery appointment, set when posted: due is never later than this. Perishables spoil past it. */
+  appointmentT: number;
+  /** The road route between the places: driving hours and tolls. */
+  routeHours: number;
+  routeTollFd: number;
 }
 
 export interface Bid {

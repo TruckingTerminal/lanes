@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { economyConfig as cfg } from "@lanes/config";
-import { buildNetwork, dasin, datan2, hubs, neutralFeeds, stationsOnRoute, weighStations } from "@lanes/data";
+import { buildNetwork, dasin, datan2, hubs, neutralFeeds, stationsOnRoute, weighStations, PLACE_OF_HUB } from "@lanes/data";
 import { populate, ruleBotHook } from "@lanes/agents";
 import {
   activeLoanOn,
@@ -36,6 +36,7 @@ function mkLoad(w: World, origin: number, dest: number, hot = 0): Load {
     brokerId: null, shipperId: null, facilityId: null, saleValue: 0, shipperRate: 3, spotShipperRate: 3, refRate: 3, ceiling: 3, bookNow: 3,
     postedRound: w.round, roundsUnfilled: 0, status: "open", carrierId: null, truckId: null, clearedRate: 0, dueT: 0,
     hot, vet: 0, cargoValue: 5_000, doubleBroker: null,
+    commodity: 0, originPlace: PLACE_OF_HUB[lane.origin]!, destPlace: PLACE_OF_HUB[lane.dest]!, appointmentT: 1e12, routeHours: lane.miles / 50, routeTollFd: 0,
   };
   w.loads.set(load.id, load);
   return load;

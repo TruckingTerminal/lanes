@@ -5,7 +5,7 @@ import { vettingBlock } from "./fraud.js";
 import { homeEdge } from "./home.js";
 import { dispatchProfile, type DispatchProfile } from "./labor.js";
 import type { Bid, Company, Load, StandingOrder, Truck } from "./types.js";
-import { crewed, hubMiles, hubToll, type World } from "./world.js";
+import { crewed, hubMiles, hubToll, type World, placeMiles, placeToll } from "./world.js";
 
 /** A solo truck makes a hot load's window only on falsified logs; a team makes it legally. */
 export const canMakeHot = (c: Company, t: Truck) => t.coDriverId !== 0 || c.policy.hos !== "legal";
@@ -109,11 +109,12 @@ export function bidsFromStandingOrders(w: World, company: Company, idx: BoardInd
     const candidates: { bid: Bid; profit: number }[] = [];
     let inRange = 0;
     for (const hub of w.net.nearby[truck.hub]!) {
-      const dh = hubMiles(w, truck.hub, hub);
-      if (dh > maxDh) break; // nearby is sorted nearest first
+      if (hubMiles(w, truck.hub, hub) > maxDh + w.cfg.commodities.placeSlackMi) break; // nearby is sorted nearest first
       const loads = idx.get(boardKey(hub, truck.trailer));
       if (!loads) continue;
       for (const load of loads) {
+        const dh = placeMiles(w, truck.place, load.originPlace);
+        if (dh > maxDh) continue;
         if (load.brokerId === company.id || load.doubleBroker?.companyId === company.id) continue;
         if (!allowed[load.vet]) continue;
         if (load.hot > 0 && !canMakeHot(company, truck)) continue;
@@ -149,8 +150,8 @@ export function estimateBreakEven(w: World, truck: Truck, load: Load, dh: number
   // Price in the empty run out of the destination, so a cheap load into a dead market isn't worth taking —
   // as much of it as this dispatcher knows to, and as far ahead on the season as they can see.
   const reloadMi = expectedReloadDeadheadMi(w, load.dest, load.equipment, team.foresightDays);
-  // Tolls on the way to the pickup and on the lane itself are part of the cost of the load.
-  const tolls = hubToll(w, truck.hub, load.origin) + w.net.lanes[load.laneId]!.tollFd;
+  // Tolls on the way to the pickup and on the load's own route are part of the cost of the load.
+  const tolls = placeToll(w, truck.place, load.originPlace) + load.routeTollFd;
   const trueBreakEven = breakEvenPerMile(w.cfg, truck, fuel, load.miles, dh + team.reloadWeight * reloadMi, tolls);
   // Their read of their own costs is off by a few percent, more for an inexperienced dispatcher.
   const z = (w.rng.dispatch.next() + w.rng.dispatch.next() + w.rng.dispatch.next() - 1.5) * 2;

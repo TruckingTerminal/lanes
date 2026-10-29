@@ -1,5 +1,5 @@
 import type { EconomyConfig, Equipment, FacilityType, TractorTier } from "@lanes/config";
-import type { Feeds, Network, Route } from "@lanes/data";
+import { PLACE_OF_HUB, placeMiles as netPlaceMiles, placeMilesFast as netPlaceMilesFast, placeRoute as netPlaceRoute, type Feeds, type Network, type Route } from "@lanes/data";
 import { Ledger, companyAccount } from "./ledger.js";
 import { Rng } from "./rng.js";
 import type { BuybackWeek, GameEvent, TokenState, Company, Facility, FinancePool, FraudCase, LeaseKind, Listing, Load, Role, SeasonCloseRecord, Staff, StandingOrder, Truck, TruckOrder } from "./types.js";
@@ -577,6 +577,8 @@ export function createTruck(
     status: "idle",
     hub,
     targetHub: hub,
+    place: PLACE_OF_HUB[hub]!,
+    targetPlace: PLACE_OF_HUB[hub]!,
     remainingMi: 0,
     loadId: null,
     shiftStartT: null,
@@ -654,6 +656,8 @@ export function attachTruck(w: World, truck: Truck, companyId: number): void {
   truck.idleSinceDay = Math.floor(w.t / w.cfg.time.gameMinutesPerDay);
   truck.idleSinceT = w.t;
   truck.targetHub = truck.hub;
+  truck.place = PLACE_OF_HUB[truck.hub]!;
+  truck.targetPlace = truck.place;
   freshPaperwork(truck);
   w.trucksByCompany.get(companyId)!.push(truck);
   seatOwnerIfFree(w, truck);
@@ -685,6 +689,35 @@ export function hubToll(w: World, a: number, b: number): number {
 export function hubHours(w: World, a: number, b: number): number {
   const r = hubRoute(w, a, b);
   return r ? r.hours : hubMiles(w, a, b) / w.cfg.hos.avgMph;
+}
+
+/** A hub's own place. */
+export const placeOfHub = (hub: number): number => PLACE_OF_HUB[hub]!;
+
+/** The road route between two places (null between a place and itself). */
+export function placeRoute(w: World, a: number, b: number): Route | null {
+  return netPlaceRoute(w.net, a, b);
+}
+
+/** A quick estimate of the miles between two places, for scanning boards (great circle × circuity). */
+export function placeMiles(w: World, a: number, b: number): number {
+  return netPlaceMilesFast(w.net, a, b);
+}
+
+/** Road miles between two places, for a leg a truck is about to drive. */
+export function placeLegMiles(w: World, a: number, b: number): number {
+  return netPlaceMiles(w.net, a, b);
+}
+
+/** Tolls between two places. */
+export function placeToll(w: World, a: number, b: number): number {
+  return placeRoute(w, a, b)?.tollFd ?? 0;
+}
+
+/** Driving hours between two places at each road's speed. */
+export function placeHours(w: World, a: number, b: number): number {
+  const r = placeRoute(w, a, b);
+  return r ? r.hours : placeMiles(w, a, b) / w.cfg.hos.avgMph;
 }
 
 export function companyById(w: World, id: number): Company {

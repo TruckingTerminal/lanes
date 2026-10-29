@@ -9,7 +9,7 @@ import { companyAccount } from "./ledger.js";
 import { bidsFromStandingOrders, boardKey, canMakeHot, indexOpenLoads, scoreBid, desperation, estimateBreakEven, resting, trackingWouldShow, needsHome, homeward, hardCap } from "./standingOrders.js";
 import { coverDoubleBrokered, startLoading } from "./trips.js";
 import type { Bid, Company, Load, StandingOrder, Truck } from "./types.js";
-import { companyById, crewed, hubHours, hubMiles, truckById, type World } from "./world.js";
+import { companyById, crewed, hubHours, hubMiles, truckById, type World, placeHours, placeMiles, placeOfHub, placeLegMiles } from "./world.js";
 
 export interface RoundResult {
   round: number;
@@ -157,7 +157,7 @@ function manualRoundBids(w: World): Bid[] {
     const company = companyById(w, truck.companyId);
     if (company.authority.status !== "active" || vettingBlock(w, company, load) !== null || load.doubleBroker?.companyId === company.id) continue;
     if (load.hot > 0 && !canMakeHot(company, truck)) continue;
-    const deadheadMi = hubMiles(w, truck.hub, load.origin);
+    const deadheadMi = placeMiles(w, truck.place, load.originPlace);
     // A counter can go past the ceiling (taken only if nobody offers within it), up to the hard cap.
     const rate = Math.min(mb.rate, hardCap(w, load));
     out.push({ loadId: load.id, truckId, companyId: company.id, rate, deadheadMi, score: scoreBid(w, load.ceiling, rate, company.reputation, deadheadMi, homeEdge(w, company, load.origin)), tiebreak: 0 });
@@ -177,12 +177,13 @@ function assign(w: World, load: Load, truck: Truck, bid: Bid): void {
   // A hot load's window assumes 15 driving hours a day and little slack: a solo driver makes it only on falsified logs.
   // Driving time follows the roads: interstates are quicker than two-lane highways.
   const perDay = load.hot > 0 ? cfg.safety.hotLoads.hoursPerDay : cfg.hos.drivingHoursPerDay;
-  const drivingH = (bid.deadheadMi > 0 ? hubHours(w, truck.hub, load.origin) : 0) + w.net.lanes[load.laneId]!.hours;
+  const drivingH = (bid.deadheadMi > 0 ? placeHours(w, truck.place, load.originPlace) : 0) + load.routeHours;
   // Full rest days before the last driving day: a run of exactly one day's driving has none.
   const fullDays = Math.max(0, Math.ceil(drivingH / perDay) - 1);
   const transitMin = (fullDays * cfg.hos.dutyDayHours + (drivingH - fullDays * perDay)) * 60;
   const dwellMin = cfg.dwell.loadMinutes[1] + cfg.dwell.unloadMinutes[1];
-  load.dueT = w.t + transitMin + dwellMin + (load.hot > 0 ? cfg.safety.hotLoads.slackMinutes : cfg.freight.deliverySlackMinutes);
+  // Due by the HOS schedule, and never after the shipper's appointment.
+  load.dueT = Math.min(load.appointmentT, w.t + transitMin + dwellMin + (load.hot > 0 ? cfg.safety.hotLoads.slackMinutes : cfg.freight.deliverySlackMinutes));
   truck.loadId = load.id;
   truck.idleRounds = 0;
   if (bid.deadheadMi === 0) {
@@ -190,7 +191,8 @@ function assign(w: World, load: Load, truck: Truck, bid: Bid): void {
   } else {
     truck.status = "toPickup";
     truck.targetHub = load.origin;
-    truck.remainingMi = bid.deadheadMi;
+    truck.targetPlace = load.originPlace;
+    truck.remainingMi = placeLegMiles(w, truck.place, load.originPlace); // the bid's estimate, now the road's own figure
   }
 }
 
@@ -255,12 +257,13 @@ export function autoBook(w: World): void {
       const goHome = needsHome(w, company, truck);
       let best: { load: Load; dh: number; profit: number } | null = null;
       for (const hub of w.net.nearby[truck.hub]!) {
-        const dh = hubMiles(w, truck.hub, hub);
-        if (dh > order.maxDeadheadMi) break; // nearby is sorted nearest first
+        if (hubMiles(w, truck.hub, hub) > order.maxDeadheadMi + w.cfg.commodities.placeSlackMi) break; // nearby is sorted nearest first
         const loads = idx.get(boardKey(hub, truck.trailer));
         if (!loads) continue;
         for (const load of loads) {
           if (load.status !== "open") continue; // booked a moment ago by another truck
+          const dh = placeMiles(w, truck.place, load.originPlace);
+          if (dh > order.maxDeadheadMi) continue;
           if (load.brokerId === company.id || load.doubleBroker?.companyId === company.id) continue;
           if (!allowed[load.vet]) continue;
           if (load.hot > 0 && !canMakeHot(company, truck)) continue;
@@ -352,7 +355,8 @@ function maybeReposition(w: World, truck: Truck, surplus: Map<string, number>): 
     if (miles <= hw.deadheadWithinMi || truck.idleRounds >= hw.deadheadAfterRounds) {
       truck.status = "repositioning";
       truck.targetHub = company.homeHub;
-      truck.remainingMi = miles;
+      truck.targetPlace = placeOfHub(company.homeHub);
+      truck.remainingMi = placeLegMiles(w, truck.place, truck.targetPlace);
       truck.idleRounds = 0;
     }
     return;
@@ -398,7 +402,8 @@ function maybeReposition(w: World, truck: Truck, surplus: Map<string, number>): 
     if (target < 0 || target === truck.hub) continue;
     truck.status = "repositioning";
     truck.targetHub = target;
-    truck.remainingMi = hubMiles(w, truck.hub, target);
+    truck.targetPlace = placeOfHub(target);
+    truck.remainingMi = placeLegMiles(w, truck.place, truck.targetPlace);
     truck.idleRounds = 0;
     return;
   }

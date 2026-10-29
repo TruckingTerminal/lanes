@@ -77,6 +77,48 @@ export interface Route {
   cum: Float64Array;
 }
 
+/** A binary heap of (key, node) pairs; ties break on the node so the order is the same everywhere. */
+class MinHeap {
+  private readonly h: [number, number][] = [];
+  get size(): number {
+    return this.h.length;
+  }
+  private less(x: [number, number], y: [number, number]): boolean {
+    return x[0] < y[0] || (x[0] === y[0] && x[1] < y[1]);
+  }
+  push(x: [number, number]): void {
+    const h = this.h;
+    h.push(x);
+    let i = h.length - 1;
+    while (i > 0) {
+      const p = (i - 1) >> 1;
+      if (!this.less(h[i]!, h[p]!)) break;
+      [h[p], h[i]] = [h[i]!, h[p]!];
+      i = p;
+    }
+  }
+  pop(): [number, number] {
+    const h = this.h;
+    const top = h[0]!;
+    const last = h.pop()!;
+    if (h.length) {
+      h[0] = last;
+      let i = 0;
+      for (;;) {
+        const l = 2 * i + 1;
+        const r = l + 1;
+        let m = i;
+        if (l < h.length && this.less(h[l]!, h[m]!)) m = l;
+        if (r < h.length && this.less(h[r]!, h[m]!)) m = r;
+        if (m === i) break;
+        [h[m], h[i]] = [h[i]!, h[m]!];
+        i = m;
+      }
+    }
+    return top;
+  }
+}
+
 export class RoadNetwork {
   readonly edges: RoadEdge[];
   /** Geometry, decoded: latitude and longitude per point. */
@@ -299,16 +341,66 @@ export class RoadNetwork {
     return s;
   }
 
+  /**
+   * A* from one node to another, the heuristic a straight-line time at interstate speed
+   * (never more than the road takes). Explores a band between the two instead of the whole
+   * country, so a route from a place costs a fraction of a full search.
+   */
+  private astar(src: number, dst: number): Int32Array | null {
+    const n = this.adj.length;
+    const cost = new Float64Array(n).fill(Infinity);
+    const prev = new Int32Array(n).fill(-1);
+    const closed = new Uint8Array(n);
+    const mph = this.routing.mph[0];
+    const dLat = this.nodeLat[dst]!;
+    const dLon = this.nodeLon[dst]!;
+    const h = (v: number) => {
+      const dy = (this.nodeLat[v]! - dLat) * 69;
+      const dx = (this.nodeLon[v]! - dLon) * 69 * Math.cos((((this.nodeLat[v]! + dLat) / 2) * Math.PI) / 180);
+      return Math.sqrt(dx * dx + dy * dy) / mph;
+    };
+    cost[src] = 0;
+    const heap = new MinHeap();
+    heap.push([h(src), src]);
+    while (heap.size) {
+      const [, u] = heap.pop();
+      if (u === dst) return prev;
+      if (closed[u]) continue;
+      closed[u] = 1;
+      for (const ei of this.adj[u]!) {
+        const e = this.edges[ei]!;
+        const v = e.a === u ? e.b : e.a;
+        if (closed[v]) continue;
+        const nd = cost[u]! + this.edgeCost(e);
+        if (nd < cost[v]!) {
+          cost[v] = nd;
+          prev[v] = ei;
+          heap.push([nd + h(v), v]);
+        }
+      }
+    }
+    return null;
+  }
+
   /** The route between two terminals: hubs (0–59) or places (null if the road network doesn't connect them). */
   route(a: number, b: number): Route | null {
     const key = a * 1_000_000 + b;
     const hit = this.routes.get(key);
     if (hit) return hit;
     if (a === b) return null;
-    const { cost, prev } = this.search(a);
     const src = this.terminals[a]!.node;
     let v = this.terminals[b]!.node;
-    if (!Number.isFinite(cost[v]!)) return null;
+    let prev: Int32Array;
+    if (a < ROAD_HUBS.length) {
+      // From a hub: one full search, kept for good.
+      const s = this.search(a);
+      if (!Number.isFinite(s.cost[v]!)) return null;
+      prev = s.prev;
+    } else {
+      const p = src === v ? null : this.astar(src, v);
+      if (!p) return null;
+      prev = p;
+    }
     const signed: number[] = [];
     while (v !== src) {
       const ei = prev[v]!;

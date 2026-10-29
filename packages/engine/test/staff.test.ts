@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { economyConfig as cfg } from "@lanes/config";
-import { buildNetwork, hubs, neutralFeeds } from "@lanes/data";
+import { buildNetwork, hubs, neutralFeeds, PLACE_OF_HUB } from "@lanes/data";
 import { populate, ruleBotHook } from "@lanes/agents";
 import {
   addTruck,
@@ -273,6 +273,7 @@ describe("book-now and home time", () => {
     const c = formCompany(w, { name: "Far", role: "carrier", homeHubId: "DAL", strategy: "test", orders: [{ kind: "homeTime", afterDays: 3, restDays: 2 }], freePath: true });
     const [truck] = w.trucksByCompany.get(c.id)!;
     truck!.hub = truck!.targetHub = hubIdx("CHI");
+    truck!.place = truck!.targetPlace = PLACE_OF_HUB[hubIdx("CHI")]!;
     const driver = w.staff[truck!.driverId - 1]!;
     runDays(w, 3);
     expect(driver.awayDays).toBe(3);
@@ -297,6 +298,7 @@ describe("book-now and home time", () => {
     const [truck] = w.trucksByCompany.get(c.id)!;
     const d = w.staff[truck!.driverId - 1]!;
     truck!.hub = truck!.targetHub = hubIdx("SEA");
+    truck!.place = truck!.targetPlace = PLACE_OF_HUB[hubIdx("SEA")]!;
     d.awayDays = 25;
     d.drivenMinToday = 13 * 60;
     dailyDrivers(w);

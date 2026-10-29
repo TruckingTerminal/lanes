@@ -1,5 +1,5 @@
 import type { EconomyConfig, Equipment } from "@lanes/config";
-import { dexp, dpow, type Lane, type Network } from "@lanes/data";
+import { COMMODITIES, destWeights as placeDestWeights, dexp, dpow, marketMix, originWeights, PLACE_OF_HUB, placeMiles as netPlaceMiles, placeRoute as netPlaceRoute, type Lane, type Network } from "@lanes/data";
 import { dayOf } from "./clock.js";
 import { EQUIPMENT, planFreight, planIndex, seasonality } from "./demand.js";
 import type { VettingTier } from "./types.js";
@@ -130,9 +130,42 @@ export function generateRoundFreight(w: World): RoundFreight {
     fsc +
     tollPerMile(lane);
 
+  const month = Math.floor(((day % cfg.time.daysPerSeason) / cfg.time.daysPerSeason) * 12);
+  const eco = net.economy;
+  /** Sets a load's miles, hours, tolls and appointment from the route between its places. */
+  const routeLoad = (load: Load) => {
+    const r = netPlaceRoute(net, load.originPlace, load.destPlace);
+    if (r) {
+      load.miles = Math.max(1, Math.round(r.miles));
+      load.routeHours = r.hours;
+      load.routeTollFd = r.tollFd;
+    } else if (load.originPlace !== load.destPlace) {
+      load.miles = Math.max(1, netPlaceMiles(net, load.originPlace, load.destPlace));
+      load.routeHours = load.miles / cfg.hos.avgMph;
+      load.routeTollFd = 0;
+    }
+    // The appointment: the commodity's window plus the drive at the legal pace.
+    const perDay = cfg.hos.drivingHoursPerDay;
+    const fullDays = Math.max(0, Math.ceil(load.routeHours / perDay) - 1);
+    const transitMin = (fullDays * cfg.hos.dutyDayHours + (load.routeHours - fullDays * perDay)) * 60;
+    load.appointmentT = w.t + COMMODITIES[load.commodity]!.windowHours * 60 + transitMin;
+  };
+  /** Draws what ships and between which places: the market's mix this month, then a shipper and a receiver by weight. */
+  const placeLoad = (load: Load, lane: Lane, eq: Equipment) => {
+    const mix = marketMix(eco, lane.origin, eq, month);
+    if (mix.length > 0) {
+      load.commodity = mix[rng.weighted(mix.map((m) => m.weight))]!.commodity;
+      const o = originWeights(eco, lane.origin, load.commodity, month);
+      if (o.length > 0) load.originPlace = o[rng.weighted(o.map((x) => x.weight))]!.place;
+      const d = placeDestWeights(eco, lane.dest, load.commodity);
+      if (d.length > 0) load.destPlace = d[rng.weighted(d.map((x) => x.weight))]!.place;
+    }
+    routeLoad(load);
+  };
+
   const newLoad = (lane: Lane, eq: Equipment, ref: number): Load => {
     const ceiling = ref * cfg.rates.npcCeilingMarkup;
-    return {
+    const load: Load = {
       bookNow: openBookNow(w, ref, ceiling, ratioEq[planIndex(lane.origin, EQUIPMENT.indexOf(eq))]!),
       id: w.nextLoadId++,
       laneId: lane.id,
@@ -159,7 +192,15 @@ export function generateRoundFreight(w: World): RoundFreight {
       vet: 0,
       cargoValue: 0,
       doubleBroker: null,
+      commodity: 0,
+      originPlace: PLACE_OF_HUB[lane.origin]!,
+      destPlace: PLACE_OF_HUB[lane.dest]!,
+      appointmentT: 0,
+      routeHours: lane.hours,
+      routeTollFd: lane.tollFd,
     };
+    placeLoad(load, lane, eq);
+    return load;
   };
 
   // Hot loads (safety.ts): long hauls with a window only falsified logs or a team can make, at a premium.
@@ -215,6 +256,9 @@ export function generateRoundFreight(w: World): RoundFreight {
       const lane = lanes[rng.weighted(weights)]!;
       const ref = refRate(lane, f.equipment);
       const load = newLoad(lane, f.equipment, ref);
+      // A facility ships from its own hub's place.
+      load.originPlace = PLACE_OF_HUB[f.hub]!;
+      routeLoad(load);
       load.shipperId = f.ownerId;
       load.facilityId = f.id;
       load.saleValue = ref * cfg.facilities.types[f.type].saleValueOfRef * lane.miles;

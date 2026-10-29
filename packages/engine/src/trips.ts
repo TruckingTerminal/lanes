@@ -1,3 +1,4 @@
+import { COMMODITIES } from "@lanes/data";
 import { dayOf, MINUTES_PER_HOUR } from "./clock.js";
 import { clamp, fuelPrice, tripCost } from "./economics.js";
 import { settleDoubleBroker } from "./fraud.js";
@@ -6,7 +7,7 @@ import { companyAccount } from "./ledger.js";
 import { closeDutyDay, drivingLimitMin, legalDrivingMin, mphFor, safetyTick } from "./safety.js";
 import type { Company, Load, Truck } from "./types.js";
 import { breakdownsPer1000Mi } from "./wear.js";
-import { companyById, hubRoute, type World } from "./world.js";
+import { companyById, hubRoute, type World, placeRoute } from "./world.js";
 
 /** Truck is at the shipper: load for 1–2 hours, then roll. */
 export function startLoading(w: World, truck: Truck, load: Load): void {
@@ -14,6 +15,8 @@ export function startLoading(w: World, truck: Truck, load: Load): void {
   truck.status = "loading";
   truck.hub = load.origin;
   truck.targetHub = load.dest;
+  truck.place = load.originPlace;
+  truck.targetPlace = load.destPlace;
   truck.remainingMi = load.miles;
   truck.dwellMin = w.rng.ops.int(lo, hi);
   load.status = "inTransit";
@@ -42,7 +45,7 @@ export function drivingMinutesLeft(w: World, truck: Truck, now: number): number 
 }
 
 /** Identifies a leg (from, to, loaded or not), so a truck knows when it starts a new one and which weigh stations are ahead. */
-export const legKeyOf = (w: World, t: Truck) => (t.hub * w.net.hubs.length + t.targetHub) * 4 + (t.status === "loaded" ? 1 : t.status === "toPickup" ? 2 : 3);
+export const legKeyOf = (w: World, t: Truck) => (t.place * w.net.places.length + t.targetPlace) * 4 + (t.status === "loaded" ? 1 : t.status === "toPickup" ? 2 : 3);
 const legKey = legKeyOf;
 
 /**
@@ -112,12 +115,12 @@ export function moveTrucks(w: World): void {
         truck.legKey = key;
         truck.legMiles = truck.remainingMi;
         truck.nextStation = 0;
-        const route = hubRoute(w, truck.hub, truck.targetHub);
+        const route = placeRoute(w, truck.place, truck.targetPlace);
         truck.legTollFd = route?.tollFd ?? 0;
         truck.legHighwayShare = route && route.miles > 0 ? route.highwayMi / route.miles : 0;
       }
       // The road sets the pace: the route's miles over its hours, then the driver and the company's speed policy.
-      const route = hubRoute(w, truck.hub, truck.targetHub);
+      const route = placeRoute(w, truck.place, truck.targetPlace);
       const roadMph = route && route.hours > 0 ? route.miles / route.hours : cfg.hos.avgMph;
       const mph = truck.companyId ? mphFor(w, truck, companyById(w, truck.companyId), roadMph) : roadMph;
       const minutes = Math.min(budget, hosLeft, (truck.remainingMi / mph) * MINUTES_PER_HOUR);
@@ -164,6 +167,7 @@ function breakDown(w: World, truck: Truck): void {
 function setIdle(w: World, truck: Truck): void {
   truck.status = "idle";
   truck.hub = truck.targetHub;
+  truck.place = truck.targetPlace;
   truck.loadId = null;
   truck.idleRounds = 0;
   truck.idleSinceDay = dayOf(w.t, w.cfg);
@@ -201,6 +205,7 @@ function arriveEmpty(w: World, truck: Truck): void {
 export function abandonLeg(w: World, truck: Truck): void {
   companyById(w, truck.companyId).operating.costFd += payTripCosts(w, truck, `abandon:${truck.id}`);
   truck.targetHub = truck.hub;
+  truck.targetPlace = truck.place;
   truck.remainingMi = 0;
   setIdle(w, truck);
 }
@@ -273,19 +278,28 @@ function deliver(w: World, truck: Truck, now: number): void {
   const carrier = companyById(w, truck.companyId);
   const carrierAcct = companyAccount(carrier.id);
   const ref = `load:${load.id}`;
+  // A perishable past its spoil time is a total loss: no freight pay, and a cargo claim on the carrier.
+  const k = COMMODITIES[load.commodity]!;
+  const spoiled = k.spoilHours !== null && now > load.appointmentT + k.spoilHours * MINUTES_PER_HOUR;
   // A hot load delivered late pays only part of its premium.
-  const factor = load.hot > 0 && now > load.dueT ? (1 + cfg.safety.hotLoads.lateKeepsPremium * (load.hot - 1)) / load.hot : 1;
+  const factor = spoiled ? 0 : load.hot > 0 && now > load.dueT ? (1 + cfg.safety.hotLoads.lateKeepsPremium * (load.hot - 1)) / load.hot : 1;
   const gross = load.clearedRate * load.miles * factor;
 
   // A double-brokered load pays the company that re-posted it, which then pays the hauler — or doesn't.
   // A company hauling its own freight pays itself nothing: no revenue, no lease share on it.
   const db = load.doubleBroker ? companyById(w, load.doubleBroker.companyId) : null;
   const upstream = db ? load.doubleBroker!.upstreamRate * load.miles * factor : gross;
-  collectUpstream(w, load, db ?? carrier, upstream, factor, ref);
+  if (!spoiled) collectUpstream(w, load, db ?? carrier, upstream, factor, ref);
   const own = load.shipperId === carrier.id;
-  const paid = own ? 0 : db ? settleDoubleBroker(w, load, carrier, gross, upstream) : gross;
+  const paid = own || spoiled ? 0 : db ? settleDoubleBroker(w, load, carrier, gross, upstream) : gross;
 
   let costs = payTripCosts(w, truck, ref);
+  if (spoiled) {
+    const claim = cfg.commodities.spoilClaimShare * load.cargoValue;
+    w.ledger.post(w.t, carrierAcct, "sink:cargo_claims", claim, ref);
+    costs += claim;
+    w.listener?.({ kind: "notice", companyId: carrier.id, topic: "safety", text: `Load #${load.id} (${k.name.toLowerCase()}) arrived ${Math.round((now - load.appointmentT) / MINUTES_PER_HOUR)} h past its appointment and was rejected as spoiled: no pay, and a ${Math.round(claim)} FD cargo claim.`, tone: "bad", truckId: truck.id });
+  }
   if (truck.lease !== "owned") {
     const lease = paid * cfg.costs.npcLeaseShareOfGross;
     w.ledger.post(w.t, carrierAcct, "sink:npc_lease", lease, ref);

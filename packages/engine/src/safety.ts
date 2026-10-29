@@ -9,7 +9,7 @@ import { refile, startLiquidation } from "./solvency.js";
 import type { Basic, Company, CrashSeverity, Load, Truck } from "./types.js";
 import { condition } from "./wear.js";
 import { payTripCosts } from "./trips.js";
-import { companyById, detachTruck, hubRoute, staffById, syncFleet, type World } from "./world.js";
+import { companyById, detachTruck, hubRoute, staffById, syncFleet, type World, placeRoute } from "./world.js";
 
 /**
  * Safety and compliance (design proposal, Jeff 2026-10-28). Owners pick how legal
@@ -149,11 +149,11 @@ const stationCache = new WeakMap<Network, Map<number, { station: number; frac: n
 export function stationsOnLeg(w: World, a: number, b: number): { station: number; frac: number }[] {
   let cache = stationCache.get(w.net);
   if (!cache) stationCache.set(w.net, (cache = new Map()));
-  const key = a * w.net.hubs.length + b;
+  const key = a * w.net.places.length + b;
   let list = cache.get(key);
   if (!list) {
-    const route = hubRoute(w, a, b);
-    list = route ? w.net.roads.stationsAlong(route) : stationsOnRoute(w.net.hubs[a]!, w.net.hubs[b]!, w.cfg.safety.enforcement.stationRadiusMi);
+    const route = placeRoute(w, a, b);
+    list = route ? w.net.roads.stationsAlong(route) : stationsOnRoute(w.net.places[a]!, w.net.places[b]!, w.cfg.safety.enforcement.stationRadiusMi);
     cache.set(key, list);
   }
   return list;
@@ -170,7 +170,7 @@ export function roadRisk(w: World, t: Truck): number {
   const day = today(w);
   const month = Math.floor(((day % w.cfg.time.daysPerSeason) / w.cfg.time.daysPerSeason) * 12);
   if (!winter.months.includes(month as 0 | 1 | 11)) return road;
-  const lat = (w.net.hubs[t.hub]!.lat + w.net.hubs[t.targetHub]!.lat) / 2;
+  const lat = (w.net.places[t.place]!.lat + w.net.places[t.targetPlace]!.lat) / 2;
   const north = Math.min(1, Math.max(0, (lat - winter.fromLat) / (winter.toLat - winter.fromLat)));
   return road * (1 + north * (winter.gain.interstate * (1 - hs) + winter.gain.highway * hs));
 }
@@ -209,7 +209,7 @@ export function safetyTick(w: World, t: Truck, miles: number, to: number): "cras
   if (rng.next() < (safety.enforcement.policePer1000Mi * miles * (fast ? safety.enforcement.fastStopMult : 1)) / 1000) {
     stopped = policeStop(w, t, c, fast) || stopped;
   }
-  const stations = stationsOnLeg(w, t.hub, t.targetHub);
+  const stations = stationsOnLeg(w, t.place, t.targetPlace);
   while (t.nextStation < stations.length && stations[t.nextStation]!.frac <= to) {
     const s = stations[t.nextStation++]!;
     stopped = weighStation(w, t, c, s.station) || stopped;
@@ -375,7 +375,10 @@ export function crash(w: World, t: Truck, c: Company): void {
   }
   t.loadId = null;
   // Where it stops: the end of the leg it had mostly covered.
-  if (t.legMiles > 0 && t.remainingMi < t.legMiles / 2) t.hub = t.targetHub;
+  if (t.legMiles > 0 && t.remainingMi < t.legMiles / 2) {
+    t.hub = t.targetHub;
+    t.place = t.targetPlace;
+  }
 
   // The truck.
   const [lo, hi] = severity === "injury" ? k.downDays.injury : k.downDays.pdo;
@@ -401,6 +404,7 @@ export function crash(w: World, t: Truck, c: Company): void {
     t.repairUntilT = w.t + days * w.cfg.time.gameMinutesPerDay;
     t.remainingMi = 0;
     t.targetHub = t.hub;
+    t.targetPlace = t.place;
     t.breakdownMin = 0;
     t.defects = 0;
     t.legKey = -1;

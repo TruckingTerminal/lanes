@@ -50,12 +50,87 @@ export interface Network {
   places: Place[];
   placeTerminal: Int32Array;
   economy: Economy;
+  /** Each place's three nearest hubs as the crow flies: long routes run through them. */
+  placeHubs: number[][];
+  placeRoutes: Map<number, Route | null>;
 }
 
-/** The road route between two places (null if unconnected). Cached in the road network. */
+/** Within this distance two places are routed directly; beyond it the route runs hub to hub between them. */
+const DIRECT_MI = 300;
+
+/** Joins road routes end to end into one. */
+function joinRoutes(parts: Route[]): Route {
+  let n = 0;
+  for (const p of parts) n += p.edges.length;
+  const edges = new Int32Array(n);
+  const cum = new Float64Array(n + 1);
+  let miles = 0;
+  let hours = 0;
+  let tollFd = 0;
+  let highwayMi = 0;
+  let k = 0;
+  let run = 0;
+  for (const p of parts) {
+    for (let i = 0; i < p.edges.length; i++) {
+      edges[k] = p.edges[i]!;
+      cum[k] = run + (p.cum[i]! - p.cum[0]!);
+      k++;
+    }
+    run += p.cum[p.edges.length]! - p.cum[0]!;
+    miles += p.miles;
+    hours += p.hours;
+    tollFd += p.tollFd;
+    highwayMi += p.highwayMi;
+  }
+  cum[n] = run;
+  return { miles, hours, tollFd, highwayMi, edges, cum };
+}
+
+/**
+ * The road route between two places (null if unconnected). Nearby pairs are routed
+ * directly; long hauls run place → a nearby hub → a hub near the destination → place,
+ * the cheapest of the nine combinations, so every route is a real road path and the
+ * expensive searches are the few from each place to its own hubs. Cached per pair.
+ */
 export function placeRoute(net: Network, a: number, b: number): Route | null {
   if (a === b) return null;
-  return net.roads.route(net.placeTerminal[a]!, net.placeTerminal[b]!);
+  const key = a * 1_000_000 + b;
+  const hit = net.placeRoutes.get(key);
+  if (hit !== undefined) return hit;
+  const ta = net.placeTerminal[a]!;
+  const tb = net.placeTerminal[b]!;
+  let route: Route | null = null;
+  const direct = greatCircleMiles(net.places[a]!, net.places[b]!) < DIRECT_MI || ta < net.hubs.length || tb < net.hubs.length;
+  if (direct) {
+    route = net.roads.route(ta, tb);
+  } else {
+    let best: Route[] | null = null;
+    let bestCost = Infinity;
+    for (const h1 of net.placeHubs[a]!) {
+      const leg1 = net.roads.route(ta, h1);
+      if (!leg1) continue;
+      for (const h2 of net.placeHubs[b]!) {
+        const leg2 = h1 === h2 ? null : net.routes[h1 * net.hubs.length + h2];
+        if (h1 !== h2 && !leg2) continue;
+        const leg3 = net.roads.route(h2, tb);
+        if (!leg3) continue;
+        const cost = leg1.hours + (leg2?.hours ?? 0) + leg3.hours;
+        if (cost < bestCost) {
+          bestCost = cost;
+          best = leg2 ? [leg1, leg2, leg3] : [leg1, leg3];
+        }
+      }
+    }
+    route = best ? joinRoutes(best) : net.roads.route(ta, tb);
+  }
+  net.placeRoutes.set(key, route);
+  return route;
+}
+
+/** A quick estimate of road miles between two places (great circle × circuity), for scanning boards. */
+export function placeMilesFast(net: Network, a: number, b: number, circuity = 1.2): number {
+  if (a === b) return 0;
+  return Math.round(greatCircleMiles(net.places[a]!, net.places[b]!) * circuity);
 }
 
 /** Road miles between two places, or great-circle × circuity where the roads don't connect them. */
@@ -145,5 +220,12 @@ export function buildNetwork(hubs: Hub[], cfg: EconomyConfig): Network {
     places[p]!.market = best;
   }
   const economy = buildEconomy(places, n);
-  return { hubs, lanes, miles, lanesFrom, nearby, starterIdx, roads, routes, places, placeTerminal, economy };
+  const placeHubs = places.map((p) =>
+    hubs
+      .map((h, i) => ({ i, gc: greatCircleMiles(p, h) }))
+      .sort((x, y) => x.gc - y.gc || x.i - y.i)
+      .slice(0, 3)
+      .map((x) => x.i),
+  );
+  return { hubs, lanes, miles, lanesFrom, nearby, starterIdx, roads, routes, places, placeTerminal, economy, placeHubs, placeRoutes: new Map() };
 }

@@ -17,7 +17,7 @@ import { inCloseWindow } from "./season.js";
 import { refile } from "./solvency.js";
 import type { Action, RuleScope } from "./types.js";
 import { condition, rebuildCost } from "./wear.js";
-import { availableSupply, companyById, crewed, hubMiles, invalidOrders, seatDriver, staffById, syncFleet, takeSupply, truckById, unseatDriver, type World } from "./world.js";
+import { availableSupply, companyById, crewed, hubMiles, invalidOrders, seatDriver, staffById, syncFleet, takeSupply, truckById, unseatDriver, type World, placeMiles, placeOfHub, placeLegMiles } from "./world.js";
 import type { EconomyConfig } from "@lanes/config";
 
 const TIERS = new Set(["workhorse", "highwayPro", "flagship"]);
@@ -268,7 +268,7 @@ export function applyAction(w: World, companyId: number, action: Action): Action
       const block = vettingBlock(w, company, load);
       if (block) return { ok: false, reason: `the poster's vetting rules you out: ${block}` };
       if (load.hot > 0 && !canMakeHot(company, truck)) return { ok: false, reason: "a hot load needs a team" };
-      const dh = hubMiles(w, truck.hub, load.origin);
+      const dh = placeMiles(w, truck.place, load.originPlace);
       if (dh > MANUAL_BID_MAX_DEADHEAD_MI) return { ok: false, reason: `the pickup is more than ${MANUAL_BID_MAX_DEADHEAD_MI} miles away` };
       return result(bookLoad(w, company, truck, load, dh, true));
     }
@@ -285,7 +285,8 @@ export function applyAction(w: World, companyId: number, action: Action): Action
       if (miles > cfg.map.nearbyRadiusMi) {
         truck.status = "repositioning";
         truck.targetHub = company.homeHub;
-        truck.remainingMi = miles;
+        truck.targetPlace = placeOfHub(company.homeHub);
+        truck.remainingMi = placeLegMiles(w, truck.place, truck.targetPlace);
         truck.idleRounds = 0;
       } else startHomeTime(w, company, truck);
       return { ok: true };
@@ -415,7 +416,8 @@ export function applyAction(w: World, companyId: number, action: Action): Action
       if (!crewed(truck)) return { ok: false, reason: "the truck has no driver" };
       truck.status = "repositioning";
       truck.targetHub = hub;
-      truck.remainingMi = hubMiles(w, truck.hub, hub);
+      truck.targetPlace = placeOfHub(hub);
+      truck.remainingMi = placeLegMiles(w, truck.place, truck.targetPlace);
       truck.idleRounds = 0;
       w.manualBids.delete(truck.id);
       return { ok: true };
