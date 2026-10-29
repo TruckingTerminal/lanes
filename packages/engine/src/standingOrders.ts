@@ -1,3 +1,5 @@
+import type { Equipment } from "@lanes/config";
+import { EQUIPMENT } from "./demand.js";
 import { mayTake } from "./contracts.js";
 import { dayOf, MINUTES_PER_HOUR } from "./clock.js";
 import { breakEvenPerMile, fuelPrice } from "./economics.js";
@@ -107,6 +109,7 @@ export function bidsFromStandingOrders(w: World, company: Company, idx: BoardInd
     if (truck.status !== "idle" || !crewed(truck) || resting(w, truck)) continue;
     if (team.coverage < 1 && rng.next() >= team.coverage) continue;
     const goHome = needsHome(w, company, truck);
+    const desperate = desperation(w, company, truck);
     const candidates: { bid: Bid; profit: number }[] = [];
     let inRange = 0;
     for (const hub of w.net.nearby[truck.hub]!) {
@@ -123,10 +126,10 @@ export function bidsFromStandingOrders(w: World, company: Company, idx: BoardInd
         if (trackingWouldShow(company, load)) continue;
         if (goHome && !homeward(w, company, truck, load)) continue; // due home: only loads that head that way
         inRange++;
-        const priced = priceLoad(w, truck, load, dh, fuel, bidOrders, floor, team);
+        const priced = priceLoad(w, truck, load, dh, fuel, bidOrders, floor, team, desperate);
         if (priced === null) continue;
         candidates.push({
-          profit: (priced.rate - priced.breakEven) * load.miles,
+          profit: (priced.rate - priced.breakEven) * load.miles + lookaheadValue(w, team, load.dest, load.equipment),
           bid: {
             loadId: load.id,
             truckId: truck.id,
@@ -160,6 +163,35 @@ export function estimateBreakEven(w: World, truck: Truck, load: Load, dh: number
   return trueBreakEven * (1 + team.noise * z);
 }
 
+/**
+ * What a destination is worth beyond this load, to a team that looks a few loads
+ * ahead: a market whose load-to-truck ratio beats the national average promises
+ * better loads next, discounted per load out.
+ */
+export function lookaheadValue(w: World, team: DispatchProfile, dest: number, eq: Equipment): number {
+  const e = EQUIPMENT.indexOf(eq);
+  const edge = (w.reloadIndex[dest * EQUIPMENT.length + e] ?? 1) / Math.max(0.01, w.reloadMean[e] ?? 1) - 1;
+  let value = 0;
+  let weight = 1;
+  for (let i = 0; i < team.lookaheadLoads; i++) {
+    weight *= w.cfg.board.lookaheadDiscount;
+    value += weight * edge * w.cfg.board.lookaheadFdPerRatio;
+  }
+  return value;
+}
+
+/**
+ * The least a truck will take on this load: its floor, relaxed by desperation, and
+ * below break-even when a desperate truck can reach a better market on it.
+ */
+export function floorRate(w: World, load: Load, breakEven: number, floor: Extract<StandingOrder, { kind: "floor" }> | undefined, desperate: number): number {
+  const k = w.cfg.bookNow.desperation;
+  const e = EQUIPMENT.indexOf(load.equipment);
+  const better = (w.reloadIndex[load.dest * EQUIPMENT.length + e] ?? 1) >= (w.reloadIndex[load.origin * EQUIPMENT.length + e] ?? 1) * k.betterBy;
+  const margin = (floor?.breakEvenPlusPct ?? 0) * (1 - desperate) - (better ? k.belowBreakEven * desperate : 0);
+  return breakEven * (1 + margin);
+}
+
 function priceLoad(
   w: World,
   truck: Truck,
@@ -169,9 +201,11 @@ function priceLoad(
   bidOrders: Extract<StandingOrder, { kind: "bid" }>[],
   floor: Extract<StandingOrder, { kind: "floor" }> | undefined,
   team: DispatchProfile,
+  desperate = 0,
 ): { rate: number; breakEven: number } | null {
   const hubId = w.net.hubs[load.origin]!.id;
   const breakEven = estimateBreakEven(w, truck, load, dh, fuel, team);
+  const least = floorRate(w, load, breakEven, floor, desperate);
   for (const o of bidOrders) {
     if (o.equipment && !o.equipment.includes(load.equipment)) continue;
     if (o.originHubs && !o.originHubs.includes(hubId)) continue;
@@ -180,9 +214,10 @@ function priceLoad(
     // A counter: above the book-now (else the dispatcher just books), up to the ceiling,
     // or past it when the market is that hot — taken only if nobody offers within.
     const ask = o.price.mode === "ceilingPct" ? load.ceiling * o.price.pct : breakEven * (1 + o.price.pct);
-    const rate = Math.min(ask, hardCap(w, load));
+    // A desperate truck asks less: down toward what it will accept.
+    const rate = Math.max(least, Math.min(ask * (1 - desperate * 0.5) + least * desperate * 0.5, hardCap(w, load)));
     if (!(rate > 0)) continue; // nobody hauls for nothing
-    if (floor && rate < breakEven * (1 + floor.breakEvenPlusPct)) continue;
+    if (rate < least) continue;
     return { rate, breakEven };
   }
   return null;

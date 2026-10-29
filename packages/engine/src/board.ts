@@ -1,13 +1,13 @@
 import { acceptTender, autoTenders, expireTenders, mayTake } from "./contracts.js";
 import { fuelPrice } from "./economics.js";
-import { seasonality } from "./demand.js";
+import { seasonality, EQUIPMENT } from "./demand.js";
 import { dayOf } from "./clock.js";
-import { generateRoundFreight } from "./freight.js";
+import { generateRoundFreight, bestExitHub } from "./freight.js";
 import { rebrokerLoad, vettingBlock } from "./fraud.js";
 import { homeEdge, updateHomeCrowding } from "./home.js";
 import { creditDispatch, dispatchProfile, startHomeTime } from "./labor.js";
 import { companyAccount } from "./ledger.js";
-import { bidsFromStandingOrders, boardKey, canMakeHot, indexOpenLoads, scoreBid, desperation, estimateBreakEven, resting, trackingWouldShow, needsHome, homeward, hardCap } from "./standingOrders.js";
+import { bidsFromStandingOrders, boardKey, canMakeHot, indexOpenLoads, scoreBid, desperation, estimateBreakEven, resting, trackingWouldShow, needsHome, homeward, hardCap, floorRate, lookaheadValue } from "./standingOrders.js";
 import { coverDoubleBrokered, startLoading } from "./trips.js";
 import type { Bid, Company, Load, StandingOrder, Truck } from "./types.js";
 import { companyById, crewed, hubHours, hubMiles, truckById, type World, placeHours, placeMiles, placeOfHub, placeLegMiles } from "./world.js";
@@ -260,7 +260,8 @@ export function autoBook(w: World): void {
     for (const truck of fleet) {
       if (truck.status !== "idle" || !crewed(truck) || resting(w, truck) || w.manualBids.has(truck.id)) continue;
       if (team.coverage < 1 && rng.next() >= team.coverage) continue;
-      const want = order.breakEvenPlusPct * (1 - desperation(w, company, truck));
+      const desperate = desperation(w, company, truck);
+      const want = order.breakEvenPlusPct * (1 - desperate);
       const goHome = needsHome(w, company, truck);
       let best: { load: Load; dh: number; profit: number } | null = null;
       for (const hub of w.net.nearby[truck.hub]!) {
@@ -278,9 +279,9 @@ export function autoBook(w: World): void {
           if (trackingWouldShow(company, load)) continue;
           if (goHome && !homeward(w, company, truck, load)) continue;
           const be = estimateBreakEven(w, truck, load, dh, fuel, team);
-          const min = Math.max(be * (1 + want), floor ? be * (1 + floor.breakEvenPlusPct) : 0);
+          const min = Math.max(be * (1 + want), floorRate(w, load, be, floor, desperate));
           if (load.bookNow < min) continue;
-          const profit = (load.bookNow - be) * load.miles;
+          const profit = (load.bookNow - be) * load.miles + lookaheadValue(w, team, load.dest, load.equipment);
           if (!best || profit > best.profit || (profit === best.profit && load.id < best.load.id)) best = { load, dh, profit };
         }
       }
@@ -415,4 +416,17 @@ function maybeReposition(w: World, truck: Truck, surplus: Map<string, number>): 
     truck.idleRounds = 0;
     return;
   }
+  // Stuck: nothing bookable for a day. Run empty to the best market in reach by its load-to-truck
+  // ratio, deadhead and all; sitting is the dearer choice (Jeff, 2026-10-29).
+  const k = w.cfg.bookNow.desperation;
+  if (truck.idleRounds < k.repositionAfterRounds) return;
+  if (!company.orders.some((o) => o.kind === "bid" || o.kind === "bookNow" || o.kind === "reposition")) return; // no dispatcher at all
+  const exit = bestExitHub(w, truck.hub, truck.trailer);
+  if (!exit) return;
+  const best = exit.hub;
+  truck.status = "repositioning";
+  truck.targetHub = best;
+  truck.targetPlace = placeOfHub(best);
+  truck.remainingMi = placeLegMiles(w, truck.place, truck.targetPlace);
+  truck.idleRounds = 0;
 }

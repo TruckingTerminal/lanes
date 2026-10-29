@@ -39,6 +39,8 @@ export interface DispatchProfile {
   noise: number;
   reloadWeight: number;
   foresightDays: number;
+  /** How many loads ahead the team weighs a destination's market (1–3 by skill). */
+  lookaheadLoads: number;
 }
 
 /** How well a company's standing orders run: the owner plus whoever it hired. */
@@ -59,6 +61,7 @@ export function dispatchProfile(w: World, c: Company, operating: number): Dispat
     noise: lerp(labor.dispatcher.noise, skill),
     reloadWeight: board.reloadWeight * lerp(labor.dispatcher.reloadAware, skill),
     foresightDays: Math.round(lerp(labor.dispatcher.foresightDays, skill)),
+    lookaheadLoads: Math.round(lerp(labor.dispatcher.lookaheadLoads, skill)),
   };
 }
 

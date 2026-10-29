@@ -63,7 +63,13 @@ export const economyConfig = {
     // Standing orders price in the empty miles expected after delivery: reloadDeadheadMi ÷ the
     // destination's reload odds, clamped, at this weight.
     reloadDeadheadMi: 60,
-    reloadDeadheadClamp: [20, 250] as const,
+    // When a market can't reload a truck, the expected empty run is the way out of it: up to the
+    // distance to the best market in reach (Miami → Atlanta ≈ 690 mi), not a token 250 (Jeff, 2026-10-29).
+    reloadDeadheadClamp: [20, 800] as const,
+    // Dispatchers look a few loads ahead: a destination whose load-to-truck ratio beats the national
+    // average is worth this much per load of ratio, discounted per load out.
+    lookaheadFdPerRatio: 500,
+    lookaheadDiscount: 0.6,
     reloadWeight: 1, // the whole expected empty run (0.35–0.5 led to more failures in the 10-seed runs)
     rolloverCeilingStep: 0.05, // unfilled loads roll with ceiling +5%
     // Design decision (Jeff, 2026-10-28): a counter above the poster's ceiling is still taken, up to
@@ -94,10 +100,18 @@ export const economyConfig = {
     stepPerRound: 0.08, // unfilled: the poster raises it 8% a round (the ceiling moves 5%)
     autoEveryHours: 2, // dispatchers look for book-now loads this often
     desperation: {
-      idleHours: 72, // idle this long and a dispatcher takes anything that covers costs
+      idleHours: 36, // idle this long and a dispatcher takes anything that covers costs (Jeff: a day or two at most)
       awayAfterDays: 14, // a driver this long from home starts to count…
       awayDays: 14, // …and is fully desperate this many days later
       atHomeMult: 0.5, // sitting at home is half as pressing: no per diem, the driver is home
+      // A desperate truck takes a backhaul below break-even to reach a better market: up to this share
+      // below, when the destination's load-to-truck ratio beats where it sits by betterBy.
+      belowBreakEven: 0.25,
+      betterBy: 1.1,
+      // Nothing bookable for this many rounds: run empty to the best market within this far, by its ratio.
+      repositionAfterRounds: 2,
+      repositionWithinMi: 800,
+      repositionMinGain: 1.15, // the target's ratio must beat the current market's by this
     },
   },
 
@@ -185,6 +199,10 @@ export const economyConfig = {
     // Places (0.14.0): a shipper far from its market pays more per mile, since the truck runs empty to get there.
     remotePremiumPer100Mi: 0.08,
     remotePremiumCap: 0.25,
+    // Freight into a market trucks can't reload in pays part of the empty run out of it, per loaded mile
+    // (Jeff, 2026-10-29: loads into Florida must pay much more, the exit deadhead included).
+    exitDeadheadShare: 0.6,
+    deadheadFdPerMile: 1.2,
     // Regional seasons (packages/data/src/seasons.ts): each hub's weekly $/mi swing ÷ a typical
     // rate is its relative swing, which moves both freight volume and the posted rate. More
     // freight also tightens the market, so the realized rate swing is larger than rateGain alone.
@@ -621,6 +639,7 @@ export const economyConfig = {
       noise: [0.06, 0.01] as const, // σ of pricing mistakes: an inexperienced dispatcher misreads costs by ~6%
       reloadAware: [0.7, 1.2] as const, // × board.reloadWeight: how much of the empty run out of the destination they price in
       foresightDays: [0, 42] as const, // how far ahead on the season curves they position trucks
+      lookaheadLoads: [1, 3] as const, // how many loads ahead they weigh a destination's market
       learnLoads: 1_500,
     },
     owner: {

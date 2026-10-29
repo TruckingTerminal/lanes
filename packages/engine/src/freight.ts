@@ -1,3 +1,4 @@
+import { hubMiles } from "./world.js";
 import { localShare, tender, tenderOdds } from "./contracts.js";
 import type { EconomyConfig, Equipment } from "@lanes/config";
 import { COMMODITIES, destWeights as placeDestWeights, dexp, dpow, marketMix, originWeights, PLACE_OF_HUB, placeMiles as netPlaceMiles, placeMilesFast as netPlaceMilesFast, placeRoute as netPlaceRoute, type Lane, type Network } from "@lanes/data";
@@ -121,6 +122,8 @@ export function generateRoundFreight(w: World): RoundFreight {
 
   // Toll roads cost the carrier, so (like fuel) the shipper's rate carries them.
   const tollPerMile = (lane: Lane) => (cfg.roads.tollsInRates ? lane.tollFd / lane.miles : 0);
+  // Freight into a market trucks can't reload in carries part of the empty run out, per loaded mile.
+  const exitPerMile = (lane: Lane, eq: Equipment) => (cfg.rates.exitDeadheadShare * cfg.rates.deadheadFdPerMile * expectedReloadDeadheadMi(w, lane.dest, eq)) / lane.miles;
   const refRate = (lane: Lane, eq: Equipment) =>
     lane.baseRate *
       dpow(ratioEq[planIndex(lane.origin, EQUIPMENT.indexOf(eq))]!, cfg.rates.ratioExponent) *
@@ -129,7 +132,8 @@ export function generateRoundFreight(w: World): RoundFreight {
       seasonality(w, lane.origin, eq, day).rate *
       reloadFactor(w, lane.dest, eq) +
     fsc +
-    tollPerMile(lane);
+    tollPerMile(lane) +
+    exitPerMile(lane, eq);
 
   const month = Math.floor(((day % cfg.time.daysPerSeason) / cfg.time.daysPerSeason) * 12);
   const eco = net.economy;
@@ -257,7 +261,7 @@ export function generateRoundFreight(w: World): RoundFreight {
         // Shipper leverage: where trucks pile up, most loads go to local carriers first.
         if (rng.next() < localShare(w, i, eq)) load.localUntilRound = w.round + cfg.leverage.localRounds;
         if (rng.next() < cfg.freight.npcBrokerOnlyShare) {
-          const contractRef = lane.baseRate * w.contractIndex[planIndex(i, e)]! * cfg.rates.equipmentPremium[eq] * reloadFactor(w, lane.dest, eq) + fsc + tollPerMile(lane);
+          const contractRef = lane.baseRate * w.contractIndex[planIndex(i, e)]! * cfg.rates.equipmentPremium[eq] * reloadFactor(w, lane.dest, eq) + fsc + tollPerMile(lane) + exitPerMile(lane, eq);
           tenderToBroker(w, load, brokers, contractRef * remoteMult(load) * cfg.rates.npcCeilingMarkup * (load.hot || 1));
         }
         finish(load, load.brokerId !== null ? w.companies[load.brokerId - 1]!.vetting : 0);
@@ -374,9 +378,35 @@ export function reloadFactor(w: World, destHub: number, eq: Equipment): number {
 }
 
 /**
+ * Where a truck that can't reload at a hub would run empty to: the best market in reach by its
+ * load-to-truck ratio, deadhead weighed in. The same rule moves stuck trucks (board.ts).
+ */
+export function bestExitHub(w: World, hub: number, eq: Equipment): { hub: number; miles: number } | null {
+  const k = w.cfg.bookNow.desperation;
+  const e = EQUIPMENT.indexOf(eq);
+  const here = w.reloadIndex[planIndex(hub, e)] ?? 1;
+  let best = -1;
+  let bestScore = -Infinity;
+  for (let j = 0; j < w.net.hubs.length; j++) {
+    if (j === hub) continue;
+    const miles = hubMiles(w, hub, j);
+    if (miles > k.repositionWithinMi) continue;
+    const ratio = w.reloadIndex[planIndex(j, e)] ?? 1;
+    if (ratio < here * k.repositionMinGain) continue;
+    const score = ratio - miles / 600;
+    if (score > bestScore) {
+      bestScore = score;
+      best = j;
+    }
+  }
+  return best < 0 ? null : { hub: best, miles: hubMiles(w, hub, best) };
+}
+
+/**
  * Empty miles a truck of this type can expect to run to reload after delivering
- * at a hub. Looking `aheadDays` out, the reload odds move with the hub's season:
- * a market about to boom reloads easier than it does today.
+ * at a hub: a short hop where it reloads easily, and the way out of the market
+ * where it doesn't, in proportion. Looking `aheadDays` out, the reload odds move
+ * with the hub's season: a market about to boom reloads easier than it does today.
  */
 export function expectedReloadDeadheadMi(w: World, destHub: number, eq: Equipment, aheadDays = 0): number {
   const { reloadDeadheadMi, reloadDeadheadClamp } = w.cfg.board;
@@ -385,7 +415,11 @@ export function expectedReloadDeadheadMi(w: World, destHub: number, eq: Equipmen
     const day = dayOf(w.t, w.cfg);
     odds *= seasonality(w, destHub, eq, day + aheadDays).volume / Math.max(0.01, seasonality(w, destHub, eq, day).volume);
   }
-  return clamp(reloadDeadheadMi / Math.max(0.01, odds), reloadDeadheadClamp[0], reloadDeadheadClamp[1]);
+  const local = reloadDeadheadMi / Math.max(0.01, odds);
+  const stuck = clamp(1 - odds, 0, 1);
+  const exit = stuck > 0 ? bestExitHub(w, destHub, eq) : null;
+  const expected = exit ? (1 - stuck) * local + stuck * Math.max(local, exit.miles) : local;
+  return clamp(expected, reloadDeadheadClamp[0], reloadDeadheadClamp[1]);
 }
 
 /** Destination weights over a hub's lanes, for contract offers (contracts.ts). */
