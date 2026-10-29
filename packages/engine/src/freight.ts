@@ -1,5 +1,5 @@
 import type { EconomyConfig, Equipment } from "@lanes/config";
-import { COMMODITIES, destWeights as placeDestWeights, dexp, dpow, marketMix, originWeights, PLACE_OF_HUB, placeMiles as netPlaceMiles, placeRoute as netPlaceRoute, type Lane, type Network } from "@lanes/data";
+import { COMMODITIES, destWeights as placeDestWeights, dexp, dpow, marketMix, originWeights, PLACE_OF_HUB, placeMiles as netPlaceMiles, placeMilesFast as netPlaceMilesFast, placeRoute as netPlaceRoute, type Lane, type Network } from "@lanes/data";
 import { dayOf } from "./clock.js";
 import { EQUIPMENT, planFreight, planIndex, seasonality } from "./demand.js";
 import type { VettingTier } from "./types.js";
@@ -163,7 +163,11 @@ export function generateRoundFreight(w: World): RoundFreight {
     routeLoad(load);
   };
 
-  const newLoad = (lane: Lane, eq: Equipment, ref: number): Load => {
+  /** How much more a shipper pays per mile for a pickup far from its market's hub. */
+  const remoteMult = (load: Load) => 1 + Math.min(cfg.rates.remotePremiumCap, (cfg.rates.remotePremiumPer100Mi * netPlaceMilesFast(net, load.originPlace, PLACE_OF_HUB[load.origin]!)) / 100);
+
+  const newLoad = (lane: Lane, eq: Equipment, baseRef: number): Load => {
+    let ref = baseRef;
     const ceiling = ref * cfg.rates.npcCeilingMarkup;
     const load: Load = {
       bookNow: openBookNow(w, ref, ceiling, ratioEq[planIndex(lane.origin, EQUIPMENT.indexOf(eq))]!),
@@ -200,6 +204,16 @@ export function generateRoundFreight(w: World): RoundFreight {
       routeTollFd: lane.tollFd,
     };
     placeLoad(load, lane, eq);
+    // A pickup out of town pays for the empty run to it: the premium lifts every price on the load.
+    const mult = remoteMult(load);
+    if (mult > 1) {
+      ref *= mult;
+      load.refRate = ref;
+      load.ceiling *= mult;
+      load.bookNow *= mult;
+      load.shipperRate *= mult;
+      load.spotShipperRate *= mult;
+    }
     return load;
   };
 
@@ -237,7 +251,7 @@ export function generateRoundFreight(w: World): RoundFreight {
         makeHot(load);
         if (rng.next() < cfg.freight.npcBrokerOnlyShare) {
           const contractRef = lane.baseRate * w.contractIndex[planIndex(i, e)]! * cfg.rates.equipmentPremium[eq] * reloadFactor(w, lane.dest, eq) + fsc + tollPerMile(lane);
-          tenderToBroker(w, load, brokers, contractRef * cfg.rates.npcCeilingMarkup * (load.hot || 1));
+          tenderToBroker(w, load, brokers, contractRef * remoteMult(load) * cfg.rates.npcCeilingMarkup * (load.hot || 1));
         }
         finish(load, load.brokerId !== null ? w.companies[load.brokerId - 1]!.vetting : 0);
         w.loads.set(load.id, load);

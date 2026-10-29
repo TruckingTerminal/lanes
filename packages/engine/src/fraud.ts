@@ -98,7 +98,8 @@ export function settleDoubleBroker(w: World, load: Load, hauler: Company | null,
     broker.operating.costFd += gross;
     paid = gross;
   }
-  const spread = upstreamGross - paid - coveredCostFd;
+  // Since 0.13.1 the hauler's counter can clear above the rate the load was won at: then there's no spread to keep.
+  const spread = Math.max(0, upstreamGross - paid - coveredCostFd);
   const unpaid = hauler !== null && !db.pays;
   if (unpaid) {
     broker.claims.push({ day: today(w), until: today(w) + w.cfg.fraud.theft.claimDays, kind: "unpaid" });
@@ -246,7 +247,7 @@ function resolveDoubleBroker(w: World, k: FraudCase, c: Company): void {
   }
   // Paid the hauler, but it's still double brokering: the spec's penalties — a fine in place of the bond claim, a 30-day suspension, and zero Miles.
   c.authority.frauds++;
-  const amount = d.fineFd + d.spreadMult * k.amountFd;
+  const amount = d.fineFd + d.spreadMult * Math.max(0, k.amountFd);
   w.ledger.post(w.t, companyAccount(c.id), "sink:fines", amount, `fine:doublebroker:${k.loadId}`);
   c.safety.finesFd += amount;
   c.milesTotal = 0;

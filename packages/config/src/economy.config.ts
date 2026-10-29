@@ -155,6 +155,9 @@ export const economyConfig = {
     ratioClamp: [0.5, 2.5] as const, // PoC assumption: keeps ratio^0.35 within ≈0.78–1.38
     equipmentPremium: { van: 1.0, reefer: 1.18, flatbed: 1.12 } satisfies Record<Equipment, number>,
     npcCeilingMarkup: 1.15, // PoC assumption: NPC ceiling = ref × markup
+    // Places (0.14.0): a shipper far from its market pays more per mile, since the truck runs empty to get there.
+    remotePremiumPer100Mi: 0.08,
+    remotePremiumCap: 0.25,
     // Regional seasons (packages/data/src/seasons.ts): each hub's weekly $/mi swing ÷ a typical
     // rate is its relative swing, which moves both freight volume and the posted rate. More
     // freight also tightens the market, so the realized rate swing is larger than rateGain alone.
