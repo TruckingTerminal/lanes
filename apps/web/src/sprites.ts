@@ -39,6 +39,44 @@ export function loadSheet(key: string, url: string, layout: SheetLayout, onReady
 }
 
 type Recolor = [from: string, to: string][];
+/** Repaints every pixel whose hue (degrees) falls in `hue` and is saturated enough: shift the hue, scale the saturation. */
+export interface HueShift {
+  hue: [number, number];
+  shift: number;
+  sat?: number;
+}
+function rgbToHsl(r: number, g: number, b: number): [number, number, number] {
+  r /= 255;
+  g /= 255;
+  b /= 255;
+  const max = Math.max(r, g, b);
+  const min = Math.min(r, g, b);
+  const l = (max + min) / 2;
+  if (max === min) return [0, 0, l];
+  const d = max - min;
+  const s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
+  const h = max === r ? ((g - b) / d + (g < b ? 6 : 0)) * 60 : max === g ? ((b - r) / d + 2) * 60 : ((r - g) / d + 4) * 60;
+  return [h, s, l];
+}
+function hslToRgb(h: number, s: number, l: number): [number, number, number] {
+  const c = (1 - Math.abs(2 * l - 1)) * s;
+  const x = c * (1 - Math.abs(((h / 60) % 2) - 1));
+  const m = l - c / 2;
+  const [r, g, b] = h < 60 ? [c, x, 0] : h < 120 ? [x, c, 0] : h < 180 ? [0, c, x] : h < 240 ? [0, x, c] : h < 300 ? [x, 0, c] : [c, 0, x];
+  return [Math.round((r + m) * 255), Math.round((g + m) * 255), Math.round((b + m) * 255)];
+}
+/** Applies a hue shift to the pixels of an image's data in place. */
+export function shiftHue(d: Uint8ClampedArray, hs: HueShift): void {
+  for (let i = 0; i < d.length; i += 4) {
+    if (d[i + 3]! < 8) continue;
+    const [h, s, l] = rgbToHsl(d[i]!, d[i + 1]!, d[i + 2]!);
+    if (s < 0.25 || h < hs.hue[0] || h > hs.hue[1]) continue;
+    const [r, g, b] = hslToRgb((((h + hs.shift) % 360) + 360) % 360, Math.min(1, s * (hs.sat ?? 1)), l);
+    d[i] = r;
+    d[i + 1] = g;
+    d[i + 2] = b;
+  }
+}
 const frames = new Map<string, HTMLCanvasElement>();
 
 function hex(c: string): [number, number, number] {
@@ -49,7 +87,7 @@ function hex(c: string): [number, number, number] {
  * One heading of a sheet at `scale` canvas pixels per art pixel. Recolouring maps exact
  * palette entries, and nearby shades of them, so a cyan cab becomes a lime one.
  */
-export function frame(sheet: Sheet, direction: string, scale: number, recolor?: Recolor, tag = ""): HTMLCanvasElement | null {
+export function frame(sheet: Sheet, direction: string, scale: number, recolor?: Recolor, tag = "", hue?: HueShift): HTMLCanvasElement | null {
   if (!sheet.ready) return null;
   const col = sheet.columns.get(direction) ?? 0;
   const key = `${sheet.img.src.length}|${col}|${scale}|${tag}`;
@@ -82,6 +120,11 @@ export function frame(sheet: Sheet, direction: string, scale: number, recolor?: 
     }
     sctx.putImageData(id, 0, 0);
   }
+  if (hue) {
+    const id = sctx.getImageData(0, 0, w, h);
+    shiftHue(id.data, hue);
+    sctx.putImageData(id, 0, 0);
+  }
   cv = document.createElement("canvas");
   cv.width = w * scale;
   cv.height = h * scale;
@@ -94,8 +137,8 @@ export function frame(sheet: Sheet, direction: string, scale: number, recolor?: 
 
 const urls = new Map<string, string>();
 /** A heading as a data URL for <img>, at `scale`. */
-export function frameUrl(sheet: Sheet, direction: string, scale: number, recolor?: Recolor, tag = ""): string | null {
-  const cv = frame(sheet, direction, scale, recolor, tag);
+export function frameUrl(sheet: Sheet, direction: string, scale: number, recolor?: Recolor, tag = "", hue?: HueShift): string | null {
+  const cv = frame(sheet, direction, scale, recolor, tag, hue);
   if (!cv) return null;
   const key = `${sheet.img.src.length}|${direction}|${scale}|${tag}`;
   let u = urls.get(key);

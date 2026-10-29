@@ -4,7 +4,7 @@ import { icon, PAL } from "./art.js";
 import { drawText, textWidth } from "./font.js";
 import { isHuman } from "./game.js";
 import { buildMap, hash, headingDir, nightColor, nightShade, truckMarkers, type MapArt, type MarkerKind } from "./map.js";
-import { truckFrame } from "./assets.js";
+import { TRUCK_SCALE, truckFrame } from "./assets.js";
 import { CITY_SCALE, citySprite, hasPaintedMap, MAP_H, MAP_W, mapLevel, seasonOf, spriteFrame, TOWN_SCALE, townKindAt, townSprite, type Season } from "./mapart.js";
 import { weatherAt, weatherLabel, type Weather } from "./weather.js";
 import { bumpData, clockMin, myTrucks, S, selectTruck, setTab } from "./state.js";
@@ -484,9 +484,19 @@ export function drawMap(now: number): void {
     const [X, Y] = toScreen(p[0], p[1]);
     if (!visible(X, Y)) return null;
     const dir = headings.get(t.id) ?? 0;
-    // The PixelLab truck (42-px cells) at half the marker scale so it stays a marker, not a billboard.
-    const sprite = truckFrame(dir, Math.max(1, Math.round(u / 2)), kind, t.trailer) ?? truckMarkers(kind, t.trailer, u)[dir]!;
-    ctx.drawImage(sprite, X - Math.floor(sprite.width / 2), Y - Math.floor(sprite.height / 2));
+    // The painted rig (68-px cells, its own pixels at 4×) scaled to the zoom, smoothed between whole scales.
+    const painted = truckFrame(dir, 1, kind, t.trailer);
+    if (painted) {
+      const m = k / TRUCK_SCALE;
+      const dw = painted.width * m;
+      const dh = painted.height * m;
+      ctx.imageSmoothingEnabled = !Number.isInteger(m);
+      ctx.drawImage(painted, Math.round(X - dw / 2), Math.round(Y - dh / 2), Math.round(dw), Math.round(dh));
+      ctx.imageSmoothingEnabled = false;
+    } else {
+      const sprite = truckMarkers(kind, t.trailer, u)[dir]!;
+      ctx.drawImage(sprite, X - Math.floor(sprite.width / 2), Y - Math.floor(sprite.height / 2));
+    }
     return [X, Y, dir];
   };
   for (const t of myTrucks()) {

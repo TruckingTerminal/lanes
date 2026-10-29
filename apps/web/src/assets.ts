@@ -1,8 +1,12 @@
 import type { Equipment } from "@lanes/config";
 import { PAL } from "./art.js";
-import { filledUrl, frame, frameUrl, loadSheet, type Sheet, type SheetLayout } from "./sprites.js";
-import vanSheetUrl from "../assets/trucks/van/van.png";
-import vanLayout from "../assets/trucks/van/van.json";
+import { filledUrl, frame, frameUrl, loadSheet, type HueShift, type Sheet, type SheetLayout } from "./sprites.js";
+import vanSheetUrl from "../assets/trucks/van64/van64.png";
+import vanLayout from "../assets/trucks/van64/van64.json";
+import reeferSheetUrl from "../assets/trucks/reefer64/reefer64.png";
+import reeferLayout from "../assets/trucks/reefer64/reefer64.json";
+import flatbedSheetUrl from "../assets/trucks/flatbed64/flatbed64.png";
+import flatbedLayout from "../assets/trucks/flatbed64/flatbed64.json";
 import rigVan from "../assets/rigs/van.png";
 import rigReefer from "../assets/rigs/reefer.png";
 import rigFlatbed from "../assets/rigs/flatbed.png";
@@ -54,45 +58,25 @@ export function whenAssetsReady(f: () => void): void {
   onReady = f;
 }
 
-/** The map truck: one sheet, eight headings; the trailer is recoloured by equipment, the cab by owner. */
-export function truckSheet(): Sheet {
-  return loadSheet("truck", vanSheetUrl, vanLayout as SheetLayout, () => onReady?.());
+/** The map trucks: a painted eight-heading sheet per trailer (68-px cells, their own pixels at 4×); the cab is repainted by owner. */
+const SHEETS: Record<Equipment, [string, SheetLayout]> = { van: [vanSheetUrl, vanLayout as SheetLayout], reefer: [reeferSheetUrl, reeferLayout as SheetLayout], flatbed: [flatbedSheetUrl, flatbedLayout as SheetLayout] };
+export function truckSheet(eq: Equipment = "van"): Sheet {
+  return loadSheet(`truck-${eq}`, SHEETS[eq][0], SHEETS[eq][1], () => onReady?.());
 }
+/** The map truck sheets are drawn pixel for pixel at this many device pixels per level-0 art pixel. */
+export const TRUCK_SCALE = 4;
+/** The cab's cyan paint (hue 165–210) turned lime for other players and grey for the AI carriers. */
+const CAB_HUE: Record<"mine" | "other" | "ai", HueShift | undefined> = { mine: undefined, other: { hue: [165, 210], shift: -85 }, ai: { hue: [165, 210], shift: 0, sat: 0.12 } };
 
 /** Heading names in the map's order: E, SE, S, SW, W, NW, N, NE. */
 const HEADINGS = ["east", "south-east", "south", "south-west", "west", "north-west", "north", "north-east"];
 
-const CAB: Record<"mine" | "other" | "ai", [string, string][]> = {
-  mine: [],
-  other: [
-    [PAL.cyan, PAL.lime],
-    [PAL.teal, PAL.olive],
-  ],
-  ai: [
-    [PAL.cyan, PAL.fog],
-    [PAL.teal, PAL.steel],
-  ],
-};
-const TRAILER: Record<Equipment, [string, string][]> = {
-  van: [],
-  reefer: [
-    [PAL.white, "#cfe6f4"],
-    [PAL.paper, "#b7d6ea"],
-    [PAL.mist, PAL.blueL],
-  ],
-  flatbed: [
-    [PAL.white, PAL.sandD],
-    [PAL.paper, PAL.clay],
-    [PAL.mist, PAL.rust],
-  ],
-};
-
 /** One heading of the map truck at `scale`, or null until the sheet has decoded. */
 export function truckFrame(dir: number, scale: number, owner: "mine" | "other" | "ai", eq: Equipment): HTMLCanvasElement | null {
-  return frame(truckSheet(), HEADINGS[dir] ?? "east", scale, [...CAB[owner], ...TRAILER[eq]], `${owner}|${eq}`);
+  return frame(truckSheet(eq), HEADINGS[dir] ?? "east", scale, undefined, `${owner}|${eq}`, CAB_HUE[owner]);
 }
 
 /** The south-facing map truck as an <img> source, for legends and cards. */
 export function truckFrameUrl(scale: number, owner: "mine" | "other" | "ai", eq: Equipment): string | null {
-  return frameUrl(truckSheet(), "south-east", scale, [...CAB[owner], ...TRAILER[eq]], `${owner}|${eq}`);
+  return frameUrl(truckSheet(eq), "south-east", scale, undefined, `${owner}|${eq}`, CAB_HUE[owner]);
 }
