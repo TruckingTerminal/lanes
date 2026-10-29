@@ -223,8 +223,10 @@ function onEvent(s: Session, e: GameEvent): void {
   if (e.kind === "truckDelivered") push(s, `New truck delivered: truck ${truckNo(e.truckId)} is ready`, "good");
   if (e.kind === "liquidated") push(s, "Your company went into liquidation: trucks are being sold and you'll restart on an NPC lease.", "bad");
   if (e.kind === "notice") {
-    push(s, e.text, e.tone === "good" ? "good" : e.tone === "bad" ? "bad" : "");
-    if (s === game && (e.topic === "crash" || e.topic === "authority")) toast(e.text, e.tone === "bad");
+    // The engine names trucks by their world id; the player knows theirs by fleet number.
+    const text = s === game ? e.text.replace(/\bTruck (\d+)\b/g, (m, id: string) => (truckNo(Number(id)) ? `Truck ${truckNo(Number(id))}` : m)) : e.text;
+    push(s, text, e.tone === "good" ? "good" : e.tone === "bad" ? "bad" : "");
+    if (s === game && (e.topic === "crash" || e.topic === "authority")) toast(text, e.tone === "bad");
   }
 }
 
@@ -302,6 +304,10 @@ function describe(a: LiveAction): string {
       return `Require ${VETTING_NAMES[a.tier].toLowerCase()} vetting on your freight`;
     case "refile_authority":
       return "File for new authority";
+    case "rebroker_load":
+      return `Re-post load #${a.loadId} at ${a.rate.toFixed(2)}/mi`;
+    case "steal_load":
+      return `Steal truck ${truckNo(a.truckId)}'s load`;
     default:
       return a.type.replace(/_/g, " ");
   }
@@ -989,6 +995,12 @@ function fleetPanel(): string {
       if (t.lease === "lessor" && t.status === "idle") actions.push(`<button class="btn" data-act="return" data-truck="${t.id}">Return lease</button>`);
       if (t.defects > 0 && (t.status === "idle" || t.status === "parked")) actions.push(`<button class="btn" data-act="fix" data-truck="${t.id}">Fix ${t.defects} defect${t.defects > 1 ? "s" : ""} · ${fd(t.defects * w.cfg.safety.maintenance.fixFdPerDefect)} FD</button>`);
       if (!crewed(t)) actions.push(`<button class="btn primary" data-act="tostaff">Hire a driver</button>`);
+      const load = t.loadId !== null ? w.loads.get(t.loadId) : undefined;
+      if (t.status === "toPickup" && load && load.status === "assigned" && load.carrierId === me().id && !load.doubleBroker && load.shipperId !== me().id)
+        actions.push(
+          `<input type="number" id="rb-${t.id}" step="0.01" min="0.5" max="${(load.clearedRate - 0.01).toFixed(2)}" value="${(load.clearedRate * 0.85).toFixed(2)}" aria-label="Rate to re-post at"><label class="label"><input type="checkbox" id="rbpay-${t.id}" checked> pay the hauler</label><button class="btn" data-act="rebroker" data-truck="${t.id}" data-load="${load.id}">Re-post the load (won at ${load.clearedRate.toFixed(2)})</button>`,
+        );
+      if (t.status === "loaded" && load && load.shipperId !== me().id) actions.push(`<button class="btn" data-act="steal" data-truck="${t.id}">Steal the load · cargo ${fd(load.cargoValue)} FD</button>`);
       return `<div class="card ${t.id === selTruck ? "sel" : ""}" data-select="${t.id}">
         <div class="truckhead">${img(truckUrl(t.tier, t.trailer, leased, PAL.cyan, 2), `${TIER_NAME[t.tier]} with ${TRAILER_NAME[t.trailer]}`)}
           <div><h3>Truck ${idx + 1} · ${TIER_NAME[t.tier]}</h3><p class="muted">${TRAILER_NAME[t.trailer]} · ${kind}</p></div></div>
@@ -1010,6 +1022,7 @@ function dispatcherCard(): string {
   const bid = c.orders.find((o) => o.kind === "bid") as Extract<StandingOrder, { kind: "bid" }> | undefined;
   const floor = c.orders.find((o) => o.kind === "floor") as Extract<StandingOrder, { kind: "floor" }> | undefined;
   const repo = c.orders.find((o) => o.kind === "reposition") as Extract<StandingOrder, { kind: "reposition" }> | undefined;
+  const rb = c.orders.find((o) => o.kind === "rebroker") as Extract<StandingOrder, { kind: "rebroker" }> | undefined;
   const mode = bid?.price.mode ?? "breakEvenPlus";
   return `<div class="card">
     <h3>Dispatcher (standing orders)</h3>
@@ -1021,6 +1034,9 @@ function dispatcherCard(): string {
     <div class="row"><label class="label" for="o-dh">Max empty miles to a pickup</label><input type="number" id="o-dh" min="0" max="150" value="${bid?.maxDeadheadMi ?? 150}"></div>
     <div class="row"><label class="label"><input type="checkbox" id="o-repo" ${repo ? "checked" : ""}> Move idle trucks to busier hubs</label>
       <span class="muted">after</span><input type="number" id="o-repo-r" min="1" max="20" value="${repo?.afterIdleRounds ?? 3}"><span class="muted">idle rounds</span></div>
+    <div class="row"><label class="label"><input type="checkbox" id="o-rb" ${rb ? "checked" : ""}> Re-post some won loads to other carriers before pickup</label>
+      <input type="number" id="o-rb-share" min="0" max="100" value="${Math.round((rb?.share ?? 0.1) * 100)}"><span class="muted">% of loads, keeping</span><input type="number" id="o-rb-keep" min="0" max="90" value="${Math.round((rb?.keepPct ?? 0.15) * 100)}"><span class="muted">% of the rate</span>
+      <label class="label"><input type="checkbox" id="o-rb-pays" ${!rb || rb.pays ? "checked" : ""}> pay the hauler</label></div>
     <div class="row"><button class="btn primary" data-act="orders">Save dispatcher</button><button class="btn" data-act="ordersReset">Defaults</button></div>
   </div>`;
 }
@@ -1293,6 +1309,7 @@ function companyPanel(): string {
         : "";
   return `<div class="stack"><h2>${c ? esc(c.name) : "The live world"}</h2>
     ${mine}
+    ${c ? recordCard(c) : ""}
     ${c ? homeAndInsuranceCard(c) : ""}
     ${players}
     ${seasonCard(day)}
@@ -1427,6 +1444,54 @@ function staffPanel(): string {
 // --- Home market and insurance ------------------------------------------------------------
 
 const crowdWord = (r: number) => (r >= 1.5 ? "crowded" : r >= 1.1 ? "busy" : r >= 0.75 ? "fair share" : "wide open");
+
+/** The company's authority, its safety record by area, and the policy its trucks run on. */
+function recordCard(c: Company): string {
+  const w = game!.w;
+  const cfg = w.cfg;
+  const day = Math.floor(clockMin() / 1440);
+  const th = cfg.safety.score.thresholds;
+  const m = c.safety.measures;
+  const area = (k: Basic, name: string) => {
+    const alert = c.safety.alerts.includes(k);
+    return `<dt>${name}</dt><dd class="num ${alert ? "bad" : ""}">${m[k].toFixed(1)} of ${th[k]}${alert ? " · alert" : ""}</dd>`;
+  };
+  const a = c.authority;
+  const authority =
+    a.status === "active"
+      ? `<span class="good">Active</span> since ${dateLabel(a.since)}`
+      : a.status === "suspended"
+        ? `<span class="bad">Suspended</span> until ${dateLabel(a.suspendedUntil ?? day)}`
+        : a.barredUntil === null || a.barredUntil >= PERMANENT_BAR
+          ? `<span class="bad">Revoked</span> · barred for good`
+          : `<span class="bad">Revoked</span> · can file again ${dateLabel(a.barredUntil)}`;
+  const claims = c.claims.filter((k) => k.until > day).length;
+  const cases = w.cases.filter((k) => k.companyId === c.id && k.resolveDay > day).length;
+  const history = a.record
+    .slice(-4)
+    .reverse()
+    .map((r) => `<li>${dateLabel(r.day)}: ${esc(r.text)}</li>`)
+    .join("");
+  const p = c.policy;
+  const opt = (v: string, cur: string, label: string) => `<option value="${v}" ${v === cur ? "selected" : ""}>${label}</option>`;
+  const legalH = cfg.hos.drivingHoursPerDay;
+  const overH = legalH + cfg.safety.hos.overHours;
+  const fast = cfg.safety.speed.fastMph;
+  return `<div class="card"><h3>Safety and authority</h3><dl class="kv">
+      <dt>Authority</dt><dd>${authority}</dd>
+      <dt>Rating</dt><dd>${ratingLabel(c)}${c.safety.reviewDay !== null ? ` · review ${dateLabel(c.safety.reviewDay)}` : ""}</dd>
+      ${area("hos", "Hours of service")}${area("unsafe", "Unsafe driving")}${area("maintenance", "Vehicle maintenance")}${area("crash", "Crashes per truck")}
+      <dt>Fines paid</dt><dd class="num">${fd(c.safety.finesFd)} FD${c.safety.outOfService ? ` · ${c.safety.outOfService} out-of-service order${c.safety.outOfService > 1 ? "s" : ""}` : ""}</dd>
+      ${claims || cases ? `<dt>Claims</dt><dd class="bad">${claims} on your record${cases ? ` · ${cases} under investigation` : ""}</dd>` : ""}
+    </dl>${history ? `<ul class="muted" style="font-size:14px">${history}</ul>` : ""}
+    <h3>Policy</h3>
+    <div class="row"><label class="label" for="pol-hos">Driving hours</label><select id="pol-hos">${opt("legal", p.hos, `Legal: ${legalH} h a day`)}${opt("hot", p.hos, `${overH} h on hot loads`)}${opt("always", p.hos, `${overH} h every day`)}</select></div>
+    <div class="row"><label class="label" for="pol-speed">Speed</label><select id="pol-speed">${opt("legal", p.speed, `Legal pace`)}${opt("hot", p.speed, `${fast} mph on hot loads`)}${opt("always", p.speed, `${fast} mph always`)}</select></div>
+    <div class="row"><label class="label" for="pol-maint">Maintenance</label><select id="pol-maint">${opt("full", p.maintenance, "Full")}${opt("deferred", p.maintenance, `Deferred: ${pct(1 - cfg.safety.maintenance.deferredCostMult)} cheaper, defects build up`)}</select></div>
+    <div class="row"><button class="btn primary" data-act="policy">Set policy</button></div>
+    <p class="muted" style="font-size:14px">What inspectors find, and what a crash turns up, goes on the record above. The AI companies choose from the same options.</p>
+  </div>`;
+}
 
 function homeAndInsuranceCard(c: Company): string {
   const w = game!.w;
@@ -1780,9 +1845,26 @@ function wireInput(): void {
           { kind: "floor", breakEvenPlusPct: Math.max(0, num("o-floor")) / 100 },
         ];
         if ($<HTMLInputElement>("o-repo").checked) orders.push({ kind: "reposition", afterIdleRounds: Math.max(1, num("o-repo-r")), to: { openLoadsWithinMi: 400 } });
+        if ($<HTMLInputElement>("o-rb").checked)
+          orders.push({ kind: "rebroker", share: Math.min(1, Math.max(0, num("o-rb-share") / 100 || 0)), keepPct: Math.min(0.9, Math.max(0, num("o-rb-keep") / 100 || 0)), pays: $<HTMLInputElement>("o-rb-pays").checked });
         act({ type: "set_standing_orders", orders }, "Dispatcher updated");
         break;
       }
+      case "rebroker":
+        act({ type: "rebroker_load", loadId: Number(el.dataset.load), rate: num(`rb-${truck}`), pay: $<HTMLInputElement>(`rbpay-${truck}`).checked }, "Load re-posted. The truck is free where it stands");
+        break;
+      case "steal":
+        if (confirm("Steal this load? Police will investigate, and a theft claim stays on your record for a year.")) act({ type: "steal_load", truckId: truck }, "The load won't be delivered. The truck runs on empty to where it was going");
+        break;
+      case "policy":
+        act(
+          {
+            type: "set_compliance",
+            policy: { hos: $<HTMLSelectElement>("pol-hos").value as CompliancePolicy["hos"], speed: $<HTMLSelectElement>("pol-speed").value as CompliancePolicy["speed"], maintenance: $<HTMLSelectElement>("pol-maint").value as CompliancePolicy["maintenance"] },
+          },
+          "Policy set",
+        );
+        break;
       case "ordersReset":
         act({ type: "set_standing_orders", orders: DEFAULT_ORDERS }, "Dispatcher back to defaults");
         break;

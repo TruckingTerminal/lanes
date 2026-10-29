@@ -9,7 +9,7 @@ export type TractorTier = "workhorse" | "highwayPro" | "flagship";
 export type FacilityType = "warehouse" | "coldStorage" | "factory";
 
 export const economyConfig = {
-  version: "0.10.0-phase0.15",
+  version: "0.11.0-phase0.16",
 
   // §World, map and time
   time: {
@@ -718,6 +718,9 @@ export const economyConfig = {
   // Design proposal (Jeff, 2026-10-28): fraud — double brokering and freight theft,
   // against players and AI alike — and the vetting brokers and shippers do to avoid it.
   fraud: {
+    // Players may take the same bad-actor actions as the AI (Jeff, 2026-10-28). False locks
+    // an illegal policy, re-brokering and theft to AI companies (actions.ts refuses them from a player).
+    players: true,
     cargoMultiple: { npcDirect: 1.5, van: 6, reefer: 7, flatbed: 4, hot: 1.5 }, // cargo value ÷ the freight bill
     // Vetting tiers a poster can require: 0 open (anyone), 1 standard, 2 strict (tracking required).
     vetting: {

@@ -105,10 +105,10 @@ const LIQUIDATING_BLOCKED = new Set<Action["type"]>(["place_bid", "reposition_tr
 const ALLOWED_REVOKED = new Set<Action["type"]>(["wait", "refile_authority", "buy_fd", "sell_fd", "offer_fd", "claim_airdrop_now", "withdraw_finance", "withdraw_listing", "set_compliance", "set_vetting", "set_auto_staff"]);
 const SCOPES: RuleScope[] = ["legal", "hot", "always"];
 /**
- * Actions only AI companies may take (Jeff, 2026-10-28): players always run
- * legal and can't commit fraud, so the bad actors are all AI.
+ * The bad-actor actions: an illegal policy, re-brokering and theft. Players may
+ * take them like the AI does (config `fraud.players`); with it off they're AI-only.
  */
-function aiOnly(a: Action): boolean {
+function badActor(a: Action): boolean {
   switch (a.type) {
     case "rebroker_load":
     case "steal_load":
@@ -142,7 +142,7 @@ export function applyAction(w: World, companyId: number, action: Action): Action
   if (bad) return { ok: false, reason: bad };
   if (company.authority.status === "revoked" && !ALLOWED_REVOKED.has(action.type)) return { ok: false, reason: "your authority is revoked" };
   if (company.liquidatingSince !== null && LIQUIDATING_BLOCKED.has(action.type)) return { ok: false, reason: "the company is being wound up" };
-  if (company.human && aiOnly(action)) return { ok: false, reason: "that isn't available to players" };
+  if (company.human && !cfg.fraud.players && badActor(action)) return { ok: false, reason: "that isn't available to players" };
   switch (action.type) {
     case "wait":
       return { ok: true };

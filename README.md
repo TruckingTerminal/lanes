@@ -17,9 +17,9 @@
   in them is read from the config the world runs on, so the docs can't drift from the rules. The
   docs page is built at `npm run build:site` (`apps/web/src/docs.ts`) and deployed with the game.
 - Fraud (double brokering, cargo theft) is deliberately left out of the player docs.
-- **Bad actors are AI only** (config 0.9.1): the engine refuses an illegal compliance policy, a
-  rebroker standing order, re-brokering and theft from human companies (`aiOnly` in actions.ts),
-  whatever a page sends.
+- **Players can be bad actors too** (config 0.11.0, Jeff's call): the same policy, re-posting and
+  theft actions the AI uses are open to player companies, with the same investigations, claims,
+  fines and shutdowns. `fraud.players: false` locks them back to AI (`badActor` in actions.ts).
 - **For developers:** this README (design notes and sim results by config version), `TOKENOMICS.md`
   (the token), and the comments in `packages/config/src/economy.config.ts` (every tunable number).
 
@@ -305,9 +305,9 @@ Design, levers and the full results are in [TOKENOMICS.md](TOKENOMICS.md); table
   clean carriers but fail ~4× as often); clean carriers still fail ~20% more than before. FD price
   at end $0.0072 vs $0.0061, owner-operator profit 614 vs 620 FD per truck-week, fleet wealth 145k
   vs 139k, free-path median 85 vs 116 days. ~250 crashes (10 fatal), ~130 shutdowns, ~14M FD fines.
-- **In the client:** a Staff tab (hire, pay, seat, team, poach, match offers) and a Guide tab. No
-  Safety screen yet: player companies run legal by default. A revoked authority files again
-  automatically when its bar ends.
+- **In the client:** a Staff tab (hire, pay, seat, team, poach, match offers) and a Guide tab. The
+  Company tab shows the safety record and authority and sets the policy (0.11.0). A revoked
+  authority files again automatically when its bar ends.
 
 ## Insurance, dealer prices and home markets (config 0.9.0)
 - **Insurance** (`insurance.ts`) is a one-game-year policy per company, priced at signing and each
@@ -360,6 +360,19 @@ Design, levers and the full results are in [TOKENOMICS.md](TOKENOMICS.md); table
   `ne_10m_roads_north_america.{shp,dbf}` from the Natural Earth vector repo, downloaded outside the repo); it
   reads this repo's hub and weigh-station tables, prints routing stats, and rewrites `roads.ts`. Rerun it
   whenever a hub or weigh station is added or moved.
+
+## Players as bad actors (config 0.11.0)
+
+- Jeff's decision (2026-10-28), reversing 0.9.1: player companies may do everything the outlaw AI
+  does. `fraud.players: true` opens the gate in `applyAction`; nothing else in the engine changes,
+  so the AI-only economy is identical to 0.10.0 (seed 1 reports differ only in the version string).
+- **In the client:** the Company tab has a "Safety and authority" card (authority status and bar,
+  rating and next review, the four score areas against their alert thresholds, fines, open claims
+  and cases, the record's last entries) with the policy selects (hours, speed, maintenance). The
+  dispatcher card can carry a rebroker standing order (share of won loads, rate kept, pay the
+  hauler or not). A truck heading to a pickup can re-post its load by hand; a loaded truck can
+  steal the cargo (after a confirm). The guide still says nothing about any of it.
+- Tests: players can take the actions; with the flag off they get "that isn't available to players".
 
 ## Audit (2026-10-28, config 0.9.2)
 Six audits of the whole project (engine, the new systems, bots and sim tools, client and shared world, data,

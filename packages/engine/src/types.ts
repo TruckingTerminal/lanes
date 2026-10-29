@@ -126,7 +126,7 @@ export interface Company {
   homeHub: number;
   /** Agent strategy label, used only for reporting ("greedy", "conservative", …). */
   strategy: string;
-  /** Run by a person. Some actions are AI-only (actions.ts). */
+  /** Run by a person (the bad-actor actions can be locked to AI: config `fraud.players`). */
   human: boolean;
   /** Started on the free NPC-lease path (§Roles — carrier free start). */
   freePath: boolean;
