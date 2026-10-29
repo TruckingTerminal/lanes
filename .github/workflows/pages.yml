@@ -52,6 +52,9 @@ jobs:
           export GIT_SSH_COMMAND="ssh -i ~/.ssh/deploy -o StrictHostKeyChecking=accept-new"
           git clone --depth 1 git@github.com:TruckingTerminal/lanes-play.git out
           cp site/*.html out/
+          # The painted map levels, seasons and sprites load from assets/ next to the page.
+          rm -rf out/assets
+          cp -R site/assets out/
           touch out/.nojekyll
           cd out
           git config user.name "lanes-ci"
