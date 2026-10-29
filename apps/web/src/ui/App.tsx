@@ -3,6 +3,7 @@ import { useEffect, useRef } from "preact/hooks";
 import { companyAccount, fdPriceUsd, garagingOf, homeCrowding, localShare, tokenLive, type World } from "@lanes/engine";
 import { hubs as HUBS } from "@lanes/data";
 import { drawLoadingRoad, drawTitleScene, iconUrl, logo, PAL, TITLE_H, TITLE_W, truckUrl } from "../art.js";
+import { TITLE_FRAME_H, TITLE_FRAME_W, titleFrame } from "../title.js";
 import { cls, fd, dateLabel, hhmm, pct, realUntil } from "../format.js";
 import { GAME_CONFIG, isHuman, RULESET, type StartKind } from "../game.js";
 import { H } from "../handlers.js";
@@ -37,22 +38,43 @@ function TitleScene(): JSX.Element {
     const ctx = cv.getContext("2d")!;
     const reduced = matchMedia("(prefers-reduced-motion: reduce)").matches;
     let raf = 0;
+    let shown: HTMLImageElement | null | undefined;
     const frame = (t: number) => {
       const avail = Math.min(1280, cv.parentElement?.clientWidth || 960);
-      const scale = Math.max(2, Math.min(4, Math.floor(avail / TITLE_W)));
-      if (cv.width !== TITLE_W * scale) {
-        cv.width = TITLE_W * scale;
-        cv.height = TITLE_H * scale;
+      const img = titleFrame(reduced ? 0 : t);
+      if (img) {
+        // The painted loop at a whole-number scale, 2× to 4×, so every pixel stays square.
+        const scale = Math.max(2, Math.min(4, Math.floor(avail / TITLE_FRAME_W)));
+        const resized = cv.width !== TITLE_FRAME_W * scale;
+        if (resized) {
+          cv.width = TITLE_FRAME_W * scale;
+          cv.height = TITLE_FRAME_H * scale;
+        }
+        if (resized || img !== shown) {
+          ctx.imageSmoothingEnabled = false;
+          ctx.drawImage(img, 0, 0, cv.width, cv.height);
+          const lg = logo(scale * 2);
+          ctx.drawImage(lg, Math.round((cv.width - lg.width) / 2), 10 * scale);
+          shown = img;
+        }
+      } else {
+        // Until the frames decode: the code-drawn scene.
+        const scale = Math.max(2, Math.min(4, Math.floor(avail / TITLE_W)));
+        if (cv.width !== TITLE_W * scale) {
+          cv.width = TITLE_W * scale;
+          cv.height = TITLE_H * scale;
+        }
+        drawTitleScene(ctx, scale, reduced ? 0 : t);
+        const lg = logo(scale * 2);
+        ctx.drawImage(lg, Math.round((cv.width - lg.width) / 2), 12 * scale);
+        shown = undefined;
       }
-      drawTitleScene(ctx, scale, reduced ? 0 : t);
-      const lg = logo(scale * 2);
-      ctx.drawImage(lg, Math.round((cv.width - lg.width) / 2), 12 * scale);
-      if (!reduced) raf = requestAnimationFrame(frame);
+      if (!reduced || !img) raf = requestAnimationFrame(frame);
     };
     raf = requestAnimationFrame(frame);
     return () => cancelAnimationFrame(raf);
   }, []);
-  return <canvas ref={ref} width={960} height={540} aria-label="A rig driving a desert highway at dusk under the LANES sign" />;
+  return <canvas ref={ref} width={1024} height={576} aria-label="A rig rolling down a desert highway at dusk past a neon diner, under the LANES sign" />;
 }
 
 function TitleScreen(): JSX.Element {
