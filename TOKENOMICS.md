@@ -369,3 +369,20 @@ loss ratio. The broker licence stake is the surety bond. On liquidation the cont
 to the pool holding the company's paper, then the licence stake to the creditors. The NPC lessor
 pays its leased trucks on delivery and takes the paper, so the free path runs on no working
 capital. Expected: 60–80M FD locked against a sellable float of 70–90M after launch (runs/v26-*).
+
+### Credit ratings, and no free restarts (Jeff, 2026-10-29)
+
+Brokers (any company, in fact) carry a credit score the game computes from the ledger and nobody
+sets, 0–100 in bands A–E (`token.credit`): the share of invoices paid with cash in hand against
+those paid from an overdraft or never, unpaid claims on record, bankruptcies, revocations, the
+licence's age, and stake plus cash against the invoices owed. Carriers refuse paper below their
+floor (35 by default, no E paper) and ask up to 20% more on weak paper; the surety prices the bond
+by it; the factoring pool prices a player's paper by it; NPC shippers tender to brokers in credit
+order. A bankrupt broker's licence lapses with its stake: no grant, no loads until it posts the
+75k again, earned or bought. Even the AI brokers post their stake at founding from their starting
+capital. Bots buy FD with dollars to reach a tier or a licence when they pay to win: the design's
+demand engine, now in the runs.
+
+The profit tax is a corporate band now: 20% of weekly operating profit above a 5,000 FD exemption,
+moved by the stabilizer only within 10–30% ("those taxes are insane"). Deflation comes from the
+capped economy's locks, stakes and sinks.
