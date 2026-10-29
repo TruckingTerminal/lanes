@@ -450,8 +450,20 @@ export function buildMap(hubs: Hub[], roads: RoadNetwork | undefined, W: number,
   }
 
   // Towns: a dot for every place freight ships from, so the country between the markets isn't empty.
+  // There are thousands of them (GeoNames, 0.16.0), so places under 10k people are one faint speck
+  // and only the towns above that get the lit dot with a shadow; the base is painted once at the
+  // Fit size and scaled by the zoom, so this is the density at every zoom.
   if (places) {
+    const small = places.filter((p) => p.pop < 10_000);
+    ctx.globalAlpha = 0.45;
+    ctx.fillStyle = PAL.ink1;
+    for (const p of small) {
+      const [tx, ty] = project(p.lon, p.lat).map(Math.round) as [number, number];
+      ctx.fillRect(tx, ty, 1, 1);
+    }
+    ctx.globalAlpha = 1;
     for (const p of places) {
+      if (p.pop < 10_000) continue;
       const [tx, ty] = project(p.lon, p.lat).map(Math.round) as [number, number];
       ctx.fillStyle = PAL.ink0;
       ctx.fillRect(tx - 1, ty, 3, 1);
