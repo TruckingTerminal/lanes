@@ -5,10 +5,11 @@ Order is the working order. Design records live in TOKENOMICS.md (economy) and R
 ## Shipping 0.17.0 — the real market (committed on main, not yet live)
 1. ✅ Ten-seed release run (runs/v24-c). Partial runs without the AI cap (v24-a, 4 seeds) and with
    freight at 300 (v24-b, 8 seeds) survived an interrupted batch.
-2. Compare against 0.16.0 (runs/v23-c, written to runs/compare-v24.md); write the numbers into README;
-   check the launch and the free path survived the AI fleet cap and the Miles/profit airdrop split.
-3. Pull, push, publish the artifact (built from the new commit; coordinate with the Lanes Graphics
-   session), set world/meta to `lanes-live-1/0.17.0-phase0.23`, notify the graphics session.
+2. ✅ Compared against 0.16.0 (runs/compare-v24.md, README "A real market"): the launch and the free
+   path survive; beta FD balloons, brokers bleed on fall-offs, the FD price ends lower — the
+   post-launch economy is reworked in 0.18.0.
+3. ✅ Pushed (main 69c7570), live artifact version 23, world/meta version 14 on
+   `lanes-live-1/0.17.0-phase0.23`, graphics session told to republish its client work on top.
 
 ## Building 0.18.0 — the circular economy (all behind config switches until sized)
 4. ✅ Reserve ledger: cap minted at genesis, faucets draw on the reserve, sinks refill it, rates follow it.
