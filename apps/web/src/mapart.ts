@@ -103,7 +103,9 @@ function pick(levels: Level[], k: number): Level | null {
 export function mapLevel(season: Season, k: number): { img: HTMLImageElement; scale: number; season: Season } | null {
   const own = pick(LEVELS[season], k);
   const summer = season === "summer" ? own : pick(LEVELS.summer, k);
-  const best = own && summer && summer.scale > own.scale && k >= summer.scale ? summer : (own ?? summer);
+  // Summer's finer level only once the season's own painting would be stretched 3× or more: its
+  // real snow or leaves beat a washed summer until then.
+  const best = own && summer && summer.scale > own.scale && k >= own.scale * 3 ? summer : (own ?? summer);
   return best ? { img: best.img!, scale: best.scale, season: best.season } : null;
 }
 

@@ -144,6 +144,27 @@ function toWorld(cx: number, cy: number): [number, number] {
   const k = kScale();
   return [(cx + panX) / k, (cy + panY) / k];
 }
+/** Whether the map is larger than the window in either direction, so there is somewhere to pan. */
+function canPan(): boolean {
+  if (!cv || !art) return false;
+  const k = kScale();
+  return art.W * k > cv.width + 1 || art.H * k > cv.height + 1;
+}
+const shades = new WeakMap<HTMLImageElement, string>();
+/** The painting's deep-sea colour at its corner, darkened: what the window shows around the map. */
+function edgeShade(img: HTMLImageElement): string {
+  let s = shades.get(img);
+  if (!s) {
+    const c = document.createElement("canvas");
+    c.width = c.height = 1;
+    const g = c.getContext("2d")!;
+    g.drawImage(img, 2, 2, 1, 1, 0, 0, 1, 1);
+    const [r, gg, b] = g.getImageData(0, 0, 1, 1).data;
+    s = `rgb(${Math.round(r! * 0.62)},${Math.round(gg! * 0.62)},${Math.round(b! * 0.68)})`;
+    shades.set(img, s);
+  }
+  return s;
+}
 /** Keeps the map on the canvas: panned within its edges when larger than the window, centred when smaller. */
 function clampPan(): void {
   if (!cv) return;
@@ -180,7 +201,7 @@ function zoomTo(target: number, ax?: number, ay?: number): void {
   anchor = [wx, wy, x, y];
   vel = [0, 0];
   if (tip) tip.hidden = true;
-  cv.style.cursor = zoomIdx > 0 ? "grab" : "crosshair";
+  cv.style.cursor = canPan() ? "grab" : "crosshair";
   bumpData();
 }
 /** Settles a free zoom on a level, so the map rests at a whole-number scale: the nearest one, or the next one along for a short flick. */
@@ -311,16 +332,18 @@ export function drawMap(now: number): void {
   const W = cv.width;
   const H = cv.height;
   const f = fitK();
-  const k = f * zf;
+  // Device pixels per level-0 art pixel: the zoom is already absolute (the fit is its first level).
+  const k = zf;
   const u = Math.max(1, Math.round(f * Math.min(zoom(), 4)));
   const visible = (X: number, Y: number) => X > -40 * u && Y > -40 * u && X < W + 40 * u && Y < H + 40 * u;
   ctx.imageSmoothingEnabled = false;
-  ctx.fillStyle = PAL.seaD;
-  ctx.fillRect(0, 0, W, H);
   // The painted level for this zoom, pixel for pixel at a whole-number scale and smoothed while the
-  // zoom is moving or at the fit; the code-drawn base until it has decoded.
+  // zoom is moving or at the fit; the code-drawn base until it has decoded. Around it, where the
+  // map does not reach the window's edge, the painting's own deep sea, darkened.
   const season = seasonOf(Math.min(11, Math.floor((Math.floor(clockMin() / 1440) % 365) / 30)) + 1);
   const lvl = mapLevel(season, k);
+  ctx.fillStyle = lvl ? edgeShade(lvl.img) : PAL.seaD;
+  ctx.fillRect(0, 0, W, H);
   if (lvl) {
     const s = k / lvl.scale;
     ctx.imageSmoothingEnabled = !Number.isInteger(s);
@@ -392,7 +415,7 @@ export function drawMap(now: number): void {
     }
   }
   const hour = (clockMin() / 60) % 24;
-  const shade = nightShade(hour);
+  const shade = nightShade(hour, 0.42);
   const mine = S.game.player?.id ?? -1;
   const humans = new Set(w.companies.filter(isHuman).map((c) => c.id));
   if (S.selHub !== null) {
@@ -507,7 +530,7 @@ function spriteLayer(W: number, H: number): HTMLCanvasElement {
 /** Tints the sprites (only where they are drawn) toward the season: cold and pale in winter, warm in autumn, fresh in spring. */
 function tintSprites(ctx: CanvasRenderingContext2D, season: Season, W: number, H: number): void {
   ctx.globalCompositeOperation = "source-atop";
-  ctx.fillStyle = season === "winter" ? "rgba(214,228,255,0.38)" : season === "autumn" ? "rgba(255,170,90,0.22)" : "rgba(190,240,160,0.16)";
+  ctx.fillStyle = season === "winter" ? "rgba(214,228,255,0.28)" : season === "autumn" ? "rgba(255,170,90,0.22)" : "rgba(190,240,160,0.16)";
   ctx.fillRect(0, 0, W, H);
   ctx.globalCompositeOperation = "source-over";
 }
@@ -518,16 +541,16 @@ function washSeason(ctx: CanvasRenderingContext2D, season: Season, W: number, H:
     const yTop = toScreen(0, art!.project(-96, 49)[1])[1];
     const yMid = toScreen(0, art!.project(-96, 35)[1])[1];
     const g = ctx.createLinearGradient(0, yTop, 0, yMid);
-    g.addColorStop(0, "rgba(222,234,255,0.6)");
+    g.addColorStop(0, "rgba(222,234,255,0.34)");
     g.addColorStop(1, "rgba(222,234,255,0)");
     ctx.globalCompositeOperation = "screen";
     ctx.fillStyle = g;
   } else if (season === "autumn") {
     ctx.globalCompositeOperation = "multiply";
-    ctx.fillStyle = "rgba(255,196,130,0.35)";
+    ctx.fillStyle = "rgba(255,196,130,0.22)";
   } else {
     ctx.globalCompositeOperation = "overlay";
-    ctx.fillStyle = "rgba(170,230,140,0.25)";
+    ctx.fillStyle = "rgba(170,230,140,0.16)";
   }
   ctx.fillRect(0, 0, W, H);
   ctx.globalCompositeOperation = "source-over";
@@ -553,26 +576,36 @@ function drawWeather(ctx: CanvasRenderingContext2D, now: number, k: number, u: n
   const cx0 = Math.floor((wx0 * k) / cell) * cell;
   const cy0 = Math.floor((wy0 * k) / cell) * cell;
   const lights: [number, number, Weather][] = [];
-  for (let gy = cy0; gy < wy1 * k; gy += cell) {
-    for (let gx = cx0; gx < wx1 * k; gx += cell) {
+  // Only over the map itself: nothing falls on the band around it.
+  ctx.save();
+  ctx.beginPath();
+  ctx.rect(-panX, -panY, art.W * k, art.H * k);
+  ctx.clip();
+  for (let gy = Math.max(cy0, 0); gy < Math.min(wy1, art.H) * k; gy += cell) {
+    for (let gx = Math.max(cx0, 0); gx < Math.min(wx1, art.W) * k; gx += cell) {
       const [lon, lat] = art.unproject((gx + cell / 2) / k, (gy + cell / 2) / k);
-      if (art.kindAt(Math.round((gx + cell / 2) / k), Math.round((gy + cell / 2) / k)) === 0 && Math.abs(lat) < 20) continue;
       const wx = weatherAt(lon, lat, day, hour, seed);
       if (wx.kind === "clear" || wx.kind === "heat") continue;
       const X = gx - panX;
       const Y = gy - panY;
       const cs = Math.floor(gx / cell) * 73 + Math.floor(gy / cell) * 151;
-      // Cloud shade and fog banks: soft blobs wider than their cell, so neighbours merge into weather systems.
-      const blob = (color: string, alpha: number, speed: number) => {
-        ctx.globalAlpha = alpha;
-        ctx.fillStyle = color;
-        const drift = ((now / speed + cs) % cell) - cell / 2;
-        ctx.beginPath();
-        ctx.ellipse(X + cell / 2 + drift, Y + cell / 2, cell * 0.85, cell * 0.65, 0, 0, Math.PI * 2);
-        ctx.fill();
+      // Cloud shade and fog banks: soft-edged patches wider than their cell, each its own size and
+      // drift, so neighbours merge into weather systems instead of a grid of discs.
+      const blob = (r: number, g: number, b: number, alpha: number, speed: number) => {
+        const rad = cell * (0.8 + hash(cs, 7, 71) * 0.4);
+        const drift = ((now / speed + cs * 3) % (cell * 2)) - cell;
+        const cx = X + cell / 2 + drift;
+        const cy = Y + cell / 2 + (hash(cs, 8, 72) - 0.5) * cell * 0.6;
+        const grad = ctx.createRadialGradient(cx, cy, 0, cx, cy, rad);
+        grad.addColorStop(0, `rgba(${r},${g},${b},${alpha.toFixed(3)})`);
+        grad.addColorStop(0.55, `rgba(${r},${g},${b},${(alpha * 0.55).toFixed(3)})`);
+        grad.addColorStop(1, `rgba(${r},${g},${b},0)`);
+        ctx.globalAlpha = 1;
+        ctx.fillStyle = grad;
+        ctx.fillRect(cx - rad, cy - rad, rad * 2, rad * 2);
       };
-      if (wx.kind === "cloud" || wx.kind === "storm" || wx.kind === "rain" || wx.kind === "snow") {
-        blob(PAL.ink0, (wx.kind === "cloud" ? 0.08 : wx.kind === "storm" ? 0.26 : 0.14) * (0.6 + 0.4 * wx.intensity), 60);
+      if (wx.kind === "storm" || wx.kind === "rain" || wx.kind === "snow") {
+        blob(9, 12, 23, (wx.kind === "storm" ? 0.16 : 0.09) * (0.5 + 0.5 * wx.intensity), 140);
       }
       if (wx.kind === "rain" || wx.kind === "storm") {
         ctx.globalAlpha = 0.55;
@@ -595,11 +628,12 @@ function drawWeather(ctx: CanvasRenderingContext2D, now: number, k: number, u: n
           ctx.fillRect(Math.round(X + ox + sway), Math.round(Y + fall), u, u);
         }
       } else if (wx.kind === "fog") {
-        blob(PAL.fog, 0.18 + 0.25 * wx.intensity, 120);
+        blob(182, 196, 220, 0.22 + 0.3 * wx.intensity, 220);
       }
     }
   }
   // Lightning: a flash over the cell and a jagged bolt for one frame.
+  ctx.restore();
   for (const [X, Y] of lights) {
     ctx.globalAlpha = 0.5;
     ctx.fillStyle = PAL.white;
@@ -742,7 +776,7 @@ export function mountMap(canvas: HTMLCanvasElement, wrapEl: HTMLElement, tipEl: 
       const dx = ev.clientX - drag.x;
       const dy = ev.clientY - drag.y;
       if (!drag.moved && Math.hypot(dx, dy) > 4) drag.moved = true;
-      if (drag.moved && zoomIdx > 0) {
+      if (drag.moved && canPan()) {
         const sx = canvas.width / r.width;
         const sy = canvas.height / r.height;
         panX = drag.panX - dx * sx;
@@ -771,12 +805,12 @@ export function mountMap(canvas: HTMLCanvasElement, wrapEl: HTMLElement, tipEl: 
       snapZoom();
     }
     if (pointers.size === 0) {
-      if (drag?.moved && zoomIdx > 0 && performance.now() - drag.lt < 80 && Math.hypot(drag.vx, drag.vy) > 0.05) vel = [drag.vx, drag.vy];
+      if (drag?.moved && canPan() && performance.now() - drag.lt < 80 && Math.hypot(drag.vx, drag.vy) > 0.05) vel = [drag.vx, drag.vy];
       drag = null;
       dragging = false;
     }
     if (tap) selectOnMap(ev);
-    canvas.style.cursor = zoomIdx > 0 ? "grab" : "crosshair";
+    canvas.style.cursor = canPan() ? "grab" : "crosshair";
   };
   const leave = () => (tipEl.hidden = true);
   // The wheel zooms freely (a trackpad glides, a mouse notch is a bigger step) and settles on a level once it stops.
