@@ -650,16 +650,16 @@ export const economyConfig = {
     // operating result (freight and facilities) is burned; loss-making weeks pay
     // nothing. On test seeds it shrank supply as much as squeezing freight volume
     // did, with fewer liquidations (TOKENOMICS.md).
-    profitTaxRate: 0.4,
-    // The first 1,000 FD of a week's operating profit is exempt, so owner-operators
-    // and small fleets (a truck clears roughly 300–500 FD a week) can still build a
-    // cushion; like fleet overhead, it falls on scale.
-    profitTaxAllowanceFd: 1_000,
+    // Jeff (2026-10-29): "those taxes are insane" — a corporate-tax band instead. 20% to start,
+    // moved by the stabilizer only within 10–30%; the first 5,000 FD of a week's profit is exempt.
+    // Deflation is to come from the capped economy's locks, stakes and sinks, not from the tax.
+    profitTaxRate: 0.2,
+    profitTaxAllowanceFd: 5_000,
     // After launch the profit-tax rate is the first stabilizer: each month it moves
     // 5 points toward the sink target, within 20–70%. NPC freight volume moves only
     // once the rate is pinned at a limit — so the sink grows with the economy (more
     // players, more freight, more profit taxed) instead of starving operators of loads.
-    taxStabilizer: { enabled: true, stepPerMonth: 0.05, range: [0.2, 0.8] as const }, // 0.7 was pinned in every 4-year run
+    taxStabilizer: { enabled: true, stepPerMonth: 0.05, range: [0.1, 0.3] as const }, // was 20–80%, pinned at 70–80% in every 4-year run
     // New players after launch: a base rate that rises when the price has been
     // rising and falls when it's been falling (a stand-in for hype).
     newCompanies: { perWeek: 2, hypeSensitivity: 2, hypeRange: [0.25, 3] as const, lookbackDays: 28 },
