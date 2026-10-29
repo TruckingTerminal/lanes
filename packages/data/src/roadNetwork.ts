@@ -87,10 +87,21 @@ export class RoadNetwork {
   /** Each hub's node and the miles of its connecting stub. */
   readonly hubNode: Int32Array;
   readonly hubStub: Float64Array;
+  /** Each node's position: the first or last geometry point of an edge at it. */
+  readonly nodeLat: Float64Array;
+  readonly nodeLon: Float64Array;
+  /**
+   * Terminals are the points routes run between: the hubs (0–59, attached at build time with
+   * an edge split) and then every place added with addTerminal (attached to the nearest node).
+   */
+  private readonly terminals: { node: number; stub: number }[] = [];
+  private grid: Map<string, number[]> | null = null;
   private readonly adj: number[][];
   private readonly stationsByEdge = new Map<number, { station: number; frac: number }[]>();
   private readonly routes = new Map<number, Route>();
-  private readonly fromHub = new Map<number, { cost: Float64Array; prev: Int32Array }>();
+  private readonly fromTerminal = new Map<number, { cost: Float64Array; prev: Int32Array }>();
+  /** Searches from places are kept for a while only; the hubs' stay. */
+  private readonly recent: number[] = [];
 
   constructor(private readonly routing: RoadRouting) {
     const n = ROAD_GEOM.length / 2;
@@ -134,6 +145,15 @@ export class RoadNetwork {
     }
     this.hubNode = new Int32Array(ROAD_HUBS.map((h) => h[0]!));
     this.hubStub = new Float64Array(ROAD_HUBS.map((h) => h[1]!));
+    this.nodeLat = new Float64Array(ROAD_NODE_COUNT);
+    this.nodeLon = new Float64Array(ROAD_NODE_COUNT);
+    for (const e of this.edges) {
+      this.nodeLat[e.a] = this.lat[e.g0]!;
+      this.nodeLon[e.a] = this.lon[e.g0]!;
+      this.nodeLat[e.b] = this.lat[e.g0 + e.gn - 1]!;
+      this.nodeLon[e.b] = this.lon[e.g0 + e.gn - 1]!;
+    }
+    for (let i = 0; i < ROAD_HUBS.length; i++) this.terminals.push({ node: this.hubNode[i]!, stub: this.hubStub[i]! });
     ROAD_STATIONS.forEach(([edge, frac], station) => {
       if (edge! < 0) return;
       let list = this.stationsByEdge.get(edge!);
@@ -142,19 +162,88 @@ export class RoadNetwork {
     });
   }
 
+  /** How many terminals exist (hubs first, then places). */
+  get terminalCount(): number {
+    return this.terminals.length;
+  }
+
+  /** The road node nearest a point, by a flat-earth search over a quarter-degree grid. */
+  nearestNode(lat: number, lon: number): number {
+    if (!this.grid) {
+      this.grid = new Map();
+      for (let i = 0; i < ROAD_NODE_COUNT; i++) {
+        const k = `${Math.floor(this.nodeLat[i]! * 4)},${Math.floor(this.nodeLon[i]! * 4)}`;
+        let cell = this.grid.get(k);
+        if (!cell) this.grid.set(k, (cell = []));
+        cell.push(i);
+      }
+    }
+    const cy = Math.floor(lat * 4);
+    const cx = Math.floor(lon * 4);
+    const k = Math.cos((lat * Math.PI) / 180);
+    let best = -1;
+    let bestD = Infinity;
+    for (let ring = 0; ring <= 8 && best < 0; ring++) {
+      for (let dy = -ring; dy <= ring; dy++) {
+        for (let dx = -ring; dx <= ring; dx++) {
+          if (Math.max(Math.abs(dy), Math.abs(dx)) !== ring) continue;
+          for (const i of this.grid.get(`${cy + dy},${cx + dx}`) ?? []) {
+            const ddy = this.nodeLat[i]! - lat;
+            const ddx = (this.nodeLon[i]! - lon) * k;
+            const d = ddy * ddy + ddx * ddx;
+            if (d < bestD) {
+              bestD = d;
+              best = i;
+            }
+          }
+        }
+      }
+      // Finish the ring that found something, then one more, so a nearer node in the next ring isn't missed.
+      if (best >= 0 && ring < 8) {
+        const r = ring + 1;
+        for (let dy = -r; dy <= r; dy++) {
+          for (let dx = -r; dx <= r; dx++) {
+            if (Math.max(Math.abs(dy), Math.abs(dx)) !== r) continue;
+            for (const i of this.grid.get(`${cy + dy},${cx + dx}`) ?? []) {
+              const ddy = this.nodeLat[i]! - lat;
+              const ddx = (this.nodeLon[i]! - lon) * k;
+              const d = ddy * ddy + ddx * ddx;
+              if (d < bestD) {
+                bestD = d;
+                best = i;
+              }
+            }
+          }
+        }
+        break;
+      }
+    }
+    return best;
+  }
+
+  /** Attaches a place to the nearest road node with a local-road stub, returning its terminal index. */
+  addTerminal(lat: number, lon: number): number {
+    const node = this.nearestNode(lat, lon);
+    const dy = (this.nodeLat[node]! - lat) * 69.0;
+    const dx = (this.nodeLon[node]! - lon) * 69.0 * Math.cos((lat * Math.PI) / 180);
+    const stub = Math.sqrt(dx * dx + dy * dy) * 1.2; // local roads wander
+    this.terminals.push({ node, stub });
+    return this.terminals.length - 1;
+  }
+
   private edgeCost(e: RoadEdge): number {
     const r = this.routing;
     return e.miles / r.mph[e.cls] + (e.cls === 1 ? r.highwayStopHours : 0) + (e.tollPerMile * e.miles) / r.timeValueFdPerHour;
   }
 
-  /** Dijkstra from a hub's node, once per hub. A binary heap keyed on (cost, node) keeps the order the same everywhere. */
-  private search(hub: number): { cost: Float64Array; prev: Int32Array } {
-    let s = this.fromHub.get(hub);
+  /** Dijkstra from a terminal's node. A binary heap keyed on (cost, node) keeps the order the same everywhere. */
+  private search(terminal: number): { cost: Float64Array; prev: Int32Array } {
+    let s = this.fromTerminal.get(terminal);
     if (s) return s;
     const n = this.adj.length;
     const cost = new Float64Array(n).fill(Infinity);
     const prev = new Int32Array(n).fill(-1);
-    const src = this.hubNode[hub]!;
+    const src = this.terminals[terminal]!.node;
     cost[src] = 0;
     const heap: [number, number][] = [[0, src]];
     const less = (x: [number, number], y: [number, number]) => x[0] < y[0] || (x[0] === y[0] && x[1] < y[1]);
@@ -202,19 +291,23 @@ export class RoadNetwork {
       }
     }
     s = { cost, prev };
-    this.fromHub.set(hub, s);
+    this.fromTerminal.set(terminal, s);
+    if (terminal >= ROAD_HUBS.length) {
+      this.recent.push(terminal);
+      if (this.recent.length > 64) this.fromTerminal.delete(this.recent.shift()!);
+    }
     return s;
   }
 
-  /** The route from hub a to hub b (null if the road network doesn't connect them). */
+  /** The route between two terminals: hubs (0–59) or places (null if the road network doesn't connect them). */
   route(a: number, b: number): Route | null {
-    const key = a * ROAD_HUBS.length + b;
+    const key = a * 1_000_000 + b;
     const hit = this.routes.get(key);
     if (hit) return hit;
     if (a === b) return null;
     const { cost, prev } = this.search(a);
-    const src = this.hubNode[a]!;
-    let v = this.hubNode[b]!;
+    const src = this.terminals[a]!.node;
+    let v = this.terminals[b]!.node;
     if (!Number.isFinite(cost[v]!)) return null;
     const signed: number[] = [];
     while (v !== src) {
@@ -227,11 +320,12 @@ export class RoadNetwork {
     signed.reverse();
     const edges = new Int32Array(signed);
     const cum = new Float64Array(edges.length + 1);
-    let miles = this.hubStub[a]! + this.hubStub[b]!;
+    const stubA = this.terminals[a]!.stub;
+    let miles = stubA + this.terminals[b]!.stub;
     let hours = miles / this.routing.mph[1];
     let tollFd = 0;
     let highwayMi = 0;
-    let run = this.hubStub[a]!;
+    let run = stubA;
     for (let i = 0; i < edges.length; i++) {
       const { e } = this.edgeOf(edges[i]!);
       cum[i] = run;

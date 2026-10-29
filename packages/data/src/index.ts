@@ -6,3 +6,7 @@ export * from "./seasons.js";
 export * from "./weighStations.js";
 export * from "./roadNetwork.js";
 export * from "./roads.js";
+export * from "./commodities.js";
+export * from "./economy.js";
+export * from "./places.js";
+export * from "./flows.js";

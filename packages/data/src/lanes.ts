@@ -1,3 +1,5 @@
+import { buildEconomy, loadPlaces, type Economy, type Place } from "./flows.js";
+import { PLACE_OF_HUB } from "./places.js";
 import type { EconomyConfig } from "@lanes/config";
 import { dasin, dcos, dsin } from "./dmath.js";
 import type { Hub } from "./hubs.js";
@@ -21,7 +23,7 @@ export interface Lane {
 
 const EARTH_RADIUS_MI = 3958.8;
 
-export function greatCircleMiles(a: Hub, b: Hub): number {
+export function greatCircleMiles(a: { lat: number; lon: number }, b: { lat: number; lon: number }): number {
   const rad = Math.PI / 180;
   const dLat = (b.lat - a.lat) * rad;
   const dLon = (b.lon - a.lon) * rad;
@@ -44,6 +46,26 @@ export interface Network {
   /** The road network, and the route between every pair of hubs (n × n, row-major; null on the diagonal). */
   roads: RoadNetwork;
   routes: (Route | null)[];
+  /** Places under the markets, their road terminals, and who makes and buys what (DESIGN-PLACES.md). */
+  places: Place[];
+  placeTerminal: Int32Array;
+  economy: Economy;
+}
+
+/** The road route between two places (null if unconnected). Cached in the road network. */
+export function placeRoute(net: Network, a: number, b: number): Route | null {
+  if (a === b) return null;
+  return net.roads.route(net.placeTerminal[a]!, net.placeTerminal[b]!);
+}
+
+/** Road miles between two places, or great-circle × circuity where the roads don't connect them. */
+export function placeMiles(net: Network, a: number, b: number, circuity = 1.2): number {
+  if (a === b) return 0;
+  const r = placeRoute(net, a, b);
+  if (r) return Math.round(r.miles);
+  const pa = net.places[a]!;
+  const pb = net.places[b]!;
+  return Math.round(greatCircleMiles(pa, pb) * circuity);
 }
 
 /**
@@ -96,5 +118,32 @@ export function buildNetwork(hubs: Hub[], cfg: EconomyConfig): Network {
   );
 
   const starterIdx = hubs.flatMap((h, i) => (h.isStarter ? [i] : []));
-  return { hubs, lanes, miles, lanesFrom, nearby, starterIdx, roads, routes };
+
+  // Places: attached to the nearest road node; the hubs' own places share the hubs' terminals.
+  // A place's market is the hub it reaches by road soonest, among the few nearest as the crow flies.
+  const places = loadPlaces();
+  const placeTerminal = new Int32Array(places.length);
+  const hubPlace = new Map<number, number>(PLACE_OF_HUB.map((p, h) => [p, h]));
+  for (let p = 0; p < places.length; p++) {
+    const h = hubPlace.get(p);
+    placeTerminal[p] = h !== undefined ? h : roads.addTerminal(places[p]!.lat, places[p]!.lon);
+    if (h !== undefined) continue;
+    const near = hubs
+      .map((hub, i) => ({ i, gc: greatCircleMiles(places[p]!, hub) }))
+      .sort((a, b) => a.gc - b.gc)
+      .slice(0, 4);
+    let best = near[0]!.i;
+    let bestMi = Infinity;
+    for (const { i } of near) {
+      const r = roads.route(placeTerminal[p]!, i);
+      const mi = r ? r.miles : Infinity;
+      if (mi < bestMi) {
+        bestMi = mi;
+        best = i;
+      }
+    }
+    places[p]!.market = best;
+  }
+  const economy = buildEconomy(places, n);
+  return { hubs, lanes, miles, lanesFrom, nearby, starterIdx, roads, routes, places, placeTerminal, economy };
 }

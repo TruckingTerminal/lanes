@@ -1,5 +1,6 @@
 // Minimal ESRI shapefile (polyline) + dBase reader. Usage: node shp.mjs <file.shp> <file.dbf> [inspect]
 import { readFileSync } from "node:fs";
+import { pathToFileURL } from "node:url";
 
 export function readDbf(path) {
   const b = readFileSync(path);
@@ -55,7 +56,8 @@ export function readShp(path) {
   return { shapeType, records: out };
 }
 
-if (process.argv[2] && process.argv[3]) {
+// Inspect mode, only when run directly (the build tools import this file with their own arguments).
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href && process.argv[2] && process.argv[3]) {
   const shp = readShp(process.argv[2]);
   const dbf = readDbf(process.argv[3]);
   console.log("shape type", shp.shapeType, "records", shp.records.length, "dbf rows", dbf.rows.length);
