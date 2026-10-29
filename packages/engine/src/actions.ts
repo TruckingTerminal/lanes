@@ -94,7 +94,9 @@ export function badInput(cfg: EconomyConfig, a: Action): string | null {
       return finiteIn(a.fd, 0.01, 1e12) && typeof a.instant === "boolean" ? null : "bad amount";
     case "deposit_pool":
     case "withdraw_pool":
-      return a.line === "insurance" && finiteIn(a.amountFd, 0.01, 1e12) ? null : "bad pool deposit";
+      return (a.line === "insurance" || a.line === "factoring" || a.line === "surety") && finiteIn(a.amountFd, 0.01, 1e12) ? null : "bad pool deposit";
+    case "set_pay_terms":
+      return a.terms === "net" || a.terms === "quick" || a.terms === "factor" ? null : "bad terms";
     case "offer_fd":
       return isFd(a.amountFd) && finiteIn(a.minPriceUsd, 0, 1e6) ? null : "bad offer";
     case "offer_staff":
@@ -495,6 +497,10 @@ export function applyAction(w: World, companyId: number, action: Action): Action
 
     case "withdraw_pool":
       return result(withdrawPool(w, action.line, company.id, action.amountFd));
+
+    case "set_pay_terms":
+      company.payTerms = action.terms;
+      return result(null);
 
     case "claim_airdrop_now":
       return result(claimAirdropNow(w, company));

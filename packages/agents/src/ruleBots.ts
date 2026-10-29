@@ -686,6 +686,11 @@ function manageCash(w: World, c: Company, p: BotProfile): void {
   const cash = w.ledger.balance(acct);
   const need = reserve(w, c, p);
   const deposited = depositorValue(w, c.id);
+  // Payment terms (0.18.0): short of working capital, factor the invoices; otherwise wait for the due day.
+  if (w.cfg.token.payment.enabled) {
+    const want = cash < need ? "factor" : "net";
+    if (c.payTerms !== want) applyAction(w, c.id, { type: "set_pay_terms", terms: want });
+  }
   if (cash < need * 0.5 && deposited > 1_000) {
     applyAction(w, c.id, { type: "withdraw_finance", amountFd: need - cash });
     return;

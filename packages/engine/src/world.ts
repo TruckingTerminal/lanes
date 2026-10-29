@@ -4,7 +4,7 @@ import { Ledger, companyAccount } from "./ledger.js";
 import { truckCap } from "./staking.js";
 import { newPool } from "./pools.js";
 import { Rng } from "./rng.js";
-import type { BuybackWeek, GameEvent, TokenState, Company, Facility, FinancePool, FraudCase, LeaseKind, Listing, Load, Pool, PoolLine, Role, SeasonCloseRecord, Staff, StandingOrder, Truck, TruckOrder, Contract } from "./types.js";
+import type { BuybackWeek, GameEvent, TokenState, Company, Facility, FinancePool, FraudCase, LeaseKind, Listing, Load, Pool, PoolLine, Receivable, Role, SeasonCloseRecord, Staff, StandingOrder, Truck, TruckOrder, Contract } from "./types.js";
 import { signPolicy } from "./insurance.js";
 import { seedPool } from "./labor.js";
 import { MetricsRecorder } from "./metrics.js";
@@ -101,6 +101,9 @@ export interface World {
   insuranceMarket: { index: number; premiums: number[]; claims: number[] };
   /** Player-funded pools by line (pools.ts). */
   pools: Record<PoolLine, Pool>;
+  /** Freight pay owed under payment terms (receivables.ts). */
+  receivables: Receivable[];
+  nextReceivableId: number;
   /** Dealer price index by tractor tier and trailer type (dealer.ts). */
   dealerIndex: { tractor: Record<TractorTier, number>; trailer: Record<Equipment, number> };
   /** Home-hub crowding per hub (home.ts), recomputed by the engine at fixed points. */
@@ -195,7 +198,7 @@ export function createWorld(o: WorldOptions): World {
       treasury: { usd: 0, seedUsd: 0, productUsd: 0, feeUsd: 0, buybackUsd: 0, buybackFd: 0, opsUsd: 0, buybackQueueUsd: 0, dailyBuybackUsd: 0, weekRevenueUsd: 0 },
       priceHistory: [],
       launch: null,
-      airdrop: { mintedFd: 0, forfeitedFd: 0, haircutFd: 0 },
+      airdrop: { mintedFd: 0, forfeitedFd: 0, haircutFd: 0, seasonsPaid: 0 },
       baseCarriers: 0,
       newCompanies: 0,
     },
@@ -209,7 +212,9 @@ export function createWorld(o: WorldOptions): World {
     contracts: [],
     nextContractId: 1,
     insuranceMarket: { index: 1, premiums: [0], claims: [0] },
-    pools: { insurance: newPool() },
+    pools: { insurance: newPool(), factoring: newPool(), surety: newPool() },
+    receivables: [],
+    nextReceivableId: 1,
     dealerIndex: { tractor: { workhorse: 1, highwayPro: 1, flagship: 1 }, trailer: { van: 1, reefer: 1, flatbed: 1 } },
     homeCrowding: new Float64Array(o.net.hubs.length).fill(1),
     listener: null,
@@ -505,6 +510,9 @@ export function formCompany(w: World, c: NewCompany): Company {
     unstaking: [],
     tierGraceDay: null,
     soldFd: { day: -1, fd: 0 },
+    payTerms: "net",
+    suretyWriter: "npc",
+    seasonBase: { miles: 0, profit: 0 },
     airdrop: null,
     loadsThisWeek: 0,
     taxBaseFd: 0,

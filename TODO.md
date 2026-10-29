@@ -15,14 +15,17 @@ Order is the working order. Design records live in TOKENOMICS.md (economy) and R
 4. ✅ Reserve ledger: cap minted at genesis, faucets draw on the reserve, sinks refill it, rates follow it.
 5. ✅ Staking: tiers for trucks and facilities, broker licence stake, slashing, exit queue, instant haircut;
    the whale rules on the exchange (impact-scaled sell fee, daily sell limit).
-6. Insurance pool (pools.ts): wire into policy pricing, premium billing, crash and cargo claims, the daily
-   step, deposit/withdraw actions, depositor bots, tests.
-7. Factoring: net-30 payment terms for NPC shippers and brokers, a quick-pay option, the pool advancing
-   invoices at a discount with recourse on fraud; then the surety line; later equipment finance and fuel hedge.
-8. Airdrop seasons (10 / 6 / 4 / 3M, pot scaled down when the season's price ran below launch) and the
-   unlock boosts (achievements, FD-burning shop items) once the client has a shop.
-9. Ten-seed runs with circular + staking + pools on: size the cap, reserve share, payout fraction, tier
-   stakes, exit limit, sell-fee slope, pool capital ratios; kill criteria in TOKENOMICS.md §5.
+6. ✅ Insurance pool (pools.ts): pool-written policies at a capital-ratio markup, premiums to the pool,
+   crash and cargo claims paid from it, exit queue, depositor bots.
+7. ✅ Payment terms and factoring (receivables.ts): net-30 for NPC shippers, brokers and player shippers;
+   quick pay at 3%; the factoring pool advances invoices at 2.5% × its markup (NPC factor as backstop);
+   bots factor when short of working capital. ✅ Surety line: the pool carries broker bonds while
+   capitalised and covers a wound-up broker's carrier up to the bond. Later: equipment finance, fuel hedge.
+8. ✅ Airdrop seasons (6 / 4 / 3M after the 10M launch pot, scaled down when the season's price ran below
+   launch). Still to do: the unlock boosts (achievements, FD-burning shop items) once the client has a shop.
+9. Ten-seed runs with circular + staking + pools + payment on (runs/v25-*): size the cap, reserve share,
+   payout fraction, tier stakes, exit limit, sell-fee slope, pool capital ratios; kill criteria in
+   TOKENOMICS.md §5.
 10. One restart while the world has no players.
 
 ## Next layers (Jeff, 2026-10-29) — sinks, realism, management

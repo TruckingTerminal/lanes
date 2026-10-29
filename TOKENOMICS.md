@@ -312,13 +312,13 @@ cash-flow game real carriers play and gives the stake and the holding cost somet
 
 ### 5. Build order and what the runs must size
 
-1. Reserve account and the supply check; every faucet and sink rerouted; profit tax to the reserve.
-2. Payout rule in demand pricing; retire the volume stabilizer; keep the rack-spread one.
-3. Staking: account, tiers, slashing hooks in fraud/safety, exit queue, instant haircut; the broker
+1. ✅ Reserve account and the supply check; every faucet and sink rerouted; profit tax to the reserve.
+2. ✅ Payout rule in demand pricing; retire the volume stabilizer; keep the rack-spread one.
+3. ✅ Staking: account, tiers, slashing hooks in fraud/safety, exit queue, instant haircut; the broker
    bond becomes a stake.
-4. Progressive sell fee and the daily sell limit in the exchange.
-5. Pools module; insurance first (the biggest flow), then factoring with payment terms, then surety.
-6. Airdrop seasons and the price-scaled pot; the unlock boosts once the client has the shop.
+4. ✅ Progressive sell fee and the daily sell limit in the exchange.
+5. ✅ Pools module; insurance first (the biggest flow), then factoring with payment terms, then surety.
+6. ✅ Airdrop seasons and the price-scaled pot (built: airdrop.laterSeasons; the broker bond stays a premium on top of the 75k stake); still open: the unlock boosts once the client has the shop.
 7. Ten-seed runs to set: the cap, the reserve share, the payout fraction, tier stakes, the exit
    limit, the sell-fee slope, pool capital ratios. Kill criteria: no reserve drain below one month of
    freight, no tier that the free path cannot reach in a year, pools solvent through a downturn.

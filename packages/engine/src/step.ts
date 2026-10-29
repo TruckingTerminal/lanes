@@ -14,13 +14,14 @@ import { chargeYards } from "./home.js";
 import { monthlyDealerPrices } from "./dealer.js";
 import { dailyLabor, monthlyLabor, payDispatchers, weeklyLabor } from "./labor.js";
 import { dailyStaking } from "./staking.js";
-import { dailyPools } from "./pools.js";
+import { dailyPools, poolAccount, poolMarkup, poolsOn } from "./pools.js";
+import { dailyReceivables } from "./receivables.js";
 import { dailySafety, monthlySafety, weeklySafety } from "./safety.js";
 import { repossessDefaults, stepListings } from "./market.js";
 import { fleetOverheadPerWeek } from "./overhead.js";
 import { closeSeason } from "./season.js";
 import { chargeHoldingCost, checkSolvency, holdingCostApplies, processLiquidations } from "./solvency.js";
-import { dailyBuyback, launchToken, scaleDemand, tokenLive, weeklyToken } from "./token.js";
+import { dailyBuyback, launchToken, scaleDemand, seasonAirdrop, tokenLive, weeklyToken } from "./token.js";
 import { moveTrucks } from "./trips.js";
 import { companyById, operatingTrucks, payPermits, type World } from "./world.js";
 
@@ -65,6 +66,7 @@ function endOfDay(w: World, day: number, agents?: DailyAgentHook): void {
   dailyLabor(w);
   dailyStaking(w);
   dailyPools(w);
+  dailyReceivables(w);
 
   // Idle fee on owned assets unused for 7+ in-game days, parked and listed ones included (§Owned vs. leased).
   // And a sitting truck burns diesel from its first day: a crewed truck idle at day's end idles for the
@@ -129,15 +131,28 @@ function endOfDay(w: World, day: number, agents?: DailyAgentHook): void {
   }
   if (tokenLive(w)) dailyBuyback(w);
 
-  // Broker bond via the Surety Desk: 2–12% of 75,000 FD a year by credit, charged
-  // daily (§Roles — broker license and bond). Paid to an NPC surety until the
-  // Surety Desk's depositor pools exist.
+  // Broker bond via the Surety Desk: 2–12% of 75,000 FD a year by credit, charged daily (§Roles —
+  // broker license and bond). The surety pool carries the bond while it is capitalised (pools.ts),
+  // at its markup, and then covers the broker's carriers if it is wound up unpaid; otherwise the
+  // NPC surety takes the premium and covers nothing.
   const [bestPct, worstPct] = cfg.permits.suretyPctPerYear;
+  const suretyMarkup = poolsOn(w) ? poolMarkup(w, "surety") : null;
+  let bonds = 0;
   for (const c of w.companies) {
     if (c.role !== "broker") continue;
     const pct = worstPct - (worstPct - bestPct) * c.reputation;
-    w.ledger.post(w.t, companyAccount(c.id), "sink:surety", (cfg.permits.brokerBondFd * pct) / cfg.time.daysPerSeason, `surety:${c.id}`);
+    const premium = (cfg.permits.brokerBondFd * pct) / cfg.time.daysPerSeason;
+    if (suretyMarkup !== null) {
+      w.ledger.post(w.t, companyAccount(c.id), poolAccount("surety"), premium * suretyMarkup, `surety:${c.id}`);
+      w.pools.surety.premiumsFd += premium * suretyMarkup;
+      c.suretyWriter = "pool";
+      bonds += cfg.permits.brokerBondFd;
+    } else {
+      w.ledger.post(w.t, companyAccount(c.id), "sink:surety", premium * (poolsOn(w) ? cfg.token.pools.surety.backstopMarkup : 1), `surety:${c.id}`);
+      c.suretyWriter = "npc";
+    }
   }
+  w.pools.surety.exposureFd = bonds;
 
   // Free-path affordability is tracked apart from purchases, so a run can tell
   // "couldn't earn it" from "nothing left to buy".
@@ -152,6 +167,8 @@ function endOfDay(w: World, day: number, agents?: DailyAgentHook): void {
     if (cfg.seasonClose.enabled && !launchedToday) closeSeason(w, seasonOf(day, cfg), day);
     // Without seasons, authority and licenses still renew once a year (§Roles: "renew each season").
     else for (const c of w.companies) payPermits(w, c);
+    // A later airdrop season closes with the year (token.ts).
+    if (tokenLive(w) && !launchedToday) seasonAirdrop(w);
   }
   w.metrics.closeDay(w, day, fuelPrice(w));
   if ((day + 1) % cfg.time.daysPerMonth === 0) {

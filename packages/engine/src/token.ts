@@ -157,7 +157,10 @@ export function launchToken(w: World): void {
   w.ledger.post(w.t, "faucet:launch_liquidity", EXCHANGE_ACCOUNT, liquidityFd, "launch:liquidity");
   w.token.poolUsd = tc.launch.seedUsd;
   w.token.treasury.seedUsd = tc.launch.seedUsd;
-  for (const c of w.companies) c.taxBaseFd = operatingResult(w, c);
+  for (const c of w.companies) {
+    c.taxBaseFd = operatingResult(w, c);
+    c.seasonBase = { miles: lifetimeMiles(c), profit: operatingResult(w, c) };
+  }
   w.token.profitTaxRate = tc.profitTaxRate;
   w.token.launchDay = dayOf(w.t, w.cfg);
   w.token.baseCarriers = w.companies.filter((c) => c.role === "carrier").length;
@@ -177,6 +180,41 @@ export function claimAirdropNow(w: World, c: Company): string | null {
   a.weeksLeft = 0;
   a.claimedEarly = true;
   return null;
+}
+
+/**
+ * Later airdrop seasons (airdrop.laterSeasons, TOKENOMICS.md "a season schedule"): at each year end
+ * after launch the next pot is split like the launch pot, by the season's Miles and operating
+ * profit, scaled down by how far the season's average price ran below the launch price, never up.
+ * The slices vest like the launch ones; what is left of an unfinished vest rolls into the new one.
+ */
+export function seasonAirdrop(w: World): void {
+  const tc = w.cfg.token;
+  const n = w.token.airdrop.seasonsPaid;
+  const pot0 = tc.airdrop.laterSeasons[n];
+  if (pot0 === undefined) return;
+  const hist = w.token.priceHistory.slice(-w.cfg.time.daysPerSeason);
+  const avg = hist.length ? hist.reduce((a, b) => a + b, 0) / hist.length : tc.launch.priceUsd;
+  const pot = pot0 * Math.min(1, avg / tc.launch.priceUsd);
+  const eligible = w.companies.map((c) => c.liquidatingSince === null && c.authority.status !== "revoked");
+  const miles = w.companies.map((c, i) => (eligible[i] ? Math.max(0, lifetimeMiles(c) - c.seasonBase.miles) : 0));
+  const profits = w.companies.map((c, i) => (eligible[i] ? Math.max(0, operatingResult(w, c) - c.seasonBase.profit) : 0));
+  const totalMiles = miles.reduce((a, b) => a + b, 0);
+  const totalProfit = profits.reduce((a, b) => a + b, 0);
+  const cap = pot * tc.airdrop.capShare;
+  const { miles: wm, profit: wp } = tc.airdrop.weights;
+  w.companies.forEach((c, i) => {
+    c.seasonBase = { miles: lifetimeMiles(c), profit: operatingResult(w, c) };
+    const score = (totalMiles > 0 ? (wm * miles[i]!) / totalMiles : 0) + (totalProfit > 0 ? (wp * profits[i]!) / totalProfit : 0);
+    const share = Math.min(cap, pot * score);
+    if (share <= 0) return;
+    const prev = c.airdrop;
+    const carried = prev && prev.weeksLeft > 0 && !prev.claimedEarly ? Math.max(0, prev.totalFd - prev.unlockedFd - prev.forfeitedFd) : 0;
+    c.airdrop = { totalFd: share + carried, unlockedFd: 0, forfeitedFd: 0, weeksLeft: tc.airdrop.unlockWeeks, claimedEarly: false };
+    mintAirdrop(w, c, share * tc.airdrop.atLaunch);
+  });
+  w.token.airdrop.seasonsPaid++;
+  w.listener?.({ kind: "launched" });
 }
 
 /** A liquidated company loses what's left of its airdrop. */

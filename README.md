@@ -455,6 +455,43 @@ out of them. Three things were wrong, and the fix is in the data layer.
   are the hubs', and what changed is where inside each market the freight lands and which road the truck takes.
   A seed takes 190 s instead of 80 because every load now routes between two of 4,786 places.
 
+## The circular economy, built behind switches (toward config 0.18.0)
+
+Jeff's direction (2026-10-29, TOKENOMICS.md "The circular economy"): a capped FD supply, staking as
+the bond behind every licence, player-funded pools for insurance, factoring and surety, payment
+terms, and a season schedule for later airdrops. All of it is on main and off by default
+(`token.circular`, `token.staking`, `token.pools`, `token.payment`), so the live world's rules are
+unchanged until the ten-seed sizing runs (`runs/v25-*`) settle the numbers and a restart turns it on.
+
+- **Reserve ledger** (`ledger.ts`): the cap (1B FD) is minted once at genesis into the reserve
+  (60%), the launch pool, the airdrop seasons and the treasury. Faucets draw on the reserve or their
+  allocation, sinks refill it; only buybacks, the sell fee, forfeited airdrop slices, the instant
+  unstake haircut and the season-close burn destroy FD. Reference rates scale with reserve ÷ genesis
+  reserve (clamped 0.5–2), and the freight-volume dial stands down.
+- **Staking** (`staking.ts`): 5 trucks free, 10 at 20k staked, 30 at 100k; facilities 1 / 3 / 6 on
+  the same stakes; the broker licence needs 75k. A revoked authority forfeits the stake, judgments to
+  the victims first; liquidation releases it to creditors. Leaving takes a 28-day queue limited to 2%
+  of all staked FD a day, or an instant exit at a 25% haircut, burned. Over a tier: 14 days' grace,
+  then idle owned trucks park; an unstaked broker takes no loads. Bots stake for the next tier when
+  they can spare it; established fleets and brokers start staked.
+- **The whale rules** (`token.ts`): the sell fee rises with the sale's price impact (5% + 1 × impact,
+  up to 25%, burned) and each company may sell 2% of the pool's FD a day.
+- **Pools** (`pools.ts`): one mutual-pool primitive, units at net asset value, an exit queue paying
+  at most 5% of a pool a day after 28 days. Insurance: a capitalised pool writes policies at a
+  markup easing from 1.3 at the minimum capital ratio to 1 at twice it, earns the premiums, pays the
+  insured share of crash verdicts and a player shipper's lost cargo as far as it goes; the NPC
+  insurer charges a 25% backstop markup while a pool exists and is thin. Surety: the pool carries
+  broker bonds while capitalised and covers a wound-up broker's carrier up to the bond. Factoring
+  below.
+- **Payment terms** (`receivables.ts`): freight is paid net-30 game days; a payee may take quick pay
+  at 3% or factor the invoice, the pool advancing it at 2.5% × its markup (NPC factor at 1.4× as the
+  backstop) and collecting at due. Bots factor when short of working capital. A broker wound up
+  before paying leaves its carrier to the surety.
+- **Airdrop seasons** (`token.ts`): after the 10M launch pot, 6M, 4M and 3M at the next three year
+  ends, each split by that season's Miles 0.6 / operating profit 0.4, scaled down by how far the
+  season's average price ran below the launch price, never up; unfinished vests roll into the new
+  one. Still to build: the unlock boosts (TOKENOMICS.md), which need the client's shop.
+
 ## A real market: no NPC carriers, shippers and carriers that blink sooner (config 0.17.0)
 
 Jeff's design (2026-10-29): freight is hauled only by AI and player carriers. An NPC carrier taking a

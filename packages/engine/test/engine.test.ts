@@ -19,6 +19,10 @@ import {
   Ledger,
   RESERVE_ACCOUNT,
   payClaim,
+  bill,
+  dailyReceivables,
+  HOLDER_POOL,
+  seasonAirdrop,
   poolAccount,
   poolDepositorValue,
   quote,
@@ -1075,5 +1079,95 @@ describe("pools (0.18.0): a player-funded insurance pool", () => {
     runDays(w, 3);
     expect(paid()).toBeGreaterThan(0);
     expect(paid()).toBeLessThanOrEqual(200_000 * pooled.token.pools.exitLimitPerDay * 3 + 1);
+  });
+});
+
+describe("payment terms, factoring, surety and airdrop seasons (0.18.0)", () => {
+  const terms: EconomyConfig = { ...calm, token: { ...calm.token, payment: { ...calm.token.payment, enabled: true }, pools: { ...calm.token.pools, enabled: true } } };
+
+  it("pays freight net-30: carriers hold receivables and collect on the due day; on quick pay nothing waits", () => {
+    const w = createWorld({ cfg: terms, net, feeds: neutralFeeds, seed: 49, keepLedgerEntries: true });
+    populate(w, { freeOwnerOperators: 40, fleets: 10, brokers: 3 });
+    runDays(w, 10, ruleBotHook);
+    expect(w.receivables.length).toBeGreaterThan(0);
+    const collected = () => w.ledger.entries.filter((e) => e.ref.startsWith("receivable:")).length;
+    expect(collected()).toBe(0);
+    runDays(w, terms.token.payment.termsDays, ruleBotHook);
+    expect(collected()).toBeGreaterThan(0);
+    for (const c of w.companies) c.payTerms = "quick";
+    const day = w.metrics.days.length;
+    runDays(w, 5);
+    expect(w.receivables.filter((r) => r.dueDay > day + terms.token.payment.termsDays)).toHaveLength(0);
+    w.ledger.assertBalanced();
+  });
+
+  it("factors an invoice through the pool when it is capitalised, at the discount, and the pool collects at due", () => {
+    const w = createWorld({ cfg: terms, net, feeds: neutralFeeds, seed: 50, keepLedgerEntries: true });
+    const d = carrier(w, "Depositor");
+    fund(w, d.id, 3_000_000);
+    expect(applyAction(w, d.id, { type: "deposit_pool", line: "factoring", amountFd: 2_000_000 })).toEqual({ ok: true });
+    const c = carrier(w, "Factoring carrier");
+    expect(applyAction(w, c.id, { type: "set_pay_terms", terms: "factor" })).toEqual({ ok: true });
+    const cashBefore = w.ledger.balance(companyAccount(c.id));
+    bill(w, { payer: 0, faucet: "faucet:npc_shipper", payee: c, amountFd: 10_000, ref: "load:test" });
+    const advance = 10_000 * (1 - terms.token.payment.factoring.discountPct); // a fresh pool against no exposure: markup 1
+    expect(w.ledger.balance(companyAccount(c.id)) - cashBefore).toBeCloseTo(advance, 2);
+    expect(w.receivables).toHaveLength(1);
+    expect(w.receivables[0]!.holder).toBe(HOLDER_POOL);
+    expect(w.pools.factoring.exposureFd).toBe(10_000);
+    const poolBefore = w.ledger.balance(poolAccount("factoring"));
+    runDays(w, terms.token.payment.termsDays + 1);
+    expect(w.receivables).toHaveLength(0);
+    expect(w.ledger.balance(poolAccount("factoring")) - poolBefore).toBeCloseTo(10_000, 2);
+    expect(w.pools.factoring.premiumsFd).toBeCloseTo(10_000 - advance, 2);
+    expect(w.pools.factoring.exposureFd).toBe(0);
+  });
+
+  it("the surety pool covers a broker's carrier when the broker is wound up unpaid, up to the bond", () => {
+    const w = createWorld({ cfg: terms, net, feeds: neutralFeeds, seed: 51, keepLedgerEntries: true });
+    const d = carrier(w, "Depositor");
+    fund(w, d.id, 500_000);
+    expect(applyAction(w, d.id, { type: "deposit_pool", line: "surety", amountFd: 300_000 })).toEqual({ ok: true });
+    const b = formCompany(w, { name: "Broker", role: "broker", homeHubId: "DAL", strategy: "test", orders: [], freePath: false });
+    b.suretyWriter = "pool";
+    const c = carrier(w);
+    const owed = 100_000;
+    w.receivables.push({ id: w.nextReceivableId++, payer: b.id, payeeId: c.id, amountFd: owed, dueDay: 0, holder: c.id });
+    b.liquidatingSince = 0;
+    const before = w.ledger.balance(companyAccount(c.id));
+    dailyReceivables(w);
+    const bond = terms.token.staking.roles.broker;
+    expect(w.ledger.balance(companyAccount(c.id)) - before).toBeCloseTo(Math.min(owed, bond), 2);
+    expect(w.pools.surety.claimsFd).toBeCloseTo(Math.min(owed, bond), 2);
+    expect(w.receivables).toHaveLength(0);
+  });
+
+  it("pays a later airdrop season by that season's Miles and profit, scaled by the price against launch", () => {
+    const tk2: EconomyConfig = { ...calm, token: { ...calm.token, enabled: true } };
+    const w = createWorld({ cfg: tk2, net, feeds: neutralFeeds, seed: 52, keepLedgerEntries: true });
+    const a = carrier(w, "A");
+    const b = carrier(w, "B");
+    fund(w, a.id, 100_000);
+    a.milesTotal = 3_000;
+    b.milesTotal = 1_000;
+    launchToken(w);
+    // The launch vests are over; in the season that follows only A hauls and earns, and the price runs at half of launch.
+    a.airdrop!.weeksLeft = 0;
+    b.airdrop!.weeksLeft = 0;
+    a.milesTotal += 5_000;
+    a.operating.revenueFd += 50_000;
+    for (let i = 0; i < 10; i++) w.token.priceHistory.push(tk2.token.launch.priceUsd / 2);
+    const hist = w.token.priceHistory.slice(-tk2.time.daysPerSeason);
+    const scale = Math.min(1, hist.reduce((s, p) => s + p, 0) / hist.length / tk2.token.launch.priceUsd);
+    const minted = w.token.airdrop.mintedFd;
+    seasonAirdrop(w);
+    const pot = tk2.token.airdrop.laterSeasons[0]! * scale;
+    expect(scale).toBeLessThan(1);
+    expect(a.airdrop!.totalFd).toBeCloseTo(Math.min(pot * tk2.token.airdrop.capShare, pot), 2); // the whole season was A's, capped
+    expect(a.airdrop!.weeksLeft).toBe(tk2.token.airdrop.unlockWeeks);
+    expect(b.airdrop!.weeksLeft).toBe(0);
+    expect(w.token.airdrop.mintedFd - minted).toBeCloseTo(a.airdrop!.totalFd * tk2.token.airdrop.atLaunch, 2);
+    expect(w.token.airdrop.seasonsPaid).toBe(1);
+    w.ledger.assertBalanced();
   });
 });

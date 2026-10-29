@@ -546,6 +546,10 @@ export const economyConfig = {
       // weights. Losses score zero. A company shut down (authority revoked) or in liquidation at
       // launch gets nothing: the risk a bad actor runs. The weighting is still to be tuned.
       weights: { miles: 0.6, profit: 0.4 },
+      // Design proposal (2026-10-29, TOKENOMICS.md "Airdrop size and a season schedule"): later
+      // seasons, one per in-game year after launch, each split by that season's Miles and profit,
+      // scaled down by how far the season's average price ran below the launch price, never up.
+      laterSeasons: [6_000_000, 4_000_000, 3_000_000],
       atLaunch: 0.25, // §Airdrop unlock: 25% claimable at launch…
       unlockWeeks: 26, // …75% unlocks over 6 months by playing: a 26th each week the company handles…
       loadsPerWeek: 3, // …at least this many loads; a missed week's slice is forfeited, never minted
@@ -591,6 +595,20 @@ export const economyConfig = {
         thinMarkup: 1.3, // the pool's price against the NPC base at the minimum ratio, easing to 1 at twice it
         backstopMarkup: 1.25, // what the NPC insurer charges while a pool exists and is too thin
       },
+      // Factoring: capital ÷ invoices outstanding; the discount is payment.factoring.discountPct × the markup.
+      factoring: { minCapitalRatio: 0.2, thinMarkup: 1.5, backstopMarkup: 1.4 },
+      // Surety: capital ÷ bonds written; the bond premium (permits.suretyPctPerYear) × the markup goes to the pool.
+      surety: { minCapitalRatio: 0.1, thinMarkup: 1.3, backstopMarkup: 1.25 },
+    },
+    // Design decision (Jeff, 2026-10-29; TOKENOMICS.md §4): payment terms. Freight is paid net-30
+    // game days; a payee may take quick pay for a fee or factor the invoice (the pool, or the NPC
+    // factor as the dearer backstop). Carriers run on working capital, as real ones do. Off until
+    // 0.18.0 ships: with it off every payment posts on delivery as before.
+    payment: {
+      enabled: false,
+      termsDays: 30,
+      quickPayPct: 0.03,
+      factoring: { discountPct: 0.025 }, // × the pool's markup, or × pools.factoring.backstopMarkup at the NPC factor
     },
     treasury: {
       // Stand-in for real revenue other than exchange fees: cosmetics, premium,

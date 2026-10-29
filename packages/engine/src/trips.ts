@@ -2,6 +2,7 @@ import { COMMODITIES } from "@lanes/data";
 import { dayOf, MINUTES_PER_HOUR } from "./clock.js";
 import { clamp, fuelPrice, tripCost } from "./economics.js";
 import { settleDoubleBroker } from "./fraud.js";
+import { bill } from "./receivables.js";
 import { creditMiles, creditDriving, homeArrival } from "./labor.js";
 import { companyAccount } from "./ledger.js";
 import { closeDutyDay, drivingLimitMin, legalDrivingMin, mphFor, safetyTick } from "./safety.js";
@@ -229,7 +230,7 @@ function collectUpstream(w: World, load: Load, payee: Company, gross: number, fa
     const defaulted = w.rng.ops.next() < brokerRisk.defaultRate * (1 + brokerRisk.downturnSensitivity * slump);
     const billed = load.shipperRate * load.miles * factor;
     if (!defaulted) {
-      w.ledger.post(w.t, "faucet:npc_shipper", brokerAcct, billed, ref);
+      bill(w, { payer: 0, faucet: "faucet:npc_shipper", payee: broker, amountFd: billed, ref });
       w.ledger.post(w.t, brokerAcct, "sink:board_fee", cfg.board.posterFeePct * billed, ref);
       awardMiles(w, broker, cfg.miles.brokerPerMile * load.miles, load.laneId);
       broker.operating.revenueFd += billed;
@@ -237,7 +238,7 @@ function collectUpstream(w: World, load: Load, payee: Company, gross: number, fa
     } else {
       w.metrics.onShipperDefault();
     }
-    w.ledger.post(w.t, brokerAcct, payeeAcct, gross, ref);
+    bill(w, { payer: broker.id, payee, amountFd: gross, ref });
     broker.operating.costFd += gross;
     broker.openBrokerLoads--;
     broker.loadsThisWeek++;
@@ -247,8 +248,8 @@ function collectUpstream(w: World, load: Load, payee: Company, gross: number, fa
     const shipper = companyById(w, load.shipperId);
     const shipperAcct = companyAccount(shipper.id);
     const fee = cfg.board.posterFeePct * load.saleValue;
-    w.ledger.post(w.t, "faucet:npc_market", shipperAcct, load.saleValue, ref);
-    if (shipper.id !== payee.id) w.ledger.post(w.t, shipperAcct, payeeAcct, gross, ref);
+    bill(w, { payer: 0, faucet: "faucet:npc_market", payee: shipper, amountFd: load.saleValue, ref });
+    if (shipper.id !== payee.id) bill(w, { payer: shipper.id, payee, amountFd: gross, ref });
     w.ledger.post(w.t, shipperAcct, "sink:board_fee", fee, ref);
     const facility = w.facilities[load.facilityId! - 1];
     // Self-hauled freight's carrier side is the owner's own cost, so only the goods margin counts here.
@@ -258,7 +259,7 @@ function collectUpstream(w: World, load: Load, payee: Company, gross: number, fa
       shipper.loadsThisWeek++;
     }
   } else {
-    w.ledger.post(w.t, "faucet:npc_shipper", payeeAcct, gross, ref);
+    bill(w, { payer: 0, faucet: "faucet:npc_shipper", payee, amountFd: gross, ref });
   }
 }
 

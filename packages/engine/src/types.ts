@@ -205,6 +205,12 @@ export interface Company {
   tierGraceDay: number | null;
   /** FD sold on the exchange today (the daily sell limit). */
   soldFd: { day: number; fd: number };
+  /** Payment terms (receivables.ts): wait for the due day, take quick pay, or factor the invoice. */
+  payTerms: "net" | "quick" | "factor";
+  /** Brokers: who carries the bond this term, the surety pool or the NPC surety. */
+  suretyWriter: "pool" | "npc";
+  /** Miles and operating result at the start of the current airdrop season (token.ts seasons). */
+  seasonBase: { miles: number; profit: number };
   airdrop: Airdrop | null;
   /** Loads delivered, brokered or shipped this week (airdrop unlocks). */
   loadsThisWeek: number;
@@ -233,7 +239,20 @@ export interface Company {
 
 /** A one-game-year insurance policy: the price per truck is fixed for the term. */
 /** A player-funded pool (pools.ts): units at net asset value, an exit queue, and the line's running income and losses. */
-export type PoolLine = "insurance";
+export type PoolLine = "insurance" | "factoring" | "surety";
+
+/** Freight pay owed under payment terms (receivables.ts): who pays, who is owed, and who holds the paper. */
+export interface Receivable {
+  id: number;
+  /** Company id, or 0 for an NPC payer drawing on `faucet`. */
+  payer: number;
+  faucet?: string;
+  payeeId: number;
+  amountFd: number;
+  dueDay: number;
+  /** The payee's id, or HOLDER_POOL (factored to the pool) or HOLDER_NPC_FACTOR. */
+  holder: number;
+}
 export interface Pool {
   shares: Map<number, number>;
   totalShares: number;
@@ -637,6 +656,7 @@ export type Action =
   | { type: "unstake_fd"; fd: number; instant: boolean }
   | { type: "deposit_pool"; line: PoolLine; amountFd: number }
   | { type: "withdraw_pool"; line: PoolLine; amountFd: number }
+  | { type: "set_pay_terms"; terms: "net" | "quick" | "factor" }
   | { type: "claim_airdrop_now" }
   /** Standing offer in the weekly buyback auction; amount 0 withdraws it. */
   | { type: "offer_fd"; amountFd: number; minPriceUsd: number }
@@ -700,7 +720,7 @@ export interface TokenState {
   /** Daily pool price after launch. */
   priceHistory: number[];
   launch: LaunchRecord | null;
-  airdrop: { mintedFd: number; forfeitedFd: number; haircutFd: number };
+  airdrop: { mintedFd: number; forfeitedFd: number; haircutFd: number; seasonsPaid: number };
   baseCarriers: number;
   newCompanies: number;
 }
