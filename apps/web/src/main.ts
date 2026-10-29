@@ -38,6 +38,7 @@ import {
   fuelPrice,
   hubMiles,
   hubRoute,
+  fleetOverheadPerWeek,
   offeredContracts,
   activeContracts,
   isLocal,
@@ -233,7 +234,12 @@ function onEvent(s: Session, e: GameEvent): void {
       "warn",
     );
   if (e.kind === "breakdown") push(s, `Breakdown on truck ${truckNo(e.truckId)}${e.repairFd ? `: ${fd(e.repairFd)} FD repair bill` : " (lessor pays)"}`, "bad");
-  if (e.kind === "truckDelivered") push(s, `New truck delivered: truck ${truckNo(e.truckId)} is ready`, "good");
+  if (e.kind === "truckDelivered") {
+    const t = w.trucks[e.truckId - 1];
+    const needs = t && !crewed(t);
+    push(s, `New truck delivered: truck ${truckNo(e.truckId)} is ready${needs ? " and needs a driver: hire one on the Staff tab" : ""}`, needs ? "warn" : "good");
+    if (s === game && needs) toast(`Truck ${truckNo(e.truckId)} was delivered with no driver. Hire one on the Staff tab or it earns nothing.`, true);
+  }
   if (e.kind === "liquidated") push(s, "Your company went into liquidation: trucks are being sold and you'll restart on an NPC lease.", "bad");
   if (e.kind === "notice") {
     // The engine names trucks by their world id; the player knows theirs by fleet number.
@@ -1004,6 +1010,7 @@ function renderHud(): void {
   const day = Math.floor(minute / 1440);
   const tokenNow = tokenLive(w);
   checkIdleAlerts();
+  checkAttention();
   const badge =
     g.kind === "test"
       ? `<span class="badge test" title="A private test world: nothing here is stored">TEST WORLD</span><div class="speeds" role="group" aria-label="Test world speed">${SPEEDS.map((sp, i) => `<button class="btn" data-speed="${i}" title="${esc(sp.title)}" aria-label="${esc(sp.title)}">${img(iconUrl(sp.icon, 2), sp.label)}</button>`).join("")}</div>${live ? `<button class="btn" data-act="backlive">Back to the live world</button>` : ""}`
@@ -1026,6 +1033,8 @@ function renderHud(): void {
     if (stuck) stats += `<span class="badge alert" title="Trucks idle a day or more: the Fleet tab says why">${stuck} IDLE</span>`;
     const tired = tiredTrucks().length;
     if (tired) stats += `<span class="badge alert" title="Drivers out three weeks or running tired: the Fleet tab says what to do">${tired} TIRED</span>`;
+    const todo = attentionItems().length;
+    if (todo) stats += `<span class="badge alert" title="Things that cost money while nobody looks: the Fleet tab lists them">${todo} TO DO</span>`;
     const tenders = [...w.loads.values()].filter((l) => l.status === "open" && l.tenderedTo === c.id).length;
     if (tenders) stats += `<span class="badge alert" title="Contract tenders waiting for you: the Fleet tab has them">${tenders} TENDER${tenders > 1 ? "S" : ""}</span>`;
   }
@@ -1200,6 +1209,74 @@ function idleWhy(t: Truck): IdleWhy {
   return { why: `${plural(payable.length, `${trailer} load`)} in range pay enough, but the dispatcher's bids keep losing: other carriers bid lower or have the better record.`, fixes: [`<button class="btn primary" data-act="findloads" data-truck="${t.id}">Bid by hand</button>`] };
 }
 
+/**
+ * Things that cost money while nobody looks: a truck with no driver, cash running out, weeks in
+ * the red, a stretched dispatcher, defects piling up (Jeff, 2026-10-29: alerts for whatever is
+ * missing, so time doesn't just pass).
+ */
+interface Attention {
+  key: string;
+  text: string;
+  tone: "bad" | "warn";
+  fix: string;
+}
+
+function attentionItems(): Attention[] {
+  const g = game;
+  if (!g?.player) return [];
+  const w = g.w;
+  const c = g.player;
+  const out: Attention[] = [];
+  const trucks = myTrucks();
+  for (const t of trucks) {
+    if (crewed(t) || t.status === "listed") continue;
+    out.push({ key: `driver:${t.id}`, text: `Truck ${truckNo(t.id)} has no driver and earns nothing.`, tone: "bad", fix: `<button class="btn primary" data-act="tostaff">Hire a driver</button>` });
+  }
+  const bal = w.ledger.balance(companyAccount(c.id));
+  const running = trucks.filter((t) => t.status !== "parked" && t.status !== "listed");
+  const weeklyFixed =
+    running.length * (c.insurance.annualPerTruck / 52) +
+    fleetOverheadPerWeek(w.cfg, running.length) +
+    lessorTrucksOf(w, c.id).length * 250 +
+    yardPerTruck(w, c) * Math.max(0, trucks.length - 1);
+  if (bal < -w.cfg.insolvency.debtLimitFd) {
+    const left = w.cfg.insolvency.weeksInDebt - c.weeksInDebt;
+    out.push({ key: "debt", text: `You're ${fd(-bal)} FD in the red. ${left <= 1 ? "The next weekly check winds the company up" : `${left} more weeks in debt and the company is wound up`}: get loads moving, sell or park a truck, or put money in.`, tone: "bad", fix: `<button class="btn" data-act="tab" data-tab="money">Money</button>` });
+  } else if (weeklyFixed > 0 && bal < 2 * weeklyFixed) {
+    out.push({ key: "cash", text: `Cash is low: ${fd(bal)} FD against about ${fd(weeklyFixed)} FD a week of insurance, overhead, leases and yard before a wheel turns.`, tone: "warn", fix: `<button class="btn" data-act="tab" data-tab="money">Money</button>` });
+  }
+  const prof = dispatchProfile(w, c, running.length);
+  if (prof.coverage < 0.8) out.push({ key: "dispatch", text: `Your dispatch team covers ${prof.span} trucks and you run ${running.length}: about ${Math.round((1 - prof.coverage) * 100)}% of idle trucks sit out each round.`, tone: "warn", fix: `<button class="btn primary" data-act="tostaff">Hire a dispatcher</button>` });
+  for (const t of trucks) {
+    if (t.defects >= 3 && (t.status === "idle" || t.status === "parked")) out.push({ key: `defects:${t.id}`, text: `Truck ${truckNo(t.id)} is carrying ${t.defects} defects: an inspection finds them, and they raise crash odds.`, tone: "warn", fix: `<button class="btn" data-act="fix" data-truck="${t.id}">Fix · ${fd(t.defects * w.cfg.safety.maintenance.fixFdPerDefect)} FD</button>` });
+  }
+  return out;
+}
+
+function attentionCard(): string {
+  const items = attentionItems();
+  if (!items.length) return "";
+  return `<div class="card alert"><h3>Needs attention</h3>${items.map((a) => `<div class="row"><span class="${a.tone}">${a.text}</span>${a.fix}</div>`).join("")}</div>`;
+}
+
+/** Says each new item once, as a toast, the moment it appears. */
+const attentionSeen = new Set<string>();
+function checkAttention(): void {
+  const g = game;
+  if (!g?.player) return;
+  const items = attentionItems();
+  const keys = new Set(items.map((a) => `${g.kind}:${a.key}`));
+  for (const k of [...attentionSeen]) if (!keys.has(k)) attentionSeen.delete(k);
+  for (const a of items) {
+    const k = `${g.kind}:${a.key}`;
+    if (attentionSeen.has(k)) continue;
+    attentionSeen.add(k);
+    toast(a.text.replace(/<[^>]+>/g, ""), a.tone === "bad");
+    push(g, a.text, a.tone === "bad" ? "bad" : "warn");
+    panelDirty = true;
+  }
+}
+
 /** The player's trucks idle a day or more. */
 const stuckTrucks = () => myTrucks().filter((t) => t.status === "idle" && idleHours(t) >= IDLE_ALERT_HOURS);
 
@@ -1353,7 +1430,7 @@ function fleetPanel(): string {
   const orders = pending.length
     ? `<p class="muted">On order: ${pending.map((o) => `${TIER_NAME[o.tier]} + ${TRAILER_NAME[o.trailer]}, arrives ${dateLabel(o.dueDay)}`).join("; ")}</p>`
     : "";
-  return `<div class="stack"><h2>Your fleet</h2>${tendersCard(me())}${tiredAlertsCard()}${idleAlertsCard()}${pendingCard()}${orders}${cards}${dispatcherCard()}</div>`;
+  return `<div class="stack"><h2>Your fleet</h2>${attentionCard()}${tendersCard(me())}${tiredAlertsCard()}${idleAlertsCard()}${pendingCard()}${orders}${cards}${dispatcherCard()}</div>`;
 }
 
 function dispatcherCard(): string {
@@ -2350,6 +2427,11 @@ function wireInput(): void {
         break;
       case "tostaff":
         tab = "staff";
+        renderTabs();
+        panelDirty = true;
+        break;
+      case "tab":
+        tab = el.dataset.tab as Tab;
         renderTabs();
         panelDirty = true;
         break;
