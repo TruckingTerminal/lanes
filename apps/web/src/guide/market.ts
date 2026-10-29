@@ -1,3 +1,6 @@
+import { COMMODITIES, hubs as HUBS, PLACE_ROWS } from "@lanes/data";
+const PLACE_COUNT = PLACE_ROWS.length;
+const HUB_COUNT = HUBS.length;
 import type { EconomyConfig } from "@lanes/config";
 import { MANUAL_BID_MAX_DEADHEAD_MI } from "@lanes/engine";
 import { type GuidePage, h, n, p, pct, see, table, ul } from "./util.js";
@@ -44,6 +47,19 @@ export function marketPages(cfg: EconomyConfig): GuidePage[] {
         ]) +
         h("Your dispatcher and book-now") +
         p(`The standing order "Book loads between rounds" takes a load whenever its book-now clears your break-even plus a margin. The margin shrinks with <b>desperation</b>: a truck idle ${cfg.bookNow.desperation.idleHours} hours, or a driver more than ${cfg.bookNow.desperation.awayAfterDays} days from home, will take anything that covers costs. A truck sitting at home is half as pressed. Dispatchers look every ${cfg.bookNow.autoEveryHours} hours.`),
+    },
+    {
+      id: "commodities",
+      section: S,
+      title: "Places, commodities and appointments",
+      html:
+        p(`Freight ships between <b>places</b>: ${PLACE_COUNT} towns and metros under the ${HUB_COUNT} markets, each with what it makes and what it buys. A load shows its shipper's town and its receiver's town; its market (the board it trades on, the rate it's priced from) is the shipper's. Trucks drive the real roads between the two, so a load out of Homestead or Miles City takes you there.`) +
+        p(`Every load is a <b>commodity</b>, and the commodity sets the trailer, what the load is worth, how long the shipper gives before the <b>delivery appointment</b>, and whether it spoils:`) +
+        table(
+          ["Commodity", "Trailer", "Appointment", "Spoils"],
+          COMMODITIES.map((c) => [c.name, c.equipment, `${c.windowHours} h after posting, plus the drive`, c.spoilHours === null ? "no" : `${c.spoilHours} h after the appointment`]),
+        ) +
+        p(`A load is due by the usual hours-of-service schedule or the appointment, whichever comes first. A perishable delivered past its spoil time is rejected: no pay, and a cargo claim of ${pct(cfg.commodities.spoilClaimShare)} of its value on the carrier. Produce follows its region's calendar (South Florida, the Rio Grande Valley and Yuma in winter; the Central Valley spring to fall; the Southeast, Michigan and the Northwest in summer), so where the reefer loads are moves with the months.`),
     },
     {
       id: "rates",

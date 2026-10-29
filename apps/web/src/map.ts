@@ -222,7 +222,7 @@ export function cityClassOf(h: Hub): number {
   return h.weight >= 2.2 ? 3 : h.weight >= 1.4 ? 2 : h.weight >= 0.8 ? 1 : 0;
 }
 
-export function buildMap(hubs: Hub[], roads: RoadNetwork | undefined, W: number, H: number): MapArt {
+export function buildMap(hubs: Hub[], roads: RoadNetwork | undefined, W: number, H: number, places?: { lat: number; lon: number; pop: number }[]): MapArt {
   const proj = fitProjection(W, H);
   const { project, unproject } = proj;
   const cv = document.createElement("canvas");
@@ -446,6 +446,17 @@ export function buildMap(hubs: Hub[], roads: RoadNetwork | undefined, W: number,
     for (const e of edges) {
       const [a, b] = e.split("-").map(Number) as [number, number];
       line([hubXY[a]!, hubXY[b]!], PAL.ink1, 1, 1, true);
+    }
+  }
+
+  // Towns: a dot for every place freight ships from, so the country between the markets isn't empty.
+  if (places) {
+    for (const p of places) {
+      const [tx, ty] = project(p.lon, p.lat).map(Math.round) as [number, number];
+      ctx.fillStyle = PAL.ink0;
+      ctx.fillRect(tx - 1, ty, 3, 1);
+      ctx.fillStyle = p.pop >= 100_000 ? PAL.mist : PAL.fog;
+      ctx.fillRect(tx, ty - 1, 1, 2);
     }
   }
 

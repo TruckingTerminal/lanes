@@ -38,6 +38,9 @@ import {
   fuelPrice,
   hubMiles,
   hubRoute,
+  placeToll,
+  placeMiles,
+  placeRoute,
   hubToll,
   lessorTrucksOf,
   MANUAL_BID_MAX_DEADHEAD_MI,
@@ -63,7 +66,7 @@ import {
   type VettingTier,
   type World,
 } from "@lanes/engine";
-import { hubs as HUBS } from "@lanes/data";
+import { COMMODITIES, hubs as HUBS } from "@lanes/data";
 import { drawLoadingRoad, drawTitleScene, facilityUrl, icon, iconUrl, installTheme, logo, PAL, TITLE_H, TITLE_W, truckUrl } from "./art.js";
 import { drawText, textWidth } from "./font.js";
 import { guidePages } from "./guide.js";
@@ -597,7 +600,7 @@ function buildArt(W: number, H: number): void {
   const old = art;
   const center = old ? toWorld(cv.width / 2, cv.height / 2) : null;
   const t0 = performance.now();
-  art = buildMap(game.w.net.hubs, game.w.net.roads, W, H);
+  art = buildMap(game.w.net.hubs, game.w.net.roads, W, H, game.w.net.places);
   headings.clear();
   console.info(`map ${W}×${H} painted in ${Math.round(performance.now() - t0)} ms`);
   cv.width = W * sDev;
@@ -711,14 +714,14 @@ const CITY_TOP = [4, 6, 10, 13];
 /** Where a truck is on the map, in art pixels; remembers which way it is facing. */
 function truckXY(t: Truck): [number, number] | null {
   const w = game!.w;
-  const xy = art!.hubXY;
+  const pxy = (p: number): [number, number] => art!.project(w.net.places[p]!.lon, w.net.places[p]!.lat);
   if (t.status === "retired" || t.status === "listed" || t.companyId === 0) return null;
-  const a = xy[t.hub]!;
+  const a = pxy(t.place);
   const moving = t.status === "toPickup" || t.status === "loaded" || t.status === "repositioning";
-  if (!moving || t.targetHub === t.hub) return t.status === "unloading" ? xy[t.targetHub]! : a;
-  const b = xy[t.targetHub]!;
-  const route = hubRoute(w, t.hub, t.targetHub);
-  const total = t.legMiles > 0 ? t.legMiles : route ? route.miles : hubMiles(w, t.hub, t.targetHub);
+  if (!moving || t.targetPlace === t.place) return t.status === "unloading" ? pxy(t.targetPlace) : a;
+  const b = pxy(t.targetPlace);
+  const route = placeRoute(w, t.place, t.targetPlace);
+  const total = t.legMiles > 0 ? t.legMiles : route ? route.miles : placeMiles(w, t.place, t.targetPlace);
   // The engine moves trucks hour by hour; between hours, a truck still on the clock keeps rolling on screen.
   const { hos } = w.cfg;
   const rolling = t.dwellMin <= 0 && t.breakdownMin <= 0 && t.shiftDrivenMin < hos.drivingHoursPerDay * 60;
@@ -727,8 +730,8 @@ function truckXY(t: Truck): [number, number] | null {
   const left = Math.max(0, t.remainingMi - ahead);
   // Along the real road when there is one; straight between the hubs otherwise.
   if (route) {
-    const from = w.net.hubs[t.hub]!;
-    const to = w.net.hubs[t.targetHub]!;
+    const from = w.net.places[t.place]!;
+    const to = w.net.places[t.targetPlace]!;
     const at = (mi: number): [number, number] => {
       const [lat, lon] = w.net.roads.pointAlong(route, mi, from, to);
       return art!.project(lon, lat);
@@ -745,7 +748,7 @@ function truckXY(t: Truck): [number, number] | null {
   return [a[0] + (b[0] - a[0]) * k, a[1] + (b[1] - a[1]) * k];
 }
 
-const isMoving = (t: Truck) => (t.status === "toPickup" || t.status === "loaded" || t.status === "repositioning") && t.targetHub !== t.hub;
+const isMoving = (t: Truck) => (t.status === "toPickup" || t.status === "loaded" || t.status === "repositioning") && t.targetPlace !== t.place;
 
 /** Where a truck shows: on its lane, or, at a hub, in the yard around the skyline so each one is visible. */
 function truckPoint(t: Truck): [number, number] | null {
@@ -760,7 +763,7 @@ function truckPoint(t: Truck): [number, number] | null {
 /** The road still ahead of a moving truck, in art pixels, from the truck to its destination. */
 function routeAhead(t: Truck): [number, number][] | null {
   const w = game!.w;
-  const route = hubRoute(w, t.hub, t.targetHub);
+  const route = placeRoute(w, t.place, t.targetPlace);
   const p = truckXY(t);
   if (!route || !p) return null;
   const roads = w.net.roads;
@@ -1243,7 +1246,7 @@ function checkIdleAlerts(): void {
 
 function statusLine(t: Truck): string {
   const w = game!.w;
-  const hub = (i: number) => esc(w.net.hubs[i]!.name);
+  const hub = (i: number) => esc(w.net.places[i]!.name);
   switch (t.status) {
     case "idle": {
       const bid = w.manualBids.get(t.id);
@@ -1251,28 +1254,28 @@ function statusLine(t: Truck): string {
         const d = w.staff[t.driverId - 1]!;
         // The day they drove home on isn't a day off.
         const left = d.homeUntilDay! - Math.floor(clockMin() / 1440) - (d.drivenMinToday > 0 ? 1 : 0);
-        return `Home time at ${hub(t.hub)}: ${plural(Math.max(1, left), "day")} off${d.drivenMinToday > 0 ? ", starting tomorrow" : " left"}`;
+        return `Home time at ${hub(t.place)}: ${plural(Math.max(1, left), "day")} off${d.drivenMinToday > 0 ? ", starting tomorrow" : " left"}`;
       }
       const h = idleHours(t);
       const since = `<span class="${h >= IDLE_ALERT_HOURS ? "bad" : h >= 12 ? "warn" : ""}">${idleLabel(t)}</span>`;
-      return `Idle at ${hub(t.hub)} for ${since}${t.idleRounds ? ` · sat out ${plural(t.idleRounds, "round")}` : ""}${bid ? ` · <span class="good">your bid ${bid.rate.toFixed(2)}/mi is in</span>` : ""}`;
+      return `Idle at ${hub(t.place)} for ${since}${t.idleRounds ? ` · sat out ${plural(t.idleRounds, "round")}` : ""}${bid ? ` · <span class="good">your bid ${bid.rate.toFixed(2)}/mi is in</span>` : ""}`;
     }
     case "toPickup":
-      return `Heading empty to ${hub(t.targetHub)} for a pickup · ${Math.round(t.remainingMi)} mi`;
+      return `Heading empty to ${hub(t.targetPlace)} for a pickup · ${Math.round(t.remainingMi)} mi`;
     case "loading":
-      return `Loading at ${hub(t.hub)}`;
+      return `Loading at ${hub(t.place)}`;
     case "loaded": {
       const l = t.loadId !== null ? w.loads.get(t.loadId) : undefined;
-      return `Loaded ${hub(t.hub)} → ${hub(t.targetHub)} · ${Math.round(t.remainingMi)} mi to go${l ? ` · ${l.clearedRate.toFixed(2)}/mi` : ""}${t.breakdownMin > 0 ? ' · <span class="bad">broken down</span>' : ""}`;
+      return `Loaded ${hub(t.place)} → ${hub(t.targetPlace)} · ${Math.round(t.remainingMi)} mi to go${l ? ` · ${l.clearedRate.toFixed(2)}/mi` : ""}${t.breakdownMin > 0 ? ' · <span class="bad">broken down</span>' : ""}`;
     }
     case "unloading":
-      return `Unloading at ${hub(t.targetHub)}`;
+      return `Unloading at ${hub(t.targetPlace)}`;
     case "repositioning":
-      return `Running empty to ${hub(t.targetHub)} · ${Math.round(t.remainingMi)} mi`;
+      return `Running empty to ${hub(t.targetPlace)} · ${Math.round(t.remainingMi)} mi`;
     case "repair":
       return `In the shop`;
     case "parked":
-      return `Parked at ${hub(t.hub)} (off the road; an owned truck unused ${w.cfg.costs.idleFeeAfterDays}+ days pays ${w.cfg.costs.idleFeePerDay} FD/day)`;
+      return `Parked at ${hub(t.place)} (off the road; an owned truck unused ${w.cfg.costs.idleFeeAfterDays}+ days pays ${w.cfg.costs.idleFeePerDay} FD/day)`;
     case "listed":
       return `Listed for sale`;
     default:
@@ -1424,18 +1427,18 @@ function loadsPanel(): string {
     const rows: { l: Load; dh: number; be: number; suggest: number; profit: number; profitBook: number; reloadMi: number; tolls: number; highway: number; hours: number }[] = [];
     for (const l of w.loads.values()) {
       if (l.status !== "open" || l.equipment !== truck.trailer || l.brokerId === me().id) continue;
-      const dh = hubMiles(w, truck.hub, l.origin);
+      const dh = placeMiles(w, truck.place, l.originPlace);
       if (dh > MANUAL_BID_MAX_DEADHEAD_MI) continue;
       // Same break-even the dispatcher uses: part of the empty run out of the destination is priced in.
       const reloadMi = expectedReloadDeadheadMi(w, l.dest, l.equipment);
       // Tolls on the way to the pickup and on the lane are part of the cost, like the dispatcher counts them.
       const lane = w.net.lanes[l.laneId]!;
-      const tolls = hubToll(w, truck.hub, l.origin) + lane.tollFd;
+      const tolls = placeToll(w, truck.place, l.originPlace) + l.routeTollFd;
       const be = breakEvenPerMile(w.cfg, truck, fuel, l.miles, dh + w.cfg.board.reloadWeight * reloadMi, tolls);
       // Loads tend to clear near the lane's reference rate; the ceiling is the most the poster pays.
       // A counter asks more than the book-now (else just book), usually within the ceiling.
       const suggest = Math.max(l.bookNow + 0.05, Math.min(l.ceiling, Math.max(be * 1.15, l.refRate)));
-      rows.push({ l, dh, be, suggest, profit: (suggest - be) * l.miles, profitBook: (l.bookNow - be) * l.miles, reloadMi, tolls, highway: lane.highwayShare, hours: lane.hours });
+      rows.push({ l, dh, be, suggest, profit: (suggest - be) * l.miles, profitBook: (l.bookNow - be) * l.miles, reloadMi, tolls, highway: lane.highwayShare, hours: l.routeHours });
     }
     rows.sort((a, b) => b.profit - a.profit);
     const list = rows
@@ -1444,11 +1447,14 @@ function loadsPanel(): string {
         const mine = pending?.loadId === l.id;
         const o = w.net.hubs[l.origin]!;
         const d = w.net.hubs[l.dest]!;
+        const op = w.net.places[l.originPlace]!;
+        const dp = w.net.places[l.destPlace]!;
+        const k = COMMODITIES[l.commodity]!;
         // What keeps this company off the load: the poster's vetting, or a hot window a solo driver can't make.
         const block = vettingBlock(w, me(), l) ?? (l.hot > 0 && !canMakeHot(me(), truck) ? "a hot load needs a team" : null);
         const off = block ? "disabled" : "";
         return `<div class="load ${mine ? "mine" : ""}">
-          <div><div class="lane">${o.id} <span class="arrow">to</span> ${d.id}</div><div class="muted" style="font-size:14px">${esc(o.name)} to ${esc(d.name)} · ${l.miles} mi${dh ? ` · ${dh} mi empty first` : ""}${l.brokerId !== null ? " · brokered" : ""}${l.shipperId !== null ? " · player shipper" : ""}</div>
+          <div><div class="lane">${esc(op.name)}, ${op.state} <span class="arrow">to</span> ${esc(dp.name)}, ${dp.state}</div><div style="font-size:14px"><b>${esc(k.name)}</b> · deliver by ${dateLabel(Math.floor(l.appointmentT / 1440))} ${hhmm(l.appointmentT)}${k.spoilHours !== null ? ` · <span class="warn">spoils ${k.spoilHours} h after</span>` : ""}</div><div class="muted" style="font-size:14px">${o.id} to ${d.id} market · ${l.miles} mi${dh ? ` · ${dh} mi empty first` : ""}${l.brokerId !== null ? " · brokered" : ""}${l.shipperId !== null ? " · player shipper" : ""}</div>
           <div style="font-size:14px">Reload at ${d.id}: <span class="${reloadClass(l.dest, l.equipment)}">${reloadLabel(l.dest, l.equipment)}</span> (about ${Math.round(reloadMi)} mi empty to the next load)${seasonNote(l.origin, l.equipment)}</div>
           <div style="font-size:14px">${hours.toFixed(1)} h driving${tolls > 0 ? ` · <span class="warn">tolls ${fd(tolls)} FD</span>` : " · no tolls"}${highway >= 0.05 ? ` · <span class="warn">${pct(highway)} two-lane highway</span>` : " · interstate"}</div>
           <div style="font-size:14px">Book now at <span class="num">${l.bookNow.toFixed(2)}</span>/mi (<span class="num">${fd(l.bookNow * l.miles)}</span> FD)${l.roundsUnfilled > 0 ? ` · <span class="warn">raised ${l.roundsUnfilled} round${l.roundsUnfilled > 1 ? "s" : ""} running</span>` : ""} · <span class="${profitBook > 0 ? "good" : "bad"}">about ${fd(profitBook)} FD profit at that price</span></div>
