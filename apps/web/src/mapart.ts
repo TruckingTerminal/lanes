@@ -99,16 +99,37 @@ export function mapLevel(season: Season, k: number): { img: HTMLImageElement; sc
   return best ? { img: best.img!, scale: best.scale, season: best.season } : null;
 }
 
-const cities = new Map<string, Pic>();
-/** A hub's isometric city sprite once it has decoded (loading starts on the first ask). */
-export function citySprite(hubId: string): HTMLImageElement | null {
+/** A sprite, still or a loop: `frames` cells of `fw` × `fh` in `cols` columns of the image. */
+export interface Sprite {
+  img: HTMLImageElement;
+  fw: number;
+  fh: number;
+  frames: number;
+  cols: number;
+}
+/** The loops play at this many frames a second. */
+export const LOOP_FPS = 8;
+const LOOP_COLS = 4;
+
+const cities = new Map<string, Pic & { loop: boolean }>();
+/** A hub's isometric city sprite once it has decoded: its 16-frame loop when one was painted, else the still. */
+export function citySprite(hubId: string): Sprite | null {
   let p = cities.get(hubId);
   if (!p) {
-    p = { src: `${ASSETS}cities/${hubId}.png`, img: null, ready: false };
+    const loop = known(`${ASSETS}cities/${hubId}.loop.png`);
+    if (!manifest) return null;
+    p = { src: `${ASSETS}cities/${hubId}${loop ? ".loop" : ""}.png`, img: null, ready: false, loop };
     cities.set(hubId, p);
     load(p);
   }
-  return p.ready ? p.img : null;
+  if (!p.ready) return null;
+  const img = p.img!;
+  return p.loop ? { img, fw: img.width / LOOP_COLS, fh: img.height / LOOP_COLS, frames: LOOP_COLS * LOOP_COLS, cols: LOOP_COLS } : { img, fw: img.width, fh: img.height, frames: 1, cols: 1 };
+}
+/** The cell of a sprite to show at time `tMs`. */
+export function spriteFrame(sp: Sprite, tMs: number, phase = 0): [number, number] {
+  const i = sp.frames > 1 ? (Math.floor((tMs * LOOP_FPS) / 1000) + phase) % sp.frames : 0;
+  return [(i % sp.cols) * sp.fw, Math.floor(i / sp.cols) * sp.fh];
 }
 
 const towns = new Map<TownKind, Pic>();

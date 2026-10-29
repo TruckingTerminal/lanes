@@ -5,7 +5,7 @@ import { drawText, textWidth } from "./font.js";
 import { isHuman } from "./game.js";
 import { buildMap, hash, headingDir, nightColor, nightShade, truckMarkers, type MapArt, type MarkerKind } from "./map.js";
 import { truckFrame } from "./assets.js";
-import { CITY_SCALE, citySprite, hasPaintedMap, MAP_H, MAP_W, mapLevel, seasonOf, TOWN_SCALE, townKindAt, townSprite, type Season } from "./mapart.js";
+import { CITY_SCALE, citySprite, hasPaintedMap, MAP_H, MAP_W, mapLevel, seasonOf, spriteFrame, TOWN_SCALE, townKindAt, townSprite, type Season } from "./mapart.js";
 import { weatherAt, weatherLabel, type Weather } from "./weather.js";
 import { bumpData, clockMin, myTrucks, S, selectTruck, setTab } from "./state.js";
 import { openLoadsAt, reloadLabel, seasonSwing } from "./logic.js";
@@ -356,13 +356,14 @@ export function drawMap(now: number): void {
       const cs = k / CITY_SCALE;
       ctx.imageSmoothingEnabled = !Number.isInteger(cs);
       w.net.hubs.forEach((h, i) => {
-        const img = citySprite(h.id);
-        if (!img) return;
+        const sp = citySprite(h.id);
+        if (!sp) return;
         const [X, Y] = toScreen(...art!.hubXY[i]!);
-        const cw = img.width * cs;
-        const ch = img.height * cs;
+        const cw = sp.fw * cs;
+        const ch = sp.fh * cs;
         if (X + cw / 2 < 0 || Y + ch / 2 < 0 || X - cw / 2 > W || Y - ch / 2 > H) return;
-        ctx.drawImage(img, Math.round(X - cw / 2), Math.round(Y - ch * 0.6), Math.round(cw), Math.round(ch));
+        const [sx, sy] = spriteFrame(sp, now, i * 3);
+        ctx.drawImage(sp.img, sx, sy, sp.fw, sp.fh, Math.round(X - cw / 2), Math.round(Y - ch * 0.6), Math.round(cw), Math.round(ch));
       });
       ctx.imageSmoothingEnabled = false;
     }
