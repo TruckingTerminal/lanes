@@ -250,7 +250,7 @@ function describe(a: LiveAction): string {
       return `Registering ${a.name}`;
     case "place_bid": {
       const l = w.loads.get(a.loadId);
-      return `Bid ${a.rate.toFixed(2)}/mi on ${l ? `${hub(l.origin)}→${hub(l.dest)}` : "a load"} (truck ${truckNo(a.truckId)})`;
+      return `Counter ${a.rate.toFixed(2)}/mi on ${l ? `${hub(l.origin)}→${hub(l.dest)}` : "a load"} (truck ${truckNo(a.truckId)})`;
     }
     case "cancel_bid":
       return `Withdraw truck ${truckNo(a.truckId)}'s bid`;
@@ -1430,8 +1430,8 @@ function loadsPanel(): string {
       const tolls = hubToll(w, truck.hub, l.origin) + lane.tollFd;
       const be = breakEvenPerMile(w.cfg, truck, fuel, l.miles, dh + w.cfg.board.reloadWeight * reloadMi, tolls);
       // Loads tend to clear near the lane's reference rate; the ceiling is the most the poster pays.
-      // A bid never pays more than the book-now, so that's the most to ask.
-      const suggest = Math.min(l.bookNow, Math.max(be * 1.08, l.refRate * 0.97));
+      // A counter asks more than the book-now (else just book), usually within the ceiling.
+      const suggest = Math.max(l.bookNow + 0.05, Math.min(l.ceiling, Math.max(be * 1.15, l.refRate)));
       rows.push({ l, dh, be, suggest, profit: (suggest - be) * l.miles, profitBook: (l.bookNow - be) * l.miles, reloadMi, tolls, highway: lane.highwayShare, hours: lane.hours });
     }
     rows.sort((a, b) => b.profit - a.profit);
@@ -1449,14 +1449,14 @@ function loadsPanel(): string {
           <div style="font-size:14px">Reload at ${d.id}: <span class="${reloadClass(l.dest, l.equipment)}">${reloadLabel(l.dest, l.equipment)}</span> (about ${Math.round(reloadMi)} mi empty to the next load)${seasonNote(l.origin, l.equipment)}</div>
           <div style="font-size:14px">${hours.toFixed(1)} h driving${tolls > 0 ? ` · <span class="warn">tolls ${fd(tolls)} FD</span>` : " · no tolls"}${highway >= 0.05 ? ` · <span class="warn">${pct(highway)} two-lane highway</span>` : " · interstate"}</div>
           <div style="font-size:14px">Book now at <span class="num">${l.bookNow.toFixed(2)}</span>/mi (<span class="num">${fd(l.bookNow * l.miles)}</span> FD)${l.roundsUnfilled > 0 ? ` · <span class="warn">raised ${l.roundsUnfilled} round${l.roundsUnfilled > 1 ? "s" : ""} running</span>` : ""} · <span class="${profitBook > 0 ? "good" : "bad"}">about ${fd(profitBook)} FD profit at that price</span></div>
-          <div style="font-size:14px">Or bid under it: pays up to <span class="num">${l.ceiling.toFixed(2)}</span>/mi · usually clears near <span class="num">${l.refRate.toFixed(2)}</span> · your break-even <span class="num">${be.toFixed(2)}</span>/mi · <span class="${profit > 0 ? "good" : "bad"}">about ${fd(profit)} FD profit at your bid</span></div>
+          <div style="font-size:14px">Or counter for more: the poster's max is <span class="num">${l.ceiling.toFixed(2)}</span>/mi (a counter up to ${(l.ceiling * w.cfg.board.overCeilingMax).toFixed(2)} wins only if nobody offers within the max) · usually clears near <span class="num">${l.refRate.toFixed(2)}</span> · your break-even <span class="num">${be.toFixed(2)}</span>/mi · <span class="${profit > 0 ? "good" : "bad"}">about ${fd(profit)} FD profit at your counter</span></div>
           ${block ? `<div style="font-size:14px" class="bad">Not for you yet: ${esc(block)}.</div>` : ""}</div>
-          <div class="row" style="justify-content:end"><button class="btn primary" data-act="book" data-load="${l.id}" data-truck="${truck.id}" ${off}>Book now · ${l.bookNow.toFixed(2)}</button><input type="number" id="bid-${l.id}" step="0.01" min="0.5" max="${l.bookNow.toFixed(2)}" value="${(mine ? pending!.rate : suggest).toFixed(2)}" aria-label="Your rate per mile" ${off}>
-          <button class="btn ${mine ? "on" : ""}" data-act="bid" data-load="${l.id}" data-truck="${truck.id}" ${off}>${mine ? "Rebid" : "Bid"}</button></div>
+          <div class="row" style="justify-content:end"><button class="btn primary" data-act="book" data-load="${l.id}" data-truck="${truck.id}" ${off}>Book now · ${l.bookNow.toFixed(2)}</button><input type="number" id="bid-${l.id}" step="0.01" min="0.5" max="${(l.ceiling * w.cfg.board.overCeilingMax).toFixed(2)}" value="${(mine ? pending!.rate : suggest).toFixed(2)}" aria-label="Your counter per mile" ${off}>
+          <button class="btn ${mine ? "on" : ""}" data-act="bid" data-load="${l.id}" data-truck="${truck.id}" ${off}>${mine ? "Recounter" : "Counter"}</button></div>
         </div>`;
       })
       .join("");
-    body = `<p class="muted" style="font-size:14px">Book now and the load is yours at once. Or bid under the book-now price: sealed bids clear at ${nextRoundLabel()}; lower rates, a better on-time record and fewer empty miles win. One bid per truck per round; a bid by hand replaces your dispatcher's bids for that truck.</p>
+    body = `<p class="muted" style="font-size:14px">Book now and the load is yours at once. Or counter for more and wait: counters clear at ${nextRoundLabel()}, and the poster takes the best one within its max (lower asks, a better on-time record and fewer empty miles win), or the cheapest above the max if none is within it. One counter per truck per round; a counter by hand replaces your dispatcher's for that truck.</p>
       ${sent && sent.a.type === "place_bid" ? `<p class="warn">Bid on its way: ${sent.a.rate.toFixed(2)}/mi, in at ${hhmm(sent.at)}.</p>` : ""}
       ${pending ? `<div class="row"><span class="good">Bid in: ${pending.rate.toFixed(2)}/mi</span><button class="btn" data-act="cancelbid" data-truck="${truck.id}">Withdraw bid</button></div>` : ""}
       <div class="loads">${list || `<p class="muted">No ${TRAILER_NAME[truck.trailer].toLowerCase()} loads within ${MANUAL_BID_MAX_DEADHEAD_MI} miles right now. Send the truck to a busier hub or wait for the next round.</p>`}</div>`;

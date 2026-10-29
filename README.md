@@ -406,6 +406,15 @@ Design, levers and the full results are in [TOKENOMICS.md](TOKENOMICS.md); table
   that keep losing) with the button that fixes it; a red "N IDLE" badge sits in the top bar, and the
   ticker and a toast shout once per idle day.
 
+## Counters above the posted price, and above the max (config 0.13.1)
+
+- Jeff's correction (2026-10-28): the sealed round is for **counters**, offers above the book-now
+  (anyone who'd take the posted price just books). The 0.13.0 cut capped every bid at the book-now,
+  which made counters pointless; a counter now goes up to the ceiling, and past it up to 1.5× the
+  ceiling (`board.overCeilingMax`), taken only when nobody offers within the ceiling, cheapest
+  first (`scoreBid` ranks over-ceiling counters below every offer within it). So a hot market still
+  gets its loads covered, at a price. Board buttons read "Book now" and "Counter".
+
 ## Book-now, per diem and driver fatigue (config 0.13.0)
 
 Jeff's design (2026-10-28), the first of three steps toward a market where where you base matters

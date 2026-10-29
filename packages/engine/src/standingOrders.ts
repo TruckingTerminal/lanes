@@ -65,17 +65,25 @@ export function indexOpenLoads(w: World): BoardIndex {
   return idx;
 }
 
-/** Bid score (§Load board — bid scoring), poster defaults. */
+/**
+ * Bid score (§Load board — bid scoring), poster defaults. A counter above the ceiling
+ * ranks below every offer within it (the poster pays over its max only when it has to),
+ * and among those the cheapest first.
+ */
 export function scoreBid(w: World, ceiling: number, rate: number, reputation: number, deadheadMi: number, homeEdge = 0): number {
   const s = w.cfg.board.scoreWeights;
   if (!(ceiling > 0)) return -Infinity;
   return (
+    (rate > ceiling ? -10 : 0) +
     s.price * ((ceiling - rate) / ceiling) +
     s.reputation * reputation +
     s.deadhead * (1 - deadheadMi / w.cfg.board.deadheadScaleMi) +
     homeEdge
   );
 }
+
+/** The most a poster will pay in the round: its ceiling, or in a pinch overCeilingMax × that. */
+export const hardCap = (w: World, load: Load) => load.ceiling * w.cfg.board.overCeilingMax;
 
 /**
  * Turns a company's standing orders into sealed bids for its idle trucks. This
@@ -166,10 +174,10 @@ function priceLoad(
     if (o.originHubs && !o.originHubs.includes(hubId)) continue;
     if (dh > o.maxDeadheadMi) continue;
     if (o.minCeilingPerMile !== undefined && load.ceiling < o.minCeilingPerMile) continue;
-    // A bid never exceeds the book-now price: a carrier asking more takes the load at
-    // the book-now, provided that still clears its floor.
+    // A counter: above the book-now (else the dispatcher just books), up to the ceiling,
+    // or past it when the market is that hot — taken only if nobody offers within.
     const ask = o.price.mode === "ceilingPct" ? load.ceiling * o.price.pct : breakEven * (1 + o.price.pct);
-    const rate = Math.min(ask, load.bookNow);
+    const rate = Math.min(ask, hardCap(w, load));
     if (!(rate > 0)) continue; // nobody hauls for nothing
     if (floor && rate < breakEven * (1 + floor.breakEvenPlusPct)) continue;
     return { rate, breakEven };

@@ -9,7 +9,7 @@ export type TractorTier = "workhorse" | "highwayPro" | "flagship";
 export type FacilityType = "warehouse" | "coldStorage" | "factory";
 
 export const economyConfig = {
-  version: "0.13.0-phase0.18",
+  version: "0.13.1-phase0.19",
 
   // §World, map and time
   time: {
@@ -66,6 +66,9 @@ export const economyConfig = {
     reloadDeadheadClamp: [20, 250] as const,
     reloadWeight: 1, // the whole expected empty run (0.35–0.5 led to more failures in the 10-seed runs)
     rolloverCeilingStep: 0.05, // unfilled loads roll with ceiling +5%
+    // Design decision (Jeff, 2026-10-28): a counter above the poster's ceiling is still taken, up to
+    // ceiling × this, but only when nobody offers within the ceiling — so a hot market still covers.
+    overCeilingMax: 1.5,
     npcFallbackAfterRounds: 2,
     npcFallbackRateOfRef: 0.95,
     maxBidsPerTruckPerRound: 12, // PoC assumption: performance bound

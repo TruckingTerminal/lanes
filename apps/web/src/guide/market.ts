@@ -14,11 +14,12 @@ export function marketPages(cfg: EconomyConfig): GuidePage[] {
       section: S,
       title: "The load board",
       html:
-        p(`Freight is sold in sealed-bid rounds at ${String(r1).padStart(2, "0")}:00 and ${r2}:00. Each load has a <b>ceiling</b>, the most its poster will pay per mile. You bid at or under it; nobody sees anyone else's bid.`) +
+        p(`Every load shows a <b>book-now</b> price: take it and it's yours at once (${see("booknow", "Book-now prices")}). Everything else is a <b>counter</b>: you ask more than the posted price, and counters clear in rounds at ${String(r1).padStart(2, "0")}:00 and ${r2}:00. Each load has a <b>ceiling</b>, the most its poster wants to pay per mile; nobody sees anyone else's counter.`) +
         h("How a round clears") +
         ul([
           `Every bid gets a score: ${pct(b.scoreWeights.price)} for price (how far under the ceiling), ${pct(b.scoreWeights.reputation)} for reputation (your on-time record), ${pct(b.scoreWeights.deadhead)} for empty miles to the pickup (none is best; at ${b.deadheadScaleMi} it scores zero and past that it counts against you).`,
-          `Bids clear best score first. A truck wins at most one load a round, and a load goes to one truck.`,
+          `Counters clear best score first. A truck wins at most one load a round, and a load goes to one truck.`,
+          `A counter above the ceiling, up to ${cfg.board.overCeilingMax}× it, is taken only if nobody offers within the ceiling, cheapest first: in a hot market the poster pays over its max rather than leave the load.`,
           `A load nobody takes rolls to the next round with its ceiling up ${pct(b.rolloverCeilingStep)}. After ${b.npcFallbackAfterRounds} rounds an NPC carrier takes NPC freight; a player shipper's freight goes to an NPC expediter at its cost.`,
         ]) +
         h("Bidding by hand") +
@@ -34,7 +35,7 @@ export function marketPages(cfg: EconomyConfig): GuidePage[] {
       section: S,
       title: "Book-now prices",
       html:
-        p(`Every load also shows a <b>book-now</b> price. Take it and the load is yours at once, no round to wait for. Bid under it and you wait for the round; nobody ever pays more than the book-now, so a bid above it just takes the load at the book-now.`) +
+        p(`Every load shows a <b>book-now</b> price: what the poster is offering right now. Take it and the load is yours at once, no round to wait for. Want more? Counter above it and wait for the round: the poster takes the best counter within its ceiling, or, if none is within it, the cheapest above (${see("board", "The load board")}). Anyone who'd take the posted price just books.`) +
         h("How posters set it") +
         ul([
           `It opens as a share of the reference rate set by the load-to-truck ratio at the origin: about ${pct(cfg.bookNow.openAtRatio[0][1])} where trucks pile up (ratio ${cfg.bookNow.openAtRatio[0][0]}), ${pct(cfg.bookNow.openAtRatio[1][1])} at a balanced ${cfg.bookNow.openAtRatio[1][0]}, ${pct(cfg.bookNow.openAtRatio[2][1])} when trucks are scarce (ratio ${cfg.bookNow.openAtRatio[2][0]}), never above the ceiling.`,

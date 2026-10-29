@@ -243,6 +243,31 @@ describe("book-now and home time", () => {
     expect(applyAction(w, c.id, { type: "book_load", truckId: truck!.id, loadId: load.id }).ok).toBe(false);
   });
 
+  it("takes the best counter within the ceiling, and one above it only when nobody offers within", () => {
+    const w = world(16);
+    const a = formCompany(w, { name: "A", role: "carrier", homeHubId: "DAL", strategy: "player:test", orders: [], freePath: true, human: true });
+    const b = formCompany(w, { name: "B", role: "carrier", homeHubId: "DAL", strategy: "player:test", orders: [], freePath: true, human: true });
+    for (let h = 0; h < 7; h++) stepHour(w);
+    const c = formCompany(w, { name: "C", role: "carrier", homeHubId: "DAL", strategy: "player:test", orders: [], freePath: true, human: true });
+    const [ta] = w.trucksByCompany.get(a.id)!;
+    const [tb] = w.trucksByCompany.get(b.id)!;
+    const [tc] = w.trucksByCompany.get(c.id)!;
+    const loads = [...w.loads.values()].filter((l) => l.status === "open" && l.origin === hubIdx("DAL") && l.equipment === "van" && l.vet === 0);
+    const [l1, l2] = loads;
+    expect(l2).toBeDefined();
+    // On the first load B offers within the ceiling and A above it; on the second only C counters, above the ceiling.
+    const within = l1!.ceiling * 0.98;
+    const over = l2!.ceiling * 1.2;
+    expect(applyAction(w, a.id, { type: "place_bid", truckId: ta!.id, loadId: l1!.id, rate: l1!.ceiling * 1.3 }).ok).toBe(true);
+    expect(applyAction(w, b.id, { type: "place_bid", truckId: tb!.id, loadId: l1!.id, rate: within }).ok).toBe(true);
+    expect(applyAction(w, c.id, { type: "place_bid", truckId: tc!.id, loadId: l2!.id, rate: over }).ok).toBe(true);
+    for (let h = 0; h < 12; h++) stepHour(w); // through the 18:00 round
+    expect(l1!.carrierId).toBe(b.id);
+    expect(l1!.clearedRate).toBeCloseTo(within, 6);
+    expect(l2!.carrierId).toBe(c.id);
+    expect(l2!.clearedRate).toBeCloseTo(over, 6); // nobody within the max, so the poster paid over it
+  });
+
   it("brings a driver home after the set days out, rests them, and charges per diem meanwhile", () => {
     const w = createWorld({ cfg, net, feeds: neutralFeeds, seed: 14, keepLedgerEntries: true });
     const c = formCompany(w, { name: "Far", role: "carrier", homeHubId: "DAL", strategy: "test", orders: [{ kind: "homeTime", afterDays: 3, restDays: 2 }], freePath: true });

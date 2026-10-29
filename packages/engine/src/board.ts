@@ -6,7 +6,7 @@ import { rebrokerLoad, vettingBlock } from "./fraud.js";
 import { homeEdge, updateHomeCrowding } from "./home.js";
 import { creditDispatch, dispatchProfile, startHomeTime } from "./labor.js";
 import { companyAccount } from "./ledger.js";
-import { bidsFromStandingOrders, boardKey, canMakeHot, indexOpenLoads, scoreBid, desperation, estimateBreakEven, resting, trackingWouldShow, needsHome, homeward } from "./standingOrders.js";
+import { bidsFromStandingOrders, boardKey, canMakeHot, indexOpenLoads, scoreBid, desperation, estimateBreakEven, resting, trackingWouldShow, needsHome, homeward, hardCap } from "./standingOrders.js";
 import { coverDoubleBrokered, startLoading } from "./trips.js";
 import type { Bid, Company, Load, StandingOrder, Truck } from "./types.js";
 import { companyById, crewed, hubHours, hubMiles, truckById, type World } from "./world.js";
@@ -158,8 +158,8 @@ function manualRoundBids(w: World): Bid[] {
     if (company.authority.status !== "active" || vettingBlock(w, company, load) !== null || load.doubleBroker?.companyId === company.id) continue;
     if (load.hot > 0 && !canMakeHot(company, truck)) continue;
     const deadheadMi = hubMiles(w, truck.hub, load.origin);
-    // Nobody pays more than the book-now: a bid above it takes the load at the book-now.
-    const rate = Math.min(mb.rate, load.bookNow);
+    // A counter can go past the ceiling (taken only if nobody offers within it), up to the hard cap.
+    const rate = Math.min(mb.rate, hardCap(w, load));
     out.push({ loadId: load.id, truckId, companyId: company.id, rate, deadheadMi, score: scoreBid(w, load.ceiling, rate, company.reputation, deadheadMi, homeEdge(w, company, load.origin)), tiebreak: 0 });
   }
   w.manualBids.clear();
