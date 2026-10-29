@@ -5,6 +5,7 @@ import { GAME_CONFIG } from "../../game.js";
 import { atHub, marketPayOf, moraleClass, moraleWord, staffPay, Stars } from "../../logic.js";
 import { act, me, myTrucks, S, truckNo, useData } from "../../state.js";
 import { Btn, Card, Kv, Panel } from "../bits.js";
+import { PEOPLE, driverPortrait } from "../../assets.js";
 import { PendingCard } from "./Fleet.js";
 
 const num = (id: string): number => Number((document.getElementById(id) as HTMLInputElement | null)?.value);
@@ -91,6 +92,7 @@ export function Staff(): JSX.Element {
     return (
       <Card key={s.id}>
         <div class="row">
+          <img class="portrait" src={s.kind === "driver" ? driverPortrait(s.id) : PEOPLE.dispatcher} alt="" />
           <b>{s.name}</b>
           <Stars skill={s.skill} />
           <span class="muted">{s.kind === "driver" ? "Driver" : "Dispatcher"}</span>
@@ -148,7 +150,12 @@ export function Staff(): JSX.Element {
     const can = !driver || seatsOpen;
     return (
       <tr key={s.id}>
-        <td>{s.name}</td>
+        <td>
+          <span class="row">
+            <img class="portrait sm" src={driver ? driverPortrait(s.id) : PEOPLE.dispatcher} alt="" />
+            {s.name}
+          </span>
+        </td>
         <td>
           <Stars skill={s.skill} />
         </td>
@@ -215,6 +222,11 @@ export function Staff(): JSX.Element {
     <Panel title="Staff">
       <PendingCard />
       <Card title="You">
+        <div class="row">
+          <img class="portrait" src={PEOPLE.driverM} alt="" />
+          <img class="portrait" src={PEOPLE.dispatcher} alt="" />
+          <span class="muted small">You drive and you dispatch, until you hire.</span>
+        </div>
         <Kv
           rows={[
             ["Driving", owner ? <><Stars skill={owner.skill} /> · {owner.truckId ? `truck ${truckNo(owner.truckId)}` : "not driving"} · {fd(owner.experience + owner.pending)} mi driven</> : "–"],

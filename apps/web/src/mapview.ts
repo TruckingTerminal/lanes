@@ -4,6 +4,7 @@ import { icon, PAL } from "./art.js";
 import { drawText, textWidth } from "./font.js";
 import { isHuman } from "./game.js";
 import { buildMap, headingDir, nightColor, nightShade, truckMarkers, type MapArt, type MarkerKind } from "./map.js";
+import { truckFrame } from "./assets.js";
 import { bumpData, clockMin, myTrucks, S, selectTruck, setTab } from "./state.js";
 import { openLoadsAt, reloadLabel, seasonSwing } from "./logic.js";
 import { signedPct, TRAILER_NAME } from "./format.js";
@@ -293,7 +294,8 @@ export function drawMap(now: number): void {
     const [X, Y] = toScreen(p[0], p[1]);
     if (!visible(X, Y)) return null;
     const dir = headings.get(t.id) ?? 0;
-    const sprite = truckMarkers(kind, t.trailer, u)[dir]!;
+    // The PixelLab truck (42-px cells) at half the marker scale so it stays a marker, not a billboard.
+    const sprite = truckFrame(dir, Math.max(1, Math.round(u / 2)), kind, t.trailer) ?? truckMarkers(kind, t.trailer, u)[dir]!;
     ctx.drawImage(sprite, X - Math.floor(sprite.width / 2), Y - Math.floor(sprite.height / 2));
     return [X, Y, dir];
   };
