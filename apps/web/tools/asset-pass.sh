@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # The LANES asset pass: every PixelLab image the client ships, one command per asset.
-# Run from the repo root: bash apps/web/tools/asset-pass.sh [rigs|scenes|people|all]
+# Run from the repo root: bash apps/web/tools/asset-pass.sh [rigs|scenes|people|title|mix|all]
 set -u
 cd "$(dirname "$0")/../../.."
 P=(python3 apps/web/tools/pixellab.py)
@@ -30,10 +30,27 @@ people() {
   "${P[@]}" image "pixel art portrait of a warehouse dock worker, head and shoulders, yellow hard hat, yellow safety vest over a brown shirt, holding a clipboard, facing the viewer, game character portrait" 64 64 apps/web/assets/people/dockworker.png --transparent --palette --detail high
 }
 
+# Block A of ASSET-PLAN.md: the Pro title scene (the style anchor) and its 16-frame loop.
+title() {
+  mkdir -p apps/web/assets/title
+  "${P[@]}" pro "highly detailed HD pixel art, painterly shading, cinematic wide title screen: a cyan long-nose semi truck with a white trailer driving toward the viewer on a two-lane desert highway at dusk, a roadside diner with a glowing neon sign, telephone poles, red mesas on the horizon, a saturated orange and purple sunset sky with a few stars, long warm shadows" 256 144 apps/web/assets/title/title.png
+  "${P[@]}" animate apps/web/assets/title/title.png "the semi truck rolls slowly forward along the highway with its wheels turning and headlights glowing, clouds drift slowly across the sunset sky, the neon diner sign flickers and buzzes, heat shimmer rises off the road, a seamless loop that ends where it began" apps/web/assets/title/loop --frames 16 --view side --direction east --subject "a cyan long-nose semi truck with a white trailer on a desert highway at dusk beside a neon diner"
+}
+
+# Style samples (not shipped): isometric tycoon scenes in the painterly hand, for Jeff's 2026-10-29 look.
+# The style image is the Pro painterly sample from the style round (scratchpad styles/pro-hd.png).
+mix() {
+  local style=${STYLE:?set STYLE=<path to the painterly style png>}
+  "${P[@]}" pro "isometric pixel art scene of a busy freight terminal at golden hour, tycoon game style: a long warehouse with loading dock doors and semi trailers backed into the bays, a cyan long-nose semi truck pulling out onto the access road, a small dispatch office with glowing windows, a fuel island with a canopy, rows of parked white trailers, a chain-link fence, tiny dock workers with a forklift, a neon diner sign on the street beyond, long warm shadows, saturated orange and purple sunset sky, highly detailed HD pixel art with painterly shading and layered depth, clean readable isometric buildings" 384 288 samples/mix-terminal.png --style "$style"
+  "${P[@]}" pro "isometric pixel art of a small American city hub for a trucking tycoon game, on a transparent background: a cluster of downtown towers with lit windows, a highway interchange with tiny semi trucks on the ramps, a river with a steel bridge, warehouses and a rail yard at the edge, a water tower, street lights coming on at dusk, saturated sunset palette, highly detailed HD pixel art with painterly shading, clean isometric tycoon game building shapes" 288 288 samples/mix-city.png --style "$style" --transparent
+}
+
 case "$want" in
   rigs) rigs ;;
   scenes) scenes ;;
   people) people ;;
-  all) rigs; scenes; people ;;
+  title) title ;;
+  mix) mix ;;
+  all) rigs; scenes; people; title ;;
 esac
 "${P[@]}" balance

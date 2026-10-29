@@ -10,6 +10,14 @@ PixelLab asset tool for LANES. Reads the API token from .pixellab.token at the r
       → one pixflux image (synchronous)
   pixellab.py character "description" <out-dir> [--view ...]
       → an 8-direction character (v3): <out-dir>/<direction>.png
+  pixellab.py pro     "description" <w> <h> <out.png> [--style <png>] [--palette] [--transparent] [--seed N]
+      → one Pro image (generate-image-v2, up to 792×688; a background job, polled). --style copies the
+        palette, outline, detail and shading of that image, which keeps a set in one hand.
+  pixellab.py job     <background-job-id> <out.png>
+      → saves the image of a finished job (after a network drop while polling)
+  pixellab.py animate <first-frame.png> "motion" <out-dir> [--frames 16] [--view side|...] [--direction ...] [--subject "..."] [--transparent] [--seed N]
+      → a PixMiniMax loop: <out-dir>/frame-00.png (the input) … frame-NN.png + animation.json.
+        The frame must be at most 256×256; --frames is a multiple of 4 up to 40. Describe movement, not looks.
 
 The LANES palette ("Interstate Dusk", apps/web/src/art.ts) is passed as the target palette with --palette.
 """
@@ -53,11 +61,18 @@ def token() -> str:
 def call(method: str, path: str, body=None):
     data = json.dumps(body).encode() if body is not None else None
     req = urllib.request.Request(API + path, data=data, method=method, headers={"Authorization": f"Bearer {token()}", "Content-Type": "application/json"})
-    try:
-        with urllib.request.urlopen(req, timeout=120, context=CTX) as r:
-            return json.loads(r.read().decode())
-    except urllib.error.HTTPError as e:
-        sys.exit(f"{method} {path} → {e.code}: {e.read().decode()[:600]}")
+    for attempt in range(6):
+        try:
+            with urllib.request.urlopen(req, timeout=120, context=CTX) as r:
+                return json.loads(r.read().decode())
+        except urllib.error.HTTPError as e:
+            sys.exit(f"{method} {path} → {e.code}: {e.read().decode()[:600]}")
+        except (urllib.error.URLError, TimeoutError, OSError) as e:
+            # A DNS or socket drop mid-poll must not lose a paid job: wait and try again.
+            if method != "GET" or attempt == 5:
+                raise
+            print(f"  network error ({e}); retrying", flush=True)
+            time.sleep(10)
 
 
 def fetch(url: str) -> bytes:
@@ -74,7 +89,7 @@ def flag(name: str, default=None):
     return default
 
 
-VALUE_FLAGS = ("--view", "--detail", "--size")
+VALUE_FLAGS = ("--view", "--detail", "--size", "--style", "--seed", "--frames", "--direction", "--subject")
 
 
 def args():
@@ -124,6 +139,36 @@ def wait_object(object_id: str, out_dir: str):
         print(f"  {st} {o.get('progress_percent') or 0}% eta {o.get('eta_seconds')}s", flush=True)
         time.sleep(10)
     sys.exit("timed out")
+
+
+def png_size(path: str):
+    head = open(path, "rb").read(24)
+    import struct
+
+    return struct.unpack(">II", head[16:24])
+
+
+def wait_job(job_id: str):
+    """Poll a background job until it completes; returns its last_response."""
+    for _ in range(240):
+        j = call("GET", f"/background-jobs/{job_id}")
+        st = j.get("status")
+        lr = j.get("last_response") or {}
+        if st == "completed":
+            return lr
+        if st == "failed":
+            sys.exit(f"job {job_id} failed: {json.dumps(lr)[:600]}")
+        print(f"  {st} {int((lr.get('progress') or 0) * 100)}% {lr.get('action') or ''}", flush=True)
+        time.sleep(8)
+    sys.exit("timed out")
+
+
+def save_job_image(lr, out: str) -> None:
+    img = lr["images"][0]
+    os.makedirs(os.path.dirname(os.path.abspath(out)), exist_ok=True)
+    open(out, "wb").write(base64.b64decode(img["base64"]))
+    spent = (lr.get("billing_usage") or {}).get("generations")
+    print(f"saved {out} ({img['width']}×{img['height']}, seed {lr.get('seed')}, {spent} generations)")
 
 
 def main():
@@ -180,6 +225,51 @@ def main():
                 sys.exit(f"character failed: {json.dumps(c)[:400]}")
             print(f"  {st}", flush=True)
             time.sleep(10)
+    elif cmd == "pro":
+        desc, w, h, out = pos[0], int(pos[1]), int(pos[2]), pos[3]
+        body = {"description": desc, "image_size": {"width": w, "height": h}, "no_background": bool(flag("--transparent"))}
+        style = flag("--style")
+        if style:
+            sw, sh = png_size(style)
+            body["style_image"] = {"image": {"type": "base64", "base64": base64.b64encode(open(style, "rb").read()).decode()}, "size": {"width": sw, "height": sh}}
+            body["style_options"] = {"color_palette": True, "outline": True, "detail": True, "shading": True}
+        if flag("--palette"):
+            body["target_palette"] = {"colors": PALETTE, "name": "Interstate Dusk"}
+        seed = flag("--seed")
+        if seed:
+            body["seed"] = int(seed)
+        r = call("POST", "/generate-image-v2", body)
+        job = r.get("background_job_id") or r.get("job_id") or r.get("id")
+        print(f"job {job}", flush=True)
+        save_job_image(wait_job(job), out)
+    elif cmd == "job":
+        save_job_image(wait_job(pos[0]), pos[1])
+    elif cmd == "animate":
+        first, motion, out_dir = pos[0], pos[1], pos[2]
+        body = {
+            "first_frame": {"type": "base64", "base64": base64.b64encode(open(first, "rb").read()).decode()},
+            "description": motion,
+            "frame_count": int(flag("--frames", 16)),
+            "no_background": bool(flag("--transparent")),
+        }
+        for k, f in (("view", "--view"), ("direction", "--direction"), ("subject_description", "--subject")):
+            v = flag(f)
+            if v:
+                body[k] = v
+        seed = flag("--seed")
+        if seed:
+            body["seed"] = int(seed)
+        r = call("POST", "/animate-pixminimax", body)
+        job = r.get("background_job_id") or r.get("job_id") or r.get("id")
+        print(f"job {job}", flush=True)
+        lr = wait_job(job)
+        os.makedirs(out_dir, exist_ok=True)
+        frames = lr["images"]
+        for i, img in enumerate(frames):
+            open(os.path.join(out_dir, f"frame-{i:02d}.png"), "wb").write(base64.b64decode(img["base64"]))
+        spent = (lr.get("billing_usage") or {}).get("generations")
+        open(os.path.join(out_dir, "animation.json"), "w").write(json.dumps({"job": job, "motion": motion, "frames": len(frames), "size": [frames[0]["width"], frames[0]["height"]], "seed": lr.get("seed"), "generations": spent}, indent=1))
+        print(f"saved {len(frames)} frames to {out_dir} ({frames[0]['width']}×{frames[0]['height']}, {spent} generations)")
     else:
         print(__doc__)
 
