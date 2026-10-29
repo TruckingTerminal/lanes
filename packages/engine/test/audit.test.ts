@@ -243,8 +243,7 @@ describe("costs that can't be dodged", () => {
 });
 
 describe("data", () => {
-  it("routes weigh stations along the great circle, the same both ways", () => {
-    // I-75 swings west of the great circle through Georgia, so Lake Park waits for road-network routing.
+  it("routes weigh stations along the great circle, the same both ways (the fallback when roads don't connect)", () => {
     const mia = hubs.find((h) => h.id === "MIA")!;
     const atl = hubs.find((h) => h.id === "ATL")!;
     const ids = stationsOnRoute(mia, atl, cfg.safety.enforcement.stationRadiusMi).map((s) => weighStations[s.station]!.id);

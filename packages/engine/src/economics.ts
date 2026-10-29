@@ -40,10 +40,10 @@ export function tripCost(cfg: EconomyConfig, truck: TruckSpec, fuel: number, dri
  * expected repairs, and the NPC lease share. A worn truck's break-even is higher,
  * so it loses bids to fresher trucks; that, not a rule, is the incentive to rebuild.
  */
-export function breakEvenPerMile(cfg: EconomyConfig, truck: TruckSpec, fuel: number, loadedMi: number, deadheadMi: number): number {
+export function breakEvenPerMile(cfg: EconomyConfig, truck: TruckSpec, fuel: number, loadedMi: number, deadheadMi: number, tollFd = 0): number {
   const driven = loadedMi + deadheadMi;
   const c = tripCost(cfg, truck, fuel, driven, loadedMi);
-  const variable = c.fuel + c.wages + c.maintenance + c.insurance + expectedRepairPerMile(cfg, truck) * driven;
+  const variable = c.fuel + c.wages + c.maintenance + c.insurance + expectedRepairPerMile(cfg, truck) * driven + tollFd;
   const keep = truck.lease !== "owned" ? 1 - cfg.costs.npcLeaseShareOfGross : 1;
   return variable / (loadedMi * keep);
 }

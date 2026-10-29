@@ -1,4 +1,4 @@
-import type { Hub } from "@lanes/data";
+import type { Hub, RoadNetwork } from "@lanes/data";
 import { PAL, type Color } from "./art.js";
 
 /**
@@ -228,7 +228,7 @@ export interface MapArt {
   glints: [number, number][];
 }
 
-export function buildMap(hubs: Hub[], milesBetween: (a: number, b: number) => number): MapArt {
+export function buildMap(hubs: Hub[], milesBetween: (a: number, b: number) => number, roads?: RoadNetwork): MapArt {
   const cv = document.createElement("canvas");
   cv.width = MAP_W;
   cv.height = MAP_H;
@@ -348,21 +348,33 @@ export function buildMap(hubs: Hub[], milesBetween: (a: number, b: number) => nu
     }
   }
 
-  // Roads: each hub to its three nearest neighbors, like the interstate grid.
+  // Roads: the real network when we have it (US highways thin and dark, interstates on top), else each hub to its three nearest neighbors.
   const hubXY = hubs.map((h) => project(h.lon, h.lat));
-  const edges = new Set<string>();
-  hubs.forEach((_, i) => {
-    const near = hubs
-      .map((_, j) => j)
-      .filter((j) => j !== i)
-      .sort((a, b) => milesBetween(i, a) - milesBetween(i, b))
-      .slice(0, 3);
-    for (const j of near) if (milesBetween(i, j) < 700) edges.add(i < j ? `${i}-${j}` : `${j}-${i}`);
-  });
-  for (const e of edges) {
-    const [a, b] = e.split("-").map(Number) as [number, number];
-    line([hubXY[a]!, hubXY[b]!], PAL.ink3);
-    line([hubXY[a]!, hubXY[b]!], PAL.mtnD, 3);
+  if (roads) {
+    for (const pass of [1, 0] as const) {
+      for (const e of roads.edges) {
+        if (e.cls !== pass) continue;
+        const pts: [number, number][] = [];
+        for (let k = e.g0; k < e.g0 + e.gn; k++) pts.push(project(roads.lon[k]!, roads.lat[k]!));
+        line(pts, PAL.ink3);
+        if (pass === 0) line(pts, PAL.mtnD, 3); // the interstates get the dashed centre line
+      }
+    }
+  } else {
+    const edges = new Set<string>();
+    hubs.forEach((_, i) => {
+      const near = hubs
+        .map((_, j) => j)
+        .filter((j) => j !== i)
+        .sort((a, b) => milesBetween(i, a) - milesBetween(i, b))
+        .slice(0, 3);
+      for (const j of near) if (milesBetween(i, j) < 700) edges.add(i < j ? `${i}-${j}` : `${j}-${i}`);
+    });
+    for (const e of edges) {
+      const [a, b] = e.split("-").map(Number) as [number, number];
+      line([hubXY[a]!, hubXY[b]!], PAL.ink3);
+      line([hubXY[a]!, hubXY[b]!], PAL.mtnD, 3);
+    }
   }
 
   // Cities: skylines sized by freight weight; windows remembered for the night.

@@ -118,6 +118,8 @@ export function generateRoundFreight(w: World): RoundFreight {
     }
   }
 
+  // Toll roads cost the carrier, so (like fuel) the shipper's rate carries them.
+  const tollPerMile = (lane: Lane) => (cfg.roads.tollsInRates ? lane.tollFd / lane.miles : 0);
   const refRate = (lane: Lane, eq: Equipment) =>
     lane.baseRate *
       dpow(ratioEq[planIndex(lane.origin, EQUIPMENT.indexOf(eq))]!, cfg.rates.ratioExponent) *
@@ -125,7 +127,8 @@ export function generateRoundFreight(w: World): RoundFreight {
       cfg.rates.equipmentPremium[eq] *
       seasonality(w, lane.origin, eq, day).rate *
       reloadFactor(w, lane.dest, eq) +
-    fsc;
+    fsc +
+    tollPerMile(lane);
 
   const newLoad = (lane: Lane, eq: Equipment, ref: number): Load => {
     const ceiling = ref * cfg.rates.npcCeilingMarkup;
@@ -190,7 +193,7 @@ export function generateRoundFreight(w: World): RoundFreight {
         const load = newLoad(lane, eq, refRate(lane, eq));
         makeHot(load);
         if (rng.next() < cfg.freight.npcBrokerOnlyShare) {
-          const contractRef = lane.baseRate * w.contractIndex[planIndex(i, e)]! * cfg.rates.equipmentPremium[eq] * reloadFactor(w, lane.dest, eq) + fsc;
+          const contractRef = lane.baseRate * w.contractIndex[planIndex(i, e)]! * cfg.rates.equipmentPremium[eq] * reloadFactor(w, lane.dest, eq) + fsc + tollPerMile(lane);
           tenderToBroker(w, load, brokers, contractRef * cfg.rates.npcCeilingMarkup * (load.hot || 1));
         }
         finish(load, load.brokerId !== null ? w.companies[load.brokerId - 1]!.vetting : 0);

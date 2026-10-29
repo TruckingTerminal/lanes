@@ -4,7 +4,7 @@ import { vettingBlock } from "./fraud.js";
 import { homeEdge } from "./home.js";
 import { dispatchProfile, type DispatchProfile } from "./labor.js";
 import type { Bid, Company, Load, StandingOrder, Truck } from "./types.js";
-import { crewed, hubMiles, type World } from "./world.js";
+import { crewed, hubMiles, hubToll, type World } from "./world.js";
 
 /** A solo truck makes a hot load's window only on falsified logs; a team makes it legally. */
 export const canMakeHot = (c: Company, t: Truck) => t.coDriverId !== 0 || c.policy.hos !== "legal";
@@ -112,7 +112,9 @@ function priceLoad(
   // Price in the empty run out of the destination, so a cheap load into a dead market isn't worth taking —
   // as much of it as this dispatcher knows to, and as far ahead on the season as they can see.
   const reloadMi = expectedReloadDeadheadMi(w, load.dest, load.equipment, team.foresightDays);
-  const trueBreakEven = breakEvenPerMile(w.cfg, truck, fuel, load.miles, dh + team.reloadWeight * reloadMi);
+  // Tolls on the way to the pickup and on the lane itself are part of the cost of the load.
+  const tolls = hubToll(w, truck.hub, load.origin) + w.net.lanes[load.laneId]!.tollFd;
+  const trueBreakEven = breakEvenPerMile(w.cfg, truck, fuel, load.miles, dh + team.reloadWeight * reloadMi, tolls);
   // Their read of their own costs is off by a few percent, more for an inexperienced dispatcher.
   const z = (w.rng.dispatch.next() + w.rng.dispatch.next() + w.rng.dispatch.next() - 1.5) * 2;
   const breakEven = trueBreakEven * (1 + team.noise * z);

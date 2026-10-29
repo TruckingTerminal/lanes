@@ -215,13 +215,13 @@ describe("hours of service and dock time", () => {
     return { w, truck, lane, assignedT, deliveredT: w.t, milesByDutyDay: [...milesByDutyDay.values()], statuses };
   }
 
-  it("drives 500–550 miles in each full duty day and never more", () => {
+  it("drives a full duty day's miles at the road's pace and never more", () => {
     const { lane, milesByDutyDay, truck } = longHaul(11);
     expect(lane.miles).toBeGreaterThan(1100);
     expect(truck.status).toBe("idle");
-    for (const m of milesByDutyDay) expect(m).toBeLessThanOrEqual(550 + 1e-6);
-    // Every duty day but the last is a full driving day.
-    for (const m of milesByDutyDay.slice(0, -1)) expect(m).toBeGreaterThanOrEqual(500);
+    // 11 hours at the fastest road (an interstate) is the most a day can hold; a full day is at least 11 hours at the slowest.
+    for (const m of milesByDutyDay) expect(m).toBeLessThanOrEqual(cfg.hos.drivingHoursPerDay * cfg.roads.routing.mph[0] + 1e-6);
+    for (const m of milesByDutyDay.slice(0, -1)) expect(m).toBeGreaterThanOrEqual(cfg.hos.drivingHoursPerDay * cfg.roads.routing.mph[1] * 0.9);
   });
 
   it("adds 1–2 hours loading and 1–2 hours unloading to the trip", () => {

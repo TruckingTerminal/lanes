@@ -362,6 +362,9 @@ export interface Truck {
   legKey: number;
   legMiles: number;
   nextStation: number;
+  /** Tolls still to be paid on this leg (charged as the miles are settled), and the share of it on two-lane highway. */
+  legTollFd: number;
+  legHighwayShare: number;
 }
 
 export type LoadStatus = "open" | "assigned" | "inTransit" | "delivered" | "npcCovered";

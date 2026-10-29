@@ -9,7 +9,7 @@ export type TractorTier = "workhorse" | "highwayPro" | "flagship";
 export type FacilityType = "warehouse" | "coldStorage" | "factory";
 
 export const economyConfig = {
-  version: "0.9.2-phase0.14",
+  version: "0.10.0-phase0.15",
 
   // §World, map and time
   time: {
@@ -24,7 +24,7 @@ export const economyConfig = {
   // §Summary — hours of service
   hos: {
     drivingHoursPerDay: 11,
-    avgMph: 50, // ≈ 550 miles per in-game day
+    avgMph: 50, // the nominal pace; on the road each route's own speed applies (roads.routing.mph), ≈ 550–630 miles a day
     // "Automatic reset": the duty day opens when a truck first rolls and resets
     // 24 in-game hours later. No 14-hour window or 70-hour rule (spec: no other rules).
     dutyDayHours: 24,
@@ -36,11 +36,23 @@ export const economyConfig = {
     unloadMinutes: [60, 120] as const,
   },
 
+  // Design proposal (Jeff, 2026-10-28): the real road network (packages/data/src/roads.ts, from
+  // Natural Earth). Lanes are routed along interstates and US highways; tolls are charged where
+  // the road is a toll road (priced by state at real per-mile truck rates); two-lane highways are
+  // slower and riskier, more so in winter up north.
+  roads: {
+    routing: { mph: [58, 42] as const, highwayStopHours: 0.05, timeValueFdPerHour: 90 },
+    crashHighwayMult: 1.6, // crash odds on a two-lane highway vs an interstate
+    // Winter weather: from December to February, risk rises with latitude north of 36° (×1 at 36°, up to the gain at 49°).
+    winter: { months: [11, 0, 1] as const, fromLat: 36, toLat: 49, gain: { interstate: 0.35, highway: 0.9 } },
+    tollsInRates: true, // shippers pay tolls in the reference rate, like a fuel surcharge
+  },
+
   // §World, map and time — lanes
   map: {
     maxLaneMiles: 1500,
     minLaneMiles: 60, // PoC assumption: skip trivial same-metro pairs
-    circuity: 1.2, // PoC assumption until OSRM polylines are precomputed
+    circuity: 1.2, // only for a hub pair the road network doesn't connect (none today); lanes run on real road miles
     nearbyRadiusMi: 150, // §Rates — load-to-truck ratio radius
   },
 

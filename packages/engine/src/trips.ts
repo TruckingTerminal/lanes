@@ -6,7 +6,7 @@ import { companyAccount } from "./ledger.js";
 import { closeDutyDay, drivingLimitMin, legalDrivingMin, mphFor, safetyTick } from "./safety.js";
 import type { Company, Load, Truck } from "./types.js";
 import { breakdownsPer1000Mi } from "./wear.js";
-import { companyById, type World } from "./world.js";
+import { companyById, hubRoute, type World } from "./world.js";
 
 /** Truck is at the shipper: load for 1–2 hours, then roll. */
 export function startLoading(w: World, truck: Truck, load: Load): void {
@@ -106,15 +106,21 @@ export function moveTrucks(w: World): void {
         budget = hourEnd - resetAt;
         continue;
       }
-      const mph = truck.companyId ? mphFor(w, truck, companyById(w, truck.companyId)) : cfg.hos.avgMph;
-      const minutes = Math.min(budget, hosLeft, (truck.remainingMi / mph) * MINUTES_PER_HOUR);
-      const miles = Math.min(truck.remainingMi, (mph * minutes) / MINUTES_PER_HOUR);
       const key = legKey(w, truck);
       if (truck.legKey !== key) {
         truck.legKey = key;
         truck.legMiles = truck.remainingMi;
         truck.nextStation = 0;
+        const route = hubRoute(w, truck.hub, truck.targetHub);
+        truck.legTollFd = route?.tollFd ?? 0;
+        truck.legHighwayShare = route && route.miles > 0 ? route.highwayMi / route.miles : 0;
       }
+      // The road sets the pace: the route's miles over its hours, then the driver and the company's speed policy.
+      const route = hubRoute(w, truck.hub, truck.targetHub);
+      const roadMph = route && route.hours > 0 ? route.miles / route.hours : cfg.hos.avgMph;
+      const mph = truck.companyId ? mphFor(w, truck, companyById(w, truck.companyId), roadMph) : roadMph;
+      const minutes = Math.min(budget, hosLeft, (truck.remainingMi / mph) * MINUTES_PER_HOUR);
+      const miles = Math.min(truck.remainingMi, (mph * minutes) / MINUTES_PER_HOUR);
       truck.remainingMi -= miles;
       truck.shiftDrivenMin += minutes;
       truck.overMin = Math.max(0, truck.shiftDrivenMin - legalDrivingMin(w, truck));
@@ -167,14 +173,19 @@ function setIdle(w: World, truck: Truck): void {
 /** Pays operating costs for the miles driven since the last settlement. Returns their total. */
 export function payTripCosts(w: World, truck: Truck, ref: string): number {
   const acct = companyAccount(truck.companyId);
-  const c = tripCost(w.cfg, truck, fuelPrice(w), truck.emptyMi + truck.loadedMi, truck.loadedMi);
+  const driven = truck.emptyMi + truck.loadedMi;
+  const c = tripCost(w.cfg, truck, fuelPrice(w), driven, truck.loadedMi);
+  // Tolls come due with the miles: the share of the leg's tolls these miles cover.
+  const tolls = truck.legMiles > 0 ? Math.min(truck.legTollFd, truck.legTollFd * (driven / truck.legMiles)) : 0;
+  truck.legTollFd -= tolls;
   truck.emptyMi = 0;
   truck.loadedMi = 0;
   w.ledger.post(w.t, acct, "sink:fuel", c.fuel, ref);
   w.ledger.post(w.t, acct, "sink:driver_wages", c.wages, ref);
   w.ledger.post(w.t, acct, "sink:maintenance", c.maintenance, ref);
+  w.ledger.post(w.t, acct, "sink:tolls", tolls, ref);
   // Insurance isn't per trip: the yearly policy is billed weekly (insurance.ts).
-  return c.fuel + c.wages + c.maintenance;
+  return c.fuel + c.wages + c.maintenance + tolls;
 }
 
 function arriveEmpty(w: World, truck: Truck): void {

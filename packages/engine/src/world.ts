@@ -1,5 +1,5 @@
 import type { EconomyConfig, Equipment, FacilityType, TractorTier } from "@lanes/config";
-import type { Feeds, Network } from "@lanes/data";
+import type { Feeds, Network, Route } from "@lanes/data";
 import { Ledger, companyAccount } from "./ledger.js";
 import { Rng } from "./rng.js";
 import type { BuybackWeek, GameEvent, TokenState, Company, Facility, FinancePool, FraudCase, LeaseKind, Listing, Load, Role, SeasonCloseRecord, Staff, StandingOrder, Truck, TruckOrder } from "./types.js";
@@ -408,6 +408,7 @@ export function freshPaperwork(truck: Truck): void {
   truck.loadedMi = 0;
   truck.breakdownMin = 0;
   truck.legKey = -1;
+  truck.legTollFd = 0;
 }
 
 /** A truck with a driver can run; one without sits until someone is hired. */
@@ -588,6 +589,8 @@ export function createTruck(
     legKey: -1,
     legMiles: 0,
     nextStation: 0,
+    legTollFd: 0,
+    legHighwayShare: 0,
   };
   w.trucks.push(truck);
   fleet.push(truck);
@@ -647,6 +650,22 @@ export function operatingTrucks(w: World, companyId: number): number {
 
 export function hubMiles(w: World, a: number, b: number): number {
   return w.net.miles[a * w.net.hubs.length + b]!;
+}
+
+/** The road route from hub a to hub b (null between a hub and itself). */
+export function hubRoute(w: World, a: number, b: number): Route | null {
+  return w.net.routes[a * w.net.hubs.length + b] ?? null;
+}
+
+/** Tolls a truck pays from hub a to hub b. */
+export function hubToll(w: World, a: number, b: number): number {
+  return hubRoute(w, a, b)?.tollFd ?? 0;
+}
+
+/** Driving hours from hub a to hub b at each road's speed. */
+export function hubHours(w: World, a: number, b: number): number {
+  const r = hubRoute(w, a, b);
+  return r ? r.hours : hubMiles(w, a, b) / w.cfg.hos.avgMph;
 }
 
 export function companyById(w: World, id: number): Company {

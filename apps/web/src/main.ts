@@ -34,6 +34,8 @@ import {
   fdPriceUsd,
   fuelPrice,
   hubMiles,
+  hubRoute,
+  hubToll,
   lessorTrucksOf,
   MANUAL_BID_MAX_DEADHEAD_MI,
   marketValue,
@@ -63,7 +65,7 @@ import { drawTitleScene, facilityUrl, iconUrl, PAL, truckUrl } from "./art.js";
 import { guidePages } from "./guide.js";
 import { DEFAULT_ORDERS, GAME_CONFIG, isHuman, RULESET, TestGame, type StartKind, type TestLog } from "./game.js";
 import { createMeta, LiveWorld, readMeta, type DbLike, type LiveAction, type WorldMeta } from "./live.js";
-import { buildMap, MAP_H, MAP_W, nightShade, type MapArt } from "./map.js";
+import { buildMap, MAP_H, MAP_W, nightShade, project, type MapArt } from "./map.js";
 import { MemoryDb } from "./memdb.js";
 
 // ---------------------------------------------------------------------------
@@ -442,7 +444,7 @@ async function enterLive(meta: WorldMeta): Promise<void> {
 function showGame(s: Session): void {
   game = s;
   feed(s).lastT = s.w.t;
-  art ??= buildMap(s.w.net.hubs, (a, b) => hubMiles(s.w, a, b));
+  art ??= buildMap(s.w.net.hubs, (a, b) => hubMiles(s.w, a, b), s.w.net.roads);
   cancelAnimationFrame(titleRaf);
   $("title").hidden = true;
   $("loading").hidden = true;
@@ -642,13 +644,19 @@ function truckXY(t: Truck): [number, number] | null {
   const moving = t.status === "toPickup" || t.status === "loaded" || t.status === "repositioning";
   if (!moving || t.targetHub === t.hub) return t.status === "unloading" ? xy[t.targetHub]! : a;
   const b = xy[t.targetHub]!;
-  let total = hubMiles(w, t.hub, t.targetHub);
-  if (t.status === "loaded" && t.loadId !== null) total = w.loads.get(t.loadId)?.miles ?? total;
+  const route = hubRoute(w, t.hub, t.targetHub);
+  const total = t.legMiles > 0 ? t.legMiles : route ? route.miles : hubMiles(w, t.hub, t.targetHub);
   // The engine moves trucks hour by hour; between hours, a truck still on the clock keeps rolling on screen.
   const { hos } = w.cfg;
   const rolling = t.dwellMin <= 0 && t.breakdownMin <= 0 && t.shiftDrivenMin < hos.drivingHoursPerDay * 60;
-  const ahead = rolling ? (Math.min(60, clockMin() - w.t) / 60) * hos.avgMph : 0;
+  const pace = route && route.hours > 0 ? route.miles / route.hours : hos.avgMph;
+  const ahead = rolling ? (Math.min(60, clockMin() - w.t) / 60) * pace : 0;
   const left = Math.max(0, t.remainingMi - ahead);
+  // Along the real road when there is one; straight between the hubs otherwise.
+  if (route) {
+    const [lat, lon] = w.net.roads.pointAlong(route, total - left, w.net.hubs[t.hub]!, w.net.hubs[t.targetHub]!);
+    return project(lon, lat);
+  }
   const k = total > 0 ? Math.max(0, Math.min(1, 1 - left / total)) : 1;
   return [a[0] + (b[0] - a[0]) * k, a[1] + (b[1] - a[1]) * k];
 }
@@ -1073,28 +1081,32 @@ function loadsPanel(): string {
     const fuel = fuelPrice(w);
     const pending = w.manualBids.get(truck.id);
     const sent = g.kind === "live" ? g.pending().find((r) => r.a.type === "place_bid" && r.a.truckId === truck.id) : undefined;
-    const rows: { l: Load; dh: number; be: number; suggest: number; profit: number; reloadMi: number }[] = [];
+    const rows: { l: Load; dh: number; be: number; suggest: number; profit: number; reloadMi: number; tolls: number; highway: number; hours: number }[] = [];
     for (const l of w.loads.values()) {
       if (l.status !== "open" || l.equipment !== truck.trailer || l.brokerId === me().id) continue;
       const dh = hubMiles(w, truck.hub, l.origin);
       if (dh > MANUAL_BID_MAX_DEADHEAD_MI) continue;
       // Same break-even the dispatcher uses: part of the empty run out of the destination is priced in.
       const reloadMi = expectedReloadDeadheadMi(w, l.dest, l.equipment);
-      const be = breakEvenPerMile(w.cfg, truck, fuel, l.miles, dh + w.cfg.board.reloadWeight * reloadMi);
+      // Tolls on the way to the pickup and on the lane are part of the cost, like the dispatcher counts them.
+      const lane = w.net.lanes[l.laneId]!;
+      const tolls = hubToll(w, truck.hub, l.origin) + lane.tollFd;
+      const be = breakEvenPerMile(w.cfg, truck, fuel, l.miles, dh + w.cfg.board.reloadWeight * reloadMi, tolls);
       // Loads tend to clear near the lane's reference rate; the ceiling is the most the poster pays.
       const suggest = Math.min(l.ceiling, Math.max(be * 1.08, l.refRate * 0.97));
-      rows.push({ l, dh, be, suggest, profit: (suggest - be) * l.miles, reloadMi });
+      rows.push({ l, dh, be, suggest, profit: (suggest - be) * l.miles, reloadMi, tolls, highway: lane.highwayShare, hours: lane.hours });
     }
     rows.sort((a, b) => b.profit - a.profit);
     const list = rows
       .slice(0, 25)
-      .map(({ l, dh, be, suggest, profit, reloadMi }) => {
+      .map(({ l, dh, be, suggest, profit, reloadMi, tolls, highway, hours }) => {
         const mine = pending?.loadId === l.id;
         const o = w.net.hubs[l.origin]!;
         const d = w.net.hubs[l.dest]!;
         return `<div class="load ${mine ? "mine" : ""}">
           <div><div class="lane">${o.id} <span class="arrow">to</span> ${d.id}</div><div class="muted" style="font-size:14px">${esc(o.name)} to ${esc(d.name)} · ${l.miles} mi${dh ? ` · ${dh} mi empty first` : ""}${l.brokerId !== null ? " · brokered" : ""}${l.shipperId !== null ? " · player shipper" : ""}</div>
           <div style="font-size:14px">Reload at ${d.id}: <span class="${reloadClass(l.dest, l.equipment)}">${reloadLabel(l.dest, l.equipment)}</span> (about ${Math.round(reloadMi)} mi empty to the next load)${seasonNote(l.origin, l.equipment)}</div>
+          <div style="font-size:14px">${hours.toFixed(1)} h driving${tolls > 0 ? ` · <span class="warn">tolls ${fd(tolls)} FD</span>` : " · no tolls"}${highway >= 0.05 ? ` · <span class="warn">${pct(highway)} two-lane highway</span>` : " · interstate"}</div>
           <div style="font-size:14px">Pays up to <span class="num">${l.ceiling.toFixed(2)}</span>/mi (<span class="num">${fd(l.ceiling * l.miles)}</span> FD) · usually clears near <span class="num">${l.refRate.toFixed(2)}</span> · your break-even <span class="num">${be.toFixed(2)}</span>/mi · <span class="${profit > 0 ? "good" : "bad"}">about ${fd(profit)} FD profit</span></div></div>
           <div class="row" style="justify-content:end"><input type="number" id="bid-${l.id}" step="0.01" min="0.5" max="${l.ceiling.toFixed(2)}" value="${(mine ? pending!.rate : suggest).toFixed(2)}" aria-label="Your rate per mile">
           <button class="btn ${mine ? "on" : "primary"}" data-act="bid" data-load="${l.id}" data-truck="${truck.id}">${mine ? "Rebid" : "Bid"}</button></div>

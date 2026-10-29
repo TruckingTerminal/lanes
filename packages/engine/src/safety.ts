@@ -9,7 +9,7 @@ import { refile, startLiquidation } from "./solvency.js";
 import type { Basic, Company, CrashSeverity, Load, Truck } from "./types.js";
 import { condition } from "./wear.js";
 import { payTripCosts } from "./trips.js";
-import { companyById, detachTruck, staffById, syncFleet, type World } from "./world.js";
+import { companyById, detachTruck, hubRoute, staffById, syncFleet, type World } from "./world.js";
 
 /**
  * Safety and compliance (design proposal, Jeff 2026-10-28). Owners pick how legal
@@ -61,10 +61,10 @@ export function drivingLimitMin(w: World, t: Truck, c: Company): number {
 
 export const speeding = (w: World, t: Truck, c: Company) => applies(c.policy.speed, currentLoad(w, t));
 
-export function mphFor(w: World, t: Truck, c: Company): number {
+export function mphFor(w: World, t: Truck, c: Company, roadMph = w.cfg.hos.avgMph): number {
   const { hos, labor, safety } = w.cfg;
   const skill = 1 + labor.driver.mphRange * (t.driverSkill - 0.5);
-  return hos.avgMph * skill * (speeding(w, t, c) ? safety.speed.fastMph / hos.avgMph : 1);
+  return roadMph * skill * (speeding(w, t, c) ? safety.speed.fastMph / hos.avgMph : 1);
 }
 
 /**
@@ -144,20 +144,37 @@ export function collect(w: World, c: Company, tag: "sink:liability" | "sink:seiz
 
 const stationCache = new WeakMap<Network, Map<number, { station: number; frac: number }[]>>();
 
-/** Weigh stations on the way from hub a to hub b, as fractions of the route. */
+/** Weigh stations on the roads from hub a to hub b, as fractions of the route. */
 export function stationsOnLeg(w: World, a: number, b: number): { station: number; frac: number }[] {
   let cache = stationCache.get(w.net);
   if (!cache) stationCache.set(w.net, (cache = new Map()));
   const key = a * w.net.hubs.length + b;
   let list = cache.get(key);
   if (!list) {
-    list = stationsOnRoute(w.net.hubs[a]!, w.net.hubs[b]!, w.cfg.safety.enforcement.stationRadiusMi);
+    const route = hubRoute(w, a, b);
+    list = route ? w.net.roads.stationsAlong(route) : stationsOnRoute(w.net.hubs[a]!, w.net.hubs[b]!, w.cfg.safety.enforcement.stationRadiusMi);
     cache.set(key, list);
   }
   return list;
 }
 
-/** Crash odds multiplier right now: fatigue, speed, defects, wear and the driver. */
+/**
+ * The road's own risk on this leg: two-lane highway over interstate, and winter
+ * weather up north (from the fraction of the leg on highway and where it runs).
+ */
+export function roadRisk(w: World, t: Truck): number {
+  const { crashHighwayMult, winter } = w.cfg.roads;
+  const hs = t.legHighwayShare;
+  const road = 1 + (crashHighwayMult - 1) * hs;
+  const day = today(w);
+  const month = Math.floor(((day % w.cfg.time.daysPerSeason) / w.cfg.time.daysPerSeason) * 12);
+  if (!winter.months.includes(month as 0 | 1 | 11)) return road;
+  const lat = (w.net.hubs[t.hub]!.lat + w.net.hubs[t.targetHub]!.lat) / 2;
+  const north = Math.min(1, Math.max(0, (lat - winter.fromLat) / (winter.toLat - winter.fromLat)));
+  return road * (1 + north * (winter.gain.interstate * (1 - hs) + winter.gain.highway * hs));
+}
+
+/** Crash odds multiplier right now: fatigue, speed, defects, wear, the driver, and the road and the weather. */
 export function crashMultiplier(w: World, t: Truck, c: Company): number {
   const { crash, maintenance } = w.cfg.safety;
   const [atZero, atOne] = w.cfg.labor.driver.crash;
@@ -165,7 +182,7 @@ export function crashMultiplier(w: World, t: Truck, c: Company): number {
   const fast = speeding(w, t, c) ? crash.fastMult : 1;
   const defects = 1 + maintenance.crashPerDefect * t.defects;
   const wear = 1 + 0.5 * (1 - condition(w.cfg, t));
-  return fatigue * fast * defects * wear * (atZero + (atOne - atZero) * t.driverSkill);
+  return fatigue * fast * defects * wear * (atZero + (atOne - atZero) * t.driverSkill) * roadRisk(w, t);
 }
 
 /**

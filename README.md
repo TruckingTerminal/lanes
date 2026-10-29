@@ -333,6 +333,32 @@ Design, levers and the full results are in [TOKENOMICS.md](TOKENOMICS.md); table
   moved liquidations by under ±40 on 3 seeds. The insurance market ranged ×0.83–1.39 and the
   Workhorse + van price ×0.99–1.30.
 
+## Roads, tolls and weather (config 0.10.0)
+- **The road network** (`packages/data/src/roads.ts`, generated from Natural Earth's public-domain North America
+  roads at 1:10m): every US interstate and US highway, all toll roads and CA-99, as a graph of 13k junction nodes
+  and 23.6k edges with miles, class, toll per mile and simplified geometry (varint-packed, ~590 KB). Crossings
+  and road ends that meet another road are joined; each hub attaches to the nearest road (an interstate within
+  8 mi if there is one). `packages/data/src/roadNetwork.ts` decodes it and routes every hub pair with a
+  deterministic Dijkstra: cost = hours at 58 mph (interstate) / 42 mph (US highway) + 3 minutes per highway
+  stretch + tolls at 90 FD an hour. Lanes get road miles, hours, tolls and their two-lane share; `map.circuity`
+  is only a fallback.
+- **Tolls** are real per-mile truck rates by state and route (PA Turnpike 0.80, Illinois 0.45, Indiana 0.45,
+  NJ Turnpike 0.55, Florida 0.40, Ohio 0.35, NY Thruway 0.35, Kansas 0.20, …), charged as the miles are driven
+  (`sink:tolls`), counted in break-even by dispatchers and the load board, and passed to shippers in the
+  reference rate (`roads.tollsInRates`). Chicago→Newark costs ~109 FD in tolls; routing avoids a toll road when a
+  free one is nearly as quick.
+- **Speed and windows:** trucks move at each route's miles ÷ hours; delivery windows use route hours.
+- **Risk:** crash odds ×1.6 on the two-lane share of a leg, and in Dec–Feb rising with latitude north of 36°
+  (+35% interstate, +90% highway at 49°). Weigh stations are matched to their roads at build time and found
+  along the route a truck actually drives, so the "40% of lanes see no scale" problem is gone.
+- **Map:** the network is drawn under the hubs (interstates with the dashed centre line); trucks follow the road.
+- **10 seeds × 4 years, token on** (`runs/compare-v17-c.md` vs v16-a): liquidations 507 (451 before the roads,
+  548 in the old straight-line world), owner-operator profit 641 FD per truck-week (631), fleet 707 (669), FD price
+  at end $0.0084 ($0.0078), free-path median 61 days (66), top strategy 1.94× (1.81×). Tolls take 6.7M FD a seed,
+  about 2% of fuel.
+- **Regenerate:** the build tool lives outside the repo (`roads-tools/build.mjs` in the session scratchpad);
+  it reads `ne_10m_roads_north_america.shp/.dbf` and this repo's hub and weigh-station tables.
+
 ## Audit (2026-10-28, config 0.9.2)
 Six audits of the whole project (engine, the new systems, bots and sim tools, client and shared world, data,
 and a simulation campaign); every finding verified, the fixes in `AUDIT.md` with the before/after numbers.

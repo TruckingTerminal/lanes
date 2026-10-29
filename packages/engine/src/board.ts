@@ -8,7 +8,7 @@ import { companyAccount } from "./ledger.js";
 import { bidsFromStandingOrders, boardKey, canMakeHot, indexOpenLoads, scoreBid } from "./standingOrders.js";
 import { coverDoubleBrokered, startLoading } from "./trips.js";
 import type { Bid, Company, Load, StandingOrder, Truck } from "./types.js";
-import { companyById, crewed, hubMiles, truckById, type World } from "./world.js";
+import { companyById, crewed, hubHours, hubMiles, truckById, type World } from "./world.js";
 
 export interface RoundResult {
   round: number;
@@ -169,8 +169,9 @@ function assign(w: World, load: Load, truck: Truck, bid: Bid): void {
   // Due = the HOS schedule (11 driving hours, then off until the 24-hour duty day
   // resets) + worst-case loading and unloading + slack. A long breakdown makes it late.
   // A hot load's window assumes 15 driving hours a day and little slack: a solo driver makes it only on falsified logs.
+  // Driving time follows the roads: interstates are quicker than two-lane highways.
   const perDay = load.hot > 0 ? cfg.safety.hotLoads.hoursPerDay : cfg.hos.drivingHoursPerDay;
-  const drivingH = (bid.deadheadMi + load.miles) / cfg.hos.avgMph;
+  const drivingH = (bid.deadheadMi > 0 ? hubHours(w, truck.hub, load.origin) : 0) + w.net.lanes[load.laneId]!.hours;
   // Full rest days before the last driving day: a run of exactly one day's driving has none.
   const fullDays = Math.max(0, Math.ceil(drivingH / perDay) - 1);
   const transitMin = (fullDays * cfg.hos.dutyDayHours + (drivingH - fullDays * perDay)) * 60;
