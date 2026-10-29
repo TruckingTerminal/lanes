@@ -832,6 +832,7 @@ function renderHud(): void {
   const minute = clockMin();
   const day = Math.floor(minute / 1440);
   const tokenNow = tokenLive(w);
+  checkIdleAlerts();
   const badge =
     g.kind === "test"
       ? `<span class="badge test" title="A private test world: nothing here is stored">TEST WORLD</span><div class="speeds" role="group" aria-label="Test world speed">${SPEEDS.map((sp, i) => `<button class="btn" data-speed="${i}" title="${esc(sp.title)}">${sp.label}</button>`).join("")}</div>${live ? `<button class="btn" data-act="backlive">Back to the live world</button>` : ""}`
@@ -849,6 +850,10 @@ function renderHud(): void {
   if (c && c.authority.status !== "active") stats += `<span class="badge test" title="Your authority isn't active">${c.authority.status === "revoked" ? "AUTHORITY REVOKED" : "SUSPENDED"}</span>`;
   if (g.kind === "live" && g.broken) stats += `<span class="badge test" title="${esc(g.broken.reason)}">WORLD STOPPED</span>`;
   if (g.kind === "live") stats += `<span class="label" title="Human players in the live world">${w.companies.filter(isHuman).length} players</span>`;
+  if (c) {
+    const stuck = stuckTrucks().length;
+    if (stuck) stats += `<span class="badge alert" title="Trucks idle a day or more: the Fleet tab says why">${stuck} IDLE</span>`;
+  }
   if (fsEnabled()) stats += `<button class="btn" data-act="fullscreen" title="Full screen (F)">${fsActive() ? "Exit full screen" : "Full screen"}</button>`;
   // The clock text changes many times a second at the fast speeds, so it's updated in
   // place: rebuilding the bar would replace the speed buttons under a finger mid-press
@@ -952,13 +957,117 @@ function pendingCard(): string {
   return `<div class="card"><h3>Orders on the way</h3>${p.map((r) => `<p style="font-size:15px">${esc(describe(r.a))} · <span class="muted">at ${hhmm(r.at)}, in ${realUntil(lw.msUntil(r.at))}</span></p>`).join("")}</div>`;
 }
 
+// --- Idle trucks ------------------------------------------------------------------------
+
+/** A truck counts as stuck after this many hours idle: the dispatcher has had two rounds at it. */
+const IDLE_ALERT_HOURS = 24;
+const idleHours = (t: Truck) => Math.max(0, (clockMin() - t.idleSinceT) / 60);
+const idleDays = (t: Truck) => Math.floor(idleHours(t) / 24);
+const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? "" : "s"}`;
+/** "5 h", "1 day 3 h", "4 days". */
+function idleLabel(t: Truck): string {
+  const h = Math.floor(idleHours(t));
+  const d = Math.floor(h / 24);
+  return d === 0 ? `${h} h` : `${plural(d, "day")}${h % 24 ? ` ${h % 24} h` : ""}`;
+}
+
+interface IdleWhy {
+  /** One sentence, plain text, on why the truck is sitting. */
+  why: string;
+  /** Buttons that address it. */
+  fixes: string[];
+}
+
+/** Why one of the player's idle trucks isn't moving, and what would move it. */
+function idleWhy(t: Truck): IdleWhy {
+  const w = game!.w;
+  const c = me();
+  const hubName = w.net.hubs[t.hub]!.name;
+  const trailer = TRAILER_NAME[t.trailer].toLowerCase();
+  const board = `<button class="btn" data-act="findloads" data-truck="${t.id}">Bid by hand</button>`;
+  if (!crewed(t)) return { why: "No driver is seated, so it can't run.", fixes: [`<button class="btn primary" data-act="tostaff">Hire a driver</button>`] };
+  if (c.authority.status !== "active") return { why: c.authority.status === "revoked" ? "Your authority is revoked: nothing can haul." : "Your authority is suspended: nothing can haul until it's back.", fixes: [] };
+  if (t.breakdownMin > 0) return { why: `Broken down: about ${Math.ceil(t.breakdownMin / 60)} h until the tow and repair are done.`, fixes: [] };
+  const bid = w.manualBids.get(t.id);
+  if (bid) return { why: `Your bid of ${bid.rate.toFixed(2)}/mi is in for the next round.`, fixes: [] };
+  const order = c.orders.find((o): o is Extract<StandingOrder, { kind: "bid" }> => o.kind === "bid");
+  if (!order) return { why: "Your dispatcher has no bid order, so nobody bids for this truck.", fixes: [`<button class="btn primary" data-act="ordersReset">Restore the default dispatcher</button>`, board] };
+  const floor = c.orders.find((o): o is Extract<StandingOrder, { kind: "floor" }> => o.kind === "floor");
+  const maxDh = order.maxDeadheadMi;
+  const loads = [...w.loads.values()].filter((l) => l.status === "open" && l.equipment === t.trailer && l.brokerId !== c.id && hubMiles(w, t.hub, l.origin) <= maxDh);
+  if (loads.length === 0) {
+    // The dispatcher's reach is empty: point at the nearest freight worth the run.
+    const best = w.net.hubs
+      .map((h, i) => ({ h, i, mi: hubMiles(w, t.hub, i), n: openLoadsAt(i).filter((l) => l.equipment === t.trailer).length }))
+      .filter((x) => x.i !== t.hub && x.n > 0 && x.mi <= 800)
+      .sort((a, b) => b.n - b.mi / 200 - (a.n - a.mi / 200))[0];
+    return {
+      why: `No ${trailer} loads within ${maxDh} mi of ${hubName}, the dispatcher's limit${best ? `. The nearest freight worth the run is ${plural(best.n, "load")} at ${best.h.name}, ${best.mi} mi away` : ""}.`,
+      fixes: [...(best ? [`<button class="btn primary" data-act="sendto" data-truck="${t.id}" data-hub="${best.h.id}">Send empty to ${best.h.id} · ${best.mi} mi</button>`] : []), `<button class="btn" data-act="findloads" data-truck="${t.id}">Load board</button>`],
+    };
+  }
+  if (loads.every((l) => l.hot > 0) && !canMakeHot(c, t)) return { why: `The only ${trailer} loads in range are hot, and a solo driver can't make a hot window legally.`, fixes: [`<button class="btn primary" data-act="tostaff">Seat a co-driver</button>`] };
+  const blocked = loads.map((l) => vettingBlock(w, c, l)).filter((x): x is string => x !== null);
+  if (blocked.length === loads.length) return { why: `Every load in range requires vetting you don't pass: ${blocked[0]}.`, fixes: [] };
+  const fuel = fuelPrice(w);
+  const floorPct = floor?.breakEvenPlusPct ?? 0;
+  const payable = loads.filter((l) => {
+    const dh = hubMiles(w, t.hub, l.origin);
+    const be = breakEvenPerMile(w.cfg, t, fuel, l.miles, dh + w.cfg.board.reloadWeight * expectedReloadDeadheadMi(w, l.dest, l.equipment), hubToll(w, t.hub, l.origin) + w.net.lanes[l.laneId]!.tollFd);
+    return l.ceiling >= be * (1 + floorPct);
+  });
+  if (payable.length === 0) return { why: `${plural(loads.length, `${trailer} load`)} in range, but none pays your floor (break-even + ${Math.round(floorPct * 100)}%) even at its ceiling.`, fixes: [board] };
+  const running = operatingTrucks(w, c.id);
+  const prof = dispatchProfile(w, c, running);
+  if (prof.coverage < 1) return { why: `Your dispatcher is stretched: ${prof.span} trucks' worth of attention for the ${running} you run, so this truck sits out about ${Math.round((1 - prof.coverage) * 100)}% of rounds.`, fixes: [`<button class="btn primary" data-act="tostaff">Hire a dispatcher</button>`, board] };
+  return { why: `${plural(payable.length, `${trailer} load`)} in range pay enough, but the dispatcher's bids keep losing: other carriers bid lower or have the better record.`, fixes: [`<button class="btn primary" data-act="findloads" data-truck="${t.id}">Bid by hand</button>`] };
+}
+
+/** The player's trucks idle a day or more. */
+const stuckTrucks = () => myTrucks().filter((t) => t.status === "idle" && idleHours(t) >= IDLE_ALERT_HOURS);
+
+function idleAlertsCard(): string {
+  const w = game!.w;
+  return stuckTrucks()
+    .map((t) => {
+      const d = idleWhy(t);
+      return `<div class="card alert"><h3>Truck ${truckNo(t.id)} has been idle ${idleLabel(t)} at ${esc(w.net.hubs[t.hub]!.name)}</h3>
+        <p>${esc(d.why)} It has sat out ${plural(t.idleRounds, "bidding round")}${t.lease === "owned" ? ` and pays ${w.cfg.costs.idleFeePerDay} FD a day idle after ${w.cfg.costs.idleFeeAfterDays}` : ""}.</p>
+        ${d.fixes.length ? `<div class="row">${d.fixes.join("")}</div>` : ""}</div>`;
+    })
+    .join("");
+}
+
+/** Shouts once per idle day per truck, in the ticker and as a toast. */
+const idleAlerted = new Map<string, number>();
+function checkIdleAlerts(): void {
+  const g = game;
+  if (!g?.player) return;
+  for (const t of myTrucks()) {
+    const key = `${g.kind}:${t.id}`;
+    if (t.status !== "idle") {
+      idleAlerted.delete(key);
+      continue;
+    }
+    const days = idleDays(t);
+    if (idleHours(t) < IDLE_ALERT_HOURS || idleAlerted.get(key) === days) continue;
+    idleAlerted.set(key, days);
+    const text = `Truck ${truckNo(t.id)} has been idle ${idleLabel(t)} at ${g.w.net.hubs[t.hub]!.name}: ${idleWhy(t).why}`;
+    push(g, text, "bad");
+    toast(text, true);
+    panelDirty = true;
+  }
+}
+
 function statusLine(t: Truck): string {
   const w = game!.w;
   const hub = (i: number) => esc(w.net.hubs[i]!.name);
   switch (t.status) {
     case "idle": {
       const bid = w.manualBids.get(t.id);
-      return `Idle at ${hub(t.hub)}${bid ? ` · <span class="good">your bid ${bid.rate.toFixed(2)}/mi is in</span>` : ""}`;
+      const h = idleHours(t);
+      const since = `<span class="${h >= IDLE_ALERT_HOURS ? "bad" : h >= 12 ? "warn" : ""}">${idleLabel(t)}</span>`;
+      return `Idle at ${hub(t.hub)} for ${since}${t.idleRounds ? ` · sat out ${plural(t.idleRounds, "round")}` : ""}${bid ? ` · <span class="good">your bid ${bid.rate.toFixed(2)}/mi is in</span>` : ""}`;
     }
     case "toPickup":
       return `Heading empty to ${hub(t.targetHub)} for a pickup · ${Math.round(t.remainingMi)} mi`;
@@ -1035,7 +1144,7 @@ function fleetPanel(): string {
   const orders = pending.length
     ? `<p class="muted">On order: ${pending.map((o) => `${TIER_NAME[o.tier]} + ${TRAILER_NAME[o.trailer]}, arrives ${dateLabel(o.dueDay)}`).join("; ")}</p>`
     : "";
-  return `<div class="stack"><h2>Your fleet</h2>${pendingCard()}${orders}${cards}${dispatcherCard()}</div>`;
+  return `<div class="stack"><h2>Your fleet</h2>${idleAlertsCard()}${pendingCard()}${orders}${cards}${dispatcherCard()}</div>`;
 }
 
 function dispatcherCard(): string {
@@ -1826,6 +1935,9 @@ function wireInput(): void {
         tab = "loads";
         renderTabs();
         panelDirty = true;
+        break;
+      case "sendto":
+        act({ type: "reposition_truck", truckId: truck, hubId: el.dataset.hub! }, `Truck heading empty to ${el.dataset.hub}`);
         break;
       case "send": {
         const hubId = $<HTMLSelectElement>(`send-${truck}`).value;

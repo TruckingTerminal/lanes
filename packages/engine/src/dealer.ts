@@ -87,6 +87,7 @@ export function deliverOrders(w: World): void {
         milesSinceRebuild: 0,
         builtDay: day,
         idleSinceDay: day,
+        idleSinceT: w.t,
         defects: 0,
       });
       freshPaperwork(npc);

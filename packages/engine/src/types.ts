@@ -336,6 +336,8 @@ export interface Truck {
   builtDay: number;
   idleRounds: number;
   idleSinceDay: number;
+  /** Game minute the truck last went idle (for the client's idle clock; nothing decides on it). */
+  idleSinceT: number;
   /** Last round in which this truck had loads in range but none it would take at their ceilings. */
   pricedOutRound: number;
   /** Miles driven since the last settlement, split for cost accounting. */

@@ -71,6 +71,7 @@ export function moveTrucks(w: World): void {
           truck.repairUntilT = null;
           truck.idleRounds = 0;
           truck.idleSinceDay = dayOf(w.t, cfg);
+          truck.idleSinceT = w.t;
         }
         break;
       }
@@ -165,6 +166,7 @@ function setIdle(w: World, truck: Truck): void {
   truck.loadId = null;
   truck.idleRounds = 0;
   truck.idleSinceDay = dayOf(w.t, w.cfg);
+  truck.idleSinceT = w.t;
   truck.emptyMi = 0;
   truck.loadedMi = 0;
   truck.legKey = -1;

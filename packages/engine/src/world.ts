@@ -572,6 +572,7 @@ export function createTruck(
     builtDay: used?.builtDay ?? day,
     idleRounds: 0,
     idleSinceDay: day,
+    idleSinceT: w.t,
     pricedOutRound: -1,
     emptyMi: 0,
     loadedMi: 0,
@@ -634,6 +635,7 @@ export function attachTruck(w: World, truck: Truck, companyId: number): void {
   truck.status = "idle";
   truck.idleRounds = 0;
   truck.idleSinceDay = Math.floor(w.t / w.cfg.time.gameMinutesPerDay);
+  truck.idleSinceT = w.t;
   truck.targetHub = truck.hub;
   freshPaperwork(truck);
   w.trucksByCompany.get(companyId)!.push(truck);

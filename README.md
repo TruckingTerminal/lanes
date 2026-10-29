@@ -398,6 +398,13 @@ Design, levers and the full results are in [TOKENOMICS.md](TOKENOMICS.md); table
 - Client: the test world's speed buttons were rebuilt with every clock tick, so at the fast
   speeds a tap landed on an element that had just been replaced and never registered. The clock
   text now updates in place and the chosen speed is a class toggle on buttons that stay put.
+- Idle trucks: every truck card shows how long it has sat ("Idle at Phoenix for 18 h · sat out 1
+  round", from a new `idleSinceT` on the truck that nothing decides on). After 24 hours the Fleet
+  tab opens with a red alert card per truck saying why (no driver, authority out, broken down, no
+  loads of its trailer within the dispatcher's empty-mile limit and where the nearest freight is,
+  only hot loads for a solo driver, vetting, nothing pays the floor, a stretched dispatcher, or bids
+  that keep losing) with the button that fixes it; a red "N IDLE" badge sits in the top bar, and the
+  ticker and a toast shout once per idle day.
 
 ## Audit (2026-10-28, config 0.9.2)
 Six audits of the whole project (engine, the new systems, bots and sim tools, client and shared world, data,
