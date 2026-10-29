@@ -356,8 +356,10 @@ Design, levers and the full results are in [TOKENOMICS.md](TOKENOMICS.md); table
   548 in the old straight-line world), owner-operator profit 641 FD per truck-week (631), fleet 707 (669), FD price
   at end $0.0084 ($0.0078), free-path median 61 days (66), top strategy 1.94× (1.81×). Tolls take 6.7M FD a seed,
   about 2% of fuel.
-- **Regenerate:** the build tool lives outside the repo (`roads-tools/build.mjs` in the session scratchpad);
-  it reads `ne_10m_roads_north_america.shp/.dbf` and this repo's hub and weigh-station tables.
+- **Regenerate:** `node packages/data/tools/build-roads.mjs <na.shp> <na.dbf> . --tol 0.03` (data:
+  `ne_10m_roads_north_america.{shp,dbf}` from the Natural Earth vector repo, downloaded outside the repo); it
+  reads this repo's hub and weigh-station tables, prints routing stats, and rewrites `roads.ts`. Rerun it
+  whenever a hub or weigh station is added or moved.
 
 ## Audit (2026-10-28, config 0.9.2)
 Six audits of the whole project (engine, the new systems, bots and sim tools, client and shared world, data,
