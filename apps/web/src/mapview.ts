@@ -5,6 +5,7 @@ import { drawText, textWidth } from "./font.js";
 import { isHuman } from "./game.js";
 import { buildMap, headingDir, nightColor, nightShade, truckMarkers, type MapArt, type MarkerKind } from "./map.js";
 import { truckFrame } from "./assets.js";
+import { hasPaintedMap, MAP_H, MAP_W, mapLevel, seasonOf } from "./mapart.js";
 import { bumpData, clockMin, myTrucks, S, selectTruck, setTab } from "./state.js";
 import { openLoadsAt, reloadLabel, seasonSwing } from "./logic.js";
 import { signedPct, TRAILER_NAME } from "./format.js";
@@ -20,8 +21,17 @@ let cv: HTMLCanvasElement | null = null;
 let wrap: HTMLElement | null = null;
 let tip: HTMLElement | null = null;
 
-/** Whole-number zoom levels keep every map pixel square. */
-const ZOOMS = [1, 2, 3, 4, 6];
+/**
+ * The zoom levels are device pixels per level-0 art pixel: the fit (whatever fills the window, drawn
+ * smoothed) and then the whole numbers above it, where the painted levels draw pixel for pixel.
+ */
+const STEPS = [1, 2, 3, 4, 6, 8];
+function levels(): number[] {
+  const f = fitK();
+  const L = [f];
+  for (const n of STEPS) if (n > f * 1.08) L.push(n);
+  return L;
+}
 /** Device pixels per map pixel at 1×: the whole part of the device pixel ratio, so a map pixel is one CSS pixel. */
 let sDev = 1;
 /** The nearest level to where the zoom is heading: what the labels, markers and hit radii size by. */
@@ -41,14 +51,19 @@ let snapTimer = 0;
 let panX = 0;
 let panY = 0;
 let buildTimer = 0;
-export const zoom = (): number => ZOOMS[zoomIdx]!;
+/** The zoom relative to the fit: 1 with the whole country in view. */
+export const zoom = (): number => levels()[zoomIdx]! / fitK();
 export const zoomIndex = (): number => zoomIdx;
-export const maxZoom = (): boolean => zoomIdx === ZOOMS.length - 1;
-const fitK = () => (cv?.width || 1) / (art?.W ?? 1);
-const kScale = () => fitK() * zf;
+/** What the zoom readout shows: Fit, or the whole-number scale the map rests at. */
+export const zoomLabel = (): string => (zoomIdx === 0 ? "Fit" : `${levels()[zoomIdx]}×`);
+export const maxZoom = (): boolean => zoomIdx === levels().length - 1;
+/** Device pixels per art pixel with the whole map fitted to the window. */
+const fitK = () => (!cv || !art ? 1 : Math.min(cv.width / art.W, cv.height / art.H));
+const kScale = () => zf;
 const nearestLevel = (z: number): number => {
+  const L = levels();
   let best = 0;
-  for (let i = 1; i < ZOOMS.length; i++) if (Math.abs(Math.log(ZOOMS[i]! / z)) < Math.abs(Math.log(ZOOMS[best]! / z))) best = i;
+  for (let i = 1; i < L.length; i++) if (Math.abs(Math.log(L[i]! / z)) < Math.abs(Math.log(L[best]! / z))) best = i;
   return best;
 };
 
@@ -65,7 +80,7 @@ export function resetArt(): void {
   headings.clear();
 }
 
-function buildArt(W: number, H: number): void {
+function buildArt(W: number, H: number, devW: number, devH: number): void {
   const g = S.game;
   if (!g || !cv) return;
   const old = art;
@@ -74,13 +89,23 @@ function buildArt(W: number, H: number): void {
   art = buildMap(g.w.net.hubs, g.w.net.roads, W, H, g.w.net.places);
   headings.clear();
   console.info(`map ${W}×${H} painted in ${Math.round(performance.now() - t0)} ms`);
-  cv.width = W * sDev;
-  cv.height = H * sDev;
+  cv.width = devW;
+  cv.height = devH;
+  const f = fitK();
+  if (zoomIdx === 0 || zf < f) {
+    zoomIdx = 0;
+    zf = zt = f;
+    anchor = null;
+  }
   if (center && old) centerOn((center[0] / old.W) * W, (center[1] / old.H) * H);
   else clampPan();
 }
 
-/** Sizes the canvas to the map window in device pixels and (re)paints the base to match. */
+/**
+ * Sizes the canvas to the map window in device pixels and (re)builds the base to match: the painted
+ * map keeps its own size and the fit level scales it to the window; the code-drawn fallback is
+ * built at the window size, one art pixel per device pixel.
+ */
 export function fitMap(): void {
   if (!S.game || !wrap || !cv) return;
   const cssW = wrap.clientWidth;
@@ -88,12 +113,24 @@ export function fitMap(): void {
   if (cssW < 40 || cssH < 40) return;
   const dpr = window.devicePixelRatio || 1;
   sDev = Math.max(1, Math.floor(dpr));
-  const W = Math.min(1600, Math.max(320, Math.floor((cssW * dpr) / sDev)));
-  const H = Math.min(1000, Math.max(200, Math.floor((cssH * dpr) / sDev)));
-  if (!art) buildArt(W, H);
+  const devW = Math.floor(cssW * dpr);
+  const devH = Math.floor(cssH * dpr);
+  const painted = hasPaintedMap();
+  const W = painted ? MAP_W : Math.min(1600, Math.max(320, Math.floor(devW / sDev)));
+  const H = painted ? MAP_H : Math.min(1000, Math.max(200, Math.floor(devH / sDev)));
+  if (!art) buildArt(W, H, devW, devH);
   else if (art.W !== W || art.H !== H) {
     clearTimeout(buildTimer);
-    buildTimer = window.setTimeout(() => buildArt(W, H), 200);
+    buildTimer = window.setTimeout(() => buildArt(W, H, devW, devH), 200);
+  } else if (cv.width !== devW || cv.height !== devH) {
+    const center = toWorld(cv.width / 2, cv.height / 2);
+    cv.width = devW;
+    cv.height = devH;
+    if (zoomIdx === 0) {
+      zf = zt = fitK();
+      anchor = null;
+    }
+    centerOn(center[0], center[1]);
   }
   bumpData();
 }
@@ -106,13 +143,14 @@ function toWorld(cx: number, cy: number): [number, number] {
   const k = kScale();
   return [(cx + panX) / k, (cy + panY) / k];
 }
+/** Keeps the map on the canvas: panned within its edges when larger than the window, centred when smaller. */
 function clampPan(): void {
   if (!cv) return;
   const k = kScale();
-  const maxX = Math.max(0, (art?.W ?? 0) * k - cv.width);
-  const maxY = Math.max(0, (art?.H ?? 0) * k - cv.height);
-  panX = Math.round(Math.max(0, Math.min(maxX, panX)));
-  panY = Math.round(Math.max(0, Math.min(maxY, panY)));
+  const mw = (art?.W ?? 0) * k;
+  const mh = (art?.H ?? 0) * k;
+  panX = mw <= cv.width ? -Math.round((cv.width - mw) / 2) : Math.round(Math.max(0, Math.min(mw - cv.width, panX)));
+  panY = mh <= cv.height ? -Math.round((cv.height - mh) / 2) : Math.round(Math.max(0, Math.min(mh - cv.height, panY)));
 }
 export function centerOn(wx: number, wy: number): void {
   if (!cv) return;
@@ -124,14 +162,16 @@ export function centerOn(wx: number, wy: number): void {
 }
 /** Heads for a zoom level, keeping the map point under canvas pixel (ax, ay) where it is; the frame loop eases the view there. */
 export function setZoom(idx: number, ax?: number, ay?: number): void {
-  const next = Math.max(0, Math.min(ZOOMS.length - 1, idx));
-  if (next === zoomIdx && zt === ZOOMS[next]) return;
-  zoomTo(ZOOMS[next]!, ax, ay);
+  const L = levels();
+  const next = Math.max(0, Math.min(L.length - 1, idx));
+  if (next === zoomIdx && zt === L[next]) return;
+  zoomTo(L[next]!, ax, ay);
 }
 /** Heads for any zoom factor between the first and last level (wheel and pinch move freely; `snapZoom` settles them). */
 function zoomTo(target: number, ax?: number, ay?: number): void {
   if (!cv) return;
-  zt = Math.max(ZOOMS[0]!, Math.min(ZOOMS[ZOOMS.length - 1]!, target));
+  const L = levels();
+  zt = Math.max(L[0]!, Math.min(L[L.length - 1]!, target));
   zoomIdx = nearestLevel(zt);
   const x = ax ?? cv.width / 2;
   const y = ay ?? cv.height / 2;
@@ -144,11 +184,12 @@ function zoomTo(target: number, ax?: number, ay?: number): void {
 }
 /** Settles a free zoom on a level, so the map rests at a whole-number scale: the nearest one, or the next one along for a short flick. */
 function snapZoom(): void {
+  const L = levels();
   let idx = nearestLevel(zt);
   const moved = Math.log(zt / gestureFrom);
-  if (ZOOMS[idx] === gestureFrom && Math.abs(moved) > 0.1) idx = Math.max(0, Math.min(ZOOMS.length - 1, idx + Math.sign(moved)));
-  gestureFrom = ZOOMS[idx]!;
-  zoomTo(ZOOMS[idx]!, anchor?.[2], anchor?.[3]);
+  if (L[idx] === gestureFrom && Math.abs(moved) > 0.1) idx = Math.max(0, Math.min(L.length - 1, idx + Math.sign(moved)));
+  gestureFrom = L[idx]!;
+  zoomTo(L[idx]!, anchor?.[2], anchor?.[3]);
 }
 /** A wheel or pinch step: remembers where the gesture started the first time, then moves the target. */
 function freeZoom(target: number, x: number, y: number): void {
@@ -275,11 +316,24 @@ export function drawMap(now: number): void {
   ctx.imageSmoothingEnabled = false;
   ctx.fillStyle = PAL.seaD;
   ctx.fillRect(0, 0, W, H);
-  ctx.setTransform(k, 0, 0, k, -panX, -panY);
-  ctx.drawImage(art.base, 0, 0);
+  // The painted level for this zoom, pixel for pixel at a whole-number scale and smoothed while the
+  // zoom is moving or at the fit; the code-drawn base until it has decoded.
+  const lvl = mapLevel(seasonOf(Math.min(11, Math.floor((Math.floor(clockMin() / 1440) % 365) / 30)) + 1), k);
+  if (lvl) {
+    const s = k / lvl.scale;
+    ctx.imageSmoothingEnabled = !Number.isInteger(s);
+    ctx.imageSmoothingQuality = "high";
+    ctx.setTransform(s, 0, 0, s, -panX, -panY);
+    ctx.drawImage(lvl.img, 0, 0);
+    ctx.imageSmoothingEnabled = false;
+  } else {
+    ctx.setTransform(k, 0, 0, k, -panX, -panY);
+    ctx.drawImage(art.base, 0, 0);
+  }
   ctx.setTransform(1, 0, 0, 1, 0, 0);
   ctx.fillStyle = PAL.foam;
-  for (let i = 0; i < art.glints.length; i++) {
+  // The code-drawn base's glints and window lights belong to its own skylines; the painting has its own.
+  for (let i = 0; i < (lvl ? 0 : art.glints.length); i++) {
     if ((Math.floor(now / 450) + i * 7) % 11 === 0) {
       const [X, Y] = toScreen(...art.glints[i]!);
       if (visible(X, Y)) ctx.fillRect(X, Y, 2 * u, u);
@@ -321,7 +375,7 @@ export function drawMap(now: number): void {
     ctx.fillRect(0, 0, W, H);
     ctx.globalAlpha = 1;
     ctx.fillStyle = PAL.gold;
-    for (let i = 0; i < art.lights.length; i++) {
+    for (let i = 0; i < (lvl ? 0 : art.lights.length); i++) {
       if ((i * 13 + Math.floor(now / 900)) % 17 === 0) continue;
       const [X, Y] = toScreen(...art.lights[i]!);
       if (visible(X, Y)) ctx.fillRect(X, Y, u, u);

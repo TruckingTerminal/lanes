@@ -65,10 +65,30 @@ gets its own art and the view crossfades between bands while the zoom animates.
   scaling only while the zoom is moving and a snap to a whole-number scale when it settles, panning
   with inertia, and the level 0 painting crossfading into the tile layer between zoom 2 and 3.
 
-Costs (block E, revised): level 0 = 6 tiles × 25 (~250 with retries), tilesets ≈ 8 × ~30 (~250), road
-and detail tiles ~50, city and town sprites in four sizes ~250, loops and weather ~100; about 900 of the
-~1,000 reserved for E plus half its iteration reserve. A painted level 1 (24 tiles × 25 = 600) is
-affordable later if the tile layer is not detailed enough.
+Jeff's pick (2026-10-29): the mix, "as detailed as possible", the painterly detail and resolution on
+the isometric ground; cities realistic with their notable landmarks; and everything with its own
+animations and graphics per season and per weather event. So the pyramid is painted, not tiled:
+
+- Level 0 (1408 × 960, 3 × 2 tiles with 32-pixel overlaps, `tools/paint-map.py`): the summer painting,
+  then autumn, winter and spring as edits of the painted summer tiles (the layout and hand stay, the
+  season changes). 6 + 18 tiles = 600 generations.
+- Level 1 (2816 × 1920, 6 × 4 tiles): the base rendered at 2× and repainted with every hub's landmarks
+  named in its tile's prompt (`tools/landmarks.json`), 600 generations for summer. Its seasons come
+  from the client first (a seasonal tint and snow and foliage overlays on the summer painting) and
+  get painted (1,800) when a later month's budget allows.
+- Level 2 (the city, 4×): not a painting of the whole country (96 tiles); the 60 hubs as isometric
+  city sprites with their landmarks, 256 × 256 on transparency in the title's style (~15 each) with a
+  lights-smoke-traffic loop (~2 each): ~1,000. Winter versions of the ~30 northern hubs by edit (750)
+  when the budget allows; snow overlay sprites until then. Towns: 4–6 generic isometric town sprites
+  in four seasons with loops (~170).
+- Weather: animated overlay loops (rain, snow, fog, storm clouds with lightning, heat shimmer, dust)
+  from the VFX endpoint plus client particle layers, driven by the world's season and road-risk state
+  (~50), with the night shading kept.
+- The view: the fit level smoothed, the whole-number levels pixel for pixel, crossfading between the
+  paintings as the zoom moves; hover and click on hubs, towns and trucks at every level.
+
+Map total this month ≈ 2,500 (level 0 with seasons 600, level 1 600, cities 1,000, towns 170, weather 50,
+retries ~100), leaving ~2,000 of the 4,700 balance for trucks, people, scenes and menus (~1,450).
 
 Rules for the pass:
 - Check `python3 apps/web/tools/pixellab.py balance` before an object, character or Pro call.
