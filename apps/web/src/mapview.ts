@@ -24,7 +24,20 @@ let tip: HTMLElement | null = null;
 const ZOOMS = [1, 2, 3, 4, 6];
 /** Device pixels per map pixel at 1×: the whole part of the device pixel ratio, so a map pixel is one CSS pixel. */
 let sDev = 1;
+/** The nearest level to where the zoom is heading: what the labels, markers and hit radii size by. */
 let zoomIdx = 0;
+/** The zoom in motion: `zf` is what is drawn, `zt` where it is heading; eased every frame, and the levels are where it settles. */
+let zf = 1;
+let zt = 1;
+/** Where a wheel or pinch gesture started, so a short flick still moves one level. */
+let gestureFrom = 1;
+/** The map point (world x, y) held under canvas point (x, y) while the zoom moves. */
+let anchor: [number, number, number, number] | null = null;
+/** Pan inertia after a drag, in canvas pixels per millisecond. */
+let vel: [number, number] = [0, 0];
+let dragging = false;
+let lastFrame = 0;
+let snapTimer = 0;
 let panX = 0;
 let panY = 0;
 let buildTimer = 0;
@@ -32,7 +45,12 @@ export const zoom = (): number => ZOOMS[zoomIdx]!;
 export const zoomIndex = (): number => zoomIdx;
 export const maxZoom = (): boolean => zoomIdx === ZOOMS.length - 1;
 const fitK = () => (cv?.width || 1) / (art?.W ?? 1);
-const kScale = () => fitK() * zoom();
+const kScale = () => fitK() * zf;
+const nearestLevel = (z: number): number => {
+  let best = 0;
+  for (let i = 1; i < ZOOMS.length; i++) if (Math.abs(Math.log(ZOOMS[i]! / z)) < Math.abs(Math.log(ZOOMS[best]! / z))) best = i;
+  return best;
+};
 
 /** Last heading per truck, so a parked truck keeps facing the way it arrived. */
 const headings = new Map<number, number>();
@@ -98,25 +116,67 @@ function clampPan(): void {
 }
 export function centerOn(wx: number, wy: number): void {
   if (!cv) return;
+  anchor = null;
+  vel = [0, 0];
   panX = wx * kScale() - cv.width / 2;
   panY = wy * kScale() - cv.height / 2;
   clampPan();
 }
-/** Changes the zoom level, keeping the map point under canvas pixel (ax, ay) where it is. */
+/** Heads for a zoom level, keeping the map point under canvas pixel (ax, ay) where it is; the frame loop eases the view there. */
 export function setZoom(idx: number, ax?: number, ay?: number): void {
-  if (!cv) return;
   const next = Math.max(0, Math.min(ZOOMS.length - 1, idx));
-  if (next === zoomIdx) return;
+  if (next === zoomIdx && zt === ZOOMS[next]) return;
+  zoomTo(ZOOMS[next]!, ax, ay);
+}
+/** Heads for any zoom factor between the first and last level (wheel and pinch move freely; `snapZoom` settles them). */
+function zoomTo(target: number, ax?: number, ay?: number): void {
+  if (!cv) return;
+  zt = Math.max(ZOOMS[0]!, Math.min(ZOOMS[ZOOMS.length - 1]!, target));
+  zoomIdx = nearestLevel(zt);
   const x = ax ?? cv.width / 2;
   const y = ay ?? cv.height / 2;
   const [wx, wy] = toWorld(x, y);
-  zoomIdx = next;
-  panX = wx * kScale() - x;
-  panY = wy * kScale() - y;
-  clampPan();
+  anchor = [wx, wy, x, y];
+  vel = [0, 0];
   if (tip) tip.hidden = true;
   cv.style.cursor = zoomIdx > 0 ? "grab" : "crosshair";
   bumpData();
+}
+/** Settles a free zoom on a level, so the map rests at a whole-number scale: the nearest one, or the next one along for a short flick. */
+function snapZoom(): void {
+  let idx = nearestLevel(zt);
+  const moved = Math.log(zt / gestureFrom);
+  if (ZOOMS[idx] === gestureFrom && Math.abs(moved) > 0.1) idx = Math.max(0, Math.min(ZOOMS.length - 1, idx + Math.sign(moved)));
+  gestureFrom = ZOOMS[idx]!;
+  zoomTo(ZOOMS[idx]!, anchor?.[2], anchor?.[3]);
+}
+/** A wheel or pinch step: remembers where the gesture started the first time, then moves the target. */
+function freeZoom(target: number, x: number, y: number): void {
+  if (!snapTimer) gestureFrom = zt;
+  zoomTo(target, x, y);
+}
+/** Moves the zoom and the pan toward where they are heading; called once per frame before drawing. */
+function stepView(now: number): void {
+  const dt = Math.min(50, lastFrame ? now - lastFrame : 16);
+  lastFrame = now;
+  if (zf !== zt) {
+    zf = Math.abs(zt - zf) < 0.003 * zt ? zt : zf + (zt - zf) * (1 - Math.exp(-dt / 70));
+    if (anchor) {
+      const k = kScale();
+      panX = anchor[0] * k - anchor[2];
+      panY = anchor[1] * k - anchor[3];
+    }
+    clampPan();
+    if (zf === zt) anchor = null;
+  }
+  if (!dragging && (vel[0] !== 0 || vel[1] !== 0)) {
+    panX += vel[0] * dt;
+    panY += vel[1] * dt;
+    const d = Math.exp(-dt / 240);
+    vel = [vel[0] * d, vel[1] * d];
+    if (Math.hypot(vel[0], vel[1]) < 0.02) vel = [0, 0];
+    clampPan();
+  }
 }
 /** Centres the view on one of the player's trucks when zoomed in. */
 export function focusTruck(t: Truck): void {
@@ -203,12 +263,13 @@ function routeAhead(t: Truck): [number, number][] | null {
 export function drawMap(now: number): void {
   if (!cv || !art || !S.game) return;
   if (S.layout === "panel") return;
+  stepView(now);
   const ctx = cv.getContext("2d")!;
   const w = S.game.w;
   const W = cv.width;
   const H = cv.height;
   const f = fitK();
-  const k = f * zoom();
+  const k = f * zf;
   const u = Math.max(1, Math.round(f * Math.min(zoom(), 4)));
   const visible = (X: number, Y: number) => X > -40 * u && Y > -40 * u && X < W + 40 * u && Y < H + 40 * u;
   ctx.imageSmoothingEnabled = false;
@@ -415,8 +476,8 @@ export function mountMap(canvas: HTMLCanvasElement, wrapEl: HTMLElement, tipEl: 
   wrap = wrapEl;
   tip = tipEl;
   const pointers = new Map<number, { x: number; y: number }>();
-  let drag: { x: number; y: number; panX: number; panY: number; moved: boolean } | null = null;
-  let pinch: { dist: number; idx: number } | null = null;
+  let drag: { x: number; y: number; panX: number; panY: number; moved: boolean; lx: number; ly: number; lt: number; vx: number; vy: number } | null = null;
+  let pinch: { dist: number; z0: number } | null = null;
   const spread = () => {
     const [a, b] = [...pointers.values()];
     return Math.hypot(a!.x - b!.x, a!.y - b!.y) || 1;
@@ -425,9 +486,14 @@ export function mountMap(canvas: HTMLCanvasElement, wrapEl: HTMLElement, tipEl: 
     if (!S.game) return;
     canvas.setPointerCapture(ev.pointerId);
     pointers.set(ev.pointerId, { x: ev.clientX, y: ev.clientY });
-    if (pointers.size === 1) drag = { x: ev.clientX, y: ev.clientY, panX, panY, moved: false };
+    vel = [0, 0];
+    if (pointers.size === 1) {
+      drag = { x: ev.clientX, y: ev.clientY, panX, panY, moved: false, lx: ev.clientX, ly: ev.clientY, lt: performance.now(), vx: 0, vy: 0 };
+      dragging = true;
+    }
     if (pointers.size === 2) {
-      pinch = { dist: spread(), idx: zoomIdx };
+      pinch = { dist: spread(), z0: zt };
+      gestureFrom = zt;
       drag = null;
     }
   };
@@ -437,7 +503,7 @@ export function mountMap(canvas: HTMLCanvasElement, wrapEl: HTMLElement, tipEl: 
     if (pinch && pointers.size >= 2) {
       const [a, b] = [...pointers.values()];
       const [cx, cy] = canvasPoint({ clientX: (a!.x + b!.x) / 2, clientY: (a!.y + b!.y) / 2 });
-      setZoom(pinch.idx + Math.round(Math.log(spread() / pinch.dist) / Math.log(1.6)), cx, cy);
+      zoomTo(pinch.z0 * (spread() / pinch.dist), cx, cy);
       return;
     }
     if (drag) {
@@ -446,9 +512,19 @@ export function mountMap(canvas: HTMLCanvasElement, wrapEl: HTMLElement, tipEl: 
       const dy = ev.clientY - drag.y;
       if (!drag.moved && Math.hypot(dx, dy) > 4) drag.moved = true;
       if (drag.moved && zoomIdx > 0) {
-        panX = drag.panX - dx * (canvas.width / r.width);
-        panY = drag.panY - dy * (canvas.height / r.height);
+        const sx = canvas.width / r.width;
+        const sy = canvas.height / r.height;
+        panX = drag.panX - dx * sx;
+        panY = drag.panY - dy * sy;
         clampPan();
+        // The drag's speed, smoothed over the last few moves, carries the map on after release.
+        const t = performance.now();
+        const dtm = Math.max(1, t - drag.lt);
+        drag.vx = drag.vx * 0.5 - ((ev.clientX - drag.lx) * sx) / dtm / 2;
+        drag.vy = drag.vy * 0.5 - ((ev.clientY - drag.ly) * sy) / dtm / 2;
+        drag.lx = ev.clientX;
+        drag.ly = ev.clientY;
+        drag.lt = t;
         canvas.style.cursor = "grabbing";
         tipEl.hidden = true;
       }
@@ -459,20 +535,30 @@ export function mountMap(canvas: HTMLCanvasElement, wrapEl: HTMLElement, tipEl: 
   const release = (ev: PointerEvent) => {
     const tap = drag && !drag.moved && ev.type === "pointerup";
     pointers.delete(ev.pointerId);
-    if (pointers.size < 2) pinch = null;
-    if (pointers.size === 0) drag = null;
+    if (pointers.size < 2 && pinch) {
+      pinch = null;
+      snapZoom();
+    }
+    if (pointers.size === 0) {
+      if (drag?.moved && zoomIdx > 0 && performance.now() - drag.lt < 80 && Math.hypot(drag.vx, drag.vy) > 0.05) vel = [drag.vx, drag.vy];
+      drag = null;
+      dragging = false;
+    }
     if (tap) selectOnMap(ev);
     canvas.style.cursor = zoomIdx > 0 ? "grab" : "crosshair";
   };
   const leave = () => (tipEl.hidden = true);
-  let wheelAcc = 0;
+  // The wheel zooms freely (a trackpad glides, a mouse notch is a bigger step) and settles on a level once it stops.
   const wheel = (ev: WheelEvent) => {
     if (!S.game) return;
     ev.preventDefault();
-    wheelAcc += ev.deltaY * (ev.deltaMode === 1 ? 33 : 1);
-    if (Math.abs(wheelAcc) < 80) return;
-    setZoom(zoomIdx + (wheelAcc < 0 ? 1 : -1), ...canvasPoint(ev));
-    wheelAcc = 0;
+    const dy = Math.max(-160, Math.min(160, ev.deltaY * (ev.deltaMode === 1 ? 33 : ev.deltaMode === 2 ? 400 : 1)));
+    freeZoom(zt * Math.exp(-dy * 0.0035), ...canvasPoint(ev));
+    clearTimeout(snapTimer);
+    snapTimer = window.setTimeout(() => {
+      snapTimer = 0;
+      snapZoom();
+    }, 150);
   };
   const dbl = (ev: MouseEvent) => S.game && setZoom(zoomIdx + 1, ...canvasPoint(ev));
   canvas.addEventListener("pointerdown", down);
