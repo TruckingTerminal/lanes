@@ -1,0 +1,65 @@
+{
+ "tiles": {
+  "0,0": {
+   "x": 0,
+   "y": 0,
+   "job": "16aa8ede-1512-4f65-bf60-ca9c1f99e6f5",
+   "seed": 914065385,
+   "generations": 25,
+   "hubs": 8,
+   "description": "repaint this top-down pixel art map of the United States as an isometric tycoon game world with highly detailed HD painterly pixel art shading with layered depth, warm late-afternoon light and a saturated palette: the ground stays a top-down map with every coastline, river, state line and highway exactly where it is, but the mountain ranges rise as shaded isometric peaks with snow, the forests become clusters of tiny isometric trees, the farmland a patchwork of fields with tiny barns, every city skyline becomes a small cluster of isometric buildings with lit windows and every town dot a few tiny isometric houses; high summer: deep green woods, golden and green farmland, bright desert, snow only on the highest peaks. Never write any words, names, letters or labels anywhere on the map. Landmarks to draw at the cities in this part of the map (draw them, never their names): Seattle with the Space Needle, ferries on Puget Sound, port cranes and Mount Rainier behind; Oakland and San Francisco with the Bay Bridge, the Golden Gate Bridge, the Transamerica Pyramid and port cranes; Denver with the Rockies behind it, Union Station and the cash-register building; Las Vegas with the Strip's casino towers, the Stratosphere, the Sphere and neon; Salt Lake City with temple spires under the Wasatch and the Great Salt Lake; Portland with the St. Johns Bridge and Mount Hood behind; Fresno with a water tower among orchards and vineyards under the Sierra; Stockton with its inland port and delta waterways."
+  },
+  "0,1": {
+   "x": 480,
+   "y": 0,
+   "job": "79ee9c2b-dccc-42a3-849a-baf7ded34152",
+   "seed": 914065385,
+   "generations": 25,
+   "hubs": 8,
+   "description": "repaint this top-down pixel art map of the United States as an isometric tycoon game world with highly detailed HD painterly pixel art shading with layered depth, warm late-afternoon light and a saturated palette: the ground stays a top-down map with every coastline, river, state line and highway exactly where it is, but the mountain ranges rise as shaded isometric peaks with snow, the forests become clusters of tiny isometric trees, the farmland a patchwork of fields with tiny barns, every city skyline becomes a small cluster of isometric buildings with lit windows and every town dot a few tiny isometric houses; high summer: deep green woods, golden and green farmland, bright desert, snow only on the highest peaks. Never write any words, names, letters or labels anywhere on the map. Landmarks to draw at the cities in this part of the map (draw them, never their names): Chicago with the Willis Tower and John Hancock Center on the Lake Michigan shore and the Navy Pier ferris wheel; Denver with the Rockies behind it, Union Station and the cash-register building; Minneapolis with the IDS tower, the Stone Arch Bridge and the flour mills at the falls; St. Louis with the Gateway Arch on the Mississippi; Kansas City with Union Station and the Liberty Memorial tower; Indianapolis with the Soldiers and Sailors Monument and the Motor Speedway oval; Milwaukee with the winged Art Museum, breweries and the lakefront; Louisville with the Ohio River bridges and the twin spires of Churchill Downs."
+  },
+  "0,2": {
+   "x": 896,
+   "y": 0,
+   "job": "81be4ce1-2142-4a11-9bd3-b4d7d705a34b",
+   "seed": 914065385,
+   "generations": 25,
+   "hubs": 8,
+   "description": "repaint this top-down pixel art map of the United States as an isometric tycoon game world with highly detailed HD painterly pixel art shading with layered depth, warm late-afternoon light and a saturated palette: the ground stays a top-down map with every coastline, river, state line and highway exactly where it is, but the mountain ranges rise as shaded isometric peaks with snow, the forests become clusters of tiny isometric trees, the farmland a patchwork of fields with tiny barns, every city skyline becomes a small cluster of isometric buildings with lit windows and every town dot a few tiny isometric houses; high summer: deep green woods, golden and green farmland, bright desert, snow only on the highest peaks. Land across the border in Canada and Mexico is painted as the same kind of terrain, a little more muted, never dark or blank. Never write any words, names, letters or labels anywhere on the map. Landmarks to draw at the cities in this part of the map (draw them, never their names): Chicago with the Willis Tower and John Hancock Center on the Lake Michigan shore and the Navy Pier ferris wheel; Newark and the Manhattan skyline across the river with the Empire State Building, One World Trade Center and the Statue of Liberty; Boston with the Zakim cable bridge, the Prudential and Hancock towers and the harbor; Philadelphia with the Comcast towers, City Hall's William Penn statue and the Ben Franklin Bridge; Detroit with the Renaissance Center towers, the Ambassador Bridge and auto plants; Pittsburgh at the three rivers with yellow bridges, the PPG Place glass castle and the incline; Cleveland with the Terminal Tower, Key Tower and the Rock Hall pyramid on the lake; Baltimore with the Inner Harbor, the Domino Sugar sign and port cranes, and Washington's Capitol dome and Washington Monument just south."
+  },
+  "1,0": {
+   "x": 0,
+   "y": 448,
+   "job": "c40e116f-ffa3-43ce-8992-2ab874449cde",
+   "seed": 914065385,
+   "generations": 25,
+   "hubs": 7,
+   "description": "repaint this top-down pixel art map of the United States as an isometric tycoon game world with highly detailed HD painterly pixel art shading with layered depth, warm late-afternoon light and a saturated palette: the ground stays a top-down map with every coastline, river, state line and highway exactly where it is, but the mountain ranges rise as shaded isometric peaks with snow, the forests become clusters of tiny isometric trees, the farmland a patchwork of fields with tiny barns, every city skyline becomes a small cluster of isometric buildings with lit windows and every town dot a few tiny isometric houses; high summer: deep green woods, golden and green farmland, bright desert, snow only on the highest peaks. Never write any words, names, letters or labels anywhere on the map. Landmarks to draw at the cities in this part of the map (draw them, never their names): Los Angeles with downtown towers, the Hollywood sign on the hills, palms and the port cranes of Long Beach; Phoenix as a desert grid city with Camelback Mountain and saguaros; Las Vegas with the Strip's casino towers, the Stratosphere, the Sphere and neon; El Paso at the foot of the Franklin Mountains with the border bridges; Albuquerque under the Sandia Mountains with adobe buildings and hot-air balloons; Ontario in the Inland Empire: warehouse sprawl, rail yards and mountains; Fresno with a water tower among orchards and vineyards under the Sierra."
+  },
+  "1,1": {
+   "x": 480,
+   "y": 448,
+   "job": "e585aa4f-b159-465e-8ea1-a6119a1105f4",
+   "seed": 914065385,
+   "generations": 25,
+   "hubs": 8,
+   "description": "repaint this top-down pixel art map of the United States as an isometric tycoon game world with highly detailed HD painterly pixel art shading with layered depth, warm late-afternoon light and a saturated palette: the ground stays a top-down map with every coastline, river, state line and highway exactly where it is, but the mountain ranges rise as shaded isometric peaks with snow, the forests become clusters of tiny isometric trees, the farmland a patchwork of fields with tiny barns, every city skyline becomes a small cluster of isometric buildings with lit windows and every town dot a few tiny isometric houses; high summer: deep green woods, golden and green farmland, bright desert, snow only on the highest peaks. Never write any words, names, letters or labels anywhere on the map. Landmarks to draw at the cities in this part of the map (draw them, never their names): Dallas with the lit ball of Reunion Tower and the green-outlined Bank of America Plaza; Houston with its downtown towers, the Astrodome and refinery stacks along the ship channel; St. Louis with the Gateway Arch on the Mississippi; Memphis with the glass Bass Pro pyramid and the Mississippi River bridges; Nashville with the AT&T Batman building on the Cumberland River; New Orleans with the Superdome, French Quarter rooftops and the Mississippi crescent; Kansas City with Union Station and the Liberty Memorial tower; Oklahoma City with the Devon Tower and the stockyards."
+  },
+  "1,2": {
+   "x": 896,
+   "y": 448,
+   "job": "2dee4102-74ac-4184-a36e-9fc5d9f1bf33",
+   "seed": 914065385,
+   "generations": 25,
+   "hubs": 8,
+   "description": "repaint this top-down pixel art map of the United States as an isometric tycoon game world with highly detailed HD painterly pixel art shading with layered depth, warm late-afternoon light and a saturated palette: the ground stays a top-down map with every coastline, river, state line and highway exactly where it is, but the mountain ranges rise as shaded isometric peaks with snow, the forests become clusters of tiny isometric trees, the farmland a patchwork of fields with tiny barns, every city skyline becomes a small cluster of isometric buildings with lit windows and every town dot a few tiny isometric houses; high summer: deep green woods, golden and green farmland, bright desert, snow only on the highest peaks. Never write any words, names, letters or labels anywhere on the map. Landmarks to draw at the cities in this part of the map (draw them, never their names): Atlanta with the spire of Bank of America Plaza and the round Mercedes-Benz Stadium; Miami with beachfront high-rises, art deco hotels and cruise ships at the port; Nashville with the AT&T Batman building on the Cumberland River; Charlotte with the crown of the Bank of America Corporate Center; Orlando with theme-park castle spires, a giant ferris wheel and lakes; Tampa with the bay bridges and the minarets of the University of Tampa; Jacksonville with the St. Johns River bridges and port container cranes; Cincinnati with the Roebling suspension bridge and Carew Tower."
+  }
+ },
+ "base": "base-l0.png",
+ "level": 0,
+ "season": "summer",
+ "size": [
+  1408,
+  960
+ ]
+}

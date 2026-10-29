@@ -8,7 +8,7 @@ import { cls, fd, dateLabel, hhmm, pct, realUntil } from "../format.js";
 import { GAME_CONFIG, isHuman, RULESET, type StartKind } from "../game.js";
 import { H } from "../handlers.js";
 import { attentionItems, stuckTrucks, tiredTrucks } from "../logic.js";
-import { fitMap, maxZoom, mountMap, setZoom, zoom, zoomIndex } from "../mapview.js";
+import { fitMap, maxZoom, mountMap, setZoom, zoomIndex, zoomLabel } from "../mapview.js";
 import { clockMin, feed, fsActive, fsEnabled, S, setLayout, setTab, setTheme, SPEEDS, TEST_BUILD, THEMES, toggleFullscreen, useData, useTick, type Tab } from "../state.js";
 import { Badge, Btn, Card, Pixel } from "./bits.js";
 import { Company } from "./panels/Company.js";
@@ -489,7 +489,6 @@ function MapView(): JSX.Element {
   useEffect(() => {
     fitMap();
   }, [S.layout]);
-  const z = zoom();
   return (
     <div class="mapwrap" ref={wrap}>
       <canvas id="map" ref={canvas} width={960} height={600} aria-label="Map of hubs and trucks" />
@@ -499,7 +498,7 @@ function MapView(): JSX.Element {
           −
         </Btn>
         <span class="label" aria-live="polite">
-          {z}×
+          {zoomLabel()}
         </span>
         <Btn sm title="Zoom in (+, wheel or double-click)" disabled={maxZoom()} onClick={() => setZoom(zoomIndex() + 1)}>
           +
