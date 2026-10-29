@@ -68,7 +68,7 @@ export const economyConfig = {
     reloadDeadheadClamp: [20, 800] as const,
     // Dispatchers look a few loads ahead: a destination whose load-to-truck ratio beats the national
     // average is worth this much per load of ratio, discounted per load out.
-    lookaheadFdPerRatio: 500,
+    lookaheadFdPerRatio: 300,
     lookaheadDiscount: 0.6,
     reloadWeight: 1, // the whole expected empty run (0.35–0.5 led to more failures in the 10-seed runs)
     rolloverCeilingStep: 0.05, // unfilled loads roll with ceiling +5%
@@ -100,18 +100,21 @@ export const economyConfig = {
     stepPerRound: 0.08, // unfilled: the poster raises it 8% a round (the ceiling moves 5%)
     autoEveryHours: 2, // dispatchers look for book-now loads this often
     desperation: {
-      idleHours: 36, // idle this long and a dispatcher takes anything that covers costs (Jeff: a day or two at most)
+      idleHours: 48, // idle this long and a dispatcher takes anything that covers costs (Jeff: a day or two at most)
       awayAfterDays: 14, // a driver this long from home starts to count…
       awayDays: 14, // …and is fully desperate this many days later
       atHomeMult: 0.5, // sitting at home is half as pressing: no per diem, the driver is home
       // A desperate truck takes a backhaul below break-even to reach a better market: up to this share
       // below, when the destination's load-to-truck ratio beats where it sits by betterBy.
-      belowBreakEven: 0.25,
+      belowBreakEven: 0.12,
       betterBy: 1.1,
-      // Nothing bookable for this many rounds: run empty to the best market within this far, by its ratio.
+      // Nothing bookable for this many rounds: run empty to the market where the days saved waiting are
+      // worth more than the empty miles. A carrier's wait at a market is 1 ÷ its effective load-to-truck
+      // ratio (a visitor sees only the share not held for locals), days; sitting costs opportunityFdPerDay.
       repositionAfterRounds: 2,
       repositionWithinMi: 800,
-      repositionMinGain: 1.15, // the target's ratio must beat the current market's by this
+      opportunityFdPerDay: 400,
+      maxWaitDays: 10,
     },
   },
 

@@ -1,12 +1,12 @@
 import { hubMiles } from "./world.js";
-import { localShare, tender, tenderOdds } from "./contracts.js";
+import { localShare, tender, tenderOdds, isLocal } from "./contracts.js";
 import type { EconomyConfig, Equipment } from "@lanes/config";
 import { COMMODITIES, destWeights as placeDestWeights, dexp, dpow, marketMix, originWeights, PLACE_OF_HUB, placeMiles as netPlaceMiles, placeMilesFast as netPlaceMilesFast, placeRoute as netPlaceRoute, type Lane, type Network } from "@lanes/data";
 import { dayOf } from "./clock.js";
 import { EQUIPMENT, planFreight, planIndex, seasonality } from "./demand.js";
-import type { VettingTier } from "./types.js";
+import type { VettingTier, Company } from "./types.js";
 import { clamp, fscPerMile, fuelPrice } from "./economics.js";
-import type { Company, Load } from "./types.js";
+import type { Load } from "./types.js";
 import type { World } from "./world.js";
 
 /** Destination weights per origin hub and equipment; static, so cached per network. */
@@ -378,24 +378,38 @@ export function reloadFactor(w: World, destHub: number, eq: Equipment): number {
 }
 
 /**
- * Where a truck that can't reload at a hub would run empty to: the best market in reach by its
- * load-to-truck ratio, deadhead weighed in. The same rule moves stuck trucks (board.ts).
+ * Days a carrier can expect to wait for a load at a market: one over its effective load-to-truck
+ * ratio (a visitor sees only the share of loads not held for local carriers), in rounds, halved.
  */
-export function bestExitHub(w: World, hub: number, eq: Equipment): { hub: number; miles: number } | null {
+export function expectedWaitDays(w: World, hub: number, eq: Equipment, company: Company | null): number {
   const k = w.cfg.bookNow.desperation;
   const e = EQUIPMENT.indexOf(eq);
-  const here = w.reloadIndex[planIndex(hub, e)] ?? 1;
+  const ratio = w.reloadIndex[planIndex(hub, e)] ?? 1;
+  const local = company ? isLocal(w, company, hub) : false;
+  const eff = ratio * (local ? 1 : 1 - localShare(w, hub, eq));
+  const rounds = Math.max(0, 1 / Math.max(0.02, eff) - 1);
+  return clamp(rounds / w.cfg.time.boardRoundHours.length, 0, k.maxWaitDays);
+}
+
+/**
+ * Where a truck that can't reload at a hub should run empty to, if anywhere: the market where
+ * the days saved waiting are worth more than the empty miles, by the most. A visitor stuck in a
+ * market that keeps its freight for locals leaves; a local that can afford to wait doesn't.
+ * The same rule moves stuck trucks (board.ts) and prices the exit into freight going in.
+ */
+export function bestExitHub(w: World, hub: number, eq: Equipment, company: Company | null = null): { hub: number; miles: number } | null {
+  const k = w.cfg.bookNow.desperation;
+  const waitHere = expectedWaitDays(w, hub, eq, company);
   let best = -1;
-  let bestScore = -Infinity;
+  let bestValue = 0;
   for (let j = 0; j < w.net.hubs.length; j++) {
     if (j === hub) continue;
     const miles = hubMiles(w, hub, j);
     if (miles > k.repositionWithinMi) continue;
-    const ratio = w.reloadIndex[planIndex(j, e)] ?? 1;
-    if (ratio < here * k.repositionMinGain) continue;
-    const score = ratio - miles / 600;
-    if (score > bestScore) {
-      bestScore = score;
+    const saved = waitHere - expectedWaitDays(w, j, eq, company) - miles / (w.cfg.hos.avgMph * w.cfg.hos.drivingHoursPerDay);
+    const value = saved * k.opportunityFdPerDay - miles * w.cfg.rates.deadheadFdPerMile;
+    if (value > bestValue) {
+      bestValue = value;
       best = j;
     }
   }

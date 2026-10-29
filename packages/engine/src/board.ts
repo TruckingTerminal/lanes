@@ -421,7 +421,7 @@ function maybeReposition(w: World, truck: Truck, surplus: Map<string, number>): 
   const k = w.cfg.bookNow.desperation;
   if (truck.idleRounds < k.repositionAfterRounds) return;
   if (!company.orders.some((o) => o.kind === "bid" || o.kind === "bookNow" || o.kind === "reposition")) return; // no dispatcher at all
-  const exit = bestExitHub(w, truck.hub, truck.trailer);
+  const exit = bestExitHub(w, truck.hub, truck.trailer, company);
   if (!exit) return;
   const best = exit.hub;
   truck.status = "repositioning";
