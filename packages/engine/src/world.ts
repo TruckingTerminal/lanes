@@ -2,8 +2,9 @@ import type { EconomyConfig, Equipment, FacilityType, TractorTier } from "@lanes
 import { PLACE_OF_HUB, placeMiles as netPlaceMiles, placeMilesFast as netPlaceMilesFast, placeRoute as netPlaceRoute, type Feeds, type Network, type Route } from "@lanes/data";
 import { Ledger, companyAccount } from "./ledger.js";
 import { truckCap } from "./staking.js";
+import { newPool } from "./pools.js";
 import { Rng } from "./rng.js";
-import type { BuybackWeek, GameEvent, TokenState, Company, Facility, FinancePool, FraudCase, LeaseKind, Listing, Load, Role, SeasonCloseRecord, Staff, StandingOrder, Truck, TruckOrder, Contract } from "./types.js";
+import type { BuybackWeek, GameEvent, TokenState, Company, Facility, FinancePool, FraudCase, LeaseKind, Listing, Load, Pool, PoolLine, Role, SeasonCloseRecord, Staff, StandingOrder, Truck, TruckOrder, Contract } from "./types.js";
 import { signPolicy } from "./insurance.js";
 import { seedPool } from "./labor.js";
 import { MetricsRecorder } from "./metrics.js";
@@ -98,6 +99,8 @@ export interface World {
   nextContractId: number;
   /** The insurance market (insurance.ts): its price index and the last 12 months of premiums and claims. */
   insuranceMarket: { index: number; premiums: number[]; claims: number[] };
+  /** Player-funded pools by line (pools.ts). */
+  pools: Record<PoolLine, Pool>;
   /** Dealer price index by tractor tier and trailer type (dealer.ts). */
   dealerIndex: { tractor: Record<TractorTier, number>; trailer: Record<Equipment, number> };
   /** Home-hub crowding per hub (home.ts), recomputed by the engine at fixed points. */
@@ -206,6 +209,7 @@ export function createWorld(o: WorldOptions): World {
     contracts: [],
     nextContractId: 1,
     insuranceMarket: { index: 1, premiums: [0], claims: [0] },
+    pools: { insurance: newPool() },
     dealerIndex: { tractor: { workhorse: 1, highwayPro: 1, flagship: 1 }, trailer: { van: 1, reefer: 1, flatbed: 1 } },
     homeCrowding: new Float64Array(o.net.hubs.length).fill(1),
     listener: null,
@@ -524,7 +528,7 @@ export function formCompany(w: World, c: NewCompany): Company {
     localBanUntilDay: 0,
     tenderAcceptance: 1,
     judgmentFd: 0,
-    insurance: { annualPerTruck: 0, signedDay: day, renewDay: day, risk: 1, garaging: 1, market: 1 },
+    insurance: { annualPerTruck: 0, signedDay: day, renewDay: day, risk: 1, garaging: 1, market: 1, writer: "npc" },
   };
   // An established company has passed its new-entrant audit long ago.
   if ((c.authorityAgeDays ?? 0) >= w.cfg.safety.review.newEntrantDay) {

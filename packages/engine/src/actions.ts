@@ -17,6 +17,7 @@ import { canMakeHot } from "./standingOrders.js";
 import { inCloseWindow } from "./season.js";
 import { refile } from "./solvency.js";
 import { facilityCap, stakeFd, truckCap, unstakeFd } from "./staking.js";
+import { depositPool, withdrawPool } from "./pools.js";
 import type { Action, RuleScope } from "./types.js";
 import { condition, rebuildCost } from "./wear.js";
 import { availableSupply, companyById, crewed, hubMiles, invalidOrders, seatDriver, staffById, syncFleet, takeSupply, truckById, unseatDriver, type World, placeMiles, placeOfHub, placeLegMiles } from "./world.js";
@@ -91,6 +92,9 @@ export function badInput(cfg: EconomyConfig, a: Action): string | null {
       return finiteIn(a.fd, 0.01, 1e12) ? null : "bad amount";
     case "unstake_fd":
       return finiteIn(a.fd, 0.01, 1e12) && typeof a.instant === "boolean" ? null : "bad amount";
+    case "deposit_pool":
+    case "withdraw_pool":
+      return a.line === "insurance" && finiteIn(a.amountFd, 0.01, 1e12) ? null : "bad pool deposit";
     case "offer_fd":
       return isFd(a.amountFd) && finiteIn(a.minPriceUsd, 0, 1e6) ? null : "bad offer";
     case "offer_staff":
@@ -485,6 +489,12 @@ export function applyAction(w: World, companyId: number, action: Action): Action
 
     case "unstake_fd":
       return result(unstakeFd(w, company, action.fd, action.instant));
+
+    case "deposit_pool":
+      return result(depositPool(w, action.line, company.id, action.amountFd));
+
+    case "withdraw_pool":
+      return result(withdrawPool(w, action.line, company.id, action.amountFd));
 
     case "claim_airdrop_now":
       return result(claimAirdropNow(w, company));

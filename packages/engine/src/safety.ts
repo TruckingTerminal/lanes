@@ -2,6 +2,7 @@ import { stationsOnRoute, weighStations, type Network } from "@lanes/data";
 import { dayOf, MINUTES_PER_HOUR } from "./clock.js";
 import { fmtInt } from "./economics.js";
 import { slashStake } from "./staking.js";
+import { payClaim } from "./pools.js";
 import { activeLoanOn, settleLoanFromSale } from "./finance.js";
 import { recordClaim, signPolicy } from "./insurance.js";
 import { dispatchersOf, jail, pushesRules, releaseAll, removeStaff, driverFatigue } from "./labor.js";
@@ -418,7 +419,10 @@ export function crash(w: World, t: Truck, c: Company): void {
     const ours = k.deductibleFd + Math.max(0, verdict - k.insuranceLimitFd);
     payOrBankrupt(w, c, ours);
     // The insurer's share, for the market's loss ratio; a serious crash gets the policy re-written.
-    recordClaim(w, Math.max(0, Math.min(verdict, k.insuranceLimitFd) - k.deductibleFd));
+    const insured = Math.max(0, Math.min(verdict, k.insuranceLimitFd) - k.deductibleFd);
+    recordClaim(w, insured);
+    // A pool-written policy: the pool pays the insured share to the victim (pools.ts).
+    if (c.insurance.writer === "pool" && insured > 0) payClaim(w, "insurance", "sink:liability", insured, `claim:crash:${c.id}`);
     c.safety.insuranceSurcharge += k.surcharge[severity];
     if (severity !== "pdo") signPolicy(w, c, "rewrite");
     violate(w, c, "crash", w.cfg.safety.enforcement.points.crash[severity], what);
@@ -464,7 +468,9 @@ export function loseLoad(w: World, load: Load, _why: "crash" | "theft"): void {
   if (load.brokerId !== null) companyById(w, load.brokerId).openBrokerLoads--;
   if (load.shipperId !== null && _why === "crash") {
     const shipper = companyById(w, load.shipperId);
-    w.ledger.post(w.t, "faucet:cargo_insurance", companyAccount(shipper.id), load.saleValue, `cargo:${load.id}`);
+    // A pool-written policy pays the cargo as far as the pool goes; the NPC backstop covers the rest.
+    const fromPool = shipper.insurance.writer === "pool" ? payClaim(w, "insurance", companyAccount(shipper.id), load.saleValue, `cargo:${load.id}`) : 0;
+    if (load.saleValue - fromPool > 0.01) w.ledger.post(w.t, "faucet:cargo_insurance", companyAccount(shipper.id), load.saleValue - fromPool, `cargo:${load.id}`);
     const facility = w.facilities[load.facilityId! - 1];
     if (facility) facility.netFd += load.saleValue;
   }

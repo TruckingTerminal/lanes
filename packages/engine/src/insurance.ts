@@ -2,6 +2,7 @@ import { garagingFactor } from "@lanes/data";
 import { dayOf } from "./clock.js";
 import { clamp, fmtInt } from "./economics.js";
 import { companyAccount } from "./ledger.js";
+import { poolAccount, poolMarkup, poolsOn } from "./pools.js";
 import type { Company, InsurancePolicy } from "./types.js";
 import { syncFleet, type World } from "./world.js";
 
@@ -28,7 +29,13 @@ export function quote(w: World, c: Company): Omit<InsurancePolicy, "signedDay" |
   risk = clamp(risk, ins.clamp[0], ins.clamp[1]);
   const garaging = garagingOf(w.net.hubs[c.homeHub]!.id);
   const market = w.insuranceMarket.index;
-  return { annualPerTruck: ins.baseAnnualPerTruck * risk * garaging * market, risk, garaging, market };
+  const base = ins.baseAnnualPerTruck * risk * garaging * market;
+  // Pools (0.18.0): a capitalised player pool writes cheaper than the NPC insurer, which charges a
+  // backstop markup while a pool exists and is too thin to write.
+  if (!poolsOn(w)) return { annualPerTruck: base, risk, garaging, market, writer: "npc" };
+  const markup = poolMarkup(w, "insurance");
+  if (markup !== null) return { annualPerTruck: base * markup, risk, garaging, market, writer: "pool" };
+  return { annualPerTruck: base * w.cfg.token.pools.insurance.backstopMarkup, risk, garaging, market, writer: "npc" };
 }
 
 /**
@@ -67,16 +74,26 @@ export function dailyInsurance(w: World): void {
 /** Weekly: each company pays a week of its policy for every truck on the road. */
 export function billInsurance(w: World): void {
   const m = w.insuranceMarket;
+  const pool = w.pools.insurance;
+  let exposure = 0;
   for (const c of w.companies) {
     // The NPC lessor's policy covers its leased trucks (it maintains them too), so a free-path start pays nothing here.
     let trucks = 0;
     for (const t of w.trucksByCompany.get(c.id) ?? []) if (t.lease !== "npc" && t.status !== "parked" && t.status !== "listed" && t.status !== "retired") trucks++;
     if (trucks === 0) continue;
     const premium = (trucks * c.insurance.annualPerTruck) / 52;
-    w.ledger.post(w.t, companyAccount(c.id), "sink:insurance", premium, `insurance:${c.id}`);
+    // A pool-written policy pays its premium to the pool's depositors; the NPC insurer's is a sink.
+    if (c.insurance.writer === "pool") {
+      w.ledger.post(w.t, companyAccount(c.id), poolAccount("insurance"), premium, `pool:insurance:premium:${c.id}`);
+      pool.premiumsFd += premium;
+      exposure += trucks * c.insurance.annualPerTruck;
+    } else {
+      w.ledger.post(w.t, companyAccount(c.id), "sink:insurance", premium, `insurance:${c.id}`);
+    }
     c.operating.costFd += premium;
     m.premiums[m.premiums.length - 1]! += premium;
   }
+  pool.exposureFd = exposure;
 }
 
 /** What the insurers paid on a claim, for the market's loss ratio. */

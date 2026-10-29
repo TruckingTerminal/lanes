@@ -26,6 +26,7 @@ export * from "./standingOrders.js";
 export * from "./step.js";
 export * from "./token.js";
 export * from "./trips.js";
+export * from "./pools.js";
 export * from "./staking.js";
 export * from "./types.js";
 export * from "./wear.js";

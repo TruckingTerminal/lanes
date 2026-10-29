@@ -18,6 +18,7 @@ import {
   quoteUsdForFd,
   sellableFd,
   tokenLive,
+  capitalRatio,
   nextTruckTier,
   stakeFd,
   truckCap,
@@ -696,7 +697,12 @@ function manageCash(w: World, c: Company, p: BotProfile): void {
     }
   }
   const spare = w.ledger.balance(acct) - need * 2;
-  if (spare > 20_000) applyAction(w, c.id, { type: "deposit_finance", amountFd: spare });
+  if (spare <= 20_000) return;
+  // Pools (0.18.0): a depositor splits spare FD between equipment finance and the insurance pool while the pool is thin enough to pay for capital.
+  if (w.cfg.token.pools.enabled && capitalRatio(w, "insurance") < 2 * w.cfg.token.pools.insurance.minCapitalRatio) {
+    applyAction(w, c.id, { type: "deposit_pool", line: "insurance", amountFd: spare / 2 });
+    applyAction(w, c.id, { type: "deposit_finance", amountFd: spare / 2 });
+  } else applyAction(w, c.id, { type: "deposit_finance", amountFd: spare });
 }
 
 /** FD this bot would turn into dollars this week: a share of what's above its reserve. Free-path drivers save for a truck instead. */

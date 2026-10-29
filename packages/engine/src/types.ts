@@ -232,10 +232,26 @@ export interface Company {
 }
 
 /** A one-game-year insurance policy: the price per truck is fixed for the term. */
+/** A player-funded pool (pools.ts): units at net asset value, an exit queue, and the line's running income and losses. */
+export type PoolLine = "insurance";
+export interface Pool {
+  shares: Map<number, number>;
+  totalShares: number;
+  exiting: { companyId: number; shares: number; day: number }[];
+  premiumsFd: number;
+  claimsFd: number;
+  /** Losses the pool could not pay (the NPC backstop is deemed to carry them). */
+  shortfallFd: number;
+  /** The line's exposure: annual premiums of the policies the pool has written. */
+  exposureFd: number;
+}
+
 export interface InsurancePolicy {
   annualPerTruck: number;
   signedDay: number;
   renewDay: number;
+  /** Who wrote it (pools.ts): the player-funded pool, or the NPC insurer as the dearer backstop. */
+  writer: "pool" | "npc";
   /** What went into the price when it was signed. */
   risk: number;
   garaging: number;
@@ -619,6 +635,8 @@ export type Action =
   | { type: "sell_fd"; fd: number }
   | { type: "stake_fd"; fd: number }
   | { type: "unstake_fd"; fd: number; instant: boolean }
+  | { type: "deposit_pool"; line: PoolLine; amountFd: number }
+  | { type: "withdraw_pool"; line: PoolLine; amountFd: number }
   | { type: "claim_airdrop_now" }
   /** Standing offer in the weekly buyback auction; amount 0 withdraws it. */
   | { type: "offer_fd"; amountFd: number; minPriceUsd: number }

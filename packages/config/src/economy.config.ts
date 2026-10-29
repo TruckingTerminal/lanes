@@ -578,6 +578,20 @@ export const economyConfig = {
       instantHaircut: 0.25, // or out at once for this much, burned
       graceDays: 14, // over a tier, or a broker under its stake: this long before trucks park and loads stop
     },
+    // Design decision (Jeff, 2026-10-29; TOKENOMICS.md §4): player-funded pools, insurance first.
+    // A capitalised pool writes policies cheaper than the NPC insurer and earns the premiums; it
+    // pays the insured share of crash verdicts and a player shipper's lost cargo; a thin pool
+    // charges more, and below the minimum capital the NPC backstop writes at its own markup.
+    pools: {
+      enabled: false,
+      exitDays: 28,
+      exitLimitPerDay: 0.05, // at most this share of a pool pays out a day
+      insurance: {
+        minCapitalRatio: 0.5, // capital ÷ annual premiums written: below this the pool writes nothing new
+        thinMarkup: 1.3, // the pool's price against the NPC base at the minimum ratio, easing to 1 at twice it
+        backstopMarkup: 1.25, // what the NPC insurer charges while a pool exists and is too thin
+      },
+    },
     treasury: {
       // Stand-in for real revenue other than exchange fees: cosmetics, premium,
       // asset sales (§Two ledgers — primary sales go to the developer), per active company per week.

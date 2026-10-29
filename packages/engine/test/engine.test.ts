@@ -18,6 +18,11 @@ import {
   inCloseWindow,
   Ledger,
   RESERVE_ACCOUNT,
+  payClaim,
+  poolAccount,
+  poolDepositorValue,
+  quote,
+  signPolicy,
   exitAccount,
   revoke,
   liveGameMinutes,
@@ -1014,5 +1019,58 @@ describe("staking (0.18.0): the bond behind the licence", () => {
     runDays(w, 5, ruleBotHook);
     expect(idle.openBrokerLoads).toBe(0);
     expect(brokers.slice(1).some((b) => b.openBrokerLoads > 0)).toBe(true);
+  });
+});
+
+describe("pools (0.18.0): a player-funded insurance pool", () => {
+  const pooled: EconomyConfig = { ...calm, token: { ...calm.token, pools: { ...calm.token.pools, enabled: true } } };
+
+  it("writes policies only when capitalised, prices by capital, earns the premiums and pays claims as far as it goes", () => {
+    const w = createWorld({ cfg: pooled, net, feeds: neutralFeeds, seed: 47, keepLedgerEntries: true });
+    const c = carrier(w);
+    fund(w, c.id, 50_000);
+    addTruck(w, c, "owned", "workhorse", "van");
+    // An empty pool: the NPC backstop writes, at its markup over the plain price.
+    const plain = { ...pooled, token: { ...pooled.token, pools: { ...pooled.token.pools, enabled: false } } };
+    const base = quote(createWorld({ cfg: plain, net, feeds: neutralFeeds, seed: 47 }), c).annualPerTruck;
+    signPolicy(w, c, "rewrite");
+    expect(c.insurance.writer).toBe("npc");
+    expect(c.insurance.annualPerTruck).toBeCloseTo(base * pooled.token.pools.insurance.backstopMarkup, 2);
+    // A depositor capitalises the pool: the next policy is pool-written at no more than the plain price.
+    const d = carrier(w, "Depositor");
+    fund(w, d.id, 2_000_000);
+    expect(applyAction(w, d.id, { type: "deposit_pool", line: "insurance", amountFd: 1_000_000 })).toEqual({ ok: true });
+    expect(w.ledger.balance(poolAccount("insurance"))).toBe(1_000_000);
+    signPolicy(w, c, "rewrite");
+    expect(c.insurance.writer).toBe("pool");
+    expect(c.insurance.annualPerTruck).toBeLessThanOrEqual(base + 1e-6);
+    // Premiums reach the pool, and the exposure is what it has written.
+    runDays(w, 7);
+    expect(w.pools.insurance.premiumsFd).toBeGreaterThan(0);
+    expect(w.ledger.balance(poolAccount("insurance"))).toBeGreaterThan(1_000_000);
+    expect(w.pools.insurance.exposureFd).toBeCloseTo(c.insurance.annualPerTruck, 2);
+    // A claim comes out of the pool; past its cash the shortfall is recorded.
+    const cash = w.ledger.balance(poolAccount("insurance"));
+    expect(payClaim(w, "insurance", "sink:liability", 5_000, "claim:test")).toBe(5_000);
+    expect(w.ledger.balance(poolAccount("insurance"))).toBeCloseTo(cash - 5_000, 2);
+    expect(payClaim(w, "insurance", "sink:liability", cash * 2, "claim:test")).toBeCloseTo(cash - 5_000, 2);
+    expect(w.pools.insurance.shortfallFd).toBeCloseTo(cash * 2 - (cash - 5_000), 2);
+    expect(w.ledger.balance(poolAccount("insurance"))).toBeCloseTo(0, 2);
+  });
+
+  it("pays depositors out through the exit queue, at most the daily share of the pool a day", () => {
+    const w = createWorld({ cfg: pooled, net, feeds: neutralFeeds, seed: 48, keepLedgerEntries: true });
+    const d = carrier(w, "Depositor");
+    fund(w, d.id, 300_000);
+    expect(applyAction(w, d.id, { type: "deposit_pool", line: "insurance", amountFd: 200_000 })).toEqual({ ok: true });
+    expect(poolDepositorValue(w, "insurance", d.id)).toBeCloseTo(200_000, 2);
+    expect(applyAction(w, d.id, { type: "withdraw_pool", line: "insurance", amountFd: 100_000 })).toEqual({ ok: true });
+    expect(poolDepositorValue(w, "insurance", d.id)).toBeCloseTo(100_000, 2);
+    const paid = () => w.ledger.entries.filter((e) => e.from === poolAccount("insurance") && e.to === companyAccount(d.id)).reduce((s, e) => s + e.amount, 0);
+    runDays(w, pooled.token.pools.exitDays - 1);
+    expect(paid()).toBe(0);
+    runDays(w, 3);
+    expect(paid()).toBeGreaterThan(0);
+    expect(paid()).toBeLessThanOrEqual(200_000 * pooled.token.pools.exitLimitPerDay * 3 + 1);
   });
 });
