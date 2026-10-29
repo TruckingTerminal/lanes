@@ -6,6 +6,7 @@ import { isHuman } from "../../game.js";
 import { H } from "../../handlers.js";
 import { act, clockMin, S, useData } from "../../state.js";
 import { Btn, Card, Kv, Label, Num, Panel } from "../bits.js";
+import { ContractsCard } from "./Contracts.js";
 
 const crowdWord = (r: number): string => (r >= 1.5 ? "crowded" : r >= 1.1 ? "busy" : r >= 0.75 ? "fair share" : "wide open");
 
@@ -43,6 +44,7 @@ export function Company(): JSX.Element {
         </Card>
       ) : null}
       {c ? <RecordCard c={c} /> : null}
+      {c ? <ContractsCard c={c} /> : null}
       {c ? <HomeAndInsurance c={c} /> : null}
       {g.kind === "live" ? (
         <Card title="Players in the world">

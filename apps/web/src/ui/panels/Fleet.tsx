@@ -7,6 +7,7 @@ import { CrewLine, goLoads, goStaff, idleLabel, idleWhy, openLoadsAt, StatusLine
 import { focusTruck } from "../../mapview.js";
 import { act, describe, me, myTrucks, S, selectTruck, truckNo, useData } from "../../state.js";
 import { Bar, Btn, Card, Label, Num, Panel, Pixel } from "../bits.js";
+import { TendersCard } from "./Contracts.js";
 
 const num = (id: string): number => Number((document.getElementById(id) as HTMLInputElement | null)?.value);
 const checked = (id: string): boolean => Boolean((document.getElementById(id) as HTMLInputElement | null)?.checked);
@@ -18,6 +19,7 @@ export function Fleet(): JSX.Element {
   const pending = ordersOf(w, me().id);
   return (
     <Panel title="Your fleet">
+      <TendersCard c={me()} />
       <TiredAlerts />
       <IdleAlerts />
       <PendingCard />
@@ -227,6 +229,8 @@ function DispatcherCard(): JSX.Element {
   const rb = find("rebroker");
   const bn = find("bookNow");
   const hm = find("homeTime");
+  const ct = find("contracts");
+  const spotNow = ct ? (ct.spotAbovePct === null ? "always" : String(ct.spotAbovePct)) : "always";
   const mode = bid?.price.mode ?? "breakEvenPlus";
   const save = () => {
     const m = (document.getElementById("o-mode") as HTMLSelectElement).value as "breakEvenPlus" | "ceilingPct";
@@ -238,6 +242,10 @@ function DispatcherCard(): JSX.Element {
     if (checked("o-rb")) orders.push({ kind: "rebroker", share: Math.min(1, Math.max(0, num("o-rb-share") / 100 || 0)), keepPct: Math.min(0.9, Math.max(0, num("o-rb-keep") / 100 || 0)), pays: checked("o-rb-pays") });
     if (checked("o-bn")) orders.push({ kind: "bookNow", breakEvenPlusPct: Math.min(5, Math.max(0, num("o-bn-pct") / 100 || 0)), maxDeadheadMi: Math.max(0, Math.min(150, num("o-dh") || 0)) });
     if (checked("o-home")) orders.push({ kind: "homeTime", afterDays: Math.min(365, Math.max(1, Math.round(num("o-home-after")) || 21)), restDays: Math.min(60, Math.max(1, Math.round(num("o-home-rest")) || 5)) });
+    if (checked("o-ct")) {
+      const spot = (document.getElementById("o-ct-spot") as HTMLSelectElement).value;
+      orders.push({ kind: "contracts", acceptOffers: true, spotAbovePct: spot === "always" ? null : Number(spot), maxDeadheadMi: Math.max(0, Math.min(150, num("o-dh") || 150)) });
+    }
     act({ type: "set_standing_orders", orders }, "Dispatcher updated");
   };
   return (
@@ -287,6 +295,17 @@ function DispatcherCard(): JSX.Element {
         </label>
         <input type="number" id="o-bn-pct" min="0" max="100" defaultValue={String(Math.round((bn?.breakEvenPlusPct ?? 0.2) * 100))} />
         <span class="muted">% (less the longer a truck sits, or the farther its driver is from home)</span>
+      </div>
+      <div class="row">
+        <label class="label">
+          <input type="checkbox" id="o-ct" defaultChecked={Boolean(ct)} /> Contracts: take offers from local shippers and
+        </label>
+        <select id="o-ct-spot" defaultValue={spotNow}>
+          <option value="always">honor every tender</option>
+          <option value="0.1">let a tender lapse when spot is 10% above the contract</option>
+          <option value="0.15">let it lapse at 15% above</option>
+          <option value="0.25">let it lapse at 25% above</option>
+        </select>
       </div>
       <div class="row">
         <label class="label">

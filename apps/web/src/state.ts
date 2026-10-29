@@ -263,6 +263,14 @@ export function describe(a: LiveAction): string {
       return `Book load #${a.loadId} now (truck ${truckNo(a.truckId)})`;
     case "send_home":
       return `Send truck ${truckNo(a.truckId)} home`;
+    case "accept_contract":
+      return `Take contract offer #${a.contractId}`;
+    case "decline_contract":
+      return `Decline contract offer #${a.contractId}`;
+    case "accept_tender":
+      return `Take contract tender #${a.loadId} (truck ${truckNo(a.truckId)})`;
+    case "decline_tender":
+      return `Leave tender #${a.loadId} for the board`;
     case "steal_load":
       return `Steal truck ${truckNo(a.truckId)}'s load`;
     default:

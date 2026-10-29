@@ -1,6 +1,6 @@
 import type { JSX } from "preact";
 import { useState } from "preact/hooks";
-import { breakEvenPerMile, canMakeHot, expectedReloadDeadheadMi, fuelPrice, MANUAL_BID_MAX_DEADHEAD_MI, placeMiles, placeToll, VETTING_NAMES, vettingBlock, type Load, type Truck } from "@lanes/engine";
+import { breakEvenPerMile, canMakeHot, expectedReloadDeadheadMi, fuelPrice, isLocal, localOnly, MANUAL_BID_MAX_DEADHEAD_MI, mayTake, placeMiles, placeToll, VETTING_NAMES, vettingBlock, type Load, type Truck } from "@lanes/engine";
 import { COMMODITIES } from "@lanes/data";
 import { cls, fd, fdFull, hhmm, pct, shortDate, TRAILER_CODE, TRAILER_NAME } from "../../format.js";
 import { nextRoundLabel, openLoadsAt, reloadClass, reloadLabel, SeasonNote, seasonSwing, statusText } from "../../logic.js";
@@ -118,6 +118,7 @@ export function Loads(): JSX.Element {
   const rows: Row[] = [];
   for (const l of w.loads.values()) {
     if (l.status !== "open" || l.equipment !== truck.trailer || l.brokerId === me().id) continue;
+    if (l.tenderedTo !== 0 && l.tenderedTo !== me().id) continue; // someone else's contract tender
     const dh = placeMiles(w, truck.place, l.originPlace);
     if (dh > maxDh) continue;
     if (dest !== "any" && w.net.hubs[l.dest]!.id !== dest) continue;
@@ -130,7 +131,7 @@ export function Loads(): JSX.Element {
     const tolls = placeToll(w, truck.place, l.originPlace) + l.routeTollFd;
     const be = breakEvenPerMile(w.cfg, truck, fuel, l.miles, dh + w.cfg.board.reloadWeight * reloadMi, tolls);
     const suggest = Math.max(l.bookNow + 0.05, Math.min(l.ceiling, Math.max(be * 1.15, l.refRate)));
-    const block = vettingBlock(w, me(), l) ?? (l.hot > 0 && !canMakeHot(me(), truck) ? "a hot load needs a team" : null);
+    const block = vettingBlock(w, me(), l) ?? (l.hot > 0 && !canMakeHot(me(), truck) ? "a hot load needs a team" : !mayTake(w, me(), l) ? "local carriers have first call this round" : null);
     rows.push({ l, dh, be, suggest, profit: (suggest - be) * l.miles, profitBook: (l.bookNow - be) * l.miles, reloadMi, tolls, highway: lane.highwayShare, hours: l.routeHours, total: l.bookNow * l.miles, ageH: l.roundsUnfilled * 12, block });
   }
   const key = (r: Row): number => (sort === "rate" ? r.total : sort === "permi" ? r.l.bookNow : sort === "age" ? r.ageH : sort === "trip" ? r.l.miles : sort === "dh" ? r.dh : r.l.appointmentT);
@@ -228,6 +229,8 @@ function LoadRow({ r, truck, mine, pendingRate }: { r: Row; truck: Truck; mine: 
         <td>
           <div>{k.name}</div>
           <div class="muted small">{fd(l.cargoValue)} FD cargo{l.hot > 0 ? " · hot" : ""}</div>
+          {localOnly(w, l) ? <div class={cls("small", isLocal(w, me(), l.origin) ? "good" : "warn")}>local shippers first this round</div> : null}
+          {l.tenderedTo === me().id ? <div class="small good">your contract tender · {(w.contracts.find((x) => x.id === l.contractId)?.ratePerMile ?? 0).toFixed(2)}/mi · accept by {hhmm(l.tenderUntil)}</div> : null}
         </td>
         <td>
           <div class="accent">{p.name}</div>
@@ -339,6 +342,8 @@ function LoadDetail({ r, truck, mine, pendingRate }: { r: Row; truck: Truck; min
               ["On time", p.onTime],
               ["Requires", `${VETTING_NAMES[l.vet]} vetting`],
               ["Load", `#${l.id}${l.brokerId !== null ? " · brokered" : ""}${l.shipperId !== null ? " · player shipper" : ""}`],
+              ...(localOnly(w, l) ? ([["Local first", <span class={isLocal(w, me(), l.origin) ? "good" : "warn"}>{isLocal(w, me(), l.origin) ? "you count as local" : "held for local carriers this round"}</span>]] as [string, JSX.Element][]) : []),
+              ...(l.tenderedTo === me().id ? ([["Your tender", <span class="good">{(w.contracts.find((x) => x.id === l.contractId)?.ratePerMile ?? 0).toFixed(2)}/mi · accept by {hhmm(l.tenderUntil)}</span>]] as [string, JSX.Element][]) : []),
             ]}
           />
           <div class="row" style={{ marginTop: "10px" }}>
