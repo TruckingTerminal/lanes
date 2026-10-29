@@ -448,7 +448,11 @@ out of them. Three things were wrong, and the fix is in the data layer.
 - **Regenerate:** roads first (`node packages/data/tools/build-roads.mjs <na.shp> <na.dbf> . --tol 0.03`), then
   places (`npx tsx packages/data/tools/build-places.mjs <cities500.txt> .`, GeoNames
   `cities500.zip` downloaded outside the repo), since the places' road points reference the geometry.
-- **10 seeds × 4 years, token on** (`runs/compare-v23-c.md` vs v22-c): see the comparison file.
+- **10 seeds × 4 years, token on** (`runs/compare-v23-c.md` vs v22-c): liquidations 578 (621), owner-operator
+  profit 551 FD per truck-week (534), fleet 687 (655), fleet wealth 110k (116k), FD price at end $0.012 ($0.012),
+  free-path median 27 days (28), crashes 499 (486), Gini 0.64 (0.66). The economy barely moves: the market volumes
+  are the hubs', and what changed is where inside each market the freight lands and which road the truck takes.
+  A seed takes 190 s instead of 80 because every load now routes between two of 4,786 places.
 
 ## Shipper leverage, local-first tendering and contracts (config 0.15.0)
 
