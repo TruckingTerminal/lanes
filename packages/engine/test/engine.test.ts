@@ -849,13 +849,13 @@ describe("token", () => {
 
   it("taxes only a week's operating profit above the allowance, and buys back FD with half the treasury's revenue", () => {
     const { w, a, b } = launched(38);
-    a.operating.revenueFd += 10_000;
-    a.operating.costFd += 6_000;
+    a.operating.revenueFd += 20_000;
+    a.operating.costFd += 6_000; // a 14,000 FD week: the part above the exemption is taxed
     b.operating.costFd += 3_000; // a losing week pays nothing
     const poolBefore = w.ledger.balance(EXCHANGE_ACCOUNT);
     weeklyToken(w);
     const tax = (id: number) => w.ledger.entries.filter((e) => e.ref === `tax:${id}`).reduce((s, e) => s + e.amount, 0);
-    expect(tax(a.id)).toBeCloseTo((4_000 - tk.token.profitTaxAllowanceFd) * tk.token.profitTaxRate, 2);
+    expect(tax(a.id)).toBeCloseTo((14_000 - tk.token.profitTaxAllowanceFd) * tk.token.profitTaxRate, 2);
     expect(tax(b.id)).toBe(0);
     expect(w.token.treasury.productUsd).toBeCloseTo(2 * tk.token.treasury.productUsdPerCompanyWeek, 6);
     // The week's buyback share is spent a seventh a day over the next week.
