@@ -1,0 +1,279 @@
+import type { ComponentChildren } from "preact";
+import type { Equipment } from "@lanes/config";
+import {
+  breakEvenPerMile,
+  canMakeHot,
+  crewed,
+  dispatchProfile,
+  driverFatigue,
+  expectedReloadDeadheadMi,
+  fuelPrice,
+  hubMiles,
+  hubToll,
+  marketPay,
+  operatingTrucks,
+  reloadOdds,
+  resting,
+  seasonality,
+  stars,
+  vettingBlock,
+  type Load,
+  type Staff,
+  type StandingOrder,
+  type Truck,
+} from "@lanes/engine";
+import { GAME_CONFIG } from "./game.js";
+import { act, clockMin, me, myTrucks, S, setTab, selectTruck, truckNo } from "./state.js";
+import { fd, hoursLabel, pct, plural, realUntil, signedPct, TRAILER_NAME } from "./format.js";
+import { Btn } from "./ui/bits.js";
+
+/** Game reasoning the panels share: idle diagnoses, status lines, crew lines, reload and season reads. */
+
+export function openLoadsAt(hub: number): Load[] {
+  const out: Load[] = [];
+  for (const l of S.game!.w.loads.values()) if (l.status === "open" && l.origin === hub) out.push(l);
+  return out;
+}
+
+/** A truck counts as stuck after this many hours idle: the dispatcher has had two rounds at it. */
+export const IDLE_ALERT_HOURS = 24;
+export const idleHours = (t: Truck): number => Math.max(0, (clockMin() - t.idleSinceT) / 60);
+export const idleDays = (t: Truck): number => Math.floor(idleHours(t) / 24);
+export const idleLabel = (t: Truck): string => hoursLabel(idleHours(t));
+
+/** The player's trucks idle a day or more. */
+export const stuckTrucks = (): Truck[] => myTrucks().filter((t) => t.status === "idle" && idleHours(t) >= IDLE_ALERT_HOURS);
+/** The player's trucks whose driver has been out past the fatigue line or is already tired. */
+export const tiredTrucks = (): Truck[] => {
+  const f = GAME_CONFIG.fatigue;
+  const w = S.game!.w;
+  return myTrucks().filter((t) => crewed(t) && !resting(w, t) && (driverFatigue(w, t) >= f.tiredAt || w.staff[t.driverId - 1]!.awayDays >= f.roadDays));
+};
+
+export interface IdleWhy {
+  why: string;
+  fixes: ComponentChildren[];
+}
+
+export const goStaff = (): void => setTab("staff");
+export const goLoads = (truck: number): void => {
+  selectTruck(truck);
+  setTab("loads");
+};
+
+/** Why one of the player's idle trucks isn't moving, and what would move it. */
+export function idleWhy(t: Truck): IdleWhy {
+  const w = S.game!.w;
+  const c = me();
+  const hubName = w.net.hubs[t.hub]!.name;
+  const trailer = TRAILER_NAME[t.trailer].toLowerCase();
+  const board = <Btn onClick={() => goLoads(t.id)}>Bid by hand</Btn>;
+  if (!crewed(t)) return { why: "No driver is seated, so it can't run.", fixes: [<Btn primary onClick={goStaff}>Hire a driver</Btn>] };
+  if (c.authority.status !== "active") return { why: c.authority.status === "revoked" ? "Your authority is revoked: nothing can haul." : "Your authority is suspended: nothing can haul until it's back.", fixes: [] };
+  if (t.breakdownMin > 0) return { why: `Broken down: about ${Math.ceil(t.breakdownMin / 60)} h until the tow and repair are done.`, fixes: [] };
+  const bid = w.manualBids.get(t.id);
+  if (bid) return { why: `Your bid of ${bid.rate.toFixed(2)}/mi is in for the next round.`, fixes: [] };
+  const order = c.orders.find((o): o is Extract<StandingOrder, { kind: "bid" }> => o.kind === "bid");
+  if (!order) return { why: "Your dispatcher has no bid order, so nobody bids for this truck.", fixes: [<Btn primary onClick={() => act({ type: "set_standing_orders", orders: DEFAULTS() }, "Dispatcher back to defaults")}>Restore the default dispatcher</Btn>, board] };
+  const floor = c.orders.find((o): o is Extract<StandingOrder, { kind: "floor" }> => o.kind === "floor");
+  const maxDh = order.maxDeadheadMi;
+  const loads = [...w.loads.values()].filter((l) => l.status === "open" && l.equipment === t.trailer && l.brokerId !== c.id && hubMiles(w, t.hub, l.origin) <= maxDh);
+  if (loads.length === 0) {
+    const best = w.net.hubs
+      .map((h, i) => ({ h, i, mi: hubMiles(w, t.hub, i), n: openLoadsAt(i).filter((l) => l.equipment === t.trailer).length }))
+      .filter((x) => x.i !== t.hub && x.n > 0 && x.mi <= 800)
+      .sort((a, b) => b.n - b.mi / 200 - (a.n - a.mi / 200))[0];
+    return {
+      why: `No ${trailer} loads within ${maxDh} mi of ${hubName}, the dispatcher's limit${best ? `. The nearest freight worth the run is ${plural(best.n, "load")} at ${best.h.name}, ${best.mi} mi away` : ""}.`,
+      fixes: [
+        ...(best ? [<Btn primary onClick={() => act({ type: "reposition_truck", truckId: t.id, hubId: best.h.id }, `Truck heading empty to ${best.h.id}`)}>Send empty to {best.h.id} · {best.mi} mi</Btn>] : []),
+        <Btn onClick={() => goLoads(t.id)}>Load board</Btn>,
+      ],
+    };
+  }
+  if (loads.every((l) => l.hot > 0) && !canMakeHot(c, t)) return { why: `The only ${trailer} loads in range are hot, and a solo driver can't make a hot window legally.`, fixes: [<Btn primary onClick={goStaff}>Seat a co-driver</Btn>] };
+  const blocked = loads.map((l) => vettingBlock(w, c, l)).filter((x): x is string => x !== null);
+  if (blocked.length === loads.length) return { why: `Every load in range requires vetting you don't pass: ${blocked[0]}.`, fixes: [] };
+  const fuel = fuelPrice(w);
+  const floorPct = floor?.breakEvenPlusPct ?? 0;
+  const payable = loads.filter((l) => {
+    const dh = hubMiles(w, t.hub, l.origin);
+    const be = breakEvenPerMile(w.cfg, t, fuel, l.miles, dh + w.cfg.board.reloadWeight * expectedReloadDeadheadMi(w, l.dest, l.equipment), hubToll(w, t.hub, l.origin) + w.net.lanes[l.laneId]!.tollFd);
+    return l.ceiling >= be * (1 + floorPct);
+  });
+  if (payable.length === 0) return { why: `${plural(loads.length, `${trailer} load`)} in range, but none pays your floor (break-even + ${Math.round(floorPct * 100)}%) even at its ceiling.`, fixes: [board] };
+  const running = operatingTrucks(w, c.id);
+  const prof = dispatchProfile(w, c, running);
+  if (prof.coverage < 1) return { why: `Your dispatcher is stretched: ${prof.span} trucks' worth of attention for the ${running} you run, so this truck sits out about ${Math.round((1 - prof.coverage) * 100)}% of rounds.`, fixes: [<Btn primary onClick={goStaff}>Hire a dispatcher</Btn>, board] };
+  return { why: `${plural(payable.length, `${trailer} load`)} in range pay enough, but the dispatcher's bids keep losing: other carriers bid lower or have the better record.`, fixes: [<Btn primary onClick={() => goLoads(t.id)}>Bid by hand</Btn>] };
+}
+/** Late import to avoid a cycle: the default orders live with the game config. */
+function DEFAULTS(): StandingOrder[] {
+  return DEFAULT_ORDERS_REF();
+}
+let DEFAULT_ORDERS_REF: () => StandingOrder[] = () => [];
+export function setDefaultOrders(f: () => StandingOrder[]): void {
+  DEFAULT_ORDERS_REF = f;
+}
+
+/** Plain-text status, for tooltips and the ticker. */
+export function statusText(t: Truck): string {
+  const w = S.game!.w;
+  const name = (i: number) => w.net.places[i]!.name;
+  switch (t.status) {
+    case "idle":
+      return resting(w, t) ? `Home time at ${name(t.place)}` : `Idle at ${name(t.place)} for ${idleLabel(t)}`;
+    case "toPickup":
+      return `Heading empty to ${name(t.targetPlace)} for a pickup · ${Math.round(t.remainingMi)} mi`;
+    case "loading":
+      return `Loading at ${name(t.place)}`;
+    case "loaded":
+      return `Loaded ${name(t.place)} → ${name(t.targetPlace)} · ${Math.round(t.remainingMi)} mi to go`;
+    case "unloading":
+      return `Unloading at ${name(t.targetPlace)}`;
+    case "repositioning":
+      return `Running empty to ${name(t.targetPlace)} · ${Math.round(t.remainingMi)} mi`;
+    case "repair":
+      return "In the shop";
+    case "parked":
+      return `Parked at ${name(t.place)}`;
+    case "listed":
+      return "Listed for sale";
+    default:
+      return t.status;
+  }
+}
+
+/** The status line on a fleet card, with the idle clock coloured as it ages. */
+export function StatusLine({ t }: { t: Truck }): ComponentChildren {
+  const w = S.game!.w;
+  const name = (i: number) => w.net.places[i]!.name;
+  switch (t.status) {
+    case "idle": {
+      const bid = w.manualBids.get(t.id);
+      if (resting(w, t)) {
+        const d = w.staff[t.driverId - 1]!;
+        const left = d.homeUntilDay! - Math.floor(clockMin() / 1440) - (d.drivenMinToday > 0 ? 1 : 0);
+        return (
+          <>
+            Home time at {name(t.place)}: {plural(Math.max(1, left), "day")} off{d.drivenMinToday > 0 ? ", starting tomorrow" : " left"}
+          </>
+        );
+      }
+      const h = idleHours(t);
+      return (
+        <>
+          Idle at {name(t.place)} for <span class={h >= IDLE_ALERT_HOURS ? "bad" : h >= 12 ? "warn" : ""}>{idleLabel(t)}</span>
+          {t.idleRounds ? ` · sat out ${plural(t.idleRounds, "round")}` : ""}
+          {bid ? <span class="good"> · your bid {bid.rate.toFixed(2)}/mi is in</span> : null}
+        </>
+      );
+    }
+    case "loaded": {
+      const l = t.loadId !== null ? w.loads.get(t.loadId) : undefined;
+      return (
+        <>
+          Loaded {name(t.place)} → {name(t.targetPlace)} · {Math.round(t.remainingMi)} mi to go{l ? ` · ${l.clearedRate.toFixed(2)}/mi` : ""}
+          {t.breakdownMin > 0 ? <span class="bad"> · broken down</span> : null}
+        </>
+      );
+    }
+    case "parked":
+      return <>Parked at {name(t.place)} (off the road; an owned truck unused {w.cfg.costs.idleFeeAfterDays}+ days pays {w.cfg.costs.idleFeePerDay} FD/day)</>;
+    default:
+      return <>{statusText(t)}</>;
+  }
+}
+
+export function nextRoundLabel(): string {
+  const g = S.game!;
+  const minute = clockMin();
+  const hour = (minute / 60) % 24;
+  const next = hour < 6 ? 6 : hour < 18 ? 18 : 30;
+  const at = minute + (next - hour) * 60;
+  const wait = g.kind === "live" ? realUntil(g.msUntil(at)) : `${Math.ceil(next - hour)}h`;
+  return `${String(next % 24).padStart(2, "0")}:00 (in ${wait})`;
+}
+
+/** How easily a truck of this type reloads after delivering at a hub, against the national average. */
+export function reloadLabel(hub: number, eq: Equipment): string {
+  const r = reloadOdds(S.game!.w, hub, eq);
+  return r >= 1.25 ? "good" : r >= 0.8 ? "fair" : "poor";
+}
+export function reloadClass(hub: number, eq: Equipment): string {
+  const r = reloadOdds(S.game!.w, hub, eq);
+  return r >= 1.25 ? "good" : r >= 0.8 ? "" : "bad";
+}
+/** The origin's season for this trailer, when it's moving rates noticeably. */
+export function seasonSwing(hub: number, eq: Equipment): number {
+  return seasonality(S.game!.w, hub, eq, Math.floor(clockMin() / 1440)).rate - 1;
+}
+export function SeasonNote({ hub, eq }: { hub: number; eq: Equipment }): ComponentChildren {
+  const swing = seasonSwing(hub, eq);
+  if (Math.abs(swing) < 0.05) return null;
+  return (
+    <span class={swing > 0 ? "good" : "bad"}>
+      {swing > 0 ? "in season" : "off season"} {signedPct(swing)}
+    </span>
+  );
+}
+
+// --- People ------------------------------------------------------------------------
+
+export function Stars({ skill }: { skill: number }): ComponentChildren {
+  const n = stars(skill);
+  return (
+    <span class="stars" title={`${Math.round(skill * 100)}% skill`}>
+      {"★".repeat(n)}
+      {"☆".repeat(5 - n)}
+    </span>
+  );
+}
+export const moraleWord = (m: number): string => (m >= 0.65 ? "happy" : m >= 0.45 ? "settled" : m >= 0.3 ? "restless" : "unhappy");
+export const moraleClass = (m: number): string => (m >= 0.45 ? "good" : m >= 0.3 ? "warn" : "bad");
+export const staffPay = (s: Staff, x: number): string => (s.kind === "driver" ? `${x.toFixed(2)} FD/mi` : `${fd(x)} FD/wk`);
+/** At a hub (or in the shop), where a crew can change. */
+export const atHub = (t: Truck): boolean => t.status === "idle" || t.status === "parked" || t.status === "repair";
+
+/** Days out and fatigue, for a driver. */
+export function FatigueTag({ s }: { s: Staff }): ComponentChildren {
+  const f = GAME_CONFIG.fatigue;
+  const out = s.awayDays > 0 ? ` · ${s.awayDays} d out` : "";
+  if (s.fatigue >= f.tiredAt)
+    return (
+      <>
+        {out} · <span class="bad">tired {pct(s.fatigue)}</span>
+      </>
+    );
+  if (s.fatigue >= f.tiredAt / 2)
+    return (
+      <>
+        {out} · <span class="warn">wearing {pct(s.fatigue)}</span>
+      </>
+    );
+  return <>{out}</>;
+}
+
+/** Who drives a truck, for its fleet card. */
+export function CrewLine({ t }: { t: Truck }): ComponentChildren {
+  const w = S.game!.w;
+  if (!crewed(t)) return <span class="bad">No driver: the truck can't run.</span>;
+  const d = w.staff[t.driverId - 1]!;
+  const co = t.coDriverId ? w.staff[t.coDriverId - 1]! : null;
+  const who = (s: Staff) => (
+    <>
+      {s.owner ? "You" : s.name} <Stars skill={s.skill} />
+      <FatigueTag s={s} />
+    </>
+  );
+  return (
+    <>
+      Driver: {who(d)}
+      {co ? <> · team with {who(co)}</> : null} · {t.wagePerMile.toFixed(2)} FD/mi
+      {t.defects > 0 ? <span class="warn"> · {plural(t.defects, "defect")}</span> : null}
+    </>
+  );
+}
+
+export const marketPayOf = (s: Staff): number => marketPay(S.game!.w, s.kind, s.skill);
+export const truckName = (t: Truck): string => `Truck ${truckNo(t.id)}`;

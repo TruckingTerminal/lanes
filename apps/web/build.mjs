@@ -3,7 +3,7 @@
 //   node apps/web/build.mjs [entry]      (entry defaults to main)
 //   node apps/web/build.mjs --site       the test build for GitHub Pages → dist/site/index.html, plus docs.html
 import { build } from "esbuild";
-import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -11,7 +11,9 @@ const here = dirname(fileURLToPath(import.meta.url));
 const site = process.argv.includes("--site");
 const entry = process.argv.slice(2).find((a) => !a.startsWith("--")) ?? "main";
 const result = await build({
-  entryPoints: [join(here, "src", `${entry}.ts`)],
+  entryPoints: [join(here, "src", existsSync(join(here, "src", `${entry}.tsx`)) ? `${entry}.tsx` : `${entry}.ts`)],
+  jsx: "automatic",
+  jsxImportSource: "preact",
   bundle: true,
   format: "iife",
   minify: true,
@@ -23,11 +25,16 @@ const result = await build({
 });
 const js = result.outputFiles[0].text.replace(/<\/script/gi, "<\\/script");
 // A replacer function, so `$&`, `$'` and `$$` in the bundle are kept as written.
-const page = readFileSync(join(here, "src", "page.html"), "utf8").replace("<!--APP-->", () => `<script>${js}</script>`);
+const themes = readFileSync(join(here, "src", "themes.css"), "utf8");
+const page = readFileSync(join(here, "src", "page.html"), "utf8")
+  .replace("/*THEMES*/", () => themes)
+  .replace("<!--APP-->", () => `<script>${js}</script>`);
 const skeleton = `<!doctype html><html lang="en"><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"></head><body>${page}</body></html>`;
 if (site) {
   mkdirSync(join(here, "dist", "site"), { recursive: true });
   writeFileSync(join(here, "dist", "site", "index.html"), skeleton);
+  // The same test build without the document skeleton, for publishing as a preview artifact.
+  writeFileSync(join(here, "dist", "site", "test-page.html"), page);
   console.log(`dist/site/index.html: ${(skeleton.length / 1024).toFixed(0)} KB`);
   // The docs page: the guide's pages rendered here, at build time, from the same source as the Guide tab.
   const docs = await build({ entryPoints: [join(here, "src", "docs.ts")], bundle: true, format: "esm", platform: "node", write: false, legalComments: "none" });
