@@ -57,9 +57,20 @@ function TitleScene(): JSX.Element {
           ctx.imageSmoothingEnabled = false;
           const sheet = reduced ? null : titleLoop();
           if (sheet) {
-            // The long loop: 40 frames at 12 fps from the sheet next to the page.
-            const i = Math.floor((t * TITLE_LOOP.fps) / 1000) % TITLE_LOOP.frames;
-            ctx.drawImage(sheet, (i % TITLE_LOOP.cols) * TITLE_FRAME_W, Math.floor(i / TITLE_LOOP.cols) * TITLE_FRAME_H, TITLE_FRAME_W, TITLE_FRAME_H, 0, 0, cv.width, cv.height);
+            // The long loop: 40 frames at 12 fps from the sheet next to the page, the last six
+            // frames crossfading into the first six so the wrap never jumps.
+            const { frames, cols, fps } = TITLE_LOOP;
+            const i = Math.floor((t * fps) / 1000) % frames;
+            const cell = (n: number) => [(n % cols) * TITLE_FRAME_W, Math.floor(n / cols) * TITLE_FRAME_H] as const;
+            const [sx, sy] = cell(i);
+            ctx.drawImage(sheet, sx, sy, TITLE_FRAME_W, TITLE_FRAME_H, 0, 0, cv.width, cv.height);
+            const fade = 6;
+            if (i >= frames - fade) {
+              const [fx, fy] = cell(i - (frames - fade));
+              ctx.globalAlpha = (i - (frames - fade) + 1) / (fade + 1);
+              ctx.drawImage(sheet, fx, fy, TITLE_FRAME_W, TITLE_FRAME_H, 0, 0, cv.width, cv.height);
+              ctx.globalAlpha = 1;
+            }
           } else ctx.drawImage(img, 0, 0, cv.width, cv.height);
           drawLogo(ctx, cv.width, scale, reduced ? 0 : t);
           shown = img;
