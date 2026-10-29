@@ -513,6 +513,8 @@ export function formCompany(w: World, c: NewCompany): Company {
     payTerms: "net",
     factoring: null,
     insuranceStakeFd: 0,
+    credit: { onTimeFd: 0, lateFd: 0 },
+    minBrokerCredit: w.cfg.token.credit.minForCarriers,
     suretyWriter: "npc",
     suretyClaimedFd: 0,
     seasonBase: { miles: 0, profit: 0 },

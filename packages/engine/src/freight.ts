@@ -1,5 +1,6 @@
 import { hubMiles } from "./world.js";
 import { localShare, tender, tenderOdds, isLocal } from "./contracts.js";
+import { creditScore } from "./credit.js";
 import type { EconomyConfig, Equipment } from "@lanes/config";
 import { COMMODITIES, destWeights as placeDestWeights, dexp, dpow, marketMix, originWeights, PLACE_OF_HUB, placeMiles as netPlaceMiles, placeMilesFast as netPlaceMilesFast, placeRoute as netPlaceRoute, type Lane, type Network } from "@lanes/data";
 import { dayOf } from "./clock.js";
@@ -354,8 +355,8 @@ function tenderToBroker(w: World, load: Load, brokers: Company[], contractShippe
     const order = b.orders.find((o) => o.kind === "broker");
     if (order && order.kind === "broker" && b.openBrokerLoads < order.maxOpenLoads && brokerLicensed(w, b)) {
       eligible.push(b);
-      // Shippers favor reputable brokers that take a thinner cut.
-      weights.push((0.25 + b.reputation) / dpow(Math.max(0.01, order.marginPct), 2));
+      // Shippers favor brokers with strong credit that take a thinner cut (credit.ts).
+      weights.push((0.25 + creditScore(w, b) / 100) / dpow(Math.max(0.01, order.marginPct), 2));
     }
   }
   // With no broker capacity the load stays on the open board as NPC spot freight.

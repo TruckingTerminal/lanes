@@ -10,6 +10,7 @@
  * paying, up to the bond, if the pool wrote that broker's bond. Off, every payment posts at once.
  */
 import { dayOf } from "./clock.js";
+import { loadCreditPremium, recordPayment } from "./credit.js";
 import { companyAccount } from "./ledger.js";
 import { payClaim, poolAccount, poolLineCash, poolMarkup, poolsOn } from "./pools.js";
 import type { Company, Receivable } from "./types.js";
@@ -118,7 +119,8 @@ export function bill(w: World, b: Bill): void {
     // Under contract: the pool advances the invoice at the discount for this payer's paper when capitalised; the NPC factor backstops it, dearer.
     const f = k.factoring;
     const markup = poolsOn(w) ? poolMarkup(w, "factoring") : null;
-    const rate = b.payer === 0 ? f.discountNpc : f.discountPlayer;
+    // A player's paper is priced by its credit: strong paper at the base, weak paper up to premiumMax over it.
+    const rate = b.payer === 0 ? f.discountNpc : f.discountPlayer * (1 + loadCreditPremium(w, b.payer));
     const discount = b.amountFd * rate * (markup ?? w.cfg.token.pools.factoring.backstopMarkup);
     const advance = b.amountFd - discount;
     if (markup !== null && poolLineCash(w, "factoring") >= advance) {
@@ -183,6 +185,7 @@ export function dailyReceivables(w: World): void {
     }
     const payer = companyById(w, r.payer);
     if (payer.liquidatingSince !== null) {
+      recordPayment(payer, r.amountFd, true);
       // The payer is being wound up: a broker's bond covers its carrier, as far as the surety pool goes; otherwise the holder loses.
       const bondLeft = Math.max(0, w.cfg.token.staking.roles.broker - payer.suretyClaimedFd);
       if (payer.role === "broker" && payer.suretyWriter === "pool" && r.holder !== HOLDER_NPC_FACTOR && bondLeft > 0.01) {
@@ -193,6 +196,8 @@ export function dailyReceivables(w: World): void {
       w.metrics.onShipperDefault();
       continue;
     }
+    // Paid with cash in hand, or from an overdraft: the difference is the credit record.
+    recordPayment(payer, r.amountFd, w.ledger.balance(companyAccount(payer.id)) < r.amountFd);
     w.ledger.post(w.t, companyAccount(payer.id), toAcct, r.amountFd, `receivable:${r.id}`);
   }
   w.receivables = keep;

@@ -18,6 +18,7 @@ import {
   quoteUsdForFd,
   sellableFd,
   tokenLive,
+  brokerLicensed,
   capitalRatio,
   factoringStake,
   nextTruckTier,
@@ -894,8 +895,11 @@ export const ruleBotHook: DailyAgentHook = (w) => {
         const pending = ordersOf(w, c.id).length;
         // Staking (0.18.0): the next truck tier needs a stake; a bot that wants more trucks and can spare the FD stakes it first.
         const tier = nextTruckTier(w, c);
-        if (tier && grow() && active + pending >= truckCap(w, c) && active + pending < p.targetFleet && w.ledger.balance(acct) - reserve(w, c, p) >= tier.stake - c.stakedFd) {
-          applyAction(w, c.id, { type: "stake_fd", fd: tier.stake - c.stakedFd });
+        if (tier && grow() && active + pending >= truckCap(w, c) && active + pending < p.targetFleet) {
+          // The stake bought with dollars when the bot pays to win: the design's demand engine (TOKENOMICS.md §2).
+          const short = tier.stake - c.stakedFd - (w.ledger.balance(acct) - reserve(w, c, p));
+          if (short > 0 && live && p.payToWin) buyFdFor(w, c, short);
+          if (w.ledger.balance(acct) - reserve(w, c, p) >= tier.stake - c.stakedFd) applyAction(w, c.id, { type: "stake_fd", fd: tier.stake - c.stakedFd });
         }
         if (active > 0 && grow() && active + pending < p.targetFleet && fleet.length + pending < truckCap(w, c) && idle / active <= 0.3 && worthAnotherTruck(w, c, p, today, active)) {
           // Cheapest capacity first: a parked truck, then a used one (today), then
@@ -926,6 +930,13 @@ export const ruleBotHook: DailyAgentHook = (w) => {
       }
     }
 
+    if (c.role === "broker" && cfg.token.staking.enabled && !brokerLicensed(w, c)) {
+      // No licence stake, no loads: the broker stakes what it has, buying the rest with dollars if it pays to win.
+      const need = cfg.token.staking.roles.broker - c.stakedFd;
+      const cash = w.ledger.balance(companyAccount(c.id));
+      if (cash < need && live && (p as { payToWin?: boolean }).payToWin === true) buyFdFor(w, c, need - cash);
+      if (w.ledger.balance(companyAccount(c.id)) >= need) applyAction(w, c.id, { type: "stake_fd", fd: need });
+    }
     if (c.role === "broker") throttleBrokering(w, c, p, dayOf(w.t, cfg));
 
     // Facilities: any company with spare FD can add the shipper role, unless the

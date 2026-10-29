@@ -211,6 +211,10 @@ export interface Company {
   factoring: { until: number; stakeFd: number } | null;
   /** The deductible stake behind a pool-written insurance policy (insurance.ts). */
   insuranceStakeFd: number;
+  /** The payment record behind the credit score (credit.ts): invoices paid with cash in hand, and from an overdraft or never. */
+  credit: { onTimeFd: number; lateFd: number };
+  /** Carriers: the lowest broker credit this company hauls for. */
+  minBrokerCredit: number;
   /** Brokers: who carries the bond this term, the surety pool or the NPC surety, and what the bond has paid out on this company so far. */
   suretyWriter: "pool" | "npc";
   suretyClaimedFd: number;

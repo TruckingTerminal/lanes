@@ -20,6 +20,12 @@ import {
   RESERVE_ACCOUNT,
   payClaim,
   bill,
+  brokerLicensed,
+  creditBand,
+  creditPremium,
+  creditScore,
+  restart,
+  startLiquidation,
   contractAccount,
   HOLDER_NPC_FACTOR,
   dailyReceivables,
@@ -1215,5 +1221,40 @@ describe("contracts (0.18.0): the factoring term, its stake, and the lessor's sa
     expect(w.receivables.filter((r) => leasedIds.has(r.payeeId) && r.holder === r.payeeId)).toHaveLength(0);
     expect(w.receivables.some((r) => leasedIds.has(r.payeeId) && r.holder === HOLDER_NPC_FACTOR)).toBe(true);
     w.ledger.assertBalanced();
+  });
+});
+
+describe("credit (0.18.0): a score from the ledger, and a broker's licence that lapses with its stake", () => {
+  const staked: EconomyConfig = { ...calm, token: { ...calm.token, staking: { ...calm.token.staking, enabled: true }, payment: { ...calm.token.payment, enabled: true } } };
+
+  it("scores a new licence as middling, lowers it for bankruptcies, claims and paying from an overdraft, and prices the premium", () => {
+    const w = createWorld({ cfg: staked, net, feeds: neutralFeeds, seed: 55 });
+    const b = formCompany(w, { name: "Broker", role: "broker", homeHubId: "DAL", strategy: "test", orders: [], freePath: false });
+    const k = staked.token.credit;
+    expect(creditScore(w, b)).toBeCloseTo(k.base + k.recordPoints * k.newRecord, 6);
+    expect(creditBand(creditScore(w, b))).toBe("C");
+    expect(creditPremium(w, 60)).toBeCloseTo(k.premiumMax * ((k.strongScore - 60) / k.strongScore), 6);
+    expect(creditPremium(w, 90)).toBe(0);
+    b.bankruptcies = 2;
+    b.credit = { onTimeFd: 2_000, lateFd: 8_000 };
+    w.round++; // the score is cached per round
+    expect(creditScore(w, b)).toBeCloseTo(k.base + k.recordPoints * 0.2 - 2 * k.bankruptcyPoints, 6);
+    expect(creditBand(creditScore(w, b))).toBe("E");
+  });
+
+  it("drops a bankrupt broker's licence: no stake, no loads, until it posts the stake again", () => {
+    const w = createWorld({ cfg: staked, net, feeds: neutralFeeds, seed: 56, keepLedgerEntries: true });
+    const b = formCompany(w, { name: "Broker", role: "broker", homeHubId: "DAL", strategy: "test", orders: [], freePath: false });
+    fund(w, b.id, 100_000);
+    expect(applyAction(w, b.id, { type: "stake_fd", fd: staked.token.staking.roles.broker })).toEqual({ ok: true });
+    expect(brokerLicensed(w, b)).toBe(true);
+    startLiquidation(w, b);
+    restart(w, b);
+    expect(b.stakedFd).toBe(0);
+    expect(brokerLicensed(w, b)).toBe(false);
+    expect(w.ledger.entries.filter((e) => e.ref === `grant:stake:${b.id}`)).toHaveLength(0); // nothing granted
+    fund(w, b.id, 80_000);
+    expect(applyAction(w, b.id, { type: "stake_fd", fd: staked.token.staking.roles.broker })).toEqual({ ok: true });
+    expect(brokerLicensed(w, b)).toBe(true);
   });
 });

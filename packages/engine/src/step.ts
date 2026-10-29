@@ -16,6 +16,7 @@ import { dailyLabor, monthlyLabor, payDispatchers, weeklyLabor } from "./labor.j
 import { dailyStaking } from "./staking.js";
 import { dailyPools, poolAccount, poolMarkup, poolsOn } from "./pools.js";
 import { dailyReceivables } from "./receivables.js";
+import { creditScore } from "./credit.js";
 import { dailySafety, monthlySafety, weeklySafety } from "./safety.js";
 import { repossessDefaults, stepListings } from "./market.js";
 import { fleetOverheadPerWeek } from "./overhead.js";
@@ -140,7 +141,7 @@ function endOfDay(w: World, day: number, agents?: DailyAgentHook): void {
   let bonds = 0;
   for (const c of w.companies) {
     if (c.role !== "broker") continue;
-    const pct = worstPct - (worstPct - bestPct) * c.reputation;
+    const pct = worstPct - (worstPct - bestPct) * (creditScore(w, c) / 100); // the bond priced by credit (credit.ts)
     const premium = (cfg.permits.brokerBondFd * pct) / cfg.time.daysPerSeason;
     if (suretyMarkup !== null) {
       w.ledger.post(w.t, companyAccount(c.id), poolAccount("surety"), premium * suretyMarkup, `surety:${c.id}`);

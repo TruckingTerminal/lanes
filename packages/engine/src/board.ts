@@ -2,6 +2,7 @@ import { acceptTender, autoTenders, expireTenders, mayTake, settleTender } from 
 import { fmtInt, fuelPrice } from "./economics.js";
 import { seasonality, EQUIPMENT } from "./demand.js";
 import { dayOf } from "./clock.js";
+import { creditScore } from "./credit.js";
 import { generateRoundFreight, bestExitHub } from "./freight.js";
 import { rebrokerLoad, vettingBlock } from "./fraud.js";
 import { homeEdge, updateHomeCrowding } from "./home.js";
@@ -275,6 +276,7 @@ export function autoBook(w: World): void {
           if (!mayTake(w, company, load)) continue;
           if (load.brokerId === company.id || load.doubleBroker?.companyId === company.id) continue;
           if (!allowed[load.vet]) continue;
+          if (load.brokerId !== null && creditScore(w, companyById(w, load.brokerId)) < company.minBrokerCredit) continue; // no paper below the floor
           if (load.hot > 0 && !canMakeHot(company, truck)) continue;
           if (trackingWouldShow(company, load)) continue;
           if (goHome && !homeward(w, company, truck, load)) continue;

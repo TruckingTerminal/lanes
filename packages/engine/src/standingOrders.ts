@@ -2,6 +2,7 @@ import type { Equipment } from "@lanes/config";
 import { EQUIPMENT } from "./demand.js";
 import { mayTake } from "./contracts.js";
 import { dayOf, MINUTES_PER_HOUR } from "./clock.js";
+import { creditScore, loadCreditPremium } from "./credit.js";
 import { breakEvenPerMile, fuelPrice } from "./economics.js";
 import { expectedReloadDeadheadMi } from "./freight.js";
 import { vettingBlock } from "./fraud.js";
@@ -122,6 +123,7 @@ export function bidsFromStandingOrders(w: World, company: Company, idx: BoardInd
         if (!mayTake(w, company, load)) continue;
         if (load.brokerId === company.id || load.doubleBroker?.companyId === company.id) continue;
         if (!allowed[load.vet]) continue;
+        if (load.brokerId !== null && creditScore(w, w.companies[load.brokerId - 1]!) < company.minBrokerCredit) continue; // no paper below the floor
         if (load.hot > 0 && !canMakeHot(company, truck)) continue;
         if (trackingWouldShow(company, load)) continue;
         if (goHome && !homeward(w, company, truck, load)) continue; // due home: only loads that head that way
@@ -213,7 +215,8 @@ function priceLoad(
     if (o.minCeilingPerMile !== undefined && load.ceiling < o.minCeilingPerMile) continue;
     // A counter: above the book-now (else the dispatcher just books), up to the ceiling,
     // or past it when the market is that hot — taken only if nobody offers within.
-    const ask = o.price.mode === "ceilingPct" ? load.ceiling * o.price.pct : breakEven * (1 + o.price.pct);
+    // Weak broker paper costs more to haul for (credit.ts): the ask carries the premium.
+    const ask = (o.price.mode === "ceilingPct" ? load.ceiling * o.price.pct : breakEven * (1 + o.price.pct)) * (1 + loadCreditPremium(w, load.brokerId));
     // A desperate truck asks less: down toward what it will accept.
     const rate = Math.max(least, Math.min(ask * (1 - desperate * 0.5) + least * desperate * 0.5, hardCap(w, load)));
     if (!(rate > 0)) continue; // nobody hauls for nothing

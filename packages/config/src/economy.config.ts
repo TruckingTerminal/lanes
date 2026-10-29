@@ -632,6 +632,26 @@ export const economyConfig = {
       },
       lessorPaysOnDelivery: true,
     },
+    // Credit ratings (Jeff, 2026-10-29; credit.ts): a 0–100 score the game computes from the ledger.
+    // base + recordPoints × the share of invoices paid with cash in hand (a new licence is assumed
+    // middling), + agePoints over ageYears of licence, − claimPoints per unpaid claim on record,
+    // − bankruptcyPoints and − revocationPoints each, − coveragePoints when stake and cash cover
+    // less than coverageMin of the invoices owed. Bands: A ≥ 80, B ≥ 65, C ≥ 50, D ≥ 35, E below.
+    credit: {
+      base: 40,
+      recordPoints: 40,
+      newRecord: 0.5,
+      agePoints: 20,
+      ageYears: 3,
+      claimPoints: 10,
+      bankruptcyPoints: 15,
+      revocationPoints: 20,
+      coverageMin: 0.5,
+      coveragePoints: 10,
+      strongScore: 80, // no premium at or above this…
+      premiumMax: 0.2, // …rising to this at zero: on a carrier's ask, on the factoring discount, on the surety premium
+      minForCarriers: 35, // a carrier's default floor: no E paper
+    },
     treasury: {
       // Stand-in for real revenue other than exchange fees: cosmetics, premium,
       // asset sales (§Two ledgers — primary sales go to the developer), per active company per week.

@@ -10,7 +10,7 @@ import { listTruck } from "./market.js";
 import type { Company } from "./types.js";
 import { truckValue } from "./dealer.js";
 import { forfeitAirdrop } from "./token.js";
-import { releaseStake, stakeFd } from "./staking.js";
+import { releaseStake } from "./staking.js";
 import { releaseContractStakes } from "./receivables.js";
 import { createTruck, freshPaperwork, newSafetyRecord, type World } from "./world.js";
 
@@ -159,11 +159,6 @@ export function restart(w: World, c: Company): void {
   c.late = 0;
   const fleet = w.trucksByCompany.get(c.id)!;
   if (c.role === "carrier" && !fleet.some((t) => t.lease === "npc")) createTruck(w, c, "npc", "workhorse", "van");
-  // A broker's fresh start is a bonded one: the licence stake is granted again (staking.ts), as the NPC lease is a carrier's.
   c.suretyClaimedFd = 0;
-  if (c.role === "broker" && w.cfg.token.staking.enabled && c.stakedFd < w.cfg.token.staking.roles.broker) {
-    const stake = w.cfg.token.staking.roles.broker - c.stakedFd;
-    w.ledger.post(w.t, "faucet:starting_grant", acct, stake, `grant:stake:${c.id}`);
-    stakeFd(w, c, stake);
-  }
+  // A bankrupt broker's licence lapses with its stake (Jeff, 2026-10-29): it takes no loads until it posts the stake again, from what it earns or buys. No grant.
 }
