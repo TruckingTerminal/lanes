@@ -36,7 +36,7 @@ const page = readFileSync(join(here, "src", "page.html"), "utf8")
 // artifact's published files on claude.ai.
 const assetsOut = join(here, "dist", site ? "site" : ".", "assets");
 let copied = 0;
-for (const sub of ["map", "cities"]) {
+for (const sub of ["map", "cities", "towns"]) {
   const src = join(here, "assets", sub);
   if (!existsSync(src)) continue;
   mkdirSync(join(assetsOut, sub), { recursive: true });
@@ -46,6 +46,11 @@ for (const sub of ["map", "cities"]) {
     copied++;
   }
 }
+// The manifest tells the page which files exist, so it never asks for a sprite that was not painted yet.
+const manifest = {};
+for (const sub of ["map", "cities", "towns"]) manifest[sub] = existsSync(join(assetsOut, sub)) ? readdirSync(join(assetsOut, sub)).filter((f) => f.endsWith(".png")) : [];
+mkdirSync(assetsOut, { recursive: true });
+writeFileSync(join(assetsOut, "manifest.json"), JSON.stringify(manifest));
 console.log(`${assetsOut.replace(here + "/", "")}: ${copied} files`);
 const skeleton = `<!doctype html><html lang="en"><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"></head><body>${page}</body></html>`;
 if (site) {

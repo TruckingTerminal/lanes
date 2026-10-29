@@ -12,6 +12,9 @@ export const MAP_W = 1408;
 export const MAP_H = 960;
 /** The city sprites are drawn pixel for pixel at this many device pixels per level-0 art pixel. */
 export const CITY_SCALE = 4;
+/** The town sprites (128 px) are drawn pixel for pixel at this many device pixels per level-0 art pixel. */
+export const TOWN_SCALE = 8;
+export type TownKind = "plains" | "forest" | "desert" | "south" | "coast" | "rust";
 
 export type Season = "summer" | "autumn" | "winter" | "spring";
 
@@ -43,8 +46,28 @@ export function whenMapReady(f: () => void): void {
   onReady = f;
 }
 
+/** Which files are next to the page (assets/manifest.json, written by the build); null until it has been read. */
+let manifest: Record<string, string[]> | null = null;
+let manifestAsked = false;
+function known(src: string): boolean {
+  if (!manifestAsked) {
+    manifestAsked = true;
+    fetch(`${ASSETS}manifest.json`)
+      .then((r) => (r.ok ? r.json() : {}))
+      .then((m: Record<string, string[]>) => {
+        manifest = m;
+        onReady?.();
+      })
+      .catch(() => (manifest = {}));
+  }
+  if (!src.startsWith(ASSETS)) return true;
+  if (!manifest) return false;
+  const [sub, file] = src.slice(ASSETS.length).split("/");
+  return (manifest[sub!] ?? []).includes(file!);
+}
+
 function load(p: Pic): void {
-  if (p.img) return;
+  if (p.img || !known(p.src)) return;
   const img = new Image();
   img.onload = () => {
     p.ready = true;
@@ -86,6 +109,28 @@ export function citySprite(hubId: string): HTMLImageElement | null {
     load(p);
   }
   return p.ready ? p.img : null;
+}
+
+const towns = new Map<TownKind, Pic>();
+/** The generic small-town sprite of a kind once it has decoded. */
+export function townSprite(kind: TownKind): HTMLImageElement | null {
+  let p = towns.get(kind);
+  if (!p) {
+    p = { src: `${ASSETS}towns/${kind}.png`, img: null, ready: false };
+    towns.set(kind, p);
+    load(p);
+  }
+  return p.ready ? p.img : null;
+}
+
+/** Which town sprite a place gets, from where it is: the coast, the woods, the desert, the South, the old mill belt, or the plains. */
+export function townKindAt(lon: number, lat: number, nearWater: boolean): TownKind {
+  if (nearWater && (lon < -117 || lon > -82 || (lat < 31 && lon > -98))) return "coast";
+  if ((lon < -120.5 && lat > 42) || (lat > 44.6 && lon < -82) || (lon < -104 && lon > -116 && lat > 37 && lat < 49 && lat > 40)) return "forest";
+  if (lat < 37.5 && lon < -102) return "desert";
+  if (lat > 39 && lon > -91 && lon < -70) return "rust";
+  if (lat < 36.5 && lon > -97) return "south";
+  return "plains";
 }
 
 /** The season of an in-game month (1–12), for the seasonal paintings. */
