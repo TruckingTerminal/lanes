@@ -1,11 +1,11 @@
 import { render } from "preact";
-import { companyAccount, type GameEvent } from "@lanes/engine";
+import { companyAccount, crewed, type GameEvent } from "@lanes/engine";
 import { installTheme } from "./art.js";
 import { fd, hhmm, realUntil } from "./format.js";
 import { DEFAULT_ORDERS, RULESET, TestGame, type StartKind } from "./game.js";
 import { H } from "./handlers.js";
 import { createMeta, LiveWorld, readMeta, type DbLike, type WorldMeta } from "./live.js";
-import { setDefaultOrders } from "./logic.js";
+import { checkAttention, checkIdleAlerts, setDefaultOrders } from "./logic.js";
 import { drawMap, fitMap, resetArt, setZoom, zoomIndex } from "./mapview.js";
 import { MemoryDb } from "./memdb.js";
 import { bumpData, bumpTick, feed, loadTheme, markPersisted, persistTest, push, readTest, S, setLayout, SPEEDS, TEST_BUILD, toast, toggleFullscreen, truckNo, type Session, type TitleMenu } from "./state.js";
@@ -80,7 +80,12 @@ function onEvent(s: Session, e: GameEvent): void {
   if (e.kind === "delivered") push(s, `Delivered ${hubName(e.origin)}→${hubName(e.dest)}: +${fd(e.grossFd)} FD, ${fd(e.grossFd - e.costFd)} after costs${e.onTime ? "" : " (late)"}`);
   if (e.kind === "lostBid") push(s, `Lost ${hubName(e.origin)}→${hubName(e.dest)} at ${e.rate.toFixed(2)}/mi${e.winningRate !== null ? `: it went for ${e.winningRate.toFixed(2)}/mi` : ": nobody took it this round"}`, "warn");
   if (e.kind === "breakdown") push(s, `Breakdown on truck ${truckNo(e.truckId)}${e.repairFd ? `: ${fd(e.repairFd)} FD repair bill` : " (lessor pays)"}`, "bad");
-  if (e.kind === "truckDelivered") push(s, `New truck delivered: truck ${truckNo(e.truckId)} is ready`, "good");
+  if (e.kind === "truckDelivered") {
+    const t = w.trucks[e.truckId - 1];
+    const needs = t && !crewed(t);
+    push(s, `New truck delivered: truck ${truckNo(e.truckId)} is ready${needs ? " and needs a driver: hire one on the Staff tab" : ""}`, needs ? "warn" : "good");
+    if (s === S.game && needs) toast(`Truck ${truckNo(e.truckId)} was delivered with no driver. Hire one on the Staff tab or it earns nothing.`, true);
+  }
   if (e.kind === "liquidated") push(s, "Your company went into liquidation: trucks are being sold and you'll restart on an NPC lease.", "bad");
   if (e.kind === "notice") {
     const text = s === S.game ? e.text.replace(/\bTruck (\d+)\b/g, (m, id: string) => (truckNo(Number(id)) ? `Truck ${truckNo(Number(id))}` : m)) : e.text;
@@ -329,6 +334,8 @@ function loop(now: number): void {
       bumpTick();
       if (g.w.t !== before || now - lastPanelAt > 1000) {
         lastPanelAt = now;
+        checkIdleAlerts();
+        checkAttention();
         bumpData();
       }
     } catch (e) {

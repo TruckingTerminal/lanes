@@ -6,7 +6,7 @@ import { drawLoadingRoad, drawTitleScene, iconUrl, logo, PAL, TITLE_H, TITLE_W, 
 import { cls, fd, dateLabel, hhmm, pct, realUntil } from "../format.js";
 import { GAME_CONFIG, isHuman, RULESET, type StartKind } from "../game.js";
 import { H } from "../handlers.js";
-import { stuckTrucks, tiredTrucks } from "../logic.js";
+import { attentionItems, stuckTrucks, tiredTrucks } from "../logic.js";
 import { fitMap, maxZoom, mountMap, setZoom, zoom, zoomIndex } from "../mapview.js";
 import { clockMin, feed, fsActive, fsEnabled, S, setLayout, setTab, setTheme, SPEEDS, TEST_BUILD, THEMES, toggleFullscreen, useData, useTick, type Tab } from "../state.js";
 import { Badge, Btn, Card, Pixel } from "./bits.js";
@@ -369,6 +369,7 @@ function TopBar(): JSX.Element {
   const stuck = c ? stuckTrucks().length : 0;
   const tired = c ? tiredTrucks().length : 0;
   const tenders = c ? myTenders(c).length : 0;
+  const todo = c ? attentionItems().length : 0;
   return (
     <header class="topbar">
       <div class="brand">
@@ -430,6 +431,11 @@ function TopBar(): JSX.Element {
         {tired ? (
           <Badge tone="alert" title="Drivers out three weeks or running tired: the Fleet tab says what to do">
             {tired} tired
+          </Badge>
+        ) : null}
+        {todo ? (
+          <Badge tone="alert" title="Things that cost money while nobody looks: the Fleet tab lists them">
+            {todo} to do
           </Badge>
         ) : null}
         {tenders ? (

@@ -3,7 +3,7 @@ import { condition, crewed, hubMiles, ordersOf, rebuildCost, resting, truckValue
 import { PAL, truckUrl } from "../../art.js";
 import { dateLabel, fd, pct, plural, TIER_NAME, TRAILER_NAME, hhmm, realUntil } from "../../format.js";
 import { DEFAULT_ORDERS, GAME_CONFIG } from "../../game.js";
-import { CrewLine, goLoads, goStaff, idleLabel, idleWhy, openLoadsAt, StatusLine, stuckTrucks, tiredTrucks, truckName } from "../../logic.js";
+import { AttentionCard, CrewLine, goLoads, goStaff, idleLabel, idleWhy, openLoadsAt, StatusLine, stuckTrucks, tiredTrucks, truckName } from "../../logic.js";
 import { focusTruck } from "../../mapview.js";
 import { act, describe, me, myTrucks, S, selectTruck, truckNo, useData } from "../../state.js";
 import { Bar, Btn, Card, Label, Num, Panel, Pixel } from "../bits.js";
@@ -19,6 +19,7 @@ export function Fleet(): JSX.Element {
   const pending = ordersOf(w, me().id);
   return (
     <Panel title="Your fleet">
+      <AttentionCard />
       <TendersCard c={me()} />
       <TiredAlerts />
       <IdleAlerts />
