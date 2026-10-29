@@ -3,6 +3,7 @@ import { dayOf } from "./clock.js";
 import { clamp, fmtInt } from "./economics.js";
 import { companyAccount } from "./ledger.js";
 import { poolAccount, poolMarkup, poolsOn } from "./pools.js";
+import { contractAccount } from "./receivables.js";
 import type { Company, InsurancePolicy } from "./types.js";
 import { syncFleet, type World } from "./world.js";
 
@@ -34,8 +35,35 @@ export function quote(w: World, c: Company): Omit<InsurancePolicy, "signedDay" |
   // backstop markup while a pool exists and is too thin to write.
   if (!poolsOn(w)) return { annualPerTruck: base, risk, garaging, market, writer: "npc" };
   const markup = poolMarkup(w, "insurance");
-  if (markup !== null) return { annualPerTruck: base * markup, risk, garaging, market, writer: "pool" };
+  if (markup !== null) return { annualPerTruck: base * w.cfg.token.pools.insurance.priceOfBase * markup, risk, garaging, market, writer: "pool" };
   return { annualPerTruck: base * w.cfg.token.pools.insurance.backstopMarkup, risk, garaging, market, writer: "npc" };
+}
+
+/** Trucks a policy covers: owned or lessor-leased and on the road (the NPC lessor insures its own). */
+function coveredTrucks(w: World, c: Company): number {
+  let n = 0;
+  for (const t of w.trucksByCompany.get(c.id) ?? []) if (t.lease !== "npc" && t.status !== "parked" && t.status !== "listed" && t.status !== "retired") n++;
+  return n;
+}
+
+/**
+ * A pool-written policy locks the deductible per covered truck for the term (pools.insurance.deductibleStake):
+ * topped up or returned as the fleet changes, paid out on a claim (safety.ts). A company that cannot
+ * post it is written by the NPC insurer instead.
+ */
+function settleDeductibleStake(w: World, c: Company, q: ReturnType<typeof quote>): ReturnType<typeof quote> {
+  const k = w.cfg.token.pools.insurance;
+  const ref = `contract:insurance:${c.id}`;
+  const need = q.writer === "pool" && k.deductibleStake ? w.cfg.safety.crash.deductibleFd * coveredTrucks(w, c) : 0;
+  const delta = need - c.insuranceStakeFd;
+  if (delta > 0 && w.ledger.balance(companyAccount(c.id)) < delta) {
+    const ins = w.cfg.insurance;
+    return { ...q, annualPerTruck: ins.baseAnnualPerTruck * q.risk * q.garaging * q.market * k.backstopMarkup, writer: "npc" };
+  }
+  if (delta > 0) w.ledger.post(w.t, companyAccount(c.id), contractAccount(c.id), delta, ref);
+  else if (delta < 0) w.ledger.post(w.t, contractAccount(c.id), companyAccount(c.id), -delta, ref);
+  c.insuranceStakeFd = need;
+  return q;
 }
 
 /**
@@ -44,7 +72,7 @@ export function quote(w: World, c: Company): Omit<InsurancePolicy, "signedDay" |
  */
 export function signPolicy(w: World, c: Company, why?: "renewal" | "rewrite"): void {
   const before = c.insurance.annualPerTruck;
-  const q = quote(w, c);
+  const q = settleDeductibleStake(w, c, quote(w, c));
   const day = today(w);
   c.insurance = { ...q, signedDay: day, renewDay: day + w.cfg.insurance.termDays };
   syncFleet(w, c.id);

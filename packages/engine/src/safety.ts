@@ -3,6 +3,7 @@ import { dayOf, MINUTES_PER_HOUR } from "./clock.js";
 import { fmtInt } from "./economics.js";
 import { slashStake } from "./staking.js";
 import { payClaim } from "./pools.js";
+import { contractAccount } from "./receivables.js";
 import { activeLoanOn, settleLoanFromSale } from "./finance.js";
 import { recordClaim, signPolicy } from "./insurance.js";
 import { dispatchersOf, jail, pushesRules, releaseAll, removeStaff, driverFatigue } from "./labor.js";
@@ -416,7 +417,13 @@ export function crash(w: World, t: Truck, c: Company): void {
   if (atFault) {
     const [sLo, sHi] = k.settlementFd[severity];
     const verdict = rng.range(sLo, sHi) * (contributing ? rng.range(k.negligenceMult[0], k.negligenceMult[1]) : 1);
-    const ours = k.deductibleFd + Math.max(0, verdict - k.insuranceLimitFd);
+    let ours = k.deductibleFd + Math.max(0, verdict - k.insuranceLimitFd);
+    // A pool-written policy's deductible comes out of the stake locked behind it (insurance.ts), not out of cash the company may not have.
+    if (c.insurance.writer === "pool" && c.insuranceStakeFd >= k.deductibleFd) {
+      w.ledger.post(w.t, contractAccount(c.id), "sink:liability", k.deductibleFd, `claim:crash:${c.id}`);
+      c.insuranceStakeFd -= k.deductibleFd;
+      ours -= k.deductibleFd;
+    }
     payOrBankrupt(w, c, ours);
     // The insurer's share, for the market's loss ratio; a serious crash gets the policy re-written.
     const insured = Math.max(0, Math.min(verdict, k.insuranceLimitFd) - k.deductibleFd);

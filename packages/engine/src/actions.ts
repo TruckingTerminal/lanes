@@ -18,6 +18,7 @@ import { inCloseWindow } from "./season.js";
 import { refile } from "./solvency.js";
 import { facilityCap, stakeFd, truckCap, unstakeFd } from "./staking.js";
 import { depositPool, withdrawPool } from "./pools.js";
+import { endFactoring, signFactoring } from "./receivables.js";
 import type { Action, RuleScope } from "./types.js";
 import { condition, rebuildCost } from "./wear.js";
 import { availableSupply, companyById, crewed, hubMiles, invalidOrders, seatDriver, staffById, syncFleet, takeSupply, truckById, unseatDriver, type World, placeMiles, placeOfHub, placeLegMiles } from "./world.js";
@@ -498,9 +499,13 @@ export function applyAction(w: World, companyId: number, action: Action): Action
     case "withdraw_pool":
       return result(withdrawPool(w, action.line, company.id, action.amountFd));
 
-    case "set_pay_terms":
+    case "set_pay_terms": {
+      // Factoring is a contract: choosing it signs one (stake and all); leaving it before the term forfeits the stake.
+      if (action.terms === "factor") return result(company.factoring ? null : signFactoring(w, company));
+      if (company.factoring) endFactoring(w, company, dayOf(w.t, cfg) < company.factoring.until);
       company.payTerms = action.terms;
       return result(null);
+    }
 
     case "claim_airdrop_now":
       return result(claimAirdropNow(w, company));

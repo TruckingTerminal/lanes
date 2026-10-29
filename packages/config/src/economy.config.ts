@@ -602,6 +602,8 @@ export const economyConfig = {
         minCapitalRatio: 0.5, // capital ÷ annual premiums written: below this the pool writes nothing new
         thinMarkup: 1.3, // the pool's price against the NPC base at the minimum ratio, easing to 1 at twice it
         backstopMarkup: 1.25, // what the NPC insurer charges while a pool exists and is too thin
+        priceOfBase: 0.8, // the pool aims at a 75% loss ratio where the NPC market aims at 60%: its base price is this much of the NPC's
+        deductibleStake: true, // a pool-written policy locks the deductible per truck for the term; it pays the deductible on a claim
       },
       // Factoring: capital ÷ invoices outstanding; the discount is payment.factoring.discountPct × the markup.
       factoring: { minCapitalRatio: 0.2, thinMarkup: 1.5, backstopMarkup: 1.4 },
@@ -612,11 +614,23 @@ export const economyConfig = {
     // game days; a payee may take quick pay for a fee or factor the invoice (the pool, or the NPC
     // factor as the dearer backstop). Carriers run on working capital, as real ones do. Off until
     // 0.18.0 ships: with it off every payment posts on delivery as before.
+    // Jeff's numbers (2026-10-29): quick pay is an emergency tool at 10%; factoring is a one-year
+    // contract with a stake behind it (two weeks of invoices by the fleet), priced by whose paper it
+    // is, forfeited on an early exit; the NPC lessor pays its leased trucks on delivery so the free
+    // path runs on no working capital; everyone else is capitalised or signs.
     payment: {
       enabled: false,
       termsDays: 30,
-      quickPayPct: 0.03,
-      factoring: { discountPct: 0.025 }, // × the pool's markup, or × pools.factoring.backstopMarkup at the NPC factor
+      quickPayPct: 0.1,
+      factoring: {
+        discountNpc: 0.04, // an NPC shipper's paper, per 30-day invoice (× the pool's markup, or × pools.factoring.backstopMarkup at the NPC factor)
+        discountPlayer: 0.06, // a player broker's or shipper's paper
+        termDays: 365,
+        earlyExitForfeits: true,
+        stakePerTruckFd: 15_000, // about two weeks of a truck's invoices
+        stakeBrokerFd: 50_000,
+      },
+      lessorPaysOnDelivery: true,
     },
     treasury: {
       // Stand-in for real revenue other than exchange fees: cosmetics, premium,

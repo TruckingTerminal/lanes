@@ -207,6 +207,10 @@ export interface Company {
   soldFd: { day: number; fd: number };
   /** Payment terms (receivables.ts): wait for the due day, take quick pay, or factor the invoice. */
   payTerms: "net" | "quick" | "factor";
+  /** The factoring contract in force: its term and the stake locked behind it (receivables.ts). */
+  factoring: { until: number; stakeFd: number } | null;
+  /** The deductible stake behind a pool-written insurance policy (insurance.ts). */
+  insuranceStakeFd: number;
   /** Brokers: who carries the bond this term, the surety pool or the NPC surety, and what the bond has paid out on this company so far. */
   suretyWriter: "pool" | "npc";
   suretyClaimedFd: number;

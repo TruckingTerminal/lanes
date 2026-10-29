@@ -20,6 +20,8 @@ import {
   RESERVE_ACCOUNT,
   payClaim,
   bill,
+  contractAccount,
+  HOLDER_NPC_FACTOR,
   dailyReceivables,
   HOLDER_POOL,
   seasonAirdrop,
@@ -1051,6 +1053,8 @@ describe("pools (0.18.0): a player-funded insurance pool", () => {
     signPolicy(w, c, "rewrite");
     expect(c.insurance.writer).toBe("pool");
     expect(c.insurance.annualPerTruck).toBeLessThanOrEqual(base + 1e-6);
+    expect(c.insuranceStakeFd).toBe(pooled.safety.crash.deductibleFd); // the deductible, locked behind the pool-written policy
+    expect(w.ledger.balance(contractAccount(c.id))).toBe(pooled.safety.crash.deductibleFd);
     // Premiums reach the pool, and the exposure is what it has written.
     runDays(w, 7);
     expect(w.pools.insurance.premiumsFd).toBeGreaterThan(0);
@@ -1097,7 +1101,7 @@ describe("payment terms, factoring, surety and airdrop seasons (0.18.0)", () => 
     for (const c of w.companies) c.payTerms = "quick";
     const day = w.metrics.days.length;
     runDays(w, 5);
-    expect(w.receivables.filter((r) => r.dueDay > day + terms.token.payment.termsDays)).toHaveLength(0);
+    expect(w.receivables.filter((r) => r.dueDay > day + terms.token.payment.termsDays && r.holder === r.payeeId)).toHaveLength(0); // only the lessor's paper on leased trucks
     w.ledger.assertBalanced();
   });
 
@@ -1107,10 +1111,14 @@ describe("payment terms, factoring, surety and airdrop seasons (0.18.0)", () => 
     fund(w, d.id, 3_000_000);
     expect(applyAction(w, d.id, { type: "deposit_pool", line: "factoring", amountFd: 2_000_000 })).toEqual({ ok: true });
     const c = carrier(w, "Factoring carrier");
+    expect(applyAction(w, c.id, { type: "set_pay_terms", terms: "factor" })).toEqual({ ok: false, reason: "the contract stake needs more FD" });
+    fund(w, c.id, 20_000);
     expect(applyAction(w, c.id, { type: "set_pay_terms", terms: "factor" })).toEqual({ ok: true });
+    expect(c.factoring).toEqual({ until: terms.token.payment.factoring.termDays, stakeFd: terms.token.payment.factoring.stakePerTruckFd });
+    expect(w.ledger.balance(contractAccount(c.id))).toBe(terms.token.payment.factoring.stakePerTruckFd);
     const cashBefore = w.ledger.balance(companyAccount(c.id));
     bill(w, { payer: 0, faucet: "faucet:npc_shipper", payee: c, amountFd: 10_000, ref: "load:test" });
-    const advance = 10_000 * (1 - terms.token.payment.factoring.discountPct); // a fresh pool against no exposure: markup 1
+    const advance = 10_000 * (1 - terms.token.payment.factoring.discountNpc); // a fresh pool against no exposure: markup 1
     expect(w.ledger.balance(companyAccount(c.id)) - cashBefore).toBeCloseTo(advance, 2);
     expect(w.receivables).toHaveLength(1);
     expect(w.receivables[0]!.holder).toBe(HOLDER_POOL);
@@ -1168,6 +1176,44 @@ describe("payment terms, factoring, surety and airdrop seasons (0.18.0)", () => 
     expect(b.airdrop!.weeksLeft).toBe(0);
     expect(w.token.airdrop.mintedFd - minted).toBeCloseTo(a.airdrop!.totalFd * tk2.token.airdrop.atLaunch, 2);
     expect(w.token.airdrop.seasonsPaid).toBe(1);
+    w.ledger.assertBalanced();
+  });
+});
+
+describe("contracts (0.18.0): the factoring term, its stake, and the lessor's same-day pay", () => {
+  const terms: EconomyConfig = { ...calm, token: { ...calm.token, payment: { ...calm.token.payment, enabled: true }, pools: { ...calm.token.pools, enabled: true } } };
+
+  it("forfeits the stake to the pool on an early exit, and returns it at term", () => {
+    const w = createWorld({ cfg: terms, net, feeds: neutralFeeds, seed: 53, keepLedgerEntries: true });
+    const c = carrier(w);
+    fund(w, c.id, 40_000);
+    expect(applyAction(w, c.id, { type: "set_pay_terms", terms: "factor" })).toEqual({ ok: true });
+    const stake = c.factoring!.stakeFd;
+    const poolBefore = w.ledger.balance(poolAccount("factoring"));
+    expect(applyAction(w, c.id, { type: "set_pay_terms", terms: "net" })).toEqual({ ok: true });
+    expect(c.factoring).toBeNull();
+    expect(w.ledger.balance(poolAccount("factoring")) - poolBefore).toBeCloseTo(stake, 2);
+    expect(w.ledger.balance(contractAccount(c.id))).toBe(0);
+    // Signed again and left to run: at term, still wanting it, the contract renews; wanting out, the stake comes home.
+    expect(applyAction(w, c.id, { type: "set_pay_terms", terms: "factor" })).toEqual({ ok: true });
+    const stake2 = c.factoring!.stakeFd;
+    c.payTerms = "net"; // the wish to leave at term, without an early exit
+    runDays(w, terms.token.payment.factoring.termDays + 1);
+    expect(c.factoring).toBeNull();
+    const returned = w.ledger.entries.filter((e) => e.from === contractAccount(c.id) && e.to === companyAccount(c.id)).reduce((s, e) => s + e.amount, 0);
+    expect(returned).toBeCloseTo(stake2, 2);
+    expect(w.ledger.balance(contractAccount(c.id))).toBe(0);
+  });
+
+  it("the lessor pays its leased trucks on delivery and takes the paper, so the free path holds no receivables", () => {
+    const w = createWorld({ cfg: terms, net, feeds: neutralFeeds, seed: 54, keepLedgerEntries: true });
+    populate(w, { freeOwnerOperators: 40, fleets: 5, brokers: 2 });
+    runDays(w, 12, ruleBotHook);
+    const lessorPaid = w.ledger.entries.filter((e) => e.from === "faucet:npc_lessor");
+    expect(lessorPaid.length).toBeGreaterThan(0);
+    const leasedIds = new Set(w.trucks.filter((t) => t.lease === "npc").map((t) => t.companyId));
+    expect(w.receivables.filter((r) => leasedIds.has(r.payeeId) && r.holder === r.payeeId)).toHaveLength(0);
+    expect(w.receivables.some((r) => leasedIds.has(r.payeeId) && r.holder === HOLDER_NPC_FACTOR)).toBe(true);
     w.ledger.assertBalanced();
   });
 });

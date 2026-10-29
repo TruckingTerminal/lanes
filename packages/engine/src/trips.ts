@@ -217,7 +217,7 @@ export function abandonLeg(w: World, truck: Truck): void {
  * market for the goods), or the NPC shipper directly. `factor` is what a late hot
  * load still pays of the full amount.
  */
-function collectUpstream(w: World, load: Load, payee: Company, gross: number, factor: number, ref: string): void {
+function collectUpstream(w: World, load: Load, payee: Company, gross: number, factor: number, ref: string, leased = false): void {
   const { cfg } = w;
   const payeeAcct = companyAccount(payee.id);
   if (load.brokerId !== null) {
@@ -238,7 +238,7 @@ function collectUpstream(w: World, load: Load, payee: Company, gross: number, fa
     } else {
       w.metrics.onShipperDefault();
     }
-    bill(w, { payer: broker.id, payee, amountFd: gross, ref });
+    bill(w, { payer: broker.id, payee, amountFd: gross, ref, leased });
     broker.operating.costFd += gross;
     broker.openBrokerLoads--;
     broker.loadsThisWeek++;
@@ -249,7 +249,7 @@ function collectUpstream(w: World, load: Load, payee: Company, gross: number, fa
     const shipperAcct = companyAccount(shipper.id);
     const fee = cfg.board.posterFeePct * load.saleValue;
     bill(w, { payer: 0, faucet: "faucet:npc_market", payee: shipper, amountFd: load.saleValue, ref });
-    if (shipper.id !== payee.id) bill(w, { payer: shipper.id, payee, amountFd: gross, ref });
+    if (shipper.id !== payee.id) bill(w, { payer: shipper.id, payee, amountFd: gross, ref, leased });
     w.ledger.post(w.t, shipperAcct, "sink:board_fee", fee, ref);
     const facility = w.facilities[load.facilityId! - 1];
     // Self-hauled freight's carrier side is the owner's own cost, so only the goods margin counts here.
@@ -259,7 +259,7 @@ function collectUpstream(w: World, load: Load, payee: Company, gross: number, fa
       shipper.loadsThisWeek++;
     }
   } else {
-    bill(w, { payer: 0, faucet: "faucet:npc_shipper", payee, amountFd: gross, ref });
+    bill(w, { payer: 0, faucet: "faucet:npc_shipper", payee, amountFd: gross, ref, leased });
   }
 }
 
@@ -280,7 +280,7 @@ function deliver(w: World, truck: Truck, now: number): void {
   // A company hauling its own freight pays itself nothing: no revenue, no lease share on it.
   const db = load.doubleBroker ? companyById(w, load.doubleBroker.companyId) : null;
   const upstream = db ? load.doubleBroker!.upstreamRate * load.miles * factor : gross;
-  if (!spoiled) collectUpstream(w, load, db ?? carrier, upstream, factor, ref);
+  if (!spoiled) collectUpstream(w, load, db ?? carrier, upstream, factor, ref, !db && truck.lease === "npc");
   const own = load.shipperId === carrier.id;
   const paid = own || spoiled ? 0 : db ? settleDoubleBroker(w, load, carrier, gross, upstream) : gross;
 

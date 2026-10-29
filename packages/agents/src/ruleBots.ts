@@ -19,6 +19,7 @@ import {
   sellableFd,
   tokenLive,
   capitalRatio,
+  factoringStake,
   nextTruckTier,
   stakeFd,
   truckCap,
@@ -687,8 +688,9 @@ function manageCash(w: World, c: Company, p: BotProfile): void {
   const need = reserve(w, c, p);
   const deposited = depositorValue(w, c.id);
   // Payment terms (0.18.0): short of working capital, factor the invoices; otherwise wait for the due day.
-  if (w.cfg.token.payment.enabled) {
-    const want = cash < need ? "factor" : "net";
+  // A contract runs its term; short of working capital a bot signs one if it can post the stake, takes quick pay only when it is half short, and waits otherwise.
+  if (w.cfg.token.payment.enabled && !c.factoring) {
+    const want = cash < need ? (cash >= factoringStake(w, c) ? "factor" : cash < need * 0.5 ? "quick" : "net") : "net";
     if (c.payTerms !== want) applyAction(w, c.id, { type: "set_pay_terms", terms: want });
   }
   if (cash < need * 0.5 && deposited > 1_000) {

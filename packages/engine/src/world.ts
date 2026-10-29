@@ -511,6 +511,8 @@ export function formCompany(w: World, c: NewCompany): Company {
     tierGraceDay: null,
     soldFd: { day: -1, fd: 0 },
     payTerms: "net",
+    factoring: null,
+    insuranceStakeFd: 0,
     suretyWriter: "npc",
     suretyClaimedFd: 0,
     seasonBase: { miles: 0, profit: 0 },

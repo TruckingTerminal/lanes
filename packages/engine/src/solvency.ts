@@ -11,6 +11,7 @@ import type { Company } from "./types.js";
 import { truckValue } from "./dealer.js";
 import { forfeitAirdrop } from "./token.js";
 import { releaseStake, stakeFd } from "./staking.js";
+import { releaseContractStakes } from "./receivables.js";
 import { createTruck, freshPaperwork, newSafetyRecord, type World } from "./world.js";
 
 /**
@@ -63,7 +64,8 @@ export function startLiquidation(w: World, c: Company): void {
   c.liquidatingSince = dayOf(w.t, w.cfg);
   c.suspendedOrders = c.orders;
   c.orders = [];
-  releaseStake(w, c); // the stake pays creditors before anything else
+  releaseContractStakes(w, c); // contract stakes go first to the pool holding the company's paper
+  releaseStake(w, c); // the licence stake pays creditors before anything else
   for (const t of w.trucksByCompany.get(c.id)!) w.manualBids.delete(t.id);
   const deposited = depositorValue(w, c.id);
   if (deposited > 0.01) withdraw(w, c.id, deposited);
