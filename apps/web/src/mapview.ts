@@ -340,7 +340,8 @@ export function drawMap(now: number): void {
         const [px, py] = art!.project(p.lon, p.lat);
         const [X, Y] = toScreen(px, py);
         if (X < -80 * ts || Y < -80 * ts || X > W + 80 * ts || Y > H + 80 * ts) continue;
-        if (art!.hubXY.some(([hx, hy]) => Math.abs(hx - px) < 6 && Math.abs(hy - py) < 6)) continue;
+        // The hub's own sprite stands for its metro: no town sprites under it.
+        if (art!.hubXY.some(([hx, hy]) => Math.abs(hx - px) < 34 && Math.abs(hy - py) < 30)) continue;
         const rx = Math.round(px);
         const ry = Math.round(py);
         const nearWater = [-4, 0, 4].some((dx) => [-4, 0, 4].some((dy) => art!.kindAt(rx + dx, ry + dy) === 0 || art!.kindAt(rx + dx, ry + dy) === 3));
