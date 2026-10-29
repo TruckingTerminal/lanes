@@ -9,7 +9,7 @@ export type TractorTier = "workhorse" | "highwayPro" | "flagship";
 export type FacilityType = "warehouse" | "coldStorage" | "factory";
 
 export const economyConfig = {
-  version: "0.15.0-phase0.21",
+  version: "0.16.0-phase0.22",
 
   // §World, map and time
   time: {

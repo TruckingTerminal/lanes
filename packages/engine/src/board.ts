@@ -1,4 +1,4 @@
-import { acceptTender, autoTenders, expireTenders, mayTake } from "./contracts.js";
+import { acceptTender, autoTenders, expireTenders, mayTake, settleTender } from "./contracts.js";
 import { fuelPrice } from "./economics.js";
 import { seasonality, EQUIPMENT } from "./demand.js";
 import { dayOf } from "./clock.js";
@@ -224,6 +224,7 @@ export function bookLoad(w: World, company: Company, truck: Truck, load: Load, d
   if (truck.trailer !== load.equipment) return "wrong trailer";
   if (company.authority.status !== "active") return "your authority isn't active";
   if (!mayTake(w, company, load)) return load.tenderedTo ? "that load is tendered to another carrier" : "local shippers only for now";
+  settleTender(w, company, load);
   if (!(rate > 0)) return "that load has no book-now price";
   w.manualBids.delete(truck.id);
   assign(w, load, truck, { loadId: load.id, truckId: truck.id, companyId: company.id, rate, deadheadMi, score: 0, tiebreak: 0 });

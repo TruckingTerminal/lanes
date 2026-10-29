@@ -128,6 +128,12 @@ dbf.rows.forEach((r, i) => {
   for (const line of rec) if (line.length >= 2) feats.push({ id: feats.length, cls, label, state: r.state, toll: r.type === "Tollway", pts: line });
 });
 
+// --- roads Natural Earth leaves out: US-20/26 from Carey through Arco to Blackfoot, Idaho (its US-26
+// stops at Carey and starts again near Blackfoot, which left US-93 dangling at Arco and Challis routing
+// to Boise through Montana) ---
+const CURATED_ROADS = [{ label: "US-26", cls: 1, state: "Idaho", pts: [[-113.95, 43.30], [-113.30, 43.64], [-112.89, 43.51]] }];
+for (const r of CURATED_ROADS) feats.push({ id: feats.length, cls: r.cls, label: r.label, state: r.state, toll: false, pts: r.pts });
+
 // --- crossings: where two roads cross without a shared vertex, give both a vertex there ---
 {
   const CELL = 0.05;
@@ -214,6 +220,60 @@ dbf.rows.forEach((r, i) => {
     f.pts = out;
   }
   console.log(`crossings added: ${crossings}, road ends joined to roads: ${tees}, to other ends: ${ends}`);
+
+  // A second look at the ends still loose after all that (an end moved by the end-to-end join off
+  // the point it had been tied to, a highway stopping a mile short of the interstate it meets):
+  // any end that shares no vertex with another road joins the nearest other road within ~2 miles.
+  const vertexCells = new Map();
+  for (const f of feats) for (const p of f.pts) { const c = cell(p); let s = vertexCells.get(c); if (!s) vertexCells.set(c, (s = new Set())); s.add(f.id); }
+  const bucket2 = new Map();
+  feats.forEach((f, fi) => {
+    for (let k = 1; k < f.pts.length; k++) {
+      const a = f.pts[k - 1], b = f.pts[k];
+      for (const c of new Set([key(a[0], a[1]), key(b[0], b[1]), key(a[0], b[1]), key(b[0], a[1])])) { let l = bucket2.get(c); if (!l) bucket2.set(c, (l = [])); l.push([fi, k - 1]); }
+    }
+  });
+  const inserts2 = new Map();
+  const add2 = (fi, seg, t, pt) => { const k = `${fi}:${seg}`; let l = inserts2.get(k); if (!l) inserts2.set(k, (l = [])); l.push([t, pt]); };
+  const SNAP2 = 0.03;
+  let loose = 0, tied = 0;
+  for (const f of feats) {
+    for (const end of [0, f.pts.length - 1]) {
+      const p = f.pts[end];
+      if (vertexCells.get(cell(p)).size >= 2) continue; // already a junction
+      loose++;
+      let best = null;
+      for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) {
+        const list = bucket2.get(`${Math.floor(p[1] / CELL) + dy},${Math.floor(p[0] / CELL) + dx}`);
+        if (!list) continue;
+        for (const [fi, seg] of list) {
+          if (fi === f.id) continue;
+          const a = feats[fi].pts[seg], b = feats[fi].pts[seg + 1];
+          if (!a || !b) continue;
+          const kx = Math.cos(a[1] * RAD);
+          const rx = (b[0] - a[0]) * kx, ry = b[1] - a[1];
+          const px = (p[0] - a[0]) * kx, py = p[1] - a[1];
+          const len2 = rx * rx + ry * ry;
+          if (len2 === 0) continue;
+          const t = Math.max(0, Math.min(1, (px * rx + py * ry) / len2));
+          const d = Math.hypot(px - t * rx, py - t * ry);
+          const pt = t <= 0.02 ? a : t >= 0.98 ? b : [a[0] + t * (b[0] - a[0]), a[1] + t * ry];
+          if (d < SNAP2 && (!best || d < best.d)) best = { d, fi, seg, t: t <= 0.02 || t >= 0.98 ? -1 : t, pt };
+        }
+      }
+      if (best) { if (best.t >= 0) add2(best.fi, best.seg, best.t, best.pt); f.pts[end] = best.pt; tied++; }
+    }
+  }
+  for (const f of feats) {
+    const out = [];
+    for (let k = 0; k < f.pts.length; k++) {
+      out.push(f.pts[k]);
+      const l = inserts2.get(`${f.id}:${k}`);
+      if (l) { l.sort((x, y) => x[0] - y[0]); for (const [, pt] of l) out.push(pt); }
+    }
+    f.pts = out;
+  }
+  console.log(`loose ends after the first pass: ${loose}, tied to a road within 2 mi: ${tied}`);
 }
 
 // --- junctions: cells shared by two features, plus every polyline end ---
@@ -252,6 +312,27 @@ for (const f of feats) {
   }
 }
 
+// --- one node per spot: the cell grid rounds, so two vertices a hair apart on a cell boundary got two nodes
+// at the same coordinates (I-94 met US-41 at the Wisconsin line twice, a foot apart, and never joined) ---
+{
+  const canon = nodes.map((_, i) => i);
+  const at = new Map(); // "lat,lon" in thousandths → first node there
+  const k = (lat, lon) => `${Math.round(lat * 1000)},${Math.round(lon * 1000)}`;
+  let merged = 0;
+  nodes.forEach(([lat, lon], i) => {
+    let found = -1;
+    for (let dy = -1; dy <= 1 && found < 0; dy++) for (let dx = -1; dx <= 1 && found < 0; dx++) {
+      const j = at.get(`${Math.round(lat * 1000) + dy},${Math.round(lon * 1000) + dx}`);
+      if (j !== undefined && Math.hypot((nodes[j][1] - lon) * Math.cos(lat * RAD), nodes[j][0] - lat) * 69 < 0.12) found = j;
+    }
+    if (found >= 0) { canon[i] = found; merged++; } else at.set(k(lat, lon), i);
+  });
+  for (const e of edges) { e.a = canon[e.a]; e.b = canon[e.b]; }
+  const live = edges.filter((e) => e.a !== e.b || e.miles > 0.5);
+  edges.length = 0; edges.push(...live);
+  console.log(`nodes merged at one spot: ${merged}`);
+}
+
 // --- merge edges through nodes that only join two pieces of the same road (state lines, feature breaks) ---
 {
   const deg = new Map();
@@ -277,6 +358,63 @@ for (const f of feats) {
   }
   const live = edges.filter((_, i) => !dead.has(i));
   edges.length = 0; edges.push(...live);
+}
+
+// --- loose ends: a road that stops within two miles of another road (a bypass whose last link never
+// stitched, a highway ending a few hundred yards short of the interstate it meets) is tied to it ---
+{
+  const deg = new Map();
+  for (const e of edges) { deg.set(e.a, (deg.get(e.a) ?? 0) + 1); deg.set(e.b, (deg.get(e.b) ?? 0) + 1); }
+  const CELL = 0.05;
+  const key = (lon, lat) => `${Math.floor(lat / CELL)},${Math.floor(lon / CELL)}`;
+  const bucket = new Map();
+  const index = (i) => {
+    const cells = new Set();
+    for (const [lon, lat] of edges[i].geom) cells.add(key(lon, lat));
+    for (const c of cells) { let l = bucket.get(c); if (!l) bucket.set(c, (l = [])); l.push(i); }
+  };
+  edges.forEach((_, i) => index(i));
+  let tied = 0;
+  for (const [n, d] of [...deg]) {
+    if (d !== 1) continue;
+    const mine = edges.find((e) => e.a === n || e.b === n);
+    if (!mine) continue;
+    const p = [nodes[n][1], nodes[n][0]];
+    let best = null;
+    for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) {
+      for (const i of bucket.get(`${Math.floor(p[1] / CELL) + dy},${Math.floor(p[0] / CELL) + dx}`) ?? []) {
+        const e = edges[i];
+        if (e === mine || e.a === n || e.b === n) continue;
+        const r = nearestOnEdge(e, p);
+        if (r.d <= 2 && (!best || r.d < best.d)) best = { ...r, i };
+      }
+    }
+    if (!best) continue;
+    const e = edges[best.i];
+    // At an end of that edge, use its node; otherwise split the edge at the nearest point.
+    const dA = mi(p, [nodes[e.a][1], nodes[e.a][0]]), dB = mi(p, [nodes[e.b][1], nodes[e.b][0]]);
+    let target;
+    if (dA <= best.d + 0.1) target = e.a;
+    else if (dB <= best.d + 0.1) target = e.b;
+    else {
+      target = nodes.length;
+      nodes.push([Math.round(best.pt[1] * 1000) / 1000, Math.round(best.pt[0] * 1000) / 1000]);
+      const g = e.geom;
+      const tail = { ...e, a: target, b: e.b, miles: e.miles * (1 - best.frac), geom: [best.pt, ...g.slice(best.seg)] };
+      e.b = target; e.miles = e.miles * best.frac; e.geom = [...g.slice(0, best.seg), best.pt];
+      edges.push(tail);
+      index(edges.length - 1);
+      deg.set(target, 2);
+    }
+    // The loose end now ends at the target, with a short link so the drawn road meets it.
+    const q = [nodes[target][1], nodes[target][0]];
+    if (mine.a === n) { mine.a = target; mine.geom = [q, ...mine.geom]; } else { mine.b = target; mine.geom = [...mine.geom, q]; }
+    mine.miles += mi(p, q);
+    deg.set(target, (deg.get(target) ?? 0) + 1);
+    deg.set(n, 0);
+    tied++;
+  }
+  console.log(`loose ends tied to a road within 2 mi: ${tied}`);
 }
 
 // --- largest connected component ---

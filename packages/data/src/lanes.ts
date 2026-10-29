@@ -152,6 +152,19 @@ export function placeMiles(net: Network, a: number, b: number, circuity = 1.2): 
 export function buildNetwork(hubs: Hub[], cfg: EconomyConfig): Network {
   const n = hubs.length;
   const roads = new RoadNetwork(cfg.roads.routing);
+
+  // Places first: each one splits the road nearest it so routes run through the town. The hubs'
+  // own places share the hubs' terminals. A place's market comes with the data (build-places.mjs
+  // routes each one to the hub it reaches soonest by road).
+  const places = loadPlaces();
+  const placeTerminal = new Int32Array(places.length);
+  const hubPlace = new Map<number, number>(PLACE_OF_HUB.map((p, h) => [p, h]));
+  for (let p = 0; p < places.length; p++) {
+    const h = hubPlace.get(p);
+    const place = places[p]!;
+    placeTerminal[p] = h !== undefined ? h : roads.addTerminal(place.lat, place.lon, { lat: place.atLat, lon: place.atLon });
+  }
+
   const routes: (Route | null)[] = new Array<Route | null>(n * n).fill(null);
   const miles = new Float64Array(n * n);
   for (let i = 0; i < n; i++) {
@@ -194,31 +207,6 @@ export function buildNetwork(hubs: Hub[], cfg: EconomyConfig): Network {
 
   const starterIdx = hubs.flatMap((h, i) => (h.isStarter ? [i] : []));
 
-  // Places: attached to the nearest road node; the hubs' own places share the hubs' terminals.
-  // A place's market is the hub it reaches by road soonest, among the few nearest as the crow flies.
-  const places = loadPlaces();
-  const placeTerminal = new Int32Array(places.length);
-  const hubPlace = new Map<number, number>(PLACE_OF_HUB.map((p, h) => [p, h]));
-  for (let p = 0; p < places.length; p++) {
-    const h = hubPlace.get(p);
-    placeTerminal[p] = h !== undefined ? h : roads.addTerminal(places[p]!.lat, places[p]!.lon);
-    if (h !== undefined) continue;
-    const near = hubs
-      .map((hub, i) => ({ i, gc: greatCircleMiles(places[p]!, hub) }))
-      .sort((a, b) => a.gc - b.gc)
-      .slice(0, 4);
-    let best = near[0]!.i;
-    let bestMi = Infinity;
-    for (const { i } of near) {
-      const r = roads.route(placeTerminal[p]!, i);
-      const mi = r ? r.miles : Infinity;
-      if (mi < bestMi) {
-        bestMi = mi;
-        best = i;
-      }
-    }
-    places[p]!.market = best;
-  }
   const economy = buildEconomy(places, n);
   const placeHubs = places.map((p) =>
     hubs

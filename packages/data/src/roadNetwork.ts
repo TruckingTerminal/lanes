@@ -1,4 +1,4 @@
-import { ROAD_EDGES_PACKED, ROAD_EDGE_COUNT, ROAD_GEOM_PACKED, ROAD_HUBS, ROAD_LABELS, ROAD_NODES_PACKED, ROAD_NODE_COUNT, ROAD_STATIONS } from "./roads.js";
+import { ROAD_EDGES_PACKED, ROAD_EDGE_COUNT, ROAD_GEOM_PACKED, ROAD_HUBS, ROAD_LABELS, ROAD_NODE_COUNT, ROAD_STATIONS } from "./roads.js";
 
 const B64 = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
 const B64_INDEX = new Int8Array(128).fill(-1);
@@ -32,8 +32,6 @@ function unpack(packed: string): Int32Array {
   return Int32Array.from(out);
 }
 
-const ROAD_NODES_FLAT = unpack(ROAD_NODES_PACKED);
-for (let i = 2; i < ROAD_NODES_FLAT.length; i++) ROAD_NODES_FLAT[i] = ROAD_NODES_FLAT[i]! + ROAD_NODES_FLAT[i - 2]!;
 const ROAD_EDGES_FLAT = unpack(ROAD_EDGES_PACKED);
 const ROAD_GEOM = unpack(ROAD_GEOM_PACKED);
 
@@ -75,6 +73,31 @@ export interface Route {
   edges: Int32Array;
   /** Miles at the start of each edge, plus the total at the end. */
   cum: Float64Array;
+}
+
+/** A spot on a road: on the segment that starts at geometry point `point`, `t` of the way along it. */
+export interface RoadSpot {
+  edge: number;
+  point: number;
+  t: number;
+  /** Flat-earth miles from the position asked about. */
+  mi: number;
+  lat: number;
+  lon: number;
+  /** Road miles from the edge's start. */
+  along: number;
+}
+
+/** A copy with room to spare (the geometry grows a little with every place that splits a road). */
+function grow(a: Float64Array, atLeast = 1): Float64Array {
+  const out = new Float64Array(Math.max(a.length + atLeast, Math.ceil(a.length * 1.25)));
+  out.set(a);
+  return out;
+}
+function growInt(a: Int32Array, atLeast = 1): Int32Array {
+  const out = new Int32Array(Math.max(a.length + atLeast, Math.ceil(a.length * 1.25)));
+  out.set(a);
+  return out;
 }
 
 /** A binary heap of (key, node) pairs; ties break on the node so the order is the same everywhere. */
@@ -121,23 +144,28 @@ class MinHeap {
 
 export class RoadNetwork {
   readonly edges: RoadEdge[];
-  /** Geometry, decoded: latitude and longitude per point. */
-  readonly lat: Float64Array;
-  readonly lon: Float64Array;
+  /** Geometry, decoded: latitude and longitude per point. The arrays grow as places split edges. */
+  lat: Float64Array;
+  lon: Float64Array;
   /** Per point: miles from the start of its edge (flat-earth lengths scaled to the edge's road miles; for drawing). */
-  readonly along: Float64Array;
+  along: Float64Array;
   /** Each hub's node and the miles of its connecting stub. */
   readonly hubNode: Int32Array;
   readonly hubStub: Float64Array;
   /** Each node's position: the first or last geometry point of an edge at it. */
-  readonly nodeLat: Float64Array;
-  readonly nodeLon: Float64Array;
+  nodeLat: Float64Array;
+  nodeLon: Float64Array;
+  /** Points in use in the geometry arrays, and the edge each belongs to. */
+  private geomCount: number;
+  private pointEdge: Int32Array;
   /**
    * Terminals are the points routes run between: the hubs (0–59, attached at build time with
-   * an edge split) and then every place added with addTerminal (attached to the nearest node).
+   * an edge split) and then every place added with addTerminal, which splits the road at the
+   * point nearest the town so routes run through it.
    */
   private readonly terminals: { node: number; stub: number }[] = [];
   private grid: Map<string, number[]> | null = null;
+  private geomGrid: Map<number, number[]> | null = null;
   private readonly adj: number[][];
   private readonly stationsByEdge = new Map<number, { station: number; frac: number }[]>();
   private readonly routes = new Map<number, Route>();
@@ -184,6 +212,12 @@ export class RoadNetwork {
       const scale = flat > 0 ? e.miles / flat : 0;
       for (let k = 0; k < gn!; k++) this.along[g + k] = this.along[g + k]! * scale;
       g += gn!;
+    }
+    this.geomCount = n;
+    this.pointEdge = new Int32Array(n);
+    for (let i = 0; i < this.edges.length; i++) {
+      const e = this.edges[i]!;
+      for (let k = e.g0; k < e.g0 + e.gn; k++) this.pointEdge[k] = i;
     }
     this.hubNode = new Int32Array(ROAD_HUBS.map((h) => h[0]!));
     this.hubStub = new Float64Array(ROAD_HUBS.map((h) => h[1]!));
@@ -263,14 +297,208 @@ export class RoadNetwork {
     return best;
   }
 
-  /** Attaches a place to the nearest road node with a local-road stub, returning its terminal index. */
-  addTerminal(lat: number, lon: number): number {
-    const node = this.nearestNode(lat, lon);
-    const dy = (this.nodeLat[node]! - lat) * 69.0;
-    const dx = (this.nodeLon[node]! - lon) * 69.0 * Math.cos((lat * Math.PI) / 180);
+  /** The geometry point nearest a position, over every road, by a flat-earth search on a quarter-degree grid. */
+  nearestPoint(lat: number, lon: number): number {
+    if (!this.geomGrid) {
+      this.geomGrid = new Map();
+      for (let k = 0; k < this.geomCount; k++) this.gridPoint(k);
+    }
+    const cy = Math.floor(lat * 4);
+    const cx = Math.floor(lon * 4);
+    const k = Math.cos((lat * Math.PI) / 180);
+    let best = -1;
+    let bestD = Infinity;
+    const scan = (ring: number) => {
+      for (let dy = -ring; dy <= ring; dy++) {
+        for (let dx = -ring; dx <= ring; dx++) {
+          if (Math.max(Math.abs(dy), Math.abs(dx)) !== ring) continue;
+          for (const i of this.geomGrid!.get((cy + dy) * 4096 + (cx + dx + 2048)) ?? []) {
+            if (this.pointEdge[i]! < 0) continue;
+            const ddy = this.lat[i]! - lat;
+            const ddx = (this.lon[i]! - lon) * k;
+            const d = ddy * ddy + ddx * ddx;
+            if (d < bestD) {
+              bestD = d;
+              best = i;
+            }
+          }
+        }
+      }
+    };
+    for (let ring = 0; ring <= 8; ring++) {
+      scan(ring);
+      // Finish the ring that found something, then one more, so a nearer point in the next ring isn't missed.
+      if (best >= 0) {
+        if (ring < 8) scan(ring + 1);
+        break;
+      }
+    }
+    return best;
+  }
+
+  /**
+   * The nearest spot on each road within `withinMi` of a position, nearest first: the projection
+   * onto the road's segments, so a town on a straight stretch joins the road beside it, not the
+   * next bend. Lets a caller weigh a road a mile farther that actually goes somewhere (build-places.mjs).
+   */
+  nearestPoints(lat: number, lon: number, withinMi: number): RoadSpot[] {
+    if (!this.geomGrid) this.nearestPoint(lat, lon);
+    const cy = Math.floor(lat * 4);
+    const cx = Math.floor(lon * 4);
+    const kx = Math.cos((lat * Math.PI) / 180);
+    const rings = Math.ceil(withinMi / (69 / 4)) + 1;
+    const best = new Map<number, RoadSpot>();
+    // The segment from point k to k + 1 of its edge.
+    const consider = (k: number) => {
+      const ei = this.pointEdge[k]!;
+      if (ei < 0 || this.pointEdge[k + 1] !== ei) return;
+      const ay = (this.lat[k]! - lat) * 69;
+      const ax = (this.lon[k]! - lon) * 69 * kx;
+      const dy = (this.lat[k + 1]! - lat) * 69 - ay;
+      const dx = (this.lon[k + 1]! - lon) * 69 * kx - ax;
+      const len2 = dx * dx + dy * dy;
+      const t = len2 > 0 ? Math.max(0, Math.min(1, -(ax * dx + ay * dy) / len2)) : 0;
+      const px = ax + t * dx;
+      const py = ay + t * dy;
+      const mi = Math.sqrt(px * px + py * py);
+      if (mi > withinMi) return;
+      const hit = best.get(ei);
+      if (hit && hit.mi <= mi) return;
+      best.set(ei, {
+        edge: ei,
+        point: k,
+        t,
+        mi,
+        lat: this.lat[k]! + t * (this.lat[k + 1]! - this.lat[k]!),
+        lon: this.lon[k]! + t * (this.lon[k + 1]! - this.lon[k]!),
+        along: this.along[k]! + t * (this.along[k + 1]! - this.along[k]!),
+      });
+    };
+    for (let dy = -rings; dy <= rings; dy++) {
+      for (let dx = -rings; dx <= rings; dx++) {
+        for (const i of this.geomGrid!.get((cy + dy) * 4096 + (cx + dx + 2048)) ?? []) {
+          consider(i);
+          if (i > 0) consider(i - 1);
+        }
+      }
+    }
+    return [...best.values()].sort((a, b) => a.mi - b.mi || a.edge - b.edge);
+  }
+
+  private vertexSpot(k: number): RoadSpot {
+    return { edge: this.pointEdge[k]!, point: k, t: 0, mi: 0, lat: this.lat[k]!, lon: this.lon[k]!, along: this.along[k]! };
+  }
+
+  /** Hours from a terminal to every node (a full search, kept for hubs). The array is shared: read only. */
+  hoursFrom(terminal: number): Float64Array {
+    return this.search(terminal).cost;
+  }
+
+  private gridPoint(k: number): void {
+    const key = Math.floor(this.lat[k]! * 4) * 4096 + (Math.floor(this.lon[k]! * 4) + 2048);
+    let cell = this.geomGrid!.get(key);
+    if (!cell) this.geomGrid!.set(key, (cell = []));
+    cell.push(k);
+  }
+
+  /**
+   * Attaches a place to the road at the point nearest it (or nearest `at`, the point the place
+   * data chose), splitting that road there so the town becomes a node routes pass through (a town
+   * on US-93 is on US-93, not at the next junction seventy miles on), with a local-road stub for
+   * the rest. Returns the terminal index.
+   */
+  addTerminal(lat: number, lon: number, at: { lat: number; lon: number } = { lat, lon }): number {
+    const spot = this.nearestPoints(at.lat, at.lon, 40)[0] ?? this.vertexSpot(this.nearestPoint(at.lat, at.lon));
+    const e = this.edges[spot.edge]!;
+    const node = spot.along <= 0.05 ? e.a : spot.along >= e.miles - 0.05 ? e.b : this.splitEdge(spot);
+    const dy = (spot.lat - lat) * 69.0;
+    const dx = (spot.lon - lon) * 69.0 * Math.cos((lat * Math.PI) / 180);
     const stub = Math.sqrt(dx * dx + dy * dy) * 1.2; // local roads wander
     this.terminals.push({ node, stub });
     return this.terminals.length - 1;
+  }
+
+  /** Splits an edge at a spot inside it into two, returning the new node there. Clears every cached route. */
+  private splitEdge(s: RoadSpot): number {
+    const ei = s.edge;
+    const e = this.edges[ei]!;
+    const k = s.point;
+    const atVertex = s.t <= 0;
+    const milesAt = s.along;
+    // The new node.
+    const v = this.adj.length;
+    this.adj.push([]);
+    if (v >= this.nodeLat.length) {
+      this.nodeLat = grow(this.nodeLat);
+      this.nodeLon = grow(this.nodeLon);
+    }
+    this.nodeLat[v] = s.lat;
+    this.nodeLon[v] = s.lon;
+    if (this.grid) {
+      const key = `${Math.floor(s.lat * 4)},${Math.floor(s.lon * 4)}`;
+      let cell = this.grid.get(key);
+      if (!cell) this.grid.set(key, (cell = []));
+      cell.push(v);
+    }
+    // The second half gets its own copy of the points from the split onward (the split point first), miles
+    // counted from there. The old copies are dead; where the split lies inside a segment, the slot after k is
+    // reused for the split point as the first half's last point.
+    const n2 = e.g0 + e.gn - k;
+    const g2 = this.geomCount;
+    if (g2 + n2 > this.lat.length) {
+      this.lat = grow(this.lat, n2);
+      this.lon = grow(this.lon, n2);
+      this.along = grow(this.along, n2);
+      this.pointEdge = growInt(this.pointEdge, n2);
+    }
+    const ei2 = this.edges.length;
+    this.lat[g2] = s.lat;
+    this.lon[g2] = s.lon;
+    this.along[g2] = 0;
+    this.pointEdge[g2] = ei2;
+    if (this.geomGrid) this.gridPoint(g2);
+    for (let j = 1; j < n2; j++) {
+      const src = k + j;
+      this.lat[g2 + j] = this.lat[src]!;
+      this.lon[g2 + j] = this.lon[src]!;
+      this.along[g2 + j] = this.along[src]! - milesAt;
+      this.pointEdge[g2 + j] = ei2;
+      this.pointEdge[src] = -1;
+      if (this.geomGrid) this.gridPoint(g2 + j);
+    }
+    if (!atVertex) {
+      this.lat[k + 1] = s.lat;
+      this.lon[k + 1] = s.lon;
+      this.along[k + 1] = milesAt;
+      this.pointEdge[k + 1] = ei;
+      if (this.geomGrid) this.gridPoint(k + 1);
+    }
+    this.geomCount += n2;
+    const e2: RoadEdge = { a: v, b: e.b, miles: e.miles - milesAt, cls: e.cls, tollPerMile: e.tollPerMile, label: e.label, g0: g2, gn: n2 };
+    this.edges.push(e2);
+    // The first half keeps the edge's index, ending at the split point.
+    const oldB = e.b;
+    const oldMiles = e.miles;
+    e.b = v;
+    e.gn = k - e.g0 + (atVertex ? 1 : 2);
+    e.miles = milesAt;
+    const adjB = this.adj[oldB]!;
+    adjB[adjB.indexOf(ei)] = ei2;
+    this.adj[v]!.push(ei, ei2);
+    // Weigh stations move with their half.
+    const stations = this.stationsByEdge.get(ei);
+    if (stations) {
+      const f = milesAt / oldMiles;
+      const first = stations.filter((s) => s.frac < f).map((s) => ({ station: s.station, frac: s.frac / f }));
+      const second = stations.filter((s) => s.frac >= f).map((s) => ({ station: s.station, frac: (s.frac - f) / (1 - f) }));
+      if (first.length) this.stationsByEdge.set(ei, first);
+      else this.stationsByEdge.delete(ei);
+      if (second.length) this.stationsByEdge.set(ei2, second);
+    }
+    this.routes.clear();
+    this.fromTerminal.clear();
+    this.recent.length = 0;
+    return v;
   }
 
   private edgeCost(e: RoadEdge): number {
@@ -396,8 +624,11 @@ export class RoadNetwork {
       const s = this.search(a);
       if (!Number.isFinite(s.cost[v]!)) return null;
       prev = s.prev;
+    } else if (src === v) {
+      // Both terminals hang off the same road node (a town beside a hub): the route is the two stubs.
+      prev = new Int32Array(0);
     } else {
-      const p = src === v ? null : this.astar(src, v);
+      const p = this.astar(src, v);
       if (!p) return null;
       prev = p;
     }
@@ -440,7 +671,7 @@ export class RoadNetwork {
 
   /** A node's position, for drawing. */
   nodeAt(i: number): [number, number] {
-    return [ROAD_NODES_FLAT[i * 2]! / 1000, ROAD_NODES_FLAT[i * 2 + 1]! / 1000];
+    return [this.nodeLat[i]!, this.nodeLon[i]!];
   }
 
   /** Where a truck is, `milesFromStart` along a route: [lat, lon] (the hub itself on the stubs). */

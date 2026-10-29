@@ -406,6 +406,50 @@ Design, levers and the full results are in [TOKENOMICS.md](TOKENOMICS.md); table
   that keep losing) with the button that fixes it; a red "N IDLE" badge sits in the top bar, and the
   ticker and a toast shout once per idle day.
 
+## Towns on the road (config 0.16.0)
+Jeff: too many blank spots on the map with no truck traffic; those places have people and trucks go in and
+out of them. Three things were wrong, and the fix is in the data layer.
+- **Too few towns.** Natural Earth's populated places stop at 679 towns for the whole lower 48, so the game had
+  536 and whole states saw a load every few days (Montana 0.4 pickups and deliveries a day, Vermont two in two
+  months; 70% of all load ends in the 126 places over 250,000). `places.ts` now comes from GeoNames cities500
+  (CC BY 4.0; 21,785 US towns with population): **4,786 places**, every town over 10,000, every county seat and
+  state capital, every hub, and the largest town of 1,000+ in every half-degree cell that had none. A suburb
+  within 5 miles folds into its neighbour with its people counted (a county seat of about the same size keeps
+  its name: Naples, not Golden Gate; Kansas City, Missouri, not the Kansas one). Montana has 62 places, every
+  county seat among them. Manufactured freight now scales linearly with population (it was the square root,
+  which would have handed most of a rural market's warehouse freight to its villages); farm, ranch, mine and
+  forest output stays per place, which is what puts a reefer at a town of 1,200.
+- **Towns weren't on the road.** The road graph only had nodes at junctions, and a town attached to the nearest
+  node: Challis, Idaho attached 75 miles away at the far end of a 267-mile stretch of US-93; Elko, on I-80, 46
+  miles off. Every place now splits the road at the spot nearest it (`RoadNetwork.addTerminal` projects onto the
+  road's segments), so a route between two towns runs through the towns between them on the real highway, and
+  a truck is drawn where it is. Towns sit a median 0.8 miles from the road they join.
+- **The road graph had loose ends.** The builder's rounding cell gave two nodes at one spot wherever a vertex sat
+  on a cell boundary (551 of them: I-94 met US-41 at the Wisconsin line twice, a foot apart, and never joined),
+  and interstates stopped a fifth of a mile short of the highway they meet (Castle Rock's nearest road ran 209
+  miles to Denver, 26 miles away). `build-roads.mjs` now merges nodes at one spot, ties any dead end to a road
+  within two miles (dead ends 262 → 118, none within two miles of another road), runs a second junction pass,
+  and carries a short curated list of roads Natural Earth leaves out (US-20/26 Carey–Arco–Blackfoot, which had
+  Challis routing to Boise through Montana; it is 286 miles now). Each place's row also carries the road point it
+  joins: the builder looks at the nearest spot on every road within 40 miles and takes the nearest one that
+  isn't a real detour to a hub, so the game never routes this at startup (4,786 places attach in 0.35 s).
+- **A routing bug** went with it: a town whose road point was a hub's own node (Clovis beside Fresno, suburbs of
+  Phoenix, Las Vegas, Seattle and Boise) got no route to that hub at all, and so the wrong market. And a tendered
+  load its own carrier booked through the ordinary board kept its tender flag; it now counts as the tender
+  accepted.
+- **Where freight lands now** (`npx tsx apps/sim/src/traffic.ts 60`, 60 AI days, 476 booked loads a day): towns
+  under 10,000 originate 10% of loads and receive 4%; 10–50,000 take 15% and 15%; the 217 places over 250,000
+  take 48% and 51% (from 70%). Montana sees 2.1 load ends a day across 32 towns, Idaho 4.5, Kansas 20. The
+  blank spots that remain are the national volume: about 1,100 trucks move 476 loads a day for the whole country.
+- **Known gaps:** three towns still reach their market the long way round (Sonora and Arnold, California, above
+  the Central Valley; Port Angeles, Washington) where Natural Earth has no road within two miles to tie to;
+  twelve towns have no road within 40 miles and attach to the nearest vertex; the 118 remaining dead ends are
+  real ends or gaps over two miles.
+- **Regenerate:** roads first (`node packages/data/tools/build-roads.mjs <na.shp> <na.dbf> . --tol 0.03`), then
+  places (`npx tsx packages/data/tools/build-places.mjs <cities500.txt> .`, GeoNames
+  `cities500.zip` downloaded outside the repo), since the places' road points reference the geometry.
+- **10 seeds × 4 years, token on** (`runs/compare-v23-c.md` vs v22-c): see the comparison file.
+
 ## Shipper leverage, local-first tendering and contracts (config 0.15.0)
 
 Jeff's design (2026-10-28): the more leverage shippers have (trucks piled up, few loads per truck),
@@ -471,11 +515,12 @@ Jeff's direction (2026-10-28): the whole country has people in it and they all n
 place produces something, even if only in season; loads should carry a commodity because a
 commodity brings its own urgency. Design in `DESIGN-PLACES.md`.
 
-- **Places** (`packages/data/src/places.ts`, generated by `tools/build-places.mjs` from Natural
-  Earth's populated places): 536 of them, every lower-48 place over 50,000 people with suburbs within
-  20 miles folded in, every state capital, every hub, and the largest town in every one-degree cell
-  that had none (Miles City, Gillette, Havre, Glasgow, Salmon…). Each belongs to the market it reaches
-  by road soonest among its nearest hubs. Attached to the road graph at the nearest node.
+- **Places** (`packages/data/src/places.ts`, generated by `tools/build-places.mjs`): at 0.14.0, 536
+  of them from Natural Earth's populated places (every lower-48 place over 50,000, state capitals,
+  hubs, and the largest town in every one-degree cell that had none), attached to the road graph at
+  the nearest junction. Since 0.16.0 (above): 4,786 from GeoNames, every town over 10,000 and every
+  county seat, each splitting the road beside it. Each belongs to the market it reaches by road
+  soonest among its nearest hubs.
 - **Commodities** (`commodities.ts`): 25, each with trailer, cargo value, appointment window,
   spoilage and season. **Economy** (`economy.ts`): consumption per capita, a state production table,
   and overrides for the places that matter more than their size (ports, Permian and Bakken oilfield

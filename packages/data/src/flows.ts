@@ -13,6 +13,9 @@ export interface Place {
   pop: number;
   /** The hub whose board this place's freight trades on. */
   market: number;
+  /** Where the place joins the road network (the nearest road that actually goes somewhere). */
+  atLat: number;
+  atLon: number;
 }
 
 /** Farm, ranch, mine and forest output doesn't scale with a town's size; factories and warehouses do. */
@@ -33,7 +36,7 @@ export interface Economy {
 export const COMMODITY_COUNT = COMMODITIES.length;
 
 export function loadPlaces(): Place[] {
-  return PLACE_ROWS.map((r) => ({ id: r[0], name: r[1], state: r[2], lat: r[3], lon: r[4], pop: r[5], market: r[6] }));
+  return PLACE_ROWS.map((r) => ({ id: r[0], name: r[1], state: r[2], lat: r[3], lon: r[4], pop: r[5], market: r[6], atLat: r[7], atLon: r[8] }));
 }
 
 /** Builds who-makes-what and who-buys-what from the tables in economy.ts. */
@@ -46,7 +49,9 @@ export function buildEconomy(places: Place[], marketCount: number): Economy {
   const marketProduction = new Float64Array(marketCount * C);
   for (let p = 0; p < P; p++) {
     const place = places[p]!;
-    const size = Math.max(0.1, Math.sqrt(Math.max(place.pop, 2_000) / 100_000));
+    // Factories and warehouses go with people: a town of 5,000 ships a twentieth of what a city of 100,000 does
+    // (the land-based goods below don't scale, which is what puts freight at a town of 1,200 in Montana).
+    const size = Math.max(place.pop, 1_000) / 100_000;
     const state = STATE_PRODUCTION[place.state] ?? {};
     const extra = PLACE_PRODUCTION[place.id] ?? {};
     const stateCons = STATE_CONSUMPTION[place.state] ?? {};

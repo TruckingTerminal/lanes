@@ -237,6 +237,15 @@ export function rejectTender(w: World, load: Load): void {
 }
 
 /** Takes a tender at the contract rate onto an idle truck within reach. */
+/** A tendered load its carrier books through the ordinary board (a bid, a book-now) counts as the tender accepted. */
+export function settleTender(w: World, company: Company, load: Load): void {
+  if (load.tenderedTo !== company.id) return;
+  const c = w.contracts.find((k) => k.id === load.contractId);
+  if (c) record(w, c, true);
+  load.tenderedTo = 0;
+  load.tenderUntil = 0;
+}
+
 export function acceptTender(w: World, company: Company, load: Load, truck: Truck): string | null {
   const c = w.contracts.find((k) => k.id === load.contractId);
   if (!c || load.tenderedTo !== company.id || load.status !== "open") return "that tender isn't open to you";
