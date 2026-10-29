@@ -6,6 +6,7 @@ import { rig, SCENES } from "../../assets.js";
 import { FAC_NAME, fd, pct, signedPct, TIER_NAME, TRAILER_NAME } from "../../format.js";
 import { act, me, myTrucks, S, useData } from "../../state.js";
 import { Btn, Card, Num, Panel, Pixel } from "../bits.js";
+import { Scene } from "../Loop.js";
 
 export function Dealer(): JSX.Element {
   useData();
@@ -28,7 +29,7 @@ export function Dealer(): JSX.Element {
   const facTypes: FacilityType[] = ["warehouse", "coldStorage", "factory"];
   return (
     <Panel title="Dealer">
-      <img class="scene" src={SCENES.dock} alt="" />
+      <Scene name="dealer" still={SCENES.dealer} alt="The dealership lot" />
       <p class="muted small">New trucks are paid now and delivered in {lead} days; the wait grows when the whole market is ordering. Used trucks deliver today.</p>
       <h3>Used trucks</h3>
       {used.length ? (

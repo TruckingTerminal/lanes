@@ -1,4 +1,5 @@
 import l0Summer from "../assets/map/l0-summer.png";
+import { bumpData } from "./state.js";
 
 /**
  * The painted map: the code-drawn base (map.ts, the real projection and data) repainted by
@@ -18,7 +19,8 @@ export type TownKind = "plains" | "forest" | "desert" | "south" | "coast" | "rus
 
 export type Season = "summer" | "autumn" | "winter" | "spring";
 
-const ASSETS = "assets/";
+/** Where the files next to the page live, relative to it. */
+export const ASSETS = "assets/";
 
 interface Pic {
   src: string;
@@ -57,6 +59,7 @@ function known(src: string): boolean {
       .then((m: Record<string, string[]>) => {
         manifest = m;
         onReady?.();
+        bumpData();
       })
       .catch(() => (manifest = {}));
   }
@@ -64,6 +67,11 @@ function known(src: string): boolean {
   if (!manifest) return false;
   const [sub, file] = src.slice(ASSETS.length).split("/");
   return (manifest[sub!] ?? []).includes(file!);
+}
+
+/** Whether a file (a path under assets/) is next to the page; false until the manifest has been read. */
+export function hasAsset(path: string): boolean {
+  return known(ASSETS + path);
 }
 
 function load(p: Pic): void {
@@ -152,6 +160,17 @@ export function townKindAt(lon: number, lat: number, nearWater: boolean): TownKi
   if (lat > 39 && lon > -91 && lon < -70) return "rust";
   if (lat < 36.5 && lon > -97) return "south";
   return "plains";
+}
+
+let loadingPic: Pic | null = null;
+/** The loading screen's rig strip (16 frames of 256 × 72) once it has decoded. */
+export function loadingStrip(): HTMLImageElement | null {
+  if (!loadingPic) {
+    if (!hasAsset("loading/rig.loop.png")) return null;
+    loadingPic = { src: `${ASSETS}loading/rig.loop.png`, img: null, ready: false };
+    load(loadingPic);
+  }
+  return loadingPic.ready ? loadingPic.img : null;
 }
 
 /** The season of an in-game month (1–12), for the seasonal paintings. */

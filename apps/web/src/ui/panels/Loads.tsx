@@ -6,7 +6,8 @@ import { cls, fd, fdFull, hhmm, pct, shortDate, TRAILER_CODE, TRAILER_NAME } fro
 import { nextRoundLabel, openLoadsAt, reloadClass, reloadLabel, SeasonNote, seasonSwing, statusText } from "../../logic.js";
 import { act, bumpData, me, myTrucks, S, selectTruck, useData } from "../../state.js";
 import { Btn, Card, Kv, Num, Panel } from "../bits.js";
-import { PEOPLE } from "../../assets.js";
+import { SCENES } from "../../assets.js";
+import { Portrait, Scene } from "../Loop.js";
 
 /**
  * The load board, laid out like DAT One: a search bar, a dense sortable results
@@ -105,6 +106,7 @@ export function Loads(): JSX.Element {
   if (!truck) {
     return (
       <Panel title="Load board">
+      <Scene name="truckstop" still={SCENES.truckstop} alt="The truck stop" />
         {search}
         <p class="muted">No idle trucks right now. Loads show here when a truck is free at a hub.</p>
         {S.selHub !== null ? <HubLoadsTable hub={S.selHub} /> : null}
@@ -141,6 +143,7 @@ export function Loads(): JSX.Element {
 
   return (
     <Panel title="Load board" right={pending ? <Btn sm onClick={() => act({ type: "cancel_bid", truckId: truck.id }, "Bid withdrawn")}>Withdraw bid {pending.rate.toFixed(2)}/mi</Btn> : null}>
+      <Scene name="truckstop" still={SCENES.truckstop} alt="The truck stop" />
       {search}
       <div class="results-head">
         <b>{rows.length} results</b>
@@ -235,7 +238,7 @@ function LoadRow({ r, truck, mine, pendingRate }: { r: Row; truck: Truck; mine: 
         </td>
         <td>
           <div class="row" style={{ flexWrap: "nowrap" }}>
-            <img class="portrait sm" src={l.brokerId !== null ? PEOPLE.broker : PEOPLE.dockworker} alt="" />
+            <Portrait who={l.brokerId !== null ? "broker" : "dockworker"} sm />
             <div>
               <div class="accent">{p.name}</div>
               <div class="muted small">

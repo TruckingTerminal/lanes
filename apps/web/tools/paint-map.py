@@ -117,7 +117,7 @@ def png_b64(img: np.ndarray) -> str:
 
 
 def b64_png(s: str) -> np.ndarray:
-    tmp = os.path.join(HERE, ".tile.png")
+    tmp = os.path.join(HERE, f".tile-{os.getpid()}.png")  # one per process: seasons paint side by side
     open(tmp, "wb").write(base64.b64decode(s))
     img = read_png(tmp)
     os.remove(tmp)

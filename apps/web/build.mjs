@@ -37,19 +37,22 @@ const page = readFileSync(join(here, "src", "page.html"), "utf8")
 const assetsOut = join(here, "dist", site ? "site" : ".", "assets");
 rmSync(assetsOut, { recursive: true, force: true });
 let copied = 0;
-for (const sub of ["map", "cities", "towns"]) {
+// The map layers and the sprites ride outside the page whole; the scenes, people and the loading
+// strip keep their stills inside it and only their loops outside.
+const RULES = { map: (f) => f !== "l0-summer.png", cities: () => true, towns: () => true, scenes: (f) => f.endsWith(".loop.png"), people: (f) => f.endsWith(".loop.png"), loading: (f) => f.endsWith(".loop.png") };
+for (const [sub, keep] of Object.entries(RULES)) {
   const src = join(here, "assets", sub);
   if (!existsSync(src)) continue;
   mkdirSync(join(assetsOut, sub), { recursive: true });
   for (const f of readdirSync(src)) {
-    if (!f.endsWith(".png") || f === "l0-summer.png") continue;
+    if (!f.endsWith(".png") || !keep(f)) continue;
     copyFileSync(join(src, f), join(assetsOut, sub, f));
     copied++;
   }
 }
 // The manifest tells the page which files exist, so it never asks for a sprite that was not painted yet.
 const manifest = {};
-for (const sub of ["map", "cities", "towns"]) manifest[sub] = existsSync(join(assetsOut, sub)) ? readdirSync(join(assetsOut, sub)).filter((f) => f.endsWith(".png")) : [];
+for (const sub of Object.keys(RULES)) manifest[sub] = existsSync(join(assetsOut, sub)) ? readdirSync(join(assetsOut, sub)).filter((f) => f.endsWith(".png")) : [];
 mkdirSync(assetsOut, { recursive: true });
 writeFileSync(join(assetsOut, "manifest.json"), JSON.stringify(manifest));
 console.log(`${assetsOut.replace(here + "/", "")}: ${copied} files`);

@@ -4,6 +4,8 @@ import { fd, usd } from "../../format.js";
 import { GAME_CONFIG } from "../../game.js";
 import { act, feed, me, myTrucks, S, truckNo, useData } from "../../state.js";
 import { Btn, Card, Kv, Num, Panel, Sparkline } from "../bits.js";
+import { SCENES } from "../../assets.js";
+import { Scene } from "../Loop.js";
 
 const num = (id: string): number => Number((document.getElementById(id) as HTMLInputElement | null)?.value);
 
@@ -74,6 +76,7 @@ export function Money(): JSX.Element {
   }
   return (
     <Panel title="Money">
+      <Scene name="bank" still={SCENES.bank} alt="The bank" />
       <Card>
         <Kv
           rows={[
