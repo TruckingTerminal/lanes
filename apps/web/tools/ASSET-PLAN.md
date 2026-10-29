@@ -106,6 +106,11 @@ characters at most, a "diorama" result needs "flat ground fading to transparency
 stray landmark from a neighbouring hub's text can land in open water (redo the tile), and tiles paint
 the open sea in their own shade (`calm-ocean.py` gives it level 0's).
 
+Title (2026-10-30): a 40-frame PixMiniMax loop (4 generations) shipped as a sheet next to the page
+(`assets/title/title.loop.png`, 8 columns), drawn at 12 fps with the last six frames crossfading into the
+first six; the 16 inline frames are the poster until it decodes. The logo is the Trucking Terminal truck
+mark as HD pixel art with LANES in its blues, and "by Trucking Terminal" under it on the title.
+
 Map total this month ≈ 2,500 (level 0 with seasons 600, level 1 600, cities 1,000, towns 170, weather 50,
 retries ~100), leaving ~2,000 of the 4,700 balance for trucks, people, scenes and menus (~1,450).
 
