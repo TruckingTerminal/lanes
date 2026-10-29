@@ -1,9 +1,9 @@
 import type { JSX } from "preact";
 import { useEffect, useRef } from "preact/hooks";
-import { companyAccount, fdPriceUsd, garagingOf, homeCrowding, tokenLive, type World } from "@lanes/engine";
+import { companyAccount, fdPriceUsd, garagingOf, homeCrowding, localShare, tokenLive, type World } from "@lanes/engine";
 import { hubs as HUBS } from "@lanes/data";
 import { drawLoadingRoad, drawTitleScene, iconUrl, logo, PAL, TITLE_H, TITLE_W, truckUrl } from "../art.js";
-import { cls, fd, dateLabel, hhmm, realUntil } from "../format.js";
+import { cls, fd, dateLabel, hhmm, pct, realUntil } from "../format.js";
 import { GAME_CONFIG, isHuman, RULESET, type StartKind } from "../game.js";
 import { H } from "../handlers.js";
 import { stuckTrucks, tiredTrucks } from "../logic.js";
@@ -11,6 +11,7 @@ import { fitMap, maxZoom, mountMap, setZoom, zoom, zoomIndex } from "../mapview.
 import { clockMin, feed, fsActive, fsEnabled, S, setLayout, setTab, setTheme, SPEEDS, TEST_BUILD, THEMES, toggleFullscreen, useData, useTick, type Tab } from "../state.js";
 import { Badge, Btn, Card, Pixel } from "./bits.js";
 import { Company } from "./panels/Company.js";
+import { myTenders } from "./panels/Contracts.js";
 import { Dealer } from "./panels/Dealer.js";
 import { Fleet } from "./panels/Fleet.js";
 import { Guide } from "./panels/Guide.js";
@@ -133,6 +134,7 @@ export function HubChoiceTable({ w }: { w: World | null }): JSX.Element {
           <tr>
             <th>Hub</th>
             <th>Outbound van / reefer / flatbed</th>
+            <th>Local first</th>
             <th>Insurance</th>
             <th>Yard FD/wk per extra truck</th>
             {w ? <th>Carriers</th> : null}
@@ -144,12 +146,16 @@ export function HubChoiceTable({ w }: { w: World | null }): JSX.Element {
             const metro = cfg.homeBase.yardTier[0] + cfg.homeBase.yardTier[1] * h.weight;
             const r = w ? homeCrowding(w)[i]! : 1;
             const yard = cfg.homeBase.yardPerTruckWeek * metro * Math.min(cfg.homeBase.yardCrowdClamp[1], Math.max(cfg.homeBase.yardCrowdClamp[0], r));
+            // Local-first share: from the live market, or from the hub's outbound balance before a world exists.
+            const lv = cfg.leverage;
+            const share = w ? localShare(w, i, "van") : Math.min(lv.localShareClamp[1], Math.max(lv.localShareClamp[0], lv.localShareAtBalance - lv.localShareSlope * Math.log2(h.imbalance.van)));
             return (
               <tr key={h.id}>
                 <td>{h.name}</td>
                 <td>
                   {arrow(h.imbalance.van)} / {arrow(h.imbalance.reefer)} / {arrow(h.imbalance.flatbed)}
                 </td>
+                <td class={cls("num", share >= 0.6 && "good", share <= 0.3 && "warn")}>{pct(share)}</td>
                 <td class="num">×{garagingOf(h.id).toFixed(2)}</td>
                 <td class="num">{fd(yard)}</td>
                 {w ? <td>{crowdWord(r)}</td> : null}
@@ -158,7 +164,7 @@ export function HubChoiceTable({ w }: { w: World | null }): JSX.Element {
           })}
         </tbody>
       </table>
-      <p class="muted small">Strong outbound means plenty of freight to reload on; weak means trucks pile up and outbound pays little (inbound pays more). Local shippers favor carriers based nearby, an edge that shrinks the more carriers share the hub.</p>
+      <p class="muted small">Strong outbound means plenty of freight to reload on; weak means trucks pile up and outbound pays little (inbound pays more). "Local first" is the share of the hub's van loads its shippers hold for carriers based nearby for the first round: where trucks pile up, shippers work with locals almost exclusively, and offer the reliable ones contract lanes. The edge from being local shrinks the more carriers share the hub.</p>
     </>
   );
 }
@@ -362,6 +368,7 @@ function TopBar(): JSX.Element {
   const miles = c ? c.milesHistory.reduce((a, b) => a + b, 0) + c.milesTotal : 0;
   const stuck = c ? stuckTrucks().length : 0;
   const tired = c ? tiredTrucks().length : 0;
+  const tenders = c ? myTenders(c).length : 0;
   return (
     <header class="topbar">
       <div class="brand">
@@ -423,6 +430,11 @@ function TopBar(): JSX.Element {
         {tired ? (
           <Badge tone="alert" title="Drivers out three weeks or running tired: the Fleet tab says what to do">
             {tired} tired
+          </Badge>
+        ) : null}
+        {tenders ? (
+          <Badge tone="alert" title="Contract tenders waiting for you: the Fleet tab has them">
+            {tenders} tender{tenders > 1 ? "s" : ""}
           </Badge>
         ) : null}
         <ThemePicker />
