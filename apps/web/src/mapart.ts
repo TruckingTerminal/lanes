@@ -13,7 +13,7 @@ export const MAP_H = 960;
 /** The city sprites are drawn pixel for pixel at this many device pixels per level-0 art pixel. */
 export const CITY_SCALE = 4;
 /** The town sprites (128 px) are drawn pixel for pixel at this many device pixels per level-0 art pixel. */
-export const TOWN_SCALE = 8;
+export const TOWN_SCALE = 12;
 export type TownKind = "plains" | "forest" | "desert" | "south" | "coast" | "rust";
 
 export type Season = "summer" | "autumn" | "winter" | "spring";
