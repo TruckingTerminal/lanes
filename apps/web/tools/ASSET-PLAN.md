@@ -111,6 +111,12 @@ Title (2026-10-30): a 40-frame PixMiniMax loop (4 generations) shipped as a shee
 first six; the 16 inline frames are the poster until it decodes. The logo is the Trucking Terminal truck
 mark as HD pixel art with LANES in its blues, and "by Trucking Terminal" under it on the title.
 
+Trucks (2026-10-30, block C): the map's eight-heading rigs are 68-px object sheets per trailer
+(`assets/trucks/{van,reefer,flatbed}64`, 10 generations each; their own pixels at 4×, cabs repainted by
+hue for other carriers), the side-view rigs are Pro 256 × 96 paintings with rolling loops (the
+animator takes nothing wider than 256; the 320-wide first set is kept locally in rigs/v320) played
+in the truck cards and the start form, with the fleet option's cab turned red by a CSS hue rotation.
+
 Map total this month ≈ 2,500 (level 0 with seasons 600, level 1 600, cities 1,000, towns 170, weather 50,
 retries ~100), leaving ~2,000 of the 4,700 balance for trucks, people, scenes and menus (~1,450).
 
