@@ -5,7 +5,7 @@ import { drawText, textWidth } from "./font.js";
 import { isHuman } from "./game.js";
 import { buildMap, hash, headingDir, nightColor, nightShade, truckMarkers, type MapArt, type MarkerKind } from "./map.js";
 import { TRUCK_SCALE, truckFrame } from "./assets.js";
-import { CITY_SCALE, citySprite, hasPaintedMap, MAP_H, MAP_W, mapLevel, seasonOf, spriteFrame, TOWN_SCALE, townKindAt, townSprite, type Season } from "./mapart.js";
+import { CITY_SCALE, citySprite, hasPaintedMap, MAP_H, MAP_W, mapLevel, seasonOf, spriteFrame, tileSprite, TOWN_SCALE, townKindAt, townSprite, vfxSprite, type Season } from "./mapart.js";
 import { weatherAt, weatherLabel, type Weather } from "./weather.js";
 import { bumpData, clockMin, myTrucks, S, selectTruck, setTab } from "./state.js";
 import { openLoadsAt, reloadLabel, seasonSwing } from "./logic.js";
@@ -586,6 +586,14 @@ function drawWeather(ctx: CanvasRenderingContext2D, now: number, k: number, u: n
   const cx0 = Math.floor((wx0 * k) / cell) * cell;
   const cy0 = Math.floor((wy0 * k) / cell) * cell;
   const lights: [number, number, Weather][] = [];
+  // The painted effects (assets/vfx): the code's strokes stand in until they decode. Rain and snow
+  // tile at the painting's own scale (a quarter of the zoom, never under half nor over twice), the
+  // clouds drift over every cloudy cell at their own sizes and paces.
+  const rainFx = vfxSprite("rain");
+  const snowFx = vfxSprite("snow");
+  const fogFx = vfxSprite("fog");
+  const cloudFx = vfxSprite("cloud");
+  const fxScale = Math.max(0.5, Math.min(2, k / 4));
   // Only over the map itself: nothing falls on the band around it.
   ctx.save();
   ctx.beginPath();
@@ -599,6 +607,16 @@ function drawWeather(ctx: CanvasRenderingContext2D, now: number, k: number, u: n
       const X = gx - panX;
       const Y = gy - panY;
       const cs = Math.floor(gx / cell) * 73 + Math.floor(gy / cell) * 151;
+      if (cloudFx && wx.kind !== "fog" && hash(cs, 9, 73) < (wx.kind === "cloud" ? 0.55 : 0.8)) {
+        const cw = cell * (0.9 + hash(cs, 10, 74) * 0.8);
+        const chh = (cw * cloudFx.fh) / cloudFx.fw;
+        const drift = ((now / (160 + hash(cs, 11, 75) * 120) + cs * 3) % (cell * 2.5)) - cell;
+        ctx.globalAlpha = (wx.kind === "cloud" ? 0.5 : 0.7) * (0.7 + 0.3 * wx.intensity);
+        ctx.imageSmoothingEnabled = true;
+        ctx.drawImage(cloudFx.img, 0, 0, cloudFx.fw, cloudFx.fh, Math.round(X + drift), Math.round(Y + (hash(cs, 12, 76) - 0.5) * cell * 0.5), Math.round(cw), Math.round(chh));
+        ctx.imageSmoothingEnabled = false;
+        ctx.globalAlpha = 1;
+      }
       // Cloud shade and fog banks: soft-edged patches wider than their cell, each its own size and
       // drift, so neighbours merge into weather systems instead of a grid of discs.
       const blob = (r: number, g: number, b: number, alpha: number, speed: number) => {
@@ -618,37 +636,63 @@ function drawWeather(ctx: CanvasRenderingContext2D, now: number, k: number, u: n
         blob(9, 12, 23, (wx.kind === "storm" ? 0.16 : 0.09) * (0.5 + 0.5 * wx.intensity), 140);
       }
       if (wx.kind === "rain" || wx.kind === "storm") {
-        ctx.globalAlpha = 0.55;
-        ctx.fillStyle = PAL.blueL;
-        const n = 3 + Math.round(wx.intensity * 6);
-        for (let i = 0; i < n; i++) {
-          const ox = hash(cs, i, 51) * cell;
-          const fall = ((now / 4 + hash(cs, i, 52) * cell * 3) % (cell * 1.2)) - cell * 0.1;
-          ctx.fillRect(Math.round(X + ox - fall * 0.25), Math.round(Y + fall), u, 4 * u);
+        if (rainFx) tileSprite(ctx, rainFx, now, 0, X, Y, cell, cell, fxScale, (wx.kind === "storm" ? 0.75 : 0.55) * (0.6 + 0.4 * wx.intensity));
+        else {
+          ctx.globalAlpha = 0.55;
+          ctx.fillStyle = PAL.blueL;
+          const n = 3 + Math.round(wx.intensity * 6);
+          for (let i = 0; i < n; i++) {
+            const ox = hash(cs, i, 51) * cell;
+            const fall = ((now / 4 + hash(cs, i, 52) * cell * 3) % (cell * 1.2)) - cell * 0.1;
+            ctx.fillRect(Math.round(X + ox - fall * 0.25), Math.round(Y + fall), u, 4 * u);
+          }
         }
         if (wx.kind === "storm" && (Math.floor(now / 90) + cs) % 97 === 0) lights.push([X, Y, wx]);
       } else if (wx.kind === "snow") {
-        ctx.globalAlpha = 0.85;
-        ctx.fillStyle = PAL.white;
-        const n = 3 + Math.round(wx.intensity * 6);
-        for (let i = 0; i < n; i++) {
-          const ox = hash(cs, i, 53) * cell;
-          const fall = (now / 22 + hash(cs, i, 54) * cell * 3) % cell;
-          const sway = Math.sin((now / 700) + i) * 3 * u;
-          ctx.fillRect(Math.round(X + ox + sway), Math.round(Y + fall), u, u);
+        if (snowFx) tileSprite(ctx, snowFx, now, 0, X, Y, cell, cell, fxScale, 0.6 + 0.4 * wx.intensity);
+        else {
+          ctx.globalAlpha = 0.85;
+          ctx.fillStyle = PAL.white;
+          const n = 3 + Math.round(wx.intensity * 6);
+          for (let i = 0; i < n; i++) {
+            const ox = hash(cs, i, 53) * cell;
+            const fall = (now / 22 + hash(cs, i, 54) * cell * 3) % cell;
+            const sway = Math.sin((now / 700) + i) * 3 * u;
+            ctx.fillRect(Math.round(X + ox + sway), Math.round(Y + fall), u, u);
+          }
         }
       } else if (wx.kind === "fog") {
-        blob(182, 196, 220, 0.22 + 0.3 * wx.intensity, 220);
+        blob(182, 196, 220, (fogFx ? 0.1 : 0.22) + 0.3 * wx.intensity * (fogFx ? 0.5 : 1), 220);
+        if (fogFx) {
+          const [sx, sy] = spriteFrame(fogFx, now, cs);
+          const fw = cell * 1.6;
+          const fh = (fw * fogFx.fh) / fogFx.fw;
+          const drift = ((now / (200 + hash(cs, 13, 77) * 100) + cs * 5) % (cell * 2)) - cell;
+          ctx.globalAlpha = 0.35 + 0.4 * wx.intensity;
+          ctx.imageSmoothingEnabled = true;
+          ctx.drawImage(fogFx.img, sx, sy, fogFx.fw, fogFx.fh, Math.round(X + drift - cell * 0.3), Math.round(Y + cell * 0.2), Math.round(fw), Math.round(fh));
+          ctx.imageSmoothingEnabled = false;
+          ctx.globalAlpha = 1;
+        }
       }
     }
   }
-  // Lightning: a flash over the cell and a jagged bolt for one frame.
+  // Lightning: a flash over the cell and a bolt for one frame, the painted one when it is there.
   ctx.restore();
+  const boltFx = vfxSprite("bolt");
   for (const [X, Y] of lights) {
     ctx.globalAlpha = 0.5;
     ctx.fillStyle = PAL.white;
     ctx.fillRect(X - cell, Y - cell, cell * 3, cell * 3);
     ctx.globalAlpha = 1;
+    if (boltFx) {
+      const bh = cell * 1.4;
+      const bw = (bh * boltFx.fw) / boltFx.fh;
+      ctx.imageSmoothingEnabled = true;
+      ctx.drawImage(boltFx.img, 0, 0, boltFx.fw, boltFx.fh, Math.round(X + cell / 2 - bw / 2), Math.round(Y - cell * 0.4), Math.round(bw), Math.round(bh));
+      ctx.imageSmoothingEnabled = false;
+      continue;
+    }
     let bx = X + cell / 2;
     for (let by = Y; by < Y + cell; by += 4 * u) {
       bx += (hash(Math.round(bx), Math.round(by), 55) - 0.5) * 6 * u;
@@ -667,20 +711,28 @@ function drawHubLabels(ctx: CanvasRenderingContext2D, f: number, k: number, u: n
     open = new Map();
     for (const l of w.loads.values()) if (l.status === "open") open.set(l.origin, (open.get(l.origin) ?? 0) + 1);
   }
-  w.net.hubs.forEach((h, i) => {
+  // Every city by its full name, the biggest first; a name that would overlap one already placed
+  // waits for the next zoom in, so the crowded corridors stay readable at every level.
+  const order = w.net.hubs.map((_, i) => i).sort((a, b) => (a === S.selHub ? -1 : b === S.selHub ? 1 : w.net.hubs[b]!.weight - w.net.hubs[a]!.weight));
+  const placed: [number, number, number, number][] = [];
+  for (const i of order) {
+    const h = w.net.hubs[i]!;
     const cls = art!.cityClass[i]!;
-    if (z === 1 && cls < 3 && i !== S.selHub) return;
+    if (z === 1 && cls < 2 && i !== S.selHub) continue;
     const [X, Y] = toScreen(...art!.hubXY[i]!);
-    if (!visible(X, Y)) return;
-    const text = z >= 4 ? h.name.toUpperCase() : h.id;
+    if (!visible(X, Y)) continue;
+    const text = h.name.toUpperCase();
     const count = open ? String(open.get(i) ?? 0) : "";
     const tw = textWidth(text) * L;
     const x = X - Math.round(tw / 2);
     const top = k >= CITY_SCALE && citySprite(h.id) ? ((128 * k) / CITY_SCALE) * 1.2 : CITY_TOP[cls]! * k;
     const y = Math.round(Y - top - 7 * L - 2 * u);
+    const box: [number, number, number, number] = [x - 3 * L, y - 2 * L, x + tw + (count ? (3 + textWidth(count)) * L : 0) + 3 * L, y + 9 * L];
+    if (placed.some((b) => b[0] < box[2] && box[0] < b[2] && b[1] < box[3] && box[1] < b[3])) continue;
+    placed.push(box);
     drawText(ctx, text, x, y, L, i === S.selHub ? PAL.gold : PAL.white, PAL.ink0);
     if (count) drawText(ctx, count, x + tw + 3 * L, y, L, PAL.gold, PAL.ink0);
-  });
+  }
 }
 
 // --- Pointer -------------------------------------------------------------------------
@@ -721,7 +773,33 @@ function selectOnMap(ev: { clientX: number; clientY: number }): void {
   } else {
     const h = nearestHub(x, y);
     S.selHub = h;
-    if (h !== null) S.tab = "loads";
+    if (h !== null) {
+      S.tab = "loads";
+      S.cityView = h;
+      S.townView = null;
+    } else if (zf >= 4) {
+      // The towns are drawn from 4×: a tap on one opens the market it trades on, as that town.
+      const pl = S.game!.w.net.places;
+      const minPop = zf >= 8 ? 10_000 : zf >= 6 ? 30_000 : 80_000;
+      let bt: number | null = null;
+      let bd = 10 / zoom();
+      for (let i = 0; i < pl.length; i++) {
+        const p = pl[i]!;
+        if (p.pop < minPop) continue;
+        const [px, py] = art!.project(p.lon, p.lat);
+        const d = Math.hypot(px - x, py - y);
+        if (d < bd) {
+          bd = d;
+          bt = i;
+        }
+      }
+      if (bt !== null) {
+        S.townView = bt;
+        S.cityView = pl[bt]!.market;
+        S.selHub = pl[bt]!.market;
+        S.tab = "loads";
+      }
+    }
   }
   bumpData();
 }

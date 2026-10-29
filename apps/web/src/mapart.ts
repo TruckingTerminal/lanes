@@ -9,10 +9,10 @@ import { bumpData } from "./state.js";
  * rides inside the page; level n is 2ⁿ× that and, like the cities, loads from `assets/` next to
  * the page (dist/site/assets on the test site, the artifact's published files on claude.ai).
  */
-export const MAP_W = 1408;
-export const MAP_H = 960;
+export const MAP_W = 1584;
+export const MAP_H = 856;
 /** The city sprites are drawn pixel for pixel at this many device pixels per level-0 art pixel. */
-export const CITY_SCALE = 4;
+export const CITY_SCALE = 8;
 /** The town sprites (128 px) are drawn pixel for pixel at this many device pixels per level-0 art pixel. */
 export const TOWN_SCALE = 12;
 export type TownKind = "plains" | "forest" | "desert" | "south" | "coast" | "rust";
@@ -35,9 +35,9 @@ interface Level extends Pic {
 const level = (season: Season, scale: number, src: string): Level => ({ season, scale, src, img: null, ready: false });
 const LEVELS: Record<Season, Level[]> = {
   summer: [level("summer", 1, l0Summer), level("summer", 2, `${ASSETS}map/l1-summer.png`)],
-  autumn: [level("autumn", 1, `${ASSETS}map/l0-autumn.png`)],
-  winter: [level("winter", 1, `${ASSETS}map/l0-winter.png`)],
-  spring: [level("spring", 1, `${ASSETS}map/l0-spring.png`)],
+  autumn: [level("autumn", 1, `${ASSETS}map/l0-autumn.png`), level("autumn", 2, `${ASSETS}map/l1-autumn.png`)],
+  winter: [level("winter", 1, `${ASSETS}map/l0-winter.png`), level("winter", 2, `${ASSETS}map/l1-winter.png`)],
+  spring: [level("spring", 1, `${ASSETS}map/l0-spring.png`), level("spring", 2, `${ASSETS}map/l1-spring.png`)],
 };
 
 /** Whether a painted map ships in this build (the view then sizes the base to it). */
@@ -97,8 +97,10 @@ function pick(levels: Level[], k: number): Level | null {
 }
 
 /**
- * The painting to draw at `k` device pixels per level-0 art pixel: the season's own finest level,
- * or summer's when that is finer and the zoom is in (the view then washes it with the season).
+ * The painting to draw at `k` device pixels per level-0 art pixel: the season's own finest level
+ * (every season has both levels: level 1's seasons carry the level-0 painting's colour onto level
+ * 1's detail, tools/season-l1.py), or summer's when that is finer and the zoom is in, which only
+ * happens while a season's level 1 has not decoded yet (the view then washes it with the season).
  */
 export function mapLevel(season: Season, k: number): { img: HTMLImageElement; scale: number; season: Season } | null {
   const own = pick(LEVELS[season], k);
@@ -121,20 +123,42 @@ export interface Sprite {
 export const LOOP_FPS = 8;
 const LOOP_COLS = 4;
 
-const cities = new Map<string, Pic & { loop: boolean }>();
-/** A hub's isometric city sprite once it has decoded: its 16-frame loop when one was painted, else the still. */
-export function citySprite(hubId: string): Sprite | null {
-  let p = cities.get(hubId);
+const sheets = new Map<string, Pic & { loop: boolean }>();
+/** A sprite from a folder next to the page once it has decoded: its 16-frame 4 × 4 loop sheet when one was painted, else the still. */
+function sheetSprite(path: string): Sprite | null {
+  let p = sheets.get(path);
   if (!p) {
-    const loop = known(`${ASSETS}cities/${hubId}.loop.png`);
+    const loop = known(`${ASSETS}${path}.loop.png`);
     if (!manifest) return null;
-    p = { src: `${ASSETS}cities/${hubId}${loop ? ".loop" : ""}.png`, img: null, ready: false, loop };
-    cities.set(hubId, p);
+    p = { src: `${ASSETS}${path}${loop ? ".loop" : ""}.png`, img: null, ready: false, loop };
+    sheets.set(path, p);
     load(p);
   }
   if (!p.ready) return null;
   const img = p.img!;
   return p.loop ? { img, fw: img.width / LOOP_COLS, fh: img.height / LOOP_COLS, frames: LOOP_COLS * LOOP_COLS, cols: LOOP_COLS } : { img, fw: img.width, fh: img.height, frames: 1, cols: 1 };
+}
+/** A hub's isometric city sprite once it has decoded: its 16-frame loop when one was painted, else the still. */
+export const citySprite = (hubId: string): Sprite | null => sheetSprite(`cities/${hubId}`);
+/**
+ * A painted weather effect (assets/vfx, tools/vfx.sh): rain, snow and fog as 256-wide loops on
+ * transparency that the map and the scenes tile over the weather, a cloud the map drifts across
+ * the country, and a lightning bolt; null until it has decoded (the code's own strokes stand in).
+ */
+export const vfxSprite = (name: "rain" | "snow" | "fog" | "cloud" | "bolt"): Sprite | null => sheetSprite(`vfx/${name}`);
+/** Tiles a sprite's current frame over a rectangle at `scale`, clipped to it. */
+export function tileSprite(ctx: CanvasRenderingContext2D, sp: Sprite, now: number, phase: number, x: number, y: number, w: number, h: number, scale: number, alpha: number): void {
+  const [sx, sy] = spriteFrame(sp, now, phase);
+  const tw = sp.fw * scale;
+  const th = sp.fh * scale;
+  ctx.save();
+  ctx.beginPath();
+  ctx.rect(x, y, w, h);
+  ctx.clip();
+  ctx.globalAlpha = alpha;
+  ctx.imageSmoothingEnabled = !Number.isInteger(scale);
+  for (let ty = Math.floor(y / th) * th; ty < y + h; ty += th) for (let tx = Math.floor(x / tw) * tw; tx < x + w; tx += tw) ctx.drawImage(sp.img, sx, sy, sp.fw, sp.fh, Math.round(tx), Math.round(ty), Math.ceil(tw), Math.ceil(th));
+  ctx.restore();
 }
 /** The cell of a sprite to show at time `tMs`. */
 export function spriteFrame(sp: Sprite, tMs: number, phase = 0): [number, number] {

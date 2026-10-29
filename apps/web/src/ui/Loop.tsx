@@ -1,6 +1,6 @@
 import type { JSX } from "preact";
 import { useEffect, useRef } from "preact/hooks";
-import { ASSETS, hasAsset, seasonOf } from "../mapart.js";
+import { ASSETS, hasAsset, seasonOf, spriteFrame, tileSprite, vfxSprite } from "../mapart.js";
 import { PEOPLE, PEOPLE_FILE, rig, type Person } from "../assets.js";
 import type { Equipment } from "@lanes/config";
 import { clockMin, S, useData } from "../state.js";
@@ -52,8 +52,11 @@ export function Scene({ name, still, alt }: { name: string; still: string; alt?:
   );
 }
 
-/** The weather over a scene: rain, snow, fog, cloud and lightning at the player's home hub, animated on a canvas. */
-function Sky(): JSX.Element {
+/**
+ * The weather over a scene: rain, snow, fog, cloud and lightning at a hub (the player's home
+ * unless one is given), animated on a canvas of the scene's size (256 × 144 unless given).
+ */
+export function Sky({ hub, w = 256, h = 144 }: { hub?: number; w?: number; h?: number }): JSX.Element {
   const ref = useRef<HTMLCanvasElement>(null);
   useEffect(() => {
     const cv = ref.current!;
@@ -63,11 +66,14 @@ function Sky(): JSX.Element {
       raf = requestAnimationFrame(frame);
       const g = S.game;
       if (!g) return;
-      const hub = g.w.net.hubs[g.player?.homeHub ?? 0] ?? g.w.net.hubs[0]!;
+      const at = g.w.net.hubs[hub ?? g.player?.homeHub ?? 0] ?? g.w.net.hubs[0]!;
       const minute = clockMin();
-      const wx = weatherAt(hub.lon, hub.lat, Math.floor(minute / 1440), (minute / 60) % 24, g.w.seed);
+      const wx = weatherAt(at.lon, at.lat, Math.floor(minute / 1440), (minute / 60) % 24, g.w.seed);
       const W = cv.width;
       const H = cv.height;
+      // Everything is sized for the 256-wide scene: the count grows with the canvas, the drops and flakes more gently.
+      const q = W / 256;
+      const r = Math.sqrt(q);
       ctx.clearRect(0, 0, W, H);
       if (wx.kind === "clear" || wx.kind === "heat") return;
       if (wx.kind !== "fog") {
@@ -75,44 +81,70 @@ function Sky(): JSX.Element {
         ctx.fillStyle = PAL.ink0;
         ctx.fillRect(0, 0, W, H);
       }
-      const n = Math.round(40 + 120 * wx.intensity);
+      const n = Math.round((40 + 120 * wx.intensity) * q);
+      // The painted effects (assets/vfx) tile over the scene pixel for pixel; the code's strokes stand in until they decode.
+      const fx = wx.kind === "rain" || wx.kind === "storm" ? vfxSprite("rain") : wx.kind === "snow" ? vfxSprite("snow") : wx.kind === "fog" ? vfxSprite("fog") : null;
       if (wx.kind === "rain" || wx.kind === "storm") {
-        ctx.globalAlpha = 0.55;
-        ctx.fillStyle = PAL.blueL;
-        for (let i = 0; i < n; i++) {
-          const x = hash(i, 1, 61) * W;
-          const y = (now / 3 + hash(i, 2, 62) * H * 2) % (H + 12) - 12;
-          ctx.fillRect(Math.round(x - y * 0.2), Math.round(y), 1, 6);
+        if (fx) tileSprite(ctx, fx, now, 0, 0, 0, W, H, 1, 0.55 + 0.4 * wx.intensity);
+        else {
+          ctx.globalAlpha = 0.55;
+          ctx.fillStyle = PAL.blueL;
+          for (let i = 0; i < n; i++) {
+            const x = hash(i, 1, 61) * W;
+            const y = (now / 3 + hash(i, 2, 62) * H * 2) % (H + 12 * q) - 12 * q;
+            ctx.fillRect(Math.round(x - y * 0.2), Math.round(y), Math.round(r), Math.round(6 * r));
+          }
         }
         if (wx.kind === "storm" && Math.floor(now / 90) % 61 === 0) {
-          ctx.globalAlpha = 0.45;
+          const bolt = vfxSprite("bolt");
+          ctx.globalAlpha = bolt ? 0.3 : 0.45;
           ctx.fillStyle = PAL.white;
           ctx.fillRect(0, 0, W, H);
+          if (bolt) {
+            const [bx, by] = spriteFrame(bolt, now);
+            const bh = H * 0.8;
+            const bw = (bolt.fw / bolt.fh) * bh;
+            ctx.globalAlpha = 1;
+            ctx.drawImage(bolt.img, bx, by, bolt.fw, bolt.fh, Math.round(hash(Math.floor(now / 90), 5, 65) * (W - bw)), 0, Math.round(bw), Math.round(bh));
+          }
         }
       } else if (wx.kind === "snow") {
-        ctx.globalAlpha = 0.9;
-        ctx.fillStyle = PAL.white;
-        for (let i = 0; i < n; i++) {
-          const x = hash(i, 3, 63) * W + Math.sin(now / 900 + i) * 4;
-          const y = (now / 18 + hash(i, 4, 64) * H * 2) % (H + 4) - 2;
-          ctx.fillRect(Math.round(x), Math.round(y), 2, 2);
+        if (fx) tileSprite(ctx, fx, now, 0, 0, 0, W, H, 1, 0.75 + 0.25 * wx.intensity);
+        else {
+          ctx.globalAlpha = 0.9;
+          ctx.fillStyle = PAL.white;
+          for (let i = 0; i < n; i++) {
+            const x = hash(i, 3, 63) * W + Math.sin(now / 900 + i) * 4 * q;
+            const y = (now / 18 + hash(i, 4, 64) * H * 2) % (H + 4 * q) - 2 * q;
+            ctx.fillRect(Math.round(x), Math.round(y), Math.round(1.5 * r), Math.round(1.5 * r));
+          }
         }
       } else if (wx.kind === "fog") {
-        ctx.globalAlpha = 0.25 + 0.3 * wx.intensity;
-        ctx.fillStyle = PAL.fog;
-        for (let i = 0; i < 6; i++) {
-          const x = ((now / 140 + i * 97) % (W + 120)) - 120;
-          ctx.beginPath();
-          ctx.ellipse(x, H * 0.55 + i * 9, 90, 22, 0, 0, Math.PI * 2);
-          ctx.fill();
+        if (fx) {
+          // Banks of painted mist drift across the lower half, each at its own pace.
+          const [sx, sy] = spriteFrame(fx, now);
+          ctx.globalAlpha = 0.35 + 0.35 * wx.intensity;
+          for (let i = 0; i < 3; i++) {
+            const x = ((now / (120 + i * 40) + i * 170 * q) % (W + fx.fw)) - fx.fw;
+            ctx.drawImage(fx.img, sx, sy, fx.fw, fx.fh, Math.round(x), Math.round(H - fx.fh * (0.6 + i * 0.35)), fx.fw, fx.fh);
+          }
+        } else {
+          ctx.globalAlpha = 0.25 + 0.3 * wx.intensity;
+          ctx.fillStyle = PAL.fog;
+          for (let i = 0; i < 6; i++) {
+            const x = ((now / 140 + i * 97 * q) % (W + 120 * q)) - 120 * q;
+            ctx.beginPath();
+            ctx.ellipse(x, H * 0.55 + i * 9 * q, 90 * q, 22 * q, 0, 0, Math.PI * 2);
+            ctx.fill();
+          }
         }
       }
       ctx.globalAlpha = 1;
     };
     raf = requestAnimationFrame(frame);
     return () => cancelAnimationFrame(raf);
-  }, []);
-  return <canvas ref={ref} class="sky" width={256} height={144} aria-hidden="true" />;
+  }, [hub]);
+  return <canvas ref={ref} class="sky" width={w} height={h} aria-hidden="true" />;
 }
 
 /** A side-view rig for the cards and the start form: 256 × 96 with its rolling loop; `paint` recolours the cab by hue. */

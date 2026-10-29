@@ -241,6 +241,12 @@ function wireKeys(): void {
     if (ev.key === "+" || ev.key === "=") setZoom(zoomIndex() + 1);
     if (ev.key === "-" || ev.key === "_") setZoom(zoomIndex() - 1);
     if (ev.key === "0") setZoom(0);
+    if (ev.key === "Escape" && S.cityView !== null) {
+      S.cityView = null;
+      S.townView = null;
+      bumpData();
+      return;
+    }
     if (ev.key === "Escape" && S.layout !== "split") setLayout("split");
     if (g.kind !== "test") return;
     if (ev.key === " ") {
