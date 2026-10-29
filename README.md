@@ -496,8 +496,20 @@ truck idle past a day deadheads or takes a cheap backhaul, because sitting costs
   saturated: they haul about 560 loads a day whatever is posted, 45% of loads expire at the 2.7×
   ceiling cap (11% of them brokered), and when a load gives up there is a median of one idle truck
   with that trailer within 400 miles and 23 nationwide. Cleared rates averaged 7.6 FD/mi at 62%
-  margins in that starved market. See the ten-seed line below for how the fleet grows into it over
-  four years and how the calibration was settled.
+  margins in that starved market. Jeff kept the volume: the starved market is the first airdrop
+  farming season (TOKENOMICS.md), with the AI fleet capped so humans bring the trucks.
+- **Ten seeds, four years** (`runs/compare-v24.md`, v24-c against 0.16.0's v23-c): with the AI fleet
+  held at 1,100 trucks for the two beta years, rates ran 5.9–6.1 FD/mi (3.3 and 2.9 before) and
+  owner-operators cleared about 3,000 FD a truck-week (551), so beta FD ballooned to 360M before
+  year 2 (66M) and the launch reset burned 337M of it (32M). The sink criterion fails through beta
+  (operating sinks 54–80% of faucets) and holds after launch (97%). After launch the uncapped
+  fleet grows to the dealer caps, rates fall to 4.1 then 3.3, 257 loads a day still expire in
+  booms, and the FD price ends at $0.0084 ($0.012 before). Liquidations 1,424 (578): 100
+  owner-operators, 50 fleets and 60 brokers, the brokers bled by fall-off charges on contracts no
+  truck would cover; the free path shortened to 20 days (27). Four uncapped seeds (v24-a) show the
+  AI fleet alone closing the gap by year 2: 2,609 trucks running, rates 3.3 in year 2, half the
+  liquidations and a third of the owner-operator profit. The post-launch economy is reworked in
+  0.18.0 (TOKENOMICS.md "The circular economy"), which is where these numbers get fixed.
 
 ## Shipper leverage, local-first tendering and contracts (config 0.15.0)
 
