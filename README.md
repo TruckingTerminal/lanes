@@ -433,6 +433,16 @@ commodity brings its own urgency. Design in `DESIGN-PLACES.md`.
 - **Client:** towns drawn on the map; the board shows shipper and receiver towns, the commodity,
   the appointment and the spoil time; status lines name the town; a guide page on commodities.
 - Performance: 120 days in 8.5 s (was 48 s before A* and the estimates; 5 s without places).
+- **Remote pickups pay a premium** (`rates.remotePremiumPer100Mi` 8%, capped at 25%): a shipper far
+  from its market covers the empty run to it. Without it, owner-operator profit fell a quarter, all of
+  it empty miles to shipper towns.
+- **10 seeds × 4 years vs 0.13.0** (`runs/compare-v21-b.md`): liquidations 526 vs 577, fleet wealth
+  102k vs 95k, owner-operator profit 647 vs 764 FD per truck-week (the deadhead to towns that the
+  premium only partly covers; still above 0.12.0's 645), FD $0.011, free path 39 days, on time 97.0%
+  vs 98.4% (appointments), cargo claims from spoilage 20k FD a seed, fuel 426M vs 362M (loads run the
+  real place-to-place miles and trucks run empty to the shipper), crashes 328 vs 270 with the miles.
+  A first run died on a negative double-brokering fine (a counter can now clear above the rate a
+  re-posted load was won at); the spread is floored at zero.
 
 ## Counters above the posted price, and above the max (config 0.13.1)
 
