@@ -4,9 +4,10 @@ Paints the hub cities for the map's closest zoom: one isometric city sprite per 
 landmarks (tools/landmarks.json), 256 × 256 on transparency in the title's style, so it can be
 animated later (PixMiniMax takes frames up to 256). Jobs run a few at a time.
 
-  paint-cities.py [--only CHI,STL] [--size 256] [--jobs 4] [--seed N] [--dry]
+  paint-cities.py [--only CHI,STL] [--size 256] [--jobs 4] [--seed N] [--dry] [--towns]
 
 Output: apps/web/assets/cities/<ID>.png and <ID>.json (job, seed, generations, prompt).
+--towns paints the generic small-town sprites of tools/towns.json instead (apps/web/assets/towns, 128 × 128).
 """
 import base64
 import json
@@ -20,20 +21,27 @@ import pixellab  # noqa: E402
 
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(HERE)))
 OUT = os.path.join(ROOT, "apps", "web", "assets", "cities")
+TOWNS_OUT = os.path.join(ROOT, "apps", "web", "assets", "towns")
 STYLE = os.path.join(ROOT, "apps", "web", "assets", "title", "title.png")
 
 PROMPT = (
     "isometric pixel art city for a trucking tycoon game map, on a transparent background, seen from the high angle of an isometric "
     "tycoon map: {landmark}, a dense cluster of downtown towers with lit windows and long warm shadows, a highway interchange with tiny "
     "semi trucks at the edge, a rail yard and a row of warehouses, highly detailed HD painterly pixel art shading with layered depth, warm "
-    "late-afternoon light, saturated palette, the whole city fitting inside the frame with clear space around it, never any words, "
-    "letters or labels"
+    "late-afternoon light, saturated palette, the whole city fitting inside the frame with clear space around it, standing on flat "
+    "ground that fades out to transparency at its edges with no platform, block or base edge under it, never any words, letters or labels"
+)
+TOWN_PROMPT = (
+    "isometric pixel art small town for a trucking tycoon game map, on a transparent background, seen from the high angle of an isometric "
+    "tycoon map: {landmark}, a two-lane highway passing through with a tiny semi truck, highly detailed HD painterly pixel art shading with "
+    "layered depth, warm late-afternoon light, saturated palette, the whole town fitting inside the frame with clear space around it, standing "
+    "on flat ground that fades out to transparency at its edges with no platform, block or base edge under it, never any words, letters or labels"
 )
 
 
-def paint(hub: str, landmark: str, size: int, seed, dry: bool) -> None:
-    desc = PROMPT.format(landmark=landmark)
-    out = os.path.join(OUT, f"{hub}.png")
+def paint(hub: str, landmark: str, size: int, seed, dry: bool, towns: bool = False) -> None:
+    desc = (TOWN_PROMPT if towns else PROMPT).format(landmark=landmark)
+    out = os.path.join(TOWNS_OUT if towns else OUT, f"{hub}.png")
     if dry:
         print(f"{hub}: {desc[:120]}…", flush=True)
         return
@@ -51,7 +59,7 @@ def paint(hub: str, landmark: str, size: int, seed, dry: bool) -> None:
     print(f"{hub}: job {job}", flush=True)
     lr = pixellab.wait_job(job)
     img = lr["images"][0]
-    os.makedirs(OUT, exist_ok=True)
+    os.makedirs(os.path.dirname(out), exist_ok=True)
     open(out, "wb").write(base64.b64decode(img["base64"]))
     spent = (lr.get("billing_usage") or {}).get("generations")
     json.dump({"job": job, "seed": lr.get("seed"), "generations": spent, "size": [img["width"], img["height"]], "description": desc}, open(out[:-4] + ".json", "w"), indent=1)
@@ -60,10 +68,11 @@ def paint(hub: str, landmark: str, size: int, seed, dry: bool) -> None:
 
 def main() -> None:
     opt = lambda k, d=None: (sys.argv[sys.argv.index(k) + 1] if k in sys.argv and sys.argv.index(k) + 1 < len(sys.argv) else d)
-    landmarks = json.load(open(os.path.join(HERE, "landmarks.json")))
+    towns = "--towns" in sys.argv
+    landmarks = json.load(open(os.path.join(HERE, "towns.json" if towns else "landmarks.json")))
     only = opt("--only")
     hubs = only.split(",") if only else list(landmarks)
-    size = int(opt("--size", 256))
+    size = int(opt("--size", 128 if towns else 256))
     jobs = int(opt("--jobs", 4))
     seed = opt("--seed")
     dry = "--dry" in sys.argv
@@ -72,7 +81,7 @@ def main() -> None:
     def run(h: str) -> None:
         with sem:
             try:
-                paint(h, landmarks[h], size, seed, dry)
+                paint(h, landmarks[h], size, seed, dry, towns)
             except SystemExit as e:
                 print(f"{h}: failed: {e}", flush=True)
 

@@ -5,7 +5,7 @@ import { drawText, textWidth } from "./font.js";
 import { isHuman } from "./game.js";
 import { buildMap, hash, headingDir, nightColor, nightShade, truckMarkers, type MapArt, type MarkerKind } from "./map.js";
 import { truckFrame } from "./assets.js";
-import { CITY_SCALE, citySprite, hasPaintedMap, MAP_H, MAP_W, mapLevel, seasonOf, type Season } from "./mapart.js";
+import { CITY_SCALE, citySprite, hasPaintedMap, MAP_H, MAP_W, mapLevel, seasonOf, TOWN_SCALE, townKindAt, townSprite, type Season } from "./mapart.js";
 import { weatherAt, weatherLabel, type Weather } from "./weather.js";
 import { bumpData, clockMin, myTrucks, S, selectTruck, setTab } from "./state.js";
 import { openLoadsAt, reloadLabel, seasonSwing } from "./logic.js";
@@ -330,7 +330,28 @@ export function drawMap(now: number): void {
     ctx.imageSmoothingEnabled = false;
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     if (lvl.season !== season) washSeason(ctx, season, W, H);
-    // The hub cities as their own sprites once the zoom is in far enough for them to read.
+    // The towns as generic sprites by region (the bigger ones first as the zoom comes in), then the hub cities as their own.
+    if (k >= TOWN_SCALE * 0.5) {
+      const ts = k / TOWN_SCALE;
+      const minPop = k >= TOWN_SCALE ? 10_000 : k >= TOWN_SCALE * 0.75 ? 30_000 : 80_000;
+      ctx.imageSmoothingEnabled = !Number.isInteger(ts);
+      for (const p of w.net.places) {
+        if (p.pop < minPop) continue;
+        const [px, py] = art!.project(p.lon, p.lat);
+        const [X, Y] = toScreen(px, py);
+        if (X < -80 * ts || Y < -80 * ts || X > W + 80 * ts || Y > H + 80 * ts) continue;
+        if (art!.hubXY.some(([hx, hy]) => Math.abs(hx - px) < 6 && Math.abs(hy - py) < 6)) continue;
+        const rx = Math.round(px);
+        const ry = Math.round(py);
+        const nearWater = [-4, 0, 4].some((dx) => [-4, 0, 4].some((dy) => art!.kindAt(rx + dx, ry + dy) === 0 || art!.kindAt(rx + dx, ry + dy) === 3));
+        const img = townSprite(townKindAt(p.lon, p.lat, nearWater));
+        if (!img) continue;
+        const tw = img.width * ts;
+        const th = img.height * ts;
+        ctx.drawImage(img, Math.round(X - tw / 2), Math.round(Y - th * 0.6), Math.round(tw), Math.round(th));
+      }
+      ctx.imageSmoothingEnabled = false;
+    }
     if (k >= CITY_SCALE * 0.75) {
       const cs = k / CITY_SCALE;
       ctx.imageSmoothingEnabled = !Number.isInteger(cs);
