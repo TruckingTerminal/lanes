@@ -1,3 +1,4 @@
+import { acceptTender, autoTenders, expireTenders, mayTake } from "./contracts.js";
 import { fuelPrice } from "./economics.js";
 import { seasonality } from "./demand.js";
 import { dayOf } from "./clock.js";
@@ -32,6 +33,7 @@ export interface RoundResult {
 export function runBoardRound(w: World): RoundResult {
   w.round++;
   updateHomeCrowding(w);
+  expireTenders(w);
   const idx = indexOpenLoads(w);
   const openByEq = { van: 0, reefer: 0, flatbed: 0 };
   for (const load of w.loads.values()) if (load.status === "open") openByEq[load.equipment]++;
@@ -106,7 +108,7 @@ export function runBoardRound(w: World): RoundResult {
     if (load.shipperId !== null && load.roundsUnfilled >= w.cfg.facilities.expediteAfterRounds) {
       expedite(w, load);
       expedited++;
-    } else if (load.shipperId === null && load.roundsUnfilled >= w.cfg.board.npcFallbackAfterRounds) {
+    } else if (load.shipperId === null && load.roundsUnfilled >= w.cfg.board.npcFallbackAfterRounds + (load.localUntilRound > 0 ? w.cfg.leverage.localRounds : 0)) {
       npcCover(w, load);
       npcCovered++;
     } else {
@@ -156,6 +158,7 @@ function manualRoundBids(w: World): Bid[] {
     if (!load || load.status !== "open" || truck.status !== "idle" || truck.trailer !== load.equipment || truck.companyId === 0 || !crewed(truck)) continue;
     const company = companyById(w, truck.companyId);
     if (company.authority.status !== "active" || vettingBlock(w, company, load) !== null || load.doubleBroker?.companyId === company.id) continue;
+    if (!mayTake(w, company, load)) continue;
     if (load.hot > 0 && !canMakeHot(company, truck)) continue;
     const deadheadMi = placeMiles(w, truck.place, load.originPlace);
     // A counter can go past the ceiling (taken only if nobody offers within it), up to the hard cap.
@@ -215,12 +218,12 @@ function rollover(w: World, load: Load): void {
  * book-now). The caller has checked ownership, vetting and the hot-load rule;
  * this checks what can change under it and assigns.
  */
-export function bookLoad(w: World, company: Company, truck: Truck, load: Load, deadheadMi: number, manual: boolean): string | null {
+export function bookLoad(w: World, company: Company, truck: Truck, load: Load, deadheadMi: number, manual: boolean, rate = load.bookNow): string | null {
   if (load.status !== "open") return "that load is gone";
   if (truck.status !== "idle" || !crewed(truck)) return "the truck isn't idle with a driver";
   if (truck.trailer !== load.equipment) return "wrong trailer";
   if (company.authority.status !== "active") return "your authority isn't active";
-  const rate = load.bookNow;
+  if (!mayTake(w, company, load)) return load.tenderedTo ? "that load is tendered to another carrier" : "local shippers only for now";
   if (!(rate > 0)) return "that load has no book-now price";
   w.manualBids.delete(truck.id);
   assign(w, load, truck, { loadId: load.id, truckId: truck.id, companyId: company.id, rate, deadheadMi, score: 0, tiebreak: 0 });
@@ -238,6 +241,10 @@ export function bookLoad(w: World, company: Company, truck: Truck, load: Load, d
  * move (desperation). Same reach and rules as sealed bidding.
  */
 export function autoBook(w: World): void {
+  // Contract tenders first: honoured at the contract rate.
+  for (const t of autoTenders(w)) {
+    if (acceptTender(w, t.company, t.load, t.truck) === null && bookLoad(w, t.company, t.truck, t.load, t.dh, false, t.rate) === null) creditDispatch(w, t.company);
+  }
   const idx = indexOpenLoads(w);
   if (idx.size === 0) return;
   const fuel = fuelPrice(w);
@@ -264,6 +271,7 @@ export function autoBook(w: World): void {
           if (load.status !== "open") continue; // booked a moment ago by another truck
           const dh = placeMiles(w, truck.place, load.originPlace);
           if (dh > order.maxDeadheadMi) continue;
+          if (!mayTake(w, company, load)) continue;
           if (load.brokerId === company.id || load.doubleBroker?.companyId === company.id) continue;
           if (!allowed[load.vet]) continue;
           if (load.hot > 0 && !canMakeHot(company, truck)) continue;

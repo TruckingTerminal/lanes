@@ -40,6 +40,16 @@ export type StandingOrder =
       restDays: number;
     }
   | {
+      /**
+       * Contracts: take the offers local shippers make, and take their tenders onto an idle truck
+       * within reach — unless spot is more than spotAbovePct above the contract rate (null: always honor).
+       */
+      kind: "contracts";
+      acceptOffers: boolean;
+      spotAbovePct: number | null;
+      maxDeadheadMi: number;
+    }
+  | {
       /** Broker: accept tendered NPC freight and repost it at this margin. */
       kind: "broker";
       marginPct: number;
@@ -202,6 +212,10 @@ export interface Company {
   vetting: VettingTier;
   /** The engine keeps seats filled: hires drivers for empty trucks and dispatchers past the owner's span. */
   autoStaff: boolean;
+  /** Local shippers pass this carrier over until this day (turned-down contract tenders). */
+  localBanUntilDay: number;
+  /** Moving average of contract tenders accepted, across contracts (offers go to the reliable). */
+  tenderAcceptance: number;
   /** Open claims against this company (theft, unpaid carriers), by the day each expires. */
   claims: { day: number; until: number; kind: "theft" | "unpaid" }[];
   /** Owed on a judgment or seizure, paid out of whatever the company still has. */
@@ -447,6 +461,36 @@ export interface Load {
   /** The road route between the places: driving hours and tolls. */
   routeHours: number;
   routeTollFd: number;
+  /** Local-first: held for carriers based near the origin through this round (0: open to all). */
+  localUntilRound: number;
+  /** A contract tender: the carrier it's held for until `tenderUntil`, and the contract. */
+  contractId: number;
+  tenderedTo: number;
+  tenderUntil: number;
+}
+
+/** A contract lane a local shipper gives a carrier: a weekly volume at a fixed rate for a term (contracts.ts). */
+export interface Contract {
+  id: number;
+  carrierId: number;
+  origin: number;
+  dest: number;
+  laneId: number;
+  equipment: Equipment;
+  originPlace: number;
+  destPlace: number;
+  ratePerMile: number;
+  loadsPerWeek: number;
+  startDay: number;
+  endDay: number;
+  offerExpiresDay: number;
+  tendered: number;
+  accepted: number;
+  /** Moving average of tenders accepted. */
+  acceptance: number;
+  /** Already cut for rejections this term. */
+  cut: boolean;
+  status: "offered" | "active" | "ended";
 }
 
 export interface Bid {
@@ -556,6 +600,11 @@ export type Action =
   | { type: "book_load"; truckId: number; loadId: number }
   /** Send an idle truck home for its driver's days off (home time). */
   | { type: "send_home"; truckId: number }
+  /** Contracts: take or decline a local shipper's offer; take a tender onto an idle truck, or leave it for the board. */
+  | { type: "accept_contract"; contractId: number }
+  | { type: "decline_contract"; contractId: number }
+  | { type: "accept_tender"; loadId: number; truckId: number }
+  | { type: "decline_tender"; loadId: number }
   /** Send an idle truck empty to another hub. */
   | { type: "reposition_truck"; truckId: number; hubId: string }
   | { type: "buy_fd"; usd: number }
@@ -638,4 +687,4 @@ export type GameEvent =
   | { kind: "liquidated"; companyId: number }
   | { kind: "launched" }
   /** Staff, safety and fraud news for a company's feed. */
-  | { kind: "notice"; companyId: number; topic: "staff" | "safety" | "crash" | "fraud" | "authority"; text: string; tone: "good" | "bad" | "info"; truckId?: number };
+  | { kind: "notice"; companyId: number; topic: "staff" | "safety" | "crash" | "fraud" | "authority" | "contracts"; text: string; tone: "good" | "bad" | "info"; truckId?: number };

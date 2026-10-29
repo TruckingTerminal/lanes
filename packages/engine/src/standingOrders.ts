@@ -1,3 +1,4 @@
+import { mayTake } from "./contracts.js";
 import { dayOf, MINUTES_PER_HOUR } from "./clock.js";
 import { breakEvenPerMile, fuelPrice } from "./economics.js";
 import { expectedReloadDeadheadMi } from "./freight.js";
@@ -115,6 +116,7 @@ export function bidsFromStandingOrders(w: World, company: Company, idx: BoardInd
       for (const load of loads) {
         const dh = placeMiles(w, truck.place, load.originPlace);
         if (dh > maxDh) continue;
+        if (!mayTake(w, company, load)) continue;
         if (load.brokerId === company.id || load.doubleBroker?.companyId === company.id) continue;
         if (!allowed[load.vet]) continue;
         if (load.hot > 0 && !canMakeHot(company, truck)) continue;

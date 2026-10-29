@@ -69,7 +69,7 @@ function testLoad(w: World, lane: { id: number; origin: number; dest: number; mi
     brokerId: null, shipperId: null, facilityId: null, saleValue: 0, shipperRate: 10, spotShipperRate: 10, refRate: 10, ceiling: 10, bookNow: 10,
     postedRound: -1, roundsUnfilled: 0, status: "open", carrierId: null, truckId: null, clearedRate: 0, dueT: 0,
     hot: 0, vet: 0, cargoValue: 0, doubleBroker: null,
-    commodity: 0, originPlace: PLACE_OF_HUB[lane.origin]!, destPlace: PLACE_OF_HUB[lane.dest]!, appointmentT: 1e12, routeHours: lane.miles / 50, routeTollFd: 0,
+    commodity: 0, originPlace: PLACE_OF_HUB[lane.origin]!, destPlace: PLACE_OF_HUB[lane.dest]!, appointmentT: 1e12, routeHours: lane.miles / 50, routeTollFd: 0, localUntilRound: 0, contractId: 0, tenderedTo: 0, tenderUntil: 0,
   };
 }
 

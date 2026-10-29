@@ -2,7 +2,7 @@ import type { EconomyConfig, Equipment, FacilityType, TractorTier } from "@lanes
 import { PLACE_OF_HUB, placeMiles as netPlaceMiles, placeMilesFast as netPlaceMilesFast, placeRoute as netPlaceRoute, type Feeds, type Network, type Route } from "@lanes/data";
 import { Ledger, companyAccount } from "./ledger.js";
 import { Rng } from "./rng.js";
-import type { BuybackWeek, GameEvent, TokenState, Company, Facility, FinancePool, FraudCase, LeaseKind, Listing, Load, Role, SeasonCloseRecord, Staff, StandingOrder, Truck, TruckOrder } from "./types.js";
+import type { BuybackWeek, GameEvent, TokenState, Company, Facility, FinancePool, FraudCase, LeaseKind, Listing, Load, Role, SeasonCloseRecord, Staff, StandingOrder, Truck, TruckOrder, Contract } from "./types.js";
 import { signPolicy } from "./insurance.js";
 import { seedPool } from "./labor.js";
 import { MetricsRecorder } from "./metrics.js";
@@ -21,7 +21,7 @@ export interface World {
   net: Network;
   feeds: Feeds;
   seed: number;
-  rng: { freight: Rng; board: Rng; agents: Rng; ops: Rng; labor: Rng; safety: Rng; fraud: Rng; dispatch: Rng };
+  rng: { freight: Rng; board: Rng; agents: Rng; ops: Rng; labor: Rng; safety: Rng; fraud: Rng; dispatch: Rng; contracts: Rng };
   t: number;
   round: number;
   /** Loads booked at their book-now price since the last round, folded into that round's clearing stats. */
@@ -90,6 +90,9 @@ export interface World {
   labor: { wageIndex: number };
   /** Open and closed fraud investigations (fraud.ts). */
   cases: FraudCase[];
+  /** Contract lanes offered and held (contracts.ts). */
+  contracts: Contract[];
+  nextContractId: number;
   /** The insurance market (insurance.ts): its price index and the last 12 months of premiums and claims. */
   insuranceMarket: { index: number; premiums: number[]; claims: number[] };
   /** Dealer price index by tractor tier and trailer type (dealer.ts). */
@@ -118,6 +121,7 @@ export function createWorld(o: WorldOptions): World {
       safety: root.fork("safety"),
       fraud: root.fork("fraud"),
       dispatch: root.fork("dispatch"),
+      contracts: root.fork("contracts"),
     },
     t: 0,
     round: 0,
@@ -195,6 +199,8 @@ export function createWorld(o: WorldOptions): World {
     staffByCompany: new Map(),
     labor: { wageIndex: 1 },
     cases: [],
+    contracts: [],
+    nextContractId: 1,
     insuranceMarket: { index: 1, premiums: [0], claims: [0] },
     dealerIndex: { tractor: { workhorse: 1, highwayPro: 1, flagship: 1 }, trailer: { van: 1, reefer: 1, flatbed: 1 } },
     homeCrowding: new Float64Array(o.net.hubs.length).fill(1),
@@ -340,6 +346,9 @@ export function invalidOrders(cfg: EconomyConfig, orders: unknown): string | nul
         break;
       case "homeTime":
         if (!finite(o.afterDays, 1, 365) || !finite(o.restDays, 1, 60)) return "bad home-time order";
+        continue;
+      case "contracts":
+        if (typeof o.acceptOffers !== "boolean" || (o.spotAbovePct !== null && !finite(o.spotAbovePct, 0, 5)) || !finite(o.maxDeadheadMi, 0, 2_000)) return "bad contracts order";
         continue;
       default:
         return "unknown standing order";
@@ -504,6 +513,8 @@ export function formCompany(w: World, c: NewCompany): Company {
     vetting: 0,
     autoStaff: true,
     claims: [],
+    localBanUntilDay: 0,
+    tenderAcceptance: 1,
     judgmentFd: 0,
     insurance: { annualPerTruck: 0, signedDay: day, renewDay: day, risk: 1, garaging: 1, market: 1 },
   };

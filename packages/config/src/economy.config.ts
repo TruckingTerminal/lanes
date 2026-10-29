@@ -9,7 +9,7 @@ export type TractorTier = "workhorse" | "highwayPro" | "flagship";
 export type FacilityType = "warehouse" | "coldStorage" | "factory";
 
 export const economyConfig = {
-  version: "0.14.0-phase0.20",
+  version: "0.15.0-phase0.21",
 
   // §World, map and time
   time: {
@@ -99,6 +99,32 @@ export const economyConfig = {
       awayDays: 14, // …and is fully desperate this many days later
       atHomeMult: 0.5, // sitting at home is half as pressing: no per diem, the driver is home
     },
+  },
+
+  // Design decision (Jeff, 2026-10-28): shipper leverage. The more trucks a market has per load,
+  // the more its shippers work exclusively with carriers based nearby: a share of each market's
+  // loads is tendered to local carriers only for their first round. Carriers that turn down
+  // contract tenders lose that access for a while.
+  leverage: {
+    localShareAtBalance: 0.5, // share of loads tendered local-first when loads and trucks balance…
+    localShareSlope: 0.35, // …minus this × log2(load-to-truck ratio): Miami (0.5) ≈ 85%, a tight market (2) ≈ 15%
+    localShareClamp: [0.1, 0.9] as const,
+    localRounds: 1, // rounds a local-first load is held for local carriers
+    unreliableDays: 30, // a carrier that turns down tenders is passed over by local shippers this long
+  },
+  // Contracts: local shippers offer local carriers a weekly volume on a lane at a fixed rate for a term.
+  contracts: {
+    termDays: 91,
+    offerDays: 7, // an offer stands this long
+    tenderHours: 12, // a tender waits for the carrier until the next round
+    maxPerCompany: 2,
+    offerShareOfLocals: 0.3, // at a balanced market this share of local carriers gets an offer a week (× 2 × local share)
+    loadsPerWeek: [1, 3] as const,
+    rateVsIndex: 1.0, // contract rate against the market's trailing contract level (what brokers get)
+    acceptanceAdjust: 0.2, // acceptance is a moving average with this weight on each tender
+    afterTenders: 4, // no judgment before this many tenders
+    cutBelow: 0.85, // below this acceptance the shipper cuts a load a week and talks to the other shippers
+    renewAbove: 0.9, // at least this to be offered a new term
   },
 
   // Places and commodities (DESIGN-PLACES.md): every load is a commodity between two places,

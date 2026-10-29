@@ -62,6 +62,20 @@ export function marketPages(cfg: EconomyConfig): GuidePage[] {
         p(`A load is due by the usual hours-of-service schedule or the appointment, whichever comes first. A perishable delivered past its spoil time is rejected: no pay, and a cargo claim of ${pct(cfg.commodities.spoilClaimShare)} of its value on the carrier. Produce follows its region's calendar (South Florida, the Rio Grande Valley and Yuma in winter; the Central Valley spring to fall; the Southeast, Michigan and the Northwest in summer), so where the reefer loads are moves with the months.`),
     },
     {
+      id: "leverage",
+      section: S,
+      title: "Shipper leverage and contracts",
+      html:
+        p(`Where trucks pile up, shippers hold the cards and work with carriers based nearby; where trucks are scarce, they take anyone. Each market holds a share of its loads for <b>local carriers only</b> (based within ${cfg.map.nearbyRadiusMi} miles) for the first round: ${pct(cfg.leverage.localShareAtBalance)} when loads and trucks balance, about ${pct(cfg.leverage.localShareClamp[1])} where trucks pile up (Miami most of the year), about ${pct(cfg.leverage.localShareClamp[0])} where they're scarce. A local-first load nobody local takes opens to everyone the next round. The join screen shows each hub's share.`) +
+        h("Contracts") +
+        ul([
+          `Every week local shippers offer contract lanes to the carriers based nearby with the best record: a weekly volume (${cfg.contracts.loadsPerWeek[0]}–${cfg.contracts.loadsPerWeek[1]} loads) on a lane at a fixed rate for ${cfg.contracts.termDays} days. The rate is the market's trailing contract level, the same brokers get: below spot in a tight season, above it in a slump. You can hold ${cfg.contracts.maxPerCompany} at a time; offers stand ${cfg.contracts.offerDays} days.`,
+          `A <b>tender</b> is a load on that lane held for you for ${cfg.contracts.tenderHours} hours at the contract rate. Accept it onto an idle truck within reach, or leave it: it goes to the spot board, where you can even counter for it at spot.`,
+          `<b>Acceptance</b> is what the shipper watches. Below ${pct(cfg.contracts.cutBelow)} after ${cfg.contracts.afterTenders} tenders they cut a load a week, and local shippers pass you over for ${cfg.leverage.unreliableDays} days. At ${pct(cfg.contracts.renewAbove)} or better the term renews at the then-current rate.`,
+          `The dispatcher takes offers and honors tenders unless you tell it to let a tender lapse when spot runs a set share above the contract. That's the produce-season choice: keep your customers, or chase the spike.`,
+        ]),
+    },
+    {
       id: "rates",
       section: S,
       title: "How shippers price freight",

@@ -1,3 +1,4 @@
+import { acceptOffer, acceptTender, declineOffer, mayTake, rejectTender } from "./contracts.js";
 import { bookLoad } from "./board.js";
 import { offerFd } from "./buyback.js";
 import { leaseTruck, returnLease } from "./capacity.js";
@@ -45,7 +46,13 @@ export function badInput(cfg: EconomyConfig, a: Action): string | null {
     case "buy_asset":
       return TIERS.has(a.tier) && TRAILERS.has(a.trailer) && typeof a.replaceNpcLease === "boolean" ? null : "bad truck";
     case "book_load":
+    case "accept_tender":
       return isId(a.truckId) && isId(a.loadId) ? null : "bad booking";
+    case "accept_contract":
+    case "decline_contract":
+      return isId(a.contractId) ? null : "bad contract";
+    case "decline_tender":
+      return isId(a.loadId) ? null : "bad load";
     case "rebuild_truck":
     case "park_truck":
     case "unpark_truck":
@@ -273,6 +280,34 @@ export function applyAction(w: World, companyId: number, action: Action): Action
       return result(bookLoad(w, company, truck, load, dh, true));
     }
 
+    case "accept_contract":
+    case "decline_contract": {
+      const contract = w.contracts.find((k) => k.id === action.contractId);
+      if (!contract) return { ok: false, reason: "no such offer" };
+      return result(action.type === "accept_contract" ? acceptOffer(w, company, contract) : declineOffer(w, company, contract));
+    }
+
+    case "accept_tender": {
+      const truck = truckById(w, action.truckId);
+      if (!truck || truck.companyId !== company.id) return { ok: false, reason: "not your truck" };
+      const load = w.loads.get(action.loadId);
+      if (!load || load.status !== "open" || load.tenderedTo !== company.id) return { ok: false, reason: "that tender isn't open to you" };
+      const contract = w.contracts.find((k) => k.id === load.contractId);
+      if (!contract) return { ok: false, reason: "that contract is gone" };
+      const dh = placeMiles(w, truck.place, load.originPlace);
+      if (dh > MANUAL_BID_MAX_DEADHEAD_MI) return { ok: false, reason: `the pickup is more than ${MANUAL_BID_MAX_DEADHEAD_MI} miles away` };
+      const why = acceptTender(w, company, load, truck);
+      if (why) return { ok: false, reason: why };
+      return result(bookLoad(w, company, truck, load, dh, true, contract.ratePerMile));
+    }
+
+    case "decline_tender": {
+      const load = w.loads.get(action.loadId);
+      if (!load || load.status !== "open" || load.tenderedTo !== company.id) return { ok: false, reason: "that tender isn't open to you" };
+      rejectTender(w, load);
+      return { ok: true };
+    }
+
     case "send_home": {
       const truck = truckById(w, action.truckId);
       if (!truck || truck.companyId !== company.id) return { ok: false, reason: "not your truck" };
@@ -393,6 +428,7 @@ export function applyAction(w: World, companyId: number, action: Action): Action
       const blocked = vettingBlock(w, company, load);
       if (blocked) return { ok: false, reason: `the poster won't load a carrier with ${blocked}` };
       if (load.hot > 0 && !canMakeHot(company, truck)) return { ok: false, reason: "a hot load's window takes a team" };
+      if (!mayTake(w, company, load)) return { ok: false, reason: load.tenderedTo ? "that load is tendered to another carrier" : "the shipper is giving local carriers first call this round" };
       if (hubMiles(w, truck.hub, load.origin) > MANUAL_BID_MAX_DEADHEAD_MI) return { ok: false, reason: `more than ${MANUAL_BID_MAX_DEADHEAD_MI} miles empty to the pickup` };
       if (!(action.rate > 0)) return { ok: false, reason: "bid a rate per mile above zero" };
       w.manualBids.set(truck.id, { loadId: load.id, rate: action.rate });

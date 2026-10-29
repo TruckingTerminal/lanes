@@ -38,6 +38,12 @@ import {
   fuelPrice,
   hubMiles,
   hubRoute,
+  offeredContracts,
+  activeContracts,
+  isLocal,
+  localOnly,
+  localShare,
+  mayTake,
   placeToll,
   placeMiles,
   placeRoute,
@@ -317,6 +323,14 @@ function describe(a: LiveAction): string {
       return `Book load #${a.loadId} now (truck ${truckNo(a.truckId)})`;
     case "send_home":
       return `Send truck ${truckNo(a.truckId)} home`;
+    case "accept_contract":
+      return `Take contract offer #${a.contractId}`;
+    case "decline_contract":
+      return `Decline contract offer #${a.contractId}`;
+    case "accept_tender":
+      return `Take contract tender #${a.loadId} (truck ${truckNo(a.truckId)})`;
+    case "decline_tender":
+      return `Leave tender #${a.loadId} for the board`;
     case "steal_load":
       return `Steal truck ${truckNo(a.truckId)}'s load`;
     default:
@@ -1012,6 +1026,8 @@ function renderHud(): void {
     if (stuck) stats += `<span class="badge alert" title="Trucks idle a day or more: the Fleet tab says why">${stuck} IDLE</span>`;
     const tired = tiredTrucks().length;
     if (tired) stats += `<span class="badge alert" title="Drivers out three weeks or running tired: the Fleet tab says what to do">${tired} TIRED</span>`;
+    const tenders = [...w.loads.values()].filter((l) => l.status === "open" && l.tenderedTo === c.id).length;
+    if (tenders) stats += `<span class="badge alert" title="Contract tenders waiting for you: the Fleet tab has them">${tenders} TENDER${tenders > 1 ? "S" : ""}</span>`;
   }
   if (fsEnabled()) stats += `<button class="btn" data-act="fullscreen" title="Full screen (F)">${img(iconUrl("full", 2), "")}${fsActive() ? "Exit" : "Full screen"}</button>`;
   // The clock text changes many times a second at the fast speeds, so it's updated in
@@ -1337,7 +1353,7 @@ function fleetPanel(): string {
   const orders = pending.length
     ? `<p class="muted">On order: ${pending.map((o) => `${TIER_NAME[o.tier]} + ${TRAILER_NAME[o.trailer]}, arrives ${dateLabel(o.dueDay)}`).join("; ")}</p>`
     : "";
-  return `<div class="stack"><h2>Your fleet</h2>${tiredAlertsCard()}${idleAlertsCard()}${pendingCard()}${orders}${cards}${dispatcherCard()}</div>`;
+  return `<div class="stack"><h2>Your fleet</h2>${tendersCard(me())}${tiredAlertsCard()}${idleAlertsCard()}${pendingCard()}${orders}${cards}${dispatcherCard()}</div>`;
 }
 
 function dispatcherCard(): string {
@@ -1348,6 +1364,8 @@ function dispatcherCard(): string {
   const rb = c.orders.find((o) => o.kind === "rebroker") as Extract<StandingOrder, { kind: "rebroker" }> | undefined;
   const bn = c.orders.find((o) => o.kind === "bookNow") as Extract<StandingOrder, { kind: "bookNow" }> | undefined;
   const hm = c.orders.find((o) => o.kind === "homeTime") as Extract<StandingOrder, { kind: "homeTime" }> | undefined;
+  const ct = c.orders.find((o) => o.kind === "contracts") as Extract<StandingOrder, { kind: "contracts" }> | undefined;
+  const spotOpt = (v: string, label: string) => `<option value="${v}" ${(ct ? (ct.spotAbovePct === null ? "always" : String(ct.spotAbovePct)) : "always") === v ? "selected" : ""}>${label}</option>`;
   const mode = bid?.price.mode ?? "breakEvenPlus";
   return `<div class="card">
     <h3>Dispatcher (standing orders)</h3>
@@ -1363,6 +1381,7 @@ function dispatcherCard(): string {
       <input type="number" id="o-rb-share" min="0" max="100" value="${Math.round((rb?.share ?? 0.1) * 100)}"><span class="muted">% of loads, keeping</span><input type="number" id="o-rb-keep" min="0" max="90" value="${Math.round((rb?.keepPct ?? 0.15) * 100)}"><span class="muted">% of the rate</span>
       <label class="label"><input type="checkbox" id="o-rb-pays" ${!rb || rb.pays ? "checked" : ""}> pay the hauler</label></div>
     <div class="row"><label class="label"><input type="checkbox" id="o-bn" ${bn ? "checked" : ""}> Book loads between rounds at break-even +</label><input type="number" id="o-bn-pct" min="0" max="100" value="${Math.round((bn?.breakEvenPlusPct ?? 0.2) * 100)}"><span class="muted">% (less the longer a truck sits, or the farther its driver is from home)</span></div>
+    <div class="row"><label class="label"><input type="checkbox" id="o-ct" ${ct ? "checked" : ""}> Contracts: take offers from local shippers and</label><select id="o-ct-spot">${spotOpt("always", "honor every tender")}${spotOpt("0.1", "let a tender lapse when spot is 10% above the contract")}${spotOpt("0.15", "let it lapse at 15% above")}${spotOpt("0.25", "let it lapse at 25% above")}</select></div>
     <div class="row"><label class="label"><input type="checkbox" id="o-home" ${hm ? "checked" : ""}> Bring drivers home after</label><input type="number" id="o-home-after" min="1" max="365" value="${hm?.afterDays ?? 21}"><span class="muted">days out, for</span><input type="number" id="o-home-rest" min="1" max="60" value="${hm?.restDays ?? 5}"><span class="muted">days off</span></div>
     <div class="row"><button class="btn primary" data-act="orders">Save dispatcher</button><button class="btn" data-act="ordersReset">Defaults</button></div>
   </div>`;
@@ -1427,6 +1446,7 @@ function loadsPanel(): string {
     const rows: { l: Load; dh: number; be: number; suggest: number; profit: number; profitBook: number; reloadMi: number; tolls: number; highway: number; hours: number }[] = [];
     for (const l of w.loads.values()) {
       if (l.status !== "open" || l.equipment !== truck.trailer || l.brokerId === me().id) continue;
+      if (l.tenderedTo !== 0 && l.tenderedTo !== me().id) continue; // someone else's contract tender
       const dh = placeMiles(w, truck.place, l.originPlace);
       if (dh > MANUAL_BID_MAX_DEADHEAD_MI) continue;
       // Same break-even the dispatcher uses: part of the empty run out of the destination is priced in.
@@ -1450,11 +1470,13 @@ function loadsPanel(): string {
         const op = w.net.places[l.originPlace]!;
         const dp = w.net.places[l.destPlace]!;
         const k = COMMODITIES[l.commodity]!;
-        // What keeps this company off the load: the poster's vetting, or a hot window a solo driver can't make.
-        const block = vettingBlock(w, me(), l) ?? (l.hot > 0 && !canMakeHot(me(), truck) ? "a hot load needs a team" : null);
+        // What keeps this company off the load: the poster's vetting, a hot window a solo driver can't make, or local shippers' first call.
+        const block = vettingBlock(w, me(), l) ?? (l.hot > 0 && !canMakeHot(me(), truck) ? "a hot load needs a team" : !mayTake(w, me(), l) ? "local carriers have first call this round" : null);
         const off = block ? "disabled" : "";
+        const localTag = localOnly(w, l) ? ` · <span class="${isLocal(w, me(), l.origin) ? "good" : "warn"}">local shippers first this round</span>` : "";
+        const mine_tender = l.tenderedTo === me().id;
         return `<div class="load ${mine ? "mine" : ""}">
-          <div><div class="lane">${esc(op.name)}, ${op.state} <span class="arrow">to</span> ${esc(dp.name)}, ${dp.state}</div><div style="font-size:14px"><b>${esc(k.name)}</b> · deliver by ${dateLabel(Math.floor(l.appointmentT / 1440))} ${hhmm(l.appointmentT)}${k.spoilHours !== null ? ` · <span class="warn">spoils ${k.spoilHours} h after</span>` : ""}</div><div class="muted" style="font-size:14px">${o.id} to ${d.id} market · ${l.miles} mi${dh ? ` · ${dh} mi empty first` : ""}${l.brokerId !== null ? " · brokered" : ""}${l.shipperId !== null ? " · player shipper" : ""}</div>
+          <div><div class="lane">${esc(op.name)}, ${op.state} <span class="arrow">to</span> ${esc(dp.name)}, ${dp.state}</div><div style="font-size:14px"><b>${esc(k.name)}</b> · deliver by ${dateLabel(Math.floor(l.appointmentT / 1440))} ${hhmm(l.appointmentT)}${k.spoilHours !== null ? ` · <span class="warn">spoils ${k.spoilHours} h after</span>` : ""}${localTag}${mine_tender ? ` · <span class="good">your contract tender · ${w.contracts.find((x) => x.id === l.contractId)?.ratePerMile.toFixed(2)}/mi · accept by ${hhmm(l.tenderUntil)}</span>` : ""}</div><div class="muted" style="font-size:14px">${o.id} to ${d.id} market · ${l.miles} mi${dh ? ` · ${dh} mi empty first` : ""}${l.brokerId !== null ? " · brokered" : ""}${l.shipperId !== null ? " · player shipper" : ""}</div>
           <div style="font-size:14px">Reload at ${d.id}: <span class="${reloadClass(l.dest, l.equipment)}">${reloadLabel(l.dest, l.equipment)}</span> (about ${Math.round(reloadMi)} mi empty to the next load)${seasonNote(l.origin, l.equipment)}</div>
           <div style="font-size:14px">${hours.toFixed(1)} h driving${tolls > 0 ? ` · <span class="warn">tolls ${fd(tolls)} FD</span>` : " · no tolls"}${highway >= 0.05 ? ` · <span class="warn">${pct(highway)} two-lane highway</span>` : " · interstate"}</div>
           <div style="font-size:14px">Book now at <span class="num">${l.bookNow.toFixed(2)}</span>/mi (<span class="num">${fd(l.bookNow * l.miles)}</span> FD)${l.roundsUnfilled > 0 ? ` · <span class="warn">raised ${l.roundsUnfilled} round${l.roundsUnfilled > 1 ? "s" : ""} running</span>` : ""} · <span class="${profitBook > 0 ? "good" : "bad"}">about ${fd(profitBook)} FD profit at that price</span></div>
@@ -1646,6 +1668,7 @@ function companyPanel(): string {
   return `<div class="stack"><h2>${c ? esc(c.name) : "The live world"}</h2>
     ${mine}
     ${c ? recordCard(c) : ""}
+    ${c ? contractsCard(c) : ""}
     ${c ? homeAndInsuranceCard(c) : ""}
     ${players}
     ${seasonCard(day)}
@@ -1789,6 +1812,39 @@ function staffPanel(): string {
 
 const crowdWord = (r: number) => (r >= 1.5 ? "crowded" : r >= 1.1 ? "busy" : r >= 0.75 ? "fair share" : "wide open");
 
+/** Pending contract tenders: the load, the contract rate against spot, the clock, and a truck to put on it. */
+function tendersCard(c: Company): string {
+  const w = game!.w;
+  const tenders = [...w.loads.values()].filter((l) => l.status === "open" && l.tenderedTo === c.id);
+  if (!tenders.length) return "";
+  return tenders
+    .map((l) => {
+      const k = w.contracts.find((x) => x.id === l.contractId);
+      const rate = k?.ratePerMile ?? 0;
+      const trucks = myTrucks().filter((t) => t.status === "idle" && crewed(t) && t.trailer === l.equipment && placeMiles(w, t.place, l.originPlace) <= MANUAL_BID_MAX_DEADHEAD_MI);
+      const spot = l.bookNow;
+      return `<div class="card alert"><h3>Contract tender: ${esc(w.net.places[l.originPlace]!.name)} → ${esc(w.net.places[l.destPlace]!.name)}, ${l.miles} mi</h3>
+        <p>${esc(COMMODITIES[l.commodity]!.name)} at your contract rate <span class="num">${rate.toFixed(2)}</span>/mi (${fd(rate * l.miles)} FD); spot is ${spot.toFixed(2)} (<span class="${spot > rate ? "warn" : "good"}">${spot > rate ? "+" : ""}${Math.round((spot / rate - 1) * 100)}%</span>). Accept by ${hhmm(l.tenderUntil)} or it goes to the board${k ? `; acceptance on this contract ${pct(k.acceptance)}` : ""}.</p>
+        <div class="row">${trucks.length ? `<select id="tender-${l.id}" aria-label="Truck">${trucks.map((t) => `<option value="${t.id}">Truck ${truckNo(t.id)} · ${placeMiles(w, t.place, l.originPlace)} mi away</option>`).join("")}</select><button class="btn primary" data-act="accepttender" data-load="${l.id}">Accept</button>` : `<span class="muted">No idle ${l.equipment} truck within ${MANUAL_BID_MAX_DEADHEAD_MI} mi.</span>`}<button class="btn" data-act="declinetender" data-load="${l.id}">Leave it for the board</button></div></div>`;
+    })
+    .join("");
+}
+
+/** Offers from local shippers, the contracts held, and tenders waiting. */
+function contractsCard(c: Company): string {
+  const w = game!.w;
+  const day = Math.floor(clockMin() / 1440);
+  const offers = offeredContracts(w, c.id);
+  const active = activeContracts(w, c.id);
+  const lane = (k: (typeof active)[number]) => `${esc(w.net.places[k.originPlace]!.name)} → ${esc(w.net.places[k.destPlace]!.name)} · ${k.equipment}`;
+  const share = localShare(w, c.homeHub, "van");
+  return `${tendersCard(c)}<div class="card"><h3>Contracts</h3>
+    <p class="muted" style="font-size:14px">Local shippers at ${esc(w.net.hubs[c.homeHub]!.name)} give carriers based nearby first call on ${pct(share)} of their van loads right now (more when trucks pile up, less when they're scarce), and offer the reliable ones contract lanes: a weekly volume at a fixed rate for ${w.cfg.contracts.termDays} days. Your tender acceptance: ${pct(c.tenderAcceptance)}${c.localBanUntilDay > day ? ` · <span class="bad">passed over by local shippers until ${dateLabel(c.localBanUntilDay)}</span>` : ""}.</p>
+    ${offers.length ? `<h3>Offers</h3>${offers.map((k) => `<div class="row"><span>${lane(k)} · ${k.loadsPerWeek}/wk at <span class="num">${k.ratePerMile.toFixed(2)}</span>/mi · expires ${dateLabel(k.offerExpiresDay)}</span><button class="btn primary" data-act="acceptoffer" data-contract="${k.id}">Sign</button><button class="btn" data-act="declineoffer" data-contract="${k.id}">Decline</button></div>`).join("")}` : ""}
+    ${active.length ? `<h3>Held</h3><table><tr><th>Lane</th><th>Rate</th><th>Loads/wk</th><th>Accepted</th><th>Ends</th></tr>${active.map((k) => `<tr><td>${lane(k)}</td><td class="num">${k.ratePerMile.toFixed(2)}</td><td class="num">${k.loadsPerWeek}</td><td class="num ${k.acceptance < w.cfg.contracts.cutBelow ? "bad" : "good"}">${k.accepted}/${k.tendered} · ${pct(k.acceptance)}</td><td>${dateLabel(k.endDay)}</td></tr>`).join("")}</table>` : `<p class="muted">No contracts held. Offers come to local carriers with a good record; the dispatcher takes them unless you turn that off.</p>`}
+  </div>`;
+}
+
 /** The company's authority, its safety record by area, and the policy its trucks run on. */
 function recordCard(c: Company): string {
   const w = game!.w;
@@ -1863,10 +1919,14 @@ function hubChoiceTable(w: World | null): string {
     const metro = cfg.homeBase.yardTier[0] + cfg.homeBase.yardTier[1] * h.weight;
     const r = w ? homeCrowding(w)[i]! : 1;
     const yard = cfg.homeBase.yardPerTruckWeek * metro * Math.min(cfg.homeBase.yardCrowdClamp[1], Math.max(cfg.homeBase.yardCrowdClamp[0], r));
-    return `<tr><td>${esc(h.name)}</td><td>${arrow(h.imbalance.van)} / ${arrow(h.imbalance.reefer)} / ${arrow(h.imbalance.flatbed)}</td><td class="num">×${garagingOf(h.id).toFixed(2)}</td><td class="num">${fd(yard)}</td>${w ? `<td>${crowdWord(r)}</td>` : ""}</tr>`;
+    // Local-first share: from the live market, or from the hub's outbound balance before a world exists.
+    const lv = cfg.leverage;
+    const ratio = h.imbalance.van;
+    const share = w ? localShare(w, i, "van") : Math.min(lv.localShareClamp[1], Math.max(lv.localShareClamp[0], lv.localShareAtBalance - lv.localShareSlope * Math.log2(ratio)));
+    return `<tr><td>${esc(h.name)}</td><td>${arrow(h.imbalance.van)} / ${arrow(h.imbalance.reefer)} / ${arrow(h.imbalance.flatbed)}</td><td class="num ${share >= 0.6 ? "good" : share <= 0.3 ? "warn" : ""}">${pct(share)}</td><td class="num">×${garagingOf(h.id).toFixed(2)}</td><td class="num">${fd(yard)}</td>${w ? `<td>${crowdWord(r)}</td>` : ""}</tr>`;
   });
-  return `<table><tr><th>Hub</th><th>Outbound van / reefer / flatbed</th><th>Insurance</th><th>Yard FD/wk per extra truck</th>${w ? "<th>Carriers</th>" : ""}</tr>${rows.join("")}</table>
-    <p class="muted" style="font-size:14px">Strong outbound means plenty of freight to reload on; weak means trucks pile up and outbound pays little (inbound pays more). Local shippers favor carriers based nearby, an edge that shrinks the more carriers share the hub.</p>`;
+  return `<table><tr><th>Hub</th><th>Outbound van / reefer / flatbed</th><th>Local first</th><th>Insurance</th><th>Yard FD/wk per extra truck</th>${w ? "<th>Carriers</th>" : ""}</tr>${rows.join("")}</table>
+    <p class="muted" style="font-size:14px">Strong outbound means plenty of freight to reload on; weak means trucks pile up and outbound pays little (inbound pays more). "Local first" is the share of the hub's van loads its shippers hold for carriers based nearby for the first round: where trucks pile up, shippers work with locals almost exclusively, and offer the reliable ones contract lanes. The edge from being local shrinks the more carriers share the hub.</p>`;
 }
 
 // --- Guide ------------------------------------------------------------------------------
@@ -2156,6 +2216,20 @@ function wireInput(): void {
       case "book":
         act({ type: "book_load", truckId: truck, loadId: Number(el.dataset.load) }, "Booked. The truck is on its way");
         break;
+      case "acceptoffer":
+        act({ type: "accept_contract", contractId: Number(el.dataset.contract) }, "Contract signed. Tenders start this week");
+        break;
+      case "declineoffer":
+        act({ type: "decline_contract", contractId: Number(el.dataset.contract) }, "Offer declined");
+        break;
+      case "accepttender": {
+        const loadId = Number(el.dataset.load);
+        act({ type: "accept_tender", loadId, truckId: Number($<HTMLSelectElement>(`tender-${loadId}`).value) }, "Tender accepted at your contract rate");
+        break;
+      }
+      case "declinetender":
+        act({ type: "decline_tender", loadId: Number(el.dataset.load) }, "Tender left for the board");
+        break;
       case "sendhome":
         act({ type: "send_home", truckId: truck }, "Heading home for days off");
         break;
@@ -2203,6 +2277,10 @@ function wireInput(): void {
         if ($<HTMLInputElement>("o-bn").checked) orders.push({ kind: "bookNow", breakEvenPlusPct: Math.min(5, Math.max(0, num("o-bn-pct") / 100 || 0)), maxDeadheadMi: Math.max(0, Math.min(150, num("o-dh") || 0)) });
         if ($<HTMLInputElement>("o-home").checked)
           orders.push({ kind: "homeTime", afterDays: Math.min(365, Math.max(1, Math.round(num("o-home-after")) || 21)), restDays: Math.min(60, Math.max(1, Math.round(num("o-home-rest")) || 5)) });
+        if ($<HTMLInputElement>("o-ct").checked) {
+          const spot = $<HTMLSelectElement>("o-ct-spot").value;
+          orders.push({ kind: "contracts", acceptOffers: true, spotAbovePct: spot === "always" ? null : Number(spot), maxDeadheadMi: Math.max(0, Math.min(150, num("o-dh") || 150)) });
+        }
         act({ type: "set_standing_orders", orders }, "Dispatcher updated");
         break;
       }

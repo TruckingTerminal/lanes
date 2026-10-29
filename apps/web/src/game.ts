@@ -47,6 +47,7 @@ export const DEFAULT_ORDERS: StandingOrder[] = [
   { kind: "reposition", afterIdleRounds: 3, to: { openLoadsWithinMi: 400 } },
   { kind: "bookNow", breakEvenPlusPct: 0.2, maxDeadheadMi: 150 },
   { kind: "homeTime", afterDays: 21, restDays: 5 },
+  { kind: "contracts", acceptOffers: true, spotAbovePct: null, maxDeadheadMi: 150 },
 ];
 
 export function newWorld(seed: number): World {

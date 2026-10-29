@@ -1,3 +1,4 @@
+import { localShare, tender, tenderOdds } from "./contracts.js";
 import type { EconomyConfig, Equipment } from "@lanes/config";
 import { COMMODITIES, destWeights as placeDestWeights, dexp, dpow, marketMix, originWeights, PLACE_OF_HUB, placeMiles as netPlaceMiles, placeMilesFast as netPlaceMilesFast, placeRoute as netPlaceRoute, type Lane, type Network } from "@lanes/data";
 import { dayOf } from "./clock.js";
@@ -202,6 +203,10 @@ export function generateRoundFreight(w: World): RoundFreight {
       appointmentT: 0,
       routeHours: lane.hours,
       routeTollFd: lane.tollFd,
+      localUntilRound: 0,
+      contractId: 0,
+      tenderedTo: 0,
+      tenderUntil: 0,
     };
     placeLoad(load, lane, eq);
     // A pickup out of town pays for the empty run to it: the premium lifts every price on the load.
@@ -249,6 +254,8 @@ export function generateRoundFreight(w: World): RoundFreight {
         const lane = lanes[rng.weighted(weights)]!;
         const load = newLoad(lane, eq, refRate(lane, eq));
         makeHot(load);
+        // Shipper leverage: where trucks pile up, most loads go to local carriers first.
+        if (rng.next() < localShare(w, i, eq)) load.localUntilRound = w.round + cfg.leverage.localRounds;
         if (rng.next() < cfg.freight.npcBrokerOnlyShare) {
           const contractRef = lane.baseRate * w.contractIndex[planIndex(i, e)]! * cfg.rates.equipmentPremium[eq] * reloadFactor(w, lane.dest, eq) + fsc + tollPerMile(lane);
           tenderToBroker(w, load, brokers, contractRef * remoteMult(load) * cfg.rates.npcCeilingMarkup * (load.hot || 1));
@@ -260,7 +267,19 @@ export function generateRoundFreight(w: World): RoundFreight {
     }
   }
 
-  // 4. Facility loads: posted by their owner to the open board.
+  // 4. Contract tenders: a load on the contract's lane and places, at spot prices on paper but held for its carrier.
+  for (const c of w.contracts) {
+    if (c.status !== "active" || rng.next() >= tenderOdds(w, c)) continue;
+    const lane = net.lanes[c.laneId]!;
+    const load = newLoad(lane, c.equipment, refRate(lane, c.equipment));
+    finish(load, 0);
+    tender(w, load, c);
+    routeLoad(load);
+    w.loads.set(load.id, load);
+    created.push(load);
+  }
+
+  // 5. Facility loads: posted by their owner to the open board.
   let facilityLoads = 0;
   w.facilities.forEach((f, k) => {
     const lanes = net.lanesFrom[f.hub]!;
@@ -368,3 +387,6 @@ export function expectedReloadDeadheadMi(w: World, destHub: number, eq: Equipmen
   }
   return clamp(reloadDeadheadMi / Math.max(0.01, odds), reloadDeadheadClamp[0], reloadDeadheadClamp[1]);
 }
+
+/** Destination weights over a hub's lanes, for contract offers (contracts.ts). */
+export const laneDestWeights = destWeights;
