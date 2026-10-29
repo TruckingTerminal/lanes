@@ -2,13 +2,16 @@ import type { JSX } from "preact";
 import { useEffect, useRef } from "preact/hooks";
 import { companyAccount, fdPriceUsd, garagingOf, homeCrowding, localShare, tokenLive, type World } from "@lanes/engine";
 import { hubs as HUBS } from "@lanes/data";
-import { drawLoadingRoad, drawTitleScene, iconUrl, logo, PAL, TITLE_H, TITLE_W, truckUrl } from "../art.js";
+import { drawLoadingRoad, drawTitleScene, iconUrl, PAL, TITLE_H, TITLE_W, truckUrl } from "../art.js";
 import { TITLE_FRAME_H, TITLE_FRAME_W, titleFrame } from "../title.js";
 import { cls, fd, dateLabel, hhmm, pct, realUntil } from "../format.js";
 import { GAME_CONFIG, isHuman, RULESET, type StartKind } from "../game.js";
 import { H } from "../handlers.js";
 import { attentionItems, stuckTrucks, tiredTrucks } from "../logic.js";
 import { fitMap, maxZoom, mountMap, setZoom, zoomIndex, zoomLabel } from "../mapview.js";
+import { drawText } from "../font.js";
+import { loadingStrip, LOOP_FPS } from "../mapart.js";
+import { LOGO, LOGO_TITLE, LOGO_TITLE_H, LOGO_W } from "../assets.js";
 import { clockMin, feed, fsActive, fsEnabled, S, setLayout, setTab, setTheme, SPEEDS, TEST_BUILD, THEMES, toggleFullscreen, useData, useTick, type Tab } from "../state.js";
 import { Badge, Btn, Card, Pixel } from "./bits.js";
 import { Company } from "./panels/Company.js";
@@ -50,11 +53,10 @@ function TitleScene(): JSX.Element {
           cv.width = TITLE_FRAME_W * scale;
           cv.height = TITLE_FRAME_H * scale;
         }
-        if (resized || img !== shown) {
+        if (resized || img !== shown || !reduced) {
           ctx.imageSmoothingEnabled = false;
           ctx.drawImage(img, 0, 0, cv.width, cv.height);
-          const lg = logo(scale * 2);
-          ctx.drawImage(lg, Math.round((cv.width - lg.width) / 2), 10 * scale);
+          drawLogo(ctx, cv.width, scale, reduced ? 0 : t);
           shown = img;
         }
       } else {
@@ -65,8 +67,7 @@ function TitleScene(): JSX.Element {
           cv.height = TITLE_H * scale;
         }
         drawTitleScene(ctx, scale, reduced ? 0 : t);
-        const lg = logo(scale * 2);
-        ctx.drawImage(lg, Math.round((cv.width - lg.width) / 2), 12 * scale);
+        drawLogo(ctx, cv.width, scale, reduced ? 0 : t);
         shown = undefined;
       }
       if (!reduced || !img) raf = requestAnimationFrame(frame);
@@ -332,7 +333,18 @@ function LoadingScreen(): JSX.Element {
     const ctx = cv.getContext("2d")!;
     let raf = 0;
     const frame = (t: number) => {
-      drawLoadingRoad(ctx, 3, S.loadShare, t);
+      const strip = loadingStrip();
+      if (strip) {
+        if (cv.width !== 512) {
+          cv.width = 512;
+          cv.height = 144;
+        }
+        const i = Math.floor((t * LOOP_FPS) / 1000) % 16;
+        ctx.imageSmoothingEnabled = false;
+        ctx.clearRect(0, 0, cv.width, cv.height);
+        ctx.drawImage(strip, i * 256, 0, 256, 72, 0, 0, 512, 144);
+        drawText(ctx, `${Math.round(S.loadShare * 100)}%`, 12, 12, 2, "#fbf7ea", "#090c17");
+      } else drawLoadingRoad(ctx, 3, S.loadShare, t);
       raf = requestAnimationFrame(frame);
     };
     raf = requestAnimationFrame(frame);
@@ -368,7 +380,40 @@ function GameScreen(): JSX.Element {
   );
 }
 
-let logoUrl = "";
+let logoImg: HTMLImageElement | null = null;
+let logoGlint: HTMLCanvasElement | null = null;
+/** The HD logo over the title at a quarter of the scene's scale (its own pixels at 4×), with a glint sweeping across every five seconds. */
+function drawLogo(ctx: CanvasRenderingContext2D, cw: number, scale: number, t: number): void {
+  if (!logoImg) {
+    logoImg = new Image();
+    logoImg.src = LOGO_TITLE;
+  }
+  if (!logoImg.complete || !logoImg.naturalWidth) return;
+  logoGlint ??= document.createElement("canvas");
+  logoGlint.width = LOGO_W;
+  logoGlint.height = LOGO_TITLE_H;
+  const g = logoGlint.getContext("2d")!;
+  g.clearRect(0, 0, LOGO_W, LOGO_TITLE_H);
+  g.drawImage(logoImg, 0, 0);
+  if (t > 0) {
+    const x = ((t % 5000) / 5000) * (LOGO_W + 240) - 120;
+    const grad = g.createLinearGradient(x - 50, 0, x + 50, 0);
+    grad.addColorStop(0, "rgba(255,255,255,0)");
+    grad.addColorStop(0.5, "rgba(255,255,255,0.6)");
+    grad.addColorStop(1, "rgba(255,255,255,0)");
+    g.globalCompositeOperation = "source-atop";
+    g.fillStyle = grad;
+    g.fillRect(x - 50, 0, 100, LOGO_TITLE_H);
+    g.globalCompositeOperation = "source-over";
+  }
+  const s = scale / 4;
+  const w = Math.round(LOGO_W * s);
+  const h = Math.round(LOGO_TITLE_H * s);
+  ctx.imageSmoothingEnabled = s !== 1;
+  ctx.imageSmoothingQuality = "high";
+  ctx.drawImage(logoGlint, Math.round((cw - w) / 2), 10 * scale, w, h);
+  ctx.imageSmoothingEnabled = false;
+}
 function Clock(): JSX.Element {
   useTick();
   const minute = clockMin();
@@ -385,7 +430,6 @@ function TopBar(): JSX.Element {
   const w = g.w;
   const c = g.player;
   const day = Math.floor(clockMin() / 1440);
-  logoUrl ||= logo(2).toDataURL();
   const bal = c ? w.ledger.balance(companyAccount(c.id)) : 0;
   const miles = c ? c.milesHistory.reduce((a, b) => a + b, 0) + c.milesTotal : 0;
   const stuck = c ? stuckTrucks().length : 0;
@@ -395,7 +439,9 @@ function TopBar(): JSX.Element {
   return (
     <header class="topbar">
       <div class="brand">
-        <img class="px" src={logoUrl} alt="LANES" />
+        <span class="logowrap">
+          <img class="logo hd" src={LOGO} alt="LANES" />
+        </span>
         <span class="sub">{g.kind === "test" ? "Test world" : "Live world"}</span>
       </div>
       <Clock />

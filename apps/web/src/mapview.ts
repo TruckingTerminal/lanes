@@ -306,7 +306,7 @@ export function drawMap(now: number): void {
   if (!cv || !art || !S.game) return;
   if (S.layout === "panel") return;
   stepView(now);
-  const ctx = cv.getContext("2d")!;
+  let ctx = cv.getContext("2d")!;
   const w = S.game.w;
   const W = cv.width;
   const H = cv.height;
@@ -330,7 +330,11 @@ export function drawMap(now: number): void {
     ctx.imageSmoothingEnabled = false;
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     if (lvl.season !== season) washSeason(ctx, season, W, H);
-    // The towns as generic sprites by region (the bigger ones first as the zoom comes in), then the hub cities as their own.
+    // The towns as generic sprites by region (the bigger ones first as the zoom comes in), then the hub cities as their own,
+    // on their own layer so a season can tint them to match the painting beneath.
+    const sprites = k >= 4 ? spriteLayer(W, H) : null;
+    const base = ctx;
+    if (sprites) ctx = sprites.getContext("2d")!;
     if (k >= 4) {
       const ts = k / TOWN_SCALE;
       const minPop = k >= 8 ? 10_000 : k >= 6 ? 30_000 : 80_000;
@@ -354,7 +358,7 @@ export function drawMap(now: number): void {
       ctx.imageSmoothingEnabled = false;
     }
     // Level 1 already paints each city with its landmarks; the sprites take over from 4×, where its pixels would double.
-    if (k >= CITY_SCALE) {
+    if (sprites && k >= CITY_SCALE) {
       const cs = k / CITY_SCALE;
       ctx.imageSmoothingEnabled = !Number.isInteger(cs);
       w.net.hubs.forEach((h, i) => {
@@ -368,6 +372,11 @@ export function drawMap(now: number): void {
         ctx.drawImage(sp.img, sx, sy, sp.fw, sp.fh, Math.round(X - cw / 2), Math.round(Y - ch * 0.6), Math.round(cw), Math.round(ch));
       });
       ctx.imageSmoothingEnabled = false;
+    }
+    if (sprites) {
+      if (season !== "summer") tintSprites(ctx, season, W, H);
+      ctx = base;
+      ctx.drawImage(sprites, 0, 0);
     }
   } else {
     ctx.setTransform(k, 0, 0, k, -panX, -panY);
@@ -482,6 +491,25 @@ export function drawMap(now: number): void {
   }
   drawWeather(ctx, now, k, u);
   drawHubLabels(ctx, f, k, u, visible);
+}
+
+let spriteCanvas: HTMLCanvasElement | null = null;
+/** The transparent layer the sprites draw on, cleared, the size of the map canvas. */
+function spriteLayer(W: number, H: number): HTMLCanvasElement {
+  spriteCanvas ??= document.createElement("canvas");
+  if (spriteCanvas.width !== W || spriteCanvas.height !== H) {
+    spriteCanvas.width = W;
+    spriteCanvas.height = H;
+  }
+  spriteCanvas.getContext("2d")!.clearRect(0, 0, W, H);
+  return spriteCanvas;
+}
+/** Tints the sprites (only where they are drawn) toward the season: cold and pale in winter, warm in autumn, fresh in spring. */
+function tintSprites(ctx: CanvasRenderingContext2D, season: Season, W: number, H: number): void {
+  ctx.globalCompositeOperation = "source-atop";
+  ctx.fillStyle = season === "winter" ? "rgba(214,228,255,0.38)" : season === "autumn" ? "rgba(255,170,90,0.22)" : "rgba(190,240,160,0.16)";
+  ctx.fillRect(0, 0, W, H);
+  ctx.globalCompositeOperation = "source-over";
 }
 
 /** A seasonal wash over the summer painting while a season's own fine level is missing: snow screening the north, autumn warmth, spring green. */

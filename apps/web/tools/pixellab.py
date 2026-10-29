@@ -10,7 +10,7 @@ PixelLab asset tool for LANES. Reads the API token from .pixellab.token at the r
       → one pixflux image (synchronous)
   pixellab.py character "description" <out-dir> [--view ...]
       → an 8-direction character (v3): <out-dir>/<direction>.png
-  pixellab.py pro     "description" <w> <h> <out.png> [--style <png>] [--palette] [--transparent] [--seed N]
+  pixellab.py pro     "description" <w> <h> <out.png> [--style <png>] [--reference <png>] [--palette] [--transparent] [--seed N]
       → one Pro image (generate-image-v2, up to 792×688; a background job, polled). --style copies the
         palette, outline, detail and shading of that image, which keeps a set in one hand.
   pixellab.py edit    <in.png> "instruction" <out.png> [--ref <style.png>] [--seed N] [--transparent]
@@ -92,7 +92,7 @@ def flag(name: str, default=None):
     return default
 
 
-VALUE_FLAGS = ("--view", "--detail", "--size", "--style", "--seed", "--frames", "--direction", "--subject", "--ref")
+VALUE_FLAGS = ("--view", "--detail", "--size", "--style", "--seed", "--frames", "--direction", "--subject", "--ref", "--reference")
 
 
 def args():
@@ -238,6 +238,11 @@ def main():
             body["style_options"] = {"color_palette": True, "outline": True, "detail": True, "shading": True}
         if flag("--palette"):
             body["target_palette"] = {"colors": PALETTE, "name": "Interstate Dusk"}
+        ref = flag("--reference")
+        if ref:
+            # Subject guidance: what to draw, as opposed to --style (how to draw it).
+            rw, rh = png_size(ref)
+            body["reference_images"] = [{"image": {"type": "base64", "base64": base64.b64encode(open(ref, "rb").read()).decode()}, "size": {"width": rw, "height": rh}}]
         seed = flag("--seed")
         if seed:
             body["seed"] = int(seed)

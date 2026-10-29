@@ -60,6 +60,87 @@ map() {
   wait
 }
 
+# Block B in the painterly hand: the four scenes as Pro 256 × 144 (shown at 2× and 3×) in the title's style,
+# every truck an American long-nose conventional, each with a 16-frame loop. Jeff's 2026-10-29 review: the
+# pixflux scenes looked noisy and one showed a European cab-over.
+TRUCK="an American long-nose conventional semi tractor with a long hood, a chrome grille and bumper, tall chrome exhaust stacks and a sleeper cab, never a flat-faced European cab-over truck"
+HD="highly detailed HD pixel art with painterly shading and layered depth, cinematic, warm late light, saturated palette, no text or lettering"
+scenespro() {
+  mkdir -p apps/web/assets/scenes
+  local st=apps/web/assets/title/title.png
+  "${P[@]}" pro "$HD: the inside of a small trucking company dispatch office at dusk, two desks with monitors showing a load board and a map of the United States, a big wall map with pins, a coffee maker, a window onto the yard where $TRUCK in cyan paint is parked under an orange and purple sunset, warm desk lamps" 256 144 apps/web/assets/scenes/office.png --style "$st" &
+  "${P[@]}" pro "$HD: a trucking company yard at dusk seen from the road, a row of white 53-foot dry van trailers, $TRUCK in cyan paint, a corrugated steel repair shop with an open lit bay, sodium lights on poles, a chain-link fence, mountains on the horizon, an orange and purple sunset sky" 256 144 apps/web/assets/scenes/yard.png --style "$st" &
+  "${P[@]}" pro "$HD: a warehouse loading dock in the evening, $TRUCK in white backed up with its white 53-foot trailer to a lit dock door, a forklift carrying a pallet, stacked boxes, a dock worker in a hard hat with a clipboard, fluorescent light spilling out onto the lot" 256 144 apps/web/assets/scenes/dock.png --style "$st" &
+  "${P[@]}" pro "$HD: an interstate weigh station at night, $TRUCK in cyan paint stopped on the scale under a bright canopy, an inspection booth with a state trooper, a patrol car with a light bar, the interstate stretching into the dark with headlights and taillights" 256 144 apps/web/assets/scenes/weigh.png --style "$st" &
+  wait
+}
+scenesloops() {
+  local sub="a seamless loop that ends where it began, the camera and the buildings never move"
+  "${P[@]}" animate apps/web/assets/scenes/office.png "the monitors flicker with changing data, the desk lamp glows and dims, a dispatcher types and sips coffee, outside the sky slowly deepens and the parked truck's marker lights blink, $sub" apps/web/assets/scenes/office-loop --frames 16 --view side &
+  "${P[@]}" animate apps/web/assets/scenes/yard.png "the sodium lights flicker on, the open bay's light glows, a mechanic walks across the bay, the truck's marker lights blink, exhaust puffs from the stacks, clouds drift slowly across the sunset, $sub" apps/web/assets/scenes/yard-loop --frames 16 --view side &
+  "${P[@]}" animate apps/web/assets/scenes/dock.png "the forklift drives a pallet into the trailer and backs out, the dock worker checks the clipboard and waves, the fluorescent light buzzes and flickers, $sub" apps/web/assets/scenes/dock-loop --frames 16 --view side &
+  "${P[@]}" animate apps/web/assets/scenes/weigh.png "the patrol car's light bar flashes red and blue, the trooper steps out of the booth and back, headlights and taillights stream past on the interstate behind, the scale display blinks, $sub" apps/web/assets/scenes/weigh-loop --frames 16 --view side &
+  wait
+  for s in office yard dock weigh; do python3 apps/web/tools/pack-loop.py apps/web/assets/scenes/$s-loop apps/web/assets/scenes/$s.loop.png --cols 16; done
+}
+
+# Block D in the painterly hand: the six portraits as Pro 128 × 128 (shown at 48 CSS px) in the title's style,
+# then idle loops. Block A: the loading strip, a rig rolling on a road, 256 × 72 shown at 2×, with its loop.
+PORTRAIT="highly detailed HD pixel art portrait with painterly shading, head and shoulders, facing the viewer, warm late light, a plain dark background, no text"
+peoplepro() {
+  mkdir -p apps/web/assets/people
+  local st=apps/web/assets/title/title.png
+  "${P[@]}" pro "$PORTRAIT: an American truck driver, a man in his forties with a worn trucker cap, a red and black flannel shirt and stubble, a friendly tired smile" 128 128 apps/web/assets/people/driver-m.png --style "$st" &
+  "${P[@]}" pro "$PORTRAIT: an American truck driver, a woman in her thirties with a brown ponytail, an orange hi-vis safety vest over a grey hoodie, a confident smile" 128 128 apps/web/assets/people/driver-f.png --style "$st" &
+  "${P[@]}" pro "$PORTRAIT: a freight dispatcher at a desk, a black headset with a microphone, a navy blue polo shirt, a focused expression lit by a monitor" 128 128 apps/web/assets/people/dispatcher.png --style "$st" &
+  "${P[@]}" pro "$PORTRAIT: a freight broker, a grey suit jacket over an open-collar white shirt, a phone held to the ear, a sharp calculating look" 128 128 apps/web/assets/people/broker.png --style "$st" &
+  wait
+  "${P[@]}" pro "$PORTRAIT: a diesel mechanic, dark blue coveralls with grease stains, a red rag over the shoulder, a cap turned backwards, a wry grin" 128 128 apps/web/assets/people/mechanic.png --style "$st" &
+  "${P[@]}" pro "$PORTRAIT: a warehouse dock worker, a yellow hard hat and a yellow safety vest over a brown shirt, holding a clipboard, a steady look" 128 128 apps/web/assets/people/dockworker.png --style "$st" &
+  wait
+}
+peopleloops() {
+  local sub="a subtle idle loop that ends where it began, the face and clothes stay the same"
+  local n=0
+  for who in driver-m driver-f dispatcher broker mechanic dockworker; do
+    "${P[@]}" animate apps/web/assets/people/$who.png "breathes slowly, blinks, the eyes glance aside and back, a slight tilt of the head, $sub" apps/web/assets/people/$who-loop --frames 16 --view side --transparent &
+    n=$((n + 1)); (( n % 3 == 0 )) && wait
+  done
+  wait
+  for who in driver-m driver-f dispatcher broker mechanic dockworker; do python3 apps/web/tools/pack-loop.py apps/web/assets/people/$who-loop apps/web/assets/people/$who.loop.png --cols 16; done
+}
+loading() {
+  mkdir -p apps/web/assets/loading
+  "${P[@]}" pro "$HD: side view of $TRUCK in cyan paint pulling a white 53-foot dry van trailer, driving to the right along a straight two-lane highway at dusk, the road and the flat desert horizon running seamlessly to both edges of the frame, telephone poles, a saturated orange and purple sky" 256 72 apps/web/assets/loading/rig.png --style apps/web/assets/title/title.png
+  "${P[@]}" animate apps/web/assets/loading/rig.png "the truck drives steadily to the right with its wheels turning and the road's dashes, poles and desert scrolling left past it so it stays in the frame, exhaust puffs from the stacks, a seamless loop that ends where it began" apps/web/assets/loading/rig-loop --frames 16 --view side --direction east
+  python3 apps/web/tools/pack-loop.py apps/web/assets/loading/rig-loop apps/web/assets/loading/rig.loop.png --cols 16
+}
+
+# Every menu item gets its own location (Jeff, 2026-10-29): Loads at a truck stop, Staff in the drivers'
+# lounge, Dealer on a dealership lot, Money at a small-town bank, Guide in a diner booth over a road atlas.
+# Fleet keeps the yard and Company the office; the dock and the weigh station stay for load and inspection views.
+placespro() {
+  local st=apps/web/assets/title/title.png
+  "${P[@]}" pro "$HD: a big interstate truck stop at dusk, a tall lit sign on a pole, rows of fuel islands under a long canopy, $TRUCK in cyan paint fueling and several others parked in a row, a diner with neon in the window, a driver walking with a coffee, the highway beyond" 256 144 apps/web/assets/scenes/truckstop.png --style "$st" &
+  "${P[@]}" pro "$HD: the drivers' lounge at a trucking terminal, a few drivers in caps and flannel on worn couches, a coffee machine, a vending machine, a bulletin board of notices, a TV on the wall, a window onto the yard where $TRUCK is parked at dusk" 256 144 apps/web/assets/scenes/lounge.png --style "$st" &
+  "${P[@]}" pro "$HD: a truck dealership lot at dusk, rows of new and used American long-nose conventional semi tractors with chrome grilles and sleeper cabs in cyan, white and red paint under strings of flags and tall lights, a glass showroom with a salesman inside, price tags on the windshields, never a flat-faced European cab-over truck" 256 144 apps/web/assets/scenes/dealer.png --style "$st" &
+  wait
+  "${P[@]}" pro "$HD: a small-town bank branch at dusk, a brick building with tall windows and a lit sign, a drive-through lane, $TRUCK in cyan paint parked at the curb, a man in a trucker cap walking in with papers, a lit interior with a teller counter" 256 144 apps/web/assets/scenes/bank.png --style "$st" &
+  "${P[@]}" pro "$HD: a diner booth at night seen from across the table, a road atlas of the United States open on the table beside a mug of coffee and a slice of pie, a trucker's cap and keys, the window showing $TRUCK parked under the diner's neon sign" 256 144 apps/web/assets/scenes/guide.png --style "$st" &
+  wait
+}
+placesloops() {
+  local sub="a seamless loop that ends where it began, the camera and the buildings never move"
+  "${P[@]}" animate apps/web/assets/scenes/truckstop.png "the tall sign and the diner neon flicker, a truck's lights blink at the fuel island, the driver walks a few steps and back, headlights pass on the highway, $sub" apps/web/assets/scenes/truckstop-loop --frames 16 --view side &
+  "${P[@]}" animate apps/web/assets/scenes/lounge.png "the TV flickers, a driver sips coffee and sets the cup down, another turns a page, the vending machine light hums and flickers, outside the truck's lights blink, $sub" apps/web/assets/scenes/lounge-loop --frames 16 --view side &
+  "${P[@]}" animate apps/web/assets/scenes/dealer.png "the strings of flags flutter in the wind, the tall lights flicker on, the salesman walks across the showroom, a price tag swings, $sub" apps/web/assets/scenes/dealer-loop --frames 16 --view side &
+  wait
+  "${P[@]}" animate apps/web/assets/scenes/bank.png "the bank sign glows and flickers, the man walks up the steps and through the door, the truck's marker lights blink, a car rolls through the drive-through lane, $sub" apps/web/assets/scenes/bank-loop --frames 16 --view side &
+  "${P[@]}" animate apps/web/assets/scenes/guide.png "steam rises from the coffee, the neon sign outside flickers, a page of the atlas lifts and settles, the truck's lights blink through the window, $sub" apps/web/assets/scenes/guide-loop --frames 16 --view side &
+  wait
+  for s in truckstop lounge dealer bank guide; do python3 apps/web/tools/pack-loop.py apps/web/assets/scenes/$s-loop apps/web/assets/scenes/$s.loop.png --cols 16; done
+}
+
 case "$want" in
   rigs) rigs ;;
   scenes) scenes ;;
@@ -67,6 +148,13 @@ case "$want" in
   title) title ;;
   mix) mix ;;
   map) map ;;
+  scenespro) scenespro ;;
+  scenesloops) scenesloops ;;
+  peoplepro) peoplepro ;;
+  peopleloops) peopleloops ;;
+  loading) loading ;;
+  placespro) placespro ;;
+  placesloops) placesloops ;;
   all) rigs; scenes; people; title ;;
 esac
 "${P[@]}" balance

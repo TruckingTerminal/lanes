@@ -7,6 +7,7 @@ import { AttentionCard, CrewLine, goLoads, goStaff, idleLabel, idleWhy, openLoad
 import { focusTruck } from "../../mapview.js";
 import { act, describe, me, myTrucks, S, selectTruck, truckNo, useData } from "../../state.js";
 import { Bar, Btn, Card, Label, Num, Panel, Pixel } from "../bits.js";
+import { Scene } from "../Loop.js";
 import { TendersCard } from "./Contracts.js";
 
 const num = (id: string): number => Number((document.getElementById(id) as HTMLInputElement | null)?.value);
@@ -19,7 +20,7 @@ export function Fleet(): JSX.Element {
   const pending = ordersOf(w, me().id);
   return (
     <Panel title="Your fleet">
-      <img class="scene" src={SCENES.yard} alt="" />
+      <Scene name="yard" still={SCENES.yard} alt="Your yard at dusk" />
       <AttentionCard />
       <TendersCard c={me()} />
       <TiredAlerts />
