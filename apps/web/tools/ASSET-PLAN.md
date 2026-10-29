@@ -39,6 +39,37 @@ painterly sample as the style image; prompts under `mix` in `asset-pass.sh`) rea
 painterly light on clean isometric stages. If the mix is chosen, block B scenes and block E
 city sprites go isometric while the title and the map's top-down trucks stay as they are.
 
+## The map (2026-10-29): Jeff wants the large US map first, then major cities, then small towns, and the
+map "extremely interactive and detailed" with "multiple smooth zoom levels".
+
+How the map is made: the code-drawn base (map.ts: the real Albers projection, coastlines, rivers, ranges,
+the 0.16.0 road network and the 4,786 places) is the layout, and PixelLab's Pro editor repaints it
+(`pixellab.py edit`, edit-images-v2, 512 × 512 in and out) in the chosen style, so every road, river and
+city stays exactly where the data puts it. `tools/map-harness` renders the base at any size in the browser
+and saves crops; `asset-pass.sh map` repaints the sample crops. Measured 2026-10-29: a Pro repaint is 25
+generations per call whatever the size (512 × 320 and 512 × 512 alike), and a new Pro 512 × 512 image
+with the title as style image is also 25. The eight samples (the country, the West and the Northeast in
+both looks, and a zoomed city tile in both) cost 200; they are in dist/preview-assets/styles/map.
+
+The zoom pyramid (what "smooth zoom levels" needs): one painting can only be scaled, so each zoom band
+gets its own art and the view crossfades between bands while the zoom animates.
+- Level 0, the country (zoom 1–2): the base at 1536 × 1024 repainted as 3 × 2 tiles of 512, each tile
+  painted with a 64-pixel strip of its already-painted neighbours inside the frame so the seams match.
+- Level 1, the region (zoom 3–4): painted top-down tilesets (create-tileset, Pro, 64-pixel tiles) for
+  the six biomes, water and the transitions, laid by the same biome function the code map uses, with
+  the roads drawn as painted road tiles and the towns and cities as sprites. No per-tile painting, so it
+  costs the same for the whole country as for one state.
+- Level 2, the city (zoom 6–8): the city and town sprites at their large size (four sizes per class),
+  with lit windows, smoke, traffic and weather loops; facilities and weigh stations as sprites.
+- Smooth zoom: a continuous zoom factor eased every frame (wheel, pinch, double-click, keys), fractional
+  scaling only while the zoom is moving and a snap to a whole-number scale when it settles, panning
+  with inertia, and the level 0 painting crossfading into the tile layer between zoom 2 and 3.
+
+Costs (block E, revised): level 0 = 6 tiles × 25 (~250 with retries), tilesets ≈ 8 × ~30 (~250), road
+and detail tiles ~50, city and town sprites in four sizes ~250, loops and weather ~100; about 900 of the
+~1,000 reserved for E plus half its iteration reserve. A painted level 1 (24 tiles × 25 = 600) is
+affordable later if the tile layer is not detailed enough.
+
 Rules for the pass:
 - Check `python3 apps/web/tools/pixellab.py balance` before an object, character or Pro call.
 - Never spend more than one retry on a sprite before changing the prompt.

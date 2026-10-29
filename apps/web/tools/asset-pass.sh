@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # The LANES asset pass: every PixelLab image the client ships, one command per asset.
-# Run from the repo root: bash apps/web/tools/asset-pass.sh [rigs|scenes|people|title|mix|all]
+# Run from the repo root: bash apps/web/tools/asset-pass.sh [rigs|scenes|people|title|mix|map|all]
 set -u
 cd "$(dirname "$0")/../../.."
 P=(python3 apps/web/tools/pixellab.py)
@@ -45,12 +45,28 @@ mix() {
   "${P[@]}" pro "isometric pixel art of a small American city hub for a trucking tycoon game, on a transparent background: a cluster of downtown towers with lit windows, a highway interchange with tiny semi trucks on the ramps, a river with a steel bridge, warehouses and a rail yard at the edge, a water tower, street lights coming on at dusk, saturated sunset palette, highly detailed HD pixel art with painterly shading, clean isometric tycoon game building shapes" 288 288 samples/mix-city.png --style "$style" --transparent
 }
 
+# Map style samples (not shipped), for Jeff's 2026-10-29 "large US map first" look: the code-drawn base
+# (rendered by tools/map-harness, which saves crops of the real map) repainted by the Pro editor in the
+# two candidate styles. BASE is the folder with base-us-512.png, base-west-1536.png and base-east-1536.png.
+PAINTERLY="repaint this top-down pixel art map of the United States as highly detailed HD pixel art with painterly shading and layered depth: richly textured terrain with dark forests, patchwork farmland, pale deserts, mountain ranges with shaded ridges and snow caps, rivers and coastlines with surf, warm late-afternoon light and a saturated palette; keep every coastline, river, state line, highway, town dot and city skyline exactly where it is"
+MIXED="repaint this top-down pixel art map of the United States as an isometric tycoon game world with highly detailed HD painterly pixel art shading: the ground stays a top-down map with every coastline, river, state line and highway exactly where it is, but the mountain ranges rise as shaded isometric peaks with snow, the forests become clusters of tiny isometric trees, every city skyline becomes a small cluster of isometric buildings with lit windows and every town dot a few tiny isometric houses, warm late-afternoon light and a saturated palette"
+map() {
+  local base=${BASE:?set BASE=<folder with the base-*.png crops from tools/map-harness>}
+  mkdir -p samples
+  for crop in us-512 west-1536 east-1536; do
+    "${P[@]}" edit "$base/base-$crop.png" "$PAINTERLY" "samples/map-$crop-painterly.png" &
+    "${P[@]}" edit "$base/base-$crop.png" "$MIXED" "samples/map-$crop-mix.png" &
+  done
+  wait
+}
+
 case "$want" in
   rigs) rigs ;;
   scenes) scenes ;;
   people) people ;;
   title) title ;;
   mix) mix ;;
+  map) map ;;
   all) rigs; scenes; people; title ;;
 esac
 "${P[@]}" balance
