@@ -44,7 +44,7 @@ export function weatherAt(lon: number, lat: number, day: number, hour: number, s
   const seasonCold = Math.cos(((doy - 15) / 365) * Math.PI * 2);
   const northness = Math.min(1, Math.max(0, (lat - 25) / 24));
   const cold = seasonCold * 0.6 + northness * 0.9 - 0.55 + (noise(px * 1.7, py * 1.7, s + 3) - 0.5) * 0.3;
-  const wet = pressure - 0.52;
+  const wet = pressure - 0.58;
   if (wet > 0) {
     const intensity = Math.min(1, wet / 0.3);
     if (cold > 0.35) return { kind: "snow", intensity };
@@ -54,7 +54,7 @@ export function weatherAt(lon: number, lat: number, day: number, hour: number, s
   // Morning fog along the coasts and in the valleys when the air is still.
   const coast = noise(lon / 2.5, lat / 2.5, s + 4);
   if (hour >= 5 && hour < 10 && pressure > 0.42 && coast > 0.62) return { kind: "fog", intensity: Math.min(1, (coast - 0.62) / 0.2) };
-  if (wet > -0.08) return { kind: "cloud", intensity: Math.min(1, (wet + 0.08) / 0.08) };
+  if (wet > -0.05) return { kind: "cloud", intensity: Math.min(1, (wet + 0.05) / 0.05) };
   if (cold < -0.75 && hour >= 12 && hour < 19) return { kind: "heat", intensity: Math.min(1, (-0.75 - cold) / 0.3) };
   return { kind: "clear", intensity: 0 };
 }
