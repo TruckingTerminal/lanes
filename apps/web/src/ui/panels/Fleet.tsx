@@ -1,13 +1,13 @@
 import type { JSX } from "preact";
 import { condition, crewed, hubMiles, ordersOf, rebuildCost, resting, truckValue, type StandingOrder, type Truck } from "@lanes/engine";
-import { rig, SCENES } from "../../assets.js";
+import { SCENES } from "../../assets.js";
 import { dateLabel, fd, pct, plural, TIER_NAME, TRAILER_NAME, hhmm, realUntil } from "../../format.js";
 import { DEFAULT_ORDERS, GAME_CONFIG } from "../../game.js";
 import { AttentionCard, CrewLine, goLoads, goStaff, idleLabel, idleWhy, openLoadsAt, StatusLine, stuckTrucks, tiredTrucks, truckName } from "../../logic.js";
 import { focusTruck } from "../../mapview.js";
 import { act, describe, me, myTrucks, S, selectTruck, truckNo, useData } from "../../state.js";
 import { Bar, Btn, Card, Label, Num, Panel, Pixel } from "../bits.js";
-import { Scene } from "../Loop.js";
+import { Rig, Scene } from "../Loop.js";
 import { TendersCard } from "./Contracts.js";
 
 const num = (id: string): number => Number((document.getElementById(id) as HTMLInputElement | null)?.value);
@@ -125,7 +125,7 @@ function TruckCard({ t, idx }: { t: Truck; idx: number }): JSX.Element {
       }}
     >
       <div class="truckhead">
-        <Pixel src={rig(t.trailer)} alt={`${TIER_NAME[t.tier]} with ${TRAILER_NAME[t.trailer]}`} class="rig" />
+        <Rig eq={t.trailer} alt={`${TIER_NAME[t.tier]} with ${TRAILER_NAME[t.trailer]}`} />
         <div>
           <h3>
             Truck {idx + 1} · {TIER_NAME[t.tier]}

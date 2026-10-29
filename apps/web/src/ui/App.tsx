@@ -2,7 +2,7 @@ import type { JSX } from "preact";
 import { useEffect, useRef } from "preact/hooks";
 import { companyAccount, fdPriceUsd, garagingOf, homeCrowding, localShare, tokenLive, type World } from "@lanes/engine";
 import { hubs as HUBS } from "@lanes/data";
-import { drawLoadingRoad, drawTitleScene, iconUrl, PAL, TITLE_H, TITLE_W, truckUrl } from "../art.js";
+import { drawLoadingRoad, drawTitleScene, iconUrl, PAL, TITLE_H, TITLE_W } from "../art.js";
 import { TITLE_FRAME_H, TITLE_FRAME_W, titleFrame } from "../title.js";
 import { cls, fd, dateLabel, hhmm, pct, realUntil } from "../format.js";
 import { GAME_CONFIG, isHuman, RULESET, type StartKind } from "../game.js";
@@ -12,6 +12,7 @@ import { fitMap, maxZoom, mountMap, setZoom, zoomIndex, zoomLabel } from "../map
 import { drawText } from "../font.js";
 import { loadingStrip, LOOP_FPS, TITLE_LOOP, titleLoop } from "../mapart.js";
 import { LOGO, LOGO_TITLE, LOGO_TITLE_H, LOGO_W } from "../assets.js";
+import { Rig } from "./Loop.js";
 import { clockMin, feed, fsActive, fsEnabled, S, setLayout, setTab, setTheme, SPEEDS, TEST_BUILD, THEMES, toggleFullscreen, useData, useTick, type Tab } from "../state.js";
 import { Badge, Btn, Card, Pixel } from "./bits.js";
 import { Company } from "./panels/Company.js";
@@ -234,7 +235,7 @@ function JoinMenu(): JSX.Element {
       </div>
       <HubChoiceTable w={S.live?.w ?? null} />
       <div class="choice" style={{ cursor: "default" }}>
-        <Pixel src={truckUrl("workhorse", "van", true, PAL.blue, 2)} alt="Leased truck" />
+        <Rig eq="van" alt="Leased truck" />
         <span>
           <b>You start as an owner-operator,</b> like everyone: one NPC-leased Workhorse and dry van, 5,000 FD. The lessor takes 15% of every load. Go broke and you start over on a lease.
         </span>
@@ -272,7 +273,7 @@ function TestMenu(): JSX.Element {
         <label class="choice">
           <input type="radio" name="start" value="oo" defaultChecked />
           <span>
-            <Pixel src={truckUrl("workhorse", "van", true, PAL.blue, 2)} alt="Leased truck" />
+            <Rig eq="van" alt="Leased truck" />
             <br />
             <b>Owner-operator.</b> The live world's start.
           </span>
@@ -280,7 +281,7 @@ function TestMenu(): JSX.Element {
         <label class="choice">
           <input type="radio" name="start" value="fleet" />
           <span>
-            <Pixel src={truckUrl("workhorse", "reefer", false, PAL.amber, 2)} alt="Owned truck" />
+            <Rig eq="reefer" paint="red" alt="Owned truck" />
             <br />
             <b>Small fleet.</b> Two used trucks and 25,000 FD, to test the fleet game.
           </span>
