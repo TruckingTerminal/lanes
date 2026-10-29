@@ -3,8 +3,12 @@ import type { Equipment } from "@lanes/config";
 import {
   breakEvenPerMile,
   canMakeHot,
+  companyAccount,
   crewed,
   dispatchProfile,
+  fleetOverheadPerWeek,
+  lessorTrucksOf,
+  yardPerTruck,
   driverFatigue,
   expectedReloadDeadheadMi,
   fuelPrice,
@@ -23,7 +27,7 @@ import {
   type Truck,
 } from "@lanes/engine";
 import { GAME_CONFIG } from "./game.js";
-import { act, clockMin, me, myTrucks, S, setTab, selectTruck, truckNo } from "./state.js";
+import { act, bumpData, clockMin, me, myTrucks, push, S, setTab, selectTruck, toast, truckNo } from "./state.js";
 import { fd, hoursLabel, pct, plural, realUntil, signedPct, TRAILER_NAME } from "./format.js";
 import { Btn } from "./ui/bits.js";
 
@@ -43,6 +47,102 @@ export const idleLabel = (t: Truck): string => hoursLabel(idleHours(t));
 
 /** The player's trucks idle a day or more. */
 export const stuckTrucks = (): Truck[] => myTrucks().filter((t) => t.status === "idle" && idleHours(t) >= IDLE_ALERT_HOURS);
+
+/** Shouts once per idle day per truck, in the ticker and as a toast. */
+const idleAlerted = new Map<string, number>();
+export function checkIdleAlerts(): void {
+  const g = S.game;
+  if (!g?.player) return;
+  for (const t of myTrucks()) {
+    const key = `${g.kind}:${t.id}`;
+    if (t.status !== "idle") {
+      idleAlerted.delete(key);
+      continue;
+    }
+    const days = idleDays(t);
+    if (idleHours(t) < IDLE_ALERT_HOURS || idleAlerted.get(key) === days) continue;
+    idleAlerted.set(key, days);
+    const text = `Truck ${truckNo(t.id)} has been idle ${idleLabel(t)} at ${g.w.net.hubs[t.hub]!.name}: ${idleWhy(t).why}`;
+    push(g, text, "bad");
+    toast(text, true);
+    bumpData();
+  }
+}
+
+/**
+ * Things that cost money while nobody looks: a truck with no driver, cash running out, weeks in
+ * the red, a stretched dispatcher, defects piling up (Jeff, 2026-10-29: alerts for whatever is
+ * missing, so time doesn't just pass).
+ */
+export interface Attention {
+  key: string;
+  text: string;
+  tone: "bad" | "warn";
+  fix: ComponentChildren;
+}
+
+export function attentionItems(): Attention[] {
+  const g = S.game;
+  if (!g?.player) return [];
+  const w = g.w;
+  const c = g.player;
+  const out: Attention[] = [];
+  const trucks = myTrucks();
+  for (const t of trucks) {
+    if (crewed(t) || t.status === "listed") continue;
+    out.push({ key: `driver:${t.id}`, text: `Truck ${truckNo(t.id)} has no driver and earns nothing.`, tone: "bad", fix: <Btn primary onClick={goStaff}>Hire a driver</Btn> });
+  }
+  const bal = w.ledger.balance(companyAccount(c.id));
+  const running = trucks.filter((t) => t.status !== "parked" && t.status !== "listed");
+  const weeklyFixed = running.length * (c.insurance.annualPerTruck / 52) + fleetOverheadPerWeek(w.cfg, running.length) + lessorTrucksOf(w, c.id).length * 250 + yardPerTruck(w, c) * Math.max(0, trucks.length - 1);
+  const money = <Btn onClick={() => setTab("money")}>Money</Btn>;
+  if (bal < -w.cfg.insolvency.debtLimitFd) {
+    const left = w.cfg.insolvency.weeksInDebt - c.weeksInDebt;
+    out.push({ key: "debt", text: `You're ${fd(-bal)} FD in the red. ${left <= 1 ? "The next weekly check winds the company up" : `${left} more weeks in debt and the company is wound up`}: get loads moving, sell or park a truck, or put money in.`, tone: "bad", fix: money });
+  } else if (weeklyFixed > 0 && bal < 2 * weeklyFixed) {
+    out.push({ key: "cash", text: `Cash is low: ${fd(bal)} FD against about ${fd(weeklyFixed)} FD a week of insurance, overhead, leases and yard before a wheel turns.`, tone: "warn", fix: money });
+  }
+  const prof = dispatchProfile(w, c, running.length);
+  if (prof.coverage < 0.8) out.push({ key: "dispatch", text: `Your dispatch team covers ${prof.span} trucks and you run ${running.length}: about ${Math.round((1 - prof.coverage) * 100)}% of idle trucks sit out each round.`, tone: "warn", fix: <Btn primary onClick={goStaff}>Hire a dispatcher</Btn> });
+  for (const t of trucks) {
+    if (t.defects >= 3 && (t.status === "idle" || t.status === "parked"))
+      out.push({ key: `defects:${t.id}`, text: `Truck ${truckNo(t.id)} is carrying ${t.defects} defects: an inspection finds them, and they raise crash odds.`, tone: "warn", fix: <Btn onClick={() => act({ type: "fix_defects", truckId: t.id }, "Defects fixed")}>Fix · {fd(t.defects * w.cfg.safety.maintenance.fixFdPerDefect)} FD</Btn> });
+  }
+  return out;
+}
+
+export function AttentionCard(): ComponentChildren {
+  const items = attentionItems();
+  if (!items.length) return null;
+  return (
+    <section class="card alert">
+      <h3>Needs attention</h3>
+      {items.map((a) => (
+        <div class="row" key={a.key}>
+          <span class={a.tone}>{a.text}</span>
+          {a.fix}
+        </div>
+      ))}
+    </section>
+  );
+}
+
+/** Says each new item once, as a toast, the moment it appears. */
+const attentionSeen = new Set<string>();
+export function checkAttention(): void {
+  const g = S.game;
+  if (!g?.player) return;
+  const items = attentionItems();
+  const keys = new Set(items.map((a) => `${g.kind}:${a.key}`));
+  for (const k of [...attentionSeen]) if (!keys.has(k)) attentionSeen.delete(k);
+  for (const a of items) {
+    const k = `${g.kind}:${a.key}`;
+    if (attentionSeen.has(k)) continue;
+    attentionSeen.add(k);
+    toast(a.text, a.tone === "bad");
+    push(g, a.text, a.tone === "bad" ? "bad" : "warn");
+  }
+}
 /** The player's trucks whose driver has been out past the fatigue line or is already tired. */
 export const tiredTrucks = (): Truck[] => {
   const f = GAME_CONFIG.fatigue;
