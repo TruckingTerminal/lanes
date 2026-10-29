@@ -1,0 +1,45 @@
+{
+  "object": {
+    "id": "0a80abd4-0807-4ff1-ba3c-9e3531a1c7e8",
+    "name": "base",
+    "prompt": "pixel art semi truck seen from above: a long white 53-foot dry van trailer with a dark roof seam, pulled by a bright cyan conventional tractor with a sleeper cab, chrome exhaust stacks and black tires; clean game sprite, crisp single-color black outline, no shadow",
+    "size": {
+      "width": 42,
+      "height": 42
+    },
+    "directions": 8,
+    "view": "high top-down"
+  },
+  "spritesheet": {
+    "path": "pixel_art_semi_truck_seen_from.png",
+    "cell_size": {
+      "width": 42,
+      "height": 42
+    },
+    "sheet_size": {
+      "width": 336,
+      "height": 42
+    },
+    "columns": 8,
+    "pivot": "cell-center",
+    "rows": [
+      {
+        "row": 0,
+        "type": "rotations",
+        "frame_count": 8,
+        "directions": [
+          "south",
+          "south-east",
+          "east",
+          "north-east",
+          "north",
+          "north-west",
+          "west",
+          "south-west"
+        ]
+      }
+    ]
+  },
+  "export_version": "1.0",
+  "export_date": "2026-10-29T04:52:20.682317+00:00"
+}

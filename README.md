@@ -612,6 +612,20 @@ same world on every player's page (`apps/web/src/live.ts`).
   route for the selected truck, and hub labels in a 5 × 7 bitmap font (`font.ts`) that appear as
   you zoom. The title is a 320 × 180 road scene (sky bands, mesas, a billboard, poles, the rig)
   and loading is a rig driving a road.
+- **Hybrid client (2026-10-29):** the menus and panels are Preact components in Trucking
+  Terminal's skin (`apps/web/src/ui/`, tokens and all 34 themes in `themes.css`, inlined at build;
+  a theme picker on the title screen and top bar); the world stays pixel art. The load board is
+  laid out like DAT One (`ui/panels/Loads.tsx`: search bar, sortable results, a row that opens into
+  Trip, Rate and Company with Book now and Counter), and every panel and the map can expand to the
+  whole window (Esc restores). State: `state.ts` (two change channels: `tick` each frame for the
+  clock, `data` when panels should re-render); the map canvas stays imperative (`mapview.ts`).
+- **PixelLab assets** (`apps/web/assets`, made with `apps/web/tools/pixellab.py` on the LANES
+  palette; the API token lives in `.pixellab.token` at the repo root, never committed): the
+  top-down truck sheet (eight headings in one PNG with its layout JSON; the trailer is recoloured
+  by equipment and the cab by owner in `sprites.ts`), side-view rigs for the cards (a hollow
+  white trailer from background removal is filled at load time), four scenes and six portraits.
+  `tools/asset-pass.sh` regenerates everything but the truck sheet. Costs on the account: one
+  generation per image, about ten per eight-direction object.
 - **Run locally:** serve `apps/web/dist` and open `local-lanes.html`. Without claude.ai it keeps the
   store in browser storage, and each tab plays as its own company.
 

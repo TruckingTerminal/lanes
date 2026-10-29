@@ -99,6 +99,11 @@ tbody tr.clickable:hover td { background: color-mix(in srgb, var(--accent) 6%, t
 tbody tr.open td { background: color-mix(in srgb, var(--accent) 10%, transparent); }
 .truckhead { display: grid; grid-template-columns: auto 1fr; gap: 12px; align-items: center; }
 .truckhead img.px { width: 172px; height: auto; }
+.truckhead img.rig { width: 320px; max-width: 100%; }
+.portrait { width: 48px; height: 48px; image-rendering: pixelated; border-radius: var(--radius); background: var(--bg-input); border: 1px solid var(--border); }
+.portrait.sm { width: 32px; height: 32px; }
+.scene { display: block; width: 400px; max-width: 100%; height: auto; image-rendering: pixelated; border: 1px solid var(--border); border-radius: var(--radius); margin: 0 auto; }
+.board.panel .scene { width: 600px; }
 .spark { display: block; width: 100%; height: 48px; }
 .guide h4 { margin-top: 6px; font-family: var(--font-mono); font-size: 10px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--accent); }
 .guide ul { margin: 0; padding-left: 20px; display: grid; gap: 4px; }

@@ -6,6 +6,7 @@ import { cls, fd, fdFull, hhmm, pct, shortDate, TRAILER_CODE, TRAILER_NAME } fro
 import { nextRoundLabel, openLoadsAt, reloadClass, reloadLabel, SeasonNote, seasonSwing, statusText } from "../../logic.js";
 import { act, bumpData, me, myTrucks, S, selectTruck, useData } from "../../state.js";
 import { Btn, Card, Kv, Num, Panel } from "../bits.js";
+import { PEOPLE } from "../../assets.js";
 
 /**
  * The load board, laid out like DAT One: a search bar, a dense sortable results
@@ -233,9 +234,14 @@ function LoadRow({ r, truck, mine, pendingRate }: { r: Row; truck: Truck; mine: 
           {l.tenderedTo === me().id ? <div class="small good">your contract tender · {(w.contracts.find((x) => x.id === l.contractId)?.ratePerMile ?? 0).toFixed(2)}/mi · accept by {hhmm(l.tenderUntil)}</div> : null}
         </td>
         <td>
-          <div class="accent">{p.name}</div>
-          <div class="muted small">
-            {p.kind} · {VETTING_NAMES[l.vet].toLowerCase()} vetting
+          <div class="row" style={{ flexWrap: "nowrap" }}>
+            <img class="portrait sm" src={l.brokerId !== null ? PEOPLE.broker : PEOPLE.dockworker} alt="" />
+            <div>
+              <div class="accent">{p.name}</div>
+              <div class="muted small">
+                {p.kind} · {VETTING_NAMES[l.vet].toLowerCase()} vetting
+              </div>
+            </div>
           </div>
         </td>
         <td>

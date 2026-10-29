@@ -1,6 +1,6 @@
 import type { JSX } from "preact";
 import { condition, crewed, hubMiles, ordersOf, rebuildCost, resting, truckValue, type StandingOrder, type Truck } from "@lanes/engine";
-import { PAL, truckUrl } from "../../art.js";
+import { rig, SCENES } from "../../assets.js";
 import { dateLabel, fd, pct, plural, TIER_NAME, TRAILER_NAME, hhmm, realUntil } from "../../format.js";
 import { DEFAULT_ORDERS, GAME_CONFIG } from "../../game.js";
 import { AttentionCard, CrewLine, goLoads, goStaff, idleLabel, idleWhy, openLoadsAt, StatusLine, stuckTrucks, tiredTrucks, truckName } from "../../logic.js";
@@ -19,6 +19,7 @@ export function Fleet(): JSX.Element {
   const pending = ordersOf(w, me().id);
   return (
     <Panel title="Your fleet">
+      <img class="scene" src={SCENES.yard} alt="" />
       <AttentionCard />
       <TendersCard c={me()} />
       <TiredAlerts />
@@ -123,7 +124,7 @@ function TruckCard({ t, idx }: { t: Truck; idx: number }): JSX.Element {
       }}
     >
       <div class="truckhead">
-        <Pixel src={truckUrl(t.tier, t.trailer, leased, PAL.cyan, 2)} alt={`${TIER_NAME[t.tier]} with ${TRAILER_NAME[t.trailer]}`} />
+        <Pixel src={rig(t.trailer)} alt={`${TIER_NAME[t.tier]} with ${TRAILER_NAME[t.trailer]}`} class="rig" />
         <div>
           <h3>
             Truck {idx + 1} · {TIER_NAME[t.tier]}

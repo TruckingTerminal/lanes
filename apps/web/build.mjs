@@ -14,6 +14,8 @@ const result = await build({
   entryPoints: [join(here, "src", existsSync(join(here, "src", `${entry}.tsx`)) ? `${entry}.tsx` : `${entry}.ts`)],
   jsx: "automatic",
   jsxImportSource: "preact",
+  // Pixel-art assets (apps/web/assets, from PixelLab) ride inside the single page as data URIs.
+  loader: { ".png": "dataurl" },
   bundle: true,
   format: "iife",
   minify: true,

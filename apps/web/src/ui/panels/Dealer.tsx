@@ -1,7 +1,8 @@
 import type { JSX } from "preact";
 import type { Equipment, FacilityType, TractorTier } from "@lanes/config";
 import { availableSupply, companyAccount, condition, dealerPrice, deliveryDays, facilityOutlook, lessorTrucksOf, newPrice, openListings, ordersOf, truckValue } from "@lanes/engine";
-import { facilityUrl, PAL, truckUrl } from "../../art.js";
+import { facilityUrl } from "../../art.js";
+import { rig, SCENES } from "../../assets.js";
 import { FAC_NAME, fd, pct, signedPct, TIER_NAME, TRAILER_NAME } from "../../format.js";
 import { act, me, myTrucks, S, useData } from "../../state.js";
 import { Btn, Card, Num, Panel, Pixel } from "../bits.js";
@@ -27,13 +28,14 @@ export function Dealer(): JSX.Element {
   const facTypes: FacilityType[] = ["warehouse", "coldStorage", "factory"];
   return (
     <Panel title="Dealer">
+      <img class="scene" src={SCENES.dock} alt="" />
       <p class="muted small">New trucks are paid now and delivered in {lead} days; the wait grows when the whole market is ordering. Used trucks deliver today.</p>
       <h3>Used trucks</h3>
       {used.length ? (
         used.map(({ l, t }) => (
           <Card key={l.id}>
             <div class="truckhead">
-              <Pixel src={truckUrl(t.tier, t.trailer, false, PAL.fog, 2)} alt="Used truck" />
+              <Pixel src={rig(t.trailer)} alt="Used truck" class="rig" />
               <div>
                 <h3>
                   {TIER_NAME[t.tier]} + {TRAILER_NAME[t.trailer]}
@@ -76,7 +78,7 @@ export function Dealer(): JSX.Element {
           return (
             <Card key={`${tier}-${tr}`}>
               <div class="truckhead">
-                <Pixel src={truckUrl(tier, tr, false, PAL.amber, 2)} alt={`${TIER_NAME[tier]} with ${TRAILER_NAME[tr]}`} />
+                <Pixel src={rig(tr)} alt={`${TIER_NAME[tier]} with ${TRAILER_NAME[tr]}`} class="rig" />
                 <div>
                   <h3>
                     {TIER_NAME[tier]} + {TRAILER_NAME[tr]}

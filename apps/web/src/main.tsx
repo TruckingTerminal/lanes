@@ -1,6 +1,7 @@
 import { render } from "preact";
 import { companyAccount, crewed, type GameEvent } from "@lanes/engine";
 import { installTheme } from "./art.js";
+import { truckSheet, whenAssetsReady } from "./assets.js";
 import { fd, hhmm, realUntil } from "./format.js";
 import { DEFAULT_ORDERS, RULESET, TestGame, type StartKind } from "./game.js";
 import { H } from "./handlers.js";
@@ -100,6 +101,8 @@ function onEvent(s: Session, e: GameEvent): void {
 async function boot(): Promise<void> {
   installTheme();
   loadTheme();
+  whenAssetsReady(() => bumpData());
+  truckSheet();
   setDefaultOrders(() => DEFAULT_ORDERS);
   wireHandlers();
   wireKeys();
