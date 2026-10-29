@@ -90,6 +90,22 @@ animations and graphics per season and per weather event. So the pyramid is pain
 - The view: the fit level smoothed, the whole-number levels pixel for pixel, crossfading between the
   paintings as the zoom moves; hover and click on hubs, towns and trucks at every level.
 
+Progress (2026-10-29, evening): level 0 painted in all four seasons (summer three runs, the others as
+edits of it; the seasonal tiles differ a little at their joins, which wider overlaps would fix at twice
+the tiles); level 1 painting from the doubled summer; the 60 hub cities and six town kinds as 256/128
+sprites on transparency with no platform (the first wording gave diorama blocks); the client draws the
+season by in-game month, the sky from `weather.ts`, towns from 4× (thinned by population until 8×) and
+cities from 3×. The page stays near 3 MB: everything but level-0 summer loads from `assets/` next to
+it (`assets/manifest.json` from the build; publish them as the artifact's files).
+
+Spent on the map by the evening of 2026-10-29: about 2,400 (balance 2,593 of 5,000): samples 200,
+level 0 325 (two full runs and a tile redo), seasons 450, level 1 650 (24 tiles, a tile redo, two
+tests), cities 610, towns 100, loops ~130 in flight. Lessons: the editor letters names if cities are
+listed by name (say "draw them, never their names" and ask for no words), its prompt is 2,000
+characters at most, a "diorama" result needs "flat ground fading to transparency, no platform", a
+stray landmark from a neighbouring hub's text can land in open water (redo the tile), and tiles paint
+the open sea in their own shade (`calm-ocean.py` gives it level 0's).
+
 Map total this month ≈ 2,500 (level 0 with seasons 600, level 1 600, cities 1,000, towns 170, weather 50,
 retries ~100), leaving ~2,000 of the 4,700 balance for trucks, people, scenes and menus (~1,450).
 
