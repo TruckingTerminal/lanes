@@ -1,0 +1,45 @@
+{
+  "object": {
+    "id": "549d39ea-a01e-4773-b47f-737a1243dfc6",
+    "name": "base",
+    "prompt": "an American long-nose conventional semi tractor with a long hood, a chrome grille and bumper, tall chrome exhaust stacks and a sleeper cab in cyan paint, never a flat-faced European cab-over truck pulling a white 53-foot refrigerated trailer with a boxy silver refrigeration unit on its front, highly detailed HD pixel art with painterly shading, a crisp dark outline, warm late light, no text, a clean game sprite seen from above",
+    "size": {
+      "width": 68,
+      "height": 68
+    },
+    "directions": 8,
+    "view": "high top-down"
+  },
+  "spritesheet": {
+    "path": "an_American_long-nose_conventi.png",
+    "cell_size": {
+      "width": 68,
+      "height": 68
+    },
+    "sheet_size": {
+      "width": 544,
+      "height": 68
+    },
+    "columns": 8,
+    "pivot": "cell-center",
+    "rows": [
+      {
+        "row": 0,
+        "type": "rotations",
+        "frame_count": 8,
+        "directions": [
+          "south",
+          "south-east",
+          "east",
+          "north-east",
+          "north",
+          "north-west",
+          "west",
+          "south-west"
+        ]
+      }
+    ]
+  },
+  "export_version": "1.0",
+  "export_date": "2026-10-29T21:33:33.192080+00:00"
+}
