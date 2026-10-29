@@ -10,7 +10,7 @@ import { H } from "../handlers.js";
 import { attentionItems, stuckTrucks, tiredTrucks } from "../logic.js";
 import { fitMap, maxZoom, mountMap, setZoom, zoomIndex, zoomLabel } from "../mapview.js";
 import { drawText } from "../font.js";
-import { loadingStrip, LOOP_FPS } from "../mapart.js";
+import { loadingStrip, LOOP_FPS, TITLE_LOOP, titleLoop } from "../mapart.js";
 import { LOGO, LOGO_TITLE, LOGO_TITLE_H, LOGO_W } from "../assets.js";
 import { clockMin, feed, fsActive, fsEnabled, S, setLayout, setTab, setTheme, SPEEDS, TEST_BUILD, THEMES, toggleFullscreen, useData, useTick, type Tab } from "../state.js";
 import { Badge, Btn, Card, Pixel } from "./bits.js";
@@ -55,7 +55,12 @@ function TitleScene(): JSX.Element {
         }
         if (resized || img !== shown || !reduced) {
           ctx.imageSmoothingEnabled = false;
-          ctx.drawImage(img, 0, 0, cv.width, cv.height);
+          const sheet = reduced ? null : titleLoop();
+          if (sheet) {
+            // The long loop: 40 frames at 12 fps from the sheet next to the page.
+            const i = Math.floor((t * TITLE_LOOP.fps) / 1000) % TITLE_LOOP.frames;
+            ctx.drawImage(sheet, (i % TITLE_LOOP.cols) * TITLE_FRAME_W, Math.floor(i / TITLE_LOOP.cols) * TITLE_FRAME_H, TITLE_FRAME_W, TITLE_FRAME_H, 0, 0, cv.width, cv.height);
+          } else ctx.drawImage(img, 0, 0, cv.width, cv.height);
           drawLogo(ctx, cv.width, scale, reduced ? 0 : t);
           shown = img;
         }

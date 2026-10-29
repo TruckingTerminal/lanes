@@ -11,3 +11,4 @@ apps/web/dist/
 # Animation frames from pixellab.py animate: only the packed .loop.png sheets ship
 apps/web/assets/**/*-loop/
 apps/web/assets/*/v1/
+apps/web/assets/title/loop40/

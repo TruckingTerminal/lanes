@@ -162,6 +162,18 @@ export function townKindAt(lon: number, lat: number, nearWater: boolean): TownKi
   return "plains";
 }
 
+let titlePic: Pic | null = null;
+/** The title's long loop (assets/title/title.loop.png, 40 frames of 256 × 144 in 8 columns) once decoded. */
+export function titleLoop(): HTMLImageElement | null {
+  if (!titlePic) {
+    if (!hasAsset("title/title.loop.png")) return null;
+    titlePic = { src: `${ASSETS}title/title.loop.png`, img: null, ready: false };
+    load(titlePic);
+  }
+  return titlePic.ready ? titlePic.img : null;
+}
+export const TITLE_LOOP = { frames: 40, cols: 8, fps: 12 };
+
 let loadingPic: Pic | null = null;
 /** The loading screen's rig strip (16 frames of 256 × 72) once it has decoded. */
 export function loadingStrip(): HTMLImageElement | null {
