@@ -81,9 +81,12 @@ animations and graphics per season and per weather event. So the pyramid is pain
   lights-smoke-traffic loop (~2 each): ~1,000. Winter versions of the ~30 northern hubs by edit (750)
   when the budget allows; snow overlay sprites until then. Towns: 4–6 generic isometric town sprites
   in four seasons with loops (~170).
-- Weather: animated overlay loops (rain, snow, fog, storm clouds with lightning, heat shimmer, dust)
-  from the VFX endpoint plus client particle layers, driven by the world's season and road-risk state
-  (~50), with the night shading kept.
+- Weather: `src/weather.ts` is a deterministic weather model (the world seed and the in-game day and
+  hour: a drifting pressure field for rain, snow by season and latitude, storms, morning fog on the
+  coasts and in the valleys, summer heat in the south), so every player sees the same storm. The map
+  draws it as cloud shade, rain streaks, drifting snow, fog banks and lightning (code, no generations),
+  and the hub tooltip says the sky. PixelLab VFX loops can replace the particles later (~50). The
+  engine's `feeds.weather` could read the same model once the parent session bumps the ruleset.
 - The view: the fit level smoothed, the whole-number levels pixel for pixel, crossfading between the
   paintings as the zoom moves; hover and click on hubs, towns and trucks at every level.
 

@@ -3,9 +3,10 @@ import { hubMiles, hubRoute, type Truck } from "@lanes/engine";
 import { icon, PAL } from "./art.js";
 import { drawText, textWidth } from "./font.js";
 import { isHuman } from "./game.js";
-import { buildMap, headingDir, nightColor, nightShade, truckMarkers, type MapArt, type MarkerKind } from "./map.js";
+import { buildMap, hash, headingDir, nightColor, nightShade, truckMarkers, type MapArt, type MarkerKind } from "./map.js";
 import { truckFrame } from "./assets.js";
 import { hasPaintedMap, MAP_H, MAP_W, mapLevel, seasonOf } from "./mapart.js";
+import { weatherAt, weatherLabel, type Weather } from "./weather.js";
 import { bumpData, clockMin, myTrucks, S, selectTruck, setTab } from "./state.js";
 import { openLoadsAt, reloadLabel, seasonSwing } from "./logic.js";
 import { signedPct, TRAILER_NAME } from "./format.js";
@@ -437,7 +438,89 @@ export function drawMap(now: number): void {
     }
     if (t.status === "repair" || t.breakdownMin > 0) ctx.drawImage(icon("wrench", u), X - 6 * u, Y - 16 * u);
   }
+  drawWeather(ctx, now, k, u);
   drawHubLabels(ctx, f, k, u, visible);
+}
+
+/**
+ * The sky over the map: the weather sampled on a grid of the visible map and drawn as moving
+ * rain streaks, drifting snow, fog banks, cloud shade and lightning, all deterministic from the
+ * world seed and the in-game day so every player sees the same storm.
+ */
+function drawWeather(ctx: CanvasRenderingContext2D, now: number, k: number, u: number): void {
+  if (!cv || !art || !S.game) return;
+  const w = S.game.w;
+  const minute = clockMin();
+  const day = Math.floor(minute / 1440);
+  const hour = (minute / 60) % 24;
+  const seed = w.seed;
+  const W = cv.width;
+  const H = cv.height;
+  const cell = Math.max(48, Math.round(64 * Math.min(k, 2)));
+  const [wx0, wy0] = toWorld(0, 0);
+  const [wx1, wy1] = toWorld(W, H);
+  const cx0 = Math.floor((wx0 * k) / cell) * cell;
+  const cy0 = Math.floor((wy0 * k) / cell) * cell;
+  const lights: [number, number, Weather][] = [];
+  for (let gy = cy0; gy < wy1 * k; gy += cell) {
+    for (let gx = cx0; gx < wx1 * k; gx += cell) {
+      const [lon, lat] = art.unproject((gx + cell / 2) / k, (gy + cell / 2) / k);
+      if (art.kindAt(Math.round((gx + cell / 2) / k), Math.round((gy + cell / 2) / k)) === 0 && Math.abs(lat) < 20) continue;
+      const wx = weatherAt(lon, lat, day, hour, seed);
+      if (wx.kind === "clear" || wx.kind === "heat") continue;
+      const X = gx - panX;
+      const Y = gy - panY;
+      const cs = Math.floor(gx / cell) * 73 + Math.floor(gy / cell) * 151;
+      // Cloud shade and fog banks: soft blobs wider than their cell, so neighbours merge into weather systems.
+      const blob = (color: string, alpha: number, speed: number) => {
+        ctx.globalAlpha = alpha;
+        ctx.fillStyle = color;
+        const drift = ((now / speed + cs) % cell) - cell / 2;
+        ctx.beginPath();
+        ctx.ellipse(X + cell / 2 + drift, Y + cell / 2, cell * 0.85, cell * 0.65, 0, 0, Math.PI * 2);
+        ctx.fill();
+      };
+      if (wx.kind === "cloud" || wx.kind === "storm" || wx.kind === "rain" || wx.kind === "snow") {
+        blob(PAL.ink0, (wx.kind === "cloud" ? 0.08 : wx.kind === "storm" ? 0.26 : 0.14) * (0.6 + 0.4 * wx.intensity), 60);
+      }
+      if (wx.kind === "rain" || wx.kind === "storm") {
+        ctx.globalAlpha = 0.55;
+        ctx.fillStyle = PAL.blueL;
+        const n = 3 + Math.round(wx.intensity * 6);
+        for (let i = 0; i < n; i++) {
+          const ox = hash(cs, i, 51) * cell;
+          const fall = ((now / 4 + hash(cs, i, 52) * cell * 3) % (cell * 1.2)) - cell * 0.1;
+          ctx.fillRect(Math.round(X + ox - fall * 0.25), Math.round(Y + fall), u, 4 * u);
+        }
+        if (wx.kind === "storm" && (Math.floor(now / 90) + cs) % 97 === 0) lights.push([X, Y, wx]);
+      } else if (wx.kind === "snow") {
+        ctx.globalAlpha = 0.85;
+        ctx.fillStyle = PAL.white;
+        const n = 3 + Math.round(wx.intensity * 6);
+        for (let i = 0; i < n; i++) {
+          const ox = hash(cs, i, 53) * cell;
+          const fall = (now / 22 + hash(cs, i, 54) * cell * 3) % cell;
+          const sway = Math.sin((now / 700) + i) * 3 * u;
+          ctx.fillRect(Math.round(X + ox + sway), Math.round(Y + fall), u, u);
+        }
+      } else if (wx.kind === "fog") {
+        blob(PAL.fog, 0.18 + 0.25 * wx.intensity, 120);
+      }
+    }
+  }
+  // Lightning: a flash over the cell and a jagged bolt for one frame.
+  for (const [X, Y] of lights) {
+    ctx.globalAlpha = 0.5;
+    ctx.fillStyle = PAL.white;
+    ctx.fillRect(X - cell, Y - cell, cell * 3, cell * 3);
+    ctx.globalAlpha = 1;
+    let bx = X + cell / 2;
+    for (let by = Y; by < Y + cell; by += 4 * u) {
+      bx += (hash(Math.round(bx), Math.round(by), 55) - 0.5) * 6 * u;
+      ctx.fillRect(Math.round(bx), Math.round(by), u, 4 * u);
+    }
+  }
+  ctx.globalAlpha = 1;
 }
 
 function drawHubLabels(ctx: CanvasRenderingContext2D, f: number, k: number, u: number, visible: (X: number, Y: number) => boolean): void {
@@ -517,7 +600,9 @@ function showHubTip(ev: { clientX: number; clientY: number }): void {
   const hub = S.game!.w.net.hubs[h]!;
   const season = (["reefer", "van", "flatbed"] as Equipment[]).map((eq) => `${TRAILER_NAME[eq].toLowerCase()} ${signedPct(seasonSwing(h, eq))}`).join(", ");
   const eq: Equipment = myTrucks().find((t) => t.id === S.selTruck)?.trailer ?? "van";
-  tip.textContent = `${hub.name} (${hub.id}) · ${openLoadsAt(h).length} open loads · ${TRAILER_NAME[eq].toLowerCase()} reload ${reloadLabel(h, eq)} · season: ${season}`;
+  const minute = clockMin();
+  const sky = weatherLabel(weatherAt(hub.lon, hub.lat, Math.floor(minute / 1440), (minute / 60) % 24, S.game!.w.seed));
+  tip.textContent = `${hub.name} (${hub.id}) · ${sky} · ${openLoadsAt(h).length} open loads · ${TRAILER_NAME[eq].toLowerCase()} reload ${reloadLabel(h, eq)} · season: ${season}`;
   tip.hidden = false;
   const r = wrap.getBoundingClientRect();
   tip.style.left = `${Math.min(r.width - 260, Math.max(4, ev.clientX - r.left + 12))}px`;

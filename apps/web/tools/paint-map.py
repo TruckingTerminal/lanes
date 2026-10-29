@@ -194,7 +194,21 @@ def main() -> None:
     up = opt("--upscale-from")
     if up:
         src = read_png(up)
-        base = np.repeat(np.repeat(src, 2, axis=0), 2, axis=1)[: base.shape[0], : base.shape[1]]
+        if "--upscale-smooth" in sys.argv:
+            # Bilinear doubling: the editor gets soft edges to sharpen into new detail rather than 2-pixel blocks to keep.
+            f = src.astype(np.float32)
+            rows = np.empty((f.shape[0] * 2, f.shape[1], 4), np.float32)
+            rows[0::2] = f
+            rows[1::2] = (f + np.roll(f, -1, axis=0)) / 2
+            rows[-1] = f[-1]
+            cols = np.empty((rows.shape[0], rows.shape[1] * 2, 4), np.float32)
+            cols[:, 0::2] = rows
+            cols[:, 1::2] = (rows + np.roll(rows, -1, axis=1)) / 2
+            cols[:, -1] = rows[:, -1]
+            base = cols.round().astype(np.uint8)[: base.shape[0], : base.shape[1]]
+        else:
+            base = np.repeat(np.repeat(src, 2, axis=0), 2, axis=1)[: base.shape[0], : base.shape[1]]
+        base[:, :, 3] = 255
         print(f"painting from {up} doubled to {base.shape[1]}×{base.shape[0]}", flush=True)
     from_painted = opt("--from-painted")
     if from_painted:
