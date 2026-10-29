@@ -30,6 +30,21 @@ export function marketPages(cfg: EconomyConfig): GuidePage[] {
         p(`Posters pay a ${pct(b.posterFeePct)} board fee on what the freight pays them. Carriers pay nothing to bid.`),
     },
     {
+      id: "booknow",
+      section: S,
+      title: "Book-now prices",
+      html:
+        p(`Every load also shows a <b>book-now</b> price. Take it and the load is yours at once, no round to wait for. Bid under it and you wait for the round; nobody ever pays more than the book-now, so a bid above it just takes the load at the book-now.`) +
+        h("How posters set it") +
+        ul([
+          `It opens as a share of the reference rate set by the load-to-truck ratio at the origin: about ${pct(cfg.bookNow.openAtRatio[0][1])} where trucks pile up (ratio ${cfg.bookNow.openAtRatio[0][0]}), ${pct(cfg.bookNow.openAtRatio[1][1])} at a balanced ${cfg.bookNow.openAtRatio[1][0]}, ${pct(cfg.bookNow.openAtRatio[2][1])} when trucks are scarce (ratio ${cfg.bookNow.openAtRatio[2][0]}), never above the ceiling.`,
+          `Each round a load sits unfilled the poster raises it ${pct(cfg.bookNow.stepPerRound)}, up to the ceiling (which rises ${pct(cfg.board.rolloverCeilingStep)} a round). Brokers fish: they open low where they can and pay up when nobody bites.`,
+          `So a carrier that can wait makes the poster come up, and a carrier that has to move takes what's posted. In a truck-heavy market the book-now is cheap and rising; in a tight one it opens near the ceiling.`,
+        ]) +
+        h("Your dispatcher and book-now") +
+        p(`The standing order "Book loads between rounds" takes a load whenever its book-now clears your break-even plus a margin. The margin shrinks with <b>desperation</b>: a truck idle ${cfg.bookNow.desperation.idleHours} hours, or a driver more than ${cfg.bookNow.desperation.awayAfterDays} days from home, will take anything that covers costs. A truck sitting at home is half as pressed. Dispatchers look every ${cfg.bookNow.autoEveryHours} hours.`),
+    },
+    {
       id: "rates",
       section: S,
       title: "How shippers price freight",

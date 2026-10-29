@@ -45,6 +45,8 @@ export const DEFAULT_ORDERS: StandingOrder[] = [
   { kind: "bid", maxDeadheadMi: 150, price: { mode: "breakEvenPlus", pct: 0.25 } },
   { kind: "floor", breakEvenPlusPct: 0.05 },
   { kind: "reposition", afterIdleRounds: 3, to: { openLoadsWithinMi: 400 } },
+  { kind: "bookNow", breakEvenPlusPct: 0.2, maxDeadheadMi: 150 },
+  { kind: "homeTime", afterDays: 21, restDays: 5 },
 ];
 
 export function newWorld(seed: number): World {

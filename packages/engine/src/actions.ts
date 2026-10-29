@@ -1,3 +1,4 @@
+import { bookLoad } from "./board.js";
 import { offerFd } from "./buyback.js";
 import { leaseTruck, returnLease } from "./capacity.js";
 import { buyFd, claimAirdropNow, sellFd } from "./token.js";
@@ -8,7 +9,7 @@ import { borrow, deposit, repayLoan, withdraw } from "./finance.js";
 import { companyAccount } from "./ledger.js";
 import { rebrokerLoad, stealLoad, vettingBlock } from "./fraud.js";
 import { finiteIn } from "./economics.js";
-import { offerStaff, releaseStaff, setPay, severance } from "./labor.js";
+import { offerStaff, releaseStaff, setPay, severance, startHomeTime } from "./labor.js";
 import { buyListing, listTruck, withdrawListing } from "./market.js";
 import { canRefile, notice } from "./safety.js";
 import { canMakeHot } from "./standingOrders.js";
@@ -43,9 +44,12 @@ export function badInput(cfg: EconomyConfig, a: Action): string | null {
       return invalidOrders(cfg, a.orders);
     case "buy_asset":
       return TIERS.has(a.tier) && TRAILERS.has(a.trailer) && typeof a.replaceNpcLease === "boolean" ? null : "bad truck";
+    case "book_load":
+      return isId(a.truckId) && isId(a.loadId) ? null : "bad booking";
     case "rebuild_truck":
     case "park_truck":
     case "unpark_truck":
+    case "send_home":
     case "cancel_bid":
     case "fix_defects":
     case "return_lease":
@@ -99,7 +103,7 @@ export function badInput(cfg: EconomyConfig, a: Action): string | null {
 }
 
 /** What a company being wound up can't do: it isn't buying, bidding or borrowing again until it restarts. */
-const LIQUIDATING_BLOCKED = new Set<Action["type"]>(["place_bid", "reposition_truck", "buy_asset", "buy_facility", "lease_truck", "borrow", "buy_listing", "unpark_truck", "offer_staff"]);
+const LIQUIDATING_BLOCKED = new Set<Action["type"]>(["place_bid", "book_load", "reposition_truck", "buy_asset", "buy_facility", "lease_truck", "borrow", "buy_listing", "unpark_truck", "offer_staff"]);
 
 /** What a company whose authority was revoked can still do: wait out the bar, file again, and handle its money. */
 const ALLOWED_REVOKED = new Set<Action["type"]>(["wait", "refile_authority", "buy_fd", "sell_fd", "offer_fd", "claim_airdrop_now", "withdraw_finance", "withdraw_listing", "set_compliance", "set_vetting", "set_auto_staff"]);
@@ -254,6 +258,37 @@ export function applyAction(w: World, companyId: number, action: Action): Action
       // Checked field by field in badInput (invalidOrders).
       company.orders = action.orders;
       return { ok: true };
+
+    case "book_load": {
+      const truck = truckById(w, action.truckId);
+      if (!truck || truck.companyId !== company.id) return { ok: false, reason: "not your truck" };
+      const load = w.loads.get(action.loadId);
+      if (!load || load.status !== "open") return { ok: false, reason: "that load is gone" };
+      if (load.brokerId === company.id || load.doubleBroker?.companyId === company.id) return { ok: false, reason: "that's your own posting" };
+      const block = vettingBlock(w, company, load);
+      if (block) return { ok: false, reason: `the poster's vetting rules you out: ${block}` };
+      if (load.hot > 0 && !canMakeHot(company, truck)) return { ok: false, reason: "a hot load needs a team" };
+      const dh = hubMiles(w, truck.hub, load.origin);
+      if (dh > MANUAL_BID_MAX_DEADHEAD_MI) return { ok: false, reason: `the pickup is more than ${MANUAL_BID_MAX_DEADHEAD_MI} miles away` };
+      return result(bookLoad(w, company, truck, load, dh, true));
+    }
+
+    case "send_home": {
+      const truck = truckById(w, action.truckId);
+      if (!truck || truck.companyId !== company.id) return { ok: false, reason: "not your truck" };
+      if (!crewed(truck)) return { ok: false, reason: "nobody is driving it" };
+      if (truck.status !== "idle") return { ok: false, reason: "wait until the truck is idle" };
+      w.manualBids.delete(truck.id);
+      for (const id of [truck.driverId, truck.coDriverId]) if (id) w.staff[id - 1]!.wantsHome = true;
+      const miles = hubMiles(w, truck.hub, company.homeHub);
+      if (miles > cfg.map.nearbyRadiusMi) {
+        truck.status = "repositioning";
+        truck.targetHub = company.homeHub;
+        truck.remainingMi = miles;
+        truck.idleRounds = 0;
+      } else startHomeTime(w, company, truck);
+      return { ok: true };
+    }
 
     case "buy_asset": {
       // A dealer order: paid now, delivered after the lead time (see dealer.ts).

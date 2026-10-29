@@ -33,7 +33,7 @@ function mkLoad(w: World, origin: number, dest: number, hot = 0): Load {
   const lane = net.lanesFrom[origin]!.find((l) => l.dest === dest) ?? net.lanesFrom[origin]![0]!;
   const load: Load = {
     id: w.nextLoadId++, laneId: lane.id, origin: lane.origin, dest: lane.dest, miles: lane.miles, equipment: "van",
-    brokerId: null, shipperId: null, facilityId: null, saleValue: 0, shipperRate: 3, spotShipperRate: 3, refRate: 3, ceiling: 3,
+    brokerId: null, shipperId: null, facilityId: null, saleValue: 0, shipperRate: 3, spotShipperRate: 3, refRate: 3, ceiling: 3, bookNow: 3,
     postedRound: w.round, roundsUnfilled: 0, status: "open", carrierId: null, truckId: null, clearedRate: 0, dueT: 0,
     hot, vet: 0, cargoValue: 5_000, doubleBroker: null,
   };

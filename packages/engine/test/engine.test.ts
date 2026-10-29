@@ -66,7 +66,7 @@ function carrier(w: World, name = "Test Carrier", freePath = false) {
 function testLoad(w: World, lane: { id: number; origin: number; dest: number; miles: number }): Load {
   return {
     id: w.nextLoadId++, laneId: lane.id, origin: lane.origin, dest: lane.dest, miles: lane.miles, equipment: "van",
-    brokerId: null, shipperId: null, facilityId: null, saleValue: 0, shipperRate: 10, spotShipperRate: 10, refRate: 10, ceiling: 10,
+    brokerId: null, shipperId: null, facilityId: null, saleValue: 0, shipperRate: 10, spotShipperRate: 10, refRate: 10, ceiling: 10, bookNow: 10,
     postedRound: -1, roundsUnfilled: 0, status: "open", carrierId: null, truckId: null, clearedRate: 0, dueT: 0,
     hot: 0, vet: 0, cargoValue: 0, doubleBroker: null,
   };
@@ -397,7 +397,14 @@ describe("facilities", () => {
     applyAction(w, shipper.id, { type: "buy_facility", facility: "warehouse", hubId: "DAL" });
     const hauler = carrier(w, "Hauler");
     for (let k = 0; k < 6; k++) addTruck(w, hauler, "owned", "workhorse", "van");
-    applyAction(w, hauler.id, { type: "set_standing_orders", orders: [{ kind: "bid", maxDeadheadMi: 0, price: { mode: "ceilingPct", pct: 1 } }] });
+    // Dallas freight only, and straight back to Dallas after each delivery, so the trucks keep meeting the facility's loads.
+    applyAction(w, hauler.id, {
+      type: "set_standing_orders",
+      orders: [
+        { kind: "bid", maxDeadheadMi: 0, originHubs: ["DAL"], price: { mode: "ceilingPct", pct: 1 } },
+        { kind: "reposition", afterIdleRounds: 1, to: { hubId: "DAL" } },
+      ],
+    });
     runDays(w, 10);
     const sales = w.ledger.entries.filter((e) => e.from === "faucet:npc_market" && e.to === companyAccount(shipper.id));
     const paid = w.ledger.entries.filter((e) => e.from === companyAccount(shipper.id) && e.to === companyAccount(hauler.id));

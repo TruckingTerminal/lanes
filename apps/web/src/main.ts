@@ -22,6 +22,9 @@ import {
   stars,
   VETTING_NAMES,
   vettingBlock,
+  driverFatigue,
+  resting,
+  desperation,
   borrowingCapacity,
   breakEvenPerMile,
   companyAccount,
@@ -306,6 +309,10 @@ function describe(a: LiveAction): string {
       return "File for new authority";
     case "rebroker_load":
       return `Re-post load #${a.loadId} at ${a.rate.toFixed(2)}/mi`;
+    case "book_load":
+      return `Book load #${a.loadId} now (truck ${truckNo(a.truckId)})`;
+    case "send_home":
+      return `Send truck ${truckNo(a.truckId)} home`;
     case "steal_load":
       return `Steal truck ${truckNo(a.truckId)}'s load`;
     default:
@@ -853,6 +860,8 @@ function renderHud(): void {
   if (c) {
     const stuck = stuckTrucks().length;
     if (stuck) stats += `<span class="badge alert" title="Trucks idle a day or more: the Fleet tab says why">${stuck} IDLE</span>`;
+    const tired = tiredTrucks().length;
+    if (tired) stats += `<span class="badge alert" title="Drivers out three weeks or running tired: the Fleet tab says what to do">${tired} TIRED</span>`;
   }
   if (fsEnabled()) stats += `<button class="btn" data-act="fullscreen" title="Full screen (F)">${fsActive() ? "Exit full screen" : "Full screen"}</button>`;
   // The clock text changes many times a second at the fast speeds, so it's updated in
@@ -1026,6 +1035,30 @@ function idleWhy(t: Truck): IdleWhy {
 /** The player's trucks idle a day or more. */
 const stuckTrucks = () => myTrucks().filter((t) => t.status === "idle" && idleHours(t) >= IDLE_ALERT_HOURS);
 
+/** The player's trucks whose driver has been out past the fatigue line or is already tired. */
+const tiredTrucks = () => {
+  const f = GAME_CONFIG.fatigue;
+  const w = game!.w;
+  return myTrucks().filter((t) => crewed(t) && !resting(w, t) && (driverFatigue(w, t) >= f.tiredAt || w.staff[t.driverId - 1]!.awayDays >= f.roadDays));
+};
+
+function tiredAlertsCard(): string {
+  const w = game!.w;
+  return tiredTrucks()
+    .map((t) => {
+      const d = w.staff[t.driverId - 1]!;
+      const home = hubMiles(w, me().homeHub, t.hub);
+      const fix = d.wantsHome
+        ? `<p class="muted">Heading home for days off.</p>`
+        : t.status === "idle"
+          ? `<div class="row"><button class="btn primary" data-act="sendhome" data-truck="${t.id}">Send home · ${home} mi</button></div>`
+          : `<p class="muted">Send it home when it's next idle, or let the dispatcher's home-time rule do it.</p>`;
+      return `<div class="card alert"><h3>${d.owner ? "You have" : `${esc(d.name)} has`} been out ${plural(d.awayDays, "day")}${d.fatigue >= GAME_CONFIG.fatigue.tiredAt ? ` and ${d.owner ? "are" : "is"} tired (${pct(d.fatigue)})` : ""}</h3>
+        <p>Fatigue raises crash odds (×${(1 + GAME_CONFIG.fatigue.crashMult * d.fatigue).toFixed(2)} now), slows the truck and wears on morale. ${GAME_CONFIG.fatigue.resetDays} days off at home reset it; every day away costs ${GAME_CONFIG.labor.driver.perDiemFd} FD per diem.</p>${fix}</div>`;
+    })
+    .join("");
+}
+
 function idleAlertsCard(): string {
   const w = game!.w;
   return stuckTrucks()
@@ -1065,6 +1098,12 @@ function statusLine(t: Truck): string {
   switch (t.status) {
     case "idle": {
       const bid = w.manualBids.get(t.id);
+      if (resting(w, t)) {
+        const d = w.staff[t.driverId - 1]!;
+        // The day they drove home on isn't a day off.
+        const left = d.homeUntilDay! - Math.floor(clockMin() / 1440) - (d.drivenMinToday > 0 ? 1 : 0);
+        return `Home time at ${hub(t.hub)}: ${plural(Math.max(1, left), "day")} off${d.drivenMinToday > 0 ? ", starting tomorrow" : " left"}`;
+      }
       const h = idleHours(t);
       const since = `<span class="${h >= IDLE_ALERT_HOURS ? "bad" : h >= 12 ? "warn" : ""}">${idleLabel(t)}</span>`;
       return `Idle at ${hub(t.hub)} for ${since}${t.idleRounds ? ` · sat out ${plural(t.idleRounds, "round")}` : ""}${bid ? ` · <span class="good">your bid ${bid.rate.toFixed(2)}/mi is in</span>` : ""}`;
@@ -1125,6 +1164,8 @@ function fleetPanel(): string {
       if (t.lease === "lessor" && t.status === "idle") actions.push(`<button class="btn" data-act="return" data-truck="${t.id}">Return lease</button>`);
       if (t.defects > 0 && (t.status === "idle" || t.status === "parked")) actions.push(`<button class="btn" data-act="fix" data-truck="${t.id}">Fix ${t.defects} defect${t.defects > 1 ? "s" : ""} · ${fd(t.defects * w.cfg.safety.maintenance.fixFdPerDefect)} FD</button>`);
       if (!crewed(t)) actions.push(`<button class="btn primary" data-act="tostaff">Hire a driver</button>`);
+      if (t.status === "idle" && crewed(t) && !resting(w, t) && hubMiles(w, me().homeHub, t.hub) > w.cfg.map.nearbyRadiusMi)
+        actions.push(`<button class="btn" data-act="sendhome" data-truck="${t.id}">Send home · ${hubMiles(w, me().homeHub, t.hub)} mi</button>`);
       const load = t.loadId !== null ? w.loads.get(t.loadId) : undefined;
       if (t.status === "toPickup" && load && load.status === "assigned" && load.carrierId === me().id && !load.doubleBroker && load.shipperId !== me().id)
         actions.push(
@@ -1144,7 +1185,7 @@ function fleetPanel(): string {
   const orders = pending.length
     ? `<p class="muted">On order: ${pending.map((o) => `${TIER_NAME[o.tier]} + ${TRAILER_NAME[o.trailer]}, arrives ${dateLabel(o.dueDay)}`).join("; ")}</p>`
     : "";
-  return `<div class="stack"><h2>Your fleet</h2>${idleAlertsCard()}${pendingCard()}${orders}${cards}${dispatcherCard()}</div>`;
+  return `<div class="stack"><h2>Your fleet</h2>${tiredAlertsCard()}${idleAlertsCard()}${pendingCard()}${orders}${cards}${dispatcherCard()}</div>`;
 }
 
 function dispatcherCard(): string {
@@ -1153,6 +1194,8 @@ function dispatcherCard(): string {
   const floor = c.orders.find((o) => o.kind === "floor") as Extract<StandingOrder, { kind: "floor" }> | undefined;
   const repo = c.orders.find((o) => o.kind === "reposition") as Extract<StandingOrder, { kind: "reposition" }> | undefined;
   const rb = c.orders.find((o) => o.kind === "rebroker") as Extract<StandingOrder, { kind: "rebroker" }> | undefined;
+  const bn = c.orders.find((o) => o.kind === "bookNow") as Extract<StandingOrder, { kind: "bookNow" }> | undefined;
+  const hm = c.orders.find((o) => o.kind === "homeTime") as Extract<StandingOrder, { kind: "homeTime" }> | undefined;
   const mode = bid?.price.mode ?? "breakEvenPlus";
   return `<div class="card">
     <h3>Dispatcher (standing orders)</h3>
@@ -1167,6 +1210,8 @@ function dispatcherCard(): string {
     <div class="row"><label class="label"><input type="checkbox" id="o-rb" ${rb ? "checked" : ""}> Re-post some won loads to other carriers before pickup</label>
       <input type="number" id="o-rb-share" min="0" max="100" value="${Math.round((rb?.share ?? 0.1) * 100)}"><span class="muted">% of loads, keeping</span><input type="number" id="o-rb-keep" min="0" max="90" value="${Math.round((rb?.keepPct ?? 0.15) * 100)}"><span class="muted">% of the rate</span>
       <label class="label"><input type="checkbox" id="o-rb-pays" ${!rb || rb.pays ? "checked" : ""}> pay the hauler</label></div>
+    <div class="row"><label class="label"><input type="checkbox" id="o-bn" ${bn ? "checked" : ""}> Book loads between rounds at break-even +</label><input type="number" id="o-bn-pct" min="0" max="100" value="${Math.round((bn?.breakEvenPlusPct ?? 0.2) * 100)}"><span class="muted">% (less the longer a truck sits, or the farther its driver is from home)</span></div>
+    <div class="row"><label class="label"><input type="checkbox" id="o-home" ${hm ? "checked" : ""}> Bring drivers home after</label><input type="number" id="o-home-after" min="1" max="365" value="${hm?.afterDays ?? 21}"><span class="muted">days out, for</span><input type="number" id="o-home-rest" min="1" max="60" value="${hm?.restDays ?? 5}"><span class="muted">days off</span></div>
     <div class="row"><button class="btn primary" data-act="orders">Save dispatcher</button><button class="btn" data-act="ordersReset">Defaults</button></div>
   </div>`;
 }
@@ -1227,7 +1272,7 @@ function loadsPanel(): string {
     const fuel = fuelPrice(w);
     const pending = w.manualBids.get(truck.id);
     const sent = g.kind === "live" ? g.pending().find((r) => r.a.type === "place_bid" && r.a.truckId === truck.id) : undefined;
-    const rows: { l: Load; dh: number; be: number; suggest: number; profit: number; reloadMi: number; tolls: number; highway: number; hours: number }[] = [];
+    const rows: { l: Load; dh: number; be: number; suggest: number; profit: number; profitBook: number; reloadMi: number; tolls: number; highway: number; hours: number }[] = [];
     for (const l of w.loads.values()) {
       if (l.status !== "open" || l.equipment !== truck.trailer || l.brokerId === me().id) continue;
       const dh = hubMiles(w, truck.hub, l.origin);
@@ -1239,27 +1284,33 @@ function loadsPanel(): string {
       const tolls = hubToll(w, truck.hub, l.origin) + lane.tollFd;
       const be = breakEvenPerMile(w.cfg, truck, fuel, l.miles, dh + w.cfg.board.reloadWeight * reloadMi, tolls);
       // Loads tend to clear near the lane's reference rate; the ceiling is the most the poster pays.
-      const suggest = Math.min(l.ceiling, Math.max(be * 1.08, l.refRate * 0.97));
-      rows.push({ l, dh, be, suggest, profit: (suggest - be) * l.miles, reloadMi, tolls, highway: lane.highwayShare, hours: lane.hours });
+      // A bid never pays more than the book-now, so that's the most to ask.
+      const suggest = Math.min(l.bookNow, Math.max(be * 1.08, l.refRate * 0.97));
+      rows.push({ l, dh, be, suggest, profit: (suggest - be) * l.miles, profitBook: (l.bookNow - be) * l.miles, reloadMi, tolls, highway: lane.highwayShare, hours: lane.hours });
     }
     rows.sort((a, b) => b.profit - a.profit);
     const list = rows
       .slice(0, 25)
-      .map(({ l, dh, be, suggest, profit, reloadMi, tolls, highway, hours }) => {
+      .map(({ l, dh, be, suggest, profit, profitBook, reloadMi, tolls, highway, hours }) => {
         const mine = pending?.loadId === l.id;
         const o = w.net.hubs[l.origin]!;
         const d = w.net.hubs[l.dest]!;
+        // What keeps this company off the load: the poster's vetting, or a hot window a solo driver can't make.
+        const block = vettingBlock(w, me(), l) ?? (l.hot > 0 && !canMakeHot(me(), truck) ? "a hot load needs a team" : null);
+        const off = block ? "disabled" : "";
         return `<div class="load ${mine ? "mine" : ""}">
           <div><div class="lane">${o.id} <span class="arrow">to</span> ${d.id}</div><div class="muted" style="font-size:14px">${esc(o.name)} to ${esc(d.name)} · ${l.miles} mi${dh ? ` · ${dh} mi empty first` : ""}${l.brokerId !== null ? " · brokered" : ""}${l.shipperId !== null ? " · player shipper" : ""}</div>
           <div style="font-size:14px">Reload at ${d.id}: <span class="${reloadClass(l.dest, l.equipment)}">${reloadLabel(l.dest, l.equipment)}</span> (about ${Math.round(reloadMi)} mi empty to the next load)${seasonNote(l.origin, l.equipment)}</div>
           <div style="font-size:14px">${hours.toFixed(1)} h driving${tolls > 0 ? ` · <span class="warn">tolls ${fd(tolls)} FD</span>` : " · no tolls"}${highway >= 0.05 ? ` · <span class="warn">${pct(highway)} two-lane highway</span>` : " · interstate"}</div>
-          <div style="font-size:14px">Pays up to <span class="num">${l.ceiling.toFixed(2)}</span>/mi (<span class="num">${fd(l.ceiling * l.miles)}</span> FD) · usually clears near <span class="num">${l.refRate.toFixed(2)}</span> · your break-even <span class="num">${be.toFixed(2)}</span>/mi · <span class="${profit > 0 ? "good" : "bad"}">about ${fd(profit)} FD profit</span></div></div>
-          <div class="row" style="justify-content:end"><input type="number" id="bid-${l.id}" step="0.01" min="0.5" max="${l.ceiling.toFixed(2)}" value="${(mine ? pending!.rate : suggest).toFixed(2)}" aria-label="Your rate per mile">
-          <button class="btn ${mine ? "on" : "primary"}" data-act="bid" data-load="${l.id}" data-truck="${truck.id}">${mine ? "Rebid" : "Bid"}</button></div>
+          <div style="font-size:14px">Book now at <span class="num">${l.bookNow.toFixed(2)}</span>/mi (<span class="num">${fd(l.bookNow * l.miles)}</span> FD)${l.roundsUnfilled > 0 ? ` · <span class="warn">raised ${l.roundsUnfilled} round${l.roundsUnfilled > 1 ? "s" : ""} running</span>` : ""} · <span class="${profitBook > 0 ? "good" : "bad"}">about ${fd(profitBook)} FD profit at that price</span></div>
+          <div style="font-size:14px">Or bid under it: pays up to <span class="num">${l.ceiling.toFixed(2)}</span>/mi · usually clears near <span class="num">${l.refRate.toFixed(2)}</span> · your break-even <span class="num">${be.toFixed(2)}</span>/mi · <span class="${profit > 0 ? "good" : "bad"}">about ${fd(profit)} FD profit at your bid</span></div>
+          ${block ? `<div style="font-size:14px" class="bad">Not for you yet: ${esc(block)}.</div>` : ""}</div>
+          <div class="row" style="justify-content:end"><button class="btn primary" data-act="book" data-load="${l.id}" data-truck="${truck.id}" ${off}>Book now · ${l.bookNow.toFixed(2)}</button><input type="number" id="bid-${l.id}" step="0.01" min="0.5" max="${l.bookNow.toFixed(2)}" value="${(mine ? pending!.rate : suggest).toFixed(2)}" aria-label="Your rate per mile" ${off}>
+          <button class="btn ${mine ? "on" : ""}" data-act="bid" data-load="${l.id}" data-truck="${truck.id}" ${off}>${mine ? "Rebid" : "Bid"}</button></div>
         </div>`;
       })
       .join("");
-    body = `<p class="muted" style="font-size:14px">Sealed bids clear at ${nextRoundLabel()}. Lower rates, a better on-time record and fewer empty miles win. One bid per truck per round; a bid by hand replaces your dispatcher's bids for that truck.</p>
+    body = `<p class="muted" style="font-size:14px">Book now and the load is yours at once. Or bid under the book-now price: sealed bids clear at ${nextRoundLabel()}; lower rates, a better on-time record and fewer empty miles win. One bid per truck per round; a bid by hand replaces your dispatcher's bids for that truck.</p>
       ${sent && sent.a.type === "place_bid" ? `<p class="warn">Bid on its way: ${sent.a.rate.toFixed(2)}/mi, in at ${hhmm(sent.at)}.</p>` : ""}
       ${pending ? `<div class="row"><span class="good">Bid in: ${pending.rate.toFixed(2)}/mi</span><button class="btn" data-act="cancelbid" data-truck="${truck.id}">Withdraw bid</button></div>` : ""}
       <div class="loads">${list || `<p class="muted">No ${TRAILER_NAME[truck.trailer].toLowerCase()} loads within ${MANUAL_BID_MAX_DEADHEAD_MI} miles right now. Send the truck to a busier hub or wait for the next round.</p>`}</div>`;
@@ -1462,6 +1513,14 @@ function companyPanel(): string {
 const starBar = (skill: number) => `<span class="stars" title="${Math.round(skill * 100)}% skill">${"★".repeat(stars(skill))}${"☆".repeat(5 - stars(skill))}</span>`;
 const moraleWord = (m: number) => (m >= 0.65 ? "happy" : m >= 0.45 ? "settled" : m >= 0.3 ? "restless" : "unhappy");
 const moraleClass = (m: number) => (m >= 0.45 ? "good" : m >= 0.3 ? "warn" : "bad");
+/** Days out and fatigue, for a driver: "· 24 d out · tired 62%". */
+function fatigueTag(s: Staff): string {
+  const f = GAME_CONFIG.fatigue;
+  const out = s.awayDays > 0 ? ` · ${s.awayDays} d out` : "";
+  if (s.fatigue >= f.tiredAt) return `${out} · <span class="bad">tired ${pct(s.fatigue)}</span>`;
+  if (s.fatigue >= f.tiredAt / 2) return `${out} · <span class="warn">wearing ${pct(s.fatigue)}</span>`;
+  return out;
+}
 const staffPay = (s: Staff, x: number) => (s.kind === "driver" ? `${x.toFixed(2)} FD/mi` : `${fd(x)} FD/wk`);
 /** At a hub (or in the shop), where a crew can change. */
 const atHub = (t: Truck) => t.status === "idle" || t.status === "parked" || t.status === "repair";
@@ -1472,7 +1531,7 @@ function crewLine(t: Truck): string {
   if (!crewed(t)) return `<span class="bad">No driver: the truck can't run.</span>`;
   const d = w.staff[t.driverId - 1]!;
   const co = t.coDriverId ? w.staff[t.coDriverId - 1]! : null;
-  const who = (s: Staff) => `${s.owner ? "You" : esc(s.name)} ${starBar(s.skill)}`;
+  const who = (s: Staff) => `${s.owner ? "You" : esc(s.name)} ${starBar(s.skill)}${fatigueTag(s)}`;
   const defects = t.defects > 0 ? ` · <span class="warn">${t.defects} defect${t.defects > 1 ? "s" : ""}</span>` : "";
   return `Driver: ${who(d)}${co ? ` · team with ${who(co)}` : ""} · ${t.wagePerMile.toFixed(2)} FD/mi${defects}`;
 }
@@ -1524,7 +1583,7 @@ function staffPanel(): string {
     const teams = s.kind === "driver" ? truckOptions((t) => teamSeat(t) && t.driverId !== s.id) : "";
     const record = s.violations || s.crashes ? ` · <span class="warn">${s.violations} violations, ${s.crashes} crashes on record</span>` : "";
     return `<div class="card">
-      <div class="row"><b>${esc(s.name)}</b>${starBar(s.skill)}<span class="muted">${s.kind === "driver" ? "Driver" : "Dispatcher"}</span><span class="${moraleClass(s.morale)}">${moraleWord(s.morale)}</span></div>
+      <div class="row"><b>${esc(s.name)}</b>${starBar(s.skill)}<span class="muted">${s.kind === "driver" ? "Driver" : "Dispatcher"}</span><span class="${moraleClass(s.morale)}">${moraleWord(s.morale)}</span>${s.kind === "driver" ? `<span class="muted">${s.homeUntilDay !== null ? "on home time" : s.awayDays ? `${s.awayDays} d out` : "home"}${s.fatigue >= GAME_CONFIG.fatigue.tiredAt / 2 ? ` · <span class="${s.fatigue >= GAME_CONFIG.fatigue.tiredAt ? "bad" : "warn"}">fatigue ${pct(s.fatigue)}</span>` : ""}</span>` : ""}</div>
       <p style="font-size:15px">${seat} · paid ${staffPay(s, s.pay)} · market ${staffPay(s, marketPay(w, s.kind, s.skill))}${record}</p>
       ${offerLine(s)}
       <div class="row"><input type="number" id="pay-${s.id}" step="${s.kind === "driver" ? "0.01" : "10"}" min="0" value="${s.kind === "driver" ? s.pay.toFixed(2) : Math.round(s.pay)}" aria-label="Pay"><button class="btn" data-act="setpay" data-staff="${s.id}">Set pay</button>
@@ -1939,6 +1998,12 @@ function wireInput(): void {
       case "sendto":
         act({ type: "reposition_truck", truckId: truck, hubId: el.dataset.hub! }, `Truck heading empty to ${el.dataset.hub}`);
         break;
+      case "book":
+        act({ type: "book_load", truckId: truck, loadId: Number(el.dataset.load) }, "Booked. The truck is on its way");
+        break;
+      case "sendhome":
+        act({ type: "send_home", truckId: truck }, "Heading home for days off");
+        break;
       case "send": {
         const hubId = $<HTMLSelectElement>(`send-${truck}`).value;
         act({ type: "reposition_truck", truckId: truck, hubId }, `Truck heading empty to ${hubId}`);
@@ -1980,6 +2045,9 @@ function wireInput(): void {
         if ($<HTMLInputElement>("o-repo").checked) orders.push({ kind: "reposition", afterIdleRounds: Math.max(1, num("o-repo-r")), to: { openLoadsWithinMi: 400 } });
         if ($<HTMLInputElement>("o-rb").checked)
           orders.push({ kind: "rebroker", share: Math.min(1, Math.max(0, num("o-rb-share") / 100 || 0)), keepPct: Math.min(0.9, Math.max(0, num("o-rb-keep") / 100 || 0)), pays: $<HTMLInputElement>("o-rb-pays").checked });
+        if ($<HTMLInputElement>("o-bn").checked) orders.push({ kind: "bookNow", breakEvenPlusPct: Math.min(5, Math.max(0, num("o-bn-pct") / 100 || 0)), maxDeadheadMi: Math.max(0, Math.min(150, num("o-dh") || 0)) });
+        if ($<HTMLInputElement>("o-home").checked)
+          orders.push({ kind: "homeTime", afterDays: Math.min(365, Math.max(1, Math.round(num("o-home-after")) || 21)), restDays: Math.min(60, Math.max(1, Math.round(num("o-home-rest")) || 5)) });
         act({ type: "set_standing_orders", orders }, "Dispatcher updated");
         break;
       }

@@ -1,7 +1,7 @@
 import { dayOf, MINUTES_PER_HOUR } from "./clock.js";
 import { clamp, fuelPrice, tripCost } from "./economics.js";
 import { settleDoubleBroker } from "./fraud.js";
-import { creditMiles } from "./labor.js";
+import { creditMiles, creditDriving, homeArrival } from "./labor.js";
 import { companyAccount } from "./ledger.js";
 import { closeDutyDay, drivingLimitMin, legalDrivingMin, mphFor, safetyTick } from "./safety.js";
 import type { Company, Load, Truck } from "./types.js";
@@ -124,6 +124,7 @@ export function moveTrucks(w: World): void {
       const miles = Math.min(truck.remainingMi, (mph * minutes) / MINUTES_PER_HOUR);
       truck.remainingMi -= miles;
       truck.shiftDrivenMin += minutes;
+      creditDriving(w, truck, minutes);
       truck.overMin = Math.max(0, truck.shiftDrivenMin - legalDrivingMin(w, truck));
       budget -= minutes;
       if (truck.status === "loaded") truck.loadedMi += miles;
@@ -170,6 +171,7 @@ function setIdle(w: World, truck: Truck): void {
   truck.emptyMi = 0;
   truck.loadedMi = 0;
   truck.legKey = -1;
+  homeArrival(w, truck);
 }
 
 /** Pays operating costs for the miles driven since the last settlement. Returns their total. */

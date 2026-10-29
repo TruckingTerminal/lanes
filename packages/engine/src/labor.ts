@@ -1,21 +1,9 @@
 import { dayOf } from "./clock.js";
 import { clamp, finiteIn, fmtInt } from "./economics.js";
 import { companyAccount } from "./ledger.js";
-import type { Company, Staff, Truck } from "./types.js";
+import type { Company, Staff, Truck, StandingOrder } from "./types.js";
 import { condition } from "./wear.js";
-import {
-  askingPay,
-  companyById,
-  crewed,
-  marketPay,
-  newStaff,
-  seatDriver,
-  staffById,
-  syncTruck,
-  truckById,
-  unseatDriver,
-  type World,
-} from "./world.js";
+import { askingPay, companyById, crewed, marketPay, newStaff, seatDriver, staffById, syncTruck, truckById, unseatDriver, type World, hubMiles } from "./world.js";
 
 /**
  * Staff (design proposal, Jeff 2026-10-28). Every truck needs a driver; the owner
@@ -290,6 +278,101 @@ export function dailyLabor(w: World): void {
     notice(w, to.id, `${label(s)} joined you from ${from.name}.`, "good", truck?.id);
   }
   for (const c of w.companies) if (c.autoStaff && c.role === "carrier") autoStaff(w, c);
+  dailyDrivers(w);
+}
+
+// --- Fatigue, home time and per diem (design decision, Jeff 2026-10-28) -----------------------
+
+/** Minutes at the wheel today, per seated driver: a team splits the truck's. */
+export function creditDriving(w: World, t: Truck, minutes: number): void {
+  const d = t.driverId ? w.staff[t.driverId - 1] : undefined;
+  const co = t.coDriverId ? w.staff[t.coDriverId - 1] : undefined;
+  if (d && co) {
+    d.drivenMinToday += minutes / 2;
+    co.drivenMinToday += minutes / 2;
+  } else if (d) d.drivenMinToday += minutes;
+}
+
+/** A truck standing still within the home radius: its drivers are home. */
+const standingAtHome = (w: World, c: Company, t: Truck) =>
+  (t.status === "idle" || t.status === "parked" || t.status === "repair") && hubMiles(w, c.homeHub, t.hub) <= w.cfg.map.nearbyRadiusMi;
+
+const seatedDrivers = (w: World, t: Truck): Staff[] => [t.driverId, t.coDriverId].filter((id) => id > 0).map((id) => w.staff[id - 1]!);
+
+/** The truck's drivers start their days off: the dispatcher leaves the truck alone until they're over. */
+export function startHomeTime(w: World, c: Company, t: Truck): void {
+  const hm = c.orders.find((o): o is Extract<StandingOrder, { kind: "homeTime" }> => o.kind === "homeTime");
+  const days = hm?.restDays ?? w.cfg.fatigue.resetDays;
+  const today = dayOf(w.t, w.cfg);
+  for (const d of seatedDrivers(w, t)) {
+    d.wantsHome = false;
+    // A day they drove home on isn't a day off: the days off start tomorrow.
+    d.homeUntilDay = (d.drivenMinToday > 0 ? today + 1 : today) + days;
+    notice(w, c.id, `${d.owner ? "You're" : `${label(d)} is`} home for ${days} days off${d.fatigue >= w.cfg.fatigue.tiredAt ? " (and need them)" : ""}.`, "info", t.id);
+  }
+}
+
+/** A truck just went idle: if it's home and a driver was heading there for days off, they start now. */
+export function homeArrival(w: World, t: Truck): void {
+  if (!t.companyId) return;
+  const c = companyById(w, t.companyId);
+  if (standingAtHome(w, c, t) && seatedDrivers(w, t).some((d) => d.wantsHome)) startHomeTime(w, c, t);
+}
+
+/** The driver fatigue a truck runs with: the average of its seated drivers'. */
+export function driverFatigue(w: World, t: Truck): number {
+  const ds = seatedDrivers(w, t);
+  return ds.length ? ds.reduce((s, d) => s + d.fatigue, 0) / ds.length : 0;
+}
+
+/**
+ * Daily, every employed driver: days out and days off, fatigue from weeks on the
+ * road and long days (a buffer banked by extra days off absorbs it first), per
+ * diem for every day away, and the morale cost of running tired.
+ */
+export function dailyDrivers(w: World): void {
+  const f = w.cfg.fatigue;
+  const perDiem = w.cfg.labor.driver.perDiemFd;
+  const today = dayOf(w.t, w.cfg);
+  for (const s of w.staff) {
+    if (s.status !== "employed" || s.kind !== "driver") continue;
+    const c = companyById(w, s.companyId);
+    const t = s.truckId ? truckById(w, s.truckId) : null;
+    const home = !t || standingAtHome(w, c, t);
+    const hours = s.drivenMinToday / 60;
+    s.drivenMinToday = 0;
+    if (home && hours === 0) {
+      // A day off at home.
+      s.awayDays = 0;
+      s.restDays++;
+      if (s.restDays >= f.resetDays) {
+        s.fatigue = 0;
+        if (s.restDays > f.resetDays) s.buffer = Math.min(f.bufferMax, s.buffer + f.bufferPerExtraDay);
+      } else s.fatigue = Math.max(0, s.fatigue - f.recoverAtHome);
+      if (s.homeUntilDay !== null && today + 1 >= s.homeUntilDay) s.homeUntilDay = null;
+      continue;
+    }
+    s.restDays = 0;
+    if (home) s.awayDays = 0;
+    else {
+      s.awayDays++;
+      w.ledger.post(w.t, companyAccount(c.id), "sink:per_diem", perDiem, `perdiem:${s.id}`);
+      c.operating.costFd += perDiem;
+    }
+    let accrual = 0;
+    if (hours > f.longDayHours) {
+      accrual += f.perHourOver * (hours - f.longDayHours) * (1 + f.consecutiveMult * Math.min(s.longDays, f.consecutiveCap));
+      s.longDays++;
+    } else s.longDays = 0;
+    if (s.awayDays > f.roadDays) accrual += f.roadPerDay * (1 + (s.awayDays - f.roadDays) / f.roadDays);
+    // A banked buffer absorbs the build-up first; every day recovers a little (more for a day off on the road).
+    const fromBuffer = Math.min(s.buffer, accrual);
+    s.buffer -= fromBuffer;
+    const before = s.fatigue;
+    s.fatigue = clamp(s.fatigue + accrual - fromBuffer - (hours === 0 ? f.restDayOnRoad : f.recoverPerDay), 0, 1);
+    if (before < f.tiredAt && s.fatigue >= f.tiredAt) notice(w, c.id, `${label(s)} is running tired: ${s.awayDays} days out${s.longDays > 1 ? `, ${s.longDays} long days in a row` : ""}. Crash odds are up and they're slowing down.`, "bad", t?.id);
+    if (!s.owner && s.fatigue > 0.5) s.morale = clamp(s.morale - f.moralePerDay * (s.fatigue - 0.5) * 2, 0, 1);
+  }
 }
 
 /**

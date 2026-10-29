@@ -24,6 +24,8 @@ export interface World {
   rng: { freight: Rng; board: Rng; agents: Rng; ops: Rng; labor: Rng; safety: Rng; fraud: Rng; dispatch: Rng };
   t: number;
   round: number;
+  /** Loads booked at their book-now price since the last round, folded into that round's clearing stats. */
+  booked: { n: number; rateSum: number };
   ledger: Ledger;
   companies: Company[];
   trucks: Truck[];
@@ -119,6 +121,7 @@ export function createWorld(o: WorldOptions): World {
     },
     t: 0,
     round: 0,
+    booked: { n: 0, rateSum: 0 },
     ledger: new Ledger(o.keepLedgerEntries ?? false),
     companies: [],
     trucks: [],
@@ -270,6 +273,14 @@ export function newStaff(w: World, kind: Staff["kind"], skill: number, potential
     peakPay: 0,
     violations: 0,
     crashes: 0,
+    awayDays: 0,
+    restDays: 0,
+    fatigue: 0,
+    buffer: 0,
+    longDays: 0,
+    drivenMinToday: 0,
+    homeUntilDay: null,
+    wantsHome: false,
   };
   w.staff.push(person);
   return person;
@@ -324,6 +335,12 @@ export function invalidOrders(cfg: EconomyConfig, orders: unknown): string | nul
       case "rebroker":
         if (!finite(o.share, 0, 1) || !finite(o.keepPct, 0, 0.9) || typeof o.pays !== "boolean") return "bad rebroker order";
         break;
+      case "bookNow":
+        if (!finite(o.breakEvenPlusPct, 0, 5) || !finite(o.maxDeadheadMi, 0, 2_000)) return "bad book-now order";
+        break;
+      case "homeTime":
+        if (!finite(o.afterDays, 1, 365) || !finite(o.restDays, 1, 60)) return "bad home-time order";
+        continue;
       default:
         return "unknown standing order";
     }

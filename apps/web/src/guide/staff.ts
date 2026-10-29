@@ -1,5 +1,5 @@
 import type { EconomyConfig } from "@lanes/config";
-import { type GuidePage, n, p, pct, see, table, ul } from "./util.js";
+import { type GuidePage, n, p, pct, see, table, ul, h } from "./util.js";
 
 const S = "Staff";
 
@@ -25,6 +25,23 @@ export function staffPages(cfg: EconomyConfig): GuidePage[] {
         p(`<b>Experience:</b> each mile closes a little of the gap between a driver's skill and their own potential (gap × miles ÷ ${n(lab.driver.learnMiles)}). A rookie with promise becomes a veteran in a year or two of steady driving, and from then on the market will pay them like one.`) +
         p(`<b>Teams:</b> seat a co-driver on a truck that already has a driver and it runs ${cfg.safety.hos.teamHours} hours a day legally. Each driver earns ${pct(lab.driver.teamPayShare)} of their rate on every mile, so a team costs about ${pct(lab.driver.teamPayShare * 2 - 1)} more per mile than one driver and covers twice the ground. Teams are how hot loads get delivered legally.`) +
         p(`Every driver carries a record of violations and crashes that any employer can see before hiring.`),
+    },
+    {
+      id: "hometime",
+      section: S,
+      title: "Fatigue, home time and per diem",
+      html:
+        p(`Drivers wear down on the road. Each one has a fatigue level you can see on the Staff tab and on their truck.`) +
+        ul([
+          `<b>Weeks out:</b> past ${cfg.fatigue.roadDays} consecutive days away from the home hub, fatigue builds every day, faster the longer they're out.`,
+          `<b>Long days:</b> a day over ${cfg.fatigue.longDayHours} driving hours builds it too, and each consecutive long day builds more than the last. Running over hours on falsified logs makes long days routine.`,
+          `<b>Days off:</b> ${cfg.fatigue.resetDays} straight days off at home reset fatigue to zero. Each extra day off banks a buffer (up to ${cfg.fatigue.bufferMax} days' worth) that absorbs the next stretch before fatigue starts climbing. A day off on the road takes a little off but doesn't reset the clock.`,
+          `<b>What it does:</b> crash odds ×${1 + cfg.fatigue.crashMult} at full fatigue, the truck runs up to ${pct(cfg.fatigue.paceLoss)} slower, and a tired hire's morale drops every day until they quit.`,
+        ]) +
+        h("Home time") +
+        p(`The standing order "Bring drivers home" sends a truck to your home hub after a set number of days out and rests its driver for a set number of days; the dispatcher leaves the truck alone meanwhile. You can also send any idle truck home from its card. Teams rest together. You drive your first truck yourself, and the same rules apply to you.`) +
+        h("Per diem") +
+        p(`Every day a driver is away from the home hub costs the company ${cfg.labor.driver.perDiemFd} FD in per diem (meals, parking, showers). A truck sitting idle far from home is spending money and wearing its driver out; that's why a local carrier can wait for a good load and a visitor can't.`),
     },
     {
       id: "dispatchers",

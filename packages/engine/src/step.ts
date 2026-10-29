@@ -1,4 +1,4 @@
-import { runBoardRound } from "./board.js";
+import { runBoardRound, autoBook } from "./board.js";
 import { clearBuyback } from "./buyback.js";
 import { chargeMinimumRent, monthlyCapacity } from "./capacity.js";
 import { dayOf, isRoundBoundary, MINUTES_PER_HOUR, seasonOf } from "./clock.js";
@@ -33,6 +33,8 @@ export function stepHour(w: World, agents?: DailyAgentHook): void {
   moveTrucks(w);
   w.t += MINUTES_PER_HOUR;
   if (isRoundBoundary(w.t, w.cfg)) runBoardRound(w);
+  // Between rounds, dispatchers take book-now loads (board.ts autoBook).
+  if ((w.t / MINUTES_PER_HOUR) % w.cfg.bookNow.autoEveryHours === 0) autoBook(w);
   if (w.t % w.cfg.time.gameMinutesPerDay === 0) endOfDay(w, dayOf(w.t, w.cfg) - 1, agents);
   w.ledger.assertBalanced();
 }

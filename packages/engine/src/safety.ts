@@ -3,7 +3,7 @@ import { dayOf, MINUTES_PER_HOUR } from "./clock.js";
 import { fmtInt } from "./economics.js";
 import { activeLoanOn, settleLoanFromSale } from "./finance.js";
 import { recordClaim, signPolicy } from "./insurance.js";
-import { dispatchersOf, jail, pushesRules, releaseAll, removeStaff } from "./labor.js";
+import { dispatchersOf, jail, pushesRules, releaseAll, removeStaff, driverFatigue } from "./labor.js";
 import { companyAccount } from "./ledger.js";
 import { refile, startLiquidation } from "./solvency.js";
 import type { Basic, Company, CrashSeverity, Load, Truck } from "./types.js";
@@ -64,7 +64,8 @@ export const speeding = (w: World, t: Truck, c: Company) => applies(c.policy.spe
 export function mphFor(w: World, t: Truck, c: Company, roadMph = w.cfg.hos.avgMph): number {
   const { hos, labor, safety } = w.cfg;
   const skill = 1 + labor.driver.mphRange * (t.driverSkill - 0.5);
-  return roadMph * skill * (speeding(w, t, c) ? safety.speed.fastMph / hos.avgMph : 1);
+  const tired = 1 - w.cfg.fatigue.paceLoss * driverFatigue(w, t);
+  return roadMph * skill * tired * (speeding(w, t, c) ? safety.speed.fastMph / hos.avgMph : 1);
 }
 
 /**
@@ -182,7 +183,8 @@ export function crashMultiplier(w: World, t: Truck, c: Company): number {
   const fast = speeding(w, t, c) ? crash.fastMult : 1;
   const defects = 1 + maintenance.crashPerDefect * t.defects;
   const wear = 1 + 0.5 * (1 - condition(w.cfg, t));
-  return fatigue * fast * defects * wear * (atZero + (atOne - atZero) * t.driverSkill) * roadRisk(w, t);
+  const tired = 1 + w.cfg.fatigue.crashMult * driverFatigue(w, t);
+  return fatigue * tired * fast * defects * wear * (atZero + (atOne - atZero) * t.driverSkill) * roadRisk(w, t);
 }
 
 /**

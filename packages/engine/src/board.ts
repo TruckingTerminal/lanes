@@ -1,11 +1,12 @@
+import { fuelPrice } from "./economics.js";
 import { seasonality } from "./demand.js";
 import { dayOf } from "./clock.js";
 import { generateRoundFreight } from "./freight.js";
 import { rebrokerLoad, vettingBlock } from "./fraud.js";
 import { homeEdge, updateHomeCrowding } from "./home.js";
-import { creditDispatch, dispatchProfile } from "./labor.js";
+import { creditDispatch, dispatchProfile, startHomeTime } from "./labor.js";
 import { companyAccount } from "./ledger.js";
-import { bidsFromStandingOrders, boardKey, canMakeHot, indexOpenLoads, scoreBid } from "./standingOrders.js";
+import { bidsFromStandingOrders, boardKey, canMakeHot, indexOpenLoads, scoreBid, desperation, estimateBreakEven, resting, trackingWouldShow } from "./standingOrders.js";
 import { coverDoubleBrokered, startLoading } from "./trips.js";
 import type { Bid, Company, Load, StandingOrder, Truck } from "./types.js";
 import { companyById, crewed, hubHours, hubMiles, truckById, type World } from "./world.js";
@@ -127,6 +128,10 @@ export function runBoardRound(w: World): RoundResult {
   }
 
   const freight = generateRoundFreight(w);
+  // Loads booked at their book-now price since the last round count as cleared, at what they paid.
+  cleared += w.booked.n;
+  clearedRateSum += w.booked.rateSum;
+  w.booked = { n: 0, rateSum: 0 };
   const result: RoundResult = {
     round: w.round,
     bids: bids.length,
@@ -153,7 +158,8 @@ function manualRoundBids(w: World): Bid[] {
     if (company.authority.status !== "active" || vettingBlock(w, company, load) !== null || load.doubleBroker?.companyId === company.id) continue;
     if (load.hot > 0 && !canMakeHot(company, truck)) continue;
     const deadheadMi = hubMiles(w, truck.hub, load.origin);
-    const rate = Math.min(mb.rate, load.ceiling);
+    // Nobody pays more than the book-now: a bid above it takes the load at the book-now.
+    const rate = Math.min(mb.rate, load.bookNow);
     out.push({ loadId: load.id, truckId, companyId: company.id, rate, deadheadMi, score: scoreBid(w, load.ceiling, rate, company.reputation, deadheadMi, homeEdge(w, company, load.origin)), tiebreak: 0 });
   }
   w.manualBids.clear();
@@ -197,6 +203,76 @@ function rollover(w: World, load: Load): void {
     // The broker eats the raise. To keep its contract it will pay carriers up to
     // the spot rate, even above what the contract with the shipper brings in.
     load.ceiling = Math.min(raised, Math.max(load.shipperRate, load.spotShipperRate));
+  }
+  // Nobody took it at the book-now: the poster raises it toward the ceiling.
+  load.bookNow = Math.min(load.ceiling, load.bookNow * (1 + w.cfg.bookNow.stepPerRound));
+}
+
+/**
+ * Takes an open load at its book-now price for an idle truck, now (§Load board —
+ * book-now). The caller has checked ownership, vetting and the hot-load rule;
+ * this checks what can change under it and assigns.
+ */
+export function bookLoad(w: World, company: Company, truck: Truck, load: Load, deadheadMi: number, manual: boolean): string | null {
+  if (load.status !== "open") return "that load is gone";
+  if (truck.status !== "idle" || !crewed(truck)) return "the truck isn't idle with a driver";
+  if (truck.trailer !== load.equipment) return "wrong trailer";
+  if (company.authority.status !== "active") return "your authority isn't active";
+  const rate = load.bookNow;
+  if (!(rate > 0)) return "that load has no book-now price";
+  w.manualBids.delete(truck.id);
+  assign(w, load, truck, { loadId: load.id, truckId: truck.id, companyId: company.id, rate, deadheadMi, score: 0, tiebreak: 0 });
+  company.bidStats.truckRounds++;
+  company.bidStats.wins++;
+  w.booked.n++;
+  w.booked.rateSum += rate;
+  w.listener?.({ kind: "won", companyId: company.id, truckId: truck.id, loadId: load.id, origin: load.origin, dest: load.dest, miles: load.miles, rate, manual });
+  return null;
+}
+
+/**
+ * Between rounds, dispatchers with a book-now standing order take loads whose
+ * book-now price clears their threshold, lowered by how badly the truck needs to
+ * move (desperation). Same reach and rules as sealed bidding.
+ */
+export function autoBook(w: World): void {
+  const idx = indexOpenLoads(w);
+  if (idx.size === 0) return;
+  const fuel = fuelPrice(w);
+  const rng = w.rng.dispatch;
+  for (const company of w.companies) {
+    if (company.role !== "carrier" || company.authority.status !== "active") continue;
+    const order = company.orders.find((o): o is Extract<StandingOrder, { kind: "bookNow" }> => o.kind === "bookNow");
+    if (!order) continue;
+    const floor = company.orders.find((o): o is Extract<StandingOrder, { kind: "floor" }> => o.kind === "floor");
+    const fleet = w.trucksByCompany.get(company.id)!;
+    const team = dispatchProfile(w, company, fleet.filter((t) => t.status !== "parked" && t.status !== "listed").length);
+    const allowed = [true, vettingBlock(w, company, { vet: 1 } as Load) === null, vettingBlock(w, company, { vet: 2 } as Load) === null];
+    for (const truck of fleet) {
+      if (truck.status !== "idle" || !crewed(truck) || resting(w, truck) || w.manualBids.has(truck.id)) continue;
+      if (team.coverage < 1 && rng.next() >= team.coverage) continue;
+      const want = order.breakEvenPlusPct * (1 - desperation(w, company, truck));
+      let best: { load: Load; dh: number; profit: number } | null = null;
+      for (const hub of w.net.nearby[truck.hub]!) {
+        const dh = hubMiles(w, truck.hub, hub);
+        if (dh > order.maxDeadheadMi) break; // nearby is sorted nearest first
+        const loads = idx.get(boardKey(hub, truck.trailer));
+        if (!loads) continue;
+        for (const load of loads) {
+          if (load.status !== "open") continue; // booked a moment ago by another truck
+          if (load.brokerId === company.id || load.doubleBroker?.companyId === company.id) continue;
+          if (!allowed[load.vet]) continue;
+          if (load.hot > 0 && !canMakeHot(company, truck)) continue;
+          if (trackingWouldShow(company, load)) continue;
+          const be = estimateBreakEven(w, truck, load, dh, fuel, team);
+          const min = Math.max(be * (1 + want), floor ? be * (1 + floor.breakEvenPlusPct) : 0);
+          if (load.bookNow < min) continue;
+          const profit = (load.bookNow - be) * load.miles;
+          if (!best || profit > best.profit || (profit === best.profit && load.id < best.load.id)) best = { load, dh, profit };
+        }
+      }
+      if (best && bookLoad(w, company, truck, best.load, best.dh, false) === null) creditDispatch(w, company);
+    }
   }
 }
 
@@ -259,6 +335,22 @@ function openLoadSurplus(w: World): Map<string, number> {
 function maybeReposition(w: World, truck: Truck, surplus: Map<string, number>): void {
   const company = companyById(w, truck.companyId);
   if (!crewed(truck) || company.authority.status !== "active") return;
+  if (resting(w, truck)) return;
+  // Home time first: a driver due days off heads for the home hub, or starts them if already there.
+  const driver = w.staff[truck.driverId - 1]!;
+  const hm = company.orders.find((o): o is Extract<StandingOrder, { kind: "homeTime" }> => o.kind === "homeTime");
+  if (driver.wantsHome || (hm && driver.awayDays >= hm.afterDays)) {
+    driver.wantsHome = true;
+    if (truck.coDriverId) w.staff[truck.coDriverId - 1]!.wantsHome = true;
+    const miles = hubMiles(w, truck.hub, company.homeHub);
+    if (miles > w.cfg.map.nearbyRadiusMi) {
+      truck.status = "repositioning";
+      truck.targetHub = company.homeHub;
+      truck.remainingMi = miles;
+      truck.idleRounds = 0;
+    } else startHomeTime(w, company, truck);
+    return;
+  }
   const foresight = company.orders.some((o) => o.kind === "reposition" && typeof o.to === "object" && "openLoadsWithinMi" in o.to)
     ? dispatchProfile(w, company, w.trucksByCompany.get(company.id)!.length).foresightDays
     : 0;

@@ -406,6 +406,39 @@ Design, levers and the full results are in [TOKENOMICS.md](TOKENOMICS.md); table
   that keep losing) with the button that fixes it; a red "N IDLE" badge sits in the top bar, and the
   ticker and a toast shout once per idle day.
 
+## Book-now, per diem and driver fatigue (config 0.13.0)
+
+Jeff's design (2026-10-28), the first of three steps toward a market where where you base matters
+(next: shipper leverage and contracts, then places and freight flows).
+
+- **Book-now prices** (`freight.ts openBookNow`, `board.ts bookLoad/autoBook`): every load carries a
+  take-it-now price next to the sealed-bid round. Take it and the load is yours at once; bid under
+  it and wait for the round; nobody pays more than it (bids are capped at the book-now). The poster
+  opens it from the origin's load-to-truck ratio (88% of reference where trucks pile up, 98% at a
+  balanced market, 110% where trucks are scarce; never above the ceiling) and raises it 8% every
+  round the load sits. The dispatcher's "Book loads between rounds" order takes a load when its
+  book-now clears break-even plus a margin that shrinks with **desperation**: a truck idle 72 hours
+  or a driver more than two weeks from home takes anything that covers costs; a truck sitting at home
+  is half as pressed. Dispatchers look every two hours. Bots: greedy hold out for +30%, conservative
+  take +12%.
+- **Per diem** (`sink:per_diem`): 60 FD for every day a driver is away from the home hub. A visiting
+  truck idle in Miami is spending money; a local one isn't.
+- **Fatigue and home time** (`labor.ts dailyDrivers`): past 21 consecutive days away, fatigue builds
+  daily and faster by the week; a day over 10 driving hours builds it too, more for each consecutive
+  long day (a legal 11-hour day barely registers; a 15-hour day on falsified logs does). Five days off
+  at home reset it; extra days off bank a buffer. Fatigue doubles crash odds at full, slows the truck
+  up to 10%, and wears a hire's morale. The "Bring drivers home" order sends a truck home after N days
+  out for M days off, during which the dispatcher leaves it alone; any idle truck can be sent home
+  from its card. Clean AI carriers bring drivers home every three weeks, corner-cutters every five,
+  outlaws never.
+- **In the client:** book-now price, profit at that price and a Book now button on every load
+  (loads the company can't take say why and are greyed out); the two new dispatcher rows; days out
+  and fatigue on every driver; a red TIRED badge and alert card with Send home; the status line
+  shows home time. Guide pages: "Book-now prices" and "Fatigue, home time and per diem".
+- Tests: a load's book-now is at or under its ceiling and rises while it sits; a player can book;
+  a driver is sent home after the set days, rests, and costs per diem meanwhile; fatigue builds on
+  weeks out and long days and resets with days off.
+
 ## Audit (2026-10-28, config 0.9.2)
 Six audits of the whole project (engine, the new systems, bots and sim tools, client and shared world, data,
 and a simulation campaign); every finding verified, the fixes in `AUDIT.md` with the before/after numbers.

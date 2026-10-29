@@ -28,6 +28,18 @@ export type StandingOrder =
       to: "nearestStarterHub" | { openLoadsWithinMi: number } | { hubId: string };
     }
   | {
+      /** Book loads at their book-now price between rounds when it clears break-even × (1 + pct); desperation lowers the pct. */
+      kind: "bookNow";
+      breakEvenPlusPct: number;
+      maxDeadheadMi: number;
+    }
+  | {
+      /** Bring drivers home after this many days out, for this many days off. */
+      kind: "homeTime";
+      afterDays: number;
+      restDays: number;
+    }
+  | {
       /** Broker: accept tendered NPC freight and repost it at this margin. */
       kind: "broker";
       marginPct: number;
@@ -252,6 +264,21 @@ export interface Staff {
   /** Career record any employer can see. */
   violations: number;
   crashes: number;
+  /** Drivers: consecutive days away from the home hub, and consecutive days off at home. */
+  awayDays: number;
+  restDays: number;
+  /** 0–1 (labor.ts dailyDrivers): weeks on the road and long days build it; days off at home reset it. */
+  fatigue: number;
+  /** Fatigue absorbed before it counts, banked by days off past the reset. */
+  buffer: number;
+  /** Consecutive days over the long-day limit before today. */
+  longDays: number;
+  /** Minutes at the wheel today (a team splits the truck's). */
+  drivenMinToday: number;
+  /** On home time until this day: the dispatcher leaves the truck alone. */
+  homeUntilDay: number | null;
+  /** Heading home for days off (a home-time order or send_home). */
+  wantsHome: boolean;
 }
 
 /** An open fraud investigation (fraud.ts). */
@@ -391,6 +418,8 @@ export interface Load {
   refRate: number;
   /** Current board ceiling per mile. */
   ceiling: number;
+  /** Take-it-now price per mile the poster set (board.ts bookLoad); a sealed bid never pays more. */
+  bookNow: number;
   postedRound: number;
   roundsUnfilled: number;
   status: LoadStatus;
@@ -511,6 +540,10 @@ export type Action =
   /** A sealed bid by hand for the next board round (§Load board: sealed bids, plus standing orders). It replaces this truck's standing-order bids that round. */
   | { type: "place_bid"; truckId: number; loadId: number; rate: number }
   | { type: "cancel_bid"; truckId: number }
+  /** Take an open load at its book-now price, now, for an idle truck within reach. */
+  | { type: "book_load"; truckId: number; loadId: number }
+  /** Send an idle truck home for its driver's days off (home time). */
+  | { type: "send_home"; truckId: number }
   /** Send an idle truck empty to another hub. */
   | { type: "reposition_truck"; truckId: number; hubId: string }
   | { type: "buy_fd"; usd: number }

@@ -38,6 +38,8 @@ export function operationsPages(cfg: EconomyConfig): GuidePage[] {
             ["Never below break-even +", "A floor: skips any load that wouldn't clear it"],
             ["Max empty miles", "How far a truck will run empty to a pickup (up to 150)"],
             ["Move idle trucks", "After a number of idle rounds, sends the truck empty to the hub nearby with the most uncovered freight for its trailer"],
+            ["Book loads between rounds", "Takes a load at its book-now price when it clears break-even plus your margin; the margin shrinks the longer the truck sits and the farther its driver is from home"],
+            ["Bring drivers home", "After so many days out, the truck heads for your home hub and its driver takes days off; the dispatcher leaves it alone until they're over"],
           ],
         ) +
         p(`Each truck bids on up to ${cfg.board.maxBidsPerTruckPerRound} loads a round, most profitable first; it wins at most one. You get ${cfg.board.freeStandingOrders} standing orders plus a floor.`),

@@ -155,6 +155,12 @@ function carrierProfile(strategy: Strategy, rng: Rng): BotProfile {
   const p = carrierProfileFor(strategy, rng);
   // Outlaws double broker some of what they win; most still pay the hauler. The order goes on only while they're cheating.
   if (p.conduct === "outlaw") p.rebroker = { kind: "rebroker", share: 0.1, keepPct: 0.15, pays: rng.next() < 0.8 };
+  // Book-now between rounds: the greedy hold out for a margin, the careful take a sure thing.
+  const margin = strategy === "greedy" ? 0.3 : strategy === "conservative" ? 0.12 : rng.range(0.1, 0.4);
+  p.otherOrders.push({ kind: "bookNow", breakEvenPlusPct: margin, maxDeadheadMi: p.maxDeadheadMi });
+  // Home time: clean carriers bring drivers home every three weeks, corner-cutters run them five; outlaws don't bother.
+  if (p.conduct === "clean") p.otherOrders.push({ kind: "homeTime", afterDays: 21, restDays: 5 });
+  else if (p.conduct === "cutter") p.otherOrders.push({ kind: "homeTime", afterDays: 35, restDays: 3 });
   return p;
 }
 

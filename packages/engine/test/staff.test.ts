@@ -18,6 +18,9 @@ import {
   poolOf,
   quote,
   runDays,
+  dailyDrivers,
+  resting,
+  stepHour,
   signPolicy,
   vettingBlock,
   yardPerTruck,
@@ -200,6 +203,88 @@ describe("players", () => {
     const [truck] = w.trucksByCompany.get(human.id)!;
     expect(applyAction(w, human.id, { type: "steal_load", truckId: truck!.id })).toEqual({ ok: false, reason: "that isn't available to players" });
     expect(applyAction(w, ai.id, { type: "set_compliance", policy: illegal }).ok).toBe(true);
+  });
+});
+
+describe("book-now and home time", () => {
+  const hubIdx = (id: string) => hubs.findIndex((h) => h.id === id);
+
+  it("prices every posted load with a book-now at or under the ceiling that rises while it sits", () => {
+    const w = world(12);
+    for (let h = 0; h < 7; h++) stepHour(w); // through the 06:00 round
+    const open = [...w.loads.values()].filter((l) => l.status === "open");
+    expect(open.length).toBeGreaterThan(0);
+    for (const l of open) {
+      expect(l.bookNow).toBeGreaterThan(0);
+      expect(l.bookNow).toBeLessThanOrEqual(l.ceiling + 1e-9);
+    }
+    const before = new Map(open.map((l) => [l.id, l.bookNow]));
+    for (let h = 0; h < 12; h++) stepHour(w); // through the 18:00 round: nobody bids, so they roll
+    let rolled = 0;
+    for (const l of w.loads.values()) {
+      if (l.status !== "open" || !before.has(l.id)) continue;
+      expect(l.bookNow).toBeGreaterThan(before.get(l.id)! * (1 + cfg.bookNow.stepPerRound) - 1e-6);
+      rolled++;
+    }
+    expect(rolled).toBeGreaterThan(0);
+  });
+
+  it("lets a player book an open load at its book-now price for an idle truck", () => {
+    const w = world(13);
+    const c = formCompany(w, { name: "Player", role: "carrier", homeHubId: "DAL", strategy: "player:test", orders: [], freePath: true, human: true });
+    for (let h = 0; h < 7; h++) stepHour(w);
+    const [truck] = w.trucksByCompany.get(c.id)!;
+    const load = [...w.loads.values()].find((l) => l.status === "open" && l.origin === hubIdx("DAL") && l.equipment === truck!.trailer && l.vet === 0)!;
+    expect(load).toBeDefined();
+    expect(applyAction(w, c.id, { type: "book_load", truckId: truck!.id, loadId: load.id })).toEqual({ ok: true });
+    expect(load.carrierId).toBe(c.id); // at the same hub it's already loading
+    expect(load.clearedRate).toBe(load.bookNow);
+    expect(truck!.loadId).toBe(load.id);
+    expect(applyAction(w, c.id, { type: "book_load", truckId: truck!.id, loadId: load.id }).ok).toBe(false);
+  });
+
+  it("brings a driver home after the set days out, rests them, and charges per diem meanwhile", () => {
+    const w = createWorld({ cfg, net, feeds: neutralFeeds, seed: 14, keepLedgerEntries: true });
+    const c = formCompany(w, { name: "Far", role: "carrier", homeHubId: "DAL", strategy: "test", orders: [{ kind: "homeTime", afterDays: 3, restDays: 2 }], freePath: true });
+    const [truck] = w.trucksByCompany.get(c.id)!;
+    truck!.hub = truck!.targetHub = hubIdx("CHI");
+    const driver = w.staff[truck!.driverId - 1]!;
+    runDays(w, 3);
+    expect(driver.awayDays).toBe(3);
+    expect(w.ledger.entries.filter((e) => e.to === "sink:per_diem" && e.from === companyAccount(c.id)).length).toBe(3);
+    runDays(w, 1);
+    expect(truck!.status).toBe("repositioning");
+    expect(truck!.targetHub).toBe(hubIdx("DAL"));
+    for (let h = 0; h < 96 && truck!.status !== "idle"; h++) stepHour(w);
+    expect(truck!.hub).toBe(hubIdx("DAL"));
+    expect(driver.homeUntilDay).not.toBeNull();
+    runDays(w, 1);
+    expect(resting(w, truck!)).toBe(true); // the days off start the day after the drive home
+    expect(driver.awayDays).toBe(0);
+    runDays(w, 2);
+    expect(resting(w, truck!)).toBe(false);
+    expect(driver.homeUntilDay).toBeNull();
+  });
+
+  it("builds fatigue on weeks out and long days, resets it with days off at home, and banks a buffer", () => {
+    const w = world(15);
+    const c = carrier(w);
+    const [truck] = w.trucksByCompany.get(c.id)!;
+    const d = w.staff[truck!.driverId - 1]!;
+    truck!.hub = truck!.targetHub = hubIdx("SEA");
+    d.awayDays = 25;
+    d.drivenMinToday = 13 * 60;
+    dailyDrivers(w);
+    const afterOne = d.fatigue;
+    expect(afterOne).toBeGreaterThan(0);
+    d.drivenMinToday = 13 * 60;
+    dailyDrivers(w);
+    expect(d.fatigue - afterOne).toBeGreaterThan(afterOne); // a second long day in a row builds more
+    truck!.hub = truck!.targetHub = hubIdx("DAL");
+    for (let k = 0; k < 7; k++) dailyDrivers(w);
+    expect(d.fatigue).toBe(0);
+    expect(d.buffer).toBeGreaterThan(0);
+    expect(d.awayDays).toBe(0);
   });
 });
 

@@ -133,6 +133,7 @@ export function generateRoundFreight(w: World): RoundFreight {
   const newLoad = (lane: Lane, eq: Equipment, ref: number): Load => {
     const ceiling = ref * cfg.rates.npcCeilingMarkup;
     return {
+      bookNow: openBookNow(w, ref, ceiling, ratioEq[planIndex(lane.origin, EQUIPMENT.indexOf(eq))]!),
       id: w.nextLoadId++,
       laneId: lane.id,
       origin: lane.origin,
@@ -168,6 +169,7 @@ export function generateRoundFreight(w: World): RoundFreight {
     if (load.miles < hl.minMiles || rng.next() >= hotOdds(load.equipment)) return;
     load.hot = rng.range(hl.premium[0], hl.premium[1]);
     load.ceiling *= load.hot;
+    load.bookNow = Math.min(load.ceiling, load.bookNow * load.hot);
     load.shipperRate = load.ceiling;
     load.spotShipperRate = load.ceiling;
   };
@@ -229,6 +231,26 @@ export function generateRoundFreight(w: World): RoundFreight {
  * Broker-only NPC freight goes to a broker at the broker's contract rate with
  * that shipper (trailing the spot market), and the broker reposts it at its margin.
  */
+/**
+ * The poster's opening book-now price: a share of the reference set by the origin's
+ * load-to-truck ratio (shipper leverage), never above the ceiling. Brokers fish low
+ * where trucks pile up and open near the ceiling where they're scarce.
+ */
+export function openBookNow(w: World, ref: number, ceiling: number, ratio: number): number {
+  const pts = w.cfg.bookNow.openAtRatio;
+  let share = pts[0]![1];
+  for (let i = 1; i < pts.length; i++) {
+    const [r0, s0] = pts[i - 1]!;
+    const [r1, s1] = pts[i]!;
+    share = s1;
+    if (ratio <= r1) {
+      share = s0 + (s1 - s0) * clamp((ratio - r0) / (r1 - r0), 0, 1);
+      break;
+    }
+  }
+  return Math.min(ceiling, ref * share);
+}
+
 function tenderToBroker(w: World, load: Load, brokers: Company[], contractShipperRate: number): void {
   const eligible: Company[] = [];
   const weights: number[] = [];
@@ -248,6 +270,7 @@ function tenderToBroker(w: World, load: Load, brokers: Company[], contractShippe
   load.brokerId = broker.id;
   load.shipperRate = contractShipperRate;
   load.ceiling = contractShipperRate * (1 - margin);
+  load.bookNow = Math.min(load.bookNow, load.ceiling);
   broker.openBrokerLoads++;
 }
 

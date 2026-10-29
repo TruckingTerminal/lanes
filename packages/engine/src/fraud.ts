@@ -75,6 +75,7 @@ export function rebrokerLoad(w: World, c: Company, load: Load, rate: number, pay
   load.truckId = null;
   load.clearedRate = 0;
   load.ceiling = rate;
+  load.bookNow = rate;
   load.postedRound = w.round;
   load.roundsUnfilled = 0;
   w.metrics.onFraud("doubleBroker");

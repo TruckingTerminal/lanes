@@ -1,3 +1,4 @@
+import { dayOf, MINUTES_PER_HOUR } from "./clock.js";
 import { breakEvenPerMile, fuelPrice } from "./economics.js";
 import { expectedReloadDeadheadMi } from "./freight.js";
 import { vettingBlock } from "./fraud.js";
@@ -11,6 +12,26 @@ export const canMakeHot = (c: Company, t: Truck) => t.coDriverId !== 0 || c.poli
 
 /** Would this load's tracking show the company's illegal hours? Dispatchers steer those trucks clear of it. */
 export const trackingWouldShow = (c: Company, load: Load) => load.vet === 2 && (c.policy.hos === "always" || (c.policy.hos === "hot" && load.hot > 0));
+
+/** A driver on home time (labor.ts): the dispatcher leaves the truck alone until it's over. */
+export function resting(w: World, t: Truck): boolean {
+  if (!t.driverId) return false;
+  const d = w.staff[t.driverId - 1]!;
+  return d.homeUntilDay !== null && d.homeUntilDay > dayOf(w.t, w.cfg);
+}
+
+/**
+ * How badly this truck needs to move, 0 (content) to 1 (take anything that covers
+ * costs): idle time, and a driver's days from home. Sitting at home is half as pressing.
+ */
+export function desperation(w: World, c: Company, t: Truck): number {
+  const k = w.cfg.bookNow.desperation;
+  const idle = Math.min(1, Math.max(0, w.t - t.idleSinceT) / MINUTES_PER_HOUR / k.idleHours);
+  const d = t.driverId ? w.staff[t.driverId - 1]! : null;
+  const away = d ? Math.min(1, Math.max(0, d.awayDays - k.awayAfterDays) / k.awayDays) : 0;
+  const atHome = hubMiles(w, c.homeHub, t.hub) <= w.cfg.map.nearbyRadiusMi;
+  return Math.max(idle, away) * (atHome ? k.atHomeMult : 1);
+}
 
 /** Open loads indexed by origin hub and equipment, rebuilt each round. */
 export type BoardIndex = Map<string, Load[]>;
@@ -59,7 +80,7 @@ export function bidsFromStandingOrders(w: World, company: Company, idx: BoardInd
   const rng = w.rng.dispatch;
 
   for (const truck of fleet) {
-    if (truck.status !== "idle" || !crewed(truck)) continue;
+    if (truck.status !== "idle" || !crewed(truck) || resting(w, truck)) continue;
     if (team.coverage < 1 && rng.next() >= team.coverage) continue;
     const candidates: { bid: Bid; profit: number }[] = [];
     let inRange = 0;
@@ -98,6 +119,19 @@ export function bidsFromStandingOrders(w: World, company: Company, idx: BoardInd
   return out;
 }
 
+/** A dispatch team's read of a load's break-even for this truck: the true figure, off by their noise. */
+export function estimateBreakEven(w: World, truck: Truck, load: Load, dh: number, fuel: number, team: DispatchProfile): number {
+  // Price in the empty run out of the destination, so a cheap load into a dead market isn't worth taking —
+  // as much of it as this dispatcher knows to, and as far ahead on the season as they can see.
+  const reloadMi = expectedReloadDeadheadMi(w, load.dest, load.equipment, team.foresightDays);
+  // Tolls on the way to the pickup and on the lane itself are part of the cost of the load.
+  const tolls = hubToll(w, truck.hub, load.origin) + w.net.lanes[load.laneId]!.tollFd;
+  const trueBreakEven = breakEvenPerMile(w.cfg, truck, fuel, load.miles, dh + team.reloadWeight * reloadMi, tolls);
+  // Their read of their own costs is off by a few percent, more for an inexperienced dispatcher.
+  const z = (w.rng.dispatch.next() + w.rng.dispatch.next() + w.rng.dispatch.next() - 1.5) * 2;
+  return trueBreakEven * (1 + team.noise * z);
+}
+
 function priceLoad(
   w: World,
   truck: Truck,
@@ -109,24 +143,16 @@ function priceLoad(
   team: DispatchProfile,
 ): { rate: number; breakEven: number } | null {
   const hubId = w.net.hubs[load.origin]!.id;
-  // Price in the empty run out of the destination, so a cheap load into a dead market isn't worth taking —
-  // as much of it as this dispatcher knows to, and as far ahead on the season as they can see.
-  const reloadMi = expectedReloadDeadheadMi(w, load.dest, load.equipment, team.foresightDays);
-  // Tolls on the way to the pickup and on the lane itself are part of the cost of the load.
-  const tolls = hubToll(w, truck.hub, load.origin) + w.net.lanes[load.laneId]!.tollFd;
-  const trueBreakEven = breakEvenPerMile(w.cfg, truck, fuel, load.miles, dh + team.reloadWeight * reloadMi, tolls);
-  // Their read of their own costs is off by a few percent, more for an inexperienced dispatcher.
-  const z = (w.rng.dispatch.next() + w.rng.dispatch.next() + w.rng.dispatch.next() - 1.5) * 2;
-  const breakEven = trueBreakEven * (1 + team.noise * z);
+  const breakEven = estimateBreakEven(w, truck, load, dh, fuel, team);
   for (const o of bidOrders) {
     if (o.equipment && !o.equipment.includes(load.equipment)) continue;
     if (o.originHubs && !o.originHubs.includes(hubId)) continue;
     if (dh > o.maxDeadheadMi) continue;
     if (o.minCeilingPerMile !== undefined && load.ceiling < o.minCeilingPerMile) continue;
-    // A bid never exceeds the ceiling: a carrier asking more takes the load at the
-    // ceiling, provided that still clears its floor.
+    // A bid never exceeds the book-now price: a carrier asking more takes the load at
+    // the book-now, provided that still clears its floor.
     const ask = o.price.mode === "ceilingPct" ? load.ceiling * o.price.pct : breakEven * (1 + o.price.pct);
-    const rate = Math.min(ask, load.ceiling);
+    const rate = Math.min(ask, load.bookNow);
     if (!(rate > 0)) continue; // nobody hauls for nothing
     if (floor && rate < breakEven * (1 + floor.breakEvenPlusPct)) continue;
     return { rate, breakEven };

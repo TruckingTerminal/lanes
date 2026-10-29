@@ -9,7 +9,7 @@ export type TractorTier = "workhorse" | "highwayPro" | "flagship";
 export type FacilityType = "warehouse" | "coldStorage" | "factory";
 
 export const economyConfig = {
-  version: "0.12.0-phase0.17",
+  version: "0.13.0-phase0.18",
 
   // §World, map and time
   time: {
@@ -73,6 +73,52 @@ export const economyConfig = {
     // PoC assumption: board fee paid by players who post freight (brokers and player
     // shippers), on what the freight pays them (§Circular economy — sinks)
     posterFeePct: 0.03,
+  },
+
+  // Design decision (Jeff, 2026-10-28): every load carries a book-now price the poster sets
+  // next to the sealed-bid round. Take it and the load is yours at once; bid below it and wait
+  // for the round (a bid never pays more than the book-now). Brokers fish: in a truck-heavy
+  // market the price opens low and steps up each round the load sits; in a tight one it opens
+  // near the ceiling. Who blinks is desperation: idle time and a driver's days from home.
+  bookNow: {
+    // Opening price as a share of the reference rate, by the origin's load-to-truck ratio
+    // (piecewise linear between the points; never above the ceiling).
+    openAtRatio: [
+      [0.5, 0.88],
+      [1, 0.98],
+      [2, 1.1],
+    ] as const,
+    stepPerRound: 0.08, // unfilled: the poster raises it 8% a round (the ceiling moves 5%)
+    autoEveryHours: 2, // dispatchers look for book-now loads this often
+    desperation: {
+      idleHours: 72, // idle this long and a dispatcher takes anything that covers costs
+      awayAfterDays: 14, // a driver this long from home starts to count…
+      awayDays: 14, // …and is fully desperate this many days later
+      atHomeMult: 0.5, // sitting at home is half as pressing: no per diem, the driver is home
+    },
+  },
+
+  // Design decision (Jeff, 2026-10-28): driver fatigue. More than three weeks on the road
+  // builds fatigue that touches everything; five days off at home resets it, and extra days
+  // off bank a small buffer. A day over ten driving hours builds it too, more for every
+  // consecutive long day. Fatigue raises crash odds, slows the truck, and wears morale.
+  fatigue: {
+    roadDays: 21,
+    roadPerDay: 0.03, // per day past roadDays, growing by the weeks out
+    longDayHours: 10,
+    perHourOver: 0.01, // per driving hour past longDayHours: a legal 11-hour day barely registers, a 15-hour one does…
+    consecutiveMult: 0.25, // …×(1 + this × consecutive long days before today, up to consecutiveCap)
+    consecutiveCap: 6,
+    recoverPerDay: 0.01, // every day, before the day's build-up: steady legal driving holds near zero
+    restDayOnRoad: 0.05, // a day off away from home
+    recoverAtHome: 0.1, // a day off at home short of a full reset
+    resetDays: 5, // off at home this long: fatigue 0
+    bufferPerExtraDay: 0.5, // each day off past the reset banks this much fatigue absorbed later
+    bufferMax: 3,
+    crashMult: 2, // crash odds × (1 + this × fatigue)
+    paceLoss: 0.1, // speed × (1 − this × fatigue)
+    moralePerDay: 0.02, // morale lost per day at fatigue 1 (scaled from 0.5 up)
+    tiredAt: 0.5, // the client and the notices call a driver tired from here
   },
 
   // §Load board — freight sources
@@ -525,6 +571,7 @@ export const economyConfig = {
       crash: [1.6, 0.4] as const, // crash odds multiplier at skill 0 and 1
       learnMiles: 300_000, // skill closes (gap to potential) × miles / this
       teamPayShare: 0.6, // each driver of a team earns 60% of their rate on every mile the truck runs
+      perDiemFd: 60, // what a driver costs the company for every day away from the home hub (meals, parking, showers)
     },
     dispatcher: {
       payPerWeek: [500, 1_900] as const, // quoted for a full span; billed for the trucks they actually run (labor.payDispatchers)
