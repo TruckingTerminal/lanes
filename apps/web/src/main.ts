@@ -703,6 +703,8 @@ function observe(s: Session): void {
 const headings = new Map<number, number>();
 /** Unit vectors for the eight headings, clockwise from east. */
 const DIR_VEC: [number, number][] = [[1, 0], [0.7071, 0.7071], [0, 1], [-0.7071, 0.7071], [-1, 0], [-0.7071, -0.7071], [0, -1], [0.7071, -0.7071]];
+/** Dot colour by equipment for the other carriers' trucks: white van, blue reefer, amber flatbed. */
+const EQUIP_DOT: Record<Equipment, string> = { van: PAL.white, reefer: PAL.blueL, flatbed: PAL.amber };
 /** Tallest tower of each city class, in art pixels, for placing pins and labels above the skyline. */
 const CITY_TOP = [4, 6, 10, 13];
 
@@ -823,7 +825,40 @@ function drawMap(now: number): void {
     const bob = (Math.floor(now / 400) % 2) * u;
     ctx.drawImage(pin, X - 6 * u, Math.round(Y - CITY_TOP[art.cityClass[selHub]!]! * k - 12 * u - bob));
   }
-  // The road ahead of the selected truck, as marching gold dots.
+  // Other carriers are dots, so the country stays readable: colour says the equipment, a lime ring says a player.
+  const dot = (t: Truck, player: boolean) => {
+    const p = truckPoint(t);
+    if (!p) return;
+    const [X, Y] = toScreen(p[0], p[1]);
+    if (!visible(X, Y)) return;
+    if (player) {
+      ctx.fillStyle = PAL.ink0;
+      ctx.fillRect(X - 3 * u, Y - 3 * u, 6 * u, 6 * u);
+      ctx.fillStyle = PAL.lime;
+      ctx.fillRect(X - 2 * u, Y - 2 * u, 4 * u, 4 * u);
+    } else {
+      ctx.fillStyle = PAL.ink0;
+      ctx.fillRect(X - 2 * u, Y - 2 * u, 4 * u, 4 * u);
+    }
+    ctx.fillStyle = EQUIP_DOT[t.trailer];
+    ctx.fillRect(X - u, Y - u, 2 * u, 2 * u);
+  };
+  for (const t of w.trucks) if (t.companyId !== mine && !humans.has(t.companyId)) dot(t, false);
+  for (const t of w.trucks) if (t.companyId !== mine && humans.has(t.companyId)) dot(t, true);
+  // Night: a tint over everything so far — amber at dusk, blue by midnight — then the lights come on.
+  if (shade > 0) {
+    ctx.globalAlpha = shade;
+    ctx.fillStyle = nightColor(hour);
+    ctx.fillRect(0, 0, W, H);
+    ctx.globalAlpha = 1;
+    ctx.fillStyle = PAL.gold;
+    for (let i = 0; i < art.lights.length; i++) {
+      if ((i * 13 + Math.floor(now / 900)) % 17 === 0) continue;
+      const [X, Y] = toScreen(...art.lights[i]!);
+      if (visible(X, Y)) ctx.fillRect(X, Y, u, u);
+    }
+  }
+  // The road ahead of the selected truck, as marching gold dots, above every other truck.
   const sel = myTrucks().find((t) => t.id === selTruck);
   if (sel && isMoving(sel)) {
     const pts = routeAhead(sel);
@@ -845,20 +880,13 @@ function drawMap(now: number): void {
       }
     }
   }
-  // Trucks: AI carriers small and grey, other players in lime; yours come after the night tint, in cyan.
-  // On a small map window (a phone) the AI fleet is dots until you zoom in, or the country disappears under trucks.
-  const tiny = art.W < 600 && zoom() < 2;
+  // Your trucks: sprites, in cyan, on top of everything, with lights at night.
   const draw = (t: Truck, kind: MarkerKind): [number, number, number] | null => {
     const p = truckPoint(t);
     if (!p) return null;
     const [X, Y] = toScreen(p[0], p[1]);
     if (!visible(X, Y)) return null;
     const dir = headings.get(t.id) ?? 0;
-    if (tiny && kind === "ai") {
-      ctx.fillStyle = PAL.mist;
-      ctx.fillRect(X - u, Y, 2 * u, u);
-      return [X, Y, dir];
-    }
     const sprite = truckMarkers(kind, t.trailer, u)[dir]!;
     ctx.drawImage(sprite, X - Math.floor(sprite.width / 2), Y - Math.floor(sprite.height / 2));
     return [X, Y, dir];
@@ -870,31 +898,6 @@ function drawMap(now: number): void {
     ctx.fillStyle = PAL.red;
     ctx.fillRect(Math.round(X - dx * reach), Math.round(Y - dy * reach), u, u);
   };
-  const lit: [number, number, number][] = [];
-  for (const t of w.trucks) {
-    if (t.companyId === mine || humans.has(t.companyId)) continue;
-    const r = draw(t, "ai");
-    if (r && shade > 0.2 && isMoving(t)) lit.push(r);
-  }
-  for (const t of w.trucks) {
-    if (t.companyId === mine || !humans.has(t.companyId)) continue;
-    const r = draw(t, "other");
-    if (r && shade > 0.2 && isMoving(t)) lit.push(r);
-  }
-  // Night: a tint over everything so far — amber at dusk, blue by midnight — then the lights come on.
-  if (shade > 0) {
-    ctx.globalAlpha = shade;
-    ctx.fillStyle = nightColor(hour);
-    ctx.fillRect(0, 0, W, H);
-    ctx.globalAlpha = 1;
-    ctx.fillStyle = PAL.gold;
-    for (let i = 0; i < art.lights.length; i++) {
-      if ((i * 13 + Math.floor(now / 900)) % 17 === 0) continue;
-      const [X, Y] = toScreen(...art.lights[i]!);
-      if (visible(X, Y)) ctx.fillRect(X, Y, u, u);
-    }
-    for (const [X, Y, dir] of lit) lamps(X, Y, dir, 7 * u);
-  }
   for (const t of myTrucks()) {
     const r = draw(t, "mine");
     if (!r) continue;

@@ -106,7 +106,7 @@ input[type=checkbox], input[type=radio] { accent-color: var(--amber); width: 16p
 .mapzoom .label { min-width: 3.2em; text-align: center; color: var(--mist); }
 #tip { position: absolute; z-index: 3; pointer-events: none; border: 6px solid transparent; border-image: var(--f-tip, none) 6 fill / 6px; background: var(--ink0); padding: 2px 4px; font-size: 15px; white-space: nowrap; }
 .maplegend { position: absolute; left: 6px; bottom: 6px; z-index: 2; display: flex; gap: 12px; font-family: var(--display); font-size: 8px; line-height: 1; color: var(--mist); background: rgba(9,12,23,0.8); border: 2px solid var(--ink3); padding: 6px 8px; }
-.dot { display: inline-block; width: 8px; height: 6px; margin-right: 5px; vertical-align: middle; border: 1px solid var(--ink0); }
+.dot { display: inline-block; width: 8px; height: 8px; margin-right: 6px; vertical-align: middle; border: 2px solid var(--ink0); }
 .side { display: flex; flex-direction: column; gap: 8px; min-width: 0; container-type: inline-size; }
 .tabs { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 3px; }
 .tabs .btn { flex-direction: column; gap: 2px; padding: 4px 0; min-height: 48px; letter-spacing: 0; overflow: hidden; }
@@ -173,7 +173,7 @@ tr.you td { color: var(--cyan); }
         <canvas id="map" width="960" height="600" aria-label="Map of hubs and trucks"></canvas>
         <div id="tip" hidden></div>
         <div class="mapzoom" role="group" aria-label="Map zoom"><button class="btn" id="zoomout" title="Zoom out (-)" aria-label="Zoom out">-</button><span class="label" id="zoomlevel" aria-live="polite">1×</span><button class="btn" id="zoomin" title="Zoom in (+, wheel or double-click)" aria-label="Zoom in">+</button><button class="btn" id="zoomfit" title="Whole map (0)">Fit</button></div>
-        <div class="maplegend"><span><i class="dot" style="background:var(--cyan)"></i>Your trucks</span><span><i class="dot" style="background:var(--lime)"></i>Other players</span><span><i class="dot" style="background:var(--mist)"></i>AI carriers</span></div>
+        <div class="maplegend"><span><i class="dot" style="background:var(--cyan)"></i>Your trucks</span><span><i class="dot" style="background:var(--white);box-shadow:0 0 0 2px var(--lime)"></i>Other players</span><span><i class="dot" style="background:var(--white)"></i>AI carriers</span><span><i class="dot" style="background:#7fa0e4"></i>Reefer</span><span><i class="dot" style="background:var(--amber)"></i>Flatbed</span></div>
       </div>
       <aside class="side">
         <nav class="tabs" id="tabs"></nav>
