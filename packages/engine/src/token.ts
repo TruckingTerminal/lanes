@@ -68,14 +68,22 @@ export function sellFd(w: World, c: Company, fd: number): string | null {
   if (!tokenLive(w)) return "FD isn't on the market yet";
   if (!(fd > 0) || fd > sellableFd(w, c) + 0.01) return "only unlocked FD can be sold";
   const acct = companyAccount(c.id);
-  const fee = fd * w.cfg.token.exchange.sellFeePct;
-  const net = fd - fee;
+  const k = w.cfg.token.exchange;
   const pool = w.ledger.balance(EXCHANGE_ACCOUNT);
+  // The whale rules (TOKENOMICS.md §3): a daily sell limit per company as a share of the pool's FD,
+  // and a sell fee that rises with the single sale's price impact, all of it burned.
+  const today = dayOf(w.t, w.cfg);
+  if (c.soldFd.day !== today) c.soldFd = { day: today, fd: 0 };
+  if (k.dailySellShareOfPool > 0 && c.soldFd.fd + fd > pool * k.dailySellShareOfPool + 0.01) return "over today's sell limit";
+  const impact = fd / (pool + fd);
+  const fee = fd * Math.min(k.sellFeeMax, k.sellFeePct + k.sellFeePerImpact * impact);
+  const net = fd - fee;
   const usd = w.token.poolUsd - (w.token.poolUsd * pool) / (pool + net);
   w.ledger.post(w.t, acct, "sink:exchange_fee", fee, `swap:fee:${c.id}`);
   w.ledger.post(w.t, acct, EXCHANGE_ACCOUNT, net, `swap:sell:${c.id}`);
   w.token.poolUsd -= usd;
   c.usd.out += usd;
+  c.soldFd.fd += fd;
   return null;
 }
 

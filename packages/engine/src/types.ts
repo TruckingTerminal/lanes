@@ -198,6 +198,13 @@ export interface Company {
   usd: { wallet: number; in: number; out: number };
   /** FD that can be spent in the game but not sold: launch carryover and post-launch starting grants. Spending uses it first. */
   lockedFd: number;
+  /** Staking (staking.ts): FD locked as the bond behind the licence, and FD in the exit queue with the day each slice clears. */
+  stakedFd: number;
+  unstaking: { fd: number; day: number }[];
+  /** Day the grace period for being over a tier (or under the broker stake) runs out, null while within it. */
+  tierGraceDay: number | null;
+  /** FD sold on the exchange today (the daily sell limit). */
+  soldFd: { day: number; fd: number };
   airdrop: Airdrop | null;
   /** Loads delivered, brokered or shipped this week (airdrop unlocks). */
   loadsThisWeek: number;
@@ -610,6 +617,8 @@ export type Action =
   | { type: "reposition_truck"; truckId: number; hubId: string }
   | { type: "buy_fd"; usd: number }
   | { type: "sell_fd"; fd: number }
+  | { type: "stake_fd"; fd: number }
+  | { type: "unstake_fd"; fd: number; instant: boolean }
   | { type: "claim_airdrop_now" }
   /** Standing offer in the weekly buyback auction; amount 0 withdraws it. */
   | { type: "offer_fd"; amountFd: number; minPriceUsd: number }

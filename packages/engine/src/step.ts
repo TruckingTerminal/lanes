@@ -13,6 +13,7 @@ import { billInsurance, dailyInsurance, monthlyInsurance } from "./insurance.js"
 import { chargeYards } from "./home.js";
 import { monthlyDealerPrices } from "./dealer.js";
 import { dailyLabor, monthlyLabor, payDispatchers, weeklyLabor } from "./labor.js";
+import { dailyStaking } from "./staking.js";
 import { dailySafety, monthlySafety, weeklySafety } from "./safety.js";
 import { repossessDefaults, stepListings } from "./market.js";
 import { fleetOverheadPerWeek } from "./overhead.js";
@@ -61,6 +62,7 @@ function endOfDay(w: World, day: number, agents?: DailyAgentHook): void {
   dailySafety(w);
   dailyInsurance(w);
   dailyLabor(w);
+  dailyStaking(w);
 
   // Idle fee on owned assets unused for 7+ in-game days, parked and listed ones included (§Owned vs. leased).
   // And a sitting truck burns diesel from its first day: a crewed truck idle at day's end idles for the

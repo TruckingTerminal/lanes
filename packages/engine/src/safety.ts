@@ -1,6 +1,7 @@
 import { stationsOnRoute, weighStations, type Network } from "@lanes/data";
 import { dayOf, MINUTES_PER_HOUR } from "./clock.js";
 import { fmtInt } from "./economics.js";
+import { slashStake } from "./staking.js";
 import { activeLoanOn, settleLoanFromSale } from "./finance.js";
 import { recordClaim, signPolicy } from "./insurance.js";
 import { dispatchersOf, jail, pushesRules, releaseAll, removeStaff, driverFatigue } from "./labor.js";
@@ -488,6 +489,8 @@ export function revoke(w: World, c: Company, why: string, barDays: number): void
   a.suspendedUntil = null;
   a.barredUntil = barDays >= PERMANENT_BAR ? PERMANENT_BAR : day + barDays;
   c.milesTotal = 0;
+  // The stake behind the licence is forfeited: judgments to the victims first, the rest seized (staking.ts).
+  slashStake(w, c);
   record(w, c, `Authority revoked: ${why}`);
   notice(
     w,

@@ -18,6 +18,8 @@ import {
   inCloseWindow,
   Ledger,
   RESERVE_ACCOUNT,
+  exitAccount,
+  revoke,
   liveGameMinutes,
   planFreight,
   hubDemandPerRound,
@@ -962,5 +964,55 @@ describe("circular economy (0.18.0): a capped supply with a reserve", () => {
     const full = run(0);
     const drained = run(0.5);
     expect(drained).toBeLessThan(full * 0.8);
+  });
+});
+
+describe("staking (0.18.0): the bond behind the licence", () => {
+  const staked: EconomyConfig = { ...calm, token: { ...calm.token, staking: { ...calm.token.staking, enabled: true } } };
+
+  it("gates the truck tiers, queues an exit under the global limit, haircuts an instant exit, and is slashed on revocation", () => {
+    const w = createWorld({ cfg: staked, net, feeds: neutralFeeds, seed: 45, keepLedgerEntries: true });
+    const c = carrier(w);
+    fund(w, c.id, 200_000);
+    for (let i = 0; i < 5; i++) addTruck(w, c, "owned", "workhorse", "van");
+    expect(applyAction(w, c.id, { type: "buy_asset", tier: "workhorse", trailer: "van", replaceNpcLease: false })).toEqual({ ok: false, reason: "company truck cap" });
+    const cashBefore = w.ledger.balance(companyAccount(c.id));
+    expect(applyAction(w, c.id, { type: "stake_fd", fd: 20_000 })).toEqual({ ok: true });
+    expect(c.stakedFd).toBe(20_000);
+    expect(w.ledger.balance(companyAccount(c.id))).toBeCloseTo(cashBefore - 20_000, 2);
+    expect(applyAction(w, c.id, { type: "buy_asset", tier: "workhorse", trailer: "van", replaceNpcLease: false })).toEqual({ ok: true });
+    // Into the queue: nothing comes back before the wait, then at most the daily limit of all staked FD.
+    expect(applyAction(w, c.id, { type: "unstake_fd", fd: 10_000, instant: false })).toEqual({ ok: true });
+    expect(c.stakedFd).toBe(10_000);
+    const released = () => w.ledger.entries.filter((e) => e.from === exitAccount(c.id) && e.to === companyAccount(c.id)).reduce((s, e) => s + e.amount, 0);
+    runDays(w, staked.token.staking.exitDays - 1);
+    expect(released()).toBe(0);
+    runDays(w, 2);
+    expect(released()).toBeGreaterThan(0);
+    expect(released()).toBeLessThanOrEqual(20_000 * staked.token.staking.exitLimitPerDay * 2 + 1);
+    // Instant: three quarters back, a quarter burned.
+    const before = w.ledger.balance(companyAccount(c.id));
+    expect(applyAction(w, c.id, { type: "unstake_fd", fd: 4_000, instant: true })).toEqual({ ok: true });
+    expect(w.ledger.balance(companyAccount(c.id)) - before).toBeCloseTo(3_000, 2);
+    expect(w.ledger.balance("sink:unstake_haircut")).toBeCloseTo(1_000, 2);
+    // Revoked: whatever is still staked or exiting is seized.
+    const held = c.stakedFd + c.unstaking.reduce((s, e) => s + e.fd, 0);
+    expect(held).toBeGreaterThan(0);
+    revoke(w, c, "test", 365);
+    expect(c.stakedFd).toBe(0);
+    expect(c.unstaking).toEqual([]);
+    expect(w.ledger.balance("sink:seized")).toBeCloseTo(held, 1);
+  });
+
+  it("licenses brokers by their stake: an unstaked broker takes no loads, and the bots start staked", () => {
+    const w = createWorld({ cfg: staked, net, feeds: neutralFeeds, seed: 46 });
+    populate(w, { freeOwnerOperators: 30, fleets: 5, brokers: 3 });
+    const brokers = w.companies.filter((c) => c.role === "broker");
+    expect(brokers.every((b) => b.stakedFd === staked.token.staking.roles.broker)).toBe(true);
+    const idle = brokers[0]!;
+    expect(applyAction(w, idle.id, { type: "unstake_fd", fd: idle.stakedFd, instant: true })).toEqual({ ok: true });
+    runDays(w, 5, ruleBotHook);
+    expect(idle.openBrokerLoads).toBe(0);
+    expect(brokers.slice(1).some((b) => b.openBrokerLoads > 0)).toBe(true);
   });
 });

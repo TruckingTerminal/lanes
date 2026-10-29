@@ -1,6 +1,7 @@
 import type { EconomyConfig, Equipment, FacilityType, TractorTier } from "@lanes/config";
 import { PLACE_OF_HUB, placeMiles as netPlaceMiles, placeMilesFast as netPlaceMilesFast, placeRoute as netPlaceRoute, type Feeds, type Network, type Route } from "@lanes/data";
 import { Ledger, companyAccount } from "./ledger.js";
+import { truckCap } from "./staking.js";
 import { Rng } from "./rng.js";
 import type { BuybackWeek, GameEvent, TokenState, Company, Facility, FinancePool, FraudCase, LeaseKind, Listing, Load, Role, SeasonCloseRecord, Staff, StandingOrder, Truck, TruckOrder, Contract } from "./types.js";
 import { signPolicy } from "./insurance.js";
@@ -496,6 +497,10 @@ export function formCompany(w: World, c: NewCompany): Company {
     usd: { wallet: 0, in: 0, out: 0 },
     // After launch a new company's grant is spend-only, so a fresh account can't be cashed out.
     lockedFd: w.token.launchDay !== null && w.cfg.token.lockGrants ? w.cfg.company.startingGrantFd : 0,
+    stakedFd: 0,
+    unstaking: [],
+    tierGraceDay: null,
+    soldFd: { day: -1, fd: 0 },
     airdrop: null,
     loadsThisWeek: 0,
     taxBaseFd: 0,
@@ -562,7 +567,7 @@ export function addTruck(
   used?: UsedEquipment,
 ): Truck {
   const fleet = w.trucksByCompany.get(company.id)!;
-  if (fleet.length >= w.cfg.company.maxTrucks) throw new Error(`Company ${company.id} at truck cap`);
+  if (fleet.length >= truckCap(w, company)) throw new Error(`Company ${company.id} at truck cap`);
   if (lease === "npc" && (tier !== "workhorse" || trailer !== "van" || fleet.some((t) => t.lease === "npc"))) {
     throw new Error("NPC lease is one Workhorse + dry van only");
   }

@@ -1,6 +1,7 @@
 import type { Equipment, TractorTier } from "@lanes/config";
 import { dayOf } from "./clock.js";
 import { ordersOf } from "./dealer.js";
+import { truckCap } from "./staking.js";
 import { companyAccount } from "./ledger.js";
 import type { Company, Truck } from "./types.js";
 import { createTruck, detachTruck, type World } from "./world.js";
@@ -25,7 +26,7 @@ export function leaseTruck(w: World, c: Company, trailer: Equipment): string | n
   if (c.liquidatingSince !== null) return "in liquidation";
   const fleet = w.trucksByCompany.get(c.id)!;
   if (!fleet.some((t) => t.lease === "owned")) return "extra leases need an owned truck first";
-  if (fleet.length + ordersOf(w, c.id).length >= cfg.company.maxTrucks) return "company truck cap";
+  if (fleet.length + ordersOf(w, c.id).length >= truckCap(w, c)) return "company truck cap";
   if (lessorTrucksOf(w, c.id).length >= rules.maxPerCompany) return "company lease cap";
   if (w.lessor.out >= w.lessor.fleet) return "the lessor has nothing left to lease";
   createTruck(w, c, "lessor", "workhorse", trailer);

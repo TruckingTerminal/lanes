@@ -6,6 +6,7 @@ import { dayOf } from "./clock.js";
 import { EQUIPMENT, planFreight, planIndex, seasonality } from "./demand.js";
 import type { VettingTier, Company } from "./types.js";
 import { clamp, fscPerMile, fuelPrice } from "./economics.js";
+import { brokerLicensed } from "./staking.js";
 
 /**
  * The circular economy (0.18.0): what NPC shippers pay per mile follows the reserve against its
@@ -351,7 +352,7 @@ function tenderToBroker(w: World, load: Load, brokers: Company[], contractShippe
   const weights: number[] = [];
   for (const b of brokers) {
     const order = b.orders.find((o) => o.kind === "broker");
-    if (order && order.kind === "broker" && b.openBrokerLoads < order.maxOpenLoads) {
+    if (order && order.kind === "broker" && b.openBrokerLoads < order.maxOpenLoads && brokerLicensed(w, b)) {
       eligible.push(b);
       // Shippers favor reputable brokers that take a thinner cut.
       weights.push((0.25 + b.reputation) / dpow(Math.max(0.01, order.marginPct), 2));

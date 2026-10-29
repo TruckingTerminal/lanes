@@ -553,7 +553,31 @@ export const economyConfig = {
     },
     // Buying pays 1% in dollars to the treasury; selling pays 5% in FD, burned (the
     // spec's 5% protocol cut on secondary sales, §Two ledgers).
-    exchange: { buyFeePct: 0.01, sellFeePct: 0.05 },
+    // The whale rules (Jeff, 2026-10-29; TOKENOMICS.md §3): the sell fee rises with the single
+    // sale's price impact (fee = base + perImpact × impact, capped), and each company may sell at
+    // most this share of the pool's FD a day.
+    exchange: { buyFeePct: 0.01, sellFeePct: 0.05, sellFeePerImpact: 1, sellFeeMax: 0.25, dailySellShareOfPool: 0.02 },
+    // Design decision (Jeff, 2026-10-29; TOKENOMICS.md §2): staking, the bond behind every licence.
+    // Tiers gate company size and roles, never performance; the stake is slashed on revocation;
+    // leaving takes the exit queue or an instant haircut, burned. Off until 0.18.0 ships.
+    staking: {
+      enabled: false,
+      truckTiers: [
+        [5, 0],
+        [10, 20_000],
+        [30, 100_000],
+      ] as const, // [trucks allowed, stake FD]
+      facilityTiers: [
+        [1, 0],
+        [3, 20_000],
+        [6, 100_000],
+      ] as const,
+      roles: { broker: 75_000 }, // the broker licence stake (the surety premium is still paid on it)
+      exitDays: 28, // an unstake waits this long in the queue (one real week at the live clock)…
+      exitLimitPerDay: 0.02, // …and at most this share of all staked and exiting FD clears per day
+      instantHaircut: 0.25, // or out at once for this much, burned
+      graceDays: 14, // over a tier, or a broker under its stake: this long before trucks park and loads stop
+    },
     treasury: {
       // Stand-in for real revenue other than exchange fees: cosmetics, premium,
       // asset sales (§Two ledgers — primary sales go to the developer), per active company per week.

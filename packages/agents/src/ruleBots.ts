@@ -18,6 +18,9 @@ import {
   quoteUsdForFd,
   sellableFd,
   tokenLive,
+  nextTruckTier,
+  stakeFd,
+  truckCap,
   activeLoanOn,
   askingPay,
   autoStaff,
@@ -388,6 +391,14 @@ export function populate(w: World, o: PopulationOptions): void {
     setConduct(w, c, profile);
     // Initial PoC allocation: these companies already hold used equipment, 0–4 years old.
     const size = rng.int(2, 6);
+    // Staking (0.18.0): an established fleet starts with the stake its size needs.
+    if (w.cfg.token.staking.enabled) {
+      const tier = w.cfg.token.staking.truckTiers.find(([trucks]) => trucks >= size);
+      if (tier && tier[1] > 0) {
+        w.ledger.post(w.t, "faucet:starting_grant", companyAccount(c.id), tier[1], `grant:stake:${c.id}`);
+        stakeFd(w, c, tier[1]);
+      }
+    }
     for (let k = 0; k < size; k++) {
       const pick = pickEquipment(w, rng, false);
       if (!pick) break;
@@ -413,6 +424,12 @@ export function populate(w: World, o: PopulationOptions): void {
     });
     profiles.set(c, brokerProfile(strategy, rng));
     c.usd.wallet = WALLETS.broker(rng);
+    // Staking (0.18.0): an established broker starts with its licence stake posted.
+    if (w.cfg.token.staking.enabled) {
+      const stake = w.cfg.token.staking.roles.broker;
+      w.ledger.post(w.t, "faucet:starting_grant", companyAccount(c.id), stake, `grant:stake:${c.id}`);
+      stakeFd(w, c, stake);
+    }
     // How carefully it picks carriers (fraud.ts): open, standard or strict.
     c.vetting = rng.weighted(w.cfg.fraud.botBrokerVetting) as 0 | 1 | 2;
   }
@@ -856,7 +873,12 @@ export const ruleBotHook: DailyAgentHook = (w) => {
         }
         const idle = fleet.filter((t) => t.status === "idle").length;
         const pending = ordersOf(w, c.id).length;
-        if (active > 0 && grow() && active + pending < p.targetFleet && fleet.length + pending < cfg.company.maxTrucks && idle / active <= 0.3 && worthAnotherTruck(w, c, p, today, active)) {
+        // Staking (0.18.0): the next truck tier needs a stake; a bot that wants more trucks and can spare the FD stakes it first.
+        const tier = nextTruckTier(w, c);
+        if (tier && grow() && active + pending >= truckCap(w, c) && active + pending < p.targetFleet && w.ledger.balance(acct) - reserve(w, c, p) >= tier.stake - c.stakedFd) {
+          applyAction(w, c.id, { type: "stake_fd", fd: tier.stake - c.stakedFd });
+        }
+        if (active > 0 && grow() && active + pending < p.targetFleet && fleet.length + pending < truckCap(w, c) && idle / active <= 0.3 && worthAnotherTruck(w, c, p, today, active)) {
           // Cheapest capacity first: a parked truck, then a used one (today), then
           // a new one (after the dealer's lead time), borrowing if this bot does.
           const parked = fleet.find((t) => t.status === "parked" && (p.noUnpark.get(t.id) ?? 0) <= today);

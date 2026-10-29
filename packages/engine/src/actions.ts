@@ -16,6 +16,7 @@ import { canRefile, notice } from "./safety.js";
 import { canMakeHot } from "./standingOrders.js";
 import { inCloseWindow } from "./season.js";
 import { refile } from "./solvency.js";
+import { facilityCap, stakeFd, truckCap, unstakeFd } from "./staking.js";
 import type { Action, RuleScope } from "./types.js";
 import { condition, rebuildCost } from "./wear.js";
 import { availableSupply, companyById, crewed, hubMiles, invalidOrders, seatDriver, staffById, syncFleet, takeSupply, truckById, unseatDriver, type World, placeMiles, placeOfHub, placeLegMiles } from "./world.js";
@@ -86,6 +87,10 @@ export function badInput(cfg: EconomyConfig, a: Action): string | null {
       return finiteIn(a.usd, 0.01, 1e9) ? null : "bad amount";
     case "sell_fd":
       return finiteIn(a.fd, 0.01, 1e12) ? null : "bad amount";
+    case "stake_fd":
+      return finiteIn(a.fd, 0.01, 1e12) ? null : "bad amount";
+    case "unstake_fd":
+      return finiteIn(a.fd, 0.01, 1e12) && typeof a.instant === "boolean" ? null : "bad amount";
     case "offer_fd":
       return isFd(a.amountFd) && finiteIn(a.minPriceUsd, 0, 1e6) ? null : "bad offer";
     case "offer_staff":
@@ -335,7 +340,7 @@ export function applyAction(w: World, companyId: number, action: Action): Action
       const pending = ordersOf(w, company.id);
       const replacing = action.replaceNpcLease && fleet.some((t) => t.lease === "npc");
       if (replacing && pending.some((o) => o.replaceNpcLease)) return { ok: false, reason: "a replacement truck is already on order" };
-      if (!replacing && fleet.length + pending.length >= cfg.company.maxTrucks) return { ok: false, reason: "company truck cap" };
+      if (!replacing && fleet.length + pending.length >= truckCap(w, company)) return { ok: false, reason: "company truck cap" };
       const firstTruck = !fleet.some((t) => t.lease === "owned") && pending.length === 0;
       if (availableSupply(w, action.tier, action.trailer, firstTruck) <= 0) return { ok: false, reason: "PoC supply exhausted" };
       const price = dealerPrice(w, action);
@@ -475,6 +480,12 @@ export function applyAction(w: World, companyId: number, action: Action): Action
     case "sell_fd":
       return result(sellFd(w, company, action.fd));
 
+    case "stake_fd":
+      return result(stakeFd(w, company, action.fd));
+
+    case "unstake_fd":
+      return result(unstakeFd(w, company, action.fd, action.instant));
+
     case "claim_airdrop_now":
       return result(claimAirdropNow(w, company));
 
@@ -487,7 +498,7 @@ export function applyAction(w: World, companyId: number, action: Action): Action
       const hub = w.net.hubs.findIndex((h) => h.id === action.hubId);
       if (hub < 0) return { ok: false, reason: "unknown hub" };
       if (w.facilitySupply[action.facility] <= 0) return { ok: false, reason: "PoC supply exhausted" };
-      if (facilitiesOf(w, company.id).length >= cfg.facilities.maxPerCompany) return { ok: false, reason: "company facility cap" };
+      if (facilitiesOf(w, company.id).length >= facilityCap(w, company)) return { ok: false, reason: "company facility cap" };
       const price = cfg.facilities.types[action.facility].priceFd;
       if (w.ledger.balance(acct) < price) return { ok: false, reason: "insufficient FD" };
       w.ledger.post(w.t, acct, "sink:facility_dealer", price, `facility:${company.id}:${action.facility}`);

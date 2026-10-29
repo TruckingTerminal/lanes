@@ -4,6 +4,7 @@ import { companyAccount } from "./ledger.js";
 import type { Listing, Truck } from "./types.js";
 import { truckValue } from "./dealer.js";
 import { dealerPrice } from "./dealer.js";
+import { truckCap } from "./staking.js";
 import { attachTruck, companyById, detachTruck, staffById, truckById, unseatDriver, type World } from "./world.js";
 
 /**
@@ -68,7 +69,7 @@ export function buyListing(w: World, buyerId: number, listingId: number): string
   if (w.ledger.balance(buyerAcct) < l.askFd) return "insufficient FD";
   const fleet = w.trucksByCompany.get(buyerId)!;
   const npc = fleet.find((t) => t.lease === "npc");
-  if (!npc && fleet.length >= cfg.company.maxTrucks) return "company truck cap";
+  if (!npc && fleet.length >= truckCap(w, companyById(w, buyerId))) return "company truck cap";
   if (npc && npc.status !== "idle") return "NPC-leased truck is on a trip";
 
   const truck = truckById(w, l.truckId);
