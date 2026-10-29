@@ -66,8 +66,9 @@ tagged faucet / sink / transfer; the ledger is checked after every tick; bots ac
 standing orders and `applyAction`.
 
 ## Built so far
-- **Freight and board:** NPC freight with the broker-only split; sealed-bid rounds with scoring,
-  rollovers and the NPC fallback; standing orders. A truck that sees freight but won't take any of
+- **Freight and board:** NPC freight with the broker-only split; sealed-bid rounds with scoring and
+  rollovers (no NPC carrier since 0.17.0: a load rolls until a carrier takes it or its shipper gives
+  up); standing orders. A truck that sees freight but won't take any of
   it at the posted ceilings isn't counted as capacity in the load-to-truck ratio.
 - **Trips:** HOS (11 driving hours per 24-hour duty day, ≈550 mi/day), 1–2 h loading and 1–2 h
   unloading, due times that follow that schedule.
@@ -78,7 +79,7 @@ standing orders and `applyAction`.
 - **Facilities** (warehouse, cold storage, factory), at the spec's PoC caps and weekly upkeep. Each
   originates freight at its hub, taken out of that hub's NPC demand (players get at most 60% of it).
   The NPC market buys the goods from the owner, who pays the carrier and earns shipper Miles. Freight
-  nobody hauls goes to an NPC expediter at the owner's cost.
+  nobody hauls rolls at a rising ceiling and goes unsold when the owner gives up (0.17.0).
 - **Season close:** the last 30 days lock trucks and facilities; at year end each company keeps 10%
   of its FD (max 25,000) and the rest burns; the reputation record decays 30%; Miles are snapshotted;
   authority and licenses renew.
@@ -106,8 +107,8 @@ standing orders and `applyAction`.
 - **Broker risk:** NPC shippers default on 2% of brokered loads (more in downturns) and the broker
   still pays the carrier; brokers sell on contract rates that trail spot by ~30 days (signed at the
   market on day one), so a boom squeezes them and a bust pads them. A brokered load nobody hauls
-  goes to an NPC carrier at the broker's rolled-up ceiling, or 95% of spot if higher. Broker bots
-  halve the loads they take after a losing week.
+  before the shipper gives up costs the broker a fall-off charge (0.17.0; it used to go to an NPC
+  carrier). Broker bots halve the loads they take after a losing week.
 - **Free entry:** a carrier that owns a truck can lease more from the NPC lessor (Workhorse, any
   trailer, 15% of gross, 250 FD/week minimum rent, 28-day minimum term, up to 10). The lessor's
   fleet grows when it's nearly all out and freight goes uncovered, and shrinks when leases come
@@ -454,6 +455,50 @@ out of them. Three things were wrong, and the fix is in the data layer.
   are the hubs', and what changed is where inside each market the freight lands and which road the truck takes.
   A seed takes 190 s instead of 80 because every load now routes between two of 4,786 places.
 
+## A real market: no NPC carriers, shippers and carriers that blink sooner (config 0.17.0)
+
+Jeff's design (2026-10-29): freight is hauled only by AI and player carriers. An NPC carrier taking a
+load off the board is not how the market works, it hid the fleet's real capacity, and once FD is sold
+for dollars it was a faucet that fired without any work done (a broker collected the NPC shipper's
+contract rate on a load no truck hauled, then paid an NPC carrier). Carriers do not sit either: a
+truck idle past a day deadheads or takes a cheap backhaul, because sitting costs more.
+
+- **No NPC carrier, no NPC expediter.** A load nobody takes rolls to the next round with its ceiling
+  up 10% (was 5%), its book-now up 12% (was 8%), and its appointment moved back a round. It rolls
+  until a carrier takes it or, after 10 rounds (five days), the shipper gives up and the freight is
+  lost: status `expired`, nobody paid. A broker holding the contract pays the shipper a fall-off
+  charge of 15% of the contract (`brokerRisk.fallOffShare`), and will pay carriers up to that much
+  over the contract, or up to spot, to avoid it; a carrier that re-posted the load pays the broker the
+  same on the rate it took it at. A facility's goods go unsold. Open loads pile up where trucks are
+  scarce, which lifts that market's load-to-truck ratio and every new rate posted there: the market
+  sets the price, not a fallback at 95% of reference.
+- **Sitting costs money from the first day.** A crewed truck idle at day's end burns 8 gallons
+  idling for the cab at the day's pump price (`costs.idleFuelGalPerDay`, sink `idle_fuel`); per diem
+  covers the driver from the second day as before. A dispatcher is fully desperate after 24 idle
+  hours (was 48). Bot fleets widen their repositioning search after four rounds instead of six, and
+  the random bots after two to four rounds instead of three to eight.
+- **Measured** with `npx tsx apps/sim/src/idle.ts` (every truck sorted by what it is doing each
+  game hour, 30 days after a 20-day warm-up, the live population): idle spells over a day fell from
+  7.5% to 2.7% of spells, trucks sitting past 36 hours at any moment from 15 to 3 of 1,100, and
+  trucks moving at any moment rose from 417 to 447. Two thirds of the fleet still stands still at
+  any instant: 34% are drivers out of hours mid-trip, 8% on home time, 7% at a dock, 6% waiting.
+- **The AI fleet is capped during beta** (`token.betaAiFleetCap` 1: bots replace and sell trucks
+  but add none until launch), so the market stays short of trucks until humans bring them. Jeff's
+  call: the starved season is the first airdrop farming season, and early commitment is what it
+  pays; saturation comes from entry, and after launch freight scales with the carrier base.
+- **The airdrop splits by Miles and by profit** (`airdrop.weights` 0.6 / 0.4, to be tuned): beta
+  operating profit at launch, losses scoring zero, so playing to win counts beside playing a lot. A
+  company shut down or in liquidation at launch forfeits its share. The unlock-boost catalogue
+  (achievements and FD-burning shop items that bring slices forward) is proposed in TOKENOMICS.md
+  and not built yet.
+- **What it exposed.** The national freight volume (`freight.baseLoadsPerRound` 420, a PoC
+  assumption) was sized on NPC carriers absorbing half of it. Without them the 1,100 AI trucks are
+  saturated: they haul about 560 loads a day whatever is posted, 45% of loads expire at the 2.7×
+  ceiling cap (11% of them brokered), and when a load gives up there is a median of one idle truck
+  with that trailer within 400 miles and 23 nationwide. Cleared rates averaged 7.6 FD/mi at 62%
+  margins in that starved market. See the ten-seed line below for how the fleet grows into it over
+  four years and how the calibration was settled.
+
 ## Shipper leverage, local-first tendering and contracts (config 0.15.0)
 
 Jeff's design (2026-10-28): the more leverage shippers have (trucks piled up, few loads per truck),
@@ -465,7 +510,7 @@ the contract, the owner chooses between serving the contract and chasing spot.
   based within 150 miles for the first round: 50% − 0.35·log₂(load-to-truck ratio), clamped
   10–90%, from the smoothed ratio the reload index already tracks (Miami's vans ≈ 85%, a tight
   market ≈ 15%). `mayTake` gates every path to a load: standing-order bids, auto-booking, hand
-  counters and book-now. A local-first load gets a round more before an NPC carrier takes it.
+  counters and book-now. A local-first load gets a round more before its shipper gives up.
 - **Contracts**: every week each market's shippers offer contract lanes to local carriers in good
   standing (reputation × tender acceptance), more where trucks pile up, only for trailers the
   carrier runs: 1–3 loads a week on a lane at the market's trailing contract rate (the brokers'

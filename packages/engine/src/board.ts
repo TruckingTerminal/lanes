@@ -1,5 +1,5 @@
 import { acceptTender, autoTenders, expireTenders, mayTake, settleTender } from "./contracts.js";
-import { fuelPrice } from "./economics.js";
+import { fmtInt, fuelPrice } from "./economics.js";
 import { seasonality, EQUIPMENT } from "./demand.js";
 import { dayOf } from "./clock.js";
 import { generateRoundFreight, bestExitHub } from "./freight.js";
@@ -8,7 +8,7 @@ import { homeEdge, updateHomeCrowding } from "./home.js";
 import { creditDispatch, dispatchProfile, startHomeTime } from "./labor.js";
 import { companyAccount } from "./ledger.js";
 import { bidsFromStandingOrders, boardKey, canMakeHot, indexOpenLoads, scoreBid, desperation, estimateBreakEven, resting, trackingWouldShow, needsHome, homeward, hardCap, floorRate, lookaheadValue } from "./standingOrders.js";
-import { coverDoubleBrokered, startLoading } from "./trips.js";
+import { startLoading } from "./trips.js";
 import type { Bid, Company, Load, StandingOrder, Truck } from "./types.js";
 import { companyById, crewed, hubHours, hubMiles, truckById, type World, placeHours, placeMiles, placeOfHub, placeLegMiles } from "./world.js";
 
@@ -17,18 +17,18 @@ export interface RoundResult {
   bids: number;
   cleared: number;
   rolled: number;
-  npcCovered: number;
+  /** Loads whose shipper gave up this round: nobody hauled them (0.17.0: no NPC carrier ever does). */
+  expired: number;
   posted: number;
   facilityPosted: number;
-  expedited: number;
   clearedRateSum: number;
 }
 
 /**
  * One board round at a round boundary (§Load board — a round, step by step):
  * collect sealed bids from standing orders, clear each load to its best-scoring
- * bid, roll or NPC-cover what's left, reposition idle trucks, then post the next
- * round's freight.
+ * bid, roll what's left (or let its shipper give up), reposition idle trucks,
+ * then post the next round's freight.
  */
 export function runBoardRound(w: World): RoundResult {
   w.round++;
@@ -100,17 +100,13 @@ export function runBoardRound(w: World): RoundResult {
   }
 
   let rolled = 0;
-  let npcCovered = 0;
-  let expedited = 0;
+  let expired = 0;
   for (const load of [...w.loads.values()]) {
     if (load.status !== "open" || load.postedRound >= w.round) continue;
     load.roundsUnfilled++;
-    if (load.shipperId !== null && load.roundsUnfilled >= w.cfg.facilities.expediteAfterRounds) {
-      expedite(w, load);
-      expedited++;
-    } else if (load.shipperId === null && load.roundsUnfilled >= w.cfg.board.npcFallbackAfterRounds + (load.localUntilRound > 0 ? w.cfg.leverage.localRounds : 0)) {
-      npcCover(w, load);
-      npcCovered++;
+    if (load.roundsUnfilled >= w.cfg.board.giveUpAfterRounds + (load.localUntilRound > 0 ? w.cfg.leverage.localRounds : 0)) {
+      giveUp(w, load);
+      expired++;
     } else {
       rollover(w, load);
       rolled++;
@@ -139,10 +135,9 @@ export function runBoardRound(w: World): RoundResult {
     bids: bids.length,
     cleared,
     rolled,
-    npcCovered,
+    expired,
     posted: freight.loads.length,
     facilityPosted: freight.facilityLoads,
-    expedited,
     clearedRateSum,
   };
   w.metrics.onRound(result);
@@ -205,12 +200,16 @@ function rollover(w: World, load: Load): void {
     load.ceiling = raised;
     load.shipperRate = raised;
   } else {
-    // The broker eats the raise. To keep its contract it will pay carriers up to
-    // the spot rate, even above what the contract with the shipper brings in.
-    load.ceiling = Math.min(raised, Math.max(load.shipperRate, load.spotShipperRate));
+    // The broker eats the raise. To keep its contract it will pay carriers up to the spot rate,
+    // or up to the fall-off charge over what the contract brings in, whichever is more: past
+    // that, losing the load is the cheaper way out.
+    const most = Math.max(load.shipperRate * (1 + w.cfg.brokerRisk.fallOffShare), load.spotShipperRate);
+    load.ceiling = Math.max(load.ceiling, Math.min(raised, most));
   }
   // Nobody took it at the book-now: the poster raises it toward the ceiling.
   load.bookNow = Math.min(load.ceiling, load.bookNow * (1 + w.cfg.bookNow.stepPerRound));
+  // The shipper still wants it moved, just later: the appointment slides back a round.
+  load.appointmentT += w.cfg.time.gameMinutesPerDay / w.cfg.time.boardRoundHours.length;
 }
 
 /**
@@ -292,49 +291,36 @@ export function autoBook(w: World): void {
 }
 
 /**
- * NPC loads never go uncovered: an NPC carrier takes them at 95% of reference.
- * For direct NPC freight the NPC shipper pays the NPC carrier, so no player FD
- * moves.
+ * Nobody hauled it before the shipper gave up, so the freight is lost: no NPC carrier covers it
+ * (Jeff, 2026-10-29: freight moves only on AI and player trucks). A broker holding the contract
+ * pays the shipper a fall-off charge; a carrier that re-posted the load pays that broker the
+ * same on the rate it took it at; a facility's goods go unsold. The load leaves the board.
  */
-function npcCover(w: World, load: Load): void {
-  load.status = "npcCovered";
-  if (load.doubleBroker) {
-    // Nobody took the re-posted load: the double broker has to buy NPC capacity to cover it.
-    coverDoubleBrokered(w, load, Math.max(load.ceiling, w.cfg.board.npcFallbackRateOfRef * load.refRate));
-  } else if (load.brokerId !== null) {
-    // The broker still owes the shipper the haul: it collects its contract rate
-    // and buys NPC capacity at what it has been offering (the rolled-up ceiling),
-    // or at the NPC fallback rate on spot if that's higher — so when spot has run
-    // well above the contract the broker loses on the load.
-    const acct = companyAccount(load.brokerId);
-    const ref = `load:${load.id}`;
-    const npcRate = Math.max(load.ceiling, w.cfg.board.npcFallbackRateOfRef * load.refRate);
-    const broker = companyById(w, load.brokerId);
-    w.ledger.post(w.t, "faucet:npc_shipper", acct, load.shipperRate * load.miles, ref);
-    w.ledger.post(w.t, acct, "sink:npc_carrier", npcRate * load.miles, ref);
-    broker.operating.revenueFd += load.shipperRate * load.miles;
-    broker.operating.costFd += npcRate * load.miles;
-    broker.openBrokerLoads--;
-  }
-  w.loads.delete(load.id);
-}
-
-/**
- * Player freight nobody hauled goes to an NPC expediter at the current ceiling
- * plus a premium, paid by the shipper. The goods still sell, but the shipper
- * nets less than a player carrier would have cost, so shippers want carriers.
- */
-function expedite(w: World, load: Load): void {
-  const acct = companyAccount(load.shipperId!);
+function giveUp(w: World, load: Load): void {
+  const { fallOffShare } = w.cfg.brokerRisk;
   const ref = `load:${load.id}`;
-  const cost = load.ceiling * w.cfg.facilities.expeditePremium * load.miles;
-  const fee = w.cfg.board.posterFeePct * load.saleValue;
-  w.ledger.post(w.t, "faucet:npc_market", acct, load.saleValue, ref);
-  w.ledger.post(w.t, acct, "sink:npc_expediter", cost, ref);
-  w.ledger.post(w.t, acct, "sink:board_fee", fee, ref);
-  const facility = w.facilities[load.facilityId! - 1];
-  if (facility) facility.netFd += load.saleValue - cost - fee;
-  load.status = "npcCovered";
+  const rounds = load.roundsUnfilled;
+  load.status = "expired";
+  if (load.brokerId !== null) {
+    const broker = companyById(w, load.brokerId);
+    const charge = fallOffShare * load.shipperRate * load.miles;
+    w.ledger.post(w.t, companyAccount(broker.id), "sink:broker_falloff", charge, ref);
+    broker.operating.costFd += charge;
+    broker.openBrokerLoads--;
+    w.listener?.({ kind: "notice", companyId: broker.id, topic: "board", text: `No carrier took load #${load.id} in ${rounds} rounds and the shipper gave up: a ${fmtInt(charge)} FD fall-off charge.`, tone: "bad" });
+  }
+  if (load.doubleBroker) {
+    const db = companyById(w, load.doubleBroker.companyId);
+    const charge = fallOffShare * load.doubleBroker.upstreamRate * load.miles;
+    const to = load.brokerId !== null ? companyAccount(load.brokerId) : "sink:broker_falloff";
+    w.ledger.post(w.t, companyAccount(db.id), to, charge, ref);
+    db.operating.costFd += charge;
+    if (load.brokerId !== null) companyById(w, load.brokerId).operating.revenueFd += charge;
+    w.listener?.({ kind: "notice", companyId: db.id, topic: "board", text: `Nobody took load #${load.id} off your re-post and the shipper gave up: a ${fmtInt(charge)} FD fall-off charge.`, tone: "bad" });
+  }
+  if (load.shipperId !== null) {
+    w.listener?.({ kind: "notice", companyId: load.shipperId, topic: "board", text: `No carrier took load #${load.id} in ${rounds} rounds: the goods went unsold.`, tone: "bad" });
+  }
   w.loads.delete(load.id);
 }
 

@@ -203,7 +203,7 @@ function carrierProfileFor(strategy: Strategy, rng: Rng): BotProfile {
         otherOrders: [
           { kind: "floor", breakEvenPlusPct: 0.15 },
           { kind: "reposition", afterIdleRounds: 2, to: { openLoadsWithinMi: 250 } },
-          { kind: "reposition", afterIdleRounds: 6, to: { openLoadsWithinMi: 800 } },
+          { kind: "reposition", afterIdleRounds: 4, to: { openLoadsWithinMi: 800 } },
         ],
         targetFleet: 8,
         firstTruckBuffer: 4_000,
@@ -229,8 +229,8 @@ function carrierProfileFor(strategy: Strategy, rng: Rng): BotProfile {
         maxDeadheadMi: rng.int(50, 150),
         otherOrders: [
           { kind: "floor", breakEvenPlusPct: Math.max(0, min - 0.02) },
-          { kind: "reposition", afterIdleRounds: rng.int(1, 4), to: rng.next() < 0.3 ? "nearestStarterHub" : { openLoadsWithinMi: rng.int(150, 500) } },
-          { kind: "reposition", afterIdleRounds: rng.int(3, 8), to: { openLoadsWithinMi: rng.int(600, 1200) } },
+          { kind: "reposition", afterIdleRounds: rng.int(1, 2), to: rng.next() < 0.3 ? "nearestStarterHub" : { openLoadsWithinMi: rng.int(150, 500) } },
+          { kind: "reposition", afterIdleRounds: rng.int(2, 4), to: { openLoadsWithinMi: rng.int(600, 1200) } },
         ],
         targetFleet: rng.int(2, 20),
         firstTruckBuffer: rng.int(1_000, 5_000),
@@ -416,6 +416,13 @@ export function populate(w: World, o: PopulationOptions): void {
     // How carefully it picks carriers (fraud.ts): open, standard or strict.
     c.vetting = rng.weighted(w.cfg.fraud.botBrokerVetting) as 0 | 1 | 2;
   }
+  w.aiFleetStart = aiFleet(w);
+}
+
+/** Trucks run by AI companies (every company but the humans, whose strategy is "player:…"). */
+function aiFleet(w: World): number {
+  const bots = new Set(w.companies.filter((c) => !c.strategy.startsWith("player:")).map((c) => c.id));
+  return w.trucks.filter((t) => t.companyId !== 0 && t.status !== "retired" && bots.has(t.companyId)).length;
 }
 
 /**
@@ -750,24 +757,21 @@ function outlookFor(w: World, cache: Outlooks, type: FacilityType, hub: number) 
 /**
  * Best facility the bot can afford whose payback clears its hurdle, or null.
  * Expected margin is weighted by how often that equipment's freight actually
- * gets covered (public board fill rate); the rest goes to an expediter at a loss.
+ * gets covered before the owner would give up (public board fill rate over
+ * giveUpAfterRounds); the rest goes unsold.
  */
 function chooseFacility(w: World, budget: number, maxPaybackWeeks: number, cache: Outlooks): { type: FacilityType; hub: number } | null {
   const { cfg } = w;
   let best: { type: FacilityType; hub: number; payback: number } | null = null;
-  // A rolled load's ceiling after the expediting threshold, times the expediter premium.
-  const expediteOfRef =
-    cfg.rates.npcCeilingMarkup * dpow(1 + cfg.board.rolloverCeilingStep, cfg.facilities.expediteAfterRounds - 1) * cfg.facilities.expeditePremium;
   for (const type of FACILITY_TYPES) {
     const spec = cfg.facilities.types[type];
     if (w.facilitySupply[type] <= 0 || spec.priceFd > budget) continue;
     for (let hub = 0; hub < w.net.hubs.length; hub++) {
       const o = outlookFor(w, cache, type, hub);
       const ref = (cfg.rates.baseRatePerMile + cfg.rates.shortHaulBonus / TYPICAL_LANE_MI) * cfg.rates.equipmentPremium[o.equipment];
-      const covered = 1 - dpow(1 - w.fillRate[o.equipment], cfg.facilities.expediteAfterRounds);
+      const covered = 1 - dpow(1 - w.fillRate[o.equipment], cfg.board.giveUpAfterRounds);
       const hauled = spec.saleValueOfRef * (1 - cfg.board.posterFeePct) - ASSUMED_CLEARED_OF_REF;
-      const expedited = spec.saleValueOfRef - expediteOfRef;
-      const margin = (covered * hauled + (1 - covered) * expedited) * ref * TYPICAL_LANE_MI;
+      const margin = covered * hauled * ref * TYPICAL_LANE_MI;
       const weeklyNet = o.loadsPerRound * 14 * margin - spec.upkeepPerWeekFd;
       if (weeklyNet <= 0) continue;
       const payback = spec.priceFd / weeklyNet;
@@ -787,6 +791,13 @@ export const ruleBotHook: DailyAgentHook = (w) => {
   const outlooks: Outlooks = new Map();
   const live = tokenLive(w);
   if (live && dayOf(w.t, cfg) % 7 === 0) admitNewcomers(w);
+  // Beta (Jeff, 2026-10-29): the AI fleet may not grow past its starting size × token.betaAiFleetCap,
+  // so the starved market of the airdrop season rewards the humans who commit early. Bots still
+  // replace and sell trucks; after launch, or with the token off, they grow as they judge.
+  // Checked per company, trucks on order included, so a day when liquidations retire trucks doesn't let every bot order one.
+  const capped = !live && cfg.token.enabled && cfg.token.betaAiFleetCap !== null;
+  const botIds = capped ? w.companies.filter((c) => !c.strategy.startsWith("player:")).map((c) => c.id) : [];
+  const grow = () => !capped || aiFleet(w) + botIds.reduce((s, id) => s + ordersOf(w, id).length, 0) < w.aiFleetStart * cfg.token.betaAiFleetCap!;
 
   for (const c of w.companies) {
     const p = profiles.get(c);
@@ -845,7 +856,7 @@ export const ruleBotHook: DailyAgentHook = (w) => {
         }
         const idle = fleet.filter((t) => t.status === "idle").length;
         const pending = ordersOf(w, c.id).length;
-        if (active > 0 && active + pending < p.targetFleet && fleet.length + pending < cfg.company.maxTrucks && idle / active <= 0.3 && worthAnotherTruck(w, c, p, today, active)) {
+        if (active > 0 && grow() && active + pending < p.targetFleet && fleet.length + pending < cfg.company.maxTrucks && idle / active <= 0.3 && worthAnotherTruck(w, c, p, today, active)) {
           // Cheapest capacity first: a parked truck, then a used one (today), then
           // a new one (after the dealer's lead time), borrowing if this bot does.
           const parked = fleet.find((t) => t.status === "parked" && (p.noUnpark.get(t.id) ?? 0) <= today);
@@ -868,7 +879,7 @@ export const ruleBotHook: DailyAgentHook = (w) => {
             }
             // No truck to buy, too long a wait, or no capital: lease one if the
             // board shows freight going uncovered and this fleet's trucks clear the lease's cost.
-            if (!ordered && cfg.freeEntry.leases.enabled) leaseIfWorth(w, c, p, rng, today, active);
+            if (!ordered && cfg.freeEntry.leases.enabled && grow()) leaseIfWorth(w, c, p, rng, today, active);
           }
         }
       }

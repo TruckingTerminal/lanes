@@ -76,7 +76,7 @@ rows.push(
     `${n0(mean(rs.map((r) => phase(r, true, (d) => d.ownedTrucks + (d.leasedTrucks ?? 0)))))} / ${n0(mean(rs.map((r) => phase(r, false, (d) => d.ownedTrucks + (d.leasedTrucks ?? 0)))))}`],
   ["Avg rate in booms / busts (FD/mi)", (rs) =>
     `${mean(rs.map((r) => phase(r, true, (d) => d.avgClearedRate))).toFixed(2)} / ${mean(rs.map((r) => phase(r, false, (d) => d.avgClearedRate))).toFixed(2)}`],
-  ["Loads to NPC carriers per day, booms", (rs) => range(rs.map((r) => phase(r, true, (d) => d.npcCovered)), n0)],
+  ["Loads expired unhauled per day, booms", (rs) => range(rs.map((r) => phase(r, true, (d) => d.expired)), n0)],
   ["Fleet profit per truck-week after overhead", (rs) => range(rs.map((r) => r.carriersBySegment.fleet?.afterOverheadPerTruckWeek ?? 0), fd)],
   ["Owner-operator profit per truck-week", (rs) => range(rs.map((r) => r.carriersBySegment.oo?.afterOverheadPerTruckWeek ?? 0), fd)],
   ["FD burned outside operations (buyback, launch, fees)", (rs) => range(rs.map((r) => Object.values(r.burnsByTag ?? {}).reduce((a, b) => a + b, 0)), fd)],

@@ -71,14 +71,13 @@ export interface RunReport {
     medianAffordDays: number | null;
     pass: boolean;
   };
-  board: { posted: number; cleared: number; npcCovered: number; fillRate: number; avgClearedRate: number; onTimeShare: number };
+  board: { posted: number; cleared: number; expired: number; fillRate: number; avgClearedRate: number; onTimeShare: number };
   wear: { rebuilds: number; breakdowns: number; avgOwnedCondition: number };
   facilities: {
     owned: Record<string, number>;
     ownersBySegment: Record<string, number>;
     /** Share of posted loads that came from player facilities. */
     loadShare: number;
-    expedited: number;
     /** Owners' average FD result per facility-week, by type (after upkeep). */
     weeklyNetByType: Record<string, number>;
   };
@@ -400,7 +399,7 @@ export function buildReport(w: World): RunReport {
     board: {
       posted,
       cleared,
-      npcCovered: sum(days.map((d) => d.npcCovered)),
+      expired: sum(days.map((d) => d.expired)),
       fillRate: posted ? cleared / posted : 0,
       avgClearedRate: cleared ? sum(days.map((d) => d.avgClearedRate * d.cleared)) / cleared : 0,
       onTimeShare: delivered ? sum(days.map((d) => d.onTimeShare * d.delivered)) / delivered : 0,
@@ -414,7 +413,6 @@ export function buildReport(w: World): RunReport {
       owned,
       ownersBySegment,
       loadShare: posted ? sum(days.map((d) => d.facilityPosted)) / posted : 0,
-      expedited: sum(days.map((d) => d.expedited)),
       weeklyNetByType: Object.fromEntries(Object.entries(netByType).map(([t, a]) => [t, a.weeks > 0 ? a.net / a.weeks : 0])),
     },
     carriersBySegment,

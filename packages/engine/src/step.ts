@@ -20,7 +20,7 @@ import { closeSeason } from "./season.js";
 import { chargeHoldingCost, checkSolvency, holdingCostApplies, processLiquidations } from "./solvency.js";
 import { dailyBuyback, launchToken, scaleDemand, tokenLive, weeklyToken } from "./token.js";
 import { moveTrucks } from "./trips.js";
-import { operatingTrucks, payPermits, type World } from "./world.js";
+import { companyById, operatingTrucks, payPermits, type World } from "./world.js";
 
 /** Agents get one hook per in-game day; they act only through applyAction. */
 export type DailyAgentHook = (w: World, day: number) => void;
@@ -63,10 +63,17 @@ function endOfDay(w: World, day: number, agents?: DailyAgentHook): void {
   dailyLabor(w);
 
   // Idle fee on owned assets unused for 7+ in-game days, parked and listed ones included (§Owned vs. leased).
+  // And a sitting truck burns diesel from its first day: a crewed truck idle at day's end idles for the
+  // cab (Jeff, 2026-10-29: a truck that sits costs money, so nobody lets one sit).
+  const idleFuel = cfg.costs.idleFuelGalPerDay * fuelPrice(w);
   for (const truck of w.trucks) {
     const unused = truck.status === "idle" || truck.status === "parked" || truck.status === "listed";
     if (truck.lease === "owned" && unused && day - truck.idleSinceDay >= cfg.costs.idleFeeAfterDays) {
       w.ledger.post(w.t, companyAccount(truck.companyId), "sink:idle_fee", cfg.costs.idleFeePerDay, `idle:${truck.id}`);
+    }
+    if (truck.status === "idle" && truck.companyId && truck.driverId && idleFuel > 0) {
+      w.ledger.post(w.t, companyAccount(truck.companyId), "sink:idle_fuel", idleFuel, `idle:${truck.id}`);
+      companyById(w, truck.companyId).operating.costFd += idleFuel;
     }
   }
 

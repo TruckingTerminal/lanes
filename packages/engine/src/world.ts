@@ -81,6 +81,8 @@ export interface World {
   token: TokenState;
   /** NPC freight multiplier for a grown player base (token mode). */
   demandScale: number;
+  /** Trucks the AI companies started with (set by populate): the beta cap on their growth is a multiple of it. */
+  aiFleetStart: number;
   /** Bids placed by hand for the next board round, by truck. */
   manualBids: Map<number, { loadId: number; rate: number }>;
   /** Every driver and dispatcher, in the pool or employed (labor.ts). Ids are index + 1. */
@@ -194,6 +196,7 @@ export function createWorld(o: WorldOptions): World {
       newCompanies: 0,
     },
     demandScale: 1,
+    aiFleetStart: 0,
     manualBids: new Map(),
     staff: [],
     staffByCompany: new Map(),

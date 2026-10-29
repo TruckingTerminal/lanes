@@ -171,3 +171,156 @@ What it shows:
   - Seed size, the profit-tax rate, the airdrop size and unlock terms, and the revenue assumption.
 - **Legal:** set aside at Jeff's request. The spec's legal section still applies to any real
   launch.
+
+## Airdrop by Miles and by profit, with unlock boosts (Jeff, 2026-10-29)
+
+Decided: the airdrop pot splits by two pro-rata shares, **Miles** (play as much as possible) and
+**beta operating profit** (play to win: research, pricing, positioning, risk), at `airdrop.weights`
+(0.6 / 0.4 to start; the weighting is still to be tuned on the runs). Profit is the company's running
+operating result at launch, freight plus facilities, so profit spent on trucks still counts; losses
+score zero. Fines, liability, cargo claims, crash bills and the broker fall-off are costs, so a bad
+actor who gets away with it scores on what it kept, and one that is shut down (authority revoked) or
+in liquidation at launch forfeits its share. The 1% per-company cap stays.
+
+Decided: during beta the AI fleet may not grow past its starting size (`token.betaAiFleetCap`), so
+the market stays short of trucks until humans bring them: early commitment is what the starved
+season pays, as in a first farming season, and saturation comes from entry.
+
+Proposed, not built: the 75% that vests over 26 weeks stays gated on play (three loads a week, a
+missed slice forfeited), and the weekly slice grows with what the company achieves:
+
+| Boost | Effect on the weekly slice |
+|---|---|
+| 50 / 100 loads delivered on time in a row | +10% / +20% |
+| A million-mile truck in the fleet | +10% |
+| A clean compliance review | +10% |
+| A contract term completed in full | +10% |
+| A fifth truck, owned | +10% |
+| A season with no at-fault crash | +10% |
+| Brokers: 500 loads covered without a fall-off | +10% |
+| Shop item, paid in FD and burned: "Expedite" | the next four slices doubled |
+| Shop item, paid in FD and burned: "Make-up week" | one missed week's slice restored |
+
+Boosts stack to at most +100% and only bring forward what would unlock: the total never exceeds
+the allocation, and the last slice closes the vest. The shop items are FD sinks, so the faster
+unlock is paid for in deflation. Needs the shop and the achievement ledger in the client; the
+engine side is a per-company unlock multiplier read by the weekly unlock.
+
+## Airdrop size and a season schedule (proposal, 2026-10-29)
+
+What the first pot is measured against: at launch about 60M FD is in play, 32M of it burned as play
+money and 34M locked as working capital (spendable, never sellable), and the protocol mints 25M FD
+into the pool against its $250k. The only sellable FD in players' hands on launch day is the airdrop.
+So the pot is sized against the pool: 10M is 40% of it, and the 25% claimable on day one (2.5M) is 10%
+of the pool, a worst-case dump of about 17% on the price. 12.5M (half the pool) would make that 25%.
+Keep season one at 10M.
+
+Scarcity comes from the burn, not the pot: after launch the profit tax burned 100–140M FD in the
+four-year runs, supply fell from 63M to 36M, and the price ended at $0.012–0.019 from $0.01. The pot
+decides who is paid and the launch-day price path. Players' net dollars out = buybacks + pool
+drawdown − buy fees, whatever the pot: a smaller airdrop moves the same dollars to fewer hands.
+
+Proposed schedule (to confirm with Jeff, then `token.airdrop.seasons` in config):
+
+| Season (in-game year) | Pot | Split |
+|---|---|---|
+| 1 (beta, paid at launch) | 10M | beta Miles 0.6 / beta profit 0.4 |
+| 2 | 6M | that season's Miles / profit |
+| 3 | 4M | that season's Miles / profit |
+| 4 | 3M | that season's Miles / profit |
+
+Total 23M, about one pool's worth, published up front. Each season's pot is scaled down by how far
+the season's average price ran below the launch price (pot × min(1, avgPrice ÷ launchPrice)), never
+up: price falls, emission falls. Forfeited, haircut and unclaimed slices are never minted. The
+unlock boosts (above) and shop items burn FD on the way in. Seasons after the fourth: none unless
+decided; the game's faucet is then only NPC shippers paying for work done.
+
+## The circular economy: capped supply, staking, pools (decided 2026-10-29, config 0.18.0)
+
+Jeff's direction: FD supply is capped and the economy is circular; players will also be shippers and
+own truck stops and fuel stations; staking gates company size and roles and is bought with dollars;
+an unstaking period prevents cascades; player-funded pools underwrite insurance and factoring.
+"Let's do it." This section is the build plan.
+
+### 1. One token, one reserve, nothing minted
+
+- **Cap.** A fixed genesis supply (order of 1B FD; the runs size it). Allocation at genesis: the
+  reserve (~60%), the FD/USDC pool, four airdrop seasons (23M), the treasury. No mint after genesis.
+- **The reserve** is one ledger account standing for every NPC counterparty: NPC shippers pay
+  carriers out of it; fuel, wages, maintenance, insurance, lease share, per diem, idle fuel, fines,
+  board fees, holding cost and the profit tax flow back into it. `faucet:*` draws from the reserve and
+  `sink:*` posts to it; the ledger's supply check becomes "supply equals the cap minus burns".
+- **Burns** only by dollars and forfeits: treasury buybacks, the sell fee, airdrop slices forfeited
+  or haircut, the instant-unstake haircut, season-close burn if kept. The profit tax refills the
+  reserve instead of burning (the cap and the tax must not drain the economy together).
+- **Demand priced from the reserve.** NPC shippers' FD budget per day = `reserve × payoutFraction`;
+  the reference rate per mile scales with budget ÷ miles demanded (clamped), replacing the
+  freight-volume stabilizer. Hoarding drains the reserve and lowers rates; spending refills it and
+  raises them. The holding cost is the pump. Weather, seasons, the cycle and the load-to-truck ratio
+  still move rates on top.
+- **Player counterparties** take flows off the reserve: a fuel station buys diesel from the reserve
+  at rack and sells at its own pump price; a truck stop collects parking, per diem and rest fees; a
+  shipper's facility sells goods to the NPC market (the reserve) and pays carriers. Velocity rises,
+  supply does not.
+
+### 2. Staking: the bond behind every licence
+
+- `c.stakedFd` per company, out of circulation and out of the pool; a stake is **at risk**: fraud
+  conviction, revoked authority or an unpaid cargo claim slashes it, victims' restitution first, the
+  rest to the reserve.
+- **Tiers gate capacity and roles, never performance.** Trucks: 5 free, 10 and 30 need a stake; the
+  facility cap scales the same way. Roles: broker licence (replaces the 75k bond), shipper
+  (facilities), fuel station, truck stop, later dealership, each bonded to a few weeks of the asset's
+  flow. Falling below a tier starts a grace period, then the extra trucks park and the licence lapses.
+- **Privileges that mint nothing:** higher rank for local-first tenders and contract offers, a lower
+  surety premium, first pick of the capped dealer supply, faster airdrop vesting (an unlock boost).
+- **Buying the stake with dollars** is the demand engine: USD → FD from the pool (price up, 1% fee to
+  buybacks) → locked (float down).
+- **Unstaking:** a queue, 28 in-game days (one real week at the live clock), with a global exit limit
+  of ~2% of all staked FD per day; or instant at a 25% haircut, burned.
+
+### 3. The pool and the whale
+
+- Constant product, protocol-owned liquidity never withdrawn. Against 25M FD / $250k: 500k FD sold at
+  once gets $4.9k and moves the price −4%; 2M gets $18.5k, −14%; 5M gets $41.7k, −31%.
+- **Progressive sell fee:** 5% base, rising with the single sale's price impact (e.g. +1 point per
+  point of impact, capped), all burned. **Daily sell limit** per company ≈ 2% of the pool's FD.
+- The treasury's daily buyback buys more per dollar in a dump and burns it; newcomers and stakers
+  buy in cheaper while rates and prices stay in FD: a transfer from the impatient to the patient.
+
+### 4. Player-funded pools: one primitive, several lines
+
+One module (`pools.ts`): a mutual pool holds FD, issues **units** to depositors, earns the line's
+fees, pays the line's losses, prices by utilization (thin pool → dearer cover → more depositors), and
+withdraws through the same exit queue as staking. Losses are shared pro rata; a pool that cannot pay
+haircuts claims and the NPC backstop pays the rest at a penalty premium. No pool pays yield from
+emissions: every unit of income is another player's fee. The NPC provider of each line stays as the
+expensive backstop so a thin pool never blocks play.
+
+| Line | Income to the pool | Losses | Pricing signal |
+|---|---|---|---|
+| **Insurance** (auto liability, cargo) | premiums (45–50M FD a run today, burned) | crash liability, cargo claims, spoilage | capital ÷ exposure (insured truck-weeks × expected loss) |
+| **Factoring** | the discount on invoices advanced | shipper and broker defaults (2%+, more in downturns) | advance rate and discount by debtor rating (broker reputation, NPC shipper grade) |
+| **Surety** | broker bond premiums (2–12% by credit) | broker defaults on carriers | bonded volume ÷ capital |
+| **Equipment finance** (later) | loan interest | repossession shortfalls | loan book ÷ capital |
+| **Fuel hedge** (later) | the spread on fixed-price diesel contracts | rack price moves | open contracts ÷ capital |
+
+Factoring needs **payment terms**: NPC shippers and brokers pay net-30 game days (a quick-pay option
+at a fee), so carriers run on working capital and the pool advances cash on delivery at a discount
+(2–4%) and collects the receivable; recourse to the carrier on a fraud-voided invoice. This adds the
+cash-flow game real carriers play and gives the stake and the holding cost something to do.
+
+### 5. Build order and what the runs must size
+
+1. Reserve account and the supply check; every faucet and sink rerouted; profit tax to the reserve.
+2. Payout rule in demand pricing; retire the volume stabilizer; keep the rack-spread one.
+3. Staking: account, tiers, slashing hooks in fraud/safety, exit queue, instant haircut; the broker
+   bond becomes a stake.
+4. Progressive sell fee and the daily sell limit in the exchange.
+5. Pools module; insurance first (the biggest flow), then factoring with payment terms, then surety.
+6. Airdrop seasons and the price-scaled pot; the unlock boosts once the client has the shop.
+7. Ten-seed runs to set: the cap, the reserve share, the payout fraction, tier stakes, the exit
+   limit, the sell-fee slope, pool capital ratios. Kill criteria: no reserve drain below one month of
+   freight, no tier that the free path cannot reach in a year, pools solvent through a downturn.
+
+Every step is a rules change: bundle them into one restart while the world has no players.

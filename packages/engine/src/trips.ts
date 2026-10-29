@@ -262,16 +262,6 @@ function collectUpstream(w: World, load: Load, payee: Company, gross: number, fa
   }
 }
 
-/** A double-brokered load nobody hauled: the double broker is paid for it and buys NPC capacity to cover it. */
-export function coverDoubleBrokered(w: World, load: Load, npcRate: number): void {
-  const db = companyById(w, load.doubleBroker!.companyId);
-  const upstream = load.doubleBroker!.upstreamRate * load.miles;
-  collectUpstream(w, load, db, upstream, 1, `load:${load.id}`);
-  w.ledger.post(w.t, companyAccount(db.id), "sink:npc_carrier", npcRate * load.miles, `load:${load.id}`);
-  db.operating.costFd += npcRate * load.miles;
-  settleDoubleBroker(w, { ...load, doubleBroker: { ...load.doubleBroker!, pays: true } }, null, 0, upstream, npcRate * load.miles);
-}
-
 function deliver(w: World, truck: Truck, now: number): void {
   const { cfg } = w;
   const load = w.loads.get(truck.loadId!)!;

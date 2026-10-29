@@ -118,9 +118,9 @@ function printReport(r: RunReport, secs: string): void {
   const f = r.freePath;
   console.log(`  Free path: ${f.bought}/${f.companies} bought a truck, ${f.withinLimit} within 84 days, median ${f.medianDays ?? "n/a"} days  ${mark(f.pass)}`);
   console.log(`    could afford one: ${f.affordWithinLimit}/${f.companies} within 84 days, median ${f.medianAffordDays ?? "n/a"} days`);
-  console.log(`  Board: fill ${pct(r.board.fillRate)}, NPC-covered ${r.board.npcCovered}, avg ${r.board.avgClearedRate.toFixed(2)}/mi, on-time ${pct(r.board.onTimeShare)}`);
+  console.log(`  Board: fill ${pct(r.board.fillRate)}, expired unhauled ${r.board.expired}, avg ${r.board.avgClearedRate.toFixed(2)}/mi, on-time ${pct(r.board.onTimeShare)}`);
   console.log(`  Wear: ${r.wear.rebuilds} rebuilds, ${r.wear.breakdowns} breakdowns, owned fleet condition ${r.wear.avgOwnedCondition.toFixed(2)}`);
-  console.log(`  Facilities: ${JSON.stringify(r.facilities.owned)} owned by ${JSON.stringify(r.facilities.ownersBySegment)}, ${pct(r.facilities.loadShare)} of loads, ${r.facilities.expedited} expedited`);
+  console.log(`  Facilities: ${JSON.stringify(r.facilities.owned)} owned by ${JSON.stringify(r.facilities.ownersBySegment)}, ${pct(r.facilities.loadShare)} of loads`);
   const nets = Object.entries(r.facilities.weeklyNetByType).map(([t, v]) => `${t} ${fd(v)}`).join(", ");
   console.log(`    owners' net per facility-week after upkeep: ${nets || "n/a"}`);
   for (const [seg, c] of Object.entries(r.carriersBySegment)) {

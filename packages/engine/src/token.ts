@@ -126,12 +126,19 @@ export function launchToken(w: World): void {
     lockedFd += c.lockedFd;
   }
 
-  const miles = w.companies.map(lifetimeMiles);
+  // The pot splits by Miles and by beta operating profit (losses count zero), at the configured
+  // weights; a company shut down or being wound up at launch forfeits its share (Jeff, 2026-10-29).
+  const eligible = w.companies.map((c) => c.liquidatingSince === null && c.authority.status !== "revoked");
+  const miles = w.companies.map((c, i) => (eligible[i] ? lifetimeMiles(c) : 0));
+  const profits = w.companies.map((c, i) => (eligible[i] ? Math.max(0, operatingResult(w, c)) : 0));
   const totalMiles = miles.reduce((a, b) => a + b, 0);
+  const totalProfit = profits.reduce((a, b) => a + b, 0);
   const cap = tc.airdrop.fd * tc.airdrop.capShare;
+  const { miles: wm, profit: wp } = tc.airdrop.weights;
   let allocatedFd = 0;
   w.companies.forEach((c, i) => {
-    const share = totalMiles > 0 ? Math.min(cap, (tc.airdrop.fd * miles[i]!) / totalMiles) : 0;
+    const score = (totalMiles > 0 ? (wm * miles[i]!) / totalMiles : 0) + (totalProfit > 0 ? (wp * profits[i]!) / totalProfit : 0);
+    const share = Math.min(cap, tc.airdrop.fd * score);
     if (share <= 0) return;
     c.airdrop = { totalFd: share, unlockedFd: 0, forfeitedFd: 0, weeksLeft: tc.airdrop.unlockWeeks, claimedEarly: false };
     allocatedFd += share;

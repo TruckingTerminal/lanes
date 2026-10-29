@@ -107,7 +107,7 @@ export function growthPages(cfg: EconomyConfig): GuidePage[] {
             return [t === "coldStorage" ? "Cold storage" : t[0]!.toUpperCase() + t.slice(1), `${n(f.priceFd)} FD`, `${n(f.upkeepPerWeekFd)} FD`, f.loadsPerRound, f.equipment === "bySector" ? "by the hub's industry" : f.equipment];
           }),
         ) +
-        p(`Your freight takes over part of the hub's NPC demand (NPCs always keep at least ${pct(1 - cfg.facilities.maxPlayerShareOfHub)}). Freight nobody hauls after ${cfg.facilities.expediteAfterRounds} rounds goes to an NPC expediter at the ceiling plus ${pct(cfg.facilities.expeditePremium - 1)}, at your cost. Up to ${cfg.facilities.maxPerCompany} facilities per company.`),
+        p(`Your freight takes over part of the hub's NPC demand (NPCs always keep at least ${pct(1 - cfg.facilities.maxPlayerShareOfHub)}). A load nobody hauls rolls with its ceiling up ${pct(cfg.board.rolloverCeilingStep)} a round, at your cost; after ${cfg.board.giveUpAfterRounds} rounds the goods go unsold. Up to ${cfg.facilities.maxPerCompany} facilities per company.`),
     },
   ];
 }

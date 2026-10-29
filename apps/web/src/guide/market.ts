@@ -23,7 +23,7 @@ export function marketPages(cfg: EconomyConfig): GuidePage[] {
           `Every bid gets a score: ${pct(b.scoreWeights.price)} for price (how far under the ceiling), ${pct(b.scoreWeights.reputation)} for reputation (your on-time record), ${pct(b.scoreWeights.deadhead)} for empty miles to the pickup (none is best; at ${b.deadheadScaleMi} it scores zero and past that it counts against you).`,
           `Counters clear best score first. A truck wins at most one load a round, and a load goes to one truck.`,
           `A counter above the ceiling, up to ${cfg.board.overCeilingMax}× it, is taken only if nobody offers within the ceiling, cheapest first: in a hot market the poster pays over its max rather than leave the load.`,
-          `A load nobody takes rolls to the next round with its ceiling up ${pct(b.rolloverCeilingStep)}. After ${b.npcFallbackAfterRounds} rounds an NPC carrier takes NPC freight; a player shipper's freight goes to an NPC expediter at its cost.`,
+          `A load nobody takes rolls to the next round with its ceiling up ${pct(b.rolloverCeilingStep)} and its appointment moved back a round. Nobody but a carrier ever hauls it: it rolls until a truck takes it or, after ${b.giveUpAfterRounds} rounds, the shipper gives up and the freight is lost. Open loads piling up where trucks are scarce lift that market's load-to-truck ratio, and so every new rate posted there.`,
         ]) +
         h("Bidding by hand") +
         ul([

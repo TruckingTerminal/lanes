@@ -162,8 +162,10 @@ describe("insurance and dealer prices", () => {
     expect(quote(w, safe).annualPerTruck).toBeGreaterThan(safe.insurance.annualPerTruck);
     const before = w.ledger.balance(companyAccount(safe.id));
     runDays(w, 7);
-    // A week costs a week of the policy (no freight hauled; the first truck parks free).
-    expect(before - w.ledger.balance(companyAccount(safe.id))).toBeCloseTo(safe.insurance.annualPerTruck / 52, 1);
+    // A week costs a week of the policy plus the diesel a crewed truck burns sitting (0.17.0); no freight hauled, the first truck parks free.
+    const idleFuel = w.metrics.days.slice(-7).reduce((s, d) => s + d.fuelPrice * cfg.costs.idleFuelGalPerDay, 0);
+    expect(idleFuel).toBeGreaterThan(0);
+    expect(before - w.ledger.balance(companyAccount(safe.id)) - idleFuel).toBeCloseTo(safe.insurance.annualPerTruck / 52, 0);
   });
 
   it("raises dealer prices as supply runs out", () => {

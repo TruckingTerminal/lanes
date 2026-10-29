@@ -32,7 +32,8 @@ export interface DayMetrics {
   posted: number;
   cleared: number;
   rolled: number;
-  npcCovered: number;
+  /** Loads whose shipper gave up unhauled (no NPC carrier ever covers one since 0.17.0). */
+  expired: number;
   delivered: number;
   onTimeShare: number;
   avgClearedRate: number;
@@ -43,7 +44,6 @@ export interface DayMetrics {
   idleTrucks: number;
   ownedTrucks: number;
   facilityPosted: number;
-  expedited: number;
   facilities: number;
   breakdowns: number;
   rebuilds: number;
@@ -113,10 +113,9 @@ export class MetricsRecorder {
     this.acc.posted += r.posted;
     this.acc.cleared += r.cleared;
     this.acc.rolled += r.rolled;
-    this.acc.npcCovered += r.npcCovered;
+    this.acc.expired += r.expired;
     this.acc.rateSum += r.clearedRateSum;
     this.acc.facilityPosted += r.facilityPosted;
-    this.acc.expedited += r.expedited;
   }
 
   onBreakdown(): void {
@@ -256,7 +255,7 @@ export class MetricsRecorder {
       posted: a.posted,
       cleared: a.cleared,
       rolled: a.rolled,
-      npcCovered: a.npcCovered,
+      expired: a.expired,
       delivered: a.delivered,
       onTimeShare: a.delivered ? a.onTime / a.delivered : 0,
       avgClearedRate: a.cleared ? a.rateSum / a.cleared : 0,
@@ -267,7 +266,6 @@ export class MetricsRecorder {
       idleTrucks: idle,
       ownedTrucks: owned,
       facilityPosted: a.facilityPosted,
-      expedited: a.expedited,
       facilities: w.facilities.length,
       breakdowns: a.breakdowns,
       rebuilds: a.rebuilds,
@@ -331,13 +329,12 @@ function emptyAcc() {
     posted: 0,
     cleared: 0,
     rolled: 0,
-    npcCovered: 0,
+    expired: 0,
     rateSum: 0,
     delivered: 0,
     onTime: 0,
     marginSum: 0,
     facilityPosted: 0,
-    expedited: 0,
     breakdowns: 0,
     rebuilds: 0,
     ordersPlaced: 0,

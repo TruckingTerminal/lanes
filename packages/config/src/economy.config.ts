@@ -9,7 +9,7 @@ export type TractorTier = "workhorse" | "highwayPro" | "flagship";
 export type FacilityType = "warehouse" | "coldStorage" | "factory";
 
 export const economyConfig = {
-  version: "0.16.0-phase0.22",
+  version: "0.17.0-phase0.23",
 
   // §World, map and time
   time: {
@@ -71,12 +71,17 @@ export const economyConfig = {
     lookaheadFdPerRatio: 300,
     lookaheadDiscount: 0.6,
     reloadWeight: 1, // the whole expected empty run (0.35–0.5 led to more failures in the 10-seed runs)
-    rolloverCeilingStep: 0.05, // unfilled loads roll with ceiling +5%
+    // Design decision (Jeff, 2026-10-29): freight is hauled only by AI and player carriers; no NPC
+    // carrier ever takes a load off the board. A load nobody takes rolls with its ceiling up this
+    // much a round (was 5%: shippers get desperate sooner), its appointment moved back a round,
+    // until a carrier takes it or the shipper gives up after giveUpAfterRounds (five days) and the
+    // freight is lost: no haul, no pay. Open loads pile up where trucks are scarce, which lifts the
+    // load-to-truck ratio and so every new posting there: the market, not a fallback, sets the price.
+    rolloverCeilingStep: 0.1,
+    giveUpAfterRounds: 10,
     // Design decision (Jeff, 2026-10-28): a counter above the poster's ceiling is still taken, up to
     // ceiling × this, but only when nobody offers within the ceiling — so a hot market still covers.
     overCeilingMax: 1.5,
-    npcFallbackAfterRounds: 2,
-    npcFallbackRateOfRef: 0.95,
     maxBidsPerTruckPerRound: 12, // PoC assumption: performance bound
     freeStandingOrders: 5,
     // PoC assumption: board fee paid by players who post freight (brokers and player
@@ -97,10 +102,10 @@ export const economyConfig = {
       [1, 0.98],
       [2, 1.1],
     ] as const,
-    stepPerRound: 0.08, // unfilled: the poster raises it 8% a round (the ceiling moves 5%)
+    stepPerRound: 0.12, // unfilled: the poster raises it 12% a round (the ceiling moves 10%)
     autoEveryHours: 2, // dispatchers look for book-now loads this often
     desperation: {
-      idleHours: 48, // idle this long and a dispatcher takes anything that covers costs (Jeff: a day or two at most)
+      idleHours: 24, // idle this long and a dispatcher takes anything that covers costs (Jeff, 2026-10-29: never let a truck sit past a day)
       awayAfterDays: 14, // a driver this long from home starts to count…
       awayDays: 14, // …and is fully desperate this many days later
       atHomeMult: 0.5, // sitting at home is half as pressing: no per diem, the driver is home
@@ -243,6 +248,10 @@ export const economyConfig = {
     npcLeaseShareOfGross: 0.15,
     idleFeeAfterDays: 7,
     idleFeePerDay: 20, // was 50: on 10 seeds × 4 years it was the single biggest cause of honest single-truck owners failing
+    // Design decision (Jeff, 2026-10-29): a truck that sits costs money from the first day. A crewed
+    // truck idle at day's end burns this much diesel idling for the cab (heat, air, the driver's rest),
+    // at the day's pump price; per diem (labor.perDiemFd) covers the driver from the second day.
+    idleFuelGalPerDay: 8,
   },
 
   // §Assets and supply caps
@@ -358,10 +367,9 @@ export const economyConfig = {
     maxPerCompany: 6, // §Owned vs. leased — company caps
     maxPlayerShareOfHub: 0.6, // NPC shippers keep ≥40% of each hub's freight (§Load board — freight sources)
     shipperMilesPerMile: 0.15, // §Points — shippers
-    // PoC assumption: unfilled player freight goes to an NPC expediter at the
-    // current ceiling + 10%, paid by the shipper, so shippers want player carriers.
-    expediteAfterRounds: 3,
-    expeditePremium: 1.1,
+    // A facility's freight rolls like any other (board.rolloverCeilingStep, the owner paying the
+    // rising ceiling) and is lost unsold when the owner gives up (board.giveUpAfterRounds): no NPC
+    // expediter since 0.17.0.
   },
 
   // §Circular economy — season close (the last 30 in-game days)
@@ -411,6 +419,10 @@ export const economyConfig = {
     defaultRate: 0.02, // share of brokered loads the shipper doesn't pay, at a neutral cycle…
     downturnSensitivity: 3, // …× (1 + 3 × how far the demand dial is below 1)
     contractLagDays: 30,
+    // A brokered load nobody hauled before the shipper gave up: the broker pays the shipper this share
+    // of the contract as a fall-off charge, and will pay carriers up to that much over the contract
+    // to avoid it (0.17.0: no NPC carrier covers it any more).
+    fallOffShare: 0.15,
   },
 
   // §Roles — carrier authority; broker license and bond. Renew each season.
@@ -498,6 +510,10 @@ export const economyConfig = {
   token: {
     enabled: false,
     betaYears: 2, // launch at the end of in-game year 2 (≈6 real months at the live clock)
+    // Design decision (Jeff, 2026-10-29): during beta the AI fleet may not grow past this multiple
+    // of its starting size (null: no cap). The market stays short of trucks until humans bring
+    // them, so the airdrop season rewards early commitment; bots still replace and sell trucks.
+    betaAiFleetCap: 1 as number | null,
     launch: {
       // Beta FD is play money: above working capital it's burned at launch, and the
       // working capital kept is locked — it can be spent in the game, not sold.
@@ -511,6 +527,11 @@ export const economyConfig = {
     airdrop: {
       fd: 10_000_000, // minted only as it unlocks
       capShare: 0.01, // no company gets more than 1%; the excess is never minted
+      // Design decision (Jeff, 2026-10-29): the pot is split by two pro-rata shares, Miles (play as
+      // much as possible) and beta operating profit (play to win: research, pricing, risk), at these
+      // weights. Losses score zero. A company shut down (authority revoked) or in liquidation at
+      // launch gets nothing: the risk a bad actor runs. The weighting is still to be tuned.
+      weights: { miles: 0.6, profit: 0.4 },
       atLaunch: 0.25, // §Airdrop unlock: 25% claimable at launch…
       unlockWeeks: 26, // …75% unlocks over 6 months by playing: a 26th each week the company handles…
       loadsPerWeek: 3, // …at least this many loads; a missed week's slice is forfeited, never minted

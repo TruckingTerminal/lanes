@@ -370,10 +370,11 @@ describe("facilities", () => {
     const upkeep = w.ledger.entries.filter((e) => e.to === "sink:facility_upkeep");
     expect(upkeep).toHaveLength(1);
     expect(upkeep[0]!.amount).toBe(cfg.facilities.types.factory.upkeepPerWeekFd);
-    // With no trucks in this world its freight rolls, then goes to the expediter at the owner's cost.
+    // With no trucks in this world its freight rolls, then goes unsold: no NPC expediter hauls it (0.17.0).
     expect(w.metrics.days.reduce((s, d) => s + d.facilityPosted, 0)).toBeGreaterThan(10);
-    expect(w.ledger.entries.some((e) => e.to === "sink:npc_expediter")).toBe(true);
-    expect(w.ledger.entries.some((e) => e.from === "faucet:npc_market")).toBe(true);
+    expect(w.metrics.days.reduce((s, d) => s + d.expired, 0)).toBeGreaterThan(0);
+    expect(w.ledger.entries.some((e) => e.from === "faucet:npc_market")).toBe(false);
+    expect([...w.loads.values()].every((l) => l.roundsUnfilled < cfg.board.giveUpAfterRounds + cfg.leverage.localRounds)).toBe(true);
   });
 
   it("take freight out of the hub's demand, never more than 60% of it", () => {
@@ -664,8 +665,12 @@ describe("a seasons-off economy: holding cost, insolvency, broker risk", () => {
     runDays(w, cfg.insolvency.restartAfterDays);
     expect(failing.liquidatingSince).toBeNull();
     expect(failing.bankruptcies).toBe(1);
-    expect(w.ledger.balance(companyAccount(failing.id))).toBeCloseTo(0, 2); // the rest of the debt written off
-    expect(w.ledger.entries.some((e) => e.from === "faucet:bankruptcy_writeoff")).toBe(true);
+    // The rest of the debt is written off; since then the fresh NPC truck has only burned idle fuel sitting (0.17.0).
+    const writeOff = w.ledger.entries.findIndex((e) => e.from === "faucet:bankruptcy_writeoff");
+    expect(writeOff).toBeGreaterThanOrEqual(0);
+    const since = w.ledger.entries.slice(writeOff + 1).filter((e) => e.from === companyAccount(failing.id) || e.to === companyAccount(failing.id));
+    expect(since.every((e) => e.to === "sink:idle_fuel")).toBe(true);
+    expect(w.ledger.balance(companyAccount(failing.id)) + since.reduce((s, e) => s + e.amount, 0)).toBeCloseTo(0, 2);
     expect(w.trucksByCompany.get(failing.id)!.map((t) => t.lease)).toEqual(["npc"]);
   });
 
@@ -683,8 +688,8 @@ describe("a seasons-off economy: holding cost, insolvency, broker risk", () => {
     expect(w.metrics.days.reduce((s, d) => s + d.shipperDefaults, 0)).toBeGreaterThan(0);
     const brokerAccts = new Set(w.companies.filter((c) => c.role === "broker").map((c) => companyAccount(c.id)));
     const paidOnDelivery = w.ledger.entries.filter((e) => e.from === "faucet:npc_shipper" && brokerAccts.has(e.to) && e.ref.startsWith("load:"));
-    const fallbackLoads = new Set(w.ledger.entries.filter((e) => e.to === "sink:npc_carrier").map((e) => e.ref));
-    expect(paidOnDelivery.every((e) => fallbackLoads.has(e.ref))).toBe(true); // only the NPC-covered contracts paid
+    expect(paidOnDelivery).toHaveLength(0); // and no NPC carrier covers a brokered load any more (0.17.0)
+    expect(w.ledger.entries.some((e) => e.to === "sink:npc_carrier")).toBe(false);
   });
 });
 
@@ -862,5 +867,59 @@ describe("token", () => {
       return { prices: w.token.priceHistory, companies: w.companies.length, supply: w.ledger.supply() };
     };
     expect(run()).toEqual(run());
+  });
+});
+
+describe("real market (0.17.0): freight moves only on AI and player trucks", () => {
+  it("never hands a load to an NPC carrier: unfilled loads roll with the ceiling up each round, then the shipper gives up and brokers pay the fall-off", () => {
+    // Brokers but no carriers at all: nothing can haul, so every load rolls and then expires.
+    const w = createWorld({ cfg: calm, net, feeds: neutralFeeds, seed: 41, keepLedgerEntries: true });
+    populate(w, { freeOwnerOperators: 0, fleets: 0, brokers: 4 });
+    runDays(w, 8, ruleBotHook);
+    expect(w.ledger.entries.some((e) => e.to === "sink:npc_carrier" || e.to === "sink:npc_expediter")).toBe(false);
+    expect(w.metrics.days.reduce((s, d) => s + d.expired, 0)).toBeGreaterThan(100);
+    expect(w.metrics.days.reduce((s, d) => s + d.cleared, 0)).toBe(0);
+    for (const l of w.loads.values()) {
+      expect(l.status).toBe("open");
+      expect(l.roundsUnfilled).toBeLessThan(cfg.board.giveUpAfterRounds + cfg.leverage.localRounds);
+      // An NPC shipper's own load: the ceiling compounds by the rollover step every round it sits.
+      if (l.brokerId === null && l.hot === 0 && l.roundsUnfilled > 0) {
+        expect(l.ceiling / (l.refRate * cfg.rates.npcCeilingMarkup)).toBeCloseTo((1 + cfg.board.rolloverCeilingStep) ** l.roundsUnfilled, 6);
+        expect(l.bookNow).toBeLessThanOrEqual(l.ceiling + 1e-9);
+      }
+    }
+    // Brokers that took contracts and never covered them paid the shipper's fall-off charge.
+    const fallOff = w.ledger.entries.filter((e) => e.to === "sink:broker_falloff");
+    expect(fallOff.length).toBeGreaterThan(0);
+    const brokerAccts = new Set(w.companies.filter((c) => c.role === "broker").map((c) => companyAccount(c.id)));
+    expect(fallOff.every((e) => brokerAccts.has(e.from))).toBe(true);
+    // No broker is left holding an open load it never had a chance to settle.
+    for (const b of w.companies.filter((c) => c.role === "broker")) expect(b.openBrokerLoads).toBeGreaterThanOrEqual(0);
+  });
+
+  it("charges idle fuel to a crewed truck that sits, from its first day", () => {
+    const w = smallWorld(42, true);
+    runDays(w, 3, ruleBotHook);
+    const idleFuel = w.ledger.entries.filter((e) => e.to === "sink:idle_fuel");
+    expect(idleFuel.length).toBeGreaterThan(0);
+    for (const e of idleFuel) expect(e.amount).toBeGreaterThan(0);
+    const perTruckDay = cfg.costs.idleFuelGalPerDay * w.metrics.days.at(-1)!.fuelPrice;
+    expect(Math.abs(idleFuel.at(-1)!.amount - perTruckDay)).toBeLessThan(perTruckDay * 0.2); // the day's pump price moves a little
+  });
+
+  it("holds the AI fleet at its starting size during the token beta, and lets it grow with the token off", () => {
+    const run = (enabled: boolean) => {
+      const tokenCfg: EconomyConfig = { ...calm, token: { ...calm.token, enabled }, freeEntry: { ...calm.freeEntry, leases: { ...calm.freeEntry.leases, enabled: true } } };
+      const w = createWorld({ cfg: tokenCfg, net, feeds: neutralFeeds, seed: 43 });
+      populate(w, { freeOwnerOperators: 60, fleets: 20, brokers: 4 });
+      const start = w.aiFleetStart;
+      expect(start).toBeGreaterThan(60);
+      runDays(w, 120, ruleBotHook);
+      return { start, end: w.trucks.filter((t) => t.companyId !== 0 && t.status !== "retired").length };
+    };
+    const beta = run(true);
+    expect(beta.end).toBeLessThanOrEqual(beta.start * cfg.token.betaAiFleetCap!);
+    const free = run(false);
+    expect(free.end).toBeGreaterThan(free.start);
   });
 });

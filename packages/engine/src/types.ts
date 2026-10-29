@@ -413,7 +413,8 @@ export interface Truck {
   legHighwayShare: number;
 }
 
-export type LoadStatus = "open" | "assigned" | "inTransit" | "delivered" | "npcCovered";
+/** "expired": nobody hauled it before the shipper gave up (board.giveUpAfterRounds); the freight is lost. */
+export type LoadStatus = "open" | "assigned" | "inTransit" | "delivered" | "expired";
 
 export interface Load {
   id: number;
@@ -687,4 +688,4 @@ export type GameEvent =
   | { kind: "liquidated"; companyId: number }
   | { kind: "launched" }
   /** Staff, safety and fraud news for a company's feed. */
-  | { kind: "notice"; companyId: number; topic: "staff" | "safety" | "crash" | "fraud" | "authority" | "contracts"; text: string; tone: "good" | "bad" | "info"; truckId?: number };
+  | { kind: "notice"; companyId: number; topic: "staff" | "safety" | "crash" | "fraud" | "authority" | "contracts" | "board"; text: string; tone: "good" | "bad" | "info"; truckId?: number };
