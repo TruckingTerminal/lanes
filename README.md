@@ -492,6 +492,20 @@ same world on every player's page (`apps/web/src/live.ts`).
   after launch with play dollars), company and players tables.
 - **Art:** every sprite is drawn in code (`apps/web/src/art.ts`) on one palette, with auto-outlined
   shapes. An artist's sprite sheet can replace those functions.
+- **Pixel-art client (2026-10-28):** one hue-shifted palette ("Interstate Dusk") shared by the CSS
+  and the sprites; nine-slice pixel frames for every panel, card, button, input, ticker and toast,
+  drawn at boot and worn through `border-image` (`installTheme`); pixel fonts only at their native
+  sizes (Press Start 2P 8/16 px, VT323 20 px) so nothing blurs; 12 × 12 icons on the top bar and
+  tabs; a detailed side-view rig (`truckSprite`, wheels that roll) and a chromed pixel logo. The
+  map (`apps/web/src/map.ts`, geography in `geo.ts`) is painted at one art pixel per screen pixel
+  of the map window (repainted on resize, ~250 ms): biomes with fields, forests, desert and marsh
+  textures, coasts with shallows and foam, the Great Lakes and bays, rivers, dotted state lines,
+  shaded peaks with snow, two road classes, and skylines sized by freight weight whose windows
+  light at night under an amber-to-blue tint. Trucks are top-down sprites in eight headings along
+  the real road (yours cyan, other players lime, AI grey), with headlights at night, a marching
+  route for the selected truck, and hub labels in a 5 × 7 bitmap font (`font.ts`) that appear as
+  you zoom. The title is a 320 × 180 road scene (sky bands, mesas, a billboard, poles, the rig)
+  and loading is a rig driving a road.
 - **Run locally:** serve `apps/web/dist` and open `local-lanes.html`. Without claude.ai it keeps the
   store in browser storage, and each tab plays as its own company.
 

@@ -3,3 +3,5 @@ runs/
 apps/web/dist/
 .DS_Store
 *.log
+
+.claude/

@@ -64,11 +64,12 @@ import {
   type World,
 } from "@lanes/engine";
 import { hubs as HUBS } from "@lanes/data";
-import { drawTitleScene, facilityUrl, iconUrl, PAL, truckUrl } from "./art.js";
+import { drawLoadingRoad, drawTitleScene, facilityUrl, icon, iconUrl, installTheme, logo, PAL, TITLE_H, TITLE_W, truckUrl } from "./art.js";
+import { drawText, textWidth } from "./font.js";
 import { guidePages } from "./guide.js";
 import { DEFAULT_ORDERS, GAME_CONFIG, isHuman, RULESET, TestGame, type StartKind, type TestLog } from "./game.js";
 import { createMeta, LiveWorld, readMeta, type DbLike, type LiveAction, type WorldMeta } from "./live.js";
-import { buildMap, MAP_H, MAP_W, nightShade, project, type MapArt } from "./map.js";
+import { buildMap, headingDir, nightColor, nightShade, truckMarkers, type MapArt, type MarkerKind } from "./map.js";
 import { MemoryDb } from "./memdb.js";
 
 // ---------------------------------------------------------------------------
@@ -169,11 +170,11 @@ let selTruck: number | null = null;
 let selHub: number | null = null;
 /** Test-world speeds only: the live clock can't be changed. */
 let speed = 1;
-const SPEEDS: { label: string; title: string; hoursPerSec: number }[] = [
-  { label: "❚❚", title: "Pause", hoursPerSec: 0 },
-  { label: "▶", title: "One game day a minute", hoursPerSec: 24 / 60 },
-  { label: "▶▶", title: "One game day every 10 seconds", hoursPerSec: 2.4 },
-  { label: "▶▶▶", title: "One game day every 2 seconds", hoursPerSec: 12 },
+const SPEEDS: { label: string; title: string; hoursPerSec: number; icon: string }[] = [
+  { label: "❚❚", title: "Pause", hoursPerSec: 0, icon: "pause" },
+  { label: "▶", title: "One game day a minute", hoursPerSec: 24 / 60, icon: "play" },
+  { label: "▶▶", title: "One game day every 10 seconds", hoursPerSec: 2.4, icon: "ff" },
+  { label: "▶▶▶", title: "One game day every 2 seconds", hoursPerSec: 12, icon: "fff" },
 ];
 let acc = 0;
 let panelDirty = true;
@@ -329,11 +330,21 @@ function showTitle(menuHtml: string): void {
   $("title").hidden = false;
   $("game").hidden = true;
   $("loading").hidden = true;
+  stopLoading();
   const cv = $<HTMLCanvasElement>("titleCanvas");
   const ctx = cv.getContext("2d")!;
   const reduced = matchMedia("(prefers-reduced-motion: reduce)").matches;
   const frame = (t: number) => {
-    drawTitleScene(ctx, 3, reduced ? 0 : t);
+    // The scene is 320 × 180 art pixels, shown at the biggest whole-number scale that fits.
+    const avail = Math.min(1280, $("title").clientWidth || 960);
+    const scale = Math.max(2, Math.min(4, Math.floor(avail / TITLE_W)));
+    if (cv.width !== TITLE_W * scale) {
+      cv.width = TITLE_W * scale;
+      cv.height = TITLE_H * scale;
+    }
+    drawTitleScene(ctx, scale, reduced ? 0 : t);
+    const lg = logo(scale * 2);
+    ctx.drawImage(lg, Math.round((cv.width - lg.width) / 2), 12 * scale);
     if (!reduced && !$("title").hidden) titleRaf = requestAnimationFrame(frame);
   };
   cancelAnimationFrame(titleRaf);
@@ -380,16 +391,34 @@ function testMenu(): string {
   </form>`;
 }
 
+let loadShare = 0;
+let loadRaf = 0;
+function setLoad(share: number): void {
+  loadShare = share;
+}
+function stopLoading(): void {
+  cancelAnimationFrame(loadRaf);
+  loadRaf = 0;
+}
 function showLoading(title: string, note: string): void {
   $("title").hidden = true;
   $("game").hidden = true;
   $("loading").hidden = false;
   $("loadtitle").textContent = title;
   $("loadnote").textContent = note;
-  $("loadbar").style.width = "0%";
+  loadShare = 0;
+  const cv = $<HTMLCanvasElement>("loadCanvas");
+  const ctx = cv.getContext("2d")!;
+  const frame = (t: number) => {
+    drawLoadingRoad(ctx, 3, loadShare, t);
+    if (!$("loading").hidden) loadRaf = requestAnimationFrame(frame);
+  };
+  stopLoading();
+  loadRaf = requestAnimationFrame(frame);
 }
 
 async function boot(): Promise<void> {
+  installTheme();
   wireInput();
   if (TEST_BUILD) return bootTest();
   showTitle(card("Connecting", `<p class="muted">Finding the live world…</p>`));
@@ -443,7 +472,7 @@ async function enterLive(meta: WorldMeta): Promise<void> {
     }
   };
   await lw.rebuild((share) => {
-    $("loadbar").style.width = `${Math.round(share * 100)}%`;
+    setLoad(share);
     $("loadnote").textContent = `${dateLabel(Math.floor(lw.w.t / 1440))}, ${hhmm(lw.w.t)}`;
   });
   if (!lw.player && platform.uid && lw.writer) showTitle(joinMenu());
@@ -457,8 +486,8 @@ async function enterLive(meta: WorldMeta): Promise<void> {
 function showGame(s: Session): void {
   game = s;
   feed(s).lastT = s.w.t;
-  art ??= buildMap(s.w.net.hubs, (a, b) => hubMiles(s.w, a, b), s.w.net.roads);
   cancelAnimationFrame(titleRaf);
+  stopLoading();
   $("title").hidden = true;
   $("loading").hidden = true;
   $("game").hidden = false;
@@ -544,38 +573,56 @@ function loop(now: number): void {
 }
 let brokenShown = false;
 
-// --- Map view: whole-number fit, zoom levels and pan --------------------------------
+// --- Map view: device-pixel fit, whole-number zoom levels and pan --------------------------
 
 /** Whole-number zoom levels keep every map pixel square. */
 const ZOOMS = [1, 2, 3, 4, 6];
-/** Canvas pixels per map pixel at 1×: the largest whole number that fits the screen. */
-let fitScale = 1;
+/** Device pixels per map pixel at 1×: the whole part of the device pixel ratio, so a map pixel is one CSS pixel. */
+let sDev = 1;
 let zoomIdx = 0;
 /** Top-left of the view, in canvas pixels of the zoomed map. */
 let panX = 0;
 let panY = 0;
+let buildTimer = 0;
 const zoom = () => ZOOMS[zoomIdx]!;
+/** Canvas pixels per map pixel at 1×: sDev once the base matches the canvas, a stretch factor while a resize waits to rebuild. */
+const fitK = () => ($<HTMLCanvasElement>("map").width || 1) / (art?.W ?? 1);
 /** Canvas pixels per map pixel right now. */
-const kScale = () => fitScale * zoom();
+const kScale = () => fitK() * zoom();
 
-/** Sizes the canvas to the largest whole-number scale that fits; below 400 px wide it scales down to fit. */
-function fitMap(): void {
-  const wrap = $("mapwrap");
+/** Paints the base layer at one art pixel per screen pixel of the map window, keeping the view centred where it was. */
+function buildArt(W: number, H: number): void {
+  if (!game) return;
   const cv = $<HTMLCanvasElement>("map");
-  // As big as the width allows, but not taller than the screen below the top bar (room left for the ticker).
-  const tall = Math.floor((window.innerHeight - wrap.getBoundingClientRect().top - 48) / MAP_H);
-  const s = Math.min(Math.floor(wrap.clientWidth / MAP_W), Math.max(1, tall));
-  const next = Math.max(1, s);
-  if (next !== fitScale || cv.width !== MAP_W * next) {
-    // Keep the same place in the middle of the view when the fit changes.
-    const [cx, cy] = toWorld(cv.width / 2, cv.height / 2);
-    fitScale = next;
-    cv.width = MAP_W * fitScale;
-    cv.height = MAP_H * fitScale;
-    centerOn(cx, cy);
+  const old = art;
+  const center = old ? toWorld(cv.width / 2, cv.height / 2) : null;
+  const t0 = performance.now();
+  art = buildMap(game.w.net.hubs, game.w.net.roads, W, H);
+  headings.clear();
+  console.info(`map ${W}×${H} painted in ${Math.round(performance.now() - t0)} ms`);
+  cv.width = W * sDev;
+  cv.height = H * sDev;
+  if (center && old) centerOn((center[0] / old.W) * W, (center[1] / old.H) * H);
+  else clampPan();
+}
+
+/** Sizes the canvas to the map window in device pixels and (re)paints the base to match. */
+function fitMap(): void {
+  if (!game) return;
+  const wrap = $("mapwrap");
+  const cssW = wrap.clientWidth;
+  const cssH = wrap.clientHeight;
+  if (cssW < 40 || cssH < 40) return;
+  const dpr = window.devicePixelRatio || 1;
+  sDev = Math.max(1, Math.floor(dpr));
+  const W = Math.min(1600, Math.max(320, Math.floor((cssW * dpr) / sDev)));
+  const H = Math.min(1000, Math.max(200, Math.floor((cssH * dpr) / sDev)));
+  if (!art) buildArt(W, H);
+  else if (art.W !== W || art.H !== H) {
+    // Keep showing the old base, stretched, until the resize settles; then repaint once.
+    clearTimeout(buildTimer);
+    buildTimer = window.setTimeout(() => buildArt(W, H), 200);
   }
-  cv.style.width = s >= 1 ? `${MAP_W * s}px` : "100%";
-  cv.style.height = s >= 1 ? `${MAP_H * s}px` : "auto";
   renderZoomUi();
 }
 
@@ -588,9 +635,12 @@ function toWorld(cx: number, cy: number): [number, number] {
   return [(cx + panX) / k, (cy + panY) / k];
 }
 function clampPan(): void {
-  const extra = kScale() - fitScale;
-  panX = Math.round(Math.max(0, Math.min(MAP_W * extra, panX)));
-  panY = Math.round(Math.max(0, Math.min(MAP_H * extra, panY)));
+  const cv = $<HTMLCanvasElement>("map");
+  const k = kScale();
+  const maxX = Math.max(0, (art?.W ?? 0) * k - cv.width);
+  const maxY = Math.max(0, (art?.H ?? 0) * k - cv.height);
+  panX = Math.round(Math.max(0, Math.min(maxX, panX)));
+  panY = Math.round(Math.max(0, Math.min(maxY, panY)));
 }
 function centerOn(wx: number, wy: number): void {
   const cv = $<HTMLCanvasElement>("map");
@@ -649,6 +699,14 @@ function observe(s: Session): void {
 
 // --- Map --------------------------------------------------------------------
 
+/** Last heading per truck, so a parked truck keeps facing the way it arrived. */
+const headings = new Map<number, number>();
+/** Unit vectors for the eight headings, clockwise from east. */
+const DIR_VEC: [number, number][] = [[1, 0], [0.7071, 0.7071], [0, 1], [-0.7071, 0.7071], [-1, 0], [-0.7071, -0.7071], [0, -1], [0.7071, -0.7071]];
+/** Tallest tower of each city class, in art pixels, for placing pins and labels above the skyline. */
+const CITY_TOP = [4, 6, 10, 13];
+
+/** Where a truck is on the map, in art pixels; remembers which way it is facing. */
 function truckXY(t: Truck): [number, number] | null {
   const w = game!.w;
   const xy = art!.hubXY;
@@ -667,136 +725,221 @@ function truckXY(t: Truck): [number, number] | null {
   const left = Math.max(0, t.remainingMi - ahead);
   // Along the real road when there is one; straight between the hubs otherwise.
   if (route) {
-    const [lat, lon] = w.net.roads.pointAlong(route, total - left, w.net.hubs[t.hub]!, w.net.hubs[t.targetHub]!);
-    return project(lon, lat);
+    const from = w.net.hubs[t.hub]!;
+    const to = w.net.hubs[t.targetHub]!;
+    const at = (mi: number): [number, number] => {
+      const [lat, lon] = w.net.roads.pointAlong(route, mi, from, to);
+      return art!.project(lon, lat);
+    };
+    const done = total - left;
+    const p = at(done);
+    const q = done + 12 < total ? at(done + 12) : at(Math.max(0, done - 12));
+    const sign = done + 12 < total ? 1 : -1;
+    if (q[0] !== p[0] || q[1] !== p[1]) headings.set(t.id, headingDir((q[0] - p[0]) * sign, (q[1] - p[1]) * sign));
+    return p;
   }
+  headings.set(t.id, headingDir(b[0] - a[0], b[1] - a[1]));
   const k = total > 0 ? Math.max(0, Math.min(1, 1 - left / total)) : 1;
   return [a[0] + (b[0] - a[0]) * k, a[1] + (b[1] - a[1]) * k];
 }
 
 const isMoving = (t: Truck) => (t.status === "toPickup" || t.status === "loaded" || t.status === "repositioning") && t.targetHub !== t.hub;
 
-/** Where a truck shows: on its lane, or, zoomed in, fanned out around its hub so each one is visible. */
+/** Where a truck shows: on its lane, or, at a hub, in the yard around the skyline so each one is visible. */
 function truckPoint(t: Truck): [number, number] | null {
   const p = truckXY(t);
-  if (!p || zoom() < 2 || isMoving(t)) return p;
-  const i = t.id % 48;
-  const r = 0.45 * Math.sqrt(i);
+  if (!p || isMoving(t)) return p;
+  const i = t.id % 64;
+  const r = 5 + 2.6 * Math.sqrt(i);
   const a = i * 2.39996; // golden angle: an even spiral
-  return [p[0] + Math.cos(a) * r, p[1] + Math.sin(a) * r];
+  return [p[0] + Math.cos(a) * r, p[1] + 3 + Math.abs(Math.sin(a)) * r * 0.7];
+}
+
+/** The road still ahead of a moving truck, in art pixels, from the truck to its destination. */
+function routeAhead(t: Truck): [number, number][] | null {
+  const w = game!.w;
+  const route = hubRoute(w, t.hub, t.targetHub);
+  const p = truckXY(t);
+  if (!route || !p) return null;
+  const roads = w.net.roads;
+  const total = t.legMiles > 0 ? t.legMiles : route.miles;
+  const done = Math.max(0, Math.min(total, total - t.remainingMi));
+  const pts: [number, number][] = [p];
+  let lo = 0;
+  while (lo + 1 < route.edges.length && route.cum[lo + 1]! <= done) lo++;
+  for (let i = lo; i < route.edges.length; i++) {
+    const signed = route.edges[i]!;
+    const ei = signed >= 0 ? signed : -signed - 1;
+    const fwd = signed >= 0;
+    const e = roads.edges[ei]!;
+    const within = fwd ? done - route.cum[i]! : e.miles - (done - route.cum[i]!);
+    for (let n = 0; n < e.gn; n++) {
+      const k = fwd ? e.g0 + n : e.g0 + e.gn - 1 - n;
+      if (i === lo) {
+        const along = roads.along[k]!;
+        if (fwd ? along < within : along > within) continue;
+      }
+      pts.push(art!.project(roads.lon[k]!, roads.lat[k]!));
+    }
+  }
+  pts.push(art!.hubXY[t.targetHub]!);
+  return pts;
 }
 
 function drawMap(now: number): void {
   const cv = $<HTMLCanvasElement>("map");
+  if (!art) return;
   const ctx = cv.getContext("2d")!;
   const w = game!.w;
   const W = cv.width;
   const H = cv.height;
-  const k = kScale();
-  // Markers are drawn in their own pixels: the map's pixel size at 1×, doubled from 3×, so they stay sharp without ballooning.
-  const u = fitScale * (zoom() >= 3 ? 2 : 1);
-  const visible = (X: number, Y: number) => X > -16 * u && Y > -16 * u && X < W + 16 * u && Y < H + 16 * u;
+  const f = fitK();
+  const k = f * zoom();
+  // Markers grow with the map up to 4×, then stop, so a zoomed-in truck is still a truck and not a billboard.
+  const u = Math.max(1, Math.round(f * Math.min(zoom(), 4)));
+  const visible = (X: number, Y: number) => X > -40 * u && Y > -40 * u && X < W + 40 * u && Y < H + 40 * u;
   ctx.imageSmoothingEnabled = false;
+  ctx.fillStyle = PAL.seaD;
+  ctx.fillRect(0, 0, W, H);
   ctx.setTransform(k, 0, 0, k, -panX, -panY);
-  ctx.drawImage(art!.base, 0, 0);
+  ctx.drawImage(art.base, 0, 0);
   ctx.setTransform(1, 0, 0, 1, 0, 0);
   // Glints on the water.
   ctx.fillStyle = PAL.foam;
-  for (let i = 0; i < art!.glints.length; i++) {
+  for (let i = 0; i < art.glints.length; i++) {
     if ((Math.floor(now / 450) + i * 7) % 11 === 0) {
-      const [X, Y] = toScreen(...art!.glints[i]!);
+      const [X, Y] = toScreen(...art.glints[i]!);
       if (visible(X, Y)) ctx.fillRect(X, Y, 2 * u, u);
     }
   }
-  const shade = nightShade(Math.floor(clockMin() / 60) % 24);
-  if (shade > 0) {
-    ctx.fillStyle = `rgba(10,13,24,${shade})`;
-    ctx.fillRect(0, 0, W, H);
-    ctx.fillStyle = PAL.gold;
-    for (let i = 0; i < art!.lights.length; i++) {
-      if ((i * 13 + Math.floor(now / 900)) % 17 === 0) continue;
-      const [X, Y] = toScreen(...art!.lights[i]!);
-      if (visible(X, Y)) ctx.fillRect(X, Y, u, u);
-    }
-  }
-  if (zoom() >= 2) drawHubLabels(ctx, k, u, visible);
-  // AI carriers one dot each; other players' trucks a size up, in lime.
+  const hour = (clockMin() / 60) % 24;
+  const shade = nightShade(hour);
   const mine = game!.player?.id ?? -1;
   const humans = new Set(w.companies.filter(isHuman).map((c) => c.id));
-  ctx.fillStyle = shade > 0.2 ? PAL.amber : PAL.paper;
+  // The selected hub: a bobbing pin above its skyline.
+  if (selHub !== null) {
+    const [X, Y] = toScreen(...art.hubXY[selHub]!);
+    const pin = icon("pin", u);
+    const bob = (Math.floor(now / 400) % 2) * u;
+    ctx.drawImage(pin, X - 6 * u, Math.round(Y - CITY_TOP[art.cityClass[selHub]!]! * k - 12 * u - bob));
+  }
+  // The road ahead of the selected truck, as marching gold dots.
+  const sel = myTrucks().find((t) => t.id === selTruck);
+  if (sel && isMoving(sel)) {
+    const pts = routeAhead(sel);
+    if (pts) {
+      ctx.fillStyle = PAL.gold;
+      const gap = 5 * u;
+      let carry = (now / 50) % gap;
+      for (let i = 0; i + 1 < pts.length; i++) {
+        const [x0, y0] = toScreen(...pts[i]!);
+        const [x1, y1] = toScreen(...pts[i + 1]!);
+        const len = Math.hypot(x1 - x0, y1 - y0);
+        let d = carry;
+        for (; d < len; d += gap) {
+          const X = Math.round(x0 + ((x1 - x0) * d) / len);
+          const Y = Math.round(y0 + ((y1 - y0) * d) / len);
+          if (visible(X, Y)) ctx.fillRect(X, Y, u, u);
+        }
+        carry = d - len;
+      }
+    }
+  }
+  // Trucks: AI carriers small and grey, other players in lime; yours come after the night tint, in cyan.
+  // On a small map window (a phone) the AI fleet is dots until you zoom in, or the country disappears under trucks.
+  const tiny = art.W < 600 && zoom() < 2;
+  const draw = (t: Truck, kind: MarkerKind): [number, number, number] | null => {
+    const p = truckPoint(t);
+    if (!p) return null;
+    const [X, Y] = toScreen(p[0], p[1]);
+    if (!visible(X, Y)) return null;
+    const dir = headings.get(t.id) ?? 0;
+    if (tiny && kind === "ai") {
+      ctx.fillStyle = PAL.mist;
+      ctx.fillRect(X - u, Y, 2 * u, u);
+      return [X, Y, dir];
+    }
+    const sprite = truckMarkers(kind, t.trailer, u)[dir]!;
+    ctx.drawImage(sprite, X - Math.floor(sprite.width / 2), Y - Math.floor(sprite.height / 2));
+    return [X, Y, dir];
+  };
+  const lamps = (X: number, Y: number, dir: number, reach: number) => {
+    const [dx, dy] = DIR_VEC[dir]!;
+    ctx.fillStyle = PAL.gold;
+    ctx.fillRect(Math.round(X + dx * reach), Math.round(Y + dy * reach), u, u);
+    ctx.fillStyle = PAL.red;
+    ctx.fillRect(Math.round(X - dx * reach), Math.round(Y - dy * reach), u, u);
+  };
+  const lit: [number, number, number][] = [];
   for (const t of w.trucks) {
     if (t.companyId === mine || humans.has(t.companyId)) continue;
-    const p = truckPoint(t);
-    if (!p) continue;
-    const [X, Y] = toScreen(p[0], p[1]);
-    if (visible(X, Y)) ctx.fillRect(X, Y, u, u);
+    const r = draw(t, "ai");
+    if (r && shade > 0.2 && isMoving(t)) lit.push(r);
   }
   for (const t of w.trucks) {
     if (t.companyId === mine || !humans.has(t.companyId)) continue;
-    const p = truckPoint(t);
-    if (!p) continue;
-    const [X, Y] = toScreen(p[0], p[1]);
-    if (!visible(X, Y)) continue;
-    ctx.fillStyle = PAL.ink0;
-    ctx.fillRect(X - u, Y - u, 4 * u, 4 * u);
-    ctx.fillStyle = PAL.lime;
-    ctx.fillRect(X, Y, 2 * u, 2 * u);
+    const r = draw(t, "other");
+    if (r && shade > 0.2 && isMoving(t)) lit.push(r);
   }
-  // Selected hub marker.
-  if (selHub !== null) {
-    const [X, Y] = toScreen(...art!.hubXY[selHub]!);
-    ctx.fillStyle = PAL.ink0;
-    ctx.fillRect(X - 4 * u, Y - 9 * u, 9 * u, 6 * u);
-    ctx.fillStyle = PAL.amber;
-    ctx.fillRect(X - 3 * u, Y - 8 * u, 7 * u, 4 * u);
-    ctx.fillRect(X, Y - 4 * u, u, 3 * u);
-  }
-  // Your trucks: outlined cyan, the selected one blinking with its route.
-  for (const t of myTrucks()) {
-    const p = truckPoint(t);
-    if (!p) continue;
-    const [X, Y] = toScreen(p[0], p[1]);
-    if (t.id === selTruck && isMoving(t)) {
-      const [TX, TY] = toScreen(...art!.hubXY[t.targetHub]!);
-      const n = Math.max(1, Math.round(Math.hypot(TX - X, TY - Y) / u));
-      ctx.fillStyle = PAL.gold;
-      for (let i = 0; i < n; i += 3) ctx.fillRect(Math.round(X + ((TX - X) * i) / n), Math.round(Y + ((TY - Y) * i) / n), u, u);
+  // Night: a tint over everything so far — amber at dusk, blue by midnight — then the lights come on.
+  if (shade > 0) {
+    ctx.globalAlpha = shade;
+    ctx.fillStyle = nightColor(hour);
+    ctx.fillRect(0, 0, W, H);
+    ctx.globalAlpha = 1;
+    ctx.fillStyle = PAL.gold;
+    for (let i = 0; i < art.lights.length; i++) {
+      if ((i * 13 + Math.floor(now / 900)) % 17 === 0) continue;
+      const [X, Y] = toScreen(...art.lights[i]!);
+      if (visible(X, Y)) ctx.fillRect(X, Y, u, u);
     }
-    if (!visible(X, Y)) continue;
-    const blink = t.id === selTruck && Math.floor(now / 300) % 2 === 0;
-    ctx.fillStyle = PAL.ink0;
-    ctx.fillRect(X - 2 * u, Y - 2 * u, 5 * u, 5 * u);
-    ctx.fillStyle = blink ? PAL.white : t.status === "repair" ? PAL.red : PAL.cyan;
-    ctx.fillRect(X - u, Y - u, 3 * u, 3 * u);
+    for (const [X, Y, dir] of lit) lamps(X, Y, dir, 7 * u);
   }
+  for (const t of myTrucks()) {
+    const r = draw(t, "mine");
+    if (!r) continue;
+    const [X, Y, dir] = r;
+    if (shade > 0.2 && isMoving(t)) lamps(X, Y, dir, 9 * u);
+    if (t.id === selTruck && Math.floor(now / 350) % 2 === 0) {
+      // Corner ticks around the selected truck.
+      ctx.fillStyle = PAL.white;
+      const r0 = 9 * u;
+      for (const [sx, sy] of [[-1, -1], [1, -1], [-1, 1], [1, 1]] as const) {
+        const cx = X + sx * r0;
+        const cy = Y + sy * r0;
+        ctx.fillRect(sx < 0 ? cx : cx - 3 * u + u, cy, 3 * u, u);
+        ctx.fillRect(cx, sy < 0 ? cy : cy - 3 * u + u, u, 3 * u);
+      }
+    }
+    if (t.status === "repair" || t.breakdownMin > 0) {
+      ctx.drawImage(icon("wrench", u), X - 6 * u, Y - 16 * u);
+    }
+  }
+  drawHubLabels(ctx, f, k, u, visible);
 }
 
-/** Hub codes once zoomed in; from 3× each also shows its open loads. */
-function drawHubLabels(ctx: CanvasRenderingContext2D, k: number, u: number, visible: (X: number, Y: number) => boolean): void {
+/** Hub codes in the bitmap font: metros at 1×, every hub from 2×, open-load counts from 3×, full names from 4×. */
+function drawHubLabels(ctx: CanvasRenderingContext2D, f: number, k: number, u: number, visible: (X: number, Y: number) => boolean): void {
   const w = game!.w;
-  const px = 8 * Math.max(1, Math.floor(k / 4));
-  const step = px / 8;
+  const z = zoom();
+  const L = Math.max(1, Math.round(f * (z >= 3 ? 3 : 2)));
   let open: Map<number, number> | null = null;
-  if (zoom() >= 3) {
+  if (z >= 3) {
     open = new Map();
     for (const l of w.loads.values()) if (l.status === "open") open.set(l.origin, (open.get(l.origin) ?? 0) + 1);
   }
-  ctx.font = `${px}px "Press Start 2P", ui-monospace, monospace`;
-  ctx.textBaseline = "top";
   w.net.hubs.forEach((h, i) => {
+    const cls = art!.cityClass[i]!;
+    if (z === 1 && cls < 3 && i !== selHub) return;
     const [X, Y] = toScreen(...art!.hubXY[i]!);
     if (!visible(X, Y)) return;
-    const x = X + 3 * u;
-    const y = Y - px - 2 * u;
-    const count = open ? ` ${open.get(i) ?? 0}` : "";
-    ctx.fillStyle = PAL.ink0;
-    ctx.fillText(h.id + count, x + step, y + step);
-    ctx.fillStyle = i === selHub ? PAL.amber : PAL.paper;
-    ctx.fillText(h.id, x, y);
-    if (count) {
-      ctx.fillStyle = PAL.gold;
-      ctx.fillText(count, x + ctx.measureText(h.id).width, y);
-    }
+    const text = z >= 4 ? h.name.toUpperCase() : h.id;
+    const count = open ? String(open.get(i) ?? 0) : "";
+    const tw = textWidth(text) * L;
+    const x = X - Math.round(tw / 2);
+    const y = Math.round(Y - CITY_TOP[cls]! * k - 7 * L - 2 * u);
+    drawText(ctx, text, x, y, L, i === selHub ? PAL.gold : PAL.white, PAL.ink0);
+    if (count) drawText(ctx, count, x + tw + 3 * L, y, L, PAL.gold, PAL.ink0);
   });
 }
 
@@ -811,7 +954,7 @@ function mapPoint(ev: { clientX: number; clientY: number }): [number, number] {
   return toWorld(...canvasPoint(ev));
 }
 /** The hub nearest a map point, within a reach that stays the same on screen at every zoom. */
-function nearestHub(x: number, y: number, max = 7 / zoom()): number | null {
+function nearestHub(x: number, y: number, max = 14 / zoom()): number | null {
   let best: number | null = null;
   let bd = max;
   art!.hubXY.forEach(([hx, hy], i) => {
@@ -823,6 +966,7 @@ function nearestHub(x: number, y: number, max = 7 / zoom()): number | null {
   });
   return best;
 }
+
 
 function openLoadsAt(hub: number): Load[] {
   const out: Load[] = [];
@@ -842,7 +986,7 @@ function renderHud(): void {
   checkIdleAlerts();
   const badge =
     g.kind === "test"
-      ? `<span class="badge test" title="A private test world: nothing here is stored">TEST WORLD</span><div class="speeds" role="group" aria-label="Test world speed">${SPEEDS.map((sp, i) => `<button class="btn" data-speed="${i}" title="${esc(sp.title)}">${sp.label}</button>`).join("")}</div>${live ? `<button class="btn" data-act="backlive">Back to the live world</button>` : ""}`
+      ? `<span class="badge test" title="A private test world: nothing here is stored">TEST WORLD</span><div class="speeds" role="group" aria-label="Test world speed">${SPEEDS.map((sp, i) => `<button class="btn" data-speed="${i}" title="${esc(sp.title)}" aria-label="${esc(sp.title)}">${img(iconUrl(sp.icon, 2), sp.label)}</button>`).join("")}</div>${live ? `<button class="btn" data-act="backlive">Back to the live world</button>` : ""}`
       : `<span class="badge live" title="One game day every 6 real hours. The live clock never stops.">● LIVE</span>${!c ? `<span class="badge watch">Watching</span>` : ""}`;
   let stats = "";
   if (c) {
@@ -863,7 +1007,7 @@ function renderHud(): void {
     const tired = tiredTrucks().length;
     if (tired) stats += `<span class="badge alert" title="Drivers out three weeks or running tired: the Fleet tab says what to do">${tired} TIRED</span>`;
   }
-  if (fsEnabled()) stats += `<button class="btn" data-act="fullscreen" title="Full screen (F)">${fsActive() ? "Exit full screen" : "Full screen"}</button>`;
+  if (fsEnabled()) stats += `<button class="btn" data-act="fullscreen" title="Full screen (F)">${img(iconUrl("full", 2), "")}${fsActive() ? "Exit" : "Full screen"}</button>`;
   // The clock text changes many times a second at the fast speeds, so it's updated in
   // place: rebuilding the bar would replace the speed buttons under a finger mid-press
   // and the tap would never land.
@@ -909,16 +1053,18 @@ function renderTicker(): void {
 }
 
 function renderTabs(): void {
-  const tabs: [Tab, string][] = [
-    ["fleet", "Fleet"],
-    ["loads", "Load board"],
-    ["staff", "Staff"],
-    ["market", "Dealer"],
-    ["money", "Money"],
-    ["company", "Company"],
-    ["guide", "Guide"],
+  const tabs: [Tab, string, string][] = [
+    ["fleet", "Fleet", "truck"],
+    ["loads", "Loads", "board"],
+    ["staff", "Staff", "people"],
+    ["market", "Dealer", "tag"],
+    ["money", "Money", "money"],
+    ["company", "Company", "building"],
+    ["guide", "Guide", "book"],
   ];
-  $("tabs").innerHTML = tabs.map(([k, l]) => `<button class="btn ${k === tab ? "on" : ""}" data-tab="${k}" aria-pressed="${k === tab}">${l}</button>`).join("");
+  $("tabs").innerHTML = tabs
+    .map(([k, l, ic]) => `<button class="btn ${k === tab ? "on" : ""}" data-tab="${k}" aria-pressed="${k === tab}" title="${l}" aria-label="${l}">${img(iconUrl(ic, 2), "")}<span>${l}</span></button>`)
+    .join("");
 }
 
 // --- Panels -------------------------------------------------------------------------
@@ -1842,7 +1988,7 @@ async function bootTest(): Promise<void> {
   let t: TestGame;
   try {
     if (!log.acts.every((x) => Array.isArray(x) && Number.isFinite(x[0]) && x[1] && typeof x[1] === "object")) throw new Error("bad log");
-    t = await TestGame.restore(log, (share) => ($("loadbar").style.width = `${Math.round(share * 100)}%`));
+    t = await TestGame.restore(log, (share) => setLoad(share));
   } catch {
     showTitle(testMenu());
     toast("Your saved test world couldn't be replayed, so it was set aside. Start a new one.", true);
@@ -1870,7 +2016,7 @@ function backToLive(): void {
 function selectOnMap(ev: { clientX: number; clientY: number }): void {
   const [x, y] = mapPoint(ev);
   let best: Truck | null = null;
-  let bd = 5 / zoom();
+  let bd = 9 / zoom();
   for (const t of myTrucks()) {
     const p = truckPoint(t);
     if (!p) continue;

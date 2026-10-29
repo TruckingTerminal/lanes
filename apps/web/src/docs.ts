@@ -30,7 +30,7 @@ export function renderDocs(): string {
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Pixelify+Sans:wght@400;600&family=Press+Start+2P&display=swap">
 <style>
-:root { --ink0: #0a0d18; --ink1: #121829; --ink2: #1c2540; --ink3: #2b3a5a; --fog: #7d8fae; --paper: #ece5d3; --amber: #f2a541; --gold: #ffd36b; --cyan: #7fdcea; --lime: #a6d65e; --red: #d6493a; }
+:root { --ink0: #090c17; --ink1: #10172a; --ink2: #1a2340; --ink3: #283659; --fog: #7b8db0; --paper: #ece4cf; --amber: #f4a83c; --gold: #ffd96a; --cyan: #7fdcea; --lime: #a9dc62; --red: #d84a3a; }
 * { box-sizing: border-box; }
 html { scroll-padding-top: 16px; }
 body { margin: 0; background: var(--ink1); color: var(--paper); font-family: "Pixelify Sans", "Trebuchet MS", system-ui, sans-serif; font-size: 17px; line-height: 1.5; }
@@ -38,16 +38,16 @@ a { color: var(--cyan); }
 .wrap { max-width: 1080px; margin: 0 auto; padding: 24px 16px 64px; display: grid; grid-template-columns: 260px minmax(0, 1fr); gap: 32px; }
 header { grid-column: 1 / -1; display: flex; flex-wrap: wrap; align-items: baseline; gap: 12px 24px; border-bottom: 2px solid var(--ink3); padding-bottom: 16px; }
 h1, h2, h3 { font-family: "Press Start 2P", ui-monospace, monospace; font-weight: 400; line-height: 1.4; }
-h1 { font-size: 20px; color: var(--amber); margin: 0; }
-h2 { font-size: 13px; color: var(--amber); margin: 40px 0 8px; text-transform: uppercase; letter-spacing: 0.06em; }
-h3 { font-size: 11px; margin: 0 0 10px; color: var(--paper); }
-h4 { font-family: "Press Start 2P", ui-monospace, monospace; font-weight: 400; font-size: 9px; color: var(--amber); margin: 14px 0 6px; }
+h1 { font-size: 24px; color: var(--amber); margin: 0; text-shadow: 3px 3px 0 var(--ink0); }
+h2 { font-size: 16px; color: var(--amber); margin: 40px 0 8px; text-transform: uppercase; letter-spacing: 0.06em; text-shadow: 2px 2px 0 var(--ink0); }
+h3 { font-family: "Pixelify Sans", "Trebuchet MS", system-ui, sans-serif; font-weight: 600; font-size: 20px; margin: 0 0 10px; color: var(--paper); }
+h4 { font-family: "Press Start 2P", ui-monospace, monospace; font-weight: 400; font-size: 8px; color: var(--amber); margin: 14px 0 6px; }
 nav { position: sticky; top: 16px; align-self: start; max-height: calc(100vh - 32px); overflow: auto; font-size: 15px; }
 nav ul { list-style: none; margin: 0; padding: 0; }
 nav > ul > li { margin-bottom: 12px; }
 nav > ul > li > span { font-family: "Press Start 2P", monospace; font-size: 8px; color: var(--fog); text-transform: uppercase; letter-spacing: 0.08em; }
 nav ul ul li { margin: 3px 0; }
-section { background: var(--ink2); border: 2px solid var(--ink3); padding: 16px; margin: 12px 0; }
+section { background: var(--ink2); border: 2px solid var(--ink0); box-shadow: inset 2px 2px 0 var(--ink3), inset -2px -2px 0 var(--ink1); padding: 16px; margin: 12px 0; }
 section p { margin: 0 0 10px; }
 section ul { margin: 0 0 10px; padding-left: 22px; }
 section li { margin: 4px 0; }
