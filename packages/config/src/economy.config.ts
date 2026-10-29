@@ -119,6 +119,8 @@ export const economyConfig = {
     paceLoss: 0.1, // speed × (1 − this × fatigue)
     moralePerDay: 0.02, // morale lost per day at fatigue 1 (scaled from 0.5 up)
     tiredAt: 0.5, // the client and the notices call a driver tired from here
+    // Home time routing: a driver due home takes loads that get the truck closer, and runs empty only when near.
+    homeward: { closerByMi: 100, deadheadWithinMi: 400, deadheadAfterRounds: 4 },
   },
 
   // §Load board — freight sources
@@ -571,7 +573,7 @@ export const economyConfig = {
       crash: [1.6, 0.4] as const, // crash odds multiplier at skill 0 and 1
       learnMiles: 300_000, // skill closes (gap to potential) × miles / this
       teamPayShare: 0.6, // each driver of a team earns 60% of their rate on every mile the truck runs
-      perDiemFd: 60, // what a driver costs the company for every day away from the home hub (meals, parking, showers)
+      perDiemFd: 30, // a layover: what a driver costs the company for each full day a truck sits idle away from the home hub (the first day is a night in the cab; on the road, wages cover it)
     },
     dispatcher: {
       payPerWeek: [500, 1_900] as const, // quoted for a full span; billed for the trucks they actually run (labor.payDispatchers)

@@ -280,6 +280,7 @@ export function applyAction(w: World, companyId: number, action: Action): Action
       if (truck.status !== "idle") return { ok: false, reason: "wait until the truck is idle" };
       w.manualBids.delete(truck.id);
       for (const id of [truck.driverId, truck.coDriverId]) if (id) w.staff[id - 1]!.wantsHome = true;
+      // Sent by hand, the truck runs straight home; the dispatcher's rule would wait for a load that way.
       const miles = hubMiles(w, truck.hub, company.homeHub);
       if (miles > cfg.map.nearbyRadiusMi) {
         truck.status = "repositioning";

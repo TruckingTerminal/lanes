@@ -39,9 +39,9 @@ export function staffPages(cfg: EconomyConfig): GuidePage[] {
           `<b>What it does:</b> crash odds ×${1 + cfg.fatigue.crashMult} at full fatigue, the truck runs up to ${pct(cfg.fatigue.paceLoss)} slower, and a tired hire's morale drops every day until they quit.`,
         ]) +
         h("Home time") +
-        p(`The standing order "Bring drivers home" sends a truck to your home hub after a set number of days out and rests its driver for a set number of days; the dispatcher leaves the truck alone meanwhile. You can also send any idle truck home from its card. Teams rest together. You drive your first truck yourself, and the same rules apply to you.`) +
+        p(`The standing order "Bring drivers home" brings a truck home after a set number of days out and rests its driver for a set number of days; the dispatcher leaves the truck alone meanwhile. A truck due home keeps hauling, but only loads that deliver near home or at least ${cfg.fatigue.homeward.closerByMi} miles closer to it; it runs empty the last ${cfg.fatigue.homeward.deadheadWithinMi} miles, or after ${cfg.fatigue.homeward.deadheadAfterRounds / 2} days without a homeward load. "Send home" on a truck's card runs it straight home. Teams rest together. You drive your first truck yourself, and the same rules apply to you.`) +
         h("Per diem") +
-        p(`Every day a driver is away from the home hub costs the company ${cfg.labor.driver.perDiemFd} FD in per diem (meals, parking, showers). A truck sitting idle far from home is spending money and wearing its driver out; that's why a local carrier can wait for a good load and a visitor can't.`),
+        p(`Every day a truck sits idle away from the home hub costs the company ${cfg.labor.driver.perDiemFd} FD in per diem (a layover: the hotel, the parking, the meals). On the road, wages cover it. A truck waiting around far from home is spending money and wearing its driver out; that's why a local carrier can wait for a good load and a visitor can't.`),
     },
     {
       id: "dispatchers",

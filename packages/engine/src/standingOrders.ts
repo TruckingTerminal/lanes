@@ -20,6 +20,21 @@ export function resting(w: World, t: Truck): boolean {
   return d.homeUntilDay !== null && d.homeUntilDay > dayOf(w.t, w.cfg);
 }
 
+/** The truck's driver is due home: a send-home order, or the home-time rule's days out are up. */
+export function needsHome(w: World, c: Company, t: Truck): boolean {
+  if (!t.driverId) return false;
+  const d = w.staff[t.driverId - 1]!;
+  if (d.wantsHome) return true;
+  const hm = c.orders.find((o): o is Extract<StandingOrder, { kind: "homeTime" }> => o.kind === "homeTime");
+  return hm !== undefined && d.awayDays >= hm.afterDays;
+}
+
+/** A load that brings a truck due home closer: delivers within the home radius, or well on the way. */
+export function homeward(w: World, c: Company, t: Truck, load: Load): boolean {
+  const toHome = hubMiles(w, load.dest, c.homeHub);
+  return toHome <= w.cfg.map.nearbyRadiusMi || toHome <= hubMiles(w, t.hub, c.homeHub) - w.cfg.fatigue.homeward.closerByMi;
+}
+
 /**
  * How badly this truck needs to move, 0 (content) to 1 (take anything that covers
  * costs): idle time, and a driver's days from home. Sitting at home is half as pressing.
@@ -82,6 +97,7 @@ export function bidsFromStandingOrders(w: World, company: Company, idx: BoardInd
   for (const truck of fleet) {
     if (truck.status !== "idle" || !crewed(truck) || resting(w, truck)) continue;
     if (team.coverage < 1 && rng.next() >= team.coverage) continue;
+    const goHome = needsHome(w, company, truck);
     const candidates: { bid: Bid; profit: number }[] = [];
     let inRange = 0;
     for (const hub of w.net.nearby[truck.hub]!) {
@@ -94,6 +110,7 @@ export function bidsFromStandingOrders(w: World, company: Company, idx: BoardInd
         if (!allowed[load.vet]) continue;
         if (load.hot > 0 && !canMakeHot(company, truck)) continue;
         if (trackingWouldShow(company, load)) continue;
+        if (goHome && !homeward(w, company, truck, load)) continue; // due home: only loads that head that way
         inRange++;
         const priced = priceLoad(w, truck, load, dh, fuel, bidOrders, floor, team);
         if (priced === null) continue;

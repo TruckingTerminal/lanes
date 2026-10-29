@@ -158,9 +158,9 @@ function carrierProfile(strategy: Strategy, rng: Rng): BotProfile {
   // Book-now between rounds: the greedy hold out for a margin, the careful take a sure thing.
   const margin = strategy === "greedy" ? 0.3 : strategy === "conservative" ? 0.12 : rng.range(0.1, 0.4);
   p.otherOrders.push({ kind: "bookNow", breakEvenPlusPct: margin, maxDeadheadMi: p.maxDeadheadMi });
-  // Home time: clean carriers bring drivers home every three weeks, corner-cutters run them five; outlaws don't bother.
-  if (p.conduct === "clean") p.otherOrders.push({ kind: "homeTime", afterDays: 21, restDays: 5 });
-  else if (p.conduct === "cutter") p.otherOrders.push({ kind: "homeTime", afterDays: 35, restDays: 3 });
+  // Home time: clean carriers bring drivers home every four weeks (a week of mild fatigue), corner-cutters run them six; outlaws don't bother.
+  if (p.conduct === "clean") p.otherOrders.push({ kind: "homeTime", afterDays: 28, restDays: 5 });
+  else if (p.conduct === "cutter") p.otherOrders.push({ kind: "homeTime", afterDays: 42, restDays: 3 });
   return p;
 }
 

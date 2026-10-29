@@ -1054,7 +1054,7 @@ function tiredAlertsCard(): string {
           ? `<div class="row"><button class="btn primary" data-act="sendhome" data-truck="${t.id}">Send home · ${home} mi</button></div>`
           : `<p class="muted">Send it home when it's next idle, or let the dispatcher's home-time rule do it.</p>`;
       return `<div class="card alert"><h3>${d.owner ? "You have" : `${esc(d.name)} has`} been out ${plural(d.awayDays, "day")}${d.fatigue >= GAME_CONFIG.fatigue.tiredAt ? ` and ${d.owner ? "are" : "is"} tired (${pct(d.fatigue)})` : ""}</h3>
-        <p>Fatigue raises crash odds (×${(1 + GAME_CONFIG.fatigue.crashMult * d.fatigue).toFixed(2)} now), slows the truck and wears on morale. ${GAME_CONFIG.fatigue.resetDays} days off at home reset it; every day away costs ${GAME_CONFIG.labor.driver.perDiemFd} FD per diem.</p>${fix}</div>`;
+        <p>Fatigue raises crash odds (×${(1 + GAME_CONFIG.fatigue.crashMult * d.fatigue).toFixed(2)} now), slows the truck and wears on morale. ${GAME_CONFIG.fatigue.resetDays} days off at home reset it; every day sitting idle away from home costs ${GAME_CONFIG.labor.driver.perDiemFd} FD per diem.</p>${fix}</div>`;
     })
     .join("");
 }

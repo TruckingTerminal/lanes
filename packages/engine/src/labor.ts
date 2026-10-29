@@ -356,8 +356,11 @@ export function dailyDrivers(w: World): void {
     if (home) s.awayDays = 0;
     else {
       s.awayDays++;
-      w.ledger.post(w.t, companyAccount(c.id), "sink:per_diem", perDiem, `perdiem:${s.id}`);
-      c.operating.costFd += perDiem;
+      // A layover: a truck that has sat idle away from home for a day or more costs the company per diem.
+      if (hours === 0 && t && t.status === "idle" && w.t - t.idleSinceT >= w.cfg.time.gameMinutesPerDay) {
+        w.ledger.post(w.t, companyAccount(c.id), "sink:per_diem", perDiem, `perdiem:${s.id}`);
+        c.operating.costFd += perDiem;
+      }
     }
     let accrual = 0;
     if (hours > f.longDayHours) {

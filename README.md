@@ -421,16 +421,21 @@ Jeff's design (2026-10-28), the first of three steps toward a market where where
   or a driver more than two weeks from home takes anything that covers costs; a truck sitting at home
   is half as pressed. Dispatchers look every two hours. Bots: greedy hold out for +30%, conservative
   take +12%.
-- **Per diem** (`sink:per_diem`): 60 FD for every day a driver is away from the home hub. A visiting
-  truck idle in Miami is spending money; a local one isn't.
+- **Per diem** (`sink:per_diem`): 30 FD for each full day a truck sits idle away from the home hub
+  (a layover; the first night is in the cab, and on the road wages cover it). A visiting truck idle
+  in Miami is spending money; a local one isn't. Charging 60 FD for every road day cost 100M FD a
+  seed and doubled liquidations; 60 FD per idle day was still 39M.
 - **Fatigue and home time** (`labor.ts dailyDrivers`): past 21 consecutive days away, fatigue builds
   daily and faster by the week; a day over 10 driving hours builds it too, more for each consecutive
   long day (a legal 11-hour day barely registers; a 15-hour day on falsified logs does). Five days off
   at home reset it; extra days off bank a buffer. Fatigue doubles crash odds at full, slows the truck
   up to 10%, and wears a hire's morale. The "Bring drivers home" order sends a truck home after N days
-  out for M days off, during which the dispatcher leaves it alone; any idle truck can be sent home
-  from its card. Clean AI carriers bring drivers home every three weeks, corner-cutters every five,
-  outlaws never.
+  out for M days off, during which the dispatcher leaves it alone. A truck due home keeps hauling,
+  but only loads that deliver near home or at least 100 miles closer, and runs empty only within
+  400 miles or after two days without a homeward load (running straight home from anywhere, the
+  first cut, was the other half of the doubled liquidations). Any idle truck can be sent straight
+  home from its card. Clean AI carriers bring drivers home every four weeks (a week of mild fatigue
+  at the end), corner-cutters every six, outlaws never.
 - **In the client:** book-now price, profit at that price and a Book now button on every load
   (loads the company can't take say why and are greyed out); the two new dispatcher rows; days out
   and fatigue on every driver; a red TIRED badge and alert card with Send home; the status line
@@ -438,6 +443,14 @@ Jeff's design (2026-10-28), the first of three steps toward a market where where
 - Tests: a load's book-now is at or under its ceiling and rises while it sits; a player can book;
   a driver is sent home after the set days, rests, and costs per diem meanwhile; fatigue builds on
   weeks out and long days and resets with days off.
+- **10 seeds × 4 years vs 0.12.0** (`runs/compare-v20-e.md`): liquidations 577 vs 529 (ranges
+  overlap), owner-operator profit 764 vs 645 FD per truck-week, fleet profit 739 vs 694, FD price
+  $0.010 vs $0.0082, free path 37 vs 65 days. Rates run ~12% higher (2.89 vs 2.58 in year 2) because
+  about a seventh of the AI fleet is resting at any time, and loads to NPC carriers rose 292 vs 217 a
+  day. To watch: fleet wealth 95k vs 147k (fleets take the home-time and per-diem hit across many
+  trucks), and crashes 270 vs 190 with 43 willful (the outlaw and corner-cutter personas run drivers
+  tired, as designed). Earlier cuts, for the record: 60 FD per diem on every road day plus trucks
+  running straight home from anywhere gave 1,224 liquidations; per diem on idle days only, 845.
 
 ## Audit (2026-10-28, config 0.9.2)
 Six audits of the whole project (engine, the new systems, bots and sim tools, client and shared world, data,

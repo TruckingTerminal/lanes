@@ -6,7 +6,7 @@ import { rebrokerLoad, vettingBlock } from "./fraud.js";
 import { homeEdge, updateHomeCrowding } from "./home.js";
 import { creditDispatch, dispatchProfile, startHomeTime } from "./labor.js";
 import { companyAccount } from "./ledger.js";
-import { bidsFromStandingOrders, boardKey, canMakeHot, indexOpenLoads, scoreBid, desperation, estimateBreakEven, resting, trackingWouldShow } from "./standingOrders.js";
+import { bidsFromStandingOrders, boardKey, canMakeHot, indexOpenLoads, scoreBid, desperation, estimateBreakEven, resting, trackingWouldShow, needsHome, homeward } from "./standingOrders.js";
 import { coverDoubleBrokered, startLoading } from "./trips.js";
 import type { Bid, Company, Load, StandingOrder, Truck } from "./types.js";
 import { companyById, crewed, hubHours, hubMiles, truckById, type World } from "./world.js";
@@ -252,6 +252,7 @@ export function autoBook(w: World): void {
       if (truck.status !== "idle" || !crewed(truck) || resting(w, truck) || w.manualBids.has(truck.id)) continue;
       if (team.coverage < 1 && rng.next() >= team.coverage) continue;
       const want = order.breakEvenPlusPct * (1 - desperation(w, company, truck));
+      const goHome = needsHome(w, company, truck);
       let best: { load: Load; dh: number; profit: number } | null = null;
       for (const hub of w.net.nearby[truck.hub]!) {
         const dh = hubMiles(w, truck.hub, hub);
@@ -264,6 +265,7 @@ export function autoBook(w: World): void {
           if (!allowed[load.vet]) continue;
           if (load.hot > 0 && !canMakeHot(company, truck)) continue;
           if (trackingWouldShow(company, load)) continue;
+          if (goHome && !homeward(w, company, truck, load)) continue;
           const be = estimateBreakEven(w, truck, load, dh, fuel, team);
           const min = Math.max(be * (1 + want), floor ? be * (1 + floor.breakEvenPlusPct) : 0);
           if (load.bookNow < min) continue;
@@ -336,19 +338,23 @@ function maybeReposition(w: World, truck: Truck, surplus: Map<string, number>): 
   const company = companyById(w, truck.companyId);
   if (!crewed(truck) || company.authority.status !== "active") return;
   if (resting(w, truck)) return;
-  // Home time first: a driver due days off heads for the home hub, or starts them if already there.
-  const driver = w.staff[truck.driverId - 1]!;
-  const hm = company.orders.find((o): o is Extract<StandingOrder, { kind: "homeTime" }> => o.kind === "homeTime");
-  if (driver.wantsHome || (hm && driver.awayDays >= hm.afterDays)) {
-    driver.wantsHome = true;
-    if (truck.coDriverId) w.staff[truck.coDriverId - 1]!.wantsHome = true;
+  // Home time first: a driver due days off starts them if the truck is home. Otherwise the
+  // truck keeps taking loads that head home (bids and book-now only consider those) and
+  // runs empty only once it's near, or after a couple of days without a homeward load.
+  if (needsHome(w, company, truck)) {
+    for (const id of [truck.driverId, truck.coDriverId]) if (id) w.staff[id - 1]!.wantsHome = true;
     const miles = hubMiles(w, truck.hub, company.homeHub);
-    if (miles > w.cfg.map.nearbyRadiusMi) {
+    const hw = w.cfg.fatigue.homeward;
+    if (miles <= w.cfg.map.nearbyRadiusMi) {
+      startHomeTime(w, company, truck);
+      return;
+    }
+    if (miles <= hw.deadheadWithinMi || truck.idleRounds >= hw.deadheadAfterRounds) {
       truck.status = "repositioning";
       truck.targetHub = company.homeHub;
       truck.remainingMi = miles;
       truck.idleRounds = 0;
-    } else startHomeTime(w, company, truck);
+    }
     return;
   }
   const foresight = company.orders.some((o) => o.kind === "reposition" && typeof o.to === "object" && "openLoadsWithinMi" in o.to)
