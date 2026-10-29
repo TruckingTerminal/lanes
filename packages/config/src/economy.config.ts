@@ -9,7 +9,7 @@ export type TractorTier = "workhorse" | "highwayPro" | "flagship";
 export type FacilityType = "warehouse" | "coldStorage" | "factory";
 
 export const economyConfig = {
-  version: "0.11.0-phase0.16",
+  version: "0.12.0-phase0.17",
 
   // §World, map and time
   time: {
@@ -41,7 +41,7 @@ export const economyConfig = {
   // the road is a toll road (priced by state at real per-mile truck rates); two-lane highways are
   // slower and riskier, more so in winter up north.
   roads: {
-    routing: { mph: [58, 42] as const, highwayStopHours: 0.05, timeValueFdPerHour: 90 },
+    routing: { mph: [58, 42] as const, highwayStopHours: 0.05, timeValueFdPerHour: 120 },
     crashHighwayMult: 1.6, // crash odds on a two-lane highway vs an interstate
     // Winter weather: from December to February, risk rises with latitude north of 36° (×1 at 36°, up to the gain at 49°).
     winter: { months: [11, 0, 1] as const, fromLat: 36, toLat: 49, gain: { interstate: 0.35, highway: 0.9 } },

@@ -22,30 +22,61 @@ const stations = [...wsTs.matchAll(/\["([A-Z]{2}-[A-Z0-9]+)", "([^"]+)", "([^"]+
 if (hubs.length !== 60) throw new Error(`parsed ${hubs.length} hubs`);
 if (stations.length < 50) throw new Error(`parsed ${stations.length} stations`);
 
-// --- toll rates, FD (≈$) per mile for a 5-axle truck, by state and route; default for any other tollway ---
+// --- toll rates, FD (≈$) per mile for a 5-axle truck with a transponder (every fleet has one), by state and route;
+// default for any other tollway. Sources: the agencies' 2024–25 class-5 schedules, full-length trips divided by miles.
 const TOLL = [
-  [/^Pennsylvania$/, /^I-(76|276|476|70|80|95)$/, 0.8],
-  [/^Ohio$/, /^I-(80|90|76)$/, 0.35],
-  [/^Indiana$/, /^I-(80|90)$/, 0.45],
-  [/^Illinois$/, /^I-(88|90|294|355|94)$/, 0.45],
-  [/^New Jersey$/, /^I-95$/, 0.55],
-  [/^New Jersey$/, /.*/, 0.4],
-  [/^Delaware$/, /^I-95$/, 0.45],
-  [/^Maryland$/, /.*/, 0.3],
-  [/^New York$/, /^I-(87|90|95)$/, 0.35],
-  [/^Massachusetts$/, /^I-90$/, 0.3],
-  [/^New Hampshire$/, /.*/, 0.25],
-  [/^Maine$/, /^I-95$/, 0.35],
-  [/^Kansas$/, /^I-(35|70|335)$/, 0.2],
-  [/^Oklahoma$/, /.*/, 0.25],
-  [/^Florida$/, /.*/, 0.4],
-  [/^West Virginia$/, /^I-77$/, 0.3],
-  [/^Texas$/, /.*/, 0.5],
-  [/^Virginia$/, /.*/, 0.3],
-  [/^California$/, /.*/, 0.5],
-  [/^Colorado$/, /.*/, 0.6],
+  [/^Pennsylvania$/, /^I-(76|276|476|70)$/, 0.75], // PA Turnpike: Harrisburg East → Valley Forge ≈ $37 E-ZPass for 50 mi
+  [/^Pennsylvania$/, /.*/, 0.5], // PA-43, PA-66: Mon–Fayette and Amos K. Hutchinson
+  [/^Ohio$/, /^I-(80|90|76)$/, 0.3], // Ohio Turnpike: $63 for 241 mi
+  [/^Indiana$/, /^I-(80|90)$/, 0.55], // Indiana Toll Road: $85 for 157 mi
+  [/^Illinois$/, /^I-(88|90|294|355|94)$/, 0.35], // Illinois Tollway class 4 (5 axles), daytime I-PASS
+  [/^New Jersey$/, /^I-95$/, 0.55], // NJ Turnpike class 5, between off-peak $0.44 and peak $0.60
+  [/^New Jersey$/, /.*/, 0.4], // Garden State Parkway, Atlantic City Expressway
+  [/^Delaware$/, /.*/, 1.1], // Delaware Turnpike: a $12 barrier on 11 mi
+  [/^Maryland$/, /.*/, 0.5], // JFK Highway: $24 at Perryville for 50 mi
+  [/^New York$/, /^I-(87|90)$/, 0.3], // Thruway 5-axle E-ZPass ≈ $0.26/mi
+  [/^New York$/, /.*/, 0.35],
+  [/^Massachusetts$/, /^I-90$/, 0.25], // Mass Pike ≈ $0.24/mi
+  [/^New Hampshire$/, /.*/, 0.35], // Blue Star Turnpike: one $6 barrier on 16 mi
+  [/^Maine$/, /^I-95$/, 0.35], // Maine Turnpike barriers ≈ $0.36/mi
+  [/^Kansas$/, /^I-(35|70|335)$/, 0.2], // Kansas Turnpike ≈ $0.19/mi
+  [/^Oklahoma$/, /.*/, 0.25], // Turner, Will Rogers, Cimarron, Muskogee…: ≈ $0.26/mi
+  [/^Florida$/, /.*/, 0.45], // Florida's Turnpike SunPass 5-axle ≈ $0.47/mi
+  [/^West Virginia$/, /^I-(77|64)$/, 0.55], // WV Turnpike: three $17.25 barriers on 88 mi
+  [/^Texas$/, /^SR-130$/, 0.8], // SH-130 5-axle ≈ $0.80/mi
+  [/^Texas$/, /.*/, 0.5], // Sam Houston, Hardy, Dallas North…
+  [/^Virginia$/, /.*/, 0.3], // Dulles Toll Road, Chesapeake Expressway
+  [/^California$/, /.*/, 0.55], // SR-73/133/241/261 ≈ $0.50–0.60/mi for 5 axles
+  [/^Colorado$/, /.*/, 1.0], // E-470 is among the dearest roads in the country
 ];
 const tollRate = (state, label) => TOLL.find(([s, r]) => s.test(state) && r.test(label))?.[2] ?? 0.35;
+
+// --- curated toll roads: Natural Earth's own tollway flag covers the turnpikes (the Pennsylvania, Ohio, Indiana,
+// Illinois, New Jersey, New York, Massachusetts, Maine, Kansas, Oklahoma, Florida and West Virginia systems are all
+// tagged, with their free urban stretches left free). This list fills the gaps it misses, by state, route and a box
+// [minLon, minLat, maxLon, maxLat] the edge's midpoint must fall in. Rates as above.
+const CURATED = [
+  ["Maryland", "I-95", [-77, 39.3, -75, 40], 0.5], // JFK Memorial Highway, Baltimore → Delaware line
+  ["Maryland", "I-95", [-76.62, 39.24, -76.5, 39.3], 2.0], // Fort McHenry Tunnel: a $24 barrier on 5 mi
+  ["Maryland", "I-895", null, 1.0], // Harbor Tunnel Thruway: a $12 barrier on 11 mi
+  ["Delaware", "I-95", null, 1.1], // Delaware Turnpike
+  ["New Hampshire", "I-95", null, 0.35], // Blue Star Turnpike
+  ["Illinois", "I-90", [-87.65, 1, -87.4, 41.77], 3.0], // Chicago Skyway: $35 for 7.8 mi, so trucks go round it
+  ["Pennsylvania", "I-70", [-79.65, 39, -78.2, 41], 0.75], // the I-70 overlap on the Turnpike, Breezewood → New Stanton
+  ["West Virginia", "I-77", [-82, 37, -80, 38.33], 0.55], // the Turnpike south of Charleston where it isn't coded I-64
+];
+const inBox = (p, box) => !box || (p[0] >= box[0] && p[1] >= box[1] && p[0] <= box[2] && p[1] <= box[3]);
+/** An edge's toll per mile: Natural Earth's own tollway flag, else the curated list by the edge's midpoint. */
+const curatedMiles = new Map(); // "state label" → miles tagged from the curated list (for --stats)
+function tollOf(f, seg, miles) {
+  if (f.toll) return tollRate(f.state, f.label);
+  const mid = seg[Math.floor(seg.length / 2)];
+  const hit = CURATED.find(([s, l, box]) => s === f.state && l === f.label && inBox(mid, box));
+  if (!hit) return 0;
+  const k = `${f.state} ${f.label}`;
+  curatedMiles.set(k, (curatedMiles.get(k) ?? 0) + miles);
+  return hit[3];
+}
 
 // --- geometry helpers ---
 const RAD = Math.PI / 180;
@@ -215,7 +246,7 @@ for (const f of feats) {
     if (a !== b) {
       let miles = 0;
       for (let k = 1; k < seg.length; k++) miles += mi(seg[k - 1], seg[k]);
-      if (miles > 0.05) edges.push({ a, b, miles, cls: f.cls, toll: f.toll ? tollRate(f.state, f.label) : 0, label: f.label, state: f.state, geom: simplify(seg, TOL) });
+      if (miles > 0.05) edges.push({ a, b, miles, cls: f.cls, toll: tollOf(f, seg, miles), label: f.label, state: f.state, geom: simplify(seg, TOL) });
     }
     start = i;
   }
@@ -328,6 +359,7 @@ const kept = edges.filter((e) => keepNode[e.a]);
 // Node ids in `kept` index `nodes` (some unused nodes sit outside the main component; the emitter renumbers).
 const pts = kept.reduce((s, e) => s + e.geom.length, 0);
 const tollMi = kept.filter((e) => e.toll > 0).reduce((s, e) => s + e.miles, 0);
+console.log("curated toll miles:", [...curatedMiles].map(([k, m]) => `${k} ${Math.round(m)}`).join(", ") || "none");
 console.log(`features ${feats.length}, nodes ${nodes.length} (main component ${keepNode.filter(Boolean).length}), edges ${kept.length}, geometry points ${pts}, interstate miles ${Math.round(kept.filter((e) => e.cls === 0).reduce((s, e) => s + e.miles, 0))}, US-highway miles ${Math.round(kept.filter((e) => e.cls === 1).reduce((s, e) => s + e.miles, 0))}, toll miles ${Math.round(tollMi)}`);
 console.log("hubs attached beyond 12 mi:", hubAttach.map((a, i) => (a.miles / 1.2 > 12 ? `${hubs[i].id} ${(a.miles / 1.2).toFixed(0)}` : null)).filter(Boolean).join(", ") || "none");
 // Why: the nearest nodes of any component, with their roads.
@@ -346,7 +378,7 @@ const adj = nodes.map(() => []);
 kept.forEach((e, i) => { adj[e.a].push([e.b, i]); adj[e.b].push([e.a, i]); });
 const SPEED = [58, 42];
 const STOP_H = 0.05; // leaving the interstate for a highway stretch costs a few minutes
-const VOT = 90; // FD an hour of truck time is worth, for the toll trade-off
+const VOT = 120; // FD an hour of truck time is worth, for the toll trade-off
 function dijkstra(src) {
   const dist = new Float64Array(nodes.length).fill(Infinity);
   const milesTo = new Float64Array(nodes.length).fill(Infinity);
@@ -366,7 +398,7 @@ function dijkstra(src) {
   }
   return { dist, milesTo, prev };
 }
-const pairs = [["DAL", "CHI"], ["MIA", "ATL"], ["LAX", "EWR"], ["HOU", "MIA"], ["SEA", "MIA"], ["PIT", "PHL"], ["CHI", "EWR"], ["DEN", "PHX"], ["BOS", "MIA"], ["OMA", "LRD"]];
+const pairs = [["BOS", "CHI"], ["EWR", "CLE"], ["MKC", "OKC"], ["DAL", "CHI"], ["MIA", "ATL"], ["LAX", "EWR"], ["HOU", "MIA"], ["SEA", "MIA"], ["PIT", "PHL"], ["CHI", "EWR"], ["DEN", "PHX"], ["BOS", "MIA"], ["OMA", "LRD"]];
 const byId = Object.fromEntries(hubs.map((h, i) => [h.id, i]));
 let unreachable = 0;
 const from = {};

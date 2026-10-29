@@ -834,7 +834,7 @@ function renderHud(): void {
   const tokenNow = tokenLive(w);
   const badge =
     g.kind === "test"
-      ? `<span class="badge test" title="A private test world: nothing here is stored">TEST WORLD</span><div class="speeds" role="group" aria-label="Test world speed">${SPEEDS.map((sp, i) => `<button class="btn ${i === speed ? "on" : ""}" data-speed="${i}" title="${esc(sp.title)}" aria-pressed="${i === speed}">${sp.label}</button>`).join("")}</div>${live ? `<button class="btn" data-act="backlive">Back to the live world</button>` : ""}`
+      ? `<span class="badge test" title="A private test world: nothing here is stored">TEST WORLD</span><div class="speeds" role="group" aria-label="Test world speed">${SPEEDS.map((sp, i) => `<button class="btn" data-speed="${i}" title="${esc(sp.title)}">${sp.label}</button>`).join("")}</div>${live ? `<button class="btn" data-act="backlive">Back to the live world</button>` : ""}`
       : `<span class="badge live" title="One game day every 6 real hours. The live clock never stops.">● LIVE</span>${!c ? `<span class="badge watch">Watching</span>` : ""}`;
   let stats = "";
   if (c) {
@@ -850,13 +850,34 @@ function renderHud(): void {
   if (g.kind === "live" && g.broken) stats += `<span class="badge test" title="${esc(g.broken.reason)}">WORLD STOPPED</span>`;
   if (g.kind === "live") stats += `<span class="label" title="Human players in the live world">${w.companies.filter(isHuman).length} players</span>`;
   if (fsEnabled()) stats += `<button class="btn" data-act="fullscreen" title="Full screen (F)">${fsActive() ? "Exit full screen" : "Full screen"}</button>`;
-  const html = `
-    <div class="clock">${img(iconUrl("clock", 2), "Clock")}<span class="num">${dateLabel(day)} · ${hhmm(minute)}</span>${badge}</div>
-    <div class="stats">${stats}</div>`;
+  // The clock text changes many times a second at the fast speeds, so it's updated in
+  // place: rebuilding the bar would replace the speed buttons under a finger mid-press
+  // and the tap would never land.
   const hud = $("hud");
-  if (hud.dataset.html !== html) {
-    hud.innerHTML = html;
-    hud.dataset.html = html;
+  const parts: [string, string][] = [
+    ["clock", `${img(iconUrl("clock", 2), "Clock")}<span class="num" data-clock></span>${badge}`],
+    ["stats", stats],
+  ];
+  for (const [cls, html] of parts) {
+    let el = hud.querySelector<HTMLElement>(`:scope > .${cls}`);
+    if (!el) {
+      el = document.createElement("div");
+      el.className = cls;
+      hud.appendChild(el);
+    }
+    if (el.dataset.html !== html) {
+      el.innerHTML = html;
+      el.dataset.html = html;
+    }
+  }
+  const time = `${dateLabel(day)} · ${hhmm(minute)}`;
+  const clockEl = hud.querySelector<HTMLElement>("[data-clock]");
+  if (clockEl && clockEl.textContent !== time) clockEl.textContent = time;
+  // The chosen speed is a class toggle, so changing it doesn't rebuild the buttons either.
+  for (const b of hud.querySelectorAll<HTMLButtonElement>("[data-speed]")) {
+    const on = Number(b.dataset.speed) === speed;
+    b.classList.toggle("on", on);
+    b.setAttribute("aria-pressed", String(on));
   }
 }
 

@@ -374,6 +374,31 @@ Design, levers and the full results are in [TOKENOMICS.md](TOKENOMICS.md); table
   steal the cargo (after a confirm). The guide still says nothing about any of it.
 - Tests: players can take the actions; with the flag off they get "that isn't available to players".
 
+## Realistic tolls and a dearer hour (config 0.12.0)
+
+- Natural Earth's tollway tag already covers the turnpike systems (Pennsylvania, Ohio, Indiana,
+  Illinois, New Jersey, New York, Massachusetts, Maine, Kansas, Oklahoma, Florida, West Virginia),
+  with their free urban stretches left free; the 0.10.0 note that the Pennsylvania Turnpike was
+  mostly untagged was wrong. A curated list in `packages/data/tools/build-roads.mjs` fills the real
+  gaps: Maryland's JFK Highway and the Fort McHenry and Harbor tunnels, the Delaware Turnpike, New
+  Hampshire's I-95, the Chicago Skyway (3 FD/mi, so trucks go round it), the I-70 overlap on the
+  Pennsylvania Turnpike and the West Virginia Turnpike south of Charleston. Entries match by state,
+  route and a lon/lat box on the edge's midpoint; blanket per-route rules over-tag free stretches.
+- Rates are 5-axle transponder rates from the agencies' 2024–25 schedules (every fleet has a
+  transponder): PA 0.75, IN 0.55, NJ Turnpike 0.55, FL 0.45, IL 0.35, OH and NY 0.30, MA 0.25,
+  OK 0.25, KS 0.20, DE 1.10, E-470 1.00 FD a mile.
+- Routing valued an hour at 90 FD, which sent trucks off the turnpikes onto two-lane roads:
+  Pittsburgh–Philadelphia ran 28% on US-30, US-220 and US-522. At 120 FD an hour
+  (`roads.routing.timeValueFdPerHour`) it runs the Turnpike end to end: 300 mi, 6.9 h, 178 FD in
+  tolls, 5% two-lane. Boston–Chicago takes the Mass Pike and the Thruway (984 mi, 148 FD);
+  Chicago–Newark is 771 mi and 133 FD. Tagged toll miles: 4,631.
+- 10 seeds × 4 years vs 0.10.0 (`runs/compare-v19-a.md`): tolls 8.7M FD a seed (was 6.8M; 2.6%
+  of fuel spend); liquidations 529 vs 507 (ranges overlap), owner-operator profit 645 vs 641 FD
+  per truck-week, FD price $0.0082 vs $0.0084, free path 65 vs 61 days.
+- Client: the test world's speed buttons were rebuilt with every clock tick, so at the fast
+  speeds a tap landed on an element that had just been replaced and never registered. The clock
+  text now updates in place and the chosen speed is a class toggle on buttons that stay put.
+
 ## Audit (2026-10-28, config 0.9.2)
 Six audits of the whole project (engine, the new systems, bots and sim tools, client and shared world, data,
 and a simulation campaign); every finding verified, the fixes in `AUDIT.md` with the before/after numbers.
