@@ -123,9 +123,9 @@ export function weeklyContracts(w: World): void {
       const expected = fit.length * k.offerShareOfLocals * share * 2;
       const n = Math.min(fit.length, Math.floor(expected) + (rng.next() < expected - Math.floor(expected) ? 1 : 0));
       if (n <= 0) continue;
-      // Standing: reputation and how they've treated tenders before; a seeded draw breaks ties.
+      // Standing: reputation and how they've treated tenders before; a carrier with no contract yet gets a look first; a seeded draw breaks ties.
       const ranked = fit
-        .map((c) => ({ c, s: c.reputation * (0.5 + 0.5 * c.tenderAcceptance) + rng.next() * 0.1 }))
+        .map((c) => ({ c, s: c.reputation * (0.5 + 0.5 * c.tenderAcceptance) * (activeContracts(w, c.id).length === 0 ? k.newcomerBoost : 1) + rng.next() * 0.1 }))
         .sort((a, b) => b.s - a.s || a.c.id - b.c.id)
         .slice(0, n);
       const weights = laneDestWeights(cfg, w.net, m, eq);

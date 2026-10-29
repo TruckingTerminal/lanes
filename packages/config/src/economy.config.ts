@@ -125,6 +125,7 @@ export const economyConfig = {
     afterTenders: 4, // no judgment before this many tenders
     cutBelow: 0.85, // below this acceptance the shipper cuts a load a week and talks to the other shippers
     renewAbove: 0.9, // at least this to be offered a new term
+    newcomerBoost: 1.3, // a local carrier holding no contract ranks this much higher for the next offer
   },
 
   // Places and commodities (DESIGN-PLACES.md): every load is a commodity between two places,
