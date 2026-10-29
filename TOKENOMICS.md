@@ -324,3 +324,29 @@ cash-flow game real carriers play and gives the stake and the holding cost somet
    freight, no tier that the free path cannot reach in a year, pools solvent through a downturn.
 
 Every step is a rules change: bundle them into one restart while the world has no players.
+
+## Sizing runs (2026-10-29, everything on, ten seeds, four years)
+
+Against the 0.17.0 release run (runs/v24-c; runs/compare-v25-a.md, compare-v25-b.md):
+
+| Run | What changed | Liquidations | Broker wealth | Price at end | Sinks/faucets after launch |
+|---|---|---|---|---|---|
+| v24-c | 0.17.0, open mode | 1,424 | 53k | $0.0084 | 97% |
+| v25-a | circular + staking + pools + payment, tax all to the reserve | 501 | 10k | $0.0044 | 95% |
+| v25-b | pools draw capital, brokers restart bonded, half the tax burns | 610 | 72k | $0.0054 | 89% |
+
+What the runs settled so far:
+- **The reserve holds.** Genesis 592M; the starved beta pays it down to ~340M by year one; the
+  launch reset returns the play money (~255M) to it; it then drains about 110M a year to ~320M at
+  year four, never near one month of freight (~70M). Rates follow it down: 5.5 → 4.5 → 4.1 → 3.2
+  FD/mi, the economy finding the level at which sinks match payouts.
+- **The price is the open question.** With the tax refilling the reserve and only dollars burning,
+  the price halves against the open mode; burning half the tax recovers a fifth of that. The dial is
+  `circular.taxBurnShare`; a run with the whole tax burning is the next data point. Jeff's call
+  between "deflation only from dollars" and "as deflationary as possible".
+- **Working capital bites brokers first.** Net-30 means a broker wound up unpaid stiffs its
+  carriers for a month of invoices; the surety pool covers up to the bond per broker (a bug let it
+  pay the bond per invoice in v25-b), and the receivables lost show in the shipper-default count
+  (10.6k against 3.2k).
+- **Liquidations fell by more than half** against 0.17.0 (610 against 1,424): staking tiers hold the
+  fleets back, factoring keeps the short ones afloat, and brokers restart bonded.

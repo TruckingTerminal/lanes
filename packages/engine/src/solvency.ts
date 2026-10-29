@@ -158,6 +158,7 @@ export function restart(w: World, c: Company): void {
   const fleet = w.trucksByCompany.get(c.id)!;
   if (c.role === "carrier" && !fleet.some((t) => t.lease === "npc")) createTruck(w, c, "npc", "workhorse", "van");
   // A broker's fresh start is a bonded one: the licence stake is granted again (staking.ts), as the NPC lease is a carrier's.
+  c.suretyClaimedFd = 0;
   if (c.role === "broker" && w.cfg.token.staking.enabled && c.stakedFd < w.cfg.token.staking.roles.broker) {
     const stake = w.cfg.token.staking.roles.broker - c.stakedFd;
     w.ledger.post(w.t, "faucet:starting_grant", acct, stake, `grant:stake:${c.id}`);

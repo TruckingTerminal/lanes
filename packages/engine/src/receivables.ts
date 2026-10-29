@@ -101,8 +101,9 @@ export function dailyReceivables(w: World): void {
     const payer = companyById(w, r.payer);
     if (payer.liquidatingSince !== null) {
       // The payer is being wound up: a broker's bond covers its carrier, as far as the surety pool goes; otherwise the holder loses.
-      if (payer.role === "broker" && payer.suretyWriter === "pool" && r.holder !== HOLDER_NPC_FACTOR) {
-        payClaim(w, "surety", toAcct, Math.min(r.amountFd, w.cfg.token.staking.roles.broker), `surety:${r.id}`);
+      const bondLeft = Math.max(0, w.cfg.token.staking.roles.broker - payer.suretyClaimedFd);
+      if (payer.role === "broker" && payer.suretyWriter === "pool" && r.holder !== HOLDER_NPC_FACTOR && bondLeft > 0.01) {
+        payer.suretyClaimedFd += payClaim(w, "surety", toAcct, Math.min(r.amountFd, bondLeft), `surety:${r.id}`);
       } else if (r.holder === HOLDER_POOL) {
         w.pools.factoring.claimsFd += r.amountFd;
       }

@@ -207,8 +207,9 @@ export interface Company {
   soldFd: { day: number; fd: number };
   /** Payment terms (receivables.ts): wait for the due day, take quick pay, or factor the invoice. */
   payTerms: "net" | "quick" | "factor";
-  /** Brokers: who carries the bond this term, the surety pool or the NPC surety. */
+  /** Brokers: who carries the bond this term, the surety pool or the NPC surety, and what the bond has paid out on this company so far. */
   suretyWriter: "pool" | "npc";
+  suretyClaimedFd: number;
   /** Miles and operating result at the start of the current airdrop season (token.ts seasons). */
   seasonBase: { miles: number; profit: number };
   airdrop: Airdrop | null;
