@@ -3,7 +3,7 @@
 //   node apps/web/build.mjs [entry]      (entry defaults to main)
 //   node apps/web/build.mjs --site       the test build for GitHub Pages → dist/site/index.html, plus docs.html
 import { build } from "esbuild";
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { copyFileSync, existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -31,6 +31,22 @@ const themes = readFileSync(join(here, "src", "themes.css"), "utf8");
 const page = readFileSync(join(here, "src", "page.html"), "utf8")
   .replace("/*THEMES*/", () => themes)
   .replace("<!--APP-->", () => `<script>${js}</script>`);
+// The big paintings and the city sprites ride next to the page, not inside it (mapart.ts loads
+// them from assets/): dist/site/assets for the test site, dist/assets for the local page, and the
+// artifact's published files on claude.ai.
+const assetsOut = join(here, "dist", site ? "site" : ".", "assets");
+let copied = 0;
+for (const sub of ["map", "cities"]) {
+  const src = join(here, "assets", sub);
+  if (!existsSync(src)) continue;
+  mkdirSync(join(assetsOut, sub), { recursive: true });
+  for (const f of readdirSync(src)) {
+    if (!f.endsWith(".png") || f === "l0-summer.png") continue;
+    copyFileSync(join(src, f), join(assetsOut, sub, f));
+    copied++;
+  }
+}
+console.log(`${assetsOut.replace(here + "/", "")}: ${copied} files`);
 const skeleton = `<!doctype html><html lang="en"><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"></head><body>${page}</body></html>`;
 if (site) {
   mkdirSync(join(here, "dist", "site"), { recursive: true });

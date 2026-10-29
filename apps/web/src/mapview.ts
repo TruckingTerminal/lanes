@@ -5,7 +5,7 @@ import { drawText, textWidth } from "./font.js";
 import { isHuman } from "./game.js";
 import { buildMap, hash, headingDir, nightColor, nightShade, truckMarkers, type MapArt, type MarkerKind } from "./map.js";
 import { truckFrame } from "./assets.js";
-import { hasPaintedMap, MAP_H, MAP_W, mapLevel, seasonOf } from "./mapart.js";
+import { CITY_SCALE, citySprite, hasPaintedMap, MAP_H, MAP_W, mapLevel, seasonOf, type Season } from "./mapart.js";
 import { weatherAt, weatherLabel, type Weather } from "./weather.js";
 import { bumpData, clockMin, myTrucks, S, selectTruck, setTab } from "./state.js";
 import { openLoadsAt, reloadLabel, seasonSwing } from "./logic.js";
@@ -319,7 +319,8 @@ export function drawMap(now: number): void {
   ctx.fillRect(0, 0, W, H);
   // The painted level for this zoom, pixel for pixel at a whole-number scale and smoothed while the
   // zoom is moving or at the fit; the code-drawn base until it has decoded.
-  const lvl = mapLevel(seasonOf(Math.min(11, Math.floor((Math.floor(clockMin() / 1440) % 365) / 30)) + 1), k);
+  const season = seasonOf(Math.min(11, Math.floor((Math.floor(clockMin() / 1440) % 365) / 30)) + 1);
+  const lvl = mapLevel(season, k);
   if (lvl) {
     const s = k / lvl.scale;
     ctx.imageSmoothingEnabled = !Number.isInteger(s);
@@ -327,6 +328,23 @@ export function drawMap(now: number): void {
     ctx.setTransform(s, 0, 0, s, -panX, -panY);
     ctx.drawImage(lvl.img, 0, 0);
     ctx.imageSmoothingEnabled = false;
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    if (lvl.season !== season) washSeason(ctx, season, W, H);
+    // The hub cities as their own sprites once the zoom is in far enough for them to read.
+    if (k >= CITY_SCALE * 0.75) {
+      const cs = k / CITY_SCALE;
+      ctx.imageSmoothingEnabled = !Number.isInteger(cs);
+      w.net.hubs.forEach((h, i) => {
+        const img = citySprite(h.id);
+        if (!img) return;
+        const [X, Y] = toScreen(...art!.hubXY[i]!);
+        const cw = img.width * cs;
+        const ch = img.height * cs;
+        if (X + cw / 2 < 0 || Y + ch / 2 < 0 || X - cw / 2 > W || Y - ch / 2 > H) return;
+        ctx.drawImage(img, Math.round(X - cw / 2), Math.round(Y - ch * 0.6), Math.round(cw), Math.round(ch));
+      });
+      ctx.imageSmoothingEnabled = false;
+    }
   } else {
     ctx.setTransform(k, 0, 0, k, -panX, -panY);
     ctx.drawImage(art.base, 0, 0);
@@ -442,6 +460,27 @@ export function drawMap(now: number): void {
   drawHubLabels(ctx, f, k, u, visible);
 }
 
+/** A seasonal wash over the summer painting while a season's own fine level is missing: snow screening the north, autumn warmth, spring green. */
+function washSeason(ctx: CanvasRenderingContext2D, season: Season, W: number, H: number): void {
+  if (season === "winter") {
+    const yTop = toScreen(0, art!.project(-96, 49)[1])[1];
+    const yMid = toScreen(0, art!.project(-96, 35)[1])[1];
+    const g = ctx.createLinearGradient(0, yTop, 0, yMid);
+    g.addColorStop(0, "rgba(222,234,255,0.6)");
+    g.addColorStop(1, "rgba(222,234,255,0)");
+    ctx.globalCompositeOperation = "screen";
+    ctx.fillStyle = g;
+  } else if (season === "autumn") {
+    ctx.globalCompositeOperation = "multiply";
+    ctx.fillStyle = "rgba(255,196,130,0.35)";
+  } else {
+    ctx.globalCompositeOperation = "overlay";
+    ctx.fillStyle = "rgba(170,230,140,0.25)";
+  }
+  ctx.fillRect(0, 0, W, H);
+  ctx.globalCompositeOperation = "source-over";
+}
+
 /**
  * The sky over the map: the weather sampled on a grid of the visible map and drawn as moving
  * rain streaks, drifting snow, fog banks, cloud shade and lightning, all deterministic from the
@@ -541,7 +580,8 @@ function drawHubLabels(ctx: CanvasRenderingContext2D, f: number, k: number, u: n
     const count = open ? String(open.get(i) ?? 0) : "";
     const tw = textWidth(text) * L;
     const x = X - Math.round(tw / 2);
-    const y = Math.round(Y - CITY_TOP[cls]! * k - 7 * L - 2 * u);
+    const top = k >= CITY_SCALE * 0.75 && citySprite(h.id) ? (128 * k) / CITY_SCALE * 1.2 : CITY_TOP[cls]! * k;
+    const y = Math.round(Y - top - 7 * L - 2 * u);
     drawText(ctx, text, x, y, L, i === S.selHub ? PAL.gold : PAL.white, PAL.ink0);
     if (count) drawText(ctx, count, x + tw + 3 * L, y, L, PAL.gold, PAL.ink0);
   });
