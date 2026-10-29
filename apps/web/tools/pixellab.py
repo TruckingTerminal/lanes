@@ -13,6 +13,9 @@ PixelLab asset tool for LANES. Reads the API token from .pixellab.token at the r
   pixellab.py pro     "description" <w> <h> <out.png> [--style <png>] [--palette] [--transparent] [--seed N]
       → one Pro image (generate-image-v2, up to 792×688; a background job, polled). --style copies the
         palette, outline, detail and shading of that image, which keeps a set in one hand.
+  pixellab.py edit    <in.png> "instruction" <out.png> [--ref <style.png>] [--seed N] [--transparent]
+      → a Pro edit (edit-images-v2, 32–512 px in and out): the image repainted to the instruction, keeping its
+        layout. --ref matches the style of that image instead (edit_with_reference; the instruction is ignored).
   pixellab.py job     <background-job-id> <out.png>
       → saves the image of a finished job (after a network drop while polling)
   pixellab.py animate <first-frame.png> "motion" <out-dir> [--frames 16] [--view side|...] [--direction ...] [--subject "..."] [--transparent] [--seed N]
@@ -89,7 +92,7 @@ def flag(name: str, default=None):
     return default
 
 
-VALUE_FLAGS = ("--view", "--detail", "--size", "--style", "--seed", "--frames", "--direction", "--subject")
+VALUE_FLAGS = ("--view", "--detail", "--size", "--style", "--seed", "--frames", "--direction", "--subject", "--ref")
 
 
 def args():
@@ -239,6 +242,29 @@ def main():
         if seed:
             body["seed"] = int(seed)
         r = call("POST", "/generate-image-v2", body)
+        job = r.get("background_job_id") or r.get("job_id") or r.get("id")
+        print(f"job {job}", flush=True)
+        save_job_image(wait_job(job), out)
+    elif cmd == "edit":
+        src, desc, out = pos[0], pos[1], pos[2]
+        w, h = png_size(src)
+        b64 = lambda path: base64.b64encode(open(path, "rb").read()).decode()
+        body = {
+            "method": "edit_with_text",
+            "edit_images": [{"image": {"type": "base64", "base64": b64(src)}, "width": w, "height": h}],
+            "image_size": {"width": w, "height": h},
+            "description": desc,
+            "no_background": bool(flag("--transparent")),
+        }
+        ref = flag("--ref")
+        if ref:
+            rw, rh = png_size(ref)
+            body["method"] = "edit_with_reference"
+            body["reference_image"] = {"image": {"type": "base64", "base64": b64(ref)}, "width": rw, "height": rh}
+        seed = flag("--seed")
+        if seed:
+            body["seed"] = int(seed)
+        r = call("POST", "/edit-images-v2", body)
         job = r.get("background_job_id") or r.get("job_id") or r.get("id")
         print(f"job {job}", flush=True)
         save_job_image(wait_job(job), out)
