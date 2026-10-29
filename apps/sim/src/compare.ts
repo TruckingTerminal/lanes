@@ -114,7 +114,8 @@ rows.push(
   ["Token: burned since launch (profit tax / buyback / sell fee)", (rs) => {
     const t = rs.filter((r) => r.realMoney?.token);
     if (!t.length) return "n/a";
-    const tax = mean(t.map((r) => (r.sinksByTag.profit_tax ?? 0) + (r.sinksByTag.profit_tax_burn ?? 0)));
+    // Under the cap part of the tax refills the reserve (a sink) and part burns (a burn tag): count both.
+    const tax = mean(t.map((r) => (r.sinksByTag.profit_tax ?? 0) + (r.realMoney.token!.sinceLaunch.burnedByTag.profit_tax_burn ?? 0)));
     const b = mean(t.map((r) => r.realMoney.token!.sinceLaunch.burnedByTag.buyback ?? 0));
     const f = mean(t.map((r) => r.realMoney.token!.sinceLaunch.burnedByTag.exchange_fee ?? 0));
     return `${fd(tax)} / ${fd(b)} / ${fd(f)}`;

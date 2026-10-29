@@ -53,7 +53,7 @@
 | Token: FD held by companies at end | 21.2M (18.8M–24.0M) | 21.2M (19.7M–23.0M) |
 | Token: launch burned / locked | 246.3M / 25.1M | 246.3M / 25.1M |
 | Token: operating sinks / faucets since launch | 89% (88%–89%) | 83% (82%–84%) |
-| Token: burned since launch (profit tax / buyback / sell fee) | 143.9M / 72.2M / 5.7M | 0 / 60.1M / 5.0M |
+| Token: burned since launch (profit tax / buyback / sell fee) | 287.8M / 72.2M / 5.7M | 282.5M / 60.1M / 5.0M |
 | Token: treasury revenue (product + fees) / to buybacks | $338k / $168k | $338k / $168k |
 | Token: pool dollars at end (seeded $250k) | $184k ($176k–$199k) | $198k ($185k–$213k) |
 | Token: net $ taken out — owner-operators / fleets / brokers / newcomers | $205k / $25k / $9k / $-6k | $197k / $14k / $14k / $-7k |
