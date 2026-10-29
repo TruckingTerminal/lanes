@@ -353,7 +353,8 @@ export function drawMap(now: number): void {
       }
       ctx.imageSmoothingEnabled = false;
     }
-    if (k >= CITY_SCALE * 0.75) {
+    // Level 1 already paints each city with its landmarks; the sprites take over from 4×, where its pixels would double.
+    if (k >= CITY_SCALE) {
       const cs = k / CITY_SCALE;
       ctx.imageSmoothingEnabled = !Number.isInteger(cs);
       w.net.hubs.forEach((h, i) => {
@@ -603,7 +604,7 @@ function drawHubLabels(ctx: CanvasRenderingContext2D, f: number, k: number, u: n
     const count = open ? String(open.get(i) ?? 0) : "";
     const tw = textWidth(text) * L;
     const x = X - Math.round(tw / 2);
-    const top = k >= CITY_SCALE * 0.75 && citySprite(h.id) ? (128 * k) / CITY_SCALE * 1.2 : CITY_TOP[cls]! * k;
+    const top = k >= CITY_SCALE && citySprite(h.id) ? ((128 * k) / CITY_SCALE) * 1.2 : CITY_TOP[cls]! * k;
     const y = Math.round(Y - top - 7 * L - 2 * u);
     drawText(ctx, text, x, y, L, i === S.selHub ? PAL.gold : PAL.white, PAL.ink0);
     if (count) drawText(ctx, count, x + tw + 3 * L, y, L, PAL.gold, PAL.ink0);
