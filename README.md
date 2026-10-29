@@ -406,6 +406,65 @@ Design, levers and the full results are in [TOKENOMICS.md](TOKENOMICS.md); table
   that keep losing) with the button that fixes it; a red "N IDLE" badge sits in the top bar, and the
   ticker and a toast shout once per idle day.
 
+## Shipper leverage, local-first tendering and contracts (config 0.15.0)
+
+Jeff's design (2026-10-28): the more leverage shippers have (trucks piled up, few loads per truck),
+the more they work exclusively with local carriers; Miami's shippers almost exclusively, Chicago's
+and Los Angeles's hardly at all. Local carriers hold contracts; when produce season sends spot past
+the contract, the owner chooses between serving the contract and chasing spot.
+
+- **Local-first** (`contracts.ts localShare`): each market holds a share of its loads for carriers
+  based within 150 miles for the first round: 50% − 0.35·log₂(load-to-truck ratio), clamped
+  10–90%, from the smoothed ratio the reload index already tracks (Miami's vans ≈ 85%, a tight
+  market ≈ 15%). `mayTake` gates every path to a load: standing-order bids, auto-booking, hand
+  counters and book-now. A local-first load gets a round more before an NPC carrier takes it.
+- **Contracts**: every week each market's shippers offer contract lanes to local carriers in good
+  standing (reputation × tender acceptance), more where trucks pile up, only for trailers the
+  carrier runs: 1–3 loads a week on a lane at the market's trailing contract rate (the brokers'
+  level) for 91 days, two per company, offers standing a week. Tenders are loads created on the
+  contract's lane and places, held 12 hours for the carrier at the contract rate (spot prices on
+  paper, so a lapsed tender is an ordinary spot load, which the same carrier can counter for).
+  Acceptance is a moving average; below 85% after four tenders the shipper cuts a load a week and
+  the carrier is passed over by every local shipper for 30 days; at 90% or better the term renews.
+- **Dispatcher and bots:** the `contracts` standing order takes offers and honours tenders onto an
+  idle truck within reach, unless `spotAbovePct` says to let a tender lapse when spot runs that far
+  above the contract. Conservative AI honours every tender; greedy chases spot at +15%; random in
+  between. Players default to honouring.
+- **Client:** a Contracts card on the Company tab (offers to sign or decline, contracts held with
+  acceptance, the local-first share at home, any shipper ban); tender alerts with a truck picker
+  and a "leave it for the board" button, a TENDERS badge; local-first and tender tags on the load
+  board; a "Local first" column on the join table; a guide page.
+- **Desperation, backhauls and the way out** (Jeff, 2026-10-29: a truck of his sat 20 days in
+  Miami; dispatchers must get desperate in a day or two, deadhead or take a cheap backhaul to a
+  better market, and price the exit into freight going in). Dispatchers are fully desperate after
+  48 idle hours (was 72); a desperate truck takes a backhaul up to 12% below break-even when the
+  destination's load-to-truck ratio beats where it sits by 10%; a truck with nothing bookable for
+  two rounds runs empty to the market where the days saved waiting are worth more than the empty
+  miles (`bestExitHub`: a carrier's expected wait at a market is 1 ÷ its effective load-to-truck
+  ratio, and a visitor sees only the share of loads not held for locals, so a visitor in Miami
+  waits ten days and leaves while a Miami carrier waits a day and stays; a day idle costs 400 FD of
+  opportunity against 1.2 FD per empty mile). The old rule only moved to a hub with surplus freight
+  within 400 miles, and every Florida hub was flooded. The default dispatcher moves after two idle
+  rounds. The expected empty run after delivery is now the real exit from a dead market (clamp
+  250 → 800 miles), and freight into such a market carries 60% of that deadhead per loaded mile
+  (`rates.exitDeadheadShare`), so a short load into Miami pays a lot more per mile than one into
+  Atlanta. Dispatch teams weigh a destination's market one to three loads ahead by skill
+  (`board.lookaheadFdPerRatio`). A first cut (desperate at 36 h, 25% below break-even, any truck
+  idle a day running up to 800 miles to the best ratio) sent fuel up 64% and doubled liquidations;
+  the value rule fixed it. In a 240-day AI world after the fix, at most 17 trucks sit idle in Miami
+  at once, none for five days, and the longest idle truck anywhere is a driver on home time.
+- **10 seeds × 4 years vs 0.14.0** (`runs/compare-v22-c.md`): liquidations 621 vs 526 (ranges
+  498–743 and 481–589 overlap), owner-operator profit 534 vs 647 FD per truck-week, fleet wealth
+  116k vs 102k, FD $0.012 vs $0.011, free path 28 vs 39 days, on time 94.6% vs 97.0%. Fuel is 609M
+  vs 426M a seed: trucks that used to sit now run, much of it empty out of dead markets, and crashes
+  rise with the miles (486 vs 328). The dial is `bookNow.desperation.opportunityFdPerDay` (400): lower
+  it and trucks wait longer before deadheading.
+- **Needs attention** (Jeff, 2026-10-29): the moment a truck has no driver, the client toasts it and
+  the Fleet tab opens with a "Needs attention" card and a Hire button (a delivered truck says so
+  too); the same card warns of cash under two weeks of fixed costs, weeks in the red before the
+  company is wound up, a dispatch team covering under 80% of the fleet, and a parked or idle truck
+  carrying three or more defects, each with the button that fixes it; a TO DO badge counts them.
+
 ## Places, commodities and appointments (config 0.14.0)
 
 Jeff's direction (2026-10-28): the whole country has people in it and they all need goods; every
