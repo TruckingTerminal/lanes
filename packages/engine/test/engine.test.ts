@@ -828,11 +828,14 @@ describe("token", () => {
     expect(w.token.treasury.feeUsd).toBeCloseTo(1_000 * tk.token.exchange.buyFeePct, 6);
     expect(w.token.poolUsd * w.ledger.balance(EXCHANGE_ACCOUNT)).toBeCloseTo(k, -4);
     expect(fdPriceUsd(w)).toBeGreaterThan(tk.token.launch.priceUsd);
-    // Bought FD is unlocked; selling it back pays the burned sell fee plus the round trip.
+    // Bought FD is unlocked; selling it back pays the burned sell fee plus the round trip. The fee
+    // rises with the sale's price impact (the whale rules, 0.18.0).
+    const poolFd = w.ledger.balance(EXCHANGE_ACCOUNT);
     expect(applyAction(w, a.id, { type: "sell_fd", fd: bought }).ok).toBe(true);
     expect(a.usd.out).toBeLessThan(1_000 * (1 - tk.token.exchange.sellFeePct));
     const burned = w.ledger.entries.filter((e) => e.to === "sink:exchange_fee").reduce((s, e) => s + e.amount, 0);
-    expect(burned).toBeCloseTo(bought * tk.token.exchange.sellFeePct, 1);
+    const x = tk.token.exchange;
+    expect(burned).toBeCloseTo(bought * Math.min(x.sellFeeMax, x.sellFeePct + x.sellFeePerImpact * (bought / (poolFd + bought))), 1);
     // Swaps aren't spending, and neither is the launch burn.
     expect(w.ledger.outflowCents(companyAccount(a.id))).toBe(spentBefore);
     w.ledger.assertBalanced();
