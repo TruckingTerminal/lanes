@@ -331,9 +331,9 @@ export function drawMap(now: number): void {
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     if (lvl.season !== season) washSeason(ctx, season, W, H);
     // The towns as generic sprites by region (the bigger ones first as the zoom comes in), then the hub cities as their own.
-    if (k >= TOWN_SCALE * 0.5) {
+    if (k >= 4) {
       const ts = k / TOWN_SCALE;
-      const minPop = k >= TOWN_SCALE ? 10_000 : k >= TOWN_SCALE * 0.75 ? 30_000 : 80_000;
+      const minPop = k >= 8 ? 10_000 : k >= 6 ? 30_000 : 80_000;
       ctx.imageSmoothingEnabled = !Number.isInteger(ts);
       for (const p of w.net.places) {
         if (p.pop < minPop) continue;
