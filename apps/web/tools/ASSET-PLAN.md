@@ -125,3 +125,72 @@ Rules for the pass:
 - Never spend more than one retry on a sprite before changing the prompt.
 - Keep animations to loops of 8–16 frames; the client plays them at 8–12 fps.
 - Everything shown at whole-number scales; no fractional resizing of pixel art.
+
+## The straight map, the city views and the city pane (2026-10-30)
+
+Jeff: the map looked tilted (the Canadian border ran diagonally on the Albers cone), the zoomed-out
+winter turned green when zoomed in, the cities crowded each other, and a click on a city should open
+"a massive real-looking city with its landmarks in the current weather" and everything about that
+market. Done without repainting:
+
+- Projection: `map.ts` now projects straight (longitude across, scaled by cos 37.5°, latitude down), so
+  the 49th parallel is a level line. The paintings were warped onto the new grid by
+  `tools/reproject-map.py` (nearest pixel, so they stay crisp; a 1584 × 856 frame so the middle keeps
+  the cone's scale within 2.5%; around every hub the warp blends into a plain shift so the painted
+  cities stand upright where the cone's meridians leaned up to 18°). `tools/us-ring.json` holds the
+  outline and hubs the TypeScript fits the frame to. Zero generations.
+- Level-1 seasons: `tools/season-l1.py` carries each level-0 season's colour onto level 1's detail
+  (luma detail scaled by the season's brightness, chroma detail by its saturation), so every season
+  has both levels and the wash is gone. Zero generations; the files are 10 MB each (a WebP pass later).
+- City sprites at 8× (CITY_SCALE 8, half the size), labels are full names, the biggest placed first
+  and any that would overlap skipped until the next zoom in.
+- City views: `tools/paint-cityviews.py`, Pro 688 × 384 (the model's largest 16:9), one per hub with
+  its landmarks (`landmarks.json`), a freeway of long-nose rigs in front, the shared summer golden
+  hour; 25 generations each, 1,500 for the 60 (`assets/cityviews`). The weather is drawn live over
+  them by the scene sky; the season is a CSS tint until painted seasons (25 each) are affordable.
+- The city pane (`ui/CityPane.tsx`): the view, then Market (what it ships, out-against-in by trailer,
+  trucks sitting/inbound/outbound, the board now), Seasons (the year's rate swing per trailer with
+  the strongest month and the lull) and Loads. A click on a town (drawn from 4×) opens its market's
+  pane as that town, with its sprite loop.
+- Menu icons: `tools/icons.sh`, Pro 128 × 128 on transparency per side-rack tab, 10 each (70).
+- Weather effects: `tools/vfx.sh`, rain/snow/fog as 256-wide loops on transparency plus a cloud and
+  a bolt (~56); the map tiles the rain and snow at a quarter of the zoom, drifts the clouds over
+  cloudy cells and the fog over foggy ones, and the scene sky tiles them pixel for pixel.
+
+Balance after this pass ≈ 150 of 5,000 until the subscription renews (2026-11-29). Next month:
+painted seasons for the city views (top hubs first, 25 each), re-crisping the coastal tiles of the
+warped map with the editor if the lean shows anywhere, portraits' winter clothes, WebP for the
+10 MB season levels.
+
+### The city views by hour and weather (2026-10-30)
+
+Jeff: the golden hour on every city is too repetitive; each should follow the time of day and the
+weather. Jeff moved PixelLab to Tier 3 (Pixel Architect, 9,839 generations a month; 5,002 were
+available at the upgrade), so painted variants are affordable again:
+
+- `paint-cityviews.py --variant night|rain|snow` paints the same city deep at night (lit windows,
+  neon, beacons, headlights), on a grey rainy afternoon, or on a bright day after snow, 25 each,
+  as `assets/cityviews/<ID>-<variant>.png`. Night for all 60 (1,500) and rain for all 60 (1,500)
+  are in flight; snow is the open question (1,500 for all, 750 for the snowy half).
+- `ui/CityPicture.tsx` shows the painting nearest the hour and the weather and relights it for
+  the rest: the sunset sky is cut out once (colours common in the top quarter and rare in the
+  bottom half, down to each column's skyline, a median over nine columns, feathered) and
+  replaced by the hour's sky with stars and the painted cloud drifting; the ground is graded per
+  hour band (night, dawn, morning, midday, afternoon, golden hour, dusk) and weather kind, with
+  lit windows kept after dark; dusk and dawn crossfade into the night painting. Rain, snow and
+  fog fall over it from the vfx tiles. The pane's caption gives the hour and the sky.
+- Lesson: PixMiniMax paints a flat grey ground under a transparent sprite, so weather loops are
+  not worth their generations; the stills move by code.
+
+### Every city view painted and animated (2026-10-30)
+
+Jeff doubled the plan (Pixel Architect 2x, 19,672 a month) and had the stopped queue resumed, then
+the hybrid. Painted: golden, night, rain and clear day for all 60 hubs, snow for the 16 snowy ones
+(256 views). Animated: every one of them at full resolution by `tools/animate-cityviews.py`
+(six 256 × 208 tiles each, 12 generations a view, drift-corrected and seam-stitched, a 256-colour
+4 × 4 sheet of about 1.4 MB). About 5,100 generations for the round; 6,836 left on 2026-10-30.
+The claude.ai artifact holds 256 MB a version, so the preview carries the golden loops for every
+city and the night loops for the ten starters; the Pages site and the repo carry all 256. Known
+flaw: the animator sometimes invents an object inside a tile (a second sign) that flickers; redo
+that tile for 2 generations when it shows. The `-tiles/` folders (about 1 GB, ignored by git) hold
+the tile frames, so a view can be re-stitched without animating it again.

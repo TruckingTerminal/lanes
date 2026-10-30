@@ -4,36 +4,29 @@ import { BAYER, PAL, Px, mix, type Color } from "./art.js";
 import { BC_COAST, CANADA_BORDER, CANADA_EAST, GULF_ATLANTIC, LAKES, MEXICO, MEX_BORDER, PACIFIC, RANGES, RIVERS, STATE_LINES, type LL } from "./geo.js";
 
 /**
- * The pixel map: the lower 48 in an Albers equal-area projection (the shape
- * people know from road atlases), painted once into a base layer — terrain,
- * water, rivers, state lines, mountains, roads, skylines — at one art pixel per
- * screen pixel of the map window, so the whole country fits with room for detail
- * and zooming in shows chunky, square pixels.
+ * The pixel map: the lower 48 in a straight projection (longitude across, latitude
+ * down, a degree of each the same length at the map's middle latitude), so the
+ * Canadian border runs level and every meridian stands upright, painted once into a
+ * base layer — terrain, water, rivers, state lines, mountains, roads, skylines — at
+ * one art pixel per screen pixel of the map window, so the whole country fits with
+ * room for detail and zooming in shows chunky, square pixels. (The painted map was
+ * made on the old Albers cone and warped to this grid by tools/reproject-map.py.)
  */
 
 // --- Projection -------------------------------------------------------------------
 
 const RAD = Math.PI / 180;
-const PHI1 = 29.5 * RAD;
-const PHI2 = 45.5 * RAD;
 const PHI0 = 37.5 * RAD;
 const LAM0 = -96 * RAD;
-const N = (Math.sin(PHI1) + Math.sin(PHI2)) / 2;
-const C = Math.cos(PHI1) ** 2 + 2 * N * Math.sin(PHI1);
-const RHO0 = Math.sqrt(C - 2 * N * Math.sin(PHI0)) / N;
+/** Longitude is foreshortened by the cosine of the middle latitude, so a mile is about as long across as down. */
+const KX = Math.cos(PHI0);
 
-function albers(lon: number, lat: number): [number, number] {
-  const rho = Math.sqrt(C - 2 * N * Math.sin(lat * RAD)) / N;
-  const theta = N * (lon * RAD - LAM0);
-  return [rho * Math.sin(theta), RHO0 - rho * Math.cos(theta)];
+function flat(lon: number, lat: number): [number, number] {
+  return [(lon * RAD - LAM0) * KX, lat * RAD];
 }
 
-function inverseAlbers(x: number, y: number): LL {
-  const rho = Math.sqrt(x * x + (RHO0 - y) ** 2);
-  const theta = Math.atan2(x, RHO0 - y);
-  const lon = (LAM0 + theta / N) / RAD;
-  const lat = Math.asin((C - (rho * N) ** 2) / (2 * N)) / RAD;
-  return [lon, lat];
+function inverseFlat(x: number, y: number): LL {
+  return [(x / KX + LAM0) / RAD, y / RAD];
 }
 
 const US_RING: LL[] = [...PACIFIC, ...MEX_BORDER, ...GULF_ATLANTIC, ...CANADA_BORDER];
@@ -48,7 +41,7 @@ export interface Projection {
 
 /** Fits the US (with a small margin) into W × H art pixels. */
 export function fitProjection(W: number, H: number): Projection {
-  const projUs = US_RING.map(([lo, la]) => albers(lo, la));
+  const projUs = US_RING.map(([lo, la]) => flat(lo, la));
   const minX = Math.min(...projUs.map((p) => p[0]));
   const maxX = Math.max(...projUs.map((p) => p[0]));
   const minY = Math.min(...projUs.map((p) => p[1]));
@@ -60,11 +53,11 @@ export function fitProjection(W: number, H: number): Projection {
   return {
     scale,
     project(lon, lat) {
-      const [x, y] = albers(lon, lat);
+      const [x, y] = flat(lon, lat);
       return [offX + (x - minX) * scale, offY + (maxY - y) * scale];
     },
     unproject(px, py) {
-      return inverseAlbers((px - offX) / scale + minX, maxY - (py - offY) / scale);
+      return inverseFlat((px - offX) / scale + minX, maxY - (py - offY) / scale);
     },
   };
 }

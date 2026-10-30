@@ -43,6 +43,10 @@ export const S = {
   layout: "split" as Layout,
   selTruck: null as number | null,
   selHub: null as number | null,
+  /** The hub whose city pane is open over the map (opened by clicking the city or a town of its market), if any. */
+  cityView: null as number | null,
+  /** The town (an index into net.places) the pane was opened from, if it was a town. */
+  townView: null as number | null,
   /** Load board: the expanded row. */
   openLoad: null as number | null,
   guidePage: "start",

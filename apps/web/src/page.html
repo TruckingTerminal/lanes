@@ -60,6 +60,8 @@ p { margin: 0; }
 .btn[disabled]:hover { border-color: var(--border); background: var(--bg-panel); }
 .btn.primary[disabled]:hover { background: var(--accent); }
 .btn img.px { width: 16px; height: 16px; image-rendering: pixelated; }
+/* The painted tab icons (assets/icons, tools/icons.sh): little paintings, so they scale smoothly. */
+.btn img.tabpic { width: 28px; height: 28px; margin: -4px 0; image-rendering: auto; filter: drop-shadow(0 1px 1px rgba(0, 0, 0, 0.5)); }
 input[type=text], input[type=number], select { min-height: 30px; padding: 3px 8px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--bg-input); color: var(--text-primary); min-width: 0; }
 input[type=number] { width: 7em; font-family: var(--font-mono); }
 input:focus, select:focus { border-color: var(--accent); outline: none; }
@@ -133,7 +135,48 @@ tbody tr.open td { background: color-mix(in srgb, var(--accent) 10%, transparent
 .topbar .logo, .logo.hd { height: 32px; width: auto; image-rendering: auto; position: relative; }
 .logowrap { position: relative; display: inline-block; overflow: hidden; }
 .logowrap::after { content: ""; position: absolute; top: 0; bottom: 0; width: 24%; left: -40%; background: linear-gradient(100deg, transparent, color-mix(in srgb, white 55%, transparent), transparent); transform: skewX(-20deg); animation: btn-gleam 5s ease-in-out infinite; pointer-events: none; mix-blend-mode: screen; }
-@media (prefers-reduced-motion: reduce) { .loop, .btn::after, .btn.on, .btn.on img.px, .stars, .logowrap::after { animation: none !important; } }
+/* The city pane: a hub's big painting over the map with the live sky on it and a slow drift so it never sits still, then its market in tabs. */
+.cityview { position: absolute; inset: 0; z-index: 30; display: grid; place-items: center; padding: 14px; background: rgba(4, 10, 20, 0.62); animation: city-fade 0.2s ease-out; }
+.citybox { width: min(100%, 1120px); max-height: 100%; display: flex; flex-direction: column; background: var(--bg-panel); border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; box-shadow: 0 24px 60px rgba(0, 0, 0, 0.55); }
+.citybox.town { width: min(100%, 980px); }
+.citypic { position: relative; width: 100%; aspect-ratio: 688 / 384; max-height: 46vh; overflow: hidden; background: #1a1430; flex: none; }
+.citypic img, .citypic canvas.pic, .citypic .citypending { position: absolute; inset: 0; width: 100%; height: 100%; display: block; image-rendering: pixelated; object-fit: cover; transform-origin: 50% 60%; animation: city-drift 36s ease-in-out infinite alternate; }
+.citypic .citypending { display: grid; place-items: center; font: 700 28px/1 var(--font-mono); color: var(--text-secondary); animation: none; }
+.citypic canvas.sky { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; image-rendering: pixelated; }
+.citycap { position: absolute; left: 0; right: 0; bottom: 0; padding: 10px 14px; font-size: 18px; color: #fff; text-shadow: 0 1px 2px #000, 0 0 12px rgba(0, 0, 0, 0.8); background: linear-gradient(transparent, rgba(0, 0, 0, 0.55)); pointer-events: none; }
+.citycap .muted { color: rgba(255, 255, 255, 0.8); }
+.season-winter .citypic img { filter: saturate(0.62) brightness(1.08) contrast(0.95); }
+.season-autumn .citypic img { filter: sepia(0.2) saturate(1.2); }
+.season-spring .citypic img { filter: saturate(1.08) hue-rotate(-6deg); }
+.citytabs { display: flex; align-items: center; gap: 6px; padding: 8px 12px; border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); flex: none; }
+.citytabs .grow { flex: 1; }
+.citybody { padding: 10px 12px; overflow: auto; min-height: 0; }
+.citygrid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 10px; }
+.citygrid .card { margin: 0; }
+.small { font-size: 12px; margin-bottom: 6px; }
+.sectorrow { display: grid; grid-template-columns: 1fr 110px auto; align-items: center; gap: 8px; margin: 4px 0; font-size: 13px; }
+.sectorrow .num { font-family: var(--font-mono); white-space: nowrap; }
+table.mini { width: 100%; border-collapse: collapse; font-size: 13px; }
+table.mini th { text-align: left; color: var(--text-secondary); font-weight: 500; padding: 2px 6px 2px 0; }
+table.mini td { padding: 2px 6px 2px 0; font-family: var(--font-mono); }
+table.mini td:first-child { font-family: inherit; }
+.seasons .seasonrow { display: grid; grid-template-columns: 200px 1fr; gap: 12px; align-items: center; margin: 10px 0; }
+.seasonbars { display: flex; gap: 4px; }
+.sbar { flex: 1; text-align: center; font-size: 11px; color: var(--text-secondary); }
+.sbar .sbarbox { position: relative; height: 64px; border-radius: 3px; }
+.sbar .sbarbox::before { content: ""; position: absolute; left: 0; right: 0; top: 50%; border-top: 1px solid var(--border); }
+.sbar i { position: absolute; left: 15%; width: 70%; background: var(--accent-success); border-radius: 2px 2px 0 0; min-height: 2px; }
+.sbar i.up { bottom: 50%; }
+.sbar i.down { top: 50%; background: var(--accent-danger); border-radius: 0 0 2px 2px; }
+.sbar.now span { color: var(--accent); font-weight: 700; }
+.sbar.now .sbarbox { background: color-mix(in srgb, var(--accent) 14%, transparent); }
+.townhead { display: flex; gap: 16px; align-items: center; padding: 12px 14px 4px; }
+.townhead .townpic { image-rendering: pixelated; flex: none; }
+.townhead h2 { margin: 0 0 4px; font-size: 20px; }
+.townhead .towntitle > div { margin-bottom: 6px; }
+@keyframes city-drift { from { transform: scale(1); } to { transform: scale(1.06) translate(-1.2%, -1%); } }
+@keyframes city-fade { from { opacity: 0; } }
+@media (prefers-reduced-motion: reduce) { .loop, .btn::after, .btn.on, .btn.on img.px, .stars, .logowrap::after, .citypic img, .citypic canvas.pic, .cityview { animation: none !important; } }
 .spark { display: block; width: 100%; height: 48px; }
 .guide h4 { margin-top: 6px; font-family: var(--font-mono); font-size: 10px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--accent); }
 .guide ul { margin: 0; padding-left: 20px; display: grid; gap: 4px; }

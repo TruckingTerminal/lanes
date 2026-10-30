@@ -10,9 +10,10 @@ import { H } from "../handlers.js";
 import { attentionItems, stuckTrucks, tiredTrucks } from "../logic.js";
 import { fitMap, maxZoom, mountMap, setZoom, zoomIndex, zoomLabel } from "../mapview.js";
 import { drawText } from "../font.js";
-import { loadingStrip, LOOP_FPS, TITLE_LOOP, titleLoop } from "../mapart.js";
+import { ASSETS, hasAsset, loadingStrip, LOOP_FPS, TITLE_LOOP, titleLoop } from "../mapart.js";
 import { LOGO, LOGO_TITLE, LOGO_TITLE_H, LOGO_W } from "../assets.js";
 import { Rig } from "./Loop.js";
+import { CityPane } from "./CityPane.js";
 import { clockMin, feed, fsActive, fsEnabled, S, setLayout, setTab, setTheme, SPEEDS, TEST_BUILD, THEMES, toggleFullscreen, useData, useTick, type Tab } from "../state.js";
 import { Badge, Btn, Card, Pixel } from "./bits.js";
 import { Company } from "./panels/Company.js";
@@ -556,6 +557,7 @@ function MapView(): JSX.Element {
     <div class="mapwrap" ref={wrap}>
       <canvas id="map" ref={canvas} width={960} height={600} aria-label="Map of hubs and trucks" />
       <div id="tip" ref={tip} hidden />
+      <CityPane />
       <div class="mapzoom" role="group" aria-label="Map zoom">
         <Btn sm title="Zoom out (-)" disabled={zoomIndex() === 0} onClick={() => setZoom(zoomIndex() - 1)}>
           −
@@ -619,7 +621,8 @@ function SideRack(): JSX.Element {
       <div class="rackbar">
         <nav class="tabs">
           {TABS.map(([k, l, ic]) => (
-            <Btn key={k} icon={ic} on={k === tab} title={l} onClick={() => setTab(k)}>
+            <Btn key={k} icon={hasAsset(`icons/${k}.png`) ? undefined : ic} on={k === tab} title={l} onClick={() => setTab(k)}>
+              {hasAsset(`icons/${k}.png`) ? <img class="px tabpic" src={`${ASSETS}icons/${k}.png`} alt="" /> : null}
               <span>{l}</span>
             </Btn>
           ))}
