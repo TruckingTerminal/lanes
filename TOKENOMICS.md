@@ -492,3 +492,23 @@ replace the 40% tax, each a config switch, each a reason to hold or buy FD:
   month toward the sink-to-faucet target after launch. The runs to date paid players 10–12% more FD
   than the game took back, and that surplus is what they sold; a balanced economy pays out what it
   takes in, so a player's gain is another player's loss or a better-run company, not the reserve's.
+
+## The locked levers (2026-10-30, config/live.ts; ruleset 0.18.0-phase0.24)
+
+What the v27–v35 batches settled on, applied to the base config as `withLiveLevers` for the live
+world and as the sim's default profile (`--profile base` runs the bare config):
+
+- **On:** the token, the reserve ledger (tax burn 100%, reserve factor exponent 2, the volume dial),
+  staking, the pools, payment terms, the catalogue, the fuel tax, the sales tax at 7%, businesses on
+  hubs and interstate sites, managers, the balance dial (5% a month over a 90-day window toward the
+  1.00–1.04 band).
+- **Launch:** no seed capital; the farming season's window seeds the pool; the pool opens as deep as
+  the float (the treasury allocation covers what the pool allocation lacks); 10% of the airdrop on
+  day one; the daily sell limit 1% of the pool; the sell fee 7%, burned.
+- **The skill edge:** dispatcher noise 8% → 0.5% across skill, drivers' mpg ±15% and maintenance
+  ±25%, an operations manager at noise ×0.7 and +0.08 skill.
+- **What the batches say about it:** sinks 95% of faucets (97–99% in the best seeds), net selling
+  ~0.3–0.6M FD a month against 1.8M before the sinks, liquidations within 10% of the no-dial run,
+  the free path a 32-day median, pool dollars draining ~$5k a year across 600 bot companies — the
+  residual a few percent of real growth covers. The three gates (price from launch, liquidations
+  against baseline, the free path) are dashboards on the live world from here, not batch tests.

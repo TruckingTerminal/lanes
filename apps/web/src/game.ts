@@ -1,4 +1,4 @@
-import { economyConfig, type EconomyConfig } from "@lanes/config";
+import { economyConfig, withLiveLevers, type EconomyConfig } from "@lanes/config";
 import { buildNetwork, hubs, neutralFeeds, syntheticCassCycle } from "@lanes/data";
 import { populate, ruleBotHook } from "@lanes/agents";
 import {
@@ -23,10 +23,11 @@ import {
  */
 
 /** Seasons off and the token on, launching after the two-year beta (TOKENOMICS.md). */
+// The live world runs the locked levers (config/live.ts) on the base config, seasons off, the token on.
 export const GAME_CONFIG: EconomyConfig = {
-  ...economyConfig,
+  ...withLiveLevers(economyConfig),
   seasonClose: { ...economyConfig.seasonClose, enabled: false },
-  token: { ...economyConfig.token, enabled: true },
+  token: { ...withLiveLevers(economyConfig).token, enabled: true },
 };
 
 /**

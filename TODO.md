@@ -106,6 +106,18 @@ Order is the working order. Design records live in TOKENOMICS.md (economy) and R
     Treasury vesting (26-week cliff, ≤0.5%/week, never below the launch floor) modeled as sell
     pressure. Bots buy with FD; no dollar path exists.
 
+## Switch-on (2026-10-30, Jeff: "get it done")
+1. **Done:** the live levers in `packages/config/src/live.ts`; ruleset `lanes-live-1/0.18.0-phase0.24`;
+   the client and the sim's default profile run them.
+2. Restart the live world on the new ruleset (world/meta; no players), with the live page rebuilt from
+   main ≥ 39128b6 and the painted assets as files (the graphics session's republish).
+3. The sites on the client map (`w.sites` carries lat/lon).
+4. Checkpoints and the authoritative server before any real money.
+5. The legal opinion (US first; each country before players there can buy FD).
+6. Launch with the lean reset, the window's dollars seeding the pool, the dial running from day one.
+7. Dashboards on the live world: pool dollars, liquidations against the farming-season baseline,
+   the free path, sinks over faucets, the dial's position.
+
 ## Open for Jeff to decide
 - Miles-to-profit airdrop weighting after the runs (0.6 / 0.4 to start).
 - The four season pot sizes (10 / 6 / 4 / 3M proposed).

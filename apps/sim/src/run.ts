@@ -1,6 +1,6 @@
 import { mkdirSync, writeFileSync } from "node:fs";
 import { parseArgs } from "node:util";
-import { economyConfig, type EconomyConfig } from "@lanes/config";
+import { economyConfig, withLiveLevers, type EconomyConfig } from "@lanes/config";
 import { buildNetwork, hubs, neutralFeeds, syntheticCassCycle } from "@lanes/data";
 import { buildReport, createWorld, runDays, type RunReport } from "@lanes/engine";
 import { populate, ruleBotHook } from "@lanes/agents";
@@ -23,14 +23,17 @@ const { values } = parseArgs({
     seasons: { type: "string", default: "on" },
     cycle: { type: "string", default: "on" },
     "holding-rate": { type: "string" },
+    // "live" (the default) runs the locked levers of config/live.ts, as the live world does; "base" the bare config.
+    profile: { type: "string", default: "live" },
     // Any config value by path, repeatable: --set freeEntry.leases.enabled=false
     set: { type: "string", multiple: true, default: [] },
   },
 });
 
 // Seasons off: no lock, no burn, no Miles reset — the economy runs continuously.
+const profileCfg: EconomyConfig = values.profile === "base" ? economyConfig : withLiveLevers(economyConfig);
 const seasonsCfg: EconomyConfig =
-  values.seasons === "off" ? { ...economyConfig, seasonClose: { ...economyConfig.seasonClose, enabled: false } } : economyConfig;
+  values.seasons === "off" ? { ...profileCfg, seasonClose: { ...profileCfg.seasonClose, enabled: false } } : profileCfg;
 // --holding-rate overrides the weekly holding cost on excess cash (sensitivity runs).
 const holdingCfg: EconomyConfig = values["holding-rate"]
   ? { ...seasonsCfg, holdingCost: { ...seasonsCfg.holdingCost, weeklyRate: Number(values["holding-rate"]) } }

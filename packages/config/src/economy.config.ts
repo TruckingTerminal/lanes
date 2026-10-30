@@ -9,7 +9,7 @@ export type TractorTier = "workhorse" | "highwayPro" | "flagship";
 export type FacilityType = "warehouse" | "coldStorage" | "factory";
 
 export const economyConfig = {
-  version: "0.17.0-phase0.23",
+  version: "0.18.0-phase0.24", // the circular economy and the big sinks, live levers in live.ts (2026-10-30)
 
   // §World, map and time
   time: {
