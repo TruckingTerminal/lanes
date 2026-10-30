@@ -161,3 +161,36 @@ Balance after this pass ≈ 150 of 5,000 until the subscription renews (2026-11-
 painted seasons for the city views (top hubs first, 25 each), re-crisping the coastal tiles of the
 warped map with the editor if the lean shows anywhere, portraits' winter clothes, WebP for the
 10 MB season levels.
+
+### The city views by hour and weather (2026-10-30)
+
+Jeff: the golden hour on every city is too repetitive; each should follow the time of day and the
+weather. Jeff moved PixelLab to Tier 3 (Pixel Architect, 9,839 generations a month; 5,002 were
+available at the upgrade), so painted variants are affordable again:
+
+- `paint-cityviews.py --variant night|rain|snow` paints the same city deep at night (lit windows,
+  neon, beacons, headlights), on a grey rainy afternoon, or on a bright day after snow, 25 each,
+  as `assets/cityviews/<ID>-<variant>.png`. Night for all 60 (1,500) and rain for all 60 (1,500)
+  are in flight; snow is the open question (1,500 for all, 750 for the snowy half).
+- `ui/CityPicture.tsx` shows the painting nearest the hour and the weather and relights it for
+  the rest: the sunset sky is cut out once (colours common in the top quarter and rare in the
+  bottom half, down to each column's skyline, a median over nine columns, feathered) and
+  replaced by the hour's sky with stars and the painted cloud drifting; the ground is graded per
+  hour band (night, dawn, morning, midday, afternoon, golden hour, dusk) and weather kind, with
+  lit windows kept after dark; dusk and dawn crossfade into the night painting. Rain, snow and
+  fog fall over it from the vfx tiles. The pane's caption gives the hour and the sky.
+- Lesson: PixMiniMax paints a flat grey ground under a transparent sprite, so weather loops are
+  not worth their generations; the stills move by code.
+
+### Every city view painted and animated (2026-10-30)
+
+Jeff doubled the plan (Pixel Architect 2x, 19,672 a month) and had the stopped queue resumed, then
+the hybrid. Painted: golden, night, rain and clear day for all 60 hubs, snow for the 16 snowy ones
+(256 views). Animated: every one of them at full resolution by `tools/animate-cityviews.py`
+(six 256 × 208 tiles each, 12 generations a view, drift-corrected and seam-stitched, a 256-colour
+4 × 4 sheet of about 1.4 MB). About 5,100 generations for the round; 6,836 left on 2026-10-30.
+The claude.ai artifact holds 256 MB a version, so the preview carries the golden loops for every
+city and the night loops for the ten starters; the Pages site and the repo carry all 256. Known
+flaw: the animator sometimes invents an object inside a tile (a second sign) that flickers; redo
+that tile for 2 generations when it shows. The `-tiles/` folders (about 1 GB, ignored by git) hold
+the tile frames, so a view can be re-stitched without animating it again.
