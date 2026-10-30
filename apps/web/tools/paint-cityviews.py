@@ -5,12 +5,12 @@ the map, 688 × 384 (the Pro model's largest 16:9 frame, 25 generations each) in
 with the city's real landmarks from tools/landmarks.json, a freeway of American long-nose rigs in
 the foreground and the summer golden hour the whole set shares (the weather is drawn live over it).
 
-  paint-cityviews.py [--only CHI,STL] [--jobs 4] [--seed N] [--dry] [--force] [--variant night|rain|snow]
+  paint-cityviews.py [--only CHI,STL] [--jobs 4] [--seed N] [--dry] [--force] [--variant <name>]
 
-Output: apps/web/assets/cityviews/<ID>.png and <ID>.json (the golden hour), or <ID>-<variant>.png for
-a variant: the same city deep at night, on a grey rainy afternoon, or on a bright day after snow.
-The client picks the painting nearest the hour and the weather and relights it for the rest.
-Existing views are kept unless --force.
+Output: apps/web/assets/cityviews/<ID>.png and <ID>.json (the golden hour), or <ID>-<variant>.png:
+day (a clear noon), night, rain, snow, overcast, fog, storm. The client picks the painting nearest
+the hour and the weather and relights it for the rest (ui/CityPicture.tsx). Existing views are
+kept unless --force.
 """
 import base64
 import json
@@ -39,6 +39,10 @@ LIGHT = {
     "night": "deep night under a dark blue starry sky, the skyline ablaze with lit windows, neon and red beacon lights on the tower tops, headlights and taillights streaming along the freeway, warm pools of streetlight, the landmarks floodlit",
     "rain": "a grey overcast rainy afternoon, low cloud brushing the tower tops, rain streaking down, wet roads reflecting headlights and brake lights, puddles on the shoulders, muted blue-grey colours with warm lit windows",
     "snow": "a bright clear winter day after a snowfall, snow on every roof, verge and shoulder, the freeway ploughed and dark, bare trees, a pale blue-white sky with a low winter sun, long cool shadows",
+    "day": "a bright clear day around noon, a deep blue sky with a few small white clouds, crisp sunlight with short shadows, lively natural colours",
+    "overcast": "a dull overcast afternoon under a flat grey sky, soft shadowless light, muted colours, the tower tops clear of the cloud",
+    "fog": "a thick morning fog, the skyline fading to pale grey silhouettes, the nearest towers half lost, headlights glowing in the mist, the freeway in the foreground sharp",
+    "storm": "a dark thunderstorm, a near-black sky with a bright forked lightning bolt over the skyline, heavy rain, wet roads reflecting the lights, headlights on",
 }
 
 

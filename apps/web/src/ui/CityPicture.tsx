@@ -7,12 +7,13 @@ import { weatherAt, type WeatherKind } from "../weather.js";
 
 /**
  * A city's picture in the pane, lit for the hour and the weather. Every hub has its golden-hour
- * painting (tools/paint-cityviews.py) and, where painted, a night, a rainy and a snowy one; the
- * picture shows the nearest and relights it for the rest: the painted sunset sky is cut out once
- * (the colours common at the top of the painting and rare at the bottom, down to each column's
- * skyline, smoothed and feathered) and replaced by the hour's sky with drifting painted clouds and
- * stars, the ground is graded for the hour and the weather with the lit windows kept at night,
- * and dusk and dawn crossfade into the night painting. The precipitation falls over it (Sky).
+ * painting (tools/paint-cityviews.py) and, where painted, a clear day, a night, a rainy and a
+ * snowy one; the picture shows the nearest and relights it for the rest: a painting's sky is cut
+ * out once (the colours common at the top of the painting and rare at the bottom, down to each
+ * column's skyline, smoothed and feathered) and replaced by the hour's sky with drifting painted
+ * clouds and stars, the ground is graded for the hour and the weather with the lit windows kept
+ * at night, and the paintings crossfade into each other at dawn, in the late afternoon and at
+ * dusk. The precipitation falls over it (Sky).
  */
 export const VIEW_W = 688;
 export const VIEW_H = 384;
@@ -125,6 +126,7 @@ interface Grade {
   lights: boolean;
   gain: number;
 }
+/** The golden-hour painting taken to each hour: the orange cast is pulled out by day and the light taken down at night. */
 const BAND_GRADE: Record<Band, Partial<Grade>> = {
   night: { m: [0.3, 0.34, 0.56], d: 0.25, lights: true },
   dawn: { m: [1.0, 0.84, 0.9], d: 0.1, gain: 0.92 },
@@ -133,6 +135,12 @@ const BAND_GRADE: Record<Band, Partial<Grade>> = {
   afternoon: { m: [1.02, 0.98, 0.92], d: 0.15 },
   golden: {},
   dusk: { m: [0.6, 0.54, 0.7], d: 0.15, lights: true },
+};
+/** The clear-day painting taken to the daylight hours: a little cool early, warm late. */
+const DAY_GRADE: Partial<Record<Band, Partial<Grade>>> = {
+  morning: { m: [0.98, 0.99, 1.03], gain: 0.97 },
+  midday: {},
+  afternoon: { m: [1.04, 0.99, 0.9], gain: 0.98 },
 };
 const KIND_GRADE: Record<WeatherKind, Partial<Grade>> = {
   clear: {},
@@ -143,8 +151,7 @@ const KIND_GRADE: Record<WeatherKind, Partial<Grade>> = {
   snow: { m: [1.04, 1.05, 1.12], d: 0.4, lift: 0.1 },
   fog: { m: [0.92, 0.93, 0.96], d: 0.35, lift: 0.18 },
 };
-function gradeOf(band: Band, kind: WeatherKind): Grade {
-  const a = BAND_GRADE[band];
+function gradeOf(a: Partial<Grade>, kind: WeatherKind): Grade {
   const b = KIND_GRADE[kind];
   const ma = a.m ?? [1, 1, 1];
   const mb = b.m ?? [1, 1, 1];
@@ -156,9 +163,9 @@ function gradeOf(band: Band, kind: WeatherKind): Grade {
     gain: (a.gain ?? 1) * (b.gain ?? 1),
   };
 }
-/** The painting graded for a band and a weather, cached per pair. */
-function graded(p: Painting, band: Band, kind: WeatherKind): HTMLCanvasElement {
-  const k = `${band}|${kind}`;
+/** The painting graded for an hour (`key` names the hour grade) and a weather, cached per pair. */
+function graded(p: Painting, key: string, hour: Partial<Grade>, kind: WeatherKind): HTMLCanvasElement {
+  const k = `${key}|${kind}`;
   let cv = p.graded.get(k);
   if (cv) return cv;
   cv = document.createElement("canvas");
@@ -166,8 +173,8 @@ function graded(p: Painting, band: Band, kind: WeatherKind): HTMLCanvasElement {
   cv.height = p.img.height;
   const ctx = cv.getContext("2d")!;
   ctx.drawImage(p.img, 0, 0);
-  const g = gradeOf(band, kind);
-  if (band !== "golden" || kind !== "clear") {
+  const g = gradeOf(hour, kind);
+  if (Object.keys(hour).length || kind !== "clear") {
     const id = ctx.getImageData(0, 0, cv.width, cv.height);
     const d = id.data;
     for (let i = 0; i < d.length; i += 4) {
@@ -287,26 +294,45 @@ export function CityPicture({ hub }: { hub: number }): JSX.Element {
         ctx.fillRect(0, 0, cv.width, cv.height);
         return;
       }
+      const day = painting(`cityviews/${at.id}-day.png`);
       const night = painting(`cityviews/${at.id}-night.png`);
       const rain = painting(`cityviews/${at.id}-rain.png`);
       const snow = painting(`cityviews/${at.id}-snow.png`);
       const wet = kind === "rain" || kind === "storm" || kind === "fog";
-      // The painting nearest the hour and the weather; the golden-hour one gets the hour's sky.
+      const clearish = kind === "clear" || kind === "heat";
+      const daytime = band === "morning" || band === "midday" || band === "afternoon";
+      // The painting nearest the hour and the weather, with the grade that takes it the rest of the way.
       let main = base;
-      let mainBand: Band = band;
-      if (kind === "snow" && snow && band !== "night") (main = snow), (mainBand = "golden");
-      else if (wet && rain && band !== "night") (main = rain), (mainBand = "golden");
-      if (band === "night" && night) (main = night), (mainBand = "golden");
-      const swapSky = main === base && !(band === "golden" && (kind === "clear" || kind === "heat"));
-      ctx.drawImage(graded(main, mainBand, kind), 0, 0);
+      let key: string = band;
+      let hourGrade: Partial<Grade> = BAND_GRADE[band];
+      if (daytime && day) (main = day), (key = `day-${band}`), (hourGrade = DAY_GRADE[band] ?? {});
+      if (kind === "snow" && snow && band !== "night") (main = snow), (key = "snow"), (hourGrade = {});
+      else if (wet && rain && band !== "night") (main = rain), (key = "rain"), (hourGrade = {});
+      if (band === "night" && night) (main = night), (key = "night-painted"), (hourGrade = {});
+      // The golden-hour painting keeps its sky only at golden hour in clear weather, the day painting only in clear weather by day.
+      const swapSky = (main === base && !(band === "golden" && clearish)) || (main === day && !clearish);
+      ctx.drawImage(graded(main, key, hourGrade, kind), 0, 0);
       if (swapSky) {
-        if (!base.mask) base.mask = skyMask(base.img);
-        drawSky(ctx, base.mask, band, kind, now, 0.94);
+        if (!main.mask) main.mask = skyMask(main.img);
+        drawSky(ctx, main.mask, band, kind, now, 0.94);
       }
-      // Dusk fades into the night painting, dawn out of it.
-      if (night && (band === "dusk" || band === "dawn")) {
-        ctx.globalAlpha = band === "dusk" ? Math.min(1, hour - 20) : Math.max(0, 1 - (hour - 5) / 2);
-        ctx.drawImage(graded(night, "golden", kind), 0, 0);
+      // Crossfades: dusk into the night painting and dawn out of it; the last hour of the afternoon
+      // into the golden hour and the first hour of the morning out of the dawn.
+      let over: Painting | null = null;
+      let overKey = "";
+      let overGrade: Partial<Grade> = {};
+      let alpha = 0;
+      if (night && band === "dusk") (over = night), (overKey = "night-painted"), (alpha = Math.min(1, hour - 20));
+      else if (night && band === "dawn") (over = night), (overKey = "night-painted"), (alpha = Math.max(0, 1 - (hour - 5) / 2));
+      else if (main === day && band === "afternoon" && hour >= 17 && clearish) (over = base), (overKey = "golden"), (alpha = hour - 17);
+      else if (main === day && band === "morning" && hour < 8) (over = base), (overKey = "dawn"), (overGrade = BAND_GRADE.dawn), (alpha = 1 - (hour - 7));
+      if (over && alpha > 0.01) {
+        ctx.globalAlpha = alpha;
+        ctx.drawImage(graded(over, overKey, overGrade, kind), 0, 0);
+        if (over === base && !clearish) {
+          if (!base.mask) base.mask = skyMask(base.img);
+          drawSky(ctx, base.mask, band, kind, now, 0.94 * alpha);
+        }
         ctx.globalAlpha = 1;
       }
     };
