@@ -1,5 +1,6 @@
 import { COMMODITIES } from "@lanes/data";
-import { payFuel, serviceBill } from "./businesses.js";
+import { payLegFuel, roadService, serviceBill } from "./businesses.js";
+import { restOnRoad } from "./sites.js";
 import { managerBreakdownMult, managerMaintenanceMult } from "./labor.js";
 import { dayOf, MINUTES_PER_HOUR } from "./clock.js";
 import { clamp, fuelPrice, tripCost } from "./economics.js";
@@ -110,7 +111,10 @@ export function moveTrucks(w: World): void {
         // Off duty until the duty day resets; if that's within this hour, roll on from there.
         const resetAt = truck.shiftStartT! + cfg.hos.dutyDayHours * MINUTES_PER_HOUR;
         const hourEnd = w.t + MINUTES_PER_HOUR;
-        if (resetAt >= hourEnd) break;
+        if (resetAt >= hourEnd) {
+          restOnRoad(w, truck); // the night at the nearest truck stop, or on the shoulder (sites.ts)
+          break;
+        }
         budget = hourEnd - resetAt;
         continue;
       }
@@ -162,7 +166,10 @@ function breakDown(w: World, truck: Truck): void {
   if (truck.lease === "owned") {
     bill = w.rng.ops.int(breakdowns.repairFd[0], breakdowns.repairFd[1]);
     const company = companyById(w, truck.companyId);
-    company.operating.costFd += serviceBill(w, company, truck.hub, bill, "repairs", `breakdown:${truck.id}`); // the hub's shop, or the NPC shop
+    // Road service (businesses.ts): the nearest shop within reach comes out, or NPC road service; the drive out adds to the delay.
+    const service = roadService(w, truck, company, bill);
+    company.operating.costFd += service.paid;
+    truck.breakdownMin += service.delayMin;
   }
   w.listener?.({ kind: "breakdown", companyId: truck.companyId, truckId: truck.id, repairFd: bill });
   w.metrics.onBreakdown();
@@ -199,7 +206,7 @@ export function payTripCosts(w: World, truck: Truck, ref: string): number {
   // Fuel at the hub's player station if there is one (businesses.ts), else the pump; maintenance at
   // the hub's shop or the NPC shop, leaner with a maintenance manager (labor.ts).
   const fuel = c.fuel * keep;
-  payFuel(w, company, truck.hub, fuel, ref);
+  payLegFuel(w, company, truck, fuel, driven, ref); // the block rule: the origin, then the truck stops the leg passes
   w.ledger.post(w.t, acct, "sink:driver_wages", c.wages, ref);
   const maintenance = serviceBill(w, company, truck.hub, c.maintenance * keep * managerMaintenanceMult(w, company), "maintenance", ref);
   w.ledger.post(w.t, acct, "sink:tolls", tolls, ref);

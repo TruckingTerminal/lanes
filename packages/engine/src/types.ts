@@ -217,8 +217,8 @@ export interface Company {
   minBrokerCredit: number;
   /** Gallons burned this month, on the road and idling, for the monthly fuel tax (fuelTax.ts). */
   fuelGalMonth: number;
-  /** Salaried posts (labor.ts managers): an operations manager and a maintenance manager. */
-  managers: { ops: boolean; maint: boolean };
+  /** Salaried posts (labor.ts managers): operations managers and maintenance managers on staff. */
+  managers: { ops: number; maint: number };
   /** The catalogue (items.ts): the yard, its bond, and dollars spent in the farming season's window. */
   yard: "none" | "small" | "large";
   yardBondFd: number;
@@ -476,6 +476,8 @@ export interface Truck {
   /** Tolls still to be paid on this leg (charged as the miles are settled), and the share of it on two-lane highway. */
   legTollFd: number;
   legHighwayShare: number;
+  /** The shift whose rest on the road has been charged (sites.ts restOnRoad), so a rest is charged once. */
+  restShiftT: number | null;
 }
 
 /** "expired": nobody hauled it before the shipper gave up (board.giveUpAfterRounds); the freight is lost. */
@@ -583,13 +585,31 @@ export interface Facility {
 
 export type BusinessKind = "shop" | "truckStop" | "fuelStation";
 
-/** A player business at a hub (businesses.ts): a shop, a truck stop or a fuel station. */
+/** A truck-stop site on an interstate (sites.ts): where a truck stop can be built. */
+export interface TruckStopSite {
+  id: number;
+  /** The road edge it sits on and how far along it (0–1 from the edge's a end). */
+  edge: number;
+  frac: number;
+  lat: number;
+  lon: number;
+  /** Freight passing, relative to the busiest site (1). */
+  traffic: number;
+  /** For sale (the busiest sites open first; more open as the fleet grows). */
+  open: boolean;
+  /** The truck stop built here, 0 for none. */
+  businessId: number;
+}
+
+/** A player business (businesses.ts): a shop or a fuel station at a hub, or a truck stop at a site. */
 export interface Business {
   id: number;
   kind: BusinessKind;
   /** 0 once closed (its owner liquidated): the slot is back in supply. */
   ownerId: number;
+  /** Hub businesses: the hub; a truck stop: −1, and its site below. */
   hub: number;
+  site: number;
   boughtDay: number;
   /** The staked bond behind it, returned when it closes. */
   bondFd: number;
@@ -699,7 +719,8 @@ export type Action =
   | { type: "withdraw_pool"; line: PoolLine; amountFd: number }
   | { type: "set_pay_terms"; terms: "net" | "quick" | "factor" }
   | { type: "buy_item"; item: ItemKind; pay: "fd" | "usd"; truckId?: number }
-  | { type: "buy_business"; kind: BusinessKind; hubId: string }
+  | { type: "buy_business"; kind: "shop" | "fuelStation"; hubId: string }
+  | { type: "buy_business"; kind: "truckStop"; siteId: number }
   | { type: "set_shop_markup"; businessId: number; markup: number }
   | { type: "hire_manager"; role: "ops" | "maint" }
   | { type: "fire_manager"; role: "ops" | "maint" }

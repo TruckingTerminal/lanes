@@ -78,9 +78,14 @@ Order is the working order. Design records live in TOKENOMICS.md (economy) and R
   catalogue split + staked bond + weekly upkeep); the maintenance market through shops (11, first
   form: price against the NPC list, parts a sink); operations and maintenance managers as salaried
   posts (12, first form); the vest at 0.25%/week above the TGE price. TOKENOMICS.md "The big sinks".
-- **Next:** managers as people from the labor pool (skill, poaching, morale); shops' pricing and
-  businesses in the client; per-state fuel tax rates once routes carry states (13); terrain and
-  weather (13); then the switch-on decision from the v29 batches.
+- **Done (2026-10-30):** truck stops as interstate sites (`businesses.sites`, traffic-priced, fuel +
+  shop + parking), the 400-mile fuel rule, rests at stops, road service for breakdowns on the road,
+  operations managers required past four trucks with the crash / pull-in / morale / skill edge, the
+  balance dial on NPC rates (`token.circular.rateStabilizer`). TOKENOMICS.md "Truck stops on the
+  interstates".
+- **Next:** draw the sites on the client map (lat/lon in `w.sites`; the graphics session); managers as
+  people from the labor pool; per-state fuel tax rates once routes carry states (13); terrain and
+  weather (13); a fuel tank model if the block rule proves too coarse; the switch-on decision.
 
 ## Items, upgrades and yards (Jeff, 2026-10-29)
 18. **Yards.** More than 5 trucks needs a yard; a yard costs dollars and a staked FD bond, sized by

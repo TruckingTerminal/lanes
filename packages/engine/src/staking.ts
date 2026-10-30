@@ -6,6 +6,7 @@
  * instant exit at a haircut that is burned.
  */
 import { applyAction } from "./actions.js";
+import { opsCap } from "./labor.js";
 import { dayOf } from "./clock.js";
 import { companyAccount } from "./ledger.js";
 import { yardTrucks } from "./items.js";
@@ -146,14 +147,24 @@ export function dailyStaking(w: World): void {
     if (c.liquidatingSince !== null) continue;
     const fleet = w.trucksByCompany.get(c.id) ?? [];
     const running = fleet.filter((t) => t.status !== "parked" && t.status !== "retired" && t.status !== "listed").length;
-    const over = running - truckCap(w, c);
+    // The cap is the stake tier's, and the operations managers' (labor.ts opsCap): past four trucks a
+    // fleet needs one for every twenty-five beyond, or the extra trucks park after the grace period.
+    const ops = opsCap(w, c);
+    const over = running - Math.min(truckCap(w, c), ops);
     if (over <= 0 && brokerLicensed(w, c)) {
       c.tierGraceDay = null;
       continue;
     }
     if (c.tierGraceDay === null) {
       c.tierGraceDay = today + k.graceDays;
-      w.listener?.({ kind: "notice", companyId: c.id, topic: "authority", text: over > 0 ? `Your stake covers ${truckCap(w, c)} trucks and you run ${running}: stake more within ${k.graceDays} days or the extra trucks park.` : `Your broker licence needs a ${k.roles.broker} FD stake: stake it within ${k.graceDays} days or you take no loads.`, tone: "bad" });
+      const m = w.cfg.labor.managers.ops;
+      const text =
+        over > 0 && running > ops
+          ? `Past ${m.requiredAbove} trucks you need an operations manager, one for every ${m.span}: hire within ${k.graceDays} days or the extra trucks park.`
+          : over > 0
+            ? `Your stake covers ${truckCap(w, c)} trucks and you run ${running}: stake more within ${k.graceDays} days or the extra trucks park.`
+            : `Your broker licence needs a ${k.roles.broker} FD stake: stake it within ${k.graceDays} days or you take no loads.`;
+      w.listener?.({ kind: "notice", companyId: c.id, topic: "authority", text, tone: "bad" });
       continue;
     }
     if (today < c.tierGraceDay) continue;

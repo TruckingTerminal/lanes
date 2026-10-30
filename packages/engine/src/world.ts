@@ -1,10 +1,11 @@
 import type { EconomyConfig, Equipment, FacilityType, TractorTier } from "@lanes/config";
+import { buildSites } from "./sites.js";
 import { PLACE_OF_HUB, placeMiles as netPlaceMiles, placeMilesFast as netPlaceMilesFast, placeRoute as netPlaceRoute, type Feeds, type Network, type Route } from "@lanes/data";
 import { Ledger, companyAccount } from "./ledger.js";
 import { truckCap } from "./staking.js";
 import { newPool } from "./pools.js";
 import { Rng } from "./rng.js";
-import type { BuybackWeek, GameEvent, TokenState, Company, Business, Facility, FinancePool, FraudCase, LeaseKind, Listing, Load, Pool, PoolLine, Receivable, Role, SeasonCloseRecord, Staff, StandingOrder, Truck, TruckOrder, Contract } from "./types.js";
+import type { BuybackWeek, GameEvent, TokenState, Company, Business, Facility, TruckStopSite, FinancePool, FraudCase, LeaseKind, Listing, Load, Pool, PoolLine, Receivable, Role, SeasonCloseRecord, Staff, StandingOrder, Truck, TruckOrder, Contract } from "./types.js";
 import { signPolicy } from "./insurance.js";
 import { seedPool } from "./labor.js";
 import { MetricsRecorder } from "./metrics.js";
@@ -47,6 +48,9 @@ export interface World {
   starterReserve: { workhorse: number; van: number };
   facilities: Facility[];
   businesses: Business[];
+  /** Truck-stop sites on the interstates (sites.ts), and the fleet size the open count is scaled from. */
+  sites: TruckStopSite[];
+  sitesBaseTrucks: number;
   /** Facilities remaining in the PoC supply. */
   facilitySupply: Record<FacilityType, number>;
   seasonCloses: SeasonCloseRecord[];
@@ -57,7 +61,7 @@ export interface World {
   listings: Listing[];
   finance: FinancePool;
   /** Published stabilizers (§Circular economy — targets and stabilizers). */
-  stab: { volumeMult: number; rackSpread: number };
+  stab: { volumeMult: number; rackSpread: number; rateMult: number };
   /** Last round's load-to-truck ratio per hub, for repositioning. */
   lastRatio: Float64Array;
   /** Smoothed share of open loads that clear each round, by equipment (public board data). */
@@ -166,6 +170,8 @@ export function createWorld(o: WorldOptions): World {
     },
     facilities: [],
     businesses: [],
+    sites: [],
+    sitesBaseTrucks: 0,
     facilitySupply: {
       warehouse: cfg.facilities.types.warehouse.pocCap,
       coldStorage: cfg.facilities.types.coldStorage.pocCap,
@@ -185,7 +191,7 @@ export function createWorld(o: WorldOptions): World {
       peakOutstandingFd: 0,
       loansMade: 0,
     },
-    stab: { volumeMult: 1, rackSpread: 1 },
+    stab: { volumeMult: 1, rackSpread: 1, rateMult: 1 },
     lastRatio: new Float64Array(o.net.hubs.length).fill(1),
     fillRate: { van: 0.7, reefer: 0.7, flatbed: 0.7 },
     contractIndex: new Float64Array(o.net.hubs.length * 3).fill(NaN),
@@ -226,6 +232,7 @@ export function createWorld(o: WorldOptions): World {
     metrics: new MetricsRecorder(),
   };
   seedPool(w);
+  buildSites(w);
   return w;
 }
 
@@ -395,12 +402,15 @@ export function syncTruck(w: World, truck: Truck): void {
   const { cfg } = w;
   const d = truck.driverId ? staffById(w, truck.driverId) : null;
   const co = truck.coDriverId ? staffById(w, truck.coDriverId) : null;
+  // An operations manager (labor.ts) lifts every driver a little above their skill.
+  const m = cfg.labor.managers;
+  const bonus = m.enabled && truck.companyId && companyById(w, truck.companyId).managers.ops > 0 ? m.ops.skillBonus : 0;
   if (d && co) {
     truck.wagePerMile = (d.pay + co.pay) * cfg.labor.driver.teamPayShare;
-    truck.driverSkill = (d.skill + co.skill) / 2;
+    truck.driverSkill = Math.min(1, (d.skill + co.skill) / 2 + bonus);
   } else if (d) {
     truck.wagePerMile = d.pay;
-    truck.driverSkill = d.skill;
+    truck.driverSkill = Math.min(1, d.skill + bonus);
   } else {
     truck.wagePerMile = cfg.costs.driverWagePerMile;
     truck.driverSkill = 0.5;
@@ -524,7 +534,7 @@ export function formCompany(w: World, c: NewCompany): Company {
     yardBondFd: 0,
     usdSpentBeta: 0,
     fuelGalMonth: 0,
-    managers: { ops: false, maint: false },
+    managers: { ops: 0, maint: 0 },
     suretyWriter: "npc",
     suretyClaimedFd: 0,
     seasonBase: { miles: 0, profit: 0 },
@@ -657,6 +667,7 @@ export function createTruck(
     legMiles: 0,
     nextStation: 0,
     legTollFd: 0,
+    restShiftT: null,
     legHighwayShare: 0,
   };
   w.trucks.push(truck);

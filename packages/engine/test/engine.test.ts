@@ -78,8 +78,11 @@ import { monthlyFuelTax } from "../src/fuelTax.js";
 import { stakeAccount } from "../src/staking.js";
 import { payTripCosts } from "../src/trips.js";
 import { createTruck } from "../src/world.js";
-import { businessesOf, payFuel, serviceBill, shopAt } from "../src/businesses.js";
-import { dispatchProfile, managerBreakdownMult, payManagers } from "../src/labor.js";
+import { businessesOf, payFuel, payLegFuel, roadService, serviceBill, shopAt } from "../src/businesses.js";
+import { bestOpenSite, legMile, restOnRoad, sitePriceFd, sitesAlong } from "../src/sites.js";
+import { hubRoute, syncTruck } from "../src/world.js";
+import { fuelPrice as fuelPriceNow } from "../src/economics.js";
+import { dispatchProfile, managerBreakdownMult, opsCap, payManagers } from "../src/labor.js";
 import type { Company } from "../src/types.js";
 
 const net = buildNetwork(hubs, cfg);
@@ -1453,6 +1456,59 @@ describe("the big sinks (0.18.0): sales tax, player businesses, the maintenance 
     labor: { ...calm.labor, managers: { ...calm.labor.managers, enabled: true } },
   };
   const hubIdOf = (w: World, c: Company) => w.net.hubs[c.homeHub]!.id;
+  /** A truck of `c` partway along the road from hub a to hub b, at `mile`. */
+  function onLeg(w: World, c: Company, a: number, b: number, mile: number) {
+    const t = createTruck(w, c, "owned", "workhorse", "van");
+    const r = hubRoute(w, a, b)!;
+    t.status = "loaded";
+    t.hub = a;
+    t.targetHub = b;
+    t.place = PLACE_OF_HUB[a]!;
+    t.targetPlace = PLACE_OF_HUB[b]!;
+    t.legMiles = r.miles;
+    t.remainingMi = r.miles - mile;
+    t.shiftStartT = 1_000;
+    const driver = w.staffByCompany.get(c.id)!.find((s) => s.owner)!;
+    t.driverId = driver.id;
+    driver.truckId = t.id;
+    return { t, r };
+  }
+  /** A hub pair whose road passes the site, with the site's mile along it; `far` picks a road that passes no site at all. */
+  function roadPast(w: World, siteId: number | null, minMile = 0, minLen = 0) {
+    const n = w.net.hubs.length;
+    for (let a = 0; a < n; a++)
+      for (let b = 0; b < n; b++) {
+        const r = a === b ? null : hubRoute(w, a, b);
+        if (!r || r.miles < minLen) continue;
+        const along = sitesAlong(w, r);
+        if (siteId === null) {
+          if (along.length === 0) return { a, b, mile: r.miles / 2, r };
+          continue;
+        }
+        const hit = along.find((s) => s.site === siteId);
+        if (hit && hit.mile >= minMile && r.miles - hit.mile >= minMile) return { a, b, mile: hit.mile, r };
+      }
+    throw new Error("no road fits");
+  }
+
+  it("lays truck-stop sites along the interstates, the busiest open first, priced by traffic", () => {
+    const w = createWorld({ cfg: sinks, net, feeds: neutralFeeds, seed: 74 });
+    expect(w.sites.length).toBeGreaterThan(sinks.businesses.sites.openAtStart);
+    expect(w.sites.filter((s) => s.open)).toHaveLength(sinks.businesses.sites.openAtStart);
+    expect(w.sites.every((s) => w.net.roads.edges[s.edge]!.cls === 0)).toBe(true);
+    const best = bestOpenSite(w)!;
+    expect(best.traffic).toBeGreaterThan(0);
+    expect(w.sites.filter((s) => s.open).every((s) => s.traffic <= best.traffic)).toBe(true);
+    const [lo, hi] = sinks.businesses.sites.priceRange;
+    for (const s of w.sites.filter((x) => x.open)) {
+      expect(sitePriceFd(w, s)).toBeGreaterThanOrEqual(sinks.businesses.kinds.truckStop.priceFd * lo - 1e-6);
+      expect(sitePriceFd(w, s)).toBeLessThanOrEqual(sinks.businesses.kinds.truckStop.priceFd * hi + 1e-6);
+    }
+    // A road's sites come back in order of the mile they sit at.
+    const r = hubRoute(w, 0, 1)!;
+    const along = sitesAlong(w, r);
+    for (let i = 1; i < along.length; i++) expect(along[i]!.mile).toBeGreaterThanOrEqual(along[i - 1]!.mile);
+  });
 
   it("charges the sales tax on a purchase and on a used truck, and never on freight", () => {
     const cat: EconomyConfig = { ...sinks, token: { ...sinks.token, catalogue: { ...sinks.token.catalogue, enabled: true } } };
@@ -1484,24 +1540,19 @@ describe("the big sinks (0.18.0): sales tax, player businesses, the maintenance 
     const shop = businessesOf(w, owner.id)[0]!;
     expect(applyAction(w, owner.id, { type: "set_shop_markup", businessId: shop.id, markup: 0.9 })).toEqual({ ok: true });
     expect(shopAt(w, owner.homeHub, cust.id)).toBe(shop);
-    // A second shop fits, a third doesn't; the cap per company holds too.
     expect(applyAction(w, owner.id, { type: "buy_business", kind: "shop", hubId })).toEqual({ ok: true });
     expect(applyAction(w, owner.id, { type: "buy_business", kind: "shop", hubId }).ok).toBe(false);
-    // The customer's repair bill at the hub: 90% of list, of which the parts share is a sink and the rest the owner's; sales tax on the bill.
     const list = 1_000;
     const parts = list * spec.partsShare;
     const o0 = w.ledger.balance(companyAccount(owner.id));
     const c0 = w.ledger.balance(companyAccount(cust.id));
-    const paid = serviceBill(w, cust, cust.homeHub, list, "repairs", "test");
-    expect(paid).toBeCloseTo(900 * 1.05, 6);
+    expect(serviceBill(w, cust, cust.homeHub, list, "repairs", "test")).toBeCloseTo(900 * 1.05, 6);
     expect(c0 - w.ledger.balance(companyAccount(cust.id))).toBeCloseTo(900 * 1.05, 2);
     expect(w.ledger.balance(companyAccount(owner.id)) - o0).toBeCloseTo(900 - parts, 2);
     expect(w.ledger.entries.filter((e) => e.to === "sink:parts").reduce((s, e) => s + e.amount, 0)).toBeCloseTo(parts, 2);
-    // The owner's own trucks pay parts only.
     const o1 = w.ledger.balance(companyAccount(owner.id));
     expect(serviceBill(w, owner, owner.homeHub, list, "maintenance", "test")).toBeCloseTo(parts * 1.05, 6);
     expect(o1 - w.ledger.balance(companyAccount(owner.id))).toBeCloseTo(parts * 1.05, 2);
-    // Liquidation closes the shops and returns the bonds to cash.
     startLiquidation(w, owner);
     expect(businessesOf(w, owner.id)).toHaveLength(0);
     expect(w.ledger.balance(contractAccount(owner.id))).toBeCloseTo(0, 2);
@@ -1509,53 +1560,106 @@ describe("the big sinks (0.18.0): sales tax, player businesses, the maintenance 
     w.ledger.assertBalanced();
   });
 
-  it("gives a fuel station its margin on the fuel bought at its hub, and a truck stop its nightly fee for half the idling", () => {
-    const w = createWorld({ cfg: sinks, net, feeds: neutralFeeds, seed: 72, keepLedgerEntries: true });
+  it("gives a hub fuel station its margin, and a truck stop at a site its nightly fee for a quarter of the idling, its fuel blocks and its road-service work", () => {
+    const w0 = createWorld({ cfg: sinks, net, feeds: neutralFeeds, seed: 72 });
+    const site0 = bestOpenSite(w0)!;
+    const road = roadPast(w0, site0.id, 120, 0);
+    // The same world again, with the fuel block set to the site's mile, so the leg's second block fuels there.
+    const blocked: EconomyConfig = { ...sinks, businesses: { ...sinks.businesses, fuelRule: { ...sinks.businesses.fuelRule, blockMi: Math.floor(road.mile) } } };
+    const w = createWorld({ cfg: blocked, net, feeds: neutralFeeds, seed: 72, keepLedgerEntries: true });
     const owner = carrier(w, "Owner");
     const cust = carrier(w, "Customer");
     owner.homeHub = cust.homeHub;
-    fund(w, owner.id, 600_000);
-    fund(w, cust.id, 50_000);
+    fund(w, owner.id, 2_000_000);
+    fund(w, cust.id, 200_000);
     const hubId = hubIdOf(w, owner);
     expect(applyAction(w, owner.id, { type: "buy_business", kind: "fuelStation", hubId })).toEqual({ ok: true });
-    expect(applyAction(w, owner.id, { type: "buy_business", kind: "truckStop", hubId })).toEqual({ ok: true });
     const o0 = w.ledger.balance(companyAccount(owner.id));
     payFuel(w, cust, cust.homeHub, 1_000, "test");
     expect(w.ledger.balance(companyAccount(owner.id)) - o0).toBeCloseTo(1_000 * sinks.businesses.kinds.fuelStation.marginPct, 2);
     expect(w.ledger.entries.filter((e) => e.to === "sink:fuel").reduce((s, e) => s + e.amount, 0)).toBeCloseTo(1_000 * (1 - sinks.businesses.kinds.fuelStation.marginPct), 2);
-    // A crewed truck idle at the hub overnight: half the idle fuel, plus the nightly fee (taxed) to the stop's owner.
-    const t = createTruck(w, cust, "owned", "workhorse", "van");
-    const driver = w.staffByCompany.get(cust.id)!.find((s) => s.owner)!;
-    t.driverId = driver.id;
-    driver.truckId = t.id;
+
+    // The truck stop at the busiest site, priced by traffic, bonded.
+    const site = bestOpenSite(w)!;
+    expect(site.id).toBe(site0.id);
+    const price = sitePriceFd(w, site);
+    const k = sinks.businesses.kinds.truckStop;
     const o1 = w.ledger.balance(companyAccount(owner.id));
-    const fuelBefore = w.ledger.entries.filter((e) => e.to === "sink:idle_fuel").reduce((s, e) => s + e.amount, 0);
-    runDays(w, 1);
-    const idle = w.ledger.entries.filter((e) => e.to === "sink:idle_fuel").reduce((s, e) => s + e.amount, 0) - fuelBefore;
-    const perNight = sinks.costs.idleFuelGalPerDay * w.metrics.days.at(-1)!.fuelPrice;
-    expect(idle).toBeCloseTo(perNight * sinks.businesses.kinds.truckStop.idleFuelMult, 1);
-    expect(w.ledger.balance(companyAccount(owner.id)) - o1).toBeCloseTo(sinks.businesses.kinds.truckStop.nightlyFd, 1);
+    expect(applyAction(w, owner.id, { type: "buy_business", kind: "truckStop", siteId: site.id })).toEqual({ ok: true });
+    expect(o1 - w.ledger.balance(companyAccount(owner.id))).toBeCloseTo(price + k.bondFd + price * 0.05, 2);
+    expect(site.businessId).toBeGreaterThan(0);
+    expect(applyAction(w, cust.id, { type: "buy_business", kind: "truckStop", siteId: site.id }).ok).toBe(false);
+    const stop = businessesOf(w, owner.id).find((b) => b.kind === "truckStop")!;
+    expect(applyAction(w, owner.id, { type: "set_shop_markup", businessId: stop.id, markup: 1.2 })).toEqual({ ok: true });
+
+    // A customer's truck resting at the site's mile: a quarter of the idling, and the nightly fee (taxed) to the owner.
+    const { t, r } = onLeg(w, cust, road.a, road.b, road.mile);
+    expect(legMile(t)).toBeCloseTo(road.mile, 6);
+    const o2 = w.ledger.balance(companyAccount(owner.id));
+    const idleBefore = w.ledger.entries.filter((e) => e.to === "sink:idle_fuel").reduce((s, e) => s + e.amount, 0);
+    restOnRoad(w, t);
+    restOnRoad(w, t); // the same shift: charged once
+    expect(w.ledger.balance(companyAccount(owner.id)) - o2).toBeCloseTo(k.nightlyFd, 2);
+    const idle = w.ledger.entries.filter((e) => e.to === "sink:idle_fuel").reduce((s, e) => s + e.amount, 0) - idleBefore;
+    expect(idle).toBeCloseTo(sinks.costs.idleFuelGalPerDay * k.idleFuelMult * fuelPriceNow(w), 1);
+
+    // Road service: the truck stop's shop comes out (no drive: the truck sits at its mile), at its markup plus the call-out fee.
+    const rs = sinks.businesses.roadService;
+    const o3 = w.ledger.balance(companyAccount(owner.id));
+    const service = roadService(w, t, cust, 1_000);
+    expect(service.delayMin).toBe(0);
+    expect(service.paid).toBeCloseTo((1_000 * 1.2 + rs.callOutFd) * 1.05, 6);
+    expect(w.ledger.balance(companyAccount(owner.id)) - o3).toBeCloseTo(1_000 * (1.2 - k.partsShare) + rs.callOutFd, 2);
+
+    // The leg's fuel by the block rule: the first block at the origin, the second at the stop (its margin to the owner), the rest at the pump.
+    const o4 = w.ledger.balance(companyAccount(owner.id));
+    payLegFuel(w, cust, t, 1_000, r.miles, "test");
+    const blockMi = blocked.businesses.fuelRule.blockMi;
+    let expected = 0;
+    for (let mile = blockMi; mile < r.miles; mile += blockMi) {
+      if (Math.abs(mile - road.mile) <= blocked.businesses.fuelRule.stopRangeMi) expected += ((1_000 * Math.min(blockMi, r.miles - mile)) / r.miles) * k.fuelMarginPct;
+    }
+    expect(expected).toBeGreaterThan(0); // the second block fuels at the stop
+    expect(w.ledger.balance(companyAccount(owner.id)) - o4).toBeCloseTo(expected, 2);
+
+    // With no provider in reach, NPC road service at its markup and its wait.
+    const far = roadPast(w, null);
+    const { t: t2 } = onLeg(w, cust, far.a, far.b, far.mile);
+    const npc = roadService(w, t2, cust, 1_000);
+    expect(npc.delayMin).toBe(rs.npcHours * 60);
+    expect(npc.paid).toBeCloseTo(1_000 * rs.npcMarkup * 1.05, 6);
     w.ledger.assertBalanced();
   });
 
-  it("pays managers weekly and lets them move breakdowns and dispatch noise, with the penalty past the threshold", () => {
+  it("pays managers weekly, needs an operations manager past four trucks (one per twenty-five), and gives one a crash, pull-in, pricing and skill edge", () => {
     const w = createWorld({ cfg: sinks, net, feeds: neutralFeeds, seed: 73, keepLedgerEntries: true });
     const a = carrier(w, "A");
     fund(w, a.id, 100_000);
     const k = sinks.labor.managers;
     for (let i = 0; i < k.maint.requiredAbove + 2; i++) createTruck(w, a, "owned", "workhorse", "van");
+    expect(opsCap(w, a)).toBe(k.ops.requiredAbove);
     expect(managerBreakdownMult(w, a)).toBe(k.maint.breakdownWithout);
     const without = dispatchProfile(w, a, k.ops.requiredAbove + 2).noise;
+    // The drivers' skill bonus: the owner at the wheel of the first truck.
+    const t = w.trucksByCompany.get(a.id)![0]!;
+    const owner = w.staffByCompany.get(a.id)!.find((s) => s.owner)!;
+    t.driverId = owner.id;
+    owner.truckId = t.id;
+    syncTruck(w, t);
+    const skill0 = t.driverSkill;
     expect(applyAction(w, a.id, { type: "hire_manager", role: "maint" })).toEqual({ ok: true });
     expect(applyAction(w, a.id, { type: "hire_manager", role: "ops" })).toEqual({ ok: true });
-    expect(applyAction(w, a.id, { type: "hire_manager", role: "ops" }).ok).toBe(false);
+    expect(t.driverSkill).toBeCloseTo(Math.min(1, skill0 + k.ops.skillBonus), 9);
+    expect(opsCap(w, a)).toBe(k.ops.requiredAbove + k.ops.span);
     expect(managerBreakdownMult(w, a)).toBe(k.maint.breakdownWith);
-    expect(dispatchProfile(w, a, k.ops.requiredAbove + 2).noise).toBeCloseTo((without / k.ops.noiseWithout) * k.ops.noiseWith, 9);
+    expect(dispatchProfile(w, a, k.ops.requiredAbove + 2).noise).toBeLessThan((without / k.ops.noiseWithout) * k.ops.noiseWith + 1e-9); // tighter still: the team's skill bonus too
+    expect(applyAction(w, a.id, { type: "hire_manager", role: "ops" })).toEqual({ ok: true }); // a second one, for a bigger fleet
+    expect(a.managers.ops).toBe(2);
     const before = w.ledger.balance(companyAccount(a.id));
     payManagers(w);
-    expect(before - w.ledger.balance(companyAccount(a.id))).toBeCloseTo((k.ops.payPerWeek + k.maint.payPerWeek) * w.labor.wageIndex, 2);
+    expect(before - w.ledger.balance(companyAccount(a.id))).toBeCloseTo((2 * k.ops.payPerWeek + k.maint.payPerWeek) * w.labor.wageIndex, 2);
     expect(applyAction(w, a.id, { type: "fire_manager", role: "ops" })).toEqual({ ok: true });
-    expect(a.managers.ops).toBe(false);
+    expect(a.managers.ops).toBe(1);
     w.ledger.assertBalanced();
   });
 });

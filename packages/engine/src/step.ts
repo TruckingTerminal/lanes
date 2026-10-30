@@ -13,9 +13,9 @@ import { billInsurance, dailyInsurance, monthlyInsurance } from "./insurance.js"
 import { chargeYards } from "./home.js";
 import { monthlyDealerPrices } from "./dealer.js";
 import { monthlyFuelTax } from "./fuelTax.js";
-import { truckStopAt, weeklyBusinesses } from "./businesses.js";
+import { weeklyBusinesses } from "./businesses.js";
 import { payManagers } from "./labor.js";
-import { chargeSalesTax } from "./salesTax.js";
+import { monthlySites } from "./sites.js";
 import { dailyLabor, monthlyLabor, payDispatchers, weeklyLabor } from "./labor.js";
 import { dailyStaking, stakeDiscount } from "./staking.js";
 import { dailyPools, poolAccount, poolMarkup, poolsOn } from "./pools.js";
@@ -84,19 +84,10 @@ function endOfDay(w: World, day: number, agents?: DailyAgentHook): void {
     }
     if (truck.status === "idle" && truck.companyId && truck.driverId && idleFuel > 0) {
       const c = companyById(w, truck.companyId);
-      // A player truck stop at the hub halves the idling (shore power) for a nightly fee (businesses.ts).
-      const stop = truckStopAt(w, truck.hub);
-      const shore = stop ? cfg.businesses.kinds.truckStop.idleFuelMult : 1;
-      const burned = idleFuel * (truck.mods.apu ? 0.5 : 1) * shore * (1 - stakeDiscount(w, c)); // an APU halves it; locked FD earns its discount
-      c.fuelGalMonth += cfg.costs.idleFuelGalPerDay * (truck.mods.apu ? 0.5 : 1) * shore;
+      const burned = idleFuel * (truck.mods.apu ? 0.5 : 1) * (1 - stakeDiscount(w, c)); // an APU halves it; locked FD earns its discount
+      c.fuelGalMonth += cfg.costs.idleFuelGalPerDay * (truck.mods.apu ? 0.5 : 1);
       w.ledger.post(w.t, companyAccount(truck.companyId), "sink:idle_fuel", burned, `idle:${truck.id}`);
       c.operating.costFd += burned;
-      if (stop && stop.ownerId !== c.id) {
-        const fee = cfg.businesses.kinds.truckStop.nightlyFd;
-        w.ledger.post(w.t, companyAccount(c.id), companyAccount(stop.ownerId), fee, `park:${truck.id}`);
-        stop.netFd += fee;
-        c.operating.costFd += fee + chargeSalesTax(w, c.id, fee, `park:${truck.id}`);
-      }
     }
   }
 
@@ -201,6 +192,7 @@ function endOfDay(w: World, day: number, agents?: DailyAgentHook): void {
     monthlyInsurance(w);
     monthlyDealerPrices(w);
     monthlyFuelTax(w);
+    monthlySites(w);
     if (tokenLive(w)) scaleDemand(w);
   }
 }
@@ -224,6 +216,9 @@ function monthlyStabilizers(w: World): void {
   const mid = (lo + hi) / 2;
   // Too little sunk → less NPC money in and dearer fuel; too much → the reverse.
   const pressure = clamp((ratio - mid) / ((hi - lo) / 2), -1, 1);
+  // The circular economy's balance dial: NPC rates move toward the target every month (freight.ts).
+  const rs = w.cfg.token.circular.rateStabilizer;
+  if (w.cfg.token.circular.enabled && rs.enabled) w.stab.rateMult = clamp(w.stab.rateMult * (1 + pressure * rs.stepPerMonth), rs.range[0], rs.range[1]);
   // After launch the profit-tax rate moves first; freight volume only once the rate is at a limit.
   const ts = w.cfg.token.taxStabilizer;
   if (tokenLive(w) && ts.enabled) {

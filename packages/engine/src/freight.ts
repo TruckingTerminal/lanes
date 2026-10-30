@@ -138,7 +138,7 @@ export function generateRoundFreight(w: World): RoundFreight {
   const tollPerMile = (lane: Lane) => (cfg.roads.tollsInRates ? lane.tollFd / lane.miles : 0);
   // Freight into a market trucks can't reload in carries part of the empty run out, per loaded mile.
   const exitPerMile = (lane: Lane, eq: Equipment) => (cfg.rates.exitDeadheadShare * cfg.rates.deadheadFdPerMile * expectedReloadDeadheadMi(w, lane.dest, eq)) / lane.miles;
-  const rf = reserveFactor(w);
+  const rf = reserveFactor(w) * w.stab.rateMult; // the reserve, and the balance dial (step.ts monthlyStabilizers)
   const refRate = (lane: Lane, eq: Equipment) =>
     lane.baseRate *
       rf *

@@ -474,8 +474,13 @@ services (sink `sales_tax`). `businesses` opens shops, truck stops and fuel stat
 at a hub, bought for FD through the catalogue split plus a bond, with weekly upkeep (`business_upkeep`):
 a shop does the hub's maintenance, repairs and rebuilds at its own price (parts a sink, `parts`), a
 truck stop halves idling for a nightly fee, a fuel station keeps a margin on its hub's fuel.
-`labor.managers` adds salaried operations and maintenance managers (`management`), needed past ten
-trucks. The vest is 0.25% a week at most, above the TGE price only.
+`labor.managers` adds salaried operations and maintenance managers (`management`): an operations
+manager is a must past four trucks, one per 25 beyond (the extra trucks park after the grace period),
+and brings a crash, pull-in, morale and skill edge. The vest is 0.25% a week at most, above the TGE
+price only. Truck stops are sites on the interstates (`businesses.sites`, `w.sites` with lat/lon),
+priced by traffic: fuel by the 400-mile block rule, rests at the nearest stop, and road service for
+breakdowns on the road (`road_service` when no shop is in reach). `token.circular.rateStabilizer`
+moves NPC rates toward the sink-to-faucet target each month.
 
 Jeff's direction (2026-10-29, TOKENOMICS.md "The circular economy"): a capped FD supply, staking as
 the bond behind every licence, player-funded pools for insurance, factoring and surety, payment

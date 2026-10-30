@@ -55,7 +55,7 @@ import {
   type StandingOrder,
   type World,
 } from "@lanes/engine";
-import { businessesOf, businessPriceFd, type BusinessKind } from "@lanes/engine";
+import { bestOpenSite, businessesOf, businessPriceFd, sitePriceFd, type BusinessKind } from "@lanes/engine";
 
 /**
  * Tier A rule bots (§AI-agent simulation): scripted greedy, conservative and
@@ -1018,11 +1018,18 @@ function maybeBuyBusiness(w: World, c: Company, p: BotProfile, rng: Rng, today: 
   const hubId = w.net.hubs[c.homeHub]!.id;
   for (const kind of kinds) {
     const spec = k.kinds[kind];
-    if (cash < (businessPriceFd(w, kind) + spec.bondFd) * 1.5) continue;
-    if (!applyAction(w, c.id, { type: "buy_business", kind, hubId }).ok) continue;
-    if (kind === "shop") {
+    if (kind === "truckStop") {
+      // The busiest site for sale: a fleet-scale asset, bought only with the cash well clear of it.
+      const site = bestOpenSite(w);
+      if (!site || cash < (sitePriceFd(w, site) + spec.bondFd) * 1.5) continue;
+      if (!applyAction(w, c.id, { type: "buy_business", kind, siteId: site.id }).ok) continue;
+    } else {
+      if (cash < (businessPriceFd(w, kind) + spec.bondFd) * 1.5) continue;
+      if (!applyAction(w, c.id, { type: "buy_business", kind, hubId }).ok) continue;
+    }
+    if (kind !== "fuelStation") {
       const b = businessesOf(w, c.id).at(-1)!;
-      const [lo, hi] = k.kinds.shop.markupRange;
+      const [lo, hi] = k.kinds[kind].markupRange;
       applyAction(w, c.id, { type: "set_shop_markup", businessId: b.id, markup: rng.range(lo, hi) });
     }
     return;

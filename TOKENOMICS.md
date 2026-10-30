@@ -467,3 +467,28 @@ replace the 40% tax, each a config switch, each a reason to hold or buy FD:
 4. **The fuel tax** (above), monthly on gallons burned.
 5. **The vest** at a quarter of a percent of the treasury a week at most, only above the TGE price,
    and only as much as leaves the pool at or above it.
+
+## Truck stops on the interstates, road service, managers at five trucks (Jeff, 2026-10-30; built)
+
+- **Sites.** Truck stops are sites on the interstates (`businesses.sites`: one every 100 interstate
+  miles, ranked by the freight that passes — a gravity model over the lanes), not hub businesses. The
+  busiest 60 open for sale at the start; more open as the fleet grows. A site's price is the list price
+  scaled by its traffic (0.5× to 3×), the bond fixed (250k + 100k, 3,000 a week upkeep).
+- **One asset, three trades.** Fuel at a 6% margin for the blocks of a leg that pass it (the 400-mile
+  rule: a leg buys its first block at the origin, each further block at the nearest truck stop within
+  100 miles of that mile, else the pump); a shop that charges 1.1–1.4× list and comes out to
+  breakdowns; parking that cuts a resting truck's idling to a quarter for 15 a night (a rest with no
+  stop within 50 miles idles on the shoulder at the full rate; rests on the road now burn fuel, as
+  idling at a hub does).
+- **Road service.** A breakdown happens at the truck's mile. The cheapest provider within 100 miles
+  comes out — a truck stop's shop at its markup, a hub shop at either end of the leg at its own — for a
+  call-out fee (300 + 5 a mile) plus the drive at 50 mph, which adds to the delay. With none in reach,
+  NPC road service at 1.5× list (sink `road_service`) and an eight-hour wait.
+- **Operations managers** are a must past four operating trucks, one for every 25 beyond: trucks over
+  the cap park after the grace period, like a stake tier. With one: pricing noise ×0.8, crash odds
+  ×0.9, pull-ins ×0.9, the morale hit for pushing drivers past the rules halved, and every driver and
+  dispatcher works 0.05 above their skill. Maintenance managers as before (past ten trucks).
+- **The balance dial** (`token.circular.rateStabilizer`): what NPC shippers pay per mile moves 3% a
+  month toward the sink-to-faucet target after launch. The runs to date paid players 10–12% more FD
+  than the game took back, and that surplus is what they sold; a balanced economy pays out what it
+  takes in, so a player's gain is another player's loss or a better-run company, not the reserve's.

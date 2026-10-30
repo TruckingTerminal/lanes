@@ -1,5 +1,5 @@
 import { acceptOffer, acceptTender, declineOffer, mayTake, rejectTender } from "./contracts.js";
-import { buyBusiness, serviceBill, setShopMarkup } from "./businesses.js";
+import { buyBusiness, buyTruckStop, serviceBill, setShopMarkup } from "./businesses.js";
 import { fireManager, hireManager } from "./labor.js";
 import { chargeSalesTax } from "./salesTax.js";
 import { bookLoad } from "./board.js";
@@ -105,7 +105,7 @@ export function badInput(cfg: EconomyConfig, a: Action): string | null {
     case "buy_item":
       return ["yardSmall", "yardLarge", "apu", "aero", "tires", "sleeper"].includes(a.item) && (a.pay === "fd" || a.pay === "usd") && (a.truckId === undefined || isId(a.truckId)) ? null : "bad item";
     case "buy_business":
-      return (a.kind === "shop" || a.kind === "truckStop" || a.kind === "fuelStation") && typeof a.hubId === "string" ? null : "bad business";
+      return a.kind === "truckStop" ? (isId(a.siteId) ? null : "bad site") : (a.kind === "shop" || a.kind === "fuelStation") && typeof a.hubId === "string" ? null : "bad business";
     case "set_shop_markup":
       return isId(a.businessId) && finiteIn(a.markup, 0.5, 2) ? null : "bad markup";
     case "hire_manager":
@@ -515,7 +515,7 @@ export function applyAction(w: World, companyId: number, action: Action): Action
       return result(buyItem(w, company, action.item, action.pay, action.truckId));
 
     case "buy_business":
-      return result(buyBusiness(w, company, action.kind, action.hubId));
+      return result(action.kind === "truckStop" ? buyTruckStop(w, company, action.siteId) : buyBusiness(w, company, action.kind, action.hubId));
 
     case "set_shop_markup":
       return result(setShopMarkup(w, company, action.businessId, action.markup));

@@ -53,12 +53,13 @@ export function dispatchProfile(w: World, c: Company, operating: number): Dispat
     span += s;
     weighted += s * d.skill;
   }
-  const skill = weighted / span;
   // Managers (config labor.managers): past the threshold a fleet without an operations manager prices
-  // worse and looks less far ahead; with one it prices tighter.
+  // worse and looks less far ahead; with one it prices tighter and the team works a little above its skill.
   const m = labor.managers;
-  const opsNeeded = m.enabled && operating > m.ops.requiredAbove && !c.managers.ops;
-  const noiseMult = opsNeeded ? m.ops.noiseWithout : m.enabled && c.managers.ops ? m.ops.noiseWith : 1;
+  const hasOps = m.enabled && c.managers.ops > 0;
+  const opsNeeded = m.enabled && operating > m.ops.requiredAbove && !hasOps;
+  const skill = Math.min(1, weighted / span + (hasOps ? m.ops.skillBonus : 0));
+  const noiseMult = opsNeeded ? m.ops.noiseWithout : hasOps ? m.ops.noiseWith : 1;
   return {
     skill,
     span,
@@ -485,7 +486,7 @@ export function weeklyLabor(w: World): void {
     // Morale: pay against what they could get elsewhere, how they're treated, how long they've stayed.
     const truck = s.truckId ? truckById(w, s.truckId) : null;
     let target = 0.6 + morale.payWeight * (s.pay / marketPay(w, s.kind, s.skill) - 1);
-    if (pushesRules(c)) target -= morale.pushedPenalty * s.integrity;
+    if (pushesRules(c)) target -= morale.pushedPenalty * s.integrity * opsPushedMult(w, c); // an operations manager makes it bearable
     if (truck && truck.lease === "owned" && condition(w.cfg, truck) < 0.35) target -= morale.wornTruckPenalty;
     if (c.safety.rating === "conditional" || c.safety.rating === "unsatisfactory") target -= morale.badRatingPenalty;
     target += Math.min(morale.tenureCap, morale.tenurePerYear * tenureYears(w, s));
@@ -587,23 +588,25 @@ export function creditMiles(w: World, truck: Truck, miles: number): void {
   if (truck.coDriverId) staffById(w, truck.coDriverId).pending += miles;
 }
 
-// --- Managers (Jeff, 2026-10-29; TODO.md 12, first form) ----------------------------------------
-// A salaried post, hired and let go by the company, paid weekly at the market index: an operations
-// manager and a maintenance manager. Past `requiredAbove` operating trucks a fleet needs them.
+// --- Managers (Jeff, 2026-10-29/30; TODO.md 12, first form) -------------------------------------
+// Salaried posts, hired and let go by the company, paid weekly at the market index: operations
+// managers (a must past `requiredAbove` operating trucks, one for every `span` beyond; the trucks over
+// that park after the grace period, staking.ts) and maintenance managers.
 
 export type ManagerRole = "ops" | "maint";
 
 export function hireManager(w: World, c: Company, role: ManagerRole): string | null {
   if (!w.cfg.labor.managers.enabled) return "managers aren't on";
   if (c.liquidatingSince !== null) return "in liquidation";
-  if (c.managers[role]) return "that post is filled";
-  c.managers[role] = true;
+  c.managers[role]++;
+  if (role === "ops") for (const t of w.trucksByCompany.get(c.id) ?? []) syncTruck(w, t); // the drivers' bonus
   return null;
 }
 
 export function fireManager(w: World, c: Company, role: ManagerRole): string | null {
-  if (!c.managers[role]) return "nobody in that post";
-  c.managers[role] = false;
+  if (c.managers[role] <= 0) return "nobody in that post";
+  c.managers[role]--;
+  if (role === "ops") for (const t of w.trucksByCompany.get(c.id) ?? []) syncTruck(w, t);
   return null;
 }
 
@@ -613,37 +616,53 @@ export function payManagers(w: World): void {
   if (!k.enabled) return;
   for (const c of w.companies) {
     for (const role of ["ops", "maint"] as const) {
-      if (!c.managers[role]) continue;
-      const pay = k[role].payPerWeek * w.labor.wageIndex;
+      if (c.managers[role] <= 0) continue;
+      const pay = k[role].payPerWeek * w.labor.wageIndex * c.managers[role];
       w.ledger.post(w.t, companyAccount(c.id), "sink:management", pay, `manager:${role}:${c.id}`);
       c.operating.costFd += pay;
     }
   }
 }
 
+/** Operating trucks the operations managers on staff cover (the threshold plus a span each); no limit when managers are off. */
+export function opsCap(w: World, c: Company): number {
+  const k = w.cfg.labor.managers;
+  return k.enabled ? k.ops.requiredAbove + k.ops.span * c.managers.ops : Infinity;
+}
+
+/** Managers of a role a fleet of this size needs. */
+export function managersNeeded(w: World, role: ManagerRole, operating: number): number {
+  const k = w.cfg.labor.managers[role];
+  return operating > k.requiredAbove ? Math.ceil((operating - k.requiredAbove) / k.span) : 0;
+}
+
 /** Breakdown odds: more without a maintenance manager past the threshold, fewer with one. */
 export function managerBreakdownMult(w: World, c: Company): number {
   const k = w.cfg.labor.managers;
   if (!k.enabled) return 1;
-  if (c.managers.maint) return k.maint.breakdownWith;
+  if (c.managers.maint > 0) return k.maint.breakdownWith;
   return operatingCount(w, c.id) > k.maint.requiredAbove ? k.maint.breakdownWithout : 1;
 }
 
 /** Maintenance per mile: leaner with a maintenance manager. */
 export function managerMaintenanceMult(w: World, c: Company): number {
   const k = w.cfg.labor.managers;
-  return k.enabled && c.managers.maint ? k.maint.maintenanceWith : 1;
+  return k.enabled && c.managers.maint > 0 ? k.maint.maintenanceWith : 1;
 }
 
-/** Bots (and the auto-staff order): fill a post once the fleet needs it and the cash is there; let it go when the fleet has shrunk well below. */
+/** With an operations manager: fewer crashes, fewer pull-ins, and drivers pushed past the rules mind it less. */
+export const opsCrashMult = (w: World, c: Company): number => (w.cfg.labor.managers.enabled && c.managers.ops > 0 ? w.cfg.labor.managers.ops.crashMult : 1);
+export const opsPullInMult = (w: World, c: Company): number => (w.cfg.labor.managers.enabled && c.managers.ops > 0 ? w.cfg.labor.managers.ops.pullInMult : 1);
+export const opsPushedMult = (w: World, c: Company): number => (w.cfg.labor.managers.enabled && c.managers.ops > 0 ? w.cfg.labor.managers.ops.pushedPenaltyMult : 1);
+
+/** Bots (and the auto-staff order): fill the posts the fleet needs when the cash is there; let them go when the fleet has shrunk well below. */
 export function autoManagers(w: World, c: Company): void {
   const k = w.cfg.labor.managers;
   if (!k.enabled || c.liquidatingSince !== null) return;
   const operating = operatingCount(w, c.id);
-  const cash = w.ledger.balance(companyAccount(c.id));
   for (const role of ["ops", "maint"] as const) {
-    const need = operating > k[role].requiredAbove;
-    if (need && !c.managers[role] && cash >= k[role].payPerWeek * 8) hireManager(w, c, role);
-    else if (!need && c.managers[role] && operating <= k[role].requiredAbove - 2) fireManager(w, c, role);
+    const need = managersNeeded(w, role, operating);
+    while (c.managers[role] < need && w.ledger.balance(companyAccount(c.id)) >= k[role].payPerWeek * 8) hireManager(w, c, role);
+    while (c.managers[role] > need && (need > 0 || operating <= k[role].requiredAbove - 2)) fireManager(w, c, role);
   }
 }

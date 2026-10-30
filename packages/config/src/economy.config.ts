@@ -390,14 +390,27 @@ export const economyConfig = {
     enabled: false,
     maxPerCompany: 3,
     kinds: {
-      // Sized on the v29-a batch (2026-10-30): a shop at an average hub does ~1.1M FD of work a year, a
-      // fuel station sees ~4.8M FD of fuel, a truck stop ~17 idle trucks a night. Each pays back in one
-      // to two years on its own; an owner's own fleet makes each one better (parts at cost, wholesale
-      // fuel, free parking at a quarter of the idling).
+      // Sized on the v29-a batch (2026-10-30): a shop at an average hub does ~1.1M FD of work a year and
+      // a fuel station sees ~4.8M FD of fuel; each pays back in one to two years on its own, and an
+      // owner's own fleet makes it better (parts at cost, wholesale fuel).
       shop: { priceFd: 80_000, bondFd: 40_000, upkeepPerWeekFd: 2_000, perHub: 2, partsShare: 0.7, markupRange: [0.85, 1.0] as const },
-      truckStop: { priceFd: 80_000, bondFd: 30_000, upkeepPerWeekFd: 800, perHub: 1, nightlyFd: 15, idleFuelMult: 0.25 },
       fuelStation: { priceFd: 200_000, bondFd: 80_000, upkeepPerWeekFd: 1_200, perHub: 1, marginPct: 0.04 },
+      // A truck stop (Jeff, 2026-10-30) is a site on an interstate (sites below), not a hub business: fuel
+      // at a wider margin, a shop that charges over list (road service comes from here), and parking
+      // that cuts a resting truck's idling to a quarter for a nightly fee. Its price scales with the
+      // site's traffic (0.5× to 3× this), its bond doesn't.
+      truckStop: { priceFd: 250_000, bondFd: 100_000, upkeepPerWeekFd: 3_000, fuelMarginPct: 0.06, partsShare: 0.7, markupRange: [1.1, 1.4] as const, nightlyFd: 15, idleFuelMult: 0.25, restRangeMi: 50 },
     },
+    // Truck-stop sites: one every so many interstate miles, ranked by the freight that passes (a gravity
+    // model over the lanes), the busiest open for sale at the start, more opening as the fleet grows.
+    sites: { everyMi: 100, openAtStart: 60, priceRange: [0.5, 3] as const },
+    // Fuel on the road, without a tank model: a leg buys its first block of miles at the origin (its hub
+    // station or the NPC pump) and each further block at the nearest truck stop to that mile, within reach.
+    fuelRule: { blockMi: 400, stopRangeMi: 100 },
+    // A breakdown happens where the truck is: the cheapest provider within reach comes out (a truck
+    // stop's shop at its markup, a hub shop at its own), for a call-out fee plus the drive; with none in
+    // reach, NPC road service at its markup and its wait. The drive out sets the delay.
+    roadService: { rangeMi: 100, callOutFd: 300, callOutPerMi: 5, mph: 50, npcMarkup: 1.5, npcHours: 8 },
   },
 
   // §Circular economy — season close (the last 30 in-game days)
@@ -563,6 +576,12 @@ export const economyConfig = {
       // cap (fewer loads in a slump) beside the reserve pricing them lower. runs/v25-d: with rates alone
       // (floor 0.5×) the reserve kept draining ~100M a year after launch.
       volumeStabilizer: false,
+      // The balance dial (Jeff, 2026-10-30): what NPC shippers pay per mile moves each month toward the
+      // sink-to-faucet target (token.sinkFaucetTargetLive after launch) — down while players as a
+      // group take out more FD than the game takes back, up when the game takes too much. A balanced
+      // economy pays out what it takes in; what a player earns then comes from other players and
+      // from running a better company, not from the reserve.
+      rateStabilizer: { enabled: false, stepPerMonth: 0.03, range: [0.5, 1.2] as const },
     },
     launch: {
       // Beta FD is play money: above working capital it's burned at launch, and the
@@ -864,10 +883,14 @@ export const economyConfig = {
     // pool). Past `requiredAbove` operating trucks a fleet needs them: without an operations manager
     // its dispatch prices worse (noise up, less lookahead); without a maintenance manager it breaks down
     // more. With them: tighter pricing, fewer breakdowns, leaner maintenance. Pay is weekly, a sink.
+    // Jeff (2026-10-30): an operations manager is a must past four trucks — one runs up to `span` trucks
+    // beyond that, and trucks over the cap park after the grace period (staking.ts), like a stake tier.
+    // With one: tighter pricing, fewer crashes, fewer pull-ins, drivers pushed past the rules mind it
+    // less, and every driver and dispatcher works a little above their skill. Hire one at any size.
     managers: {
       enabled: false,
-      ops: { payPerWeek: 1_500, requiredAbove: 10, noiseWithout: 1.5, noiseWith: 0.8 },
-      maint: { payPerWeek: 1_200, requiredAbove: 10, breakdownWithout: 1.3, breakdownWith: 0.8, maintenanceWith: 0.9 },
+      ops: { payPerWeek: 1_500, requiredAbove: 4, span: 25, noiseWithout: 1.5, noiseWith: 0.8, crashMult: 0.9, pullInMult: 0.9, pushedPenaltyMult: 0.5, skillBonus: 0.05 },
+      maint: { payPerWeek: 1_200, requiredAbove: 10, span: 25, breakdownWithout: 1.3, breakdownWith: 0.8, maintenanceWith: 0.9 },
     },
     pool: {
       startDrivers: 450,

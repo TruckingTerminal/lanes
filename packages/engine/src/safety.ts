@@ -1,4 +1,5 @@
 import { stationsOnRoute, weighStations, type Network } from "@lanes/data";
+import { opsCrashMult, opsPullInMult } from "./labor.js";
 import { dayOf, MINUTES_PER_HOUR } from "./clock.js";
 import { fmtInt } from "./economics.js";
 import { slashStake } from "./staking.js";
@@ -187,7 +188,7 @@ export function crashMultiplier(w: World, t: Truck, c: Company): number {
   const defects = 1 + maintenance.crashPerDefect * t.defects;
   const wear = 1 + 0.5 * (1 - condition(w.cfg, t));
   const tired = 1 + w.cfg.fatigue.crashMult * driverFatigue(w, t);
-  return fatigue * tired * fast * defects * wear * (atZero + (atOne - atZero) * t.driverSkill) * roadRisk(w, t);
+  return fatigue * tired * fast * defects * wear * (atZero + (atOne - atZero) * t.driverSkill) * roadRisk(w, t) * opsCrashMult(w, c); // an operations manager (labor.ts)
 }
 
 /**
@@ -225,7 +226,7 @@ function pullInOdds(w: World, c: Company): number {
   // Clean carriers mostly get the bypass; a bad score lights up the screen.
   let odds = c.safety.rating === "unsatisfactory" ? p.unsatisfactory : c.safety.rating === "conditional" ? p.conditional : c.safety.alerts.length > 0 ? p.alert : p.clean;
   if (today(w) - c.authority.since < w.cfg.safety.review.newEntrantDay) odds = Math.max(odds, p.newEntrant);
-  return odds;
+  return odds * opsPullInMult(w, c); // an operations manager keeps the paperwork straight (labor.ts)
 }
 
 function weighStation(w: World, t: Truck, c: Company, station: number): boolean {
