@@ -10,7 +10,7 @@ tiles drew differently is taken whole from one side). The 16 full frames go into
 quantised to 256 colours by ffmpeg (about 1.4 MB a view): apps/web/assets/cityviews/<view>.loop.png,
 which ui/CityPicture.tsx plays at 8 fps in place of the still.
 
-  animate-cityviews.py [--only CHI,DAL] [--variants golden,night,rain] [--jobs 1] [--force] [--dry]
+  animate-cityviews.py [--only CHI,DAL] [--variants golden,night,rain,day,snow] [--jobs 1] [--force] [--dry]
 
 The tile frames stay in <view>-tiles/ next to the sheet (ignored by git). Existing sheets are kept.
 """
@@ -46,6 +46,8 @@ MOTION = {
     "golden": f"traffic flows along the freeway, the semi trucks and cars roll forward, headlights and taillights move, lights in the skyline windows flicker, {STILL}",
     "night": f"traffic flows along the freeway, headlights and taillights stream along it, neon and window lights flicker, the red beacons on the towers blink, {STILL}",
     "rain": f"rain streaks down, traffic flows along the freeway, headlights and brake lights move and their reflections shimmer on the wet road, {STILL}",
+    "day": f"traffic flows along the freeway, the semi trucks and cars roll forward, the small clouds drift slowly, {STILL}",
+    "snow": f"traffic rolls carefully along the ploughed freeway, a little snow blows across the road, lights in the skyline windows flicker, {STILL}",
 }
 
 
@@ -200,7 +202,7 @@ def animate_view(name: str, variant: str, dry: bool) -> None:
 def main() -> None:
     opt = lambda k, d=None: (sys.argv[sys.argv.index(k) + 1] if k in sys.argv and sys.argv.index(k) + 1 < len(sys.argv) else d)
     only = opt("--only")
-    variants = opt("--variants", "golden,night,rain").split(",")
+    variants = opt("--variants", "golden,night,rain,day,snow").split(",")
     jobs = int(opt("--jobs", 1))
     force = "--force" in sys.argv
     dry = "--dry" in sys.argv
