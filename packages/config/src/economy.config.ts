@@ -252,6 +252,10 @@ export const economyConfig = {
     // truck idle at day's end burns this much diesel idling for the cab (heat, air, the driver's rest),
     // at the day's pump price; per diem (labor.perDiemFd) covers the driver from the second day.
     idleFuelGalPerDay: 8,
+    // An IFTA-style fuel tax (Jeff, 2026-10-29): filed monthly on every gallon burned that month, on
+    // the road and idling, at a flat rate per gallon (no per-state rates until routes carry states).
+    // A sink in the player's own month: the bill lands with the month's close.
+    fuelTax: { enabled: false, perGal: 0.5 },
   },
 
   // §Assets and supply caps
@@ -543,11 +547,18 @@ export const economyConfig = {
       // The treasury opens an FD/USDC pool (protocol-owned liquidity, never withdrawn)
       // with its own dollars and FD minted at the opening price.
       seedUsd: 250_000, // the spec's placeholder; TODO.md "launch without capital": 0 with the one-sided range below
+      // The launch price is what the dollars support (Jeff, 2026-10-29): with dollars on hand (the seed
+      // plus the farming season's window), the pool opens two-sided with FD from the pool allocation
+      // sized to the float that survives the reset — this share of it, never more than the allocation —
+      // and the price is the quotient. A round number launched against thin dollars reads as a crash;
+      // the gate is the price holding from launch, and pool dollars growing.
+      poolDepthShareOfFloat: 1,
+      // A reference price only: the one-sided range's floor when there are no dollars at all, and the
+      // farming-season window's dollar pricing (catalogue.usdWindow.referencePriceUsd).
       priceUsd: 0.01,
-      // With no seed the treasury posts this much FD alone, and buys never go below the floor until
-      // buyers' dollars have lifted the pool above it (protocol-owned, one-sided liquidity).
+      // With no dollars at all the treasury posts this much FD alone, and buys never go below the
+      // reference price until buyers' dollars have lifted the pool above it (one-sided liquidity).
       liquidityFd: 25_000_000,
-      floorPriceUsd: 0.01,
     },
     // §Points and airdrop: beta Miles convert pro rata; beta FD never does.
     airdrop: {
@@ -689,8 +700,9 @@ export const economyConfig = {
       // asset sales (§Two ledgers — primary sales go to the developer), per active company per week.
       productUsdPerCompanyWeek: 0, // Jeff (2026-10-29): no flat fee, no dollar sales at all after launch; the developer's revenue is the treasury's FD, vested below
       // The developer's FD, vested (TOKENOMICS.md "FD only"): after the cliff, at most this share of the
-      // treasury's holdings sold into the pool a week, never in a week the price averaged below the floor.
-      vest: { cliffWeeks: 26, perWeekShare: 0.005, floorPriceUsd: 0.01 },
+      // treasury's holdings sold into the pool a week, never in a week the price averaged below the launch
+      // price, and never more than leaves the pool at or above it after the sale.
+      vest: { cliffWeeks: 26, perWeekShare: 0.005 },
       buybackShare: 0.5, // §Burn and buyback: half of revenue buys FD back (all of it burned here); half runs the company
     },
     lockGrants: true, // after launch, starting grants are spend-only (sybils can't cash them out)
@@ -717,7 +729,9 @@ export const economyConfig = {
     taxStabilizer: { enabled: true, stepPerMonth: 0.05, range: [0.1, 0.3] as const }, // was 20–80%, pinned at 70–80% in every 4-year run
     // New players after launch: a base rate that rises when the price has been
     // rising and falls when it's been falling (a stand-in for hype).
-    newCompanies: { perWeek: 2, hypeSensitivity: 2, hypeRange: [0.25, 3] as const, lookbackDays: 28 },
+    // usdWalletMult scales the dollars newcomers arrive with: the demand lever the runs sweep, since the
+    // sim can't know how much real buying shows up (the report prints the buying that holds the price).
+    newCompanies: { perWeek: 2, hypeSensitivity: 2, hypeRange: [0.25, 3] as const, lookbackDays: 28, usdWalletMult: 1 },
     // NPC freight grows with the carrier base, so newcomers don't just crowd the same
     // loads. On its own it sank the price (more freight, more FD profit sold); with
     // the tax stabilizer below, the sink grows with it.

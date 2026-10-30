@@ -215,6 +215,8 @@ export interface Company {
   credit: { onTimeFd: number; lateFd: number };
   /** Carriers: the lowest broker credit this company hauls for. */
   minBrokerCredit: number;
+  /** Gallons burned this month, on the road and idling, for the monthly fuel tax (fuelTax.ts). */
+  fuelGalMonth: number;
   /** The catalogue (items.ts): the yard, its bond, and dollars spent in the farming season's window. */
   yard: "none" | "small" | "large";
   yardBondFd: number;
@@ -717,6 +719,9 @@ export interface LaunchRecord {
   airdropAllocatedFd: number;
   unallocatedByCapFd: number;
   liquidityFd: number;
+  /** FD in circulation after the reset (what the pool's dollars have to support) and the price they set. */
+  floatFd: number;
+  priceUsd: number;
 }
 
 export interface TokenState {
@@ -744,6 +749,11 @@ export interface TokenState {
   /** Daily pool price after launch. */
   priceHistory: number[];
   launch: LaunchRecord | null;
+  /** The price the launch set (seed dollars over the pool's FD), and the floor buyers pay while a one-sided range stands (0 two-sided). */
+  launchPriceUsd: number;
+  floorUsd: number;
+  /** FD sold into and bought out of the pool since launch (net of fees), for the demand break-even. */
+  exchange: { soldFd: number; boughtFd: number };
   airdrop: { mintedFd: number; forfeitedFd: number; haircutFd: number; seasonsPaid: number };
   baseCarriers: number;
   newCompanies: number;

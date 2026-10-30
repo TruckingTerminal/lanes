@@ -67,6 +67,16 @@ Order is the working order. Design records live in TOKENOMICS.md (economy) and R
     fit the reserve design, puts the economy in one hot wallet). Allocations published and in
     audited vaults and vesting contracts; the dev allocation vests like anyone's.
 
+## The launch price and the lean launch (Jeff, 2026-10-29; built, on main, behind the 0.18.0 switches)
+- **Done:** the launch price is seed dollars ÷ pool depth (`launch.poolDepthShareOfFloat` of the float,
+  from the pool allocation), buyers pay the pool's price two-sided; stakes, exit queues and contract
+  stakes burn at the reset like wallets; the IFTA-style fuel tax (`costs.fuelTax`, monthly on gallons
+  burned); `token.newCompanies.usdWalletMult` as the demand lever and the report's break-even line;
+  the vest capped at what the pool absorbs above the launch price. TOKENOMICS.md "The launch price…".
+- **Next, in order:** the sinks that replace the 40% tax — shops, truck stops and fuel stations as
+  player assets (FD price + staked bond), the maintenance market (11) and fleet managers (12); then
+  per-state fuel tax rates once routes carry states (13).
+
 ## Items, upgrades and yards (Jeff, 2026-10-29)
 18. **Yards.** More than 5 trucks needs a yard; a yard costs dollars and a staked FD bond, sized by
     capacity (small 6–10, large 11–30). Yard upgrades: fuel tank (cheaper diesel at home), shop bay

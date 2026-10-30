@@ -413,3 +413,33 @@ dollar split for items above and the dollar cosmetics plan.
 - **Known costs of the model.** No fiat revenue until the token has a market; the securities
   question is sharper (a token that is the developer's income, with staking that pays discounts):
   get a legal opinion before launch; the sell schedule is the trust.
+
+## The launch price is what the dollars support, the lean launch, and the fuel tax (Jeff, 2026-10-29)
+
+What the batches taught (runs/compare-v27-*.md): the runs that held above a cent were held up by the
+$250k seed, the $5-a-week fee's $170k of buybacks and the 40% tax burn. Remove those, as decided, and
+the price settles where players' selling in dollars equals new players' buying: $0.0005–0.001 against
+a launch pegged at a cent. The flywheels move FD between players, the reserve and burns; none of them
+brings dollars. Price is pool dollars over pool FD. So:
+
+1. **The launch price is a quotient, not a round number.** With dollars on hand (the farming season's
+   window, every dollar of it), the pool opens two-sided: FD from the pool allocation as deep as the
+   float that survived the reset (`launch.poolDepthShareOfFloat`, never more than the allocation) on
+   one side, the dollars on the other. The price is seed ÷ depth. `launch.priceUsd` is a reference
+   only: the one-sided floor when there are no dollars at all, and the window's dollar pricing.
+   Two-sided, buyers pay the pool's price (no floor), so there is no 50× spread between what a
+   buyer pays and a seller gets. The gates are: the price holds from launch, and pool dollars grow.
+2. **The lean launch.** The reset burns wallets above working capital; it now burns stakes, exit
+   queues and contract stakes too (factoring, insurance deductibles, yard bonds), so nobody carries
+   beta FD through by parking it in a stake, and every position after launch is re-posted in FD
+   bought with dollars (the grace period applies; the yard stays, its bond gone). In the v27 batches
+   48M of the ~70M float was beta stakes.
+3. **The fuel tax (IFTA-style).** Every gallon burned in a month, on the road and idling, is taxed at
+   the month's close at `costs.fuelTax.perGal` (0.5 FD/gal, about 12% of fuel spend), a sink that
+   scales with miles. Per-state rates wait for routes that carry their states.
+4. **Demand is an input.** `token.newCompanies.usdWalletMult` scales the dollars newcomers arrive
+   with, and the report prints the new buying per 1,000 active companies a month that would hold the
+   end price (`demand.usdPerThousandCompaniesMonth`): the number real growth has to beat.
+5. **The vest sells only above the launch price**, and only as much as leaves the pool at or above it
+   after the sale (the v27-b batch, before this, vested 117M FD into a $30k pool because the price
+   history recorded the floor-held ask; it records the pool's price now).

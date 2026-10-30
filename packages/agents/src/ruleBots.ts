@@ -484,7 +484,7 @@ function admitNewcomers(w: World): void {
       ownerSkill: ownerSkill(w, rng),
     });
     profiles.set(c, profile);
-    c.usd.wallet = WALLETS.newcomer(rng);
+    c.usd.wallet = WALLETS.newcomer(rng) * w.cfg.token.newCompanies.usdWalletMult; // the demand lever
     setConduct(w, c, profile);
   }
 }

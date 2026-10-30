@@ -161,6 +161,10 @@ export interface TokenReport {
   newCompanies: number;
   /** Dollars after launch, by starting segment: put in, taken out, and net taken out. */
   usdBySegment: Record<string, { in: number; out: number; net: number; companies: number }>;
+  /** The demand the design needs: FD sold into the pool net of buys, per month, and the new buying per 1,000 active companies a month that would hold the end price. */
+  demand: { monthsSinceLaunch: number; activeCompanies: number; netSoldFdPerMonth: number; usdPerThousandCompaniesMonth: number };
+  /** The launch gates (Jeff, 2026-10-29): the price held from launch, and the pool's dollars grew. */
+  gates: { holdsLaunchPrice: boolean; poolDollarsGrew: boolean };
 }
 
 /** Scores a run against the PoC kill criteria (§Proof of concept scope and kill criteria). */
@@ -496,7 +500,7 @@ function tokenReport(w: World, quarterLen: number): TokenReport | null {
   const days = w.metrics.days;
   // The launch day's own row already carries a price (metrics close the day the launch ran).
   const live = days.filter((d) => d.day >= tk.launchDay! - 1 && d.priceUsd > 0);
-  const prices = live.length ? live.map((d) => d.priceUsd) : [w.cfg.token.launch.priceUsd];
+  const prices = live.length ? live.map((d) => d.priceUsd) : [tk.launchPriceUsd];
   const byQuarter: TokenReport["price"]["byQuarter"] = [];
   for (let q = 0; (q + 1) * quarterLen <= days.length; q++) {
     const slice = live.filter((d) => d.day >= q * quarterLen && d.day < (q + 1) * quarterLen);
@@ -519,7 +523,7 @@ function tokenReport(w: World, quarterLen: number): TokenReport | null {
   return {
     launchDay: tk.launchDay,
     launch: tk.launch,
-    price: { launchUsd: w.cfg.token.launch.priceUsd, minUsd: Math.min(...prices), maxUsd: Math.max(...prices), endUsd: end.priceUsd, byQuarter },
+    price: { launchUsd: tk.launchPriceUsd, minUsd: Math.min(...prices), maxUsd: Math.max(...prices), endUsd: end.priceUsd, byQuarter },
     supply: {
       beforeLaunchFd: tk.launch.supplyBeforeFd,
       afterLaunchFd: live[0]?.supplyFd ?? end.supplyFd,
@@ -546,6 +550,13 @@ function tokenReport(w: World, quarterLen: number): TokenReport | null {
     },
     newCompanies: tk.newCompanies,
     usdBySegment,
+    demand: (() => {
+      const months = Math.max(1, (end.day - tk.launchDay! + 1) / w.cfg.time.daysPerMonth);
+      const active = w.companies.filter((c) => c.liquidatingSince === null).length;
+      const netSoldFdPerMonth = (tk.exchange.soldFd - tk.exchange.boughtFd) / months;
+      return { monthsSinceLaunch: months, activeCompanies: active, netSoldFdPerMonth, usdPerThousandCompaniesMonth: active > 0 ? (Math.max(0, netSoldFdPerMonth) * end.priceUsd) / (active / 1000) : 0 };
+    })(),
+    gates: { holdsLaunchPrice: end.priceUsd >= tk.launchPriceUsd, poolDollarsGrew: tk.poolUsd >= t.seedUsd },
   };
 }
 

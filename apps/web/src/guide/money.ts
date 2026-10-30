@@ -90,7 +90,8 @@ export function moneyPages(cfg: EconomyConfig): GuidePage[] {
         h("Launch") +
         ul([
           `FD above each company's working capital is burned; what's kept is locked: it can be spent in the game, not sold.`,
-          `An FD/USDC pool opens at $${t.launch.priceUsd} per FD with ${n(t.launch.seedUsd)} dollars of protocol-owned liquidity.`,
+          `Stakes, bonds and contract stakes are beta FD too: they are burned with the rest, and every licence gets its grace period to be re-posted with real FD.`,
+          `An FD/USDC pool opens with the farming season's dollars on one side and the pool allocation's FD on the other, as deep as the FD that survives the reset: the launch price is what those dollars support.`,
           `<b>Airdrop:</b> ${n(t.airdrop.fd)} FD shared by Miles, at most ${pct(t.airdrop.capShare)} to any one company. ${pct(t.airdrop.atLaunch)} unlocks at launch; the rest over ${t.airdrop.unlockWeeks} weeks, a slice each week you handle at least ${t.airdrop.loadsPerWeek} loads (a missed week's slice is forfeited). Or claim the rest at once for ${pct(1 - t.airdrop.instantClaimHaircut)} of it.`,
         ]) +
         h("After launch") +

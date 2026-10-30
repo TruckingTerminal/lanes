@@ -74,6 +74,10 @@ import {
   type TruckSpec,
   type World,
 } from "@lanes/engine";
+import { monthlyFuelTax } from "../src/fuelTax.js";
+import { stakeAccount } from "../src/staking.js";
+import { payTripCosts } from "../src/trips.js";
+import { createTruck } from "../src/world.js";
 
 const net = buildNetwork(hubs, cfg);
 /** Same economy with breakdowns switched off, for tests that time trips exactly. */
@@ -810,8 +814,12 @@ describe("token", () => {
     const keep = cfg.holdingCost.minProtectedFd;
     expect(w.ledger.balance(companyAccount(a.id)) - (a.airdrop!.unlockedFd)).toBeCloseTo(keep, 2);
     expect(a.lockedFd).toBeCloseTo(keep, 2);
-    expect(fdPriceUsd(w)).toBeCloseTo(tk.token.launch.priceUsd, 9);
-    expect(w.ledger.balance(EXCHANGE_ACCOUNT)).toBeCloseTo(tk.token.launch.seedUsd / tk.token.launch.priceUsd, 2);
+    // The pool is as deep as the float that survived the reset, and the launch price is the seed over it.
+    const L = w.token.launch!;
+    expect(w.ledger.balance(EXCHANGE_ACCOUNT)).toBeCloseTo(L.floatFd * tk.token.launch.poolDepthShareOfFloat, 2);
+    expect(w.token.launchPriceUsd).toBeCloseTo(tk.token.launch.seedUsd / L.liquidityFd, 12);
+    expect(fdPriceUsd(w)).toBeCloseTo(w.token.launchPriceUsd, 12);
+    expect(w.token.floorUsd).toBe(0); // two-sided: buyers pay the pool's price, no floor
     // Only the airdrop's launch slice is sellable; working capital is spend-only.
     expect(sellableFd(w, a)).toBeCloseTo(a.airdrop!.unlockedFd, 2);
     expect(applyAction(w, a.id, { type: "sell_fd", fd: a.airdrop!.unlockedFd + 100 }).ok).toBe(false);
@@ -844,7 +852,7 @@ describe("token", () => {
     const bought = w.ledger.balance(companyAccount(a.id)) - before;
     expect(w.token.treasury.feeUsd).toBeCloseTo(1_000 * tk.token.exchange.buyFeePct, 6);
     expect(w.token.poolUsd * w.ledger.balance(EXCHANGE_ACCOUNT)).toBeCloseTo(k, -4);
-    expect(fdPriceUsd(w)).toBeGreaterThan(tk.token.launch.priceUsd);
+    expect(fdPriceUsd(w)).toBeGreaterThan(w.token.launchPriceUsd);
     // Bought FD is unlocked; selling it back pays the burned sell fee plus the round trip. The fee
     // rises with the sale's price impact (the whale rules, 0.18.0).
     const poolFd = w.ledger.balance(EXCHANGE_ACCOUNT);
@@ -1175,9 +1183,9 @@ describe("payment terms, factoring, surety and airdrop seasons (0.18.0)", () => 
     b.airdrop!.weeksLeft = 0;
     a.milesTotal += 5_000;
     a.operating.revenueFd += 50_000;
-    for (let i = 0; i < 10; i++) w.token.priceHistory.push(tk2.token.launch.priceUsd / 2);
+    for (let i = 0; i < 10; i++) w.token.priceHistory.push(w.token.launchPriceUsd / 2);
     const hist = w.token.priceHistory.slice(-tk2.time.daysPerSeason);
-    const scale = Math.min(1, hist.reduce((s, p) => s + p, 0) / hist.length / tk2.token.launch.priceUsd);
+    const scale = Math.min(1, hist.reduce((s, p) => s + p, 0) / hist.length / w.token.launchPriceUsd);
     const minted = w.token.airdrop.mintedFd;
     seasonAirdrop(w);
     const pot = tk2.token.airdrop.laterSeasons[0]! * scale;
@@ -1276,18 +1284,18 @@ describe("launch without capital (0.18.0): the treasury's one-sided range", () =
     expect(w.ledger.balance(EXCHANGE_ACCOUNT)).toBe(k.liquidityFd);
     expect(w.token.poolUsd).toBe(0);
     expect(fdPriceUsd(w)).toBe(0);
-    expect(askPriceUsd(w)).toBe(k.floorPriceUsd);
+    expect(askPriceUsd(w)).toBe(k.priceUsd);
     expect(applyAction(w, a.id, { type: "sell_fd", fd: 100 })).toEqual({ ok: false, reason: "no dollars on the bid side yet" });
     a.usd.wallet = 1_000;
     const before = w.ledger.balance(companyAccount(a.id));
     expect(applyAction(w, a.id, { type: "buy_fd", usd: 1_000 })).toEqual({ ok: true });
     const bought = w.ledger.balance(companyAccount(a.id)) - before;
-    expect(bought).toBeCloseTo((1_000 * (1 - unseeded.token.exchange.buyFeePct)) / k.floorPriceUsd, 2);
+    expect(bought).toBeCloseTo((1_000 * (1 - unseeded.token.exchange.buyFeePct)) / k.priceUsd, 2);
     expect(w.token.poolUsd).toBeCloseTo(1_000 * (1 - unseeded.token.exchange.buyFeePct), 6);
     // The bid side exists now: a small sale clears against it at the pool's own (lower) price.
     expect(applyAction(w, a.id, { type: "sell_fd", fd: 1_000 })).toEqual({ ok: true });
     expect(a.usd.out).toBeGreaterThan(0);
-    expect(a.usd.out).toBeLessThan(1_000 * k.floorPriceUsd);
+    expect(a.usd.out).toBeLessThan(1_000 * k.priceUsd);
     w.ledger.assertBalanced();
   });
 });
@@ -1359,27 +1367,77 @@ describe("the catalogue (0.18.0, FD only): yards, upgrades, the farming-season d
     weeklyVest(w); // inside the cliff: nothing
     expect(w.token.treasury.vestedFd).toBe(0);
     w.token.launchDay = -capped.token.treasury.vest.cliffWeeks * 7 - 1;
-    for (let i = 0; i < 7; i++) w.token.priceHistory.push(capped.token.launch.priceUsd / 2);
+    for (let i = 0; i < 7; i++) w.token.priceHistory.push(w.token.launchPriceUsd / 2);
     weeklyVest(w); // below the floor: nothing
     expect(w.token.treasury.vestedFd).toBe(0);
-    for (let i = 0; i < 7; i++) w.token.priceHistory.push(capped.token.launch.priceUsd * 2);
-    // The pool sits exactly at the floor: a sale would push it through, so nothing sells.
+    for (let i = 0; i < 7; i++) w.token.priceHistory.push(w.token.launchPriceUsd * 2);
+    // The pool sits exactly at the launch price: a sale would push it through, so nothing sells.
     weeklyVest(w);
     expect(w.token.treasury.vestedFd).toBe(0);
-    // Buyers lift the pool to four times the floor: the week's share sells, and the price stays at or above the floor after it.
+    // Buyers lift the pool to four times the launch price: the week's share sells, as much of it as
+    // leaves the price at or above the launch price after the sale.
     w.token.poolUsd *= 4;
     const poolUsd = w.token.poolUsd;
+    const poolFd = w.ledger.balance(EXCHANGE_ACCOUNT);
+    const room = Math.sqrt((poolUsd * poolFd) / w.token.launchPriceUsd) - poolFd;
     weeklyVest(w);
-    expect(w.token.treasury.vestedFd).toBeCloseTo(held * capped.token.treasury.vest.perWeekShare, 2);
+    expect(w.token.treasury.vestedFd).toBeCloseTo(Math.min(held * capped.token.treasury.vest.perWeekShare, room), 2);
     expect(w.token.treasury.devUsd).toBeGreaterThan(0);
     expect(w.token.poolUsd).toBeCloseTo(poolUsd - w.token.treasury.devUsd, 6);
-    expect(fdPriceUsd(w)).toBeGreaterThanOrEqual(capped.token.treasury.vest.floorPriceUsd - 1e-9);
-    // A pool barely above the floor sells only what keeps it there.
-    w.token.poolUsd = fdPriceUsd(w) > 0 ? w.ledger.balance(EXCHANGE_ACCOUNT) * capped.token.treasury.vest.floorPriceUsd * 1.0001 : w.token.poolUsd;
+    expect(fdPriceUsd(w)).toBeGreaterThanOrEqual(w.token.launchPriceUsd * (1 - 1e-6));
+    // A pool barely above the launch price sells only what keeps it there.
+    w.token.poolUsd = w.ledger.balance(EXCHANGE_ACCOUNT) * w.token.launchPriceUsd * 1.0001;
     const before = w.token.treasury.vestedFd;
     weeklyVest(w);
     expect(w.token.treasury.vestedFd - before).toBeLessThan(held * capped.token.treasury.vest.perWeekShare * 0.01);
-    expect(fdPriceUsd(w)).toBeGreaterThanOrEqual(capped.token.treasury.vest.floorPriceUsd - 1e-9);
+    expect(fdPriceUsd(w)).toBeGreaterThanOrEqual(w.token.launchPriceUsd * (1 - 1e-6));
+    w.ledger.assertBalanced();
+  });
+});
+
+describe("the fuel tax and the lean launch (0.18.0)", () => {
+  it("taxes every gallon burned in the month at the close, on the road and idling, and resets the meter", () => {
+    const taxed: EconomyConfig = { ...calm, costs: { ...calm.costs, fuelTax: { enabled: true, perGal: 0.5 } } };
+    const w = createWorld({ cfg: taxed, net, feeds: neutralFeeds, seed: 61 });
+    const a = carrier(w, "A");
+    fund(w, a.id, 50_000);
+    const t = createTruck(w, a, "owned", "workhorse", "van");
+    t.loadedMi = 650;
+    payTripCosts(w, t, "test");
+    expect(a.fuelGalMonth).toBeGreaterThan(0);
+    expect(a.fuelGalMonth).toBeCloseTo(650 / effectiveMpg(taxed, t), 6);
+    const gal = a.fuelGalMonth;
+    const before = w.ledger.balance(companyAccount(a.id));
+    monthlyFuelTax(w);
+    expect(Math.abs(before - w.ledger.balance(companyAccount(a.id)) - gal * 0.5)).toBeLessThan(0.01); // the ledger keeps cents
+    expect(a.fuelGalMonth).toBe(0);
+    // Off, the meter still resets and nothing is charged.
+    const off = createWorld({ cfg: calm, net, feeds: neutralFeeds, seed: 62 });
+    const b = carrier(off, "B");
+    fund(off, b.id, 1_000);
+    b.fuelGalMonth = 100;
+    const b0 = off.ledger.balance(companyAccount(b.id));
+    monthlyFuelTax(off);
+    expect(off.ledger.balance(companyAccount(b.id))).toBe(b0);
+    expect(b.fuelGalMonth).toBe(0);
+    w.ledger.assertBalanced();
+  });
+
+  it("burns stakes and contract stakes at launch like wallets, so every position after launch is re-posted in real FD", () => {
+    const capped: EconomyConfig = { ...calm, seasonClose: { ...calm.seasonClose, enabled: false }, token: { ...calm.token, enabled: true, circular: { ...calm.token.circular, enabled: true }, staking: { ...calm.token.staking, enabled: true } } };
+    const w = createWorld({ cfg: capped, net, feeds: neutralFeeds, seed: 63 });
+    const a = carrier(w, "A");
+    fund(w, a.id, 200_000);
+    a.milesTotal = 1_000;
+    const stake = capped.token.staking.truckTiers[1]![1];
+    expect(applyAction(w, a.id, { type: "stake_fd", fd: stake }).ok).toBe(true);
+    expect(w.ledger.balance(stakeAccount(a.id))).toBeCloseTo(stake, 2);
+    launchToken(w);
+    expect(w.ledger.balance(stakeAccount(a.id))).toBe(0);
+    expect(a.stakedFd).toBe(0);
+    expect(w.token.launch!.resetBurnedFd).toBeGreaterThanOrEqual(stake);
+    // The float the dollars must support is what survived: working capital and the day-one airdrop, no stake.
+    expect(w.token.launch!.floatFd).toBeCloseTo(w.ledger.balance(companyAccount(a.id)), 2);
     w.ledger.assertBalanced();
   });
 });

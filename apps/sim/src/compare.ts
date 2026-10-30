@@ -66,6 +66,7 @@ rows.push(
   ["…of them owner-operators / fleets / brokers", (rs) => ["oo", "fleet", "broker"].map((s) => n0(mean(rs.map((r) => r.failures.bankruptBySegment?.[s] ?? 0)))).join(" / ")],
   ["Debt written off at restart (faucet)", (rs) => range(rs.map((r) => r.failures.debtWrittenOffFd ?? 0), fd)],
   ["Holding cost paid (sink)", (rs) => range(rs.map((r) => r.sinksByTag.holding_cost ?? 0), fd)],
+  ["Fuel tax paid, IFTA-style (sink)", (rs) => range(rs.map((r) => r.sinksByTag.fuel_tax ?? 0), fd)],
   ["Shipper defaults on brokered loads", (rs) => range(rs.map((r) => r.failures.shipperDefaults ?? 0), n0)],
   ["Equipment Finance written off", (rs) => range(rs.map((r) => r.failures.writtenOffFd), fd)],
   ["Used-truck sales", (rs) => range(rs.map((r) => r.usedMarket.sales), n0)],
@@ -93,7 +94,16 @@ rows.push(
   }).filter(Number.isFinite), pct)],
   ["$ taken out per company-week: owner-operator / fleet / broker", (rs) =>
     ["oo", "fleet", "broker"].map((s) => `$${mean(rs.map((r) => r.realMoney?.usdOutPerCompanyWeek?.[s] ?? 0)).toFixed(2)}`).join(" / ")],
-  ["Token: price at end ($/FD, launch $0.01)", (rs) => range(rs.map((r) => r.realMoney?.token?.price.endUsd ?? NaN).filter(Number.isFinite), usd4)],
+  ["Token: price at launch → end ($/FD)", (rs) => {
+    const t = rs.map((r) => r.realMoney?.token).filter((x) => x);
+    return t.length ? `${usd4(mean(t.map((x) => x!.price.launchUsd)))} → ${range(t.map((x) => x!.price.endUsd), usd4)}` : "n/a";
+  }],
+  ["Token: seeds that hold the launch price / whose pool dollars grew", (rs) => {
+    const t = rs.map((r) => r.realMoney?.token).filter((x) => x);
+    return t.length ? `${t.filter((x) => x!.gates?.holdsLaunchPrice).length}/${t.length} / ${t.filter((x) => x!.gates?.poolDollarsGrew).length}/${t.length}` : "n/a";
+  }],
+  ["Token: new buying that holds the end price ($ per 1,000 companies a month)", (rs) => range(rs.map((r) => r.realMoney?.token?.demand?.usdPerThousandCompaniesMonth ?? NaN).filter(Number.isFinite), (x) => `$${fd(x)}`)],
+  ["Token: FD sold into the pool net of buys, per month", (rs) => range(rs.map((r) => r.realMoney?.token?.demand?.netSoldFdPerMonth ?? NaN).filter(Number.isFinite), fd)],
   ["Token: lowest / highest price", (rs) => {
     const t = rs.map((r) => r.realMoney?.token).filter((x) => x);
     return t.length ? `${usd4(mean(t.map((x) => x!.price.minUsd)))} / ${usd4(mean(t.map((x) => x!.price.maxUsd)))}` : "n/a";

@@ -191,7 +191,9 @@ export function payTripCosts(w: World, truck: Truck, ref: string): number {
   truck.emptyMi = 0;
   truck.loadedMi = 0;
   // Locked FD earns its discount on fuel and maintenance (staking.ts); wages and tolls are what they are.
-  const keep = 1 - stakeDiscount(w, companyById(w, truck.companyId));
+  const company = companyById(w, truck.companyId);
+  const keep = 1 - stakeDiscount(w, company);
+  company.fuelGalMonth += c.gallons; // taxed at the month's close (fuelTax.ts)
   w.ledger.post(w.t, acct, "sink:fuel", c.fuel * keep, ref);
   w.ledger.post(w.t, acct, "sink:driver_wages", c.wages, ref);
   w.ledger.post(w.t, acct, "sink:maintenance", c.maintenance * keep, ref);

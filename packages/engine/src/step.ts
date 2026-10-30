@@ -12,6 +12,7 @@ import { dailyFraud } from "./fraud.js";
 import { billInsurance, dailyInsurance, monthlyInsurance } from "./insurance.js";
 import { chargeYards } from "./home.js";
 import { monthlyDealerPrices } from "./dealer.js";
+import { monthlyFuelTax } from "./fuelTax.js";
 import { dailyLabor, monthlyLabor, payDispatchers, weeklyLabor } from "./labor.js";
 import { dailyStaking, stakeDiscount } from "./staking.js";
 import { dailyPools, poolAccount, poolMarkup, poolsOn } from "./pools.js";
@@ -81,6 +82,7 @@ function endOfDay(w: World, day: number, agents?: DailyAgentHook): void {
     if (truck.status === "idle" && truck.companyId && truck.driverId && idleFuel > 0) {
       const c = companyById(w, truck.companyId);
       const burned = idleFuel * (truck.mods.apu ? 0.5 : 1) * (1 - stakeDiscount(w, c)); // an APU halves it; locked FD earns its discount
+      c.fuelGalMonth += cfg.costs.idleFuelGalPerDay * (truck.mods.apu ? 0.5 : 1);
       w.ledger.post(w.t, companyAccount(truck.companyId), "sink:idle_fuel", burned, `idle:${truck.id}`);
       c.operating.costFd += burned;
     }
@@ -184,6 +186,7 @@ function endOfDay(w: World, day: number, agents?: DailyAgentHook): void {
     monthlySafety(w);
     monthlyInsurance(w);
     monthlyDealerPrices(w);
+    monthlyFuelTax(w);
     if (tokenLive(w)) scaleDemand(w);
   }
 }

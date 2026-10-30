@@ -2,6 +2,8 @@ import { dayOf } from "./clock.js";
 import { facilitiesOf } from "./demand.js";
 import { returnPoolCashToDepositors } from "./finance.js";
 import { companyAccount } from "./ledger.js";
+import { contractAccount } from "./receivables.js";
+import { exitAccount, stakeAccount } from "./staking.js";
 import { workingCapital } from "./solvency.js";
 import type { Company } from "./types.js";
 import type { World } from "./world.js";
@@ -43,7 +45,7 @@ export function sellableFd(w: World, c: Company): number {
  * liquidity, so the bid side builds itself from demand.
  */
 export function askPriceUsd(w: World): number {
-  return Math.max(fdPriceUsd(w), w.cfg.token.launch.floorPriceUsd);
+  return Math.max(fdPriceUsd(w), w.token.floorUsd);
 }
 
 /** FD a dollar amount buys right now, after the buy fee (constant product, never cheaper than the floor). */
@@ -51,7 +53,7 @@ export function quoteBuyFd(w: World, usd: number): number {
   const net = usd * (1 - w.cfg.token.exchange.buyFeePct);
   const fd = w.ledger.balance(EXCHANGE_ACCOUNT);
   const cp = fd - (w.token.poolUsd * fd) / (w.token.poolUsd + net);
-  const floor = w.cfg.token.launch.floorPriceUsd;
+  const floor = w.token.floorUsd;
   return floor > 0 ? Math.min(cp, net / floor) : cp;
 }
 
@@ -60,7 +62,7 @@ export function quoteUsdForFd(w: World, fd: number): number {
   const pool = w.ledger.balance(EXCHANGE_ACCOUNT);
   if (fd >= pool) return Infinity;
   const cp = (w.token.poolUsd * pool) / (pool - fd) - w.token.poolUsd;
-  const net = Math.max(cp, fd * w.cfg.token.launch.floorPriceUsd);
+  const net = Math.max(cp, fd * w.token.floorUsd);
   return net / (1 - w.cfg.token.exchange.buyFeePct);
 }
 
@@ -70,6 +72,7 @@ export function buyFd(w: World, c: Company, usd: number): string | null {
   const fee = usd * w.cfg.token.exchange.buyFeePct;
   const fd = quoteBuyFd(w, usd);
   w.token.poolUsd += usd - fee;
+  w.token.exchange.boughtFd += fd;
   w.ledger.post(w.t, EXCHANGE_ACCOUNT, companyAccount(c.id), fd, `swap:buy:${c.id}`);
   c.usd.wallet -= usd;
   c.usd.in += usd;
@@ -96,6 +99,7 @@ export function sellFd(w: World, c: Company, fd: number): string | null {
   if (usd <= 0.01) return "no dollars on the bid side yet";
   w.ledger.post(w.t, acct, "sink:exchange_fee", fee, `swap:fee:${c.id}`);
   w.ledger.post(w.t, acct, EXCHANGE_ACCOUNT, net, `swap:sell:${c.id}`);
+  w.token.exchange.soldFd += net;
   w.token.poolUsd -= usd;
   c.usd.out += usd;
   c.soldFd.fd += fd;
@@ -148,6 +152,28 @@ export function launchToken(w: World): void {
     c.lockedFd = Math.max(0, keep);
     lockedFd += c.lockedFd;
   }
+  // The lean launch (Jeff, 2026-10-29): stakes, exit queues and contract stakes are beta FD too, and
+  // are burned like wallets, so every position after launch is backed by real FD and nobody carries
+  // play money through by parking it in a stake. Tiers and licences get their grace period to be
+  // re-posted (staking.ts); factoring contracts end; the yard stays, its bond gone.
+  for (const c of w.companies) {
+    for (const acct of [stakeAccount(c.id), exitAccount(c.id), contractAccount(c.id)]) {
+      const bal = w.ledger.balance(acct);
+      if (bal > 0.01) {
+        w.ledger.post(w.t, acct, "sink:launch_reset", bal, `launch:${c.id}`);
+        resetBurnedFd += bal;
+      }
+    }
+    c.stakedFd = 0;
+    c.unstaking = [];
+    c.tierGraceDay = null;
+    if (c.factoring) {
+      c.factoring = null;
+      if (c.payTerms === "factor") c.payTerms = "net";
+    }
+    c.insuranceStakeFd = 0;
+    c.yardBondFd = 0;
+  }
 
   // The pot splits by Miles and by beta operating profit (losses count zero), at the configured
   // weights; a company shut down or being wound up at launch forfeits its share (Jeff, 2026-10-29).
@@ -168,13 +194,18 @@ export function launchToken(w: World): void {
     mintAirdrop(w, c, share * tc.airdrop.atLaunch);
   });
 
-  // Seeded with dollars, the pool opens two-sided at the launch price; with none, the treasury posts
-  // FD alone (launch.liquidityFd) and the floor price stands until buyers' dollars lift the pool.
-  // The farming season's dollar window (items.ts) is held for this day: every dollar of it seeds the pool.
+  // The pool: with dollars on hand (the seed, and every dollar of the farming season's window held in
+  // escrow by items.ts), it opens two-sided against FD from the pool allocation sized to the float that
+  // survived the reset, and the price is what those dollars support (Jeff, 2026-10-29). With no dollars
+  // at all, the treasury posts FD alone and the reference price stands as the floor until buyers lift it.
   const seedUsd = tc.launch.seedUsd + w.token.treasury.seedEscrowUsd;
-  const liquidityFd = seedUsd > 0 ? seedUsd / tc.launch.priceUsd : tc.launch.liquidityFd;
+  const floatFd = w.ledger.supply();
+  const allocPool = tc.circular.enabled ? w.ledger.balance("alloc:pool") : Infinity;
+  const liquidityFd = seedUsd > 0 ? Math.max(1, Math.min(tc.launch.poolDepthShareOfFloat * floatFd, allocPool)) : tc.launch.liquidityFd;
   w.ledger.post(w.t, "faucet:launch_liquidity", EXCHANGE_ACCOUNT, liquidityFd, "launch:liquidity");
   w.token.poolUsd = seedUsd;
+  w.token.launchPriceUsd = seedUsd > 0 ? seedUsd / liquidityFd : tc.launch.priceUsd;
+  w.token.floorUsd = seedUsd > 0 ? 0 : tc.launch.priceUsd;
   w.token.treasury.seedUsd = seedUsd;
   w.token.treasury.seedEscrowUsd = 0;
   for (const c of w.companies) {
@@ -185,7 +216,7 @@ export function launchToken(w: World): void {
   w.token.launchDay = dayOf(w.t, w.cfg);
   w.token.baseCarriers = w.companies.filter((c) => c.role === "carrier").length;
   w.listener?.({ kind: "launched" });
-  w.token.launch = { supplyBeforeFd, resetBurnedFd, lockedFd, airdropAllocatedFd: allocatedFd, unallocatedByCapFd: tc.airdrop.fd - allocatedFd, liquidityFd };
+  w.token.launch = { supplyBeforeFd, resetBurnedFd, lockedFd, airdropAllocatedFd: allocatedFd, unallocatedByCapFd: tc.airdrop.fd - allocatedFd, liquidityFd, floatFd, priceUsd: w.token.launchPriceUsd };
 }
 
 /** Take the rest of the airdrop now, less the haircut (never minted). */
@@ -214,8 +245,9 @@ export function seasonAirdrop(w: World): void {
   const pot0 = tc.airdrop.laterSeasons[n];
   if (pot0 === undefined) return;
   const hist = w.token.priceHistory.slice(-w.cfg.time.daysPerSeason);
-  const avg = hist.length ? hist.reduce((a, b) => a + b, 0) / hist.length : tc.launch.priceUsd;
-  const pot = pot0 * Math.min(1, avg / tc.launch.priceUsd);
+  const ref = w.token.launchPriceUsd || tc.launch.priceUsd;
+  const avg = hist.length ? hist.reduce((a, b) => a + b, 0) / hist.length : ref;
+  const pot = pot0 * Math.min(1, avg / ref);
   const eligible = w.companies.map((c) => c.liquidatingSince === null && c.authority.status !== "revoked");
   const miles = w.companies.map((c, i) => (eligible[i] ? Math.max(0, lifetimeMiles(c) - c.seasonBase.miles) : 0));
   const profits = w.companies.map((c, i) => (eligible[i] ? Math.max(0, operatingResult(w, c) - c.seasonBase.profit) : 0));
@@ -251,10 +283,11 @@ export function weeklyVest(w: World): void {
   const avg = hist.length ? hist.reduce((a, b) => a + b, 0) / hist.length : 0;
   const held = w.ledger.balance("alloc:treasury");
   const pool = w.ledger.balance(EXCHANGE_ACCOUNT);
-  if (avg < v.floorPriceUsd || held <= 0 || w.token.poolUsd <= 0 || pool <= 0) return;
-  // Only what the pool absorbs without its price falling through the floor: after a sale of `fd` the
-  // pool prices at poolUsd·pool/(pool+fd)², so the sale stops where that meets the floor.
-  const room = Math.sqrt((w.token.poolUsd * pool) / v.floorPriceUsd) - pool;
+  const floor = w.token.launchPriceUsd;
+  if (floor <= 0 || avg < floor || held <= 0 || w.token.poolUsd <= 0 || pool <= 0) return;
+  // Only what the pool absorbs without its price falling through the launch price: after a sale of
+  // `fd` the pool prices at poolUsd·pool/(pool+fd)², so the sale stops where that meets it.
+  const room = Math.sqrt((w.token.poolUsd * pool) / floor) - pool;
   const fd = Math.min(held * v.perWeekShare, room);
   if (fd <= 0.01) return;
   const usd = w.token.poolUsd - (w.token.poolUsd * pool) / (pool + fd);

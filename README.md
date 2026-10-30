@@ -457,6 +457,18 @@ out of them. Three things were wrong, and the fix is in the data layer.
 
 ## The circular economy, built behind switches (toward config 0.18.0)
 
+**Launch pricing, the lean launch and the fuel tax (2026-10-29, behind the 0.18.0 switches).** The
+launch price is what the dollars support: with any dollars on hand (the seed plus the farming season's
+window) the pool opens two-sided, FD from the pool allocation as deep as the float that survived the
+reset (`token.launch.poolDepthShareOfFloat`) against those dollars, and the price is the quotient;
+buyers then pay the pool's price, no floor. The reset burns stakes, exit queues and contract stakes
+along with wallets above working capital, so every position after launch is re-posted in real FD
+(the grace period applies). An IFTA-style fuel tax (`costs.fuelTax`, sink `fuel_tax`) is filed at
+each month's close on every gallon burned that month, on the road and idling. The report's
+`demand.usdPerThousandCompaniesMonth` is the new buying that would hold the end price, with
+`token.newCompanies.usdWalletMult` as the lever to sweep. See TOKENOMICS.md "The launch price is
+what the dollars support".
+
 Jeff's direction (2026-10-29, TOKENOMICS.md "The circular economy"): a capped FD supply, staking as
 the bond behind every licence, player-funded pools for insurance, factoring and surety, payment
 terms, and a season schedule for later airdrops. All of it is on main and off by default
