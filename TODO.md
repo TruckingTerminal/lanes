@@ -59,10 +59,10 @@ Order is the working order. Design records live in TOKENOMICS.md (economy) and R
     (a range order above the launch price); the dollar side builds from buyers and stays as POL.
     Model it in the sim: `launch.seedUsd` 0 with the launch price as the floor for buys, the day-one
     airdrop claim at 10% (`airdrop.atLaunch`), the daily sell limit at 1% of the pool; same ten seeds.
-16. **Dollar revenue with no token attached, from the first beta day:** cosmetics, vanity MC numbers,
-    named places (needs the client's shop); later dollar auctions of the first truck stops, fuel
-    stations and dealerships by region, proceeds to the pool; the buy, bridge and marketplace fees.
-    Half of every treasury dollar buys FD back and burns it. No flat per-company fee, ever.
+16. **No dollar purchases, ever (Jeff, 2026-10-29).** Dollars enter only by buying FD from the pool;
+    the 1% buy fee funds buybacks. Cosmetics, vanity MC numbers and named places are FD too. The
+    developer's revenue is the treasury's FD, sold on a published vesting schedule (TOKENOMICS.md
+    "FD only"). No flat per-company fee, ever.
 17. **Never:** a dev-bundled launch or a pump-style curve (reads as a rug, is manipulation, does not
     fit the reserve design, puts the economy in one hot wallet). Allocations published and in
     audited vaults and vesting contracts; the dev allocation vests like anyone's.
@@ -75,11 +75,12 @@ Order is the working order. Design records live in TOKENOMICS.md (economy) and R
 19. **Truck and trailer upgrades.** APU (idle fuel down), aero kit (mpg up), premium tires (wear
     down), sleeper (per diem down), telematics (better dispatch information), reefer unit, lift
     gate. Each an item on the truck, with upkeep in FD.
-20. **Who pays what.** Dollar purchases split per Jeff: half to protocol revenue (the dev), and of
-    that half, half buys FD back and burns it. The other half of the dollar price: to the pool's bid
-    side as protocol-owned liquidity (to confirm). Anything with a gameplay effect should also be
-    buyable with FD that burns, at the pool rate, so the grind can buy what dollars buy (pay-to-win
-    risk); dollars-only for cosmetics and vanity. Model paying and non-paying bots and an ARPU curve.
+20. **FD only, with bonds and the split.** Every item, upgrade, yard, shop, station and cosmetic is
+    priced in FD against the launch reference, scaled by the freight rate index; assets carry a
+    staked bond; purchase FD goes half burned, a quarter to the treasury, a quarter to the reserve.
+    Staking discount tiers (5 / 10 / 15% off fuel, repairs, insurance, fees) sized on the runs.
+    Treasury vesting (26-week cliff, ≤0.5%/week, never below the launch floor) modeled as sell
+    pressure. Bots buy with FD; no dollar path exists.
 
 ## Open for Jeff to decide
 - Miles-to-profit airdrop weighting after the runs (0.6 / 0.4 to start).

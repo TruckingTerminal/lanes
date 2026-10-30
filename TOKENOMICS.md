@@ -386,3 +386,30 @@ demand engine, now in the runs.
 The profit tax is a corporate band now: 20% of weekly operating profit above a 5,000 FD exemption,
 moved by the stabilizer only within 10–30% ("those taxes are insane"). Deflation comes from the
 capped economy's locks, stakes and sinks.
+
+## FD only: nothing bypasses the pool (decided 2026-10-29)
+
+Jeff's decision: no dollar purchases of anything, ever. The only way dollars enter is buying FD from
+the pool (every dollar lands on the bid side as protocol-owned liquidity, less the 1% fee that funds
+buybacks), and the only way to do anything in the game is to hold and lock FD. This replaces the
+dollar split for items above and the dollar cosmetics plan.
+
+- **Every price in FD, indexed.** Catalogue prices (items, upgrades, yards, shops, stations,
+  cosmetics) are set in FD against the launch reference and scaled by the freight rate index (the
+  trailing average cleared rate over the base rate), so play money's abundance in the starved
+  season is priced in and prices settle to par as the market normalises. Stakes and bonds are fixed.
+- **A bond behind every asset.** Yards, shops, truck stops, fuel stations, dealerships and shipper
+  facilities: a set price plus a staked bond sized to the asset's weekly flow, returned on sale,
+  slashed on fraud; capped supply per region, FD auctions when contested. More than five trucks
+  needs a yard.
+- **Where purchase FD goes:** half burned, a quarter to the treasury, a quarter to the reserve.
+- **Staking discounts.** Tiers of locked FD earn 5 / 10 / 15% off fuel, repairs, insurance and board
+  fees. A discount is a smaller sink, so each tier's threshold is sized on the runs to lock more
+  than it forgives.
+- **The developer's revenue is FD:** the treasury's genesis allocation and its quarter of every
+  asset sale, sold into the pool on a published vesting schedule (proposal: nothing for the first
+  26 weeks after launch, then at most 0.5% of the treasury's holdings a week, and never in a week
+  the price averaged below the launch floor). Published, vested, never deviated from.
+- **Known costs of the model.** No fiat revenue until the token has a market; the securities
+  question is sharper (a token that is the developer's income, with staking that pays discounts):
+  get a legal opinion before launch; the sell schedule is the trust.
