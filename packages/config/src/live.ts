@@ -34,12 +34,12 @@ export const LIVE_LEVERS: Record<string, unknown> = {
   "costs.salesTax.pct": 0.07,
   "businesses.enabled": true,
   "labor.managers.enabled": true,
+  // Terrain and weather on the route.
+  "roads.terrain.enabled": true,
   // The skill edge: wider ranges for drivers and dispatchers, stronger managers.
   "labor.dispatcher.noise": [0.08, 0.005],
   "labor.driver.mpgRange": 0.3,
   "labor.driver.maintRange": 0.5,
-  "labor.managers.ops.noiseWith": 0.7,
-  "labor.managers.ops.skillBonus": 0.08,
 };
 
 /** A config with the levers applied by path; throws on a path the config doesn't have. */

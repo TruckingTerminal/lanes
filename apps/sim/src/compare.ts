@@ -78,6 +78,7 @@ rows.push(
     const k = (kind: string) => `${fd(mean(rs.map((r) => r.businesses?.[kind]?.tradeFdPerYear ?? 0)))} (${fd(mean(rs.map((r) => r.businesses?.[kind]?.purchaseFd ?? 0)))})`;
     return `${k("shop")} / ${k("truckStop")} / ${k("fuelStation")}`;
   }],
+  ["Legs held by a winter pass closure", (rs) => range(rs.map((r) => r.wear.passClosures ?? 0), n0)],
   ["Breakdowns served by truck stops / hub shops / NPC road service", (rs) => `${Math.round(mean(rs.map((r) => r.wear.roadService?.stop ?? 0)))} / ${Math.round(mean(rs.map((r) => r.wear.roadService?.hub ?? 0)))} / ${Math.round(mean(rs.map((r) => r.wear.roadService?.npc ?? 0)))}`],
   ["Shops, NPC: maintenance / repairs / rebuilds (sinks)", (rs) => `${fd(mean(rs.map((r) => r.sinksByTag.maintenance ?? 0)))} / ${fd(mean(rs.map((r) => r.sinksByTag.repairs ?? 0)))} / ${fd(mean(rs.map((r) => r.sinksByTag.rebuild ?? 0)))}`],
   ["Shipper defaults on brokered loads", (rs) => range(rs.map((r) => r.failures.shipperDefaults ?? 0), n0)],

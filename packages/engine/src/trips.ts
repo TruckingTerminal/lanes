@@ -1,4 +1,5 @@
-import { COMMODITIES } from "@lanes/data";
+import { COMMODITIES, NO_TERRAIN, routeTerrain, type Route } from "@lanes/data";
+import { winterNow } from "./safety.js";
 import { payLegFuel, roadService, serviceBill } from "./businesses.js";
 import { restOnRoad } from "./sites.js";
 import { managerBreakdownMult, managerMaintenanceMult } from "./labor.js";
@@ -121,16 +122,15 @@ export function moveTrucks(w: World): void {
       const key = legKey(w, truck);
       if (truck.legKey !== key) {
         truck.legKey = key;
-        truck.legMiles = truck.remainingMi;
-        truck.nextStation = 0;
-        const route = placeRoute(w, truck.place, truck.targetPlace);
-        truck.legTollFd = route?.tollFd ?? 0;
-        truck.legHighwayShare = route && route.miles > 0 ? route.highwayMi / route.miles : 0;
+        beginLeg(w, truck, placeRoute(w, truck.place, truck.targetPlace));
       }
-      // The road sets the pace: the route's miles over its hours, then the driver and the company's speed policy.
+      // The road sets the pace: the route's miles over its hours, then the driver and the company's speed policy,
+      // then the grades (roads.terrain): the leg's mountain miles run at the mountain speed.
       const route = placeRoute(w, truck.place, truck.targetPlace);
       const roadMph = route && route.hours > 0 ? route.miles / route.hours : cfg.hos.avgMph;
-      const mph = truck.companyId ? mphFor(w, truck, companyById(w, truck.companyId), roadMph) : roadMph;
+      const tr = cfg.roads.terrain;
+      const grades = tr.enabled && truck.legMiles > 0 && truck.legMountainMi > 0 ? truck.legMiles / (truck.legMiles + truck.legMountainMi * (roadMph / tr.mountainMph - 1)) : 1;
+      const mph = (truck.companyId ? mphFor(w, truck, companyById(w, truck.companyId), roadMph) : roadMph) * grades;
       const minutes = Math.min(budget, hosLeft, (truck.remainingMi / mph) * MINUTES_PER_HOUR);
       const miles = Math.min(truck.remainingMi, (mph * minutes) / MINUTES_PER_HOUR);
       truck.remainingMi -= miles;
@@ -143,12 +143,41 @@ export function moveTrucks(w: World): void {
       truck.odometer += miles;
       if (truck.lease === "owned") truck.milesSinceRebuild += miles;
       creditMiles(w, truck, miles);
-      if (miles > 0 && w.rng.ops.next() < (breakdownsPer1000Mi(cfg, truck) * managerBreakdownMult(w, companyById(w, truck.companyId)) * miles) / 1000) breakDown(w, truck);
+      if (miles > 0 && w.rng.ops.next() < (breakdownsPer1000Mi(cfg, truck) * managerBreakdownMult(w, companyById(w, truck.companyId)) * terrainBreakdownMult(w, truck) * miles) / 1000) breakDown(w, truck);
       if (truck.remainingMi <= 1e-6) truck.remainingMi = 0;
       // Enforcement and crashes (safety.ts): a crash ends the truck's hour; an out-of-service order stops it.
       if (miles > 0 && safetyTick(w, truck, miles, truck.legMiles > 0 ? 1 - truck.remainingMi / truck.legMiles : 1) === "crash") break;
     }
   }
+}
+
+/**
+ * A new leg: its length, tolls, highway share and terrain (roads.terrain) are read off the route; in
+ * winter a leg over a pass may be held by a closure (a chain law) for a few hours before it moves.
+ */
+export function beginLeg(w: World, truck: Truck, route: Route | null): void {
+  const { cfg } = w;
+  truck.legMiles = truck.remainingMi;
+  truck.nextStation = 0;
+  truck.legTollFd = route?.tollFd ?? 0;
+  truck.legHighwayShare = route && route.miles > 0 ? route.highwayMi / route.miles : 0;
+  const tr = cfg.roads.terrain;
+  const t = tr.enabled && route ? routeTerrain(w.net.roads, route, tr) : NO_TERRAIN;
+  truck.legClimbM = t.climbM;
+  truck.legMountainMi = t.mountainMi;
+  truck.legPassMi = t.passMi;
+  if (tr.enabled && t.passMi > 0 && winterNow(w) && w.rng.ops.next() < 1 - Math.exp(-tr.closureOddsPerPassMi * t.passMi)) {
+    const hours = w.rng.ops.int(tr.closureHours[0], tr.closureHours[1]);
+    truck.breakdownMin += hours * MINUTES_PER_HOUR;
+    w.metrics.onPassClosure();
+    if (truck.companyId) w.listener?.({ kind: "notice", companyId: truck.companyId, topic: "safety", text: `Truck ${truck.id}: the pass is closed by weather — chain law, about ${hours} hours.`, tone: "bad", truckId: truck.id });
+  }
+}
+
+/** Breakdown odds on grades (roads.terrain): the share of the leg on mountain grades lifts them. */
+function terrainBreakdownMult(w: World, truck: Truck): number {
+  const tr = w.cfg.roads.terrain;
+  return tr.enabled && truck.legMiles > 0 ? 1 + tr.breakdownPerMountainShare * (truck.legMountainMi / truck.legMiles) : 1;
 }
 
 function arrive(w: World, truck: Truck): void {
@@ -193,7 +222,11 @@ function setIdle(w: World, truck: Truck): void {
 export function payTripCosts(w: World, truck: Truck, ref: string): number {
   const acct = companyAccount(truck.companyId);
   const driven = truck.emptyMi + truck.loadedMi;
-  const c = tripCost(w.cfg, truck, fuelPrice(w), driven, truck.loadedMi);
+  const price = fuelPrice(w);
+  const c = tripCost(w.cfg, truck, price, driven, truck.loadedMi);
+  // The climb (roads.terrain): gallons for the meters climbed on this leg, the share these miles are of it.
+  const tr = w.cfg.roads.terrain;
+  const climbGal = tr.enabled && truck.legMiles > 0 ? tr.fuelGalPerClimbM * truck.legClimbM * Math.min(1, driven / truck.legMiles) : 0;
   // Tolls come due with the miles: the share of the leg's tolls these miles cover.
   const tolls = truck.legMiles > 0 ? Math.min(truck.legTollFd, truck.legTollFd * (driven / truck.legMiles)) : 0;
   truck.legTollFd -= tolls;
@@ -202,10 +235,10 @@ export function payTripCosts(w: World, truck: Truck, ref: string): number {
   // Locked FD earns its discount on fuel and maintenance (staking.ts); wages and tolls are what they are.
   const company = companyById(w, truck.companyId);
   const keep = 1 - stakeDiscount(w, company);
-  company.fuelGalMonth += c.gallons; // taxed at the month's close (fuelTax.ts)
+  company.fuelGalMonth += c.gallons + climbGal; // taxed at the month's close (fuelTax.ts)
   // Fuel at the hub's player station if there is one (businesses.ts), else the pump; maintenance at
   // the hub's shop or the NPC shop, leaner with a maintenance manager (labor.ts).
-  const fuel = c.fuel * keep;
+  const fuel = (c.fuel + climbGal * price) * keep;
   payLegFuel(w, company, truck, fuel, driven, ref); // the block rule: the origin, then the truck stops the leg passes
   w.ledger.post(w.t, acct, "sink:driver_wages", c.wages, ref);
   const maintenance = serviceBill(w, company, truck.hub, c.maintenance * keep * managerMaintenanceMult(w, company), "maintenance", ref);

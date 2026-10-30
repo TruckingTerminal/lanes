@@ -388,8 +388,18 @@ export function ownerOf(w: World, companyId: number): Staff | undefined {
 }
 
 /** Market pay for a skill level today: drivers FD/mi, dispatchers FD/week. */
+/** The employed managers of a kind at a company. */
+export const managersOf = (w: World, companyId: number, kind: "opsManager" | "maintManager"): Staff[] => (w.staffByCompany.get(companyId) ?? []).filter((s) => s.kind === kind && s.status === "employed");
+
+/** The best skill among a company's managers of a kind, 0 with none: the edge they give scales with it. */
+export function managerSkill(w: World, companyId: number, kind: "opsManager" | "maintManager"): number {
+  let best = 0;
+  for (const s of managersOf(w, companyId, kind)) best = Math.max(best, s.skill);
+  return best;
+}
+
 export function marketPay(w: World, kind: Staff["kind"], skill: number): number {
-  const [lo, hi] = kind === "driver" ? w.cfg.labor.driver.payPerMile : w.cfg.labor.dispatcher.payPerWeek;
+  const [lo, hi] = kind === "driver" ? w.cfg.labor.driver.payPerMile : kind === "dispatcher" ? w.cfg.labor.dispatcher.payPerWeek : kind === "opsManager" ? w.cfg.labor.managers.ops.payPerWeek : w.cfg.labor.managers.maint.payPerWeek;
   return (lo + (hi - lo) * skill) * w.labor.wageIndex;
 }
 
@@ -404,7 +414,7 @@ export function syncTruck(w: World, truck: Truck): void {
   const co = truck.coDriverId ? staffById(w, truck.coDriverId) : null;
   // An operations manager (labor.ts) lifts every driver a little above their skill.
   const m = cfg.labor.managers;
-  const bonus = m.enabled && truck.companyId && companyById(w, truck.companyId).managers.ops > 0 ? m.ops.skillBonus : 0;
+  const bonus = m.enabled && truck.companyId ? m.ops.skillBonus * managerSkill(w, truck.companyId, "opsManager") : 0;
   if (d && co) {
     truck.wagePerMile = (d.pay + co.pay) * cfg.labor.driver.teamPayShare;
     truck.driverSkill = Math.min(1, (d.skill + co.skill) / 2 + bonus);
@@ -534,7 +544,6 @@ export function formCompany(w: World, c: NewCompany): Company {
     yardBondFd: 0,
     usdSpentBeta: 0,
     fuelGalMonth: 0,
-    managers: { ops: 0, maint: 0 },
     suretyWriter: "npc",
     suretyClaimedFd: 0,
     seasonBase: { miles: 0, profit: 0 },
@@ -669,6 +678,9 @@ export function createTruck(
     legTollFd: 0,
     restShiftT: null,
     legHighwayShare: 0,
+    legClimbM: 0,
+    legMountainMi: 0,
+    legPassMi: 0,
   };
   w.trucks.push(truck);
   fleet.push(truck);

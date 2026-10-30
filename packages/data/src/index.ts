@@ -10,3 +10,5 @@ export * from "./commodities.js";
 export * from "./economy.js";
 export * from "./places.js";
 export * from "./flows.js";
+export * from "./elevation.js";
+export * from "./terrain.js";

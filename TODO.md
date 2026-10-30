@@ -87,9 +87,13 @@ Order is the working order. Design records live in TOKENOMICS.md (economy) and R
   serve 15% of breakdowns (hub shops 8%, NPC road service 76%) and clear ~20k FD a year on a ~224k
   purchase. More stops need a shorter payback: a bigger call-out share, rests priced higher, or a
   cheaper site; and the open count should follow coverage, not only the fleet.
-- **Next:** draw the sites on the client map (lat/lon in `w.sites`; the graphics session); managers as
-  people from the labor pool; per-state fuel tax rates once routes carry states (13); terrain and
-  weather (13); a fuel tank model if the block rule proves too coarse; the switch-on decision.
+- **Phase A (Jeff, 2026-10-30, built; ruleset 0.18.1-phase0.25):** truck stops sized to get built (150k +
+  50k bond, 20 a night, call-out 400 + 6/mi) and the open-site count following coverage; managers as
+  people from the labor pool (skill-scaled edge, weekly pay); terrain and weather on the route (13:
+  ETOPO1 grid, climb in fuel and rates, mountain speed, breakdown and crash odds, winter pass closures). A per-state fuel tax was considered and dropped: as a sink it
+  equals the flat tax, and the routing choice it would create has nowhere to be made until routes
+  can be compared on cost; it may return with the border work. Later: the client panels and the
+  sites on the map; a fuel tank model if the block rule proves too coarse.
 
 ## Items, upgrades and yards (Jeff, 2026-10-29)
 18. **Yards.** More than 5 trucks needs a yard; a yard costs dollars and a staked FD bond, sized by

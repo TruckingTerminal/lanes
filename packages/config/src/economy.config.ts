@@ -9,7 +9,7 @@ export type TractorTier = "workhorse" | "highwayPro" | "flagship";
 export type FacilityType = "warehouse" | "coldStorage" | "factory";
 
 export const economyConfig = {
-  version: "0.18.0-phase0.24", // the circular economy and the big sinks, live levers in live.ts (2026-10-30)
+  version: "0.18.1-phase0.25", // Phase A (2026-10-30): terrain on the roads, managers from the pool, truck stops resized; live levers in live.ts
 
   // §World, map and time
   time: {
@@ -46,6 +46,12 @@ export const economyConfig = {
     // Winter weather: from December to February, risk rises with latitude north of 36° (×1 at 36°, up to the gain at 49°).
     winter: { months: [11, 0, 1] as const, fromLat: 36, toLat: 49, gain: { interstate: 0.35, highway: 0.9 } },
     tollsInRates: true, // shippers pay tolls in the reference rate, like a fuel surcharge
+    // Terrain (Jeff, 2026-10-29/30, Phase A): elevation along the road (data/elevation.ts, a 0.1° grid) gives
+    // every route its climb, its miles on grades over `mountainGrade`, and its miles above `passElevM`.
+    // Climbing burns `fuelGalPerClimbM` gallons a meter (~7 per thousand meters; shippers pay it in the
+    // rate like tolls when `inRates`), grades slow trucks to `mountainMph`, the share of a leg on grades
+    // raises breakdowns and crashes, and in winter a pass can close for a few hours (a chain law).
+    terrain: { enabled: false, fuelGalPerClimbM: 0.007, mountainGrade: 0.03, mountainMph: 30, breakdownPerMountainShare: 0.5, crashPerMountainShare: 0.3, passElevM: 2000, closureOddsPerPassMi: 0.002, closureHours: [4, 12] as const, inRates: true },
   },
 
   // §World, map and time — lanes
@@ -399,19 +405,22 @@ export const economyConfig = {
       // at a wider margin, a shop that charges over list (road service comes from here), and parking
       // that cuts a resting truck's idling to a quarter for a nightly fee. Its price scales with the
       // site's traffic (0.5× to 3× this), its bond doesn't.
-      // Upkeep sized on v32-a (2026-10-30): with ~2,300 trucks on the road a stop's trade can't carry 3,000 a week.
-      truckStop: { priceFd: 250_000, bondFd: 100_000, upkeepPerWeekFd: 1_500, fuelMarginPct: 0.06, partsShare: 0.7, markupRange: [1.1, 1.4] as const, nightlyFd: 15, idleFuelMult: 0.25, restRangeMi: 50 },
+      // Sized on v32–v35 (2026-10-30, Phase A): at 250k + 100k and 15 a night a stop cleared ~20k a year, a
+      // ten-year payback, so bots stopped at ~25 and three quarters of breakdowns found nobody. A parked
+      // truck saves 24 FD of idling, so 20 a night still leaves the driver better off.
+      truckStop: { priceFd: 150_000, bondFd: 50_000, upkeepPerWeekFd: 1_500, fuelMarginPct: 0.06, partsShare: 0.7, markupRange: [1.1, 1.4] as const, nightlyFd: 20, idleFuelMult: 0.25, restRangeMi: 50 },
     },
     // Truck-stop sites: one every so many interstate miles, ranked by the freight that passes (a gravity
     // model over the lanes), the busiest open for sale at the start, more opening as the fleet grows.
-    sites: { everyMi: 100, openAtStart: 100, priceRange: [0.5, 3] as const },
+    // openPerBuilt: the open count follows coverage too — this many sites for sale per truck stop built.
+    sites: { everyMi: 100, openAtStart: 100, openPerBuilt: 2, priceRange: [0.5, 3] as const },
     // Fuel on the road, without a tank model: a leg buys its first block of miles at the origin (its hub
     // station or the NPC pump) and each further block at the nearest truck stop to that mile, within reach.
     fuelRule: { blockMi: 400, stopRangeMi: 100 },
     // A breakdown happens where the truck is: the cheapest provider within reach comes out (a truck
     // stop's shop at its markup, a hub shop at its own), for a call-out fee plus the drive; with none in
     // reach, NPC road service at its markup and its wait. The drive out sets the delay.
-    roadService: { rangeMi: 100, callOutFd: 300, callOutPerMi: 5, mph: 50, npcMarkup: 1.5, npcHours: 8 },
+    roadService: { rangeMi: 100, callOutFd: 400, callOutPerMi: 6, mph: 50, npcMarkup: 1.5, npcHours: 8 },
   },
 
   // §Circular economy — season close (the last 30 in-game days)
@@ -885,22 +894,26 @@ export const economyConfig = {
     // pool). Past `requiredAbove` operating trucks a fleet needs them: without an operations manager
     // its dispatch prices worse (noise up, less lookahead); without a maintenance manager it breaks down
     // more. With them: tighter pricing, fewer breakdowns, leaner maintenance. Pay is weekly, a sink.
-    // Jeff (2026-10-30): an operations manager is a must past four trucks — one runs up to `span` trucks
-    // beyond that, and trucks over the cap park after the grace period (staking.ts), like a stake tier.
-    // With one: tighter pricing, fewer crashes, fewer pull-ins, drivers pushed past the rules mind it
-    // less, and every driver and dispatcher works a little above their skill. Hire one at any size.
+    // Jeff (2026-10-30, Phase A): managers are people from the labor pool, hired like dispatchers (skill,
+    // asking pay, poaching, morale, learning by the week). An operations manager is a must past four
+    // trucks — one runs up to `span` trucks beyond that, and trucks over the cap park after the grace
+    // period (staking.ts), like a stake tier. The edge scales with the best manager's skill: at skill 1
+    // the full `noiseWith` / `crashMult` / `pullInMult` / `pushedPenaltyMult` / `skillBonus`, at 0 none.
+    // Hire one at any size. Pay is quoted per week at skill 0 and 1, like a dispatcher's.
     managers: {
       enabled: false,
-      ops: { payPerWeek: 1_500, requiredAbove: 4, span: 25, noiseWithout: 1.5, noiseWith: 0.8, crashMult: 0.9, pullInMult: 0.9, pushedPenaltyMult: 0.5, skillBonus: 0.05 },
-      maint: { payPerWeek: 1_200, requiredAbove: 10, span: 25, breakdownWithout: 1.3, breakdownWith: 0.8, maintenanceWith: 0.9 },
+      ops: { payPerWeek: [1_000, 2_500] as const, requiredAbove: 4, span: 25, learnWeeks: 150, noiseWithout: 1.5, noiseWith: 0.7, crashMult: 0.9, pullInMult: 0.9, pushedPenaltyMult: 0.5, skillBonus: 0.08 },
+      maint: { payPerWeek: [800, 2_000] as const, requiredAbove: 10, span: 25, learnWeeks: 150, breakdownWithout: 1.3, breakdownWith: 0.8, maintenanceWith: 0.9 },
     },
     pool: {
       startDrivers: 450,
       startDispatchers: 120,
-      targetShare: { driver: 0.1, dispatcher: 0.25 }, // the pool aims at this share of employed staff…
-      minTarget: { driver: 40, dispatcher: 10 },
+      startOpsManagers: 30,
+      startMaintManagers: 30,
+      targetShare: { driver: 0.1, dispatcher: 0.25, opsManager: 0.25, maintManager: 0.25 }, // the pool aims at this share of employed staff…
+      minTarget: { driver: 40, dispatcher: 10, opsManager: 5, maintManager: 5 },
       fillShare: 0.5, // …closing this much of the gap (plus open seats) each week with new entrants
-      baseEntrants: { driver: 3, dispatcher: 1 },
+      baseEntrants: { driver: 3, dispatcher: 1, opsManager: 0.3, maintManager: 0.3 },
       rookieSkill: [0.02, 0.3] as const,
       veteranShare: 0.3, // entrants coming back to the industry with experience
       veteranSkill: [0.3, 0.85] as const,

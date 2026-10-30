@@ -14,7 +14,6 @@ import { chargeYards } from "./home.js";
 import { monthlyDealerPrices } from "./dealer.js";
 import { monthlyFuelTax } from "./fuelTax.js";
 import { weeklyBusinesses } from "./businesses.js";
-import { payManagers } from "./labor.js";
 import { monthlySites } from "./sites.js";
 import { dailyLabor, monthlyLabor, payDispatchers, weeklyLabor } from "./labor.js";
 import { dailyStaking, stakeDiscount } from "./staking.js";
@@ -112,8 +111,7 @@ function endOfDay(w: World, day: number, agents?: DailyAgentHook): void {
     if (cfg.freeEntry.leases.enabled) chargeMinimumRent(w);
     serviceLoans(w);
     stepListings(w);
-    payDispatchers(w);
-    payManagers(w);
+    payDispatchers(w); // dispatchers' and managers' weekly pay
     billInsurance(w);
     chargeYards(w);
     weeklyLabor(w);

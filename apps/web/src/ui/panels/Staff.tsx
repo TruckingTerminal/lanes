@@ -42,6 +42,9 @@ export function Staff(): JSX.Element {
   const value = (s: StaffT) => askingPay(w, s) - (s.kind === "driver" ? 0.35 * s.skill : 0);
   const poolDrivers = poolOf(w, "driver").sort((a, b) => value(a) - value(b) || a.id - b.id).slice(0, 10);
   const poolDispatchers = poolOf(w, "dispatcher").sort((a, b) => askingPay(w, a) / spanOf(w, a) - askingPay(w, b) / spanOf(w, b) || a.id - b.id).slice(0, 6);
+  const managersOn = w.cfg.labor.managers.enabled;
+  const poolManagers = (kind: "opsManager" | "maintManager") => poolOf(w, kind).sort((a, b) => askingPay(w, a) * (1 - 0.4 * a.skill) - askingPay(w, b) * (1 - 0.4 * b.skill) || a.id - b.id).slice(0, 4);
+  const kindLabel = (k: StaffT["kind"]) => (k === "driver" ? "Driver" : k === "dispatcher" ? "Dispatcher" : k === "opsManager" ? "Operations manager" : "Maintenance manager");
   const poachable = w.staff
     .filter((s) => s.status === "employed" && !s.owner && s.companyId !== c.id && s.skill >= 0.55 && !s.offer)
     .sort((a, b) => b.skill - a.skill || a.id - b.id)
@@ -80,6 +83,8 @@ export function Staff(): JSX.Element {
     const seatText =
       s.kind === "dispatcher" ? (
         <>runs up to {spanOf(w, s)} trucks</>
+      ) : s.kind === "opsManager" || s.kind === "maintManager" ? (
+        <>{s.kind === "opsManager" ? "runs the office" : "runs the shop"}</>
       ) : s.truckId ? (
         <>
           truck {truckNo(s.truckId)}
@@ -96,7 +101,7 @@ export function Staff(): JSX.Element {
           <Portrait who={s.kind === "driver" ? driverPerson(s.id) : "dispatcher"} />
           <b>{s.name}</b>
           <Stars skill={s.skill} />
-          <span class="muted">{s.kind === "driver" ? "Driver" : "Dispatcher"}</span>
+          <span class="muted">{kindLabel(s.kind)}</span>
           <span class={moraleClass(s.morale)}>{moraleWord(s.morale)}</span>
           {s.kind === "driver" ? (
             <span class="muted">
@@ -161,7 +166,7 @@ export function Staff(): JSX.Element {
           <Stars skill={s.skill} />
         </td>
         <td class="num">{staffPay(s, ask)}</td>
-        <td>{driver ? `${s.violations}/${s.crashes}` : `${spanOf(w, s)} trucks`}</td>
+        <td>{driver ? `${s.violations}/${s.crashes}` : s.kind === "dispatcher" ? `${spanOf(w, s)} trucks` : s.kind === "opsManager" ? `${w.cfg.labor.managers.ops.span} trucks` : "the shop"}</td>
         <td>
           {can ? (
             <div class="row">
@@ -287,6 +292,32 @@ export function Staff(): JSX.Element {
           </tbody>
         </table>
       </Card>
+      {managersOn ? (
+        <Card title="Hire a manager">
+          <p class="muted small">
+            Past {w.cfg.labor.managers.ops.requiredAbove} trucks you need an operations manager, one for every {w.cfg.labor.managers.ops.span} beyond, or the extra trucks park after {w.cfg.token.staking.graceDays} days. A maintenance manager past {w.cfg.labor.managers.maint.requiredAbove}. Their skill sets the edge; pay is a full week's.
+          </p>
+          <table>
+            <thead>
+              <tr>
+                <th>Name</th>
+                <th>Skill</th>
+                <th>Asks</th>
+                <th>Runs</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody>
+              {poolManagers("opsManager").map((s) => (
+                <PoolRow s={s} key={s.id} />
+              ))}
+              {poolManagers("maintManager").map((s) => (
+                <PoolRow s={s} key={s.id} />
+              ))}
+            </tbody>
+          </table>
+        </Card>
+      ) : null}
       <Card title="Hire away from other companies">
         <p class="muted small">Their employer gets {w.cfg.labor.morale.noticeDays} days to match. Unhappy people come cheaper.</p>
         <table>

@@ -217,8 +217,6 @@ export interface Company {
   minBrokerCredit: number;
   /** Gallons burned this month, on the road and idling, for the monthly fuel tax (fuelTax.ts). */
   fuelGalMonth: number;
-  /** Salaried posts (labor.ts managers): operations managers and maintenance managers on staff. */
-  managers: { ops: number; maint: number };
   /** The catalogue (items.ts): the yard, its bond, and dollars spent in the farming season's window. */
   yard: "none" | "small" | "large";
   yardBondFd: number;
@@ -298,7 +296,7 @@ export interface InsurancePolicy {
   market: number;
 }
 
-export type StaffKind = "driver" | "dispatcher";
+export type StaffKind = "driver" | "dispatcher" | "opsManager" | "maintManager";
 export type StaffStatus = "pool" | "employed" | "jailed" | "gone";
 
 /** A driver or dispatcher (labor.ts). */
@@ -476,6 +474,10 @@ export interface Truck {
   /** Tolls still to be paid on this leg (charged as the miles are settled), and the share of it on two-lane highway. */
   legTollFd: number;
   legHighwayShare: number;
+  /** The leg's terrain (data/terrain.ts): meters climbed, miles on mountain grades, miles above the pass elevation. */
+  legClimbM: number;
+  legMountainMi: number;
+  legPassMi: number;
   /** The shift whose rest on the road has been charged (sites.ts restOnRoad), so a rest is charged once. */
   restShiftT: number | null;
 }
@@ -723,8 +725,6 @@ export type Action =
   | { type: "buy_business"; kind: "shop" | "fuelStation"; hubId: string }
   | { type: "buy_business"; kind: "truckStop"; siteId: number }
   | { type: "set_shop_markup"; businessId: number; markup: number }
-  | { type: "hire_manager"; role: "ops" | "maint" }
-  | { type: "fire_manager"; role: "ops" | "maint" }
   | { type: "claim_airdrop_now" }
   /** Standing offer in the weekly buyback auction; amount 0 withdraws it. */
   | { type: "offer_fd"; amountFd: number; minPriceUsd: number }

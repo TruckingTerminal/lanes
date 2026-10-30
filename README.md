@@ -482,6 +482,17 @@ priced by traffic: fuel by the 400-mile block rule, rests at the nearest stop, a
 breakdowns on the road (`road_service` when no shop is in reach). `token.circular.rateStabilizer`
 moves NPC rates toward the sink-to-faucet target each month.
 
+**Phase A (2026-10-30, ruleset 0.18.1).** Terrain on the roads: `packages/data/src/elevation.ts` is a
+0.1° grid of NOAA's ETOPO1 relief over the continental US (built by `packages/data/tools/build-elevation.mjs`),
+and `terrain.ts` gives every edge and route its climb, its miles on grades over 3% and its miles above
+2,000 m; lanes carry `climbM`, `mountainMi` and `passMi`. With `roads.terrain` on (the live profile):
+the climb's gallons go into the fuel bill and into shippers' rates like tolls, grades slow a leg to
+the mountain speed, the share of a leg on grades lifts breakdown and crash odds, and in winter a leg
+over a pass can be held by a closure for a few hours (`passClosures` in the report). Managers are now
+people from the labor pool (`StaffKind` `opsManager` / `maintManager`: skill, asking pay, poaching,
+morale, a week's experience a week; the edge scales with the best one's skill; weekly pay a sink).
+Truck stops cost 150k with a 50k bond and charge 20 a night, and more sites open as stops get built.
+
 Jeff's direction (2026-10-29, TOKENOMICS.md "The circular economy"): a capped FD supply, staking as
 the bond behind every licence, player-funded pools for insurance, factoring and surety, payment
 terms, and a season schedule for later airdrops. All of it is on main and off by default

@@ -82,7 +82,11 @@ import { businessesOf, payFuel, payLegFuel, roadService, serviceBill, shopAt } f
 import { bestOpenSite, legMile, restOnRoad, sitePriceFd, sitesAlong } from "../src/sites.js";
 import { hubRoute, syncTruck } from "../src/world.js";
 import { fuelPrice as fuelPriceNow } from "../src/economics.js";
-import { dispatchProfile, managerBreakdownMult, opsCap, payManagers } from "../src/labor.js";
+import { beginLeg } from "../src/trips.js";
+import { winterNow } from "../src/safety.js";
+import { elevationAt } from "@lanes/data";
+import { dispatchProfile, managerBreakdownMult, opsCap, payDispatchers, poolOf as poolStaff } from "../src/labor.js";
+import { askingPay as asking } from "../src/world.js";
 import type { Company } from "../src/types.js";
 
 const net = buildNetwork(hubs, cfg);
@@ -1632,7 +1636,7 @@ describe("the big sinks (0.18.0): sales tax, player businesses, the maintenance 
     w.ledger.assertBalanced();
   });
 
-  it("pays managers weekly, needs an operations manager past four trucks (one per twenty-five), and gives one a crash, pull-in, pricing and skill edge", () => {
+  it("hires managers from the pool, needs an operations manager past four trucks (one per twenty-five), and the best one's skill sets the edge", () => {
     const w = createWorld({ cfg: sinks, net, feeds: neutralFeeds, seed: 73, keepLedgerEntries: true });
     const a = carrier(w, "A");
     fund(w, a.id, 100_000);
@@ -1641,26 +1645,85 @@ describe("the big sinks (0.18.0): sales tax, player businesses, the maintenance 
     expect(opsCap(w, a)).toBe(k.ops.requiredAbove);
     expect(managerBreakdownMult(w, a)).toBe(k.maint.breakdownWithout);
     const without = dispatchProfile(w, a, k.ops.requiredAbove + 2).noise;
-    // The drivers' skill bonus: the owner at the wheel of the first truck.
     const t = w.trucksByCompany.get(a.id)![0]!;
     const owner = w.staffByCompany.get(a.id)!.find((s) => s.owner)!;
     t.driverId = owner.id;
     owner.truckId = t.id;
     syncTruck(w, t);
     const skill0 = t.driverSkill;
-    expect(applyAction(w, a.id, { type: "hire_manager", role: "maint" })).toEqual({ ok: true });
-    expect(applyAction(w, a.id, { type: "hire_manager", role: "ops" })).toEqual({ ok: true });
-    expect(t.driverSkill).toBeCloseTo(Math.min(1, skill0 + k.ops.skillBonus), 9);
+    // The pool has managers; the best operations manager and any maintenance manager are hired at their ask.
+    const ops = poolStaff(w, "opsManager").sort((p, q) => q.skill - p.skill || p.id - q.id)[0]!;
+    const maint = poolStaff(w, "maintManager")[0]!;
+    expect(ops.skill).toBeGreaterThan(0);
+    expect(applyAction(w, a.id, { type: "offer_staff", staffId: ops.id, pay: asking(w, ops) })).toEqual({ ok: true });
+    expect(applyAction(w, a.id, { type: "offer_staff", staffId: maint.id, pay: asking(w, maint) })).toEqual({ ok: true });
+    expect(t.driverSkill).toBeCloseTo(Math.min(1, skill0 + k.ops.skillBonus * ops.skill), 9);
     expect(opsCap(w, a)).toBe(k.ops.requiredAbove + k.ops.span);
-    expect(managerBreakdownMult(w, a)).toBe(k.maint.breakdownWith);
-    expect(dispatchProfile(w, a, k.ops.requiredAbove + 2).noise).toBeLessThan((without / k.ops.noiseWithout) * k.ops.noiseWith + 1e-9); // tighter still: the team's skill bonus too
-    expect(applyAction(w, a.id, { type: "hire_manager", role: "ops" })).toEqual({ ok: true }); // a second one, for a bigger fleet
-    expect(a.managers.ops).toBe(2);
+    expect(managerBreakdownMult(w, a)).toBeCloseTo(1 - (1 - k.maint.breakdownWith) * maint.skill, 9);
+    expect(dispatchProfile(w, a, k.ops.requiredAbove + 2).noise).toBeLessThan(without);
+    // Weekly pay: a full week each, a sink.
     const before = w.ledger.balance(companyAccount(a.id));
-    payManagers(w);
-    expect(before - w.ledger.balance(companyAccount(a.id))).toBeCloseTo((2 * k.ops.payPerWeek + k.maint.payPerWeek) * w.labor.wageIndex, 2);
-    expect(applyAction(w, a.id, { type: "fire_manager", role: "ops" })).toEqual({ ok: true });
-    expect(a.managers.ops).toBe(1);
+    payDispatchers(w);
+    expect(before - w.ledger.balance(companyAccount(a.id))).toBeCloseTo(ops.pay + maint.pay, 2);
+    expect(w.ledger.entries.filter((e) => e.to === "sink:management").reduce((s, e) => s + e.amount, 0)).toBeCloseTo(ops.pay + maint.pay, 2);
+    // Let the operations manager go: the cap falls back and the fleet is over it again.
+    expect(applyAction(w, a.id, { type: "release_staff", staffId: ops.id })).toEqual({ ok: true });
+    expect(opsCap(w, a)).toBe(k.ops.requiredAbove);
+    w.ledger.assertBalanced();
+  });
+});
+
+describe("terrain (0.18.0, Phase A): climb, grades and passes on the road", () => {
+  const hilly: EconomyConfig = { ...calm, roads: { ...calm.roads, terrain: { ...calm.roads.terrain, enabled: true } } };
+
+  it("reads the elevation grid, and gives mountain lanes their climb where flat lanes have almost none", () => {
+    expect(elevationAt(39.7, -105.0)).toBeGreaterThan(1_400); // Denver
+    expect(elevationAt(29.8, -95.4)).toBeLessThan(60); // Houston
+    expect(elevationAt(0, 0)).toBe(0); // beyond the map
+    const w = createWorld({ cfg: hilly, net, feeds: neutralFeeds, seed: 80 });
+    const byClimb = [...w.net.lanes].sort((a, b) => b.climbM / b.miles - a.climbM / a.miles);
+    const steep = byClimb[0]!;
+    const flat = byClimb.at(-1)!;
+    expect(steep.climbM).toBeGreaterThan(1_000);
+    expect(steep.mountainMi).toBeGreaterThan(0);
+    expect(flat.climbM / flat.miles).toBeLessThan(steep.climbM / steep.miles / 5);
+    expect(w.net.lanes.some((l) => l.passMi > 0)).toBe(true);
+  });
+
+  it("burns more fuel on a climb, runs slower on grades, and a winter pass can close the road", () => {
+    const sure: EconomyConfig = { ...hilly, roads: { ...hilly.roads, terrain: { ...hilly.roads.terrain, closureOddsPerPassMi: 1e6 } } };
+    const w = createWorld({ cfg: sure, net, feeds: neutralFeeds, seed: 81, keepLedgerEntries: true });
+    const a = carrier(w, "A");
+    fund(w, a.id, 50_000);
+    const lane = [...w.net.lanes].filter((l) => l.passMi > 0).sort((p, q) => q.climbM - p.climbM)[0]!;
+    const r = hubRoute(w, lane.origin, lane.dest)!;
+    const t = createTruck(w, a, "owned", "workhorse", "van");
+    t.status = "loaded";
+    t.hub = lane.origin;
+    t.targetHub = lane.dest;
+    t.place = PLACE_OF_HUB[lane.origin]!;
+    t.targetPlace = PLACE_OF_HUB[lane.dest]!;
+    t.remainingMi = r.miles;
+    expect(winterNow(w)).toBe(true); // the world starts in January
+    beginLeg(w, t, r);
+    expect(t.legMiles).toBe(r.miles);
+    expect(t.legClimbM).toBeCloseTo(lane.climbM, 3);
+    expect(t.legMountainMi).toBeGreaterThan(0);
+    expect(t.legPassMi).toBeGreaterThan(0);
+    expect(t.breakdownMin).toBeGreaterThanOrEqual(sure.roads.terrain.closureHours[0] * 60); // held by the closure
+    // The same miles on the flat against this climb, the same driver at the wheel: the difference is the climb's gallons at the pump price.
+    const flat = createTruck(w, a, "owned", "workhorse", "van");
+    flat.legMiles = r.miles;
+    flat.driverSkill = t.driverSkill;
+    t.loadedMi = r.miles;
+    flat.loadedMi = r.miles;
+    const fuelSunk = () => w.ledger.entries.filter((e) => e.to === "sink:fuel").reduce((s, e) => s + e.amount, 0);
+    const f0 = fuelSunk();
+    payTripCosts(w, t, "mountain");
+    const mountainFuel = fuelSunk() - f0;
+    payTripCosts(w, flat, "flat");
+    const flatFuel = fuelSunk() - f0 - mountainFuel;
+    expect(mountainFuel - flatFuel).toBeCloseTo(sure.roads.terrain.fuelGalPerClimbM * lane.climbM * fuelPriceNow(w), 0);
     w.ledger.assertBalanced();
   });
 });

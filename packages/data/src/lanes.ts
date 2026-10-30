@@ -1,4 +1,5 @@
 import { buildEconomy, loadPlaces, type Economy, type Place } from "./flows.js";
+import { routeTerrain } from "./terrain.js";
 import { PLACE_OF_HUB } from "./places.js";
 import type { EconomyConfig } from "@lanes/config";
 import { dasin, dcos, dsin } from "./dmath.js";
@@ -19,6 +20,10 @@ export interface Lane {
   tollFd: number;
   /** Share of the miles on two-lane US highways rather than interstates. */
   highwayShare: number;
+  /** Terrain along the route (terrain.ts): meters climbed, miles on mountain grades, miles above the pass elevation. */
+  climbM: number;
+  mountainMi: number;
+  passMi: number;
 }
 
 const EARTH_RADIUS_MI = 3958.8;
@@ -192,6 +197,9 @@ export function buildNetwork(hubs: Hub[], cfg: EconomyConfig): Network {
         hours: r ? r.hours : m / cfg.hos.avgMph,
         tollFd: r ? r.tollFd : 0,
         highwayShare: r && r.miles > 0 ? r.highwayMi / r.miles : 0,
+        climbM: r ? routeTerrain(roads, r, cfg.roads.terrain).climbM : 0,
+        mountainMi: r ? routeTerrain(roads, r, cfg.roads.terrain).mountainMi : 0,
+        passMi: r ? routeTerrain(roads, r, cfg.roads.terrain).passMi : 0,
       };
       lanes.push(lane);
       lanesFrom[i]!.push(lane);

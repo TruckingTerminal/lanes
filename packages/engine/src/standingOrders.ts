@@ -159,7 +159,11 @@ export function estimateBreakEven(w: World, truck: Truck, load: Load, dh: number
   const reloadMi = expectedReloadDeadheadMi(w, load.dest, load.equipment, team.foresightDays);
   // Tolls on the way to the pickup and on the load's own route are part of the cost of the load.
   const tolls = placeToll(w, truck.place, load.originPlace) + load.routeTollFd;
-  const trueBreakEven = breakEvenPerMile(w.cfg, truck, fuel, load.miles, dh + team.reloadWeight * reloadMi, tolls);
+  // The climb's fuel (roads.terrain), read off the lane: a mountain load costs more to haul.
+  const tr = w.cfg.roads.terrain;
+  const lane = w.net.lanes[load.laneId];
+  const climbFd = tr.enabled && lane ? tr.fuelGalPerClimbM * lane.climbM * fuel : 0;
+  const trueBreakEven = breakEvenPerMile(w.cfg, truck, fuel, load.miles, dh + team.reloadWeight * reloadMi, tolls + climbFd);
   // Their read of their own costs is off by a few percent, more for an inexperienced dispatcher.
   const z = (w.rng.dispatch.next() + w.rng.dispatch.next() + w.rng.dispatch.next() - 1.5) * 2;
   return trueBreakEven * (1 + team.noise * z);

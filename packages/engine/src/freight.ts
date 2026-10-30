@@ -136,6 +136,9 @@ export function generateRoundFreight(w: World): RoundFreight {
 
   // Toll roads cost the carrier, so (like fuel) the shipper's rate carries them.
   const tollPerMile = (lane: Lane) => (cfg.roads.tollsInRates ? lane.tollFd / lane.miles : 0);
+  // The climb's fuel (roads.terrain), in the rate like tolls: a mountain lane pays for its grades.
+  const tr = cfg.roads.terrain;
+  const terrainPerMile = (lane: Lane) => (tr.enabled && tr.inRates ? (tr.fuelGalPerClimbM * lane.climbM * fuelPrice(w)) / lane.miles : 0);
   // Freight into a market trucks can't reload in carries part of the empty run out, per loaded mile.
   const exitPerMile = (lane: Lane, eq: Equipment) => (cfg.rates.exitDeadheadShare * cfg.rates.deadheadFdPerMile * expectedReloadDeadheadMi(w, lane.dest, eq)) / lane.miles;
   const rf = reserveFactor(w) * w.stab.rateMult; // the reserve, and the balance dial (step.ts monthlyStabilizers)
@@ -149,6 +152,7 @@ export function generateRoundFreight(w: World): RoundFreight {
       reloadFactor(w, lane.dest, eq) +
     fsc +
     tollPerMile(lane) +
+    terrainPerMile(lane) +
     exitPerMile(lane, eq);
 
   const month = Math.floor(((day % cfg.time.daysPerSeason) / cfg.time.daysPerSeason) * 12);
@@ -277,7 +281,7 @@ export function generateRoundFreight(w: World): RoundFreight {
         // Shipper leverage: where trucks pile up, most loads go to local carriers first.
         if (rng.next() < localShare(w, i, eq)) load.localUntilRound = w.round + cfg.leverage.localRounds;
         if (rng.next() < cfg.freight.npcBrokerOnlyShare) {
-          const contractRef = lane.baseRate * w.contractIndex[planIndex(i, e)]! * cfg.rates.equipmentPremium[eq] * reloadFactor(w, lane.dest, eq) + fsc + tollPerMile(lane) + exitPerMile(lane, eq);
+          const contractRef = lane.baseRate * w.contractIndex[planIndex(i, e)]! * cfg.rates.equipmentPremium[eq] * reloadFactor(w, lane.dest, eq) + fsc + tollPerMile(lane) + terrainPerMile(lane) + exitPerMile(lane, eq);
           tenderToBroker(w, load, brokers, contractRef * remoteMult(load) * cfg.rates.npcCeilingMarkup * (load.hot || 1));
         }
         finish(load, load.brokerId !== null ? w.companies[load.brokerId - 1]!.vetting : 0);

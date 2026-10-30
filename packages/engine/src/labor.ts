@@ -1,4 +1,5 @@
 import { dayOf } from "./clock.js";
+import { managersOf, managerSkill } from "./world.js";
 import { clamp, finiteIn, fmtInt } from "./economics.js";
 import { companyAccount } from "./ledger.js";
 import type { Company, Staff, Truck, StandingOrder } from "./types.js";
@@ -56,10 +57,11 @@ export function dispatchProfile(w: World, c: Company, operating: number): Dispat
   // Managers (config labor.managers): past the threshold a fleet without an operations manager prices
   // worse and looks less far ahead; with one it prices tighter and the team works a little above its skill.
   const m = labor.managers;
-  const hasOps = m.enabled && c.managers.ops > 0;
+  const hasOps = m.enabled && managersOf(w, c.id, "opsManager").length > 0;
+  const ops = hasOps ? managerSkill(w, c.id, "opsManager") : 0; // the best operations manager's skill
   const opsNeeded = m.enabled && operating > m.ops.requiredAbove && !hasOps;
-  const skill = Math.min(1, weighted / span + (hasOps ? m.ops.skillBonus : 0));
-  const noiseMult = opsNeeded ? m.ops.noiseWithout : hasOps ? m.ops.noiseWith : 1;
+  const skill = Math.min(1, weighted / span + m.ops.skillBonus * ops);
+  const noiseMult = opsNeeded ? m.ops.noiseWithout : hasOps ? 1 - (1 - m.ops.noiseWith) * ops : 1;
   return {
     skill,
     span,
@@ -84,7 +86,10 @@ function notice(w: World, companyId: number, text: string, tone: "good" | "bad" 
   w.listener?.({ kind: "notice", companyId, topic: "staff", text, tone, truckId });
 }
 
-const label = (s: Staff) => `${s.kind === "driver" ? "Driver" : "Dispatcher"} ${s.name} (${stars(s.skill)}★)`;
+const KIND_LABEL: Record<Staff["kind"], string> = { driver: "Driver", dispatcher: "Dispatcher", opsManager: "Operations manager", maintManager: "Maintenance manager" };
+const label = (s: Staff) => `${KIND_LABEL[s.kind]} ${s.name} (${stars(s.skill)}★)`;
+/** Experience behind a skill level: miles for drivers, loads for dispatchers, weeks on the job for managers. */
+const experienceScale = (kind: Staff["kind"]) => (kind === "driver" ? 600_000 : kind === "dispatcher" ? 3_000 : 150);
 
 // --- The pool ---------------------------------------------------------------------
 
@@ -92,12 +97,12 @@ const label = (s: Staff) => `${s.kind === "driver" ? "Driver" : "Dispatcher"} ${
 export function seedPool(w: World): void {
   const { pool } = w.cfg.labor;
   const rng = w.rng.labor;
-  for (const [kind, n] of [["driver", pool.startDrivers], ["dispatcher", pool.startDispatchers]] as const) {
+  for (const [kind, n] of [["driver", pool.startDrivers], ["dispatcher", pool.startDispatchers], ["opsManager", pool.startOpsManagers], ["maintManager", pool.startMaintManagers]] as const) {
     for (let i = 0; i < n; i++) {
       const u = rng.next();
       const skill = clamp(0.05 + 0.85 * u * u * (3 - 2 * u) * 0.95, 0, 0.95);
       const s = newStaff(w, kind, skill, skill + (1 - skill) * rng.range(0, 0.6));
-      s.experience = Math.round(skill * (kind === "driver" ? 600_000 : 3_000));
+      s.experience = Math.round(skill * experienceScale(kind));
     }
   }
 }
@@ -108,7 +113,7 @@ function entrant(w: World, kind: Staff["kind"]): Staff {
   const veteran = rng.next() < pool.veteranShare;
   const skill = veteran ? rng.range(pool.veteranSkill[0], pool.veteranSkill[1]) : rng.range(pool.rookieSkill[0], pool.rookieSkill[1]);
   const s = newStaff(w, kind, skill, rng.range(pool.potential[0], pool.potential[1]));
-  s.experience = Math.round(skill * (kind === "driver" ? 600_000 : 3_000));
+  s.experience = Math.round(skill * experienceScale(kind));
   return s;
 }
 
@@ -190,6 +195,7 @@ function hire(w: World, c: Company, s: Staff, pay: number, truck: Truck | null, 
   s.morale = clamp(0.6 + w.cfg.labor.morale.payWeight * (pay / marketPay(w, s.kind, s.skill) - 1), 0.3, 0.95);
   w.staffByCompany.get(c.id)!.push(s);
   if (truck) seatDriver(w, s, truck);
+  if (s.kind === "opsManager") for (const t of w.trucksByCompany.get(c.id) ?? []) syncTruck(w, t); // the drivers' bonus
 }
 
 /** Back to the pool (fired, quit, or the company folded). */
@@ -471,8 +477,9 @@ export function weeklyLabor(w: World): void {
   }
   for (const s of w.staff) {
     if (s.status !== "employed") continue;
+    if (s.kind === "opsManager" || s.kind === "maintManager") s.pending += 1; // a week on the job
     if (s.pending > 0) {
-      const learn = s.kind === "driver" ? labor.driver.learnMiles : labor.dispatcher.learnLoads;
+      const learn = s.kind === "driver" ? labor.driver.learnMiles : s.kind === "dispatcher" ? labor.dispatcher.learnLoads : s.kind === "opsManager" ? labor.managers.ops.learnWeeks : labor.managers.maint.learnWeeks;
       s.skill = clamp(s.skill + (s.potential - s.skill) * (s.pending / learn), 0, 1);
       s.experience += s.pending;
       s.pending = 0;
@@ -517,7 +524,7 @@ export function weeklyLabor(w: World): void {
   const leave = labor.pool.retireWeekly * (slack ? labor.pool.slackAttrition : 2);
   for (const s of w.staff) if (s.status === "pool" && rng.next() < leave) s.status = "gone";
   const wagesDraw = w.labor.wageIndex > labor.wageIndex.range[0] + 1e-9;
-  for (const kind of ["driver", "dispatcher"] as const) {
+  for (const kind of ["driver", "dispatcher", "opsManager", "maintManager"] as const) {
     const employed = w.staff.filter((s) => s.kind === kind && s.status === "employed" && !s.owner).length;
     const inPool = poolOf(w, kind).length;
     const target = Math.max(labor.pool.minTarget[kind], employed * labor.pool.targetShare[kind]);
@@ -544,6 +551,13 @@ export function payDispatchers(w: World): void {
       left -= run;
       w.ledger.post(w.t, companyAccount(c.id), "sink:dispatch", d.pay * Math.max(DISPATCH_RETAINER, run / span), `dispatch:${d.id}`);
     }
+  }
+  // Managers draw a full week's pay (labor.managers), a sink.
+  for (const s of w.staff) {
+    if (s.status !== "employed" || (s.kind !== "opsManager" && s.kind !== "maintManager")) continue;
+    const c = companyById(w, s.companyId);
+    w.ledger.post(w.t, companyAccount(c.id), "sink:management", s.pay, `manager:${s.id}`);
+    c.operating.costFd += s.pay;
   }
 }
 
@@ -588,46 +602,19 @@ export function creditMiles(w: World, truck: Truck, miles: number): void {
   if (truck.coDriverId) staffById(w, truck.coDriverId).pending += miles;
 }
 
-// --- Managers (Jeff, 2026-10-29/30; TODO.md 12, first form) -------------------------------------
-// Salaried posts, hired and let go by the company, paid weekly at the market index: operations
-// managers (a must past `requiredAbove` operating trucks, one for every `span` beyond; the trucks over
-// that park after the grace period, staking.ts) and maintenance managers.
+// --- Managers (Jeff, 2026-10-29/30; TODO.md 12): people from the labor pool -----------------------
+// Operations managers (a must past `requiredAbove` operating trucks, one for every `span` beyond; the
+// trucks over that park after the grace period, staking.ts) and maintenance managers, hired like
+// dispatchers: skill, asking pay, poaching, morale, a week's experience a week. The edge they give
+// scales with the best one's skill. Pay is weekly (payDispatchers), a sink.
 
 export type ManagerRole = "ops" | "maint";
-
-export function hireManager(w: World, c: Company, role: ManagerRole): string | null {
-  if (!w.cfg.labor.managers.enabled) return "managers aren't on";
-  if (c.liquidatingSince !== null) return "in liquidation";
-  c.managers[role]++;
-  if (role === "ops") for (const t of w.trucksByCompany.get(c.id) ?? []) syncTruck(w, t); // the drivers' bonus
-  return null;
-}
-
-export function fireManager(w: World, c: Company, role: ManagerRole): string | null {
-  if (c.managers[role] <= 0) return "nobody in that post";
-  c.managers[role]--;
-  if (role === "ops") for (const t of w.trucksByCompany.get(c.id) ?? []) syncTruck(w, t);
-  return null;
-}
-
-/** Weekly salaries, a sink. */
-export function payManagers(w: World): void {
-  const k = w.cfg.labor.managers;
-  if (!k.enabled) return;
-  for (const c of w.companies) {
-    for (const role of ["ops", "maint"] as const) {
-      if (c.managers[role] <= 0) continue;
-      const pay = k[role].payPerWeek * w.labor.wageIndex * c.managers[role];
-      w.ledger.post(w.t, companyAccount(c.id), "sink:management", pay, `manager:${role}:${c.id}`);
-      c.operating.costFd += pay;
-    }
-  }
-}
+const kindOf = (role: ManagerRole): "opsManager" | "maintManager" => (role === "ops" ? "opsManager" : "maintManager");
 
 /** Operating trucks the operations managers on staff cover (the threshold plus a span each); no limit when managers are off. */
 export function opsCap(w: World, c: Company): number {
   const k = w.cfg.labor.managers;
-  return k.enabled ? k.ops.requiredAbove + k.ops.span * c.managers.ops : Infinity;
+  return k.enabled ? k.ops.requiredAbove + k.ops.span * managersOf(w, c.id, "opsManager").length : Infinity;
 }
 
 /** Managers of a role a fleet of this size needs. */
@@ -636,33 +623,49 @@ export function managersNeeded(w: World, role: ManagerRole, operating: number): 
   return operating > k.requiredAbove ? Math.ceil((operating - k.requiredAbove) / k.span) : 0;
 }
 
-/** Breakdown odds: more without a maintenance manager past the threshold, fewer with one. */
+/** Breakdown odds: more without a maintenance manager past the threshold, fewer with one, by their skill. */
 export function managerBreakdownMult(w: World, c: Company): number {
   const k = w.cfg.labor.managers;
   if (!k.enabled) return 1;
-  if (c.managers.maint > 0) return k.maint.breakdownWith;
+  if (managersOf(w, c.id, "maintManager").length > 0) return 1 - (1 - k.maint.breakdownWith) * managerSkill(w, c.id, "maintManager");
   return operatingCount(w, c.id) > k.maint.requiredAbove ? k.maint.breakdownWithout : 1;
 }
 
-/** Maintenance per mile: leaner with a maintenance manager. */
+/** Maintenance per mile: leaner with a maintenance manager, by their skill. */
 export function managerMaintenanceMult(w: World, c: Company): number {
   const k = w.cfg.labor.managers;
-  return k.enabled && c.managers.maint > 0 ? k.maint.maintenanceWith : 1;
+  return k.enabled ? 1 - (1 - k.maint.maintenanceWith) * managerSkill(w, c.id, "maintManager") : 1;
 }
 
-/** With an operations manager: fewer crashes, fewer pull-ins, and drivers pushed past the rules mind it less. */
-export const opsCrashMult = (w: World, c: Company): number => (w.cfg.labor.managers.enabled && c.managers.ops > 0 ? w.cfg.labor.managers.ops.crashMult : 1);
-export const opsPullInMult = (w: World, c: Company): number => (w.cfg.labor.managers.enabled && c.managers.ops > 0 ? w.cfg.labor.managers.ops.pullInMult : 1);
-export const opsPushedMult = (w: World, c: Company): number => (w.cfg.labor.managers.enabled && c.managers.ops > 0 ? w.cfg.labor.managers.ops.pushedPenaltyMult : 1);
+/** With an operations manager, by their skill: fewer crashes, fewer pull-ins, and drivers pushed past the rules mind it less. */
+export const opsCrashMult = (w: World, c: Company): number => (w.cfg.labor.managers.enabled ? 1 - (1 - w.cfg.labor.managers.ops.crashMult) * managerSkill(w, c.id, "opsManager") : 1);
+export const opsPullInMult = (w: World, c: Company): number => (w.cfg.labor.managers.enabled ? 1 - (1 - w.cfg.labor.managers.ops.pullInMult) * managerSkill(w, c.id, "opsManager") : 1);
+export const opsPushedMult = (w: World, c: Company): number => (w.cfg.labor.managers.enabled ? 1 - (1 - w.cfg.labor.managers.ops.pushedPenaltyMult) * managerSkill(w, c.id, "opsManager") : 1);
 
-/** Bots (and the auto-staff order): fill the posts the fleet needs when the cash is there; let them go when the fleet has shrunk well below. */
+/** Bots (and the auto-staff order): hire the managers the fleet needs from the pool, best value first, when the cash is there; let the weakest go when the fleet has shrunk well below. */
 export function autoManagers(w: World, c: Company): void {
   const k = w.cfg.labor.managers;
   if (!k.enabled || c.liquidatingSince !== null) return;
   const operating = operatingCount(w, c.id);
   for (const role of ["ops", "maint"] as const) {
+    const kind = kindOf(role);
+    const have = managersOf(w, c.id, kind).length;
     const need = managersNeeded(w, role, operating);
-    while (c.managers[role] < need && w.ledger.balance(companyAccount(c.id)) >= k[role].payPerWeek * 8) hireManager(w, c, role);
-    while (c.managers[role] > need && (need > 0 || operating <= k[role].requiredAbove - 2)) fireManager(w, c, role);
+    if (have < need) {
+      // Value: what they ask, discounted by what their skill is worth.
+      const value = (s: Staff) => askingPay(w, s) * (1 - 0.4 * s.skill);
+      const pool = poolOf(w, kind).sort((a, b) => value(a) - value(b) || a.id - b.id);
+      let hired = 0;
+      for (const s of pool) {
+        if (have + hired >= need) break;
+        const ask = askingPay(w, s);
+        if (w.ledger.balance(companyAccount(c.id)) < ask * 8) break;
+        hire(w, c, s, ask, null);
+        hired++;
+      }
+    } else if (have > need && (need > 0 || operating <= k[role].requiredAbove - 2)) {
+      const go = managersOf(w, c.id, kind).sort((a, b) => a.skill - b.skill || a.id - b.id)[0]!;
+      releaseStaff(w, go);
+    }
   }
 }

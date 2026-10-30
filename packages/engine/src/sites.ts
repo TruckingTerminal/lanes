@@ -64,12 +64,14 @@ export function buildSites(w: World): void {
   w.sitesBaseTrucks = 0;
 }
 
-/** Monthly: as the fleet grows past what it was when the sites first counted, more open, busiest first. */
+/** Monthly: more sites open as the fleet grows past what it was when the sites first counted, and as stops get built (so many for sale per one built), busiest first. */
 export function monthlySites(w: World): void {
   const k = w.cfg.businesses.sites;
   if (!w.cfg.businesses.enabled || w.sites.length === 0) return;
   if (w.sitesBaseTrucks === 0) w.sitesBaseTrucks = Math.max(1, w.trucks.length);
-  const target = Math.min(w.sites.length, Math.max(k.openAtStart, Math.round((k.openAtStart * w.trucks.length) / w.sitesBaseTrucks)));
+  let built = 0;
+  for (const s of w.sites) if (s.businessId !== 0 && siteBusiness(w, s)) built++;
+  const target = Math.min(w.sites.length, Math.max(k.openAtStart, Math.round((k.openAtStart * w.trucks.length) / w.sitesBaseTrucks), built * k.openPerBuilt));
   let open = 0;
   for (const s of w.sites) if (s.open) open++;
   if (open >= target) return;

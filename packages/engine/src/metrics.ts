@@ -53,6 +53,8 @@ export interface DayMetrics {
   roadServiceStop: number;
   roadServiceHub: number;
   roadServiceNpc: number;
+  /** Legs held by a winter pass closure (trips.ts beginLeg). */
+  passClosures: number;
   rebuilds: number;
   /** Mean condition of owned trucks (1 = fresh). */
   avgOwnedCondition: number;
@@ -127,6 +129,10 @@ export class MetricsRecorder {
 
   onBreakdown(): void {
     this.acc.breakdowns++;
+  }
+
+  onPassClosure(): void {
+    this.acc.passClosures++;
   }
 
   onRoadService(by: "stop" | "hub" | "npc"): void {
@@ -286,6 +292,7 @@ export class MetricsRecorder {
       roadServiceStop: a.roadServiceStop,
       roadServiceHub: a.roadServiceHub,
       roadServiceNpc: a.roadServiceNpc,
+      passClosures: a.passClosures,
       rebuilds: a.rebuilds,
       avgOwnedCondition: owned ? conditionSum / owned : 1,
       cycle: w.feeds.cycle(day),
@@ -357,6 +364,7 @@ function emptyAcc() {
     roadServiceStop: 0,
     roadServiceHub: 0,
     roadServiceNpc: 0,
+    passClosures: 0,
     rebuilds: 0,
     ordersPlaced: 0,
     trucksDelivered: 0,

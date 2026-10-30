@@ -167,13 +167,19 @@ export function stationsOnLeg(w: World, a: number, b: number): { station: number
  * The road's own risk on this leg: two-lane highway over interstate, and winter
  * weather up north (from the fraction of the leg on highway and where it runs).
  */
+/** Whether it is winter on the roads (config roads.winter.months). */
+export function winterNow(w: World): boolean {
+  const month = Math.floor(((today(w) % w.cfg.time.daysPerSeason) / w.cfg.time.daysPerSeason) * 12);
+  return w.cfg.roads.winter.months.includes(month as 0 | 1 | 11);
+}
+
 export function roadRisk(w: World, t: Truck): number {
-  const { crashHighwayMult, winter } = w.cfg.roads;
+  const { crashHighwayMult, winter, terrain } = w.cfg.roads;
   const hs = t.legHighwayShare;
-  const road = 1 + (crashHighwayMult - 1) * hs;
-  const day = today(w);
-  const month = Math.floor(((day % w.cfg.time.daysPerSeason) / w.cfg.time.daysPerSeason) * 12);
-  if (!winter.months.includes(month as 0 | 1 | 11)) return road;
+  // Mountain grades (roads.terrain): the share of the leg on them lifts the odds.
+  const mountain = terrain.enabled && t.legMiles > 0 ? 1 + terrain.crashPerMountainShare * (t.legMountainMi / t.legMiles) : 1;
+  const road = (1 + (crashHighwayMult - 1) * hs) * mountain;
+  if (!winterNow(w)) return road;
   const lat = (w.net.places[t.place]!.lat + w.net.places[t.targetPlace]!.lat) / 2;
   const north = Math.min(1, Math.max(0, (lat - winter.fromLat) / (winter.toLat - winter.fromLat)));
   return road * (1 + north * (winter.gain.interstate * (1 - hs) + winter.gain.highway * hs));
