@@ -3,6 +3,7 @@ import { dayOf, MINUTES_PER_HOUR } from "./clock.js";
 import { clamp, fuelPrice, tripCost } from "./economics.js";
 import { settleDoubleBroker } from "./fraud.js";
 import { bill } from "./receivables.js";
+import { stakeDiscount } from "./staking.js";
 import { creditMiles, creditDriving, homeArrival } from "./labor.js";
 import { companyAccount } from "./ledger.js";
 import { closeDutyDay, drivingLimitMin, legalDrivingMin, mphFor, safetyTick } from "./safety.js";
@@ -189,12 +190,14 @@ export function payTripCosts(w: World, truck: Truck, ref: string): number {
   truck.legTollFd -= tolls;
   truck.emptyMi = 0;
   truck.loadedMi = 0;
-  w.ledger.post(w.t, acct, "sink:fuel", c.fuel, ref);
+  // Locked FD earns its discount on fuel and maintenance (staking.ts); wages and tolls are what they are.
+  const keep = 1 - stakeDiscount(w, companyById(w, truck.companyId));
+  w.ledger.post(w.t, acct, "sink:fuel", c.fuel * keep, ref);
   w.ledger.post(w.t, acct, "sink:driver_wages", c.wages, ref);
-  w.ledger.post(w.t, acct, "sink:maintenance", c.maintenance, ref);
+  w.ledger.post(w.t, acct, "sink:maintenance", c.maintenance * keep, ref);
   w.ledger.post(w.t, acct, "sink:tolls", tolls, ref);
   // Insurance isn't per trip: the yearly policy is billed weekly (insurance.ts).
-  return c.fuel + c.wages + c.maintenance + tolls;
+  return (c.fuel + c.maintenance) * keep + c.wages + tolls;
 }
 
 function arriveEmpty(w: World, truck: Truck): void {
@@ -231,7 +234,7 @@ function collectUpstream(w: World, load: Load, payee: Company, gross: number, fa
     const billed = load.shipperRate * load.miles * factor;
     if (!defaulted) {
       bill(w, { payer: 0, faucet: "faucet:npc_shipper", payee: broker, amountFd: billed, ref });
-      w.ledger.post(w.t, brokerAcct, "sink:board_fee", cfg.board.posterFeePct * billed, ref);
+      w.ledger.post(w.t, brokerAcct, "sink:board_fee", cfg.board.posterFeePct * billed * (1 - stakeDiscount(w, broker)), ref);
       awardMiles(w, broker, cfg.miles.brokerPerMile * load.miles, load.laneId);
       broker.operating.revenueFd += billed;
       broker.operating.costFd += cfg.board.posterFeePct * billed;
@@ -247,7 +250,7 @@ function collectUpstream(w: World, load: Load, payee: Company, gross: number, fa
     // who pays the carrier. A company hauling its own freight pays itself nothing.
     const shipper = companyById(w, load.shipperId);
     const shipperAcct = companyAccount(shipper.id);
-    const fee = cfg.board.posterFeePct * load.saleValue;
+    const fee = cfg.board.posterFeePct * load.saleValue * (1 - stakeDiscount(w, shipper));
     bill(w, { payer: 0, faucet: "faucet:npc_market", payee: shipper, amountFd: load.saleValue, ref });
     if (shipper.id !== payee.id) bill(w, { payer: shipper.id, payee, amountFd: gross, ref, leased });
     w.ledger.post(w.t, shipperAcct, "sink:board_fee", fee, ref);

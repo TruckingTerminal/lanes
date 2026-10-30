@@ -20,6 +20,12 @@ import {
   RESERVE_ACCOUNT,
   payClaim,
   bill,
+  itemPriceFd,
+  itemPriceUsd,
+  priceIndex,
+  stakeDiscount,
+  truckCap,
+  weeklyVest,
   askPriceUsd,
   brokerLicensed,
   creditBand,
@@ -1282,6 +1288,86 @@ describe("launch without capital (0.18.0): the treasury's one-sided range", () =
     expect(applyAction(w, a.id, { type: "sell_fd", fd: 1_000 })).toEqual({ ok: true });
     expect(a.usd.out).toBeGreaterThan(0);
     expect(a.usd.out).toBeLessThan(1_000 * k.floorPriceUsd);
+    w.ledger.assertBalanced();
+  });
+});
+
+describe("the catalogue (0.18.0, FD only): yards, upgrades, the farming-season dollar window, discounts and the vest", () => {
+  const shop: EconomyConfig = { ...calm, token: { ...calm.token, enabled: true, staking: { ...calm.token.staking, enabled: true }, catalogue: { ...calm.token.catalogue, enabled: true } } };
+
+  it("needs a yard past five trucks: an FD yard splits its price burn / treasury / reserve and locks the bond; a dollar yard in the season is held for the pool", () => {
+    const w = createWorld({ cfg: shop, net, feeds: neutralFeeds, seed: 58, keepLedgerEntries: true });
+    const c = carrier(w);
+    fund(w, c.id, 400_000);
+    expect(applyAction(w, c.id, { type: "stake_fd", fd: 100_000 })).toEqual({ ok: true }); // the 30-truck tier
+    for (let i = 0; i < 5; i++) addTruck(w, c, "owned", "workhorse", "van");
+    expect(truckCap(w, c)).toBe(shop.token.catalogue.trucksWithoutYard);
+    expect(applyAction(w, c.id, { type: "buy_asset", tier: "workhorse", trailer: "van", replaceNpcLease: false })).toEqual({ ok: false, reason: "company truck cap" });
+    expect(priceIndex(w)).toBe(1); // no market yet
+    const price = itemPriceFd(w, "yardSmall");
+    const spec = shop.token.catalogue.items.yardSmall;
+    const cash = w.ledger.balance(companyAccount(c.id));
+    expect(applyAction(w, c.id, { type: "buy_item", item: "yardSmall", pay: "fd" })).toEqual({ ok: true });
+    expect(c.yard).toBe("small");
+    expect(cash - w.ledger.balance(companyAccount(c.id))).toBeCloseTo(price + spec.bondFd, 2);
+    expect(w.ledger.balance("sink:asset_burn")).toBeCloseTo(price * shop.token.catalogue.split.burn, 2);
+    expect(w.ledger.balance("alloc:treasury")).toBeCloseTo(price * shop.token.catalogue.split.treasury, 2);
+    expect(w.ledger.balance("sink:asset_reserve")).toBeCloseTo(price * shop.token.catalogue.split.reserve, 2);
+    expect(c.yardBondFd).toBe(spec.bondFd);
+    expect(truckCap(w, c)).toBe(spec.trucks);
+    expect(applyAction(w, c.id, { type: "buy_asset", tier: "workhorse", trailer: "van", replaceNpcLease: false })).toEqual({ ok: true });
+    // The season's dollar window: a large yard for dollars, the bond still in FD, every dollar held for the launch pool.
+    c.usd.wallet = 10_000;
+    const usd = itemPriceUsd(w, "yardLarge");
+    expect(applyAction(w, c.id, { type: "buy_item", item: "yardLarge", pay: "usd" })).toEqual({ ok: false, reason: "over this season's dollar cap" });
+    const roomy: EconomyConfig = { ...shop, token: { ...shop.token, catalogue: { ...shop.token.catalogue, usdWindow: { ...shop.token.catalogue.usdWindow, capUsdPerMc: 10_000 } } } };
+    w.cfg = roomy;
+    expect(applyAction(w, c.id, { type: "buy_item", item: "yardLarge", pay: "usd" })).toEqual({ ok: true });
+    expect(c.yard).toBe("large");
+    expect(w.token.treasury.seedEscrowUsd).toBeCloseTo(usd, 6);
+    expect(c.yardBondFd).toBe(shop.token.catalogue.items.yardLarge.bondFd);
+    w.ledger.assertBalanced();
+  });
+
+  it("fits upgrades that cut costs, and locked FD earns its discount", () => {
+    const w = createWorld({ cfg: shop, net, feeds: neutralFeeds, seed: 59, keepLedgerEntries: true });
+    const c = carrier(w);
+    fund(w, c.id, 300_000);
+    const t = addTruck(w, c, "owned", "workhorse", "van");
+    expect(applyAction(w, c.id, { type: "buy_item", item: "apu", pay: "fd", truckId: t.id })).toEqual({ ok: true });
+    expect(t.mods.apu).toBe(true);
+    expect(applyAction(w, c.id, { type: "buy_item", item: "apu", pay: "fd", truckId: t.id })).toEqual({ ok: false, reason: "already fitted" });
+    expect(stakeDiscount(w, c)).toBe(0);
+    expect(applyAction(w, c.id, { type: "stake_fd", fd: 100_000 })).toEqual({ ok: true });
+    expect(stakeDiscount(w, c)).toBe(0.1);
+    runDays(w, 2);
+    const idle = w.ledger.entries.filter((e) => e.to === "sink:idle_fuel" && e.from === companyAccount(c.id));
+    expect(idle.length).toBeGreaterThan(0);
+    const full = shop.costs.idleFuelGalPerDay * w.metrics.days.at(-1)!.fuelPrice;
+    expect(idle.at(-1)!.amount).toBeCloseTo(full * 0.5 * 0.9, 0); // an APU halves it, the stake takes 10% off
+  });
+
+  it("vests the developer's FD into the pool after the cliff, never below the floor, and the dollars are revenue", () => {
+    const capped: EconomyConfig = { ...calm, seasonClose: { ...calm.seasonClose, enabled: false }, token: { ...calm.token, enabled: true, circular: { ...calm.token.circular, enabled: true } } };
+    const w = createWorld({ cfg: capped, net, feeds: neutralFeeds, seed: 60 });
+    const a = carrier(w, "A");
+    fund(w, a.id, 50_000);
+    a.milesTotal = 1_000;
+    launchToken(w);
+    const held = w.ledger.balance("alloc:treasury");
+    expect(held).toBeGreaterThan(0);
+    weeklyVest(w); // inside the cliff: nothing
+    expect(w.token.treasury.vestedFd).toBe(0);
+    w.token.launchDay = -capped.token.treasury.vest.cliffWeeks * 7 - 1;
+    for (let i = 0; i < 7; i++) w.token.priceHistory.push(capped.token.launch.priceUsd / 2);
+    weeklyVest(w); // below the floor: nothing
+    expect(w.token.treasury.vestedFd).toBe(0);
+    for (let i = 0; i < 7; i++) w.token.priceHistory.push(capped.token.launch.priceUsd * 2);
+    const poolUsd = w.token.poolUsd;
+    weeklyVest(w);
+    expect(w.token.treasury.vestedFd).toBeCloseTo(held * capped.token.treasury.vest.perWeekShare, 2);
+    expect(w.token.treasury.devUsd).toBeGreaterThan(0);
+    expect(w.token.poolUsd).toBeCloseTo(poolUsd - w.token.treasury.devUsd, 6);
     w.ledger.assertBalanced();
   });
 });

@@ -25,11 +25,12 @@ export function maintPerMile(cfg: EconomyConfig, tier: TractorTier, trailer: Equ
  * truck's current wear. Excludes the lease share and breakdown repair bills,
  * which are paid when they happen.
  */
-export function tripCost(cfg: EconomyConfig, truck: TruckSpec, fuel: number, driven: number, loaded: number) {
+export function tripCost(cfg: EconomyConfig, truck: TruckSpec & { mods?: { aero?: boolean; tires?: boolean } }, fuel: number, driven: number, loaded: number) {
+  // Upgrades (items.ts): an aero kit saves 5% of fuel, premium tires 20% of maintenance.
   return {
-    fuel: (driven / effectiveMpg(cfg, truck)) * fuel,
+    fuel: (driven / effectiveMpg(cfg, truck)) * fuel * (truck.mods?.aero ? 0.95 : 1),
     wages: driven * (truck.wagePerMile ?? cfg.costs.driverWagePerMile),
-    maintenance: driven * maintPerMile(cfg, truck.tier, truck.trailer) * maintMultiplier(cfg, truck),
+    maintenance: driven * maintPerMile(cfg, truck.tier, truck.trailer) * maintMultiplier(cfg, truck) * (truck.mods?.tires ? 0.8 : 1),
     // Billed weekly per truck on a yearly policy (insurance.ts); here, its share per loaded mile.
     insurance: ((loaded * cfg.insurance.baseAnnualPerTruck) / cfg.insurance.loadedMilesPerYear) * (truck.insuranceMult ?? 1),
   };

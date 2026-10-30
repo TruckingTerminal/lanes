@@ -27,6 +27,7 @@ export * from "./step.js";
 export * from "./token.js";
 export * from "./trips.js";
 export * from "./credit.js";
+export * from "./items.js";
 export * from "./pools.js";
 export * from "./receivables.js";
 export * from "./staking.js";

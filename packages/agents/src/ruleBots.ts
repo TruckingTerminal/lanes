@@ -21,6 +21,9 @@ import {
   brokerLicensed,
   capitalRatio,
   factoringStake,
+  itemPriceFd,
+  itemPriceUsd,
+  yardTrucks,
   nextTruckTier,
   stakeFd,
   truckCap,
@@ -894,6 +897,29 @@ export const ruleBotHook: DailyAgentHook = (w) => {
         const idle = fleet.filter((t) => t.status === "idle").length;
         const pending = ordersOf(w, c.id).length;
         // Staking (0.18.0): the next truck tier needs a stake; a bot that wants more trucks and can spare the FD stakes it first.
+        // The catalogue (0.18.0): more trucks than the yard holds needs a yard; in the farming season a paying bot buys it with dollars.
+        if (cfg.token.catalogue.enabled && grow() && active + pending >= yardTrucks(w, c) && active + pending < p.targetFleet) {
+          const yard = c.yard === "none" ? "yardSmall" : c.yard === "small" ? "yardLarge" : null;
+          if (yard) {
+            const usd = itemPriceUsd(w, yard);
+            if (!live && p.payToWin && c.usd.wallet >= usd && c.usdSpentBeta + usd <= cfg.token.catalogue.usdWindow.capUsdPerMc) applyAction(w, c.id, { type: "buy_item", item: yard, pay: "usd" });
+            else if (w.ledger.balance(acct) - reserve(w, c, p) >= itemPriceFd(w, yard) + cfg.token.catalogue.items[yard].bondFd) applyAction(w, c.id, { type: "buy_item", item: yard, pay: "fd" });
+          }
+        }
+        // Upgrades pay for themselves over a year: one a day, cheapest first, when the cash is well clear of the reserve.
+        if (cfg.token.catalogue.enabled) {
+          let bought = false;
+          for (const t of fleet) {
+            if (bought || t.lease === "npc" || t.status === "retired") continue;
+            for (const m of ["tires", "aero", "sleeper", "apu"] as const) {
+              if (t.mods[m]) continue;
+              const usd = itemPriceUsd(w, m);
+              if (!live && p.payToWin && c.usd.wallet >= usd && c.usdSpentBeta + usd <= cfg.token.catalogue.usdWindow.capUsdPerMc) bought = applyAction(w, c.id, { type: "buy_item", item: m, pay: "usd", truckId: t.id }).ok;
+              else if (w.ledger.balance(acct) - reserve(w, c, p) * 2 >= 4 * itemPriceFd(w, m)) bought = applyAction(w, c.id, { type: "buy_item", item: m, pay: "fd", truckId: t.id }).ok;
+              break;
+            }
+          }
+        }
         const tier = nextTruckTier(w, c);
         if (tier && grow() && active + pending >= truckCap(w, c) && active + pending < p.targetFleet) {
           // The stake bought with dollars when the bot pays to win: the design's demand engine (TOKENOMICS.md §2).

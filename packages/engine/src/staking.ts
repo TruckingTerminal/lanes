@@ -8,6 +8,7 @@
 import { applyAction } from "./actions.js";
 import { dayOf } from "./clock.js";
 import { companyAccount } from "./ledger.js";
+import { yardTrucks } from "./items.js";
 import type { Company } from "./types.js";
 import type { World } from "./world.js";
 
@@ -16,13 +17,23 @@ export const exitAccount = (companyId: number) => `co:exit:${companyId}`;
 
 const exiting = (c: Company) => c.unstaking.reduce((s, e) => s + e.fd, 0);
 
-/** Trucks the company may run at its stake (the config cap without staking). */
+/** Trucks the company may run at its stake (the config cap without staking), and within what its yard holds (items.ts). */
 export function truckCap(w: World, c: Company): number {
   const k = w.cfg.token.staking;
-  if (!k.enabled) return w.cfg.company.maxTrucks;
+  const yard = w.cfg.token.catalogue.enabled ? yardTrucks(w, c) : w.cfg.company.maxTrucks;
+  if (!k.enabled) return Math.min(w.cfg.company.maxTrucks, yard);
   let cap = 0;
   for (const [trucks, stake] of k.truckTiers) if (c.stakedFd + 1e-9 >= stake) cap = Math.max(cap, trucks);
-  return Math.min(cap, w.cfg.company.maxTrucks);
+  return Math.min(cap, w.cfg.company.maxTrucks, yard);
+}
+
+/** The discount locked FD earns on fuel, maintenance, rebuilds, insurance and board fees: the highest tier reached. */
+export function stakeDiscount(w: World, c: Company): number {
+  const k = w.cfg.token.staking;
+  if (!k.enabled) return 0;
+  let d = 0;
+  for (const [stake, pct] of k.discounts) if (c.stakedFd + 1e-9 >= stake) d = Math.max(d, pct);
+  return d;
 }
 
 export function facilityCap(w: World, c: Company): number {

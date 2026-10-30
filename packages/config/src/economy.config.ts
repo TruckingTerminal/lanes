@@ -593,6 +593,34 @@ export const economyConfig = {
       exitLimitPerDay: 0.02, // …and at most this share of all staked and exiting FD clears per day
       instantHaircut: 0.25, // or out at once for this much, burned
       graceDays: 14, // over a tier, or a broker under its stake: this long before trucks park and loads stop
+      // Staking discounts (Jeff, 2026-10-29): locked FD earns this much off fuel, maintenance, rebuilds,
+      // insurance premiums and board fees; [staked FD, discount], the highest tier reached applies.
+      discounts: [
+        [20_000, 0.05],
+        [100_000, 0.1],
+        [500_000, 0.15],
+      ] as const,
+    },
+    // The catalogue (Jeff, 2026-10-29; TOKENOMICS.md "FD only"): yards and truck upgrades priced in
+    // FD at the launch reference and scaled by the freight rate index; purchase FD half burned, a
+    // quarter to the treasury, a quarter to the reserve; yards post a bond. In the farming season
+    // only, the same items sell for dollars at a premium, capped per MC, every dollar held for the
+    // launch pool. Off until sized.
+    catalogue: {
+      enabled: false,
+      trucksWithoutYard: 5,
+      items: {
+        yardSmall: { priceFd: 60_000, bondFd: 30_000, trucks: 10 },
+        yardLarge: { priceFd: 250_000, bondFd: 100_000, trucks: 30 },
+        apu: { priceFd: 12_000 }, // idle fuel halved
+        aero: { priceFd: 8_000 }, // 5% less fuel
+        tires: { priceFd: 6_000 }, // 20% less maintenance
+        sleeper: { priceFd: 10_000 }, // per diem halved
+      },
+      split: { burn: 0.5, treasury: 0.25, reserve: 0.25 },
+      indexBaseRate: 3.0, // a normal market's cleared rate, FD/mi: the index is 1 there
+      indexClamp: [0.5, 3] as const,
+      usdWindow: { enabled: true, premium: 1.5, capUsdPerMc: 500, referencePriceUsd: 0.01 },
     },
     // Design decision (Jeff, 2026-10-29; TOKENOMICS.md §4): player-funded pools, insurance first.
     // A capitalised pool writes policies cheaper than the NPC insurer and earns the premiums; it
@@ -659,7 +687,10 @@ export const economyConfig = {
     treasury: {
       // Stand-in for real revenue other than exchange fees: cosmetics, premium,
       // asset sales (§Two ledgers — primary sales go to the developer), per active company per week.
-      productUsdPerCompanyWeek: 0, // Jeff (2026-10-29): no flat fee; revenue comes from modeled sales (stake and asset presales, cosmetics, fees), not a per-company charge
+      productUsdPerCompanyWeek: 0, // Jeff (2026-10-29): no flat fee, no dollar sales at all after launch; the developer's revenue is the treasury's FD, vested below
+      // The developer's FD, vested (TOKENOMICS.md "FD only"): after the cliff, at most this share of the
+      // treasury's holdings sold into the pool a week, never in a week the price averaged below the floor.
+      vest: { cliffWeeks: 26, perWeekShare: 0.005, floorPriceUsd: 0.01 },
       buybackShare: 0.5, // §Burn and buyback: half of revenue buys FD back (all of it burned here); half runs the company
     },
     lockGrants: true, // after launch, starting grants are spend-only (sybils can't cash them out)

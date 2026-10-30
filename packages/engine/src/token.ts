@@ -170,10 +170,13 @@ export function launchToken(w: World): void {
 
   // Seeded with dollars, the pool opens two-sided at the launch price; with none, the treasury posts
   // FD alone (launch.liquidityFd) and the floor price stands until buyers' dollars lift the pool.
-  const liquidityFd = tc.launch.seedUsd > 0 ? tc.launch.seedUsd / tc.launch.priceUsd : tc.launch.liquidityFd;
+  // The farming season's dollar window (items.ts) is held for this day: every dollar of it seeds the pool.
+  const seedUsd = tc.launch.seedUsd + w.token.treasury.seedEscrowUsd;
+  const liquidityFd = seedUsd > 0 ? seedUsd / tc.launch.priceUsd : tc.launch.liquidityFd;
   w.ledger.post(w.t, "faucet:launch_liquidity", EXCHANGE_ACCOUNT, liquidityFd, "launch:liquidity");
-  w.token.poolUsd = tc.launch.seedUsd;
-  w.token.treasury.seedUsd = tc.launch.seedUsd;
+  w.token.poolUsd = seedUsd;
+  w.token.treasury.seedUsd = seedUsd;
+  w.token.treasury.seedEscrowUsd = 0;
   for (const c of w.companies) {
     c.taxBaseFd = operatingResult(w, c);
     c.seasonBase = { miles: lifetimeMiles(c), profit: operatingResult(w, c) };
@@ -232,6 +235,30 @@ export function seasonAirdrop(w: World): void {
   });
   w.token.airdrop.seasonsPaid++;
   w.listener?.({ kind: "launched" });
+}
+
+/**
+ * The developer's FD, vested (TOKENOMICS.md "FD only"): weekly after the cliff, at most
+ * treasury.vest.perWeekShare of the treasury's holdings sold into the pool, never in a week the price
+ * averaged below the floor. The dollars it brings are the developer's revenue; the sale is the sell
+ * pressure the runs must carry. Only under the cap, where the treasury allocation exists.
+ */
+export function weeklyVest(w: World): void {
+  const v = w.cfg.token.treasury.vest;
+  if (!w.cfg.token.circular.enabled || v.perWeekShare <= 0 || w.token.launchDay === null) return;
+  if (dayOf(w.t, w.cfg) - w.token.launchDay < v.cliffWeeks * 7) return;
+  const hist = w.token.priceHistory.slice(-7);
+  const avg = hist.length ? hist.reduce((a, b) => a + b, 0) / hist.length : 0;
+  const held = w.ledger.balance("alloc:treasury");
+  const pool = w.ledger.balance(EXCHANGE_ACCOUNT);
+  if (avg < v.floorPriceUsd || held <= 0 || w.token.poolUsd <= 0 || pool <= 0) return;
+  const fd = held * v.perWeekShare;
+  const usd = w.token.poolUsd - (w.token.poolUsd * pool) / (pool + fd);
+  if (usd <= 0.01) return;
+  w.ledger.post(w.t, "alloc:treasury", EXCHANGE_ACCOUNT, fd, "vest:treasury");
+  w.token.poolUsd -= usd;
+  w.token.treasury.devUsd += usd;
+  w.token.treasury.vestedFd += fd;
 }
 
 /** A liquidated company loses what's left of its airdrop. */

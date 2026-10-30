@@ -215,6 +215,10 @@ export interface Company {
   credit: { onTimeFd: number; lateFd: number };
   /** Carriers: the lowest broker credit this company hauls for. */
   minBrokerCredit: number;
+  /** The catalogue (items.ts): the yard, its bond, and dollars spent in the farming season's window. */
+  yard: "none" | "small" | "large";
+  yardBondFd: number;
+  usdSpentBeta: number;
   /** Brokers: who carries the bond this term, the surety pool or the NPC surety, and what the bond has paid out on this company so far. */
   suretyWriter: "pool" | "npc";
   suretyClaimedFd: number;
@@ -247,6 +251,10 @@ export interface Company {
 }
 
 /** A one-game-year insurance policy: the price per truck is fixed for the term. */
+/** The catalogue (items.ts): yards, and the upgrades a truck can carry. */
+export type TruckMod = "apu" | "aero" | "tires" | "sleeper";
+export type ItemKind = "yardSmall" | "yardLarge" | TruckMod;
+
 /** A player-funded pool (pools.ts): units at net asset value, an exit queue, and the line's running income and losses. */
 export type PoolLine = "insurance" | "factoring" | "surety";
 
@@ -444,6 +452,8 @@ export interface Truck {
   /** Drivers (labor.ts): the driver, and a co-driver for a team (0 = none). */
   driverId: number;
   coDriverId: number;
+  /** Upgrades fitted (items.ts): an APU halves idle fuel, an aero kit saves fuel, premium tires maintenance, a sleeper per diem. */
+  mods: Record<TruckMod, boolean>;
   /** Cached from the crew and the company's policy (labor.syncTruck): pay per mile, the driver's skill, cost multipliers. */
   wagePerMile: number;
   driverSkill: number;
@@ -666,6 +676,7 @@ export type Action =
   | { type: "deposit_pool"; line: PoolLine; amountFd: number }
   | { type: "withdraw_pool"; line: PoolLine; amountFd: number }
   | { type: "set_pay_terms"; terms: "net" | "quick" | "factor" }
+  | { type: "buy_item"; item: ItemKind; pay: "fd" | "usd"; truckId?: number }
   | { type: "claim_airdrop_now" }
   /** Standing offer in the weekly buyback auction; amount 0 withdraws it. */
   | { type: "offer_fd"; amountFd: number; minPriceUsd: number }
@@ -725,6 +736,10 @@ export interface TokenState {
     buybackQueueUsd: number;
     dailyBuybackUsd: number;
     weekRevenueUsd: number;
+    /** Farming-season dollars held for the launch pool (items.ts), and the developer's vested FD sold and the dollars it brought (token.ts weeklyVest). */
+    seedEscrowUsd: number;
+    vestedFd: number;
+    devUsd: number;
   };
   /** Daily pool price after launch. */
   priceHistory: number[];

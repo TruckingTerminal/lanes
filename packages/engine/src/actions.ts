@@ -16,7 +16,8 @@ import { canRefile, notice } from "./safety.js";
 import { canMakeHot } from "./standingOrders.js";
 import { inCloseWindow } from "./season.js";
 import { refile } from "./solvency.js";
-import { facilityCap, stakeFd, truckCap, unstakeFd } from "./staking.js";
+import { facilityCap, stakeDiscount, stakeFd, truckCap, unstakeFd } from "./staking.js";
+import { buyItem } from "./items.js";
 import { depositPool, withdrawPool } from "./pools.js";
 import { endFactoring, signFactoring } from "./receivables.js";
 import type { Action, RuleScope } from "./types.js";
@@ -98,6 +99,8 @@ export function badInput(cfg: EconomyConfig, a: Action): string | null {
       return (a.line === "insurance" || a.line === "factoring" || a.line === "surety") && finiteIn(a.amountFd, 0.01, 1e12) ? null : "bad pool deposit";
     case "set_pay_terms":
       return a.terms === "net" || a.terms === "quick" || a.terms === "factor" ? null : "bad terms";
+    case "buy_item":
+      return ["yardSmall", "yardLarge", "apu", "aero", "tires", "sleeper"].includes(a.item) && (a.pay === "fd" || a.pay === "usd") && (a.truckId === undefined || isId(a.truckId)) ? null : "bad item";
     case "offer_fd":
       return isFd(a.amountFd) && finiteIn(a.minPriceUsd, 0, 1e6) ? null : "bad offer";
     case "offer_staff":
@@ -367,7 +370,7 @@ export function applyAction(w: World, companyId: number, action: Action): Action
       if (truck.lease !== "owned") return { ok: false, reason: "the NPC lessor maintains leased trucks" };
       if (truck.status !== "idle") return { ok: false, reason: "truck must be idle at a hub" };
       if (condition(cfg, truck) > cfg.wear.rebuildMaxCondition) return { ok: false, reason: "not worn enough to rebuild" };
-      const cost = rebuildCost(cfg, truck);
+      const cost = rebuildCost(cfg, truck) * (1 - stakeDiscount(w, company)); // locked FD earns its discount (staking.ts)
       if (w.ledger.balance(acct) < cost) return { ok: false, reason: "insufficient FD" };
       w.ledger.post(w.t, acct, "sink:rebuild", cost, `rebuild:${truck.id}`);
       company.operating.costFd += cost;
@@ -498,6 +501,9 @@ export function applyAction(w: World, companyId: number, action: Action): Action
 
     case "withdraw_pool":
       return result(withdrawPool(w, action.line, company.id, action.amountFd));
+
+    case "buy_item":
+      return result(buyItem(w, company, action.item, action.pay, action.truckId));
 
     case "set_pay_terms": {
       // Factoring is a contract: choosing it signs one (stake and all); leaving it before the term forfeits the stake.

@@ -13,7 +13,7 @@ import { billInsurance, dailyInsurance, monthlyInsurance } from "./insurance.js"
 import { chargeYards } from "./home.js";
 import { monthlyDealerPrices } from "./dealer.js";
 import { dailyLabor, monthlyLabor, payDispatchers, weeklyLabor } from "./labor.js";
-import { dailyStaking } from "./staking.js";
+import { dailyStaking, stakeDiscount } from "./staking.js";
 import { dailyPools, poolAccount, poolMarkup, poolsOn } from "./pools.js";
 import { dailyReceivables } from "./receivables.js";
 import { creditScore } from "./credit.js";
@@ -22,7 +22,7 @@ import { repossessDefaults, stepListings } from "./market.js";
 import { fleetOverheadPerWeek } from "./overhead.js";
 import { closeSeason } from "./season.js";
 import { chargeHoldingCost, checkSolvency, holdingCostApplies, processLiquidations } from "./solvency.js";
-import { dailyBuyback, launchToken, scaleDemand, seasonAirdrop, tokenLive, weeklyToken } from "./token.js";
+import { dailyBuyback, launchToken, scaleDemand, seasonAirdrop, tokenLive, weeklyToken, weeklyVest } from "./token.js";
 import { moveTrucks } from "./trips.js";
 import { companyById, operatingTrucks, payPermits, type World } from "./world.js";
 
@@ -79,8 +79,10 @@ function endOfDay(w: World, day: number, agents?: DailyAgentHook): void {
       w.ledger.post(w.t, companyAccount(truck.companyId), "sink:idle_fee", cfg.costs.idleFeePerDay, `idle:${truck.id}`);
     }
     if (truck.status === "idle" && truck.companyId && truck.driverId && idleFuel > 0) {
-      w.ledger.post(w.t, companyAccount(truck.companyId), "sink:idle_fuel", idleFuel, `idle:${truck.id}`);
-      companyById(w, truck.companyId).operating.costFd += idleFuel;
+      const c = companyById(w, truck.companyId);
+      const burned = idleFuel * (truck.mods.apu ? 0.5 : 1) * (1 - stakeDiscount(w, c)); // an APU halves it; locked FD earns its discount
+      w.ledger.post(w.t, companyAccount(truck.companyId), "sink:idle_fuel", burned, `idle:${truck.id}`);
+      c.operating.costFd += burned;
     }
   }
 
@@ -121,7 +123,10 @@ function endOfDay(w: World, day: number, agents?: DailyAgentHook): void {
     if (cfg.buyback.enabled && !cfg.token.enabled) clearBuyback(w);
     if (holdingCostApplies(w)) chargeHoldingCost(w);
     checkSolvency(w);
-    if (tokenLive(w)) weeklyToken(w);
+    if (tokenLive(w)) {
+      weeklyToken(w);
+      weeklyVest(w);
+    }
   }
 
   // The token launches at the end of beta; after that the treasury buys back daily.
