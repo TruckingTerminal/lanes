@@ -581,7 +581,8 @@ export const economyConfig = {
       // group take out more FD than the game takes back, up when the game takes too much. A balanced
       // economy pays out what it takes in; what a player earns then comes from other players and
       // from running a better company, not from the reserve.
-      rateStabilizer: { enabled: false, stepPerMonth: 0.03, range: [0.5, 1.2] as const },
+      // windowDays: the dial reads the ratio over this many days, so a noisy month doesn't flip it.
+      rateStabilizer: { enabled: false, stepPerMonth: 0.03, range: [0.5, 1.2] as const, windowDays: 30 },
     },
     launch: {
       // Beta FD is play money: above working capital it's burned at launch, and the

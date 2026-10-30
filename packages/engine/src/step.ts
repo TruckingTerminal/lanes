@@ -218,7 +218,13 @@ function monthlyStabilizers(w: World): void {
   const pressure = clamp((ratio - mid) / ((hi - lo) / 2), -1, 1);
   // The circular economy's balance dial: NPC rates move toward the target every month (freight.ts).
   const rs = w.cfg.token.circular.rateStabilizer;
-  if (w.cfg.token.circular.enabled && rs.enabled) w.stab.rateMult = clamp(w.stab.rateMult * (1 + pressure * rs.stepPerMonth), rs.range[0], rs.range[1]);
+  if (w.cfg.token.circular.enabled && rs.enabled) {
+    const window = w.metrics.days.slice(-rs.windowDays);
+    const f = window.reduce((s, d) => s + d.faucetFd, 0);
+    const r = f > 0 ? window.reduce((s, d) => s + d.sinkFd, 0) / f : ratio;
+    const p = clamp((r - mid) / ((hi - lo) / 2), -1, 1);
+    w.stab.rateMult = clamp(w.stab.rateMult * (1 + p * rs.stepPerMonth), rs.range[0], rs.range[1]);
+  }
   // After launch the profit-tax rate moves first; freight volume only once the rate is at a limit.
   const ts = w.cfg.token.taxStabilizer;
   if (tokenLive(w) && ts.enabled) {
