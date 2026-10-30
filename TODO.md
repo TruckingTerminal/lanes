@@ -83,6 +83,10 @@ Order is the working order. Design records live in TOKENOMICS.md (economy) and R
   operations managers required past four trucks with the crash / pull-in / morale / skill edge, the
   balance dial on NPC rates (`token.circular.rateStabilizer`). TOKENOMICS.md "Truck stops on the
   interstates".
+- **Sizing (v33-a, 2026-10-30):** with 454 sites and 100 open, bots build ~22 truck stops a seed; they
+  serve 15% of breakdowns (hub shops 8%, NPC road service 76%) and clear ~20k FD a year on a ~224k
+  purchase. More stops need a shorter payback: a bigger call-out share, rests priced higher, or a
+  cheaper site; and the open count should follow coverage, not only the fleet.
 - **Next:** draw the sites on the client map (lat/lon in `w.sites`; the graphics session); managers as
   people from the labor pool; per-state fuel tax rates once routes carry states (13); terrain and
   weather (13); a fuel tank model if the block rule proves too coarse; the switch-on decision.
