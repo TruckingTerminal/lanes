@@ -54,6 +54,19 @@ Order is the working order. Design records live in TOKENOMICS.md (economy) and R
     (fixed-supply ERC-20, ERC-4626 vaults, an existing DEX pool, OpenZeppelin vesting and
     timelocks, one small audited bridge with a bounty).
 
+## Launch without capital (Jeff, 2026-10-29): no outside money, no presale, no bundle
+15. **Protocol-owned one-sided liquidity.** At launch the treasury allocation posts FD-only liquidity
+    (a range order above the launch price); the dollar side builds from buyers and stays as POL.
+    Model it in the sim: `launch.seedUsd` 0 with the launch price as the floor for buys, the day-one
+    airdrop claim at 10% (`airdrop.atLaunch`), the daily sell limit at 1% of the pool; same ten seeds.
+16. **Dollar revenue with no token attached, from the first beta day:** cosmetics, vanity MC numbers,
+    named places (needs the client's shop); later dollar auctions of the first truck stops, fuel
+    stations and dealerships by region, proceeds to the pool; the buy, bridge and marketplace fees.
+    Half of every treasury dollar buys FD back and burns it. No flat per-company fee, ever.
+17. **Never:** a dev-bundled launch or a pump-style curve (reads as a rug, is manipulation, does not
+    fit the reserve design, puts the economy in one hot wallet). Allocations published and in
+    audited vaults and vesting contracts; the dev allocation vests like anyone's.
+
 ## Open for Jeff to decide
 - Miles-to-profit airdrop weighting after the runs (0.6 / 0.4 to start).
 - The four season pot sizes (10 / 6 / 4 / 3M proposed).
