@@ -173,6 +173,7 @@ export function launchToken(w: World): void {
     }
     c.insuranceStakeFd = 0;
     c.yardBondFd = 0;
+    for (const b of w.businesses) if (b.ownerId === c.id) b.bondFd = 0; // the business stays, its bond is gone (businesses.ts)
   }
 
   // The pot splits by Miles and by beta operating profit (losses count zero), at the configured

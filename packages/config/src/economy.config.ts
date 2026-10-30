@@ -390,8 +390,12 @@ export const economyConfig = {
     enabled: false,
     maxPerCompany: 3,
     kinds: {
-      shop: { priceFd: 80_000, bondFd: 40_000, upkeepPerWeekFd: 1_500, perHub: 2, partsShare: 0.6, markupRange: [0.85, 1.0] as const },
-      truckStop: { priceFd: 150_000, bondFd: 50_000, upkeepPerWeekFd: 1_000, perHub: 1, nightlyFd: 10, idleFuelMult: 0.5 },
+      // Sized on the v29-a batch (2026-10-30): a shop at an average hub does ~1.1M FD of work a year, a
+      // fuel station sees ~4.8M FD of fuel, a truck stop ~17 idle trucks a night. Each pays back in one
+      // to two years on its own; an owner's own fleet makes each one better (parts at cost, wholesale
+      // fuel, free parking at a quarter of the idling).
+      shop: { priceFd: 80_000, bondFd: 40_000, upkeepPerWeekFd: 2_000, perHub: 2, partsShare: 0.7, markupRange: [0.85, 1.0] as const },
+      truckStop: { priceFd: 80_000, bondFd: 30_000, upkeepPerWeekFd: 800, perHub: 1, nightlyFd: 15, idleFuelMult: 0.25 },
       fuelStation: { priceFd: 200_000, bondFd: 80_000, upkeepPerWeekFd: 1_200, perHub: 1, marginPct: 0.04 },
     },
   },

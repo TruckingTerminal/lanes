@@ -70,6 +70,10 @@ rows.push(
   ["Sales tax paid (sink)", (rs) => range(rs.map((r) => r.sinksByTag.sales_tax ?? 0), fd)],
   ["Managers' pay (sink)", (rs) => range(rs.map((r) => r.sinksByTag.management ?? 0), fd)],
   ["Businesses: upkeep / parts (sinks)", (rs) => `${fd(mean(rs.map((r) => r.sinksByTag.business_upkeep ?? 0)))} / ${fd(mean(rs.map((r) => r.sinksByTag.parts ?? 0)))}`],
+  ["Businesses open at end: shops / truck stops / fuel stations (owners' FD per business-year)", (rs) => {
+    const k = (kind: string) => `${Math.round(mean(rs.map((r) => r.businesses?.[kind]?.open ?? 0)))} (${fd(mean(rs.map((r) => r.businesses?.[kind]?.netFdPerYear ?? 0)))})`;
+    return `${k("shop")} / ${k("truckStop")} / ${k("fuelStation")}`;
+  }],
   ["Shops, NPC: maintenance / repairs / rebuilds (sinks)", (rs) => `${fd(mean(rs.map((r) => r.sinksByTag.maintenance ?? 0)))} / ${fd(mean(rs.map((r) => r.sinksByTag.repairs ?? 0)))} / ${fd(mean(rs.map((r) => r.sinksByTag.rebuild ?? 0)))}`],
   ["Shipper defaults on brokered loads", (rs) => range(rs.map((r) => r.failures.shipperDefaults ?? 0), n0)],
   ["Equipment Finance written off", (rs) => range(rs.map((r) => r.failures.writtenOffFd), fd)],

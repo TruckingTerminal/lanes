@@ -81,6 +81,8 @@ export interface RunReport {
     /** Owners' average FD result per facility-week, by type (after upkeep). */
     weeklyNetByType: Record<string, number>;
   };
+  /** Player businesses (businesses.ts) by kind: open at the end, ever opened, and the owners' FD result per business-year (purchase and upkeep included). */
+  businesses: Record<string, { open: number; everOpened: number; netFdPerYear: number }>;
   /**
    * Carrier economics by starting segment ("oo", "fleet"): fleet overhead paid,
    * and operating profit per operating truck-week before and after overhead.
@@ -419,6 +421,22 @@ export function buildReport(w: World): RunReport {
       loadShare: posted ? sum(days.map((d) => d.facilityPosted)) / posted : 0,
       weeklyNetByType: Object.fromEntries(Object.entries(netByType).map(([t, a]) => [t, a.weeks > 0 ? a.net / a.weeks : 0])),
     },
+    businesses: (() => {
+      const out: Record<string, { open: number; everOpened: number; netFdPerYear: number }> = {};
+      const acc: Record<string, { net: number; years: number }> = {};
+      const lastDay = days.at(-1)?.day ?? 0;
+      for (const b of w.businesses) {
+        const o = (out[b.kind] ??= { open: 0, everOpened: 0, netFdPerYear: 0 });
+        const a = (acc[b.kind] ??= { net: 0, years: 0 });
+        o.everOpened++;
+        if (b.ownerId === 0) continue;
+        o.open++;
+        a.net += b.netFd;
+        a.years += Math.max(1 / 52, (lastDay - b.boughtDay) / cfg.time.daysPerSeason);
+      }
+      for (const [k, a] of Object.entries(acc)) out[k]!.netFdPerYear = a.years > 0 ? a.net / a.years : 0;
+      return out;
+    })(),
     carriersBySegment,
     inflation: { years },
     wealth: { gini: gini(wealthAll), top1Share: topShare(0.01), top10Share: topShare(0.1), milesGini: gini(lifetimeMiles), avgBySegment },

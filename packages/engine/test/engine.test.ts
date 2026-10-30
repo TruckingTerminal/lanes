@@ -1487,19 +1487,20 @@ describe("the big sinks (0.18.0): sales tax, player businesses, the maintenance 
     // A second shop fits, a third doesn't; the cap per company holds too.
     expect(applyAction(w, owner.id, { type: "buy_business", kind: "shop", hubId })).toEqual({ ok: true });
     expect(applyAction(w, owner.id, { type: "buy_business", kind: "shop", hubId }).ok).toBe(false);
-    // The customer's repair bill at the hub: 90% of list, of which 60% is parts (a sink) and 30% the owner's; sales tax on the bill.
+    // The customer's repair bill at the hub: 90% of list, of which the parts share is a sink and the rest the owner's; sales tax on the bill.
     const list = 1_000;
+    const parts = list * spec.partsShare;
     const o0 = w.ledger.balance(companyAccount(owner.id));
     const c0 = w.ledger.balance(companyAccount(cust.id));
     const paid = serviceBill(w, cust, cust.homeHub, list, "repairs", "test");
     expect(paid).toBeCloseTo(900 * 1.05, 6);
     expect(c0 - w.ledger.balance(companyAccount(cust.id))).toBeCloseTo(900 * 1.05, 2);
-    expect(w.ledger.balance(companyAccount(owner.id)) - o0).toBeCloseTo(300, 2);
-    expect(w.ledger.entries.filter((e) => e.to === "sink:parts").reduce((s, e) => s + e.amount, 0)).toBeCloseTo(600, 2);
+    expect(w.ledger.balance(companyAccount(owner.id)) - o0).toBeCloseTo(900 - parts, 2);
+    expect(w.ledger.entries.filter((e) => e.to === "sink:parts").reduce((s, e) => s + e.amount, 0)).toBeCloseTo(parts, 2);
     // The owner's own trucks pay parts only.
     const o1 = w.ledger.balance(companyAccount(owner.id));
-    expect(serviceBill(w, owner, owner.homeHub, list, "maintenance", "test")).toBeCloseTo(600 * 1.05, 6);
-    expect(o1 - w.ledger.balance(companyAccount(owner.id))).toBeCloseTo(600 * 1.05, 2);
+    expect(serviceBill(w, owner, owner.homeHub, list, "maintenance", "test")).toBeCloseTo(parts * 1.05, 6);
+    expect(o1 - w.ledger.balance(companyAccount(owner.id))).toBeCloseTo(parts * 1.05, 2);
     // Liquidation closes the shops and returns the bonds to cash.
     startLiquidation(w, owner);
     expect(businessesOf(w, owner.id)).toHaveLength(0);
