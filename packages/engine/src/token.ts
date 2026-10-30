@@ -201,8 +201,14 @@ export function launchToken(w: World): void {
   // at all, the treasury posts FD alone and the reference price stands as the floor until buyers lift it.
   const seedUsd = tc.launch.seedUsd + w.token.treasury.seedEscrowUsd;
   const floatFd = w.ledger.supply();
-  const allocPool = tc.circular.enabled ? w.ledger.balance("alloc:pool") : Infinity;
-  const liquidityFd = seedUsd > 0 ? Math.max(1, Math.min(tc.launch.poolDepthShareOfFloat * floatFd, allocPool)) : tc.launch.liquidityFd;
+  const liquidityFd = seedUsd > 0 ? Math.max(1, tc.launch.poolDepthShareOfFloat * floatFd) : tc.launch.liquidityFd;
+  // The pool allocation funds the FD side; what it lacks comes from the treasury allocation — protocol-owned
+  // liquidity (Jeff, 2026-10-30). A pool as deep as the float pays sellers less per FD, so it keeps its dollars
+  // and holds its price path better than a shallow one, whatever the nominal launch price reads.
+  if (tc.circular.enabled) {
+    const short = liquidityFd - w.ledger.balance("alloc:pool");
+    if (short > 0.005) w.ledger.post(w.t, "alloc:treasury", "alloc:pool", short, "launch:liquidity");
+  }
   w.ledger.post(w.t, "faucet:launch_liquidity", EXCHANGE_ACCOUNT, liquidityFd, "launch:liquidity");
   w.token.poolUsd = seedUsd;
   w.token.launchPriceUsd = seedUsd > 0 ? seedUsd / liquidityFd : tc.launch.priceUsd;
