@@ -615,8 +615,9 @@ export interface Business {
   bondFd: number;
   /** Shops: the price of their work against the NPC shop's list (1 = list). */
   markup: number;
-  /** Running FD result for the owner: margins − purchase − upkeep. */
+  /** Running FD result for the owner: margins − purchase − upkeep; and the purchase alone (price and tax), so the trade can be read apart from it. */
   netFd: number;
+  purchaseFd: number;
 }
 
 /** A dealer order: paid at order, delivered after the lead time. */

@@ -71,7 +71,8 @@ export function buyBusiness(w: World, c: Company, kind: HubBusinessKind, hubId: 
   const ref = `business:${kind}:${c.id}`;
   const paid = pay(w, c, price, spec.bondFd, ref);
   if (paid) return paid;
-  w.businesses.push({ id: w.businesses.length + 1, kind, ownerId: c.id, hub, site: 0, boughtDay: dayOf(w.t, w.cfg), bondFd: spec.bondFd, markup: kind === "shop" ? 1 : 0, netFd: -price - salesTaxOn(w, price) });
+  const outlay = price + salesTaxOn(w, price);
+  w.businesses.push({ id: w.businesses.length + 1, kind, ownerId: c.id, hub, site: 0, boughtDay: dayOf(w.t, w.cfg), bondFd: spec.bondFd, markup: kind === "shop" ? 1 : 0, netFd: -outlay, purchaseFd: outlay });
   return null;
 }
 
@@ -88,7 +89,8 @@ export function buyTruckStop(w: World, c: Company, siteId: number): string | nul
   const ref = `business:truckStop:${c.id}`;
   const paid = pay(w, c, price, spec.bondFd, ref);
   if (paid) return paid;
-  const b: Business = { id: w.businesses.length + 1, kind: "truckStop", ownerId: c.id, hub: -1, site: site.id, boughtDay: dayOf(w.t, w.cfg), bondFd: spec.bondFd, markup: spec.markupRange[0], netFd: -price - salesTaxOn(w, price) };
+  const outlay = price + salesTaxOn(w, price);
+  const b: Business = { id: w.businesses.length + 1, kind: "truckStop", ownerId: c.id, hub: -1, site: site.id, boughtDay: dayOf(w.t, w.cfg), bondFd: spec.bondFd, markup: spec.markupRange[0], netFd: -outlay, purchaseFd: outlay };
   w.businesses.push(b);
   site.businessId = b.id;
   return null;
