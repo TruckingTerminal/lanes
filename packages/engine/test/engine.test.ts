@@ -1615,11 +1615,12 @@ describe("the big sinks (0.18.0): sales tax, player businesses, the maintenance 
     const o4 = w.ledger.balance(companyAccount(owner.id));
     payLegFuel(w, cust, t, 1_000, r.miles, "test");
     const blockMi = blocked.businesses.fuelRule.blockMi;
-    let expected = 0;
+    // The first block fuels at the origin: the owner's hub station too, when the road starts at that hub.
+    let expected = road.a === cust.homeHub ? ((1_000 * Math.min(blockMi, r.miles)) / r.miles) * sinks.businesses.kinds.fuelStation.marginPct : 0;
     for (let mile = blockMi; mile < r.miles; mile += blockMi) {
       if (Math.abs(mile - road.mile) <= blocked.businesses.fuelRule.stopRangeMi) expected += ((1_000 * Math.min(blockMi, r.miles - mile)) / r.miles) * k.fuelMarginPct;
     }
-    expect(expected).toBeGreaterThan(0); // the second block fuels at the stop
+    expect(expected).toBeGreaterThan(road.a === cust.homeHub ? 1 : 0); // the second block fuels at the stop
     expect(w.ledger.balance(companyAccount(owner.id)) - o4).toBeCloseTo(expected, 2);
 
     // With no provider in reach, NPC road service at its markup and its wait.
