@@ -67,6 +67,20 @@ Order is the working order. Design records live in TOKENOMICS.md (economy) and R
     fit the reserve design, puts the economy in one hot wallet). Allocations published and in
     audited vaults and vesting contracts; the dev allocation vests like anyone's.
 
+## Items, upgrades and yards (Jeff, 2026-10-29)
+18. **Yards.** More than 5 trucks needs a yard; a yard costs dollars and a staked FD bond, sized by
+    capacity (small 6–10, large 11–30). Yard upgrades: fuel tank (cheaper diesel at home), shop bay
+    (cheaper repairs at home; the maintenance market's home-base price), secure parking (theft risk
+    down, no per diem at home), dispatch office (a manager's seat). Yard upkeep stays an FD sink.
+19. **Truck and trailer upgrades.** APU (idle fuel down), aero kit (mpg up), premium tires (wear
+    down), sleeper (per diem down), telematics (better dispatch information), reefer unit, lift
+    gate. Each an item on the truck, with upkeep in FD.
+20. **Who pays what.** Dollar purchases split per Jeff: half to protocol revenue (the dev), and of
+    that half, half buys FD back and burns it. The other half of the dollar price: to the pool's bid
+    side as protocol-owned liquidity (to confirm). Anything with a gameplay effect should also be
+    buyable with FD that burns, at the pool rate, so the grind can buy what dollars buy (pay-to-win
+    risk); dollars-only for cosmetics and vanity. Model paying and non-paying bots and an ARPU curve.
+
 ## Open for Jeff to decide
 - Miles-to-profit airdrop weighting after the runs (0.6 / 0.4 to start).
 - The four season pot sizes (10 / 6 / 4 / 3M proposed).
