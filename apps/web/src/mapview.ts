@@ -750,7 +750,8 @@ function canvasPoint(ev: { clientX: number; clientY: number }): [number, number]
   const r = cv!.getBoundingClientRect();
   return [((ev.clientX - r.left) / r.width) * cv!.width, ((ev.clientY - r.top) / r.height) * cv!.height];
 }
-function nearestHub(x: number, y: number, max = 14 / zoom()): number | null {
+// A hub is hit within 14 screen pixels, or anywhere on its city sprite (32 art pixels wide) when zoomed in.
+function nearestHub(x: number, y: number, max = Math.max(14 / zoom(), 12)): number | null {
   let best: number | null = null;
   let bd = max;
   art!.hubXY.forEach(([hx, hy], i) => {
@@ -791,7 +792,7 @@ function selectOnMap(ev: { clientX: number; clientY: number }): void {
       const pl = S.game!.w.net.places;
       const minPop = zf >= 8 ? 10_000 : zf >= 6 ? 30_000 : 80_000;
       let bt: number | null = null;
-      let bd = 10 / zoom();
+      let bd = Math.max(10 / zoom(), 7);
       for (let i = 0; i < pl.length; i++) {
         const p = pl[i]!;
         if (p.pop < minPop) continue;

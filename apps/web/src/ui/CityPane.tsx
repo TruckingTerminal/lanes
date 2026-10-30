@@ -5,12 +5,13 @@ import type { Sector } from "@lanes/data";
 import { EQUIPMENT, planIndex, seasonality } from "@lanes/engine";
 import { ASSETS, hasAsset, LOOP_FPS, townKindAt, type TownKind } from "../mapart.js";
 import { bumpData, clockMin, S, setTab, useData } from "../state.js";
-import { cls, pct, signedPct, TRAILER_NAME } from "../format.js";
+import { cls, hhmm, pct, signedPct, TRAILER_NAME } from "../format.js";
 import { isHuman } from "../game.js";
 import { openLoadsAt, reloadLabel } from "../logic.js";
 import { weatherAt, weatherLabel } from "../weather.js";
 import { Bar, Btn, Card } from "./bits.js";
 import { seasonNow, Sky } from "./Loop.js";
+import { BAND_LABEL, bandOf, CityPicture } from "./CityPicture.js";
 import { HubLoadsTable } from "./panels/Loads.js";
 
 /**
@@ -77,11 +78,14 @@ export function CityPane(): JSX.Element | null {
           </div>
         ) : (
           <div class="citypic">
-            {painted ? <img src={`${ASSETS}cityviews/${hub.id}.png`} alt={`${hub.name} at golden hour`} /> : <div class="citypending">{hub.name}</div>}
+            {painted ? <CityPicture hub={i} /> : <div class="citypending">{hub.name}</div>}
             <Sky hub={i} w={688} h={384} />
             <div class="citycap">
               <b>{hub.name}</b>
-              <span class="muted"> · {weatherLabel(wx)}</span>
+              <span class="muted">
+                {" "}
+                · {hhmm(minute)}, {BAND_LABEL[bandOf((minute / 60) % 24)]} · {weatherLabel(wx)}
+              </span>
             </div>
           </div>
         )}
