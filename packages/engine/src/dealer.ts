@@ -4,6 +4,7 @@ import { clamp } from "./economics.js";
 import type { Company, TruckOrder } from "./types.js";
 import { marketValue, newPrice, type TruckSpec } from "./wear.js";
 import { createTruck, freshPaperwork, type World } from "./world.js";
+import { truckCap } from "./staking.js";
 
 /** The dealer's price today for this tractor + trailer: list price × each part's supply-and-demand index. */
 export function dealerPrice(w: World, t: Pick<TruckSpec, "tier" | "trailer">): number {
@@ -74,6 +75,11 @@ export function deliverOrders(w: World): void {
     const fleet = w.trucksByCompany.get(company.id)!;
     const npc = o.replaceNpcLease ? fleet.find((t) => t.lease === "npc") : undefined;
     if (npc && npc.status !== "idle") {
+      waiting.push(o);
+      continue;
+    }
+    // No room for it today (a tier or yard lost since it was ordered): it waits at the dealer.
+    if (!npc && fleet.length >= truckCap(w, company)) {
       waiting.push(o);
       continue;
     }

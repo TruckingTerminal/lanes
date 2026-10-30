@@ -20,6 +20,7 @@ import {
   tokenLive,
   brokerLicensed,
   capitalRatio,
+  contractAccount,
   factoringStake,
   itemPriceFd,
   itemPriceUsd,
@@ -404,6 +405,14 @@ export function populate(w: World, o: PopulationOptions): void {
         w.ledger.post(w.t, "faucet:starting_grant", companyAccount(c.id), tier[1], `grant:stake:${c.id}`);
         stakeFd(w, c, tier[1]);
       }
+    }
+    // The catalogue (0.18.0): an established fleet larger than the no-yard allowance starts with a yard, its bond posted.
+    if (w.cfg.token.catalogue.enabled && size > w.cfg.token.catalogue.trucksWithoutYard) {
+      const bond = w.cfg.token.catalogue.items.yardSmall.bondFd;
+      w.ledger.post(w.t, "faucet:starting_grant", companyAccount(c.id), bond, `grant:yard:${c.id}`);
+      w.ledger.post(w.t, companyAccount(c.id), contractAccount(c.id), bond, `bond:yard:${c.id}`);
+      c.yard = "small";
+      c.yardBondFd = bond;
     }
     for (let k = 0; k < size; k++) {
       const pick = pickEquipment(w, rng, false);
