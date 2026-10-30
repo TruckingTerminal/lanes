@@ -49,6 +49,10 @@ export interface DayMetrics {
   facilities: number;
   businesses: number;
   breakdowns: number;
+  /** Breakdowns served by a truck stop's shop, a hub shop, or NPC road service (businesses.ts roadService). */
+  roadServiceStop: number;
+  roadServiceHub: number;
+  roadServiceNpc: number;
   rebuilds: number;
   /** Mean condition of owned trucks (1 = fresh). */
   avgOwnedCondition: number;
@@ -123,6 +127,12 @@ export class MetricsRecorder {
 
   onBreakdown(): void {
     this.acc.breakdowns++;
+  }
+
+  onRoadService(by: "stop" | "hub" | "npc"): void {
+    if (by === "stop") this.acc.roadServiceStop++;
+    else if (by === "hub") this.acc.roadServiceHub++;
+    else this.acc.roadServiceNpc++;
   }
 
   onRebuild(): void {
@@ -273,6 +283,9 @@ export class MetricsRecorder {
       facilities: w.facilities.length,
       businesses: w.businesses.filter((b) => b.ownerId > 0).length,
       breakdowns: a.breakdowns,
+      roadServiceStop: a.roadServiceStop,
+      roadServiceHub: a.roadServiceHub,
+      roadServiceNpc: a.roadServiceNpc,
       rebuilds: a.rebuilds,
       avgOwnedCondition: owned ? conditionSum / owned : 1,
       cycle: w.feeds.cycle(day),
@@ -341,6 +354,9 @@ function emptyAcc() {
     marginSum: 0,
     facilityPosted: 0,
     breakdowns: 0,
+    roadServiceStop: 0,
+    roadServiceHub: 0,
+    roadServiceNpc: 0,
     rebuilds: 0,
     ordersPlaced: 0,
     trucksDelivered: 0,

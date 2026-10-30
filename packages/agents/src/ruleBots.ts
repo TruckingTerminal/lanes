@@ -55,7 +55,7 @@ import {
   type StandingOrder,
   type World,
 } from "@lanes/engine";
-import { bestOpenSite, businessesOf, businessPriceFd, sitePriceFd, type BusinessKind } from "@lanes/engine";
+import { businessesOf, businessPriceFd, sitePriceFd, type BusinessKind } from "@lanes/engine";
 
 /**
  * Tier A rule bots (§AI-agent simulation): scripted greedy, conservative and
@@ -1019,9 +1019,11 @@ function maybeBuyBusiness(w: World, c: Company, p: BotProfile, rng: Rng, today: 
   for (const kind of kinds) {
     const spec = k.kinds[kind];
     if (kind === "truckStop") {
-      // The busiest site for sale: a fleet-scale asset, bought only with the cash well clear of it.
-      const site = bestOpenSite(w);
-      if (!site || cash < (sitePriceFd(w, site) + spec.bondFd) * 1.5) continue;
+      // The busiest site for sale the bot can afford, with the cash well clear of it.
+      const site = w.sites
+        .filter((s) => s.open && s.businessId === 0 && cash >= (sitePriceFd(w, s) + spec.bondFd) * 1.5)
+        .sort((a, b) => b.traffic - a.traffic || a.id - b.id)[0];
+      if (!site) continue;
       if (!applyAction(w, c.id, { type: "buy_business", kind, siteId: site.id }).ok) continue;
     } else {
       if (cash < (businessPriceFd(w, kind) + spec.bondFd) * 1.5) continue;

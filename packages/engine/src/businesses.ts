@@ -245,9 +245,11 @@ export function roadService(w: World, truck: Truck, c: Company, listFd: number):
     const acct = companyAccount(c.id);
     const price = listFd * r.npcMarkup;
     w.ledger.post(w.t, acct, "sink:road_service", price, ref);
+    w.metrics.onRoadService("npc");
     return { paid: price + chargeSalesTax(w, c.id, price, ref), delayMin: r.npcHours * 60 };
   }
   const { b, distMi } = best as { b: Business; distMi: number };
+  w.metrics.onRoadService(b.kind === "truckStop" ? "stop" : "hub");
   let paid = billService(w, c, listFd, "repairs", ref, b);
   if (b.ownerId !== c.id) {
     const fee = callOut(distMi);

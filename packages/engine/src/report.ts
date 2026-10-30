@@ -72,7 +72,7 @@ export interface RunReport {
     pass: boolean;
   };
   board: { posted: number; cleared: number; expired: number; fillRate: number; avgClearedRate: number; onTimeShare: number };
-  wear: { rebuilds: number; breakdowns: number; avgOwnedCondition: number };
+  wear: { rebuilds: number; breakdowns: number; avgOwnedCondition: number; roadService: { stop: number; hub: number; npc: number } };
   facilities: {
     owned: Record<string, number>;
     ownersBySegment: Record<string, number>;
@@ -414,6 +414,7 @@ export function buildReport(w: World): RunReport {
       rebuilds: sum(days.map((d) => d.rebuilds)),
       breakdowns: sum(days.map((d) => d.breakdowns)),
       avgOwnedCondition: days.at(-1)?.avgOwnedCondition ?? 1,
+      roadService: { stop: sum(days.map((d) => d.roadServiceStop ?? 0)), hub: sum(days.map((d) => d.roadServiceHub ?? 0)), npc: sum(days.map((d) => d.roadServiceNpc ?? 0)) },
     },
     facilities: {
       owned,
