@@ -40,13 +40,18 @@ export function buildSites(w: World): void {
       traffic[i] = (traffic[i] ?? 0) + weight;
     }
   }
+  // The roads are split into short edges at every town, so sites are laid by walking the interstate
+  // edges in order and dropping one every `everyMi` miles of accumulated length (an edge longer than
+  // that gets one per block), at the midpoint of the edge the count lands on.
   const sites: TruckStopSite[] = [];
   let max = 0;
+  let acc = k.everyMi / 2;
   roads.edges.forEach((e, ei) => {
-    if (e.cls !== 0 || e.miles < k.everyMi / 2) return;
-    const count = Math.max(1, Math.round(e.miles / k.everyMi));
-    for (let i = 0; i < count; i++) {
-      const frac = (i + 0.5) / count;
+    if (e.cls !== 0) return;
+    acc += e.miles;
+    while (acc >= k.everyMi) {
+      acc -= k.everyMi;
+      const frac = e.miles > 0 ? clamp(1 - acc / e.miles, 0.05, 0.95) : 0.5;
       const [lat, lon] = pointOnEdge(roads, e, frac * e.miles);
       sites.push({ id: sites.length + 1, edge: ei, frac, lat, lon, traffic: traffic[ei]!, open: false, businessId: 0 });
       max = Math.max(max, traffic[ei]!);

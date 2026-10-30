@@ -399,11 +399,12 @@ export const economyConfig = {
       // at a wider margin, a shop that charges over list (road service comes from here), and parking
       // that cuts a resting truck's idling to a quarter for a nightly fee. Its price scales with the
       // site's traffic (0.5× to 3× this), its bond doesn't.
-      truckStop: { priceFd: 250_000, bondFd: 100_000, upkeepPerWeekFd: 3_000, fuelMarginPct: 0.06, partsShare: 0.7, markupRange: [1.1, 1.4] as const, nightlyFd: 15, idleFuelMult: 0.25, restRangeMi: 50 },
+      // Upkeep sized on v32-a (2026-10-30): with ~2,300 trucks on the road a stop's trade can't carry 3,000 a week.
+      truckStop: { priceFd: 250_000, bondFd: 100_000, upkeepPerWeekFd: 1_500, fuelMarginPct: 0.06, partsShare: 0.7, markupRange: [1.1, 1.4] as const, nightlyFd: 15, idleFuelMult: 0.25, restRangeMi: 50 },
     },
     // Truck-stop sites: one every so many interstate miles, ranked by the freight that passes (a gravity
     // model over the lanes), the busiest open for sale at the start, more opening as the fleet grows.
-    sites: { everyMi: 100, openAtStart: 60, priceRange: [0.5, 3] as const },
+    sites: { everyMi: 100, openAtStart: 100, priceRange: [0.5, 3] as const },
     // Fuel on the road, without a tank model: a leg buys its first block of miles at the origin (its hub
     // station or the NPC pump) and each further block at the nearest truck stop to that mile, within reach.
     fuelRule: { blockMi: 400, stopRangeMi: 100 },
