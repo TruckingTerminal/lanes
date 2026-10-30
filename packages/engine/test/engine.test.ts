@@ -20,6 +20,7 @@ import {
   RESERVE_ACCOUNT,
   payClaim,
   bill,
+  askPriceUsd,
   brokerLicensed,
   creditBand,
   creditPremium,
@@ -1254,5 +1255,33 @@ describe("credit (0.18.0): a score from the ledger, and a broker's licence that 
     fund(w, b.id, 80_000);
     expect(applyAction(w, b.id, { type: "stake_fd", fd: staked.token.staking.roles.broker })).toEqual({ ok: true });
     expect(brokerLicensed(w, b)).toBe(true);
+  });
+});
+
+describe("launch without capital (0.18.0): the treasury's one-sided range", () => {
+  it("opens with FD alone at the floor: buys pay the floor and fund the bid side, a sale before any buy is refused, later sales clear at the pool's price", () => {
+    const unseeded: EconomyConfig = { ...calm, seasonClose: { ...calm.seasonClose, enabled: false }, token: { ...calm.token, enabled: true, launch: { ...calm.token.launch, seedUsd: 0 } } };
+    const w = createWorld({ cfg: unseeded, net, feeds: neutralFeeds, seed: 57, keepLedgerEntries: true });
+    const a = carrier(w, "A");
+    fund(w, a.id, 100_000);
+    a.milesTotal = 1_000;
+    launchToken(w);
+    const k = unseeded.token.launch;
+    expect(w.ledger.balance(EXCHANGE_ACCOUNT)).toBe(k.liquidityFd);
+    expect(w.token.poolUsd).toBe(0);
+    expect(fdPriceUsd(w)).toBe(0);
+    expect(askPriceUsd(w)).toBe(k.floorPriceUsd);
+    expect(applyAction(w, a.id, { type: "sell_fd", fd: 100 })).toEqual({ ok: false, reason: "no dollars on the bid side yet" });
+    a.usd.wallet = 1_000;
+    const before = w.ledger.balance(companyAccount(a.id));
+    expect(applyAction(w, a.id, { type: "buy_fd", usd: 1_000 })).toEqual({ ok: true });
+    const bought = w.ledger.balance(companyAccount(a.id)) - before;
+    expect(bought).toBeCloseTo((1_000 * (1 - unseeded.token.exchange.buyFeePct)) / k.floorPriceUsd, 2);
+    expect(w.token.poolUsd).toBeCloseTo(1_000 * (1 - unseeded.token.exchange.buyFeePct), 6);
+    // The bid side exists now: a small sale clears against it at the pool's own (lower) price.
+    expect(applyAction(w, a.id, { type: "sell_fd", fd: 1_000 })).toEqual({ ok: true });
+    expect(a.usd.out).toBeGreaterThan(0);
+    expect(a.usd.out).toBeLessThan(1_000 * k.floorPriceUsd);
+    w.ledger.assertBalanced();
   });
 });

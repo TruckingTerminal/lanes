@@ -542,8 +542,12 @@ export const economyConfig = {
       keepWorkingCapital: true,
       // The treasury opens an FD/USDC pool (protocol-owned liquidity, never withdrawn)
       // with its own dollars and FD minted at the opening price.
-      seedUsd: 250_000,
+      seedUsd: 250_000, // the spec's placeholder; TODO.md "launch without capital": 0 with the one-sided range below
       priceUsd: 0.01,
+      // With no seed the treasury posts this much FD alone, and buys never go below the floor until
+      // buyers' dollars have lifted the pool above it (protocol-owned, one-sided liquidity).
+      liquidityFd: 25_000_000,
+      floorPriceUsd: 0.01,
     },
     // §Points and airdrop: beta Miles convert pro rata; beta FD never does.
     airdrop: {

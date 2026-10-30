@@ -36,18 +36,31 @@ export function sellableFd(w: World, c: Company): number {
   return Math.max(0, w.ledger.balance(companyAccount(c.id)) - c.lockedFd);
 }
 
-/** FD a dollar amount buys right now, after the buy fee (constant product). */
+/**
+ * What a buyer pays per FD: the pool's price, but never below the launch floor while the protocol's
+ * one-sided range stands (TODO.md "launch without capital"): the treasury's FD sells at the floor
+ * until buyers' dollars have lifted the pool above it; those dollars stay as protocol-owned
+ * liquidity, so the bid side builds itself from demand.
+ */
+export function askPriceUsd(w: World): number {
+  return Math.max(fdPriceUsd(w), w.cfg.token.launch.floorPriceUsd);
+}
+
+/** FD a dollar amount buys right now, after the buy fee (constant product, never cheaper than the floor). */
 export function quoteBuyFd(w: World, usd: number): number {
   const net = usd * (1 - w.cfg.token.exchange.buyFeePct);
   const fd = w.ledger.balance(EXCHANGE_ACCOUNT);
-  return fd - (w.token.poolUsd * fd) / (w.token.poolUsd + net);
+  const cp = fd - (w.token.poolUsd * fd) / (w.token.poolUsd + net);
+  const floor = w.cfg.token.launch.floorPriceUsd;
+  return floor > 0 ? Math.min(cp, net / floor) : cp;
 }
 
 /** Dollars that buy `fd` FD right now, fee included. */
 export function quoteUsdForFd(w: World, fd: number): number {
   const pool = w.ledger.balance(EXCHANGE_ACCOUNT);
   if (fd >= pool) return Infinity;
-  const net = (w.token.poolUsd * pool) / (pool - fd) - w.token.poolUsd;
+  const cp = (w.token.poolUsd * pool) / (pool - fd) - w.token.poolUsd;
+  const net = Math.max(cp, fd * w.cfg.token.launch.floorPriceUsd);
   return net / (1 - w.cfg.token.exchange.buyFeePct);
 }
 
@@ -79,6 +92,8 @@ export function sellFd(w: World, c: Company, fd: number): string | null {
   const fee = fd * Math.min(k.sellFeeMax, k.sellFeePct + k.sellFeePerImpact * impact);
   const net = fd - fee;
   const usd = w.token.poolUsd - (w.token.poolUsd * pool) / (pool + net);
+  // A one-sided launch has no dollars on the bid side until buyers bring them: nothing to sell into yet.
+  if (usd <= 0.01) return "no dollars on the bid side yet";
   w.ledger.post(w.t, acct, "sink:exchange_fee", fee, `swap:fee:${c.id}`);
   w.ledger.post(w.t, acct, EXCHANGE_ACCOUNT, net, `swap:sell:${c.id}`);
   w.token.poolUsd -= usd;
@@ -153,7 +168,9 @@ export function launchToken(w: World): void {
     mintAirdrop(w, c, share * tc.airdrop.atLaunch);
   });
 
-  const liquidityFd = tc.launch.seedUsd / tc.launch.priceUsd;
+  // Seeded with dollars, the pool opens two-sided at the launch price; with none, the treasury posts
+  // FD alone (launch.liquidityFd) and the floor price stands until buyers' dollars lift the pool.
+  const liquidityFd = tc.launch.seedUsd > 0 ? tc.launch.seedUsd / tc.launch.priceUsd : tc.launch.liquidityFd;
   w.ledger.post(w.t, "faucet:launch_liquidity", EXCHANGE_ACCOUNT, liquidityFd, "launch:liquidity");
   w.token.poolUsd = tc.launch.seedUsd;
   w.token.treasury.seedUsd = tc.launch.seedUsd;
@@ -302,7 +319,7 @@ export function dailyBuyback(w: World): void {
     t.buybackUsd += usd;
     t.buybackFd += fd;
   }
-  w.token.priceHistory.push(fdPriceUsd(w));
+  w.token.priceHistory.push(askPriceUsd(w)); // the market price: the pool's, or the floor while the one-sided range stands
 }
 
 /** Mean pool price over the last `days` days (the current price before any history). */
