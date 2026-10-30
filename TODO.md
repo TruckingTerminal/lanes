@@ -109,9 +109,13 @@ Order is the working order. Design records live in TOKENOMICS.md (economy) and R
 ## Switch-on (2026-10-30, Jeff: "get it done")
 1. **Done:** the live levers in `packages/config/src/live.ts`; ruleset `lanes-live-1/0.18.0-phase0.24`;
    the client and the sim's default profile run them.
-2. Restart the live world on the new ruleset (world/meta; no players), with the live page rebuilt from
-   main ≥ 39128b6 and the painted assets as files (the graphics session's republish).
-3. The sites on the client map (`w.sites` carries lat/lon).
+2. **Done (2026-10-30):** the live world restarted on the new ruleset (world/meta version 15, seed
+   946038761) and the live page republished at version 31 from main fe4c0a6 with the painted assets.
+3. **0.18.0 in the client.** The engine actions exist and the bots use them, but the page has no way
+   for a human to stake, deposit in a pool, choose pay terms, buy a yard or an upgrade, buy a shop,
+   a station or a truck stop, set a shop's price, hire a manager, or claim the airdrop: panels for
+   each, and the truck-stop sites on the map (`w.sites` carries lat/lon). Until then only bots run
+   the new economy, and a human cannot own a business or clear the manager rule past four trucks.
 4. Checkpoints and the authoritative server before any real money.
 5. The legal opinion (US first; each country before players there can buy FD).
 6. Launch with the lean reset, the window's dollars seeding the pool, the dial running from day one.
