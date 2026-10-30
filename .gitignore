@@ -10,6 +10,8 @@ apps/web/dist/
 
 # Animation frames from pixellab.py animate: only the packed .loop.png sheets ship
 apps/web/assets/**/*-loop/
+# The tile frames the city views are animated from (tools/animate-cityviews.py): only the stitched .loop.png sheets ship
+apps/web/assets/cityviews/*-tiles/
 apps/web/assets/*/v1/
 apps/web/assets/title/loop40/
 apps/web/assets/rigs/v320/

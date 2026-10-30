@@ -13,7 +13,8 @@ import { weatherAt, type WeatherKind } from "../weather.js";
  * column's skyline, smoothed and feathered) and replaced by the hour's sky with drifting painted
  * clouds and stars, the ground is graded for the hour and the weather with the lit windows kept
  * at night, and the paintings crossfade into each other at dawn, in the late afternoon and at
- * dusk. The precipitation falls over it (Sky).
+ * dusk. A painting with a full-resolution loop (tools/animate-cityviews.py) plays it in place of
+ * the still, every frame graded the same way. The precipitation falls over it (Sky).
  */
 export const VIEW_W = 688;
 export const VIEW_H = 384;
@@ -35,18 +36,32 @@ interface Painting {
   ready: boolean;
   mask: HTMLCanvasElement | null;
   graded: Map<string, HTMLCanvasElement>;
+  /** The painting's full-resolution loop (tools/animate-cityviews.py): a 4 × 4 sheet of 16 frames, when one was made. */
+  loop: HTMLImageElement | null;
+  loopReady: boolean;
 }
+/** The loops play at this many frames a second. */
+const LOOP_FPS = 8;
+const LOOP_FRAMES = 16;
+const LOOP_COLS = 4;
 const paintings = new Map<string, Painting>();
-/** A painting next to the page once it has decoded, else null. */
+/** A painting next to the page once it has decoded, else null; its loop sheet starts loading with it. */
 function painting(path: string): Painting | null {
   if (!hasAsset(path)) return null;
   let p = paintings.get(path);
   if (!p) {
     const img = new Image();
-    const entry: Painting = { img, ready: false, mask: null, graded: new Map() };
+    const entry: Painting = { img, ready: false, mask: null, graded: new Map(), loop: null, loopReady: false };
     img.onload = () => (entry.ready = true);
     img.src = ASSETS + path;
     paintings.set(path, (p = entry));
+  }
+  if (!p.loop && hasAsset(path.replace(/\.png$/, ".loop.png"))) {
+    const loop = new Image();
+    const entry = p;
+    loop.onload = () => (entry.loopReady = true);
+    loop.src = ASSETS + path.replace(/\.png$/, ".loop.png");
+    p.loop = loop;
   }
   return p.ready ? p : null;
 }
@@ -163,16 +178,22 @@ function gradeOf(a: Partial<Grade>, kind: WeatherKind): Grade {
     gain: (a.gain ?? 1) * (b.gain ?? 1),
   };
 }
-/** The painting graded for an hour (`key` names the hour grade) and a weather, cached per pair. */
-function graded(p: Painting, key: string, hour: Partial<Grade>, kind: WeatherKind): HTMLCanvasElement {
-  const k = `${key}|${kind}`;
+/**
+ * The painting, or the frame of its loop due now, graded for an hour (`key` names the hour grade)
+ * and a weather; cached per frame and pair, the cache emptied when it grows past a few grades.
+ */
+function graded(p: Painting, key: string, hour: Partial<Grade>, kind: WeatherKind, now: number): HTMLCanvasElement {
+  const frame = p.loop && p.loopReady ? Math.floor((now / 1000) * LOOP_FPS) % LOOP_FRAMES : -1;
+  const k = `${key}|${kind}|${frame}`;
   let cv = p.graded.get(k);
   if (cv) return cv;
+  if (p.graded.size > 48) p.graded.clear();
   cv = document.createElement("canvas");
   cv.width = p.img.width;
   cv.height = p.img.height;
   const ctx = cv.getContext("2d")!;
-  ctx.drawImage(p.img, 0, 0);
+  if (frame >= 0) ctx.drawImage(p.loop!, (frame % LOOP_COLS) * cv.width, Math.floor(frame / LOOP_COLS) * cv.height, cv.width, cv.height, 0, 0, cv.width, cv.height);
+  else ctx.drawImage(p.img, 0, 0);
   const g = gradeOf(hour, kind);
   if (Object.keys(hour).length || kind !== "clear") {
     const id = ctx.getImageData(0, 0, cv.width, cv.height);
@@ -311,7 +332,7 @@ export function CityPicture({ hub }: { hub: number }): JSX.Element {
       if (band === "night" && night) (main = night), (key = "night-painted"), (hourGrade = {});
       // The golden-hour painting keeps its sky only at golden hour in clear weather, the day painting only in clear weather by day.
       const swapSky = (main === base && !(band === "golden" && clearish)) || (main === day && !clearish);
-      ctx.drawImage(graded(main, key, hourGrade, kind), 0, 0);
+      ctx.drawImage(graded(main, key, hourGrade, kind, now), 0, 0);
       if (swapSky) {
         if (!main.mask) main.mask = skyMask(main.img);
         drawSky(ctx, main.mask, band, kind, now, 0.94);
@@ -328,7 +349,7 @@ export function CityPicture({ hub }: { hub: number }): JSX.Element {
       else if (main === day && band === "morning" && hour < 8) (over = base), (overKey = "dawn"), (overGrade = BAND_GRADE.dawn), (alpha = 1 - (hour - 7));
       if (over && alpha > 0.01) {
         ctx.globalAlpha = alpha;
-        ctx.drawImage(graded(over, overKey, overGrade, kind), 0, 0);
+        ctx.drawImage(graded(over, overKey, overGrade, kind, now), 0, 0);
         if (over === base && !clearish) {
           if (!base.mask) base.mask = skyMask(base.img);
           drawSky(ctx, base.mask, band, kind, now, 0.94 * alpha);
