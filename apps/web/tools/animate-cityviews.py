@@ -10,9 +10,14 @@ tiles drew differently is taken whole from one side). The 16 full frames go into
 quantised to 256 colours by ffmpeg (about 1.4 MB a view): apps/web/assets/cityviews/<view>.loop.png,
 which ui/CityPicture.tsx plays at 8 fps in place of the still.
 
-  animate-cityviews.py [--only CHI,DAL] [--variants golden,night,rain,day,snow] [--jobs 1] [--force] [--dry]
+  animate-cityviews.py [--only CHI,DAL] [--variants golden,night,rain,day,snow] [--jobs 1] [--force] [--dry] [--restitch]
 
-The tile frames stay in <view>-tiles/ next to the sheet (ignored by git). Existing sheets are kept.
+The tile frames stay in <view>-tiles/ next to the sheet (ignored by git). Existing sheets are kept;
+--restitch rebuilds every sheet from the tiles on disk without animating anything (free).
+
+The animator sometimes writes on the blank highway sign or paints a second one, so the stitcher
+freezes the signs: the flat sign-green patches of the first frame are copied into every frame, and
+any patch of that colour that appears elsewhere in a later frame is put back to the first frame.
 """
 import base64
 import importlib.util
@@ -154,6 +159,102 @@ def stitch(tiles_dir: str, still: np.ndarray) -> list:
     return full
 
 
+def flat(img: np.ndarray, r: int = 2) -> np.ndarray:
+    """Where the picture is flat: the biggest channel range over a (2r+1)-square is small."""
+    h, w = img.shape[:2]
+    p = np.pad(img, ((r, r), (r, r), (0, 0)), mode="edge")
+    lo = p.copy()
+    hi = p.copy()
+    for dy in range(-r, r + 1):
+        for dx in range(-r, r + 1):
+            q = p[r + dy:r + dy + h, r + dx:r + dx + w]
+            lo[r:r + h, r:r + w] = np.minimum(lo[r:r + h, r:r + w], q)
+            hi[r:r + h, r:r + w] = np.maximum(hi[r:r + h, r:r + w], q)
+    return (hi[r:r + h, r:r + w] - lo[r:r + h, r:r + w]).max(axis=2) < 10
+
+
+def regions(mask: np.ndarray, min_size: int) -> list:
+    """The connected regions of a mask with at least `min_size` pixels, as (mask, bbox) pairs."""
+    h, w = mask.shape
+    seen = np.zeros_like(mask)
+    out = []
+    ys, xs = np.nonzero(mask)
+    for y0, x0 in zip(ys, xs):
+        if seen[y0, x0]:
+            continue
+        stack = [(y0, x0)]
+        seen[y0, x0] = True
+        pts = []
+        while stack:
+            y, x = stack.pop()
+            pts.append((y, x))
+            for ny, nx in ((y - 1, x), (y + 1, x), (y, x - 1), (y, x + 1)):
+                if 0 <= ny < h and 0 <= nx < w and mask[ny, nx] and not seen[ny, nx]:
+                    seen[ny, nx] = True
+                    stack.append((ny, nx))
+        if len(pts) >= min_size:
+            m = np.zeros_like(mask)
+            yy = [p[0] for p in pts]
+            xx = [p[1] for p in pts]
+            m[yy, xx] = True
+            out.append((m, (min(yy), min(xx), max(yy), max(xx))))
+    return out
+
+
+def grow(mask: np.ndarray, r: int) -> np.ndarray:
+    p = np.pad(mask, r)
+    out = np.zeros_like(mask)
+    h, w = mask.shape
+    for dy in range(-r, r + 1):
+        for dx in range(-r, r + 1):
+            out |= p[r + dy:r + dy + h, r + dx:r + dx + w]
+    return out
+
+
+def freeze_signs(frames: list) -> int:
+    """Copies the first frame's highway signs into every frame and puts back anything sign-coloured that appears elsewhere later; returns how many frames were touched."""
+    import colorsys
+
+    f0 = frames[0]
+    H, W = f0.shape[:2]
+    signs = []
+    for m, (y0, x0, y1, x1) in regions(flat(f0), 600):
+        h, w = y1 - y0 + 1, x1 - x0 + 1
+        if h > 60 or w > 200 or w < 1.8 * h or m.sum() < 0.6 * h * w or not (0.3 * H < (y0 + y1) / 2 < 0.85 * H):
+            continue
+        hue, sat, val = colorsys.rgb_to_hsv(*(f0[m].mean(axis=0) / 255))
+        # the blank sign's green, from a dark night sign to a sunlit one
+        if 150 <= hue * 360 <= 215 and 0.35 <= sat <= 0.75 and 0.18 <= val <= 0.55:
+            signs.append(m)
+    if not signs:
+        return 0
+    sign0 = np.zeros((H, W), bool)
+    for m in signs:
+        sign0 |= m
+    colour = f0[signs[0]].mean(axis=0)
+    keep = grow(sign0, 3)
+    touched = 0
+    for k in range(1, len(frames)):
+        f = frames[k]
+        changed = keep.copy()
+        fk = flat(f)
+        # a second sign in the sign's green, anywhere it was not
+        close = (np.abs(f - colour).max(axis=2) < 16) & fk & ~keep
+        for m, _ in regions(close, 100):
+            changed |= grow(m, 2)
+        # a dark flat panel (the animator's small arrow signs) where the first frame had nothing like it;
+        # trailers are bright and cars too small to be caught
+        # (the panels are small and black with a white glyph, so the flatness test is a 3-square and pure black counts whatever its neighbours)
+        mx = f.max(axis=2)
+        dark = ((mx < 40) | (flat(f, 1) & (mx < 130))) & (np.abs(f - f0).max(axis=2) > 22) & ~keep
+        for m, (y0, x0, y1, x1) in regions(dark, 40):
+            if (x1 - x0 + 1) >= 1.1 * (y1 - y0 + 1):
+                changed |= grow(m, 4)
+        f[changed] = f0[changed]
+        touched += 1
+    return touched
+
+
 def sheet8(frames: list, out: str) -> None:
     """Packs the frames into a 4 × 4 sheet and quantises it to 256 colours with ffmpeg."""
     H, W = frames[0].shape[:2]
@@ -195,8 +296,9 @@ def animate_view(name: str, variant: str, dry: bool) -> None:
     for t in threads:
         t.join()
     frames = stitch(tiles_dir, img[..., :3].astype(np.float32))
+    fixed = freeze_signs(frames)
     sheet8(frames, out)
-    print(f"{name}: {len(frames)} frames → {out[len(ROOT) + 1:]} ({os.path.getsize(out) // 1024} KB)", flush=True)
+    print(f"{name}: {len(frames)} frames → {out[len(ROOT) + 1:]} ({os.path.getsize(out) // 1024} KB, signs frozen in {fixed} frames)", flush=True)
 
 
 def main() -> None:
@@ -206,6 +308,7 @@ def main() -> None:
     jobs = int(opt("--jobs", 1))
     force = "--force" in sys.argv
     dry = "--dry" in sys.argv
+    restitch = "--restitch" in sys.argv
     hubs = only.split(",") if only else sorted({f[:3] for f in os.listdir(VIEWS) if f.endswith(".png") and "-" not in f and "." not in f[:-4]})
     work = []
     for h in hubs:
@@ -213,10 +316,14 @@ def main() -> None:
             name = h if v == "golden" else f"{h}-{v}"
             if not os.path.exists(os.path.join(VIEWS, f"{name}.png")):
                 continue
+            if restitch:
+                if os.path.isdir(os.path.join(VIEWS, f"{name}-tiles")):
+                    work.append((name, v))
+                continue
             if not force and os.path.exists(os.path.join(VIEWS, f"{name}.loop.png")):
                 continue
             work.append((name, v))
-    print(f"{len(work)} views to animate, {12 * len(work)} generations", flush=True)
+    print(f"{len(work)} views to {'re-stitch' if restitch else 'animate'}, {0 if restitch else 12 * len(work)} generations", flush=True)
     sem = threading.Semaphore(jobs)
 
     def run(name, v):
