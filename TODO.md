@@ -118,6 +118,27 @@ Order is the working order. Design records live in TOKENOMICS.md (economy) and R
 7. Dashboards on the live world: pool dollars, liquidations against the farming-season baseline,
    the free path, sinks over faucets, the dial's position.
 
+## Later, agreed with Jeff on 2026-10-30 (not before the switch-on and the dashboard)
+- **The world-economy story.** Scripted shocks on top of the cycle, seasons, weather and fuel feeds:
+  recessions by sector for a season, hurricane relief freight into a region at premium rates, port
+  strikes moving a coast's imports, tariffs shifting a sector's lanes, a cyber attack closing the load
+  board for a day (book-now only), an ELD mandate tightening hours enforcement for a quarter, fuel
+  shocks, border closures once Canada exists. Three rules: (1) shocks redistribute demand in time and
+  space and never print FD (a stimulus is a faucet; the dial would fight it); (2) events come from a
+  seeded generator or a logged, public input with lead time written in — nobody, the developer
+  included, knows the schedule first; (3) semi-fictional, never mirrored from real news. Build: an
+  event with type, region, sector, start, duration and magnitude, applied through the demand scale
+  and the feeds, surfaced as in-world news. Tuned on the dashboard's gauges.
+- **The admin dashboard.** Gauges first (sinks over faucets, the dial's position, pool dollars and
+  FD, net selling, the reserve, liquidations against baseline, the free path, businesses open,
+  breakdowns served). Then bounded policy levers as signed, logged world inputs with a published
+  range and a month's lag (the dial's band, tax rates within a band, season pots, sites opening);
+  never hot config edits, which fork history and read as a rug. Levers after the authoritative server.
+- **Growth by crowding, not by map.** Open new territory when the hubs are crowded (loads per truck
+  falling, rates compressed, expired loads near zero): Canada, then Mexico, each an additive migration
+  of a running world under one token with its own balance; Europe as a separate theater if wanted;
+  South America is a map, not a market (no road link).
+
 ## Open for Jeff to decide
 - Miles-to-profit airdrop weighting after the runs (0.6 / 0.4 to start).
 - The four season pot sizes (10 / 6 / 4 / 3M proposed).
