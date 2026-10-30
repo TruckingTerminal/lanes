@@ -155,7 +155,7 @@ export interface TokenReport {
   supply: { beforeLaunchFd: number; afterLaunchFd: number; endFd: number; companiesEndFd: number; poolEndFd: number; byYearEnd: number[] };
   /** Since launch: FD created by operations, minted by the token layer, burned by operations and by the token layer. */
   sinceLaunch: { operatingFaucetFd: number; operatingSinkFd: number; mintedByTag: Record<string, number>; burnedByTag: Record<string, number> };
-  treasury: { seedUsd: number; productUsd: number; feeUsd: number; buybackUsd: number; buybackFd: number; opsUsd: number };
+  treasury: { seedUsd: number; productUsd: number; feeUsd: number; buybackUsd: number; buybackFd: number; opsUsd: number; devUsd: number; vestedFd: number };
   pool: { endUsd: number; endFd: number };
   airdrop: { allocatedFd: number; mintedFd: number; forfeitedFd: number; haircutFd: number; recipients: number; claimedEarly: number };
   newCompanies: number;
@@ -534,7 +534,7 @@ function tokenReport(w: World, quarterLen: number): TokenReport | null {
       mintedByTag: sumTags(live.map((d) => d.mintByTag ?? {})),
       burnedByTag: sumTags(live.map((d) => d.burnByTag ?? {})),
     },
-    treasury: { seedUsd: t.seedUsd, productUsd: t.productUsd, feeUsd: t.feeUsd, buybackUsd: t.buybackUsd, buybackFd: t.buybackFd, opsUsd: t.opsUsd },
+    treasury: { seedUsd: t.seedUsd, productUsd: t.productUsd, feeUsd: t.feeUsd, buybackUsd: t.buybackUsd, buybackFd: t.buybackFd, opsUsd: t.opsUsd, devUsd: t.devUsd, vestedFd: t.vestedFd },
     pool: { endUsd: tk.poolUsd, endFd: end.exchangeFd },
     airdrop: {
       allocatedFd: tk.launch.airdropAllocatedFd,

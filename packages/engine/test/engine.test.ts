@@ -1363,11 +1363,23 @@ describe("the catalogue (0.18.0, FD only): yards, upgrades, the farming-season d
     weeklyVest(w); // below the floor: nothing
     expect(w.token.treasury.vestedFd).toBe(0);
     for (let i = 0; i < 7; i++) w.token.priceHistory.push(capped.token.launch.priceUsd * 2);
+    // The pool sits exactly at the floor: a sale would push it through, so nothing sells.
+    weeklyVest(w);
+    expect(w.token.treasury.vestedFd).toBe(0);
+    // Buyers lift the pool to four times the floor: the week's share sells, and the price stays at or above the floor after it.
+    w.token.poolUsd *= 4;
     const poolUsd = w.token.poolUsd;
     weeklyVest(w);
     expect(w.token.treasury.vestedFd).toBeCloseTo(held * capped.token.treasury.vest.perWeekShare, 2);
     expect(w.token.treasury.devUsd).toBeGreaterThan(0);
     expect(w.token.poolUsd).toBeCloseTo(poolUsd - w.token.treasury.devUsd, 6);
+    expect(fdPriceUsd(w)).toBeGreaterThanOrEqual(capped.token.treasury.vest.floorPriceUsd - 1e-9);
+    // A pool barely above the floor sells only what keeps it there.
+    w.token.poolUsd = fdPriceUsd(w) > 0 ? w.ledger.balance(EXCHANGE_ACCOUNT) * capped.token.treasury.vest.floorPriceUsd * 1.0001 : w.token.poolUsd;
+    const before = w.token.treasury.vestedFd;
+    weeklyVest(w);
+    expect(w.token.treasury.vestedFd - before).toBeLessThan(held * capped.token.treasury.vest.perWeekShare * 0.01);
+    expect(fdPriceUsd(w)).toBeGreaterThanOrEqual(capped.token.treasury.vest.floorPriceUsd - 1e-9);
     w.ledger.assertBalanced();
   });
 });

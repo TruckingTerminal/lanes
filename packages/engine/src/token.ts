@@ -252,7 +252,11 @@ export function weeklyVest(w: World): void {
   const held = w.ledger.balance("alloc:treasury");
   const pool = w.ledger.balance(EXCHANGE_ACCOUNT);
   if (avg < v.floorPriceUsd || held <= 0 || w.token.poolUsd <= 0 || pool <= 0) return;
-  const fd = held * v.perWeekShare;
+  // Only what the pool absorbs without its price falling through the floor: after a sale of `fd` the
+  // pool prices at poolUsd·pool/(pool+fd)², so the sale stops where that meets the floor.
+  const room = Math.sqrt((w.token.poolUsd * pool) / v.floorPriceUsd) - pool;
+  const fd = Math.min(held * v.perWeekShare, room);
+  if (fd <= 0.01) return;
   const usd = w.token.poolUsd - (w.token.poolUsd * pool) / (pool + fd);
   if (usd <= 0.01) return;
   w.ledger.post(w.t, "alloc:treasury", EXCHANGE_ACCOUNT, fd, "vest:treasury");
@@ -346,7 +350,10 @@ export function dailyBuyback(w: World): void {
     t.buybackUsd += usd;
     t.buybackFd += fd;
   }
-  w.token.priceHistory.push(askPriceUsd(w)); // the market price: the pool's, or the floor while the one-sided range stands
+  // The pool's own price, what a seller gets (zero while a one-sided range has no dollars yet). The
+  // floor-held ask is the buy price only: gating protocol sales and sizing airdrops on it would read a
+  // pool at $0.0002 as a market at a cent (the v27-b batch did, and vested 117M FD into it).
+  w.token.priceHistory.push(fdPriceUsd(w));
 }
 
 /** Mean pool price over the last `days` days (the current price before any history). */

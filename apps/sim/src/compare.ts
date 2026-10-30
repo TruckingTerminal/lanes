@@ -124,7 +124,14 @@ rows.push(
     const t = rs.map((r) => r.realMoney?.token).filter((x) => x);
     return t.length ? `$${fd(mean(t.map((x) => x!.treasury.productUsd + x!.treasury.feeUsd)))} / $${fd(mean(t.map((x) => x!.treasury.buybackUsd)))}` : "n/a";
   }],
-  ["Token: pool dollars at end (seeded $250k)", (rs) => range(rs.map((r) => r.realMoney?.token?.pool.endUsd ?? NaN).filter(Number.isFinite), (x) => `$${fd(x)}`)],
+  ["Token: pool dollars at launch → end", (rs) => {
+    const t = rs.map((r) => r.realMoney?.token).filter((x) => x);
+    return t.length ? `$${fd(mean(t.map((x) => x!.treasury.seedUsd)))} → ${range(t.map((x) => x!.pool.endUsd), (x) => `$${fd(x)}`)}` : "n/a";
+  }],
+  ["Token: developer's vest — FD sold into the pool / dollars taken", (rs) => {
+    const t = rs.map((r) => r.realMoney?.token).filter((x) => x);
+    return t.length ? `${fd(mean(t.map((x) => x!.treasury.vestedFd ?? 0)))} / $${fd(mean(t.map((x) => x!.treasury.devUsd ?? 0)))}` : "n/a";
+  }],
   ["Token: net $ taken out — owner-operators / fleets / brokers / newcomers", (rs) => {
     const t = rs.map((r) => r.realMoney?.token).filter((x) => x);
     return t.length ? ["oo", "fleet", "broker", "new"].map((s) => `$${fd(mean(t.map((x) => x!.usdBySegment[s]?.net ?? 0)))}`).join(" / ") : "n/a";
