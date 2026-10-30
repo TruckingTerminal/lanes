@@ -76,7 +76,7 @@ export function moneyPages(cfg: EconomyConfig): GuidePage[] {
           `<b>On time:</b> early (${cfg.freight.earlyThresholdMinutes / 60}+ hours) ×${m.onTime.early}, on time ×${m.onTime.onTime}, late ×${m.onTime.late};`,
           `<b>Margin:</b> your margin ÷ ${pct(m.marginTarget)}, within ×${m.marginClamp[0]}–${m.marginClamp[1]};`,
           `<b>Reputation level:</b> ×${m.reputationRange[0]}–${m.reputationRange[1]};`,
-          `<b>Truck ladder:</b> your first truck ×${cfg.company.truckLadder[0]}, then ${cfg.company.truckLadder.slice(1).join(", ")}, then ×${cfg.company.truckLadderFloor} for every truck after.`,
+          `<b>Every truck counts the same:</b> Miles are flat per loaded mile, however many trucks you run.`,
         ]) +
         p(`No Miles for a load that cleared more than ${pct(m.rateOutlierPct)} off its reference rate (a hot load's premium counts as its reference). At most ${n(m.dailyCapPerCompany)} Miles a day per company, and only the first ${m.maxLoadsPerLanePairPerDay} loads a day on the same lane count. Brokers earn ${m.brokerPerMile} per mile brokered.`),
     },

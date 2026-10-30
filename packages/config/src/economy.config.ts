@@ -699,8 +699,8 @@ export const economyConfig = {
     maxTrucks: 30,
     maxTrailers: 36,
     startingGrantFd: 5_000, // §Circular economy — faucets
-    truckLadder: [1.0, 0.9, 0.8, 0.7, 0.6], // then 0.5 for every truck after the fifth
-    truckLadderFloor: 0.5,
+    // The Miles truck ladder (100/90/80/70/60%, then 50%) is gone (Jeff, 2026-10-29): every wallet is an
+    // MC, and a ladder paid splitting a fleet across wallets. Miles are flat per loaded mile.
   },
 
   // §Points and airdrop

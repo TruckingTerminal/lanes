@@ -40,7 +40,6 @@ import {
   liveGameMinutes,
   planFreight,
   hubDemandPerRound,
-  ladderFactor,
   marketValue,
   newPrice,
   rebuildCost,
@@ -519,14 +518,12 @@ describe("fleet overhead", () => {
     expect(solo.overheadPaidFd).toBe(0);
   });
 
-  it("keeps parked trucks off the road and out of the Miles ladder, and lets them come back", () => {
+  it("keeps parked trucks off the road, and lets them come back", () => {
     const w = createWorld({ cfg, net, feeds: neutralFeeds, seed: 10 });
     const fleet = carrier(w, "Fleet");
-    const [a, b] = [addTruck(w, fleet, "owned", "workhorse", "van"), addTruck(w, fleet, "owned", "workhorse", "van")];
-    expect(ladderFactor(w, b)).toBe(0.9);
+    const [a] = [addTruck(w, fleet, "owned", "workhorse", "van"), addTruck(w, fleet, "owned", "workhorse", "van")];
     applyAction(w, fleet.id, { type: "park_truck", truckId: a.id });
     expect(a.status).toBe("parked");
-    expect(ladderFactor(w, b)).toBe(1.0);
     runDays(w, 2);
     expect(a.status).toBe("parked");
     expect(applyAction(w, fleet.id, { type: "unpark_truck", truckId: a.id })).toEqual({ ok: true });

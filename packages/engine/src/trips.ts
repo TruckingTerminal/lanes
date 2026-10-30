@@ -320,7 +320,8 @@ function deliver(w: World, truck: Truck, now: number): void {
   // A hot load's premium is part of its reference, so paying it isn't an outlier.
   const ref0 = load.refRate * (load.hot || 1);
   const outlier = Math.abs(load.clearedRate - ref0) / ref0 > cfg.miles.rateOutlierPct;
-  const amount = outlier ? 0 : load.miles * onTime * marginFactor * reputationFactor(w, carrier) * ladderFactor(w, truck);
+  // Flat per loaded mile (Jeff, 2026-10-29): no truck ladder, since every wallet is an MC and a ladder would pay splitting a fleet across them.
+  const amount = outlier ? 0 : load.miles * onTime * marginFactor * reputationFactor(w, carrier);
   awardMiles(w, carrier, amount, load.laneId);
 
   w.metrics.onDelivery(w, carrier, load, earned, costs, onTime);
@@ -334,17 +335,6 @@ export function reputationFactor(w: World, c: Company): number {
   const { reputation, miles } = w.cfg;
   const level = Math.min(reputation.maxLevel, Math.floor(Math.sqrt(c.delivered / reputation.loadsPerLevelSq)));
   return miles.reputationRange[0] + ((miles.reputationRange[1] - miles.reputationRange[0]) * level) / reputation.maxLevel;
-}
-
-/** Diminishing Miles per truck: 100/90/80/70/60%, then 50% (§Owned vs. leased). */
-export function ladderFactor(w: World, truck: Truck): number {
-  // Position among operating trucks: parked trucks don't hold a ladder slot.
-  let i = 0;
-  for (const t of w.trucksByCompany.get(truck.companyId)!) {
-    if (t === truck) break;
-    if (t.status !== "parked") i++;
-  }
-  return w.cfg.company.truckLadder[i] ?? w.cfg.company.truckLadderFloor;
 }
 
 /** Applies the per-lane-pair and daily caps (§Points — anti-farming). */
