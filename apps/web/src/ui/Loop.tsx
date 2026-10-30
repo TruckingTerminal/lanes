@@ -1,6 +1,6 @@
 import type { JSX } from "preact";
 import { useEffect, useRef } from "preact/hooks";
-import { ASSETS, hasAsset, seasonOf, spriteFrame, tileSprite, vfxSprite } from "../mapart.js";
+import { ASSETS, drawRain, drawSnow, hasAsset, seasonOf, spriteFrame, vfxSprite } from "../mapart.js";
 import { PEOPLE, PEOPLE_FILE, rig, type Person } from "../assets.js";
 import type { Equipment } from "@lanes/config";
 import { clockMin, S, useData } from "../state.js";
@@ -85,7 +85,7 @@ export function Sky({ hub, w = 256, h = 144 }: { hub?: number; w?: number; h?: n
       // The painted effects (assets/vfx) tile over the scene pixel for pixel; the code's strokes stand in until they decode.
       const fx = wx.kind === "rain" || wx.kind === "storm" ? vfxSprite("rain") : wx.kind === "snow" ? vfxSprite("snow") : wx.kind === "fog" ? vfxSprite("fog") : null;
       if (wx.kind === "rain" || wx.kind === "storm") {
-        if (fx) tileSprite(ctx, fx, now, 0, 0, 0, W, H, 1, 0.55 + 0.4 * wx.intensity);
+        if (fx) drawRain(ctx, fx, now, 0, 0, W, H, 1, 0.55 + 0.4 * wx.intensity);
         else {
           ctx.globalAlpha = 0.55;
           ctx.fillStyle = PAL.blueL;
@@ -109,7 +109,7 @@ export function Sky({ hub, w = 256, h = 144 }: { hub?: number; w?: number; h?: n
           }
         }
       } else if (wx.kind === "snow") {
-        if (fx) tileSprite(ctx, fx, now, 0, 0, 0, W, H, 1, 0.75 + 0.25 * wx.intensity);
+        if (fx) drawSnow(ctx, fx, now, 0, 0, W, H, 1, 0.75 + 0.25 * wx.intensity);
         else {
           ctx.globalAlpha = 0.9;
           ctx.fillStyle = PAL.white;

@@ -141,24 +141,35 @@ function sheetSprite(path: string): Sprite | null {
 /** A hub's isometric city sprite once it has decoded: its 16-frame loop when one was painted, else the still. */
 export const citySprite = (hubId: string): Sprite | null => sheetSprite(`cities/${hubId}`);
 /**
- * A painted weather effect (assets/vfx, tools/vfx.sh): rain, snow and fog as 256-wide loops on
- * transparency that the map and the scenes tile over the weather, a cloud the map drifts across
- * the country, and a lightning bolt; null until it has decoded (the code's own strokes stand in).
+ * A painted weather effect (assets/vfx, tools/vfx.sh): rain and snow as 256-wide tiles on
+ * transparency that the map and the scenes scroll along the fall, a bank of fog and a cloud they
+ * drift, and a lightning bolt; null until it has decoded (the code's own strokes stand in).
  */
 export const vfxSprite = (name: "rain" | "snow" | "fog" | "cloud" | "bolt"): Sprite | null => sheetSprite(`vfx/${name}`);
-/** Tiles a sprite's current frame over a rectangle at `scale`, clipped to it. */
-export function tileSprite(ctx: CanvasRenderingContext2D, sp: Sprite, now: number, phase: number, x: number, y: number, w: number, h: number, scale: number, alpha: number): void {
+/** Tiles a sprite's current frame over a rectangle at `scale`, clipped to it, the tiling shifted by (`ox`, `oy`) so it can scroll. */
+export function tileSprite(ctx: CanvasRenderingContext2D, sp: Sprite, now: number, phase: number, x: number, y: number, w: number, h: number, scale: number, alpha: number, ox = 0, oy = 0): void {
   const [sx, sy] = spriteFrame(sp, now, phase);
   const tw = sp.fw * scale;
   const th = sp.fh * scale;
+  const px = ((ox % tw) + tw) % tw;
+  const py = ((oy % th) + th) % th;
   ctx.save();
   ctx.beginPath();
   ctx.rect(x, y, w, h);
   ctx.clip();
   ctx.globalAlpha = alpha;
   ctx.imageSmoothingEnabled = !Number.isInteger(scale);
-  for (let ty = Math.floor(y / th) * th; ty < y + h; ty += th) for (let tx = Math.floor(x / tw) * tw; tx < x + w; tx += tw) ctx.drawImage(sp.img, sx, sy, sp.fw, sp.fh, Math.round(tx), Math.round(ty), Math.ceil(tw), Math.ceil(th));
+  for (let ty = Math.floor((y - py) / th) * th + py; ty < y + h; ty += th) for (let tx = Math.floor((x - px) / tw) * tw + px; tx < x + w; tx += tw) ctx.drawImage(sp.img, sx, sy, sp.fw, sp.fh, Math.round(tx), Math.round(ty), Math.ceil(tw), Math.ceil(th));
   ctx.restore();
+}
+/** Falling rain from the painted tile: the tiling scrolls down the way the streaks fall. */
+export function drawRain(ctx: CanvasRenderingContext2D, sp: Sprite, now: number, x: number, y: number, w: number, h: number, scale: number, alpha: number): void {
+  tileSprite(ctx, sp, now, 0, x, y, w, h, scale, alpha, 0, now * 0.4 * scale);
+}
+/** Falling snow from the painted tile: a far layer, small and slow, under a near one that sways. */
+export function drawSnow(ctx: CanvasRenderingContext2D, sp: Sprite, now: number, x: number, y: number, w: number, h: number, scale: number, alpha: number): void {
+  tileSprite(ctx, sp, now, 0, x, y, w, h, scale * 0.6, alpha * 0.55, Math.sin(now / 2300) * 10 * scale, now * 0.05 * scale);
+  tileSprite(ctx, sp, now, 0, x, y, w, h, scale, alpha, Math.sin(now / 1500) * 18 * scale + 70 * scale, now * 0.09 * scale);
 }
 /** The cell of a sprite to show at time `tMs`. */
 export function spriteFrame(sp: Sprite, tMs: number, phase = 0): [number, number] {

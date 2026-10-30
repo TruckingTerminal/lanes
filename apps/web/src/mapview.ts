@@ -5,7 +5,7 @@ import { drawText, textWidth } from "./font.js";
 import { isHuman } from "./game.js";
 import { buildMap, hash, headingDir, nightColor, nightShade, truckMarkers, type MapArt, type MarkerKind } from "./map.js";
 import { TRUCK_SCALE, truckFrame } from "./assets.js";
-import { CITY_SCALE, citySprite, hasPaintedMap, MAP_H, MAP_W, mapLevel, seasonOf, spriteFrame, tileSprite, TOWN_SCALE, townKindAt, townSprite, vfxSprite, type Season } from "./mapart.js";
+import { CITY_SCALE, citySprite, drawRain, drawSnow, hasPaintedMap, MAP_H, MAP_W, mapLevel, seasonOf, spriteFrame, TOWN_SCALE, townKindAt, townSprite, vfxSprite, type Season } from "./mapart.js";
 import { weatherAt, weatherLabel, type Weather } from "./weather.js";
 import { bumpData, clockMin, myTrucks, S, selectTruck, setTab } from "./state.js";
 import { openLoadsAt, reloadLabel, seasonSwing } from "./logic.js";
@@ -607,13 +607,22 @@ function drawWeather(ctx: CanvasRenderingContext2D, now: number, k: number, u: n
       const X = gx - panX;
       const Y = gy - panY;
       const cs = Math.floor(gx / cell) * 73 + Math.floor(gy / cell) * 151;
-      if (cloudFx && wx.kind !== "fog" && hash(cs, 9, 73) < (wx.kind === "cloud" ? 0.55 : 0.8)) {
-        const cw = cell * (0.9 + hash(cs, 10, 74) * 0.8);
+      // A painted cloud over about half the cloudy cells, each its own size, side, place and pace, so
+      // they read as scattered weather rather than a lattice.
+      if (cloudFx && wx.kind !== "fog" && hash(cs, 9, 73) < (wx.kind === "cloud" ? 0.4 : 0.6)) {
+        const cw = cell * (0.6 + hash(cs, 10, 74) * 1.2);
         const chh = (cw * cloudFx.fh) / cloudFx.fw;
-        const drift = ((now / (160 + hash(cs, 11, 75) * 120) + cs * 3) % (cell * 2.5)) - cell;
-        ctx.globalAlpha = (wx.kind === "cloud" ? 0.5 : 0.7) * (0.7 + 0.3 * wx.intensity);
+        const drift = ((now / (160 + hash(cs, 11, 75) * 160) + cs * 3) % (cell * 3)) - cell * 1.2;
+        const cx = X + drift + (hash(cs, 14, 78) - 0.5) * cell;
+        const cy = Y + (hash(cs, 12, 76) - 0.5) * cell * 0.8;
+        const flip = hash(cs, 15, 79) < 0.5;
+        ctx.globalAlpha = (wx.kind === "cloud" ? 0.45 : 0.65) * (0.6 + 0.4 * hash(cs, 16, 80)) * (0.7 + 0.3 * wx.intensity);
         ctx.imageSmoothingEnabled = true;
-        ctx.drawImage(cloudFx.img, 0, 0, cloudFx.fw, cloudFx.fh, Math.round(X + drift), Math.round(Y + (hash(cs, 12, 76) - 0.5) * cell * 0.5), Math.round(cw), Math.round(chh));
+        ctx.save();
+        ctx.translate(Math.round(cx + cw / 2), Math.round(cy + chh / 2));
+        if (flip) ctx.scale(-1, 1);
+        ctx.drawImage(cloudFx.img, 0, 0, cloudFx.fw, cloudFx.fh, Math.round(-cw / 2), Math.round(-chh / 2), Math.round(cw), Math.round(chh));
+        ctx.restore();
         ctx.imageSmoothingEnabled = false;
         ctx.globalAlpha = 1;
       }
@@ -636,7 +645,7 @@ function drawWeather(ctx: CanvasRenderingContext2D, now: number, k: number, u: n
         blob(9, 12, 23, (wx.kind === "storm" ? 0.16 : 0.09) * (0.5 + 0.5 * wx.intensity), 140);
       }
       if (wx.kind === "rain" || wx.kind === "storm") {
-        if (rainFx) tileSprite(ctx, rainFx, now, 0, X, Y, cell, cell, fxScale, (wx.kind === "storm" ? 0.75 : 0.55) * (0.6 + 0.4 * wx.intensity));
+        if (rainFx) drawRain(ctx, rainFx, now, X, Y, cell, cell, fxScale, (wx.kind === "storm" ? 0.75 : 0.55) * (0.6 + 0.4 * wx.intensity));
         else {
           ctx.globalAlpha = 0.55;
           ctx.fillStyle = PAL.blueL;
@@ -649,7 +658,7 @@ function drawWeather(ctx: CanvasRenderingContext2D, now: number, k: number, u: n
         }
         if (wx.kind === "storm" && (Math.floor(now / 90) + cs) % 97 === 0) lights.push([X, Y, wx]);
       } else if (wx.kind === "snow") {
-        if (snowFx) tileSprite(ctx, snowFx, now, 0, X, Y, cell, cell, fxScale, 0.6 + 0.4 * wx.intensity);
+        if (snowFx) drawSnow(ctx, snowFx, now, X, Y, cell, cell, fxScale, 0.6 + 0.4 * wx.intensity);
         else {
           ctx.globalAlpha = 0.85;
           ctx.fillStyle = PAL.white;
