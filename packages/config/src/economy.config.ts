@@ -655,7 +655,7 @@ export const economyConfig = {
     treasury: {
       // Stand-in for real revenue other than exchange fees: cosmetics, premium,
       // asset sales (§Two ledgers — primary sales go to the developer), per active company per week.
-      productUsdPerCompanyWeek: 5,
+      productUsdPerCompanyWeek: 0, // Jeff (2026-10-29): no flat fee; revenue comes from modeled sales (stake and asset presales, cosmetics, fees), not a per-company charge
       buybackShare: 0.5, // §Burn and buyback: half of revenue buys FD back (all of it burned here); half runs the company
     },
     lockGrants: true, // after launch, starting grants are spend-only (sybils can't cash them out)

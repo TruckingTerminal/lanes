@@ -784,7 +784,8 @@ describe("buyback auction", () => {
 });
 
 describe("token", () => {
-  const tk: EconomyConfig = { ...calm, seasonClose: { ...calm.seasonClose, enabled: false }, token: { ...calm.token, enabled: true } };
+  // The treasury mechanism is tested with a stand-in product revenue; the live config has none.
+  const tk: EconomyConfig = { ...calm, seasonClose: { ...calm.seasonClose, enabled: false }, token: { ...calm.token, enabled: true, treasury: { ...calm.token.treasury, productUsdPerCompanyWeek: 5 } } };
 
   function launched(seed: number) {
     const w = createWorld({ cfg: tk, net, feeds: neutralFeeds, seed, keepLedgerEntries: true });
