@@ -1,4 +1,6 @@
 import { COMMODITIES } from "@lanes/data";
+import { payFuel, serviceBill } from "./businesses.js";
+import { managerBreakdownMult, managerMaintenanceMult } from "./labor.js";
 import { dayOf, MINUTES_PER_HOUR } from "./clock.js";
 import { clamp, fuelPrice, tripCost } from "./economics.js";
 import { settleDoubleBroker } from "./fraud.js";
@@ -137,7 +139,7 @@ export function moveTrucks(w: World): void {
       truck.odometer += miles;
       if (truck.lease === "owned") truck.milesSinceRebuild += miles;
       creditMiles(w, truck, miles);
-      if (miles > 0 && w.rng.ops.next() < (breakdownsPer1000Mi(cfg, truck) * miles) / 1000) breakDown(w, truck);
+      if (miles > 0 && w.rng.ops.next() < (breakdownsPer1000Mi(cfg, truck) * managerBreakdownMult(w, companyById(w, truck.companyId)) * miles) / 1000) breakDown(w, truck);
       if (truck.remainingMi <= 1e-6) truck.remainingMi = 0;
       // Enforcement and crashes (safety.ts): a crash ends the truck's hour; an out-of-service order stops it.
       if (miles > 0 && safetyTick(w, truck, miles, truck.legMiles > 0 ? 1 - truck.remainingMi / truck.legMiles : 1) === "crash") break;
@@ -159,8 +161,8 @@ function breakDown(w: World, truck: Truck): void {
   let bill = 0;
   if (truck.lease === "owned") {
     bill = w.rng.ops.int(breakdowns.repairFd[0], breakdowns.repairFd[1]);
-    w.ledger.post(w.t, companyAccount(truck.companyId), "sink:repairs", bill, `breakdown:${truck.id}`);
-    companyById(w, truck.companyId).operating.costFd += bill;
+    const company = companyById(w, truck.companyId);
+    company.operating.costFd += serviceBill(w, company, truck.hub, bill, "repairs", `breakdown:${truck.id}`); // the hub's shop, or the NPC shop
   }
   w.listener?.({ kind: "breakdown", companyId: truck.companyId, truckId: truck.id, repairFd: bill });
   w.metrics.onBreakdown();
@@ -194,12 +196,15 @@ export function payTripCosts(w: World, truck: Truck, ref: string): number {
   const company = companyById(w, truck.companyId);
   const keep = 1 - stakeDiscount(w, company);
   company.fuelGalMonth += c.gallons; // taxed at the month's close (fuelTax.ts)
-  w.ledger.post(w.t, acct, "sink:fuel", c.fuel * keep, ref);
+  // Fuel at the hub's player station if there is one (businesses.ts), else the pump; maintenance at
+  // the hub's shop or the NPC shop, leaner with a maintenance manager (labor.ts).
+  const fuel = c.fuel * keep;
+  payFuel(w, company, truck.hub, fuel, ref);
   w.ledger.post(w.t, acct, "sink:driver_wages", c.wages, ref);
-  w.ledger.post(w.t, acct, "sink:maintenance", c.maintenance * keep, ref);
+  const maintenance = serviceBill(w, company, truck.hub, c.maintenance * keep * managerMaintenanceMult(w, company), "maintenance", ref);
   w.ledger.post(w.t, acct, "sink:tolls", tolls, ref);
   // Insurance isn't per trip: the yearly policy is billed weekly (insurance.ts).
-  return (c.fuel + c.maintenance) * keep + c.wages + tolls;
+  return fuel + maintenance + c.wages + tolls;
 }
 
 function arriveEmpty(w: World, truck: Truck): void {

@@ -54,14 +54,19 @@ export function dispatchProfile(w: World, c: Company, operating: number): Dispat
     weighted += s * d.skill;
   }
   const skill = weighted / span;
+  // Managers (config labor.managers): past the threshold a fleet without an operations manager prices
+  // worse and looks less far ahead; with one it prices tighter.
+  const m = labor.managers;
+  const opsNeeded = m.enabled && operating > m.ops.requiredAbove && !c.managers.ops;
+  const noiseMult = opsNeeded ? m.ops.noiseWithout : m.enabled && c.managers.ops ? m.ops.noiseWith : 1;
   return {
     skill,
     span,
     coverage: operating <= 0 ? 1 : Math.min(1, span / operating),
-    noise: lerp(labor.dispatcher.noise, skill),
+    noise: lerp(labor.dispatcher.noise, skill) * noiseMult,
     reloadWeight: board.reloadWeight * lerp(labor.dispatcher.reloadAware, skill),
     foresightDays: Math.round(lerp(labor.dispatcher.foresightDays, skill)),
-    lookaheadLoads: Math.round(lerp(labor.dispatcher.lookaheadLoads, skill)),
+    lookaheadLoads: Math.max(1, Math.round(lerp(labor.dispatcher.lookaheadLoads, skill)) - (opsNeeded ? 1 : 0)),
   };
 }
 
@@ -389,6 +394,7 @@ export function dailyDrivers(w: World): void {
  */
 export function autoStaff(w: World, c: Company, minDriverSkill = 0, minDispatcherSkill = 0): void {
   if (c.authority.status === "revoked" || c.liquidatingSince !== null) return;
+  autoManagers(w, c);
   const fleet = w.trucksByCompany.get(c.id)!;
   // The owner drives for free: if they have no truck, they take over from a hire at a hub.
   const owner = fleet.length ? w.staffByCompany.get(c.id)!.find((s) => s.owner && s.status === "employed" && s.truckId === 0) : undefined;
@@ -579,4 +585,65 @@ export function releaseAll(w: World, c: Company): void {
 export function creditMiles(w: World, truck: Truck, miles: number): void {
   if (truck.driverId) staffById(w, truck.driverId).pending += miles;
   if (truck.coDriverId) staffById(w, truck.coDriverId).pending += miles;
+}
+
+// --- Managers (Jeff, 2026-10-29; TODO.md 12, first form) ----------------------------------------
+// A salaried post, hired and let go by the company, paid weekly at the market index: an operations
+// manager and a maintenance manager. Past `requiredAbove` operating trucks a fleet needs them.
+
+export type ManagerRole = "ops" | "maint";
+
+export function hireManager(w: World, c: Company, role: ManagerRole): string | null {
+  if (!w.cfg.labor.managers.enabled) return "managers aren't on";
+  if (c.liquidatingSince !== null) return "in liquidation";
+  if (c.managers[role]) return "that post is filled";
+  c.managers[role] = true;
+  return null;
+}
+
+export function fireManager(w: World, c: Company, role: ManagerRole): string | null {
+  if (!c.managers[role]) return "nobody in that post";
+  c.managers[role] = false;
+  return null;
+}
+
+/** Weekly salaries, a sink. */
+export function payManagers(w: World): void {
+  const k = w.cfg.labor.managers;
+  if (!k.enabled) return;
+  for (const c of w.companies) {
+    for (const role of ["ops", "maint"] as const) {
+      if (!c.managers[role]) continue;
+      const pay = k[role].payPerWeek * w.labor.wageIndex;
+      w.ledger.post(w.t, companyAccount(c.id), "sink:management", pay, `manager:${role}:${c.id}`);
+      c.operating.costFd += pay;
+    }
+  }
+}
+
+/** Breakdown odds: more without a maintenance manager past the threshold, fewer with one. */
+export function managerBreakdownMult(w: World, c: Company): number {
+  const k = w.cfg.labor.managers;
+  if (!k.enabled) return 1;
+  if (c.managers.maint) return k.maint.breakdownWith;
+  return operatingCount(w, c.id) > k.maint.requiredAbove ? k.maint.breakdownWithout : 1;
+}
+
+/** Maintenance per mile: leaner with a maintenance manager. */
+export function managerMaintenanceMult(w: World, c: Company): number {
+  const k = w.cfg.labor.managers;
+  return k.enabled && c.managers.maint ? k.maint.maintenanceWith : 1;
+}
+
+/** Bots (and the auto-staff order): fill a post once the fleet needs it and the cash is there; let it go when the fleet has shrunk well below. */
+export function autoManagers(w: World, c: Company): void {
+  const k = w.cfg.labor.managers;
+  if (!k.enabled || c.liquidatingSince !== null) return;
+  const operating = operatingCount(w, c.id);
+  const cash = w.ledger.balance(companyAccount(c.id));
+  for (const role of ["ops", "maint"] as const) {
+    const need = operating > k[role].requiredAbove;
+    if (need && !c.managers[role] && cash >= k[role].payPerWeek * 8) hireManager(w, c, role);
+    else if (!need && c.managers[role] && operating <= k[role].requiredAbove - 2) fireManager(w, c, role);
+  }
 }

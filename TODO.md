@@ -73,9 +73,14 @@ Order is the working order. Design records live in TOKENOMICS.md (economy) and R
   stakes burn at the reset like wallets; the IFTA-style fuel tax (`costs.fuelTax`, monthly on gallons
   burned); `token.newCompanies.usdWalletMult` as the demand lever and the report's break-even line;
   the vest capped at what the pool absorbs above the launch price. TOKENOMICS.md "The launch price…".
-- **Next, in order:** the sinks that replace the 40% tax — shops, truck stops and fuel stations as
-  player assets (FD price + staked bond), the maintenance market (11) and fleet managers (12); then
-  per-state fuel tax rates once routes carry states (13).
+- **Done (2026-10-29, "the big sinks"):** a national sales tax on every purchase (`costs.salesTax`);
+  shops, truck stops and fuel stations as player businesses (`businesses`: FD price through the
+  catalogue split + staked bond + weekly upkeep); the maintenance market through shops (11, first
+  form: price against the NPC list, parts a sink); operations and maintenance managers as salaried
+  posts (12, first form); the vest at 0.25%/week above the TGE price. TOKENOMICS.md "The big sinks".
+- **Next:** managers as people from the labor pool (skill, poaching, morale); shops' pricing and
+  businesses in the client; per-state fuel tax rates once routes carry states (13); terrain and
+  weather (13); then the switch-on decision from the v29 batches.
 
 ## Items, upgrades and yards (Jeff, 2026-10-29)
 18. **Yards.** More than 5 trucks needs a yard; a yard costs dollars and a staked FD bond, sized by

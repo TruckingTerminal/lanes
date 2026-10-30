@@ -256,6 +256,10 @@ export const economyConfig = {
     // the road and idling, at a flat rate per gallon (no per-state rates until routes carry states).
     // A sink in the player's own month: the bill lands with the month's close.
     fuelTax: { enabled: false, perGal: 0.5 },
+    // A national sales tax (Jeff, 2026-10-29) on every purchase of goods and services: trucks and
+    // trailers, used trucks, facilities, businesses, catalogue items, repairs, rebuilds, maintenance,
+    // a night at a truck stop. Not on fuel (the fuel tax), freight, wages, premiums or stakes. A sink.
+    salesTax: { enabled: false, pct: 0.05 },
   },
 
   // §Assets and supply caps
@@ -374,6 +378,22 @@ export const economyConfig = {
     // A facility's freight rolls like any other (board.rolloverCeilingStep, the owner paying the
     // rising ceiling) and is lost unsold when the owner gives up (board.giveUpAfterRounds): no NPC
     // expediter since 0.17.0.
+  },
+
+  // Player businesses (Jeff, 2026-10-29; TODO.md "the big sinks"): a shop, a truck stop or a fuel
+  // station at a hub, bought for FD through the catalogue split (burn / treasury / reserve) plus a
+  // staked bond, with weekly upkeep. A shop does the hub's maintenance, repairs and rebuilds at its
+  // own price against the NPC shop's list (parts are a sink; the rest is the owner's); a truck stop
+  // halves the idle fuel of trucks resting at the hub for a nightly fee; a fuel station keeps a margin
+  // on the fuel bought at its hub. Owners use their own at cost. Prices scale with the catalogue index.
+  businesses: {
+    enabled: false,
+    maxPerCompany: 3,
+    kinds: {
+      shop: { priceFd: 80_000, bondFd: 40_000, upkeepPerWeekFd: 1_500, perHub: 2, partsShare: 0.6, markupRange: [0.85, 1.0] as const },
+      truckStop: { priceFd: 150_000, bondFd: 50_000, upkeepPerWeekFd: 1_000, perHub: 1, nightlyFd: 10, idleFuelMult: 0.5 },
+      fuelStation: { priceFd: 200_000, bondFd: 80_000, upkeepPerWeekFd: 1_200, perHub: 1, marginPct: 0.04 },
+    },
   },
 
   // §Circular economy — season close (the last 30 in-game days)
@@ -702,7 +722,9 @@ export const economyConfig = {
       // The developer's FD, vested (TOKENOMICS.md "FD only"): after the cliff, at most this share of the
       // treasury's holdings sold into the pool a week, never in a week the price averaged below the launch
       // price, and never more than leaves the pool at or above it after the sale.
-      vest: { cliffWeeks: 26, perWeekShare: 0.005 },
+      // Jeff (2026-10-29): a quarter of a percent at most, only above the TGE price — as little sell
+      // pressure as the game can carry, for as long as it can.
+      vest: { cliffWeeks: 26, perWeekShare: 0.0025 },
       buybackShare: 0.5, // §Burn and buyback: half of revenue buys FD back (all of it burned here); half runs the company
     },
     lockGrants: true, // after launch, starting grants are spend-only (sybils can't cash them out)
@@ -833,6 +855,15 @@ export const economyConfig = {
       botSkill: [0.3, 0.7] as const, // AI owners average a typical driver
       humanSkill: 0.3,
       potential: 0.9,
+    },
+    // Managers (Jeff, 2026-10-29; TODO.md 12, first form: a salaried post, not yet a person from the
+    // pool). Past `requiredAbove` operating trucks a fleet needs them: without an operations manager
+    // its dispatch prices worse (noise up, less lookahead); without a maintenance manager it breaks down
+    // more. With them: tighter pricing, fewer breakdowns, leaner maintenance. Pay is weekly, a sink.
+    managers: {
+      enabled: false,
+      ops: { payPerWeek: 1_500, requiredAbove: 10, noiseWithout: 1.5, noiseWith: 0.8 },
+      maint: { payPerWeek: 1_200, requiredAbove: 10, breakdownWithout: 1.3, breakdownWith: 0.8, maintenanceWith: 0.9 },
     },
     pool: {
       startDrivers: 450,

@@ -469,6 +469,14 @@ each month's close on every gallon burned that month, on the road and idling. Th
 `token.newCompanies.usdWalletMult` as the lever to sweep. See TOKENOMICS.md "The launch price is
 what the dollars support".
 
+**The big sinks (2026-10-29, behind switches).** `costs.salesTax` taxes every purchase of goods and
+services (sink `sales_tax`). `businesses` opens shops, truck stops and fuel stations as player assets
+at a hub, bought for FD through the catalogue split plus a bond, with weekly upkeep (`business_upkeep`):
+a shop does the hub's maintenance, repairs and rebuilds at its own price (parts a sink, `parts`), a
+truck stop halves idling for a nightly fee, a fuel station keeps a margin on its hub's fuel.
+`labor.managers` adds salaried operations and maintenance managers (`management`), needed past ten
+trucks. The vest is 0.25% a week at most, above the TGE price only.
+
 Jeff's direction (2026-10-29, TOKENOMICS.md "The circular economy"): a capped FD supply, staking as
 the bond behind every licence, player-funded pools for insurance, factoring and surety, payment
 terms, and a season schedule for later airdrops. All of it is on main and off by default

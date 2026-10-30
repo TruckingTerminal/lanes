@@ -1,4 +1,5 @@
 import { dayOf } from "./clock.js";
+import { chargeSalesTax, salesTaxOn } from "./salesTax.js";
 import { activeLoanOn, closeLoanFromPoolProceeds, POOL_ACCOUNT, settleLoanFromSale, writeOffLoan } from "./finance.js";
 import { companyAccount } from "./ledger.js";
 import type { Listing, Truck } from "./types.js";
@@ -66,7 +67,7 @@ export function buyListing(w: World, buyerId: number, listingId: number): string
   const buyer = companyById(w, buyerId);
   if (buyer.role !== "carrier") return "only carriers run trucks in Phase 0";
   const buyerAcct = companyAccount(buyerId);
-  if (w.ledger.balance(buyerAcct) < l.askFd) return "insufficient FD";
+  if (w.ledger.balance(buyerAcct) < l.askFd + salesTaxOn(w, l.askFd)) return "insufficient FD";
   const fleet = w.trucksByCompany.get(buyerId)!;
   const npc = fleet.find((t) => t.lease === "npc");
   if (!npc && fleet.length >= truckCap(w, companyById(w, buyerId))) return "company truck cap";
@@ -77,6 +78,7 @@ export function buyListing(w: World, buyerId: number, listingId: number): string
   const net = l.askFd - fee;
   const ref = `listing:${l.id}`;
   w.ledger.post(w.t, buyerAcct, "sink:market_fee", fee, ref);
+  chargeSalesTax(w, buyerId, l.askFd, ref);
   const loan = l.loanId !== null ? w.finance.loans[l.loanId - 1] : undefined;
   const loanOpen = loan !== undefined && (loan.status === "active" || loan.status === "defaulted" || loan.status === "repossessed");
   if (l.sellerId === 0) {

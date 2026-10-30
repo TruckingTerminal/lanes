@@ -1,4 +1,7 @@
 import { acceptOffer, acceptTender, declineOffer, mayTake, rejectTender } from "./contracts.js";
+import { buyBusiness, serviceBill, setShopMarkup } from "./businesses.js";
+import { fireManager, hireManager } from "./labor.js";
+import { chargeSalesTax } from "./salesTax.js";
 import { bookLoad } from "./board.js";
 import { offerFd } from "./buyback.js";
 import { leaseTruck, returnLease } from "./capacity.js";
@@ -101,6 +104,13 @@ export function badInput(cfg: EconomyConfig, a: Action): string | null {
       return a.terms === "net" || a.terms === "quick" || a.terms === "factor" ? null : "bad terms";
     case "buy_item":
       return ["yardSmall", "yardLarge", "apu", "aero", "tires", "sleeper"].includes(a.item) && (a.pay === "fd" || a.pay === "usd") && (a.truckId === undefined || isId(a.truckId)) ? null : "bad item";
+    case "buy_business":
+      return (a.kind === "shop" || a.kind === "truckStop" || a.kind === "fuelStation") && typeof a.hubId === "string" ? null : "bad business";
+    case "set_shop_markup":
+      return isId(a.businessId) && finiteIn(a.markup, 0.5, 2) ? null : "bad markup";
+    case "hire_manager":
+    case "fire_manager":
+      return a.role === "ops" || a.role === "maint" ? null : "bad role";
     case "offer_fd":
       return isFd(a.amountFd) && finiteIn(a.minPriceUsd, 0, 1e6) ? null : "bad offer";
     case "offer_staff":
@@ -245,8 +255,7 @@ export function applyAction(w: World, companyId: number, action: Action): Action
       if (truck.defects === 0) return { ok: false, reason: "nothing to fix" };
       const cost = truck.defects * cfg.safety.maintenance.fixFdPerDefect;
       if (w.ledger.balance(acct) < cost) return { ok: false, reason: "insufficient FD" };
-      w.ledger.post(w.t, acct, "sink:repairs", cost, `fix:${truck.id}`);
-      company.operating.costFd += cost;
+      company.operating.costFd += serviceBill(w, company, truck.hub, cost, "repairs", `fix:${truck.id}`); // the hub's shop, or the NPC shop
       truck.defects = 0;
       return { ok: true };
     }
@@ -357,6 +366,7 @@ export function applyAction(w: World, companyId: number, action: Action): Action
       if (w.ledger.balance(acct) < price) return { ok: false, reason: "insufficient FD" };
 
       w.ledger.post(w.t, acct, "sink:equipment_dealer", price, `buy:${company.id}:${action.tier}:${action.trailer}`);
+      chargeSalesTax(w, company.id, price, `buy:${company.id}:${action.tier}:${action.trailer}`);
       takeSupply(w, action.tier, action.trailer, firstTruck);
       placeOrder(w, company, action.tier, action.trailer, replacing);
       company.firstOwnedTruckDay ??= dayOf(w.t, cfg);
@@ -372,8 +382,7 @@ export function applyAction(w: World, companyId: number, action: Action): Action
       if (condition(cfg, truck) > cfg.wear.rebuildMaxCondition) return { ok: false, reason: "not worn enough to rebuild" };
       const cost = rebuildCost(cfg, truck) * (1 - stakeDiscount(w, company)); // locked FD earns its discount (staking.ts)
       if (w.ledger.balance(acct) < cost) return { ok: false, reason: "insufficient FD" };
-      w.ledger.post(w.t, acct, "sink:rebuild", cost, `rebuild:${truck.id}`);
-      company.operating.costFd += cost;
+      company.operating.costFd += serviceBill(w, company, truck.hub, cost, "rebuild", `rebuild:${truck.id}`); // the hub's shop, or the NPC shop
       truck.status = "repair";
       truck.repairUntilT = w.t + cfg.wear.rebuildDays * cfg.time.gameMinutesPerDay;
       truck.milesSinceRebuild = 0;
@@ -505,6 +514,18 @@ export function applyAction(w: World, companyId: number, action: Action): Action
     case "buy_item":
       return result(buyItem(w, company, action.item, action.pay, action.truckId));
 
+    case "buy_business":
+      return result(buyBusiness(w, company, action.kind, action.hubId));
+
+    case "set_shop_markup":
+      return result(setShopMarkup(w, company, action.businessId, action.markup));
+
+    case "hire_manager":
+      return result(hireManager(w, company, action.role));
+
+    case "fire_manager":
+      return result(fireManager(w, company, action.role));
+
     case "set_pay_terms": {
       // Factoring is a contract: choosing it signs one (stake and all); leaving it before the term forfeits the stake.
       if (action.terms === "factor") return result(company.factoring ? null : signFactoring(w, company));
@@ -529,6 +550,7 @@ export function applyAction(w: World, companyId: number, action: Action): Action
       const price = cfg.facilities.types[action.facility].priceFd;
       if (w.ledger.balance(acct) < price) return { ok: false, reason: "insufficient FD" };
       w.ledger.post(w.t, acct, "sink:facility_dealer", price, `facility:${company.id}:${action.facility}`);
+      chargeSalesTax(w, company.id, price, `facility:${company.id}:${action.facility}`);
       w.facilitySupply[action.facility]--;
       w.facilities.push({
         id: w.facilities.length + 1,

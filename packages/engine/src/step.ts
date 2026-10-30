@@ -13,6 +13,9 @@ import { billInsurance, dailyInsurance, monthlyInsurance } from "./insurance.js"
 import { chargeYards } from "./home.js";
 import { monthlyDealerPrices } from "./dealer.js";
 import { monthlyFuelTax } from "./fuelTax.js";
+import { truckStopAt, weeklyBusinesses } from "./businesses.js";
+import { payManagers } from "./labor.js";
+import { chargeSalesTax } from "./salesTax.js";
 import { dailyLabor, monthlyLabor, payDispatchers, weeklyLabor } from "./labor.js";
 import { dailyStaking, stakeDiscount } from "./staking.js";
 import { dailyPools, poolAccount, poolMarkup, poolsOn } from "./pools.js";
@@ -81,15 +84,25 @@ function endOfDay(w: World, day: number, agents?: DailyAgentHook): void {
     }
     if (truck.status === "idle" && truck.companyId && truck.driverId && idleFuel > 0) {
       const c = companyById(w, truck.companyId);
-      const burned = idleFuel * (truck.mods.apu ? 0.5 : 1) * (1 - stakeDiscount(w, c)); // an APU halves it; locked FD earns its discount
-      c.fuelGalMonth += cfg.costs.idleFuelGalPerDay * (truck.mods.apu ? 0.5 : 1);
+      // A player truck stop at the hub halves the idling (shore power) for a nightly fee (businesses.ts).
+      const stop = truckStopAt(w, truck.hub);
+      const shore = stop ? cfg.businesses.kinds.truckStop.idleFuelMult : 1;
+      const burned = idleFuel * (truck.mods.apu ? 0.5 : 1) * shore * (1 - stakeDiscount(w, c)); // an APU halves it; locked FD earns its discount
+      c.fuelGalMonth += cfg.costs.idleFuelGalPerDay * (truck.mods.apu ? 0.5 : 1) * shore;
       w.ledger.post(w.t, companyAccount(truck.companyId), "sink:idle_fuel", burned, `idle:${truck.id}`);
       c.operating.costFd += burned;
+      if (stop && stop.ownerId !== c.id) {
+        const fee = cfg.businesses.kinds.truckStop.nightlyFd;
+        w.ledger.post(w.t, companyAccount(c.id), companyAccount(stop.ownerId), fee, `park:${truck.id}`);
+        stop.netFd += fee;
+        c.operating.costFd += fee + chargeSalesTax(w, c.id, fee, `park:${truck.id}`);
+      }
     }
   }
 
   // Facility upkeep, weekly (§Assets and supply caps).
   if ((day + 1) % 7 === 0) {
+    weeklyBusinesses(w);
     for (const f of w.facilities) {
       if (f.ownerId === 0) continue;
       const upkeep = cfg.facilities.types[f.type].upkeepPerWeekFd;
@@ -109,6 +122,7 @@ function endOfDay(w: World, day: number, agents?: DailyAgentHook): void {
     serviceLoans(w);
     stepListings(w);
     payDispatchers(w);
+    payManagers(w);
     billInsurance(w);
     chargeYards(w);
     weeklyLabor(w);

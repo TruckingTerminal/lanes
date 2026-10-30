@@ -55,6 +55,7 @@ import {
   type StandingOrder,
   type World,
 } from "@lanes/engine";
+import { businessesOf, businessPriceFd, type BusinessKind } from "@lanes/engine";
 
 /**
  * Tier A rule bots (§AI-agent simulation): scripted greedy, conservative and
@@ -861,6 +862,8 @@ export const ruleBotHook: DailyAgentHook = (w) => {
       if (p.payToWin && c.weeksInDebt >= 1) buyFdFor(w, c, -w.ledger.balance(acct) + 2_000);
     }
 
+    if (cfg.businesses.enabled) maybeBuyBusiness(w, c, p, rng, dayOf(w.t, cfg));
+
     if (c.role === "carrier") {
       adaptPricing(w, c, p);
       recordOperating(c, p, dayOf(w.t, cfg));
@@ -1000,3 +1003,28 @@ export const ruleBotHook: DailyAgentHook = (w) => {
     else if (cfg.buyback.enabled && !cfg.token.enabled) offerToBuyback(w, c, p, today);
   }
 };
+
+/**
+ * Businesses (0.18.0): once a week, a bot with cash well clear of its reserve buys one at its home
+ * hub — carriers a shop first, brokers a station or a truck stop — and a new shop prices its work
+ * somewhere under the NPC shop's list.
+ */
+function maybeBuyBusiness(w: World, c: Company, p: BotProfile, rng: Rng, today: number): void {
+  const k = w.cfg.businesses;
+  if ((today + c.id) % 7 !== 3 || businessesOf(w, c.id).length >= k.maxPerCompany) return;
+  if (rng.next() > 0.25) return;
+  const kinds: BusinessKind[] = c.role === "broker" ? ["fuelStation", "truckStop"] : ["shop", "truckStop", "fuelStation"];
+  const cash = w.ledger.balance(companyAccount(c.id)) - reserve(w, c, p);
+  const hubId = w.net.hubs[c.homeHub]!.id;
+  for (const kind of kinds) {
+    const spec = k.kinds[kind];
+    if (cash < (businessPriceFd(w, kind) + spec.bondFd) * 1.5) continue;
+    if (!applyAction(w, c.id, { type: "buy_business", kind, hubId }).ok) continue;
+    if (kind === "shop") {
+      const b = businessesOf(w, c.id).at(-1)!;
+      const [lo, hi] = k.kinds.shop.markupRange;
+      applyAction(w, c.id, { type: "set_shop_markup", businessId: b.id, markup: rng.range(lo, hi) });
+    }
+    return;
+  }
+}

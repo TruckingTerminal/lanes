@@ -10,6 +10,7 @@
 import { clamp } from "./economics.js";
 import { companyAccount } from "./ledger.js";
 import { contractAccount } from "./receivables.js";
+import { chargeSalesTax, salesTaxOn } from "./salesTax.js";
 import { tokenLive } from "./token.js";
 import type { Company, ItemKind, TruckMod } from "./types.js";
 import { truckById, type World } from "./world.js";
@@ -72,11 +73,12 @@ export function buyItem(w: World, c: Company, item: ItemKind, pay: "fd" | "usd",
     w.token.treasury.seedEscrowUsd += usd; // held for the launch pool, every dollar of it
   } else {
     const price = itemPriceFd(w, item);
-    if (w.ledger.balance(acct) < price + bondDue) return "insufficient FD";
+    if (w.ledger.balance(acct) < price + bondDue + salesTaxOn(w, price)) return "insufficient FD";
     const s = k.split;
     w.ledger.post(w.t, acct, "sink:asset_burn", price * s.burn, ref);
     w.ledger.post(w.t, acct, "alloc:treasury", price * s.treasury, ref);
     w.ledger.post(w.t, acct, "sink:asset_reserve", price * s.reserve, ref);
+    chargeSalesTax(w, c.id, price, ref);
   }
   if (bondDue > 0) {
     w.ledger.post(w.t, acct, contractAccount(c.id), bondDue, `bond:yard:${c.id}`);

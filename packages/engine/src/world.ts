@@ -4,7 +4,7 @@ import { Ledger, companyAccount } from "./ledger.js";
 import { truckCap } from "./staking.js";
 import { newPool } from "./pools.js";
 import { Rng } from "./rng.js";
-import type { BuybackWeek, GameEvent, TokenState, Company, Facility, FinancePool, FraudCase, LeaseKind, Listing, Load, Pool, PoolLine, Receivable, Role, SeasonCloseRecord, Staff, StandingOrder, Truck, TruckOrder, Contract } from "./types.js";
+import type { BuybackWeek, GameEvent, TokenState, Company, Business, Facility, FinancePool, FraudCase, LeaseKind, Listing, Load, Pool, PoolLine, Receivable, Role, SeasonCloseRecord, Staff, StandingOrder, Truck, TruckOrder, Contract } from "./types.js";
 import { signPolicy } from "./insurance.js";
 import { seedPool } from "./labor.js";
 import { MetricsRecorder } from "./metrics.js";
@@ -46,6 +46,7 @@ export interface World {
   /** Part of the Workhorse and dry-van supply held for first-truck buyers. */
   starterReserve: { workhorse: number; van: number };
   facilities: Facility[];
+  businesses: Business[];
   /** Facilities remaining in the PoC supply. */
   facilitySupply: Record<FacilityType, number>;
   seasonCloses: SeasonCloseRecord[];
@@ -164,6 +165,7 @@ export function createWorld(o: WorldOptions): World {
       van: Math.round(cfg.trailers.van.pocCap * cfg.starterReserveShare),
     },
     facilities: [],
+    businesses: [],
     facilitySupply: {
       warehouse: cfg.facilities.types.warehouse.pocCap,
       coldStorage: cfg.facilities.types.coldStorage.pocCap,
@@ -522,6 +524,7 @@ export function formCompany(w: World, c: NewCompany): Company {
     yardBondFd: 0,
     usdSpentBeta: 0,
     fuelGalMonth: 0,
+    managers: { ops: false, maint: false },
     suretyWriter: "npc",
     suretyClaimedFd: 0,
     seasonBase: { miles: 0, profit: 0 },

@@ -78,6 +78,9 @@ import { monthlyFuelTax } from "../src/fuelTax.js";
 import { stakeAccount } from "../src/staking.js";
 import { payTripCosts } from "../src/trips.js";
 import { createTruck } from "../src/world.js";
+import { businessesOf, payFuel, serviceBill, shopAt } from "../src/businesses.js";
+import { dispatchProfile, managerBreakdownMult, payManagers } from "../src/labor.js";
+import type { Company } from "../src/types.js";
 
 const net = buildNetwork(hubs, cfg);
 /** Same economy with breakdowns switched off, for tests that time trips exactly. */
@@ -1438,6 +1441,120 @@ describe("the fuel tax and the lean launch (0.18.0)", () => {
     expect(w.token.launch!.resetBurnedFd).toBeGreaterThanOrEqual(stake);
     // The float the dollars must support is what survived: working capital and the day-one airdrop, no stake.
     expect(w.token.launch!.floatFd).toBeCloseTo(w.ledger.balance(companyAccount(a.id)), 2);
+    w.ledger.assertBalanced();
+  });
+});
+
+describe("the big sinks (0.18.0): sales tax, player businesses, the maintenance market, managers", () => {
+  const sinks: EconomyConfig = {
+    ...calm,
+    costs: { ...calm.costs, salesTax: { enabled: true, pct: 0.05 } },
+    businesses: { ...calm.businesses, enabled: true },
+    labor: { ...calm.labor, managers: { ...calm.labor.managers, enabled: true } },
+  };
+  const hubIdOf = (w: World, c: Company) => w.net.hubs[c.homeHub]!.id;
+
+  it("charges the sales tax on a purchase and on a used truck, and never on freight", () => {
+    const cat: EconomyConfig = { ...sinks, token: { ...sinks.token, catalogue: { ...sinks.token.catalogue, enabled: true } } };
+    const w = createWorld({ cfg: cat, net, feeds: neutralFeeds, seed: 70, keepLedgerEntries: true });
+    const a = carrier(w, "A");
+    fund(w, a.id, 200_000);
+    const price = itemPriceFd(w, "yardSmall");
+    const before = w.ledger.balance(companyAccount(a.id));
+    expect(applyAction(w, a.id, { type: "buy_item", item: "yardSmall", pay: "fd" })).toEqual({ ok: true });
+    const bond = cat.token.catalogue.items.yardSmall.bondFd;
+    expect(before - w.ledger.balance(companyAccount(a.id))).toBeCloseTo(price + bond + price * 0.05, 2);
+    expect(w.ledger.entries.filter((e) => e.to === "sink:sales_tax").reduce((s, e) => s + e.amount, 0)).toBeCloseTo(price * 0.05, 2);
+    w.ledger.assertBalanced();
+  });
+
+  it("sells a shop at a hub for FD plus a bond, lets it price the hub's repairs under the NPC shop, and pays the owner the margin over parts", () => {
+    const w = createWorld({ cfg: sinks, net, feeds: neutralFeeds, seed: 71, keepLedgerEntries: true });
+    const owner = carrier(w, "Owner");
+    const cust = carrier(w, "Customer");
+    owner.homeHub = cust.homeHub;
+    fund(w, owner.id, 300_000);
+    fund(w, cust.id, 50_000);
+    const spec = sinks.businesses.kinds.shop;
+    const hubId = hubIdOf(w, owner);
+    const before = w.ledger.balance(companyAccount(owner.id));
+    expect(applyAction(w, owner.id, { type: "buy_business", kind: "shop", hubId })).toEqual({ ok: true });
+    expect(before - w.ledger.balance(companyAccount(owner.id))).toBeCloseTo(spec.priceFd + spec.bondFd + spec.priceFd * 0.05, 2);
+    expect(w.ledger.balance(contractAccount(owner.id))).toBeCloseTo(spec.bondFd, 2);
+    const shop = businessesOf(w, owner.id)[0]!;
+    expect(applyAction(w, owner.id, { type: "set_shop_markup", businessId: shop.id, markup: 0.9 })).toEqual({ ok: true });
+    expect(shopAt(w, owner.homeHub, cust.id)).toBe(shop);
+    // A second shop fits, a third doesn't; the cap per company holds too.
+    expect(applyAction(w, owner.id, { type: "buy_business", kind: "shop", hubId })).toEqual({ ok: true });
+    expect(applyAction(w, owner.id, { type: "buy_business", kind: "shop", hubId }).ok).toBe(false);
+    // The customer's repair bill at the hub: 90% of list, of which 60% is parts (a sink) and 30% the owner's; sales tax on the bill.
+    const list = 1_000;
+    const o0 = w.ledger.balance(companyAccount(owner.id));
+    const c0 = w.ledger.balance(companyAccount(cust.id));
+    const paid = serviceBill(w, cust, cust.homeHub, list, "repairs", "test");
+    expect(paid).toBeCloseTo(900 * 1.05, 6);
+    expect(c0 - w.ledger.balance(companyAccount(cust.id))).toBeCloseTo(900 * 1.05, 2);
+    expect(w.ledger.balance(companyAccount(owner.id)) - o0).toBeCloseTo(300, 2);
+    expect(w.ledger.entries.filter((e) => e.to === "sink:parts").reduce((s, e) => s + e.amount, 0)).toBeCloseTo(600, 2);
+    // The owner's own trucks pay parts only.
+    const o1 = w.ledger.balance(companyAccount(owner.id));
+    expect(serviceBill(w, owner, owner.homeHub, list, "maintenance", "test")).toBeCloseTo(600 * 1.05, 6);
+    expect(o1 - w.ledger.balance(companyAccount(owner.id))).toBeCloseTo(600 * 1.05, 2);
+    // Liquidation closes the shops and returns the bonds to cash.
+    startLiquidation(w, owner);
+    expect(businessesOf(w, owner.id)).toHaveLength(0);
+    expect(w.ledger.balance(contractAccount(owner.id))).toBeCloseTo(0, 2);
+    expect(shopAt(w, cust.homeHub, cust.id)).toBeNull();
+    w.ledger.assertBalanced();
+  });
+
+  it("gives a fuel station its margin on the fuel bought at its hub, and a truck stop its nightly fee for half the idling", () => {
+    const w = createWorld({ cfg: sinks, net, feeds: neutralFeeds, seed: 72, keepLedgerEntries: true });
+    const owner = carrier(w, "Owner");
+    const cust = carrier(w, "Customer");
+    owner.homeHub = cust.homeHub;
+    fund(w, owner.id, 600_000);
+    fund(w, cust.id, 50_000);
+    const hubId = hubIdOf(w, owner);
+    expect(applyAction(w, owner.id, { type: "buy_business", kind: "fuelStation", hubId })).toEqual({ ok: true });
+    expect(applyAction(w, owner.id, { type: "buy_business", kind: "truckStop", hubId })).toEqual({ ok: true });
+    const o0 = w.ledger.balance(companyAccount(owner.id));
+    payFuel(w, cust, cust.homeHub, 1_000, "test");
+    expect(w.ledger.balance(companyAccount(owner.id)) - o0).toBeCloseTo(1_000 * sinks.businesses.kinds.fuelStation.marginPct, 2);
+    expect(w.ledger.entries.filter((e) => e.to === "sink:fuel").reduce((s, e) => s + e.amount, 0)).toBeCloseTo(1_000 * (1 - sinks.businesses.kinds.fuelStation.marginPct), 2);
+    // A crewed truck idle at the hub overnight: half the idle fuel, plus the nightly fee (taxed) to the stop's owner.
+    const t = createTruck(w, cust, "owned", "workhorse", "van");
+    const driver = w.staffByCompany.get(cust.id)!.find((s) => s.owner)!;
+    t.driverId = driver.id;
+    driver.truckId = t.id;
+    const o1 = w.ledger.balance(companyAccount(owner.id));
+    const fuelBefore = w.ledger.entries.filter((e) => e.to === "sink:idle_fuel").reduce((s, e) => s + e.amount, 0);
+    runDays(w, 1);
+    const idle = w.ledger.entries.filter((e) => e.to === "sink:idle_fuel").reduce((s, e) => s + e.amount, 0) - fuelBefore;
+    const perNight = sinks.costs.idleFuelGalPerDay * w.metrics.days.at(-1)!.fuelPrice;
+    expect(idle).toBeCloseTo(perNight * sinks.businesses.kinds.truckStop.idleFuelMult, 1);
+    expect(w.ledger.balance(companyAccount(owner.id)) - o1).toBeCloseTo(sinks.businesses.kinds.truckStop.nightlyFd, 1);
+    w.ledger.assertBalanced();
+  });
+
+  it("pays managers weekly and lets them move breakdowns and dispatch noise, with the penalty past the threshold", () => {
+    const w = createWorld({ cfg: sinks, net, feeds: neutralFeeds, seed: 73, keepLedgerEntries: true });
+    const a = carrier(w, "A");
+    fund(w, a.id, 100_000);
+    const k = sinks.labor.managers;
+    for (let i = 0; i < k.maint.requiredAbove + 2; i++) createTruck(w, a, "owned", "workhorse", "van");
+    expect(managerBreakdownMult(w, a)).toBe(k.maint.breakdownWithout);
+    const without = dispatchProfile(w, a, k.ops.requiredAbove + 2).noise;
+    expect(applyAction(w, a.id, { type: "hire_manager", role: "maint" })).toEqual({ ok: true });
+    expect(applyAction(w, a.id, { type: "hire_manager", role: "ops" })).toEqual({ ok: true });
+    expect(applyAction(w, a.id, { type: "hire_manager", role: "ops" }).ok).toBe(false);
+    expect(managerBreakdownMult(w, a)).toBe(k.maint.breakdownWith);
+    expect(dispatchProfile(w, a, k.ops.requiredAbove + 2).noise).toBeCloseTo((without / k.ops.noiseWithout) * k.ops.noiseWith, 9);
+    const before = w.ledger.balance(companyAccount(a.id));
+    payManagers(w);
+    expect(before - w.ledger.balance(companyAccount(a.id))).toBeCloseTo((k.ops.payPerWeek + k.maint.payPerWeek) * w.labor.wageIndex, 2);
+    expect(applyAction(w, a.id, { type: "fire_manager", role: "ops" })).toEqual({ ok: true });
+    expect(a.managers.ops).toBe(false);
     w.ledger.assertBalanced();
   });
 });

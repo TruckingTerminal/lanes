@@ -443,3 +443,27 @@ brings dollars. Price is pool dollars over pool FD. So:
 5. **The vest sells only above the launch price**, and only as much as leaves the pool at or above it
    after the sale (the v27-b batch, before this, vested 117M FD into a $30k pool because the price
    history recorded the floor-held ask; it records the pool's price now).
+
+## The big sinks (Jeff, 2026-10-29; built, behind the 0.18.0 switches)
+
+Jeff's direction: as little sell pressure as possible, as much longevity as possible. The sinks that
+replace the 40% tax, each a config switch, each a reason to hold or buy FD:
+
+1. **A national sales tax** (`costs.salesTax`, 5%) on every purchase of goods and services: trucks and
+   trailers, used trucks, facilities, businesses, catalogue items, repairs, rebuilds, maintenance, a
+   night at a truck stop. Not on fuel (the fuel tax), freight, wages, premiums or stakes.
+2. **Player businesses** (`businesses`): a shop, a truck stop or a fuel station at a hub, bought for FD
+   through the catalogue split (half burned, a quarter to the treasury, a quarter to the reserve) plus
+   a staked bond, with weekly upkeep (a sink), at most three per company and a few per hub.
+   - A **shop** is the maintenance market: it does the hub's maintenance, repairs and rebuilds at its
+     own price against the NPC shop's list. Parts (60% of list) are a sink; the rest is the owner's.
+     Carriers use the cheapest shop at the hub that beats the NPC shop; the owner's own trucks pay parts.
+   - A **truck stop** halves the idle fuel of trucks resting at its hub (shore power) for a nightly fee.
+   - A **fuel station** keeps a 4% margin on the fuel bought at its hub; its owner fuels at wholesale.
+3. **Managers** (`labor.managers`): an operations manager and a maintenance manager, salaried weekly
+   (a sink). Past ten operating trucks a fleet needs them: without, dispatch prices worse and looks
+   less far ahead, and breakdowns rise 30%; with, pricing tightens, breakdowns fall 20% and maintenance
+   runs 10% leaner. First form: a post the company fills, not yet a person from the labor pool.
+4. **The fuel tax** (above), monthly on gallons burned.
+5. **The vest** at a quarter of a percent of the treasury a week at most, only above the TGE price,
+   and only as much as leaves the pool at or above it.

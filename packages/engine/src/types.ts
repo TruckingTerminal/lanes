@@ -217,6 +217,8 @@ export interface Company {
   minBrokerCredit: number;
   /** Gallons burned this month, on the road and idling, for the monthly fuel tax (fuelTax.ts). */
   fuelGalMonth: number;
+  /** Salaried posts (labor.ts managers): an operations manager and a maintenance manager. */
+  managers: { ops: boolean; maint: boolean };
   /** The catalogue (items.ts): the yard, its bond, and dollars spent in the farming season's window. */
   yard: "none" | "small" | "large";
   yardBondFd: number;
@@ -579,6 +581,24 @@ export interface Facility {
   netFd: number;
 }
 
+export type BusinessKind = "shop" | "truckStop" | "fuelStation";
+
+/** A player business at a hub (businesses.ts): a shop, a truck stop or a fuel station. */
+export interface Business {
+  id: number;
+  kind: BusinessKind;
+  /** 0 once closed (its owner liquidated): the slot is back in supply. */
+  ownerId: number;
+  hub: number;
+  boughtDay: number;
+  /** The staked bond behind it, returned when it closes. */
+  bondFd: number;
+  /** Shops: the price of their work against the NPC shop's list (1 = list). */
+  markup: number;
+  /** Running FD result for the owner: margins − purchase − upkeep. */
+  netFd: number;
+}
+
 /** A dealer order: paid at order, delivered after the lead time. */
 export interface TruckOrder {
   id: number;
@@ -679,6 +699,10 @@ export type Action =
   | { type: "withdraw_pool"; line: PoolLine; amountFd: number }
   | { type: "set_pay_terms"; terms: "net" | "quick" | "factor" }
   | { type: "buy_item"; item: ItemKind; pay: "fd" | "usd"; truckId?: number }
+  | { type: "buy_business"; kind: BusinessKind; hubId: string }
+  | { type: "set_shop_markup"; businessId: number; markup: number }
+  | { type: "hire_manager"; role: "ops" | "maint" }
+  | { type: "fire_manager"; role: "ops" | "maint" }
   | { type: "claim_airdrop_now" }
   /** Standing offer in the weekly buyback auction; amount 0 withdraws it. */
   | { type: "offer_fd"; amountFd: number; minPriceUsd: number }

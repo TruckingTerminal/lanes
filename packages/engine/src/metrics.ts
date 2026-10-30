@@ -47,6 +47,7 @@ export interface DayMetrics {
   ownedTrucks: number;
   facilityPosted: number;
   facilities: number;
+  businesses: number;
   breakdowns: number;
   rebuilds: number;
   /** Mean condition of owned trucks (1 = fresh). */
@@ -270,6 +271,7 @@ export class MetricsRecorder {
       ownedTrucks: owned,
       facilityPosted: a.facilityPosted,
       facilities: w.facilities.length,
+      businesses: w.businesses.filter((b) => b.ownerId > 0).length,
       breakdowns: a.breakdowns,
       rebuilds: a.rebuilds,
       avgOwnedCondition: owned ? conditionSum / owned : 1,

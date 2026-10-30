@@ -13,6 +13,7 @@ import { forfeitAirdrop } from "./token.js";
 import { releaseStake } from "./staking.js";
 import { releaseContractStakes } from "./receivables.js";
 import { releaseYard } from "./items.js";
+import { releaseBusinesses } from "./businesses.js";
 import { createTruck, freshPaperwork, newSafetyRecord, type World } from "./world.js";
 
 /**
@@ -67,6 +68,7 @@ export function startLiquidation(w: World, c: Company): void {
   c.orders = [];
   releaseContractStakes(w, c); // contract stakes go first to the pool holding the company's paper
   releaseYard(w, c); // the yard is lost; its bond comes back for the creditors
+  releaseBusinesses(w, c); // the businesses close; their bonds come back for the creditors
   releaseStake(w, c); // the licence stake pays creditors before anything else
   for (const t of w.trucksByCompany.get(c.id)!) w.manualBids.delete(t.id);
   const deposited = depositorValue(w, c.id);
