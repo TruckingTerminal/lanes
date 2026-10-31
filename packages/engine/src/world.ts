@@ -78,6 +78,8 @@ export interface World {
   robbery: RobberyState;
   /** The unlock ladder (ladder.ts): the day each layer opened after launch, null while closed. */
   ladder: Record<Layer, number | null>;
+  /** The NPC used lot (usedMarket.npcLot): rigs on the lot, and rigs sold. */
+  usedLot: { stock: number; sold: number };
   purchaseLending: { madeFd: number; interestFd: number; defaults: number; seized: number; writtenOffFd: number; stakeSlashedFd: number };
   /** Published stabilizers (§Circular economy — targets and stabilizers). */
   stab: { volumeMult: number; rackSpread: number; rateMult: number };
@@ -207,6 +209,7 @@ export function createWorld(o: WorldOptions): World {
     purchaseLoans: [],
     robbery: newRobberyState(),
     ladder: { businesses: null, brokerage: null, robbery: null },
+    usedLot: { stock: cfg.usedMarket.npcLot.stock, sold: 0 },
     purchaseLending: { madeFd: 0, interestFd: 0, defaults: 0, seized: 0, writtenOffFd: 0, stakeSlashedFd: 0 },
     finance: {
       shares: new Map(),

@@ -626,6 +626,11 @@ What each one takes out of circulation, and from whom:
   225k, a HighwayPro 285k, a Flagship 345k; a dry van 68k, a reefer 128k, a flatbed 75k), rebuilds and
   refurbishments scaled with them. With the asset rules on, a truck loses value with the life it uses, so
   the cheapest running trucks sit near a quarter of new: Jeff's $200k-to-$50k ratio.
+- **The NPC used lot** (`usedMarket.npcLot`): the NPC dealer also sells worn rigs (four years, 450k miles,
+  condition 0.4) at their used value, about a quarter of new at the asset rules' depreciation, so the real
+  ratio of a $50k used truck to a $200k new one holds with prices at the realistic level. A sale is a sink
+  like the dealer's; the rig costs more to run (fuel, maintenance, breakdowns) and needs its rebuild sooner.
+  Priced at its own value, so it can't be bought cheap and resold.
 - **Leases by value** (`freeEntry.leases.byValue`): a lease pays at least 0.5% of the truck's value a week,
   and the lessor holds a refundable deposit of 25% of it (paid up front on an extra lease, held back from
   the free path's settlements until whole). Rent is a sink; the deposit is FD out of circulation while held.

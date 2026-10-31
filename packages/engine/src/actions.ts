@@ -9,7 +9,7 @@ import { offerFd } from "./buyback.js";
 import { leaseTruck, returnLease } from "./capacity.js";
 import { buyFd, claimAirdropNow, sellFd } from "./token.js";
 import { dayOf } from "./clock.js";
-import { dealerPrice, ordersOf, placeOrder, tractorOrdersOf, tractorPrice, trailerOrdersOf, trailerPrice } from "./dealer.js";
+import { dealerPrice, lotPrice, lotSpec, ordersOf, placeOrder, tractorOrdersOf, tractorPrice, trailerOrdersOf, trailerPrice } from "./dealer.js";
 import { fitTrailer, hook, hookedTrailer, ownedTrailers, rentTrailer, scrapTrailer, syncTrailer, trailerById, trailerCap, trailerCondition, trailerRefurbishable, unhook } from "./trailers.js";
 import { scrapOwnedTractor } from "./assets.js";
 import { dealershipPrice, npcDealerDays, npcDealerMult, sellFromStock, tradeIn } from "./dealerships.js";
@@ -59,7 +59,7 @@ export function badInput(cfg: EconomyConfig, a: Action): string | null {
     case "set_standing_orders":
       return invalidOrders(cfg, a.orders);
     case "buy_asset":
-      return TIERS.has(a.tier) && TRAILERS.has(a.trailer) && typeof a.replaceNpcLease === "boolean" && (a.tractorOnly === undefined || typeof a.tractorOnly === "boolean") && (a.dealershipId === undefined || isId(a.dealershipId)) && (a.finance === undefined || typeof a.finance === "boolean") ? null : "bad truck";
+      return TIERS.has(a.tier) && TRAILERS.has(a.trailer) && typeof a.replaceNpcLease === "boolean" && (a.tractorOnly === undefined || typeof a.tractorOnly === "boolean") && (a.dealershipId === undefined || isId(a.dealershipId)) && (a.finance === undefined || typeof a.finance === "boolean") && (a.used === undefined || typeof a.used === "boolean") ? null : "bad truck";
     case "buy_trailer":
       return TRAILERS.has(a.trailer) && (a.dealershipId === undefined || isId(a.dealershipId)) ? null : "bad trailer";
     case "trade_in":
@@ -428,6 +428,29 @@ export function applyAction(w: World, companyId: number, action: Action): Action
           return { ok: false, reason: why };
         }
         const order = placeOrder(w, company, action.tier, action.trailer, replacing, kind, cfg.businesses.kinds.dealership.deliveryDays);
+        if (loan) loan.orderId = order.id;
+        company.firstOwnedTruckDay ??= dayOf(w.t, cfg);
+        return { ok: true };
+      }
+      // The NPC used lot (usedMarket.npcLot): a worn rig at its used value, from the lot's stock, delivered like a new one.
+      if (action.used) {
+        if (!cfg.usedMarket.npcLot.enabled || !cfg.assets.enabled) return { ok: false, reason: "there's no used lot" };
+        if (kind !== "rig" || action.dealershipId) return { ok: false, reason: "the used lot sells whole rigs" };
+        if (w.usedLot.stock < 1) return { ok: false, reason: "the used lot is empty this week" };
+        const price = lotPrice(w, action.tier, action.trailer) * npcDealerMult(w);
+        const loan = action.finance ? financePurchase(w, company, price) : null;
+        if (typeof loan === "string") return { ok: false, reason: loan };
+        if (w.ledger.balance(acct) < price) {
+          if (loan) cancelPurchaseLoan(w, loan);
+          return { ok: false, reason: "insufficient FD" };
+        }
+        const ref = `buy:used:${company.id}:${action.tier}:${action.trailer}`;
+        w.ledger.post(w.t, acct, "sink:used_lot", price, ref);
+        chargeSalesTax(w, company.id, price, ref);
+        w.usedLot.stock--;
+        w.usedLot.sold++;
+        const order = placeOrder(w, company, action.tier, action.trailer, replacing, kind, npcDealerDays(w));
+        order.used = lotSpec(w, action.trailer);
         if (loan) loan.orderId = order.id;
         company.firstOwnedTruckDay ??= dayOf(w.t, cfg);
         return { ok: true };

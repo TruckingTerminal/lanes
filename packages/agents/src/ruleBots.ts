@@ -80,6 +80,7 @@ import {
 import { businessesOf, businessPriceFd, sitePriceFd, type BusinessKind } from "@lanes/engine";
 import { financedCashNeed, openPurchaseLoans, purchaseTerms, salesTaxOn } from "@lanes/engine";
 import { crewFeeFd, crewOn, fittingsCut, hubTheftRisk, securityTheftMult } from "@lanes/engine";
+import { lotPrice, npcDealerMult } from "@lanes/engine";
 
 /**
  * Tier A rule bots (§AI-agent simulation): scripted greedy, conservative and
@@ -1277,8 +1278,13 @@ export const ruleBotHook: DailyAgentHook = (w) => {
           const usedOnLoan = used || npcTruck.status !== "idle" ? null : bestListing(w, financedBudget(w, c, cash - p.firstTruckBuffer), c.id, true);
           // Assets: the cheapest new Workhorse and van, a dealership's in stock or the NPC dealer's.
           const src = cfg.assets.enabled ? bestSource(w, c.id, "rig", "workhorse", "van") : null;
+          // The NPC used lot (usedMarket.npcLot): a worn Workhorse and van at its used value, cash or on credit.
+          const lot = !used && !usedOnLoan && cfg.usedMarket.npcLot.enabled && cfg.assets.enabled && w.usedLot.stock > 0 ? lotPrice(w, "workhorse", "van") * npcDealerMult(w) : null;
+          const lotCash = lot !== null && cash >= lot + p.firstTruckBuffer;
+          const lotLoan = lot !== null && !lotCash && financedBudget(w, c, cash - p.firstTruckBuffer) >= lot;
           if (used) applyAction(w, c.id, { type: "buy_listing", listingId: used.id });
           else if (usedOnLoan) applyAction(w, c.id, { type: "buy_listing", listingId: usedOnLoan.id, finance: true });
+          else if (lotCash || lotLoan) applyAction(w, c.id, { type: "buy_asset", tier: "workhorse", trailer: "van", replaceNpcLease: true, used: true, finance: lotLoan || undefined });
           else if (src?.dealershipId || availableSupply(w, "workhorse", "van", true) > 0) {
             const price = src ? src.price : dealerPrice(w, { tier: "workhorse", trailer: "van" });
             const need = price + p.firstTruckBuffer;

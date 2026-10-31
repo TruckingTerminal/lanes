@@ -89,7 +89,7 @@ import { winterNow } from "../src/safety.js";
 import { elevationAt } from "@lanes/data";
 import { dispatchProfile, managerBreakdownMult, opsCap, payDispatchers, poolOf as poolStaff } from "../src/labor.js";
 import { askingPay as asking } from "../src/world.js";
-import type { Company } from "../src/types.js";
+import type { Company, Truck } from "../src/types.js";
 import { aroundTheClock, deliveryWait, dockRule, nextOpen, pickupWait, setSlot } from "../src/docks.js";
 import { highValueMult, theftRatePerMile, theftRiskAt } from "../src/risk.js";
 import { startLoading } from "../src/trips.js";
@@ -103,6 +103,7 @@ import { scaleDiscount, scaleDiscountFor } from "../src/scale.js";
 import { convictionForfeit, launchTaxRate } from "../src/token.js";
 import { logbookCatalogue } from "../src/logbook.js";
 import { dailyLadder, layerBlock, layerOpen } from "../src/ladder.js";
+import { dealerPrice, lotPrice } from "../src/dealer.js";
 import { crewFeeFd, crewOn, crewStrike, fittingsCut } from "../src/robbery.js";
 import { truckValue } from "../src/dealer.js";
 import { stealCargo } from "../src/risk.js";
@@ -2770,5 +2771,38 @@ describe("the unlock ladder (Jeff, 2026-10-31): the game opens in layers after l
     w.token.poolUsd = 0;
     dailyLadder(w);
     expect(layerOpen(w, "robbery")).toBe(true); // once open, open for good
+  });
+});
+
+describe("the NPC used lot (Jeff, 2026-10-31: used trucks at a quarter of new, older and riskier)", () => {
+  it("sells a worn rig at its used value from the lot's stock, delivered as priced, and restocks weekly", () => {
+    const k0 = calm.usedMarket.npcLot;
+    const lotCfg: EconomyConfig = { ...calm, assets: { ...calm.assets, enabled: true }, usedMarket: { ...calm.usedMarket, npcLot: { ...k0, enabled: true, stock: 1, perWeek: 1 } } };
+    const w = createWorld({ cfg: lotCfg, net, feeds: neutralFeeds, seed: 65, keepLedgerEntries: true });
+    const c = carrier(w);
+    fund(w, c.id, 500_000);
+    const price = lotPrice(w, "workhorse", "van");
+    const fresh = dealerPrice(w, { tier: "workhorse", trailer: "van" });
+    expect(price / fresh).toBeGreaterThan(0.15);
+    expect(price / fresh).toBeLessThan(0.35);
+    const before = w.ledger.balance(companyAccount(c.id));
+    expect(applyAction(w, c.id, { type: "buy_asset", tier: "workhorse", trailer: "van", replaceNpcLease: false, used: true })).toEqual({ ok: true });
+    expect(before - w.ledger.balance(companyAccount(c.id))).toBeGreaterThanOrEqual(price - 0.01);
+    expect(w.usedLot.stock).toBe(0);
+    expect(applyAction(w, c.id, { type: "buy_asset", tier: "workhorse", trailer: "van", replaceNpcLease: false, used: true })).toEqual({ ok: false, reason: "the used lot is empty this week" });
+    // Delivered like a new truck, as worn as it was priced: worth what the lot asks for one today.
+    let t: Truck | undefined;
+    for (let d = 0; d < 60 && !t; d++) {
+      runDays(w, 1);
+      t = w.trucksByCompany.get(c.id)!.find((x) => x.lease === "owned");
+    }
+    expect(t).toBeDefined();
+    expect(t!.odometer).toBe(k0.odometer);
+    expect(t!.milesSinceRebuild).toBe(k0.milesSinceRebuild);
+    expect(truckValue(w, t!) / lotPrice(w, "workhorse", "van")).toBeCloseTo(1, 1); // no buying cheap to resell
+    runDays(w, 7); // and the lot restocks weekly
+    expect(w.usedLot.stock).toBe(1);
+    expect(w.usedLot.sold).toBe(1);
+    w.ledger.assertBalanced();
   });
 });

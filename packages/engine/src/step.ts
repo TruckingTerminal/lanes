@@ -11,7 +11,7 @@ import { dayOf, isRoundBoundary, MINUTES_PER_HOUR, seasonOf } from "./clock.js";
 import { clamp, fuelPrice } from "./economics.js";
 import { companyAccount } from "./ledger.js";
 import type { DayMetrics } from "./metrics.js";
-import { dealerPrice, deliverOrders } from "./dealer.js";
+import { dealerPrice, deliverOrders, restockUsedLot } from "./dealer.js";
 import { serviceLoans } from "./finance.js";
 import { weeklyPurchaseLoans } from "./purchaseLoans.js";
 import { dailyRobbery } from "./robbery.js";
@@ -103,6 +103,7 @@ function endOfDay(w: World, day: number, agents?: DailyAgentHook): void {
 
   // Facility upkeep, weekly (§Assets and supply caps).
   if ((day + 1) % 7 === 0) {
+    restockUsedLot(w); // the NPC used lot (dealer.ts)
     weeklyBusinesses(w);
     for (const f of w.facilities) {
       if (f.ownerId === 0) continue;

@@ -141,6 +141,7 @@ rows.push(
   ["Shipper defaults on brokered loads", (rs) => range(rs.map((r) => r.failures.shipperDefaults ?? 0), n0)],
   ["Equipment Finance written off", (rs) => range(rs.map((r) => r.failures.writtenOffFd), fd)],
   ["Used-truck sales", (rs) => range(rs.map((r) => r.usedMarket.sales), n0)],
+  ["NPC used lot: rigs sold / FD taken (sink)", (rs) => `${n0(mean(rs.map((r) => r.usedMarket.npcLotSold ?? 0)))} / ${fd(mean(rs.map((r) => r.sinksByTag.used_lot ?? 0)))}`],
   ["Owned trucks at end", (rs) => range(rs.map((r) => r.daily.at(-1)!.ownedTrucks), n0)],
   ["Extra leases out, average", (rs) => range(rs.map((r) => r.daily.reduce((s, d) => s + (d.leasedTrucks ?? 0), 0) / r.daily.length), n0)],
   ["Tractor cap at end", (rs) => range(rs.map((r) => r.daily.at(-1)!.tractorCap ?? NaN).filter(Number.isFinite), n0)],

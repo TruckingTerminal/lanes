@@ -167,7 +167,7 @@ export interface RunReport {
     shipperDefaults: number;
   };
   finance: { loansMade: number; interestPaidFd: number; peakOutstandingFd: number; outstandingEndFd: number; depositors: number };
-  usedMarket: { sales: number; repoReturnedToDealer: number };
+  usedMarket: { sales: number; repoReturnedToDealer: number; npcLotSold?: number };
   /** The cycle quarter by quarter, across years: demand dial, rates, orders, deliveries, failures. */
   cycleQuarters: {
     label: string;
@@ -649,7 +649,7 @@ export function buildReport(w: World): RunReport {
       outstandingEndFd: w.finance.outstandingFd,
       depositors: [...w.finance.shares.values()].filter((s) => s > 1e-9).length,
     },
-    usedMarket: { sales: sum(days.map((d) => d.usedSales)), repoReturnedToDealer: sum(days.map((d) => d.repoReturned)) },
+    usedMarket: { sales: sum(days.map((d) => d.usedSales)), repoReturnedToDealer: sum(days.map((d) => d.repoReturned)), npcLotSold: w.usedLot.sold },
     cycleQuarters,
     faucetsByTag,
     sinksByTag,

@@ -23,6 +23,35 @@ export function trailerPrice(w: World, type: Equipment): number {
   return w.cfg.dealerFd.trailer[type] * w.dealerIndex.trailer[type];
 }
 
+/** The NPC used lot's rig (usedMarket.npcLot), as it would be delivered today. */
+export function lotSpec(w: World, trailer: Equipment): NonNullable<TruckOrder["used"]> {
+  const k = w.cfg.usedMarket.npcLot;
+  const life = w.cfg.assets.trailer.wearMi[trailer];
+  return {
+    odometer: k.odometer,
+    milesSinceRebuild: k.milesSinceRebuild,
+    rebuilds: k.rebuilds,
+    builtDay: dayOf(w.t, w.cfg) - k.ageYears * w.cfg.time.daysPerSeason,
+    trailerMilesSinceRefurb: Math.min(k.odometer, k.milesSinceRebuild * (life / w.cfg.wear.lifeMiles)),
+  };
+}
+
+/** What the NPC used lot asks for a rig today: its used value (tractor and trailer), at the dealer's markup. */
+export function lotPrice(w: World, tier: TractorTier, trailer: Equipment): number {
+  const today = dayOf(w.t, w.cfg);
+  const u = lotSpec(w, trailer);
+  const tractor = tractorMarketValue(w.cfg, { tier, trailer, lease: "owned", odometer: u.odometer, milesSinceRebuild: u.milesSinceRebuild, rebuilds: u.rebuilds, builtDay: u.builtDay }, today) * w.dealerIndex.tractor[tier];
+  const tr = { type: trailer, lease: "owned", odometer: u.odometer, milesSinceRefurb: u.trailerMilesSinceRefurb, refurbs: 0, builtDay: u.builtDay } as Trailer;
+  const trailerV = trailerMarketValue(w.cfg, tr, trailerLifeUsed(w, tr), 1 - trailerCondition(w, tr), today) * w.dealerIndex.trailer[trailer];
+  return tractor + trailerV;
+}
+
+/** Weekly: rigs come onto the NPC used lot, up to its stock. */
+export function restockUsedLot(w: World): void {
+  const k = w.cfg.usedMarket.npcLot;
+  if (k.enabled) w.usedLot.stock = Math.min(k.stock, w.usedLot.stock + k.perWeek);
+}
+
 /** What an order costs at the dealer today: the rig, the tractor alone, or the trailer alone. */
 export function orderPrice(w: World, o: Pick<TruckOrder, "kind" | "tier" | "trailer">): number {
   return o.kind === "trailer" ? trailerPrice(w, o.trailer) : o.kind === "tractor" ? tractorPrice(w, o.tier) : dealerPrice(w, o);
@@ -142,26 +171,28 @@ export function deliverOrders(w: World): void {
       refundLeaseDeposit(w, npc);
       unlockFreePathEarnings(company);
       if (w.cfg.assets.enabled) unhook(w, npc);
+      // A rig from the NPC used lot comes as worn as it was priced.
+      const u = o.used;
       Object.assign(npc, {
         lease: "owned",
         tier: o.tier,
         trailer: o.trailer,
-        odometer: 0,
-        milesSinceRebuild: 0,
-        rebuilds: 0,
-        builtDay: day,
+        odometer: u?.odometer ?? 0,
+        milesSinceRebuild: u?.milesSinceRebuild ?? 0,
+        rebuilds: u?.rebuilds ?? 0,
+        builtDay: u?.builtDay ?? day,
         idleSinceDay: day,
         idleSinceT: w.t,
         defects: 0,
       });
       freshPaperwork(npc);
       if (w.cfg.assets.enabled) {
-        if (o.kind === "rig") hook(w, npc, newTrailer(w, company, o.trailer, "owned"));
+        if (o.kind === "rig") hook(w, npc, newTrailer(w, company, o.trailer, "owned", u ? { odometer: u.odometer, milesSinceRefurb: u.trailerMilesSinceRefurb, builtDay: u.builtDay } : undefined));
         else fitTrailer(w, npc, o.trailer);
       }
       syncTruck(w, npc);
     }
-    const delivered = npc ?? createTruck(w, company, "owned", o.tier, o.trailer, undefined, company.homeHub, o.kind === "tractor" ? "fit" : "new");
+    const delivered = npc ?? createTruck(w, company, "owned", o.tier, o.trailer, o.used, company.homeHub, o.kind === "tractor" ? "fit" : "new");
     bindOrderLoan(w, o.id, delivered.id); // a purchase loan takes the truck it paid for as security
     w.metrics.onTruckDelivered();
     w.listener?.({ kind: "truckDelivered", companyId: company.id, truckId: delivered.id });

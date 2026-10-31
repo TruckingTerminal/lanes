@@ -749,6 +749,8 @@ export interface TruckOrder {
   replaceNpcLease: boolean;
   orderedDay: number;
   dueDay: number;
+  /** From the NPC used lot (usedMarket.npcLot): the worn rig it delivers, as priced. */
+  used?: { odometer: number; milesSinceRebuild: number; rebuilds: number; builtDay: number; trailerMilesSinceRefurb: number };
 }
 
 /** An Equipment Finance loan against one owned truck (§DeFi buildings). */
@@ -828,7 +830,7 @@ export type Action =
   | { type: "set_standing_orders"; orders: StandingOrder[] }
   /** A dealer order. Assets: `tractorOnly` orders the tractor without a trailer (it hooks a spare from the yard, or a rental). */
   /** `finance`: on a purchase loan (purchaseLoans.ts) instead of cash. */
-  | { type: "buy_asset"; tier: TractorTier; trailer: Equipment; replaceNpcLease: boolean; tractorOnly?: boolean; dealershipId?: number; finance?: boolean }
+  | { type: "buy_asset"; tier: TractorTier; trailer: Equipment; replaceNpcLease: boolean; tractorOnly?: boolean; dealershipId?: number; finance?: boolean; used?: boolean }
   /** Assets: a trailer alone, delivered to the yard (or straight behind a tractor pulling a rental there). From a player dealership's stock, or the NPC dealer. */
   | { type: "buy_trailer"; trailer: Equipment; dealershipId?: number }
   /** Assets: sell an idle owned truck to a dealership's used lot at its trade-in share of value. */

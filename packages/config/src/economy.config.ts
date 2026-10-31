@@ -525,6 +525,13 @@ export const economyConfig = {
   // protocol 5%. In FD the 5% is a sink.
   usedMarket: {
     feePct: 0.05,
+    // The NPC used lot (Jeff, 2026-10-31: "Used trucks can be as cheap as $50k but are older and have more risks,
+    // the game should follow this ratio"; dealer.ts): with it on, the NPC dealer also sells worn rigs, `ageYears`
+    // old with `odometer` miles, `milesSinceRebuild` since the last of `rebuilds` rebuilds (condition 0.4: more
+    // fuel, more maintenance, more breakdowns), at their used value (about a quarter of new with the asset rules),
+    // delivered like a new truck. `perWeek` come in each week, up to `stock`; a sale is a sink, as at the dealer.
+    // A free starter's way in when new trucks cost what real ones do. Off until tested.
+    npcLot: { enabled: false, ageYears: 4, odometer: 450_000, milesSinceRebuild: 120_000, rebuilds: 1, perWeek: 15, stock: 30 },
   },
 
   // §DeFi buildings — Equipment Finance, in FD for Season 1. Depositors fund the
