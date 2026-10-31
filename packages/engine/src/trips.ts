@@ -1,3 +1,6 @@
+import { commodityAttract, hubTheftRisk, stealCargo } from "./risk.js";
+import { securityTheftMult } from "./labor.js";
+import { crewStrike } from "./robbery.js";
 import { scaleDiscount } from "./scale.js";
 import { endOfLife } from "./assets.js";
 import { addTrailerMiles } from "./trailers.js";
@@ -59,10 +62,32 @@ function startUnloading(w: World, truck: Truck, now: number): void {
       if (d.missed) w.metrics.onMissedSlot();
       // A loaded reefer's unit keeps running at the gate.
       if (ops.enabled && truck.trailer === "reefer" && truck.companyId) reeferUnit(w, companyById(w, truck.companyId), d.minutes, `dock:${truck.id}`);
+      // Waiting out a night at a closed dock (theft.dockWaits): in the open near the gate, at the receiver's risk.
+      if (dockWaitTheft(w, truck, load, d.minutes)) return;
     }
   }
   truck.status = "unloading";
   truck.dwellMin = dwell;
+}
+
+/** Each night a loaded truck waits at a closed dock, the corridor's thieves (and a hired crew) may come; true when the load is gone. */
+export function dockWaitTheft(w: World, truck: Truck, load: Load, minutes: number): boolean {
+  const k = w.cfg.theft;
+  if (!k.enabled || !k.dockWaits || !truck.companyId || minutes < 6 * MINUTES_PER_HOUR) return false;
+  const c = companyById(w, truck.companyId);
+  const risk = hubTheftRisk(w, truck.hub);
+  const nights = Math.max(1, Math.round(minutes / (24 * MINUTES_PER_HOUR)));
+  for (let n = 0; n < nights; n++) {
+    if (w.rng.ops.next() < k.oddsPerLoadedNight * risk * k.dockWaitParking * commodityAttract(w.cfg, load.commodity) * securityTheftMult(w, c)) {
+      stealCargo(w, truck, c, load);
+      return true;
+    }
+    if (w.cfg.robbery.enabled) {
+      crewStrike(w, truck, c, "restArea", risk);
+      if (truck.loadId === null || truck.status === "retired") return true;
+    }
+  }
+  return false;
 }
 
 /**

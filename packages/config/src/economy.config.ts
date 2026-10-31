@@ -93,6 +93,13 @@ export const economyConfig = {
   // price a fleet by where it sleeps (the average exposure of its nights against `insuranceRefExposure`).
   theft: {
     enabled: false,
+    // Two gaps (Lanes Graphics' review, 2026-10-31), off until the next rules bundle: a cargo theft counts toward
+    // the insurance market's loss ratio, as crash claims do (so theft raises everyone's premiums), and a loaded
+    // truck that waits out a night at a closed dock is exposed to thieves (and a hired crew) at the receiver's
+    // risk, at `dockWaitParking` (a rest area's 1: in the open, near the gate).
+    claimsMoveMarket: false,
+    dockWaits: false,
+    dockWaitParking: 1,
     oddsPerLoadedNight: 0.001,
     parking: { shoulder: 3, restArea: 1, truckStop: 0.35 },
     hotspots: [

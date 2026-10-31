@@ -4,6 +4,7 @@
  * into shippers' rates and into insurers' quotes. Deterministic: distances use dmath's cosine and no
  * square roots (the fade is on the squared distance).
  */
+import { recordClaim } from "./insurance.js";
 import { securityTheftMult } from "./labor.js";
 import { COMMODITIES, dcos } from "@lanes/data";
 import type { EconomyConfig, Equipment } from "@lanes/config";
@@ -135,6 +136,8 @@ export function stealCargo(w: World, truck: Truck, c: Company, load: Load): void
   }
   const rest = load.cargoValue - deductible;
   if (rest > 0.01 && c.insurance.writer === "pool") payClaim(w, "insurance", "sink:cargo_claim", rest, ref);
+  // The claim counts toward the insurers' loss ratio, whoever wrote it (theft.claimsMoveMarket).
+  if (rest > 0.01 && k.claimsMoveMarket) recordClaim(w, rest);
   loseLoad(w, load, "burglary");
   truck.loadId = null;
   truck.status = "repositioning";

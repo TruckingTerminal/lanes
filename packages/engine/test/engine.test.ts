@@ -103,6 +103,8 @@ import { scaleDiscount, scaleDiscountFor } from "../src/scale.js";
 import { launchTaxRate } from "../src/token.js";
 import { crewFeeFd, crewOn, crewStrike, fittingsCut } from "../src/robbery.js";
 import { truckValue } from "../src/dealer.js";
+import { stealCargo } from "../src/risk.js";
+import { dockWaitTheft } from "../src/trips.js";
 import type { Contract } from "../src/types.js";
 import { COMMODITY_INDEX } from "@lanes/data";
 
@@ -1403,6 +1405,39 @@ describe("hired robbers (2026-10-31): player against player, in the open", () =>
     const a = run();
     expect(a.stats.hires).toBeGreaterThan(0);
     expect(a).toEqual(run());
+  });
+});
+
+describe("theft gaps (2026-10-31): claims move the insurance market; a closed dock's night is a night in the open", () => {
+  const gaps: EconomyConfig = { ...calm, theft: { ...calm.theft, enabled: true, claimsMoveMarket: true, dockWaits: true, oddsPerLoadedNight: 10 } };
+
+  it("a cargo theft counts toward the insurers' loss ratio", () => {
+    const w = createWorld({ cfg: gaps, net, feeds: neutralFeeds, seed: 95 });
+    const c = carrier(w);
+    const t = addTruck(w, c, "owned", "workhorse", "van");
+    const lane = w.net.lanesFrom[t.hub]![0]!;
+    const load = { ...testLoad(w, lane), cargoValue: 50_000, status: "assigned" as const, carrierId: c.id, truckId: t.id };
+    w.loads.set(load.id, load);
+    t.loadId = load.id;
+    t.status = "loaded";
+    const before = w.insuranceMarket.claims.at(-1)!;
+    stealCargo(w, t, c, load);
+    expect(w.insuranceMarket.claims.at(-1)! - before).toBeCloseTo(50_000 - gaps.safety.crash.cargoDeductibleFd, 2);
+  });
+
+  it("a loaded truck that waits out a night at a closed dock can be robbed there; a short wait can't", () => {
+    const w = createWorld({ cfg: gaps, net, feeds: neutralFeeds, seed: 96 });
+    const c = carrier(w);
+    const t = addTruck(w, c, "owned", "workhorse", "van");
+    const lane = w.net.lanesFrom[t.hub]![0]!;
+    const load = { ...testLoad(w, lane), cargoValue: 60_000, status: "assigned" as const, carrierId: c.id, truckId: t.id };
+    w.loads.set(load.id, load);
+    t.loadId = load.id;
+    t.status = "loaded";
+    expect(dockWaitTheft(w, t, load, 3 * 60)).toBe(false);
+    expect(t.loadId).toBe(load.id);
+    expect(dockWaitTheft(w, t, load, 12 * 60)).toBe(true);
+    expect(t.loadId).toBeNull();
   });
 });
 
