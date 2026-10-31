@@ -399,6 +399,29 @@ export interface Airdrop {
   queuedFd: number;
   weeksLeft: number;
   claimedEarly: boolean;
+  /** The logbook (token.airdrop.logbook): milestones in place of the weekly vest. */
+  logbook?: Logbook;
+}
+
+/** The logbook (logbook.ts): an allocation paid out for milestones, opened at launch or a later season. */
+export interface Logbook {
+  startDay: number;
+  /** After this day what's still locked is never minted. */
+  deadlineDay: number;
+  /** The allocation it opened with: each milestone unlocks its share of what the opening payment left. */
+  allocationFd: number;
+  /** Milestones reached, in order. */
+  done: string[];
+  /** Where the company stood when it opened: progress counts from here. */
+  base: { onTime: number; delivered: number; profitFd: number; ownedTrucks: number };
+  /** Counted since it opened: loads handled (delivered, brokered or shipped), contract terms kept, crew hits and rigs, the criminal take, cases gone cold. */
+  handled: number;
+  contractsKept: number;
+  hits: number;
+  rigs: number;
+  takeFd: number;
+  coldCases: number;
+  closed: boolean;
 }
 
 /**
@@ -947,7 +970,14 @@ export interface TokenState {
   /** The daily price band (exchange.priceBand): the day's open, fixed at its first trade, and the trades it clipped. */
   dayOpen: { day: number; price: number };
   bandClips: number;
-  airdrop: { mintedFd: number; forfeitedFd: number; haircutFd: number; seasonsPaid: number };
+  airdrop: {
+    mintedFd: number;
+    forfeitedFd: number;
+    haircutFd: number;
+    seasonsPaid: number;
+    /** The logbook's tallies (logbook.ts), once it runs: paid when a book opens, by honest and by criminal milestones, lost at the deadline, forfeited on conviction, and companies reaching each milestone. */
+    logbook?: { openFd: number; honestFd: number; criminalFd: number; lostFd: number; convictedFd: number; reached: Record<string, number> };
+  };
   /**
    * The supply ceiling (ceiling.ts): FD outstanding right after launch (null before, or when it's off)
    * and the rate multiplier then, the dial's top; whether the scheduled payouts wait this week and the
@@ -977,4 +1007,4 @@ export type GameEvent =
   | { kind: "liquidated"; companyId: number }
   | { kind: "launched" }
   /** Staff, safety and fraud news for a company's feed. */
-  | { kind: "notice"; companyId: number; topic: "staff" | "safety" | "crash" | "fraud" | "authority" | "contracts" | "board" | "fleet"; text: string; tone: "good" | "bad" | "info"; truckId?: number };
+  | { kind: "notice"; companyId: number; topic: "staff" | "safety" | "crash" | "fraud" | "authority" | "contracts" | "board" | "fleet" | "airdrop"; text: string; tone: "good" | "bad" | "info"; truckId?: number };

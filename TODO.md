@@ -226,11 +226,22 @@ vesting schedules all completely transparent." His answers to the 18 questions, 
    the honest and the criminal path, with a 12-real-month deadline, after which what's left is never
    minted. Criminal milestones unlock only the person's existing slice, only with no open case, and a
    conviction forfeits it (counsel to confirm).
+   **Built (off, 2026-10-31):** `token.airdrop.logbook` (logbook.ts): 1% when a book opens, then 23
+   milestones checked weekly (freight handled, on time, profit, trucks and a business owned, a manager, a
+   clean quarter, three tenure milestones at three, six and nine real months, a satisfactory review, a
+   contract kept, a fully secured truck; crew hits, a chopped rig, FD fenced, a case gone cold), each
+   unlocking its weight's share; the honest ones add up to all of it for every role, the criminal ones to
+   at most 60%; no early claim; a conviction forfeits the rest; 1,460-day deadline; one book per company,
+   later seasons joining it. TOKENOMICS.md "The logbook". Still to do: the shop items that bring a
+   milestone forward, and the client's logbook page.
 4. **Selling early:** a 75% sell tax at launch, falling to the normal 7% over six real months,
    everyone pays, all burned ("we want players to farm this, not farmers"). Transfers: no FD sends
    between players; burn the part of a player-to-player sale above the used-truck index.
 5. **The launch:** an opening auction (verified people, a per-person cap, all its dollars into the
    pool) and a daily price limit of ±15% for the first three real months.
+   **Built (off, 2026-10-31):** the daily limit, `token.exchange.priceBand` (±15% of the day's open for
+   365 game days; orders fill to the edge and the rest waits). The opening auction needs verified people,
+   so it waits for the server and identity checks.
 6. **Trucks:** test both no free tier and spend-only free-path earnings until a truck is owned and
    identity is checked (counsel decides); a lease deposit of at least 25% of the truck's value; loans
    against the truck being bought (10–20% down, an FD stake of 10% and 25% tested, credit that grows

@@ -12,6 +12,7 @@
  * New companies are off limits for `protectDays`; a victim can't be targeted again for `cooldownDays`; a
  * hirer needs equity of at least `stakeCover` × the most the crew could take, so it has something to lose.
  */
+import { logbookCount } from "./logbook.js";
 import { writeOffRig } from "./assets.js";
 import { dayOf } from "./clock.js";
 import { truckValue } from "./dealer.js";
@@ -150,6 +151,7 @@ export function crewStrike(w: World, truck: Truck, victim: Company, where: "shou
     parts.push("the rig itself, chopped");
     writeOffRig(w, victim, truck);
     w.robbery.stats.rigsTaken++;
+    logbookCount(hirer, "rigs");
   }
   job.status = "hit";
   w.robbery.lastHitDay.set(victim.id, today(w));
@@ -157,6 +159,8 @@ export function crewStrike(w: World, truck: Truck, victim: Company, where: "shou
   const paid = take * (1 - k.washFee);
   if (paid > 0.01) w.ledger.post(w.t, "faucet:fence", companyAccount(hirer.id), paid, `crew:${job.id}`);
   w.robbery.stats.takePaidFd += paid;
+  logbookCount(hirer, "hits");
+  logbookCount(hirer, "takeFd", paid);
   const what = parts.length ? parts.join(" and ") : "nothing worth fencing";
   post(w, { kind: "hit", hirerId: hirer.id, victimId: victim.id, truckId: truck.id, text: `Channel 19: ${hirer.name}'s crew hit ${victim.name}'s truck ${truck.id}: ${what}.` }, null);
 }

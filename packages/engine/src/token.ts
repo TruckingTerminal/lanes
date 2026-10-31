@@ -1,3 +1,4 @@
+import { doneShares, logbookWeek, milestoneText, openBook, openLogbook } from "./logbook.js";
 import { dpow } from "@lanes/data";
 import { startCeiling } from "./ceiling.js";
 import { dayOf } from "./clock.js";
@@ -308,9 +309,12 @@ export function launchToken(w: World): void {
     const score = (totalMiles > 0 ? (wm * miles[i]!) / totalMiles : 0) + (totalProfit > 0 ? (wp * profits[i]!) / totalProfit : 0);
     const share = Math.min(cap, tc.airdrop.fd * score);
     if (share <= 0) return;
-    c.airdrop = { totalFd: share, unlockedFd: 0, forfeitedFd: 0, queuedFd: 0, weeksLeft: tc.airdrop.unlockWeeks, claimedEarly: false };
+    // The logbook (logbook.ts) in place of the weekly vest, when it's on.
+    const book = tc.airdrop.logbook.enabled;
+    c.airdrop = { totalFd: share, unlockedFd: 0, forfeitedFd: 0, queuedFd: 0, weeksLeft: book ? 0 : tc.airdrop.unlockWeeks, claimedEarly: false, ...(book ? { logbook: openLogbook(w, c, share) } : {}) };
     allocatedFd += share;
-    unlockAirdrop(w, c, share * tc.airdrop.atLaunch);
+    unlockAirdrop(w, c, share * (book ? tc.airdrop.logbook.atLaunch : tc.airdrop.atLaunch));
+    if (book) logbookStats(w).openFd += share * tc.airdrop.logbook.atLaunch;
   });
 
   // The pool: with dollars on hand (the seed, and every dollar of the farming season's window held in
@@ -347,6 +351,7 @@ export function launchToken(w: World): void {
 
 /** Take the rest of the airdrop now, less the haircut (never minted). */
 export function claimAirdropNow(w: World, c: Company): string | null {
+  if (w.cfg.token.airdrop.logbook.enabled) return "the logbook unlocks the airdrop: there's no early claim";
   const a = c.airdrop;
   if (!a || a.weeksLeft <= 0 || a.claimedEarly) return "nothing left to claim";
   const left = a.totalFd - a.unlockedFd - a.forfeitedFd;
@@ -387,10 +392,27 @@ export function seasonAirdrop(w: World): void {
     const share = Math.min(cap, pot * score);
     if (share <= 0) return;
     const prev = c.airdrop;
-    const carried = prev && prev.weeksLeft > 0 && !prev.claimedEarly ? Math.max(0, prev.totalFd - prev.unlockedFd - prev.forfeitedFd) : 0;
+    // The logbook: the season's share joins the company's open book; the milestones it has reached pay their
+    // shares of it at once, and the deadline moves to the season's own. A company without one opens a book.
+    const lb = tc.airdrop.logbook;
+    const open = lb.enabled ? openBook(c) : null;
+    if (open && prev) {
+      prev.totalFd += share;
+      open.allocationFd += share;
+      open.deadlineDay = Math.max(open.deadlineDay, dayOf(w.t, w.cfg) + lb.deadlineDays);
+      const d = doneShares(w, c, open);
+      unlockAirdrop(w, c, share * (lb.atLaunch + d.honest + d.criminal));
+      const st = logbookStats(w);
+      st.openFd += share * lb.atLaunch;
+      st.honestFd += share * d.honest;
+      st.criminalFd += share * d.criminal;
+      return;
+    }
+    const carried = !lb.enabled && prev && prev.weeksLeft > 0 && !prev.claimedEarly ? Math.max(0, prev.totalFd - prev.unlockedFd - prev.forfeitedFd) : 0;
     // Slices still queued under the supply ceiling stay owed in the new vest.
-    c.airdrop = { totalFd: share + carried, unlockedFd: 0, forfeitedFd: 0, queuedFd: prev?.queuedFd ?? 0, weeksLeft: tc.airdrop.unlockWeeks, claimedEarly: false };
-    unlockAirdrop(w, c, share * tc.airdrop.atLaunch);
+    c.airdrop = { totalFd: share + carried, unlockedFd: 0, forfeitedFd: 0, queuedFd: prev?.queuedFd ?? 0, weeksLeft: lb.enabled ? 0 : tc.airdrop.unlockWeeks, claimedEarly: false, ...(lb.enabled ? { logbook: openLogbook(w, c, share) } : {}) };
+    unlockAirdrop(w, c, share * (lb.enabled ? lb.atLaunch : tc.airdrop.atLaunch));
+    if (lb.enabled) logbookStats(w).openFd += share * lb.atLaunch;
   });
   w.token.airdrop.seasonsPaid++;
   w.listener?.({ kind: "launched" });
@@ -436,11 +458,45 @@ export function forfeitAirdrop(w: World, c: Company): void {
   if (!a) return;
   w.token.airdrop.forfeitedFd += a.queuedFd;
   a.queuedFd = 0;
-  if (a.weeksLeft <= 0) return;
+  const book = openBook(c);
+  if (a.weeksLeft <= 0 && !book) return;
   const left = a.totalFd - a.unlockedFd - a.forfeitedFd;
   a.forfeitedFd += left;
   w.token.airdrop.forfeitedFd += left;
   a.weeksLeft = 0;
+  if (book) book.closed = true;
+}
+
+/** A conviction under the logbook (fraud.ts): whatever is still locked is forfeited. */
+export function convictionForfeit(w: World, c: Company): void {
+  if (!w.cfg.token.airdrop.logbook.enabled || !c.airdrop || !openBook(c)) return;
+  const left = Math.max(0, c.airdrop.totalFd - c.airdrop.unlockedFd - c.airdrop.forfeitedFd);
+  logbookStats(w).convictedFd += left + c.airdrop.queuedFd;
+  forfeitAirdrop(w, c);
+}
+
+/** The logbook's tallies, started the first time it runs. */
+function logbookStats(w: World): NonNullable<World["token"]["airdrop"]["logbook"]> {
+  return (w.token.airdrop.logbook ??= { openFd: 0, honestFd: 0, criminalFd: 0, lostFd: 0, convictedFd: 0, reached: {} });
+}
+
+/** The logbook's week for a company (logbook.ts): the milestones reached are paid; past the deadline, what's left is lost. */
+function logbookPay(w: World, c: Company): void {
+  const a = c.airdrop!;
+  const st = logbookStats(w);
+  const { reached, lostFd } = logbookWeek(w, c);
+  for (const r of reached) {
+    unlockAirdrop(w, c, r.fd);
+    st.reached[r.id] = (st.reached[r.id] ?? 0) + 1;
+    if (r.path === "honest") st.honestFd += r.fd;
+    else st.criminalFd += r.fd;
+    w.listener?.({ kind: "notice", companyId: c.id, topic: "airdrop", text: `Logbook: ${milestoneText(r.id)}. ${Math.round(r.fd).toLocaleString("en-US")} FD of your airdrop unlocked.`, tone: "good" });
+  }
+  if (lostFd > 0.005) {
+    a.forfeitedFd += lostFd;
+    w.token.airdrop.forfeitedFd += lostFd;
+    st.lostFd += lostFd;
+  }
 }
 
 /**
@@ -464,6 +520,7 @@ export function weeklyToken(w: World): void {
       }
       a.weeksLeft--;
     }
+    if (a && openBook(c)) logbookPay(w, c);
     c.loadsThisWeek = 0;
     const spent = c.weeklySpend.at(-1) ?? 0;
     c.lockedFd = Math.max(0, Math.min(c.lockedFd - spent, w.ledger.balance(companyAccount(c.id))));

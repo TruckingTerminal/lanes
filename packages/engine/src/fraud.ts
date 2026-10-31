@@ -1,3 +1,5 @@
+import { logbookCount } from "./logbook.js";
+import { convictionForfeit } from "./token.js";
 import { dayOf } from "./clock.js";
 import { fmtInt } from "./economics.js";
 import { companyAccount } from "./ledger.js";
@@ -222,6 +224,7 @@ function resolveTheft(w: World, k: FraudCase, c: Company): void {
     const driver = k.driverId ? staffById(w, k.driverId) : null;
     if (k.victimId > 0) notice(w, k.victimId, "fraud", `Police caught ${c.name} for stealing load #${k.loadId}.${k.escrowFd > 0 ? " Your claim was refunded." : " You'll be paid back from what they had."}`, "good");
     w.metrics.onConviction();
+    convictionForfeit(w, c);
     criminal(w, c, `Convicted of stealing load #${k.loadId}.`, driver, k.escrowFd > 0 ? 0 : k.victimId, k.escrowFd > 0 ? 0 : k.lossFd);
     return;
   }
@@ -231,14 +234,22 @@ function resolveTheft(w: World, k: FraudCase, c: Company): void {
     w.ledger.post(w.t, ESCROW, acct, k.amountFd, `fence:${k.loadId}`);
     w.ledger.post(w.t, ESCROW, "sink:fence_cut", k.escrowFd - k.amountFd, `fence:${k.loadId}`);
   } else w.ledger.post(w.t, "faucet:fence", acct, k.amountFd, `fence:${k.loadId}`);
+  logbookCount(c, "coldCases");
+  logbookCount(c, "takeFd", k.amountFd);
   record(w, c, `Suspected in the theft of load #${k.loadId}; the case went cold.`);
   notice(w, c.id, "fraud", `The case on load #${k.loadId} went cold. A fence paid ${fmtInt(k.amountFd)} FD. The theft claim stays on your record for a year.`, "info");
 }
 
 function resolveDoubleBroker(w: World, k: FraudCase, c: Company): void {
   const d = w.cfg.fraud.doubleBroker;
-  if (!k.caught) return; // unpaid and never caught: the hauler's loss stands, the claim stays on record
+  if (!k.caught) {
+    // Unpaid and never caught: the hauler's loss stands, the claim stays on record.
+    logbookCount(c, "coldCases");
+    logbookCount(c, "takeFd", Math.max(0, k.amountFd));
+    return;
+  }
   w.metrics.onConviction();
+  convictionForfeit(w, c);
   if (k.unpaidCarrierId > 0) {
     const back = restitute(w, c, k.unpaidCarrierId, k.lossFd);
     notice(w, k.unpaidCarrierId, "fraud", `${c.name} was caught double brokering load #${k.loadId}. ${back > 0 ? `${fmtInt(back)} FD of what they owed you was recovered.` : "There was nothing left to recover."}`, back > 0 ? "good" : "bad");

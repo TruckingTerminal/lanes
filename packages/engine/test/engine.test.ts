@@ -100,7 +100,8 @@ import { detachTruck, truckById } from "../src/world.js";
 import { loadFactor, managerEffect, managersNeeded, offerStaff, securityPremiumMult, securityTheftMult } from "../src/labor.js";
 import { acceptOffer, contractRoom, contractSlots, contractStakeAccount, rejectTender, weeklyContracts } from "../src/contracts.js";
 import { scaleDiscount, scaleDiscountFor } from "../src/scale.js";
-import { launchTaxRate } from "../src/token.js";
+import { convictionForfeit, launchTaxRate } from "../src/token.js";
+import { logbookCatalogue } from "../src/logbook.js";
 import { crewFeeFd, crewOn, crewStrike, fittingsCut } from "../src/robbery.js";
 import { truckValue } from "../src/dealer.js";
 import { stealCargo } from "../src/risk.js";
@@ -2623,5 +2624,109 @@ describe("the daily price band (Jeff, 2026-10-31): ±15% a day for the first thr
     expect(fdPriceUsd(w)).toBeGreaterThan(p * 2);
     expect(w.token.bandClips).toBe(2);
     w.ledger.assertBalanced();
+  });
+});
+
+describe("the logbook (Jeff, 2026-10-31): 1% at launch, the rest only for milestones", () => {
+  const book: EconomyConfig = {
+    ...calm,
+    seasonClose: { ...calm.seasonClose, enabled: false },
+    token: { ...calm.token, enabled: true, airdrop: { ...calm.token.airdrop, logbook: { ...calm.token.airdrop.logbook, enabled: true } } },
+  };
+
+  it("pays 1% at launch; milestones unlock their shares; no early claim; a criminal one waits out an open case; a conviction forfeits the rest; the deadline loses it", () => {
+    const w = createWorld({ cfg: book, net, feeds: neutralFeeds, seed: 61, keepLedgerEntries: true });
+    const a = carrier(w, "A");
+    const b = carrier(w, "B");
+    fund(w, a.id, 100_000);
+    fund(w, b.id, 100_000);
+    a.milesTotal = 3_000;
+    b.milesTotal = 3_000;
+    launchToken(w);
+    const k = book.token.airdrop.logbook;
+    const total = a.airdrop!.totalFd;
+    expect(total).toBeGreaterThan(0);
+    expect(a.airdrop!.unlockedFd).toBeCloseTo(total * k.atLaunch, 6);
+    expect(a.airdrop!.weeksLeft).toBe(0);
+    expect(a.airdrop!.logbook!.deadlineDay).toBe(w.token.launchDay! + k.deadlineDays);
+    expect(applyAction(w, a.id, { type: "claim_airdrop_now" })).toEqual({ ok: false, reason: "the logbook unlocks the airdrop: there's no early claim" });
+    // A quiet week unlocks nothing; 30 loads handled reach the first milestone, and its share is paid.
+    const cat = Object.fromEntries(logbookCatalogue(w, "carrier").map((m) => [m.id, m.share]));
+    const honest = logbookCatalogue(w, "carrier").filter((m) => m.path === "honest");
+    expect(honest.reduce((s, m) => s + m.share, 0)).toBeCloseTo(1 - k.atLaunch, 9);
+    weeklyToken(w);
+    expect(a.airdrop!.unlockedFd).toBeCloseTo(total * k.atLaunch, 6);
+    a.loadsThisWeek = 30;
+    weeklyToken(w);
+    expect(a.airdrop!.logbook!.done).toEqual(["haul25"]);
+    expect(a.airdrop!.unlockedFd).toBeCloseTo(total * (k.atLaunch + cat.haul25!), 6);
+    expect(w.token.airdrop.logbook!.reached.haul25).toBe(1);
+    // B's case gone cold counts on the criminal path, but not while another case is open.
+    b.airdrop!.logbook!.coldCases = 1;
+    const today = w.token.launchDay!;
+    w.cases.push({ id: 1, kind: "doubleBroker", companyId: b.id, victimId: 0, loadId: 1, resolveDay: today + 30, caught: false, amountFd: 0, lossFd: 0, escrowFd: 0, truckId: 0, driverId: 0, unpaidCarrierId: 0 });
+    weeklyToken(w);
+    expect(b.airdrop!.logbook!.done).toEqual([]);
+    w.cases[0]!.resolveDay = today;
+    weeklyToken(w);
+    expect(b.airdrop!.logbook!.done).toEqual(["coldCase"]);
+    expect(b.airdrop!.unlockedFd).toBeCloseTo(total * (k.atLaunch + cat.coldCase!), 6);
+    expect(cat.coldCase!).toBeLessThan(k.criminalShare);
+    // A conviction forfeits whatever B still has locked.
+    convictionForfeit(w, b);
+    expect(b.airdrop!.logbook!.closed).toBe(true);
+    expect(b.airdrop!.forfeitedFd).toBeCloseTo(total - b.airdrop!.unlockedFd, 6);
+    expect(w.token.airdrop.logbook!.convictedFd).toBeCloseTo(b.airdrop!.forfeitedFd, 6);
+    // Past the deadline what A still has locked is never minted.
+    const minted = w.token.airdrop.mintedFd;
+    w.t = a.airdrop!.logbook!.deadlineDay * w.cfg.time.gameMinutesPerDay;
+    a.loadsThisWeek = 500;
+    weeklyToken(w);
+    expect(a.airdrop!.logbook!.closed).toBe(true);
+    expect(w.token.airdrop.mintedFd).toBe(minted);
+    expect(w.token.airdrop.logbook!.lostFd).toBeCloseTo(total * (1 - k.atLaunch - cat.haul25!), 6);
+    w.ledger.assertBalanced();
+  });
+
+  it("keeps one book: a later season's share joins it, the milestones already reached paying their shares at once", () => {
+    const w = createWorld({ cfg: book, net, feeds: neutralFeeds, seed: 63, keepLedgerEntries: true });
+    const a = carrier(w, "A");
+    fund(w, a.id, 100_000);
+    a.milesTotal = 3_000;
+    launchToken(w);
+    const k = book.token.airdrop.logbook;
+    const first = a.airdrop!.totalFd;
+    a.loadsThisWeek = 30;
+    weeklyToken(w);
+    const cat = Object.fromEntries(logbookCatalogue(w, "carrier").map((m) => [m.id, m.share]));
+    const before = a.airdrop!.unlockedFd;
+    const lb = a.airdrop!.logbook!;
+    a.milesTotal += 5_000;
+    a.operating.revenueFd += 50_000;
+    for (let i = 0; i < 10; i++) w.token.priceHistory.push(w.token.launchPriceUsd);
+    w.t = 100 * w.cfg.time.gameMinutesPerDay;
+    seasonAirdrop(w);
+    expect(a.airdrop!.logbook).toBe(lb); // the same book
+    const share = a.airdrop!.totalFd - first;
+    expect(share).toBeGreaterThan(0);
+    expect(lb.allocationFd).toBeCloseTo(first + share, 6);
+    expect(lb.done).toEqual(["haul25"]);
+    expect(lb.deadlineDay).toBe(100 + k.deadlineDays);
+    expect(a.airdrop!.unlockedFd - before).toBeCloseTo(share * (k.atLaunch + cat.haul25!), 6);
+    w.ledger.assertBalanced();
+  });
+
+  it("replays exactly from the seed with the logbook on, and the bots reach milestones", () => {
+    const run = () => {
+      const w = createWorld({ cfg: { ...book, token: { ...book.token, betaYears: 0.05 } }, net, feeds: { ...neutralFeeds, cycle: syntheticCassCycle({ seed: 62 }) }, seed: 62 });
+      populate(w, { freeOwnerOperators: 30, fleets: 8, brokers: 3 });
+      runDays(w, 75, ruleBotHook);
+      return { supply: w.ledger.supply(), stats: w.token.airdrop.logbook, done: w.companies.map((c) => c.airdrop?.logbook?.done ?? []) };
+    };
+    const first = run();
+    expect(first.stats).toBeDefined();
+    expect(Object.keys(first.stats!.reached).length).toBeGreaterThan(0);
+    expect(first.stats!.honestFd).toBeGreaterThan(0);
+    expect(run()).toEqual(first);
   });
 });

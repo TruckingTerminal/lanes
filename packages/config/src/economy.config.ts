@@ -875,6 +875,13 @@ export const economyConfig = {
       unlockWeeks: 26, // …75% unlocks over 6 months by playing: a 26th each week the company handles…
       loadsPerWeek: 3, // …at least this many loads; a missed week's slice is forfeited, never minted
       instantClaimHaircut: 0.5, // or claim the rest at once for half (the haircut is never minted)
+      // The logbook (Jeff, 2026-10-31; logbook.ts), in place of the weekly vest and the early claim: `atLaunch` of
+      // each allocation is paid when it's made, the rest only through milestones on the honest or the criminal
+      // path, within `deadlineDays` (twelve real months), after which what's still locked is never minted. The
+      // honest milestones open to a role unlock all of it between them; the criminal ones at most `criminalShare`
+      // of it, only while the company has no open case; a conviction forfeits what's still locked (counsel to
+      // confirm). Off until the combined test.
+      logbook: { enabled: false, atLaunch: 0.01, deadlineDays: 1460, criminalShare: 0.6 },
     },
     // Buying pays 1% in dollars to the treasury; selling pays 5% in FD, burned (the
     // spec's 5% protocol cut on secondary sales, §Two ledgers).

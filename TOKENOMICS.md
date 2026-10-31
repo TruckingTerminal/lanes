@@ -644,3 +644,55 @@ What each one takes out of circulation, and from whom:
 - **Hired robbers and security** (`robbery`, `security`): crew fees and security fittings are sinks; a hit
   destroys cargo (the insurers pay, from pools or the reserve) and, at 30% odds, a rig (chopped); the hirer
   is paid the fence's share less a 25% wash, from the reserve.
+
+## The daily price band (Jeff, 2026-10-31; built, config `token.exchange.priceBand`, off)
+
+For the first 365 game days after launch (three real months), no trade moves the pool's price more than
+15% from the day's open (fixed at the day's first trade). An order that would goes through up to the edge
+of the band and the rest waits: a buy fills until the price reaches today's high, a sale until it reaches
+today's low, net of the sale's fee (which grows with the sale, so the most a sale can be is solved from
+below and never overshoots). At the edge, orders are turned away with "the price is at today's limit up"
+or "limit down". Protocol trades (the buyback, the developer's vest) are not limited; they have their own
+rules. A one-sided launch's floor rules until buyers lift the pool over it, so the band starts then. A pump
+or a dump can't compound faster than 15% a day; the reports count the trades clipped and the biggest
+day-to-day move in the band's days.
+
+## The logbook (Jeff, 2026-10-31; built, config `token.airdrop.logbook`, off)
+
+The airdrop is paid only for what a company does. 1% of each allocation is paid when it's made; the rest
+unlocks through milestones, checked weekly, within twelve real months (1,460 game days), after which what's
+still locked is never minted. There is no early claim and no weekly vest.
+
+| Path | Milestone | Weight | Roles |
+|---|---|---|---|
+| Honest | 25 / 100 / 250 / 1,000 loads handled (delivered, brokered or shipped) | 4 / 6 / 8 / 10 | carriers, brokers |
+| Honest | 100 loads delivered at 95% on time | 6 | carriers |
+| Honest | 100,000 / 1,000,000 FD of operating profit | 6 / 10 | carriers, brokers |
+| Honest | One / five trucks more, owned | 5 / 8 | carriers |
+| Honest | A business owned | 6 | carriers, brokers |
+| Honest | A manager on staff | 4 | carriers |
+| Honest | A quarter with no at-fault crash and no claim, 25 loads handled | 8 | carriers, brokers |
+| Honest | A game year on the road (three real months) and 100 loads / two years and 200 / three years and 300 | 8 / 10 / 12 | carriers, brokers |
+| Honest | A satisfactory compliance review | 5 | carriers |
+| Honest | A contract term kept in full | 6 | carriers |
+| Honest | A truck with every security slot fitted (robbers on) | 3 | carriers |
+| Criminal | A crew of yours hit / five hits / a rig taken and chopped (robbers on) | 8 / 10 / 6 | carriers, brokers |
+| Criminal | 100,000 FD fenced (crew takes, cold cases) | 10 | carriers, brokers |
+| Criminal | A case gone cold | 8 | carriers, brokers |
+
+Each milestone unlocks its weight's share of the 99%: the honest weights open to a role add up to all of
+it, so an honest operator can unlock everything; the criminal ones add up to at most 60% of it
+(`criminalShare`), so crime alone never finishes the book. A criminal milestone counts only while the
+company has no open case (one reached with a case open waits for it to close), only from the company's own
+allocation (crime never earns a new one), and a conviction forfeits whatever is still locked. The tenure
+milestones keep about a quarter of every allocation for the companies still hauling at three, six and nine
+real months. A milestone reached while the supply path holds is owed, like any slice, and paid as room
+returns. A company keeps one book: a later season's share joins it, the milestones already reached paying
+their shares of it at once, and the deadline moves to twelve real months from that season. Counsel to
+confirm the criminal path.
+
+**A first look** (82 companies, a short beta, live levers, robbers on): 52 real days after launch the median
+company had unlocked 38% of its allocation (the 90th percentile 50%); after 102 days, 44% (60%). Almost all
+reach the volume, profit and clean-quarter milestones; few reach 95% on time, a satisfactory review or a
+contract kept in full; the first tenure milestone opens at three real months. Under the old vest the whole
+allocation was out within six and a half real weeks.

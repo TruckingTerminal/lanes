@@ -1,3 +1,4 @@
+import { logbookCount } from "./logbook.js";
 import type { Equipment } from "@lanes/config";
 import { dlog, marketMix, originWeights, destWeights as placeDestWeights, PLACE_OF_HUB } from "@lanes/data";
 import { dayOf } from "./clock.js";
@@ -120,6 +121,7 @@ export function weeklyContracts(w: World): void {
     }
     if (day >= c.endDay) {
       endContract(w, c);
+      if (c.acceptance >= k.renewAbove) logbookCount(carrier, "contractsKept");
       if (c.acceptance >= k.renewAbove) {
         const rate = contractRate(w, c.origin, c.dest, c.equipment);
         offer(w, carrier, c.origin, c.dest, c.equipment, c.originPlace, c.destPlace, c.loadsPerWeek, rate);

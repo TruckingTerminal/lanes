@@ -226,6 +226,21 @@ rows.push(
     const b = rs.map((r) => r.realMoney?.token?.band).filter((x) => x);
     return b.length ? `±${pct(b[0]!.pct)} / ${n0(mean(b.map((x) => x!.clips)))} / ${(mean(b.map((x) => x!.maxDayMove)) * 100).toFixed(1)}%` : "off";
   }],
+  // The airdrop logbook (Jeff, 2026-10-31: 1% at launch, the rest only for milestones).
+  ["Logbook: paid at launch / by honest milestones / by criminal / still locked at end", (rs) => {
+    const b = rs.map((r) => r.realMoney?.token?.logbook).filter((x) => x);
+    return b.length ? `${fd(mean(b.map((x) => x!.openFd)))} / ${fd(mean(b.map((x) => x!.honestFd)))} / ${fd(mean(b.map((x) => x!.criminalFd)))} / ${fd(mean(b.map((x) => x!.lockedEndFd)))}` : "off";
+  }],
+  ["Logbook: forfeited on conviction / median share of an allocation unlocked / books", (rs) => {
+    const b = rs.map((r) => r.realMoney?.token?.logbook).filter((x) => x);
+    return b.length ? `${fd(mean(b.map((x) => x!.convictedFd)))} / ${pct(mean(b.map((x) => x!.medianUnlockedShare)))} / ${n0(mean(b.map((x) => x!.books)))}` : "off";
+  }],
+  ["Logbook: companies reaching each milestone", (rs) => {
+    const b = rs.map((r) => r.realMoney?.token?.logbook).filter((x) => x);
+    if (!b.length) return "off";
+    const ids = [...new Set(b.flatMap((x) => Object.keys(x!.reached)))];
+    return ids.map((id) => `${id} ${n0(mean(b.map((x) => x!.reached[id] ?? 0)))}`).join(", ") || "none";
+  }],
   ["Token: FD held by companies at end", (rs) => range(rs.map((r) => r.realMoney?.token?.supply.companiesEndFd ?? NaN).filter(Number.isFinite), fd)],
   ["Token: launch burned / locked", (rs) => {
     const t = rs.map((r) => r.realMoney?.token).filter((x) => x);

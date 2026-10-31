@@ -259,6 +259,12 @@ export interface TokenReport {
   };
   /** The daily price band (exchange.priceBand), when it's on: its width, the trades it clipped, and the biggest day-to-day move in its days. */
   band?: { pct: number; clips: number; maxDayMove: number };
+  /**
+   * The logbook (token.airdrop.logbook), when it's on: FD paid as books opened, by honest and by criminal
+   * milestones, lost at a deadline and to convictions, and still locked at the end; the books, the median
+   * share of an allocation unlocked, and the companies that reached each milestone.
+   */
+  logbook?: { openFd: number; honestFd: number; criminalFd: number; lostFd: number; convictedFd: number; lockedEndFd: number; books: number; medianUnlockedShare: number; reached: Record<string, number> };
 }
 
 /** Scores a run against the PoC kill criteria (§Proof of concept scope and kill criteria). */
@@ -805,6 +811,14 @@ function tokenReport(w: World, quarterLen: number): TokenReport | null {
       const inBand = live.filter((d) => d.day < tk.launchDay! + b.days);
       const moves = inBand.slice(1).map((d, i) => Math.abs(d.priceUsd / inBand[i]!.priceUsd - 1));
       return { pct: b.pct, clips: tk.bandClips, maxDayMove: Math.max(0, ...moves) };
+    })(),
+    logbook: (() => {
+      const st = tk.airdrop.logbook;
+      if (!w.cfg.token.airdrop.logbook.enabled || !st) return undefined;
+      const books = w.companies.filter((c) => c.airdrop?.logbook);
+      const shares = books.map((c) => c.airdrop!.unlockedFd / Math.max(1e-9, c.airdrop!.totalFd)).sort((a, b) => a - b);
+      const lockedEndFd = books.reduce((s, c) => s + (c.airdrop!.logbook!.closed ? 0 : Math.max(0, c.airdrop!.totalFd - c.airdrop!.unlockedFd - c.airdrop!.forfeitedFd)), 0);
+      return { ...st, reached: { ...st.reached }, lockedEndFd, books: books.length, medianUnlockedShare: shares.length ? shares[Math.floor(shares.length / 2)]! : 0 };
     })(),
   };
 }
