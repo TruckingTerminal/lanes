@@ -73,6 +73,8 @@ export interface RunReport {
   };
   board: { posted: number; cleared: number; expired: number; fillRate: number; avgClearedRate: number; onTimeShare: number };
   wear: { rebuilds: number; breakdowns: number; avgOwnedCondition: number; roadService: { stop: number; hub: number; npc: number }; passClosures: number };
+  /** Nights on the road: at a site, on the shoulder, tickets written, and sites found full. */
+  parking: { siteNights: number; shoulderNights: number; tickets: number; sitesFull: number };
   facilities: {
     owned: Record<string, number>;
     ownersBySegment: Record<string, number>;
@@ -416,6 +418,12 @@ export function buildReport(w: World): RunReport {
       avgOwnedCondition: days.at(-1)?.avgOwnedCondition ?? 1,
       roadService: { stop: sum(days.map((d) => d.roadServiceStop ?? 0)), hub: sum(days.map((d) => d.roadServiceHub ?? 0)), npc: sum(days.map((d) => d.roadServiceNpc ?? 0)) },
       passClosures: sum(days.map((d) => d.passClosures ?? 0)),
+    },
+    parking: {
+      siteNights: sum(days.map((d) => d.siteNights ?? 0)),
+      shoulderNights: sum(days.map((d) => d.shoulderNights ?? 0)),
+      tickets: sum(days.map((d) => d.tickets ?? 0)),
+      sitesFull: sum(days.map((d) => d.sitesFull ?? 0)),
     },
     facilities: {
       owned,

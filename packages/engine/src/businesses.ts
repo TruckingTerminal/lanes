@@ -72,7 +72,7 @@ export function buyBusiness(w: World, c: Company, kind: HubBusinessKind, hubId: 
   const paid = pay(w, c, price, spec.bondFd, ref);
   if (paid) return paid;
   const outlay = price + salesTaxOn(w, price);
-  w.businesses.push({ id: w.businesses.length + 1, kind, ownerId: c.id, hub, site: 0, boughtDay: dayOf(w.t, w.cfg), bondFd: spec.bondFd, markup: kind === "shop" ? 1 : 0, netFd: -outlay, purchaseFd: outlay });
+  w.businesses.push({ id: w.businesses.length + 1, kind, ownerId: c.id, hub, site: 0, boughtDay: dayOf(w.t, w.cfg), bondFd: spec.bondFd, markup: kind === "shop" ? 1 : 0, parkingFd: 0, netFd: -outlay, purchaseFd: outlay });
   return null;
 }
 
@@ -90,7 +90,7 @@ export function buyTruckStop(w: World, c: Company, siteId: number): string | nul
   const paid = pay(w, c, price, spec.bondFd, ref);
   if (paid) return paid;
   const outlay = price + salesTaxOn(w, price);
-  const b: Business = { id: w.businesses.length + 1, kind: "truckStop", ownerId: c.id, hub: -1, site: site.id, boughtDay: dayOf(w.t, w.cfg), bondFd: spec.bondFd, markup: spec.markupRange[0], netFd: -outlay, purchaseFd: outlay };
+  const b: Business = { id: w.businesses.length + 1, kind: "truckStop", ownerId: c.id, hub: -1, site: site.id, boughtDay: dayOf(w.t, w.cfg), bondFd: spec.bondFd, markup: spec.markupRange[0], parkingFd: w.cfg.businesses.parking.defaultPriceFd, netFd: -outlay, purchaseFd: outlay };
   w.businesses.push(b);
   site.businessId = b.id;
   return null;
@@ -103,6 +103,34 @@ export function setShopMarkup(w: World, c: Company, businessId: number, markup: 
   if (b.kind === "fuelStation") return "only a shop prices its work";
   const [lo, hi] = w.cfg.businesses.kinds[b.kind].markupRange;
   b.markup = clamp(markup, lo, hi);
+  return null;
+}
+
+/** A truck stop's nightly parking price, within the band. */
+export function setParkingPrice(w: World, c: Company, businessId: number, fd: number): string | null {
+  const b = w.businesses[businessId - 1];
+  if (!b || b.ownerId !== c.id) return "not your business";
+  if (b.kind !== "truckStop") return "only a truck stop sells parking";
+  const [lo, hi] = w.cfg.businesses.parking.priceRange;
+  b.parkingFd = clamp(fd, lo, hi);
+  return null;
+}
+
+/** More spaces at the owner's truck stop, bought through the catalogue split (a sink), taxed. */
+export function addParking(w: World, c: Company, businessId: number): string | null {
+  const b = w.businesses[businessId - 1];
+  if (!b || b.ownerId !== c.id) return "not your business";
+  if (b.kind !== "truckStop") return "only a truck stop has a lot to grow";
+  if (c.liquidatingSince !== null) return "in liquidation";
+  const site = siteOf(w, b.site);
+  if (!site) return "no site";
+  const p = w.cfg.businesses.parking;
+  const price = p.spacesPerPurchase * p.spacePriceFd * (w.cfg.token.catalogue.enabled ? priceIndex(w) : 1);
+  const paid = pay(w, c, price, 0, `parking:${b.id}`);
+  if (paid) return paid;
+  site.spaces += p.spacesPerPurchase;
+  b.netFd -= price;
+  b.purchaseFd += price;
   return null;
 }
 

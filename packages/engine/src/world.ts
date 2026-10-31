@@ -677,6 +677,7 @@ export function createTruck(
     nextStation: 0,
     legTollFd: 0,
     restShiftT: null,
+    restSite: 0,
     legHighwayShare: 0,
     legClimbM: 0,
     legMountainMi: 0,

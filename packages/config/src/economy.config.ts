@@ -9,7 +9,7 @@ export type TractorTier = "workhorse" | "highwayPro" | "flagship";
 export type FacilityType = "warehouse" | "coldStorage" | "factory";
 
 export const economyConfig = {
-  version: "0.18.1-phase0.25", // Phase A (2026-10-30): terrain on the roads, managers from the pool, truck stops resized; live levers in live.ts
+  version: "0.18.2-phase0.26", // Parking (2026-10-30): rest areas by traffic, the night at a site or a ticket on the shoulder, drivers plan the night; live levers in live.ts
 
   // §World, map and time
   time: {
@@ -408,8 +408,17 @@ export const economyConfig = {
       // Sized on v32–v35 (2026-10-30, Phase A): at 250k + 100k and 15 a night a stop cleared ~20k a year, a
       // ten-year payback, so bots stopped at ~25 and three quarters of breakdowns found nobody. A parked
       // truck saves 24 FD of idling, so 20 a night still leaves the driver better off.
-      truckStop: { priceFd: 150_000, bondFd: 50_000, upkeepPerWeekFd: 1_500, fuelMarginPct: 0.06, partsShare: 0.7, markupRange: [1.1, 1.4] as const, nightlyFd: 20, idleFuelMult: 0.25, restRangeMi: 50 },
+      truckStop: { priceFd: 150_000, bondFd: 50_000, upkeepPerWeekFd: 1_500, fuelMarginPct: 0.06, partsShare: 0.7, markupRange: [1.1, 1.4] as const, idleFuelMult: 0.25 },
     },
+    // Parking (Jeff, 2026-10-30): a truck sleeps at a site. Every site is a free public rest area with spaces
+    // by its traffic (`spaces` at the quietest and the busiest); a player's truck stop on it adds shore
+    // power (idling at a quarter), fuel, the shop and a nightly price the owner sets within `priceRange`
+    // (new stops ask `defaultPriceFd`). Shutting down on the shoulder is illegal unless the truck broke
+    // down: a patrol ticket of `shoulderFineFd` at `patrolOdds`, and the full idling. A driver stops at the
+    // last site with room the day's hours still reach, early if the next is beyond them (trips.ts
+    // planNight); a site found full sends them on. Owners add `spacesPerPurchase` spaces for
+    // `spacePriceFd` each, through the catalogue split.
+    parking: { spaces: [20, 150] as const, shoulderFineFd: 250, patrolOdds: 0.33, defaultPriceFd: 20, priceRange: [10, 40] as const, spacesPerPurchase: 25, spacePriceFd: 1_000 },
     // Truck-stop sites: one every so many interstate miles, ranked by the freight that passes (a gravity
     // model over the lanes), the busiest open for sale at the start, more opening as the fleet grows.
     // openPerBuilt: the open count follows coverage too — this many sites for sale per truck stop built.

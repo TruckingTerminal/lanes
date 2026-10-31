@@ -55,6 +55,11 @@ export interface DayMetrics {
   roadServiceNpc: number;
   /** Legs held by a winter pass closure (trips.ts beginLeg). */
   passClosures: number;
+  /** Nights at a site, nights on the shoulder, shoulder tickets, and sites found full (sites.ts parkForTheNight). */
+  siteNights: number;
+  shoulderNights: number;
+  tickets: number;
+  sitesFull: number;
   rebuilds: number;
   /** Mean condition of owned trucks (1 = fresh). */
   avgOwnedCondition: number;
@@ -133,6 +138,19 @@ export class MetricsRecorder {
 
   onPassClosure(): void {
     this.acc.passClosures++;
+  }
+
+  onNight(where: "site" | "shoulder"): void {
+    if (where === "site") this.acc.siteNights++;
+    else this.acc.shoulderNights++;
+  }
+
+  onTicket(): void {
+    this.acc.tickets++;
+  }
+
+  onFull(): void {
+    this.acc.sitesFull++;
   }
 
   onRoadService(by: "stop" | "hub" | "npc"): void {
@@ -293,6 +311,10 @@ export class MetricsRecorder {
       roadServiceHub: a.roadServiceHub,
       roadServiceNpc: a.roadServiceNpc,
       passClosures: a.passClosures,
+      siteNights: a.siteNights,
+      shoulderNights: a.shoulderNights,
+      tickets: a.tickets,
+      sitesFull: a.sitesFull,
       rebuilds: a.rebuilds,
       avgOwnedCondition: owned ? conditionSum / owned : 1,
       cycle: w.feeds.cycle(day),
@@ -365,6 +387,10 @@ function emptyAcc() {
     roadServiceHub: 0,
     roadServiceNpc: 0,
     passClosures: 0,
+    siteNights: 0,
+    shoulderNights: 0,
+    tickets: 0,
+    sitesFull: 0,
     rebuilds: 0,
     ordersPlaced: 0,
     trucksDelivered: 0,

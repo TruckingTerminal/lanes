@@ -1,7 +1,7 @@
 import { COMMODITIES, NO_TERRAIN, routeTerrain, type Route } from "@lanes/data";
 import { winterNow } from "./safety.js";
 import { payLegFuel, roadService, serviceBill } from "./businesses.js";
-import { restOnRoad } from "./sites.js";
+import { leaveParking, legMile, parkForTheNight, planNight, siteHere } from "./sites.js";
 import { managerBreakdownMult, managerMaintenanceMult } from "./labor.js";
 import { dayOf, MINUTES_PER_HOUR } from "./clock.js";
 import { clamp, fuelPrice, tripCost } from "./economics.js";
@@ -69,6 +69,8 @@ export function moveTrucks(w: World): void {
   const { cfg } = w;
   for (const truck of w.trucks) {
     if (truck.status === "retired" || truck.status === "listed") continue;
+    // The morning after a night at a site: the space is free once the duty day has reset (sites.ts).
+    if (truck.restSite && drivingMinutesLeft(w, truck, w.t) > 1e-9) leaveParking(w, truck);
     let budget = MINUTES_PER_HOUR;
     while (budget > 1e-9 && truck.status !== "idle") {
       const now = w.t + (MINUTES_PER_HOUR - budget);
@@ -113,7 +115,11 @@ export function moveTrucks(w: World): void {
         const resetAt = truck.shiftStartT! + cfg.hos.dutyDayHours * MINUTES_PER_HOUR;
         const hourEnd = w.t + MINUTES_PER_HOUR;
         if (resetAt >= hourEnd) {
-          restOnRoad(w, truck); // the night at the nearest truck stop, or on the shoulder (sites.ts)
+          // The night: at the site the truck stands at (a rest area or a truck stop), else on the shoulder (sites.ts).
+          const r = placeRoute(w, truck.place, truck.targetPlace);
+          const here = r ? siteHere(w, r, legMile(truck)) : null;
+          if (here && !(here.parked < here.spaces)) w.metrics.onFull();
+          parkForTheNight(w, truck, here && here.parked < here.spaces ? here : null);
           break;
         }
         budget = hourEnd - resetAt;
@@ -131,10 +137,21 @@ export function moveTrucks(w: World): void {
       const tr = cfg.roads.terrain;
       const grades = tr.enabled && truck.legMiles > 0 && truck.legMountainMi > 0 ? truck.legMiles / (truck.legMiles + truck.legMountainMi * (roadMph / tr.mountainMph - 1)) : 1;
       const mph = (truck.companyId ? mphFor(w, truck, companyById(w, truck.companyId), roadMph) : roadMph) * grades;
-      const minutes = Math.min(budget, hosLeft, (truck.remainingMi / mph) * MINUTES_PER_HOUR);
-      const miles = Math.min(truck.remainingMi, (mph * minutes) / MINUTES_PER_HOUR);
+      let minutes = Math.min(budget, hosLeft, (truck.remainingMi / mph) * MINUTES_PER_HOUR);
+      let miles = Math.min(truck.remainingMi, (mph * minutes) / MINUTES_PER_HOUR);
+      // The night ahead (sites.ts planNight): stop at the last site with room the hours still reach, early
+      // if the next one is beyond them, and call the day done there.
+      const stopAt = route ? planNight(w, truck, route, legMile(truck), (hosLeft / MINUTES_PER_HOUR) * mph, miles) : null;
+      let dayDone = false;
+      if (stopAt !== null) {
+        miles = Math.max(0, Math.min(miles, stopAt - legMile(truck)));
+        minutes = Math.min(minutes, (miles / mph) * MINUTES_PER_HOUR);
+        dayDone = true;
+      }
+      const limit = truck.shiftDrivenMin + hosLeft;
       truck.remainingMi -= miles;
       truck.shiftDrivenMin += minutes;
+      if (dayDone) truck.shiftDrivenMin = limit; // the hours are spent: the next pass through the loop parks
       creditDriving(w, truck, minutes);
       truck.overMin = Math.max(0, truck.shiftDrivenMin - legalDrivingMin(w, truck));
       budget -= minutes;

@@ -79,7 +79,7 @@ import { stakeAccount } from "../src/staking.js";
 import { payTripCosts } from "../src/trips.js";
 import { createTruck } from "../src/world.js";
 import { businessesOf, payFuel, payLegFuel, roadService, serviceBill, shopAt } from "../src/businesses.js";
-import { bestOpenSite, legMile, restOnRoad, sitePriceFd, sitesAlong } from "../src/sites.js";
+import { bestOpenSite, hasRoom, legMile, parkForTheNight, planNight, siteHere, sitePriceFd, sitesAlong } from "../src/sites.js";
 import { hubRoute, syncTruck } from "../src/world.js";
 import { fuelPrice as fuelPriceNow } from "../src/economics.js";
 import { beginLeg } from "../src/trips.js";
@@ -1596,14 +1596,18 @@ describe("the big sinks (0.18.0): sales tax, player businesses, the maintenance 
     const stop = businessesOf(w, owner.id).find((b) => b.kind === "truckStop")!;
     expect(applyAction(w, owner.id, { type: "set_shop_markup", businessId: stop.id, markup: 1.2 })).toEqual({ ok: true });
 
-    // A customer's truck resting at the site's mile: a quarter of the idling, and the nightly fee (taxed) to the owner.
+    // A customer's truck sleeping at the site: a space taken, a quarter of the idling, and the nightly price (taxed) to the owner.
     const { t, r } = onLeg(w, cust, road.a, road.b, road.mile);
     expect(legMile(t)).toBeCloseTo(road.mile, 6);
+    expect(siteHere(w, r, road.mile)).toBe(site);
     const o2 = w.ledger.balance(companyAccount(owner.id));
     const idleBefore = w.ledger.entries.filter((e) => e.to === "sink:idle_fuel").reduce((s, e) => s + e.amount, 0);
-    restOnRoad(w, t);
-    restOnRoad(w, t); // the same shift: charged once
-    expect(w.ledger.balance(companyAccount(owner.id)) - o2).toBeCloseTo(k.nightlyFd, 2);
+    parkForTheNight(w, t, site);
+    parkForTheNight(w, t, site); // the same shift: charged once
+    expect(site.parked).toBe(1);
+    expect(t.restSite).toBe(site.id);
+    expect(w.ledger.balance(companyAccount(owner.id)) - o2).toBeCloseTo(stop.parkingFd, 2);
+    expect(stop.parkingFd).toBe(sinks.businesses.parking.defaultPriceFd);
     const idle = w.ledger.entries.filter((e) => e.to === "sink:idle_fuel").reduce((s, e) => s + e.amount, 0) - idleBefore;
     expect(idle).toBeCloseTo(sinks.costs.idleFuelGalPerDay * k.idleFuelMult * fuelPriceNow(w), 1);
 
@@ -1724,6 +1728,119 @@ describe("terrain (0.18.0, Phase A): climb, grades and passes on the road", () =
     payTripCosts(w, flat, "flat");
     const flatFuel = fuelSunk() - f0 - mountainFuel;
     expect(mountainFuel - flatFuel).toBeCloseTo(sure.roads.terrain.fuelGalPerClimbM * lane.climbM * fuelPriceNow(w), 0);
+    w.ledger.assertBalanced();
+  });
+});
+
+describe("parking (0.18.2): rest areas by traffic, the night at a site or on the shoulder, the planner, owners' prices and spaces", () => {
+  const sinks: EconomyConfig = {
+    ...calm,
+    costs: { ...calm.costs, salesTax: { enabled: true, pct: 0.05 } },
+    businesses: { ...calm.businesses, enabled: true, parking: { ...calm.businesses.parking, patrolOdds: 1 } },
+  };
+  function onLeg(w: World, c: Company, a: number, b: number, mile: number) {
+    const t = createTruck(w, c, "owned", "workhorse", "van");
+    const r = hubRoute(w, a, b)!;
+    t.status = "loaded";
+    t.hub = a;
+    t.targetHub = b;
+    t.place = PLACE_OF_HUB[a]!;
+    t.targetPlace = PLACE_OF_HUB[b]!;
+    t.legMiles = r.miles;
+    t.remainingMi = r.miles - mile;
+    t.shiftStartT = 1_000;
+    const driver = w.staffByCompany.get(c.id)!.find((s) => s.owner)!;
+    t.driverId = driver.id;
+    driver.truckId = t.id;
+    return { t, r };
+  }
+
+  it("sizes every site's rest area by its traffic, and tickets a truck that sleeps on the shoulder unless it broke down", () => {
+    const w = createWorld({ cfg: sinks, net, feeds: neutralFeeds, seed: 90, keepLedgerEntries: true });
+    const [lo, hi] = sinks.businesses.parking.spaces;
+    const busiest = [...w.sites].sort((a, b) => b.traffic - a.traffic)[0]!;
+    const quietest = [...w.sites].sort((a, b) => a.traffic - b.traffic)[0]!;
+    expect(busiest.spaces).toBe(hi);
+    expect(quietest.spaces).toBeGreaterThanOrEqual(lo);
+    expect(quietest.spaces).toBeLessThan(busiest.spaces);
+    const c = carrier(w, "C");
+    fund(w, c.id, 20_000);
+    const r = hubRoute(w, 0, 1)!;
+    const { t } = onLeg(w, c, 0, 1, r.miles / 2);
+    const fines = () => w.ledger.entries.filter((e) => e.to === "sink:fines").reduce((s, e) => s + e.amount, 0);
+    parkForTheNight(w, t, null); // the shoulder, certain patrol
+    expect(fines()).toBeCloseTo(sinks.businesses.parking.shoulderFineFd, 2);
+    expect(w.metrics.days.length).toBe(0);
+    // Broken down: legal, no ticket.
+    const { t: t2 } = onLeg(w, c, 0, 1, r.miles / 3);
+    t2.breakdownMin = 120;
+    parkForTheNight(w, t2, null);
+    expect(fines()).toBeCloseTo(sinks.businesses.parking.shoulderFineFd, 2);
+    // At a public rest area: free, a space taken, the full idling.
+    const site = bestOpenSite(w)!;
+    const { t: t3 } = onLeg(w, c, 0, 1, 10);
+    const idleBefore = w.ledger.entries.filter((e) => e.to === "sink:idle_fuel").reduce((s, e) => s + e.amount, 0);
+    parkForTheNight(w, t3, site);
+    expect(site.parked).toBe(1);
+    expect(w.ledger.entries.filter((e) => e.to === "sink:idle_fuel").reduce((s, e) => s + e.amount, 0) - idleBefore).toBeCloseTo(sinks.costs.idleFuelGalPerDay * fuelPriceNow(w), 1);
+    expect(fines()).toBeCloseTo(sinks.businesses.parking.shoulderFineFd, 2);
+    w.ledger.assertBalanced();
+  });
+
+  it("plans the night at the last site with room the hours reach, and skips a full one", () => {
+    const w = createWorld({ cfg: sinks, net, feeds: neutralFeeds, seed: 91 });
+    const c = carrier(w, "C");
+    // A long road with at least two sites on it.
+    const n = w.net.hubs.length;
+    let pick: { a: number; b: number; r: ReturnType<typeof hubRoute> } | null = null;
+    for (let a = 0; a < n && !pick; a++) for (let b = 0; b < n; b++) {
+      const r = a === b ? null : hubRoute(w, a, b);
+      if (r && r.miles > 600 && sitesAlong(w, r).length >= 3) { pick = { a, b, r }; break; }
+    }
+    const { a, b, r } = pick!;
+    const along = sitesAlong(w, r!);
+    const { t } = onLeg(w, c, a, b, 0);
+    const reach = 400;
+    const within = along.filter((s) => s.mile > 0.1 && s.mile <= reach);
+    expect(within.length).toBeGreaterThan(0);
+    const last = within[within.length - 1]!;
+    // Not passing it this hour: drive on. Passing it: stop there.
+    expect(planNight(w, t, r!, 0, reach, Math.max(0, last.mile - 5))).toBeNull();
+    expect(planNight(w, t, r!, 0, reach, last.mile + 5)).toBeCloseTo(last.mile, 6);
+    // The leg ends within the hours: no night planned.
+    expect(planNight(w, t, r!, 0, r!.miles + 1, 60)).toBeNull();
+    // That site full: the previous one with room, or none.
+    const lastSite = w.sites[last.site - 1]!;
+    lastSite.parked = lastSite.spaces;
+    expect(hasRoom(lastSite)).toBe(false);
+    const prev = within.filter((s) => s.site !== last.site).at(-1);
+    const planned = planNight(w, t, r!, 0, reach, last.mile + 5);
+    if (prev) expect(planned).toBeCloseTo(prev.mile, 6);
+    else expect(planned).toBeNull();
+  });
+
+  it("lets an owner price the parking within the band and buy more spaces through the catalogue split", () => {
+    const cat: EconomyConfig = { ...sinks, token: { ...sinks.token, catalogue: { ...sinks.token.catalogue, enabled: true } } };
+    const w = createWorld({ cfg: cat, net, feeds: neutralFeeds, seed: 92, keepLedgerEntries: true });
+    const owner = carrier(w, "Owner");
+    fund(w, owner.id, 2_000_000);
+    const site = bestOpenSite(w)!;
+    expect(applyAction(w, owner.id, { type: "buy_business", kind: "truckStop", siteId: site.id })).toEqual({ ok: true });
+    const stop = businessesOf(w, owner.id)[0]!;
+    const [lo, hi] = cat.businesses.parking.priceRange;
+    expect(applyAction(w, owner.id, { type: "set_parking_price", businessId: stop.id, fd: hi + 100 })).toEqual({ ok: true });
+    expect(stop.parkingFd).toBe(hi);
+    expect(applyAction(w, owner.id, { type: "set_parking_price", businessId: stop.id, fd: 0 })).toEqual({ ok: true });
+    expect(stop.parkingFd).toBe(lo);
+    const spaces = site.spaces;
+    const before = w.ledger.balance(companyAccount(owner.id));
+    const burnBefore = w.ledger.entries.filter((e) => e.to === "sink:asset_burn").reduce((s, e) => s + e.amount, 0);
+    expect(applyAction(w, owner.id, { type: "add_parking", businessId: stop.id })).toEqual({ ok: true });
+    const p = cat.businesses.parking;
+    const price = p.spacesPerPurchase * p.spacePriceFd * priceIndex(w);
+    expect(site.spaces).toBe(spaces + p.spacesPerPurchase);
+    expect(before - w.ledger.balance(companyAccount(owner.id))).toBeCloseTo(price * 1.05, 2);
+    expect(w.ledger.entries.filter((e) => e.to === "sink:asset_burn").reduce((s, e) => s + e.amount, 0) - burnBefore).toBeCloseTo(price * cat.token.catalogue.split.burn, 2);
     w.ledger.assertBalanced();
   });
 });

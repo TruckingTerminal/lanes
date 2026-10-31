@@ -53,11 +53,15 @@ export function buildSites(w: World): void {
       acc -= k.everyMi;
       const frac = e.miles > 0 ? clamp(1 - acc / e.miles, 0.05, 0.95) : 0.5;
       const [lat, lon] = pointOnEdge(roads, e, frac * e.miles);
-      sites.push({ id: sites.length + 1, edge: ei, frac, lat, lon, traffic: traffic[ei]!, open: false, businessId: 0 });
+      sites.push({ id: sites.length + 1, edge: ei, frac, lat, lon, traffic: traffic[ei]!, open: false, businessId: 0, spaces: 0, parked: 0 });
       max = Math.max(max, traffic[ei]!);
     }
   });
-  for (const s of sites) s.traffic = max > 0 ? s.traffic / max : 0;
+  const [loSp, hiSp] = w.cfg.businesses.parking.spaces;
+  for (const s of sites) {
+    s.traffic = max > 0 ? s.traffic / max : 0;
+    s.spaces = Math.round(loSp + (hiSp - loSp) * s.traffic); // a public rest area at every site, sized by its traffic
+  }
   const order = [...sites].sort((a, b) => b.traffic - a.traffic || a.id - b.id);
   for (let i = 0; i < Math.min(k.openAtStart, order.length); i++) order[i]!.open = true;
   w.sites = sites;
@@ -158,31 +162,77 @@ export function nearestStopOnLeg(w: World, route: Route, mile: number, rangeMi: 
   return best;
 }
 
+/** The site at a mile of the route, within a mile and a half, if any. */
+export function siteHere(w: World, route: Route, mile: number): TruckStopSite | null {
+  for (const s of sitesAlong(w, route)) if (Math.abs(s.mile - mile) <= 1.5) return w.sites[s.site - 1] ?? null;
+  return null;
+}
+
+export const hasRoom = (site: TruckStopSite): boolean => site.parked < site.spaces;
+
 /**
- * A rest on the road, charged once per shift: at the nearest truck stop within range the idling drops
- * to a quarter (shore power) for the nightly fee, taxed; with none in reach the truck idles on the
- * shoulder at the full rate. The gallons count toward the fuel tax.
+ * Where the day should end: the last site with room the hours still reach. Returns that site's mile
+ * when the truck would pass it this hour (so it stops there, early if the next is beyond the hours),
+ * else null: drive on. No stop within reach means the night will be wherever the hours run out.
  */
-export function restOnRoad(w: World, truck: Truck): void {
+export function planNight(w: World, truck: Truck, route: Route, mile: number, reachMi: number, milesThisHour: number): number | null {
+  if (!w.cfg.businesses.enabled) return null;
+  if (truck.legMiles - mile <= reachMi + 1e-9) return null; // the leg ends within the hours
+  let last: { site: number; mile: number } | null = null;
+  for (const s of sitesAlong(w, route)) {
+    if (s.mile <= mile + 0.1) continue;
+    if (s.mile > mile + reachMi) break;
+    if (hasRoom(w.sites[s.site - 1]!)) last = s;
+  }
+  if (!last || last.mile > mile + milesThisHour + 1e-9) return null;
+  return last.mile;
+}
+
+/**
+ * The night, charged once per shift. At a site: a space (the public rest area is free, the full
+ * idling; a player's truck stop idles at a quarter for its nightly price, taxed, the owner's own
+ * trucks free). On the shoulder: illegal unless broken down — the full idling and, at the patrol's
+ * odds, a ticket (a sink). The gallons count toward the fuel tax.
+ */
+export function parkForTheNight(w: World, truck: Truck, site: TruckStopSite | null): void {
   if (truck.restShiftT === truck.shiftStartT) return;
   truck.restShiftT = truck.shiftStartT;
   if (!truck.companyId || !truck.driverId) return;
   const { cfg } = w;
   const c = companyById(w, truck.companyId);
-  const k = cfg.businesses.kinds.truckStop;
-  const route = cfg.businesses.enabled ? legRoute(w, truck) : null;
-  const stop = route ? nearestStopOnLeg(w, route, legMile(truck), k.restRangeMi) : null;
-  const gal = cfg.costs.idleFuelGalPerDay * (truck.mods.apu ? 0.5 : 1) * (stop ? k.idleFuelMult : 1);
+  const stop = site ? siteBusiness(w, site) : null;
+  if (site) {
+    site.parked++;
+    truck.restSite = site.id;
+    w.metrics.onNight("site");
+  } else {
+    w.metrics.onNight("shoulder");
+  }
+  const gal = cfg.costs.idleFuelGalPerDay * (truck.mods.apu ? 0.5 : 1) * (stop ? cfg.businesses.kinds.truckStop.idleFuelMult : 1);
   const burned = gal * fuelPrice(w) * (1 - stakeDiscount(w, c));
   c.fuelGalMonth += gal;
   if (burned > 0.005) {
     w.ledger.post(w.t, companyAccount(c.id), "sink:idle_fuel", burned, `rest:${truck.id}`);
     c.operating.costFd += burned;
   }
-  if (stop && stop.business.ownerId !== c.id) {
-    const fee = k.nightlyFd;
-    w.ledger.post(w.t, companyAccount(c.id), companyAccount(stop.business.ownerId), fee, `rest:${truck.id}`);
-    stop.business.netFd += fee;
-    c.operating.costFd += fee + chargeSalesTax(w, c.id, fee, `rest:${truck.id}`);
+  if (stop && stop.ownerId !== c.id && stop.parkingFd > 0.005) {
+    w.ledger.post(w.t, companyAccount(c.id), companyAccount(stop.ownerId), stop.parkingFd, `rest:${truck.id}`);
+    stop.netFd += stop.parkingFd;
+    c.operating.costFd += stop.parkingFd + chargeSalesTax(w, c.id, stop.parkingFd, `rest:${truck.id}`);
   }
+  const p = cfg.businesses.parking;
+  if (!site && cfg.businesses.enabled && truck.breakdownMin <= 1e-9 && w.rng.ops.next() < p.patrolOdds) {
+    w.ledger.post(w.t, companyAccount(c.id), "sink:fines", p.shoulderFineFd, `fine:shoulder:${truck.id}`);
+    c.operating.costFd += p.shoulderFineFd;
+    w.metrics.onTicket();
+    w.listener?.({ kind: "notice", companyId: c.id, topic: "safety", text: `Truck ${truck.id}: ticketed ${p.shoulderFineFd} FD for shutting down on the shoulder — sleep at a rest area or a truck stop.`, tone: "bad", truckId: truck.id });
+  }
+}
+
+/** The morning: the space is free again. */
+export function leaveParking(w: World, truck: Truck): void {
+  if (!truck.restSite) return;
+  const site = w.sites[truck.restSite - 1];
+  if (site && site.parked > 0) site.parked--;
+  truck.restSite = 0;
 }

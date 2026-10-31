@@ -478,8 +478,9 @@ export interface Truck {
   legClimbM: number;
   legMountainMi: number;
   legPassMi: number;
-  /** The shift whose rest on the road has been charged (sites.ts restOnRoad), so a rest is charged once. */
+  /** The shift whose night on the road has been charged (sites.ts parkForTheNight), so a night is charged once; and the site the truck sleeps at, 0 on the shoulder or none. */
   restShiftT: number | null;
+  restSite: number;
 }
 
 /** "expired": nobody hauled it before the shipper gave up (board.giveUpAfterRounds); the freight is lost. */
@@ -601,6 +602,9 @@ export interface TruckStopSite {
   open: boolean;
   /** The truck stop built here, 0 for none. */
   businessId: number;
+  /** Parking spaces (every site is a public rest area), and trucks sleeping here tonight. */
+  spaces: number;
+  parked: number;
 }
 
 /** A player business (businesses.ts): a shop or a fuel station at a hub, or a truck stop at a site. */
@@ -617,6 +621,8 @@ export interface Business {
   bondFd: number;
   /** Shops: the price of their work against the NPC shop's list (1 = list). */
   markup: number;
+  /** Truck stops: the nightly parking price. */
+  parkingFd: number;
   /** Running FD result for the owner: margins − purchase − upkeep; and the purchase alone (price and tax), so the trade can be read apart from it. */
   netFd: number;
   purchaseFd: number;
@@ -725,6 +731,8 @@ export type Action =
   | { type: "buy_business"; kind: "shop" | "fuelStation"; hubId: string }
   | { type: "buy_business"; kind: "truckStop"; siteId: number }
   | { type: "set_shop_markup"; businessId: number; markup: number }
+  | { type: "set_parking_price"; businessId: number; fd: number }
+  | { type: "add_parking"; businessId: number }
   | { type: "claim_airdrop_now" }
   /** Standing offer in the weekly buyback auction; amount 0 withdraws it. */
   | { type: "offer_fd"; amountFd: number; minPriceUsd: number }

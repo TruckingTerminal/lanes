@@ -87,6 +87,10 @@ Order is the working order. Design records live in TOKENOMICS.md (economy) and R
   serve 15% of breakdowns (hub shops 8%, NPC road service 76%) and clear ~20k FD a year on a ~224k
   purchase. More stops need a shorter payback: a bigger call-out share, rests priced higher, or a
   cheaper site; and the open count should follow coverage, not only the fleet.
+- **Parking (Jeff, 2026-10-30, built; ruleset 0.18.2-phase0.26):** sleep only at sites — every site a
+  free public rest area with spaces by traffic, a player's truck stop the paid, powered option with a
+  price the owner sets and spaces to buy; the shoulder illegal unless broken down (a patrol ticket,
+  a sink); drivers plan the night at the last site with room the hours reach; full sites send them on.
 - **Phase A (Jeff, 2026-10-30, built; ruleset 0.18.1-phase0.25):** truck stops sized to get built (150k +
   50k bond, 20 a night, call-out 400 + 6/mi) and the open-site count following coverage; managers as
   people from the labor pool (skill-scaled edge, weekly pay); terrain and weather on the route (13:

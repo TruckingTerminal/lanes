@@ -1033,6 +1033,10 @@ function maybeBuyBusiness(w: World, c: Company, p: BotProfile, rng: Rng, today: 
       const b = businessesOf(w, c.id).at(-1)!;
       const [lo, hi] = k.kinds[kind].markupRange;
       applyAction(w, c.id, { type: "set_shop_markup", businessId: b.id, markup: rng.range(lo, hi) });
+      if (kind === "truckStop") {
+        const [plo, phi] = k.parking.priceRange;
+        applyAction(w, c.id, { type: "set_parking_price", businessId: b.id, fd: rng.range(plo + (phi - plo) * 0.2, plo + (phi - plo) * 0.6) });
+      }
     }
     return;
   }

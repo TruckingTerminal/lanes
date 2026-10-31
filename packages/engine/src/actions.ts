@@ -1,5 +1,5 @@
 import { acceptOffer, acceptTender, declineOffer, mayTake, rejectTender } from "./contracts.js";
-import { buyBusiness, buyTruckStop, serviceBill, setShopMarkup } from "./businesses.js";
+import { addParking, buyBusiness, buyTruckStop, serviceBill, setParkingPrice, setShopMarkup } from "./businesses.js";
 import { chargeSalesTax } from "./salesTax.js";
 import { bookLoad } from "./board.js";
 import { offerFd } from "./buyback.js";
@@ -107,6 +107,10 @@ export function badInput(cfg: EconomyConfig, a: Action): string | null {
       return a.kind === "truckStop" ? (isId(a.siteId) ? null : "bad site") : (a.kind === "shop" || a.kind === "fuelStation") && typeof a.hubId === "string" ? null : "bad business";
     case "set_shop_markup":
       return isId(a.businessId) && finiteIn(a.markup, 0.5, 2) ? null : "bad markup";
+    case "set_parking_price":
+      return isId(a.businessId) && finiteIn(a.fd, 0, 1_000) ? null : "bad price";
+    case "add_parking":
+      return isId(a.businessId) ? null : "bad business";
     case "offer_fd":
       return isFd(a.amountFd) && finiteIn(a.minPriceUsd, 0, 1e6) ? null : "bad offer";
     case "offer_staff":
@@ -515,6 +519,12 @@ export function applyAction(w: World, companyId: number, action: Action): Action
 
     case "set_shop_markup":
       return result(setShopMarkup(w, company, action.businessId, action.markup));
+
+    case "set_parking_price":
+      return result(setParkingPrice(w, company, action.businessId, action.fd));
+
+    case "add_parking":
+      return result(addParking(w, company, action.businessId));
 
     case "set_pay_terms": {
       // Factoring is a contract: choosing it signs one (stake and all); leaving it before the term forfeits the stake.

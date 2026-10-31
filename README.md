@@ -493,6 +493,16 @@ people from the labor pool (`StaffKind` `opsManager` / `maintManager`: skill, as
 morale, a week's experience a week; the edge scales with the best one's skill; weekly pay a sink).
 Truck stops cost 150k with a 50k bond and charge 20 a night, and more sites open as stops get built.
 
+**Parking (2026-10-30, ruleset 0.18.2).** A truck sleeps at a site. Every site is a free public rest
+area with spaces by its traffic (`businesses.parking.spaces`, 20 to 150); a player's truck stop on it
+adds shore power at a quarter of the idling, fuel, the shop and a nightly price the owner sets
+(`set_parking_price`, 10 to 40), and owners buy more spaces through the catalogue split
+(`add_parking`). Shutting down on the shoulder is illegal unless the truck broke down: a patrol
+ticket (`shoulderFineFd` at `patrolOdds`, sink `fines`) and the full idling. Each hour a driver plans
+the night (`sites.ts planNight`): the last site with room the day's hours still reach, early if the
+next is beyond them; a site found full sends them on. The report counts nights at sites, nights on
+the shoulder, tickets and full sites.
+
 Jeff's direction (2026-10-29, TOKENOMICS.md "The circular economy"): a capped FD supply, staking as
 the bond behind every licence, player-funded pools for insurance, factoring and surety, payment
 terms, and a season schedule for later airdrops. All of it is on main and off by default
