@@ -106,6 +106,12 @@ export interface RunReport {
     allEquipmentFd: number;
     allEquipmentShareOfSinks: number;
   };
+  /**
+   * How much of each market players run (the EVE plan's bar: players make almost everything): new trucks
+   * sold from player dealerships' stock, shop work done at player shops (estimated from the parts share),
+   * insurance written by the player pool, and freight posted by player facilities.
+   */
+  playerShare: { newTrucks: number; shopWork: number; insurance: number; freight: number };
   facilities: {
     owned: Record<string, number>;
     ownersBySegment: Record<string, number>;
@@ -497,6 +503,20 @@ export function buildReport(w: World): RunReport {
         newEquipmentShareOfSinks: total > 0 ? newFd / total : 0,
         allEquipmentFd: allFd,
         allEquipmentShareOfSinks: total > 0 ? allFd / total : 0,
+      };
+    })(),
+    playerShare: (() => {
+      const orders = sum(days.map((d) => d.ordersPlaced));
+      const dealerships = sum(days.map((d) => d.dealershipSales ?? 0));
+      const shopList = (sinksByTag["parts"] ?? 0) / Math.max(0.01, cfg.businesses.kinds.shop.partsShare);
+      const npcShop = (sinksByTag["maintenance"] ?? 0) + (sinksByTag["repairs"] ?? 0) + (sinksByTag["rebuild"] ?? 0) + (sinksByTag["road_service"] ?? 0);
+      const poolPremiums = w.pools.insurance.premiumsFd;
+      const npcPremiums = sinksByTag["insurance"] ?? 0;
+      return {
+        newTrucks: orders > 0 ? dealerships / orders : 0,
+        shopWork: shopList + npcShop > 0 ? shopList / (shopList + npcShop) : 0,
+        insurance: poolPremiums + npcPremiums > 0 ? poolPremiums / (poolPremiums + npcPremiums) : 0,
+        freight: posted ? sum(days.map((d) => d.facilityPosted)) / posted : 0,
       };
     })(),
     facilities: {
