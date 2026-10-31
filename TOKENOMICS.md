@@ -631,6 +631,9 @@ What each one takes out of circulation, and from whom:
   ratio of a $50k used truck to a $200k new one holds with prices at the realistic level. A sale is a sink
   like the dealer's; the rig costs more to run (fuel, maintenance, breakdowns) and needs its rebuild sooner.
   Priced at its own value, so it can't be bought cheap and resold.
+- **The deposit toward the first truck** (`freeEntry.leases.byValue.depositToPurchase`): a free starter's
+  lease deposit is released into the purchase of the truck that replaces the lease, rent-to-own style; the
+  deposit stays at 25% of the leased truck's value, but it's savings, not a second pot to fill.
 - **Leases by value** (`freeEntry.leases.byValue`): a lease pays at least 0.5% of the truck's value a week,
   and the lessor holds a refundable deposit of 25% of it (paid up front on an extra lease, held back from
   the free path's settlements until whole). Rent is a sink; the deposit is FD out of circulation while held.

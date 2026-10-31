@@ -251,7 +251,9 @@ vesting schedules all completely transparent." His answers to the 18 questions, 
    **Built (off, 2026-10-31):** the NPC used lot, `usedMarket.npcLot` (dealer.ts): worn rigs, four years and
    450k miles old, condition 0.4, at their used value (about a quarter of new: Jeff's $50k-to-$200k), 15 a
    week up to 30 on the lot, delivered like a new truck; the free path's way in at realistic prices
-   (v43: a free starter needed about five real weeks to buy a new rig at 293k FD).
+   (v43: a free starter needed about five real weeks to buy a new rig at 293k FD). With it, v45-a: a median
+   of about 100 days, so `freeEntry.leases.byValue.depositToPurchase` (off): the lease deposit counts toward
+   the first truck, released into the purchase, so a starter doesn't save the deposit and the price twice.
    **Built (ab956bf, off):** `freeEntry.leases.byValue` (rent floor 0.5% of value a week, 25% deposit,
    escrowed on the free path), `equipmentFinance.purchase` (purchaseLoans.ts: NPC lender, 10–20% down,
    10% stake, 104 weeks, default → the truck taken back at value), `freeEntry.freePath` ("lease" /

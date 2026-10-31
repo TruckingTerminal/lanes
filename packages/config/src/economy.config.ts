@@ -790,7 +790,9 @@ export const economyConfig = {
       // until it's whole, and paid back when the truck goes back or is replaced. The free path's truck is
       // an older one, valued at `starterValueShare` of a new rig (lease-purchase programs run used trucks).
       // Off until the batches size it.
-      byValue: { enabled: false, weeklyShareOfValue: 0.005, depositShare: 0.25, escrowShareOfPay: 0.3, starterValueShare: 0.35 },
+      // `depositToPurchase` (2026-10-31, after v45): the deposit a free starter's lease holds counts toward its first
+      // truck, released into its account when it buys, so the deposit is savings, not a second pot to fill.
+      byValue: { enabled: false, weeklyShareOfValue: 0.005, depositShare: 0.25, escrowShareOfPay: 0.3, starterValueShare: 0.35, depositToPurchase: false },
     },
     // OEM build slots: when the dealer's remaining supply of a tractor tier or
     // trailer type (outside the starter reserve) is under 10% of its cap while

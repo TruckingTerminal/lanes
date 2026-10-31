@@ -80,7 +80,7 @@ import {
 import { businessesOf, businessPriceFd, sitePriceFd, type BusinessKind } from "@lanes/engine";
 import { financedCashNeed, openPurchaseLoans, purchaseTerms, salesTaxOn } from "@lanes/engine";
 import { crewFeeFd, crewOn, fittingsCut, hubTheftRisk, securityTheftMult } from "@lanes/engine";
-import { lotPrice, npcDealerMult } from "@lanes/engine";
+import { depositCredit, lotPrice, npcDealerMult } from "@lanes/engine";
 
 /**
  * Tier A rule bots (§AI-agent simulation): scripted greedy, conservative and
@@ -1272,7 +1272,8 @@ export const ruleBotHook: DailyAgentHook = (w) => {
           // The free path: a decent used truck if one's affordable today, else a new
           // Workhorse + dry van from the dealer (which keeps the NPC lease until it arrives).
           if (ordersOf(w, c.id).length > 0) continue;
-          const cash = w.ledger.balance(acct);
+          // The lease deposit counts toward the first truck when it's released at purchase (freeEntry.leases.byValue.depositToPurchase).
+          const cash = w.ledger.balance(acct) + depositCredit(w, c);
           const used = npcTruck.status === "idle" ? bestListing(w, cash - p.firstTruckBuffer, c.id, true) : null;
           // Purchase loans: a used truck on credit, if the down payment and the loan's stake fit when the price doesn't.
           const usedOnLoan = used || npcTruck.status !== "idle" ? null : bestListing(w, financedBudget(w, c, cash - p.firstTruckBuffer), c.id, true);

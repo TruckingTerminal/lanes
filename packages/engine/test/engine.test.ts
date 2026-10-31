@@ -104,6 +104,7 @@ import { convictionForfeit, launchTaxRate } from "../src/token.js";
 import { logbookCatalogue } from "../src/logbook.js";
 import { dailyLadder, layerBlock, layerOpen } from "../src/ladder.js";
 import { dealerPrice, lotPrice } from "../src/dealer.js";
+import { salesTaxOn } from "../src/salesTax.js";
 import { crewFeeFd, crewOn, crewStrike, fittingsCut } from "../src/robbery.js";
 import { truckValue } from "../src/dealer.js";
 import { stealCargo } from "../src/risk.js";
@@ -2804,5 +2805,38 @@ describe("the NPC used lot (Jeff, 2026-10-31: used trucks at a quarter of new, o
     expect(w.usedLot.stock).toBe(1);
     expect(w.usedLot.sold).toBe(1);
     w.ledger.assertBalanced();
+  });
+});
+
+describe("the lease deposit toward the first truck (2026-10-31, after v45)", () => {
+  it("releases a free starter's lease deposit into the purchase that replaces the lease, when the switch is on", () => {
+    const k0 = calm.freeEntry.leases.byValue;
+    const attempt = (on: boolean) => {
+      const cfg2: EconomyConfig = { ...calm, freeEntry: { ...calm.freeEntry, leases: { ...calm.freeEntry.leases, byValue: { ...k0, enabled: true, depositToPurchase: on } } } };
+      const w = createWorld({ cfg: cfg2, net, feeds: neutralFeeds, seed: 66, keepLedgerEntries: true });
+      const seller = carrier(w, "Seller");
+      const truck = addTruck(w, seller, "owned", "workhorse", "van", false, { odometer: 400_000, milesSinceRebuild: 50_000, builtDay: -800 });
+      const oo = carrier(w, "OO", true);
+      const acct = companyAccount(oo.id);
+      const npc = w.trucksByCompany.get(oo.id)!.find((t) => t.lease === "npc")!;
+      // The lessor holds a whole 3,000 FD deposit; the starter has 4,000 FD of its own; the truck asks 6,000.
+      fund(w, oo.id, 3_000);
+      w.ledger.post(w.t, acct, "sink:lease_deposit", 3_000, "deposit:test");
+      npc.depositFd = npc.depositDueFd = 3_000;
+      const bal = w.ledger.balance(acct);
+      if (bal > 4_000) w.ledger.post(w.t, acct, "sink:fines", bal - 4_000, "test");
+      else fund(w, oo.id, 4_000 - bal);
+      expect(applyAction(w, seller.id, { type: "list_truck", truckId: truck.id, askFd: 6_000, floorFd: 4_000, stepFd: 500 })).toEqual({ ok: true });
+      return { w, oo, npc, acct, r: applyAction(w, oo.id, { type: "buy_listing", listingId: 1 }) };
+    };
+    const off = attempt(false);
+    expect(off.r).toEqual({ ok: false, reason: "insufficient FD" });
+    expect(off.npc.depositFd).toBe(3_000);
+    const on = attempt(true);
+    expect(on.r).toEqual({ ok: true });
+    expect(on.npc.depositFd).toBe(0);
+    expect(on.w.ledger.balance(on.acct)).toBeCloseTo(4_000 + 3_000 - 6_000 - salesTaxOn(on.w, 6_000), 2);
+    expect(on.oo.firstOwnedTruckDay).toBe(0);
+    on.w.ledger.assertBalanced();
   });
 });

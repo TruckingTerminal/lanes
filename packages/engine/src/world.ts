@@ -649,6 +649,21 @@ export function refundLeaseDeposit(w: World, truck: Truck): void {
   truck.depositDueFd = 0;
 }
 
+/** The deposit a company's NPC lease holds, when it counts toward the truck that replaces it (freeEntry.leases.byValue.depositToPurchase). */
+export function depositCredit(w: World, c: Company): number {
+  const k = w.cfg.freeEntry.leases.byValue;
+  if (!k.enabled || !k.depositToPurchase) return 0;
+  return (w.trucksByCompany.get(c.id) ?? []).find((t) => t.lease === "npc")?.depositFd ?? 0;
+}
+
+/** A purchase that replaces the NPC lease and needs `needFd`: when the deposit makes it affordable, the deposit is released first. */
+export function releaseDepositFor(w: World, c: Company, needFd: number): void {
+  const credit = depositCredit(w, c);
+  if (credit <= 0.005 || w.ledger.balance(companyAccount(c.id)) + credit < needFd) return;
+  const npc = w.trucksByCompany.get(c.id)!.find((t) => t.lease === "npc")!;
+  refundLeaseDeposit(w, npc);
+}
+
 /** freeEntry.freePath "spendOnly": the first owned truck makes what the free path earned sellable. */
 export function unlockFreePathEarnings(c: Company): void {
   c.lockedFd = Math.max(0, c.lockedFd - c.freePathLockedFd);
