@@ -31,6 +31,7 @@ export * from "./token.js";
 export * from "./ceiling.js";
 export * from "./purchaseLoans.js";
 export * from "./scale.js";
+export * from "./robbery.js";
 export * from "./trips.js";
 export * from "./trailers.js";
 export * from "./credit.js";

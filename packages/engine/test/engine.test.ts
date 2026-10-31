@@ -101,6 +101,8 @@ import { loadFactor, managerEffect, managersNeeded, offerStaff, securityPremiumM
 import { acceptOffer, contractRoom, contractSlots, contractStakeAccount, rejectTender, weeklyContracts } from "../src/contracts.js";
 import { scaleDiscount, scaleDiscountFor } from "../src/scale.js";
 import { launchTaxRate } from "../src/token.js";
+import { crewFeeFd, crewOn, crewStrike, fittingsCut } from "../src/robbery.js";
+import { truckValue } from "../src/dealer.js";
 import type { Contract } from "../src/types.js";
 import { COMMODITY_INDEX } from "@lanes/data";
 
@@ -1313,6 +1315,93 @@ describe("staff, sales and direct freight (2026-10-31): the ladder, the optional
       return { supply: w.ledger.supply(), roles, contracts: w.contracts.map((k) => [k.carrierId, k.status, k.stakeFd]), prices: w.token.priceHistory };
     };
     const a = run();
+    expect(a).toEqual(run());
+  });
+});
+
+describe("hired robbers (2026-10-31): player against player, in the open", () => {
+  const robbers: EconomyConfig = { ...calm, robbery: { ...calm.robbery, enabled: true, protectDays: 0 } };
+
+  it("hires a crew against another company's truck: the fee a sink, the hire on the public feed, the owner warned; not your own, not a new company, not without stake", () => {
+    const w = createWorld({ cfg: { ...robbers, robbery: { ...robbers.robbery, protectDays: 30 } }, net, feeds: neutralFeeds, seed: 91, keepLedgerEntries: true });
+    const hirer = carrier(w, "Hirer");
+    const victim = carrier(w, "Victim");
+    const mine = addTruck(w, hirer, "owned", "workhorse", "van");
+    const target = addTruck(w, victim, "owned", "workhorse", "van");
+    expect(applyAction(w, hirer.id, { type: "hire_crew", truckId: mine.id })).toEqual({ ok: false, reason: "that's your own truck" });
+    expect(applyAction(w, hirer.id, { type: "hire_crew", truckId: target.id })).toEqual({ ok: false, reason: "that company is too new to be a target" });
+    runDays(w, 30);
+    fund(w, hirer.id, 50_000);
+    const fee = crewFeeFd(w, target);
+    const before = w.ledger.balance(companyAccount(hirer.id));
+    expect(applyAction(w, hirer.id, { type: "hire_crew", truckId: target.id })).toEqual({ ok: true });
+    expect(before - w.ledger.balance(companyAccount(hirer.id))).toBeCloseTo(fee, 2);
+    expect(crewOn(w, target.id)?.hirerId).toBe(hirer.id);
+    expect(w.robbery.feed.at(-1)!.kind).toBe("hire");
+    expect(applyAction(w, hirer.id, { type: "hire_crew", truckId: target.id })).toEqual({ ok: false, reason: "a crew is already on that truck" });
+    // A hirer with nothing at stake can't.
+    const broke = carrier(w, "Broke");
+    w.ledger.post(w.t, companyAccount(broke.id), "sink:permits", w.ledger.balance(companyAccount(broke.id)), "test");
+    const other = addTruck(w, victim, "owned", "workhorse", "van");
+    expect(applyAction(w, broke.id, { type: "hire_crew", truckId: other.id })).toEqual({ ok: false, reason: "not enough at stake to hire a crew for that truck" });
+    // The window runs out: the crew gives up.
+    runDays(w, robbers.robbery.windowDays + 1);
+    expect(w.robbery.jobs[0]!.status).toBe("missed");
+    w.ledger.assertBalanced();
+  });
+
+  it("a crew strikes a truck asleep in a corridor outside a truck stop: the load and the rig are taken, the hirer paid the fence's washed share; never at a truck stop", () => {
+    const sure: EconomyConfig = { ...robbers, robbery: { ...robbers.robbery, odds: 10, maxOdds: 1, rigShare: 1 } };
+    const w = createWorld({ cfg: sure, net, feeds: neutralFeeds, seed: 92, keepLedgerEntries: true });
+    const hirer = carrier(w, "Hirer");
+    const victim = carrier(w, "Victim");
+    addTruck(w, hirer, "owned", "workhorse", "van");
+    const target = addTruck(w, victim, "owned", "workhorse", "van");
+    fund(w, hirer.id, 50_000);
+    expect(applyAction(w, hirer.id, { type: "hire_crew", truckId: target.id }).ok).toBe(true);
+    crewStrike(w, target, victim, "truckStop", 3);
+    expect(crewOn(w, target.id)).toBeDefined(); // out of reach at a truck stop
+    crewStrike(w, target, victim, "shoulder", 1.2);
+    expect(crewOn(w, target.id)).toBeDefined(); // not a corridor
+    const value = truckValue(w, target);
+    const before = w.ledger.balance(companyAccount(hirer.id));
+    crewStrike(w, target, victim, "shoulder", 3);
+    expect(crewOn(w, target.id)).toBeUndefined();
+    expect(w.robbery.jobs[0]!.status).toBe("hit");
+    expect(target.status).toBe("retired");
+    expect(w.robbery.stats.rigsTaken).toBe(1);
+    expect(w.ledger.balance(companyAccount(hirer.id)) - before).toBeCloseTo(sure.robbery.rigFenceShare * value * (1 - sure.robbery.washFee), 2);
+    expect(w.robbery.feed.at(-1)!.kind).toBe("hit");
+    // The victim can't be targeted again inside the cooldown.
+    const next = addTruck(w, victim, "owned", "workhorse", "van");
+    expect(applyAction(w, hirer.id, { type: "hire_crew", truckId: next.id })).toEqual({ ok: false, reason: "that company was hit too recently" });
+    w.ledger.assertBalanced();
+  });
+
+  it("security fittings: up to three a truck, each bought once (a sink), each cutting a crew's odds", () => {
+    const w = createWorld({ cfg: robbers, net, feeds: neutralFeeds, seed: 93, keepLedgerEntries: true });
+    const c = carrier(w);
+    const t = addTruck(w, c, "owned", "workhorse", "van");
+    fund(w, c.id, 20_000);
+    expect(fittingsCut(w, t)).toBe(0);
+    expect(applyAction(w, c.id, { type: "fit_security", truckId: t.id, item: "tracker" })).toEqual({ ok: true });
+    expect(applyAction(w, c.id, { type: "fit_security", truckId: t.id, item: "tracker" })).toEqual({ ok: false, reason: "already fitted" });
+    expect(applyAction(w, c.id, { type: "fit_security", truckId: t.id, item: "locks" })).toEqual({ ok: true });
+    expect(applyAction(w, c.id, { type: "fit_security", truckId: t.id, item: "camera" })).toEqual({ ok: true });
+    const k = robbers.security.items;
+    expect(fittingsCut(w, t)).toBeCloseTo(k.tracker.cut + k.locks.cut + k.camera.cut, 9);
+    expect(w.robbery.stats.fittingsFd).toBeCloseTo(k.tracker.fd + k.locks.fd + k.camera.fd, 2);
+  });
+
+  it("replays exactly from the seed with the bots hiring crews and fitting security", () => {
+    const run = () => {
+      const w = createWorld({ cfg: robbers, net, feeds: { ...neutralFeeds, cycle: syntheticCassCycle({ seed: 94 }) }, seed: 94 });
+      populate(w, { freeOwnerOperators: 40, fleets: 10, brokers: 4 });
+      runDays(w, 45, ruleBotHook);
+      return { supply: w.ledger.supply(), jobs: w.robbery.jobs.map((j) => [j.hirerId, j.truckId, j.status]), stats: { ...w.robbery.stats } };
+    };
+    const a = run();
+    expect(a.stats.hires).toBeGreaterThan(0);
     expect(a).toEqual(run());
   });
 });

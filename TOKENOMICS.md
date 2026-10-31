@@ -617,3 +617,30 @@ listing-day crowd (about $200 each) and a $50k whale.
   capped economy's locks, stakes and sinks, not from the tax"). The next test runs the path with the sinks
   being built: trucks at realistic prices, leases by value with deposits, purchase loans, the staff ladder,
   sales and stake-backed contracts, scale discounts, the early-sale tax, and the robbers.
+
+## The sinks (Jeff, 2026-10-31: "add the sinks also and then test"; built, all behind switches)
+
+What each one takes out of circulation, and from whom:
+
+- **Trucks priced like trucks.** Realistic list prices at about 1.5 FD to the real dollar (a Workhorse
+  225k, a HighwayPro 285k, a Flagship 345k; a dry van 68k, a reefer 128k, a flatbed 75k), rebuilds and
+  refurbishments scaled with them. With the asset rules on, a truck loses value with the life it uses, so
+  the cheapest running trucks sit near a quarter of new: Jeff's $200k-to-$50k ratio.
+- **Leases by value** (`freeEntry.leases.byValue`): a lease pays at least 0.5% of the truck's value a week,
+  and the lessor holds a refundable deposit of 25% of it (paid up front on an extra lease, held back from
+  the free path's settlements until whole). Rent is a sink; the deposit is FD out of circulation while held.
+- **Purchase loans** (`equipmentFinance.purchase`): the NPC lender pays what the buyer doesn't put down
+  (10–20% by credit); the buyer locks a 10% stake and repays weekly with interest. The purchase sinks the
+  whole price at once; the loan's principal comes back in, and the interest is a sink.
+- **The staff ladder and the optional roles** (`labor.ladder`, `labor.managers.roles`): more dispatchers and
+  managers per truck (Jeff's spans), each working worse as its span fills; CEO, security and sales salaries.
+  All pay is a sink, and it grows faster than the fleet.
+- **Direct freight on a stake** (`contracts.direct`): a two-week performance stake per contract, out of
+  circulation for the term and slashed to the reserve when a tender is turned down.
+- **Scale discounts** (`scaleDiscounts`): the one change that *lowers* sinks, for big fleets only (fuel,
+  dealer, insurance, to 10% at 50 trucks); the price of making one big company pay.
+- **The early-sale tax** (`token.exchange.launchTax`): 75% falling to the normal fee over six real months
+  after launch, burned.
+- **Hired robbers and security** (`robbery`, `security`): crew fees and security fittings are sinks; a hit
+  destroys cargo (the insurers pay, from pools or the reserve) and, at 30% odds, a rig (chopped); the hirer
+  is paid the fence's share less a 25% wash, from the reserve.

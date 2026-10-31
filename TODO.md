@@ -248,6 +248,14 @@ vesting schedules all completely transparent." His answers to the 18 questions, 
    hirers, a gossip network (Channel 19) on the terminal and in the daily, weekly and monthly reports,
    with payback and bounties. **Open:** stealing a load you were hired to haul stays a crime; corridor
    robbery is open PvP (proposed; Jeff to confirm; the bad-actor spec's "theft is a crime" rule).
+   **Built (off, 2026-10-31):** `robbery` and `security` (robbery.ts): `hire_crew` on another company's
+   truck (fee 2% of its value, at least 2,000 FD, a sink; posted to the public feed with a warning to the
+   owner); the crew strikes the next night the truck sleeps outside a truck stop where theft risk is 1.5+,
+   within 7 days, odds 0.5 × risk ÷ 2 (at most 0.8), cut by fittings and a security manager; a hit takes the
+   load and, at 30% odds, the rig (chopped, the victim's physical-damage cover pays); the hirer is paid 30%
+   of the cargo and 20% of the rig, less a 25% wash, from the reserve; newcomers protected 120 game days, a
+   28-day cooldown per victim, the hirer's equity must cover the take; `fit_security` (tracker, locks,
+   camera; 3 slots); a truck with a crew on it heads for a truck stop; outlaw bots hire, threatened bots fit.
 8. **The unlock ladder:** each layer opens at a published date and a hard-to-fake metric (verified
    players, pool dollars), gradually; hauling, then businesses, then player brokerage, then the Back
    Lot and robbers, then aliases and crews; it starts at launch, the beta fully open.

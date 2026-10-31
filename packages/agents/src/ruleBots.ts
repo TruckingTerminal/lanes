@@ -79,6 +79,7 @@ import {
 } from "@lanes/engine";
 import { businessesOf, businessPriceFd, sitePriceFd, type BusinessKind } from "@lanes/engine";
 import { financedCashNeed, openPurchaseLoans, purchaseTerms, salesTaxOn } from "@lanes/engine";
+import { crewFeeFd, crewOn, fittingsCut, hubTheftRisk, securityTheftMult } from "@lanes/engine";
 
 /**
  * Tier A rule bots (§AI-agent simulation): scripted greedy, conservative and
@@ -624,6 +625,43 @@ function manageStaff(w: World, c: Company, p: BotProfile, rng: Rng, today: numbe
 }
 
 /** Outlaws going under steal a valuable load that isn't tracked (their rebroker standing order does the double brokering). */
+/**
+ * Hired robbers (config robbery): once a week an outlaw puts a crew on the target it rates best, a loaded
+ * truck of an established company standing in a theft corridor, when the fence's share at the crew's odds,
+ * washed, beats the fee.
+ */
+function hireCrews(w: World, c: Company, p: BotProfile, today: number): void {
+  const k = w.cfg.robbery;
+  if ((today + c.id) % 7 !== 5 || w.ledger.balance(companyAccount(c.id)) < reserve(w, c, p)) return;
+  let best: { id: number; ev: number } | null = null;
+  for (const t of w.trucks) {
+    if (t.companyId === 0 || t.companyId === c.id || t.status !== "loaded" || t.loadId === null) continue;
+    const risk = hubTheftRisk(w, t.hub);
+    if (risk < k.minPlaceRisk) continue;
+    const victim = w.companies[t.companyId - 1]!;
+    if (today - victim.createdDay < k.protectDays) continue;
+    const last = w.robbery.lastHitDay.get(victim.id);
+    if ((last !== undefined && today - last < k.cooldownDays) || crewOn(w, t.id)) continue;
+    const cargo = w.loads.get(t.loadId)?.cargoValue ?? 0;
+    const odds = Math.min(k.maxOdds, (k.odds * risk) / k.riskNorm) * (1 - fittingsCut(w, t)) * securityTheftMult(w, victim);
+    const ev = odds * (k.fenceShare * cargo + k.rigShare * k.rigFenceShare * truckValue(w, t)) * (1 - k.washFee) - crewFeeFd(w, t);
+    if (ev > 0 && (!best || ev > best.ev)) best = { id: t.id, ev };
+  }
+  if (best) applyAction(w, c.id, { type: "hire_crew", truckId: best.id });
+}
+
+/** A company a crew came for in the last four weeks fits its owned trucks with a tracker, then locks, as the cash allows. */
+function fitSecurityAfterThreat(w: World, c: Company, p: BotProfile, today: number): void {
+  if ((today + c.id) % 7 !== 3 || !w.robbery.jobs.some((j) => j.victimId === c.id && today - j.hiredDay <= 28)) return;
+  for (const t of w.trucksByCompany.get(c.id) ?? []) {
+    if (t.lease !== "owned" || t.status === "retired") continue;
+    const item = !t.security?.tracker ? "tracker" : !t.security?.locks ? "locks" : null;
+    if (!item) continue;
+    if (w.ledger.balance(companyAccount(c.id)) - reserve(w, c, p) < 4 * w.cfg.security.items[item].fd) return;
+    applyAction(w, c.id, { type: "fit_security", truckId: t.id, item });
+  }
+}
+
 function crookery(w: World, c: Company, rng: Rng): void {
   if (c.authority.status !== "active") return;
   const fleet = w.trucksByCompany.get(c.id)!;
@@ -1199,6 +1237,11 @@ export const ruleBotHook: DailyAgentHook = (w) => {
       setConduct(w, c, p);
       manageStaff(w, c, p, rng, dayOf(w.t, cfg));
       if (p.conduct === "outlaw") crookery(w, c, rng);
+      // Hired robbers (config robbery): an outlaw puts crews on rich targets; a company a crew came for buys security.
+      if (cfg.robbery.enabled) {
+        if (p.conduct === "outlaw") hireCrews(w, c, p, dayOf(w.t, cfg));
+        fitSecurityAfterThreat(w, c, p, dayOf(w.t, cfg));
+      }
 
       // Worn trucks: rebuild, or past this bot's age limit sell and replace. A worn
       // truck's higher break-even loses bids; an old one costs more to rebuild.

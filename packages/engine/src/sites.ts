@@ -5,6 +5,7 @@
  * on a leg knows its mile along the route, so it can rest at the nearest stop, fuel at the stops it
  * passes, and call the nearest shop when it breaks down (businesses.ts).
  */
+import { crewOn, crewStrike } from "./robbery.js";
 import type { RoadEdge, RoadNetwork, Route } from "@lanes/data";
 import { clamp, fuelPrice } from "./economics.js";
 import { priceIndex } from "./items.js";
@@ -12,7 +13,7 @@ import { companyAccount } from "./ledger.js";
 import { chargeSalesTax } from "./salesTax.js";
 import { stakeDiscount } from "./staking.js";
 import { reeferUnit } from "./equipment.js";
-import { nightTheft, theftRiskAt } from "./risk.js";
+import { nightTheft, theftRiskAt, truckLatLon } from "./risk.js";
 import type { Business, Truck, TruckStopSite } from "./types.js";
 import { companyById, placeRoute, type World } from "./world.js";
 
@@ -182,11 +183,18 @@ export function planNight(w: World, truck: Truck, route: Route, mile: number, re
   if (!w.cfg.businesses.enabled) return null;
   if (truck.legMiles - mile <= reachMi + 1e-9) return null; // the leg ends within the hours
   let last: { site: number; mile: number } | null = null;
+  // A crew on this truck (robbery.ts): the last truck stop in reach, where the crew can't get at it, if there is one.
+  const wary = w.cfg.robbery.enabled && crewOn(w, truck.id) !== undefined;
+  let lastStop: { site: number; mile: number } | null = null;
   for (const s of sitesAlong(w, route)) {
     if (s.mile <= mile + 0.1) continue;
     if (s.mile > mile + reachMi) break;
-    if (hasRoom(w.sites[s.site - 1]!)) last = s;
+    if (hasRoom(w.sites[s.site - 1]!)) {
+      last = s;
+      if (wary && siteBusiness(w, w.sites[s.site - 1]!)) lastStop = s;
+    }
   }
+  if (lastStop) last = lastStop;
   if (!last || last.mile > mile + milesThisHour + 1e-9) return null;
   return last.mile;
 }
@@ -235,6 +243,8 @@ export function parkForTheNight(w: World, truck: Truck, site: TruckStopSite | nu
   if (ops.enabled && truck.trailer === "reefer" && truck.status === "loaded") reeferUnit(w, c, ops.nightHours * 60, `rest:${truck.id}`);
   // Cargo theft (risk.ts): where it sleeps, near what, with what aboard.
   nightTheft(w, truck, c, site ? (stop ? "truckStop" : "restArea") : "shoulder", site ? site.theftRisk : null);
+  // A hired crew (robbery.ts), when one is on this truck.
+  if (cfg.robbery.enabled && truck.companyId) crewStrike(w, truck, c, site ? (stop ? "truckStop" : "restArea") : "shoulder", site ? site.theftRisk : theftRiskAt(w, ...truckLatLon(w, truck)));
 }
 
 /** The morning: the space is free again. */

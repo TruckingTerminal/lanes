@@ -14,6 +14,7 @@ import type { DayMetrics } from "./metrics.js";
 import { dealerPrice, deliverOrders } from "./dealer.js";
 import { serviceLoans } from "./finance.js";
 import { weeklyPurchaseLoans } from "./purchaseLoans.js";
+import { dailyRobbery } from "./robbery.js";
 import { dailyFraud } from "./fraud.js";
 import { billInsurance, dailyInsurance, monthlyInsurance } from "./insurance.js";
 import { chargeYards } from "./home.js";
@@ -72,6 +73,7 @@ function endOfDay(w: World, day: number, agents?: DailyAgentHook): void {
   repossessDefaults(w);
   processLiquidations(w);
   dailyFraud(w);
+  dailyRobbery(w); // hired crews whose window ran out give up (robbery.ts)
   dailySafety(w);
   dailyInsurance(w);
   dailyLabor(w);

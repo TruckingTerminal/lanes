@@ -81,6 +81,8 @@ export interface RunReport {
    * The money behind trucks (2026-10-31): NPC lease deposits held at the end; purchase loans made, still
    * owed and open at the end, interest paid, defaults, trucks taken back, stakes slashed and written off.
    */
+  /** Hired robbers (robbery.ts): crews hired and their fees, hits, rigs chopped, cargo taken, what the hirers were paid, and the security fittings bought. */
+  robbery?: { hires: number; hits: number; rigsTaken: number; cargoTakenFd: number; takePaidFd: number; feesFd: number; fittingsFd: number };
   truckMoney?: {
     leaseDepositsEndFd: number;
     loansMadeFd: number;
@@ -524,6 +526,7 @@ export function buildReport(w: World): RunReport {
       cargoThefts: sum(days.map((d) => d.cargoThefts ?? 0)),
       cargoTheftFd: sum(days.map((d) => d.cargoTheftFd ?? 0)),
     },
+    robbery: { ...w.robbery.stats },
     truckMoney: {
       leaseDepositsEndFd: days.at(-1)?.leaseDepositsFd ?? 0,
       loansMadeFd: w.purchaseLending.madeFd,

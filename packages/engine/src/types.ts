@@ -484,6 +484,8 @@ export interface Truck {
   /** An NPC lease priced by value (freeEntry.leases.byValue): the deposit the lessor holds, and what it's owed in all. */
   depositFd: number;
   depositDueFd: number;
+  /** Security fittings against hired robbers (robbery.ts). */
+  security?: Partial<Record<"tracker" | "locks" | "camera", boolean>>;
   /** Drivers (labor.ts): the driver, and a co-driver for a team (0 = none). */
   driverId: number;
   coDriverId: number;
@@ -831,6 +833,9 @@ export type Action =
   | { type: "list_truck"; truckId: number; askFd: number; floorFd: number; stepFd: number }
   | { type: "withdraw_listing"; listingId: number }
   | { type: "buy_listing"; listingId: number; finance?: boolean }
+  /** Hired robbers (robbery.ts): a crew against another company's truck, and a security fitting on your own. */
+  | { type: "hire_crew"; truckId: number }
+  | { type: "fit_security"; truckId: number; item: "tracker" | "locks" | "camera" }
   | { type: "deposit_finance"; amountFd: number }
   | { type: "withdraw_finance"; amountFd: number }
   | { type: "borrow"; truckId: number; amountFd: number }

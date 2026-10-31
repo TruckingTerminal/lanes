@@ -1,3 +1,4 @@
+import { fitSecurity, hireCrew } from "./robbery.js";
 import { scaleDiscount } from "./scale.js";
 import { acceptOffer, acceptTender, declineOffer, mayTake, rejectTender } from "./contracts.js";
 import { addParking, buyBusiness, buyTruckStop, serviceBill, setParkingPrice, setShopMarkup } from "./businesses.js";
@@ -99,7 +100,10 @@ export function badInput(cfg: EconomyConfig, a: Action): string | null {
     case "fix_defects":
     case "return_lease":
     case "steal_load":
+    case "hire_crew":
       return isId(a.truckId) ? null : "bad truck id";
+    case "fit_security":
+      return isId(a.truckId) && (a.item === "tracker" || a.item === "locks" || a.item === "camera") ? null : "bad fitting";
     case "reposition_truck":
       return isId(a.truckId) && isStr(a.hubId) ? null : "bad destination";
     case "list_truck":
@@ -316,6 +320,18 @@ export function applyAction(w: World, companyId: number, action: Action): Action
       const truck = truckById(w, action.truckId);
       if (!truck) return { ok: false, reason: "no such truck" };
       return result(stealLoad(w, company, truck));
+    }
+
+    case "hire_crew": {
+      const truck = truckById(w, action.truckId);
+      if (!truck) return { ok: false, reason: "no such truck" };
+      return result(hireCrew(w, company, truck));
+    }
+
+    case "fit_security": {
+      const truck = truckById(w, action.truckId);
+      if (!truck) return { ok: false, reason: "no such truck" };
+      return result(fitSecurity(w, company, truck, action.item));
     }
 
     case "set_standing_orders":

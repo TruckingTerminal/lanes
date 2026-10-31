@@ -376,6 +376,18 @@ export const economyConfig = {
     salesTax: { enabled: false, pct: 0.05 },
   },
 
+  // Hired robbers (Jeff, 2026-10-31: player against player, everything can be stolen, in the open, no police;
+  // robbery.ts). A company hires a crew against one truck (`feeShareOfValue` of its value, at least `minFeeFd`, a
+  // sink). The crew strikes the next night, within `windowDays`, that the truck sleeps outside a truck stop where
+  // theft risk is at least `minPlaceRisk` (the corridors), at `odds` × risk ÷ `riskNorm` (at most `maxOdds`), cut
+  // by the victim's fittings and security manager. A hit takes the load, and the rig at `rigShare` odds (chopped).
+  // The hirer is paid `fenceShare` of the cargo and `rigFenceShare` of the rig, less `washFee`, from the reserve.
+  // New companies are off limits for `protectDays`; a victim can't be targeted again for `cooldownDays`; a hirer
+  // needs equity of `stakeCover` × the most the crew could take. Off until the batches size it.
+  robbery: { enabled: false, feeShareOfValue: 0.02, minFeeFd: 2_000, windowDays: 7, minPlaceRisk: 1.5, odds: 0.5, riskNorm: 2, maxOdds: 0.8, rigShare: 0.3, fenceShare: 0.3, rigFenceShare: 0.2, washFee: 0.25, protectDays: 120, cooldownDays: 28, stakeCover: 1 },
+  // Security fittings (robbery): up to `slots` a truck, each bought once (a sink) and cutting a crew's odds.
+  security: { slots: 3, items: { tracker: { fd: 3_000, cut: 0.25 }, locks: { fd: 1_500, cut: 0.15 }, camera: { fd: 1_000, cut: 0.1 } } },
+
   // Economies of scale (Jeff, 2026-10-31: one big company, not many small ones; scale.ts): fleet fuel at the
   // NPC pumps, fleet insurance rating with a clean record, and fleet pricing at the NPC dealer. Nothing up to
   // `from` trucks, 1% at ten, a straight line to 10% at fifty, flat after. Off: no discounts.

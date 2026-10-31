@@ -1,3 +1,4 @@
+import { newRobberyState, type RobberyState } from "./robbery.js";
 import type { EconomyConfig, Equipment, FacilityType, TractorTier } from "@lanes/config";
 import { buildSites } from "./sites.js";
 import { PLACE_OF_HUB, placeMiles as netPlaceMiles, placeMilesFast as netPlaceMilesFast, placeRoute as netPlaceRoute, type Feeds, type Network, type Route } from "@lanes/data";
@@ -72,6 +73,8 @@ export interface World {
   finance: FinancePool;
   /** Purchase loans from the NPC lender (purchaseLoans.ts), and what the lending has come to. */
   purchaseLoans: PurchaseLoan[];
+  /** Hired robbers (robbery.ts): the crews out, the public feed, and the tallies. */
+  robbery: RobberyState;
   purchaseLending: { madeFd: number; interestFd: number; defaults: number; seized: number; writtenOffFd: number; stakeSlashedFd: number };
   /** Published stabilizers (§Circular economy — targets and stabilizers). */
   stab: { volumeMult: number; rackSpread: number; rateMult: number };
@@ -199,6 +202,7 @@ export function createWorld(o: WorldOptions): World {
     nextOrderId: 1,
     listings: [],
     purchaseLoans: [],
+    robbery: newRobberyState(),
     purchaseLending: { madeFd: 0, interestFd: 0, defaults: 0, seized: 0, writtenOffFd: 0, stakeSlashedFd: 0 },
     finance: {
       shares: new Map(),
