@@ -968,7 +968,7 @@ describe("the supply ceiling (2026-10-31): complete supply control", () => {
     w.ledger.assertBalanced();
   });
 
-  it("keeps the dial between its floor and normal rates after launch, cutting while the supply runs over its path", () => {
+  it("keeps the dial between its floor and the rates at launch, cutting while the supply runs over its path", () => {
     // A small test world grows far faster than its sinks after launch, so the flat path is overrun: the dial
     // cuts to its floor and stays within bounds, and the payouts wait. (Whether the full economy stays under
     // its path is the batches' question.)
@@ -979,12 +979,14 @@ describe("the supply ceiling (2026-10-31): complete supply control", () => {
       if (d.ceilingFd > 0) mults.push(d.rateMult);
     });
     expect(mults.length).toBeGreaterThan(50);
+    // The dial runs from where rates stood at launch down to 80% of that, never above it.
+    const top = w.token.ceiling.launchMult;
     for (const m of mults) {
-      expect(m).toBeGreaterThanOrEqual(0.8 - 1e-9);
-      expect(m).toBeLessThanOrEqual(1 + 1e-9);
+      expect(m).toBeGreaterThanOrEqual(0.8 * top - 1e-9);
+      expect(m).toBeLessThanOrEqual(top + 1e-9);
     }
     expect(outstandingFd(w)).toBeGreaterThan(ceilingFd(w));
-    expect(Math.min(...mults)).toBeCloseTo(0.8, 9);
+    expect(Math.min(...mults)).toBeCloseTo(0.8 * top, 9);
     expect(w.token.ceiling.weeksAtFloor).toBeGreaterThan(0);
     expect(w.token.ceiling.weeksHolding).toBeGreaterThan(0);
     expect(queuedAirdropFd(w)).toBeGreaterThan(0);

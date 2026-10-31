@@ -7,8 +7,10 @@
  * all. The path is published at launch and never looks at the price.
  *
  * Weekly, the balance dial trims NPC freight rates (w.stab.rateMult, freight.ts) toward `headroom` under
- * the path, and relaxes them back to normal, never above, when there's room. It stops at `rateFloor`:
- * below that, honest carriers can't cover fuel and wages. When the dial is at its floor and the path is
+ * the path, and relaxes them back to where they stood at launch, never above, when there's room. It stops
+ * at `rateFloor` of that launch level: below it, honest carriers can't cover fuel and wages. (Measured from
+ * launch because the beta's own dial has usually cut rates a long way by then; a floor measured from the
+ * base rates would raise them.) When the dial is at its floor and the path is
  * still crowded, or whenever the path itself is reached, the scheduled payouts wait: the airdrop's slices
  * queue on their companies (token.ts unlockAirdrop), owed and never lost, and the developer's vest holds
  * (token.ts weeklyVest). Queued slices are paid as room comes back. It's a ceiling, not a target: sinks
@@ -37,10 +39,11 @@ export function ceilingFd(w: World): number {
   return base * (1 + k.growth * Math.min(1, days / k.overDays));
 }
 
-/** At launch, once it has settled: the path starts from what's outstanding. */
+/** At launch, once it has settled: the path starts from what's outstanding, the dial from where rates stand. */
 export function startCeiling(w: World): void {
   if (!w.cfg.token.supplyCeiling.enabled || !w.cfg.token.circular.enabled) return;
   w.token.ceiling.baseFd = outstandingFd(w);
+  w.token.ceiling.launchMult = w.stab.rateMult;
 }
 
 /** Airdrop owed but queued under the ceiling, across companies. */
@@ -65,8 +68,9 @@ export function weeklyCeiling(w: World): void {
   const out = outstandingFd(w);
   // A full step when the supply sits a whole headroom past the target; less the closer it is.
   const gap = clamp((out - target) / Math.max(1, path * k.headroom), -1, 1);
-  w.stab.rateMult = clamp(w.stab.rateMult * (1 - gap * k.stepPerWeek), k.rateFloor, 1);
-  const atFloor = w.stab.rateMult <= k.rateFloor + 1e-9;
+  const floor = st.launchMult * k.rateFloor;
+  w.stab.rateMult = clamp(w.stab.rateMult * (1 - gap * k.stepPerWeek), floor, st.launchMult);
+  const atFloor = w.stab.rateMult <= floor + 1e-9;
   if (atFloor) st.weeksAtFloor++;
   st.holding = out >= path || (atFloor && out >= target);
   if (st.holding) st.weeksHolding++;

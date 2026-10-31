@@ -911,12 +911,13 @@ export interface TokenState {
   exchange: { soldFd: number; boughtFd: number };
   airdrop: { mintedFd: number; forfeitedFd: number; haircutFd: number; seasonsPaid: number };
   /**
-   * The supply ceiling (ceiling.ts): FD outstanding right after launch (null before, or when it's off);
-   * whether the scheduled payouts wait this week and the room queued slices may be paid from; and the
-   * tallies the reports publish.
+   * The supply ceiling (ceiling.ts): FD outstanding right after launch (null before, or when it's off)
+   * and the rate multiplier then, the dial's top; whether the scheduled payouts wait this week and the
+   * room queued slices may be paid from; and the tallies the reports publish.
    */
   ceiling: {
     baseFd: number | null;
+    launchMult: number;
     holding: boolean;
     roomFd: number;
     weeksHolding: number;

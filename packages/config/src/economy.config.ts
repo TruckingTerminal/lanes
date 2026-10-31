@@ -968,8 +968,10 @@ export const economyConfig = {
     // schedule public). After launch the FD outstanding (everything outside the reserve, the genesis
     // allocations and the burns) may grow at most `growth` over `overDays` game days, then not at all: a
     // published path that never looks at the price. Weekly, the balance dial trims NPC freight rates to
-    // stay `headroom` under it and relaxes them back to normal (never above) when there's room, down to
-    // `rateFloor`, below which honest carriers can't cover fuel and wages. When the dial is at its floor and
+    // stay `headroom` under it and relaxes them back to where they stood at launch (never above) when
+    // there's room, down to `rateFloor` of that launch level, below which honest carriers can't cover fuel
+    // and wages. (v42-a/b measured the floor from base rates: the beta's dial had already cut them to half,
+    // so the floor raised them, and supply ran 45% over the path.) When the dial is at its floor and
     // the path is still crowded, or whenever the path itself is reached, the scheduled payouts wait: airdrop
     // slices queue on their companies (owed, never lost) and the developer's vest holds. Replaces the
     // sink-to-faucet target for the rate dial after launch. Off until the batches size it.

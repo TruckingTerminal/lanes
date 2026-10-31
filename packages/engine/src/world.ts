@@ -223,7 +223,7 @@ export function createWorld(o: WorldOptions): World {
       floorUsd: 0,
       exchange: { soldFd: 0, boughtFd: 0 },
       airdrop: { mintedFd: 0, forfeitedFd: 0, haircutFd: 0, seasonsPaid: 0 },
-      ceiling: { baseFd: null, holding: false, roomFd: 0, weeksHolding: 0, weeksAtFloor: 0, vestHeldWeeks: 0, releasedFd: 0 },
+      ceiling: { baseFd: null, launchMult: 1, holding: false, roomFd: 0, weeksHolding: 0, weeksAtFloor: 0, vestHeldWeeks: 0, releasedFd: 0 },
       baseCarriers: 0,
       newCompanies: 0,
     },

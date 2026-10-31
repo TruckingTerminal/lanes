@@ -256,6 +256,15 @@ vesting schedules all completely transparent." His answers to the 18 questions, 
    - Direct freight only up to what the fleet can haul and what the staked bond can broker out; a
      performance stake behind it, slashed to make the shipper whole when a load isn't covered. A small
      company can't take on many times its own size.
+   - Settled the same day: the owner runs 2 trucks alone and the dispatcher is required from the 3rd,
+     but staff can be hired at any size for automation (or a dispatch service at 5–10% of gross); the
+     performance stake is about two weeks of the contract's value, locked for its term; economies of
+     scale (fleet fuel, fleet insurance rating, dealer fleet pricing) rise with fleet size to 10% each
+     at 50+ trucks; the build comes right after the trucks build.
+   - Jeff asked whether stealing a load you were contracted for should exist at all. Recommended: no.
+     Remove `steal_load` (players and AI outlaws); cargo theft comes from NPC thieves and hired robbers
+     only. It returns later as fraud by aliases and shell authorities (fictitious pickups) after the
+     server, where investigations can work. Corridor robbery is open PvP. (Awaiting his yes.)
    - Proposed, not decided: a bigger staff pool with talent scarce at the top; managers who bring
      decisions with a recommendation, the answers becoming standing orders; armed drivers as a
      trade-off and armed escorts per load; every allowance and cap per person; real economies of scale
