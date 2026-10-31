@@ -520,6 +520,19 @@ pool-written policy pays the rest (a sink), and the truck goes on empty after th
 Shippers pay for the risk in the lane rate and on high-value loads; insurers price a fleet by where
 it sleeps. The report adds dock waits, missed slots, flatbed damage and cargo thefts.
 
+**Dry-van dock hours (2026-10-31, ruleset 0.18.4).** Jeff's call. With dry-van docks open 60 hours a
+week, trucks arriving at all hours waited 13 hours on average even after dispatch learned to plan
+around the hours. Now the bigger dry-van docks ship and receive around the clock, and the rest keep
+weekday business hours, 7am to 7pm (`docks.fcfsAroundTheClockShare` 0.5, `docks.hours.fcfs`).
+`docks.aroundTheClock` ranks places by their first-come dry-van freight (production plus
+consumption) and opens the biggest until they handle half of it: 137 places, every major metro. The
+rule covers pickups and deliveries, and the dispatcher's wait estimate reads it. In batch v41-a,
+compared with the 0.18.3 rules on the same four seeds, trucks spent about 30% fewer hours waiting
+(656k waits of 13.0 hours became 550k of 10.9). Missed appointment slots fell 5%. The year-one rate
+eased from 4.77 to 4.66 FD a mile and liquidations rose from 760 to 884: faster docks need fewer trucks
+for the same freight. The end price rose from $0.00046 to $0.00052 (`runs/compare-v41-a.md`). The live
+world restarted on it (world/meta version 19).
+
 Jeff's direction (2026-10-29, TOKENOMICS.md "The circular economy"): a capped FD supply, staking as
 the bond behind every licence, player-funded pools for insurance, factoring and surety, payment
 terms, and a season schedule for later airdrops. All of it is on main and off by default

@@ -141,6 +141,10 @@ and the NPC dealer sold every new truck.
      bigger dry-van docks ship and receive around the clock (the 137 biggest places, every major metro,
      which handle half of all dry-van stops) and the rest keep weekday business hours, 7am to 7pm
      (`docks.fcfsAroundTheClockShare` 0.5, `docks.hours.fcfs` 7–19). Ruleset 0.18.4-phase0.28.
+     **Live since 2026-10-31** (world/meta version 19, live page version 35). In batch v41-a, against
+     the 0.18.3 rules on the same four seeds, trucks spent about 30% fewer hours waiting (13.0 → 10.9
+     hours a wait, 16% fewer waits). Liquidations rose from 760 to 884 and the year-one rate fell 2%.
+     The end price rose 13% (`runs/compare-v41-a.md`).
 2. **The degen and bear-case batches**, bots only: momentum traders, airdrop farmers at 30% of players,
    sybil clusters, a whale, a listing-day crowd, against the vesting, the sell limits and the thin pool;
    fixes that scale sinks with extraction if the gates fail.
