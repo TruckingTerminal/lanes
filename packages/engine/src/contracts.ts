@@ -4,7 +4,8 @@ import { dayOf } from "./clock.js";
 import { EQUIPMENT, planIndex } from "./demand.js";
 import { clamp, fscPerMile, fuelPrice } from "./economics.js";
 import { laneDestWeights, reloadFactor } from "./freight.js";
-import { dispatchProfile } from "./labor.js";
+import { dispatchProfile, salesContracts, salesRatePremium } from "./labor.js";
+import { companyAccount } from "./ledger.js";
 import { resting } from "./standingOrders.js";
 import type { Company, Contract, Load, StandingOrder, Truck } from "./types.js";
 import { crewed, hubMiles, placeMiles, type World } from "./world.js";
@@ -61,6 +62,36 @@ export function contractRate(w: World, origin: number, dest: number, eq: Equipme
 const contractOrder = (c: Company) => c.orders.find((o): o is Extract<StandingOrder, { kind: "contracts" }> => o.kind === "contracts");
 
 export const activeContracts = (w: World, companyId: number): Contract[] => w.contracts.filter((k) => k.carrierId === companyId && k.status === "active");
+
+/** Direct freight (contracts.direct): the contracts a carrier can carry, its sales reps' book; else the flat cap. */
+export function contractSlots(w: World, c: Company): number {
+  return w.cfg.contracts.direct.enabled ? salesContracts(w, c) : w.cfg.contracts.maxPerCompany;
+}
+
+/** Direct freight: the loads a week this carrier's own trucks of this trailer can still take on (no limit when off). */
+export function contractRoom(w: World, c: Company, eq: Equipment): number {
+  if (!w.cfg.contracts.direct.enabled) return Infinity;
+  let trucks = 0;
+  for (const t of w.trucksByCompany.get(c.id) ?? []) if (t.trailer === eq && t.status !== "retired" && t.status !== "listed" && t.status !== "parked") trucks++;
+  const held = w.contracts.filter((k) => k.carrierId === c.id && k.equipment === eq && (k.status === "active" || k.status === "offered")).reduce((s, k) => s + k.loadsPerWeek, 0);
+  return trucks * w.cfg.contracts.direct.loadsPerTruckWeek - held;
+}
+
+export const contractStakeAccount = (id: number): string => `co:contractstake:${id}`;
+
+/** A contract's freight for a week at its rate, on its lane's miles. */
+function weeklyValue(w: World, k: Contract): number {
+  const lane = w.net.lanesFrom[k.origin]!.find((l) => l.id === k.laneId);
+  return k.loadsPerWeek * (lane?.miles ?? 0) * k.ratePerMile;
+}
+
+/** A contract ends: its performance stake (what's left of it) goes back to the carrier. */
+function endContract(w: World, k: Contract): void {
+  k.status = "ended";
+  const left = w.ledger.balance(contractStakeAccount(k.id));
+  if (left > 0.005) w.ledger.post(w.t, contractStakeAccount(k.id), companyAccount(k.carrierId), left, `contract:${k.id}`);
+  k.stakeFd = 0;
+}
 export const offeredContracts = (w: World, companyId: number): Contract[] => w.contracts.filter((k) => k.carrierId === companyId && k.status === "offered");
 
 function note(w: World, companyId: number, text: string, tone: "good" | "bad" | "info"): void {
@@ -77,18 +108,18 @@ export function weeklyContracts(w: World): void {
     if (c.status === "offered") {
       const carrier = w.companies[c.carrierId - 1]!;
       const order = contractOrder(carrier);
-      if (order?.acceptOffers && carrier.authority.status === "active" && activeContracts(w, carrier.id).length < k.maxPerCompany) acceptOffer(w, carrier, c);
-      else if (day >= c.offerExpiresDay) c.status = "ended";
+      const taken = order?.acceptOffers && carrier.authority.status === "active" && activeContracts(w, carrier.id).length < contractSlots(w, carrier) && acceptOffer(w, carrier, c) === null;
+      if (!taken && day >= c.offerExpiresDay) c.status = "ended";
       continue;
     }
     if (c.status !== "active") continue;
     const carrier = w.companies[c.carrierId - 1]!;
     if (carrier.authority.status !== "active" || carrier.liquidatingSince !== null) {
-      c.status = "ended";
+      endContract(w, c);
       continue;
     }
     if (day >= c.endDay) {
-      c.status = "ended";
+      endContract(w, c);
       if (c.acceptance >= k.renewAbove) {
         const rate = contractRate(w, c.origin, c.dest, c.equipment);
         offer(w, carrier, c.origin, c.dest, c.equipment, c.originPlace, c.destPlace, c.loadsPerWeek, rate);
@@ -102,7 +133,7 @@ export function weeklyContracts(w: World): void {
       c.loadsPerWeek--;
       carrier.localBanUntilDay = day + cfg.leverage.unreliableDays;
       if (c.loadsPerWeek <= 0) {
-        c.status = "ended";
+        endContract(w, c);
         note(w, carrier.id, `The shipper pulled your ${w.net.hubs[c.origin]!.id}→${w.net.hubs[c.dest]!.id} contract: too many tenders turned down. Local shippers will pass you over for ${cfg.leverage.unreliableDays} days.`, "bad");
       } else note(w, carrier.id, `Your ${w.net.hubs[c.origin]!.id}→${w.net.hubs[c.dest]!.id} contract was cut to ${c.loadsPerWeek} a week for turning down tenders, and local shippers will pass you over for ${cfg.leverage.unreliableDays} days.`, "bad");
     }
@@ -112,11 +143,11 @@ export function weeklyContracts(w: World): void {
   // New offers: at each market, shippers pick local carriers in good standing, more of them where trucks pile up.
   const month = Math.floor(((day % cfg.time.daysPerSeason) / cfg.time.daysPerSeason) * 12);
   for (let m = 0; m < w.net.hubs.length; m++) {
-    const locals = w.companies.filter((c) => c.role === "carrier" && c.authority.status === "active" && c.liquidatingSince === null && isLocal(w, c, m) && activeContracts(w, c.id).length + offeredContracts(w, c.id).length < k.maxPerCompany);
+    const locals = w.companies.filter((c) => c.role === "carrier" && c.authority.status === "active" && c.liquidatingSince === null && isLocal(w, c, m) && activeContracts(w, c.id).length + offeredContracts(w, c.id).length < contractSlots(w, c));
     if (locals.length === 0) continue;
     for (const eq of EQUIPMENT) {
       // Only carriers that run this trailer.
-      const fit = locals.filter((c) => w.trucksByCompany.get(c.id)!.some((t) => t.trailer === eq && t.status !== "retired" && t.status !== "listed"));
+      const fit = locals.filter((c) => w.trucksByCompany.get(c.id)!.some((t) => t.trailer === eq && t.status !== "retired" && t.status !== "listed") && contractRoom(w, c, eq) >= 1);
       if (fit.length === 0) continue;
       const share = localShare(w, m, eq);
       // Expected offers this week; the fraction is a draw, so a market with one local carrier still sees offers.
@@ -143,9 +174,10 @@ export function weeklyContracts(w: World): void {
           const d = placeDestWeights(w.net.economy, lane.dest, commodity);
           if (d.length > 0) destPlace = d[rng.weighted(d.map((x) => x.weight))]!.place;
         }
-        const rate = contractRate(w, m, lane.dest, eq);
+        // Direct freight: a sales rep wins a better rate, and the volume fits what the fleet can haul.
+        const rate = contractRate(w, m, lane.dest, eq) * (k.direct.enabled ? 1 + salesRatePremium(w, c) : 1);
         if (!(rate > 0)) continue;
-        offer(w, c, m, lane.dest, eq, originPlace, destPlace, rng.int(k.loadsPerWeek[0], k.loadsPerWeek[1]), rate);
+        offer(w, c, m, lane.dest, eq, originPlace, destPlace, Math.min(rng.int(k.loadsPerWeek[0], k.loadsPerWeek[1]), contractRoom(w, c, eq)), rate);
       }
     }
   }
@@ -174,6 +206,7 @@ function offer(w: World, c: Company, origin: number, dest: number, eq: Equipment
     acceptance: 1,
     cut: false,
     status: "offered",
+    stakeFd: 0,
   };
   w.contracts.push(contract);
   note(w, c.id, `${w.net.places[originPlace]!.name} shipper offers a contract: ${w.net.hubs[origin]!.id}→${w.net.hubs[dest]!.id} ${eq}, ${loadsPerWeek} a week at ${rate.toFixed(2)}/mi for ${k.termDays} days.`, "info");
@@ -182,7 +215,16 @@ function offer(w: World, c: Company, origin: number, dest: number, eq: Equipment
 
 export function acceptOffer(w: World, c: Company, contract: Contract): string | null {
   if (contract.carrierId !== c.id || contract.status !== "offered") return "that offer isn't yours to take";
-  if (activeContracts(w, c.id).length >= w.cfg.contracts.maxPerCompany) return `you can hold ${w.cfg.contracts.maxPerCompany} contracts at a time`;
+  const slots = contractSlots(w, c);
+  if (activeContracts(w, c.id).length >= slots) return w.cfg.contracts.direct.enabled ? `your sales reps carry ${slots} contracts` : `you can hold ${slots} contracts at a time`;
+  // Direct freight: a performance stake against the contract, slashed to make the shipper whole when a tender is turned down.
+  const d = w.cfg.contracts.direct;
+  if (d.enabled) {
+    const stake = d.stakeWeeks * weeklyValue(w, contract);
+    if (w.ledger.balance(companyAccount(c.id)) < stake) return "not enough FD for the contract's performance stake";
+    if (stake > 0.005) w.ledger.post(w.t, companyAccount(c.id), contractStakeAccount(contract.id), stake, `contract:${contract.id}`);
+    contract.stakeFd = stake;
+  }
   const day = today(w);
   contract.status = "active";
   contract.startDay = day;
@@ -231,7 +273,21 @@ export function expireTenders(w: World): void {
 
 export function rejectTender(w: World, load: Load): void {
   const c = w.contracts.find((k) => k.id === load.contractId);
-  if (c) record(w, c, false);
+  if (c) {
+    record(w, c, false);
+    // Direct freight: the stake makes the shipper whole, what moving it at spot costs over the contract plus a fee.
+    const d = w.cfg.contracts.direct;
+    if (d.enabled && c.stakeFd > 0.005) {
+      const owed = (Math.max(0, load.bookNow - c.ratePerMile) + d.failFee * c.ratePerMile) * load.miles;
+      const slash = Math.min(owed, w.ledger.balance(contractStakeAccount(c.id)));
+      if (slash > 0.005) w.ledger.post(w.t, contractStakeAccount(c.id), "sink:contract_failure", slash, `contract:${c.id}`);
+      c.stakeFd = w.ledger.balance(contractStakeAccount(c.id));
+      if (c.stakeFd <= 0.01 && c.status === "active") {
+        endContract(w, c);
+        note(w, c.carrierId, `The shipper pulled your ${w.net.hubs[c.origin]!.id}→${w.net.hubs[c.dest]!.id} contract: the performance stake is spent on loads you didn't cover.`, "bad");
+      }
+    }
+  }
   load.tenderedTo = 0;
   load.tenderUntil = 0;
 }

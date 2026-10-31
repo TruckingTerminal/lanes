@@ -141,6 +141,7 @@ export function catchOdds(w: World, c: Company, load: Load): number {
  * claim on its record either way. The fence pays only if the case goes cold.
  */
 export function stealLoad(w: World, c: Company, truck: Truck): string | null {
+  if (!w.cfg.fraud.theft.byCarrier) return "carriers can't steal the loads they haul";
   if (c.role !== "carrier") return "only a carrier hauling a load can steal it";
   if (c.authority.status === "revoked") return "your authority isn't active";
   if (truck.companyId !== c.id) return "not your truck";

@@ -97,6 +97,11 @@ import { dockWaitCost } from "../src/standingOrders.js";
 import { ceilingFd, outstandingFd, queuedAirdropFd } from "../src/ceiling.js";
 import { financedCashNeed, purchaseTerms } from "../src/purchaseLoans.js";
 import { detachTruck, truckById } from "../src/world.js";
+import { loadFactor, managerEffect, managersNeeded, offerStaff, securityPremiumMult, securityTheftMult } from "../src/labor.js";
+import { acceptOffer, contractRoom, contractSlots, contractStakeAccount, rejectTender, weeklyContracts } from "../src/contracts.js";
+import { scaleDiscount, scaleDiscountFor } from "../src/scale.js";
+import { launchTaxRate } from "../src/token.js";
+import type { Contract } from "../src/types.js";
 import { COMMODITY_INDEX } from "@lanes/data";
 
 const net = buildNetwork(hubs, cfg);
@@ -1165,6 +1170,150 @@ describe("trucks and the money behind them (2026-10-31): leases by value, purcha
       return { supply: w.ledger.supply(), loans: w.purchaseLoans.map((l) => [l.borrowerId, l.principalFd, l.status]), deposits: w.trucks.map((t) => t.depositFd), prices: w.token.priceHistory };
     };
     expect(run()).toEqual(run());
+  });
+});
+
+describe("staff, sales and direct freight (2026-10-31): the ladder, the optional roles, stake-backed contracts, scale and the early-sale tax", () => {
+  const ladderCfg: EconomyConfig = {
+    ...calm,
+    labor: {
+      ...calm.labor,
+      owner: { ...calm.labor.owner, span: 2 },
+      dispatcher: { ...calm.labor.dispatcher, span: [10, 10] },
+      ladder: { ...calm.labor.ladder, enabled: true },
+      managers: { ...calm.labor.managers, enabled: true, roles: true, ops: { ...calm.labor.managers.ops, requiredAbove: 7, span: 20 }, maint: { ...calm.labor.managers.maint, requiredAbove: 4, span: 15 } },
+    },
+  };
+
+  it("the ladder: full strength to half a span, sliding to 70% at a full one (less for the skilled); the whole fleet counts against each span", () => {
+    const w = createWorld({ cfg: ladderCfg, net, feeds: neutralFeeds, seed: 81 });
+    expect(loadFactor(w, 0.5, 0)).toBe(1);
+    expect(loadFactor(w, 0.75, 0)).toBeCloseTo(0.85, 9);
+    expect(loadFactor(w, 1, 0)).toBeCloseTo(0.7, 9);
+    expect(loadFactor(w, 1, 1)).toBeCloseTo(0.85, 9);
+    expect(managersNeeded(w, "ops", 7)).toBe(0);
+    expect(managersNeeded(w, "ops", 8)).toBe(1);
+    expect(managersNeeded(w, "ops", 20)).toBe(1);
+    expect(managersNeeded(w, "ops", 21)).toBe(2);
+    expect(managersNeeded(w, "maint", 4)).toBe(0);
+    expect(managersNeeded(w, "maint", 5)).toBe(1);
+    expect(managersNeeded(w, "maint", 16)).toBe(2);
+    const c = carrier(w);
+    expect(opsCap(w, c)).toBe(7);
+    // Dispatch: one dispatcher on a full span of trucks works worse than the same team on half of it.
+    for (let i = 0; i < 12; i++) addTruck(w, c, "owned", "workhorse", "van");
+    const d = poolStaff(w, "dispatcher").sort((a, b) => a.skill - b.skill)[0]!;
+    expect(offerStaff(w, c, d, asking(w, d) * 1.2, 0)).toBeNull();
+    const full = dispatchProfile(w, c, 12).skill;
+    const half = dispatchProfile(w, c, 7).skill;
+    expect(full).toBeLessThan(half);
+  });
+
+  it("the optional roles: a CEO lifts every manager's edge, a security manager cuts theft odds and the premium", () => {
+    const w = createWorld({ cfg: ladderCfg, net, feeds: neutralFeeds, seed: 82 });
+    const c = carrier(w);
+    for (let i = 0; i < 6; i++) addTruck(w, c, "owned", "workhorse", "van");
+    fund(w, c.id, 200_000);
+    expect(securityTheftMult(w, c)).toBe(1);
+    const sec = poolStaff(w, "securityManager").sort((a, b) => b.skill - a.skill)[0]!;
+    expect(offerStaff(w, c, sec, asking(w, sec) * 1.2, 0)).toBeNull();
+    const alone = managerEffect(w, c, "securityManager");
+    expect(alone).toBeGreaterThan(0);
+    expect(securityTheftMult(w, c)).toBeCloseTo(1 - ladderCfg.labor.managers.security.theftCut * alone, 9);
+    expect(securityPremiumMult(w, c)).toBeLessThan(1);
+    const ceo = poolStaff(w, "ceo").sort((a, b) => b.skill - a.skill)[0]!;
+    expect(offerStaff(w, c, ceo, asking(w, ceo) * 1.2, 0)).toBeNull();
+    expect(managerEffect(w, c, "securityManager")).toBeCloseTo(Math.min(1, alone * (1 + ladderCfg.labor.managers.ceo.boost * ceo.skill)), 9);
+  });
+
+  it("direct freight: contracts only with a sales rep, up to what the fleet hauls; a performance stake, slashed to make the shipper whole, back at the end", () => {
+    const direct: EconomyConfig = { ...ladderCfg, contracts: { ...ladderCfg.contracts, direct: { ...ladderCfg.contracts.direct, enabled: true } } };
+    const w = createWorld({ cfg: direct, net, feeds: neutralFeeds, seed: 83, keepLedgerEntries: true });
+    const c = carrier(w);
+    for (let i = 0; i < 3; i++) addTruck(w, c, "owned", "workhorse", "van");
+    fund(w, c.id, 500_000);
+    expect(contractSlots(w, c)).toBe(0);
+    expect(contractRoom(w, c, "van")).toBe(3 * direct.contracts.direct.loadsPerTruckWeek);
+    expect(contractRoom(w, c, "reefer")).toBe(0);
+    const rep = poolStaff(w, "salesRep")[0]!;
+    expect(offerStaff(w, c, rep, asking(w, rep) * 1.2, 0)).toBeNull();
+    expect(contractSlots(w, c)).toBe(direct.labor.managers.sales.contractsEach);
+    const lane = w.net.lanesFrom[c.homeHub]![0]!;
+    const k: Contract = { id: w.nextContractId++, carrierId: c.id, origin: c.homeHub, dest: lane.dest, laneId: lane.id, equipment: "van", originPlace: PLACE_OF_HUB[c.homeHub]!, destPlace: PLACE_OF_HUB[lane.dest]!, ratePerMile: 3, loadsPerWeek: 2, startDay: 0, endDay: 0, offerExpiresDay: 7, tendered: 0, accepted: 0, acceptance: 1, cut: false, status: "offered", stakeFd: 0 };
+    w.contracts.push(k);
+    expect(acceptOffer(w, c, k)).toBeNull();
+    const stake = direct.contracts.direct.stakeWeeks * 2 * lane.miles * 3;
+    expect(w.ledger.balance(contractStakeAccount(k.id))).toBeCloseTo(stake, 2);
+    expect(contractRoom(w, c, "van")).toBe(3 * direct.contracts.direct.loadsPerTruckWeek - 2);
+    // A tender turned down: the stake pays what moving it at spot cost over the contract, plus the fee.
+    const load = { ...testLoad(w, lane), contractId: k.id, tenderedTo: c.id, bookNow: 4, miles: lane.miles };
+    rejectTender(w, load);
+    const owed = (4 - 3 + direct.contracts.direct.failFee * 3) * lane.miles;
+    expect(w.ledger.balance(contractStakeAccount(k.id))).toBeCloseTo(stake - owed, 2);
+    // The term ends: what's left comes back.
+    const before = w.ledger.balance(companyAccount(c.id));
+    k.endDay = 0;
+    weeklyContracts(w);
+    expect(k.status).toBe("ended");
+    expect(w.ledger.balance(contractStakeAccount(k.id))).toBe(0);
+    expect(w.ledger.balance(companyAccount(c.id))).toBeCloseTo(before + stake - owed, 2);
+    w.ledger.assertBalanced();
+  });
+
+  it("scale discounts: nothing to five trucks, 1% at ten, a straight line to 10% at fifty, on fuel, the NPC dealer and a clean fleet's insurance", () => {
+    const scaled: EconomyConfig = { ...calm, scaleDiscounts: { ...calm.scaleDiscounts, enabled: true } };
+    const w = createWorld({ cfg: scaled, net, feeds: neutralFeeds, seed: 84 });
+    expect(scaleDiscountFor(w, 5)).toBe(0);
+    expect(scaleDiscountFor(w, 6)).toBeCloseTo(0.002, 9);
+    expect(scaleDiscountFor(w, 10)).toBeCloseTo(0.01, 9);
+    expect(scaleDiscountFor(w, 30)).toBeCloseTo(0.055, 9);
+    expect(scaleDiscountFor(w, 50)).toBeCloseTo(0.1, 9);
+    expect(scaleDiscountFor(w, 90)).toBeCloseTo(0.1, 9);
+    const big = carrier(w, "Big");
+    for (let i = 0; i < 30; i++) addTruck(w, big, "owned", "workhorse", "van");
+    const small = carrier(w, "Small");
+    addTruck(w, small, "owned", "workhorse", "van");
+    expect(scaleDiscount(w, big)).toBeCloseTo(0.055, 9);
+    expect(scaleDiscount(w, small)).toBe(0);
+  });
+
+  it("the early-sale tax: 75% at launch, falling in a line to the normal fee over its days; contract theft can be switched off", () => {
+    const early: EconomyConfig = { ...calm, token: { ...calm.token, enabled: true, exchange: { ...calm.token.exchange, launchTax: { ...calm.token.exchange.launchTax, enabled: true } } }, fraud: { ...calm.fraud, theft: { ...calm.fraud.theft, byCarrier: false } } };
+    const w = createWorld({ cfg: early, net, feeds: neutralFeeds, seed: 85 });
+    const k = early.token.exchange;
+    expect(launchTaxRate(w)).toBe(0); // not launched
+    w.token.launchDay = 0;
+    expect(launchTaxRate(w)).toBeCloseTo(k.launchTax.startPct, 9);
+    w.t = (k.launchTax.days / 2) * early.time.gameMinutesPerDay;
+    expect(launchTaxRate(w)).toBeCloseTo(k.launchTax.startPct - (k.launchTax.startPct - k.sellFeePct) / 2, 9);
+    w.t = k.launchTax.days * early.time.gameMinutesPerDay;
+    expect(launchTaxRate(w)).toBe(0);
+    const c = carrier(w);
+    const t = addTruck(w, c, "owned", "workhorse", "van");
+    expect(applyAction(w, c.id, { type: "steal_load", truckId: t.id })).toEqual({ ok: false, reason: "carriers can't steal the loads they haul" });
+  });
+
+  it("replays exactly from the seed with the ladder, the roles, direct freight, scale discounts, the early-sale tax and the truck money on", () => {
+    const all: EconomyConfig = {
+      ...ladderCfg,
+      dealerFd: { tractor: { workhorse: 140_000, highwayPro: 320_000, flagship: 700_000 }, trailer: { van: 40_000, reefer: 100_000, flatbed: 70_000 } },
+      seasonClose: { ...calm.seasonClose, enabled: false },
+      contracts: { ...ladderCfg.contracts, direct: { ...ladderCfg.contracts.direct, enabled: true } },
+      scaleDiscounts: { ...calm.scaleDiscounts, enabled: true },
+      equipmentFinance: { ...calm.equipmentFinance, purchase: { ...calm.equipmentFinance.purchase, enabled: true } },
+      freeEntry: { ...calm.freeEntry, leases: { ...calm.freeEntry.leases, byValue: { ...calm.freeEntry.leases.byValue, enabled: true } } },
+      fraud: { ...calm.fraud, theft: { ...calm.fraud.theft, byCarrier: false } },
+      token: { ...calm.token, enabled: true, betaYears: 0.05, exchange: { ...calm.token.exchange, launchTax: { ...calm.token.exchange.launchTax, enabled: true } } },
+    };
+    const run = () => {
+      const w = createWorld({ cfg: all, net, feeds: { ...neutralFeeds, cycle: syntheticCassCycle({ seed: 86 }) }, seed: 86 });
+      populate(w, { freeOwnerOperators: 30, fleets: 8, brokers: 3 });
+      runDays(w, 50, ruleBotHook);
+      const roles = w.staff.filter((s) => s.status === "employed" && (s.kind === "salesRep" || s.kind === "securityManager" || s.kind === "ceo")).map((s) => [s.kind, s.companyId]);
+      return { supply: w.ledger.supply(), roles, contracts: w.contracts.map((k) => [k.carrierId, k.status, k.stakeFd]), prices: w.token.priceHistory };
+    };
+    const a = run();
+    expect(a).toEqual(run());
   });
 });
 

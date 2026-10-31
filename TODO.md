@@ -237,6 +237,10 @@ vesting schedules all completely transparent." His answers to the 18 questions, 
    with the record); prices on the real-world ratio, new $200k to used from $50k, scaled to FD (test
    the realistic level, about 250–300k FD for a new tractor, and the 4:1 ratio on today's prices);
    assets on: "we need to have assets".
+   **Built (ab956bf, off):** `freeEntry.leases.byValue` (rent floor 0.5% of value a week, 25% deposit,
+   escrowed on the free path), `equipmentFinance.purchase` (purchaseLoans.ts: NPC lender, 10–20% down,
+   10% stake, 104 weeks, default → the truck taken back at value), `freeEntry.freePath` ("lease" /
+   "spendOnly" / "none"); bots finance when cash is short.
 7. **Highway robbers:** hired crews; cargo, trailers and whole rigs (rigs to chop shops or the Back
    Lot); theft corridors at night only, never secured lots; newcomers protected for 30 real days; a
    cooldown per victim; the hirer's stake covers the take; 2–3 security slots per truck, every item an
@@ -264,6 +268,14 @@ vesting schedules all completely transparent." His answers to the 18 questions, 
      truck), flat after; one 50-truck company gets 10% where two 25-truck companies get about 4.4% each
      and five 10-truck companies 1% each. The insurance discount needs a clean safety record, like real
      fleet rating. The build comes right after the trucks build.
+   - **Built (off, 2026-10-31):** the ladder (`labor.ladder`: spans count the whole fleet, performance
+     slides from half a span to 70% at a full one, skill cushions it; Jeff's spans go in as settings);
+     the optional roles (`labor.managers.roles`: CEO lifts every manager up to 30%, security cuts theft
+     odds up to 50% and the premium up to 10%, sales reps carry 3 contracts each at up to +5% rate);
+     direct freight (`contracts.direct`: no offers without a rep, volume up to 2 loads a truck a week,
+     a 2-week performance stake slashed on turned-down tenders); scale discounts (`scaleDiscounts`,
+     scale.ts: fuel, the NPC dealer, a clean fleet's insurance); the early-sale tax
+     (`token.exchange.launchTax`, 75% falling to the fee over 730 game days); `fraud.theft.byCarrier`.
    - **Contract theft goes** (Jeff: "What benefit is there for anyone to steal their own freight that
      they were contracted to haul? I don't see any"). Remove `steal_load` for players and AI outlaws
      in the next ruleset bundle; cargo theft comes from NPC thieves and hired robbers only. It can

@@ -1,3 +1,5 @@
+import { securityPremiumMult } from "./labor.js";
+import { scaleDiscount } from "./scale.js";
 import { garagingFactor } from "@lanes/data";
 import { theftInsuranceFactor } from "./risk.js";
 import { dayOf } from "./clock.js";
@@ -34,7 +36,8 @@ export function quote(w: World, c: Company): Omit<InsurancePolicy, "signedDay" |
   risk = clamp(risk, ins.clamp[0], ins.clamp[1]);
   const garaging = garagingOf(w.net.hubs[c.homeHub]!.id);
   const market = w.insuranceMarket.index;
-  const base = ins.baseAnnualPerTruck * risk * garaging * market;
+  // A security manager trims the premium; a big fleet with a clean record is rated as a fleet (scale discounts).
+  const base = ins.baseAnnualPerTruck * risk * garaging * market * securityPremiumMult(w, c) * (clean ? 1 - scaleDiscount(w, c) : 1);
   // Pools (0.18.0): a capitalised player pool writes cheaper than the NPC insurer, which charges a
   // backstop markup while a pool exists and is too thin to write.
   if (!poolsOn(w)) return { annualPerTruck: base, risk, garaging, market, writer: "npc" };

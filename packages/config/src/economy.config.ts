@@ -244,6 +244,12 @@ export const economyConfig = {
   },
   // Contracts: local shippers offer local carriers a weekly volume on a lane at a fixed rate for a term.
   contracts: {
+    // Direct shipper freight (Jeff, 2026-10-31): no contract offers without a sales rep on staff, who carries
+    // `labor.managers.sales.contractsEach` of them; a carrier holds contract volume only up to what its own
+    // trucks can haul (`loadsPerTruckWeek` each); each contract locks a performance stake of `stakeWeeks` of
+    // its freight, slashed to make the shipper whole when a tender is turned down (what moving it at spot cost
+    // over the contract, plus `failFee` of the load), and back at the end of the term. Off: the 0.18 contracts.
+    direct: { enabled: false, loadsPerTruckWeek: 2, stakeWeeks: 2, failFee: 0.1 },
     termDays: 91,
     offerDays: 7, // an offer stands this long
     tenderHours: 12, // a tender waits for the carrier until the next round
@@ -369,6 +375,11 @@ export const economyConfig = {
     // a night at a truck stop. Not on fuel (the fuel tax), freight, wages, premiums or stakes. A sink.
     salesTax: { enabled: false, pct: 0.05 },
   },
+
+  // Economies of scale (Jeff, 2026-10-31: one big company, not many small ones; scale.ts): fleet fuel at the
+  // NPC pumps, fleet insurance rating with a clean record, and fleet pricing at the NPC dealer. Nothing up to
+  // `from` trucks, 1% at ten, a straight line to 10% at fifty, flat after. Off: no discounts.
+  scaleDiscounts: { enabled: false, from: 5, at10: 0.01, at50: 0.1 },
 
   // §Assets and supply caps
   tractors: {
@@ -864,6 +875,10 @@ export const economyConfig = {
       // A falling price tightens the door: below its trailing average the daily limit shrinks by
       // (price ÷ average) to this power, never under the floor share of the limit.
       fallingLimit: { enabled: false, lookbackDays: 7, power: 3, minShare: 0.25 },
+      // The early-sale tax (Jeff, 2026-10-31: "start at 75%, we want players to farm this, not farmers"): for
+      // `days` game days after launch (six real months), selling pays at least `startPct`, falling in a
+      // straight line to the normal fee; burned like the fee. Off until the combined test.
+      launchTax: { enabled: false, startPct: 0.75, days: 730 },
     },
     // Design decision (Jeff, 2026-10-29; TOKENOMICS.md §2): staking, the bond behind every licence.
     // Tiers gate company size and roles, never performance; the stake is slashed on revocation;
@@ -1144,16 +1159,36 @@ export const economyConfig = {
       enabled: false,
       ops: { payPerWeek: [1_000, 2_500] as const, requiredAbove: 4, span: 25, learnWeeks: 150, noiseWithout: 1.5, noiseWith: 0.7, crashMult: 0.9, pullInMult: 0.9, pushedPenaltyMult: 0.5, skillBonus: 0.08 },
       maint: { payPerWeek: [800, 2_000] as const, requiredAbove: 10, span: 25, learnWeeks: 150, breakdownWithout: 1.3, breakdownWith: 0.8, maintenanceWith: 0.9 },
+      // The optional roles (Jeff, 2026-10-31: "security/CEO and sales optional/expensive but extremely
+      // beneficial"), hired from the pool like the others; on with `roles`. A CEO lifts every manager's edge
+      // by up to `boost` (and the dispatch team's skill by `dispatchBonus`), at its skill. A security manager
+      // covers `span` trucks and cuts cargo and yard theft by up to `theftCut` and the insurance premium by up
+      // to `premiumCut`. A sales rep wins direct shipper freight (contracts.direct): it carries
+      // `contractsEach` contracts and gets up to `ratePremium` on their rate.
+      roles: false,
+      ceo: { payPerWeek: [4_000, 10_000] as const, learnWeeks: 150, boost: 0.3, dispatchBonus: 0.05 },
+      security: { payPerWeek: [1_500, 4_000] as const, learnWeeks: 150, span: 40, theftCut: 0.5, premiumCut: 0.1 },
+      sales: { payPerWeek: [1_200, 3_000] as const, learnWeeks: 150, contractsEach: 3, ratePremium: 0.05 },
     },
+    // The staff ladder (Jeff, 2026-10-31: "make it difficult, expensive and risky to grow"): a dispatcher or
+    // manager covers the whole fleet against its span (one per `span` trucks once the fleet is past the
+    // role's threshold, not the threshold plus a span), and works worse the fuller its span: full strength
+    // up to `fullUpTo` of it, sliding to `atFull` at the span; a skilled hire falls less (its skill takes
+    // back `skillCushion` of the slide). Jeff's spans go in with it: the owner runs 2 trucks, a dispatcher
+    // 10, a maintenance manager 15 from 5 trucks, an operations manager 20 from 8. Off: the 0.18 rules.
+    ladder: { enabled: false, fullUpTo: 0.5, atFull: 0.7, skillCushion: 0.5 },
     pool: {
       startDrivers: 450,
       startDispatchers: 120,
       startOpsManagers: 30,
       startMaintManagers: 30,
-      targetShare: { driver: 0.1, dispatcher: 0.25, opsManager: 0.25, maintManager: 0.25 }, // the pool aims at this share of employed staff…
-      minTarget: { driver: 40, dispatcher: 10, opsManager: 5, maintManager: 5 },
+      startCeos: 12, // the optional roles (managers.roles): CEOs are rare
+      startSecurity: 20,
+      startSales: 40,
+      targetShare: { driver: 0.1, dispatcher: 0.25, opsManager: 0.25, maintManager: 0.25, ceo: 0.25, securityManager: 0.25, salesRep: 0.25 }, // the pool aims at this share of employed staff…
+      minTarget: { driver: 40, dispatcher: 10, opsManager: 5, maintManager: 5, ceo: 3, securityManager: 4, salesRep: 6 },
       fillShare: 0.5, // …closing this much of the gap (plus open seats) each week with new entrants
-      baseEntrants: { driver: 3, dispatcher: 1, opsManager: 0.3, maintManager: 0.3 },
+      baseEntrants: { driver: 3, dispatcher: 1, opsManager: 0.3, maintManager: 0.3, ceo: 0.1, securityManager: 0.2, salesRep: 0.4 },
       rookieSkill: [0.02, 0.3] as const,
       veteranShare: 0.3, // entrants coming back to the industry with experience
       veteranSkill: [0.3, 0.85] as const,
@@ -1335,6 +1370,10 @@ export const economyConfig = {
     },
     botBrokerVetting: [0.2, 0.4, 0.4] as const, // share of AI brokers posting open / standard / strict
     theft: {
+      // Stealing a load you were hired to haul (steal_load): Jeff, 2026-10-31, "What benefit is there for anyone
+      // to steal their own freight that they were contracted to haul? I don't see any." False: no carrier,
+      // player or AI, can; cargo theft comes from NPC thieves (and later hired robbers). True: the 0.18 rules.
+      byCarrier: true,
       fenceShare: 0.3, // a fence pays 30% of cargo value — only once the case goes cold
       fenceCut: 0.2, // paid out of a broker's escrowed claim, the fence keeps this share (burned)
       brokerClaimShare: 0.1, // the broker on a stolen load pays this share of its value (negligent selection); at 0.3 a theft paid more than the haul

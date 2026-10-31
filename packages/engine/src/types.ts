@@ -305,7 +305,10 @@ export interface InsurancePolicy {
   market: number;
 }
 
-export type StaffKind = "driver" | "dispatcher" | "opsManager" | "maintManager";
+/** People from the labor pool; the CEO, security manager and sales rep are the optional roles (labor.managers.roles). */
+export type StaffKind = "driver" | "dispatcher" | "opsManager" | "maintManager" | "ceo" | "securityManager" | "salesRep";
+/** Every staff kind past the drivers and dispatchers: salaried by the week, learning by the week on the job. */
+export type ManagerKind = "opsManager" | "maintManager" | "ceo" | "securityManager" | "salesRep";
 export type StaffStatus = "pool" | "employed" | "jailed" | "gone";
 
 /** A driver or dispatcher (labor.ts). */
@@ -624,6 +627,8 @@ export interface Contract {
   /** Already cut for rejections this term. */
   cut: boolean;
   status: "offered" | "active" | "ended";
+  /** Direct freight (contracts.direct): the performance stake locked against it while it's active. */
+  stakeFd: number;
 }
 
 export interface Bid {

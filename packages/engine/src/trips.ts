@@ -1,3 +1,4 @@
+import { scaleDiscount } from "./scale.js";
 import { endOfLife } from "./assets.js";
 import { addTrailerMiles } from "./trailers.js";
 import { COMMODITIES, dexp, NO_TERRAIN, routeTerrain, type Route } from "@lanes/data";
@@ -296,7 +297,8 @@ export function payTripCosts(w: World, truck: Truck, ref: string): number {
   company.fuelGalMonth += c.gallons + climbGal; // taxed at the month's close (fuelTax.ts)
   // Fuel at the hub's player station if there is one (businesses.ts), else the pump; maintenance at
   // the hub's shop or the NPC shop, leaner with a maintenance manager (labor.ts).
-  const fuel = (c.fuel + climbGal * price) * keep;
+  // A big fleet buys fuel at a fleet discount (scale.ts).
+  const fuel = (c.fuel + climbGal * price) * keep * (1 - scaleDiscount(w, company));
   payLegFuel(w, company, truck, fuel, driven, ref); // the block rule: the origin, then the truck stops the leg passes
   w.ledger.post(w.t, acct, "sink:driver_wages", c.wages, ref);
   const maintenance = serviceBill(w, company, truck.hub, c.maintenance * keep * managerMaintenanceMult(w, company), "maintenance", ref);

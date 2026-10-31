@@ -116,6 +116,16 @@ export function frequencyFee(w: World, c: Company): number {
   return Math.min(fq.maxExtra, fq.perSellDay * Math.max(0, n - fq.freeSellDays));
 }
 
+/** The early-sale tax (exchange.launchTax): the least a sale pays in the months after launch, 0 when off or over. */
+export function launchTaxRate(w: World): number {
+  const k = w.cfg.token.exchange;
+  const t = k.launchTax;
+  if (!t.enabled || w.token.launchDay === null) return 0;
+  const since = dayOf(w.t, w.cfg) - w.token.launchDay;
+  if (since >= t.days) return 0;
+  return t.startPct - (t.startPct - k.sellFeePct) * (since / t.days);
+}
+
 export function sellFd(w: World, c: Company, fd: number): string | null {
   if (!tokenLive(w)) return "FD isn't on the market yet";
   if (!(fd > 0) || fd > sellableFd(w, c) + 0.01) return "only unlocked FD can be sold";
@@ -130,7 +140,7 @@ export function sellFd(w: World, c: Company, fd: number): string | null {
   const share = sellLimitShare(w);
   if (share > 0 && c.soldFd.fd + fd > pool * share + 0.01) return "over today's sell limit";
   const impact = fd / (pool + fd);
-  const fee = fd * Math.min(k.sellFeeMax, k.sellFeePct + frequencyFee(w, c) + k.sellFeePerImpact * impact);
+  const fee = fd * Math.max(launchTaxRate(w), Math.min(k.sellFeeMax, k.sellFeePct + frequencyFee(w, c) + k.sellFeePerImpact * impact));
   const net = fd - fee;
   const usd = w.token.poolUsd - (w.token.poolUsd * pool) / (pool + net);
   // A one-sided launch has no dollars on the bid side until buyers bring them: nothing to sell into yet.

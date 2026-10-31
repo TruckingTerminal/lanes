@@ -1,3 +1,4 @@
+import { scaleDiscount } from "./scale.js";
 import { acceptOffer, acceptTender, declineOffer, mayTake, rejectTender } from "./contracts.js";
 import { addParking, buyBusiness, buyTruckStop, serviceBill, setParkingPrice, setShopMarkup } from "./businesses.js";
 import { chargeSalesTax } from "./salesTax.js";
@@ -417,7 +418,8 @@ export function applyAction(w: World, companyId: number, action: Action): Action
       const firstTruck = !fleet.some((t) => t.lease === "owned") && ordersOf(w, company.id).length === 0;
       if (availableSupplyFor(w, kind, action.tier, action.trailer, firstTruck) <= 0) return { ok: false, reason: "PoC supply exhausted" };
       // The NPC dealer: list price; while a player dealership is open, the backstop's premium and longer wait.
-      const price = (kind === "tractor" ? tractorPrice(w, action.tier) : dealerPrice(w, action)) * npcDealerMult(w);
+      // A big fleet buys at fleet pricing (scale.ts).
+      const price = (kind === "tractor" ? tractorPrice(w, action.tier) : dealerPrice(w, action)) * npcDealerMult(w) * (1 - scaleDiscount(w, company));
       const loan = action.finance ? financePurchase(w, company, price) : null;
       if (typeof loan === "string") return { ok: false, reason: loan };
       if (w.ledger.balance(acct) < price) {

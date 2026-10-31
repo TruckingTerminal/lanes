@@ -4,6 +4,7 @@
  * into shippers' rates and into insurers' quotes. Deterministic: distances use dmath's cosine and no
  * square roots (the fade is on the squared distance).
  */
+import { securityTheftMult } from "./labor.js";
 import { COMMODITIES, dcos } from "@lanes/data";
 import type { EconomyConfig, Equipment } from "@lanes/config";
 import { clamp } from "./economics.js";
@@ -115,7 +116,8 @@ export function nightTheft(w: World, truck: Truck, c: Company, where: "shoulder"
   if (truck.status !== "loaded" || truck.loadId === null) return;
   const load = w.loads.get(truck.loadId);
   if (!load) return;
-  if (w.rng.ops.next() < k.oddsPerLoadedNight * exposure * commodityAttract(w.cfg, load.commodity)) stealCargo(w, truck, c, load);
+  // A security manager (labor.managers.roles) cuts the odds.
+  if (w.rng.ops.next() < k.oddsPerLoadedNight * exposure * commodityAttract(w.cfg, load.commodity) * securityTheftMult(w, c)) stealCargo(w, truck, c, load);
 }
 
 /**
