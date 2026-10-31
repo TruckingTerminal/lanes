@@ -103,6 +103,7 @@ export function buyFd(w: World, c: Company, usd: number): string | null {
   const fd = quoteBuyFd(w, usd);
   w.token.poolUsd += usd - fee;
   w.token.exchange.boughtFd += fd;
+  if (w.cfg.token.exchange.launchTax.boughtExempt) c.boughtFdOpen = (c.boughtFdOpen ?? 0) + fd;
   w.ledger.post(w.t, EXCHANGE_ACCOUNT, companyAccount(c.id), fd, `swap:buy:${c.id}`);
   c.usd.wallet -= usd;
   c.usd.in += usd;
@@ -160,7 +161,15 @@ export function sellFd(w: World, c: Company, fd: number): string | null {
   const acct = companyAccount(c.id);
   const k = w.cfg.token.exchange;
   const pool = w.ledger.balance(EXCHANGE_ACCOUNT);
-  const feeRate = (x: number) => Math.max(launchTaxRate(w), Math.min(k.sellFeeMax, k.sellFeePct + frequencyFee(w, c) + k.sellFeePerImpact * (x / (pool + x))));
+  // FD the company bought and hasn't sold back pays only the normal fee (exchange.launchTax.boughtExempt).
+  const exempt = k.launchTax.boughtExempt ? (c.boughtFdOpen ?? 0) : 0;
+  const feeRate = (x: number) => {
+    const normal = Math.min(k.sellFeeMax, k.sellFeePct + frequencyFee(w, c) + k.sellFeePerImpact * (x / (pool + x)));
+    const rate = Math.max(launchTaxRate(w), normal);
+    if (exempt <= 0 || x <= 0) return rate;
+    const taxed = Math.max(0, x - exempt);
+    return (normal * (x - taxed) + rate * taxed) / x;
+  };
   // The band: what drops the price to today's low fills, the rest waits. The pool takes the sale net of its
   // fee, which grows with the sale, so the most it can be is found by a few steps up from below.
   const band = priceBand(w);
@@ -192,6 +201,7 @@ export function sellFd(w: World, c: Company, fd: number): string | null {
   w.token.poolUsd -= usd;
   c.usd.out += usd;
   c.soldFd.fd += fd;
+  if (exempt > 0) c.boughtFdOpen = Math.max(0, exempt - fd);
   if (k.frequency.enabled) {
     c.sellDays = c.sellDays.filter((d) => d > today - k.frequency.windowDays);
     if (c.sellDays.at(-1) !== today) c.sellDays.push(today);

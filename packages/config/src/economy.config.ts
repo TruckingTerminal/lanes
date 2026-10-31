@@ -923,8 +923,11 @@ export const economyConfig = {
       fallingLimit: { enabled: false, lookbackDays: 7, power: 3, minShare: 0.25 },
       // The early-sale tax (Jeff, 2026-10-31: "start at 75%, we want players to farm this, not farmers"): for
       // `days` game days after launch (six real months), selling pays at least `startPct`, falling in a
-      // straight line to the normal fee; burned like the fee. Off until the combined test.
-      launchTax: { enabled: false, startPct: 0.75, days: 730 },
+      // straight line to the normal fee; burned like the fee. Off until the combined test. `boughtExempt`
+      // (proposal, 2026-10-31): FD a company bought on the exchange, up to what it bought and hasn't sold
+      // back, pays only the normal fee, so the tax falls on farmed FD and buyers can still leave (a smoke: with
+      // every buyer trapped, the band's limit-up climb never unwound).
+      launchTax: { enabled: false, startPct: 0.75, days: 730, boughtExempt: false },
       // The daily price band (Jeff, 2026-10-31): for `days` game days after launch (three real months) no trade
       // moves the price more than `pct` from the day's open; an order that would fills to the edge of the band,
       // and the rest waits for another day. A pump can't compound faster than the band a day. Off until tested.

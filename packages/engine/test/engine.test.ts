@@ -2840,3 +2840,37 @@ describe("the lease deposit toward the first truck (2026-10-31, after v45)", () 
     on.w.ledger.assertBalanced();
   });
 });
+
+describe("the early-sale tax on farmed FD only (proposal, 2026-10-31)", () => {
+  it("charges FD a company bought, up to what it bought, the normal fee; the rest pays the early-sale tax", () => {
+    const tax: EconomyConfig = {
+      ...calm,
+      seasonClose: { ...calm.seasonClose, enabled: false },
+      token: { ...calm.token, enabled: true, exchange: { ...calm.token.exchange, dailySellShareOfPool: 0, launchTax: { ...calm.token.exchange.launchTax, enabled: true, boughtExempt: true } } },
+    };
+    const w = createWorld({ cfg: tax, net, feeds: neutralFeeds, seed: 67, keepLedgerEntries: true });
+    const a = carrier(w, "A");
+    fund(w, a.id, 100_000);
+    a.milesTotal = 1_000;
+    launchToken(w);
+    const k = tax.token.exchange;
+    a.usd.wallet = 1_000;
+    const before = w.ledger.balance(companyAccount(a.id));
+    expect(applyAction(w, a.id, { type: "buy_fd", usd: 1_000 })).toEqual({ ok: true });
+    const bought = w.ledger.balance(companyAccount(a.id)) - before;
+    expect(a.boughtFdOpen).toBeCloseTo(bought, 1); // the ledger keeps cents
+    // Selling back what it bought: the normal fee, not 75%.
+    const burned = () => w.ledger.entries.filter((e) => e.to === "sink:exchange_fee").reduce((s, e) => s + e.amount, 0);
+    const b0 = burned();
+    expect(applyAction(w, a.id, { type: "sell_fd", fd: bought / 2 })).toEqual({ ok: true });
+    expect((burned() - b0) / (bought / 2)).toBeLessThan(k.sellFeeMax + 1e-9);
+    expect(a.boughtFdOpen).toBeCloseTo(bought / 2, 1);
+    // Selling more than it bought: the excess pays the early-sale tax.
+    const b1 = burned();
+    const more = bought / 2 + 1_000;
+    expect(applyAction(w, a.id, { type: "sell_fd", fd: more })).toEqual({ ok: true });
+    expect((burned() - b1) / more).toBeGreaterThan(launchTaxRate(w) * (1_000 / more) - 1e-9);
+    expect(a.boughtFdOpen).toBe(0);
+    w.ledger.assertBalanced();
+  });
+});

@@ -206,6 +206,8 @@ export interface Company {
   unstaking: { fd: number; day: number }[];
   /** Day the grace period for being over a tier (or under the broker stake) runs out, null while within it. */
   tierGraceDay: number | null;
+  /** FD bought on the exchange and not yet sold back (exchange.launchTax.boughtExempt): sold, it pays the normal fee, not the early-sale tax. */
+  boughtFdOpen?: number;
   /** FD sold on the exchange today (the daily sell limit). */
   soldFd: { day: number; fd: number };
   /** Days with a sale on the exchange, within the frequency fee's window (token.exchange.frequency). */
