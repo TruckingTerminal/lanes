@@ -944,6 +944,9 @@ export interface TokenState {
   floorUsd: number;
   /** FD sold into and bought out of the pool since launch (net of fees), for the demand break-even. */
   exchange: { soldFd: number; boughtFd: number };
+  /** The daily price band (exchange.priceBand): the day's open, fixed at its first trade, and the trades it clipped. */
+  dayOpen: { day: number; price: number };
+  bandClips: number;
   airdrop: { mintedFd: number; forfeitedFd: number; haircutFd: number; seasonsPaid: number };
   /**
    * The supply ceiling (ceiling.ts): FD outstanding right after launch (null before, or when it's off)

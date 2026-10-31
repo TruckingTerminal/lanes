@@ -257,6 +257,8 @@ export interface TokenReport {
     rateMultMin: number;
     rateMultEnd: number;
   };
+  /** The daily price band (exchange.priceBand), when it's on: its width, the trades it clipped, and the biggest day-to-day move in its days. */
+  band?: { pct: number; clips: number; maxDayMove: number };
 }
 
 /** Scores a run against the PoC kill criteria (§Proof of concept scope and kill criteria). */
@@ -796,6 +798,13 @@ function tokenReport(w: World, quarterLen: number): TokenReport | null {
         rateMultMin: Math.min(...under.map((d) => d.rateMult), end.rateMult ?? 1),
         rateMultEnd: end.rateMult ?? 1,
       };
+    })(),
+    band: (() => {
+      const b = w.cfg.token.exchange.priceBand;
+      if (!b.enabled) return undefined;
+      const inBand = live.filter((d) => d.day < tk.launchDay! + b.days);
+      const moves = inBand.slice(1).map((d, i) => Math.abs(d.priceUsd / inBand[i]!.priceUsd - 1));
+      return { pct: b.pct, clips: tk.bandClips, maxDayMove: Math.max(0, ...moves) };
     })(),
   };
 }

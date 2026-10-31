@@ -68,9 +68,36 @@ export function quoteUsdForFd(w: World, fd: number): number {
   return net / (1 - w.cfg.token.exchange.buyFeePct);
 }
 
+/**
+ * The daily price band (exchange.priceBand): the low and high the price may reach today, around the day's
+ * open, or null when it's off, past its days, or a one-sided launch's floor still rules (no dollars in the pool,
+ * or the floor price standing).
+ */
+export function priceBand(w: World): { lo: number; hi: number } | null {
+  const b = w.cfg.token.exchange.priceBand;
+  if (!b.enabled || w.token.launchDay === null || w.token.poolUsd <= 0 || w.token.floorUsd > 0) return null;
+  const day = dayOf(w.t, w.cfg);
+  if (day - w.token.launchDay >= b.days) return null;
+  if (w.token.dayOpen.day !== day) w.token.dayOpen = { day, price: fdPriceUsd(w) };
+  const open = w.token.dayOpen.price;
+  return open > 0 ? { lo: open * (1 - b.pct), hi: open * (1 + b.pct) } : null;
+}
+
 export function buyFd(w: World, c: Company, usd: number): string | null {
   if (!tokenLive(w)) return "FD isn't on the market yet";
   if (!(usd > 0) || usd > c.usd.wallet + 1e-9) return "not enough dollars";
+  // The band: what lifts the price to today's high fills, the rest waits.
+  const band = priceBand(w);
+  if (band) {
+    const pool = w.ledger.balance(EXCHANGE_ACCOUNT);
+    const maxNet = Math.sqrt(band.hi * w.token.poolUsd * pool) - w.token.poolUsd;
+    if (!(maxNet > 0.01)) return "the price is at today's limit up";
+    const cap = maxNet / (1 - w.cfg.token.exchange.buyFeePct);
+    if (usd > cap) {
+      usd = cap;
+      w.token.bandClips++;
+    }
+  }
   const fee = usd * w.cfg.token.exchange.buyFeePct;
   const fd = quoteBuyFd(w, usd);
   w.token.poolUsd += usd - fee;
@@ -132,6 +159,20 @@ export function sellFd(w: World, c: Company, fd: number): string | null {
   const acct = companyAccount(c.id);
   const k = w.cfg.token.exchange;
   const pool = w.ledger.balance(EXCHANGE_ACCOUNT);
+  const feeRate = (x: number) => Math.max(launchTaxRate(w), Math.min(k.sellFeeMax, k.sellFeePct + frequencyFee(w, c) + k.sellFeePerImpact * (x / (pool + x))));
+  // The band: what drops the price to today's low fills, the rest waits. The pool takes the sale net of its
+  // fee, which grows with the sale, so the most it can be is found by a few steps up from below.
+  const band = priceBand(w);
+  if (band) {
+    const maxNet = Math.sqrt((w.token.poolUsd * pool) / band.lo) - pool;
+    if (!(maxNet > 0.01)) return "the price is at today's limit down";
+    let cap = maxNet;
+    for (let i = 0; i < 6; i++) cap = maxNet / (1 - feeRate(cap));
+    if (fd > cap) {
+      fd = cap;
+      w.token.bandClips++;
+    }
+  }
   // The whale rules (TOKENOMICS.md §3): a daily sell limit per company as a share of the pool's FD,
   // and a sell fee that rises with the single sale's price impact, all of it burned. The bear-case
   // fixes: the limit tightens while the price falls, and the fee rises with how often a company sells.
@@ -139,8 +180,7 @@ export function sellFd(w: World, c: Company, fd: number): string | null {
   if (c.soldFd.day !== today) c.soldFd = { day: today, fd: 0 };
   const share = sellLimitShare(w);
   if (share > 0 && c.soldFd.fd + fd > pool * share + 0.01) return "over today's sell limit";
-  const impact = fd / (pool + fd);
-  const fee = fd * Math.max(launchTaxRate(w), Math.min(k.sellFeeMax, k.sellFeePct + frequencyFee(w, c) + k.sellFeePerImpact * impact));
+  const fee = fd * feeRate(fd);
   const net = fd - fee;
   const usd = w.token.poolUsd - (w.token.poolUsd * pool) / (pool + net);
   // A one-sided launch has no dollars on the bid side until buyers bring them: nothing to sell into yet.

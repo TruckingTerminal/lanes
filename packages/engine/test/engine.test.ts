@@ -2582,3 +2582,46 @@ describe("the bear-case fixes (EVE plan step 2): selling often costs more, and a
     w.ledger.assertBalanced();
   });
 });
+
+describe("the daily price band (Jeff, 2026-10-31): ±15% a day for the first three real months", () => {
+  it("fills a buy only up to today's high and a sale only down to today's low, the rest waiting; off after its days", () => {
+    const banded: EconomyConfig = {
+      ...calm,
+      seasonClose: { ...calm.seasonClose, enabled: false },
+      token: { ...calm.token, enabled: true, exchange: { ...calm.token.exchange, dailySellShareOfPool: 0, priceBand: { ...calm.token.exchange.priceBand, enabled: true } } },
+    };
+    const w = createWorld({ cfg: banded, net, feeds: neutralFeeds, seed: 59, keepLedgerEntries: true });
+    const a = carrier(w, "A");
+    fund(w, a.id, 100_000);
+    a.milesTotal = 1_000;
+    launchToken(w);
+    const k = banded.token.exchange.priceBand;
+    const open = fdPriceUsd(w);
+    expect(open).toBeGreaterThan(0);
+    // A buy many times the band's depth fills to today's high and no further; the rest of the dollars wait.
+    a.usd.wallet = w.token.poolUsd * 10;
+    expect(applyAction(w, a.id, { type: "buy_fd", usd: a.usd.wallet })).toEqual({ ok: true });
+    expect(fdPriceUsd(w) / (open * (1 + k.pct))).toBeCloseTo(1, 6); // to the cent the ledger keeps
+    expect(a.usd.wallet).toBeGreaterThan(w.token.poolUsd * 5);
+    expect(w.token.bandClips).toBe(1);
+    expect(applyAction(w, a.id, { type: "buy_fd", usd: 100 })).toEqual({ ok: false, reason: "the price is at today's limit up" });
+    // The next day opens where the last one closed: a sale far past the band fills down to today's low, net of its fee.
+    w.t += w.cfg.time.gameMinutesPerDay;
+    const open2 = fdPriceUsd(w);
+    fund(w, a.id, w.ledger.balance(EXCHANGE_ACCOUNT) * 5);
+    const held = sellableFd(w, a);
+    expect(applyAction(w, a.id, { type: "sell_fd", fd: held })).toEqual({ ok: true });
+    expect(fdPriceUsd(w) / (open2 * (1 - k.pct))).toBeCloseTo(1, 6);
+    expect(sellableFd(w, a)).toBeGreaterThan(held / 2);
+    expect(w.token.bandClips).toBe(2);
+    expect(applyAction(w, a.id, { type: "sell_fd", fd: 100 })).toEqual({ ok: false, reason: "the price is at today's limit down" });
+    // After its days, no band.
+    w.t = (w.token.launchDay! + k.days) * w.cfg.time.gameMinutesPerDay;
+    const p = fdPriceUsd(w);
+    a.usd.wallet = w.token.poolUsd * 10;
+    expect(applyAction(w, a.id, { type: "buy_fd", usd: a.usd.wallet })).toEqual({ ok: true });
+    expect(fdPriceUsd(w)).toBeGreaterThan(p * 2);
+    expect(w.token.bandClips).toBe(2);
+    w.ledger.assertBalanced();
+  });
+});

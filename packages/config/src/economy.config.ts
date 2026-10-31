@@ -898,6 +898,10 @@ export const economyConfig = {
       // `days` game days after launch (six real months), selling pays at least `startPct`, falling in a
       // straight line to the normal fee; burned like the fee. Off until the combined test.
       launchTax: { enabled: false, startPct: 0.75, days: 730 },
+      // The daily price band (Jeff, 2026-10-31): for `days` game days after launch (three real months) no trade
+      // moves the price more than `pct` from the day's open; an order that would fills to the edge of the band,
+      // and the rest waits for another day. A pump can't compound faster than the band a day. Off until tested.
+      priceBand: { enabled: false, pct: 0.15, days: 365 },
     },
     // Design decision (Jeff, 2026-10-29; TOKENOMICS.md §2): staking, the bond behind every licence.
     // Tiers gate company size and roles, never performance; the stake is slashed on revocation;

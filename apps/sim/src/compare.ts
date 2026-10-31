@@ -221,6 +221,11 @@ rows.push(
     const m = rs.map((r) => r.daily.at(-1)?.rateMult).filter((x): x is number => typeof x === "number");
     return m.length ? `n/a / ${mean(m).toFixed(2)}` : "n/a";
   }],
+  // The daily price band (Jeff, 2026-10-31: ±15% a day for the first three real months).
+  ["Price band: width / trades clipped / biggest day's move in its days", (rs) => {
+    const b = rs.map((r) => r.realMoney?.token?.band).filter((x) => x);
+    return b.length ? `±${pct(b[0]!.pct)} / ${n0(mean(b.map((x) => x!.clips)))} / ${(mean(b.map((x) => x!.maxDayMove)) * 100).toFixed(1)}%` : "off";
+  }],
   ["Token: FD held by companies at end", (rs) => range(rs.map((r) => r.realMoney?.token?.supply.companiesEndFd ?? NaN).filter(Number.isFinite), fd)],
   ["Token: launch burned / locked", (rs) => {
     const t = rs.map((r) => r.realMoney?.token).filter((x) => x);
