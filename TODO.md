@@ -270,6 +270,11 @@ vesting schedules all completely transparent." His answers to the 18 questions, 
 8. **The unlock ladder:** each layer opens at a published date and a hard-to-fake metric (verified
    players, pool dollars), gradually; hauling, then businesses, then player brokerage, then the Back
    Lot and robbers, then aliases and crews; it starts at launch, the beta fully open.
+   **Built (off, 2026-10-31):** `unlockLadder` (ladder.ts): hauling from launch; businesses and facilities
+   at 28 game days (a real week), re-brokering at 91 (three real weeks), crews at 182 (six and a half real
+   weeks), each also waiting for its operating companies and pool dollars when those are set; a layer
+   that opens stays open, and what the beta built keeps running. The Back Lot, aliases and crews join it
+   when they're built; verified players replace operating companies once the server checks identity.
 9. **Staff, sales and direct freight (Jeff, 2026-10-31: "make it difficult, expensive and risky to
    grow", and "incentivized to grow one large company and not many smaller ones"):**
    - A dispatcher from 3 trucks, at most 10 trucks each; a maintenance manager from 5, at most 15

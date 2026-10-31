@@ -265,6 +265,8 @@ export interface TokenReport {
    * share of an allocation unlocked, and the companies that reached each milestone.
    */
   logbook?: { openFd: number; honestFd: number; criminalFd: number; lostFd: number; convictedFd: number; lockedEndFd: number; books: number; medianUnlockedShare: number; reached: Record<string, number> };
+  /** The unlock ladder (unlockLadder), when it's on: the days after launch each layer opened (null: still closed). */
+  ladder?: Record<string, number | null>;
 }
 
 /** Scores a run against the PoC kill criteria (§Proof of concept scope and kill criteria). */
@@ -812,6 +814,7 @@ function tokenReport(w: World, quarterLen: number): TokenReport | null {
       const moves = inBand.slice(1).map((d, i) => Math.abs(d.priceUsd / inBand[i]!.priceUsd - 1));
       return { pct: b.pct, clips: tk.bandClips, maxDayMove: Math.max(0, ...moves) };
     })(),
+    ladder: w.cfg.unlockLadder.enabled ? Object.fromEntries(Object.entries(w.ladder).map(([k, d]) => [k, d === null ? null : d - tk.launchDay!])) : undefined,
     logbook: (() => {
       const st = tk.airdrop.logbook;
       if (!w.cfg.token.airdrop.logbook.enabled || !st) return undefined;

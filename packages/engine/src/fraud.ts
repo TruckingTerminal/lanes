@@ -1,3 +1,4 @@
+import { layerBlock } from "./ladder.js";
 import { logbookCount } from "./logbook.js";
 import { convictionForfeit } from "./token.js";
 import { dayOf } from "./clock.js";
@@ -63,6 +64,8 @@ function newCase(w: World, k: Omit<FraudCase, "id">): FraudCase {
  */
 export function rebrokerLoad(w: World, c: Company, load: Load, rate: number, pays: boolean): string | null {
   if (c.role !== "carrier") return "brokers broker legally";
+  const closed = layerBlock(w, "brokerage"); // the unlock ladder (ladder.ts)
+  if (closed) return closed;
   if (c.authority.status !== "active") return "your authority isn't active";
   if (load.carrierId !== c.id || load.status !== "assigned") return "only a load you won and haven't picked up yet";
   if (load.doubleBroker) return "that load was already re-posted";

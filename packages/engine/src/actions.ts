@@ -1,3 +1,4 @@
+import { layerBlock } from "./ladder.js";
 import { fitSecurity, hireCrew } from "./robbery.js";
 import { scaleDiscount } from "./scale.js";
 import { acceptOffer, acceptTender, declineOffer, mayTake, rejectTender } from "./contracts.js";
@@ -788,6 +789,8 @@ export function applyAction(w: World, companyId: number, action: Action): Action
     case "buy_facility": {
       // Any company can add the shipper role by owning facilities (§Roles).
       if (inCloseWindow(w)) return LOCKED;
+      const closed = layerBlock(w, "businesses"); // the unlock ladder (ladder.ts)
+      if (closed) return { ok: false, reason: closed };
       const hub = w.net.hubs.findIndex((h) => h.id === action.hubId);
       if (hub < 0) return { ok: false, reason: "unknown hub" };
       if (w.facilitySupply[action.facility] <= 0) return { ok: false, reason: "PoC supply exhausted" };

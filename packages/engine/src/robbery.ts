@@ -12,6 +12,7 @@
  * New companies are off limits for `protectDays`; a victim can't be targeted again for `cooldownDays`; a
  * hirer needs equity of at least `stakeCover` × the most the crew could take, so it has something to lose.
  */
+import { layerBlock } from "./ladder.js";
 import { logbookCount } from "./logbook.js";
 import { writeOffRig } from "./assets.js";
 import { dayOf } from "./clock.js";
@@ -95,6 +96,8 @@ export function crewFeeFd(w: World, t: Truck): number {
 export function hireCrew(w: World, hirer: Company, truck: Truck): string | null {
   const k = w.cfg.robbery;
   if (!k.enabled) return "no crews for hire";
+  const closed = layerBlock(w, "robbery"); // the unlock ladder (ladder.ts)
+  if (closed) return closed;
   if (truck.companyId === 0 || truck.status === "retired") return "no such truck";
   if (truck.companyId === hirer.id) return "that's your own truck";
   const victim = w.companies[truck.companyId - 1]!;

@@ -383,6 +383,17 @@ export const economyConfig = {
     salesTax: { enabled: false, pct: 0.05 },
   },
 
+  // The unlock ladder (Jeff, 2026-10-31; ladder.ts): after launch the game opens in layers, each on the first day
+  // both its published day (`afterDays` from launch) and its metrics are reached: operating companies (a stand-in
+  // for verified players) and dollars in the pool. The beta stays fully open. Off until tested.
+  unlockLadder: {
+    enabled: false,
+    layers: {
+      businesses: { afterDays: 28, minActive: 0, minPoolUsd: 0 },
+      brokerage: { afterDays: 91, minActive: 0, minPoolUsd: 0 },
+      robbery: { afterDays: 182, minActive: 0, minPoolUsd: 0 },
+    },
+  },
   // Hired robbers (Jeff, 2026-10-31: player against player, everything can be stolen, in the open, no police;
   // robbery.ts). A company hires a crew against one truck (`feeShareOfValue` of its value, at least `minFeeFd`, a
   // sink). The crew strikes the next night, within `windowDays`, that the truck sleeps outside a truck stop where

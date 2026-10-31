@@ -696,3 +696,14 @@ company had unlocked 38% of its allocation (the 90th percentile 50%); after 102 
 reach the volume, profit and clean-quarter milestones; few reach 95% on time, a satisfactory review or a
 contract kept in full; the first tenure milestone opens at three real months. Under the old vest the whole
 allocation was out within six and a half real weeks.
+
+## The unlock ladder (Jeff, 2026-10-31; built, config `unlockLadder`, off)
+
+After launch the game opens in layers, so the features that move the most money arrive once the economy
+is deep enough to carry them, on a schedule everyone can read. The beta stays fully open. At launch,
+hauling is open; businesses and facilities open 28 game days later (a real week), re-brokering at 91
+(three real weeks), hired crews at 182 (six and a half real weeks). A layer can also wait for a metric
+that's hard to fake: operating companies (a stand-in for verified players until the server checks
+identity) and dollars in the exchange pool; it opens on the first day both its date and its metrics are
+reached, and never closes again. What was built in the beta keeps running. The reports publish the day
+each layer opened.

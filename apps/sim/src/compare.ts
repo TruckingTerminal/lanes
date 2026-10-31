@@ -241,6 +241,11 @@ rows.push(
     const ids = [...new Set(b.flatMap((x) => Object.keys(x!.reached)))];
     return ids.map((id) => `${id} ${n0(mean(b.map((x) => x!.reached[id] ?? 0)))}`).join(", ") || "none";
   }],
+  // The unlock ladder (Jeff, 2026-10-31).
+  ["Unlock ladder: days after launch businesses / re-brokering / crews opened", (rs) => {
+    const l = rs.map((r) => r.realMoney?.token?.ladder).filter((x) => x);
+    return l.length ? ["businesses", "brokerage", "robbery"].map((k) => { const d = l.map((x) => x![k]).filter((v): v is number => typeof v === "number"); return d.length ? n0(mean(d)) : "closed"; }).join(" / ") : "off";
+  }],
   ["Token: FD held by companies at end", (rs) => range(rs.map((r) => r.realMoney?.token?.supply.companiesEndFd ?? NaN).filter(Number.isFinite), fd)],
   ["Token: launch burned / locked", (rs) => {
     const t = rs.map((r) => r.realMoney?.token).filter((x) => x);

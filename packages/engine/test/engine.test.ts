@@ -102,6 +102,7 @@ import { acceptOffer, contractRoom, contractSlots, contractStakeAccount, rejectT
 import { scaleDiscount, scaleDiscountFor } from "../src/scale.js";
 import { convictionForfeit, launchTaxRate } from "../src/token.js";
 import { logbookCatalogue } from "../src/logbook.js";
+import { dailyLadder, layerBlock, layerOpen } from "../src/ladder.js";
 import { crewFeeFd, crewOn, crewStrike, fittingsCut } from "../src/robbery.js";
 import { truckValue } from "../src/dealer.js";
 import { stealCargo } from "../src/risk.js";
@@ -2728,5 +2729,46 @@ describe("the logbook (Jeff, 2026-10-31): 1% at launch, the rest only for milest
     expect(Object.keys(first.stats!.reached).length).toBeGreaterThan(0);
     expect(first.stats!.honestFd).toBeGreaterThan(0);
     expect(run()).toEqual(first);
+  });
+});
+
+describe("the unlock ladder (Jeff, 2026-10-31): the game opens in layers after launch", () => {
+  it("keeps businesses, re-brokering and crews closed after launch until each layer's day and metrics, then open for good; the beta is open", () => {
+    const k0 = calm.unlockLadder;
+    const ladder: EconomyConfig = {
+      ...calm,
+      seasonClose: { ...calm.seasonClose, enabled: false },
+      businesses: { ...calm.businesses, enabled: true },
+      robbery: { ...calm.robbery, enabled: true, protectDays: 0 },
+      unlockLadder: { ...k0, enabled: true, layers: { ...k0.layers, robbery: { ...k0.layers.robbery, minPoolUsd: 1e12 } } },
+      token: { ...calm.token, enabled: true },
+    };
+    const w = createWorld({ cfg: ladder, net, feeds: neutralFeeds, seed: 64 });
+    const a = carrier(w, "A");
+    fund(w, a.id, 100_000);
+    a.milesTotal = 1_000;
+    expect(layerOpen(w, "businesses")).toBe(true); // the beta is open
+    launchToken(w);
+    expect(layerOpen(w, "businesses")).toBe(false);
+    expect(applyAction(w, a.id, { type: "buy_business", kind: "shop", hubId: "DAL" })).toEqual({ ok: false, reason: layerBlock(w, "businesses")! });
+    const k = ladder.unlockLadder.layers;
+    const at = (d: number) => (w.t = (w.token.launchDay! + d) * w.cfg.time.gameMinutesPerDay);
+    at(k.businesses.afterDays - 1);
+    dailyLadder(w);
+    expect(layerOpen(w, "businesses")).toBe(false);
+    at(k.businesses.afterDays);
+    dailyLadder(w);
+    expect(layerOpen(w, "businesses")).toBe(true);
+    expect(layerOpen(w, "brokerage")).toBe(false);
+    at(k.robbery.afterDays);
+    dailyLadder(w);
+    expect(layerOpen(w, "brokerage")).toBe(true);
+    expect(layerOpen(w, "robbery")).toBe(false); // its pool-dollar bar isn't met yet
+    w.token.poolUsd = 2e12;
+    dailyLadder(w);
+    expect(w.ladder.robbery).toBe(w.token.launchDay! + k.robbery.afterDays);
+    w.token.poolUsd = 0;
+    dailyLadder(w);
+    expect(layerOpen(w, "robbery")).toBe(true); // once open, open for good
   });
 });

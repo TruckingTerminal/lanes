@@ -11,6 +11,7 @@
  *   pass it (the 400-mile rule), a shop that charges over list and comes out to breakdowns nearby
  *   (road service), and parking that cuts a resting truck's idling to a quarter for a nightly fee.
  */
+import { layerBlock } from "./ladder.js";
 import { dayOf } from "./clock.js";
 import { clamp } from "./economics.js";
 import { priceIndex } from "./items.js";
@@ -55,6 +56,8 @@ function pay(w: World, c: Company, price: number, bond: number, ref: string): st
 function canBuy(w: World, c: Company): string | null {
   const k = w.cfg.businesses;
   if (!k.enabled) return "businesses aren't open";
+  const closed = layerBlock(w, "businesses"); // the unlock ladder (ladder.ts)
+  if (closed) return closed;
   if (c.liquidatingSince !== null) return "in liquidation";
   if (inCloseWindow(w)) return "no permanent purchases in the season close";
   if (businessesOf(w, c.id).length >= k.maxPerCompany) return "company business cap";

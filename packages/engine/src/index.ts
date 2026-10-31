@@ -33,6 +33,7 @@ export * from "./purchaseLoans.js";
 export * from "./scale.js";
 export * from "./robbery.js";
 export * from "./logbook.js";
+export * from "./ladder.js";
 export * from "./trips.js";
 export * from "./trailers.js";
 export * from "./credit.js";

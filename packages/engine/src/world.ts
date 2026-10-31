@@ -1,3 +1,4 @@
+import type { Layer } from "./ladder.js";
 import { newRobberyState, type RobberyState } from "./robbery.js";
 import type { EconomyConfig, Equipment, FacilityType, TractorTier } from "@lanes/config";
 import { buildSites } from "./sites.js";
@@ -75,6 +76,8 @@ export interface World {
   purchaseLoans: PurchaseLoan[];
   /** Hired robbers (robbery.ts): the crews out, the public feed, and the tallies. */
   robbery: RobberyState;
+  /** The unlock ladder (ladder.ts): the day each layer opened after launch, null while closed. */
+  ladder: Record<Layer, number | null>;
   purchaseLending: { madeFd: number; interestFd: number; defaults: number; seized: number; writtenOffFd: number; stakeSlashedFd: number };
   /** Published stabilizers (§Circular economy — targets and stabilizers). */
   stab: { volumeMult: number; rackSpread: number; rateMult: number };
@@ -203,6 +206,7 @@ export function createWorld(o: WorldOptions): World {
     listings: [],
     purchaseLoans: [],
     robbery: newRobberyState(),
+    ladder: { businesses: null, brokerage: null, robbery: null },
     purchaseLending: { madeFd: 0, interestFd: 0, defaults: 0, seized: 0, writtenOffFd: 0, stakeSlashedFd: 0 },
     finance: {
       shares: new Map(),
