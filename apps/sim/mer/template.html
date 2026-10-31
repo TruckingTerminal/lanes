@@ -276,16 +276,26 @@ footer code { font-family: var(--font-data); font-size: 12px; }
   ]);
 
   var r = D.destruction;
+  var a = r.assets;
   figs($("risk"), [
-    ["Crashes", fd(r.crashes), fd(r.totalLosses) + " trucks totaled"],
+    ["Crashes", fd(r.crashes), fd(r.totalLosses) + " rigs written off"],
     ["Cargo stolen", fd(r.cargoThefts) + " loads", fd(r.cargoStolenFd) + " FD of goods"],
     ["Flatbed damage", fd(r.flatbedDamage) + " claims", "weather under the tarps"],
     ["Rebuilds", fd(r.rebuilds), fd(r.repossessions) + " repossessions"],
     ["Bankruptcies", fd(r.bankruptcies), "companies wound up"]
-  ]);
-  var newTrucks = (m.sinks.find(function (t) { return t[0] === "equipment_dealer"; }) || [0, 0])[1];
+  ].concat(a ? [
+    ["Scrapped", fd(a.scrappedTractors) + " tractors", fd(a.scrappedTrailers) + " trailers, " + fd(a.yardThefts) + " stolen from yards"],
+    ["Factory output", fd(a.factoryTractors) + " tractors", fd(a.factoryTrailers) + " trailers built this month"],
+    ["Player dealerships", fd(a.dealershipSales) + " sold", fd(a.wholesaleFd) + " FD paid the factory, " + fd(a.tradeIns) + " trade-ins"],
+    ["Trailers", fd(a.ownedTrailers) + " owned", fd(a.rentalsOut) + " rented by the week"],
+    ["Players' deals", fd(a.playerLeases) + " leases", fd(a.assetSales) + " businesses and yards resold"]
+  ] : []));
+  var newTrucks = (m.sinks.find(function (t) { return t[0] === "equipment_dealer"; }) || [0, 0])[1] + (a ? a.wholesaleFd : 0);
   var fuel = (m.sinks.find(function (t) { return t[0] === "fuel"; }) || [0, 0])[1];
-  $("destruction-note").textContent = "In EVE Online, destroyed ships are the biggest sink. Here, buying new trucks took back " + fd(newTrucks) + " FD this month against " + fd(fuel) + " of fuel: destruction is still a small sink, which the next build (trucks with a finite life, total losses, a factory allocation) is meant to change.";
+  var allSinks = m.takenBack + m.burned;
+  $("destruction-note").textContent = a
+    ? "In EVE Online, destroyed ships are the biggest sink. Here, new trucks and trailers took back " + fd(newTrucks) + " FD this month (" + pct(allSinks > 0 ? newTrucks / allSinks : 0) + " of everything taken back) against " + fd(fuel) + " of fuel, as " + fd(a.scrappedTractors) + " tractors reached the end of their life and " + fd(r.totalLosses) + " rigs were written off."
+    : "In EVE Online, destroyed ships are the biggest sink. Here, buying new trucks took back " + fd(newTrucks) + " FD this month against " + fd(fuel) + " of fuel: destruction is still a small sink, which the next build (trucks with a finite life, total losses, a factory allocation) is meant to change.";
 
   var v = D.services;
   var parts = [["Truck stops", v.servedByTruckStops, "var(--in)"], ["Hub shops", v.servedByHubShops, "var(--good)"], ["NPC road service", v.servedByNpc, "var(--out)"]];

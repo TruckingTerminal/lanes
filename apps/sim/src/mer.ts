@@ -87,7 +87,25 @@ const data = {
   },
   destruction: {
     crashes: sum("crashes"),
-    totalLosses: sum("fatalCrashes"),
+    // Assets on, rigs are written off at each severity's odds (metrics totalLosses); before that only fatal crashes totaled a truck.
+    totalLosses: span.some((d) => typeof d["totalLosses"] === "number") ? sum("totalLosses") : sum("fatalCrashes"),
+    // Assets and destruction (config assets): null when the run had them off.
+    assets: span.some((d) => n(d, "factoryTractors") > 0 || n(d, "scrappedTractors") > 0 || n(d, "ownedTrailers") > 0)
+      ? {
+          scrappedTractors: sum("scrappedTractors"),
+          scrappedTrailers: sum("scrappedTrailers"),
+          yardThefts: sum("yardThefts"),
+          factoryTractors: sum("factoryTractors"),
+          factoryTrailers: sum("factoryTrailers"),
+          dealershipSales: sum("dealershipSales"),
+          tradeIns: sum("tradeIns"),
+          playerLeases: sum("playerLeases"),
+          assetSales: sum("assetSales"),
+          wholesaleFd: Math.round(sum("wholesaleFd")),
+          rentalsOut: n(last, "rentalsOut"),
+          ownedTrailers: n(last, "ownedTrailers"),
+        }
+      : null,
     cargoThefts: sum("cargoThefts"),
     cargoStolenFd: Math.round(sum("cargoTheftFd")),
     flatbedDamage: sum("flatbedDamage"),
