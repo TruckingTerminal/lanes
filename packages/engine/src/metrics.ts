@@ -1,4 +1,5 @@
 import type { RoundResult } from "./board.js";
+import { ceilingFd, outstandingFd, queuedAirdropFd } from "./ceiling.js";
 import { seasonOf } from "./clock.js";
 import type { Company, Load } from "./types.js";
 import { condition } from "./wear.js";
@@ -127,6 +128,15 @@ export interface DayMetrics {
   totalSupplyFd: number;
   marketCapUsd: number;
   fdvUsd: number;
+  /**
+   * The supply ceiling (ceiling.ts): FD outstanding (outside the reserve, the allocations and the burns,
+   * locked FD included), the published path (0 when off or before launch), the balance dial's rate
+   * multiplier, and the airdrop queued under the ceiling.
+   */
+  outstandingFd: number;
+  ceilingFd: number;
+  rateMult: number;
+  queuedAirdropFd: number;
   companies: number;
   profitTaxRate: number;
   demandScale: number;
@@ -477,6 +487,10 @@ export class MetricsRecorder {
       poolUsd: w.token.poolUsd,
       lockedFd: w.companies.reduce((s, c) => s + c.lockedFd, 0),
       ...valuation(w),
+      outstandingFd: outstandingFd(w),
+      ceilingFd: ceilingFd(w),
+      rateMult: w.stab.rateMult,
+      queuedAirdropFd: queuedAirdropFd(w),
       companies: w.companies.length,
       profitTaxRate: w.token.launchDay !== null ? w.token.profitTaxRate : 0,
       demandScale: w.demandScale,

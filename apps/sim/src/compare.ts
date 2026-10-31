@@ -189,6 +189,33 @@ rows.push(
     const t = rs.map((r) => r.realMoney?.token).filter((x) => x);
     return t.length ? `${fd(mean(t.map((x) => x!.supply.afterLaunchFd)))} → ${fd(mean(t.map((x) => x!.supply.endFd)))}` : "n/a";
   }],
+  ["Token: growth of FD outstanding, launch → end", (rs) => range(rs.map((r) => {
+    const s = r.realMoney?.token?.supply;
+    return s && s.afterLaunchFd > 0 ? s.endFd / s.afterLaunchFd - 1 : NaN;
+  }).filter(Number.isFinite), pct)],
+  // The supply ceiling (Jeff, 2026-10-31: "complete supply control").
+  ["Supply ceiling: growth allowed; outstanding at end vs the path", (rs) => {
+    const c = rs.map((r) => r.realMoney?.token?.ceiling).filter((x) => x);
+    return c.length ? `${pct(c[0]!.growth)} over ${c[0]!.overDays} days; ${fd(mean(c.map((x) => x!.endFd)))} vs ${fd(mean(c.map((x) => x!.endCeilingFd)))}` : "off";
+  }],
+  ["Supply ceiling: worst day over the path / days over", (rs) => {
+    const c = rs.map((r) => r.realMoney?.token?.ceiling).filter((x) => x);
+    return c.length ? `${(mean(c.map((x) => x!.maxOverShare)) * 100).toFixed(1)}% / ${n0(mean(c.map((x) => x!.daysOver)))}` : "off";
+  }],
+  ["Supply ceiling: weeks the payouts waited / weeks the dial sat at its floor / vest weeks held", (rs) => {
+    const c = rs.map((r) => r.realMoney?.token?.ceiling).filter((x) => x);
+    return c.length ? `${n0(mean(c.map((x) => x!.weeksHolding)))} / ${n0(mean(c.map((x) => x!.weeksAtFloor)))} / ${n0(mean(c.map((x) => x!.vestHeldWeeks)))}` : "off";
+  }],
+  ["Supply ceiling: airdrop queued (peak / at end) and paid back out", (rs) => {
+    const c = rs.map((r) => r.realMoney?.token?.ceiling).filter((x) => x);
+    return c.length ? `${fd(mean(c.map((x) => x!.queuedPeakFd)))} / ${fd(mean(c.map((x) => x!.queuedEndFd)))}; ${fd(mean(c.map((x) => x!.releasedFd)))}` : "off";
+  }],
+  ["Balance dial: NPC rate multiplier, lowest / at end", (rs) => {
+    const c = rs.map((r) => r.realMoney?.token?.ceiling).filter((x) => x);
+    if (c.length) return `${mean(c.map((x) => x!.rateMultMin)).toFixed(2)} / ${mean(c.map((x) => x!.rateMultEnd)).toFixed(2)}`;
+    const m = rs.map((r) => r.daily.at(-1)?.rateMult).filter((x): x is number => typeof x === "number");
+    return m.length ? `n/a / ${mean(m).toFixed(2)}` : "n/a";
+  }],
   ["Token: FD held by companies at end", (rs) => range(rs.map((r) => r.realMoney?.token?.supply.companiesEndFd ?? NaN).filter(Number.isFinite), fd)],
   ["Token: launch burned / locked", (rs) => {
     const t = rs.map((r) => r.realMoney?.token).filter((x) => x);

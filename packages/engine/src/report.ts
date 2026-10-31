@@ -217,6 +217,29 @@ export interface TokenReport {
   demand: { monthsSinceLaunch: number; activeCompanies: number; netSoldFdPerMonth: number; usdPerThousandCompaniesMonth: number };
   /** The launch gates (Jeff, 2026-10-29): the price held from launch, and the pool's dollars grew. */
   gates: { holdsLaunchPrice: boolean; poolDollarsGrew: boolean };
+  /**
+   * The supply ceiling (ceiling.ts), when it's on: FD outstanding right after launch and at the end
+   * against the path; the worst day over it and how many days were; the weeks the scheduled payouts
+   * waited and the weeks the dial sat at its floor; the airdrop queued (peak, end) and paid back out;
+   * and the dial's rate multiplier (lowest, end).
+   */
+  ceiling?: {
+    growth: number;
+    overDays: number;
+    baseFd: number;
+    endFd: number;
+    endCeilingFd: number;
+    maxOverShare: number;
+    daysOver: number;
+    weeksHolding: number;
+    weeksAtFloor: number;
+    vestHeldWeeks: number;
+    queuedPeakFd: number;
+    queuedEndFd: number;
+    releasedFd: number;
+    rateMultMin: number;
+    rateMultEnd: number;
+  };
 }
 
 /** Scores a run against the PoC kill criteria (§Proof of concept scope and kill criteria). */
@@ -723,6 +746,28 @@ function tokenReport(w: World, quarterLen: number): TokenReport | null {
       return { monthsSinceLaunch: months, activeCompanies: active, netSoldFdPerMonth, usdPerThousandCompaniesMonth: active > 0 ? (Math.max(0, netSoldFdPerMonth) * end.priceUsd) / (active / 1000) : 0 };
     })(),
     gates: { holdsLaunchPrice: end.priceUsd >= tk.launchPriceUsd, poolDollarsGrew: tk.poolUsd >= t.seedUsd },
+    ceiling: (() => {
+      const st = tk.ceiling;
+      if (st.baseFd === null) return undefined;
+      const under = live.filter((d) => (d.ceilingFd ?? 0) > 0);
+      return {
+        growth: w.cfg.token.supplyCeiling.growth,
+        overDays: w.cfg.token.supplyCeiling.overDays,
+        baseFd: st.baseFd,
+        endFd: end.outstandingFd ?? 0,
+        endCeilingFd: end.ceilingFd ?? 0,
+        maxOverShare: Math.max(0, ...under.map((d) => d.outstandingFd / d.ceilingFd - 1)),
+        daysOver: under.filter((d) => d.outstandingFd > d.ceilingFd).length,
+        weeksHolding: st.weeksHolding,
+        weeksAtFloor: st.weeksAtFloor,
+        vestHeldWeeks: st.vestHeldWeeks,
+        queuedPeakFd: Math.max(0, ...live.map((d) => d.queuedAirdropFd ?? 0)),
+        queuedEndFd: end.queuedAirdropFd ?? 0,
+        releasedFd: st.releasedFd,
+        rateMultMin: Math.min(...under.map((d) => d.rateMult), end.rateMult ?? 1),
+        rateMultEnd: end.rateMult ?? 1,
+      };
+    })(),
   };
 }
 

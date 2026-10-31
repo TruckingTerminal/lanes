@@ -6,6 +6,7 @@ import { weeklyContracts } from "./contracts.js";
 import { runBoardRound, autoBook } from "./board.js";
 import { clearBuyback } from "./buyback.js";
 import { chargeMinimumRent, monthlyCapacity } from "./capacity.js";
+import { ceilingOn, weeklyCeiling } from "./ceiling.js";
 import { dayOf, isRoundBoundary, MINUTES_PER_HOUR, seasonOf } from "./clock.js";
 import { clamp, fuelPrice } from "./economics.js";
 import { companyAccount } from "./ledger.js";
@@ -136,6 +137,7 @@ function endOfDay(w: World, day: number, agents?: DailyAgentHook): void {
     if (holdingCostApplies(w)) chargeHoldingCost(w);
     checkSolvency(w);
     if (tokenLive(w)) {
+      weeklyCeiling(w); // the dial's step, and whether the airdrop's slices and the vest wait this week
       weeklyToken(w);
       weeklyVest(w);
     }
@@ -222,9 +224,10 @@ function monthlyStabilizers(w: World): void {
   const mid = (lo + hi) / 2;
   // Too little sunk → less NPC money in and dearer fuel; too much → the reverse.
   const pressure = clamp((ratio - mid) / ((hi - lo) / 2), -1, 1);
-  // The circular economy's balance dial: NPC rates move toward the target every month (freight.ts).
+  // The circular economy's balance dial: NPC rates move toward the target every month (freight.ts). Under
+  // the supply ceiling the dial answers to the published path instead, weekly (ceiling.ts).
   const rs = w.cfg.token.circular.rateStabilizer;
-  if (w.cfg.token.circular.enabled && rs.enabled) {
+  if (w.cfg.token.circular.enabled && rs.enabled && !ceilingOn(w)) {
     const window = w.metrics.days.slice(-rs.windowDays);
     const f = window.reduce((s, d) => s + d.faucetFd, 0);
     const r = f > 0 ? window.reduce((s, d) => s + d.sinkFd, 0) / f : ratio;

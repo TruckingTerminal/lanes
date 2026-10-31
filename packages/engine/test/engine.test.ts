@@ -94,6 +94,7 @@ import { aroundTheClock, deliveryWait, dockRule, nextOpen, pickupWait, setSlot }
 import { highValueMult, theftRatePerMile, theftRiskAt } from "../src/risk.js";
 import { startLoading } from "../src/trips.js";
 import { dockWaitCost } from "../src/standingOrders.js";
+import { ceilingFd, outstandingFd, queuedAirdropFd } from "../src/ceiling.js";
 import { COMMODITY_INDEX } from "@lanes/data";
 
 const net = buildNetwork(hubs, cfg);
@@ -918,6 +919,83 @@ describe("token", () => {
       populate(w, { freeOwnerOperators: 30, fleets: 6, brokers: 3 });
       runDays(w, 40, ruleBotHook);
       return { prices: w.token.priceHistory, companies: w.companies.length, supply: w.ledger.supply() };
+    };
+    expect(run()).toEqual(run());
+  });
+});
+
+describe("the supply ceiling (2026-10-31): complete supply control", () => {
+  // A circular economy that launches at day ~36, with the vest selling from launch so it can be held.
+  const ceil = (over: Partial<EconomyConfig["token"]["supplyCeiling"]>, betaYears = 0.1): EconomyConfig => ({
+    ...calm,
+    seasonClose: { ...calm.seasonClose, enabled: false },
+    token: {
+      ...calm.token,
+      enabled: true,
+      betaYears,
+      circular: { ...calm.token.circular, enabled: true },
+      treasury: { ...calm.token.treasury, vest: { ...calm.token.treasury.vest, cliffWeeks: 0 } },
+      supplyCeiling: { ...calm.token.supplyCeiling, enabled: true, ...over },
+    },
+  });
+
+  it("holds the airdrop's slices and the vest while there's no room, and pays the queue back once there is", () => {
+    // No room: the dial can't cut (its floor is normal rates) and the target sits far under the supply.
+    const w = createWorld({ cfg: ceil({ growth: 0, rateFloor: 1, headroom: 0.5 }), net, feeds: neutralFeeds, seed: 61 });
+    populate(w, { freeOwnerOperators: 40, fleets: 8, brokers: 4 });
+    runDays(w, Math.round(0.1 * cfg.time.daysPerSeason) + 30, ruleBotHook);
+    const st = w.token.ceiling;
+    expect(st.baseFd).toBeGreaterThan(0);
+    expect(ceilingFd(w)).toBeCloseTo(st.baseFd!, 6); // a flat path
+    expect(st.weeksHolding).toBeGreaterThanOrEqual(3);
+    expect(st.vestHeldWeeks).toBe(st.weeksHolding);
+    expect(w.token.treasury.vestedFd).toBe(0);
+    const queued = queuedAirdropFd(w);
+    expect(queued).toBeGreaterThan(0);
+    // Owed, not lost: unlocked slices are either paid or queued.
+    const unlocked = w.companies.reduce((s, c) => s + (c.airdrop?.unlockedFd ?? 0), 0);
+    expect(w.token.airdrop.mintedFd + queued + w.token.airdrop.forfeitedFd).toBeGreaterThanOrEqual(unlocked - 0.01);
+    // Room again (the path steepens well past what this fast-growing test world adds, and the headroom
+    // goes): the queue is paid out of it.
+    const k = w.cfg.token.supplyCeiling as { growth: number; headroom: number };
+    k.growth = 100;
+    k.headroom = 0;
+    const minted = w.token.airdrop.mintedFd;
+    runDays(w, 21, ruleBotHook);
+    expect(st.releasedFd).toBeGreaterThan(0);
+    expect(queuedAirdropFd(w)).toBeLessThan(queued);
+    expect(w.token.airdrop.mintedFd).toBeGreaterThan(minted);
+    w.ledger.assertBalanced();
+  });
+
+  it("keeps the dial between its floor and normal rates after launch, cutting while the supply runs over its path", () => {
+    // A small test world grows far faster than its sinks after launch, so the flat path is overrun: the dial
+    // cuts to its floor and stays within bounds, and the payouts wait. (Whether the full economy stays under
+    // its path is the batches' question.)
+    const w = createWorld({ cfg: ceil({ growth: 0, headroom: 0.02, stepPerWeek: 0.05, rateFloor: 0.8 }), net, feeds: neutralFeeds, seed: 62 });
+    populate(w, { freeOwnerOperators: 40, fleets: 8, brokers: 4 });
+    const mults: number[] = [];
+    runDays(w, Math.round(0.1 * cfg.time.daysPerSeason) + 60, ruleBotHook, (d) => {
+      if (d.ceilingFd > 0) mults.push(d.rateMult);
+    });
+    expect(mults.length).toBeGreaterThan(50);
+    for (const m of mults) {
+      expect(m).toBeGreaterThanOrEqual(0.8 - 1e-9);
+      expect(m).toBeLessThanOrEqual(1 + 1e-9);
+    }
+    expect(outstandingFd(w)).toBeGreaterThan(ceilingFd(w));
+    expect(Math.min(...mults)).toBeCloseTo(0.8, 9);
+    expect(w.token.ceiling.weeksAtFloor).toBeGreaterThan(0);
+    expect(w.token.ceiling.weeksHolding).toBeGreaterThan(0);
+    expect(queuedAirdropFd(w)).toBeGreaterThan(0);
+  });
+
+  it("replays exactly from the seed with the ceiling on", () => {
+    const run = () => {
+      const w = createWorld({ cfg: ceil({ growth: 0.1, headroom: 0.02, rateFloor: 0.8 }, 0.05), net, feeds: { ...neutralFeeds, cycle: syntheticCassCycle({ seed: 63 }) }, seed: 63 });
+      populate(w, { freeOwnerOperators: 30, fleets: 6, brokers: 3 });
+      runDays(w, 45, ruleBotHook);
+      return { prices: w.token.priceHistory, supply: w.ledger.supply(), mult: w.stab.rateMult, queued: queuedAirdropFd(w), ceiling: w.token.ceiling };
     };
     expect(run()).toEqual(run());
   });

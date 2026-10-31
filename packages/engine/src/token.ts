@@ -1,4 +1,5 @@
 import { dpow } from "@lanes/data";
+import { startCeiling } from "./ceiling.js";
 import { dayOf } from "./clock.js";
 import { facilitiesOf } from "./demand.js";
 import { returnPoolCashToDepositors } from "./finance.js";
@@ -160,12 +161,38 @@ function lifetimeMiles(c: Company): number {
   return c.milesHistory.reduce((a, b) => a + b, 0) + c.milesTotal;
 }
 
-/** Mints an airdrop slice into the company's account. */
-function mintAirdrop(w: World, c: Company, fd: number): void {
+/**
+ * Unlocks an airdrop slice: paid into the company's account, or, while the supply ceiling holds the
+ * scheduled payouts (ceiling.ts), queued on the company, owed until there's room.
+ */
+function unlockAirdrop(w: World, c: Company, fd: number): void {
   if (fd <= 0) return;
-  w.ledger.post(w.t, "faucet:airdrop", companyAccount(c.id), fd, `airdrop:${c.id}`);
   c.airdrop!.unlockedFd += fd;
+  if (w.token.ceiling.holding) c.airdrop!.queuedFd += fd;
+  else payAirdrop(w, c, fd);
+}
+
+/** Mints an unlocked slice into the company's account. */
+function payAirdrop(w: World, c: Company, fd: number): void {
+  w.ledger.post(w.t, "faucet:airdrop", companyAccount(c.id), fd, `airdrop:${c.id}`);
   w.token.airdrop.mintedFd += fd;
+}
+
+/** Weekly, when the ceiling has room: queued slices are paid out of it, pro rata, to companies still running. */
+function payQueuedAirdrop(w: World): void {
+  const st = w.token.ceiling;
+  if (st.holding || st.roomFd <= 0.01) return;
+  const owed = w.companies.filter((c) => c.liquidatingSince === null && (c.airdrop?.queuedFd ?? 0) > 0.005);
+  const queued = owed.reduce((s, c) => s + c.airdrop!.queuedFd, 0);
+  if (queued <= 0.01) return;
+  const share = Math.min(1, st.roomFd / queued);
+  for (const c of owed) {
+    const fd = c.airdrop!.queuedFd * share;
+    c.airdrop!.queuedFd -= fd;
+    payAirdrop(w, c, fd);
+    st.releasedFd += fd;
+  }
+  st.roomFd = Math.max(0, st.roomFd - queued * share);
 }
 
 /**
@@ -231,9 +258,9 @@ export function launchToken(w: World): void {
     const score = (totalMiles > 0 ? (wm * miles[i]!) / totalMiles : 0) + (totalProfit > 0 ? (wp * profits[i]!) / totalProfit : 0);
     const share = Math.min(cap, tc.airdrop.fd * score);
     if (share <= 0) return;
-    c.airdrop = { totalFd: share, unlockedFd: 0, forfeitedFd: 0, weeksLeft: tc.airdrop.unlockWeeks, claimedEarly: false };
+    c.airdrop = { totalFd: share, unlockedFd: 0, forfeitedFd: 0, queuedFd: 0, weeksLeft: tc.airdrop.unlockWeeks, claimedEarly: false };
     allocatedFd += share;
-    mintAirdrop(w, c, share * tc.airdrop.atLaunch);
+    unlockAirdrop(w, c, share * tc.airdrop.atLaunch);
   });
 
   // The pool: with dollars on hand (the seed, and every dollar of the farming season's window held in
@@ -265,6 +292,7 @@ export function launchToken(w: World): void {
   w.token.baseCarriers = w.companies.filter((c) => c.role === "carrier").length;
   w.listener?.({ kind: "launched" });
   w.token.launch = { supplyBeforeFd, resetBurnedFd, lockedFd, airdropAllocatedFd: allocatedFd, unallocatedByCapFd: tc.airdrop.fd - allocatedFd, liquidityFd, floatFd, priceUsd: w.token.launchPriceUsd };
+  startCeiling(w);
 }
 
 /** Take the rest of the airdrop now, less the haircut (never minted). */
@@ -273,7 +301,7 @@ export function claimAirdropNow(w: World, c: Company): string | null {
   if (!a || a.weeksLeft <= 0 || a.claimedEarly) return "nothing left to claim";
   const left = a.totalFd - a.unlockedFd - a.forfeitedFd;
   const haircut = left * w.cfg.token.airdrop.instantClaimHaircut;
-  mintAirdrop(w, c, left - haircut);
+  unlockAirdrop(w, c, left - haircut);
   a.forfeitedFd += haircut;
   w.token.airdrop.haircutFd += haircut;
   a.weeksLeft = 0;
@@ -310,8 +338,9 @@ export function seasonAirdrop(w: World): void {
     if (share <= 0) return;
     const prev = c.airdrop;
     const carried = prev && prev.weeksLeft > 0 && !prev.claimedEarly ? Math.max(0, prev.totalFd - prev.unlockedFd - prev.forfeitedFd) : 0;
-    c.airdrop = { totalFd: share + carried, unlockedFd: 0, forfeitedFd: 0, weeksLeft: tc.airdrop.unlockWeeks, claimedEarly: false };
-    mintAirdrop(w, c, share * tc.airdrop.atLaunch);
+    // Slices still queued under the supply ceiling stay owed in the new vest.
+    c.airdrop = { totalFd: share + carried, unlockedFd: 0, forfeitedFd: 0, queuedFd: prev?.queuedFd ?? 0, weeksLeft: tc.airdrop.unlockWeeks, claimedEarly: false };
+    unlockAirdrop(w, c, share * tc.airdrop.atLaunch);
   });
   w.token.airdrop.seasonsPaid++;
   w.listener?.({ kind: "launched" });
@@ -327,6 +356,11 @@ export function weeklyVest(w: World): void {
   const v = w.cfg.token.treasury.vest;
   if (!w.cfg.token.circular.enabled || v.perWeekShare <= 0 || w.token.launchDay === null) return;
   if (dayOf(w.t, w.cfg) - w.token.launchDay < v.cliffWeeks * 7) return;
+  // The supply ceiling holds the scheduled payouts this week (ceiling.ts): the treasury keeps its FD.
+  if (w.token.ceiling.holding) {
+    w.token.ceiling.vestHeldWeeks++;
+    return;
+  }
   const hist = w.token.priceHistory.slice(-7);
   const avg = hist.length ? hist.reduce((a, b) => a + b, 0) / hist.length : 0;
   const held = w.ledger.balance("alloc:treasury");
@@ -346,10 +380,13 @@ export function weeklyVest(w: World): void {
   w.token.treasury.vestedFd += fd;
 }
 
-/** A liquidated company loses what's left of its airdrop. */
+/** A liquidated company loses what's left of its airdrop, slices queued under the supply ceiling included. */
 export function forfeitAirdrop(w: World, c: Company): void {
   const a = c.airdrop;
-  if (!a || a.weeksLeft <= 0) return;
+  if (!a) return;
+  w.token.airdrop.forfeitedFd += a.queuedFd;
+  a.queuedFd = 0;
+  if (a.weeksLeft <= 0) return;
   const left = a.totalFd - a.unlockedFd - a.forfeitedFd;
   a.forfeitedFd += left;
   w.token.airdrop.forfeitedFd += left;
@@ -364,12 +401,13 @@ export function forfeitAirdrop(w: World, c: Company): void {
 export function weeklyToken(w: World): void {
   const { token: tc } = w.cfg;
   const slice = (1 - tc.airdrop.atLaunch) / tc.airdrop.unlockWeeks;
+  payQueuedAirdrop(w);
   let active = 0;
   for (const c of w.companies) {
     const a = c.airdrop;
     if (a && a.weeksLeft > 0) {
       const fd = a.totalFd * slice;
-      if (c.liquidatingSince === null && c.loadsThisWeek >= tc.airdrop.loadsPerWeek) mintAirdrop(w, c, fd);
+      if (c.liquidatingSince === null && c.loadsThisWeek >= tc.airdrop.loadsPerWeek) unlockAirdrop(w, c, fd);
       else {
         a.forfeitedFd += fd;
         w.token.airdrop.forfeitedFd += fd;

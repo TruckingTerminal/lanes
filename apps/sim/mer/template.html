@@ -223,7 +223,9 @@ footer code { font-family: var(--font-data); font-size: 12px; }
     ["The reserve", fd(s.reserveEnd), "from " + fd(s.reserveStart) + "; it refills from every sink"],
     ["Burned this month", fd(m.burned), m.burns.slice(0, 2).map(function (b) { return name(b[0]).toLowerCase() + " " + fd(b[1]); }).join(", ")],
     ["Locked", fd(s.lockedEnd), "spend-only: launch carryover and starting grants"]
-  ]);
+  ].concat(s.ceiling ? [
+    ["Against the ceiling", fd(s.ceiling.outstandingEnd) + " of " + fd(s.ceiling.pathEnd), "the published path for FD outstanding; freight rates at " + pct(s.ceiling.rateMult) + " of normal" + (s.ceiling.queuedAirdrop > 0 ? ", " + fd(s.ceiling.queuedAirdrop) + " of airdrop waiting for room" : "")]
+  ] : []));
 
   var x = D.exchange;
   figs($("exchange"), [

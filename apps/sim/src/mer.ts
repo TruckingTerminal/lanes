@@ -74,6 +74,15 @@ const data = {
     reserveStart: Math.round(n(first, "reserveFd")),
     reserveEnd: Math.round(n(last, "reserveFd")),
     lockedEnd: Math.round(n(last, "lockedFd")),
+    // The supply ceiling (Jeff, 2026-10-31: "complete supply control"): null when the run had it off.
+    ceiling: n(last, "ceilingFd") > 0
+      ? {
+          outstandingEnd: Math.round(n(last, "outstandingFd")),
+          pathEnd: Math.round(n(last, "ceilingFd")),
+          rateMult: n(last, "rateMult"),
+          queuedAirdrop: Math.round(n(last, "queuedAirdropFd")),
+        }
+      : null,
   },
   exchange: {
     launchPrice: token?.price?.launchUsd ?? 0,

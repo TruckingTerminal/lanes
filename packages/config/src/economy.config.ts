@@ -964,6 +964,16 @@ export const economyConfig = {
     // and the surplus was sold into the pool (TOKENOMICS.md — what the runs showed).
     holdingCostAfterLaunch: true,
     sinkFaucetTargetLive: [1.0, 1.04] as const, // operations net-deflationary after launch
+    // The supply ceiling (Jeff, 2026-10-31: "complete supply control", every faucet, sink, metric and
+    // schedule public). After launch the FD outstanding (everything outside the reserve, the genesis
+    // allocations and the burns) may grow at most `growth` over `overDays` game days, then not at all: a
+    // published path that never looks at the price. Weekly, the balance dial trims NPC freight rates to
+    // stay `headroom` under it and relaxes them back to normal (never above) when there's room, down to
+    // `rateFloor`, below which honest carriers can't cover fuel and wages. When the dial is at its floor and
+    // the path is still crowded, or whenever the path itself is reached, the scheduled payouts wait: airdrop
+    // slices queue on their companies (owed, never lost) and the developer's vest holds. Replaces the
+    // sink-to-faucet target for the rate dial after launch. Off until the batches size it.
+    supplyCeiling: { enabled: false, growth: 0.25, overDays: 1460, headroom: 0.02, stepPerWeek: 0.03, rateFloor: 0.8 },
     // How far the stabilizer may cut NPC freight after launch (beta keeps stabilizers.volumeRange).
     volumeRangeLive: [0.75, 1.5] as const,
     // The main deflation lever after launch: 40% of each company's positive weekly

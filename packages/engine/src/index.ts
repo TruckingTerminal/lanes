@@ -28,6 +28,7 @@ export * from "./solvency.js";
 export * from "./standingOrders.js";
 export * from "./step.js";
 export * from "./token.js";
+export * from "./ceiling.js";
 export * from "./trips.js";
 export * from "./trailers.js";
 export * from "./credit.js";

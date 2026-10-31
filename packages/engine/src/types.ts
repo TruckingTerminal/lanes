@@ -390,6 +390,8 @@ export interface Airdrop {
   totalFd: number;
   unlockedFd: number;
   forfeitedFd: number;
+  /** Unlocked but waiting for room under the supply ceiling (ceiling.ts): owed, paid as room comes back. */
+  queuedFd: number;
   weeksLeft: number;
   claimedEarly: boolean;
 }
@@ -908,6 +910,20 @@ export interface TokenState {
   /** FD sold into and bought out of the pool since launch (net of fees), for the demand break-even. */
   exchange: { soldFd: number; boughtFd: number };
   airdrop: { mintedFd: number; forfeitedFd: number; haircutFd: number; seasonsPaid: number };
+  /**
+   * The supply ceiling (ceiling.ts): FD outstanding right after launch (null before, or when it's off);
+   * whether the scheduled payouts wait this week and the room queued slices may be paid from; and the
+   * tallies the reports publish.
+   */
+  ceiling: {
+    baseFd: number | null;
+    holding: boolean;
+    roomFd: number;
+    weeksHolding: number;
+    weeksAtFloor: number;
+    vestHeldWeeks: number;
+    releasedFd: number;
+  };
   baseCarriers: number;
   newCompanies: number;
 }
