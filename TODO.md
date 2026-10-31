@@ -183,6 +183,19 @@ and the NPC dealer sold every new truck.
      year to run one) new equipment is ~2% of sinks with finite life on (the smoke run). The 15% bar
      needs equipment several times dearer, which pushes a newcomer's first new truck past the 84-day
      free path unless the first truck is used. The calibration batches put numbers on it.
+   - **The calibration (v40-a/b/c, 2026-10-31, seeds 1, 5, 8 against v38-a; `runs/compare-v40.md`):**
+     no price passes. New equipment is 2% / 4% / 5% of sinks at ×1 / ×3 / ×6, and all equipment
+     (new, NPC lease share, trailer rent, rebuilds) is 9% / 13% / 16%. The end price is $0.00024 / $0.00033
+     / $0.00036 against $0.00043 with assets off. Net FD paid into the economy over four years is 120M / 109M /
+     88M against 89M off. At ×1 a new truck costs less than the rebuilds that finite life ends (the rebuild sink falls
+     from 44M to 27M). At ×3 and ×6 the free path breaks (median first truck 83 and 132 days), owned
+     trucks fall to 1,016 and 670 from 1,535 as carriers switch to NPC leases (15% of gross, whatever
+     a truck costs), and wealth concentrates (top 10% share 35% → 46% / 55%). At ×6 fleets buy FD with
+     dollars to pay for trucks; the price runs to 3.7× launch, the developer's vest sells 10M FD into it,
+     and the drawdown is 85%. Why: Equipment Finance lends only against trucks a carrier already owns
+     (35% of value, 26 weeks), so a first truck is cash only. **Proposed (Jeff to decide):** purchase
+     loans on the truck being bought (real equipment finance: 10–20% down over years), extra NPC leases
+     priced by the truck's value, then re-run at ×2 and ×3 with the bar on all equipment.
 5. **Checkpoints and the authoritative server** before any real money (hosting: Jeff to choose the
    Mac mini or a cloud box); **the brief for counsel** (US first); **launch** with the lean reset, the
    window's dollars seeding a pool as deep as the float, the dial on from day one; the Monthly Economic
