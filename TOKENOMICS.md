@@ -715,3 +715,87 @@ that's hard to fake: operating companies (a stand-in for verified players until 
 identity) and dollars in the exchange pool; it opens on the first day both its date and its metrics are
 reached, and never closes again. What was built in the beta keeps running. The reports publish the day
 each layer opened.
+
+## The combined test (2026-10-31: v43–v49, every sink on)
+
+Bots only, four years, three seeds a variant (1, 4, 7; 1, 4, 8 for the bad actors), against v41-a (the
+live 0.18.4 rules). The comparisons: `runs/compare-v43.md` to `compare-v49.md`.
+
+**At today's truck prices, the sinks work** (v43-a; v44-a and v45-c with the robbers, the band, the logbook,
+the theft gaps, the ladder and the used lot). The price ends 30–75% above launch in every seed (live rules:
+one seed in three), the worst drawdown is 20–27% (47%), and FD outstanding grows 20–29% after launch (41%).
+The early-sale tax burns about 25M FD, and buyers outnumber sellers. Free starters own a truck in a median 8
+game days. The costs: liquidations up about 10% (fleets liquidated nearly double: the staff ladder makes
+growth costly), and newcomers spread wider (the top strategy 2.8× the newcomers' median, against 2.0×).
+
+**Truck prices and the free path.**
+- At realistic prices (293k FD for a Workhorse and van, v43-b, v44-b) a free starter needs a median of about
+  141 game days (five real weeks) to own one, and only a quarter do it in 84. Lease deposits hold 25–30M
+  FD. Fleets buy FD with dollars to afford trucks, so the price climbs 5–9× in the first two real months
+  and falls about 83% from that peak. Wealth concentrates (the top 10% hold 52%, against 36%). Spend-only
+  free-path earnings change nothing (bots rarely sell FD); no free tier keeps the strategy gate but
+  newcomers are no faster.
+- Mid prices alone (a Workhorse at 140k, ten times today's; v44-d): 107 days.
+- The NPC used lot (worn rigs at their used value, about a quarter of new; v45): mid prices 58 days (a pass),
+  realistic about 100. The lot wasn't short of rigs; the starters were short of cash, saving a 26k lease
+  deposit and then the down payment.
+- The deposit toward the first truck (v47): realistic 56 days, mid 41 (nine starters in ten within 84).
+  **Mid prices with the used lot and the deposit credit were the most balanced run of the day:** the price
+  holds in every seed (ending 17% above launch), the strategy gate passes (1.6×, the top strategy an
+  established owner-operator's), the top 10% hold 48% of the wealth. At realistic prices, wealth
+  concentrates further (the top 10% 56%) and newcomers spread wide (3.5×).
+
+**The supply path and the logbook.** Sinks alone don't hold +10%: FD outstanding grows 20–39% after launch.
+With the logbook on, the path holds most of what the milestones unlock as owed: in one seed nothing past the
+1% opening payment was ever paid, with 6.9M owed at the end. The logbook itself releases slowly (the median
+company has 22–33% of its allocation after six real months; nearly all reach the volume milestones and a
+clean quarter, few reach 95% on time, a satisfactory review or a contract kept), so the airdrop minted falls
+from about 11M to 3–4M. An airdrop unlocked but never paid is a problem of its own for honest players.
+
+**Robbers and theft.** The robbers are net deflationary and grow with truck prices: at today's prices about
+390 crews a seed, 160 hits and 55 rigs chopped, with fees (0.8M FD) and fittings (1.4M) above the take paid
+to hirers (0.6M); at realistic prices a rig is worth stealing (1,584 crews, 597 hits, 187 rigs chopped,
+about one owned truck in six; 6.5M paid to hirers against 10M in fees and fittings). The unlock ladder
+(crews from day 182) cuts the hires by 18–53%. The theft gaps matter: with loaded trucks exposed at closed
+docks, cargo thefts rise from about 775 to 1,070 a seed. The insurance index sits at its 1.40 cap in every
+variant, so claims moving the market change nothing there yet.
+
+**The launch defense, against every bad actor** (v46, v48, v49; airdrop farmers at 30% of players, ten
+sybil clusters, 200 momentum traders, a 500-wallet listing crowd, a $50k whale; `runs/compare-v46.md`,
+`compare-v49.md`). Means of three seeds:
+
+| | Peak market cap | Peak (× launch), day | Farmers take | Sybils take | Speculators' net | Fleets' net |
+|---|---|---|---|---|---|---|
+| No protections (v46-c) | $33.5M | 505–656×, day 10 | $89k | $148k | −$228k | −$31k |
+| The band, ±15% (v46-d) | $4.2M | 59–68×, day 35 | $61k | $37k | −$29k | −$77k |
+| ±15%, the 75% early-sale tax, the logbook (v46-a) | $20.6M | 305–373×, day 45 | $48k | $30k | −$39k | −$125k |
+| ±15%, the tax on farmed FD only, the logbook (v48-a) | $5.6M | 70–95×, day 33 | $18k | $10k | +$113k | −$129k |
+| **±5%, the tax on farmed FD only, the logbook (v49-a)** | **$2.6M** | **25–64×, day 68–101** | **$14k** | **$9k** | **+$33k** | **−$75k** |
+
+- The band does the work: it turns the day-ten spike into a climb at the limit and clips the orders that
+  would have poured in at the top.
+- The 75% early-sale tax on every sale makes the bubble five times bigger: with the sellers taken out, the
+  climb runs higher and longer, and operators who keep buying FD to run their companies (the fleets) pay
+  more for it. Taxing only farmed FD (FD a company bought, up to what it bought, pays the normal fee) keeps
+  the bubble at the band's size and leaves farmers and sybils the least of any variant, but lets early
+  speculators profit at the operators' expense.
+- A ±5% band with the tax on farmed FD only and the logbook was the best defense: the smallest bubble,
+  farmers taking 85% less and sybils 94% less than with no protections, and the smallest transfers
+  between speculators and operators. The ±5% band alone was erratic (one seed built a late bubble of 241×).
+- The sinks don't touch a launch bubble (everything on, v46-b and v48-b, look like their twins); the
+  speculators' dollars drive it.
+- What sets the height: the pool opens with what the dollars support (about $35k: a $50k market cap) and
+  the bad actors bring about $900k. The band sets how fast that lifts the price, an opening auction would
+  set how fairly (one price for every bidder, nothing to chase in the first week), and only FD to meet the
+  demand would lower how high: an auction tranche the treasury sells at the clearing price, published
+  before launch, every dollar into the pool. A literal auction (every bid cleared as one buy against the
+  opening pool) moved the opening price about 2,000× in a small world, so it was not kept.
+
+**What I'd decide next** (Jeff's calls):
+1. Truck prices: mid (a Workhorse 140k FD) with the NPC used lot and the deposit toward the first truck
+   (v47-b), or realistic with the same (v47-a: the free path passes, wealth concentrates).
+2. The launch defense: a ±5% band for the first three real months, the early-sale tax on farmed FD only,
+   and the logbook (v49-a); then whether to add an auction tranche, and how big.
+3. The supply path: at +10% it holds the logbook's unlocks for good in some seeds; widen it, or let the
+   logbook's payments through.
+4. The newcomer spread (the top strategy 2.5–5× the newcomers' median with the sinks on, against a 3× gate).

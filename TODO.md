@@ -317,6 +317,27 @@ vesting schedules all completely transparent." His answers to the 18 questions, 
      (fleet fuel, fleet insurance rating, dealer fleet pricing). A "staff, sales and contracts" build
      after trucks, tested with the robbers.
 
+### The combined test, done (2026-10-31; TOKENOMICS.md "The combined test", `runs/compare-v43.md`–`v49.md`)
+Every sink, the robbers, the band, the logbook, the ladder, the used lot and the deposit credit, all built
+and off. What the batches settled, and what waits on Jeff:
+- **Truck prices:** today's work (the free path 8 days, the price holds); realistic prices break the free
+  path (141 days) unless the NPC used lot and the deposit toward the first truck are on (56 days, but the
+  top 10% hold 56% of the wealth); mid prices (a Workhorse 140k) with both were the most balanced (41 days,
+  the strategy gate passed, the price held in every seed). **Jeff to choose the price level.**
+- **The launch defense:** the band turns the listing spike into a climb at the limit; the 75% early-sale tax
+  on every sale makes that climb five times bigger; a ±5% band with the tax on farmed FD only and the
+  logbook was the best (a peak market cap of $2.6M against $33.5M unprotected, farmers taking 85% less,
+  sybils 94% less). **Jeff to choose: the band's width, the tax's reach, and whether an auction tranche
+  (FD sold at the clearing price before launch) should meet the launch demand.**
+- **The supply path and the logbook:** at +10% the path holds the logbook's unlocks as owed for good in some
+  seeds (one paid nothing past the 1% opening). **Jeff to choose: widen the path, or let the logbook's
+  payments through.**
+- **Robbery at realistic prices** chops about one owned truck in six; the unlock ladder (crews from day 182)
+  cuts the hires by a fifth to a half.
+- **Not built:** the opening auction with a tranche (a literal one, every bid as one buy against the
+  opening pool, lifted the open about 2,000× in a thin pool, so it was reverted); the shop items that bring
+  a logbook milestone forward; the client's pages for the logbook, the ladder, the lot and Channel 19.
+
 ## Later, agreed with Jeff on 2026-10-30 (not before the switch-on and the dashboard)
 - **The world-economy story.** Scripted shocks on top of the cycle, seasons, weather and fuel feeds:
   recessions by sector for a season, hurricane relief freight into a region at premium rates, port
