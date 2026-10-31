@@ -69,6 +69,9 @@ input[type=checkbox], input[type=radio] { accent-color: var(--accent); width: 15
 .field { display: grid; gap: 3px; }
 .bar { display: inline-block; width: 90px; height: 6px; border: 1px solid var(--border); background: var(--bg-input); border-radius: 3px; overflow: hidden; }
 .bar > i { display: block; height: 100%; background: var(--accent); }
+.grow { flex: 1 1 auto; min-width: 0; }
+table.mini tr.sel td { color: var(--accent); }
+table.mini tbody tr { cursor: default; }
 .badge { display: inline-flex; align-items: center; gap: 6px; padding: 3px 8px; border-radius: 3px; border: 1px solid var(--border); font-family: var(--font-mono); font-size: 10px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--text-secondary); white-space: nowrap; }
 .badge.live { border-color: var(--accent-danger); color: var(--accent-danger); }
 .badge.live::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: var(--accent-danger); }
@@ -209,7 +212,7 @@ table.mini td:first-child { font-family: inherit; }
 .dot { display: inline-block; width: 8px; height: 8px; margin-right: 5px; vertical-align: middle; border: 2px solid #090c17; }
 .side { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
 .rackbar { display: flex; gap: 6px; align-items: center; }
-.tabs { display: flex; gap: 2px; flex: 1; border-bottom: 1px solid var(--border); }
+.tabs { display: flex; gap: 2px; flex: 1; border-bottom: 1px solid var(--border); overflow-x: auto; scrollbar-width: thin; }
 .tabs .btn { border: 0; border-bottom: 2px solid transparent; border-radius: 0; background: transparent; padding: 6px 8px; flex: 1 1 auto; flex-direction: column; gap: 2px; min-height: 48px; }
 .tabs .btn:hover { background: color-mix(in srgb, var(--accent) 8%, transparent); }
 .tabs .btn.on { background: transparent; color: var(--accent); border-bottom-color: var(--accent); }

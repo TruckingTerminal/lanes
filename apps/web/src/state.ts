@@ -1,3 +1,4 @@
+import type { Equipment } from "@lanes/config";
 import { useLayoutEffect, useState } from "preact/hooks";
 import { type Action, type Company, type Truck } from "@lanes/engine";
 import { RULESET, TestGame, type TestLog } from "./game.js";
@@ -18,7 +19,7 @@ declare const __LANES_TEST__: boolean | undefined;
 export const TEST_BUILD = typeof __LANES_TEST__ !== "undefined" && __LANES_TEST__;
 
 export type Session = LiveWorld | TestGame;
-export type Tab = "fleet" | "loads" | "staff" | "market" | "money" | "company" | "guide";
+export type Tab = "fleet" | "loads" | "staff" | "market" | "money" | "finance" | "business" | "rates" | "economy" | "company" | "guide";
 export type Layout = "split" | "panel" | "map";
 export type Platform = { db: DbLike | null; uid: string | null; owner: boolean; local: boolean };
 export type TitleMenu =
@@ -49,6 +50,10 @@ export const S = {
   townView: null as number | null,
   /** Load board: the expanded row. */
   openLoad: null as number | null,
+  /** The truck-stop site selected on the map (an id into w.sites), shown on the Business tab. */
+  selSite: null as number | null,
+  /** The market view's trailer type. */
+  ratesEq: "van" as Equipment,
   guidePage: "start",
   /** Test-world speeds only: the live clock can't be changed. */
   speed: 1,
@@ -277,6 +282,26 @@ export function describe(a: LiveAction): string {
       return `Leave tender #${a.loadId} for the board`;
     case "steal_load":
       return `Steal truck ${truckNo(a.truckId)}'s load`;
+    case "stake_fd":
+      return `Stake ${fd(a.fd)} FD`;
+    case "unstake_fd":
+      return a.instant ? `Unstake ${fd(a.fd)} FD now` : `Unstake ${fd(a.fd)} FD`;
+    case "deposit_pool":
+      return `Deposit ${fd(a.amountFd)} FD in the ${a.line} pool`;
+    case "withdraw_pool":
+      return `Withdraw ${fd(a.amountFd)} FD from the ${a.line} pool`;
+    case "set_pay_terms":
+      return a.terms === "net" ? "Get paid net 30" : a.terms === "quick" ? "Take quick pay" : "Sign a factoring contract";
+    case "buy_item":
+      return `Buy ${a.item}${a.truckId ? ` for truck ${truckNo(a.truckId)}` : ""}${a.pay === "usd" ? " with dollars" : ""}`;
+    case "buy_business":
+      return a.kind === "truckStop" ? "Build a truck stop" : `Open a ${a.kind === "shop" ? "shop" : "fuel station"} at ${a.hubId}`;
+    case "set_shop_markup":
+      return `Price work at ${a.markup.toFixed(2)}× list`;
+    case "set_parking_price":
+      return `Charge ${fd(a.fd)} a night for parking`;
+    case "add_parking":
+      return "Add parking spaces";
     default:
       return a.type.replace(/_/g, " ");
   }

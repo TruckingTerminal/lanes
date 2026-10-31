@@ -1,3 +1,7 @@
+import { Business } from "./panels/Business.js";
+import { Economy } from "./panels/Economy.js";
+import { Finance } from "./panels/Finance.js";
+import { Rates } from "./panels/Rates.js";
 import type { JSX } from "preact";
 import { useEffect, useRef } from "preact/hooks";
 import { companyAccount, fdPriceUsd, garagingOf, homeCrowding, localShare, tokenLive, type World } from "@lanes/engine";
@@ -607,6 +611,10 @@ const TABS: [Tab, string, string][] = [
   ["staff", "Staff", "people"],
   ["market", "Dealer", "tag"],
   ["money", "Money", "money"],
+  ["finance", "Finance", "fd"],
+  ["business", "Business", "wrench"],
+  ["rates", "Rates", "pin"],
+  ["economy", "Economy", "star"],
   ["company", "Company", "building"],
   ["guide", "Guide", "book"],
 ];
@@ -615,7 +623,7 @@ function SideRack(): JSX.Element {
   useData();
   const g = S.game!;
   const tab = S.tab;
-  const watching = !g.player && tab !== "company" && tab !== "guide";
+  const watching = !g.player && tab !== "company" && tab !== "guide" && tab !== "rates" && tab !== "economy";
   return (
     <aside class="side">
       <div class="rackbar">
@@ -631,7 +639,7 @@ function SideRack(): JSX.Element {
           {S.layout === "panel" ? "⤡ Restore" : "⤢ Expand"}
         </Btn>
       </div>
-      <div class="panelbox">{watching ? <WatchPanel /> : tab === "fleet" ? <Fleet /> : tab === "loads" ? <Loads /> : tab === "staff" ? <Staff /> : tab === "market" ? <Dealer /> : tab === "money" ? <Money /> : tab === "company" ? <Company /> : <Guide />}</div>
+      <div class="panelbox">{watching ? <WatchPanel /> : tab === "fleet" ? <Fleet /> : tab === "loads" ? <Loads /> : tab === "staff" ? <Staff /> : tab === "market" ? <Dealer /> : tab === "money" ? <Money /> : tab === "finance" ? <Finance /> : tab === "business" ? <Business /> : tab === "rates" ? <Rates /> : tab === "economy" ? <Economy /> : tab === "company" ? <Company /> : <Guide />}</div>
     </aside>
   );
 }

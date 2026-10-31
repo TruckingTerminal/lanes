@@ -424,6 +424,41 @@ export function drawMap(now: number): void {
     const bob = (Math.floor(now / 400) % 2) * u;
     ctx.drawImage(pin, X - 6 * u, Math.round(Y - CITY_TOP[art.cityClass[S.selHub]!]! * k - 12 * u - bob));
   }
+  // Truck-stop sites on the interstates (0.18.0) from 2×: an open rest area is a blue-grey cross, a
+  // truck stop the fuel pump (yours underlined in lime); the selected site is ringed. Sites not yet for
+  // sale aren't drawn.
+  if (zoom() >= 2 && w.cfg.businesses.enabled) {
+    const pump = icon("fuel", u);
+    for (const s of w.sites) {
+      const b = s.businessId ? w.businesses[s.businessId - 1] : undefined;
+      const built = b !== undefined && b.ownerId > 0;
+      if (!built && !s.open && s.id !== S.selSite) continue;
+      const [X, Y] = toScreen(...art.project(s.lon, s.lat));
+      if (!visible(X, Y)) continue;
+      if (built) {
+        ctx.drawImage(pump, Math.round(X - pump.width / 2), Math.round(Y - pump.height / 2));
+        if (b!.ownerId === mine) {
+          ctx.fillStyle = PAL.lime;
+          ctx.fillRect(Math.round(X - pump.width / 2), Math.round(Y + pump.height / 2), pump.width, u);
+        }
+      } else {
+        ctx.fillStyle = PAL.ink0;
+        ctx.fillRect(X - 3 * u, Y - u, 7 * u, 3 * u);
+        ctx.fillRect(X - u, Y - 3 * u, 3 * u, 7 * u);
+        ctx.fillStyle = PAL.foam;
+        ctx.fillRect(X - 2 * u, Y, 5 * u, u);
+        ctx.fillRect(X, Y - 2 * u, u, 5 * u);
+      }
+      if (s.id === S.selSite) {
+        const r = 7 * u;
+        ctx.fillStyle = PAL.white;
+        ctx.fillRect(X - r, Y - r, 2 * r, u);
+        ctx.fillRect(X - r, Y + r - u, 2 * r, u);
+        ctx.fillRect(X - r, Y - r, u, 2 * r);
+        ctx.fillRect(X + r - u, Y - r, u, 2 * r);
+      }
+    }
+  }
   // Other carriers are dots: colour says the equipment, a lime ring says a player.
   const dot = (t: Truck, player: boolean) => {
     const p = truckPoint(t);
@@ -763,7 +798,23 @@ function nearestHub(x: number, y: number, max = Math.max(14 / zoom(), 12)): numb
   });
   return best;
 }
-/** Selects your truck under the pointer, else the nearest hub. */
+/** The truck-stop site under the pointer (drawn from 2×), if any. */
+function nearestSite(x: number, y: number): number | null {
+  const w = S.game!.w;
+  if (zoom() < 2 || !w.cfg.businesses.enabled) return null;
+  let best: number | null = null;
+  let bd = Math.max(8 / zoom(), 3);
+  for (const s of w.sites) {
+    const [px, py] = art!.project(s.lon, s.lat);
+    const d = Math.hypot(px - x, py - y);
+    if (d < bd) {
+      bd = d;
+      best = s.id;
+    }
+  }
+  return best;
+}
+/** Selects your truck under the pointer, else a truck-stop site, else the nearest hub. */
 function selectOnMap(ev: { clientX: number; clientY: number }): void {
   const [x, y] = toWorld(...canvasPoint(ev));
   let best: Truck | null = null;
@@ -777,9 +828,13 @@ function selectOnMap(ev: { clientX: number; clientY: number }): void {
       best = t;
     }
   }
+  const site = best ? null : nearestSite(x, y);
   if (best) {
     S.selTruck = best.id;
     S.tab = best.status === "idle" ? "loads" : "fleet";
+  } else if (site !== null) {
+    S.selSite = site;
+    S.tab = "business";
   } else {
     const h = nearestHub(x, y);
     S.selHub = h;
@@ -816,6 +871,19 @@ function selectOnMap(ev: { clientX: number; clientY: number }): void {
 function showHubTip(ev: { clientX: number; clientY: number }): void {
   if (!tip || !wrap || !art) return;
   const [x, y] = toWorld(...canvasPoint(ev));
+  const siteId = nearestSite(x, y);
+  if (siteId !== null) {
+    const w = S.game!.w;
+    const s = w.sites[siteId - 1]!;
+    const b = s.businessId ? w.businesses[s.businessId - 1] : undefined;
+    const road = w.net.roads.edges[s.edge]?.label ?? "Interstate";
+    tip.textContent = `${road} · rest area, ${s.spaces} spaces (${s.parked} taken)${b && b.ownerId > 0 ? ` · truck stop, parking ${Math.round(b.parkingFd)} FD a night` : s.open ? " · for sale" : ""}${s.theftRisk > 1.05 ? ` · theft risk ${s.theftRisk.toFixed(1)}×` : ""}`;
+    tip.hidden = false;
+    const r = wrap.getBoundingClientRect();
+    tip.style.left = `${Math.min(r.width - 260, Math.max(4, ev.clientX - r.left + 12))}px`;
+    tip.style.top = `${Math.max(4, ev.clientY - r.top - 34)}px`;
+    return;
+  }
   const h = nearestHub(x, y);
   if (h === null) {
     tip.hidden = true;
