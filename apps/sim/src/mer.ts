@@ -3,7 +3,7 @@
  * sim"), in the spirit of EVE Online's: one month of a seed's daily metrics summed into what the game
  * paid out and took back, the supply, the exchange, the market, destruction and services.
  *
- *   npx tsx apps/sim/src/mer.ts runs/<batch>/report-seed1.json <months after launch, 0 = the first> [out.json]
+ *   npx tsx apps/sim/src/mer.ts runs/<batch>/report-seed1.json <months after launch, 0 = the first> [out.json | out.html]
  */
 import { readFileSync, writeFileSync } from "node:fs";
 
@@ -112,5 +112,11 @@ const data = {
   daily: span.map((d) => ({ day: d.day, price: n(d, "priceUsd"), poolUsd: Math.round(n(d, "poolUsd")), paidOut: Math.round(n(d, "faucetFd")), takenBack: Math.round(n(d, "sinkFd")), rate: n(d, "avgClearedRate") })),
 };
 const text = JSON.stringify(data, null, 1);
-if (out) writeFileSync(out, text);
+// An .html output is the report page: the template (apps/sim/mer/template.html) with the month's numbers in it.
+if (out && out.endsWith(".html")) {
+  const batch = path.match(/runs\/([^/]+)\//)?.[1] ?? null;
+  const page = readFileSync(new URL("../mer/template.html", import.meta.url), "utf8");
+  const json = JSON.stringify({ ...data, number: month + 1, source: { ...data.source, batch } }).replace(/</g, "\\u003c");
+  writeFileSync(out, page.replace("/*MER_DATA*/null", () => json));
+} else if (out) writeFileSync(out, text);
 else console.log(text);
