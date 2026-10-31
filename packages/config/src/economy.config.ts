@@ -9,7 +9,7 @@ export type TractorTier = "workhorse" | "highwayPro" | "flagship";
 export type FacilityType = "warehouse" | "coldStorage" | "factory";
 
 export const economyConfig = {
-  version: "0.18.3-phase0.27", // The trailer pass and the theft corridors (2026-10-30); live levers in live.ts
+  version: "0.18.4-phase0.28", // Dry-van docks: the big ones around the clock, the rest 7am–7pm weekdays (2026-10-31); live levers in live.ts
 
   // §World, map and time
   time: {
@@ -71,10 +71,15 @@ export const economyConfig = {
     appointmentCommodities: ["grocery", "beverages", "parcels"] as string[],
     byEquipment: { reefer: "appointment", van: "fcfs", flatbed: "daylight" } satisfies Record<Equipment, string>,
     appointment: { leadMinutes: 180, earlyMinutes: 120, graceMinutes: 120, nextSlotHours: [4, 10] as const },
+    // Dry van first come, first served (Jeff, 2026-10-31): the bigger docks, the distribution centers,
+    // ship and receive around the clock; the rest keep weekday business hours, 7am to 7pm. The places
+    // whose dry-van docks never close are the biggest by dry-van freight, until they cover this share
+    // of all dry-van stops.
     hours: {
-      fcfs: { open: 6, close: 18, days: [0, 1, 2, 3, 4] as number[] },
+      fcfs: { open: 7, close: 19, days: [0, 1, 2, 3, 4] as number[] },
       daylight: { open: 6, close: 18, days: [0, 1, 2, 3, 4, 5] as number[] },
     },
+    fcfsAroundTheClockShare: 0.5,
   },
 
   // Cargo theft (Jeff, 2026-10-30; the EVE plan's risk for reward). A loaded truck asleep is the target:

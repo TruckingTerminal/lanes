@@ -136,6 +136,11 @@ and the NPC dealer sold every new truck.
    at the gate), driver pay by trailer; cargo theft by place (CargoNet's hotspots), by what is aboard
    and by where the truck sleeps (shoulder worst, rest area, a truck stop's security best); the risk in
    shippers' rates and in insurers' prices.
+   - **Dock hours, revised (Jeff, 2026-10-31):** dock-aware dispatch barely moved the waits (14.1 → 13.0 hours on
+     four seeds), because trucks arrive at all hours and dry-van docks were open 60 hours a week. Now the
+     bigger dry-van docks ship and receive around the clock (the 137 biggest places, every major metro,
+     which handle half of all dry-van stops) and the rest keep weekday business hours, 7am to 7pm
+     (`docks.fcfsAroundTheClockShare` 0.5, `docks.hours.fcfs` 7–19). Ruleset 0.18.4-phase0.28.
 2. **The degen and bear-case batches**, bots only: momentum traders, airdrop farmers at 30% of players,
    sybil clusters, a whale, a listing-day crowd, against the vesting, the sell limits and the thin pool;
    fixes that scale sinks with extraction if the gates fail.

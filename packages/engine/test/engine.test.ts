@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { economyConfig as cfg, type EconomyConfig } from "@lanes/config";
-import { buildNetwork, hubs, neutralFeeds, syntheticCassCycle, PLACE_OF_HUB } from "@lanes/data";
+import { buildNetwork, hubs, neutralFeeds, syntheticCassCycle, PLACE_OF_HUB, PLACE_ROWS } from "@lanes/data";
 import { populate, ruleBotHook } from "@lanes/agents";
 import {
   addTruck,
@@ -90,7 +90,7 @@ import { elevationAt } from "@lanes/data";
 import { dispatchProfile, managerBreakdownMult, opsCap, payDispatchers, poolOf as poolStaff } from "../src/labor.js";
 import { askingPay as asking } from "../src/world.js";
 import type { Company } from "../src/types.js";
-import { deliveryWait, dockRule, nextOpen, pickupWait, setSlot } from "../src/docks.js";
+import { aroundTheClock, deliveryWait, dockRule, nextOpen, pickupWait, setSlot } from "../src/docks.js";
 import { highValueMult, theftRatePerMile, theftRiskAt } from "../src/risk.js";
 import { startLoading } from "../src/trips.js";
 import { dockWaitCost } from "../src/standingOrders.js";
@@ -1875,11 +1875,15 @@ describe("the trailer pass and the risk corridors (0.18.3)", () => {
   it("keeps first-come docks to weekday business hours and flatbed to daylight, and books appointment freight into slots", () => {
     const w = createWorld({ cfg: docked, net, feeds: neutralFeeds, seed: 100 });
     const h = docked.docks.hours;
-    // Friday 19:00 (day 4: days count from a Monday): first come opens Monday 06:00, daylight Saturday 06:00.
-    expect(nextOpen(w, 4 * D + 19 * 60, h.fcfs)).toBe(7 * D + 6 * 60);
+    // Friday 19:00 (day 4: days count from a Monday): first come opens Monday 07:00, daylight Saturday 06:00.
+    expect(nextOpen(w, 4 * D + 19 * 60, h.fcfs)).toBe(7 * D + 7 * 60);
     expect(nextOpen(w, 4 * D + 19 * 60, h.daylight)).toBe(5 * D + 6 * 60);
     expect(nextOpen(w, 2 * D + 10 * 60, h.fcfs)).toBe(2 * D + 10 * 60);
-    expect(nextOpen(w, 2 * D + 3 * 60, h.fcfs)).toBe(2 * D + 6 * 60);
+    expect(nextOpen(w, 2 * D + 3 * 60, h.fcfs)).toBe(2 * D + 7 * 60);
+    // The biggest first-come docks never close; a small town's keep business hours.
+    const small = PLACE_ROWS.length - 1;
+    expect(aroundTheClock(w, 0)).toBe(true);
+    expect(aroundTheClock(w, small)).toBe(false);
     const load = testLoad(w, w.net.lanes[0]!);
     load.equipment = "van";
     load.commodity = COMMODITY_INDEX.grocery;
@@ -1902,12 +1906,20 @@ describe("the trailer pass and the risk corridors (0.18.3)", () => {
     expect(late.missed).toBe(true);
     expect(late.minutes).toBeGreaterThanOrEqual(a.nextSlotHours[0] * 60);
     expect(late.minutes).toBeLessThanOrEqual(a.nextSlotHours[1] * 60);
-    // Appointment freight ships at any hour; a first-come van load on a Saturday waits for Monday, the receiver's hours.
+    // Appointment freight ships at any hour; a first-come van load on a Saturday waits for Monday, a small receiver's hours.
     expect(pickupWait(w, load, 5 * D + 23 * 60)).toBe(0);
     load.equipment = "van";
     load.commodity = COMMODITY_INDEX.retail;
+    load.originPlace = small;
+    load.destPlace = small;
     const sat = deliveryWait(w, load, 5 * D + 10 * 60);
-    expect(sat).toEqual({ minutes: 7 * D + 6 * 60 - (5 * D + 10 * 60), missed: false, receiversHours: true });
+    expect(sat).toEqual({ minutes: 7 * D + 7 * 60 - (5 * D + 10 * 60), missed: false, receiversHours: true });
+    expect(pickupWait(w, load, 5 * D + 23 * 60)).toBe(7 * D + 7 * 60 - (5 * D + 23 * 60));
+    // A big distribution center takes it at any hour, any day.
+    load.destPlace = 0;
+    load.originPlace = 0;
+    expect(deliveryWait(w, load, 5 * D + 23 * 60).minutes).toBe(0);
+    expect(pickupWait(w, load, 6 * D + 2 * 60)).toBe(0);
   });
 
   it("has a skilled dispatcher price the wait at a closed first-come dock into the load, and an unskilled one barely see it", () => {
@@ -1918,6 +1930,9 @@ describe("the trailer pass and the risk corridors (0.18.3)", () => {
     load.equipment = "van";
     load.commodity = COMMODITY_INDEX.retail;
     load.routeHours = 6;
+    // Small towns at both ends: their docks keep business hours.
+    load.originPlace = PLACE_ROWS.length - 1;
+    load.destPlace = PLACE_ROWS.length - 2;
     const team = { skill: 1 } as Parameters<typeof dockWaitCost>[4];
     // Picked up at 14:00 on a Friday: unloaded after 20:00, past the receiver's hours: it waits for Monday.
     w.t = 4 * D + 14 * 60;

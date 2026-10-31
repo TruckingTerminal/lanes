@@ -1,5 +1,5 @@
 import type { Equipment } from "@lanes/config";
-import { dockRule, nextOpen } from "./docks.js";
+import { dockHoursAt, dockRule, nextOpen } from "./docks.js";
 import { EQUIPMENT } from "./demand.js";
 import { mayTake } from "./contracts.js";
 import { dayOf, MINUTES_PER_HOUR } from "./clock.js";
@@ -162,16 +162,17 @@ export function bidsFromStandingOrders(w: World, company: Company, idx: BoardInd
 export function dockWaitCost(w: World, truck: Truck, load: Load, dh: number, team: DispatchProfile): number {
   const k = w.cfg.docks;
   if (!k.enabled || team.skill <= 0) return 0;
-  const rule = dockRule(w, load);
-  if (rule === "appointment") return 0;
-  const hours = k.hours[rule];
+  if (dockRule(w, load) === "appointment") return 0;
+  const shipper = dockHoursAt(w, load, "pickup");
+  const receiver = dockHoursAt(w, load, "delivery");
+  if (!shipper && !receiver) return 0; // both docks run around the clock
   const atPickup = w.t + (dh / w.cfg.hos.avgMph) * MINUTES_PER_HOUR;
-  const pickupWait = nextOpen(w, atPickup, hours) - atPickup;
+  const pickupWait = shipper ? nextOpen(w, atPickup, shipper) - atPickup : 0;
   const perDay = w.cfg.hos.drivingHoursPerDay;
   const fullDays = Math.max(0, Math.ceil(load.routeHours / perDay) - 1);
   const transitMin = (fullDays * w.cfg.hos.dutyDayHours + (load.routeHours - fullDays * perDay)) * MINUTES_PER_HOUR;
   const atDrop = atPickup + pickupWait + w.cfg.dwell.loadMinutes[1] + transitMin;
-  const dropWait = nextOpen(w, atDrop, hours) - atDrop;
+  const dropWait = receiver ? nextOpen(w, atDrop, receiver) - atDrop : 0;
   return ((pickupWait + dropWait) / MINUTES_PER_HOUR) * w.cfg.roads.routing.timeValueFdPerHour * team.skill;
 }
 
