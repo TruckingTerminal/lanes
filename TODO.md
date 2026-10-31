@@ -259,12 +259,15 @@ vesting schedules all completely transparent." His answers to the 18 questions, 
    - Settled the same day: the owner runs 2 trucks alone and the dispatcher is required from the 3rd,
      but staff can be hired at any size for automation (or a dispatch service at 5–10% of gross); the
      performance stake is about two weeks of the contract's value, locked for its term; economies of
-     scale (fleet fuel, fleet insurance rating, dealer fleet pricing) rise with fleet size to 10% each
-     at 50+ trucks; the build comes right after the trucks build.
-   - Jeff asked whether stealing a load you were contracted for should exist at all. Recommended: no.
-     Remove `steal_load` (players and AI outlaws); cargo theft comes from NPC thieves and hired robbers
-     only. It returns later as fraud by aliases and shell authorities (fictitious pickups) after the
-     server, where investigations can work. Corridor robbery is open PvP. (Awaiting his yes.)
+     scale (fleet fuel, fleet insurance rating, dealer fleet pricing) start after 5 trucks, tiny at first
+     and rising faster with size, to 10% each at 50+ trucks (proposed: 10% × ((trucks − 5) ÷ 45)²,
+     so about 0.1% at 10 trucks, 1% at 20, 3% at 30, 6% at 40 and 10% at 50; two 25-truck companies get
+     2% each where one 50-truck company gets 10%); the build comes right after the trucks build.
+   - **Contract theft goes** (Jeff: "What benefit is there for anyone to steal their own freight that
+     they were contracted to haul? I don't see any"). Remove `steal_load` for players and AI outlaws
+     in the next ruleset bundle; cargo theft comes from NPC thieves and hired robbers only. It can
+     return later as fraud by aliases and shell authorities (fictitious pickups) after the server,
+     where investigations can work. Corridor robbery is open PvP.
    - Proposed, not decided: a bigger staff pool with talent scarce at the top; managers who bring
      decisions with a recommendation, the answers becoming standing orders; armed drivers as a
      trade-off and armed escorts per load; every allowance and cap per person; real economies of scale
