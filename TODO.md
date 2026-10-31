@@ -119,16 +119,45 @@ Order is the working order. Design records live in TOKENOMICS.md (economy) and R
    the client and the sim's default profile run them.
 2. **Done (2026-10-30):** the live world restarted on the new ruleset (world/meta version 15, seed
    946038761) and the live page republished at version 31 from main fe4c0a6 with the painted assets.
-3. **0.18.0 in the client.** The engine actions exist and the bots use them, but the page has no way
-   for a human to stake, deposit in a pool, choose pay terms, buy a yard or an upgrade, buy a shop,
-   a station or a truck stop, set a shop's price, hire a manager, or claim the airdrop: panels for
-   each, and the truck-stop sites on the map (`w.sites` carries lat/lon). Until then only bots run
-   the new economy, and a human cannot own a business or clear the manager rule past four trucks.
-4. Checkpoints and the authoritative server before any real money.
-5. The legal opinion (US first; each country before players there can buy FD).
-6. Launch with the lean reset, the window's dollars seeding the pool, the dial running from day one.
-7. Dashboards on the live world: pool dollars, liquidations against the farming-season baseline,
-   the free path, sinks over faucets, the dial's position.
+3. **Done (2026-10-30):** Phase A (0.18.1: terrain, managers from the pool, truck stops resized) and
+   parking (0.18.2: rest areas by traffic, the night at a site or a ticket on the shoulder); world/meta
+   version 17, live page version 33.
+
+## The sequence, learning from EVE Online (Jeff, 2026-10-30: "do it as you have laid out")
+What EVE gets right and Lanes copies: destruction is a main sink, players make almost everything,
+hauling and regional price differences are the money engine, risk scales with reward, faucets and
+sinks are tracked and published every month, and real money meets game money only through a fair
+market (PLEX; here, FD through the pool). The last batches before this plan: buying new trucks sank
+29M FD in four years against 472M of fuel and 525M of wages, 15 cargo thefts in 775,000 deliveries,
+and the NPC dealer sold every new truck.
+1. **The trailer pass with risk corridors** (one restart): the reefer unit's fuel, flatbed securement,
+   tarping and weather damage, weight in fuel and on grades, receiving hours (grocery and cold chain by
+   appointment at any hour, dry van first come in weekday business hours, flatbed in daylight, waiting
+   at the gate), driver pay by trailer; cargo theft by place (CargoNet's hotspots), by what is aboard
+   and by where the truck sleeps (shoulder worst, rest area, a truck stop's security best); the risk in
+   shippers' rates and in insurers' prices.
+2. **The degen and bear-case batches**, bots only: momentum traders, airdrop farmers at 30% of players,
+   sybil clusters, a whale, a listing-day crowd, against the vesting, the sell limits and the thin pool;
+   fixes that scale sinks with extraction if the gates fail.
+3. **Phase B, the client:** panels for staking, pools, pay terms, the catalogue, businesses (truck stops
+   with parking prices and spaces), managers; the sites on the map; the notices; a market view in the
+   style of DAT (lane rates, ratios by region and trailer, headhaul and backhaul); the owner's gauges;
+   the first Monthly Economic Report, from the sim.
+4. **Assets and destruction** (one restart): tractors and trailers as separate assets with their own
+   wear, life, prices, listings and insurance; a yard's capacity in both; swaps at the yard; finite life
+   (scrapped after about a million miles or two rebuilds); total losses on severe crashes; new supply
+   as a monthly factory allocation instead of recycled units; player dealerships that buy the allocation
+   and sell retail (the NPC dealer a dearer backstop); player lessors; NPC trailer leasing on the free
+   path; trailer theft; every protocol-sold asset resellable player to player (businesses with their
+   bonds, yards, upgrades with the truck). Target: replacement purchases 15–20% of all sinks.
+5. **Checkpoints and the authoritative server** before any real money (hosting: Jeff to choose the
+   Mac mini or a cloud box); **the brief for counsel** (US first); **launch** with the lean reset, the
+   window's dollars seeding a pool as deep as the float, the dial on from day one; the Monthly Economic
+   Report published from the live world every month.
+- **Bars every batch reports:** replacement purchases as a share of sinks; the player share of new
+  trucks, fuel, repairs, insurance and freight; thefts and claims; the used-truck price index; the
+  pool dollars farmers take against operators; plus the three gates (price from launch, liquidations
+  against baseline, the free path).
 
 ## Later, agreed with Jeff on 2026-10-30 (not before the switch-on and the dashboard)
 - **The world-economy story.** Scripted shocks on top of the cycle, seasons, weather and fuel feeds:
