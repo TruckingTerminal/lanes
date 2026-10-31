@@ -31,6 +31,16 @@ const n0 = (x: number) => x.toFixed(0);
 const usd4 = (x: number) => `$${x.toPrecision(2)}`;
 
 type Row = [string, (rs: Run[]) => string];
+/** The player share of markets: the report's own, or for reports written before it existed, what the daily data and the sinks give (no insurance). */
+const share = (r: Run): { newTrucks: number; shopWork: number; freight: number } => {
+  if (r.playerShare) return r.playerShare;
+  const sumD = (k: keyof DayMetrics) => r.daily.reduce((s, d) => s + (((d as unknown as Record<string, number>)[k as string]) ?? 0), 0);
+  const orders = sumD("ordersPlaced");
+  const shopList = (r.sinksByTag.parts ?? 0) / 0.7;
+  const npcShop = (r.sinksByTag.maintenance ?? 0) + (r.sinksByTag.repairs ?? 0) + (r.sinksByTag.rebuild ?? 0) + (r.sinksByTag.road_service ?? 0);
+  const posted = sumD("posted");
+  return { newTrucks: orders > 0 ? sumD("dealershipSales") / orders : 0, shopWork: shopList + npcShop > 0 ? shopList / (shopList + npcShop) : 0, freight: posted > 0 ? sumD("facilityPosted") / posted : 0 };
+};
 const years = Math.max(...runs.map((rs) => rs[0]?.inflation.years.length ?? 0));
 const rows: Row[] = [];
 for (let y = 0; y < years; y++) {
@@ -89,7 +99,7 @@ rows.push(
   // Assets and destruction (the EVE plan, step 4): the bar is new equipment at 15% or more of all sinks.
   ["Assets: new equipment bought / its share of all sinks (bar: 15%+)", (rs) => `${fd(mean(rs.map((r) => r.assets?.newEquipmentFd ?? 0)))} / ${pct(mean(rs.map((r) => r.assets?.newEquipmentShareOfSinks ?? 0)))} (${pct(Math.min(...rs.map((r) => r.assets?.newEquipmentShareOfSinks ?? 0)))}–${pct(Math.max(...rs.map((r) => r.assets?.newEquipmentShareOfSinks ?? 0)))})`],
   ["Assets: all equipment costs (new, NPC lease share, trailer rent, rebuilds) / share of sinks", (rs) => `${fd(mean(rs.map((r) => r.assets?.allEquipmentFd ?? 0)))} / ${pct(mean(rs.map((r) => r.assets?.allEquipmentShareOfSinks ?? 0)))}`],
-  ["Player share: new trucks / shop work / insurance / freight (EVE bar: players make most of it)", (rs) => `${pct(mean(rs.map((r) => r.playerShare?.newTrucks ?? 0)))} / ${pct(mean(rs.map((r) => r.playerShare?.shopWork ?? 0)))} / ${pct(mean(rs.map((r) => r.playerShare?.insurance ?? 0)))} / ${pct(mean(rs.map((r) => r.playerShare?.freight ?? 0)))}`],
+  ["Player share: new trucks / shop work / insurance / freight (EVE bar: players make most of it)", (rs) => `${pct(mean(rs.map((r) => share(r).newTrucks)))} / ${pct(mean(rs.map((r) => share(r).shopWork)))} / ${rs.some((r) => r.playerShare) ? pct(mean(rs.map((r) => r.playerShare?.insurance ?? 0))) : "n/a"} / ${pct(mean(rs.map((r) => share(r).freight)))}`],
   ["Assets: tractors / trailers scrapped, rigs written off, trailers stolen from yards", (rs) => `${n0(mean(rs.map((r) => r.assets?.scrappedTractors ?? 0)))} / ${n0(mean(rs.map((r) => r.assets?.scrappedTrailers ?? 0)))} / ${n0(mean(rs.map((r) => r.assets?.totalLosses ?? 0)))} / ${n0(mean(rs.map((r) => r.assets?.yardThefts ?? 0)))}`],
   ["Assets: factory built tractors / trailers; sold by player dealerships (FD)", (rs) => `${n0(mean(rs.map((r) => r.assets?.factoryTractors ?? 0)))} / ${n0(mean(rs.map((r) => r.assets?.factoryTrailers ?? 0)))}; ${n0(mean(rs.map((r) => r.assets?.dealershipSales ?? 0)))} (${fd(mean(rs.map((r) => r.assets?.dealershipSalesFd ?? 0)))})`],
   ["Assets: trade-ins / player leases taken / businesses, facilities and yards resold", (rs) => `${n0(mean(rs.map((r) => r.assets?.tradeIns ?? 0)))} / ${n0(mean(rs.map((r) => r.assets?.playerLeases ?? 0)))} / ${n0(mean(rs.map((r) => r.assets?.assetSales ?? 0)))}`],
