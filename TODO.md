@@ -1,4 +1,4 @@
-# LANES to-do (kept current; last edit 2026-10-29)
+# LANES to-do (kept current; last edit 2026-10-31)
 
 Order is the working order. Design records live in TOKENOMICS.md (economy) and README.md (what shipped).
 
@@ -212,6 +212,55 @@ and the NPC dealer sold every new truck.
   trucks, fuel, repairs, insurance and freight; thefts and claims; the used-truck price index; the
   pool dollars farmers take against operators; plus the three gates (price from launch, liquidations
   against baseline, the free path).
+
+## Complete supply control (Jeff, 2026-10-31)
+"The name of the game here is complete supply control. With all faucets and sinks and metrics and
+vesting schedules all completely transparent." His answers to the 18 questions, the same day:
+1. **Build order:** the supply ceiling; the airdrop and taxes; the launch auction and price limit;
+   trucks; then the highway robbers and the unlock ladder in the sim.
+2. **The supply ceiling.** FD outstanding after launch grows at most along a published path, flat after
+   a real year; test +25% and +10%. The rate dial cuts first; at its floor the airdrop's slices and the
+   developer's vest wait (owed, never lost); fees rise only after that; the path never bends.
+   **Built (9474460, off):** `token.supplyCeiling`, `ceiling.ts`; batches v42-a (+25%) and v42-b (+10%).
+3. **The airdrop:** 1% at launch; the rest unlocks only through milestones (achievements, items) on
+   the honest and the criminal path, with a 12-real-month deadline, after which what's left is never
+   minted. Criminal milestones unlock only the person's existing slice, only with no open case, and a
+   conviction forfeits it (counsel to confirm).
+4. **Selling early:** a 75% sell tax at launch, falling to the normal 7% over six real months,
+   everyone pays, all burned ("we want players to farm this, not farmers"). Transfers: no FD sends
+   between players; burn the part of a player-to-player sale above the used-truck index.
+5. **The launch:** an opening auction (verified people, a per-person cap, all its dollars into the
+   pool) and a daily price limit of ±15% for the first three real months.
+6. **Trucks:** test both no free tier and spend-only free-path earnings until a truck is owned and
+   identity is checked (counsel decides); a lease deposit of at least 25% of the truck's value; loans
+   against the truck being bought (10–20% down, an FD stake of 10% and 25% tested, credit that grows
+   with the record); prices on the real-world ratio, new $200k to used from $50k, scaled to FD (test
+   the realistic level, about 250–300k FD for a new tractor, and the 4:1 ratio on today's prices);
+   assets on: "we need to have assets".
+7. **Highway robbers:** hired crews; cargo, trailers and whole rigs (rigs to chop shops or the Back
+   Lot); theft corridors at night only, never secured lots; newcomers protected for 30 real days; a
+   cooldown per victim; the hirer's stake covers the take; 2–3 security slots per truck, every item an
+   FD sink. Hires are public, and the answer is pure PvP: no inspections or insurance penalties for
+   hirers, a gossip network (Channel 19) on the terminal and in the daily, weekly and monthly reports,
+   with payback and bounties. **Open:** stealing a load you were hired to haul stays a crime; corridor
+   robbery is open PvP (proposed; Jeff to confirm; the bad-actor spec's "theft is a crime" rule).
+8. **The unlock ladder:** each layer opens at a published date and a hard-to-fake metric (verified
+   players, pool dollars), gradually; hauling, then businesses, then player brokerage, then the Back
+   Lot and robbers, then aliases and crews; it starts at launch, the beta fully open.
+9. **Staff, sales and direct freight (Jeff, 2026-10-31: "make it difficult, expensive and risky to
+   grow", and "incentivized to grow one large company and not many smaller ones"):**
+   - A dispatcher from 3 trucks, at most 10 trucks each; a maintenance manager from 5, at most 15
+     each; an operations manager from 8, at most 20 each. Each does worse the more trucks it carries.
+   - Security, a CEO and sales: optional, expensive, extremely beneficial. No direct shipper freight
+     without sales.
+   - Direct freight only up to what the fleet can haul and what the staked bond can broker out; a
+     performance stake behind it, slashed to make the shipper whole when a load isn't covered. A small
+     company can't take on many times its own size.
+   - Proposed, not decided: a bigger staff pool with talent scarce at the top; managers who bring
+     decisions with a recommendation, the answers becoming standing orders; armed drivers as a
+     trade-off and armed escorts per load; every allowance and cap per person; real economies of scale
+     (fleet fuel, fleet insurance rating, dealer fleet pricing). A "staff, sales and contracts" build
+     after trucks, tested with the robbers.
 
 ## Later, agreed with Jeff on 2026-10-30 (not before the switch-on and the dashboard)
 - **The world-economy story.** Scripted shocks on top of the cycle, seasons, weather and fuel feeds:
