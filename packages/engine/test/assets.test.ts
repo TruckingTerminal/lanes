@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { applyLevers, economyConfig } from "@lanes/config";
-import { buildNetwork, hubs, neutralFeeds } from "@lanes/data";
+import { applyLevers, economyConfig, withLiveLevers } from "@lanes/config";
+import { buildNetwork, hubs, neutralFeeds, syntheticCassCycle } from "@lanes/data";
+import { populate, ruleBotHook } from "@lanes/agents";
 import {
   addTrailerMiles,
   addTruck,
@@ -27,6 +28,7 @@ import {
   ordersOf,
   billPlayerLeases,
   contractAccount,
+  runDays,
   type World,
 } from "@lanes/engine";
 
@@ -334,5 +336,33 @@ describe("assets: tractors and trailers apart", () => {
     expect(buyer.yard).toBe("small");
     expect(seller.yard).toBe("none");
     expect(buyer.yardBondFd).toBe(30_000);
+  });
+
+  it("replays exactly from the seed with every asset rule on and the bots running it: scrapping, rentals, dealerships, leases", () => {
+    const live = applyLevers(withLiveLevers(economyConfig), { "assets.enabled": true, "assets.trailerTheftPerNight": 0.002 });
+    const run = () => {
+      const w = createWorld({ cfg: live, net, feeds: { ...neutralFeeds, cycle: syntheticCassCycle({ seed: 77 }) }, seed: 77 });
+      populate(w, { freeOwnerOperators: 25, fleets: 6, brokers: 3 });
+      // A dealership from the start, and a few tractors near the end of their life, so every path runs.
+      const d = carrier(w, "CHI");
+      fund(w, d.id, 3_000_000);
+      expect(applyAction(w, d.id, { type: "buy_business", kind: "dealership", hubId: "CHI" }).ok).toBe(true);
+      for (const t of w.trucks.filter((x) => x.lease === "owned").slice(0, 12)) {
+        t.odometer = 995_000;
+        t.rebuilds = 2;
+        t.milesSinceRebuild = 190_000;
+      }
+      runDays(w, 75, ruleBotHook);
+      return {
+        supply: Math.round(w.ledger.supply()),
+        trucks: w.trucks.map((t) => [t.companyId, t.status, Math.round(t.odometer), t.rebuilds, t.trailerId, t.lessorId]),
+        trailers: w.trailers.map((t) => [t.companyId, t.status, t.lease, Math.round(t.odometer)]),
+        stock: w.businesses.filter((b) => b.kind === "dealership").map((b) => [b.ownerId, JSON.stringify(b.stock), b.soldMonth, Math.round(b.netFd)]),
+        scrapped: w.metrics.days.reduce((s, x) => s + x.scrappedTractors + x.scrappedTrailers, 0),
+      };
+    };
+    const a = run();
+    expect(a.scrapped).toBeGreaterThan(0);
+    expect(run()).toEqual(a);
   });
 });
