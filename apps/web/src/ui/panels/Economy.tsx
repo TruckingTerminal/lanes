@@ -1,5 +1,5 @@
 import type { JSX } from "preact";
-import { EXCHANGE_ACCOUNT, fdPriceUsd, tokenLive, type DayMetrics } from "@lanes/engine";
+import { EXCHANGE_ACCOUNT, fdPriceUsd, tokenLive, valuation, type DayMetrics } from "@lanes/engine";
 import { fd, pct, usd } from "../../format.js";
 import { S, useData } from "../../state.js";
 import { Bar, Card, Kv, Num, Panel, Sparkline } from "../bits.js";
@@ -101,7 +101,8 @@ export function Economy(): JSX.Element {
       <Card title="Supply">
         <Kv
           rows={[
-            ["Held by companies", <Num>{fd(w.ledger.supply())} FD</Num>],
+            ["In circulation", <Num>{fd(valuation(w).circulatingFd)} FD (what players hold and trade, the exchange pool included)</Num>],
+            ...(circular ? ([["All FD there is", <Num>{fd(valuation(w).totalSupplyFd)} FD (the cap less what's been burned)</Num>]] as [string, JSX.Element][]) : []),
             ...(circular
               ? ([
                   ["The reserve", <Num>{fd(w.ledger.reserve())} FD</Num>],
@@ -120,6 +121,8 @@ export function Economy(): JSX.Element {
           <Kv
             rows={[
               ["Price", <Num>${fdPriceUsd(w).toFixed(5)} · launched at ${w.token.launchPriceUsd.toFixed(5)}</Num>],
+              ["Market cap", <Num>{usd(valuation(w).marketCapUsd)} (price × FD in circulation)</Num>],
+              ["Fully diluted value", <Num>{usd(valuation(w).fdvUsd)} (price × all FD there is)</Num>],
               ["The pool", <Num>{usd(w.token.poolUsd)} and {fd(w.ledger.balance(EXCHANGE_ACCOUNT))} FD</Num>],
               ["Sold into it since launch, net of buys", <Num>{fd(w.token.exchange.soldFd - w.token.exchange.boughtFd)} FD</Num>],
             ]}

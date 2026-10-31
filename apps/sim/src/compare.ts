@@ -31,6 +31,32 @@ const n0 = (x: number) => x.toFixed(0);
 const usd4 = (x: number) => `$${x.toPrecision(2)}`;
 
 type Row = [string, (rs: Run[]) => string];
+type Valuation = NonNullable<NonNullable<Run["realMoney"]>["token"]>["valuation"];
+// The burns that leave the circular economy's cap for good (ledger CIRCULAR_BURNS); a launch reset refills the reserve instead.
+const CAP_BURNS = ["season_close", "buyback", "exchange_fee", "airdrop_forfeit", "unstake_haircut", "profit_tax_burn", "asset_burn"];
+/** Market cap and FDV: the report's own, or for reports written before them, from the daily price, supply, locked FD and burns. */
+const valuationOf = (r: Run): Valuation | null => {
+  const tk = r.realMoney?.token;
+  if (!tk) return null;
+  if (tk.valuation) return tk.valuation;
+  const cap = 1_000_000_000;
+  let burned = 0;
+  const pts = r.daily.map((d) => {
+    for (const k of CAP_BURNS) burned += (d.burnByTag as Record<string, number> | undefined)?.[k] ?? 0;
+    const circulating = Math.max(0, d.supplyFd - (d.lockedFd ?? 0));
+    const total = cap - burned;
+    return { day: d.day, price: d.priceUsd, circulating, total };
+  });
+  const live = pts.filter((p) => p.day >= tk.launchDay);
+  const first = live[0] ?? pts.at(-1)!;
+  const end = pts.at(-1)!;
+  return {
+    launch: { marketCapUsd: tk.price.launchUsd * first.circulating, fdvUsd: tk.price.launchUsd * first.total, circulatingFd: first.circulating, totalSupplyFd: first.total },
+    end: { marketCapUsd: end.price * end.circulating, fdvUsd: end.price * end.total, circulatingFd: end.circulating, totalSupplyFd: end.total },
+    peakMarketCapUsd: Math.max(0, ...live.map((p) => p.price * p.circulating)),
+    peakFdvUsd: Math.max(0, ...live.map((p) => p.price * p.total)),
+  };
+};
 /** The player share of markets: the report's own, or for reports written before it existed, what the daily data and the sinks give (no insurance). */
 const share = (r: Run): { newTrucks: number; shopWork: number; freight: number } => {
   if (r.playerShare) return r.playerShare;
@@ -144,6 +170,17 @@ rows.push(
   }],
   ["Token: new buying that holds the end price ($ per 1,000 companies a month)", (rs) => range(rs.map((r) => r.realMoney?.token?.demand?.usdPerThousandCompaniesMonth ?? NaN).filter(Number.isFinite), (x) => `$${fd(x)}`)],
   ["Token: FD sold into the pool net of buys, per month", (rs) => range(rs.map((r) => r.realMoney?.token?.demand?.netSoldFdPerMonth ?? NaN).filter(Number.isFinite), fd)],
+  // Market cap = price × circulating FD; FDV = price × the cap less burns (Jeff, 2026-10-31).
+  ["Token: market cap at launch → end (peak)", (rs) => {
+    const v = rs.map(valuationOf).filter((x): x is Valuation => !!x);
+    if (!v.length) return "n/a";
+    return `$${fd(mean(v.map((x) => x.launch.marketCapUsd)))} → $${fd(mean(v.map((x) => x.end.marketCapUsd)))} (peak $${fd(mean(v.map((x) => x.peakMarketCapUsd)))})`;
+  }],
+  ["Token: FDV at launch → end (peak); circulating share of total at end", (rs) => {
+    const v = rs.map(valuationOf).filter((x): x is Valuation => !!x);
+    if (!v.length) return "n/a";
+    return `$${fd(mean(v.map((x) => x.launch.fdvUsd)))} → $${fd(mean(v.map((x) => x.end.fdvUsd)))} (peak $${fd(mean(v.map((x) => x.peakFdvUsd)))}); ${pct(mean(v.map((x) => (x.end.totalSupplyFd > 0 ? x.end.circulatingFd / x.end.totalSupplyFd : 0))))}`;
+  }],
   ["Token: lowest / highest price", (rs) => {
     const t = rs.map((r) => r.realMoney?.token).filter((x) => x);
     return t.length ? `${usd4(mean(t.map((x) => x!.price.minUsd)))} / ${usd4(mean(t.map((x) => x!.price.maxUsd)))}` : "n/a";

@@ -37,6 +37,20 @@ const burns = tags("burnByTag");
 const served = sum("roadServiceStop") + sum("roadServiceHub") + sum("roadServiceNpc");
 const nights = sum("siteNights") + sum("shoulderNights");
 const yearOf = (day: number) => Math.floor(day / 365) + 1;
+// The token's size (Jeff, 2026-10-31): circulating FD (outside the reserve, the protocol's allocations and the burns,
+// less spend-only locked FD) and the total (the cap less burns). Read off the day's metrics, or for runs from before
+// they were recorded, worked out from the day's supply, locked FD and the burns to date.
+const CAP_BURNS = ["season_close", "buyback", "exchange_fee", "airdrop_forfeit", "unstake_haircut", "profit_tax_burn", "asset_burn"];
+const burnedBy = new Map<number, number>();
+{
+  let b = 0;
+  for (const d of days) {
+    for (const k of CAP_BURNS) b += ((d["burnByTag"] as Record<string, number> | undefined) ?? {})[k] ?? 0;
+    burnedBy.set(d.day, b);
+  }
+}
+const circulating = (d: Day) => (typeof d["circulatingFd"] === "number" ? (d["circulatingFd"] as number) : Math.max(0, n(d, "supplyFd") - n(d, "lockedFd")));
+const totalSupply = (d: Day) => (typeof d["totalSupplyFd"] === "number" ? (d["totalSupplyFd"] as number) : 1_000_000_000 - (burnedBy.get(d.day) ?? 0));
 const MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
 const data = {
   title: "Monthly Economic Report",
@@ -54,6 +68,9 @@ const data = {
   supply: {
     companiesStart: Math.round(n(first, "supplyFd")),
     companiesEnd: Math.round(n(last, "supplyFd")),
+    circulatingStart: Math.round(circulating(first)),
+    circulatingEnd: Math.round(circulating(last)),
+    totalEnd: Math.round(totalSupply(last)),
     reserveStart: Math.round(n(first, "reserveFd")),
     reserveEnd: Math.round(n(last, "reserveFd")),
     lockedEnd: Math.round(n(last, "lockedFd")),
@@ -68,6 +85,9 @@ const data = {
     poolUsdEnd: Math.round(n(last, "poolUsd")),
     poolFdEnd: Math.round(n(last, "exchangeFd")),
     profitTaxRate: n(last, "profitTaxRate"),
+    marketCapStart: Math.round((prices[0] ?? 0) * circulating(first)),
+    marketCapEnd: Math.round((prices.at(-1) ?? 0) * circulating(last)),
+    fdvEnd: Math.round((prices.at(-1) ?? 0) * totalSupply(last)),
   },
   market: {
     posted: sum("posted"),

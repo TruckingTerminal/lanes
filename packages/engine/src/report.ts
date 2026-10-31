@@ -198,6 +198,17 @@ export interface TokenReport {
   sinceLaunch: { operatingFaucetFd: number; operatingSinkFd: number; mintedByTag: Record<string, number>; burnedByTag: Record<string, number> };
   treasury: { seedUsd: number; productUsd: number; feeUsd: number; buybackUsd: number; buybackFd: number; opsUsd: number; devUsd: number; vestedFd: number };
   pool: { endUsd: number; endFd: number; peakUsd: number };
+  /**
+   * The token's size (Jeff, 2026-10-31): market cap (price × circulating FD) and FDV (price × the cap less
+   * burns), at the launch price on launch day, at the end, and at their peaks; and the circulating and
+   * total FD behind them.
+   */
+  valuation: {
+    launch: { marketCapUsd: number; fdvUsd: number; circulatingFd: number; totalSupplyFd: number };
+    end: { marketCapUsd: number; fdvUsd: number; circulatingFd: number; totalSupplyFd: number };
+    peakMarketCapUsd: number;
+    peakFdvUsd: number;
+  };
   airdrop: { allocatedFd: number; mintedFd: number; forfeitedFd: number; haircutFd: number; recipients: number; claimedEarly: number };
   newCompanies: number;
   /** Dollars after launch, by starting segment: put in, taken out, and net taken out. */
@@ -684,6 +695,17 @@ function tokenReport(w: World, quarterLen: number): TokenReport | null {
     },
     treasury: { seedUsd: t.seedUsd, productUsd: t.productUsd, feeUsd: t.feeUsd, buybackUsd: t.buybackUsd, buybackFd: t.buybackFd, opsUsd: t.opsUsd, devUsd: t.devUsd, vestedFd: t.vestedFd },
     pool: { endUsd: tk.poolUsd, endFd: end.exchangeFd, peakUsd: Math.max(tk.poolUsd, ...live.map((d) => d.poolUsd ?? 0)) },
+    valuation: (() => {
+      const first = live[0] ?? end;
+      const circ0 = first.circulatingFd ?? 0;
+      const total0 = first.totalSupplyFd ?? 0;
+      return {
+        launch: { marketCapUsd: tk.launchPriceUsd * circ0, fdvUsd: tk.launchPriceUsd * total0, circulatingFd: circ0, totalSupplyFd: total0 },
+        end: { marketCapUsd: end.marketCapUsd ?? 0, fdvUsd: end.fdvUsd ?? 0, circulatingFd: end.circulatingFd ?? 0, totalSupplyFd: end.totalSupplyFd ?? 0 },
+        peakMarketCapUsd: Math.max(0, ...live.map((d) => d.marketCapUsd ?? 0)),
+        peakFdvUsd: Math.max(0, ...live.map((d) => d.fdvUsd ?? 0)),
+      };
+    })(),
     airdrop: {
       allocatedFd: tk.launch.airdropAllocatedFd,
       mintedFd: tk.airdrop.mintedFd,

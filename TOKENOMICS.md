@@ -536,3 +536,16 @@ same with trucks and trailers, which used to last forever and go back into deale
   costs 18k FD against ~360k FD a year to run one. EVE-like destruction (the plan's 15% bar) needs
   equipment several times dearer, which slows a newcomer's first new truck. The calibration batches
   (prices ×1, ×3, ×6) put numbers on that trade before Jeff picks the level and the world restarts.
+
+## Market cap and fully diluted value (tracked from 2026-10-31, Jeff)
+- **Circulating FD** is what players hold and trade: everything outside the reserve, the protocol's genesis
+  allocations and the burns, less spend-only locked FD. Company balances, stakes, bonds, pool deposits
+  and the exchange pool's own FD all count.
+- **Total FD** is the cap less everything burned: all the FD there is, since the reserve pays it back out.
+- **Market cap** is price × circulating; **fully diluted value (FDV)** is price × total. Both are 0 before
+  launch. Every day's metrics carry them; the run report has them at launch, at the end and at their peaks;
+  the batch comparison, the Monthly Economic Report and the client's Economy tab show them.
+- **What the last batches say** (v37-a parking, v38-a trailer pass, ten seeds each): market cap $52k at launch,
+  ending at $74k and $60k (peaks ~$105k); FDV ~$710k at launch, ending at $478k and $384k (peaks ~$1.1M).
+  Market cap grows while the price falls because the reserve keeps paying FD into circulation; circulation
+  ends near 16% of the total. FDV follows the price.

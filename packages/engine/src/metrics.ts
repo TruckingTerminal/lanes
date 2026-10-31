@@ -117,6 +117,16 @@ export interface DayMetrics {
   exchangeFd: number;
   poolUsd: number;
   lockedFd: number;
+  /**
+   * The token's size (Jeff, 2026-10-31: "track market cap and FDV"). Circulating: FD outside the reserve,
+   * the protocol's allocations and the burns, less spend-only locked FD (companies' balances, stakes,
+   * bonds, pool deposits and the exchange pool all count). Total: the cap less everything burned.
+   * Market cap = price × circulating; FDV (fully diluted value) = price × total. Both 0 before launch.
+   */
+  circulatingFd: number;
+  totalSupplyFd: number;
+  marketCapUsd: number;
+  fdvUsd: number;
   companies: number;
   profitTaxRate: number;
   demandScale: number;
@@ -466,6 +476,7 @@ export class MetricsRecorder {
       exchangeFd: w.ledger.balance("co:pool:exchange"),
       poolUsd: w.token.poolUsd,
       lockedFd: w.companies.reduce((s, c) => s + c.lockedFd, 0),
+      ...valuation(w),
       companies: w.companies.length,
       profitTaxRate: w.token.launchDay !== null ? w.token.profitTaxRate : 0,
       demandScale: w.demandScale,
@@ -568,4 +579,15 @@ function trailerCount(w: World, lease: "owned" | "rental"): number {
   let n = 0;
   for (const list of w.trailersByCompany.values()) for (const tr of list) if (tr.lease === lease) n++;
   return n;
+}
+
+/** The token's circulating and total supply, and what they're worth at the pool's price (0 before launch). */
+export function valuation(w: World): { circulatingFd: number; totalSupplyFd: number; marketCapUsd: number; fdvUsd: number } {
+  const locked = w.companies.reduce((s, c) => s + c.lockedFd, 0);
+  const circulatingFd = Math.max(0, w.ledger.supply() - locked);
+  const minted = w.ledger.minted();
+  const totalSupplyFd = minted > 0 ? minted - w.ledger.burned() : w.ledger.supply();
+  const pool = w.ledger.balance("co:pool:exchange");
+  const price = w.token.launchDay !== null && pool > 0 ? w.token.poolUsd / pool : 0;
+  return { circulatingFd, totalSupplyFd, marketCapUsd: price * circulatingFd, fdvUsd: price * totalSupplyFd };
 }
