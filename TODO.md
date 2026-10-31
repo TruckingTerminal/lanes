@@ -259,10 +259,11 @@ vesting schedules all completely transparent." His answers to the 18 questions, 
    - Settled the same day: the owner runs 2 trucks alone and the dispatcher is required from the 3rd,
      but staff can be hired at any size for automation (or a dispatch service at 5–10% of gross); the
      performance stake is about two weeks of the contract's value, locked for its term; economies of
-     scale (fleet fuel, fleet insurance rating, dealer fleet pricing) start after 5 trucks, tiny at first
-     and rising faster with size, to 10% each at 50+ trucks (proposed: 10% × ((trucks − 5) ÷ 45)²,
-     so about 0.1% at 10 trucks, 1% at 20, 3% at 30, 6% at 40 and 10% at 50; two 25-truck companies get
-     2% each where one 50-truck company gets 10%); the build comes right after the trucks build.
+     scale (fleet fuel, fleet insurance rating, dealer fleet pricing), each on its own: 0% up to 5
+     trucks, 0.2% a truck from 6 to 10 (1% at 10, as Jeff proposed), then linear to 10% at 50 (0.225% a
+     truck), flat after; one 50-truck company gets 10% where two 25-truck companies get about 4.4% each
+     and five 10-truck companies 1% each. The insurance discount needs a clean safety record, like real
+     fleet rating. The build comes right after the trucks build.
    - **Contract theft goes** (Jeff: "What benefit is there for anyone to steal their own freight that
      they were contracted to haul? I don't see any"). Remove `steal_load` for players and AI outlaws
      in the next ruleset bundle; cargo theft comes from NPC thieves and hired robbers only. It can

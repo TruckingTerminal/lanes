@@ -591,3 +591,29 @@ listing-day crowd (about $200 each) and a $50k whale.
   down) for the first months, so a pump can't compound; and the identity checks the spec calls for (verified
   login, device and same-owner detection), since sybils take out the most and no fee or limit separates
   one owner's eight wallets from eight players.
+
+## The supply path (Jeff, 2026-10-31: "complete supply control"; built, config `token.supplyCeiling`, off)
+
+- **The rule.** After launch, the FD outstanding (everything outside the reserve, the genesis allocations
+  and the burns: companies, stakes, deposits and the exchange pool) may grow at most along a path published
+  at launch: a straight line to +X% a real year (1,460 game days) after launch, then flat. It never looks
+  at the price. Checked weekly, as a snapshot, against the line that day.
+- **The levers, in order.** The balance dial trims NPC freight rates (from where they stood at launch,
+  down to 80% of it, never above it); at the dial's floor, or whenever the path itself is reached, the
+  scheduled payouts wait: airdrop slices queue on their companies (owed, paid out as room returns, lost
+  only to liquidation) and the developer's vest holds.
+- **What the batches found** (seeds 1, 4, 7 against the live rules, v41-a; runs/compare-v42-*.md):
+  - v42-a/b measured the dial's floor from base rates; the beta's own dial had already cut rates to
+    half, so the ceiling *raised* them at launch and supply ran 45–54% over the path. Fixed (2cae745).
+  - v42-c/d (+25% / +10%, with rate cuts): the end price rose ($0.00059 → $0.00066 / $0.00076) and the pool
+    kept its dollars, but supply still grew 34–35% against 5–12.5% allowed by the run's end. A 20% lower
+    rate multiplier moved cleared rates only ~2%: loads clear at carriers' asks, not the NPC ceiling, and
+    supply grows from the profit carriers keep. The cuts hit the marginal carriers: liquidations +12%,
+    newcomers' Miles per hour down 70–80% (which trips the strategy-vs-median gate).
+  - v42-e (+10%, payouts only, no rate cuts): the same supply growth (34%), end price $0.00067, fewer
+    liquidations than with no path at all (895 vs 917), and no newcomer harm (strategy gate 2.15×).
+- **Conclusion.** Payouts wait, rates don't move: the path's own levers can slow the airdrop and the vest,
+  but holding the path needs sinks, which is where Jeff wants deflation to come from (2026-10-29: "from the
+  capped economy's locks, stakes and sinks, not from the tax"). The next test runs the path with the sinks
+  being built: trucks at realistic prices, leases by value with deposits, purchase loans, the staff ladder,
+  sales and stake-backed contracts, scale discounts, the early-sale tax, and the robbers.

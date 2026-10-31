@@ -5,12 +5,13 @@ import { Ledger, companyAccount } from "./ledger.js";
 import { truckCap } from "./staking.js";
 import { newPool } from "./pools.js";
 import { Rng } from "./rng.js";
-import type { BuybackWeek, GameEvent, TokenState, Company, Business, Facility, TruckStopSite, FinancePool, FraudCase, LeaseKind, Listing, Load, Pool, PoolLine, Receivable, Role, SeasonCloseRecord, Staff, StandingOrder, Trailer, Truck, TruckOrder, Contract, LeaseOffer } from "./types.js";
+import type { BuybackWeek, GameEvent, TokenState, Company, Business, Facility, TruckStopSite, FinancePool, FraudCase, LeaseKind, Listing, Load, Pool, PoolLine, PurchaseLoan, Receivable, Role, SeasonCloseRecord, Staff, StandingOrder, Trailer, Truck, TruckOrder, Contract, LeaseOffer } from "./types.js";
 import { fitTrailer, handBack, hook, hookedTrailer, newTrailer } from "./trailers.js";
 import type { AssetSale } from "./assetSales.js";
 import { signPolicy } from "./insurance.js";
 import { seedPool } from "./labor.js";
 import { MetricsRecorder } from "./metrics.js";
+import { leaseValueFd } from "./wear.js";
 
 export interface WorldOptions {
   cfg: EconomyConfig;
@@ -69,6 +70,9 @@ export interface World {
   /** The used-truck market, open and closed listings. */
   listings: Listing[];
   finance: FinancePool;
+  /** Purchase loans from the NPC lender (purchaseLoans.ts), and what the lending has come to. */
+  purchaseLoans: PurchaseLoan[];
+  purchaseLending: { madeFd: number; interestFd: number; defaults: number; seized: number; writtenOffFd: number; stakeSlashedFd: number };
   /** Published stabilizers (§Circular economy — targets and stabilizers). */
   stab: { volumeMult: number; rackSpread: number; rateMult: number };
   /** Last round's load-to-truck ratio per hub, for repositioning. */
@@ -194,6 +198,8 @@ export function createWorld(o: WorldOptions): World {
     orders: [],
     nextOrderId: 1,
     listings: [],
+    purchaseLoans: [],
+    purchaseLending: { madeFd: 0, interestFd: 0, defaults: 0, seized: 0, writtenOffFd: 0, stakeSlashedFd: 0 },
     finance: {
       shares: new Map(),
       totalShares: 0,
@@ -545,6 +551,7 @@ export function formCompany(w: World, c: NewCompany): Company {
     usd: { wallet: 0, in: 0, out: 0 },
     // After launch a new company's grant is spend-only, so a fresh account can't be cashed out.
     lockedFd: w.token.launchDay !== null && w.cfg.token.lockGrants ? w.cfg.company.startingGrantFd : 0,
+    freePathLockedFd: 0,
     stakedFd: 0,
     unstaking: [],
     tierGraceDay: null,
@@ -606,8 +613,60 @@ export function formCompany(w: World, c: NewCompany): Company {
     w.ledger.post(w.t, "faucet:starting_grant", companyAccount(company.id), w.cfg.company.startingGrantFd, `grant:${company.id}`);
     payPermits(w, company);
   }
-  if (c.role === "carrier" && c.freePath) addTruck(w, company, "npc", "workhorse", "van");
+  if (c.role === "carrier" && c.freePath) {
+    const starter = addTruck(w, company, "npc", "workhorse", "van");
+    // A lease priced by value: the deposit is held back from the first settlements (trips.ts).
+    if (w.cfg.freeEntry.leases.byValue.enabled) starter.depositDueFd = w.cfg.freeEntry.leases.byValue.depositShare * leaseValueFd(w.cfg, starter);
+  }
   return company;
+}
+
+/** Hands back an NPC lease's deposit when the truck goes back to the lessor or is replaced. */
+export function refundLeaseDeposit(w: World, truck: Truck): void {
+  if (truck.depositFd > 0.005 && truck.companyId) w.ledger.post(w.t, "faucet:lease_deposit", companyAccount(truck.companyId), truck.depositFd, `deposit:${truck.id}`);
+  truck.depositFd = 0;
+  truck.depositDueFd = 0;
+}
+
+/** freeEntry.freePath "spendOnly": the first owned truck makes what the free path earned sellable. */
+export function unlockFreePathEarnings(c: Company): void {
+  c.lockedFd = Math.max(0, c.lockedFd - c.freePathLockedFd);
+  c.freePathLockedFd = 0;
+}
+
+/** The FD a borrower has locked against one purchase loan (purchaseLoans.ts). */
+export const loanStakeAccount = (loanId: number): string => `co:loanstake:${loanId}`;
+
+/** The purchase loan open on a truck, if any. */
+export function purchaseLoanOn(w: World, truckId: number): PurchaseLoan | undefined {
+  return w.purchaseLoans.find((l) => l.truckId === truckId && (l.status === "active" || l.status === "defaulted"));
+}
+
+/**
+ * Closes a purchase loan from what the borrower has: its cash first (a sale's proceeds land there before
+ * the truck leaves), then the stake; the lender writes off any rest, and what's left of the stake goes
+ * back. `stakeFirst` for a default, where the stake is the lender's first recourse.
+ */
+export function closePurchaseLoan(w: World, loan: PurchaseLoan, stakeFirst = false): void {
+  const acct = companyAccount(loan.borrowerId);
+  const stakeAcct = loanStakeAccount(loan.id);
+  let owed = loan.principalFd;
+  const fromStake = (cap: number) => {
+    const fd = Math.min(cap, w.ledger.balance(stakeAcct));
+    if (fd > 0.005) w.ledger.post(w.t, stakeAcct, "sink:loan_principal", fd, `loan:${loan.id}`);
+    w.purchaseLending.stakeSlashedFd += stakeFirst ? Math.max(0, fd) : 0;
+    return Math.max(0, fd);
+  };
+  if (stakeFirst) owed -= fromStake(owed);
+  const cash = Math.min(owed, Math.max(0, w.ledger.balance(acct)));
+  if (cash > 0.005) w.ledger.post(w.t, acct, "sink:loan_principal", cash, `loan:${loan.id}`);
+  owed -= Math.max(0, cash);
+  if (!stakeFirst) owed -= fromStake(owed);
+  if (owed > 0.005) w.purchaseLending.writtenOffFd += owed;
+  const back = w.ledger.balance(stakeAcct);
+  if (back > 0.005) w.ledger.post(w.t, stakeAcct, acct, back, `loan:${loan.id}`);
+  loan.principalFd = 0;
+  loan.status = owed > 0.005 ? "closed" : "repaid";
 }
 
 /** Carrier authority or broker license; paid at formation and renewed each season. */
@@ -698,6 +757,8 @@ export function createTruck(
     loadedMi: 0,
     leasedDay: lease === "lessor" ? day : null,
     leaseShareWeekFd: 0,
+    depositFd: 0,
+    depositDueFd: 0,
     driverId: 0,
     coDriverId: 0,
     wagePerMile: w.cfg.costs.driverWagePerMile,
@@ -773,6 +834,11 @@ export function takeSupplyFor(w: World, kind: TruckOrder["kind"], tier: TractorT
 
 /** Takes a truck out of its company's fleet (sale, repossession, retirement). */
 export function detachTruck(w: World, truck: Truck): void {
+  refundLeaseDeposit(w, truck);
+  // A truck bought on a purchase loan that leaves its owner (sold, traded in, written off, scrapped, stolen)
+  // settles the loan at once.
+  const loan = purchaseLoanOn(w, truck.id);
+  if (loan && loan.borrowerId === truck.companyId) closePurchaseLoan(w, loan);
   // The crew stays with the company, without a truck.
   if (truck.coDriverId) unseatDriver(w, staffById(w, truck.coDriverId));
   if (truck.driverId) unseatDriver(w, staffById(w, truck.driverId));

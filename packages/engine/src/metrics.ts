@@ -137,6 +137,11 @@ export interface DayMetrics {
   ceilingFd: number;
   rateMult: number;
   queuedAirdropFd: number;
+  /** NPC leases priced by value (freeEntry.leases.byValue): the deposits the lessor holds. */
+  leaseDepositsFd: number;
+  /** Purchase loans (purchaseLoans.ts): what borrowers still owe the NPC lender, and how many loans are open. */
+  purchaseLoansFd: number;
+  purchaseLoansOpen: number;
   companies: number;
   profitTaxRate: number;
   demandScale: number;
@@ -491,6 +496,9 @@ export class MetricsRecorder {
       ceilingFd: ceilingFd(w),
       rateMult: w.stab.rateMult,
       queuedAirdropFd: queuedAirdropFd(w),
+      leaseDepositsFd: w.trucks.reduce((s, t) => s + (t.companyId !== 0 ? t.depositFd : 0), 0),
+      purchaseLoansFd: w.purchaseLoans.reduce((s, l) => s + (l.status === "active" || l.status === "defaulted" ? l.principalFd : 0), 0),
+      purchaseLoansOpen: w.purchaseLoans.filter((l) => l.status === "active" || l.status === "defaulted").length,
       companies: w.companies.length,
       profitTaxRate: w.token.launchDay !== null ? w.token.profitTaxRate : 0,
       demandScale: w.demandScale,

@@ -9,7 +9,8 @@ import { dayOf } from "./clock.js";
 import { dealerPrice, ordersOf, placeOrder, tractorOrdersOf, tractorPrice, trailerOrdersOf, trailerPrice } from "./dealer.js";
 import { fitTrailer, hook, hookedTrailer, ownedTrailers, rentTrailer, scrapTrailer, syncTrailer, trailerById, trailerCap, trailerCondition, trailerRefurbishable, unhook } from "./trailers.js";
 import { scrapOwnedTractor } from "./assets.js";
-import { npcDealerDays, npcDealerMult, sellFromStock, tradeIn } from "./dealerships.js";
+import { dealershipPrice, npcDealerDays, npcDealerMult, sellFromStock, tradeIn } from "./dealerships.js";
+import { cancelPurchaseLoan, financePurchase } from "./purchaseLoans.js";
 import { endPlayerLease, leasedOut, offerLease, takeLease, withdrawLeaseOffer } from "./playerLeases.js";
 import { buyAssetSale, listAssetSale, withdrawAssetSale } from "./assetSales.js";
 import { facilitiesOf, facilityEquipment } from "./demand.js";
@@ -55,7 +56,7 @@ export function badInput(cfg: EconomyConfig, a: Action): string | null {
     case "set_standing_orders":
       return invalidOrders(cfg, a.orders);
     case "buy_asset":
-      return TIERS.has(a.tier) && TRAILERS.has(a.trailer) && typeof a.replaceNpcLease === "boolean" && (a.tractorOnly === undefined || typeof a.tractorOnly === "boolean") && (a.dealershipId === undefined || isId(a.dealershipId)) ? null : "bad truck";
+      return TIERS.has(a.tier) && TRAILERS.has(a.trailer) && typeof a.replaceNpcLease === "boolean" && (a.tractorOnly === undefined || typeof a.tractorOnly === "boolean") && (a.dealershipId === undefined || isId(a.dealershipId)) && (a.finance === undefined || typeof a.finance === "boolean") ? null : "bad truck";
     case "buy_trailer":
       return TRAILERS.has(a.trailer) && (a.dealershipId === undefined || isId(a.dealershipId)) ? null : "bad trailer";
     case "trade_in":
@@ -103,8 +104,9 @@ export function badInput(cfg: EconomyConfig, a: Action): string | null {
     case "list_truck":
       return isId(a.truckId) && isFd(a.askFd) && isFd(a.floorFd) && isFd(a.stepFd) ? null : "bad listing";
     case "withdraw_listing":
-    case "buy_listing":
       return isId(a.listingId) ? null : "bad listing id";
+    case "buy_listing":
+      return isId(a.listingId) && (a.finance === undefined || typeof a.finance === "boolean") ? null : "bad listing id";
     case "deposit_finance":
     case "withdraw_finance":
       return finiteIn(a.amountFd, 0.01, 1e12) ? null : "bad amount";
@@ -399,9 +401,16 @@ export function applyAction(w: World, companyId: number, action: Action): Action
       if (cfg.assets.enabled && action.dealershipId) {
         const b = w.businesses[action.dealershipId - 1];
         if (!b) return { ok: false, reason: "no such dealership" };
+        // On a purchase loan: the lender's share lands first, so the dealership is paid in full.
+        const loan = action.finance ? financePurchase(w, company, dealershipPrice(w, b, company.id, kind, action.tier, action.trailer)) : null;
+        if (typeof loan === "string") return { ok: false, reason: loan };
         const why = sellFromStock(w, company, b, kind, action.tier, action.trailer);
-        if (why) return { ok: false, reason: why };
-        placeOrder(w, company, action.tier, action.trailer, replacing, kind, cfg.businesses.kinds.dealership.deliveryDays);
+        if (why) {
+          if (loan) cancelPurchaseLoan(w, loan);
+          return { ok: false, reason: why };
+        }
+        const order = placeOrder(w, company, action.tier, action.trailer, replacing, kind, cfg.businesses.kinds.dealership.deliveryDays);
+        if (loan) loan.orderId = order.id;
         company.firstOwnedTruckDay ??= dayOf(w.t, cfg);
         return { ok: true };
       }
@@ -409,13 +418,19 @@ export function applyAction(w: World, companyId: number, action: Action): Action
       if (availableSupplyFor(w, kind, action.tier, action.trailer, firstTruck) <= 0) return { ok: false, reason: "PoC supply exhausted" };
       // The NPC dealer: list price; while a player dealership is open, the backstop's premium and longer wait.
       const price = (kind === "tractor" ? tractorPrice(w, action.tier) : dealerPrice(w, action)) * npcDealerMult(w);
-      if (w.ledger.balance(acct) < price) return { ok: false, reason: "insufficient FD" };
+      const loan = action.finance ? financePurchase(w, company, price) : null;
+      if (typeof loan === "string") return { ok: false, reason: loan };
+      if (w.ledger.balance(acct) < price) {
+        if (loan) cancelPurchaseLoan(w, loan);
+        return { ok: false, reason: "insufficient FD" };
+      }
 
       const ref = `buy:${company.id}:${action.tier}:${kind === "tractor" ? "tractor" : action.trailer}`;
       w.ledger.post(w.t, acct, "sink:equipment_dealer", price, ref);
       chargeSalesTax(w, company.id, price, ref);
       takeSupplyFor(w, kind, action.tier, action.trailer, firstTruck);
-      placeOrder(w, company, action.tier, action.trailer, replacing, kind, npcDealerDays(w));
+      const order = placeOrder(w, company, action.tier, action.trailer, replacing, kind, npcDealerDays(w));
+      if (loan) loan.orderId = order.id;
       company.firstOwnedTruckDay ??= dayOf(w.t, cfg);
       return { ok: true };
     }
@@ -617,9 +632,22 @@ export function applyAction(w: World, companyId: number, action: Action): Action
     case "withdraw_listing":
       return result(withdrawListing(w, company.id, action.listingId));
 
-    case "buy_listing":
+    case "buy_listing": {
       if (inCloseWindow(w)) return LOCKED;
-      return result(buyListing(w, company.id, action.listingId));
+      if (!action.finance) return result(buyListing(w, company.id, action.listingId));
+      // On a purchase loan: a used truck (not a trailer alone), secured by itself once it's bought.
+      const l = w.listings[action.listingId - 1];
+      if (!l || l.status !== "open" || l.trailerId) return { ok: false, reason: "no such truck listing" };
+      const loan = financePurchase(w, company, l.askFd);
+      if (typeof loan === "string") return { ok: false, reason: loan };
+      const why = buyListing(w, company.id, action.listingId);
+      if (why) {
+        cancelPurchaseLoan(w, loan);
+        return { ok: false, reason: why };
+      }
+      loan.truckId = l.truckId;
+      return { ok: true };
+    }
 
     case "deposit_finance":
       return result(deposit(w, company.id, action.amountFd));

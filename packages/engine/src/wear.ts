@@ -98,6 +98,14 @@ export function newPrice(cfg: EconomyConfig, t: Pick<TruckSpec, "tier" | "traile
 }
 
 /**
+ * What an NPC lease is priced on (freeEntry.leases.byValue): a new rig at list for an extra lease, an older
+ * one for the free path's truck.
+ */
+export function leaseValueFd(cfg: EconomyConfig, t: Pick<TruckSpec, "tier" | "trailer" | "lease">): number {
+  return newPrice(cfg, t) * (t.lease === "npc" ? cfg.freeEntry.leases.byValue.starterValueShare : 1);
+}
+
+/**
  * Used value: new price, down with mileage and age ("year/mileage"), then down
  * again for wear. NPC-leased trucks belong to the lessor and have no value to the
  * lessee.

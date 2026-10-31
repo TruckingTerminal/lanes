@@ -417,6 +417,7 @@ export function weeklyToken(w: World): void {
     c.loadsThisWeek = 0;
     const spent = c.weeklySpend.at(-1) ?? 0;
     c.lockedFd = Math.max(0, Math.min(c.lockedFd - spent, w.ledger.balance(companyAccount(c.id))));
+    c.freePathLockedFd = Math.min(c.freePathLockedFd, c.lockedFd); // spending uses the free path's locked FD too
     if (c.liquidatingSince === null) active++;
   }
   if (w.token.profitTaxRate > 0) chargeProfitTax(w);

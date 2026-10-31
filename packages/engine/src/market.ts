@@ -8,7 +8,7 @@ import { dealerPrice } from "./dealer.js";
 import { handBack, hook, hookedTrailer, ownedTrailers, scrapTrailer, trailerCap, transferTrailer, unhook } from "./trailers.js";
 import { scrapTractor } from "./assets.js";
 import { truckCap } from "./staking.js";
-import { attachTruck, companyById, detachTruck, staffById, truckById, unseatDriver, type World } from "./world.js";
+import { attachTruck, companyById, detachTruck, staffById, truckById, unlockFreePathEarnings, unseatDriver, type World } from "./world.js";
 
 /**
  * The used-truck market. Any owner can list an idle truck; Equipment Finance
@@ -138,6 +138,7 @@ export function buyListing(w: World, buyerId: number, listingId: number): string
     detachTruck(w, npc);
     npc.status = "retired";
     buyer.firstOwnedTruckDay ??= dayOf(w.t, cfg);
+    unlockFreePathEarnings(buyer);
   }
   attachTruck(w, truck, buyerId);
   buyer.usedBought++;

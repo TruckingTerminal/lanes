@@ -78,6 +78,7 @@ import {
   type World,
 } from "@lanes/engine";
 import { businessesOf, businessPriceFd, sitePriceFd, type BusinessKind } from "@lanes/engine";
+import { financedCashNeed, openPurchaseLoans, purchaseTerms, salesTaxOn } from "@lanes/engine";
 
 /**
  * Tier A rule bots (§AI-agent simulation): scripted greedy, conservative and
@@ -144,6 +145,8 @@ interface BotProfile {
   traderFd: number;
   /** Token mode: takes the airdrop's rest at launch, haircut and all. */
   claimsEarly: boolean;
+  /** No free tier (freeEntry.freePath "none"): a newcomer that buys in, its own dollars for FD, then a truck. */
+  buyIn?: boolean;
   /**
    * Adversaries (config adversaries): a farmer hauls to keep its airdrop, sells everything it can every
    * week whatever the price, and quits on `quitDay`; a sybil is a farmer wallet of a cluster that sells
@@ -556,9 +559,10 @@ function admitNewcomers(w: World): void {
       homeHubId: starterHub(w, rng),
       strategy: farmer ? `farm:new-${strategy}` : `new:${strategy}`,
       orders: carrierOrders(profile),
-      freePath: true,
+      freePath: w.cfg.freeEntry.freePath !== "none",
       ownerSkill: ownerSkill(w, rng),
     });
+    if (w.cfg.freeEntry.freePath === "none") profile.buyIn = true;
     profiles.set(c, profile);
     c.usd.wallet = WALLETS.newcomer(rng) * w.cfg.token.newCompanies.usdWalletMult; // the demand lever
     setConduct(w, c, profile);
@@ -890,6 +894,28 @@ function borrowFor(w: World, c: Company, needFd: number): boolean {
 }
 
 /** Deposit spare cash, pull it back when short, and (if prudent) pay loans off early. */
+/**
+ * No free tier: a newcomer puts its own dollars into FD and buys a Workhorse and van, on a purchase loan
+ * when they're on. One that can't afford it doesn't start.
+ */
+function buyIn(w: World, c: Company, p: BotProfile): void {
+  const src = w.cfg.assets.enabled ? bestSource(w, c.id, "rig", "workhorse", "van") : null;
+  if (!src?.dealershipId && availableSupply(w, "workhorse", "van", true) <= 0) return;
+  const price = src ? src.price : dealerPrice(w, { tier: "workhorse", trailer: "van" });
+  const onLoan = w.cfg.equipmentFinance.purchase.enabled && openPurchaseLoans(w, c.id).length < purchaseTerms(w, c).maxLoans;
+  const need = (onLoan ? financedCashNeed(w, c, price) : price + salesTaxOn(w, price)) + p.firstTruckBuffer;
+  const cash = w.ledger.balance(companyAccount(c.id));
+  if (cash < need && !buyFdFor(w, c, need - cash)) return;
+  applyAction(w, c.id, { type: "buy_asset", tier: "workhorse", trailer: "van", replaceNpcLease: false, dealershipId: src?.dealershipId || undefined, finance: onLoan || undefined });
+}
+
+/** Purchase loans: the dearest truck a down payment, the loan's stake and the tax out of this budget will carry (0 when off or at the credit limit). */
+function financedBudget(w: World, c: Company, budget: number): number {
+  if (!w.cfg.equipmentFinance.purchase.enabled || budget <= 0) return 0;
+  if (openPurchaseLoans(w, c.id).length >= purchaseTerms(w, c).maxLoans) return 0;
+  return budget / financedCashNeed(w, c, 1);
+}
+
 function manageCash(w: World, c: Company, p: BotProfile): void {
   const acct = companyAccount(c.id);
   const cash = w.ledger.balance(acct);
@@ -1194,20 +1220,29 @@ export const ruleBotHook: DailyAgentHook = (w) => {
 
       if (!locked) {
         const npcTruck = fleet.find((t) => t.lease === "npc");
+        if (p.buyIn && !npcTruck && fleet.length === 0 && ordersOf(w, c.id).length === 0) {
+          buyIn(w, c, p);
+          continue;
+        }
         if (npcTruck) {
           // The free path: a decent used truck if one's affordable today, else a new
           // Workhorse + dry van from the dealer (which keeps the NPC lease until it arrives).
           if (ordersOf(w, c.id).length > 0) continue;
           const cash = w.ledger.balance(acct);
           const used = npcTruck.status === "idle" ? bestListing(w, cash - p.firstTruckBuffer, c.id, true) : null;
+          // Purchase loans: a used truck on credit, if the down payment and the loan's stake fit when the price doesn't.
+          const usedOnLoan = used || npcTruck.status !== "idle" ? null : bestListing(w, financedBudget(w, c, cash - p.firstTruckBuffer), c.id, true);
           // Assets: the cheapest new Workhorse and van, a dealership's in stock or the NPC dealer's.
           const src = cfg.assets.enabled ? bestSource(w, c.id, "rig", "workhorse", "van") : null;
           if (used) applyAction(w, c.id, { type: "buy_listing", listingId: used.id });
+          else if (usedOnLoan) applyAction(w, c.id, { type: "buy_listing", listingId: usedOnLoan.id, finance: true });
           else if (src?.dealershipId || availableSupply(w, "workhorse", "van", true) > 0) {
-            const need = (src ? src.price : dealerPrice(w, { tier: "workhorse", trailer: "van" })) + p.firstTruckBuffer;
+            const price = src ? src.price : dealerPrice(w, { tier: "workhorse", trailer: "van" });
+            const need = price + p.firstTruckBuffer;
             // Token mode: a paying player can buy the FD it's short instead of saving it up.
             const funded = cash >= need || (live && p.payToWin && buyFdFor(w, c, need - cash));
-            if (funded) applyAction(w, c.id, { type: "buy_asset", tier: "workhorse", trailer: "van", replaceNpcLease: true, dealershipId: src?.dealershipId || undefined });
+            const onLoan = !funded && financedBudget(w, c, cash - p.firstTruckBuffer) >= price;
+            if (funded || onLoan) applyAction(w, c.id, { type: "buy_asset", tier: "workhorse", trailer: "van", replaceNpcLease: true, dealershipId: src?.dealershipId || undefined, finance: onLoan || undefined });
           }
           continue; // no other investment until the first truck is owned
         }
@@ -1259,9 +1294,11 @@ export const ruleBotHook: DailyAgentHook = (w) => {
           // Assets: a tractor on lease from another carrier, if its rent is well inside what a truck here earns.
           const lease = parked || !cfg.assets.enabled ? null : bestLeaseOffer(w, c, p, today, active);
           const used = parked || lease ? null : bestListing(w, cash - need, c.id);
+          const usedOnLoan = parked || lease || used ? null : bestListing(w, financedBudget(w, c, cash - need), c.id);
           if (parked) applyAction(w, c.id, { type: "unpark_truck", truckId: parked.id });
           else if (lease) applyAction(w, c.id, { type: "take_lease", offerId: lease });
           else if (used) applyAction(w, c.id, { type: "buy_listing", listingId: used.id });
+          else if (usedOnLoan) applyAction(w, c.id, { type: "buy_listing", listingId: usedOnLoan.id, finance: true });
           else {
             let ordered = false;
             if (deliveryDays(w) <= p.maxLeadDays) {
@@ -1273,8 +1310,10 @@ export const ruleBotHook: DailyAgentHook = (w) => {
                 const src = cfg.assets.enabled ? bestSource(w, c.id, kind, pick.tier, spare?.type ?? pick.trailer) : null;
                 const price = src ? src.price : dealerPrice(w, pick);
                 const short = price + need - cash;
-                if (short <= 0 || (p.leverage && borrowFor(w, c, short)) || (live && p.payToWin && buyFdFor(w, c, short))) {
-                  ordered = applyAction(w, c.id, { type: "buy_asset", tier: pick.tier, trailer: spare?.type ?? pick.trailer, replaceNpcLease: false, tractorOnly: spare !== null, dealershipId: src?.dealershipId || undefined }).ok;
+                // Purchase loans first when cash is short: the truck secures its own loan.
+                const onLoan = short > 0 && financedBudget(w, c, cash - need) >= price;
+                if (short <= 0 || onLoan || (p.leverage && borrowFor(w, c, short)) || (live && p.payToWin && buyFdFor(w, c, short))) {
+                  ordered = applyAction(w, c.id, { type: "buy_asset", tier: pick.tier, trailer: spare?.type ?? pick.trailer, replaceNpcLease: false, tractorOnly: spare !== null, dealershipId: src?.dealershipId || undefined, finance: onLoan || undefined }).ok;
                 }
               }
             }

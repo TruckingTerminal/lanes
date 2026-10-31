@@ -4,6 +4,7 @@ import { ordersOf } from "./dealer.js";
 import { truckCap } from "./staking.js";
 import { companyAccount } from "./ledger.js";
 import type { Company, Truck } from "./types.js";
+import { leaseValueFd } from "./wear.js";
 import { createTruck, detachTruck, type World } from "./world.js";
 
 /**
@@ -29,8 +30,16 @@ export function leaseTruck(w: World, c: Company, trailer: Equipment): string | n
   if (fleet.length + ordersOf(w, c.id).length >= truckCap(w, c)) return "company truck cap";
   if (lessorTrucksOf(w, c.id).length >= rules.maxPerCompany) return "company lease cap";
   if (w.lessor.out >= w.lessor.fleet) return "the lessor has nothing left to lease";
-  createTruck(w, c, "lessor", "workhorse", trailer);
+  // A lease priced by value: the deposit up front, refunded when the truck goes back.
+  const byValue = rules.byValue;
+  const deposit = byValue.enabled ? byValue.depositShare * leaseValueFd(cfg, { tier: "workhorse", trailer, lease: "lessor" }) : 0;
+  if (deposit > 0 && w.ledger.balance(companyAccount(c.id)) < deposit) return "not enough FD for the lessor's deposit";
+  const t = createTruck(w, c, "lessor", "workhorse", trailer);
   w.lessor.out++;
+  if (deposit > 0) {
+    w.ledger.post(w.t, companyAccount(c.id), "sink:lease_deposit", deposit, `deposit:${t.id}`);
+    t.depositFd = t.depositDueFd = deposit;
+  }
   return null;
 }
 
@@ -46,11 +55,18 @@ export function returnLease(w: World, c: Company, truck: Truck): string | null {
   return null;
 }
 
-/** Weekly: a leased truck whose share didn't reach the minimum rent pays the difference. */
+/**
+ * Weekly: a leased truck whose share didn't reach the minimum rent pays the difference. Priced by value
+ * (freeEntry.leases.byValue), the minimum is also a share of the truck's value, and it covers the free
+ * path's truck too.
+ */
 export function chargeMinimumRent(w: World): void {
-  const min = w.cfg.freeEntry.leases.minWeeklyFd;
+  const rules = w.cfg.freeEntry.leases;
   for (const t of w.trucks) {
-    if (t.lease === "lessor" && t.companyId !== 0 && t.status !== "retired") {
+    const leased = t.lease === "lessor" || (rules.byValue.enabled && t.lease === "npc");
+    if (leased && t.companyId !== 0 && t.status !== "retired") {
+      const byValue = rules.byValue.enabled ? rules.byValue.weeklyShareOfValue * leaseValueFd(w.cfg, t) : 0;
+      const min = Math.max(t.lease === "lessor" ? rules.minWeeklyFd : 0, byValue);
       const short = min - t.leaseShareWeekFd;
       if (short > 0) w.ledger.post(w.t, companyAccount(t.companyId), "sink:npc_lease", short, `rent:${t.id}`);
     }

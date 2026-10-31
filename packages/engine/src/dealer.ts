@@ -3,7 +3,8 @@ import { dayOf } from "./clock.js";
 import { clamp } from "./economics.js";
 import type { Company, Trailer, Truck, TruckOrder } from "./types.js";
 import { marketValue, newPrice, tractorMarketValue, trailerMarketValue, type TruckSpec } from "./wear.js";
-import { createTruck, freshPaperwork, syncTruck, type World } from "./world.js";
+import { bindOrderLoan } from "./purchaseLoans.js";
+import { createTruck, freshPaperwork, refundLeaseDeposit, syncTruck, unlockFreePathEarnings, type World } from "./world.js";
 import { truckCap } from "./staking.js";
 import { fitTrailer, handBack, hook, hookedTrailer, newTrailer, trailerCondition, trailerLifeUsed, trailersOf, unhook } from "./trailers.js";
 import { notice } from "./safety.js";
@@ -136,7 +137,10 @@ export function deliverOrders(w: World): void {
       continue;
     }
     if (npc) {
-      // The lease goes back to the NPC lessor (its trailer too); the new truck starts where it stood, and takes its ladder slot.
+      // The lease goes back to the NPC lessor (its trailer too, and its deposit back to the carrier); the new
+      // truck starts where it stood, and takes its ladder slot.
+      refundLeaseDeposit(w, npc);
+      unlockFreePathEarnings(company);
       if (w.cfg.assets.enabled) unhook(w, npc);
       Object.assign(npc, {
         lease: "owned",
@@ -158,6 +162,7 @@ export function deliverOrders(w: World): void {
       syncTruck(w, npc);
     }
     const delivered = npc ?? createTruck(w, company, "owned", o.tier, o.trailer, undefined, company.homeHub, o.kind === "tractor" ? "fit" : "new");
+    bindOrderLoan(w, o.id, delivered.id); // a purchase loan takes the truck it paid for as security
     w.metrics.onTruckDelivered();
     w.listener?.({ kind: "truckDelivered", companyId: company.id, truckId: delivered.id });
   }

@@ -500,6 +500,22 @@ export const economyConfig = {
     repoStartPctOfValue: 0.85,
     repoWeeklyStepPctOfValue: 0.1,
     repoFloorPctOfValue: 0.4,
+    // Purchase loans (Jeff, 2026-10-31: real equipment finance, secured by the truck being bought; the v40
+    // calibration found a first truck could only be bought for cash). The NPC lender pays what the buyer
+    // doesn't put down; the buyer locks an FD stake of `stakeShare` of the loan until it's paid (Jeff:
+    // test 10% and 25%) and repays weekly with interest over `termWeeks`. Down payment, rate and how many
+    // loans a company may carry follow its credit score (credit.ts), strong … weak. Two missed payments
+    // default the loan: the lender takes the truck at its market value, the stake covers what that
+    // doesn't, and the rest is written off. Off until the batches size it.
+    purchase: {
+      enabled: false,
+      downShare: [0.1, 0.2] as const,
+      weeklyRate: [0.002, 0.004] as const,
+      stakeShare: 0.1,
+      termWeeks: 104,
+      maxLoans: [5, 1] as const,
+      missedToDefault: 2,
+    },
   },
 
   // §Assets — wear and rebuild; million-mile trucks. Wear is what owners pay for
@@ -694,6 +710,12 @@ export const economyConfig = {
   // PoC assumption (design proposal): free entry, so capacity can grow into a boom
   // instead of the PoC caps turning every boom into fleet rents.
   freeEntry: {
+    // The free tier (Jeff, 2026-10-31; counsel decides which ships). "lease": a newcomer starts on the NPC
+    // lease, as today. "spendOnly": the same, but after launch what the free path earns stays spend-only until
+    // the company owns a truck (identity checks come with real money), so a farm can't cash it out. "none":
+    // after launch a newcomer has no free path: it buys FD with its own dollars and buys a truck, on a
+    // purchase loan when they're on.
+    freePath: "lease" as "lease" | "spendOnly" | "none",
     // Extra NPC leases (§Assets: "the NPC lease fleet is separate, unlimited"):
     // a carrier that owns a truck can lease more Workhorses, any trailer, on the
     // free path's terms — 15% of gross, the lessor maintains them — with no
@@ -712,6 +734,15 @@ export const economyConfig = {
       maxPerCompany: 10,
       minTermDays: 28,
       minWeeklyFd: 250, // minimum rent: a leased truck pays at least this a week, share or not
+      // Leases priced by the truck's value (Jeff, 2026-10-31: "even leasing requires some type of token
+      // stake", a deposit of at least 25%; the v40 calibration: dear trucks pushed everyone into a lease
+      // at 15% of gross whatever the truck cost). An NPC lease pays at least `weeklyShareOfValue` of the
+      // truck's value a week, and the lessor holds a refundable deposit of `depositShare` of it: paid up
+      // front on an extra lease, held back from the free path's settlements (`escrowShareOfPay` of each)
+      // until it's whole, and paid back when the truck goes back or is replaced. The free path's truck is
+      // an older one, valued at `starterValueShare` of a new rig (lease-purchase programs run used trucks).
+      // Off until the batches size it.
+      byValue: { enabled: false, weeklyShareOfValue: 0.005, depositShare: 0.25, escrowShareOfPay: 0.3, starterValueShare: 0.35 },
     },
     // OEM build slots: when the dealer's remaining supply of a tractor tier or
     // trailer type (outside the starter reserve) is under 10% of its cap while

@@ -78,6 +78,21 @@ export interface RunReport {
   /** The trailer pass and the risk corridors: waits at docks, missed appointment slots, flatbed damage claims, cargo thefts. */
   operations: { dockWaits: number; dockWaitHours: number; missedSlots: number; flatbedDamage: number; cargoThefts: number; cargoTheftFd: number };
   /**
+   * The money behind trucks (2026-10-31): NPC lease deposits held at the end; purchase loans made, still
+   * owed and open at the end, interest paid, defaults, trucks taken back, stakes slashed and written off.
+   */
+  truckMoney?: {
+    leaseDepositsEndFd: number;
+    loansMadeFd: number;
+    loansOwedEndFd: number;
+    loansOpenEnd: number;
+    interestFd: number;
+    defaults: number;
+    seized: number;
+    stakeSlashedFd: number;
+    writtenOffFd: number;
+  };
+  /**
    * Assets and destruction (assets.enabled): what was scrapped, written off and stolen; the factory's
    * output and how it was sold; trailers, rentals, swaps and leases; and the equipment sinks against all
    * sinks: new equipment bought (the NPC dealer's sales and the dealerships' wholesale), and every cost of
@@ -508,6 +523,17 @@ export function buildReport(w: World): RunReport {
       flatbedDamage: sum(days.map((d) => d.flatbedDamage ?? 0)),
       cargoThefts: sum(days.map((d) => d.cargoThefts ?? 0)),
       cargoTheftFd: sum(days.map((d) => d.cargoTheftFd ?? 0)),
+    },
+    truckMoney: {
+      leaseDepositsEndFd: days.at(-1)?.leaseDepositsFd ?? 0,
+      loansMadeFd: w.purchaseLending.madeFd,
+      loansOwedEndFd: days.at(-1)?.purchaseLoansFd ?? 0,
+      loansOpenEnd: days.at(-1)?.purchaseLoansOpen ?? 0,
+      interestFd: w.purchaseLending.interestFd,
+      defaults: w.purchaseLending.defaults,
+      seized: w.purchaseLending.seized,
+      stakeSlashedFd: w.purchaseLending.stakeSlashedFd,
+      writtenOffFd: w.purchaseLending.writtenOffFd,
     },
     assets: (() => {
       const total = sum(Object.values(sinksByTag)) + sum(days.map((d) => d.burnFd));

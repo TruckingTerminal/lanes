@@ -406,8 +406,21 @@ function deliver(w: World, truck: Truck, now: number): void {
     w.ledger.post(w.t, carrierAcct, "sink:npc_lease", lease, ref);
     truck.leaseShareWeekFd += lease;
     costs += lease;
+    // A lease priced by value: the lessor holds back part of each settlement until the deposit is whole
+    // (refundable, so not a cost).
+    const owed = truck.depositDueFd - truck.depositFd;
+    if (owed > 0.005 && paid > 0) {
+      const hold = Math.min(owed, paid * cfg.freeEntry.leases.byValue.escrowShareOfPay);
+      w.ledger.post(w.t, carrierAcct, "sink:lease_deposit", hold, `deposit:${truck.id}`);
+      truck.depositFd += hold;
+    }
   }
   carrier.operating.revenueFd += paid;
+  // The free tier "spendOnly": after launch the free path's earnings are spend-only until a truck is owned.
+  if (cfg.freeEntry.freePath === "spendOnly" && truck.lease === "npc" && paid > 0 && w.token.launchDay !== null) {
+    carrier.lockedFd += paid;
+    carrier.freePathLockedFd += paid;
+  }
   carrier.operating.costFd += costs;
 
   // On-time and reputation.

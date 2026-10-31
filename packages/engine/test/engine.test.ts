@@ -95,6 +95,8 @@ import { highValueMult, theftRatePerMile, theftRiskAt } from "../src/risk.js";
 import { startLoading } from "../src/trips.js";
 import { dockWaitCost } from "../src/standingOrders.js";
 import { ceilingFd, outstandingFd, queuedAirdropFd } from "../src/ceiling.js";
+import { financedCashNeed, purchaseTerms } from "../src/purchaseLoans.js";
+import { detachTruck, truckById } from "../src/world.js";
 import { COMMODITY_INDEX } from "@lanes/data";
 
 const net = buildNetwork(hubs, cfg);
@@ -998,6 +1000,169 @@ describe("the supply ceiling (2026-10-31): complete supply control", () => {
       populate(w, { freeOwnerOperators: 30, fleets: 6, brokers: 3 });
       runDays(w, 45, ruleBotHook);
       return { prices: w.token.priceHistory, supply: w.ledger.supply(), mult: w.stab.rateMult, queued: queuedAirdropFd(w), ceiling: w.token.ceiling };
+    };
+    expect(run()).toEqual(run());
+  });
+});
+
+describe("trucks and the money behind them (2026-10-31): leases by value, purchase loans, the free tier", () => {
+  // Dear trucks (ten times the base list), so a lease's value floor and a loan's sizes stand out.
+  const dear = (c: EconomyConfig): EconomyConfig => ({
+    ...c,
+    dealerFd: { tractor: { workhorse: 140_000, highwayPro: 320_000, flagship: 700_000 }, trailer: { van: 40_000, reefer: 100_000, flatbed: 70_000 } },
+  });
+  const byValue: EconomyConfig = dear({ ...calm, freeEntry: { ...calm.freeEntry, leases: { ...calm.freeEntry.leases, byValue: { ...calm.freeEntry.leases.byValue, enabled: true } } } });
+  const lending: EconomyConfig = dear({ ...calm, equipmentFinance: { ...calm.equipmentFinance, purchase: { ...calm.equipmentFinance.purchase, enabled: true } } });
+
+  it("prices an NPC lease by value: the deposit up front, a weekly floor on the truck's value, and the deposit back when it's returned", () => {
+    const w = createWorld({ cfg: byValue, net, feeds: neutralFeeds, seed: 71, keepLedgerEntries: true });
+    const c = carrier(w);
+    const acct = companyAccount(c.id);
+    addTruck(w, c, "owned", "workhorse", "van");
+    const k = byValue.freeEntry.leases.byValue;
+    const value = 140_000 + 100_000; // a new Workhorse and reefer at list
+    fund(w, c.id, k.depositShare * value - 1 - w.ledger.balance(acct));
+    expect(applyAction(w, c.id, { type: "lease_truck", trailer: "reefer" })).toEqual({ ok: false, reason: "not enough FD for the lessor's deposit" });
+    fund(w, c.id, 1_000);
+    const before = w.ledger.balance(acct);
+    expect(applyAction(w, c.id, { type: "lease_truck", trailer: "reefer" }).ok).toBe(true);
+    const leased = w.trucksByCompany.get(c.id)!.find((t) => t.lease === "lessor")!;
+    expect(leased.depositFd).toBeCloseTo(k.depositShare * value, 2);
+    expect(before - w.ledger.balance(acct)).toBeCloseTo(k.depositShare * value, 2);
+    // Idle, it pays the floor: a share of its value, well over the flat minimum.
+    runDays(w, 7);
+    const rent = w.ledger.entries.filter((e) => e.ref === `rent:${leased.id}`).reduce((s, e) => s + e.amount, 0);
+    expect(rent).toBeCloseTo(k.weeklyShareOfValue * value, 2);
+    expect(rent).toBeGreaterThan(byValue.freeEntry.leases.minWeeklyFd);
+    runDays(w, byValue.freeEntry.leases.minTermDays);
+    const id = leased.id;
+    expect(applyAction(w, c.id, { type: "return_lease", truckId: id }).ok).toBe(true);
+    const back = w.ledger.entries.filter((e) => e.from === "faucet:lease_deposit" && e.ref === `deposit:${id}`).reduce((s, e) => s + e.amount, 0);
+    expect(back).toBeCloseTo(k.depositShare * value, 2);
+    w.ledger.assertBalanced();
+  });
+
+  it("holds the free path's deposit back from its settlements, and pays it back when an owned truck replaces the lease", () => {
+    const w = createWorld({ cfg: byValue, net, feeds: neutralFeeds, seed: 73, keepLedgerEntries: true });
+    populate(w, { freeOwnerOperators: 30, fleets: 4, brokers: 3 });
+    const k = byValue.freeEntry.leases.byValue;
+    const due = k.depositShare * k.starterValueShare * (140_000 + 40_000);
+    runDays(w, 20, ruleBotHook);
+    const starters = w.trucks.filter((t) => t.lease === "npc" && t.companyId !== 0);
+    expect(starters.length).toBeGreaterThan(10);
+    for (const t of starters) {
+      expect(t.depositDueFd).toBeCloseTo(due, 2);
+      expect(t.depositFd).toBeLessThanOrEqual(due + 1e-6);
+    }
+    const held = starters.filter((t) => t.depositFd > 0);
+    expect(held.length).toBeGreaterThan(0);
+    // A free owner-operator buys its first truck: the lease goes back and so does the deposit.
+    const t = held.find((x) => x.status === "idle") ?? held[0]!;
+    const c = w.companies[t.companyId - 1]!;
+    const deposit = t.depositFd;
+    fund(w, c.id, 400_000);
+    expect(applyAction(w, c.id, { type: "buy_asset", tier: "workhorse", trailer: "van", replaceNpcLease: true }).ok).toBe(true);
+    runDays(w, 60, ruleBotHook);
+    expect(t.lease).toBe("owned");
+    const back = w.ledger.entries.filter((e) => e.from === "faucet:lease_deposit" && e.ref === `deposit:${t.id}`).reduce((s, e) => s + e.amount, 0);
+    expect(back).toBeGreaterThanOrEqual(deposit - 1e-6);
+    expect(t.depositFd).toBe(0);
+    w.ledger.assertBalanced();
+  });
+
+  it("finances a truck on the NPC lender: the down payment and stake from the buyer, weekly payments, the truck as security, and taken back on default", () => {
+    const w = createWorld({ cfg: lending, net, feeds: neutralFeeds, seed: 72, keepLedgerEntries: true });
+    const c = carrier(w);
+    const acct = companyAccount(c.id);
+    const price = 140_000 + 40_000; // a Workhorse and van at list
+    const terms = purchaseTerms(w, c);
+    fund(w, c.id, financedCashNeed(w, c, price) + 10 - w.ledger.balance(acct));
+    expect(applyAction(w, c.id, { type: "buy_asset", tier: "workhorse", trailer: "van", replaceNpcLease: false })).toEqual({ ok: false, reason: "insufficient FD" });
+    expect(applyAction(w, c.id, { type: "buy_asset", tier: "workhorse", trailer: "van", replaceNpcLease: false, finance: true }).ok).toBe(true);
+    const loan = w.purchaseLoans[0]!;
+    expect(loan.originalFd).toBeCloseTo(price * (1 - terms.downShare), 2);
+    expect(w.ledger.balance(`co:loanstake:${loan.id}`)).toBeCloseTo(loan.originalFd * lending.equipmentFinance.purchase.stakeShare, 2);
+    expect(w.ledger.balance(acct)).toBeCloseTo(10, 1);
+    // Cash for the payments; the truck arrives and secures its loan.
+    fund(w, c.id, 30_000);
+    runDays(w, 45);
+    const truck = w.trucksByCompany.get(c.id)!.find((t) => t.lease === "owned")!;
+    expect(loan.truckId).toBe(truck.id);
+    expect(loan.status).toBe("active");
+    expect(loan.principalFd).toBeLessThan(loan.originalFd - 5 * (loan.originalFd / loan.termWeeks));
+    expect(w.purchaseLending.interestFd).toBeGreaterThan(0);
+    // Broke, with an old truck worth less than it owes: two missed payments, then the lender takes it.
+    w.ledger.post(w.t, acct, "sink:permits", w.ledger.balance(acct), "test");
+    truck.odometer = 950_000;
+    runDays(w, 21);
+    expect(w.purchaseLending.defaults).toBe(1);
+    expect(w.purchaseLending.seized).toBe(1);
+    expect(truck.status).toBe("retired");
+    expect(w.trucksByCompany.get(c.id)!.length).toBe(0);
+    expect(w.purchaseLending.stakeSlashedFd).toBeGreaterThan(0);
+    expect(w.purchaseLending.writtenOffFd).toBeGreaterThan(0);
+    expect(w.ledger.balance(`co:loanstake:${loan.id}`)).toBeCloseTo(0, 2);
+    expect(loan.status).toBe("closed");
+    w.ledger.assertBalanced();
+  });
+
+  it("settles a purchase loan from the owner's cash when its truck leaves (a sale, a trade-in, a write-off), and gives the stake back", () => {
+    const w = createWorld({ cfg: lending, net, feeds: neutralFeeds, seed: 74, keepLedgerEntries: true });
+    const c = carrier(w);
+    const acct = companyAccount(c.id);
+    fund(w, c.id, 300_000);
+    expect(applyAction(w, c.id, { type: "buy_asset", tier: "workhorse", trailer: "van", replaceNpcLease: false, finance: true }).ok).toBe(true);
+    runDays(w, 45);
+    const loan = w.purchaseLoans[0]!;
+    const truck = truckById(w, loan.truckId);
+    const stake = w.ledger.balance(`co:loanstake:${loan.id}`);
+    const owed = loan.principalFd;
+    const cash = w.ledger.balance(acct);
+    detachTruck(w, truck);
+    expect(loan.status).toBe("repaid");
+    expect(w.ledger.balance(`co:loanstake:${loan.id}`)).toBe(0);
+    expect(w.ledger.balance(acct)).toBeCloseTo(cash - owed + stake, 2);
+    w.ledger.assertBalanced();
+  });
+
+  it("the free tier: spend-only earnings until a truck is owned, or no free path at all after launch", () => {
+    const run = (mode: "spendOnly" | "none") => {
+      const c: EconomyConfig = { ...calm, seasonClose: { ...calm.seasonClose, enabled: false }, freeEntry: { ...calm.freeEntry, freePath: mode }, token: { ...calm.token, enabled: true, betaYears: 0.05, newCompanies: { ...calm.token.newCompanies, perWeek: 5 } } };
+      const w = createWorld({ cfg: c, net, feeds: neutralFeeds, seed: 75 });
+      populate(w, { freeOwnerOperators: 30, fleets: 4, brokers: 3 });
+      runDays(w, 50, ruleBotHook);
+      return w;
+    };
+    const spend = run("spendOnly");
+    expect(spend.token.launchDay).not.toBeNull();
+    const onFreePath = spend.companies.filter((x) => (spend.trucksByCompany.get(x.id) ?? []).some((t) => t.lease === "npc"));
+    expect(onFreePath.some((x) => x.freePathLockedFd > 0)).toBe(true);
+    for (const x of onFreePath) expect(x.lockedFd).toBeGreaterThanOrEqual(x.freePathLockedFd - 1e-6);
+    // Off the free path (its own truck arrived): what it earned there is sellable again.
+    const graduated = spend.companies.filter((y) => y.freePath && y.firstOwnedTruckDay !== null && !(spend.trucksByCompany.get(y.id) ?? []).some((t) => t.lease === "npc"));
+    expect(graduated.length).toBeGreaterThan(0);
+    for (const x of graduated) expect(x.freePathLockedFd).toBe(0);
+    const none = run("none");
+    const newcomers = none.companies.filter((x) => x.name.startsWith("New-"));
+    expect(newcomers.length).toBeGreaterThan(0);
+    for (const x of newcomers) {
+      expect(x.freePath).toBe(false);
+      expect((none.trucksByCompany.get(x.id) ?? []).some((t) => t.lease === "npc")).toBe(false);
+    }
+  });
+
+  it("replays exactly from the seed with leases by value, purchase loans and the spend-only free tier on", () => {
+    const all: EconomyConfig = {
+      ...lending,
+      seasonClose: { ...calm.seasonClose, enabled: false },
+      freeEntry: { ...byValue.freeEntry, freePath: "spendOnly" },
+      token: { ...calm.token, enabled: true, betaYears: 0.05, newCompanies: { ...calm.token.newCompanies, perWeek: 3 } },
+    };
+    const run = () => {
+      const w = createWorld({ cfg: all, net, feeds: { ...neutralFeeds, cycle: syntheticCassCycle({ seed: 76 }) }, seed: 76 });
+      populate(w, { freeOwnerOperators: 30, fleets: 6, brokers: 3 });
+      runDays(w, 45, ruleBotHook);
+      return { supply: w.ledger.supply(), loans: w.purchaseLoans.map((l) => [l.borrowerId, l.principalFd, l.status]), deposits: w.trucks.map((t) => t.depositFd), prices: w.token.priceHistory };
     };
     expect(run()).toEqual(run());
   });

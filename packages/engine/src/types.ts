@@ -199,6 +199,8 @@ export interface Company {
   usd: { wallet: number; in: number; out: number };
   /** FD that can be spent in the game but not sold: launch carryover and post-launch starting grants. Spending uses it first. */
   lockedFd: number;
+  /** freeEntry.freePath "spendOnly": the part of lockedFd the free path earned, unlocked with the first owned truck. */
+  freePathLockedFd: number;
   /** Staking (staking.ts): FD locked as the bond behind the licence, and FD in the exit queue with the day each slice clears. */
   stakedFd: number;
   unstaking: { fd: number; day: number }[];
@@ -476,6 +478,9 @@ export interface Truck {
   /** Lessor trucks: the day the lease began, and the lease share paid this week (against the minimum rent). */
   leasedDay: number | null;
   leaseShareWeekFd: number;
+  /** An NPC lease priced by value (freeEntry.leases.byValue): the deposit the lessor holds, and what it's owed in all. */
+  depositFd: number;
+  depositDueFd: number;
   /** Drivers (labor.ts): the driver, and a co-driver for a team (0 = none). */
   driverId: number;
   coDriverId: number;
@@ -728,6 +733,25 @@ export interface Loan {
   status: "active" | "repaid" | "defaulted" | "repossessed" | "closed";
 }
 
+/**
+ * A purchase loan from the NPC lender (purchaseLoans.ts): a truck bought on credit, secured by the truck
+ * itself and an FD stake. `orderId` is the dealer order it paid for (0 for a used truck); `truckId` is
+ * bound when the truck arrives.
+ */
+export interface PurchaseLoan {
+  id: number;
+  borrowerId: number;
+  orderId: number;
+  truckId: number;
+  originalFd: number;
+  principalFd: number;
+  weeklyRate: number;
+  termWeeks: number;
+  stakeFd: number;
+  missed: number;
+  status: "active" | "repaid" | "defaulted" | "closed";
+}
+
 /** A truck for sale on the used market. sellerId 0 = Equipment Finance selling a repossession. */
 export interface Listing {
   id: number;
@@ -773,7 +797,8 @@ export interface SeasonCloseRecord {
 export type Action =
   | { type: "set_standing_orders"; orders: StandingOrder[] }
   /** A dealer order. Assets: `tractorOnly` orders the tractor without a trailer (it hooks a spare from the yard, or a rental). */
-  | { type: "buy_asset"; tier: TractorTier; trailer: Equipment; replaceNpcLease: boolean; tractorOnly?: boolean; dealershipId?: number }
+  /** `finance`: on a purchase loan (purchaseLoans.ts) instead of cash. */
+  | { type: "buy_asset"; tier: TractorTier; trailer: Equipment; replaceNpcLease: boolean; tractorOnly?: boolean; dealershipId?: number; finance?: boolean }
   /** Assets: a trailer alone, delivered to the yard (or straight behind a tractor pulling a rental there). From a player dealership's stock, or the NPC dealer. */
   | { type: "buy_trailer"; trailer: Equipment; dealershipId?: number }
   /** Assets: sell an idle owned truck to a dealership's used lot at its trade-in share of value. */
@@ -800,7 +825,7 @@ export type Action =
   | { type: "unpark_truck"; truckId: number }
   | { type: "list_truck"; truckId: number; askFd: number; floorFd: number; stepFd: number }
   | { type: "withdraw_listing"; listingId: number }
-  | { type: "buy_listing"; listingId: number }
+  | { type: "buy_listing"; listingId: number; finance?: boolean }
   | { type: "deposit_finance"; amountFd: number }
   | { type: "withdraw_finance"; amountFd: number }
   | { type: "borrow"; truckId: number; amountFd: number }

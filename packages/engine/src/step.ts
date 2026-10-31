@@ -13,6 +13,7 @@ import { companyAccount } from "./ledger.js";
 import type { DayMetrics } from "./metrics.js";
 import { dealerPrice, deliverOrders } from "./dealer.js";
 import { serviceLoans } from "./finance.js";
+import { weeklyPurchaseLoans } from "./purchaseLoans.js";
 import { dailyFraud } from "./fraud.js";
 import { billInsurance, dailyInsurance, monthlyInsurance } from "./insurance.js";
 import { chargeYards } from "./home.js";
@@ -118,6 +119,7 @@ function endOfDay(w: World, day: number, agents?: DailyAgentHook): void {
     billRentals(w); // assets: trailer rentals pay their week
     billPlayerLeases(w); // assets: lessees pay their lessors
     serviceLoans(w);
+    weeklyPurchaseLoans(w);
     stepListings(w);
     payDispatchers(w); // dispatchers' and managers' weekly pay
     billInsurance(w);
