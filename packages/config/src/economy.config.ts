@@ -418,7 +418,7 @@ export const economyConfig = {
     // last site with room the day's hours still reach, early if the next is beyond them (trips.ts
     // planNight); a site found full sends them on. Owners add `spacesPerPurchase` spaces for
     // `spacePriceFd` each, through the catalogue split.
-    parking: { spaces: [20, 150] as const, shoulderFineFd: 250, patrolOdds: 0.33, defaultPriceFd: 20, priceRange: [10, 40] as const, spacesPerPurchase: 25, spacePriceFd: 1_000 },
+    parking: { spaces: [5, 40] as const, shoulderFineFd: 250, patrolOdds: 0.33, defaultPriceFd: 20, priceRange: [10, 40] as const, spacesPerPurchase: 25, spacePriceFd: 1_000 },
     // Truck-stop sites: one every so many interstate miles, ranked by the freight that passes (a gravity
     // model over the lanes), the busiest open for sale at the start, more opening as the fleet grows.
     // openPerBuilt: the open count follows coverage too — this many sites for sale per truck stop built.

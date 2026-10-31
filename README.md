@@ -494,7 +494,7 @@ morale, a week's experience a week; the edge scales with the best one's skill; w
 Truck stops cost 150k with a 50k bond and charge 20 a night, and more sites open as stops get built.
 
 **Parking (2026-10-30, ruleset 0.18.2).** A truck sleeps at a site. Every site is a free public rest
-area with spaces by its traffic (`businesses.parking.spaces`, 20 to 150); a player's truck stop on it
+area with spaces by its traffic (`businesses.parking.spaces`, 5 to 40: about 3,000 spaces for 2,300 trucks, so the busiest corridors fill); a player's truck stop on it
 adds shore power at a quarter of the idling, fuel, the shop and a nightly price the owner sets
 (`set_parking_price`, 10 to 40), and owners buy more spaces through the catalogue split
 (`add_parking`). Shutting down on the shoulder is illegal unless the truck broke down: a patrol
