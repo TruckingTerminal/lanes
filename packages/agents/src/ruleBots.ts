@@ -766,10 +766,14 @@ function manageLeases(w: World, c: Company, p: BotProfile, today: number): void 
   const fleet = w.trucksByCompany.get(c.id)!;
   const offered = new Set(openLeaseOffers(w).map((o) => o.truckId));
   for (const o of openLeaseOffers(w)) if (o.lessorId === c.id && today - o.listedDay >= 56) applyAction(w, c.id, { type: "withdraw_lease_offer", offerId: o.id });
+  // What a tractor earns sets its rent, not only what it's worth: half of what the NPC lessor's share of a typical week's gross would cost.
+  const recent = w.metrics.days.slice(-28).filter((d) => d.cleared > 0);
+  const rate = recent.length ? recent.reduce((s, d) => s + d.avgClearedRate, 0) / recent.length : w.cfg.token.catalogue.indexBaseRate;
+  const earning = 0.5 * w.cfg.costs.npcLeaseShareOfGross * rate * 2_000;
   for (const t of fleet) {
     if (t.status !== "parked" || t.lease !== "owned" || leasedOut(t) || offered.has(t.id) || condition(w.cfg, t) < 0.3) continue;
     const [lo, hi] = w.cfg.assets.playerLeases.weeklyFdRange;
-    const weeklyFd = Math.round(Math.max(lo, Math.min(hi, 0.02 * truckValue(w, t))));
+    const weeklyFd = Math.round(Math.max(lo, Math.min(hi, Math.max(0.02 * truckValue(w, t), earning))));
     applyAction(w, c.id, { type: "offer_lease", truckId: t.id, weeklyFd, minWeeks: 4 });
   }
   const losing = (profitPerTruckWeek(c, p, today, Math.max(1, fleet.length)) ?? 1) < 0;
