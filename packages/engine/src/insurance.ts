@@ -3,7 +3,8 @@ import { theftInsuranceFactor } from "./risk.js";
 import { dayOf } from "./clock.js";
 import { clamp, fmtInt } from "./economics.js";
 import { companyAccount } from "./ledger.js";
-import { poolAccount, poolMarkup, poolsOn } from "./pools.js";
+import { payClaim, poolAccount, poolMarkup, poolsOn } from "./pools.js";
+import { trailerValue, truckValue } from "./dealer.js";
 import { contractAccount } from "./receivables.js";
 import { stakeDiscount } from "./staking.js";
 import type { Company, InsurancePolicy } from "./types.js";
@@ -112,7 +113,9 @@ export function billInsurance(w: World): void {
     let trucks = 0;
     for (const t of w.trucksByCompany.get(c.id) ?? []) if (t.lease !== "npc" && t.status !== "parked" && t.status !== "listed" && t.status !== "retired") trucks++;
     if (trucks === 0) continue;
-    const premium = ((trucks * c.insurance.annualPerTruck) / 52) * (1 - stakeDiscount(w, c)); // locked FD earns its discount (staking.ts)
+    // Assets: physical-damage cover on what the company owns (its tractors and trailers), priced as a share of their value.
+    const pd = w.cfg.assets.enabled ? (w.cfg.assets.physicalDamage.annualShareOfValue * insuredValue(w, c)) / 52 : 0;
+    const premium = ((trucks * c.insurance.annualPerTruck) / 52 + pd) * (1 - stakeDiscount(w, c)); // locked FD earns its discount (staking.ts)
     // A pool-written policy pays its premium to the pool's depositors; the NPC insurer's is a sink.
     if (c.insurance.writer === "pool") {
       w.ledger.post(w.t, companyAccount(c.id), poolAccount("insurance"), premium, `pool:insurance:premium:${c.id}`);
@@ -125,6 +128,28 @@ export function billInsurance(w: World): void {
     m.premiums[m.premiums.length - 1]! += premium;
   }
   pool.exposureFd = exposure;
+}
+
+/** Assets: what physical-damage cover insures: the company's owned tractors (with their trailers) and the trailers in its yard. */
+export function insuredValue(w: World, c: Company): number {
+  let v = 0;
+  for (const t of w.trucksByCompany.get(c.id) ?? []) if (t.lease === "owned" && t.status !== "listed" && t.status !== "retired") v += truckValue(w, t);
+  for (const tr of w.trailersByCompany.get(c.id) ?? []) if (tr.lease === "owned" && tr.status === "dropped") v += trailerValue(w, tr);
+  return v;
+}
+
+/**
+ * Assets: an insured loss (a rig written off, a trailer stolen) paid at its value less the deductible: a
+ * pool-written policy from the pool, the NPC insurer's from the reserve (a faucet, the other side of its
+ * premiums). Counts toward the market's loss ratio. Returns what was paid.
+ */
+export function payPhysicalDamage(w: World, c: Company, valueFd: number, ref: string, payee: Company = c): number {
+  const due = Math.max(0, valueFd - w.cfg.assets.physicalDamage.deductibleFd);
+  if (due <= 0.01) return 0;
+  recordClaim(w, due);
+  if (c.insurance.writer === "pool") return payClaim(w, "insurance", companyAccount(payee.id), due, ref);
+  w.ledger.post(w.t, "faucet:insurance_pd", companyAccount(payee.id), due, ref);
+  return due;
 }
 
 /** What the insurers paid on a claim, for the market's loss ratio. */

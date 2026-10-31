@@ -21,6 +21,7 @@ import { inCloseWindow } from "./season.js";
 import { legMile, legRoute, nearestStopOnLeg, siteOf, sitePriceFd } from "./sites.js";
 import type { Business, BusinessKind, Company, Truck } from "./types.js";
 import type { World } from "./world.js";
+import { emptyStock, releaseDealershipStock } from "./dealerships.js";
 
 export type ServiceKind = "maintenance" | "repairs" | "rebuild";
 export type HubBusinessKind = Exclude<BusinessKind, "truckStop">;
@@ -63,6 +64,7 @@ function canBuy(w: World, c: Company): string | null {
 export function buyBusiness(w: World, c: Company, kind: HubBusinessKind, hubId: string): string | null {
   const bad = canBuy(w, c);
   if (bad) return bad;
+  if (kind === "dealership" && !w.cfg.assets.enabled) return "no dealerships: trucks come from the NPC dealer";
   const hub = w.net.hubs.findIndex((h) => h.id === hubId);
   if (hub < 0) return "unknown hub";
   const spec = w.cfg.businesses.kinds[kind];
@@ -72,7 +74,7 @@ export function buyBusiness(w: World, c: Company, kind: HubBusinessKind, hubId: 
   const paid = pay(w, c, price, spec.bondFd, ref);
   if (paid) return paid;
   const outlay = price + salesTaxOn(w, price);
-  w.businesses.push({ id: w.businesses.length + 1, kind, ownerId: c.id, hub, site: 0, boughtDay: dayOf(w.t, w.cfg), bondFd: spec.bondFd, markup: kind === "shop" ? 1 : 0, parkingFd: 0, netFd: -outlay, purchaseFd: outlay });
+  w.businesses.push({ id: w.businesses.length + 1, kind, ownerId: c.id, hub, site: 0, boughtDay: dayOf(w.t, w.cfg), bondFd: spec.bondFd, markup: kind === "shop" ? 1 : kind === "dealership" ? 1.05 : 0, parkingFd: 0, netFd: -outlay, purchaseFd: outlay, stock: emptyStock(), soldMonth: 0, soldLastMonth: 0 });
   return null;
 }
 
@@ -90,7 +92,7 @@ export function buyTruckStop(w: World, c: Company, siteId: number): string | nul
   const paid = pay(w, c, price, spec.bondFd, ref);
   if (paid) return paid;
   const outlay = price + salesTaxOn(w, price);
-  const b: Business = { id: w.businesses.length + 1, kind: "truckStop", ownerId: c.id, hub: -1, site: site.id, boughtDay: dayOf(w.t, w.cfg), bondFd: spec.bondFd, markup: spec.markupRange[0], parkingFd: w.cfg.businesses.parking.defaultPriceFd, netFd: -outlay, purchaseFd: outlay };
+  const b: Business = { id: w.businesses.length + 1, kind: "truckStop", ownerId: c.id, hub: -1, site: site.id, boughtDay: dayOf(w.t, w.cfg), bondFd: spec.bondFd, markup: spec.markupRange[0], parkingFd: w.cfg.businesses.parking.defaultPriceFd, netFd: -outlay, purchaseFd: outlay, stock: emptyStock(), soldMonth: 0, soldLastMonth: 0 };
   w.businesses.push(b);
   site.businessId = b.id;
   return null;
@@ -137,6 +139,7 @@ export function addParking(w: World, c: Company, businessId: number): string | n
 /** Liquidation: every business closes, its site frees, and its bond comes back to cash for the creditors. */
 export function releaseBusinesses(w: World, c: Company): void {
   for (const b of businessesOf(w, c.id)) {
+    releaseDealershipStock(w, b); // a dealership's unsold new stock goes back to the NPC dealer
     if (b.bondFd > 0) w.ledger.post(w.t, contractAccount(c.id), companyAccount(c.id), b.bondFd, `bond:business:${c.id}`);
     b.bondFd = 0;
     b.ownerId = 0;
@@ -180,7 +183,7 @@ export function billService(w: World, c: Company, listFd: number, kind: ServiceK
   if (listFd <= 0) return 0;
   const acct = companyAccount(c.id);
   let price = listFd;
-  if (shop && shop.kind !== "fuelStation") {
+  if (shop && (shop.kind === "shop" || shop.kind === "truckStop")) {
     const parts = listFd * w.cfg.businesses.kinds[shop.kind].partsShare;
     price = shop.ownerId === c.id ? parts : Math.max(parts, listFd * shop.markup);
     w.ledger.post(w.t, acct, "sink:parts", parts, ref);
@@ -259,7 +262,7 @@ export function roadService(w: World, truck: Truck, c: Company, listFd: number):
   const mile = legMile(truck);
   const r = k.roadService;
   const callOut = (distMi: number) => r.callOutFd + r.callOutPerMi * distMi;
-  const cost = (b: Business, distMi: number) => (b.ownerId === c.id ? listFd * k.kinds[b.kind === "fuelStation" ? "shop" : b.kind].partsShare : callOut(distMi) + listFd * b.markup);
+  const cost = (b: Business, distMi: number) => (b.ownerId === c.id ? listFd * k.kinds[b.kind === "truckStop" ? "truckStop" : "shop"].partsShare : callOut(distMi) + listFd * b.markup);
   let best: { b: Business; distMi: number } | null = null;
   const consider = (b: Business | null, distMi: number) => {
     if (!b || distMi > r.rangeMi) return;

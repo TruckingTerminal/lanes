@@ -48,6 +48,26 @@ import {
   overheadForTruck,
   poolCash,
   rebuildCost,
+  rebuildable,
+  hookedTrailer,
+  yardTrailers,
+  ownedTrailers,
+  trailerOrdersOf,
+  trailerPrice,
+  trailerValue,
+  trailerCondition,
+  trailerRefurbishable,
+  trailerCap,
+  planIndex,
+  EQUIPMENT,
+  bestSource,
+  dealershipsOpen,
+  hasStock,
+  tradeInOffer,
+  npcBackstop,
+  leasedOut,
+  openLeaseOffers,
+  openAssetSales,
   type Company,
   type CompliancePolicy,
   type Listing,
@@ -364,7 +384,7 @@ function pickEquipment(w: World, rng: Rng, firstTruck: boolean, followMarket = f
     trailers = [rng.next() < 0.6 ? "van" : rng.next() < 0.6 ? "reefer" : "flatbed", ...TRAILERS];
   }
   for (const trailer of trailers) {
-    for (const tier of tiers) if (availableSupply(w, tier, trailer, firstTruck) > 0) return { tier, trailer };
+    for (const tier of tiers) if (availableSupply(w, tier, trailer, firstTruck) > 0 || (w.cfg.assets.enabled && dealershipsOpen(w).some((b) => hasStock(b, "rig", tier, trailer)))) return { tier, trailer };
   }
   return null;
 }
@@ -680,6 +700,14 @@ function leaseIfWorth(w: World, c: Company, p: BotProfile, rng: Rng, today: numb
 /** Puts a truck up for sale at its used value, cutting 5% of value a week down to 60%; in a hurry, cheaper and faster. */
 function sell(w: World, c: Company, p: BotProfile, truckId: number, hurry = false): void {
   const truck = w.trucks[truckId - 1]!;
+  // Assets: a dealership takes it in trade today, at its share of value, if one can.
+  if (w.cfg.assets.enabled && w.cfg.businesses.enabled) {
+    const best = dealershipsOpen(w)
+      .map((b) => ({ b, offer: tradeInOffer(w, b, truck) }))
+      .filter((x) => x.offer > 0)
+      .sort((a, b) => b.offer - a.offer || a.b.id - b.b.id)[0];
+    if (best && applyAction(w, c.id, { type: "trade_in", truckId, dealershipId: best.b.id }).ok) return;
+  }
   const value = truckValue(w, truck);
   const ask = hurry ? value * 0.85 : value;
   const r = applyAction(w, c.id, { type: "list_truck", truckId, askFd: ask, floorFd: value * 0.6, stepFd: value * (hurry ? 0.1 : 0.05) });
@@ -715,18 +743,125 @@ function rightSize(w: World, c: Company, p: BotProfile, today: number, active: n
   if (idle[0]) sell(w, c, p, idle[0].id, inDebt);
 }
 
+/** Assets: the cheapest open lease offer whose rent is at most half what a truck here earns a week, or null. */
+function bestLeaseOffer(w: World, c: Company, p: BotProfile, today: number, active: number): number | null {
+  const profit = profitPerTruckWeek(c, p, today, active);
+  if (profit === null || profit <= 0) return null;
+  let best: { id: number; fd: number } | null = null;
+  for (const o of openLeaseOffers(w)) {
+    if (o.lessorId === c.id || o.weeklyFd > profit / 2 || o.minWeeks > 12) continue;
+    if (!best || o.weeklyFd < best.fd) best = { id: o.id, fd: o.weeklyFd };
+  }
+  return best?.id ?? null;
+}
+
+/**
+ * Assets, player lessors: weekly, a parked truck that came back unsold goes on offer for lease at about
+ * 2% of its value a week; an offer nobody took in eight weeks comes off; a leased tractor goes back to its
+ * owner once it's worn (the owner rebuilds) or when this fleet is losing money, past its minimum term.
+ */
+function manageLeases(w: World, c: Company, p: BotProfile, today: number): void {
+  if (today % 7 !== 1) return;
+  const fleet = w.trucksByCompany.get(c.id)!;
+  const offered = new Set(openLeaseOffers(w).map((o) => o.truckId));
+  for (const o of openLeaseOffers(w)) if (o.lessorId === c.id && today - o.listedDay >= 56) applyAction(w, c.id, { type: "withdraw_lease_offer", offerId: o.id });
+  for (const t of fleet) {
+    if (t.status !== "parked" || t.lease !== "owned" || leasedOut(t) || offered.has(t.id) || condition(w.cfg, t) < 0.3) continue;
+    const [lo, hi] = w.cfg.assets.playerLeases.weeklyFdRange;
+    const weeklyFd = Math.round(Math.max(lo, Math.min(hi, 0.02 * truckValue(w, t))));
+    applyAction(w, c.id, { type: "offer_lease", truckId: t.id, weeklyFd, minWeeks: 4 });
+  }
+  const losing = (profitPerTruckWeek(c, p, today, Math.max(1, fleet.length)) ?? 1) < 0;
+  for (const t of [...fleet]) {
+    if (!leasedOut(t) || t.status !== "idle" || today < t.leaseMinUntilDay) continue;
+    if (losing || condition(w.cfg, t) <= p.rebuildAt) applyAction(w, c.id, { type: "return_lease", truckId: t.id });
+  }
+}
+
+/** Assets: working spares a yard keeps, about one per five tractors. */
+const sparesWanted = (tractors: number) => Math.floor(tractors / 5);
+
+/** Assets: a trailer in the yard beyond the working spares (its tractor was scrapped or sold), or null. */
+function spareBeyondNeed(w: World, c: Company, tractors: number): ReturnType<typeof yardTrailers>[number] | null {
+  const spares = yardTrailers(w, c);
+  return spares.length > sparesWanted(tractors) ? spares[spares.length - 1]! : null;
+}
+
+const tractorPriceOf = (w: World, tier: TractorTier) => w.cfg.dealerFd.tractor[tier] * w.dealerIndex.tractor[tier];
+
+/**
+ * Assets: the yard. An idle truck at home hooks the trailer type that reloads best there (a rental goes
+ * back as soon as an own trailer waits); each rental gets an own trailer bought to replace it (renting
+ * costs more than owning within weeks); worn trailers are refurbished while they can be; a fleet with a
+ * yard keeps a working spare per five tractors, of the type freight is going uncovered for; and spares
+ * beyond that, with no tractor coming for them, are sold.
+ */
+function manageTrailers(w: World, c: Company, p: BotProfile, rng: Rng, today: number): void {
+  const { cfg } = w;
+  const acct = companyAccount(c.id);
+  const fleet = w.trucksByCompany.get(c.id)!;
+  const home = c.homeHub;
+  const score = (eq: Equipment) => w.reloadIndex[planIndex(home, EQUIPMENT.indexOf(eq))] ?? 1;
+  for (const t of fleet) {
+    if (t.lease !== "owned" || t.status !== "idle" || t.hub !== home) continue;
+    const spares = yardTrailers(w, c);
+    if (spares.length === 0) break;
+    const cur = hookedTrailer(w, t);
+    if (cur?.lease === "rental") {
+      const own = spares.find((s) => s.type === cur.type) ?? spares[0]!;
+      applyAction(w, c.id, { type: "swap_trailer", truckId: t.id, trailerId: own.id });
+      continue;
+    }
+    const best = spares.reduce((a, b) => (score(b.type) > score(a.type) ? b : a));
+    if (cur && best.type !== cur.type && score(best.type) > 1.25 * score(cur.type)) applyAction(w, c.id, { type: "swap_trailer", truckId: t.id, trailerId: best.id });
+  }
+  const spare = () => w.ledger.balance(acct) - reserve(w, c, p);
+  // Every rental out gets an own trailer on order to replace it.
+  const rentals = fleet.map((t) => hookedTrailer(w, t)).filter((tr) => tr?.lease === "rental");
+  const coming = trailerOrdersOf(w, c.id).filter((o) => o.kind === "trailer").length;
+  const buyTrailer = (type: Equipment, cushion: number) => {
+    const src = bestSource(w, c.id, "trailer", "workhorse", type);
+    if (spare() >= cushion * src.price) applyAction(w, c.id, { type: "buy_trailer", trailer: type, dealershipId: src.dealershipId || undefined });
+  };
+  if (rentals.length > coming) buyTrailer(rentals[coming]!.type, 1);
+  // Refurbish worn trailers in the yard or behind an idle truck.
+  for (const tr of ownedTrailers(w, c)) {
+    if (trailerCondition(w, tr) > p.rebuildAt || !trailerRefurbishable(w, tr)) continue;
+    const truck = tr.truckId ? w.trucks[tr.truckId - 1]! : null;
+    if (tr.status !== "dropped" && !(truck && truck.status === "idle")) continue;
+    if (spare() < cfg.assets.trailer.refurbFd[tr.type]) break;
+    applyAction(w, c.id, { type: "refurbish_trailer", trailerId: tr.id });
+  }
+  if (today % 7 !== 0 || c.yard === "none") return;
+  const tractors = fleet.filter((t) => t.lease === "owned").length;
+  const spares = yardTrailers(w, c);
+  const want = sparesWanted(tractors);
+  // A working spare per five tractors, of the type the board is short of.
+  if (spares.length + coming < want && ownedTrailers(w, c).length + trailerOrdersOf(w, c.id).length < trailerCap(w, c)) {
+    buyTrailer(TRAILERS[rng.weighted(TRAILERS.map((e) => dpow(1 - w.fillRate[e], 2) + 0.01))]!, 3);
+  }
+  // Spares well beyond that, with no tractor ordered for them, are sold.
+  if (spares.length > want + 2) {
+    const tr = spares[0]!;
+    const value = trailerValue(w, tr);
+    applyAction(w, c.id, { type: "list_trailer", trailerId: tr.id, askFd: value, floorFd: value * 0.6, stepFd: value * 0.05 });
+  }
+}
+
 /**
  * The best-value used truck this buyer can afford: priced at or under its used
  * value and well under new, not worn out. Used trucks deliver today; new ones wait
  * for the dealer.
  */
-function bestListing(w: World, budget: number, buyerId: number): Listing | null {
+function bestListing(w: World, budget: number, buyerId: number, runOut = false): Listing | null {
   const today = dayOf(w.t, w.cfg);
   let best: { l: Listing; score: number } | null = null;
   for (const l of openListings(w)) {
-    if (l.askFd > budget || l.formerOwnerId === buyerId || l.sellerId === buyerId) continue;
+    if (l.trailerId || l.askFd > budget || l.formerOwnerId === buyerId || l.sellerId === buyerId) continue; // trucks only: a trailer alone is no truck
     const t = w.trucks[l.truckId - 1]!;
     if (condition(w.cfg, t) < 0.3) continue;
+    // Assets: a tractor past its last rebuild is one to run out, not to grow on: only a first-truck buyer takes it (a fleet would sell it straight back).
+    if (!runOut && !rebuildable(w.cfg, t)) continue;
     const value = truckValue(w, t);
     const score = l.askFd / Math.max(1, value);
     if (score > 1.05 || l.askFd > 0.85 * dealerPrice(w, t)) continue;
@@ -1025,6 +1160,10 @@ export const ruleBotHook: DailyAgentHook = (w) => {
     }
 
     if (cfg.businesses.enabled) maybeBuyBusiness(w, c, p, rng, dayOf(w.t, cfg));
+    if (cfg.assets.enabled && cfg.businesses.enabled && dayOf(w.t, cfg) % cfg.time.daysPerMonth === 2) {
+      priceDealerships(w, c);
+      sellWeakBusinesses(w, c);
+    }
 
     if (c.role === "carrier") {
       adaptPricing(w, c, p);
@@ -1037,12 +1176,18 @@ export const ruleBotHook: DailyAgentHook = (w) => {
       // truck's higher break-even loses bids; an old one costs more to rebuild.
       for (const t of [...fleet]) {
         if (t.lease !== "owned" || t.status !== "idle" || condition(cfg, t) > p.rebuildAt) continue;
-        if (t.odometer >= p.replaceAtMi && fleet.length > 1) {
+        // Assets: a tractor past its last rebuild is sold on (to run out its life elsewhere), or run out by a one-truck carrier.
+        if ((t.odometer >= p.replaceAtMi || !rebuildable(cfg, t)) && fleet.length > 1) {
           sell(w, c, p, t.id);
           continue;
         }
+        if (!rebuildable(cfg, t)) continue;
         if (w.ledger.balance(acct) < rebuildCost(cfg, t) + p.firstTruckBuffer) break;
         applyAction(w, c.id, { type: "rebuild_truck", truckId: t.id });
+      }
+      if (cfg.assets.enabled) {
+        manageTrailers(w, c, p, rng, dayOf(w.t, cfg));
+        manageLeases(w, c, p, dayOf(w.t, cfg));
       }
 
       if (!locked) {
@@ -1052,13 +1197,15 @@ export const ruleBotHook: DailyAgentHook = (w) => {
           // Workhorse + dry van from the dealer (which keeps the NPC lease until it arrives).
           if (ordersOf(w, c.id).length > 0) continue;
           const cash = w.ledger.balance(acct);
-          const used = npcTruck.status === "idle" ? bestListing(w, cash - p.firstTruckBuffer, c.id) : null;
+          const used = npcTruck.status === "idle" ? bestListing(w, cash - p.firstTruckBuffer, c.id, true) : null;
+          // Assets: the cheapest new Workhorse and van, a dealership's in stock or the NPC dealer's.
+          const src = cfg.assets.enabled ? bestSource(w, c.id, "rig", "workhorse", "van") : null;
           if (used) applyAction(w, c.id, { type: "buy_listing", listingId: used.id });
-          else if (availableSupply(w, "workhorse", "van", true) > 0) {
-            const need = dealerPrice(w, { tier: "workhorse", trailer: "van" }) + p.firstTruckBuffer;
+          else if (src?.dealershipId || availableSupply(w, "workhorse", "van", true) > 0) {
+            const need = (src ? src.price : dealerPrice(w, { tier: "workhorse", trailer: "van" })) + p.firstTruckBuffer;
             // Token mode: a paying player can buy the FD it's short instead of saving it up.
             const funded = cash >= need || (live && p.payToWin && buyFdFor(w, c, need - cash));
-            if (funded) applyAction(w, c.id, { type: "buy_asset", tier: "workhorse", trailer: "van", replaceNpcLease: true });
+            if (funded) applyAction(w, c.id, { type: "buy_asset", tier: "workhorse", trailer: "van", replaceNpcLease: true, dealershipId: src?.dealershipId || undefined });
           }
           continue; // no other investment until the first truck is owned
         }
@@ -1104,21 +1251,28 @@ export const ruleBotHook: DailyAgentHook = (w) => {
         if (active > 0 && grow() && active + pending < p.targetFleet && fleet.length + pending < truckCap(w, c) && idle / active <= 0.3 && worthAnotherTruck(w, c, p, today, active)) {
           // Cheapest capacity first: a parked truck, then a used one (today), then
           // a new one (after the dealer's lead time), borrowing if this bot does.
-          const parked = fleet.find((t) => t.status === "parked" && (p.noUnpark.get(t.id) ?? 0) <= today);
+          const parked = fleet.find((t) => t.status === "parked" && (p.noUnpark.get(t.id) ?? 0) <= today && !openLeaseOffers(w).some((o) => o.truckId === t.id));
           const cash = w.ledger.balance(acct);
           const need = reserve(w, c, p);
-          const used = parked ? null : bestListing(w, cash - need, c.id);
+          // Assets: a tractor on lease from another carrier, if its rent is well inside what a truck here earns.
+          const lease = parked || !cfg.assets.enabled ? null : bestLeaseOffer(w, c, p, today, active);
+          const used = parked || lease ? null : bestListing(w, cash - need, c.id);
           if (parked) applyAction(w, c.id, { type: "unpark_truck", truckId: parked.id });
+          else if (lease) applyAction(w, c.id, { type: "take_lease", offerId: lease });
           else if (used) applyAction(w, c.id, { type: "buy_listing", listingId: used.id });
           else {
             let ordered = false;
             if (deliveryDays(w) <= p.maxLeadDays) {
               const pick = pickEquipment(w, rng, false, true);
+              // Assets: a spare trailer beyond the yard's working spares gets a tractor of its own.
+              const spare = cfg.assets.enabled ? spareBeyondNeed(w, c, active) : null;
               if (pick) {
-                const price = dealerPrice(w, pick);
+                const kind = spare ? "tractor" : "rig";
+                const src = cfg.assets.enabled ? bestSource(w, c.id, kind, pick.tier, spare?.type ?? pick.trailer) : null;
+                const price = src ? src.price : dealerPrice(w, pick);
                 const short = price + need - cash;
                 if (short <= 0 || (p.leverage && borrowFor(w, c, short)) || (live && p.payToWin && buyFdFor(w, c, short))) {
-                  ordered = applyAction(w, c.id, { type: "buy_asset", tier: pick.tier, trailer: pick.trailer, replaceNpcLease: false }).ok;
+                  ordered = applyAction(w, c.id, { type: "buy_asset", tier: pick.tier, trailer: spare?.type ?? pick.trailer, replaceNpcLease: false, tractorOnly: spare !== null, dealershipId: src?.dealershipId || undefined }).ok;
                 }
               }
             }
@@ -1171,15 +1325,53 @@ export const ruleBotHook: DailyAgentHook = (w) => {
  * hub — carriers a shop first, brokers a station or a truck stop — and a new shop prices its work
  * somewhere under the NPC shop's list.
  */
+/**
+ * Assets: a dealership follows its sales each month: nothing sold with stock on the lot, it cuts its markup;
+ * sold out, it raises it; never to the NPC backstop's premium, where it would sell nothing.
+ */
+function priceDealerships(w: World, c: Company): void {
+  const k = w.cfg.businesses.kinds.dealership;
+  for (const b of businessesOf(w, c.id)) {
+    if (b.kind !== "dealership") continue;
+    const stock = Object.values(b.stock.tractor).reduce((s, n) => s + n, 0) + Object.values(b.stock.trailer).reduce((s, n) => s + n, 0);
+    let m = b.markup;
+    if (b.soldLastMonth === 0 && stock > 0) m -= 0.02;
+    else if (stock === 0) m += 0.02;
+    const cap = npcBackstop(w) ? Math.min(k.markupRange[1], w.cfg.assets.factory.npcPremium - 0.01) : k.markupRange[1];
+    m = Math.max(k.markupRange[0], Math.min(cap, m));
+    if (Math.abs(m - b.markup) > 1e-9) applyAction(w, c.id, { type: "set_shop_markup", businessId: b.id, markup: m });
+  }
+}
+
+/** Assets, resale: a business a year old or more whose trade alone loses money goes up for sale at 70% of what it cost. */
+function sellWeakBusinesses(w: World, c: Company): void {
+  const today = dayOf(w.t, w.cfg);
+  const listed = new Set(openAssetSales(w).filter((s) => s.kind === "business").map((s) => s.refId));
+  for (const b of businessesOf(w, c.id)) {
+    if (listed.has(b.id) || today - b.boughtDay < 365 || b.netFd + b.purchaseFd >= 0) continue;
+    applyAction(w, c.id, { type: "list_asset_sale", kind: "business", refId: b.id, askFd: Math.max(1, 0.7 * b.purchaseFd) });
+  }
+}
+
 function maybeBuyBusiness(w: World, c: Company, p: BotProfile, rng: Rng, today: number): void {
   const k = w.cfg.businesses;
   if ((today + c.id) % 7 !== 3 || businessesOf(w, c.id).length >= k.maxPerCompany) return;
   if (rng.next() > 0.25) return;
-  const kinds: BusinessKind[] = c.role === "broker" ? ["fuelStation", "truckStop"] : ["shop", "truckStop", "fuelStation"];
+  const kinds: BusinessKind[] = c.role === "broker" ? ["fuelStation", "truckStop"] : w.cfg.assets.enabled ? ["shop", "dealership", "truckStop", "fuelStation"] : ["shop", "truckStop", "fuelStation"];
   const cash = w.ledger.balance(companyAccount(c.id)) - reserve(w, c, p);
   const hubId = w.net.hubs[c.homeHub]!.id;
   for (const kind of kinds) {
     const spec = k.kinds[kind];
+    // Assets: a business another player is selling, if it's cheaper than building one new.
+    if (w.cfg.assets.enabled) {
+      const sale = openAssetSales(w).find((s) => {
+        const b = s.kind === "business" ? w.businesses[s.refId - 1] : undefined;
+        if (!b || b.kind !== kind || b.ownerId === c.id) return false;
+        const fresh = kind === "truckStop" ? sitePriceFd(w, w.sites[b.site - 1]!) : businessPriceFd(w, kind);
+        return s.askFd <= fresh && cash >= (s.askFd + b.bondFd) * 1.5;
+      });
+      if (sale && applyAction(w, c.id, { type: "buy_asset_sale", saleId: sale.id }).ok) return;
+    }
     if (kind === "truckStop") {
       // The busiest site for sale the bot can afford, with the cash well clear of it.
       const site = w.sites
@@ -1191,7 +1383,11 @@ function maybeBuyBusiness(w: World, c: Company, p: BotProfile, rng: Rng, today: 
       if (cash < (businessPriceFd(w, kind) + spec.bondFd) * 1.5) continue;
       if (!applyAction(w, c.id, { type: "buy_business", kind, hubId }).ok) continue;
     }
-    if (kind !== "fuelStation") {
+    if (kind === "dealership") {
+      // A new dealership prices a little under the NPC backstop's premium; monthly it follows its sales (priceDealerships).
+      const b = businessesOf(w, c.id).at(-1)!;
+      applyAction(w, c.id, { type: "set_shop_markup", businessId: b.id, markup: Math.min(k.kinds.dealership.markupRange[1], w.cfg.assets.factory.npcPremium - 0.03) });
+    } else if (kind !== "fuelStation") {
       const b = businessesOf(w, c.id).at(-1)!;
       const [lo, hi] = k.kinds[kind].markupRange;
       applyAction(w, c.id, { type: "set_shop_markup", businessId: b.id, markup: rng.range(lo, hi) });

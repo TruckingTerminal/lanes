@@ -5,7 +5,9 @@ import { Ledger, companyAccount } from "./ledger.js";
 import { truckCap } from "./staking.js";
 import { newPool } from "./pools.js";
 import { Rng } from "./rng.js";
-import type { BuybackWeek, GameEvent, TokenState, Company, Business, Facility, TruckStopSite, FinancePool, FraudCase, LeaseKind, Listing, Load, Pool, PoolLine, Receivable, Role, SeasonCloseRecord, Staff, StandingOrder, Truck, TruckOrder, Contract } from "./types.js";
+import type { BuybackWeek, GameEvent, TokenState, Company, Business, Facility, TruckStopSite, FinancePool, FraudCase, LeaseKind, Listing, Load, Pool, PoolLine, Receivable, Role, SeasonCloseRecord, Staff, StandingOrder, Trailer, Truck, TruckOrder, Contract, LeaseOffer } from "./types.js";
+import { fitTrailer, handBack, hook, hookedTrailer, newTrailer } from "./trailers.js";
+import type { AssetSale } from "./assetSales.js";
 import { signPolicy } from "./insurance.js";
 import { seedPool } from "./labor.js";
 import { MetricsRecorder } from "./metrics.js";
@@ -33,6 +35,13 @@ export interface World {
   companies: Company[];
   trucks: Truck[];
   trucksByCompany: Map<number, Truck[]>;
+  /** Trailers as their own assets (assets.enabled): every trailer ever made (ids are index + 1), and each company's current ones. */
+  trailers: Trailer[];
+  trailersByCompany: Map<number, Trailer[]>;
+  /** Player lessors (assets): tractors offered for lease by the week, open and closed. */
+  leaseOffers: LeaseOffer[];
+  /** Resale (assets): businesses, facilities and yards players put up for sale to each other. */
+  assetSales: AssetSale[];
   /** Loads still on the board or in progress; delivered/covered loads are dropped. */
   loads: Map<number, Load>;
   nextLoadId: number;
@@ -144,6 +153,10 @@ export function createWorld(o: WorldOptions): World {
     companies: [],
     trucks: [],
     trucksByCompany: new Map(),
+    trailers: [],
+    trailersByCompany: new Map(),
+    leaseOffers: [],
+    assetSales: [],
     loads: new Map(),
     nextLoadId: 1,
     supply: {
@@ -542,6 +555,7 @@ export function formCompany(w: World, c: NewCompany): Company {
     minBrokerCredit: w.cfg.token.credit.minForCarriers,
     yard: "none",
     yardBondFd: 0,
+    trailerSpaces: 0,
     usdSpentBeta: 0,
     fuelGalMonth: 0,
     nightRisk: 1,
@@ -580,6 +594,7 @@ export function formCompany(w: World, c: NewCompany): Company {
   }
   w.companies.push(company);
   w.trucksByCompany.set(company.id, []);
+  w.trailersByCompany.set(company.id, []);
   w.staffByCompany.set(company.id, []);
   signPolicy(w, company);
   // A carrier's owner drives and dispatches for it (labor.ts).
@@ -606,6 +621,9 @@ export interface UsedEquipment {
   odometer: number;
   milesSinceRebuild: number;
   builtDay: number;
+  /** Assets: rebuilds already done (estimated from the miles when left out), and the trailer's own miles since its refurbishment. */
+  rebuilds?: number;
+  trailerMilesSinceRefurb?: number;
 }
 
 export function addTruck(
@@ -626,7 +644,11 @@ export function addTruck(
   return createTruck(w, company, lease, tier, trailer, used);
 }
 
-/** Puts a truck into a company's fleet. Supply must already be accounted for. */
+/**
+ * Puts a truck into a company's fleet. Supply must already be accounted for. Assets on, it comes with a
+ * trailer: a new one of its own ("new"), the lessor's for an NPC lease, or for a tractor bought alone
+ * ("fit") a spare from the yard or a rental.
+ */
 export function createTruck(
   w: World,
   company: Company,
@@ -635,6 +657,7 @@ export function createTruck(
   trailer: Equipment,
   used?: UsedEquipment,
   hub = company.homeHub,
+  fit: "new" | "fit" = "new",
 ): Truck {
   const fleet = w.trucksByCompany.get(company.id)!;
   const day = Math.floor(w.t / w.cfg.time.gameMinutesPerDay);
@@ -658,6 +681,12 @@ export function createTruck(
     repairUntilT: null,
     odometer: used?.odometer ?? 0,
     milesSinceRebuild: used?.milesSinceRebuild ?? 0,
+    rebuilds: used ? (used.rebuilds ?? Math.min(w.cfg.assets.tractor.maxRebuilds, Math.floor(Math.max(0, used.odometer - used.milesSinceRebuild) / (w.cfg.wear.lifeMiles * 0.75)))) : 0,
+    trailerId: 0,
+    trailerWear: 0,
+    lessorId: 0,
+    leaseWeekFd: 0,
+    leaseMinUntilDay: 0,
     builtDay: used?.builtDay ?? day,
     idleRounds: 0,
     idleSinceDay: day,
@@ -690,6 +719,15 @@ export function createTruck(
   };
   w.trucks.push(truck);
   fleet.push(truck);
+  if (w.cfg.assets.enabled) {
+    if (lease !== "owned") hook(w, truck, newTrailer(w, company, trailer, "npc"));
+    else if (fit === "fit") fitTrailer(w, truck, trailer);
+    else {
+      const life = w.cfg.assets.trailer.wearMi[trailer];
+      const usedTrailer = used ? { odometer: used.odometer, milesSinceRefurb: used.trailerMilesSinceRefurb ?? Math.min(used.odometer, used.milesSinceRebuild * (life / w.cfg.wear.lifeMiles)), builtDay: used.builtDay } : undefined;
+      hook(w, truck, newTrailer(w, company, trailer, "owned", usedTrailer));
+    }
+  }
   seatOwnerIfFree(w, truck);
   syncTruck(w, truck);
   return truck;
@@ -711,6 +749,26 @@ export function takeSupply(w: World, tier: TractorTier, trailer: Equipment, firs
   return true;
 }
 
+/** Assets: units a buyer can take of a rig, a tractor alone, or a trailer alone. */
+export function availableSupplyFor(w: World, kind: TruckOrder["kind"], tier: TractorTier, trailer: Equipment, firstTruck: boolean): number {
+  if (kind === "rig") return availableSupply(w, tier, trailer, firstTruck);
+  if (kind === "tractor") return Math.max(0, w.supply.tractor[tier] - (!firstTruck && tier === "workhorse" ? w.starterReserve.workhorse : 0));
+  return Math.max(0, w.supply.trailer[trailer] - (!firstTruck && trailer === "van" ? w.starterReserve.van : 0));
+}
+
+export function takeSupplyFor(w: World, kind: TruckOrder["kind"], tier: TractorTier, trailer: Equipment, firstTruck: boolean): boolean {
+  if (kind === "rig") return takeSupply(w, tier, trailer, firstTruck);
+  if (availableSupplyFor(w, kind, tier, trailer, firstTruck) <= 0) return false;
+  if (kind === "tractor") {
+    w.supply.tractor[tier]--;
+    if (firstTruck && tier === "workhorse" && w.starterReserve.workhorse > 0) w.starterReserve.workhorse--;
+  } else {
+    w.supply.trailer[trailer]--;
+    if (firstTruck && trailer === "van" && w.starterReserve.van > 0) w.starterReserve.van--;
+  }
+  return true;
+}
+
 /** Takes a truck out of its company's fleet (sale, repossession, retirement). */
 export function detachTruck(w: World, truck: Truck): void {
   // The crew stays with the company, without a truck.
@@ -721,7 +779,19 @@ export function detachTruck(w: World, truck: Truck): void {
     const i = fleet.indexOf(truck);
     if (i >= 0) fleet.splice(i, 1);
   }
+  // Assets: an owned trailer goes with the rig (off the company's books until the next owner has it);
+  // a rental or an NPC lease's trailer goes back to the lessor.
+  const tr = w.cfg.assets.enabled ? hookedTrailer(w, truck) : null;
+  if (tr && tr.lease === "owned") {
+    const list = w.trailersByCompany.get(tr.companyId);
+    if (list) {
+      const i = list.indexOf(tr);
+      if (i >= 0) list.splice(i, 1);
+    }
+    tr.companyId = 0;
+  } else if (tr) handBack(w, tr);
   truck.companyId = 0;
+  truck.lessorId = 0; // sold, repossessed or retired: any player lease on it ends with it
 }
 
 /** Hands a truck to a new owner, idle where it stands. */
@@ -736,6 +806,13 @@ export function attachTruck(w: World, truck: Truck, companyId: number): void {
   truck.targetPlace = truck.place;
   freshPaperwork(truck);
   w.trucksByCompany.get(companyId)!.push(truck);
+  if (w.cfg.assets.enabled) {
+    const tr = hookedTrailer(w, truck);
+    if (tr) {
+      tr.companyId = companyId;
+      w.trailersByCompany.get(companyId)!.push(tr);
+    } else fitTrailer(w, truck, truck.trailer);
+  }
   seatOwnerIfFree(w, truck);
   syncTruck(w, truck);
 }

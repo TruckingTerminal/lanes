@@ -222,6 +222,8 @@ export interface Company {
   nightRisk: number;
   /** The catalogue (items.ts): the yard, its bond, and dollars spent in the farming season's window. */
   yard: "none" | "small" | "large";
+  /** Extra trailer space bought for the yard (assets.yard.spacePerPurchase each). */
+  trailerSpaces: number;
   yardBondFd: number;
   usdSpentBeta: number;
   /** Brokers: who carries the bond this term, the surety pool or the NPC surety, and what the bond has paid out on this company so far. */
@@ -258,7 +260,7 @@ export interface Company {
 /** A one-game-year insurance policy: the price per truck is fixed for the term. */
 /** The catalogue (items.ts): yards, and the upgrades a truck can carry. */
 export type TruckMod = "apu" | "aero" | "tires" | "sleeper";
-export type ItemKind = "yardSmall" | "yardLarge" | TruckMod;
+export type ItemKind = "yardSmall" | "yardLarge" | "trailerSpace" | TruckMod;
 
 /** A player-funded pool (pools.ts): units at net asset value, an exit queue, and the line's running income and losses. */
 export type PoolLine = "insurance" | "factoring" | "surety";
@@ -440,6 +442,22 @@ export interface Truck {
   /** Lifetime miles (drives the million-mile level) and miles since the last rebuild (drives wear). */
   odometer: number;
   milesSinceRebuild: number;
+  /** Rebuilds so far (assets: a tractor takes assets.tractor.maxRebuilds, then runs out its life). */
+  rebuilds: number;
+  /**
+   * Assets (tractors and trailers apart): the trailer it pulls (0 with assets off, where `trailer` alone
+   * says what it pulls), and that trailer's wear 0 (fresh) → 1 (worn), cached for running costs.
+   * `trailer` stays the type of the trailer it pulls, so freight matching reads it as before.
+   */
+  trailerId: number;
+  trailerWear: number;
+  /**
+   * Assets, player lessors: the company that owns the tractor when it runs under another's authority
+   * (0 when the operator owns it), its weekly rent, and the day its minimum term ends.
+   */
+  lessorId: number;
+  leaseWeekFd: number;
+  leaseMinUntilDay: number;
   /** In-game day the truck was built (negative for trucks older than the world). Drives the "year" in its used value. */
   builtDay: number;
   idleRounds: number;
@@ -484,6 +502,36 @@ export interface Truck {
   /** The shift whose night on the road has been charged (sites.ts parkForTheNight), so a night is charged once; and the site the truck sleeps at, 0 on the shoulder or none. */
   restShiftT: number | null;
   restSite: number;
+}
+
+/**
+ * A trailer (assets): its own asset, with its own wear and life. "hooked": behind a tractor;
+ * "dropped": waiting in its owner's yard at the home hub; "listed": for sale on the used market;
+ * "gone": scrapped, stolen, written off, or a rental or NPC trailer handed back.
+ * "owned": the company's; "rental": rented by the week from the NPC lessor; "npc": part of an
+ * NPC lease (the free path's rig, an extra lease).
+ */
+export type TrailerStatus = "hooked" | "dropped" | "listed" | "gone";
+export interface Trailer {
+  id: number;
+  /** The company that has it (owns or rents it); 0 once gone. */
+  companyId: number;
+  type: Equipment;
+  lease: "owned" | "rental" | "npc";
+  status: TrailerStatus;
+  /** The tractor pulling it, 0 when it isn't hooked. */
+  truckId: number;
+  /** Where it was dropped. */
+  hub: number;
+  odometer: number;
+  milesSinceRefurb: number;
+  refurbs: number;
+  builtDay: number;
+  /** Rentals: the day the rental began, and the rent paid so far (the minimum term is owed on return). */
+  rentedDay: number;
+  rentPaidFd: number;
+  /** In the shop for a refurbishment until then (it can't be hooked). */
+  refurbUntilT: number | null;
 }
 
 /** "expired": nobody hauled it before the shipper gave up (board.giveUpAfterRounds); the freight is lost. */
@@ -591,7 +639,7 @@ export interface Facility {
   netFd: number;
 }
 
-export type BusinessKind = "shop" | "truckStop" | "fuelStation";
+export type BusinessKind = "shop" | "truckStop" | "fuelStation" | "dealership";
 
 /** A truck-stop site on an interstate (sites.ts): where a truck stop can be built. */
 export interface TruckStopSite {
@@ -633,12 +681,29 @@ export interface Business {
   /** Running FD result for the owner: margins − purchase − upkeep; and the purchase alone (price and tax), so the trade can be read apart from it. */
   netFd: number;
   purchaseFd: number;
+  /** Dealerships (assets): new units in stock, bought wholesale from the factory allocation; units sold this month and last. */
+  stock: { tractor: Record<TractorTier, number>; trailer: Record<Equipment, number> };
+  soldMonth: number;
+  soldLastMonth: number;
+}
+
+/** Assets: a tractor its owner offers to lease to another carrier by the week. */
+export interface LeaseOffer {
+  id: number;
+  truckId: number;
+  lessorId: number;
+  weeklyFd: number;
+  minWeeks: number;
+  listedDay: number;
+  status: "open" | "taken" | "withdrawn";
 }
 
 /** A dealer order: paid at order, delivered after the lead time. */
 export interface TruckOrder {
   id: number;
   companyId: number;
+  /** Assets: a tractor with a new trailer ("rig"), a tractor alone, or a trailer alone. Always "rig" with assets off. */
+  kind: "rig" | "tractor" | "trailer";
   tier: TractorTier;
   trailer: Equipment;
   /** Free-path order: the new truck replaces the NPC lease on delivery. */
@@ -662,7 +727,10 @@ export interface Loan {
 /** A truck for sale on the used market. sellerId 0 = Equipment Finance selling a repossession. */
 export interface Listing {
   id: number;
+  /** The truck (a rig: the tractor and the trailer it pulls, if its own), or 0 for a trailer sold alone. */
   truckId: number;
+  /** A trailer sold alone (assets), else 0. */
+  trailerId: number;
   sellerId: number;
   /** For a repossession, the loan the sale settles; for an owner's sale, any loan on the truck. */
   loanId: number | null;
@@ -700,7 +768,29 @@ export interface SeasonCloseRecord {
 /** Actions are the only way players and agents change the world (§Tech — same action API). */
 export type Action =
   | { type: "set_standing_orders"; orders: StandingOrder[] }
-  | { type: "buy_asset"; tier: TractorTier; trailer: Equipment; replaceNpcLease: boolean }
+  /** A dealer order. Assets: `tractorOnly` orders the tractor without a trailer (it hooks a spare from the yard, or a rental). */
+  | { type: "buy_asset"; tier: TractorTier; trailer: Equipment; replaceNpcLease: boolean; tractorOnly?: boolean; dealershipId?: number }
+  /** Assets: a trailer alone, delivered to the yard (or straight behind a tractor pulling a rental there). From a player dealership's stock, or the NPC dealer. */
+  | { type: "buy_trailer"; trailer: Equipment; dealershipId?: number }
+  /** Assets: sell an idle owned truck to a dealership's used lot at its trade-in share of value. */
+  | { type: "trade_in"; truckId: number; dealershipId: number }
+  /** Assets, player lessors: offer an idle tractor for lease by the week, withdraw the offer, or take one. A lessee hands it back with return_lease. */
+  | { type: "offer_lease"; truckId: number; weeklyFd: number; minWeeks: number }
+  | { type: "withdraw_lease_offer"; offerId: number }
+  | { type: "take_lease"; offerId: number }
+  /** Assets, resale: put a business, a shipper facility or the yard up for sale to another player, take it down, or buy one. */
+  | { type: "list_asset_sale"; kind: "business" | "facility" | "yard"; refId: number; askFd: number }
+  | { type: "withdraw_asset_sale"; saleId: number }
+  | { type: "buy_asset_sale"; saleId: number }
+  /** Assets: at the home hub, hook a trailer waiting in the yard; the one it pulls is dropped there (or handed back, a rental). */
+  | { type: "swap_trailer"; truckId: number; trailerId: number }
+  /** Assets: rent a trailer from the NPC lessor for this tractor; its own is dropped in the yard (home hub only), a rental handed back. */
+  | { type: "rent_trailer"; truckId: number; trailer: Equipment }
+  | { type: "refurbish_trailer"; trailerId: number }
+  /** Assets: scrap a tractor (its own trailer is dropped in the yard), or a trailer in the yard. */
+  | { type: "scrap_truck"; truckId: number }
+  | { type: "scrap_trailer"; trailerId: number }
+  | { type: "list_trailer"; trailerId: number; askFd: number; floorFd: number; stepFd: number }
   | { type: "rebuild_truck"; truckId: number }
   | { type: "park_truck"; truckId: number }
   | { type: "unpark_truck"; truckId: number }
@@ -735,7 +825,7 @@ export type Action =
   | { type: "withdraw_pool"; line: PoolLine; amountFd: number }
   | { type: "set_pay_terms"; terms: "net" | "quick" | "factor" }
   | { type: "buy_item"; item: ItemKind; pay: "fd" | "usd"; truckId?: number }
-  | { type: "buy_business"; kind: "shop" | "fuelStation"; hubId: string }
+  | { type: "buy_business"; kind: "shop" | "fuelStation" | "dealership"; hubId: string }
   | { type: "buy_business"; kind: "truckStop"; siteId: number }
   | { type: "set_shop_markup"; businessId: number; markup: number }
   | { type: "set_parking_price"; businessId: number; fd: number }
@@ -830,4 +920,4 @@ export type GameEvent =
   | { kind: "liquidated"; companyId: number }
   | { kind: "launched" }
   /** Staff, safety and fraud news for a company's feed. */
-  | { kind: "notice"; companyId: number; topic: "staff" | "safety" | "crash" | "fraud" | "authority" | "contracts" | "board"; text: string; tone: "good" | "bad" | "info"; truckId?: number };
+  | { kind: "notice"; companyId: number; topic: "staff" | "safety" | "crash" | "fraud" | "authority" | "contracts" | "board" | "fleet"; text: string; tone: "good" | "bad" | "info"; truckId?: number };

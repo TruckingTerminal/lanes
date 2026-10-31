@@ -150,6 +150,30 @@ and the NPC dealer sold every new truck.
    and sell retail (the NPC dealer a dearer backstop); player lessors; NPC trailer leasing on the free
    path; trailer theft; every protocol-sold asset resellable player to player (businesses with their
    bonds, yards, upgrades with the truck). Target: replacement purchases 15–20% of all sinks.
+   - **Built 2026-10-31 (config `assets`, off in the base, on for the restart):** the trailer entity
+     (hooked, dropped in the yard, listed, gone), a yard counting tractors and trailers (none 5/5,
+     small 10/15, large 30/45, +5 trailer spaces through the catalogue), swaps at the home hub, NPC
+     trailer rental by the week at any hub (2 weeks minimum), trailer wear and one refurbishment, trailer
+     life by type (van 1.2M, reefer 750k, flatbed 1.5M miles); tractors take two rebuilds or a million
+     miles, then run until worn out and go for scrap (3% of list, a small faucet); a crash writes the
+     rig off at 4% / 35% / 100% (property / injury / fatal) with physical-damage cover at its value less
+     2,500 FD (1.2% of value a year in the premium); a trailer left in a yard can be stolen; nothing
+     goes back into dealer supply. The factory allocation (2.5% of the tractors on the road a month,
+     at least 40, by tier and type mix; the NPC dealer holds at most three months of it); player
+     dealerships (150k + 50k bond; wholesale at 85% of list through the catalogue split; retail at a
+     markup they set; seven-day delivery from stock; trade-ins at 80% of value onto a lot of ten);
+     the NPC dealer as backstop at +10% and +21 days while a dealership is open; player lessors
+     (tractor-only weekly leases with a minimum term; the title, rebuilds and scrap stay the owner's);
+     resale of businesses with their bonds, facilities, and yards (to a carrier at the same hub).
+     Bots swap, rent, refurbish, keep a spare per five tractors, buy tractors for spare trailers, buy
+     from the cheapest source, run and price dealerships, trade in, lease out parked tractors and
+     take cheap leases, sell businesses that lose money for a year. Client: trailer lines and asset
+     actions on each truck, the yard card, the showroom (rigs, tractors, trailers by source, used
+     trailers, tractors for lease), dealerships and resale in Business.
+   - **The open question for Jeff:** at today's prices (Workhorse + van 18k FD against ~360k FD a
+     year to run one) new equipment is ~2% of sinks with finite life on (the smoke run). The 15% bar
+     needs equipment several times dearer, which pushes a newcomer's first new truck past the 84-day
+     free path unless the first truck is used. The calibration batches put numbers on it.
 5. **Checkpoints and the authoritative server** before any real money (hosting: Jeff to choose the
    Mac mini or a cloud box); **the brief for counsel** (US first); **launch** with the lean reset, the
    window's dollars seeding a pool as deep as the float, the dial on from day one; the Monthly Economic

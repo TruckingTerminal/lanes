@@ -1,12 +1,12 @@
 import type { JSX } from "preact";
-import { businessesAt, businessesOf, businessPriceFd, companyAccount, hubTheftRisk, itemPriceFd, itemPriceUsd, priceIndex, siteBusiness, sitePriceFd, tokenLive, yardTrucks, type Business as Biz, type BusinessKind, type TruckStopSite } from "@lanes/engine";
+import { businessesAt, businessesOf, businessPriceFd, companyAccount, hubTheftRisk, itemPriceFd, itemPriceUsd, lotOf, openAssetSales, priceIndex, siteBusiness, sitePriceFd, tokenLive, trailerCap, yardTrucks, type Business as Biz, type BusinessKind, type TruckStopSite } from "@lanes/engine";
 import { fd, usd } from "../../format.js";
 import { act, bumpData, me, myTrucks, S, truckNo, useData } from "../../state.js";
 import { Btn, Card, Kv, Num, Panel } from "../bits.js";
 
 const num = (id: string): number => Number((document.getElementById(id) as HTMLInputElement | null)?.value);
 
-const KIND_NAME: Record<BusinessKind, string> = { shop: "Shop", fuelStation: "Fuel station", truckStop: "Truck stop" };
+const KIND_NAME: Record<BusinessKind, string> = { shop: "Shop", fuelStation: "Fuel station", truckStop: "Truck stop", dealership: "Dealership" };
 const MODS = [
   ["apu", "APU", "idling at half"],
   ["aero", "Aero kit", "5% less fuel"],
@@ -89,7 +89,7 @@ export function Business(): JSX.Element {
           <p class="muted small">
             More than {cat.trucksWithoutYard} trucks needs a yard. Prices follow the freight rate index (now {priceIndex(w).toFixed(2)}×); half of every price is burned. {usdWindow ? `Until launch, items can also be bought with dollars at ${cat.usdWindow.premium}× (up to ${usd(cat.usdWindow.capUsdPerMc)}): every dollar seeds the launch pool.` : ""}
           </p>
-          <Kv rows={[["Yard", <Num>{c.yard === "none" ? "none" : c.yard === "small" ? "small" : "large"} · holds {yardTrucks(w, c)} trucks</Num>]]} />
+          <Kv rows={[["Yard", <Num>{c.yard === "none" ? "none" : c.yard === "small" ? "small" : "large"} · holds {yardTrucks(w, c)} trucks{w.cfg.assets.enabled ? ` and ${trailerCap(w, c)} trailers` : ""}</Num>]]} />
           <div class="row">
             {c.yard === "none" ? (
               <Btn disabled={cash < itemPriceFd(w, "yardSmall") + cat.items.yardSmall.bondFd} onClick={() => act({ type: "buy_item", item: "yardSmall", pay: "fd" }, "Yard bought")}>
@@ -100,6 +100,17 @@ export function Business(): JSX.Element {
               <Btn disabled={cash < itemPriceFd(w, "yardLarge") + cat.items.yardLarge.bondFd} onClick={() => act({ type: "buy_item", item: "yardLarge", pay: "fd" }, "Large yard bought")}>
                 Large yard · {fd(itemPriceFd(w, "yardLarge"))} + {fd(cat.items.yardLarge.bondFd)} bond
               </Btn>
+            ) : null}
+            {w.cfg.assets.enabled && c.yard !== "none" ? (
+              <Btn disabled={cash < itemPriceFd(w, "trailerSpace")} onClick={() => act({ type: "buy_item", item: "trailerSpace", pay: "fd" }, `Room for ${w.cfg.assets.yard.spacePerPurchase} more trailers`)}>
+                +{w.cfg.assets.yard.spacePerPurchase} trailer spaces · {fd(itemPriceFd(w, "trailerSpace"))}
+              </Btn>
+            ) : null}
+            {w.cfg.assets.enabled && c.yard !== "none" && !openAssetSales(w).some((x) => x.kind === "yard" && x.sellerId === c.id) ? (
+              <>
+                <input type="number" id="yard-ask" step="1000" min="1" defaultValue={String(Math.round(itemPriceFd(w, c.yard === "large" ? "yardLarge" : "yardSmall") * 0.8))} aria-label="Asking price for the yard" />
+                <Btn onClick={() => act({ type: "list_asset_sale", kind: "yard", refId: c.id, askFd: num("yard-ask") }, "Yard up for sale to carriers at your home hub")}>Sell the yard</Btn>
+              </>
             ) : null}
             {usdWindow && c.yard === "none" ? (
               <Btn onClick={() => act({ type: "buy_item", item: "yardSmall", pay: "usd" }, "Yard bought with dollars")}>
@@ -122,7 +133,7 @@ export function Business(): JSX.Element {
       ) : null}
       {biz.enabled ? (
         <>
-          {(["shop", "fuelStation"] as const).map((kind) => {
+          {(w.cfg.assets.enabled ? (["shop", "fuelStation", "dealership"] as const) : (["shop", "fuelStation"] as const)).map((kind) => {
             const spec = biz.kinds[kind];
             const price = businessPriceFd(w, kind);
             const room = hubsByWeight.filter(({ i }) => businessesAt(w, i, kind).length < spec.perHub).slice(0, 4);
@@ -131,7 +142,9 @@ export function Business(): JSX.Element {
                 <p class="muted small">
                   {kind === "shop"
                     ? `Does the hub's maintenance, repairs and rebuilds at the price you set against the NPC shop's list: parts are ${Math.round(biz.kinds.shop.partsShare * 100)}% of list, the rest is yours. Your own trucks pay parts only.`
-                    : `Keeps a ${Math.round(biz.kinds.fuelStation.marginPct * 100)}% margin on the fuel bought at its hub; your own trucks fuel at wholesale.`}{" "}
+                    : kind === "dealership"
+                      ? `Buys its share of the factory's monthly allocation at ${Math.round(biz.kinds.dealership.wholesaleShare * 100)}% of list (half of it burned) and sells new tractors and trailers from stock at the markup you set, delivered in ${biz.kinds.dealership.deliveryDays} days. Takes trade-ins at ${Math.round(biz.kinds.dealership.tradeInShare * 100)}% of value for its used lot. Your own fleet takes from your stock at no further cost.`
+                      : `Keeps a ${Math.round(biz.kinds.fuelStation.marginPct * 100)}% margin on the fuel bought at its hub; your own trucks fuel at wholesale.`}{" "}
                   {fd(price)} FD + {fd(spec.bondFd)} bond, {fd(spec.upkeepPerWeekFd)} a week upkeep.
                 </p>
                 <div class="row">
@@ -152,6 +165,7 @@ export function Business(): JSX.Element {
           {sites.filter((s) => s.id !== sel?.id).map((s) => siteCard(s))}
         </>
       ) : null}
+      {w.cfg.assets.enabled ? <SalesCard /> : null}
       {mine.length ? <h3>Your businesses</h3> : null}
       {mine.map((b) => {
         const site = b.site ? w.sites[b.site - 1] : undefined;
@@ -166,12 +180,20 @@ export function Business(): JSX.Element {
                 ["Bond", <Num>{fd(b.bondFd)} FD</Num>],
                 ...(site ? ([["Parking", <Num>{site.parked}/{site.spaces} tonight · {fd(b.parkingFd)} a night</Num>], ["Theft risk here", <Num>{site.theftRisk.toFixed(1)}×</Num>]] as [string, JSX.Element][]) : []),
                 ...(b.hub >= 0 ? ([["Theft risk at the hub", <Num>{hubTheftRisk(w, b.hub).toFixed(1)}×</Num>]] as [string, JSX.Element][]) : []),
+                ...(b.kind === "dealership"
+                  ? ([
+                      ["Tractors in stock", <Num>{b.stock.tractor.workhorse} Workhorse · {b.stock.tractor.highwayPro} HighwayPro · {b.stock.tractor.flagship} Flagship</Num>],
+                      ["Trailers in stock", <Num>{b.stock.trailer.van} van · {b.stock.trailer.reefer} reefer · {b.stock.trailer.flatbed} flatbed</Num>],
+                      ["Sold last month", <Num>{b.soldLastMonth} · this month {b.soldMonth}</Num>],
+                      ["Used lot", <Num>{lotOf(w, b).length} of {biz.kinds.dealership.lotMax}</Num>],
+                    ] as [string, JSX.Element][])
+                  : []),
               ]}
             />
             {b.kind !== "fuelStation" ? (
               <div class="row">
                 <label class="small" for={`mk-${b.id}`}>
-                  Work at × list
+                  {b.kind === "dealership" ? "Sell new at × list" : "Work at × list"}
                 </label>
                 <input type="number" id={`mk-${b.id}`} step="0.01" defaultValue={String(b.markup)} min={String("markupRange" in spec ? spec.markupRange[0] : 0)} max={String("markupRange" in spec ? spec.markupRange[1] : 2)} aria-label="Price of work against the NPC list" />
                 <Btn sm onClick={() => act({ type: "set_shop_markup", businessId: b.id, markup: num(`mk-${b.id}`) }, "Prices set")}>
@@ -205,9 +227,72 @@ export function Business(): JSX.Element {
                 ) : null}
               </div>
             ) : null}
+            {w.cfg.assets.enabled ? <SellRow b={b} /> : null}
           </Card>
         );
       })}
     </Panel>
+  );
+}
+
+/** Assets, resale: put one of your businesses up for sale to another player, or take it down. */
+function SellRow({ b }: { b: Biz }): JSX.Element {
+  const w = S.game!.w;
+  const sale = openAssetSales(w).find((x) => x.kind === "business" && x.refId === b.id);
+  if (sale)
+    return (
+      <div class="row">
+        <span class="muted small">For sale at {fd(sale.askFd)} FD</span>
+        <Btn sm ghost onClick={() => act({ type: "withdraw_asset_sale", saleId: sale.id }, "Taken off the market")}>
+          Take it down
+        </Btn>
+      </div>
+    );
+  return (
+    <div class="row">
+      <input type="number" id={`sell-${b.id}`} step="1000" min="1" defaultValue={String(Math.round(b.purchaseFd * 0.9))} aria-label="Asking price" />
+      <Btn sm onClick={() => act({ type: "list_asset_sale", kind: "business", refId: b.id, askFd: num(`sell-${b.id}`) }, "Up for sale: the buyer takes over the bond")}>
+        Sell to a player
+      </Btn>
+    </div>
+  );
+}
+
+/** Assets, resale: businesses, facilities and yards other players are selling. */
+function SalesCard(): JSX.Element {
+  useData();
+  const w = S.game!.w;
+  const c = me();
+  const sales = openAssetSales(w).filter((x) => x.sellerId !== c.id).slice(0, 10);
+  const label = (x: (typeof sales)[number]): string => {
+    if (x.kind === "business") {
+      const b = w.businesses[x.refId - 1]!;
+      return `${KIND_NAME[b.kind]} · ${where(b)} · bond ${fd(b.bondFd)} · result so far ${fd(b.netFd)}`;
+    }
+    if (x.kind === "facility") {
+      const f = w.facilities[x.refId - 1]!;
+      return `${f.type} · ${w.net.hubs[f.hub]?.name ?? "?"}`;
+    }
+    const s = w.companies[x.sellerId - 1]!;
+    return `${s.yard} yard · ${w.net.hubs[s.homeHub]?.name ?? "?"} (for a carrier at that hub)`;
+  };
+  return (
+    <Card title="For sale by other players">
+      <p class="muted small">A business comes with its bond: the seller's comes back, yours goes in. A yard stays at its hub.</p>
+      {sales.length ? (
+        sales.map((x) => (
+          <div class="row" key={x.id}>
+            <span>
+              {label(x)} · asking <Num>{fd(x.askFd)}</Num>
+            </span>
+            <Btn sm onClick={() => act({ type: "buy_asset_sale", saleId: x.id }, "Bought from another player")}>
+              Buy
+            </Btn>
+          </div>
+        ))
+      ) : (
+        <p class="muted">Nothing for sale right now.</p>
+      )}
+    </Card>
   );
 }

@@ -1,5 +1,5 @@
 import type { JSX } from "preact";
-import { condition, crewed, hubMiles, ordersOf, rebuildCost, resting, truckValue, type StandingOrder, type Truck } from "@lanes/engine";
+import { condition, crewed, hubMiles, ordersOf, rebuildable, rebuildCost, resting, truckValue, type StandingOrder, type Truck } from "@lanes/engine";
 import { SCENES } from "../../assets.js";
 import { dateLabel, fd, pct, plural, TIER_NAME, TRAILER_NAME, hhmm, realUntil } from "../../format.js";
 import { DEFAULT_ORDERS, GAME_CONFIG } from "../../game.js";
@@ -9,6 +9,7 @@ import { act, describe, me, myTrucks, S, selectTruck, truckNo, useData } from ".
 import { Bar, Btn, Card, Label, Num, Panel, Pixel } from "../bits.js";
 import { Rig, Scene } from "../Loop.js";
 import { TendersCard } from "./Contracts.js";
+import { TrailerLines, TruckAssetActions, YardCard } from "./Yard.js";
 
 const num = (id: string): number => Number((document.getElementById(id) as HTMLInputElement | null)?.value);
 const checked = (id: string): boolean => Boolean((document.getElementById(id) as HTMLInputElement | null)?.checked);
@@ -26,10 +27,11 @@ export function Fleet(): JSX.Element {
       <TiredAlerts />
       <IdleAlerts />
       <PendingCard />
-      {pending.length ? <p class="muted">On order: {pending.map((o) => `${TIER_NAME[o.tier]} + ${TRAILER_NAME[o.trailer]}, arrives ${dateLabel(o.dueDay)}`).join("; ")}</p> : null}
+      {pending.length ? <p class="muted">On order: {pending.map((o) => `${o.kind === "trailer" ? `${TRAILER_NAME[o.trailer]} trailer` : o.kind === "tractor" ? `${TIER_NAME[o.tier]} tractor` : `${TIER_NAME[o.tier]} + ${TRAILER_NAME[o.trailer]}`}, arrives ${dateLabel(o.dueDay)}`).join("; ")}</p> : null}
       {trucks.map((t, idx) => (
         <TruckCard key={t.id} t={t} idx={idx} />
       ))}
+      <YardCard />
       <DispatcherCard />
     </Panel>
   );
@@ -107,8 +109,11 @@ function TruckCard({ t, idx }: { t: Truck; idx: number }): JSX.Element {
   const w = S.game!.w;
   const c = me();
   const leased = t.lease !== "owned";
+  // Assets: a tractor leased from another carrier runs here, but its owner sells, rebuilds and parks it.
+  const leasedIn = t.lessorId !== 0 && t.lessorId !== c.id;
+  const mine = t.lease === "owned" && !leasedIn;
   const cond = condition(w.cfg, t);
-  const kind = t.lease === "npc" ? "NPC lease (15% of gross)" : t.lease === "lessor" ? "Extra lease (15% of gross, 250 FD/wk minimum)" : `Owned · worth ${fd(truckValue(w, t))} FD`;
+  const kind = t.lease === "npc" ? "NPC lease (15% of gross)" : t.lease === "lessor" ? "Extra lease (15% of gross, 250 FD/wk minimum)" : leasedIn ? `Leased from another carrier` : `Owned · worth ${fd(truckValue(w, t))} FD`;
   const load = t.loadId !== null ? w.loads.get(t.loadId) : undefined;
   const nearby = w.net.hubs
     .map((h, i) => ({ h, i, mi: hubMiles(w, t.hub, i) }))
@@ -149,6 +154,7 @@ function TruckCard({ t, idx }: { t: Truck; idx: number }): JSX.Element {
         <span class="label">Odometer</span>
         <Num>{Math.round(t.odometer).toLocaleString("en-US")} mi</Num>
       </div>
+      <TrailerLines t={t} />
       <div class="row" onClick={stop}>
         {t.status === "idle" ? (
           <>
@@ -170,12 +176,12 @@ function TruckCard({ t, idx }: { t: Truck; idx: number }): JSX.Element {
             </Btn>
           </>
         ) : null}
-        {t.lease === "owned" && t.status === "idle" && cond <= w.cfg.wear.rebuildMaxCondition ? (
+        {mine && t.status === "idle" && cond <= w.cfg.wear.rebuildMaxCondition && rebuildable(w.cfg, t) ? (
           <Btn onClick={() => act({ type: "rebuild_truck", truckId: t.id }, "Truck is in the shop for two days")}>Rebuild · {fd(rebuildCost(w.cfg, t))} FD</Btn>
         ) : null}
-        {t.lease === "owned" && t.status === "idle" ? <Btn onClick={() => act({ type: "park_truck", truckId: t.id }, "Truck parked")}>Park</Btn> : null}
+        {mine && t.status === "idle" ? <Btn onClick={() => act({ type: "park_truck", truckId: t.id }, "Truck parked")}>Park</Btn> : null}
         {t.status === "parked" ? <Btn onClick={() => act({ type: "unpark_truck", truckId: t.id }, "Truck back on the road")}>Back on the road</Btn> : null}
-        {t.lease === "owned" && (t.status === "idle" || t.status === "parked") && myTrucks().length > 1 ? (
+        {mine && (t.status === "idle" || t.status === "parked") && myTrucks().length > 1 ? (
           <Btn
             onClick={() => {
               const value = truckValue(w, t);
@@ -186,6 +192,7 @@ function TruckCard({ t, idx }: { t: Truck; idx: number }): JSX.Element {
           </Btn>
         ) : null}
         {t.lease === "lessor" && t.status === "idle" ? <Btn onClick={() => act({ type: "return_lease", truckId: t.id }, "Lease returned")}>Return lease</Btn> : null}
+        <TruckAssetActions t={t} />
         {t.defects > 0 && (t.status === "idle" || t.status === "parked") ? (
           <Btn onClick={() => act({ type: "fix_defects", truckId: t.id }, "Defects fixed")}>
             Fix {plural(t.defects, "defect")} · {fd(t.defects * w.cfg.safety.maintenance.fixFdPerDefect)} FD

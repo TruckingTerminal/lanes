@@ -65,6 +65,7 @@ export function borrowingCapacity(w: World, truck: Truck): number {
 
 export function borrow(w: World, companyId: number, truck: Truck, amountFd: number): string | null {
   if (truck.companyId !== companyId) return "not your truck";
+  if (truck.lessorId !== 0 && truck.lessorId !== companyId) return "a leased truck is its owner's to pledge";
   if (amountFd <= 0 || amountFd > borrowingCapacity(w, truck) + 0.01) return "over the loan-to-value limit";
   if (amountFd > poolCash(w)) return "the pool doesn't have the cash";
   const f = w.finance;

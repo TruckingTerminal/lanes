@@ -408,6 +408,73 @@ export const economyConfig = {
     conditionWeight: 0.4, // a fully worn truck is worth 40% less than a fresh one of the same age
   },
 
+  // Assets and destruction (the EVE plan, step 4; Jeff 2026-10-30): tractors and trailers are separate
+  // assets with their own wear and their own life, nothing lasts forever and nothing is recycled. New
+  // supply arrives as a monthly factory allocation, sold through player dealerships with the NPC dealer
+  // as a dearer, slower backstop. Off in the base config; on in the live levers.
+  assets: {
+    enabled: false,
+    tractor: {
+      lifeMi: 1_000_000, // no rebuild past this odometer…
+      maxRebuilds: 2, // …or past two rebuilds: then it runs until it is worn out and goes for scrap
+      scrapAtCondition: 0.05, // a tractor that can't be rebuilt is scrapped once worn this far (its owner may scrap it any time)
+      scrapShare: 0.03, // scrap value: this share of the tractor's list price, paid by the scrapyard (a small faucet)
+    },
+    trailer: {
+      wearMi: { van: 400_000, reefer: 250_000, flatbed: 500_000 } satisfies Record<Equipment, number>, // condition 1 → 0 since the last refurbishment
+      lifeMi: { van: 1_200_000, reefer: 750_000, flatbed: 1_500_000 } satisfies Record<Equipment, number>, // a reefer's unit goes sooner
+      maintRiseWorn: 1.0, // fully worn, the trailer's maintenance × 2
+      refurbFd: { van: 2_000, reefer: 5_000, flatbed: 2_500 } satisfies Record<Equipment, number>,
+      refurbMaxCondition: 0.85, // a refurbishment must restore real wear
+      refurbDays: 1,
+      maxRefurbs: 1,
+      scrapAtCondition: 0.05,
+      scrapShare: 0.03,
+    },
+    // The yard holds tractors and trailers. Without a yard: five of each, and no spare bought to drop.
+    yard: {
+      none: { tractors: 5, trailers: 5 },
+      small: { tractors: 10, trailers: 15 },
+      large: { tractors: 30, trailers: 45 },
+      spacePerPurchase: 5, // more trailer space, bought through the catalogue (trailerSpace)
+      maxExtraSpace: 30,
+    },
+    // NPC trailer rental at any hub, by the week (a sink): for a tractor whose own trailer is gone, or
+    // one that drops its own at the yard to pull another type for a while.
+    rental: {
+      weeklyFd: { van: 300, reefer: 800, flatbed: 450 } satisfies Record<Equipment, number>,
+      minWeeks: 2,
+      condition: 0.85, // the lessor maintains its trailers
+    },
+    // Total losses: a crash writes off the rig at these odds. Physical-damage cover pays its value less
+    // the deductible: a pool-written policy from the pool, the NPC insurer's from the reserve (a faucet).
+    totalLoss: { pdo: 0.04, injury: 0.35, fatal: 1 },
+    physicalDamage: { annualShareOfValue: 0.012, deductibleFd: 2_500 },
+    // A trailer dropped in a yard overnight can be stolen, at the hub's theft risk (risk.ts).
+    trailerTheftPerNight: 0.00003,
+    // New supply is a monthly factory allocation, a policy number (tight allocation, dearer trucks): a
+    // share of the tractors on the road, at least a floor, by tier and type in these mixes. Player
+    // dealerships take their share wholesale first; the rest stocks the NPC dealer, which holds at most
+    // `stockMonths` of it (the rest isn't built). While a player dealership is open the NPC dealer is
+    // the backstop: `npcPremium` over list and `npcExtraDays` more to wait.
+    factory: {
+      monthlyShareOfFleet: 0.025,
+      minTractorsPerMonth: 40,
+      trailersPerTractor: 1.15,
+      tractorMix: { workhorse: 0.6, highwayPro: 0.32, flagship: 0.08 } satisfies Record<TractorTier, number>,
+      trailerMix: { van: 0.55, reefer: 0.27, flatbed: 0.18 } satisfies Record<Equipment, number>,
+      stockMonths: 3,
+      dealershipShare: 0.8,
+      npcPremium: 1.1,
+      npcExtraDays: 21,
+      priceRange: [0.85, 2] as const, // the dealer price index moves within this, not dealerPrices.range
+    },
+    // Player lessors: an owner leases a tractor to another carrier by the week, for a minimum term it
+    // sets. The tractor runs under the lessee (its costs, its trailer, its insurance); the title, the
+    // rebuilds and the scrap stay the lessor's. The free path keeps its NPC lease.
+    playerLeases: { weeklyFdRange: [50, 10_000] as const, maxMinWeeks: 52 },
+  },
+
   // §Circular economy — two ledgers: secondary sales pay the seller 95% and the
   // protocol 5%. In FD the 5% is a sink.
   usedMarket: {
@@ -506,6 +573,11 @@ export const economyConfig = {
       // ten-year payback, so bots stopped at ~25 and three quarters of breakdowns found nobody. A parked
       // truck saves 24 FD of idling, so 20 a night still leaves the driver better off.
       truckStop: { priceFd: 150_000, bondFd: 50_000, upkeepPerWeekFd: 1_500, fuelMarginPct: 0.06, partsShare: 0.7, markupRange: [1.1, 1.4] as const, idleFuelMult: 0.25 },
+      // A dealership (assets; the EVE plan, step 4): it buys the factory allocation wholesale (through the
+      // catalogue split: half burned) and sells new tractors and trailers at a markup over list it sets
+      // within the range, delivered from stock in a week. It takes trade-ins at a share of their value and
+      // sells them on from its used lot. The NPC dealer stays as the backstop, dearer and slower.
+      dealership: { priceFd: 150_000, bondFd: 50_000, upkeepPerWeekFd: 3_000, perHub: 1, markupRange: [0.95, 1.2] as const, wholesaleShare: 0.85, maxStock: 24, tradeInShare: 0.8, lotMax: 10, deliveryDays: 7 },
     },
     // Parking (Jeff, 2026-10-30): a truck sleeps at a site. Every site is a free public rest area with spaces
     // by its traffic (`spaces` at the quietest and the busiest); a player's truck stop on it adds shore
@@ -787,6 +859,7 @@ export const economyConfig = {
         aero: { priceFd: 8_000 }, // 5% less fuel
         tires: { priceFd: 6_000 }, // 20% less maintenance
         sleeper: { priceFd: 10_000 }, // per diem halved
+        trailerSpace: { priceFd: 15_000 }, // assets: five more trailers in the yard (assets.yard.spacePerPurchase)
       },
       split: { burn: 0.5, treasury: 0.25, reserve: 0.25 },
       indexBaseRate: 3.0, // a normal market's cleared rate, FD/mi: the index is 1 there

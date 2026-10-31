@@ -1,3 +1,4 @@
+import { writeOffRig } from "./assets.js";
 import { stationsOnRoute, weighStations, type Network } from "@lanes/data";
 import { opsCrashMult, opsPullInMult } from "./labor.js";
 import { dayOf, MINUTES_PER_HOUR } from "./clock.js";
@@ -32,7 +33,7 @@ const SEIZE_ALL = 1e15;
 
 const today = (w: World) => dayOf(w.t, w.cfg);
 
-export function notice(w: World, companyId: number, topic: "safety" | "crash" | "fraud" | "authority", text: string, tone: "good" | "bad" | "info", truckId?: number): void {
+export function notice(w: World, companyId: number, topic: "safety" | "crash" | "fraud" | "authority" | "fleet", text: string, tone: "good" | "bad" | "info", truckId?: number): void {
   w.listener?.({ kind: "notice", companyId, topic, text, tone, truckId });
 }
 
@@ -390,9 +391,15 @@ export function crash(w: World, t: Truck, c: Company): void {
     t.place = t.targetPlace;
   }
 
-  // The truck.
+  // The truck. A fatal crash totals it; assets on, any crash may, at its severity's odds, and
+  // physical-damage cover pays an owned rig's value less the deductible.
   const [lo, hi] = severity === "injury" ? k.downDays.injury : k.downDays.pdo;
-  if (severity === "fatal" && t.lease !== "npc") {
+  const totalOdds = w.cfg.assets.enabled ? w.cfg.assets.totalLoss[severity] : severity === "fatal" ? 1 : 0;
+  const totaled = t.lease !== "npc" && (totalOdds >= 1 || (totalOdds > 0 && rng.next() < totalOdds));
+  if (totaled && t.lease === "owned" && w.cfg.assets.enabled) {
+    const paid = writeOffRig(w, c, t);
+    lines.push(`The truck is a total loss; the insurer paid ${fmtInt(paid)} FD for it.`);
+  } else if (totaled) {
     if (t.lease === "lessor") {
       w.ledger.post(w.t, acct, "sink:npc_lease", k.leasedTotalLossFd, `totalloss:${t.id}`);
       w.lessor.out--;
@@ -404,6 +411,7 @@ export function crash(w: World, t: Truck, c: Company): void {
     t.status = "retired";
     t.remainingMi = 0;
     t.legKey = -1;
+    w.metrics.onTotalLoss();
     lines.push("The truck is a total loss.");
   } else {
     const days = severity === "fatal" ? 14 : rng.int(lo, hi);

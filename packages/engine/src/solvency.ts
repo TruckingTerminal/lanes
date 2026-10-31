@@ -6,9 +6,12 @@ import { depositorValue, POOL_ACCOUNT, poolCash, withdraw } from "./finance.js";
 import { companyAccount } from "./ledger.js";
 import { signPolicy } from "./insurance.js";
 import { releaseAll } from "./labor.js";
-import { listTruck } from "./market.js";
+import { listTrailer, listTruck } from "./market.js";
+import { trailersOf } from "./trailers.js";
+import { endPlayerLease, leasedOut } from "./playerLeases.js";
+import { withdrawSalesOf } from "./assetSales.js";
 import type { Company } from "./types.js";
-import { truckValue } from "./dealer.js";
+import { trailerValue, truckValue } from "./dealer.js";
 import { forfeitAirdrop } from "./token.js";
 import { releaseStake } from "./staking.js";
 import { releaseContractStakes } from "./receivables.js";
@@ -70,6 +73,8 @@ export function startLiquidation(w: World, c: Company): void {
   releaseYard(w, c); // the yard is lost; its bond comes back for the creditors
   releaseBusinesses(w, c); // the businesses close; their bonds come back for the creditors
   releaseStake(w, c); // the licence stake pays creditors before anything else
+  for (const o of w.leaseOffers) if (o.status === "open" && o.lessorId === c.id) o.status = "withdrawn"; // assets: no new leases
+  withdrawSalesOf(w, c); // …and nothing it listed for sale sells now
   for (const t of w.trucksByCompany.get(c.id)!) w.manualBids.delete(t.id);
   const deposited = depositorValue(w, c.id);
   if (deposited > 0.01) withdraw(w, c.id, deposited);
@@ -99,9 +104,13 @@ export function processLiquidations(w: World): void {
     if (c.liquidatingSince === null) continue;
     const fleet = w.trucksByCompany.get(c.id)!;
     for (const t of [...fleet]) {
-      // Extra leases go back to the lessor as soon as they're idle.
+      // Extra leases go back to the lessor as soon as they're idle; so does a player lessor's tractor.
       if (t.lease === "lessor" && t.status === "idle") {
         returnLease(w, c, t);
+        continue;
+      }
+      if (leasedOut(t)) {
+        if (t.status === "idle" || t.status === "parked") endPlayerLease(w, t, true);
         continue;
       }
       if (t.lease !== "owned" || (t.status !== "idle" && t.status !== "parked")) continue;
@@ -115,9 +124,20 @@ export function processLiquidations(w: World): void {
         value * insolvency.fireSaleStepPctOfValue,
       );
     }
+    // Assets: the trailers in the yard are fire-sold too (unsold, they go for scrap), and its tractors out on
+    // lease come back when they're next idle, to be sold with the rest.
+    if (w.cfg.assets.enabled) {
+      for (const t of w.trucks) if (t.lessorId === c.id && leasedOut(t) && (t.status === "idle" || t.status === "parked")) endPlayerLease(w, t, true);
+      for (const tr of [...trailersOf(w, c.id)]) {
+        if (tr.status !== "dropped" || tr.lease !== "owned" || tr.refurbUntilT !== null) continue;
+        const value = trailerValue(w, tr);
+        listTrailer(w, c.id, tr, value * insolvency.fireSaleStartPctOfValue, value * insolvency.fireSaleFloorPctOfValue, value * insolvency.fireSaleStepPctOfValue);
+      }
+    }
     // Once the fleet is gone, a bankrupt still sits out a few weeks before the restart: going broke isn't a free reset.
+    const trailersLeft = w.cfg.assets.enabled && (trailersOf(w, c.id).some((tr) => tr.lease === "owned") || w.trucks.some((t) => t.lessorId === c.id && leasedOut(t) && t.status !== "retired"));
     const done =
-      !fleet.some((t) => t.lease !== "npc") && ordersOf(w, c.id).length === 0 && c.openBrokerLoads === 0 && today - c.liquidatingSince >= insolvency.restartAfterDays;
+      !fleet.some((t) => t.lease !== "npc") && !trailersLeft && ordersOf(w, c.id).length === 0 && c.openBrokerLoads === 0 && today - c.liquidatingSince >= insolvency.restartAfterDays;
     // A revoked authority waits out its bar; new authority comes with the restart (dailySafety).
     if (done && c.authority.status !== "revoked") restart(w, c);
   }

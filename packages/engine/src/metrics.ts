@@ -68,6 +68,30 @@ export interface DayMetrics {
   cargoThefts: number;
   cargoTheftFd: number;
   rebuilds: number;
+  /** Assets (tractors and trailers apart): trailers delivered alone, rentals taken, swaps at the yard, refurbishments, tractors and trailers scrapped, rigs written off in crashes, trailers stolen from yards, and owned trailers and rentals out at day's end. */
+  trailersDelivered: number;
+  trailerRentals: number;
+  trailerSwaps: number;
+  refurbs: number;
+  scrappedTractors: number;
+  scrappedTrailers: number;
+  totalLosses: number;
+  yardThefts: number;
+  /** The factory allocation: tractors and trailers built this month (on its day); new units sold out of player dealerships' stock; trade-ins taken. */
+  factoryTractors: number;
+  factoryTrailers: number;
+  /** FD dealerships paid the factory, wholesale (burn, treasury and reserve), and new units' retail at dealerships. */
+  wholesaleFd: number;
+  dealershipSalesFd: number;
+  dealershipSales: number;
+  tradeIns: number;
+  /** Player lessors: leases taken today, and tractors out on lease at day's end. */
+  playerLeases: number;
+  leasedOut: number;
+  /** Resale: businesses, facilities and yards sold player to player today. */
+  assetSales: number;
+  ownedTrailers: number;
+  rentalsOut: number;
   /** Mean condition of owned trucks (1 = fresh). */
   avgOwnedCondition: number;
   /** The Cass-style demand dial today (1 = neutral). */
@@ -186,6 +210,61 @@ export class MetricsRecorder {
 
   onRebuild(): void {
     this.acc.rebuilds++;
+  }
+
+  onTrailerDelivered(): void {
+    this.acc.trailersDelivered++;
+  }
+
+  onTrailerRental(): void {
+    this.acc.trailerRentals++;
+  }
+
+  onTrailerSwap(): void {
+    this.acc.trailerSwaps++;
+  }
+
+  onRefurb(): void {
+    this.acc.refurbs++;
+  }
+
+  onScrap(what: "tractor" | "trailer"): void {
+    if (what === "tractor") this.acc.scrappedTractors++;
+    else this.acc.scrappedTrailers++;
+  }
+
+  onTotalLoss(): void {
+    this.acc.totalLosses++;
+  }
+
+  onYardTheft(): void {
+    this.acc.yardThefts++;
+  }
+
+  onFactory(tractors: number, trailers: number): void {
+    this.acc.factoryTractors += tractors;
+    this.acc.factoryTrailers += trailers;
+  }
+
+  onDealershipSale(fd = 0): void {
+    this.acc.dealershipSales++;
+    this.acc.dealershipSalesFd += fd;
+  }
+
+  onWholesale(fd: number): void {
+    this.acc.wholesaleFd += fd;
+  }
+
+  onTradeIn(): void {
+    this.acc.tradeIns++;
+  }
+
+  onPlayerLease(): void {
+    this.acc.playerLeases++;
+  }
+
+  onAssetSale(): void {
+    this.acc.assetSales++;
   }
 
   onOrder(): void {
@@ -347,6 +426,25 @@ export class MetricsRecorder {
       cargoThefts: a.cargoThefts,
       cargoTheftFd: a.cargoTheftFd,
       rebuilds: a.rebuilds,
+      trailersDelivered: a.trailersDelivered,
+      trailerRentals: a.trailerRentals,
+      trailerSwaps: a.trailerSwaps,
+      refurbs: a.refurbs,
+      scrappedTractors: a.scrappedTractors,
+      scrappedTrailers: a.scrappedTrailers,
+      totalLosses: a.totalLosses,
+      yardThefts: a.yardThefts,
+      factoryTractors: a.factoryTractors,
+      factoryTrailers: a.factoryTrailers,
+      wholesaleFd: a.wholesaleFd,
+      dealershipSalesFd: a.dealershipSalesFd,
+      dealershipSales: a.dealershipSales,
+      tradeIns: a.tradeIns,
+      playerLeases: a.playerLeases,
+      assetSales: a.assetSales,
+      leasedOut: w.trucks.reduce((n, t) => n + (t.lessorId !== 0 && t.lessorId !== t.companyId && t.status !== "retired" ? 1 : 0), 0),
+      ownedTrailers: trailerCount(w, "owned"),
+      rentalsOut: trailerCount(w, "rental"),
       avgOwnedCondition: owned ? conditionSum / owned : 1,
       cycle: w.feeds.cycle(day),
       ordersPlaced: a.ordersPlaced,
@@ -429,6 +527,22 @@ function emptyAcc() {
     cargoThefts: 0,
     cargoTheftFd: 0,
     rebuilds: 0,
+    trailersDelivered: 0,
+    trailerRentals: 0,
+    trailerSwaps: 0,
+    refurbs: 0,
+    scrappedTractors: 0,
+    scrappedTrailers: 0,
+    totalLosses: 0,
+    yardThefts: 0,
+    factoryTractors: 0,
+    factoryTrailers: 0,
+    wholesaleFd: 0,
+    dealershipSalesFd: 0,
+    dealershipSales: 0,
+    tradeIns: 0,
+    playerLeases: 0,
+    assetSales: 0,
     ordersPlaced: 0,
     trucksDelivered: 0,
     repossessions: 0,
@@ -447,4 +561,11 @@ function emptyAcc() {
     doubleBrokers: 0,
     convictions: 0,
   };
+}
+
+/** Trailers on companies' books by lease (assets): owned ones, or rentals out. */
+function trailerCount(w: World, lease: "owned" | "rental"): number {
+  let n = 0;
+  for (const list of w.trailersByCompany.values()) for (const tr of list) if (tr.lease === lease) n++;
+  return n;
 }

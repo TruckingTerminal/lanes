@@ -1,3 +1,7 @@
+import { dailyAssets } from "./assets.js";
+import { monthlyFactory } from "./dealerships.js";
+import { billPlayerLeases } from "./playerLeases.js";
+import { billRentals } from "./trailers.js";
 import { weeklyContracts } from "./contracts.js";
 import { runBoardRound, autoBook } from "./board.js";
 import { clearBuyback } from "./buyback.js";
@@ -62,6 +66,7 @@ export function runDays(w: World, days: number, agents?: DailyAgentHook, onDay?:
 function endOfDay(w: World, day: number, agents?: DailyAgentHook): void {
   const { cfg } = w;
   deliverOrders(w);
+  dailyAssets(w); // assets: refurbishments finish, the end of life, yard thefts
   repossessDefaults(w);
   processLiquidations(w);
   dailyFraud(w);
@@ -109,6 +114,8 @@ function endOfDay(w: World, day: number, agents?: DailyAgentHook): void {
       c.overheadPaidFd += overhead;
     }
     if (cfg.freeEntry.leases.enabled) chargeMinimumRent(w);
+    billRentals(w); // assets: trailer rentals pay their week
+    billPlayerLeases(w); // assets: lessees pay their lessors
     serviceLoans(w);
     stepListings(w);
     payDispatchers(w); // dispatchers' and managers' weekly pay
@@ -188,6 +195,7 @@ function endOfDay(w: World, day: number, agents?: DailyAgentHook): void {
     monthlyLabor(w);
     monthlySafety(w);
     monthlyInsurance(w);
+    monthlyFactory(w); // assets: the factory allocation stocks the dealerships and the NPC dealer
     monthlyDealerPrices(w);
     monthlyFuelTax(w);
     monthlySites(w);

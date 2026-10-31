@@ -1,6 +1,6 @@
 import type { EconomyConfig, Equipment, TractorTier } from "@lanes/config";
 import { dayOf } from "./clock.js";
-import { effectiveMpg, expectedRepairPerMile, maintMultiplier, type TruckSpec } from "./wear.js";
+import { effectiveMpg, expectedRepairPerMile, maintenancePerMile, type TruckSpec } from "./wear.js";
 import type { World } from "./world.js";
 
 /** In-game diesel (§Rates — scaled fuel), times the rack-spread stabilizer. */
@@ -38,7 +38,7 @@ export function tripCost(cfg: EconomyConfig, truck: TruckSpec & { mods?: { aero?
     gallons,
     fuel: gallons * fuel,
     wages: driven * (truck.wagePerMile ?? cfg.costs.driverWagePerMile) * (ops.enabled ? ops.driverPayMult[truck.trailer] : 1),
-    maintenance: driven * maintPerMile(cfg, truck.tier, truck.trailer) * maintMultiplier(cfg, truck) * (truck.mods?.tires ? 0.8 : 1),
+    maintenance: driven * maintenancePerMile(cfg, truck) * (truck.mods?.tires ? 0.8 : 1),
     // Billed weekly per truck on a yearly policy (insurance.ts); here, its share per loaded mile.
     insurance: ((loaded * cfg.insurance.baseAnnualPerTruck) / cfg.insurance.loadedMilesPerYear) * (truck.insuranceMult ?? 1),
   };

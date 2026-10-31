@@ -1,3 +1,5 @@
+import { endOfLife } from "./assets.js";
+import { addTrailerMiles } from "./trailers.js";
 import { COMMODITIES, dexp, NO_TERRAIN, routeTerrain, type Route } from "@lanes/data";
 import { deliveryWait, pickupWait } from "./docks.js";
 import { flatbedDamage, reeferUnit } from "./equipment.js";
@@ -97,6 +99,11 @@ export function moveTrucks(w: World): void {
   const { cfg } = w;
   for (const truck of w.trucks) {
     if (truck.status === "retired" || truck.status === "listed") continue;
+    // Assets: a truck standing at a hub meets the end of its life (or its trailer's) there.
+    if (cfg.assets.enabled && truck.status === "idle" && truck.companyId && truck.lease === "owned") {
+      endOfLife(w, companyById(w, truck.companyId), truck);
+      if ((truck.status as Truck["status"]) === "retired") continue; // scrapped just now
+    }
     // The morning after a night at a site: the space is free once the duty day has reset (sites.ts).
     if (truck.restSite && drivingMinutesLeft(w, truck, w.t) > 1e-9) leaveParking(w, truck);
     let budget = MINUTES_PER_HOUR;
@@ -187,6 +194,7 @@ export function moveTrucks(w: World): void {
       else truck.emptyMi += miles;
       truck.odometer += miles;
       if (truck.lease === "owned") truck.milesSinceRebuild += miles;
+      if (truck.trailerId) addTrailerMiles(w, truck, miles); // assets: the trailer wears with its own miles
       creditMiles(w, truck, miles);
       if (miles > 0 && w.rng.ops.next() < (breakdownsPer1000Mi(cfg, truck) * managerBreakdownMult(w, companyById(w, truck.companyId)) * terrainBreakdownMult(w, truck) * miles) / 1000) breakDown(w, truck);
       if (truck.remainingMi <= 1e-6) truck.remainingMi = 0;

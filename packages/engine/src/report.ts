@@ -1,4 +1,4 @@
-import { dealerPrice, ordersOf, truckValue } from "./dealer.js";
+import { dealerPrice, orderPrice, ordersOf, trailerValue, truckValue } from "./dealer.js";
 import { facilitiesOf } from "./demand.js";
 import { depositorValue } from "./finance.js";
 import { companyAccount } from "./ledger.js";
@@ -77,6 +77,35 @@ export interface RunReport {
   parking: { siteNights: number; shoulderNights: number; tickets: number; sitesFull: number };
   /** The trailer pass and the risk corridors: waits at docks, missed appointment slots, flatbed damage claims, cargo thefts. */
   operations: { dockWaits: number; dockWaitHours: number; missedSlots: number; flatbedDamage: number; cargoThefts: number; cargoTheftFd: number };
+  /**
+   * Assets and destruction (assets.enabled): what was scrapped, written off and stolen; the factory's
+   * output and how it was sold; trailers, rentals, swaps and leases; and the equipment sinks against all
+   * sinks: new equipment bought (the NPC dealer's sales and the dealerships' wholesale), and every cost of
+   * equipment (new, the NPC lessor's share, trailer rent, rebuilds and refurbishments).
+   */
+  assets: {
+    scrappedTractors: number;
+    scrappedTrailers: number;
+    totalLosses: number;
+    yardThefts: number;
+    factoryTractors: number;
+    factoryTrailers: number;
+    dealershipSales: number;
+    dealershipSalesFd: number;
+    tradeIns: number;
+    trailerRentals: number;
+    trailerSwaps: number;
+    refurbs: number;
+    playerLeases: number;
+    assetSales: number;
+    ownedTrailersEnd: number;
+    rentalsOutEnd: number;
+    leasedOutEnd: number;
+    newEquipmentFd: number;
+    newEquipmentShareOfSinks: number;
+    allEquipmentFd: number;
+    allEquipmentShareOfSinks: number;
+  };
   facilities: {
     owned: Record<string, number>;
     ownersBySegment: Record<string, number>;
@@ -340,8 +369,11 @@ export function buildReport(w: World): RunReport {
   // Wealth concentration.
   const wealthOf = (companyId: number) => {
     let wealth = w.ledger.balance(companyAccount(companyId)) + depositorValue(w, companyId);
-    for (const t of w.trucksByCompany.get(companyId)!) wealth += truckValue(w, t);
-    for (const o of ordersOf(w, companyId)) wealth += dealerPrice(w, o);
+    // Assets: a leased tractor is its owner's wealth, not the lessee's; trailers in the yard count too.
+    for (const t of w.trucksByCompany.get(companyId)!) if (!t.lessorId || t.lessorId === companyId) wealth += truckValue(w, t);
+    for (const t of w.trucks) if (t.lessorId === companyId && t.companyId !== companyId && t.status !== "retired") wealth += truckValue(w, t);
+    for (const tr of w.trailersByCompany.get(companyId) ?? []) if (tr.lease === "owned" && tr.status !== "hooked") wealth += trailerValue(w, tr);
+    for (const o of ordersOf(w, companyId)) wealth += orderPrice(w, o);
     for (const f of facilitiesOf(w, companyId)) wealth += cfg.facilities.types[f.type].priceFd;
     return wealth;
   };
@@ -437,6 +469,36 @@ export function buildReport(w: World): RunReport {
       cargoThefts: sum(days.map((d) => d.cargoThefts ?? 0)),
       cargoTheftFd: sum(days.map((d) => d.cargoTheftFd ?? 0)),
     },
+    assets: (() => {
+      const total = sum(Object.values(sinksByTag)) + sum(days.map((d) => d.burnFd));
+      const wholesale = sum(days.map((d) => d.wholesaleFd ?? 0));
+      const newFd = (sinksByTag["equipment_dealer"] ?? 0) + wholesale;
+      const allFd = newFd + (sinksByTag["npc_lease"] ?? 0) + (sinksByTag["trailer_rent"] ?? 0) + (sinksByTag["rebuild"] ?? 0);
+      const last = days.at(-1);
+      return {
+        scrappedTractors: sum(days.map((d) => d.scrappedTractors ?? 0)),
+        scrappedTrailers: sum(days.map((d) => d.scrappedTrailers ?? 0)),
+        totalLosses: sum(days.map((d) => d.totalLosses ?? 0)),
+        yardThefts: sum(days.map((d) => d.yardThefts ?? 0)),
+        factoryTractors: sum(days.map((d) => d.factoryTractors ?? 0)),
+        factoryTrailers: sum(days.map((d) => d.factoryTrailers ?? 0)),
+        dealershipSales: sum(days.map((d) => d.dealershipSales ?? 0)),
+        dealershipSalesFd: sum(days.map((d) => d.dealershipSalesFd ?? 0)),
+        tradeIns: sum(days.map((d) => d.tradeIns ?? 0)),
+        trailerRentals: sum(days.map((d) => d.trailerRentals ?? 0)),
+        trailerSwaps: sum(days.map((d) => d.trailerSwaps ?? 0)),
+        refurbs: sum(days.map((d) => d.refurbs ?? 0)),
+        playerLeases: sum(days.map((d) => d.playerLeases ?? 0)),
+        assetSales: sum(days.map((d) => d.assetSales ?? 0)),
+        ownedTrailersEnd: last?.ownedTrailers ?? 0,
+        rentalsOutEnd: last?.rentalsOut ?? 0,
+        leasedOutEnd: last?.leasedOut ?? 0,
+        newEquipmentFd: newFd,
+        newEquipmentShareOfSinks: total > 0 ? newFd / total : 0,
+        allEquipmentFd: allFd,
+        allEquipmentShareOfSinks: total > 0 ? allFd / total : 0,
+      };
+    })(),
     facilities: {
       owned,
       ownersBySegment,

@@ -2,9 +2,11 @@ import { dayOf } from "./clock.js";
 import { chargeSalesTax, salesTaxOn } from "./salesTax.js";
 import { activeLoanOn, closeLoanFromPoolProceeds, POOL_ACCOUNT, settleLoanFromSale, writeOffLoan } from "./finance.js";
 import { companyAccount } from "./ledger.js";
-import type { Listing, Truck } from "./types.js";
-import { truckValue } from "./dealer.js";
+import type { Listing, Trailer, Truck } from "./types.js";
+import { trailerPrice, trailerValue, truckValue, trailerOrdersOf } from "./dealer.js";
 import { dealerPrice } from "./dealer.js";
+import { handBack, hook, hookedTrailer, ownedTrailers, scrapTrailer, trailerCap, transferTrailer, unhook } from "./trailers.js";
+import { scrapTractor } from "./assets.js";
 import { truckCap } from "./staking.js";
 import { attachTruck, companyById, detachTruck, staffById, truckById, unseatDriver, type World } from "./world.js";
 
@@ -21,6 +23,7 @@ export function openListings(w: World): Listing[] {
 
 export function listTruck(w: World, sellerId: number, truck: Truck, askFd: number, floorFd: number, stepFd: number): Listing | string {
   if (sellerId !== 0 && truck.companyId !== sellerId) return "not your truck";
+  if (sellerId !== 0 && truck.lessorId !== 0 && truck.lessorId !== truck.companyId) return "a leased truck is its owner's to sell";
   if (truck.lease !== "owned") return "only owned trucks can be sold";
   if (sellerId !== 0 && truck.status !== "idle" && truck.status !== "parked") return "truck must be idle or parked";
   if (!(stepFd > 0) || !(floorFd >= 0) || !(askFd >= floorFd)) return "ask at or above the floor, with a weekly price cut";
@@ -33,9 +36,13 @@ export function listTruck(w: World, sellerId: number, truck: Truck, askFd: numbe
   // The crew stays with the company, free for another truck.
   if (truck.coDriverId) unseatDriver(w, staffById(w, truck.coDriverId));
   if (truck.driverId) unseatDriver(w, staffById(w, truck.driverId));
+  // Assets: a rig sells with its own trailer; a rental goes back to the lessor first.
+  const tr = w.cfg.assets.enabled ? hookedTrailer(w, truck) : null;
+  if (tr && tr.lease !== "owned") handBack(w, tr);
   const listing: Listing = {
     id: w.listings.length + 1,
     truckId: truck.id,
+    trailerId: 0,
     sellerId,
     loanId: loan?.id ?? null,
     formerOwnerId: truck.companyId,
@@ -50,10 +57,38 @@ export function listTruck(w: World, sellerId: number, truck: Truck, askFd: numbe
   return listing;
 }
 
+/** Assets: a trailer waiting in the yard, for sale on its own. */
+export function listTrailer(w: World, sellerId: number, tr: Trailer, askFd: number, floorFd: number, stepFd: number): Listing | string {
+  if (tr.companyId !== sellerId || tr.lease !== "owned") return "not your trailer";
+  if (tr.status !== "dropped" || tr.refurbUntilT !== null) return "the trailer must be in the yard";
+  if (!(stepFd > 0) || !(floorFd >= 0) || !(askFd >= floorFd)) return "ask at or above the floor, with a weekly price cut";
+  if (askFd > 2 * trailerPrice(w, tr.type)) return "asking more than twice what it costs new";
+  const listing: Listing = {
+    id: w.listings.length + 1,
+    truckId: 0,
+    trailerId: tr.id,
+    sellerId,
+    loanId: null,
+    formerOwnerId: sellerId,
+    listedDay: dayOf(w.t, w.cfg),
+    askFd: Math.max(askFd, floorFd),
+    floorFd,
+    stepFd,
+    status: "open",
+  };
+  tr.status = "listed";
+  w.listings.push(listing);
+  return listing;
+}
+
 export function withdrawListing(w: World, sellerId: number, listingId: number): string | null {
   const l = w.listings[listingId - 1];
   if (!l || l.status !== "open" || l.sellerId !== sellerId || sellerId === 0) return "no such listing";
   l.status = "withdrawn";
+  if (l.trailerId) {
+    w.trailers[l.trailerId - 1]!.status = "dropped";
+    return null;
+  }
   const truck = truckById(w, l.truckId);
   truck.status = "parked";
   return null;
@@ -68,12 +103,15 @@ export function buyListing(w: World, buyerId: number, listingId: number): string
   if (buyer.role !== "carrier") return "only carriers run trucks in Phase 0";
   const buyerAcct = companyAccount(buyerId);
   if (w.ledger.balance(buyerAcct) < l.askFd + salesTaxOn(w, l.askFd)) return "insufficient FD";
+  if (l.trailerId) return buyTrailerListing(w, l, buyerId);
   const fleet = w.trucksByCompany.get(buyerId)!;
   const npc = fleet.find((t) => t.lease === "npc");
   if (!npc && fleet.length >= truckCap(w, companyById(w, buyerId))) return "company truck cap";
   if (npc && npc.status !== "idle") return "NPC-leased truck is on a trip";
 
   const truck = truckById(w, l.truckId);
+  // Assets: the rig's own trailer comes with it, so it needs room in the yard.
+  if (w.cfg.assets.enabled && hookedTrailer(w, truck)?.lease === "owned" && ownedTrailers(w, buyer).length + trailerOrdersOf(w, buyerId).length >= trailerCap(w, buyer)) return "no room in the yard for its trailer";
   const fee = l.askFd * cfg.usedMarket.feePct;
   const net = l.askFd - fee;
   const ref = `listing:${l.id}`;
@@ -105,6 +143,30 @@ export function buyListing(w: World, buyerId: number, listingId: number): string
   buyer.usedBought++;
   l.status = "sold";
   w.metrics.onUsedSale(l.sellerId === 0);
+  return null;
+}
+
+/** Assets: a used trailer goes to the buyer's yard, or straight behind a tractor there that pulls a rental. */
+function buyTrailerListing(w: World, l: Listing, buyerId: number): string | null {
+  const buyer = companyById(w, buyerId);
+  const buyerAcct = companyAccount(buyerId);
+  if (ownedTrailers(w, buyer).length + trailerOrdersOf(w, buyerId).length >= trailerCap(w, buyer)) return "no room in the yard";
+  const tr = w.trailers[l.trailerId - 1]!;
+  const fee = l.askFd * w.cfg.usedMarket.feePct;
+  const ref = `listing:${l.id}`;
+  w.ledger.post(w.t, buyerAcct, "sink:market_fee", fee, ref);
+  chargeSalesTax(w, buyerId, l.askFd, ref);
+  w.ledger.post(w.t, buyerAcct, companyAccount(l.sellerId), l.askFd - fee, ref);
+  companyById(w, l.sellerId).usedSold++;
+  transferTrailer(w, tr, buyer);
+  const truck = w.trucksByCompany.get(buyerId)!.find((t) => t.status === "idle" && t.hub === buyer.homeHub && hookedTrailer(w, t)?.lease === "rental");
+  if (truck) {
+    unhook(w, truck);
+    hook(w, truck, tr);
+  }
+  buyer.usedBought++;
+  l.status = "sold";
+  w.metrics.onUsedSale(false);
   return null;
 }
 
@@ -150,20 +212,36 @@ export function stepListings(w: World): void {
       l.askFd -= l.stepFd;
       continue;
     }
+    if (l.trailerId) {
+      // A trailer that didn't sell: back to the yard, or for scrap if the seller is being wound up.
+      const tr = w.trailers[l.trailerId - 1]!;
+      const seller = companyById(w, l.sellerId);
+      l.status = seller.liquidatingSince === null ? "withdrawn" : "returned";
+      tr.status = "dropped";
+      if (seller.liquidatingSince !== null) scrapTrailer(w, tr);
+      continue;
+    }
     const truck = truckById(w, l.truckId);
     const seller = l.sellerId !== 0 ? companyById(w, l.sellerId) : null;
+    // A dealership's used lot (a trade-in, off its owner's fleet) holds the truck at its floor until it sells.
+    if (seller && seller.liquidatingSince === null && truck.companyId === 0) continue;
     if (seller && seller.liquidatingSince === null) {
       l.status = "withdrawn";
       truck.status = "parked";
       continue;
     }
     // Unsold repossessions and fire sales go back to dealer supply; the lender writes off what it can't recover.
-    if (seller) detachTruck(w, truck);
-    l.status = "returned";
-    truck.status = "retired";
-    w.supply.tractor[truck.tier]++;
-    w.supply.trailer[truck.trailer]++;
+    // Assets on, nothing is recycled: they go for scrap, the scrap value to the seller (the lender, for a repossession).
     const loan = l.loanId !== null ? w.finance.loans[l.loanId - 1] : undefined;
+    l.status = "returned";
+    if (w.cfg.assets.enabled) {
+      scrapTractor(w, truck, seller ? companyAccount(seller.id) : POOL_ACCOUNT, true);
+    } else {
+      if (seller) detachTruck(w, truck);
+      truck.status = "retired";
+      w.supply.tractor[truck.tier]++;
+      w.supply.trailer[truck.trailer]++;
+    }
     if (loan && (loan.status === "repossessed" || loan.status === "active" || loan.status === "defaulted")) writeOffLoan(w, loan);
     w.metrics.onListingReturned();
   }

@@ -215,7 +215,35 @@ export function describe(a: LiveAction): string {
     case "reposition_truck":
       return `Send truck ${truckNo(a.truckId)} empty to ${a.hubId}`;
     case "buy_asset":
-      return `Order a ${TIER_NAME[a.tier]} + ${TRAILER_NAME[a.trailer]}`;
+      return a.tractorOnly ? `Order a ${TIER_NAME[a.tier]} tractor` : `Order a ${TIER_NAME[a.tier]} + ${TRAILER_NAME[a.trailer]}`;
+    case "buy_trailer":
+      return `Order a ${TRAILER_NAME[a.trailer].toLowerCase()} trailer`;
+    case "swap_trailer":
+      return `Swap truck ${truckNo(a.truckId)}'s trailer at the yard`;
+    case "rent_trailer":
+      return `Rent a ${TRAILER_NAME[a.trailer].toLowerCase()} for truck ${truckNo(a.truckId)}`;
+    case "refurbish_trailer":
+      return "Refurbish a trailer";
+    case "scrap_truck":
+      return `Scrap truck ${truckNo(a.truckId)}`;
+    case "scrap_trailer":
+      return "Scrap a trailer";
+    case "list_trailer":
+      return "List a trailer for sale";
+    case "trade_in":
+      return `Trade in truck ${truckNo(a.truckId)}`;
+    case "offer_lease":
+      return `Offer truck ${truckNo(a.truckId)} for lease at ${fd(a.weeklyFd)} FD a week`;
+    case "withdraw_lease_offer":
+      return "Take a lease offer down";
+    case "take_lease":
+      return "Lease a tractor from another carrier";
+    case "list_asset_sale":
+      return `Put your ${a.kind} up for sale at ${fd(a.askFd)} FD`;
+    case "withdraw_asset_sale":
+      return "Take a sale down";
+    case "buy_asset_sale":
+      return "Buy from another player";
     case "buy_listing":
       return "Buy a used truck";
     case "set_standing_orders":
@@ -295,7 +323,7 @@ export function describe(a: LiveAction): string {
     case "buy_item":
       return `Buy ${a.item}${a.truckId ? ` for truck ${truckNo(a.truckId)}` : ""}${a.pay === "usd" ? " with dollars" : ""}`;
     case "buy_business":
-      return a.kind === "truckStop" ? "Build a truck stop" : `Open a ${a.kind === "shop" ? "shop" : "fuel station"} at ${a.hubId}`;
+      return a.kind === "truckStop" ? "Build a truck stop" : `Open a ${a.kind === "shop" ? "shop" : a.kind === "dealership" ? "dealership" : "fuel station"} at ${a.hubId}`;
     case "set_shop_markup":
       return `Price work at ${a.markup.toFixed(2)}× list`;
     case "set_parking_price":

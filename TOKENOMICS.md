@@ -512,3 +512,27 @@ world and as the sim's default profile (`--profile base` runs the bare config):
   the free path a 32-day median, pool dollars draining ~$5k a year across 600 bot companies — the
   residual a few percent of real growth covers. The three gates (price from launch, liquidations
   against baseline, the free path) are dashboards on the live world from here, not batch tests.
+
+## Assets and destruction (the EVE plan, step 4; built 2026-10-31, config `assets`, not yet live)
+EVE's economy turns because ships are destroyed and rebuilt from what players make. Lanes now does the
+same with trucks and trailers, which used to last forever and go back into dealer supply.
+
+- **Two assets.** A tractor pulls a trailer; each wears on its own miles. A yard holds a set number of
+  each (no yard: five and five, no spares; small 10 and 15; large 30 and 45), and spares swap at the
+  home hub. The NPC lessor rents trailers by the week at any hub.
+- **Finite life.** A tractor takes two rebuilds or a million miles, then runs until it is worn out and
+  goes for scrap at 3% of list. A trailer runs its type's miles (reefer 750k, van 1.2M, flatbed 1.5M).
+  Scrap is a small faucet; the replacement is a sink.
+- **Total losses.** A crash writes the rig off at 4% (property damage), 35% (injury) or always (fatal).
+  Physical-damage cover, 1.2% of value a year, pays its value less 2,500 FD: a pool-written policy from
+  the pool, the NPC insurer's from the reserve.
+- **No recycling, a factory allocation.** New supply is a monthly allocation (2.5% of the tractors on
+  the road, at least 40) by tier and type. Player dealerships take their share wholesale at 85% of list
+  through the catalogue split (half burned) and sell from stock at their own markup; while one is open
+  the NPC dealer is the backstop at +10% and three more weeks. Dealerships take trade-ins at 80% of value.
+- **Players make the rest.** Player lessors lease tractors by the week; businesses (with their bonds),
+  facilities and yards resell player to player, so anything can be had for FD earned from other players.
+- **The open number.** The first smoke run put new equipment at about 2% of all sinks: a Workhorse and van
+  costs 18k FD against ~360k FD a year to run one. EVE-like destruction (the plan's 15% bar) needs
+  equipment several times dearer, which slows a newcomer's first new truck. The calibration batches
+  (prices ×1, ×3, ×6) put numbers on that trade before Jeff picks the level and the world restarts.

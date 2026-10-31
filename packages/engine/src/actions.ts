@@ -6,14 +6,19 @@ import { offerFd } from "./buyback.js";
 import { leaseTruck, returnLease } from "./capacity.js";
 import { buyFd, claimAirdropNow, sellFd } from "./token.js";
 import { dayOf } from "./clock.js";
-import { dealerPrice, ordersOf, placeOrder } from "./dealer.js";
+import { dealerPrice, ordersOf, placeOrder, tractorOrdersOf, tractorPrice, trailerOrdersOf, trailerPrice } from "./dealer.js";
+import { fitTrailer, hook, hookedTrailer, ownedTrailers, rentTrailer, scrapTrailer, syncTrailer, trailerById, trailerCap, trailerCondition, trailerRefurbishable, unhook } from "./trailers.js";
+import { scrapOwnedTractor } from "./assets.js";
+import { npcDealerDays, npcDealerMult, sellFromStock, tradeIn } from "./dealerships.js";
+import { endPlayerLease, leasedOut, offerLease, takeLease, withdrawLeaseOffer } from "./playerLeases.js";
+import { buyAssetSale, listAssetSale, withdrawAssetSale } from "./assetSales.js";
 import { facilitiesOf, facilityEquipment } from "./demand.js";
 import { borrow, deposit, repayLoan, withdraw } from "./finance.js";
 import { companyAccount } from "./ledger.js";
 import { rebrokerLoad, stealLoad, vettingBlock } from "./fraud.js";
 import { finiteIn } from "./economics.js";
 import { offerStaff, releaseStaff, setPay, severance, startHomeTime } from "./labor.js";
-import { buyListing, listTruck, withdrawListing } from "./market.js";
+import { buyListing, listTrailer, listTruck, withdrawListing } from "./market.js";
 import { canRefile, notice } from "./safety.js";
 import { canMakeHot } from "./standingOrders.js";
 import { inCloseWindow } from "./season.js";
@@ -23,8 +28,8 @@ import { buyItem } from "./items.js";
 import { depositPool, withdrawPool } from "./pools.js";
 import { endFactoring, signFactoring } from "./receivables.js";
 import type { Action, RuleScope } from "./types.js";
-import { condition, rebuildCost } from "./wear.js";
-import { availableSupply, companyById, crewed, hubMiles, invalidOrders, seatDriver, staffById, syncFleet, takeSupply, truckById, unseatDriver, type World, placeMiles, placeOfHub, placeLegMiles } from "./world.js";
+import { condition, rebuildable, rebuildCost } from "./wear.js";
+import { availableSupplyFor, companyById, crewed, hubMiles, invalidOrders, seatDriver, staffById, syncFleet, takeSupplyFor, truckById, unseatDriver, type World, placeMiles, placeOfHub, placeLegMiles } from "./world.js";
 import type { EconomyConfig } from "@lanes/config";
 
 const TIERS = new Set(["workhorse", "highwayPro", "flagship"]);
@@ -50,7 +55,32 @@ export function badInput(cfg: EconomyConfig, a: Action): string | null {
     case "set_standing_orders":
       return invalidOrders(cfg, a.orders);
     case "buy_asset":
-      return TIERS.has(a.tier) && TRAILERS.has(a.trailer) && typeof a.replaceNpcLease === "boolean" ? null : "bad truck";
+      return TIERS.has(a.tier) && TRAILERS.has(a.trailer) && typeof a.replaceNpcLease === "boolean" && (a.tractorOnly === undefined || typeof a.tractorOnly === "boolean") && (a.dealershipId === undefined || isId(a.dealershipId)) ? null : "bad truck";
+    case "buy_trailer":
+      return TRAILERS.has(a.trailer) && (a.dealershipId === undefined || isId(a.dealershipId)) ? null : "bad trailer";
+    case "trade_in":
+      return isId(a.truckId) && isId(a.dealershipId) ? null : "bad trade-in";
+    case "offer_lease":
+      return isId(a.truckId) && finiteIn(a.weeklyFd, 0.01, 1e9) && Number.isInteger(a.minWeeks) && a.minWeeks >= 1 && a.minWeeks <= 520 ? null : "bad lease offer";
+    case "withdraw_lease_offer":
+    case "take_lease":
+      return isId(a.offerId) ? null : "bad offer id";
+    case "list_asset_sale":
+      return (a.kind === "business" || a.kind === "facility" || a.kind === "yard") && isId(a.refId) && finiteIn(a.askFd, 0.01, 1e9) ? null : "bad sale";
+    case "withdraw_asset_sale":
+    case "buy_asset_sale":
+      return isId(a.saleId) ? null : "bad sale id";
+    case "swap_trailer":
+      return isId(a.truckId) && isId(a.trailerId) ? null : "bad swap";
+    case "rent_trailer":
+      return isId(a.truckId) && TRAILERS.has(a.trailer) ? null : "bad rental";
+    case "refurbish_trailer":
+    case "scrap_trailer":
+      return isId(a.trailerId) ? null : "bad trailer id";
+    case "scrap_truck":
+      return isId(a.truckId) ? null : "bad truck id";
+    case "list_trailer":
+      return isId(a.trailerId) && isFd(a.askFd) && isFd(a.floorFd) && isFd(a.stepFd) ? null : "bad listing";
     case "book_load":
     case "accept_tender":
       return isId(a.truckId) && isId(a.loadId) ? null : "bad booking";
@@ -102,9 +132,9 @@ export function badInput(cfg: EconomyConfig, a: Action): string | null {
     case "set_pay_terms":
       return a.terms === "net" || a.terms === "quick" || a.terms === "factor" ? null : "bad terms";
     case "buy_item":
-      return ["yardSmall", "yardLarge", "apu", "aero", "tires", "sleeper"].includes(a.item) && (a.pay === "fd" || a.pay === "usd") && (a.truckId === undefined || isId(a.truckId)) ? null : "bad item";
+      return ["yardSmall", "yardLarge", "trailerSpace", "apu", "aero", "tires", "sleeper"].includes(a.item) && (a.pay === "fd" || a.pay === "usd") && (a.truckId === undefined || isId(a.truckId)) ? null : "bad item";
     case "buy_business":
-      return a.kind === "truckStop" ? (isId(a.siteId) ? null : "bad site") : (a.kind === "shop" || a.kind === "fuelStation") && typeof a.hubId === "string" ? null : "bad business";
+      return a.kind === "truckStop" ? (isId(a.siteId) ? null : "bad site") : (a.kind === "shop" || a.kind === "fuelStation" || a.kind === "dealership") && typeof a.hubId === "string" ? null : "bad business";
     case "set_shop_markup":
       return isId(a.businessId) && finiteIn(a.markup, 0.5, 2) ? null : "bad markup";
     case "set_parking_price":
@@ -135,7 +165,7 @@ export function badInput(cfg: EconomyConfig, a: Action): string | null {
 }
 
 /** What a company being wound up can't do: it isn't buying, bidding or borrowing again until it restarts. */
-const LIQUIDATING_BLOCKED = new Set<Action["type"]>(["place_bid", "book_load", "reposition_truck", "buy_asset", "buy_facility", "lease_truck", "borrow", "buy_listing", "unpark_truck", "offer_staff"]);
+const LIQUIDATING_BLOCKED = new Set<Action["type"]>(["place_bid", "book_load", "reposition_truck", "buy_asset", "buy_trailer", "rent_trailer", "buy_facility", "lease_truck", "borrow", "buy_listing", "unpark_truck", "offer_staff", "take_lease", "buy_asset_sale", "list_asset_sale"]);
 
 /** What a company whose authority was revoked can still do: wait out the bar, file again, and handle its money. */
 const ALLOWED_REVOKED = new Set<Action["type"]>(["wait", "refile_authority", "buy_fd", "sell_fd", "offer_fd", "claim_airdrop_now", "withdraw_finance", "withdraw_listing", "set_compliance", "set_vetting", "set_auto_staff"]);
@@ -352,25 +382,188 @@ export function applyAction(w: World, companyId: number, action: Action): Action
     }
 
     case "buy_asset": {
-      // A dealer order: paid now, delivered after the lead time (see dealer.ts).
+      // A dealer order: paid now, delivered after the lead time (see dealer.ts). Assets on, a rig brings its
+      // own new trailer, and a tractor alone hooks a spare from the yard or a rental.
       if (company.role !== "carrier") return { ok: false, reason: "only carriers run trucks in Phase 0" };
       if (inCloseWindow(w)) return LOCKED;
       const fleet = w.trucksByCompany.get(company.id)!;
-      const pending = ordersOf(w, company.id);
+      const pending = tractorOrdersOf(w, company.id);
       const replacing = action.replaceNpcLease && fleet.some((t) => t.lease === "npc");
       if (replacing && pending.some((o) => o.replaceNpcLease)) return { ok: false, reason: "a replacement truck is already on order" };
       if (!replacing && fleet.length + pending.length >= truckCap(w, company)) return { ok: false, reason: "company truck cap" };
-      const firstTruck = !fleet.some((t) => t.lease === "owned") && pending.length === 0;
-      if (availableSupply(w, action.tier, action.trailer, firstTruck) <= 0) return { ok: false, reason: "PoC supply exhausted" };
-      const price = dealerPrice(w, action);
+      const kind = cfg.assets.enabled && action.tractorOnly ? "tractor" : "rig";
+      if (kind === "rig" && cfg.assets.enabled && ownedTrailers(w, company).length + trailerOrdersOf(w, company.id).length >= trailerCap(w, company)) {
+        return { ok: false, reason: "no room in the yard for another trailer" };
+      }
+      // Assets: from a player dealership's stock, delivered in a week.
+      if (cfg.assets.enabled && action.dealershipId) {
+        const b = w.businesses[action.dealershipId - 1];
+        if (!b) return { ok: false, reason: "no such dealership" };
+        const why = sellFromStock(w, company, b, kind, action.tier, action.trailer);
+        if (why) return { ok: false, reason: why };
+        placeOrder(w, company, action.tier, action.trailer, replacing, kind, cfg.businesses.kinds.dealership.deliveryDays);
+        company.firstOwnedTruckDay ??= dayOf(w.t, cfg);
+        return { ok: true };
+      }
+      const firstTruck = !fleet.some((t) => t.lease === "owned") && ordersOf(w, company.id).length === 0;
+      if (availableSupplyFor(w, kind, action.tier, action.trailer, firstTruck) <= 0) return { ok: false, reason: "PoC supply exhausted" };
+      // The NPC dealer: list price; while a player dealership is open, the backstop's premium and longer wait.
+      const price = (kind === "tractor" ? tractorPrice(w, action.tier) : dealerPrice(w, action)) * npcDealerMult(w);
       if (w.ledger.balance(acct) < price) return { ok: false, reason: "insufficient FD" };
 
-      w.ledger.post(w.t, acct, "sink:equipment_dealer", price, `buy:${company.id}:${action.tier}:${action.trailer}`);
-      chargeSalesTax(w, company.id, price, `buy:${company.id}:${action.tier}:${action.trailer}`);
-      takeSupply(w, action.tier, action.trailer, firstTruck);
-      placeOrder(w, company, action.tier, action.trailer, replacing);
+      const ref = `buy:${company.id}:${action.tier}:${kind === "tractor" ? "tractor" : action.trailer}`;
+      w.ledger.post(w.t, acct, "sink:equipment_dealer", price, ref);
+      chargeSalesTax(w, company.id, price, ref);
+      takeSupplyFor(w, kind, action.tier, action.trailer, firstTruck);
+      placeOrder(w, company, action.tier, action.trailer, replacing, kind, npcDealerDays(w));
       company.firstOwnedTruckDay ??= dayOf(w.t, cfg);
       return { ok: true };
+    }
+
+    case "trade_in": {
+      const truck = truckById(w, action.truckId);
+      const b = w.businesses[action.dealershipId - 1];
+      if (!truck || !b) return { ok: false, reason: "no such truck or dealership" };
+      if (leasedOut(truck)) return { ok: false, reason: "a leased truck is its owner's to sell" };
+      return result(tradeIn(w, company, truck, b));
+    }
+
+    case "offer_lease": {
+      const truck = truckById(w, action.truckId);
+      if (!truck) return { ok: false, reason: "no such truck" };
+      return result(offerLease(w, company, truck, action.weeklyFd, action.minWeeks));
+    }
+
+    case "withdraw_lease_offer":
+      return result(withdrawLeaseOffer(w, company, action.offerId));
+
+    case "take_lease": {
+      const o = w.leaseOffers[action.offerId - 1];
+      if (!o) return { ok: false, reason: "no such offer" };
+      return result(takeLease(w, company, o));
+    }
+
+    case "list_asset_sale":
+      return result(listAssetSale(w, company, action.kind, action.refId, action.askFd));
+
+    case "withdraw_asset_sale":
+      return result(withdrawAssetSale(w, company, action.saleId));
+
+    case "buy_asset_sale": {
+      const s = w.assetSales[action.saleId - 1];
+      if (!s) return { ok: false, reason: "no such sale" };
+      return result(buyAssetSale(w, company, s));
+    }
+
+    case "buy_trailer": {
+      // Assets: a trailer alone. Without a yard there's nowhere to keep a spare: only as many as the tractors.
+      if (!cfg.assets.enabled) return { ok: false, reason: "trailers come with the truck" };
+      if (company.role !== "carrier") return { ok: false, reason: "only carriers run trucks in Phase 0" };
+      if (inCloseWindow(w)) return LOCKED;
+      const owned = ownedTrailers(w, company).length + trailerOrdersOf(w, company.id).length;
+      if (owned >= trailerCap(w, company)) return { ok: false, reason: "no room in the yard" };
+      const tractors = w.trucksByCompany.get(company.id)!.filter((t) => t.lease === "owned").length + tractorOrdersOf(w, company.id).length;
+      if (company.yard === "none" && owned >= tractors) return { ok: false, reason: "a spare trailer needs a yard" };
+      if (action.dealershipId) {
+        const b = w.businesses[action.dealershipId - 1];
+        if (!b) return { ok: false, reason: "no such dealership" };
+        const why = sellFromStock(w, company, b, "trailer", "workhorse", action.trailer);
+        if (why) return { ok: false, reason: why };
+        placeOrder(w, company, "workhorse", action.trailer, false, "trailer", cfg.businesses.kinds.dealership.deliveryDays);
+        return { ok: true };
+      }
+      if (availableSupplyFor(w, "trailer", "workhorse", action.trailer, false) <= 0) return { ok: false, reason: "PoC supply exhausted" };
+      const price = trailerPrice(w, action.trailer) * npcDealerMult(w);
+      if (w.ledger.balance(acct) < price) return { ok: false, reason: "insufficient FD" };
+      const ref = `buy:${company.id}:trailer:${action.trailer}`;
+      w.ledger.post(w.t, acct, "sink:equipment_dealer", price, ref);
+      chargeSalesTax(w, company.id, price, ref);
+      takeSupplyFor(w, "trailer", "workhorse", action.trailer, false);
+      placeOrder(w, company, "workhorse", action.trailer, false, "trailer", npcDealerDays(w));
+      return { ok: true };
+    }
+
+    case "swap_trailer": {
+      // Assets: swaps happen at the yard, with the truck idle at the home hub.
+      if (!cfg.assets.enabled) return { ok: false, reason: "trailers come with the truck" };
+      const truck = truckById(w, action.truckId);
+      if (!truck || truck.companyId !== company.id) return { ok: false, reason: "not your truck" };
+      if (truck.lease !== "owned") return { ok: false, reason: "the lessor's truck keeps its trailer" };
+      if (truck.status !== "idle" || truck.hub !== company.homeHub) return { ok: false, reason: "swaps happen at the yard: the truck must be idle at the home hub" };
+      const tr = trailerById(w, action.trailerId);
+      if (!tr || tr.companyId !== company.id || tr.status !== "dropped" || tr.refurbUntilT !== null) return { ok: false, reason: "that trailer isn't waiting in your yard" };
+      unhook(w, truck);
+      hook(w, truck, tr);
+      w.manualBids.delete(truck.id);
+      w.metrics.onTrailerSwap();
+      return { ok: true };
+    }
+
+    case "rent_trailer": {
+      // Assets: the NPC lessor rents by the week at any hub; an own trailer has to be dropped at the yard first.
+      if (!cfg.assets.enabled) return { ok: false, reason: "trailers come with the truck" };
+      const truck = truckById(w, action.truckId);
+      if (!truck || truck.companyId !== company.id) return { ok: false, reason: "not your truck" };
+      if (truck.lease !== "owned") return { ok: false, reason: "the lessor's truck keeps its trailer" };
+      if (truck.status !== "idle") return { ok: false, reason: "the truck must be idle at a hub" };
+      const cur = hookedTrailer(w, truck);
+      if (cur && cur.lease === "owned" && (truck.hub !== company.homeHub || company.yard === "none")) return { ok: false, reason: "your own trailer has to be dropped in your yard first" };
+      if (cur && cur.lease === "rental" && cur.type === action.trailer) return { ok: false, reason: "it already pulls a rented one of those" };
+      unhook(w, truck);
+      rentTrailer(w, truck, action.trailer);
+      w.manualBids.delete(truck.id);
+      return { ok: true };
+    }
+
+    case "refurbish_trailer": {
+      if (!cfg.assets.enabled) return { ok: false, reason: "trailers come with the truck" };
+      const tr = trailerById(w, action.trailerId);
+      if (!tr || tr.companyId !== company.id || tr.lease !== "owned") return { ok: false, reason: "not your trailer" };
+      const truck = tr.truckId ? truckById(w, tr.truckId) : null;
+      if (tr.status !== "dropped" && !(truck && truck.status === "idle")) return { ok: false, reason: "the trailer must be in the yard, or behind a truck idle at a hub" };
+      if (tr.refurbUntilT !== null) return { ok: false, reason: "it's in the shop" };
+      if (!trailerRefurbishable(w, tr)) return { ok: false, reason: "it has had its refurbishment: run it out or scrap it" };
+      if (trailerCondition(w, tr) > cfg.assets.trailer.refurbMaxCondition) return { ok: false, reason: "not worn enough to refurbish" };
+      const cost = cfg.assets.trailer.refurbFd[tr.type] * (1 - stakeDiscount(w, company));
+      if (w.ledger.balance(acct) < cost) return { ok: false, reason: "insufficient FD" };
+      company.operating.costFd += serviceBill(w, company, truck ? truck.hub : company.homeHub, cost, "rebuild", `refurb:${tr.id}`);
+      tr.milesSinceRefurb = 0;
+      tr.refurbs++;
+      const until = w.t + cfg.assets.trailer.refurbDays * cfg.time.gameMinutesPerDay;
+      if (truck) {
+        truck.status = "repair";
+        truck.repairUntilT = Math.max(truck.repairUntilT ?? 0, until);
+        syncTrailer(w, truck);
+      } else tr.refurbUntilT = until;
+      w.metrics.onRefurb();
+      return { ok: true };
+    }
+
+    case "scrap_truck": {
+      if (!cfg.assets.enabled) return { ok: false, reason: "trucks are rebuilt, not scrapped" };
+      const truck = truckById(w, action.truckId);
+      if (!truck || truck.companyId !== company.id) return { ok: false, reason: "not your truck" };
+      if (truck.lease !== "owned" || leasedOut(truck)) return { ok: false, reason: "only trucks you own can be scrapped" };
+      if (truck.status !== "idle" && truck.status !== "parked") return { ok: false, reason: "the truck must be idle or parked at a hub" };
+      scrapOwnedTractor(w, company, truck);
+      return { ok: true };
+    }
+
+    case "scrap_trailer": {
+      if (!cfg.assets.enabled) return { ok: false, reason: "trailers come with the truck" };
+      const tr = trailerById(w, action.trailerId);
+      if (!tr || tr.companyId !== company.id || tr.lease !== "owned") return { ok: false, reason: "not your trailer" };
+      if (tr.status !== "dropped") return { ok: false, reason: "the trailer must be in the yard" };
+      scrapTrailer(w, tr);
+      return { ok: true };
+    }
+
+    case "list_trailer": {
+      if (!cfg.assets.enabled) return { ok: false, reason: "trailers come with the truck" };
+      const tr = trailerById(w, action.trailerId);
+      if (!tr) return { ok: false, reason: "no such trailer" };
+      const listing = listTrailer(w, company.id, tr, action.askFd, action.floorFd, action.stepFd);
+      return typeof listing === "string" ? { ok: false, reason: listing } : { ok: true };
     }
 
     case "rebuild_truck": {
@@ -378,14 +571,17 @@ export function applyAction(w: World, companyId: number, action: Action): Action
       const truck = truckById(w, action.truckId);
       if (!truck || truck.companyId !== company.id) return { ok: false, reason: "not your truck" };
       if (truck.lease !== "owned") return { ok: false, reason: "the NPC lessor maintains leased trucks" };
+      if (leasedOut(truck)) return { ok: false, reason: "its owner rebuilds a leased truck" };
       if (truck.status !== "idle") return { ok: false, reason: "truck must be idle at a hub" };
       if (condition(cfg, truck) > cfg.wear.rebuildMaxCondition) return { ok: false, reason: "not worn enough to rebuild" };
+      if (!rebuildable(cfg, truck)) return { ok: false, reason: "past its last rebuild: run it out, sell it, or scrap it" };
       const cost = rebuildCost(cfg, truck) * (1 - stakeDiscount(w, company)); // locked FD earns its discount (staking.ts)
       if (w.ledger.balance(acct) < cost) return { ok: false, reason: "insufficient FD" };
       company.operating.costFd += serviceBill(w, company, truck.hub, cost, "rebuild", `rebuild:${truck.id}`); // the hub's shop, or the NPC shop
       truck.status = "repair";
       truck.repairUntilT = w.t + cfg.wear.rebuildDays * cfg.time.gameMinutesPerDay;
       truck.milesSinceRebuild = 0;
+      truck.rebuilds++;
       w.metrics.onRebuild();
       return { ok: true };
     }
@@ -407,6 +603,7 @@ export function applyAction(w: World, companyId: number, action: Action): Action
       if (truck.status !== "parked") return { ok: false, reason: "truck isn't parked" };
       truck.status = "idle";
       truck.idleRounds = 0;
+      if (cfg.assets.enabled && truck.trailerId === 0) fitTrailer(w, truck, truck.trailer); // it sold without a rental: a spare or a new rental
       return { ok: true };
     }
 
@@ -490,6 +687,8 @@ export function applyAction(w: World, companyId: number, action: Action): Action
     case "return_lease": {
       const truck = truckById(w, action.truckId);
       if (!truck) return { ok: false, reason: "no such truck" };
+      // A player lessor's tractor goes back to its owner; an NPC extra lease to the NPC lessor.
+      if (leasedOut(truck)) return truck.companyId === company.id ? result(endPlayerLease(w, truck)) : { ok: false, reason: "not a truck you lease" };
       return result(returnLease(w, company, truck));
     }
 

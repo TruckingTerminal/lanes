@@ -52,6 +52,12 @@ export function buyItem(w: World, c: Company, item: ItemKind, pay: "fd" | "usd",
   const truck = truckId !== undefined ? truckById(w, truckId) : null;
   if (item === "yardSmall" && c.yard !== "none") return "you already have a yard";
   if (item === "yardLarge" && c.yard === "large") return "you already have a large yard";
+  if (item === "trailerSpace") {
+    const y = w.cfg.assets.yard;
+    if (!w.cfg.assets.enabled) return "trailers come with the truck";
+    if (c.yard === "none") return "more trailer space needs a yard";
+    if ((c.trailerSpaces + 1) * y.spacePerPurchase > y.maxExtraSpace) return "the yard can't take more trailers";
+  }
   if (isTruckMod(item)) {
     if (!truck || truck.companyId !== c.id) return "not your truck";
     if (truck.lease === "npc") return "the NPC lessor's truck can't be modified";
@@ -86,6 +92,7 @@ export function buyItem(w: World, c: Company, item: ItemKind, pay: "fd" | "usd",
   }
   if (item === "yardSmall") c.yard = "small";
   else if (item === "yardLarge") c.yard = "large";
+  else if (item === "trailerSpace") c.trailerSpaces++;
   else truck!.mods[item] = true;
   return null;
 }

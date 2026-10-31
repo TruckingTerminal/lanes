@@ -7,6 +7,7 @@ import { FAC_NAME, fd, pct, signedPct, TIER_NAME, TRAILER_NAME } from "../../for
 import { act, me, myTrucks, S, useData } from "../../state.js";
 import { Btn, Card, Num, Panel, Pixel } from "../bits.js";
 import { Rig, Scene } from "../Loop.js";
+import { Showroom } from "./Showroom.js";
 
 export function Dealer(): JSX.Element {
   useData();
@@ -21,7 +22,7 @@ export function Dealer(): JSX.Element {
   const trailers: Equipment[] = ["van", "reefer", "flatbed"];
   const today = Math.floor(w.t / 1440);
   const used = openListings(w)
-    .filter((l) => l.formerOwnerId !== c.id && l.sellerId !== c.id)
+    .filter((l) => l.truckId > 0 && l.formerOwnerId !== c.id && l.sellerId !== c.id)
     .map((l) => ({ l, t: w.trucks[l.truckId - 1]! }))
     .sort((a, b) => a.l.askFd / Math.max(1, truckValue(w, a.t)) - b.l.askFd / Math.max(1, truckValue(w, b.t)))
     .slice(0, 8);
@@ -70,8 +71,9 @@ export function Dealer(): JSX.Element {
           ))}
         </div>
       </Card>
-      <h3>New from the dealer</h3>
-      {tiers.map((tier) =>
+      {w.cfg.assets.enabled ? <Showroom /> : null}
+      {w.cfg.assets.enabled ? null : <h3>New from the dealer</h3>}
+      {w.cfg.assets.enabled ? null : tiers.map((tier) =>
         trailers.map((tr) => {
           const price = dealerPrice(w, { tier, trailer: tr });
           const vsList = price / newPrice(w.cfg, { tier, trailer: tr }) - 1;
