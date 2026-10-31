@@ -11,6 +11,8 @@ import { priceIndex } from "./items.js";
 import { companyAccount } from "./ledger.js";
 import { chargeSalesTax } from "./salesTax.js";
 import { stakeDiscount } from "./staking.js";
+import { reeferUnit } from "./equipment.js";
+import { nightTheft, theftRiskAt } from "./risk.js";
 import type { Business, Truck, TruckStopSite } from "./types.js";
 import { companyById, placeRoute, type World } from "./world.js";
 
@@ -53,7 +55,7 @@ export function buildSites(w: World): void {
       acc -= k.everyMi;
       const frac = e.miles > 0 ? clamp(1 - acc / e.miles, 0.05, 0.95) : 0.5;
       const [lat, lon] = pointOnEdge(roads, e, frac * e.miles);
-      sites.push({ id: sites.length + 1, edge: ei, frac, lat, lon, traffic: traffic[ei]!, open: false, businessId: 0, spaces: 0, parked: 0 });
+      sites.push({ id: sites.length + 1, edge: ei, frac, lat, lon, traffic: traffic[ei]!, open: false, businessId: 0, spaces: 0, parked: 0, theftRisk: 1 });
       max = Math.max(max, traffic[ei]!);
     }
   });
@@ -61,6 +63,7 @@ export function buildSites(w: World): void {
   for (const s of sites) {
     s.traffic = max > 0 ? s.traffic / max : 0;
     s.spaces = Math.round(loSp + (hiSp - loSp) * s.traffic); // a public rest area at every site, sized by its traffic
+    s.theftRisk = theftRiskAt(w, s.lat, s.lon);
   }
   const order = [...sites].sort((a, b) => b.traffic - a.traffic || a.id - b.id);
   for (let i = 0; i < Math.min(k.openAtStart, order.length); i++) order[i]!.open = true;
@@ -227,6 +230,11 @@ export function parkForTheNight(w: World, truck: Truck, site: TruckStopSite | nu
     w.metrics.onTicket();
     w.listener?.({ kind: "notice", companyId: c.id, topic: "safety", text: `Truck ${truck.id}: ticketed ${p.shoulderFineFd} FD for shutting down on the shoulder — sleep at a rest area or a truck stop.`, tone: "bad", truckId: truck.id });
   }
+  // A loaded reefer's unit runs through the night (equipmentOps).
+  const ops = cfg.equipmentOps;
+  if (ops.enabled && truck.trailer === "reefer" && truck.status === "loaded") reeferUnit(w, c, ops.nightHours * 60, `rest:${truck.id}`);
+  // Cargo theft (risk.ts): where it sleeps, near what, with what aboard.
+  nightTheft(w, truck, c, site ? (stop ? "truckStop" : "restArea") : "shoulder", site ? site.theftRisk : null);
 }
 
 /** The morning: the space is free again. */

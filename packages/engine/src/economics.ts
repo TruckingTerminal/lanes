@@ -27,11 +27,17 @@ export function maintPerMile(cfg: EconomyConfig, tier: TractorTier, trailer: Equ
  */
 export function tripCost(cfg: EconomyConfig, truck: TruckSpec & { mods?: { aero?: boolean; tires?: boolean } }, fuel: number, driven: number, loaded: number) {
   // Upgrades (items.ts): an aero kit saves 5% of fuel, premium tires 20% of maintenance.
-  const gallons = (driven / effectiveMpg(cfg, truck)) * (truck.mods?.aero ? 0.95 : 1);
+  // The trailer pass (equipmentOps): a loaded mile burns more than an empty one, a loaded reefer's unit
+  // runs by the hour, and drivers earn more per mile on reefer and flatbed freight.
+  const ops = cfg.equipmentOps;
+  const empty = Math.max(0, driven - loaded);
+  const weighted = ops.enabled ? loaded * ops.loadedFuelMult + empty * ops.emptyFuelMult : driven;
+  const unit = ops.enabled && truck.trailer === "reefer" ? (loaded / ops.reeferUnitMph) * ops.reeferUnitGalPerHour : 0;
+  const gallons = (weighted / effectiveMpg(cfg, truck)) * (truck.mods?.aero ? 0.95 : 1) + unit;
   return {
     gallons,
     fuel: gallons * fuel,
-    wages: driven * (truck.wagePerMile ?? cfg.costs.driverWagePerMile),
+    wages: driven * (truck.wagePerMile ?? cfg.costs.driverWagePerMile) * (ops.enabled ? ops.driverPayMult[truck.trailer] : 1),
     maintenance: driven * maintPerMile(cfg, truck.tier, truck.trailer) * maintMultiplier(cfg, truck) * (truck.mods?.tires ? 0.8 : 1),
     // Billed weekly per truck on a yearly policy (insurance.ts); here, its share per loaded mile.
     insurance: ((loaded * cfg.insurance.baseAnnualPerTruck) / cfg.insurance.loadedMilesPerYear) * (truck.insuranceMult ?? 1),

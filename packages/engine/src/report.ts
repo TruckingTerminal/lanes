@@ -75,6 +75,8 @@ export interface RunReport {
   wear: { rebuilds: number; breakdowns: number; avgOwnedCondition: number; roadService: { stop: number; hub: number; npc: number }; passClosures: number };
   /** Nights on the road: at a site, on the shoulder, tickets written, and sites found full. */
   parking: { siteNights: number; shoulderNights: number; tickets: number; sitesFull: number };
+  /** The trailer pass and the risk corridors: waits at docks, missed appointment slots, flatbed damage claims, cargo thefts. */
+  operations: { dockWaits: number; dockWaitHours: number; missedSlots: number; flatbedDamage: number; cargoThefts: number; cargoTheftFd: number };
   facilities: {
     owned: Record<string, number>;
     ownersBySegment: Record<string, number>;
@@ -424,6 +426,14 @@ export function buildReport(w: World): RunReport {
       shoulderNights: sum(days.map((d) => d.shoulderNights ?? 0)),
       tickets: sum(days.map((d) => d.tickets ?? 0)),
       sitesFull: sum(days.map((d) => d.sitesFull ?? 0)),
+    },
+    operations: {
+      dockWaits: sum(days.map((d) => d.dockWaits ?? 0)),
+      dockWaitHours: sum(days.map((d) => d.dockWaitMin ?? 0)) / 60,
+      missedSlots: sum(days.map((d) => d.missedSlots ?? 0)),
+      flatbedDamage: sum(days.map((d) => d.flatbedDamage ?? 0)),
+      cargoThefts: sum(days.map((d) => d.cargoThefts ?? 0)),
+      cargoTheftFd: sum(days.map((d) => d.cargoTheftFd ?? 0)),
     },
     facilities: {
       owned,

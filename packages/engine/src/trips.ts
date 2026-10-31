@@ -1,4 +1,6 @@
-import { COMMODITIES, NO_TERRAIN, routeTerrain, type Route } from "@lanes/data";
+import { COMMODITIES, dexp, NO_TERRAIN, routeTerrain, type Route } from "@lanes/data";
+import { deliveryWait, pickupWait } from "./docks.js";
+import { flatbedDamage, reeferUnit } from "./equipment.js";
 import { winterNow } from "./safety.js";
 import { payLegFuel, roadService, serviceBill } from "./businesses.js";
 import { leaveParking, legMile, parkForTheNight, planNight, siteHere } from "./sites.js";
@@ -15,8 +17,8 @@ import type { Company, Load, Truck } from "./types.js";
 import { breakdownsPer1000Mi } from "./wear.js";
 import { companyById, hubRoute, type World, placeRoute } from "./world.js";
 
-/** Truck is at the shipper: load for 1–2 hours, then roll. */
-export function startLoading(w: World, truck: Truck, load: Load): void {
+/** Truck is at the shipper: load for 1–2 hours (plus securing a flatbed, plus waiting for a closed dock to open), then roll. */
+export function startLoading(w: World, truck: Truck, load: Load, now: number = w.t): void {
   const [lo, hi] = w.cfg.dwell.loadMinutes;
   truck.status = "loading";
   truck.hub = load.origin;
@@ -24,14 +26,40 @@ export function startLoading(w: World, truck: Truck, load: Load): void {
   truck.place = load.originPlace;
   truck.targetPlace = load.destPlace;
   truck.remainingMi = load.miles;
-  truck.dwellMin = w.rng.ops.int(lo, hi);
+  let dwell = w.rng.ops.int(lo, hi);
+  const ops = w.cfg.equipmentOps;
+  if (ops.enabled && load.equipment === "flatbed") dwell += w.rng.ops.int(ops.flatbedSecureMinutes[0], ops.flatbedSecureMinutes[1]); // chains, straps and tarps
+  // A first-come shipper outside its hours (docks.ts): the wait moves the due time.
+  const wait = pickupWait(w, load, now);
+  if (wait > 0) {
+    dwell += wait;
+    load.dueT += wait;
+    w.metrics.onDockWait(wait);
+  }
+  truck.dwellMin = dwell;
   load.status = "inTransit";
 }
 
-function startUnloading(w: World, truck: Truck): void {
+/** At the receiver: unload for 1–2 hours (plus untarping a flatbed, plus any wait at the gate: a closed dock, an early or a missed slot). */
+function startUnloading(w: World, truck: Truck, now: number): void {
   const [lo, hi] = w.cfg.dwell.unloadMinutes;
+  const load = truck.loadId !== null ? w.loads.get(truck.loadId) : undefined;
+  let dwell = w.rng.ops.int(lo, hi);
+  const ops = w.cfg.equipmentOps;
+  if (load && ops.enabled && load.equipment === "flatbed") dwell += w.rng.ops.int(ops.flatbedUntarpMinutes[0], ops.flatbedUntarpMinutes[1]);
+  if (load) {
+    const d = deliveryWait(w, load, now);
+    if (d.minutes > 0) {
+      dwell += d.minutes;
+      if (d.receiversHours) load.dueT += d.minutes; // the receiver's hours aren't the carrier's fault; a missed slot is
+      w.metrics.onDockWait(d.minutes);
+      if (d.missed) w.metrics.onMissedSlot();
+      // A loaded reefer's unit keeps running at the gate.
+      if (ops.enabled && truck.trailer === "reefer" && truck.companyId) reeferUnit(w, companyById(w, truck.companyId), d.minutes, `dock:${truck.id}`);
+    }
+  }
   truck.status = "unloading";
-  truck.dwellMin = w.rng.ops.int(lo, hi);
+  truck.dwellMin = dwell;
 }
 
 /**
@@ -105,7 +133,7 @@ export function moveTrucks(w: World): void {
         continue;
       }
       if (truck.remainingMi <= 1e-6) {
-        arrive(w, truck);
+        arrive(w, truck, now);
         continue;
       }
 
@@ -176,14 +204,15 @@ export function beginLeg(w: World, truck: Truck, route: Route | null): void {
   const { cfg } = w;
   truck.legMiles = truck.remainingMi;
   truck.nextStation = 0;
-  truck.legTollFd = route?.tollFd ?? 0;
+  // The tolls still ahead: all of them on a fresh leg, the remaining share when a leg restarts midway (a theft, a reroute).
+  truck.legTollFd = route && route.miles > 0 ? route.tollFd * Math.min(1, truck.remainingMi / route.miles) : 0;
   truck.legHighwayShare = route && route.miles > 0 ? route.highwayMi / route.miles : 0;
   const tr = cfg.roads.terrain;
   const t = tr.enabled && route ? routeTerrain(w.net.roads, route, tr) : NO_TERRAIN;
   truck.legClimbM = t.climbM;
   truck.legMountainMi = t.mountainMi;
   truck.legPassMi = t.passMi;
-  if (tr.enabled && t.passMi > 0 && winterNow(w) && w.rng.ops.next() < 1 - Math.exp(-tr.closureOddsPerPassMi * t.passMi)) {
+  if (tr.enabled && t.passMi > 0 && winterNow(w) && w.rng.ops.next() < 1 - dexp(-tr.closureOddsPerPassMi * t.passMi)) {
     const hours = w.rng.ops.int(tr.closureHours[0], tr.closureHours[1]);
     truck.breakdownMin += hours * MINUTES_PER_HOUR;
     w.metrics.onPassClosure();
@@ -197,10 +226,10 @@ function terrainBreakdownMult(w: World, truck: Truck): number {
   return tr.enabled && truck.legMiles > 0 ? 1 + tr.breakdownPerMountainShare * (truck.legMountainMi / truck.legMiles) : 1;
 }
 
-function arrive(w: World, truck: Truck): void {
+function arrive(w: World, truck: Truck, now: number): void {
   truck.remainingMi = 0;
-  if (truck.status === "toPickup") startLoading(w, truck, w.loads.get(truck.loadId!)!);
-  else if (truck.status === "loaded") startUnloading(w, truck);
+  if (truck.status === "toPickup") startLoading(w, truck, w.loads.get(truck.loadId!)!, now);
+  else if (truck.status === "loaded") startUnloading(w, truck, now);
   else arriveEmpty(w, truck);
 }
 
@@ -243,7 +272,11 @@ export function payTripCosts(w: World, truck: Truck, ref: string): number {
   const c = tripCost(w.cfg, truck, price, driven, truck.loadedMi);
   // The climb (roads.terrain): gallons for the meters climbed on this leg, the share these miles are of it.
   const tr = w.cfg.roads.terrain;
-  const climbGal = tr.enabled && truck.legMiles > 0 ? tr.fuelGalPerClimbM * truck.legClimbM * Math.min(1, driven / truck.legMiles) : 0;
+  // Weight (equipmentOps): a loaded trailer climbs harder than an empty one.
+  const ops = w.cfg.equipmentOps;
+  const loadedShare = driven > 0 ? truck.loadedMi / driven : 0;
+  const weight = ops.enabled ? loadedShare * ops.loadedClimbMult + (1 - loadedShare) * ops.emptyClimbMult : 1;
+  const climbGal = tr.enabled && truck.legMiles > 0 ? tr.fuelGalPerClimbM * truck.legClimbM * Math.min(1, driven / truck.legMiles) * weight : 0;
   // Tolls come due with the miles: the share of the leg's tolls these miles cover.
   const tolls = truck.legMiles > 0 ? Math.min(truck.legTollFd, truck.legTollFd * (driven / truck.legMiles)) : 0;
   truck.legTollFd -= tolls;
@@ -352,6 +385,8 @@ function deliver(w: World, truck: Truck, now: number): void {
   const paid = own || spoiled ? 0 : db ? settleDoubleBroker(w, load, carrier, gross, upstream) : gross;
 
   let costs = payTripCosts(w, truck, ref);
+  // An open deck in the weather (equipmentOps): a damage claim at the receiver.
+  if (cfg.equipmentOps.enabled && load.equipment === "flatbed") costs += flatbedDamage(w, truck, carrier, load);
   if (spoiled) {
     const claim = cfg.commodities.spoilClaimShare * load.cargoValue;
     w.ledger.post(w.t, carrierAcct, "sink:cargo_claims", claim, ref);

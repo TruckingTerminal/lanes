@@ -544,6 +544,7 @@ export function formCompany(w: World, c: NewCompany): Company {
     yardBondFd: 0,
     usdSpentBeta: 0,
     fuelGalMonth: 0,
+    nightRisk: 1,
     suretyWriter: "npc",
     suretyClaimedFd: 0,
     seasonBase: { miles: 0, profit: 0 },

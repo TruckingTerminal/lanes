@@ -1,4 +1,5 @@
 import { hubMiles } from "./world.js";
+import { highValueMult, theftRatePerMile } from "./risk.js";
 import { localShare, tender, tenderOdds, isLocal } from "./contracts.js";
 import { creditScore } from "./credit.js";
 import type { EconomyConfig, Equipment } from "@lanes/config";
@@ -139,6 +140,8 @@ export function generateRoundFreight(w: World): RoundFreight {
   // The climb's fuel (roads.terrain), in the rate like tolls: a mountain lane pays for its grades.
   const tr = cfg.roads.terrain;
   const terrainPerMile = (lane: Lane) => (tr.enabled && tr.inRates ? (tr.fuelGalPerClimbM * lane.climbM * fuelPrice(w)) / lane.miles : 0);
+  // Cargo-theft risk on the lane (risk.ts), in the rate: a hotspot lane pays more.
+  const theftPerMile = (lane: Lane, eq: Equipment) => theftRatePerMile(w, lane.origin, lane.dest, eq);
   // Freight into a market trucks can't reload in carries part of the empty run out, per loaded mile.
   const exitPerMile = (lane: Lane, eq: Equipment) => (cfg.rates.exitDeadheadShare * cfg.rates.deadheadFdPerMile * expectedReloadDeadheadMi(w, lane.dest, eq)) / lane.miles;
   const rf = reserveFactor(w) * w.stab.rateMult; // the reserve, and the balance dial (step.ts monthlyStabilizers)
@@ -153,6 +156,7 @@ export function generateRoundFreight(w: World): RoundFreight {
     fsc +
     tollPerMile(lane) +
     terrainPerMile(lane) +
+    theftPerMile(lane, eq) +
     exitPerMile(lane, eq);
 
   const month = Math.floor(((day % cfg.time.daysPerSeason) / cfg.time.daysPerSeason) * 12);
@@ -225,6 +229,7 @@ export function generateRoundFreight(w: World): RoundFreight {
       originPlace: PLACE_OF_HUB[lane.origin]!,
       destPlace: PLACE_OF_HUB[lane.dest]!,
       appointmentT: 0,
+      slotT: 0,
       routeHours: lane.hours,
       routeTollFd: lane.tollFd,
       localUntilRound: 0,
@@ -259,6 +264,15 @@ export function generateRoundFreight(w: World): RoundFreight {
   };
   /** What the goods are worth, and who the poster lets haul them. */
   const finish = (load: Load, vet: VettingTier) => {
+    // A high-value load pays for its security (risk.ts): every price on it lifts.
+    const hv = highValueMult(cfg, load.commodity);
+    if (hv > 1) {
+      load.refRate *= hv;
+      load.ceiling *= hv;
+      load.bookNow *= hv;
+      load.shipperRate *= hv;
+      load.spotShipperRate *= hv;
+    }
     const m = cfg.fraud.cargoMultiple;
     const bill = load.refRate * (load.hot || 1) * load.miles;
     load.cargoValue = load.facilityId !== null ? load.saleValue : bill * (load.brokerId !== null ? m[load.equipment] : m.npcDirect) * (load.hot ? m.hot : 1);
@@ -281,7 +295,7 @@ export function generateRoundFreight(w: World): RoundFreight {
         // Shipper leverage: where trucks pile up, most loads go to local carriers first.
         if (rng.next() < localShare(w, i, eq)) load.localUntilRound = w.round + cfg.leverage.localRounds;
         if (rng.next() < cfg.freight.npcBrokerOnlyShare) {
-          const contractRef = lane.baseRate * w.contractIndex[planIndex(i, e)]! * cfg.rates.equipmentPremium[eq] * reloadFactor(w, lane.dest, eq) + fsc + tollPerMile(lane) + terrainPerMile(lane) + exitPerMile(lane, eq);
+          const contractRef = lane.baseRate * w.contractIndex[planIndex(i, e)]! * cfg.rates.equipmentPremium[eq] * reloadFactor(w, lane.dest, eq) + fsc + tollPerMile(lane) + terrainPerMile(lane) + theftPerMile(lane, eq) + exitPerMile(lane, eq);
           tenderToBroker(w, load, brokers, contractRef * remoteMult(load) * cfg.rates.npcCeilingMarkup * (load.hot || 1));
         }
         finish(load, load.brokerId !== null ? w.companies[load.brokerId - 1]!.vetting : 0);

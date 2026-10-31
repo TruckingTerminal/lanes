@@ -1,4 +1,5 @@
 import { garagingFactor } from "@lanes/data";
+import { theftInsuranceFactor } from "./risk.js";
 import { dayOf } from "./clock.js";
 import { clamp, fmtInt } from "./economics.js";
 import { companyAccount } from "./ledger.js";
@@ -28,6 +29,7 @@ export function quote(w: World, c: Company): Omit<InsurancePolicy, "signedDay" |
   let risk = ins.rating[s.rating] * (1 + ins.perAlert * s.alerts.length) * (1 + s.insuranceSurcharge);
   const clean = s.rating === "satisfactory" && s.alerts.length === 0 && s.crashes.length === 0;
   if (clean && today(w) - c.authority.since >= ins.cleanYears * w.cfg.time.daysPerSeason) risk *= ins.cleanDiscount;
+  risk *= theftInsuranceFactor(w, c); // where the fleet sleeps (risk.ts)
   risk = clamp(risk, ins.clamp[0], ins.clamp[1]);
   const garaging = garagingOf(w.net.hubs[c.homeHub]!.id);
   const market = w.insuranceMarket.index;

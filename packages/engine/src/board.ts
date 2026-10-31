@@ -10,6 +10,7 @@ import { creditDispatch, dispatchProfile, startHomeTime } from "./labor.js";
 import { companyAccount } from "./ledger.js";
 import { bidsFromStandingOrders, boardKey, canMakeHot, indexOpenLoads, scoreBid, desperation, estimateBreakEven, resting, trackingWouldShow, needsHome, homeward, hardCap, floorRate, lookaheadValue } from "./standingOrders.js";
 import { startLoading } from "./trips.js";
+import { setSlot } from "./docks.js";
 import type { Bid, Company, Load, StandingOrder, Truck } from "./types.js";
 import { companyById, crewed, hubHours, hubMiles, truckById, type World, placeHours, placeMiles, placeOfHub, placeLegMiles } from "./world.js";
 
@@ -180,9 +181,12 @@ function assign(w: World, load: Load, truck: Truck, bid: Bid): void {
   // Full rest days before the last driving day: a run of exactly one day's driving has none.
   const fullDays = Math.max(0, Math.ceil(drivingH / perDay) - 1);
   const transitMin = (fullDays * cfg.hos.dutyDayHours + (drivingH - fullDays * perDay)) * 60;
-  const dwellMin = cfg.dwell.loadMinutes[1] + cfg.dwell.unloadMinutes[1];
+  const ops = cfg.equipmentOps;
+  const dwellMin = cfg.dwell.loadMinutes[1] + cfg.dwell.unloadMinutes[1] + (ops.enabled && load.equipment === "flatbed" ? ops.flatbedSecureMinutes[1] + ops.flatbedUntarpMinutes[1] : 0);
   // Due by the HOS schedule, and never after the shipper's appointment.
   load.dueT = Math.min(load.appointmentT, w.t + transitMin + dwellMin + (load.hot > 0 ? cfg.safety.hotLoads.slackMinutes : cfg.freight.deliverySlackMinutes));
+  // Appointment freight (docks.ts): a delivery slot on the hour after the arrival estimate, due at its grace.
+  setSlot(w, load, w.t + transitMin + dwellMin);
   truck.loadId = load.id;
   truck.idleRounds = 0;
   if (bid.deadheadMi === 0) {

@@ -217,6 +217,8 @@ export interface Company {
   minBrokerCredit: number;
   /** Gallons burned this month, on the road and idling, for the monthly fuel tax (fuelTax.ts). */
   fuelGalMonth: number;
+  /** Where the fleet sleeps, as theft exposure: the running average of its nights' risk × parking (risk.ts), for its insurance. */
+  nightRisk: number;
   /** The catalogue (items.ts): the yard, its bond, and dollars spent in the farming season's window. */
   yard: "none" | "small" | "large";
   yardBondFd: number;
@@ -529,6 +531,8 @@ export interface Load {
   destPlace: number;
   /** The delivery appointment, set when posted: due is never later than this. Perishables spoil past it. */
   appointmentT: number;
+  /** An appointment load's delivery slot, set at booking (docks.ts); 0 for first come, first served. */
+  slotT: number;
   /** The road route between the places: driving hours and tolls. */
   routeHours: number;
   routeTollFd: number;
@@ -605,6 +609,8 @@ export interface TruckStopSite {
   /** Parking spaces (every site is a public rest area), and trucks sleeping here tonight. */
   spaces: number;
   parked: number;
+  /** Cargo-theft risk here (risk.ts): 1 away from the hotspots. */
+  theftRisk: number;
 }
 
 /** A player business (businesses.ts): a shop or a fuel station at a hub, or a truck stop at a site. */

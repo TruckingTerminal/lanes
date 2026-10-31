@@ -79,6 +79,13 @@ rows.push(
     return `${k("shop")} / ${k("truckStop")} / ${k("fuelStation")}`;
   }],
   ["Legs held by a winter pass closure", (rs) => range(rs.map((r) => r.wear.passClosures ?? 0), n0)],
+  ["Dock waits / hours per wait / missed appointment slots", (rs) => {
+    const waits = mean(rs.map((r) => r.operations?.dockWaits ?? 0));
+    const hours = mean(rs.map((r) => r.operations?.dockWaitHours ?? 0));
+    return `${n0(waits)} / ${waits > 0 ? (hours / waits).toFixed(1) : "0"} / ${n0(mean(rs.map((r) => r.operations?.missedSlots ?? 0)))}`;
+  }],
+  ["Cargo thefts / cargo value stolen / flatbed damage claims", (rs) => `${n0(mean(rs.map((r) => r.operations?.cargoThefts ?? 0)))} / ${fd(mean(rs.map((r) => r.operations?.cargoTheftFd ?? 0)))} / ${n0(mean(rs.map((r) => r.operations?.flatbedDamage ?? 0)))}`],
+  ["Reefer unit fuel (sink)", (rs) => range(rs.map((r) => r.sinksByTag.reefer_fuel ?? 0), fd)],
   ["Nights at a site / on the shoulder / shoulder tickets / sites found full", (rs) => `${n0(mean(rs.map((r) => r.parking?.siteNights ?? 0)))} / ${n0(mean(rs.map((r) => r.parking?.shoulderNights ?? 0)))} / ${n0(mean(rs.map((r) => r.parking?.tickets ?? 0)))} / ${n0(mean(rs.map((r) => r.parking?.sitesFull ?? 0)))}`],
   ["Breakdowns served by truck stops / hub shops / NPC road service", (rs) => `${Math.round(mean(rs.map((r) => r.wear.roadService?.stop ?? 0)))} / ${Math.round(mean(rs.map((r) => r.wear.roadService?.hub ?? 0)))} / ${Math.round(mean(rs.map((r) => r.wear.roadService?.npc ?? 0)))}`],
   ["Shops, NPC: maintenance / repairs / rebuilds (sinks)", (rs) => `${fd(mean(rs.map((r) => r.sinksByTag.maintenance ?? 0)))} / ${fd(mean(rs.map((r) => r.sinksByTag.repairs ?? 0)))} / ${fd(mean(rs.map((r) => r.sinksByTag.rebuild ?? 0)))}`],

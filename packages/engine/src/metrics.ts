@@ -60,6 +60,13 @@ export interface DayMetrics {
   shoulderNights: number;
   tickets: number;
   sitesFull: number;
+  /** The trailer pass and the risk corridors: waits at a dock and their minutes, missed appointment slots, flatbed damage claims, cargo thefts and the cargo value stolen. */
+  dockWaits: number;
+  dockWaitMin: number;
+  missedSlots: number;
+  flatbedDamage: number;
+  cargoThefts: number;
+  cargoTheftFd: number;
   rebuilds: number;
   /** Mean condition of owned trucks (1 = fresh). */
   avgOwnedCondition: number;
@@ -147,6 +154,24 @@ export class MetricsRecorder {
 
   onTicket(): void {
     this.acc.tickets++;
+  }
+
+  onDockWait(minutes: number): void {
+    this.acc.dockWaits++;
+    this.acc.dockWaitMin += minutes;
+  }
+
+  onMissedSlot(): void {
+    this.acc.missedSlots++;
+  }
+
+  onFlatbedDamage(): void {
+    this.acc.flatbedDamage++;
+  }
+
+  onCargoTheft(fd: number): void {
+    this.acc.cargoThefts++;
+    this.acc.cargoTheftFd += fd;
   }
 
   onFull(): void {
@@ -315,6 +340,12 @@ export class MetricsRecorder {
       shoulderNights: a.shoulderNights,
       tickets: a.tickets,
       sitesFull: a.sitesFull,
+      dockWaits: a.dockWaits,
+      dockWaitMin: a.dockWaitMin,
+      missedSlots: a.missedSlots,
+      flatbedDamage: a.flatbedDamage,
+      cargoThefts: a.cargoThefts,
+      cargoTheftFd: a.cargoTheftFd,
       rebuilds: a.rebuilds,
       avgOwnedCondition: owned ? conditionSum / owned : 1,
       cycle: w.feeds.cycle(day),
@@ -391,6 +422,12 @@ function emptyAcc() {
     shoulderNights: 0,
     tickets: 0,
     sitesFull: 0,
+    dockWaits: 0,
+    dockWaitMin: 0,
+    missedSlots: 0,
+    flatbedDamage: 0,
+    cargoThefts: 0,
+    cargoTheftFd: 0,
     rebuilds: 0,
     ordersPlaced: 0,
     trucksDelivered: 0,

@@ -88,6 +88,10 @@ import { elevationAt } from "@lanes/data";
 import { dispatchProfile, managerBreakdownMult, opsCap, payDispatchers, poolOf as poolStaff } from "../src/labor.js";
 import { askingPay as asking } from "../src/world.js";
 import type { Company } from "../src/types.js";
+import { deliveryWait, dockRule, nextOpen, pickupWait, setSlot } from "../src/docks.js";
+import { highValueMult, theftRatePerMile, theftRiskAt } from "../src/risk.js";
+import { startLoading } from "../src/trips.js";
+import { COMMODITY_INDEX } from "@lanes/data";
 
 const net = buildNetwork(hubs, cfg);
 /** Same economy with breakdowns switched off, for tests that time trips exactly. */
@@ -109,7 +113,7 @@ function testLoad(w: World, lane: { id: number; origin: number; dest: number; mi
     brokerId: null, shipperId: null, facilityId: null, saleValue: 0, shipperRate: 10, spotShipperRate: 10, refRate: 10, ceiling: 10, bookNow: 10,
     postedRound: -1, roundsUnfilled: 0, status: "open", carrierId: null, truckId: null, clearedRate: 0, dueT: 0,
     hot: 0, vet: 0, cargoValue: 0, doubleBroker: null,
-    commodity: 0, originPlace: PLACE_OF_HUB[lane.origin]!, destPlace: PLACE_OF_HUB[lane.dest]!, appointmentT: 1e12, routeHours: lane.miles / 50, routeTollFd: 0, localUntilRound: 0, contractId: 0, tenderedTo: 0, tenderUntil: 0,
+    commodity: 0, originPlace: PLACE_OF_HUB[lane.origin]!, destPlace: PLACE_OF_HUB[lane.dest]!, appointmentT: 1e12, slotT: 0, routeHours: lane.miles / 50, routeTollFd: 0, localUntilRound: 0, contractId: 0, tenderedTo: 0, tenderUntil: 0,
   };
 }
 
@@ -1841,6 +1845,137 @@ describe("parking (0.18.2): rest areas by traffic, the night at a site or on the
     expect(site.spaces).toBe(spaces + p.spacesPerPurchase);
     expect(before - w.ledger.balance(companyAccount(owner.id))).toBeCloseTo(price * 1.05, 2);
     expect(w.ledger.entries.filter((e) => e.to === "sink:asset_burn").reduce((s, e) => s + e.amount, 0) - burnBefore).toBeCloseTo(price * cat.token.catalogue.split.burn, 2);
+    w.ledger.assertBalanced();
+  });
+});
+
+describe("the trailer pass and the risk corridors (0.18.3)", () => {
+  const ops: EconomyConfig = { ...calm, equipmentOps: { ...calm.equipmentOps, enabled: true } };
+  const docked: EconomyConfig = { ...ops, docks: { ...calm.docks, enabled: true } };
+  const D = calm.time.gameMinutesPerDay;
+
+  it("burns more on a loaded mile than an empty one, runs a loaded reefer's unit by the hour, and pays drivers more on reefer and flatbed miles", () => {
+    const van = { ...NEW_WORKHORSE, trailer: "van" as const };
+    const reefer = { ...NEW_WORKHORSE, trailer: "reefer" as const };
+    const flatbed = { ...NEW_WORKHORSE, trailer: "flatbed" as const };
+    const k = ops.equipmentOps;
+    const loaded = tripCost(ops, van, 4, 1_000, 1_000);
+    const empty = tripCost(ops, van, 4, 1_000, 0);
+    expect(loaded.gallons / empty.gallons).toBeCloseTo(k.loadedFuelMult / k.emptyFuelMult, 9);
+    expect(tripCost(ops, reefer, 4, 1_000, 1_000).gallons - tripCost(ops, van, 4, 1_000, 1_000).gallons).toBeCloseTo((1_000 / k.reeferUnitMph) * k.reeferUnitGalPerHour, 6);
+    expect(tripCost(ops, flatbed, 4, 1_000, 1_000).wages).toBeCloseTo(loaded.wages * k.driverPayMult.flatbed, 6);
+    expect(tripCost(ops, reefer, 4, 1_000, 1_000).wages).toBeCloseTo(loaded.wages * k.driverPayMult.reefer, 6);
+    // Off, a mile is a mile.
+    expect(tripCost(calm, van, 4, 1_000, 0).gallons).toBeCloseTo(tripCost(calm, van, 4, 1_000, 1_000).gallons, 9);
+  });
+
+  it("keeps first-come docks to weekday business hours and flatbed to daylight, and books appointment freight into slots", () => {
+    const w = createWorld({ cfg: docked, net, feeds: neutralFeeds, seed: 100 });
+    const h = docked.docks.hours;
+    // Friday 19:00 (day 4: days count from a Monday): first come opens Monday 06:00, daylight Saturday 06:00.
+    expect(nextOpen(w, 4 * D + 19 * 60, h.fcfs)).toBe(7 * D + 6 * 60);
+    expect(nextOpen(w, 4 * D + 19 * 60, h.daylight)).toBe(5 * D + 6 * 60);
+    expect(nextOpen(w, 2 * D + 10 * 60, h.fcfs)).toBe(2 * D + 10 * 60);
+    expect(nextOpen(w, 2 * D + 3 * 60, h.fcfs)).toBe(2 * D + 6 * 60);
+    const load = testLoad(w, w.net.lanes[0]!);
+    load.equipment = "van";
+    load.commodity = COMMODITY_INDEX.grocery;
+    expect(dockRule(w, load)).toBe("appointment");
+    load.commodity = COMMODITY_INDEX.retail;
+    expect(dockRule(w, load)).toBe("fcfs");
+    load.equipment = "reefer";
+    load.commodity = COMMODITY_INDEX.produce;
+    expect(dockRule(w, load)).toBe("appointment");
+    // The slot: the estimate plus the lead, on the hour; due at its grace.
+    const a = docked.docks.appointment;
+    setSlot(w, load, 10_000);
+    expect(load.slotT % 60).toBe(0);
+    expect(load.slotT).toBeGreaterThanOrEqual(10_000 + a.leadMinutes);
+    expect(load.dueT).toBe(load.slotT + a.graceMinutes);
+    // Five hours early waits for the window (it opens two hours before the slot); on time, none; past the grace, the next slot hours later.
+    expect(deliveryWait(w, load, load.slotT - 300)).toEqual({ minutes: 300 - a.earlyMinutes, missed: false, receiversHours: false });
+    expect(deliveryWait(w, load, load.slotT).minutes).toBe(0);
+    const late = deliveryWait(w, load, load.slotT + a.graceMinutes + 60);
+    expect(late.missed).toBe(true);
+    expect(late.minutes).toBeGreaterThanOrEqual(a.nextSlotHours[0] * 60);
+    expect(late.minutes).toBeLessThanOrEqual(a.nextSlotHours[1] * 60);
+    // Appointment freight ships at any hour; a first-come van load on a Saturday waits for Monday, the receiver's hours.
+    expect(pickupWait(w, load, 5 * D + 23 * 60)).toBe(0);
+    load.equipment = "van";
+    load.commodity = COMMODITY_INDEX.retail;
+    const sat = deliveryWait(w, load, 5 * D + 10 * 60);
+    expect(sat).toEqual({ minutes: 7 * D + 6 * 60 - (5 * D + 10 * 60), missed: false, receiversHours: true });
+  });
+
+  it("secures a flatbed at the shipper and waits out a closed dock, moving the due time by the wait", () => {
+    const w = createWorld({ cfg: docked, net, feeds: neutralFeeds, seed: 101 });
+    const a = carrier(w, "A");
+    const t = createTruck(w, a, "owned", "workhorse", "flatbed");
+    const load = testLoad(w, w.net.lanes[0]!);
+    load.equipment = "flatbed";
+    load.commodity = COMMODITY_INDEX.steel;
+    load.dueT = 1e9;
+    const sunday = 6 * D + 12 * 60;
+    const wait = 7 * D + 6 * 60 - sunday;
+    startLoading(w, t, load, sunday);
+    const [lo] = docked.dwell.loadMinutes;
+    const [slo] = docked.equipmentOps.flatbedSecureMinutes;
+    expect(t.dwellMin).toBeGreaterThanOrEqual(wait + lo + slo);
+    expect(load.dueT).toBe(1e9 + wait);
+  });
+
+  it("finds the theft hotspots, steals a high-value load from a truck asleep on the shoulder near one, and prices the risk into rates and insurance", () => {
+    const th: EconomyConfig = { ...calm, businesses: { ...calm.businesses, enabled: true }, theft: { ...calm.theft, enabled: true, oddsPerLoadedNight: 1e6 } };
+    const w = createWorld({ cfg: th, net, feeds: neutralFeeds, seed: 102, keepLedgerEntries: true });
+    const idx = (id: string) => w.net.hubs.findIndex((h) => h.id === id);
+    const la = w.net.hubs[idx("LAX")]!;
+    const fargo = w.net.hubs[idx("FAR")]!;
+    expect(theftRiskAt(w, la.lat, la.lon)).toBeGreaterThan(2.5);
+    expect(theftRiskAt(w, fargo.lat, fargo.lon)).toBe(1);
+    // A hotspot lane pays a premium; a lane between quiet hubs doesn't. High-value freight pays more on every load.
+    expect(theftRatePerMile(w, idx("LAX"), idx("DAL"), "van")).toBeGreaterThan(0);
+    expect(theftRatePerMile(w, idx("FAR"), idx("BOI"), "van")).toBe(0);
+    expect(highValueMult(th, COMMODITY_INDEX.electronics)).toBeGreaterThan(1);
+    expect(highValueMult(th, COMMODITY_INDEX.hay)).toBe(1);
+    // A loaded truck thirty miles out of Los Angeles, asleep on the shoulder.
+    const c = carrier(w, "C");
+    fund(w, c.id, 50_000);
+    const lane = w.net.lanes.find((l) => l.origin === idx("LAX"))!;
+    const r = hubRoute(w, lane.origin, lane.dest)!;
+    const t = createTruck(w, c, "owned", "workhorse", "van");
+    t.status = "loaded";
+    t.hub = lane.origin;
+    t.targetHub = lane.dest;
+    t.place = PLACE_OF_HUB[lane.origin]!;
+    t.targetPlace = PLACE_OF_HUB[lane.dest]!;
+    t.legMiles = r.miles;
+    t.remainingMi = r.miles - 30;
+    t.shiftStartT = 1_000;
+    const driver = w.staffByCompany.get(c.id)!.find((s) => s.owner)!;
+    t.driverId = driver.id;
+    driver.truckId = t.id;
+    const load = testLoad(w, lane);
+    load.commodity = COMMODITY_INDEX.electronics;
+    load.cargoValue = 20_000;
+    load.status = "inTransit";
+    load.carrierId = c.id;
+    load.truckId = t.id;
+    w.loads.set(load.id, load);
+    t.loadId = load.id;
+    const claims = () => w.ledger.entries.filter((e) => e.to === "sink:cargo_claim").reduce((s, e) => s + e.amount, 0);
+    const before = claims();
+    parkForTheNight(w, t, null);
+    expect(w.loads.has(load.id)).toBe(false);
+    expect(t.loadId).toBeNull();
+    expect(t.status).toBe("repositioning");
+    expect(claims() - before).toBeCloseTo(th.safety.crash.cargoDeductibleFd, 2);
+    expect(t.breakdownMin).toBeGreaterThanOrEqual(th.theft.reportHours * 60);
+    expect(c.nightRisk).toBeGreaterThan(1);
+    // The insurer prices where the fleet sleeps.
+    c.nightRisk = 3;
+    const risky = quote(w, c).annualPerTruck;
+    c.nightRisk = th.theft.insuranceRefExposure;
+    expect(risky).toBeGreaterThan(quote(w, c).annualPerTruck);
     w.ledger.assertBalanced();
   });
 });

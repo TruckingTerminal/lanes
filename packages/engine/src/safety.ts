@@ -478,9 +478,10 @@ export function reopenLoad(w: World, load: Load): void {
  * A load that will never arrive: the broker loses its margin, a player shipper's
  * cargo insurance pays the sale value, and a double broker gets nothing.
  */
-export function loseLoad(w: World, load: Load, _why: "crash" | "theft"): void {
+export function loseLoad(w: World, load: Load, _why: "crash" | "theft" | "burglary"): void {
   if (load.brokerId !== null) companyById(w, load.brokerId).openBrokerLoads--;
-  if (load.shipperId !== null && _why === "crash") {
+  // A crash or a burglary (risk.ts) is the player shipper's cargo insurance's to pay; a fraudster's theft is settled in fraud.ts.
+  if (load.shipperId !== null && _why !== "theft") {
     const shipper = companyById(w, load.shipperId);
     // A pool-written policy pays the cargo as far as the pool goes; the NPC backstop covers the rest.
     const fromPool = shipper.insurance.writer === "pool" ? payClaim(w, "insurance", companyAccount(shipper.id), load.saleValue, `cargo:${load.id}`) : 0;

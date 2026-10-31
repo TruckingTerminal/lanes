@@ -36,6 +36,10 @@ export const LIVE_LEVERS: Record<string, unknown> = {
   "labor.managers.enabled": true,
   // Terrain and weather on the route.
   "roads.terrain.enabled": true,
+  // The trailer pass and the risk corridors.
+  "equipmentOps.enabled": true,
+  "docks.enabled": true,
+  "theft.enabled": true,
   // The skill edge: wider ranges for drivers and dispatchers, stronger managers.
   "labor.dispatcher.noise": [0.08, 0.005],
   "labor.driver.mpgRange": 0.3,

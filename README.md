@@ -503,6 +503,23 @@ the night (`sites.ts planNight`): the last site with room the day's hours still 
 next is beyond them; a site found full sends them on. The report counts nights at sites, nights on
 the shoulder, tickets and full sites.
 
+**The trailer pass and the theft corridors (2026-10-30, ruleset 0.18.3).** What each trailer is like
+from the cab (`equipmentOps`): a loaded mile burns more fuel than an empty one and climbs harder; a
+loaded reefer's unit burns diesel by the hour on the road, through the night and at the gate (sink
+`reefer_fuel`); a flatbed takes an hour or two to secure and tarp and risks a weather damage claim on
+its open deck, more in a northern winter, less with a skilled driver; drivers earn 5% more a mile on
+reefer and 12% more on flatbed. Docks keep hours (`docks`, `docks.ts`): cold chain, groceries,
+beverages and parcels by appointment slot at any hour, set at booking from the arrival estimate; other
+dry van first come in weekday business hours; flatbed in daylight, Monday to Saturday. Early for a
+slot, at a closed dock or past a slot, a truck waits at the gate; the receiver's hours move the due
+time, a missed slot does not. Cargo theft (`theft`, `risk.ts`): a loaded truck asleep is the target,
+by where it sleeps (the shoulder three times a rest area, a truck stop's security a third of it), the
+CargoNet hotspots it is near (Southern California, Texas, Georgia, Florida, Illinois, Tennessee, New
+Jersey) and what is aboard; a theft loses the load, the carrier pays the cargo deductible, a
+pool-written policy pays the rest (a sink), and the truck goes on empty after the police report.
+Shippers pay for the risk in the lane rate and on high-value loads; insurers price a fleet by where
+it sleeps. The report adds dock waits, missed slots, flatbed damage and cargo thefts.
+
 Jeff's direction (2026-10-29, TOKENOMICS.md "The circular economy"): a capped FD supply, staking as
 the bond behind every licence, player-funded pools for insurance, factoring and surety, payment
 terms, and a season schedule for later airdrops. All of it is on main and off by default

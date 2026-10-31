@@ -9,11 +9,12 @@ export type TractorTier = "workhorse" | "highwayPro" | "flagship";
 export type FacilityType = "warehouse" | "coldStorage" | "factory";
 
 export const economyConfig = {
-  version: "0.18.2-phase0.26", // Parking (2026-10-30): rest areas by traffic, the night at a site or a ticket on the shoulder, drivers plan the night; live levers in live.ts
+  version: "0.18.3-phase0.27", // The trailer pass and the theft corridors (2026-10-30); live levers in live.ts
 
   // §World, map and time
   time: {
     gameMinutesPerDay: 1440,
+    weekdayOfDay0: 0, // the calendar's day 0 is a Monday (docks' business hours)
     realHoursPerGameDayLive: 6,
     daysPerSeason: 365,
     daysPerMonth: 30,
@@ -34,6 +35,83 @@ export const economyConfig = {
   dwell: {
     loadMinutes: [60, 120] as const,
     unloadMinutes: [60, 120] as const,
+  },
+
+  // The trailer pass (Jeff, 2026-10-30): what pulling each trailer is like from the cab.
+  equipmentOps: {
+    enabled: false,
+    // A reefer's unit burns diesel while it is loaded: on the road (its gallons an hour at this pace, per
+    // loaded mile), through the night, and while it waits at a dock.
+    reeferUnitGalPerHour: 0.8,
+    reeferUnitMph: 50,
+    nightHours: 10,
+    // Flatbed: chains, straps and tarps at the shipper, untarping at the receiver, and an open deck in the
+    // weather: a damage claim at these odds, more in a northern winter, less with a skilled driver.
+    flatbedSecureMinutes: [60, 120] as const,
+    flatbedUntarpMinutes: [30, 60] as const,
+    flatbedDamageOdds: 0.03,
+    flatbedDamageWinterGain: 2,
+    flatbedDamageShare: 0.1,
+    // Weight: a loaded trailer burns more per mile than an empty one, and climbs harder.
+    loadedFuelMult: 1.05,
+    emptyFuelMult: 0.8,
+    loadedClimbMult: 1.3,
+    emptyClimbMult: 0.6,
+    // Drivers earn more per mile on the harder freight.
+    driverPayMult: { van: 1, reefer: 1.05, flatbed: 1.12 } satisfies Record<Equipment, number>,
+  },
+
+  // Receiving and shipping hours (Jeff, 2026-10-30): cold chain, and the dry food that goes to the same
+  // distribution centers, by appointment at any hour; other dry van first come, first served in weekday
+  // business hours; flatbed in daylight. A truck early for its slot, at a closed dock, or past its slot
+  // (the next one comes hours later) waits at the gate, on the clock. The receiver's hours move the due
+  // time; a missed slot does not. Weekdays count from time.weekdayOfDay0.
+  docks: {
+    enabled: false,
+    appointmentCommodities: ["grocery", "beverages", "parcels"] as string[],
+    byEquipment: { reefer: "appointment", van: "fcfs", flatbed: "daylight" } satisfies Record<Equipment, string>,
+    appointment: { leadMinutes: 180, earlyMinutes: 120, graceMinutes: 120, nextSlotHours: [4, 10] as const },
+    hours: {
+      fcfs: { open: 6, close: 18, days: [0, 1, 2, 3, 4] as number[] },
+      daylight: { open: 6, close: 18, days: [0, 1, 2, 3, 4, 5] as number[] },
+    },
+  },
+
+  // Cargo theft (Jeff, 2026-10-30; the EVE plan's risk for reward). A loaded truck asleep is the target:
+  // the night's odds, times where it sleeps (`parking`: the shoulder worst, a public rest area, a truck
+  // stop's security best), times the hotspot it is near (CargoNet's: Southern California, Texas,
+  // Georgia, Florida, Illinois, Tennessee, New Jersey; `mult` at the hub, fading to 1 at `radiusMi`),
+  // times what is aboard (the commodity's value over `attractBaseFd`, within `attractRange`). A theft
+  // loses the load: the carrier pays the cargo deductible and is not paid; a pool-written policy pays the
+  // rest of the cargo's value, a sink; the truck goes on empty after the police report. Shippers pay for
+  // the risk in the rate (a lane premium per point of risk, a premium on high-value loads), and insurers
+  // price a fleet by where it sleeps (the average exposure of its nights against `insuranceRefExposure`).
+  theft: {
+    enabled: false,
+    oddsPerLoadedNight: 0.001,
+    parking: { shoulder: 3, restArea: 1, truckStop: 0.35 },
+    hotspots: [
+      { hub: "ONT", mult: 3, radiusMi: 120 },
+      { hub: "LAX", mult: 3, radiusMi: 80 },
+      { hub: "DAL", mult: 2, radiusMi: 100 },
+      { hub: "HOU", mult: 2, radiusMi: 90 },
+      { hub: "LRD", mult: 2, radiusMi: 60 },
+      { hub: "ATL", mult: 2.2, radiusMi: 100 },
+      { hub: "MIA", mult: 2.5, radiusMi: 90 },
+      { hub: "JAX", mult: 1.6, radiusMi: 60 },
+      { hub: "CHI", mult: 2, radiusMi: 100 },
+      { hub: "MEM", mult: 2, radiusMi: 80 },
+      { hub: "EWR", mult: 1.8, radiusMi: 80 },
+    ],
+    attractBaseFd: 60_000,
+    attractRange: [0.4, 4] as const,
+    reportHours: 6,
+    ratePremiumPerRisk: 0.03,
+    highValuePremium: 0.02,
+    exposurePerNight: 0.02,
+    insuranceWeight: 0.3,
+    insuranceRefExposure: 1.3,
+    insuranceClamp: [0.85, 1.5] as const,
   },
 
   // Design proposal (Jeff, 2026-10-28): the real road network (packages/data/src/roads.ts, from
