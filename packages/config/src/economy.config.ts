@@ -51,7 +51,7 @@ export const economyConfig = {
     // Climbing burns `fuelGalPerClimbM` gallons a meter (~7 per thousand meters; shippers pay it in the
     // rate like tolls when `inRates`), grades slow trucks to `mountainMph`, the share of a leg on grades
     // raises breakdowns and crashes, and in winter a pass can close for a few hours (a chain law).
-    terrain: { enabled: false, fuelGalPerClimbM: 0.007, mountainGrade: 0.03, mountainMph: 30, breakdownPerMountainShare: 0.5, crashPerMountainShare: 0.3, passElevM: 2000, closureOddsPerPassMi: 0.002, closureHours: [4, 12] as const, inRates: true },
+    terrain: { enabled: false, fuelGalPerClimbM: 0.007, mountainGrade: 0.03, mountainMph: 30, breakdownPerMountainShare: 0.5, crashPerMountainShare: 0.3, passElevM: 2000, closureOddsPerPassMi: 0.001, closureHours: [4, 12] as const, inRates: true },
   },
 
   // §World, map and time — lanes
