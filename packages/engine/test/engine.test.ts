@@ -91,6 +91,7 @@ import type { Company } from "../src/types.js";
 import { deliveryWait, dockRule, nextOpen, pickupWait, setSlot } from "../src/docks.js";
 import { highValueMult, theftRatePerMile, theftRiskAt } from "../src/risk.js";
 import { startLoading } from "../src/trips.js";
+import { dockWaitCost } from "../src/standingOrders.js";
 import { COMMODITY_INDEX } from "@lanes/data";
 
 const net = buildNetwork(hubs, cfg);
@@ -1905,6 +1906,30 @@ describe("the trailer pass and the risk corridors (0.18.3)", () => {
     load.commodity = COMMODITY_INDEX.retail;
     const sat = deliveryWait(w, load, 5 * D + 10 * 60);
     expect(sat).toEqual({ minutes: 7 * D + 6 * 60 - (5 * D + 10 * 60), missed: false, receiversHours: true });
+  });
+
+  it("has a skilled dispatcher price the wait at a closed first-come dock into the load, and an unskilled one barely see it", () => {
+    const w = createWorld({ cfg: docked, net, feeds: neutralFeeds, seed: 103 });
+    const a = carrier(w, "A");
+    const t = createTruck(w, a, "owned", "workhorse", "van");
+    const load = testLoad(w, w.net.lanes[0]!);
+    load.equipment = "van";
+    load.commodity = COMMODITY_INDEX.retail;
+    load.routeHours = 6;
+    const team = { skill: 1 } as Parameters<typeof dockWaitCost>[4];
+    // Picked up at 14:00 on a Friday: unloaded after 20:00, past the receiver's hours: it waits for Monday.
+    w.t = 4 * D + 14 * 60;
+    const friday = dockWaitCost(w, t, load, 0, team);
+    // Picked up at 08:00 on a Tuesday: delivered the same afternoon, no wait.
+    w.t = 1 * D + 8 * 60;
+    const tuesday = dockWaitCost(w, t, load, 0, team);
+    expect(friday).toBeGreaterThan(50 * docked.roads.routing.timeValueFdPerHour);
+    expect(tuesday).toBe(0);
+    // Appointment freight is booked into a slot; a dispatcher with no skill doesn't see the wait at all.
+    w.t = 4 * D + 14 * 60;
+    expect(dockWaitCost(w, t, load, 0, { skill: 0 } as Parameters<typeof dockWaitCost>[4])).toBe(0);
+    load.commodity = COMMODITY_INDEX.grocery;
+    expect(dockWaitCost(w, t, load, 0, team)).toBe(0);
   });
 
   it("secures a flatbed at the shipper and waits out a closed dock, moving the due time by the wait", () => {

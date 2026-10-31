@@ -1,4 +1,5 @@
 import type { Equipment } from "@lanes/config";
+import { dockRule, nextOpen } from "./docks.js";
 import { EQUIPMENT } from "./demand.js";
 import { mayTake } from "./contracts.js";
 import { dayOf, MINUTES_PER_HOUR } from "./clock.js";
@@ -131,7 +132,7 @@ export function bidsFromStandingOrders(w: World, company: Company, idx: BoardInd
         const priced = priceLoad(w, truck, load, dh, fuel, bidOrders, floor, team, desperate);
         if (priced === null) continue;
         candidates.push({
-          profit: (priced.rate - priced.breakEven) * load.miles + lookaheadValue(w, team, load.dest, load.equipment),
+          profit: (priced.rate - priced.breakEven) * load.miles + lookaheadValue(w, team, load.dest, load.equipment) - dockWaitCost(w, truck, load, dh, team),
           bid: {
             loadId: load.id,
             truckId: truck.id,
@@ -150,6 +151,28 @@ export function bidsFromStandingOrders(w: World, company: Company, idx: BoardInd
     for (const c of candidates.slice(0, w.cfg.board.maxBidsPerTruckPerRound)) out.push(c.bid);
   }
   return out;
+}
+
+/**
+ * The hours a truck would wait at a closed first-come dock on this load (docks.ts), as a dispatch
+ * team plans it: to the pickup at the nominal pace, the shipper's hours, loading, the legal transit,
+ * then the receiver's hours. Appointment freight is booked into a slot and adds none. A skilled team
+ * prices the wait at the routing time value; an untrained one barely sees it (the skill edge). FD.
+ */
+export function dockWaitCost(w: World, truck: Truck, load: Load, dh: number, team: DispatchProfile): number {
+  const k = w.cfg.docks;
+  if (!k.enabled || team.skill <= 0) return 0;
+  const rule = dockRule(w, load);
+  if (rule === "appointment") return 0;
+  const hours = k.hours[rule];
+  const atPickup = w.t + (dh / w.cfg.hos.avgMph) * MINUTES_PER_HOUR;
+  const pickupWait = nextOpen(w, atPickup, hours) - atPickup;
+  const perDay = w.cfg.hos.drivingHoursPerDay;
+  const fullDays = Math.max(0, Math.ceil(load.routeHours / perDay) - 1);
+  const transitMin = (fullDays * w.cfg.hos.dutyDayHours + (load.routeHours - fullDays * perDay)) * MINUTES_PER_HOUR;
+  const atDrop = atPickup + pickupWait + w.cfg.dwell.loadMinutes[1] + transitMin;
+  const dropWait = nextOpen(w, atDrop, hours) - atDrop;
+  return ((pickupWait + dropWait) / MINUTES_PER_HOUR) * w.cfg.roads.routing.timeValueFdPerHour * team.skill;
 }
 
 /** A dispatch team's read of a load's break-even for this truck: the true figure, off by their noise. */

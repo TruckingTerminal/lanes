@@ -8,7 +8,7 @@ import { rebrokerLoad, vettingBlock } from "./fraud.js";
 import { homeEdge, updateHomeCrowding } from "./home.js";
 import { creditDispatch, dispatchProfile, startHomeTime } from "./labor.js";
 import { companyAccount } from "./ledger.js";
-import { bidsFromStandingOrders, boardKey, canMakeHot, indexOpenLoads, scoreBid, desperation, estimateBreakEven, resting, trackingWouldShow, needsHome, homeward, hardCap, floorRate, lookaheadValue } from "./standingOrders.js";
+import { bidsFromStandingOrders, boardKey, canMakeHot, dockWaitCost, indexOpenLoads, scoreBid, desperation, estimateBreakEven, resting, trackingWouldShow, needsHome, homeward, hardCap, floorRate, lookaheadValue } from "./standingOrders.js";
 import { startLoading } from "./trips.js";
 import { setSlot } from "./docks.js";
 import type { Bid, Company, Load, StandingOrder, Truck } from "./types.js";
@@ -287,7 +287,7 @@ export function autoBook(w: World): void {
           const be = estimateBreakEven(w, truck, load, dh, fuel, team);
           const min = Math.max(be * (1 + want), floorRate(w, load, be, floor, desperate));
           if (load.bookNow < min) continue;
-          const profit = (load.bookNow - be) * load.miles + lookaheadValue(w, team, load.dest, load.equipment);
+          const profit = (load.bookNow - be) * load.miles + lookaheadValue(w, team, load.dest, load.equipment) - dockWaitCost(w, truck, load, dh, team);
           if (!best || profit > best.profit || (profit === best.profit && load.id < best.load.id)) best = { load, dh, profit };
         }
       }
