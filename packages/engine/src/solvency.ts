@@ -38,7 +38,7 @@ export function workingCapital(w: World, c: Company): number {
 export function chargeHoldingCost(w: World): void {
   const rate = w.cfg.holdingCost.weeklyRate;
   for (const c of w.companies) {
-    if (c.liquidatingSince !== null) continue;
+    if (c.liquidatingSince !== null || c.role === "holder") continue; // a wallet outside the game isn't charged
     const acct = companyAccount(c.id);
     const excess = w.ledger.balance(acct) - workingCapital(w, c);
     if (excess > 0) w.ledger.post(w.t, acct, "sink:holding_cost", excess * rate, `holding:${c.id}`);

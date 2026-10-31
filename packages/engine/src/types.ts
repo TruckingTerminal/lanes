@@ -1,6 +1,7 @@
 import type { Equipment, FacilityType, TractorTier } from "@lanes/config";
 
-export type Role = "carrier" | "broker";
+/** "holder": a wallet outside the game that only holds and trades FD (the sim's speculators; no trucks, no permits, no costs). */
+export type Role = "carrier" | "broker" | "holder";
 
 /**
  * Standing orders: the small rule language shared by humans and bots

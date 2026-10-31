@@ -156,13 +156,13 @@ export interface RealMoneyReport {
 export interface TokenReport {
   launchDay: number;
   launch: LaunchRecord;
-  price: { launchUsd: number; minUsd: number; maxUsd: number; endUsd: number; byQuarter: { label: string; priceUsd: number }[] };
+  price: { launchUsd: number; minUsd: number; maxUsd: number; endUsd: number; byQuarter: { label: string; priceUsd: number }[]; maxDrawdown: number };
   /** FD supply (all accounts, pool included): before launch, right after it, at the end; and held by companies at the end. */
   supply: { beforeLaunchFd: number; afterLaunchFd: number; endFd: number; companiesEndFd: number; poolEndFd: number; byYearEnd: number[] };
   /** Since launch: FD created by operations, minted by the token layer, burned by operations and by the token layer. */
   sinceLaunch: { operatingFaucetFd: number; operatingSinkFd: number; mintedByTag: Record<string, number>; burnedByTag: Record<string, number> };
   treasury: { seedUsd: number; productUsd: number; feeUsd: number; buybackUsd: number; buybackFd: number; opsUsd: number; devUsd: number; vestedFd: number };
-  pool: { endUsd: number; endFd: number };
+  pool: { endUsd: number; endFd: number; peakUsd: number };
   airdrop: { allocatedFd: number; mintedFd: number; forfeitedFd: number; haircutFd: number; recipients: number; claimedEarly: number };
   newCompanies: number;
   /** Dollars after launch, by starting segment: put in, taken out, and net taken out. */
@@ -345,10 +345,12 @@ export function buildReport(w: World): RunReport {
     for (const f of facilitiesOf(w, companyId)) wealth += cfg.facilities.types[f.type].priceFd;
     return wealth;
   };
-  const wealthAll = w.companies.map((c) => wealthOf(c.id));
+  // Wallets outside the game (role "holder") aren't companies: wealth and Miles figures leave them out.
+  const counted = w.companies.filter((c) => c.role !== "holder");
+  const wealthAll = counted.map((c) => wealthOf(c.id));
   const avgBySegment: Record<string, number> = {};
   const segCounts: Record<string, number> = {};
-  w.companies.forEach((c, i) => {
+  counted.forEach((c, i) => {
     const seg = c.strategy.split(":")[0]!;
     avgBySegment[seg] = (avgBySegment[seg] ?? 0) + wealthAll[i]!;
     segCounts[seg] = (segCounts[seg] ?? 0) + 1;
@@ -357,7 +359,7 @@ export function buildReport(w: World): RunReport {
   const sortedWealth = wealthAll.map((x) => Math.max(0, x)).sort((a, b) => b - a);
   const totalWealth = sum(sortedWealth) || 1;
   const topShare = (frac: number) => sum(sortedWealth.slice(0, Math.max(1, Math.round(sortedWealth.length * frac)))) / totalWealth;
-  const lifetimeMiles = w.companies.map((c) => sum(c.milesHistory) + c.milesTotal);
+  const lifetimeMiles = counted.map((c) => sum(c.milesHistory) + c.milesTotal);
 
   // Failures.
   const repossessed = w.companies.filter((c) => c.repossessions > 0);
@@ -567,7 +569,23 @@ function tokenReport(w: World, quarterLen: number): TokenReport | null {
   return {
     launchDay: tk.launchDay,
     launch: tk.launch,
-    price: { launchUsd: tk.launchPriceUsd, minUsd: Math.min(...prices), maxUsd: Math.max(...prices), endUsd: end.priceUsd, byQuarter },
+    price: {
+      launchUsd: tk.launchPriceUsd,
+      minUsd: Math.min(...prices),
+      maxUsd: Math.max(...prices),
+      endUsd: end.priceUsd,
+      byQuarter,
+      // The worst fall from a running peak (the degen batches' first measure).
+      maxDrawdown: (() => {
+        let peak = 0;
+        let dd = 0;
+        for (const p of prices) {
+          peak = Math.max(peak, p);
+          if (peak > 0) dd = Math.max(dd, (peak - p) / peak);
+        }
+        return dd;
+      })(),
+    },
     supply: {
       beforeLaunchFd: tk.launch.supplyBeforeFd,
       afterLaunchFd: live[0]?.supplyFd ?? end.supplyFd,
@@ -583,7 +601,7 @@ function tokenReport(w: World, quarterLen: number): TokenReport | null {
       burnedByTag: sumTags(live.map((d) => d.burnByTag ?? {})),
     },
     treasury: { seedUsd: t.seedUsd, productUsd: t.productUsd, feeUsd: t.feeUsd, buybackUsd: t.buybackUsd, buybackFd: t.buybackFd, opsUsd: t.opsUsd, devUsd: t.devUsd, vestedFd: t.vestedFd },
-    pool: { endUsd: tk.poolUsd, endFd: end.exchangeFd },
+    pool: { endUsd: tk.poolUsd, endFd: end.exchangeFd, peakUsd: Math.max(tk.poolUsd, ...live.map((d) => d.poolUsd ?? 0)) },
     airdrop: {
       allocatedFd: tk.launch.airdropAllocatedFd,
       mintedFd: tk.airdrop.mintedFd,

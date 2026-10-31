@@ -156,6 +156,14 @@ rows.push(
     const t = rs.map((r) => r.realMoney?.token).filter((x) => x);
     return t.length ? `$${fd(mean(t.map((x) => x!.treasury.productUsd + x!.treasury.feeUsd)))} / $${fd(mean(t.map((x) => x!.treasury.buybackUsd)))}` : "n/a";
   }],
+  ["Token: worst drawdown from a peak / pool dollars at their peak", (rs) => {
+    const t = rs.map((r) => r.realMoney?.token).filter((x) => x);
+    return t.length ? `${Math.round(mean(t.map((x) => x!.price.maxDrawdown ?? 0)) * 100)}% / $${fd(mean(t.map((x) => x!.pool.peakUsd ?? 0)))}` : "n/a";
+  }],
+  ["Token: net $ taken out — farmers / sybils / speculators (momentum, crowd, whale)", (rs) => {
+    const t = rs.map((r) => r.realMoney?.token).filter((x) => x);
+    return t.length ? ["farm", "sybil", "spec"].map((s) => `$${fd(mean(t.map((x) => x!.usdBySegment[s]?.net ?? 0)))}`).join(" / ") : "n/a";
+  }],
   ["Token: pool dollars at launch → end", (rs) => {
     const t = rs.map((r) => r.realMoney?.token).filter((x) => x);
     return t.length ? `$${fd(mean(t.map((x) => x!.treasury.seedUsd)))} → ${range(t.map((x) => x!.pool.endUsd), (x) => `$${fd(x)}`)}` : "n/a";

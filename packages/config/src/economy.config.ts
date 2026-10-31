@@ -114,6 +114,25 @@ export const economyConfig = {
     insuranceClamp: [0.85, 1.5] as const,
   },
 
+  // Adversaries (sim only; TODO.md step 2, the degen and bear-case batches): the crowd the rational bots
+  // never were. Farmers are this share of the bot owner-operators and newcomers: they haul to keep their
+  // airdrop slices, cut corners, claim early, sell everything they can every week whatever the price,
+  // never grow, and quit some months after launch (selling their trucks and their FD). Sybil clusters
+  // are one actor across many free-path wallets, farming like the rest and then selling every wallet at
+  // its daily limit every day. Speculators are wallets outside the game (role "holder": no trucks, no
+  // costs): momentum traders buy a week's rise and sell a week's fall; a listing-day crowd buys in the
+  // launch week and sells on a stop-loss or after a few weeks; a whale buys big the day after launch and
+  // sells at its daily limit once it has doubled, or after a while.
+  adversaries: {
+    enabled: false,
+    farmerShare: 0,
+    farmerQuitDays: [180, 360] as const,
+    sybil: { clusters: 0, wallets: 8 },
+    momentum: { wallets: 0, usdMedian: 2_000, lookbackDays: 7, buyAfterRise: 0.15, sellAfterFall: 0.1, buyShare: 0.5 },
+    crowd: { wallets: 0, usdMedian: 200, holdDays: [14, 60] as const, stopLoss: 0.25 },
+    whale: { usd: 0, sellAfterGain: 1, sellAfterDays: 90 },
+  },
+
   // Design proposal (Jeff, 2026-10-28): the real road network (packages/data/src/roads.ts, from
   // Natural Earth). Lanes are routed along interstates and US highways; tolls are charged where
   // the road is a toll road (priced by state at real per-mile truck rates); two-lane highways are

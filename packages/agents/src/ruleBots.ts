@@ -15,6 +15,7 @@ import {
   lastBuybackPrice,
   averagePriceUsd,
   fdPriceUsd,
+  EXCHANGE_ACCOUNT,
   quoteUsdForFd,
   sellableFd,
   tokenLive,
@@ -123,6 +124,15 @@ interface BotProfile {
   /** Token mode: takes the airdrop's rest at launch, haircut and all. */
   claimsEarly: boolean;
   /**
+   * Adversaries (config adversaries): a farmer hauls to keep its airdrop, sells everything it can every
+   * week whatever the price, and quits on `quitDay`; a sybil is a farmer wallet of a cluster that sells
+   * at its daily limit every day.
+   */
+  farmer: boolean;
+  sybil: boolean;
+  quitDay: number;
+  quit: boolean;
+  /**
    * How legal it runs (safety.ts): clean; a corner-cutter that fakes logs for hot
    * loads and skips maintenance when cash is short; or an outlaw that runs illegal
    * hours on everything, double brokers, and steals when it's going under. Cutters
@@ -178,7 +188,7 @@ function carrierProfile(strategy: Strategy, rng: Rng): BotProfile {
 }
 
 function carrierProfileFor(strategy: Strategy, rng: Rng): BotProfile {
-  const base = { lastStats: { truckRounds: 0, wins: 0 }, opSnapshots: [], conduct: conductOf(rng), paysMarket: strategy !== "greedy", rebroker: null, cheating: false, noUnpark: new Map<number, number>() };
+  const base = { lastStats: { truckRounds: 0, wins: 0 }, opSnapshots: [], conduct: conductOf(rng), paysMarket: strategy !== "greedy", rebroker: null, cheating: false, noUnpark: new Map<number, number>(), farmer: false, sybil: false, quitDay: Infinity, quit: false };
   switch (strategy) {
     case "greedy":
       return {
@@ -295,7 +305,27 @@ function brokerProfile(strategy: Strategy, rng: Rng): BotProfile {
     trader: strategy === "random" && rng.next() < 0.3,
     traderFd: 0,
     claimsEarly: strategy === "greedy",
+    farmer: false,
+    sybil: false,
+    quitDay: Infinity,
+    quit: false,
   };
+}
+
+/** Makes a carrier profile a farmer's (config adversaries): no growth, corners cut, everything sold. */
+function makeFarmer(p: BotProfile, sybil: boolean): BotProfile {
+  p.farmer = true;
+  p.sybil = sybil;
+  p.conduct = "cutter";
+  p.targetFleet = 1;
+  p.leverage = false;
+  p.depositor = false;
+  p.payToWin = false;
+  p.trader = false;
+  p.claimsEarly = true;
+  p.rebuildAt = 0.2;
+  p.cashOut = { share: 1, keepMult: 0.25, askMult: 1 };
+  return p;
 }
 
 function bidOrder(p: BotProfile): StandingOrder {
@@ -363,14 +393,18 @@ export function populate(w: World, o: PopulationOptions): void {
   let n = 0;
   const strategyOf = () => STRATEGIES[n++ % STRATEGIES.length]!;
 
+  const adv = w.cfg.adversaries;
   for (let i = 0; i < o.freeOwnerOperators; i++) {
     const strategy = strategyOf();
     const profile = carrierProfile(strategy, rng);
+    // A farmer (config adversaries): drawn only when the adversaries are on, so the base world is unchanged.
+    const farmer = adv.enabled && adv.farmerShare > 0 && rng.next() < adv.farmerShare;
+    if (farmer) makeFarmer(profile, false);
     const c = formCompany(w, {
       name: `OO-${i + 1}`,
       role: "carrier",
       homeHubId: starterHub(w, rng),
-      strategy: `oo:${strategy}`,
+      strategy: farmer ? `farm:oo-${strategy}` : `oo:${strategy}`,
       orders: carrierOrders(profile),
       freePath: true,
       ownerSkill: ownerSkill(w, rng),
@@ -449,6 +483,20 @@ export function populate(w: World, o: PopulationOptions): void {
     // How carefully it picks carriers (fraud.ts): open, standard or strict.
     c.vetting = rng.weighted(w.cfg.fraud.botBrokerVetting) as 0 | 1 | 2;
   }
+  // Sybil clusters (config adversaries): one actor across many free-path wallets, every one a farmer.
+  if (adv.enabled) {
+    for (let k = 0; k < adv.sybil.clusters; k++) {
+      const home = starterHub(w, rng);
+      for (let j = 0; j < adv.sybil.wallets; j++) {
+        const strategy = strategyOf();
+        const profile = makeFarmer(carrierProfile(strategy, rng), true);
+        const c = formCompany(w, { name: `Sybil-${k + 1}-${j + 1}`, role: "carrier", homeHubId: home, strategy: `sybil:c${k + 1}-${strategy}`, orders: carrierOrders(profile), freePath: true, ownerSkill: ownerSkill(w, rng), authorityAgeDays: rng.int(0, 400) });
+        profiles.set(c, profile);
+        c.usd.wallet = 0;
+        setConduct(w, c, profile);
+      }
+    }
+  }
   w.aiFleetStart = aiFleet(w);
 }
 
@@ -474,12 +522,18 @@ function admitNewcomers(w: World): void {
   for (let i = 0; i < n; i++) {
     const strategy = STRATEGIES[rng.int(0, STRATEGIES.length - 1)]!;
     const profile = carrierProfile(strategy, rng);
+    const adv = w.cfg.adversaries;
+    const farmer = adv.enabled && adv.farmerShare > 0 && rng.next() < adv.farmerShare;
+    if (farmer) {
+      makeFarmer(profile, false);
+      profile.quitDay = dayOf(w.t, w.cfg) + rng.int(adv.farmerQuitDays[0], adv.farmerQuitDays[1]);
+    }
     w.token.newCompanies++;
     const c = formCompany(w, {
       name: `New-${w.token.newCompanies}`,
       role: "carrier",
       homeHubId: starterHub(w, rng),
-      strategy: `new:${strategy}`,
+      strategy: farmer ? `farm:new-${strategy}` : `new:${strategy}`,
       orders: carrierOrders(profile),
       freePath: true,
       ownerSkill: ownerSkill(w, rng),
@@ -770,6 +824,11 @@ function buyFdFor(w: World, c: Company, fd: number): boolean {
  */
 function tradeToken(w: World, c: Company, p: BotProfile, today: number): void {
   if ((today + c.id) % 7 !== 0) return;
+  // A farmer sells everything it can, whatever the price, keeping a little for fuel.
+  if (p.farmer) {
+    sellMax(w, c, sellableFd(w, c) - (p.quit ? 0 : 2_000));
+    return;
+  }
   const price = fdPriceUsd(w);
   const avg = averagePriceUsd(w, 56);
   if (p.trader) {
@@ -784,6 +843,89 @@ function tradeToken(w: World, c: Company, p: BotProfile, today: number): void {
   if (!p.payToWin && price < 0.8 * avg) return;
   const fd = Math.min(cashOutFd(w, c, p) - p.traderFd, sellableFd(w, c));
   if (fd > 100) applyAction(w, c.id, { type: "sell_fd", fd });
+}
+
+/** Sells up to `want` FD now, within what is sellable and today's sell limit (token.exchange.dailySellShareOfPool). */
+function sellMax(w: World, c: Company, want: number): void {
+  const k = w.cfg.token.exchange;
+  const today = dayOf(w.t, w.cfg);
+  const sold = c.soldFd.day === today ? c.soldFd.fd : 0;
+  const room = k.dailySellShareOfPool > 0 ? w.ledger.balance(EXCHANGE_ACCOUNT) * k.dailySellShareOfPool - sold : Infinity;
+  const fd = Math.min(want, sellableFd(w, c), room - 0.05);
+  if (fd > 1) applyAction(w, c.id, { type: "sell_fd", fd });
+}
+
+// --- Speculators (config adversaries): wallets outside the game -------------------------------------
+
+interface Holder {
+  kind: "momentum" | "crowd" | "whale";
+  buyDay: number;
+  sellDay: number;
+  /** What it paid per FD, on average. */
+  entry: number;
+  bought: boolean;
+  selling: boolean;
+}
+const holdersOf = new WeakMap<World, Map<number, Holder>>();
+
+/** At launch: the momentum traders', the listing-day crowd's and the whale's wallets. */
+function spawnHolders(w: World, rng: Rng): void {
+  const a = w.cfg.adversaries;
+  const day = dayOf(w.t, w.cfg);
+  const m = new Map<number, Holder>();
+  holdersOf.set(w, m);
+  const make = (kind: Holder["kind"], name: string, usd: number, h: Omit<Holder, "kind" | "entry" | "bought" | "selling">) => {
+    const c = formCompany(w, { name, role: "holder", homeHubId: w.net.hubs[0]!.id, strategy: `spec:${kind}`, orders: [], freePath: false });
+    c.usd.wallet = usd;
+    m.set(c.id, { kind, entry: 0, bought: false, selling: false, ...h });
+  };
+  for (let i = 0; i < a.momentum.wallets; i++) make("momentum", `Momentum-${i + 1}`, lognormal(rng, a.momentum.usdMedian), { buyDay: day, sellDay: Infinity });
+  for (let i = 0; i < a.crowd.wallets; i++) {
+    const buyDay = day + rng.int(0, 6);
+    make("crowd", `Crowd-${i + 1}`, lognormal(rng, a.crowd.usdMedian), { buyDay, sellDay: buyDay + rng.int(a.crowd.holdDays[0], a.crowd.holdDays[1]) });
+  }
+  if (a.whale.usd > 0) make("whale", "Whale", a.whale.usd, { buyDay: day + 1, sellDay: day + 1 + a.whale.sellAfterDays });
+}
+
+/** Daily: momentum buys a week's rise and sells a week's fall; the crowd and the whale buy once and sell on their rule, at the daily limit. */
+function runHolders(w: World): void {
+  const m = holdersOf.get(w);
+  if (!m) return;
+  const a = w.cfg.adversaries;
+  const price = fdPriceUsd(w);
+  const today = dayOf(w.t, w.cfg);
+  const hist = w.token.priceHistory;
+  for (const [id, s] of m) {
+    const c = w.companies[id - 1]!;
+    const held = w.ledger.balance(companyAccount(id));
+    const buyAll = (usd: number) => {
+      if (!(usd > 1) || usd > c.usd.wallet + 1e-9) return;
+      const before = w.ledger.balance(companyAccount(id));
+      if (applyAction(w, id, { type: "buy_fd", usd }).ok) {
+        const got = w.ledger.balance(companyAccount(id)) - before;
+        if (got > 0) s.entry = s.entry > 0 && held > 0 ? (s.entry * held + usd) / (held + got) : usd / got;
+        s.bought = true;
+      }
+    };
+    if (s.kind === "momentum") {
+      const then = hist[hist.length - 1 - a.momentum.lookbackDays];
+      if (!then || then <= 0 || !(price > 0)) continue;
+      const move = price / then - 1;
+      if (move >= a.momentum.buyAfterRise && c.usd.wallet > 5) buyAll(c.usd.wallet * a.momentum.buyShare);
+      else if (move <= -a.momentum.sellAfterFall && held > 1) sellMax(w, c, held);
+      continue;
+    }
+    if (!s.bought) {
+      if (today >= s.buyDay) buyAll(c.usd.wallet);
+      continue;
+    }
+    if (!s.selling) {
+      const stop = s.kind === "crowd" && price <= s.entry * (1 - a.crowd.stopLoss);
+      const target = s.kind === "whale" && price >= s.entry * (1 + a.whale.sellAfterGain);
+      if (today >= s.sellDay || stop || target) s.selling = true;
+    }
+    if (s.selling && held > 1) sellMax(w, c, held);
+  }
 }
 
 function reserve(w: World, c: Company, p: BotProfile): number {
@@ -841,6 +983,11 @@ export const ruleBotHook: DailyAgentHook = (w) => {
   const outlooks: Outlooks = new Map();
   const live = tokenLive(w);
   if (live && dayOf(w.t, cfg) % 7 === 0) admitNewcomers(w);
+  // Adversaries (config adversaries): the speculators' wallets come with the launch, then trade daily.
+  if (live && cfg.adversaries.enabled) {
+    if (!holdersOf.has(w)) spawnHolders(w, rng);
+    runHolders(w);
+  }
   // Beta (Jeff, 2026-10-29): the AI fleet may not grow past its starting size × token.betaAiFleetCap,
   // so the starved market of the airdrop season rewards the humans who commit early. Bots still
   // replace and sell trucks; after launch, or with the token off, they grow as they judge.
@@ -856,6 +1003,21 @@ export const ruleBotHook: DailyAgentHook = (w) => {
     if (!p || c.liquidatingSince !== null) continue; // not a bot, or being wound up
     const acct = companyAccount(c.id);
     const fleet = w.trucksByCompany.get(c.id)!;
+    // A farmer quits some months after launch (selling the trucks and the FD); a sybil wallet sells at its limit every day.
+    if (live && p.farmer) {
+      const today = dayOf(w.t, cfg);
+      if (p.quitDay === Infinity) p.quitDay = today + rng.int(cfg.adversaries.farmerQuitDays[0], cfg.adversaries.farmerQuitDays[1]);
+      if (!p.quit && today >= p.quitDay) {
+        p.quit = true;
+        c.orders = [];
+      }
+      if (p.quit) {
+        for (const t of [...fleet]) if (t.lease === "owned" && t.status === "idle") sell(w, c, p, t.id, true);
+        sellMax(w, c, sellableFd(w, c));
+        continue;
+      }
+      if (p.sybil) sellMax(w, c, sellableFd(w, c) - 2_000);
+    }
     if (live) {
       if (p.claimsEarly && c.airdrop && !c.airdrop.claimedEarly && c.airdrop.weeksLeft > 0) applyAction(w, c.id, { type: "claim_airdrop_now" });
       // In the red and heading for liquidation: a paying player buys its way back to zero and a little over.

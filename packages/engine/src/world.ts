@@ -584,14 +584,18 @@ export function formCompany(w: World, c: NewCompany): Company {
   signPolicy(w, company);
   // A carrier's owner drives and dispatches for it (labor.ts).
   if (c.role === "carrier") addOwner(w, company, c.ownerSkill ?? w.cfg.labor.owner.humanSkill);
-  w.ledger.post(w.t, "faucet:starting_grant", companyAccount(company.id), w.cfg.company.startingGrantFd, `grant:${company.id}`);
-  payPermits(w, company);
+  // A holder is a wallet, not a company: no grant, no permits.
+  if (c.role !== "holder") {
+    w.ledger.post(w.t, "faucet:starting_grant", companyAccount(company.id), w.cfg.company.startingGrantFd, `grant:${company.id}`);
+    payPermits(w, company);
+  }
   if (c.role === "carrier" && c.freePath) addTruck(w, company, "npc", "workhorse", "van");
   return company;
 }
 
 /** Carrier authority or broker license; paid at formation and renewed each season. */
 export function payPermits(w: World, company: Company): void {
+  if (company.role === "holder") return;
   const { permits } = w.cfg;
   const fee = company.role === "carrier" ? permits.carrierAuthorityFd : permits.brokerLicenseRenewalFd;
   w.ledger.post(w.t, companyAccount(company.id), "sink:permits", fee, `permit:${company.id}`);
