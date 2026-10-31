@@ -536,6 +536,18 @@ same with trucks and trailers, which used to last forever and go back into deale
   costs 18k FD against ~360k FD a year to run one. EVE-like destruction (the plan's 15% bar) needs
   equipment several times dearer, which slows a newcomer's first new truck. The calibration batches
   (prices ×1, ×3, ×6) put numbers on that trade before Jeff picks the level and the world restarts.
+- **What the calibration found (v40-a/b/c, seeds 1, 5, 8, against assets off; `runs/compare-v40.md`).** No
+  price passes. New equipment is 2% / 4% / 5% of sinks at ×1 / ×3 / ×6; all equipment (new, the NPC lease
+  share, trailer rent, rebuilds) is 9% / 13% / 16%. The end price is $0.00024 / $0.00033 / $0.00036 against
+  $0.00043 with assets off. At ×1 a new truck costs less than the late rebuilds that finite life ends, so
+  trucking gets cheaper and more FD stays out. At ×3 and ×6 a newcomer's first truck takes a median 83 and
+  132 days, past the 84-day free path, because Equipment Finance lends only against trucks a carrier already owns.
+  Carriers lease from the NPC instead, at 15% of gross whatever a truck costs: owned trucks fall from 1,535
+  to 1,016 and 670, and the top tenth's share of wealth rises from 35% to 46% and 55%. At ×6 fleets buy FD
+  with dollars to pay for trucks: the price runs to 3.7× launch, the developer's vest sells 10M FD into
+  it, and the drawdown is 85%. Destruction can't carry the economy as in EVE, where ships die in minutes;
+  trucks wear out over years. Proposed before any price is picked: purchase loans on the truck being bought,
+  and NPC leases beyond the free path priced by the truck's value. Then re-run at ×2 and ×3, judged on all equipment.
 
 ## Market cap and fully diluted value (tracked from 2026-10-31, Jeff)
 - **Circulating FD** is what players hold and trade: everything outside the reserve, the protocol's genesis
@@ -549,3 +561,33 @@ same with trucks and trailers, which used to last forever and go back into deale
   ending at $74k and $60k (peaks ~$105k); FDV ~$710k at launch, ending at $478k and $384k (peaks ~$1.1M).
   Market cap grows while the price falls because the reserve keeps paying FD into circulation; circulation
   ends near 16% of the total. FDV follows the price.
+
+## The degen and bear-case batches (the EVE plan, step 2; 2026-10-31)
+Bots only, against the 0.18.3 rules: airdrop farmers at 30% of players, ten sybil clusters of eight
+wallets, 200 momentum traders (about $2,000 each, buying after a 15% weekly rise), a 500-wallet
+listing-day crowd (about $200 each) and a $50k whale.
+- **Farmers alone (v39-b, three seeds):** the end price fell from $0.00043 to $0.00027, the worst
+  drawdown went from 0% to 70% and liquidations doubled. The extra liquidations are the farmers' own
+  companies (167 of 175 liquidated at least once); owner-operators liquidated fell from 104 to 62.
+- **Every bad actor (v39-c, six seeds; `runs/compare-v39-cd.md`):** a listing pump. The crowd lifts the
+  price 15× on launch day and the pool from $32k to $131k; momentum traders chase it to about $0.45 by day 9
+  with $800k in the pool; it is down 99% by day 30 and ends at $0.00034 against $0.00041 without them.
+  Speculators put in $903k and take out $640k, a net loss of $263k a seed. Sybils take out $142k and farmers $105k;
+  operators come out about even. Liquidations nearly triple, mostly the bad actors' own companies
+  (159 farmers and 74 sybils liquidated at least once). Owner-operators liquidated fall from 105 to 68 and
+  newcomers from 104 to 62; fleets rise from 28 to 43.
+- **The fixes (v39-d: the frequency sell fee, the falling sell limit, the airdrop at 20% miles and 80%
+  profit) change almost nothing:** end price $0.00035, the same pump, farmers $113k and sybils $154k.
+  They act on selling; the damage comes from buying into a thin pool, and from multi-accounting.
+- **Farmers alone with the fixes (v39-e, three seeds; `runs/compare-v39-e.md`):** a modest help, at no cost
+  to operators. The end price is $0.00029 against $0.00027 without the fixes ($0.00043 with no farmers). Net FD
+  sold falls from 1.2M to 1.0M a month and the drawdown from 70% to 67%, and the sell fee burns 0.7M more.
+  Farmers take out only about $5k of dollars here: their harm is the FD they sell, which drags the price
+  down for everyone.
+- **Recommendation:** switch the three fixes on with the next ruleset change (they help against a slow bleed
+  and cost operators nothing measurable), and treat the listing pump and sybils as launch design.
+- **What would work** (proposals, not built): an opening auction that sets one listing price for all
+  bidders and puts its dollars in the pool, so the pool starts deep; a daily price band (limit up and limit
+  down) for the first months, so a pump can't compound; and the identity checks the spec calls for (verified
+  login, device and same-owner detection), since sybils take out the most and no fee or limit separates
+  one owner's eight wallets from eight players.

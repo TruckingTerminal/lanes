@@ -148,6 +148,14 @@ and the NPC dealer sold every new truck.
 2. **The degen and bear-case batches**, bots only: momentum traders, airdrop farmers at 30% of players,
    sybil clusters, a whale, a listing-day crowd, against the vesting, the sell limits and the thin pool;
    fixes that scale sinks with extraction if the gates fail.
+   - **Run 2026-10-31 (v39-b farmers, v39-c every bad actor, v39-d with the fixes, v39-e farmers with the
+     fixes; TOKENOMICS.md "The degen and bear-case batches"):** the gates fail under bad actors. Farmers
+     alone take the end price from $0.00043 to $0.00027. Every bad actor together pumps the listing about
+     600× in nine days and crashes it 99% by day 30, and speculators lose $263k a seed to sybils ($142k)
+     and farmers ($105k). The fixes give +7% on price and −17% on net selling against farmers alone, and
+     nothing against the pump. **Next:** switch the fixes on at the next ruleset change. Launch design
+     (Jeff to decide): an opening auction, a daily price band in the first months, and the identity checks
+     against sybils.
 3. **Phase B, the client:** panels for staking, pools, pay terms, the catalogue, businesses (truck stops
    with parking prices and spaces), managers; the sites on the map; the notices; a market view in the
    style of DAT (lane rates, ratios by region and trailer, headhaul and backhaul); the owner's gauges;
