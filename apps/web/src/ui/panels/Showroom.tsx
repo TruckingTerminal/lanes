@@ -9,6 +9,7 @@ import {
   npcBackstop,
   openLeaseOffers,
   openListings,
+  ordersOf,
   ownedTrailers,
   trailerCap,
   trailerCondition,
@@ -46,14 +47,19 @@ export function Showroom(): JSX.Element {
   const fleet = myTrucks();
   const onLease = fleet.some((t) => t.lease === "npc");
   const spares = yardTrailers(w, c).length;
-  const trailerRoom = trailerCap(w, c) - ownedTrailers(w, c).length - trailerOrdersOf(w, c.id).length;
+  const ownTrailers = ownedTrailers(w, c).length + trailerOrdersOf(w, c.id).length;
+  // Without a yard there's nowhere to keep a spare: only as many trailers as tractors.
+  const tractors = fleet.filter((t) => t.lease !== "npc").length + ordersOf(w, c.id).filter((o) => o.kind !== "trailer").length;
+  const trailerRoom = c.yard === "none" ? Math.min(trailerCap(w, c), tractors) - ownTrailers : trailerCap(w, c) - ownTrailers;
+  const lifeMi = w.cfg.assets.tractor.lifeMi;
+  const life = lifeMi % 1_000_000 === 0 ? `${lifeMi === 1_000_000 ? "a million" : `${lifeMi / 1_000_000} million`} miles` : `${Math.round(lifeMi / 1000)}k miles`;
   const usedTrailers = openListings(w).filter((l) => l.trailerId > 0 && l.sellerId !== c.id).slice(0, 8);
   const offers = openLeaseOffers(w).filter((o) => o.lessorId !== c.id).sort((a, b) => a.weeklyFd - b.weeklyFd).slice(0, 8);
   const open = dealershipsOpen(w);
   return (
     <>
       <p class="muted small">
-        New equipment comes from the factory each month. {open.length ? `${open.length} player dealership${open.length > 1 ? "s" : ""} sell it from stock in ${w.cfg.businesses.kinds.dealership.deliveryDays} days; the NPC dealer is the backstop at ${Math.round((w.cfg.assets.factory.npcPremium - 1) * 100)}% over list and a longer wait.` : "The NPC dealer sells it at list until a player opens a dealership."} Tractors take {w.cfg.assets.tractor.maxRebuilds} rebuilds or {Math.round(w.cfg.assets.tractor.lifeMi / 1000)}k miles, then run until they're worn out and go for scrap.
+        New equipment comes from the factory each month. {open.length ? `${open.length} player dealership${open.length > 1 ? "s" : ""} sell it from stock in ${w.cfg.businesses.kinds.dealership.deliveryDays} days; the NPC dealer is the backstop at ${Math.round((w.cfg.assets.factory.npcPremium - 1) * 100)}% over list and a longer wait.` : "The NPC dealer sells it at list until a player opens a dealership."} Tractors take {w.cfg.assets.tractor.maxRebuilds} rebuilds or {life}, then run until they're worn out and go for scrap.
       </p>
       <h3>New rigs and tractors</h3>
       {TIERS.map((tier) =>
