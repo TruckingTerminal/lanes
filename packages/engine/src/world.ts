@@ -548,6 +548,7 @@ export function formCompany(w: World, c: NewCompany): Company {
     unstaking: [],
     tierGraceDay: null,
     soldFd: { day: -1, fd: 0 },
+    sellDays: [],
     payTerms: "net",
     factoring: null,
     insuranceStakeFd: 0,

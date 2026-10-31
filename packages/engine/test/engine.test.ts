@@ -27,6 +27,8 @@ import {
   truckCap,
   weeklyVest,
   askPriceUsd,
+  frequencyFee,
+  sellLimitShare,
   brokerLicensed,
   creditBand,
   creditPremium,
@@ -2001,6 +2003,49 @@ describe("the trailer pass and the risk corridors (0.18.3)", () => {
     const risky = quote(w, c).annualPerTruck;
     c.nightRisk = th.theft.insuranceRefExposure;
     expect(risky).toBeGreaterThan(quote(w, c).annualPerTruck);
+    w.ledger.assertBalanced();
+  });
+});
+
+describe("the bear-case fixes (EVE plan step 2): selling often costs more, and a falling price tightens the door", () => {
+  it("adds to the sell fee past the free selling days, and shrinks the daily limit while the price is below its weekly average", () => {
+    const fixes: EconomyConfig = {
+      ...calm,
+      seasonClose: { ...calm.seasonClose, enabled: false },
+      token: {
+        ...calm.token,
+        enabled: true,
+        launch: { ...calm.token.launch, seedUsd: 0 },
+        exchange: { ...calm.token.exchange, frequency: { ...calm.token.exchange.frequency, enabled: true }, fallingLimit: { ...calm.token.exchange.fallingLimit, enabled: true } },
+      },
+    };
+    const w = createWorld({ cfg: fixes, net, feeds: neutralFeeds, seed: 58, keepLedgerEntries: true });
+    const a = carrier(w, "A");
+    fund(w, a.id, 100_000);
+    a.milesTotal = 1_000;
+    launchToken(w);
+    a.usd.wallet = 20_000;
+    expect(applyAction(w, a.id, { type: "buy_fd", usd: 20_000 })).toEqual({ ok: true });
+    const fq = fixes.token.exchange.frequency;
+    const extra: number[] = [];
+    for (let d = 0; d < fq.freeSellDays + 3; d++) {
+      extra.push(frequencyFee(w, a));
+      expect(applyAction(w, a.id, { type: "sell_fd", fd: 100 })).toEqual({ ok: true });
+      w.t += w.cfg.time.gameMinutesPerDay;
+    }
+    // Free for the first days, then a step more for each further day with a sale in the window.
+    expect(extra.slice(0, fq.freeSellDays)).toEqual(new Array(fq.freeSellDays).fill(0));
+    expect(extra[fq.freeSellDays]).toBeCloseTo(fq.perSellDay, 9);
+    expect(extra[fq.freeSellDays + 2]).toBeCloseTo(3 * fq.perSellDay, 9);
+    // A falling price: the last week traded well above today, so the limit shrinks, never below its floor.
+    const now = fdPriceUsd(w);
+    const k = fixes.token.exchange;
+    w.token.priceHistory = new Array(7).fill(now * 1.25);
+    expect(sellLimitShare(w)).toBeCloseTo(k.dailySellShareOfPool * Math.max(k.fallingLimit.minShare, (1 / 1.25) ** k.fallingLimit.power), 9);
+    w.token.priceHistory = new Array(7).fill(now * 10);
+    expect(sellLimitShare(w)).toBeCloseTo(k.dailySellShareOfPool * k.fallingLimit.minShare, 9);
+    w.token.priceHistory = new Array(7).fill(now * 0.9);
+    expect(sellLimitShare(w)).toBe(k.dailySellShareOfPool);
     w.ledger.assertBalanced();
   });
 });

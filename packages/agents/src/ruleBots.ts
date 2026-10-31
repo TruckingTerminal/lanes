@@ -18,6 +18,7 @@ import {
   EXCHANGE_ACCOUNT,
   quoteUsdForFd,
   sellableFd,
+  sellRoomFd,
   tokenLive,
   brokerLicensed,
   capitalRatio,
@@ -982,10 +983,7 @@ function tradeToken(w: World, c: Company, p: BotProfile, today: number): void {
 
 /** Sells up to `want` FD now, within what is sellable and today's sell limit (token.exchange.dailySellShareOfPool). */
 function sellMax(w: World, c: Company, want: number): void {
-  const k = w.cfg.token.exchange;
-  const today = dayOf(w.t, w.cfg);
-  const sold = c.soldFd.day === today ? c.soldFd.fd : 0;
-  const room = k.dailySellShareOfPool > 0 ? w.ledger.balance(EXCHANGE_ACCOUNT) * k.dailySellShareOfPool - sold : Infinity;
+  const room = sellRoomFd(w, c);
   const fd = Math.min(want, sellableFd(w, c), room - 0.05);
   if (fd > 1) applyAction(w, c.id, { type: "sell_fd", fd });
 }

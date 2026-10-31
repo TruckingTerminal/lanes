@@ -206,6 +206,8 @@ export interface Company {
   tierGraceDay: number | null;
   /** FD sold on the exchange today (the daily sell limit). */
   soldFd: { day: number; fd: number };
+  /** Days with a sale on the exchange, within the frequency fee's window (token.exchange.frequency). */
+  sellDays: number[];
   /** Payment terms (receivables.ts): wait for the due day, take quick pay, or factor the invoice. */
   payTerms: "net" | "quick" | "factor";
   /** The factoring contract in force: its term and the stake locked behind it (receivables.ts). */

@@ -1,3 +1,4 @@
+import { dpow } from "@lanes/data";
 import { dayOf } from "./clock.js";
 import { facilitiesOf } from "./demand.js";
 import { returnPoolCashToDepositors } from "./finance.js";
@@ -80,6 +81,40 @@ export function buyFd(w: World, c: Company, usd: number): string | null {
   return null;
 }
 
+/**
+ * Today's sell limit, as a share of the pool's FD: the whale rule, tightened while the price is below its
+ * trailing average (token.exchange.fallingLimit).
+ */
+export function sellLimitShare(w: World): number {
+  const k = w.cfg.token.exchange;
+  const fl = k.fallingLimit;
+  if (!fl.enabled || k.dailySellShareOfPool <= 0) return k.dailySellShareOfPool;
+  const recent = w.token.priceHistory.slice(-fl.lookbackDays);
+  if (recent.length === 0) return k.dailySellShareOfPool;
+  const avg = recent.reduce((s, p) => s + p, 0) / recent.length;
+  const now = fdPriceUsd(w);
+  if (!(avg > 0) || now >= avg) return k.dailySellShareOfPool;
+  return k.dailySellShareOfPool * Math.max(fl.minShare, dpow(now / avg, fl.power));
+}
+
+/** FD the company may still sell today. */
+export function sellRoomFd(w: World, c: Company): number {
+  const share = sellLimitShare(w);
+  if (share <= 0) return Infinity;
+  const sold = c.soldFd.day === dayOf(w.t, w.cfg) ? c.soldFd.fd : 0;
+  return Math.max(0, w.ledger.balance(EXCHANGE_ACCOUNT) * share - sold);
+}
+
+/** The frequency fee: the extra share of a sale a company pays for the days it has sold lately (counting today). */
+export function frequencyFee(w: World, c: Company): number {
+  const fq = w.cfg.token.exchange.frequency;
+  if (!fq.enabled) return 0;
+  const today = dayOf(w.t, w.cfg);
+  const days = c.sellDays.filter((d) => d > today - fq.windowDays);
+  const n = days.length + (days.at(-1) === today ? 0 : 1);
+  return Math.min(fq.maxExtra, fq.perSellDay * Math.max(0, n - fq.freeSellDays));
+}
+
 export function sellFd(w: World, c: Company, fd: number): string | null {
   if (!tokenLive(w)) return "FD isn't on the market yet";
   if (!(fd > 0) || fd > sellableFd(w, c) + 0.01) return "only unlocked FD can be sold";
@@ -87,12 +122,14 @@ export function sellFd(w: World, c: Company, fd: number): string | null {
   const k = w.cfg.token.exchange;
   const pool = w.ledger.balance(EXCHANGE_ACCOUNT);
   // The whale rules (TOKENOMICS.md §3): a daily sell limit per company as a share of the pool's FD,
-  // and a sell fee that rises with the single sale's price impact, all of it burned.
+  // and a sell fee that rises with the single sale's price impact, all of it burned. The bear-case
+  // fixes: the limit tightens while the price falls, and the fee rises with how often a company sells.
   const today = dayOf(w.t, w.cfg);
   if (c.soldFd.day !== today) c.soldFd = { day: today, fd: 0 };
-  if (k.dailySellShareOfPool > 0 && c.soldFd.fd + fd > pool * k.dailySellShareOfPool + 0.01) return "over today's sell limit";
+  const share = sellLimitShare(w);
+  if (share > 0 && c.soldFd.fd + fd > pool * share + 0.01) return "over today's sell limit";
   const impact = fd / (pool + fd);
-  const fee = fd * Math.min(k.sellFeeMax, k.sellFeePct + k.sellFeePerImpact * impact);
+  const fee = fd * Math.min(k.sellFeeMax, k.sellFeePct + frequencyFee(w, c) + k.sellFeePerImpact * impact);
   const net = fd - fee;
   const usd = w.token.poolUsd - (w.token.poolUsd * pool) / (pool + net);
   // A one-sided launch has no dollars on the bid side until buyers bring them: nothing to sell into yet.
@@ -103,6 +140,10 @@ export function sellFd(w: World, c: Company, fd: number): string | null {
   w.token.poolUsd -= usd;
   c.usd.out += usd;
   c.soldFd.fd += fd;
+  if (k.frequency.enabled) {
+    c.sellDays = c.sellDays.filter((d) => d > today - k.frequency.windowDays);
+    if (c.sellDays.at(-1) !== today) c.sellDays.push(today);
+  }
   return null;
 }
 

@@ -815,7 +815,20 @@ export const economyConfig = {
     // The whale rules (Jeff, 2026-10-29; TOKENOMICS.md §3): the sell fee rises with the single
     // sale's price impact (fee = base + perImpact × impact, capped), and each company may sell at
     // most this share of the pool's FD a day.
-    exchange: { buyFeePct: 0.01, sellFeePct: 0.05, sellFeePerImpact: 1, sellFeeMax: 0.25, dailySellShareOfPool: 0.02 },
+    exchange: {
+      buyFeePct: 0.01,
+      sellFeePct: 0.05,
+      sellFeePerImpact: 1,
+      sellFeeMax: 0.25,
+      dailySellShareOfPool: 0.02,
+      // The bear-case fixes (the EVE plan, step 2; off until the batches size them). Selling often
+      // costs more: each day with a sale in the trailing window beyond the free ones adds to the fee
+      // (an operator selling profit twice a month pays the base; a wallet dumping daily pays the cap).
+      frequency: { enabled: false, windowDays: 28, freeSellDays: 2, perSellDay: 0.01, maxExtra: 0.13 },
+      // A falling price tightens the door: below its trailing average the daily limit shrinks by
+      // (price ÷ average) to this power, never under the floor share of the limit.
+      fallingLimit: { enabled: false, lookbackDays: 7, power: 3, minShare: 0.25 },
+    },
     // Design decision (Jeff, 2026-10-29; TOKENOMICS.md §2): staking, the bond behind every licence.
     // Tiers gate company size and roles, never performance; the stake is slashed on revocation;
     // leaving takes the exit queue or an instant haircut, burned. Off until 0.18.0 ships.
