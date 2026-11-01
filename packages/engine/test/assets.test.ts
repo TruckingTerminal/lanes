@@ -339,7 +339,8 @@ describe("assets: tractors and trailers apart", () => {
   });
 
   it("replays exactly from the seed with every asset rule on and the bots running it: scrapping, rentals, dealerships, leases", () => {
-    const live = applyLevers(withLiveLevers(economyConfig), { "assets.enabled": true, "assets.trailerTheftPerNight": 0.002 });
+    // The beta open (not beta one's ladder): this test is about every asset path, dealerships from the first day included.
+    const live = applyLevers(withLiveLevers(economyConfig), { "assets.enabled": true, "assets.trailerTheftPerNight": 0.002, "unlockLadder.beta.enabled": false });
     const run = () => {
       const w = createWorld({ cfg: live, net, feeds: { ...neutralFeeds, cycle: syntheticCassCycle({ seed: 77 }) }, seed: 77 });
       populate(w, { freeOwnerOperators: 25, fleets: 6, brokers: 3 });
