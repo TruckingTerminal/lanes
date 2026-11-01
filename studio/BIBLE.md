@@ -1,4 +1,4 @@
-# LANES design bible (draft 2, 2026-11-02; owner: the game director; Jeff decides through the producer)
+# LANES design bible (draft 3, 2026-11-02, after Jeff's answers; owner: the game director)
 
 From the design records and four strangers on the test page.
 
@@ -7,7 +7,8 @@ You start with one leased truck and a load board in an America that never pauses
 company everyone else is trying to build. The market is the game. The token is how the game settles with
 the world outside; a player who never hears of it should still have a company worth keeping.
 
-The feeling at the end of a good session: I made a call, it paid, and I'm one load closer to my own truck.
+The feeling at the end of a good session, in Jeff's words: real accomplishment from your decisions and grinding.
+In the player's: I made a call, it paid, and I'm one load closer to my own truck.
 
 ## Who it's for
 Freight people first: dispatchers and brokers who read a load board for a living, owner-operators, Trucking
@@ -42,13 +43,14 @@ no load won by hand. A game that plays itself is slop.
 Target: a stranger on a phone has a bid in inside five minutes, knows when it clears, and understands
 what it paid. The UX spec owns the screens; the bible owns the order:
 
-A name; a home hub as three choices. The map at your hub, your truck on it. The board: loads out of your hub
-only, nearest first, the profit on every card, the loads a newcomer can't take dimmed and saying why. One bid,
+A name; a home hub as three choices. The map at your hub, your truck on it. The board: loads nearest
+your truck first, the profit on every card, the loads a newcomer can't take dimmed and saying why. One bid,
 and a mark where it was made. The truck rolling. The pay line in the open: rate × miles, less fuel, less the
 lessor's 15%, less the deposit, equals yours. Then "the next round is at 18:00; set your dispatcher before you
 go". Five tabs in the first hour: Fleet, Loads, Money, Company, Iuliia; the rest appear the day they matter.
-The walkthrough ticks only on the player's own acts and says one Do at a time. The token is nowhere in the
-first hour: Money shows cash, what's owed and when, costs, and Miles as "your standing".
+The walkthrough ticks only on the player's own acts and says one Do at a time. The token is not on the
+first hour's path: Money opens on cash, what's owed and when, costs, and Miles as "your standing"; the exchange,
+auction and airdrop sit under a fold below, where they stay until the server (Jeff: nobody plays before it).
 
 ## What the game is not
 Not a dashboard. Not a wallet with a game attached. Not a crime sim with trucks in it. Not a wiki. Not an idle
@@ -64,31 +66,31 @@ restart; NPC theft; Miles as standing; the Report button.
 
 **Waits for a layer: built, hidden until its day.** Facilities, businesses, truck stops, dealerships (day 28).
 Brokerage and re-posting (day 91). Managers, sales, security,
-direct freight, scale discounts. The token: the exchange card, the auction, the bridge, the Logbook, the dollar
-prices, the airdrop estimate, the launch counter (after counsel and the server). The Economy tab as a published
+direct freight, scale discounts. The token's Logbook and bridge; the dollar prices
+(after counsel and the server). The Economy tab as a published
 monthly report. Rates folded into the board. Crews, the Back Lot, Channel 19, bounties and heat (a later beta).
 
-**Goes.** The 34-theme picker: one look. Both locked teaser tabs (below). The eight-rule dispatcher form on a
-one-truck company's screen. Equipment Finance's deposit side: yield on idle FD is a wallet feature.
+**Goes.** The 34-theme picker: one look. The eight-rule dispatcher form on a one-truck
+company's screen. Equipment Finance's deposit side: yield on idle FD is a wallet feature.
 
-## Two positions the bible takes
-**Locked teasers.** Jeff asked for locked tabs as teasers of the vision; the art director's guide says none. The
-bible sides with the art director, for a game reason: a tab that does nothing when tapped is the feeling Jeff
-called slop. The vision lives on the roadmap page, in one line from Iuliia the week before a layer opens,
-and in the layer arriving on its day. The Back Lot stays out of the
-chrome either way: crime is out of the player guide by studio rule.
+## Two rules Jeff set (2026-11-02)
+**Teasers stay.** The tabs that matter come first; the rest stay visible as "coming soon" teasers, the Back Lot
+among them. The bible argued against them; Jeff overruled it, so the mitigation: a teaser is never a
+dead tap. Its card says what the layer is in one line, the day it opens as a
+date, one line from Iuliia, and one thing that works (the road ahead, or "tell us what you'd want here"). It
+sits after the live tabs, never among the first five on a phone, and on its day it becomes the real tab in the
+same place. The Back Lot's card says "a later beta" and nothing about crime, by the studio's own rule.
 
-**The dispatcher.** For a one-truck company the standing orders start empty: the truck waits at home until the
-player books the first load by hand. The cost: an idle truck while a new player is away, on a lease charging
-250 FD a week regardless. A rule change (a config default the bots also read): if Jeff says yes,
-the economy designer sizes it first.
+**The dispatcher waits.** For a one-truck company the standing orders are off until the player has placed a
+bid by hand; the truck waits at home. The economy designer sizes it in the simulator (the bots must start the
+same way), then a ruleset bump and a restart with no players.
 
-## Open questions for Jeff (yes or no, in the order that unblocks the most)
-1. Is the pitch above the game, and "one load closer to my own truck" the feeling you want?
-2. Is the first ten minutes, built, the next sprint, before the server and the live restart?
-3. Does the token leave the beta's screens until counsel and the server, Miles shown as standing?
-4. Beta one with five tabs, the rest appearing the day they matter?
-5. Do the locked teaser tabs go, the roadmap page and Iuliia carrying the vision instead?
-6. For a one-truck company, does the dispatcher stay idle until the first hand-booked load? (A rule change.)
-7. One look: does the theme picker go?
-8. Are beta one's twenty to fifty people freight people from Trucking Terminal's list, not crypto?
+## Jeff's answers (2026-11-02)
+1. The pitch and the feeling stand, for now.
+2. The first ten minutes is sprint 1, on the test page; the server runs beside it.
+3. The token surfaces may stay on the beta screens until the server. Off the first hour's path.
+4. The tabs that matter first; the rest as teasers. Five on a phone.
+5. The teaser tabs stay, the Back Lot among them (the rule above).
+6. Yes: the dispatcher waits for the first hand-booked bid (the rule above).
+7. The theme picker goes.
+8. Beta one's people come from Jeff's freight list, with crypto people if he can.
