@@ -323,7 +323,11 @@ and off. What the batches settled, and what waits on Jeff:
 - **Truck prices:** today's work (the free path 8 days, the price holds); realistic prices break the free
   path (141 days) unless the NPC used lot and the deposit toward the first truck are on (56 days, but the
   top 10% hold 56% of the wealth); mid prices (a Workhorse 140k) with both were the most balanced (41 days,
-  the strategy gate passed, the price held in every seed). **Jeff to choose the price level.**
+  the strategy gate passed, the price held in every seed). **Jeff chose mid prices with the used lot and
+  the deposit credit (2026-10-31):** tractors 140k / 177k / 214k FD (Workhorse, HighwayPro, Flagship),
+  trailers 42k / 79k / 47k (van, reefer, flatbed), rebuilds 31.5k / 40k / 48k, refurbishments 4.8k / 9k /
+  5.3k (the realistic list × 0.62, as in v47-b), with `usedMarket.npcLot` and `depositToPurchase` on. They
+  ship with the rest of the package, on a ruleset bump.
 - **The launch defense:** the band turns the listing spike into a climb at the limit; the 75% early-sale tax
   on every sale makes that climb five times bigger; a ±5% band with the tax on farmed FD only and the
   logbook was the best (a peak market cap of $2.6M against $33.5M unprotected, farmers taking 85% less,
