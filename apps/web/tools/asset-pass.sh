@@ -141,6 +141,41 @@ placesloops() {
   for s in truckstop lounge dealer bank guide; do python3 apps/web/tools/pack-loop.py apps/web/assets/scenes/$s-loop apps/web/assets/scenes/$s.loop.png --cols 16; done
 }
 
+# Iuliia, the walkthrough's trainer (Jeff, 2026-11-01): a Russian executive, class first and then the wit, long
+# flowing blonde hair and brown eyes. The portrait in the staff's hand (Pro 128 × 128, the title as style) and her
+# moods animated from it, transparent like the staff loops; each mood's still is a frame of its loop over the
+# portrait's background. The welcome strip is her office at dusk (Pro 256 × 128, the portrait as reference). The
+# stills ride next to the page too (build.mjs), since Walkthrough.tsx finds them through the manifest. The "tap the
+# folio" wordings for the point loop turned her palette orange three times out of three; the pen as a pointer held.
+iuliia() {
+  local st=apps/web/assets/title/title.png d=apps/web/assets/people s=apps/web/assets/scenes
+  local sub="a loop that ends where it began, the face and clothes stay the same"
+  "${P[@]}" pro "$PORTRAIT: a poised Russian corporate executive in her early thirties, long flowing blonde hair worn down past her shoulders in soft waves, warm brown eyes, small pearl earrings, a tailored charcoal suit jacket over a light ivory silk blouse, holding a slim dark leather folio against her chest like a board paper, a fountain pen in her other hand, composed, with a knowing half smile and one eyebrow a fraction raised, elegant and classy" 128 128 $d/iuliia.png --style "$st" --seed 1235705877
+  "${P[@]}" animate $d/iuliia.png "she breathes slowly, blinks once and gives a small composed nod, her hair stirring slightly, a subtle idle $sub" $d/iuliia-loop --frames 16 --view side --transparent --seed 1333339439 &
+  "${P[@]}" animate $d/iuliia.png "she lifts the pen up beside her cheek like a pointer and tips it toward the viewer with a knowing look, then lowers it back to the folio, $sub" $d/iuliia-point-loop --frames 16 --view side --transparent --seed 682111245 &
+  "${P[@]}" animate $d/iuliia.png "she laughs softly with her eyes closed and her head tilting back a little, then smiles at the viewer again, $sub" $d/iuliia-laugh-loop --frames 16 --view side --transparent --seed 173182654 &
+  "${P[@]}" animate $d/iuliia.png "she lifts the hand holding the pen up beside her face and gives a small elegant wave, then lowers it back to the folio, $sub" $d/iuliia-wave-loop --frames 16 --view side --transparent --seed 2259688367 &
+  "${P[@]}" pro "$HD: the corner office of a trucking company executive at dusk, a poised blonde woman in her early thirties with long flowing hair, a tailored charcoal suit and an ivory silk blouse, sits behind a polished dark wood desk smiling with one eyebrow raised, a large wall screen behind her shows a freight load board with rows of lanes beside a map of the United States, a white porcelain cup of tea with a slice of lemon on a saucer and a single black chess knight on the desk, tall windows with the city lights coming on, a warm desk lamp, a restrained elegant palette" 256 128 $s/welcome.png --style "$st" --reference $d/iuliia.png --seed 528154814 &
+  wait
+  "${P[@]}" animate $s/welcome.png "steam rises gently from the tea cup, the city lights twinkle in the windows, the desk lamp glows softly, she gives the viewer a slow knowing smile and a small nod, a seamless loop that ends exactly where it began, the wall screen, the sky, the camera and the furniture never change" $s/welcome-loop --frames 16 --view side --seed 2558438596
+  for m in "" -point -laugh -wave; do python3 apps/web/tools/pack-loop.py $d/iuliia$m-loop $d/iuliia$m.loop.png --cols 16; done
+  python3 apps/web/tools/pack-loop.py $s/welcome-loop $s/welcome.loop.png --cols 16
+  python3 - <<'EOF'
+import importlib.util
+spec = importlib.util.spec_from_file_location("pm", "apps/web/tools/paint-map.py")
+pm = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(pm)
+d = "apps/web/assets/people"
+bg = pm.read_png(f"{d}/iuliia.png")[0, 0, :3].astype("float32")
+for mood, frame in (("point", 7), ("laugh", 6), ("wave", 6)):
+    f = pm.read_png(f"{d}/iuliia-{mood}-loop/frame-{frame:02d}.png").astype("float32")
+    a = f[..., 3:4] / 255
+    f[..., :3] = f[..., :3] * a + bg * (1 - a)
+    f[..., 3] = 255
+    pm.write_png(f"{d}/iuliia-{mood}.png", f.round().astype("uint8"))
+EOF
+}
+
 case "$want" in
   rigs) rigs ;;
   scenes) scenes ;;
@@ -155,6 +190,7 @@ case "$want" in
   loading) loading ;;
   placespro) placespro ;;
   placesloops) placesloops ;;
+  iuliia) iuliia ;;
   all) rigs; scenes; people; title ;;
 esac
 "${P[@]}" balance
