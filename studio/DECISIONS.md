@@ -26,3 +26,7 @@
 - 2026-11-02 — The first bid by hand is on: a one-truck company's dispatcher waits until its owner bids or books
   once by hand (Jeff's yes; economy's v55-a found no cost the batch can see). Ruleset 0.19.2-phase0.31; the live
   world restarts with it on the next republish. Chicago's May board is the director's call (economy-first-board.md).
+- 2026-11-02 — Jeff: the title screen is only a login screen with nice animations. The starting hub is chosen
+  inside the world on first entry, where the player sees the map, the date, the freight and the hubs' numbers
+  before starting; Iuliia guides everything once inside. S0 and S1 of the first-ten-minutes spec go to draft 4
+  (director); engineering's step 3 reshaped to it.
