@@ -47,7 +47,7 @@ Nothing to read: the title loop and one button. Connection states live on the bu
 |---|---|
 | Strip, before a company | `{Wed Jan 3}` · `{08:14}` · Next round `{hh:00}` · ≡ |
 | Iuliia, 1 | Welcome. Iuliia, with two i's; my mother was thorough. This is the market, live, and nobody waits for us. · **Next** |
-| Iuliia, 2 | Before a truck, you need a home. Three good ones are ringed. Tap one, or any city you like. |
+| Iuliia, 2 | Before a truck, you need a home. The three ringed cities can be one; tap any other to see its freight. |
 | Under her line | the three starter cards · **All hubs** (list header: All hubs · busiest first) |
 
 ### The hub card
@@ -60,6 +60,7 @@ Nothing to read: the title loop and one button. Connection states live on the bu
 | What it costs to live here | What it costs to live here · Insurance: `{pct}` `{above / below}` the base rate, or "at the base rate" · Yard: `{fd}` FD a week per truck past the first · Cargo theft: `{twice / three times / x times}` a quiet road's (only where above 1) |
 | Outbound by trailer | Outbound by trailer · Van `{strong / even / thin}` · Reefer `{…}` · Flatbed `{…}` |
 | Buttons | **See the board** · **Start here** |
+| Not a starter hub (`NAMING.notStarter`, where Start here would be) | `{hub}` is a fine place to deliver to, not yet a place to live. The ringed cities are. |
 | The board, read-only | the S2 card without chip or buttons · footer: Start here to bid on these. · Back |
 
 No multipliers on the card ("×1.20", "1.1×", "2.0×"): the style sheet's rule; the words above carry the same figure.
@@ -85,7 +86,7 @@ Each character line is true to today's hub table; if the economy's figures move,
 | Los Angeles | The ports, day and night. Plenty of van freight out, crowded, and dear to insure. | Harbor Gate Transport |
 | Phoenix | More trucks come in than freight goes out, but locals get first call and living here is cheap. | Saguaro Line Freight |
 | Chicago (if Los Angeles fails its check) | Where the rails and the interstates meet. Freight to anywhere, most of the year. | Lakefront Hauling |
-| Any other hub | no character line; the season line only | `{hub name}` Freight |
+| Any other hub | no character line; the season line only | none: it can't be a home yet |
 
 ### Naming the company and arriving
 
@@ -195,7 +196,7 @@ Say lines are 25 words or fewer; the sheet shows **Say**, the caption **Do**. Th
 
 | Step | Say | Do |
 |---|---|---|
-| 1 Choose your home | Before a truck, you need a home. Three good ones are ringed. Tap one, or any city you like. | Choose your home: tap a ringed hub, then Start here. |
+| 1 Choose your home | Before a truck, you need a home. The three ringed cities can be one; tap any other to see its freight. | Choose your home: tap a ringed hub, then Start here. |
 | 2 Reading the board | Each line is a lane, the miles and a rate. Pick one near your truck, bid above break-even, and let the round clear. | Bid on a load leaving `{hub}`. |
 | 3 The truck rolls | You won one. Now the slow part, most of trucking: `{hos.drivingHoursPerDay}` hours of driving a day, fuel, and docks with their own hours. | Watch the ETA. Note where it sleeps tonight. |
 | 4 Getting paid | Delivered. The money lands on the due day, not today; Money shows what you're owed and when. Quick pay costs a fee. | Find your first invoice on Money. |
