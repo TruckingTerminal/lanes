@@ -1061,6 +1061,8 @@ function sellMax(w: World, c: Company, want: number): void {
 
 interface Holder {
   kind: "momentum" | "crowd" | "whale";
+  /** Bid in the opening auction (token.launch.auction). */
+  auctioned?: boolean;
   buyDay: number;
   sellDay: number;
   /** What it paid per FD, on average. */
@@ -1089,6 +1091,21 @@ function spawnHolders(w: World, rng: Rng): void {
   if (a.whale.usd > 0) make("whale", "Whale", a.whale.usd, { buyDay: day + 1, sellDay: day + 1 + a.whale.sellAfterDays });
 }
 
+/** The opening auction: the crowd and the whale bid what the cap allows; whoever is left with dollars buys the rest on its day. */
+function bidHolders(w: World): void {
+  const m = holdersOf.get(w)!;
+  const cap = w.cfg.token.launch.auction.capUsd;
+  for (const [id, s] of m) {
+    if (s.kind === "momentum") continue;
+    const c = w.companies[id - 1]!;
+    const usd = Math.min(c.usd.wallet, cap);
+    if (usd > 1 && applyAction(w, id, { type: "bid_auction", usd }).ok) {
+      s.auctioned = true;
+      if (c.usd.wallet <= 1) s.bought = true;
+    }
+  }
+}
+
 /** Daily: momentum buys a week's rise and sells a week's fall; the crowd and the whale buy once and sell on their rule, at the daily limit. */
 function runHolders(w: World): void {
   const m = holdersOf.get(w);
@@ -1100,6 +1117,8 @@ function runHolders(w: World): void {
   for (const [id, s] of m) {
     const c = w.companies[id - 1]!;
     const held = w.ledger.balance(companyAccount(id));
+    // A bidder in the opening auction paid its clearing price.
+    if (s.auctioned && s.entry === 0 && w.token.auction) s.entry = w.token.auction.priceUsd;
     const buyAll = (usd: number) => {
       if (!(usd > 1) || usd > c.usd.wallet + 1e-9) return;
       const before = w.ledger.balance(companyAccount(id));
@@ -1185,7 +1204,12 @@ export const ruleBotHook: DailyAgentHook = (w) => {
   const outlooks: Outlooks = new Map();
   const live = tokenLive(w);
   if (live && dayOf(w.t, cfg) % 7 === 0) admitNewcomers(w);
-  // Adversaries (config adversaries): the speculators' wallets come with the launch, then trade daily.
+  // Adversaries (config adversaries): the speculators' wallets come with the launch, then trade daily. With the
+  // opening auction on (token.launch.auction) they come the day before it, and the crowd and the whale bid.
+  if (!live && cfg.adversaries.enabled && cfg.token.enabled && cfg.token.launch.auction.enabled && !holdersOf.has(w) && dayOf(w.t, cfg) + 2 >= Math.round(cfg.token.betaYears * cfg.time.daysPerSeason)) {
+    spawnHolders(w, rng);
+    bidHolders(w);
+  }
   if (live && cfg.adversaries.enabled) {
     if (!holdersOf.has(w)) spawnHolders(w, rng);
     runHolders(w);

@@ -100,7 +100,7 @@ import { detachTruck, truckById } from "../src/world.js";
 import { loadFactor, managerEffect, managersNeeded, offerStaff, securityPremiumMult, securityTheftMult } from "../src/labor.js";
 import { acceptOffer, contractRoom, contractSlots, contractStakeAccount, rejectTender, weeklyContracts } from "../src/contracts.js";
 import { scaleDiscount, scaleDiscountFor } from "../src/scale.js";
-import { convictionForfeit, launchTaxRate } from "../src/token.js";
+import { buyFeeRate, convictionForfeit, launchFeeRate, launchTaxRate, sizeFeeRate } from "../src/token.js";
 import { logbookCatalogue } from "../src/logbook.js";
 import { dailyLadder, layerBlock, layerOpen } from "../src/ladder.js";
 import { dealerPrice, lotPrice } from "../src/dealer.js";
@@ -1932,6 +1932,25 @@ describe("the catalogue (0.18.0, FD only): yards, upgrades, the farming-season d
     expect(fdPriceUsd(w)).toBeGreaterThanOrEqual(w.token.launchPriceUsd * (1 - 1e-6));
     w.ledger.assertBalanced();
   });
+
+  it("without the price floor (Jeff, 2026-11-01) the vest is a clock: the week's share sells below the launch price too", () => {
+    const clock: EconomyConfig = { ...calm, seasonClose: { ...calm.seasonClose, enabled: false }, token: { ...calm.token, enabled: true, circular: { ...calm.token.circular, enabled: true }, treasury: { ...calm.token.treasury, vest: { ...calm.token.treasury.vest, priceFloor: false } } } };
+    const w = createWorld({ cfg: clock, net, feeds: neutralFeeds, seed: 68 });
+    const a = carrier(w, "A");
+    fund(w, a.id, 50_000);
+    a.milesTotal = 1_000;
+    launchToken(w);
+    const held = w.ledger.balance("alloc:treasury");
+    weeklyVest(w); // inside the cliff: nothing
+    expect(w.token.treasury.vestedFd).toBe(0);
+    w.token.launchDay = -clock.token.treasury.vest.cliffWeeks * 7 - 1;
+    for (let i = 0; i < 7; i++) w.token.priceHistory.push(w.token.launchPriceUsd / 2);
+    weeklyVest(w); // below launch, and the sale takes the price lower still: it sells all the same
+    expect(w.token.treasury.vestedFd).toBeCloseTo(held * clock.token.treasury.vest.perWeekShare, 2);
+    expect(fdPriceUsd(w)).toBeLessThan(w.token.launchPriceUsd);
+    expect(w.token.treasury.devUsd).toBeGreaterThan(0);
+    w.ledger.assertBalanced();
+  });
 });
 
 describe("the fuel tax and the lean launch (0.18.0)", () => {
@@ -2627,6 +2646,137 @@ describe("the daily price band (Jeff, 2026-10-31): ±15% a day for the first thr
     expect(fdPriceUsd(w)).toBeGreaterThan(p * 2);
     expect(w.token.bandClips).toBe(2);
     w.ledger.assertBalanced();
+  });
+});
+
+describe("the launch on a standard pool (Jeff, 2026-11-01, option A): the opening auction and the pool's launch fees", () => {
+  const tokenOn = (over: Partial<EconomyConfig["token"]>): EconomyConfig => ({ ...calm, seasonClose: { ...calm.seasonClose, enabled: false }, token: { ...calm.token, enabled: true, ...over } });
+
+  it("the auction: bids held to the cap, the tranche sold at one price for every dollar bid, every dollar into the pool, which opens at that price", () => {
+    const au = tokenOn({ launch: { ...calm.token.launch, auction: { ...calm.token.launch.auction, enabled: true, trancheFd: 1_000_000, capUsd: 1_000 } } });
+    const w = createWorld({ cfg: au, net, feeds: neutralFeeds, seed: 63, keepLedgerEntries: true });
+    const a = carrier(w, "A");
+    const b = carrier(w, "B");
+    a.usd.wallet = 5_000;
+    b.usd.wallet = 300;
+    expect(applyAction(w, a.id, { type: "bid_auction", usd: 1_500 })).toEqual({ ok: false, reason: "at most $1,000 a person in the auction" });
+    expect(applyAction(w, a.id, { type: "bid_auction", usd: 600 })).toEqual({ ok: true });
+    expect(applyAction(w, a.id, { type: "bid_auction", usd: 400 })).toEqual({ ok: true });
+    expect(applyAction(w, a.id, { type: "bid_auction", usd: 1 })).toEqual({ ok: false, reason: "at most $1,000 a person in the auction" });
+    expect(applyAction(w, b.id, { type: "bid_auction", usd: 400 })).toEqual({ ok: false, reason: "not enough dollars" });
+    expect(applyAction(w, b.id, { type: "bid_auction", usd: 300 })).toEqual({ ok: true });
+    expect(a.usd.wallet).toBe(4_000);
+    expect(b.usd.wallet).toBe(0);
+    a.milesTotal = 1_000;
+    launchToken(w);
+    const seedUsd = au.token.launch.seedUsd;
+    const r = w.token.auction!;
+    expect(r).toMatchObject({ usd: 1_300, fd: 1_000_000, bidders: 2, treasuryUsd: 0 });
+    expect(r.priceUsd).toBeCloseTo(0.0013, 12);
+    expect(w.token.launchPriceUsd).toBeCloseTo(0.0013, 12);
+    expect(w.token.floorUsd).toBe(0);
+    expect(fdPriceUsd(w)).toBeCloseTo(0.0013, 9);
+    expect(w.token.poolUsd).toBeCloseTo(seedUsd + 1_300, 6);
+    expect(w.token.treasury.seedUsd).toBeCloseTo(seedUsd + 1_300, 6);
+    expect(w.ledger.balance(EXCHANGE_ACCOUNT)).toBeCloseTo((seedUsd + 1_300) / 0.0013, 0); // to the cent
+    const got = (id: number) => w.ledger.entries.filter((e) => e.ref === `auction:${id}`).reduce((s, e) => s + e.amount, 0);
+    expect(got(a.id)).toBeCloseTo(1_000_000 * (1_000 / 1_300), 1);
+    expect(got(b.id)).toBeCloseTo(1_000_000 * (300 / 1_300), 1);
+    expect(a.usd.in).toBe(1_000);
+    expect(w.token.auctionBids).toEqual([]);
+    expect(applyAction(w, b.id, { type: "bid_auction", usd: 10 })).toEqual({ ok: false, reason: "the auction closed at launch" });
+    w.ledger.assertBalanced();
+  });
+
+  it("the reserve price: thin bids sell fewer FD at the reserve, and the pool opens there; the treasury keeps its share of the dollars", () => {
+    const au = tokenOn({ launch: { ...calm.token.launch, auction: { enabled: true, trancheFd: 1_000_000, capUsd: 1_000, reservePriceUsd: 0.01, poolShare: 0.8 } } });
+    const w = createWorld({ cfg: au, net, feeds: neutralFeeds, seed: 64, keepLedgerEntries: true });
+    const a = carrier(w, "A");
+    a.usd.wallet = 1_000;
+    a.milesTotal = 1_000;
+    expect(applyAction(w, a.id, { type: "bid_auction", usd: 1_000 })).toEqual({ ok: true });
+    const t0 = w.token.treasury.usd;
+    launchToken(w);
+    const r = w.token.auction!;
+    expect(r.priceUsd).toBe(0.01);
+    expect(r.fd).toBeCloseTo(100_000, 6);
+    expect(r.treasuryUsd).toBeCloseTo(200, 9);
+    expect(w.token.treasury.usd - t0).toBeCloseTo(200, 9);
+    expect(w.token.poolUsd).toBeCloseTo(au.token.launch.seedUsd + 800, 6);
+    expect(fdPriceUsd(w)).toBeCloseTo(0.01, 9);
+    w.ledger.assertBalanced();
+  });
+
+  it("with no bids the launch is the plain one", () => {
+    const au = tokenOn({ launch: { ...calm.token.launch, auction: { ...calm.token.launch.auction, enabled: true } } });
+    const w = createWorld({ cfg: au, net, feeds: neutralFeeds, seed: 67, keepLedgerEntries: true });
+    const a = carrier(w, "A");
+    fund(w, a.id, 100_000);
+    a.milesTotal = 1_000;
+    launchToken(w);
+    expect(w.token.auction).toBeNull();
+    expect(w.token.poolUsd).toBe(au.token.launch.seedUsd);
+    expect(w.token.launch!.liquidityFd).toBeCloseTo(au.token.launch.poolDepthShareOfFloat * w.token.launch!.floatFd, 6);
+    w.ledger.assertBalanced();
+  });
+
+  it("the launch fee: the pool charges its start fee both ways at launch, falling to the normal fees over its days; the size fee charges one big buy for its size", () => {
+    const feed = tokenOn({ exchange: { ...calm.token.exchange, dailySellShareOfPool: 0, launchFee: { enabled: true, startPct: 0.5, days: 10, curve: "linear" }, sizeFee: { enabled: true, refUsd: 1_000, perRefPct: 0.1, maxPct: 0.5, days: 30 } } });
+    const w = createWorld({ cfg: feed, net, feeds: neutralFeeds, seed: 65, keepLedgerEntries: true });
+    const a = carrier(w, "A");
+    fund(w, a.id, 100_000);
+    a.milesTotal = 1_000;
+    const k = feed.token.exchange;
+    expect(launchFeeRate(w, k.buyFeePct)).toBe(0); // not launched
+    expect(sizeFeeRate(w, 100_000)).toBe(0);
+    launchToken(w);
+    expect(launchFeeRate(w, k.buyFeePct)).toBeCloseTo(0.5, 12);
+    expect(launchFeeRate(w, k.sellFeePct)).toBeCloseTo(0.5, 12);
+    expect(buyFeeRate(w, 100)).toBeCloseTo(0.5, 12);
+    expect(sizeFeeRate(w, 100)).toBe(0);
+    expect(sizeFeeRate(w, 3_000)).toBeCloseTo(0.2, 12);
+    expect(buyFeeRate(w, 3_000)).toBeCloseTo(0.7, 12);
+    expect(sizeFeeRate(w, 100_000)).toBe(0.5);
+    // A $3,000 buy on launch day: 70% of it is fees, to the treasury; 30% reaches the pool.
+    a.usd.wallet = 3_000;
+    const pool0 = w.token.poolUsd;
+    const fee0 = w.token.treasury.feeUsd;
+    const held0 = w.ledger.balance(companyAccount(a.id));
+    expect(applyAction(w, a.id, { type: "buy_fd", usd: 3_000 })).toEqual({ ok: true });
+    expect(w.token.poolUsd - pool0).toBeCloseTo(900, 6);
+    expect(w.token.treasury.feeUsd - fee0).toBeCloseTo(2_100, 6);
+    expect(w.token.launchFee.buyUsd).toBeCloseTo(2_100 - 3_000 * k.buyFeePct, 6);
+    expect(w.ledger.balance(companyAccount(a.id))).toBeGreaterThan(held0);
+    // A sale on launch day pays the start fee, burned, bought FD or not.
+    const burned = () => w.ledger.entries.filter((e) => e.to === "sink:exchange_fee").reduce((s, e) => s + e.amount, 0);
+    const b0 = burned();
+    const sold = Math.floor(sellableFd(w, a) / 2);
+    expect(sold).toBeGreaterThan(100);
+    expect(applyAction(w, a.id, { type: "sell_fd", fd: sold })).toEqual({ ok: true });
+    expect(burned() - b0).toBeCloseTo(sold * 0.5, 0);
+    expect(w.token.launchFee.sellFd).toBeGreaterThan(sold * 0.2); // what the normal fee would not have taken
+    // Half way through its days: half way down the line to the normal fees; the size fee whole.
+    w.t += 5 * w.cfg.time.gameMinutesPerDay;
+    expect(launchFeeRate(w, k.buyFeePct)).toBeCloseTo(0.5 - (0.5 - k.buyFeePct) / 2, 12);
+    expect(launchFeeRate(w, k.sellFeePct)).toBeCloseTo(0.5 - (0.5 - k.sellFeePct) / 2, 12);
+    expect(buyFeeRate(w, 3_000)).toBeCloseTo(0.5 - (0.5 - k.buyFeePct) / 2 + 0.2, 12);
+    // After its days the normal fees stand; the size fee until its own days are over.
+    w.t += 5 * w.cfg.time.gameMinutesPerDay;
+    expect(launchFeeRate(w, k.buyFeePct)).toBe(0);
+    expect(buyFeeRate(w, 100)).toBe(k.buyFeePct);
+    expect(buyFeeRate(w, 3_000)).toBeCloseTo(k.buyFeePct + 0.2, 12);
+    w.t += 20 * w.cfg.time.gameMinutesPerDay;
+    expect(buyFeeRate(w, 3_000)).toBe(k.buyFeePct);
+    w.ledger.assertBalanced();
+    // The exponential curve: a constant factor a day from the start fee down to the normal fee.
+    const w2 = createWorld({ cfg: { ...feed, token: { ...feed.token, exchange: { ...feed.token.exchange, launchFee: { ...feed.token.exchange.launchFee, curve: "exponential" } } } }, net, feeds: neutralFeeds, seed: 66 });
+    carrier(w2, "A");
+    launchToken(w2);
+    expect(launchFeeRate(w2, 0.01)).toBeCloseTo(0.5, 9);
+    w2.t += 5 * w2.cfg.time.gameMinutesPerDay;
+    expect(launchFeeRate(w2, 0.01)).toBeCloseTo(0.01 * Math.sqrt(50), 6);
+    w2.t += 5 * w2.cfg.time.gameMinutesPerDay;
+    expect(launchFeeRate(w2, 0.01)).toBe(0);
   });
 });
 

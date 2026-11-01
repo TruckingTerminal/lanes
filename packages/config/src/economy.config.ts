@@ -877,6 +877,16 @@ export const economyConfig = {
       // With no dollars at all the treasury posts this much FD alone, and buys never go below the
       // reference price until buyers' dollars have lifted the pool above it (one-sided liquidity).
       liquidityFd: 25_000_000,
+      // The opening auction (Jeff, 2026-10-31: verified people, a per-person cap, all its dollars into the pool;
+      // 2026-11-01, option A: the sim's stand-in for a Metaplex Genesis auction or a Meteora Alpha Vault). Before
+      // launch anyone may bid dollars, at most `capUsd` a person, held until launch. At launch the treasury sells
+      // `trancheFd` of new FD at one clearing price, every dollar bid over the tranche (never under
+      // `reservePriceUsd`: then fewer FD sell), each bidder paid in proportion to its dollars. `poolShare` of the
+      // dollars opens the pool, with FD at the clearing price, and the rest is the treasury's. The opening demand
+      // meets the market at once at one price, and the pool opens as deep as that demand instead of as deep as the
+      // seed. The tranche is a launch issuance (its size is Jeff's call). Verified people need the server; the sim
+      // counts a company as a person. Off until tested.
+      auction: { enabled: false, trancheFd: 20_000_000, capUsd: 1_000, reservePriceUsd: 0, poolShare: 1 },
     },
     // §Points and airdrop: beta Miles convert pro rata; beta FD never does.
     airdrop: {
@@ -932,6 +942,15 @@ export const economyConfig = {
       // moves the price more than `pct` from the day's open; an order that would fills to the edge of the band,
       // and the rest waits for another day. A pump can't compound faster than the band a day. Off until tested.
       priceBand: { enabled: false, pct: 0.15, days: 365 },
+      // The decaying launch fee (2026-11-01, option A: a standard pool's own brake, Meteora's fee scheduler): for
+      // `days` game days after launch the pool charges at least this fee on both sides, buys in dollars to the
+      // treasury, sales in FD burned, falling from `startPct` to the normal fees in a straight line or by a constant
+      // factor a day. The pool can't tell farmed FD from bought, so everyone pays it. Off until tested.
+      launchFee: { enabled: false, startPct: 0.5, days: 14, curve: "exponential" as "linear" | "exponential" },
+      // The size fee (Meteora's rate limiter): for `days` game days after launch a buy over `refUsd` pays
+      // `perRefPct` more for every `refUsd` it is over, up to `maxPct` more. One big order pays for its size; the
+      // orders it is split into pay the band's clock instead. Off until tested.
+      sizeFee: { enabled: false, refUsd: 1_000, perRefPct: 0.05, maxPct: 0.5, days: 30 },
     },
     // Design decision (Jeff, 2026-10-29; TOKENOMICS.md §2): staking, the bond behind every licence.
     // Tiers gate company size and roles, never performance; the stake is slashed on revocation;
@@ -1054,7 +1073,10 @@ export const economyConfig = {
       // price, and never more than leaves the pool at or above it after the sale.
       // Jeff (2026-10-29): a quarter of a percent at most, only above the TGE price — as little sell
       // pressure as the game can carry, for as long as it can.
-      vest: { cliffWeeks: 26, perWeekShare: 0.0025 },
+      // Jeff (2026-11-01): the price condition goes ("I don't like 'the treasury and airdrop recipients can only
+      // sell if the price is over TGE'"): the vest is a published clock, a cliff and a weekly cap, nothing else.
+      // `priceFloor` keeps the old rule until the package ships on a ruleset bump; false is the decided rule.
+      vest: { cliffWeeks: 26, perWeekShare: 0.0025, priceFloor: true },
       buybackShare: 0.5, // §Burn and buyback: half of revenue buys FD back (all of it burned here); half runs the company
     },
     lockGrants: true, // after launch, starting grants are spend-only (sybils can't cash them out)

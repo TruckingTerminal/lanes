@@ -227,6 +227,15 @@ rows.push(
     const b = rs.map((r) => r.realMoney?.token?.band).filter((x) => x);
     return b.length ? `±${pct(b[0]!.pct)} / ${n0(mean(b.map((x) => x!.clips)))} / ${(mean(b.map((x) => x!.maxDayMove)) * 100).toFixed(1)}%` : "off";
   }],
+  // The opening auction (Jeff, 2026-10-31) and the pool's launch fees (2026-11-01, option A).
+  ["Opening auction: dollars bid / bidders / clearing price / pool dollars at open", (rs) => {
+    const a = rs.map((r) => r.realMoney?.token?.auction).filter((x) => x);
+    return a.length ? `$${fd(mean(a.map((x) => x!.usd)))} / ${n0(mean(a.map((x) => x!.bidders)))} / ${usd4(mean(a.map((x) => x!.priceUsd)))} / $${fd(mean(a.map((x) => x!.poolUsd)))}` : "off";
+  }],
+  ["Launch fee: start, days; dollars taken on buys / FD burned on sales above the normal fees", (rs) => {
+    const f = rs.map((r) => r.realMoney?.token?.launchFee).filter((x) => x);
+    return f.length ? `${pct(f[0]!.startPct)}, ${f[0]!.days}; $${fd(mean(f.map((x) => x!.buyUsd)))} / ${fd(mean(f.map((x) => x!.sellFd)))}` : "off";
+  }],
   // The airdrop logbook (Jeff, 2026-10-31: 1% at launch, the rest only for milestones).
   ["Logbook: paid at launch / by honest milestones / by criminal / still locked at end", (rs) => {
     const b = rs.map((r) => r.realMoney?.token?.logbook).filter((x) => x);

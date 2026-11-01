@@ -7,7 +7,7 @@ import { chargeSalesTax, salesTaxOn } from "./salesTax.js";
 import { bookLoad } from "./board.js";
 import { offerFd } from "./buyback.js";
 import { leaseTruck, returnLease } from "./capacity.js";
-import { buyFd, claimAirdropNow, sellFd } from "./token.js";
+import { bidAuction, buyFd, claimAirdropNow, sellFd } from "./token.js";
 import { dayOf } from "./clock.js";
 import { dealerPrice, lotPrice, lotSpec, ordersOf, placeOrder, tractorOrdersOf, tractorPrice, trailerOrdersOf, trailerPrice } from "./dealer.js";
 import { fitTrailer, hook, hookedTrailer, ownedTrailers, rentTrailer, scrapTrailer, syncTrailer, trailerById, trailerCap, trailerCondition, trailerRefurbishable, unhook } from "./trailers.js";
@@ -127,6 +127,7 @@ export function badInput(cfg: EconomyConfig, a: Action): string | null {
     case "place_bid":
       return isId(a.truckId) && isId(a.loadId) && finiteIn(a.rate, 0.01, 100) ? null : "bad bid";
     case "buy_fd":
+    case "bid_auction":
       return finiteIn(a.usd, 0.01, 1e9) ? null : "bad amount";
     case "sell_fd":
       return finiteIn(a.fd, 0.01, 1e12) ? null : "bad amount";
@@ -176,7 +177,7 @@ export function badInput(cfg: EconomyConfig, a: Action): string | null {
 const LIQUIDATING_BLOCKED = new Set<Action["type"]>(["place_bid", "book_load", "reposition_truck", "buy_asset", "buy_trailer", "rent_trailer", "buy_facility", "lease_truck", "borrow", "buy_listing", "unpark_truck", "offer_staff", "take_lease", "buy_asset_sale", "list_asset_sale"]);
 
 /** What a company whose authority was revoked can still do: wait out the bar, file again, and handle its money. */
-const ALLOWED_REVOKED = new Set<Action["type"]>(["wait", "refile_authority", "buy_fd", "sell_fd", "offer_fd", "claim_airdrop_now", "withdraw_finance", "withdraw_listing", "set_compliance", "set_vetting", "set_auto_staff"]);
+const ALLOWED_REVOKED = new Set<Action["type"]>(["wait", "refile_authority", "buy_fd", "bid_auction", "sell_fd", "offer_fd", "claim_airdrop_now", "withdraw_finance", "withdraw_listing", "set_compliance", "set_vetting", "set_auto_staff"]);
 const SCOPES: RuleScope[] = ["legal", "hot", "always"];
 /**
  * The bad-actor actions: an illegal policy, re-brokering and theft. Players may
@@ -768,6 +769,9 @@ export function applyAction(w: World, companyId: number, action: Action): Action
 
     case "buy_fd":
       return result(buyFd(w, company, action.usd));
+
+    case "bid_auction":
+      return result(bidAuction(w, company, action.usd));
 
     case "sell_fd":
       return result(sellFd(w, company, action.fd));

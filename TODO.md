@@ -51,11 +51,16 @@ Order is the working order. Design records live in TOKENOMICS.md (economy) and R
     laws on passes; heat on reefers. The road graph already carries route geometry and winter risk
     flags: extend with elevation per edge (public DEM) and per-route weather feeds.
 14. **Authoritative server before real money**, then the settlement layer from audited standards on
-    Solana (Jeff, 2026-10-31: not an EVM chain): a fixed-supply SPL token in an existing Solana pool,
-    standard vesting and locks, one small audited bridge with a bounty. The launch tools there: a
-    Metaplex Genesis uniform price auction or a Meteora Alpha Vault (whitelist, per-wallet caps), the
-    pool's decaying launch fee, and the farmed-FD tax charged at the bridge; a hard price band would
-    need our own pool program and a Token ACL allow list for its window.
+    Solana (Jeff, 2026-10-31: not an EVM chain; 2026-11-01: "keep the token simple", "a clean token when
+    it's out of the game"): a plain SPL token (the cap minted at genesis, the mint authority revoked, no
+    freeze authority, no Token-2022 extensions, no custom pool, no transfer hook, no allow list), listed
+    in a standard pool (Meteora DAMM v2 or Raydium CPMM) as protocol-owned liquidity; the opening auction
+    (a Metaplex Genesis auction or a Meteora Alpha Vault: verified bidders, a per-person cap, the tranche
+    at one clearing price, every dollar into the pool); the pool's own decaying launch fee as the only
+    on-chain brake; standard time-locked vesting for the treasury; one small audited bridge with a
+    bounty. The bridge is the one place the game enforces anything (TOKENOMICS.md "Settlement on
+    Solana"): the farmed-FD tax, the daily limits, the logbook's locks, holds on open cases and slashing
+    all apply when FD leaves the game; outside it FD is a plain token. No hard price band.
 
 ## Launch without capital (Jeff, 2026-10-29): no outside money, no presale, no bundle
 15. **Protocol-owned one-sided liquidity.** At launch the treasury allocation posts FD-only liquidity
@@ -243,8 +248,15 @@ vesting schedules all completely transparent." His answers to the 18 questions, 
 5. **The launch:** an opening auction (verified people, a per-person cap, all its dollars into the
    pool) and a daily price limit of ±15% for the first three real months.
    **Built (off, 2026-10-31):** the daily limit, `token.exchange.priceBand` (±15% of the day's open for
-   365 game days; orders fill to the edge and the rest waits). The opening auction needs verified people,
-   so it waits for the server and identity checks.
+   365 game days; orders fill to the edge and the rest waits).
+   **Built (off, 2026-11-01):** the opening auction as a tranche, `token.launch.auction` (the treasury
+   sells `trancheFd` at one clearing price, every dollar bid over it, at most `capUsd` a person, the
+   dollars into the pool, which opens at that price), and a standard pool's own brakes,
+   `token.exchange.launchFee` (a fee on both sides falling from 50% to the normal fees over 14 game days)
+   and `sizeFee` (a buy pays more for its size). **Dropped (Jeff, 2026-11-01):** the price band on-chain:
+   it needs our own pool program, and Jeff wants a plain token in a standard pool; the sim keeps the
+   switch for comparison. The verified people and the caps are the auction tool's (Genesis or an Alpha
+   Vault) and the server's.
 6. **Trucks:** test both no free tier and spend-only free-path earnings until a truck is owned and
    identity is checked (counsel decides); a lease deposit of at least 25% of the truck's value; loans
    against the truck being bought (10–20% down, an FD stake of 10% and 25% tested, credit that grows
@@ -367,6 +379,12 @@ and off. What the batches settled, and what waits on Jeff:
   South America is a map, not a market (no road link).
 
 ## Open for Jeff to decide
+- The auction tranche's size and the per-person cap (the sim's stand-ins: 20M FD, $1,000), and the
+  launch fee's start and days (50%, 14 game days), once the v50 smoke has run.
+- Spend-first unlocks (each logbook slice spend-only for 30 real days before it can leave through the
+  bridge): proposed 2026-11-01, not built.
+- Whether later seasons' pots still shrink when the price sits below launch (pot × min(1, avg ÷ launch)):
+  it scales emission, it doesn't gate a sale; kept unless Jeff says otherwise.
 - Miles-to-profit airdrop weighting after the runs (0.6 / 0.4 to start).
 - The four season pot sizes (10 / 6 / 4 / 3M proposed).
 - The achievement catalogue for unlock boosts (TOKENOMICS.md).

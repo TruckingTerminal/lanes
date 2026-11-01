@@ -884,6 +884,8 @@ export type Action =
   /** Send an idle truck empty to another hub. */
   | { type: "reposition_truck"; truckId: number; hubId: string }
   | { type: "buy_fd"; usd: number }
+  /** The opening auction (token.launch.auction): dollars bid before launch, cleared at one price when it opens. */
+  | { type: "bid_auction"; usd: number }
   | { type: "sell_fd"; fd: number }
   | { type: "stake_fd"; fd: number }
   | { type: "unstake_fd"; fd: number; instant: boolean }
@@ -974,6 +976,11 @@ export interface TokenState {
   /** The daily price band (exchange.priceBand): the day's open, fixed at its first trade, and the trades it clipped. */
   dayOpen: { day: number; price: number };
   bandClips: number;
+  /** The opening auction (token.launch.auction): the bids held until launch, and how it cleared. */
+  auctionBids: { companyId: number; usd: number }[];
+  auction: { usd: number; fd: number; bidders: number; priceUsd: number; poolUsd: number; poolFd: number; treasuryUsd: number } | null;
+  /** The pool's launch fees (exchange.launchFee, sizeFee): dollars taken on buys and FD burned on sales above the normal fees. */
+  launchFee: { buyUsd: number; sellFd: number };
   airdrop: {
     mintedFd: number;
     forfeitedFd: number;

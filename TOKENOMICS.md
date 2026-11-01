@@ -794,8 +794,70 @@ sybil clusters, 200 momentum traders, a 500-wallet listing crowd, a $50k whale; 
 **What I'd decide next** (Jeff's calls):
 1. Truck prices: mid (a Workhorse 140k FD) with the NPC used lot and the deposit toward the first truck
    (v47-b), or realistic with the same (v47-a: the free path passes, wealth concentrates).
-2. The launch defense: a ±5% band for the first three real months, the early-sale tax on farmed FD only,
-   and the logbook (v49-a); then whether to add an auction tranche, and how big.
+2. The launch defense (settled in part on 2026-11-01, "Settlement on Solana" below: no band on-chain, the
+   auction tranche yes): the tranche's size, and whether the pool's decaying fee does any of the band's
+   work (the v50 smoke, when it runs).
 3. The supply path: at +10% it holds the logbook's unlocks for good in some seeds; widen it, or let the
    logbook's payments through.
 4. The newcomer spread (the top strategy 2.5–5× the newcomers' median with the sinks on, against a 3× gate).
+
+## Settlement on Solana (Jeff, 2026-11-01): a clean token, a standard pool, the bridge
+
+Jeff's calls (2026-11-01): keep the token simple, no custom AMM fork and no Token-2022 extensions ("a clean
+token when it's out of the game"); the opening auction for the TGE; and no rule under which the treasury or
+the airdrop's recipients may sell only above the TGE price. What that fixes:
+
+**The token.** A plain SPL mint: the cap minted at genesis, the mint authority revoked, no freeze authority,
+no extensions, Metaplex metadata carrying the name and the published schedules. Supply control is a matter
+of where the cap sits, every part of it readable on-chain: the game vault (the bridge's reserve: every FD
+inside the game, the NPC reserve and the airdrop escrow included), the auction tranche (sold to bidders at
+the TGE), the pool's FD (protocol-owned liquidity, never withdrawn), and the treasury's vest escrow (a
+standard time-locked vesting contract: a cliff, then a weekly cap, nothing else). "Never minted" becomes
+"burned from the vault at the deadline". Outstanding FD on-chain is the cap less the vault and the
+escrows; FD inside the game is the ledger's supply. Both are published.
+
+**The pool.** A standard pool (Meteora DAMM v2 or Raydium CPMM), seeded at the auction's clearing price
+with the auction's dollars and the treasury's FD, the LP owned by the treasury for good. The pool's own fee
+scheduler (a fee on both sides, falling from its start to the base fee over the first days) is the only
+on-chain brake: no price band, no transfer hook, no allow list. FD out of the game trades anywhere, and an
+aggregator can route it from day one.
+
+**The launch.** A Metaplex Genesis auction or a Meteora Alpha Vault: verified bidders, a per-person cap, the
+tranche sold at one clearing price, every dollar into the pool. The sim's stand-in is `token.launch.auction`
+(the tranche, the cap, a reserve price, the pool's share of the dollars); the pool's fee scheduler is
+`token.exchange.launchFee`, its rate limiter `token.exchange.sizeFee`. All three are off until the v50 smoke
+has sized them.
+
+**The bridge: the one place the game enforces anything.** The game runs on its own ledger (the lockstep
+world; every FD inside it is a claim on the vault), and the bridge moves FD between the ledger and the chain.
+- *Deposit:* on-chain FD goes into the vault and the ledger credits the company. Deposited FD counts as
+  bought for the early-sale tax (up to what was deposited and not withdrawn), as FD bought on the in-game
+  exchange does today (`launchTax.boughtExempt`).
+- *Withdraw:* the ledger debits the company and the vault releases on-chain FD to its wallet. Every rule the
+  server knows applies here, and only here: the early-sale tax on farmed FD (75% at launch, falling to the
+  normal fee over six real months, burned), the daily limit (a share of the pool a day per company), the
+  frequency fee, the logbook (a locked slice can't leave; a spend-only slice can't leave until its lock
+  ends), a hold while a case is open, slashing (a stake lives in the ledger, so a revocation takes it before
+  it can leave), and whatever per-person checks the auction's verification gives the server.
+- *What it can't do:* anything once the FD is out. Outside the game FD is a plain token; the bridge's tax is
+  paid once, on the way out, and a holder who withdraws and dumps meets the pool's own fee and depth and
+  nothing else. That is why the auction's depth and the pool's fee scheduler carry the launch, not a band.
+The sim's in-game exchange (`buyFd`, `sellFd`) is the bridge and the pool in one step: a sale is a
+withdrawal and a swap, a buy a swap and a deposit. The server charges the bridge's rules before the swap,
+which is where the sim applies them.
+
+**The vest (changed 2026-11-01).** Jeff dropped the price condition: the treasury's vest is a cliff and a
+weekly cap, published, with no floor at the TGE price (`token.treasury.vest.priceFloor`, on until the
+package ships, off then). The airdrop's logbook has no price condition either; its clock is the milestones
+and the deadline. The supply path still holds payouts while FD outstanding runs over it, and never reads
+the price. Later seasons' pots still shrink when the season's average price sat below launch
+(pot × min(1, avg ÷ launch)): that scales emission; it gates no sale.
+
+**Changing it later.** The in-game rules move by a ruleset bump, announced. The on-chain parameters (the
+vest escrow, the bridge's limits and tax, the pool's fee settings) sit in a Squads multisig with a time
+lock, so every change is a visible proposal before it executes. The cap never changes: the mint authority
+is gone.
+
+**What the sim still has to show (v50, the launch smoke):** the auction tranche and the decaying fee
+against every bad actor, beside the ±5% band of v49-a that is no longer on the table on-chain: what the
+tranche's size does to the peak and to who takes what, and whether the fee does any of the band's work.

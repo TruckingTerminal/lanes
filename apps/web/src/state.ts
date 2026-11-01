@@ -272,6 +272,8 @@ export function describe(a: LiveAction): string {
       return "Repay a loan";
     case "buy_fd":
       return `Buy FD with ${usd(a.usd)}`;
+    case "bid_auction":
+      return `Bid ${usd(a.usd)} in the opening auction`;
     case "sell_fd":
       return `Sell ${fd(a.fd)} FD`;
     case "claim_airdrop_now":

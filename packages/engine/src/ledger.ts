@@ -36,7 +36,7 @@ const toCents = (fd: number) => Math.round(fd * 100);
  */
 export type CircularConfig = { enabled: boolean; capFd: number; shares: { reserve: number; pool: number; airdrop: number } };
 export const RESERVE_ACCOUNT = "reserve";
-const ALLOCATION_OF: Record<string, string> = { "faucet:airdrop": "alloc:airdrop", "faucet:launch_liquidity": "alloc:pool" };
+const ALLOCATION_OF: Record<string, string> = { "faucet:airdrop": "alloc:airdrop", "faucet:launch_liquidity": "alloc:pool", "faucet:auction": "alloc:treasury" };
 export const CIRCULAR_BURNS = new Set(["sink:season_close", "sink:buyback", "sink:exchange_fee", "sink:airdrop_forfeit", "sink:unstake_haircut", "sink:profit_tax_burn", "sink:asset_burn"]);
 
 export class Ledger {

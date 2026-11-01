@@ -267,6 +267,10 @@ export interface TokenReport {
   logbook?: { openFd: number; honestFd: number; criminalFd: number; lostFd: number; convictedFd: number; lockedEndFd: number; books: number; medianUnlockedShare: number; reached: Record<string, number> };
   /** The unlock ladder (unlockLadder), when it's on: the days after launch each layer opened (null: still closed). */
   ladder?: Record<string, number | null>;
+  /** The opening auction (token.launch.auction), when it cleared: dollars bid, FD sold, bidders, the clearing price, the pool's dollars and FD at open, the treasury's dollars, and the tranche and cap it ran with. */
+  auction?: { usd: number; fd: number; bidders: number; priceUsd: number; poolUsd: number; poolFd: number; treasuryUsd: number; trancheFd: number; capUsd: number };
+  /** The pool's launch fees (exchange.launchFee, sizeFee), when either is on: the start and days of the decay, and the dollars taken on buys and FD burned on sales above the normal fees. */
+  launchFee?: { startPct: number; days: number; buyUsd: number; sellFd: number };
 }
 
 /** Scores a run against the PoC kill criteria (§Proof of concept scope and kill criteria). */
@@ -815,6 +819,8 @@ function tokenReport(w: World, quarterLen: number): TokenReport | null {
       return { pct: b.pct, clips: tk.bandClips, maxDayMove: Math.max(0, ...moves) };
     })(),
     ladder: w.cfg.unlockLadder.enabled ? Object.fromEntries(Object.entries(w.ladder).map(([k, d]) => [k, d === null ? null : d - tk.launchDay!])) : undefined,
+    auction: tk.auction ? { ...tk.auction, trancheFd: w.cfg.token.launch.auction.trancheFd, capUsd: w.cfg.token.launch.auction.capUsd } : undefined,
+    launchFee: w.cfg.token.exchange.launchFee.enabled || w.cfg.token.exchange.sizeFee.enabled ? { startPct: w.cfg.token.exchange.launchFee.enabled ? w.cfg.token.exchange.launchFee.startPct : 0, days: w.cfg.token.exchange.launchFee.enabled ? w.cfg.token.exchange.launchFee.days : 0, ...tk.launchFee } : undefined,
     logbook: (() => {
       const st = tk.airdrop.logbook;
       if (!w.cfg.token.airdrop.logbook.enabled || !st) return undefined;

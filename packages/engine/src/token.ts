@@ -51,9 +51,37 @@ export function askPriceUsd(w: World): number {
   return Math.max(fdPriceUsd(w), w.token.floorUsd);
 }
 
+/**
+ * The decaying launch fee (exchange.launchFee): the least the pool charges on a side today, falling from its start
+ * to that side's normal fee `base` over its days; 0 when it's off, over, or under the normal fee.
+ */
+export function launchFeeRate(w: World, base: number): number {
+  const f = w.cfg.token.exchange.launchFee;
+  if (!f.enabled || w.token.launchDay === null || f.days <= 0 || f.startPct <= base) return 0;
+  const since = dayOf(w.t, w.cfg) - w.token.launchDay;
+  if (since >= f.days) return 0;
+  const x = since / f.days;
+  const floor = Math.max(base, 1e-4);
+  return f.curve === "linear" ? f.startPct - (f.startPct - base) * x : floor * dpow(f.startPct / floor, 1 - x);
+}
+
+/** The size fee (exchange.sizeFee): what a buy of `usd` pays over the normal fee for its size, in its days after launch. */
+export function sizeFeeRate(w: World, usd: number): number {
+  const s = w.cfg.token.exchange.sizeFee;
+  if (!s.enabled || w.token.launchDay === null || s.refUsd <= 0) return 0;
+  if (dayOf(w.t, w.cfg) - w.token.launchDay >= s.days) return 0;
+  return Math.min(s.maxPct, s.perRefPct * Math.max(0, usd / s.refUsd - 1));
+}
+
+/** The share of a buy of `usd` paid in fees: the normal fee or the launch fee, whichever is higher, plus the size fee. */
+export function buyFeeRate(w: World, usd: number): number {
+  const k = w.cfg.token.exchange;
+  return Math.min(0.99, Math.max(k.buyFeePct, launchFeeRate(w, k.buyFeePct)) + sizeFeeRate(w, usd));
+}
+
 /** FD a dollar amount buys right now, after the buy fee (constant product, never cheaper than the floor). */
 export function quoteBuyFd(w: World, usd: number): number {
-  const net = usd * (1 - w.cfg.token.exchange.buyFeePct);
+  const net = usd * (1 - buyFeeRate(w, usd));
   const fd = w.ledger.balance(EXCHANGE_ACCOUNT);
   const cp = fd - (w.token.poolUsd * fd) / (w.token.poolUsd + net);
   const floor = w.token.floorUsd;
@@ -66,7 +94,57 @@ export function quoteUsdForFd(w: World, fd: number): number {
   if (fd >= pool) return Infinity;
   const cp = (w.token.poolUsd * pool) / (pool - fd) - w.token.poolUsd;
   const net = Math.max(cp, fd * w.token.floorUsd);
-  return net / (1 - w.cfg.token.exchange.buyFeePct);
+  // The size fee grows with the order, so the gross is found by a few steps from the plain fee.
+  let usd = net / (1 - w.cfg.token.exchange.buyFeePct);
+  for (let i = 0; i < 6; i++) usd = net / (1 - buyFeeRate(w, usd));
+  return usd;
+}
+
+/** The opening auction (token.launch.auction): a bid before launch, its dollars held until the launch clears it. */
+export function bidAuction(w: World, c: Company, usd: number): string | null {
+  const k = w.cfg.token.launch.auction;
+  if (!k.enabled || !w.cfg.token.enabled) return "there's no opening auction";
+  if (tokenLive(w)) return "the auction closed at launch";
+  if (!(usd > 0) || usd > c.usd.wallet + 1e-9) return "not enough dollars";
+  const mine = w.token.auctionBids.reduce((s, b) => s + (b.companyId === c.id ? b.usd : 0), 0);
+  if (mine + usd > k.capUsd + 1e-9) return `at most $${k.capUsd.toLocaleString("en-US")} a person in the auction`;
+  c.usd.wallet -= usd;
+  w.token.auctionBids.push({ companyId: c.id, usd });
+  return null;
+}
+
+/**
+ * At launch, after the reset: the tranche sells at one price, every dollar bid over it (never under the reserve
+ * price: then fewer FD sell), each bidder paid in proportion to its dollars; the pool's share of the dollars opens
+ * it, with FD at the clearing price, and the rest is the treasury's. Null when the auction is off or nobody bid.
+ */
+function clearAuction(w: World, seedUsd: number): { poolFd: number; poolUsd: number; priceUsd: number } | null {
+  const k = w.cfg.token.launch.auction;
+  const bids = w.token.auctionBids;
+  w.token.auctionBids = [];
+  const total = bids.reduce((s, b) => s + b.usd, 0);
+  if (!k.enabled || total <= 0.01 || k.trancheFd <= 0) return null;
+  let priceUsd = total / k.trancheFd;
+  let fd = k.trancheFd;
+  if (k.reservePriceUsd > 0 && priceUsd < k.reservePriceUsd) {
+    priceUsd = k.reservePriceUsd;
+    fd = total / priceUsd;
+  }
+  const exempt = w.cfg.token.exchange.launchTax.boughtExempt;
+  for (const b of bids) {
+    const c = w.companies[b.companyId - 1]!;
+    const got = fd * (b.usd / total);
+    w.ledger.post(w.t, "faucet:auction", companyAccount(c.id), got, `auction:${c.id}`);
+    if (exempt) c.boughtFdOpen = (c.boughtFdOpen ?? 0) + got; // bought with dollars: the early-sale tax doesn't fall on it
+    c.usd.in += b.usd;
+  }
+  const poolUsd = seedUsd + total * k.poolShare;
+  const treasuryUsd = total * (1 - k.poolShare);
+  w.token.treasury.usd += treasuryUsd;
+  w.token.treasury.opsUsd += treasuryUsd;
+  const poolFd = poolUsd / priceUsd;
+  w.token.auction = { usd: total, fd, bidders: new Set(bids.map((b) => b.companyId)).size, priceUsd, poolUsd, poolFd, treasuryUsd };
+  return { poolFd, poolUsd, priceUsd };
 }
 
 /**
@@ -93,13 +171,14 @@ export function buyFd(w: World, c: Company, usd: number): string | null {
     const pool = w.ledger.balance(EXCHANGE_ACCOUNT);
     const maxNet = Math.sqrt(band.hi * w.token.poolUsd * pool) - w.token.poolUsd;
     if (!(maxNet > 0.01)) return "the price is at today's limit up";
-    const cap = maxNet / (1 - w.cfg.token.exchange.buyFeePct);
+    let cap = maxNet / (1 - w.cfg.token.exchange.buyFeePct);
+    for (let i = 0; i < 6; i++) cap = maxNet / (1 - buyFeeRate(w, cap));
     if (usd > cap) {
       usd = cap;
       w.token.bandClips++;
     }
   }
-  const fee = usd * w.cfg.token.exchange.buyFeePct;
+  const fee = usd * buyFeeRate(w, usd);
   const fd = quoteBuyFd(w, usd);
   w.token.poolUsd += usd - fee;
   w.token.exchange.boughtFd += fd;
@@ -108,6 +187,7 @@ export function buyFd(w: World, c: Company, usd: number): string | null {
   c.usd.wallet -= usd;
   c.usd.in += usd;
   earn(w, fee, "fee");
+  w.token.launchFee.buyUsd += Math.max(0, fee - usd * w.cfg.token.exchange.buyFeePct);
   return null;
 }
 
@@ -161,15 +241,18 @@ export function sellFd(w: World, c: Company, fd: number): string | null {
   const acct = companyAccount(c.id);
   const k = w.cfg.token.exchange;
   const pool = w.ledger.balance(EXCHANGE_ACCOUNT);
-  // FD the company bought and hasn't sold back pays only the normal fee (exchange.launchTax.boughtExempt).
+  // FD the company bought and hasn't sold back pays only the normal fee (exchange.launchTax.boughtExempt). The
+  // pool's own launch fee (exchange.launchFee) is the least any sale pays, bought FD included: a pool can't tell.
   const exempt = k.launchTax.boughtExempt ? (c.boughtFdOpen ?? 0) : 0;
-  const feeRate = (x: number) => {
-    const normal = Math.min(k.sellFeeMax, k.sellFeePct + frequencyFee(w, c) + k.sellFeePerImpact * (x / (pool + x)));
+  const feeRateWith = (x: number, poolFee: number) => {
+    const normal = Math.max(poolFee, Math.min(k.sellFeeMax, k.sellFeePct + frequencyFee(w, c) + k.sellFeePerImpact * (x / (pool + x))));
     const rate = Math.max(launchTaxRate(w), normal);
     if (exempt <= 0 || x <= 0) return rate;
     const taxed = Math.max(0, x - exempt);
     return (normal * (x - taxed) + rate * taxed) / x;
   };
+  const poolFee = launchFeeRate(w, k.sellFeePct);
+  const feeRate = (x: number) => feeRateWith(x, poolFee);
   // The band: what drops the price to today's low fills, the rest waits. The pool takes the sale net of its
   // fee, which grows with the sale, so the most it can be is found by a few steps up from below.
   const band = priceBand(w);
@@ -196,6 +279,7 @@ export function sellFd(w: World, c: Company, fd: number): string | null {
   // A one-sided launch has no dollars on the bid side until buyers bring them: nothing to sell into yet.
   if (usd <= 0.01) return "no dollars on the bid side yet";
   w.ledger.post(w.t, acct, "sink:exchange_fee", fee, `swap:fee:${c.id}`);
+  if (poolFee > 0) w.token.launchFee.sellFd += Math.max(0, fee - fd * feeRateWith(fd, 0));
   w.ledger.post(w.t, acct, EXCHANGE_ACCOUNT, net, `swap:sell:${c.id}`);
   w.token.exchange.soldFd += net;
   w.token.poolUsd -= usd;
@@ -333,7 +417,10 @@ export function launchToken(w: World): void {
   // at all, the treasury posts FD alone and the reference price stands as the floor until buyers lift it.
   const seedUsd = tc.launch.seedUsd + w.token.treasury.seedEscrowUsd;
   const floatFd = w.ledger.supply();
-  const liquidityFd = seedUsd > 0 ? Math.max(1, tc.launch.poolDepthShareOfFloat * floatFd) : tc.launch.liquidityFd;
+  // The opening auction (launch.auction), when bids came in: its clearing price is the launch price, and the pool
+  // opens with the dollars it raised, as deep as they go at that price.
+  const auction = clearAuction(w, seedUsd);
+  const liquidityFd = auction ? auction.poolFd : seedUsd > 0 ? Math.max(1, tc.launch.poolDepthShareOfFloat * floatFd) : tc.launch.liquidityFd;
   // The pool allocation funds the FD side; what it lacks comes from the treasury allocation — protocol-owned
   // liquidity (Jeff, 2026-10-30). A pool as deep as the float pays sellers less per FD, so it keeps its dollars
   // and holds its price path better than a shallow one, whatever the nominal launch price reads.
@@ -342,10 +429,10 @@ export function launchToken(w: World): void {
     if (short > 0.005) w.ledger.post(w.t, "alloc:treasury", "alloc:pool", short, "launch:liquidity");
   }
   w.ledger.post(w.t, "faucet:launch_liquidity", EXCHANGE_ACCOUNT, liquidityFd, "launch:liquidity");
-  w.token.poolUsd = seedUsd;
-  w.token.launchPriceUsd = seedUsd > 0 ? seedUsd / liquidityFd : tc.launch.priceUsd;
-  w.token.floorUsd = seedUsd > 0 ? 0 : tc.launch.priceUsd;
-  w.token.treasury.seedUsd = seedUsd;
+  w.token.poolUsd = auction ? auction.poolUsd : seedUsd;
+  w.token.launchPriceUsd = auction ? auction.priceUsd : seedUsd > 0 ? seedUsd / liquidityFd : tc.launch.priceUsd;
+  w.token.floorUsd = auction || seedUsd > 0 ? 0 : tc.launch.priceUsd;
+  w.token.treasury.seedUsd = w.token.poolUsd;
   w.token.treasury.seedEscrowUsd = 0;
   for (const c of w.companies) {
     c.taxBaseFd = operatingResult(w, c);
@@ -430,9 +517,10 @@ export function seasonAirdrop(w: World): void {
 
 /**
  * The developer's FD, vested (TOKENOMICS.md "FD only"): weekly after the cliff, at most
- * treasury.vest.perWeekShare of the treasury's holdings sold into the pool, never in a week the price
- * averaged below the floor. The dollars it brings are the developer's revenue; the sale is the sell
- * pressure the runs must carry. Only under the cap, where the treasury allocation exists.
+ * treasury.vest.perWeekShare of the treasury's holdings sold into the pool; with the price floor on
+ * (vest.priceFloor; Jeff dropped it on 2026-11-01), never in a week the price averaged below the launch price.
+ * The dollars it brings are the developer's revenue; the sale is the sell pressure the runs must carry. Only
+ * under the cap, where the treasury allocation exists.
  */
 export function weeklyVest(w: World): void {
   const v = w.cfg.token.treasury.vest;
@@ -448,10 +536,12 @@ export function weeklyVest(w: World): void {
   const held = w.ledger.balance("alloc:treasury");
   const pool = w.ledger.balance(EXCHANGE_ACCOUNT);
   const floor = w.token.launchPriceUsd;
-  if (floor <= 0 || avg < floor || held <= 0 || w.token.poolUsd <= 0 || pool <= 0) return;
-  // Only what the pool absorbs without its price falling through the launch price: after a sale of
-  // `fd` the pool prices at poolUsd·pool/(pool+fd)², so the sale stops where that meets it.
-  const room = Math.sqrt((w.token.poolUsd * pool) / floor) - pool;
+  if (held <= 0 || w.token.poolUsd <= 0 || pool <= 0) return;
+  // The price floor: not in a week the price averaged below launch, and only what the pool absorbs without its
+  // price falling through the launch price: after a sale of `fd` the pool prices at poolUsd·pool/(pool+fd)², so
+  // the sale stops where that meets it. Without the floor the vest is a clock: the week's share sells.
+  if (v.priceFloor && (floor <= 0 || avg < floor)) return;
+  const room = v.priceFloor && floor > 0 ? Math.sqrt((w.token.poolUsd * pool) / floor) - pool : Infinity;
   const fd = Math.min(held * v.perWeekShare, room);
   if (fd <= 0.01) return;
   const usd = w.token.poolUsd - (w.token.poolUsd * pool) / (pool + fd);

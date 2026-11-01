@@ -11,8 +11,8 @@ import type { World } from "./world.js";
  * sink ratio, so the stabilizer doesn't add freight to make up for them.
  */
 export const BURN_TAGS = new Set(["sink:season_close", "sink:buyback", "sink:exchange_fee", "sink:launch_reset", "sink:airdrop_forfeit", "sink:unstake_haircut", "sink:profit_tax_burn", "sink:asset_burn"]);
-/** One-time mints outside operations: starting grants, the airdrop, and launch liquidity. */
-export const MINT_TAGS = new Set(["faucet:starting_grant", "faucet:airdrop", "faucet:launch_liquidity"]);
+/** One-time mints outside operations: starting grants, the airdrop, launch liquidity and the opening auction's tranche. */
+export const MINT_TAGS = new Set(["faucet:starting_grant", "faucet:airdrop", "faucet:launch_liquidity", "faucet:auction"]);
 
 export interface DayMetrics {
   day: number;
