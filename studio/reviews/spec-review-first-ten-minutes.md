@@ -1,59 +1,48 @@
-# Review gate: the first ten minutes, UX spec draft 2 (the director, 2026-11-02)
+# Review gate: the first ten minutes, UX spec draft 3 (the director, 2026-11-02)
 
-Read against BIBLE.md draft 3 and Jeff's answers of 2026-11-02 (DECISIONS.md). **Verdict: not yet approved.**
-Three sections must change for draft 3; everything else is approved as written. Draft 3 needs only those three
-sections re-read, not another full review, and engineering may start on the approved parts now.
+Read against BIBLE.md draft 3 and Jeff's answers of 2026-11-02. I first reviewed the committed draft 2 and
+found three sections that had to change (teasers back, the token on Money under a fold, the dispatcher's first
+state specified). Draft 3, in the working tree, does all three. **Verdict: approved. Engineering may build.**
+Two small corrections go into the build as written here; neither needs another draft.
 
-## Must change
+## Two corrections, in the build
 
-1. **Teasers come back (S-layout, Part one's "Fate" column, "Where everything else lives").** The spec cuts "the
-   locks" from the chrome, sends the Back Lot "out of the client" and the Logbook and Economy out or to wait.
-   Jeff decided the opposite: the tabs that matter first, the rest visible as "coming soon" teasers, the Back Lot
-   among them. The bible's rule for them: a teaser is never a dead tap; its card says what the layer is in one
-   line, the day it opens as a date, one line from Iuliia, and one thing that works (the road ahead, or "tell us
-   what you'd want here"); it sits after the live tabs, never among the first five on a phone; on its day it
-   becomes the real tab in the same place. Four teasers: Business (day 28), Brokerage (day 91), the token layer
-   (at launch), the Back Lot ("a later beta", no crime words). Laptop: dimmed segments after the five, each with
-   its day. Phone: the five stay in the bottom nav; the teasers are a row of cards at the top of the Iuliia
-   tab, which already holds the roadmap. Specify the card, its states (before the day, the day it opens) and
-   its one action.
+1. **The Logbook's trigger is the token's launch, not the first delivery.** The Logbook is the airdrop and
+   Channel 19; opening it at the first delivery puts the token and crime in the first hour (minute eight in a
+   test world). Jeff keeps the token surfaces on the beta screens, so the tab stays as a teaser, "Opens at the
+   launch"; the airdrop estimate lives in Money's token fold until then. Same for Economy: its trigger is the
+   first Monthly Economic Report, not game day 7; a faucets-and-sinks page is studio talk to a player.
+2. **Tab names follow the writer's term sheet.** The term sheet says the tab is "Loads" and the thing on it is
+   "the board"; draft 3 names the tab "Board" and Fleet "Truck". One word per term is the writer's rule; the
+   writer settles the four labels before the strings are cut, and `TAB_NAME` takes whatever they settle. The
+   "Truck → Trucks at the second truck" idea is good and the writer should keep it if "Truck" wins.
 
-2. **The token stays on Money, under a fold (S8, Part one's Money row).** The spec removes the exchange,
-   auction, airdrop, pools and deposits from the beta and the countdown from the chrome. Jeff: the token
-   surfaces may stay for now, since nobody plays before the server. The bible's reading: off the first hour's
-   path, not off the page. S8 opens on the ledger (Cash, Owed to you, This week's costs, Standing); below the
-   Loans fold add one more, "The token" (the exchange card, the opening auction, the airdrop estimate, the
-   launch countdown, as they are today). The deposit side of Equipment Finance still goes (bible, "Goes"). The
-   countdown leaves the top strip, as the spec has it.
+## Answers to the spec's questions
 
-3. **The dispatcher's first state (S9, S2's "truck busy" state).** Jeff said yes to the rule, so draft 3
-   specifies it instead of waiting: for a one-truck company "Bid for me while I'm away" starts off and the
-   truck waits at home until the player's first hand-placed bid; S9 is where it turns on. Say what Fleet ›
-   Dispatcher shows before that first bid (the switch off, Iuliia's line, nothing else), and what the strip's
-   state line reads while the truck waits ("Truck 1 · Idle at Dallas · round 18:00" is right). The defaults in
-   the three rows are the economy designer's to size; the spec names the fields, not the numbers.
+- **Teasers on a phone live in More, not the bar.** Agreed, and the bible is edited to say so: four targets
+  in the bar, More holding Iuliia, Help, Company, the opened tabs and "Coming soon". Iuliia's line stays in the
+  sheet's strip at all heights, so she is never more than one tap away; that is what makes four enough.
+- **The overnight stop:** ship it as "planned", per engineering's answer (a read-only client forecast).
 
-## Approved as written, with notes
+## Approved as written
 
-- **The five and the layout.** Fleet, Loads, Money, Company, Iuliia; the 900 px line; the 44 px strip; the sheet
-  over the map; one segmented control on the laptop. Yes.
-- **S0.** Three hub cards, one freight line and one carriers line each. Chicago, Dallas, Phoenix, on the ruling's
-  condition (Memphis if Phoenix fails the first-board test). The theme picker gone: Jeff's answer.
-- **S2 and S3.** The card with the profit chip; "Nearest" default; first visit sorts profitable book-nows first (a
-  sort, not a plant: fine); blocked loads last, dimmed, with the reason; Book now at its true profit, red when
-  negative, Bid primary when book-now loses. Matches the ruling on the first board. Keep the "Table" toggle
-  for laptops. "Rates by hub" as a sub-screen of Loads: yes.
-- **S4 and S5.** The pinned bid card, the ring, the lane dashed on the map, the result card with "Lost to
-  2.24/mi · your bid 2.39 · your break-even 2.08" and Bid again. This is the feedback the bible asks for.
-- **S6.** Ship the overnight stop as "planned", per engineering's answer (a read-only client forecast).
-- **S7.** The pay line, one row each, "Yours" last. This is the bible's pay line.
-- **Walkthrough.** Ticks only on the player's own act log; Iuliia's caption is the Do line with "More". Yes.
-- **Staff and the Dealer folded into Fleet from their triggers; Finance into Money; Rates into Loads; Economy
-  out of the client as the published report.** Yes.
-- **Words.** Placeholders stay the writer's; the copy audit wins. "Bid" and "Book now", never "counter".
+- **The rule the spec assumes** (the dispatcher off until the first hand-placed bid, then `DEFAULT_ORDERS`;
+  "Waiting at Dallas · the first load is your call"), and S9 telling the player plainly that the dispatcher is
+  now on. The numbers are the economy designer's.
+- **The teasers.** The card: two lines on what it is, "Opens {trigger}", one action that works, the road ahead;
+  the row moving to the open list with a "New" dot on its day. That is the bible's rule met. The Back Lot's
+  text stays "a later beta", no crime words.
+- **Money as a ledger first**, Loans and "The token" as closed folds. Note for the writer: the ledger's
+  "Standing" row is Miles ("272 Miles · your standing in the beta"), not loaded miles; loaded miles against total
+  miles is a Truck-card number. The token fold keeps the Miles figure as today.
+- **S0** (Chicago, Dallas, Phoenix on the ruling's condition; the picker gone), **S2 and S3** (profit chip,
+  Nearest default, profitable book-nows first on the first visit, blocked loads dimmed with the reason from
+  config, Book now at its true profit and red when negative, Bid primary when book-now loses), **S4 and S5**
+  (the pinned bid, the ring, the dashed lane, the result card, Bid again, the line on live rounds), **S6**,
+  **S7** (the pay line, "Yours" last), the walkthrough ticking only on the act log, Iuliia at 96 px with one or
+  two sentences. All as the bible asks.
 
-## Not blocking, for draft 3 if cheap
+## Not blocking
 
-- S0's default company name should not be "Lone Star Freight" for a Chicago start; take it from the hub.
-- S2's header count ("14") should be the count the player may take, not the count on the board.
-- S8 "Standing": say Miles once in words ("272 Miles · your standing in the beta"), since the chrome lost it.
+- S0's default company name should come from the hub, not "Lone Star Freight" for a Chicago start.
+- S2's header count should be the loads the player may take, not the count on the board.

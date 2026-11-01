@@ -47,7 +47,8 @@ A name; a home hub as three choices. The map at your hub, your truck on it. The 
 your truck first, the profit on every card, the loads a newcomer can't take dimmed and saying why. One bid,
 and a mark where it was made. The truck rolling. The pay line in the open: rate × miles, less fuel, less the
 lessor's 15%, less the deposit, equals yours. Then "the next round is at 18:00; set your dispatcher before you
-go". Five tabs in the first hour: Fleet, Loads, Money, Company, Iuliia; the rest appear the day they matter.
+go". Four tabs in a phone's bar: the truck, the board, Money, More (Iuliia, Help, Company inside); Iuliia's
+line always in view.
 The walkthrough ticks only on the player's own acts and says one Do at a time. The token is not on the
 first hour's path: Money opens on cash, what's owed and when, costs, and Miles as "your standing"; the exchange,
 auction and airdrop sit under a fold below, where they stay until the server (Jeff: nobody plays before it).
@@ -89,8 +90,8 @@ same way), then a ruleset bump and a restart with no players.
 1. The pitch and the feeling stand, for now.
 2. The first ten minutes is sprint 1, on the test page; the server runs beside it.
 3. The token surfaces may stay on the beta screens until the server. Off the first hour's path.
-4. The tabs that matter first; the rest as teasers. Five on a phone.
+4. The tabs that matter first; the rest as teasers, in More on a phone.
 5. The teaser tabs stay, the Back Lot among them (the rule above).
 6. Yes: the dispatcher waits for the first hand-booked bid (the rule above).
 7. The theme picker goes.
-8. Beta one's people come from Jeff's freight list, with crypto people if he can.
+8. Beta one's people come from Jeff's freight list.
