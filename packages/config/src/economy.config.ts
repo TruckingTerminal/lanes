@@ -841,6 +841,11 @@ export const economyConfig = {
     // after launch a newcomer has no free path: it buys FD with its own dollars and buys a truck, on a
     // purchase loan when they're on.
     freePath: "lease" as "lease" | "spendOnly" | "none",
+    // Sprint 1 (Jeff, 2026-11-02; studio/sprints/2026-11-02-first-ten-minutes.md): a one-truck company's standing
+    // orders stay off until its owner has placed a bid (or booked a load) by hand, and the truck waits at home.
+    // Sprint 0's playtests found the default dispatcher bid for a new player before they had read the board. Bots
+    // place their first bid by hand too (ruleBots.ts firstBidByHand). Off until the batch sizes it (runs/v55-a).
+    firstBidByHand: false,
     // Extra NPC leases (§Assets: "the NPC lease fleet is separate, unlimited"):
     // a carrier that owns a truck can lease more Workhorses, any trailer, on the
     // free path's terms — 15% of gross, the lessor maintains them — with no

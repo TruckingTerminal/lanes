@@ -8,7 +8,7 @@ import { rebrokerLoad, vettingBlock } from "./fraud.js";
 import { homeEdge, updateHomeCrowding } from "./home.js";
 import { creditDispatch, dispatchProfile, startHomeTime } from "./labor.js";
 import { companyAccount } from "./ledger.js";
-import { bidsFromStandingOrders, boardKey, canMakeHot, dockWaitCost, indexOpenLoads, scoreBid, desperation, estimateBreakEven, resting, trackingWouldShow, needsHome, homeward, hardCap, floorRate, lookaheadValue } from "./standingOrders.js";
+import { bidsFromStandingOrders, boardKey, canMakeHot, dockWaitCost, indexOpenLoads, scoreBid, desperation, estimateBreakEven, resting, trackingWouldShow, needsHome, homeward, hardCap, floorRate, lookaheadValue, ordersWaitForHand } from "./standingOrders.js";
 import { startLoading } from "./trips.js";
 import { setSlot } from "./docks.js";
 import type { Bid, Company, Load, StandingOrder, Truck } from "./types.js";
@@ -257,7 +257,7 @@ export function autoBook(w: World): void {
   for (const company of w.companies) {
     if (company.role !== "carrier" || company.authority.status !== "active") continue;
     const order = company.orders.find((o): o is Extract<StandingOrder, { kind: "bookNow" }> => o.kind === "bookNow");
-    if (!order) continue;
+    if (!order || ordersWaitForHand(w, company)) continue; // the first bid by hand: no booking for the owner either
     const floor = company.orders.find((o): o is Extract<StandingOrder, { kind: "floor" }> => o.kind === "floor");
     const fleet = w.trucksByCompany.get(company.id)!;
     const team = dispatchProfile(w, company, fleet.filter((t) => t.status !== "parked" && t.status !== "listed").length);
@@ -343,6 +343,7 @@ function maybeReposition(w: World, truck: Truck, surplus: Map<string, number>): 
   const company = companyById(w, truck.companyId);
   if (!crewed(truck) || company.authority.status !== "active") return;
   if (resting(w, truck)) return;
+  if (ordersWaitForHand(w, company)) return; // the first bid by hand: the truck waits at home
   // Home time first: a driver due days off starts them if the truck is home. Otherwise the
   // truck keeps taking loads that head home (bids and book-now only consider those) and
   // runs empty only once it's near, or after a couple of days without a homeward load.

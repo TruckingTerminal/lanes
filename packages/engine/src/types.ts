@@ -167,6 +167,8 @@ export interface Company {
   firstOwnedTruckDay: number | null;
   /** First day cash covered a Workhorse + dry van (free-path companies). */
   firstAffordDay: number | null;
+  /** Day of the first bid or booking the owner placed by hand; freeEntry.firstBidByHand holds a one-truck company's standing orders until then. */
+  firstHandBidDay: number | null;
   createdDay: number;
   /** Broker-only loads currently held. */
   openBrokerLoads: number;

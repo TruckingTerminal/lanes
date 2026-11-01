@@ -361,7 +361,9 @@ export function applyAction(w: World, companyId: number, action: Action): Action
       if (load.hot > 0 && !canMakeHot(company, truck)) return { ok: false, reason: "a hot load needs a team" };
       const dh = placeMiles(w, truck.place, load.originPlace);
       if (dh > MANUAL_BID_MAX_DEADHEAD_MI) return { ok: false, reason: `the pickup is more than ${MANUAL_BID_MAX_DEADHEAD_MI} miles away` };
-      return result(bookLoad(w, company, truck, load, dh, true));
+      const booked = bookLoad(w, company, truck, load, dh, true);
+      if (booked === null) company.firstHandBidDay ??= dayOf(w.t, cfg); // a booking by hand is the owner's call too
+      return result(booked);
     }
 
     case "accept_contract":
@@ -757,6 +759,7 @@ export function applyAction(w: World, companyId: number, action: Action): Action
       if (hubMiles(w, truck.hub, load.origin) > MANUAL_BID_MAX_DEADHEAD_MI) return { ok: false, reason: `more than ${MANUAL_BID_MAX_DEADHEAD_MI} miles empty to the pickup` };
       if (!(action.rate > 0)) return { ok: false, reason: "bid a rate per mile above zero" };
       w.manualBids.set(truck.id, { loadId: load.id, rate: action.rate });
+      company.firstHandBidDay ??= dayOf(w.t, cfg); // the owner's first call on the board (freeEntry.firstBidByHand)
       return { ok: true };
     }
 

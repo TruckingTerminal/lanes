@@ -69,6 +69,8 @@ export interface RunReport {
     /** Could afford a Workhorse + dry van within the limit (earnings, ignoring supply). */
     affordWithinLimit: number;
     medianAffordDays: number | null;
+    /** The first bid by hand (freeEntry.firstBidByHand): free starters that bid by hand, and the days their truck waited for it. */
+    handBid: { companies: number; bid: number; medianDays: number | null; meanDays: number | null };
     pass: boolean;
   };
   board: { posted: number; cleared: number; expired: number; fillRate: number; avgClearedRate: number; onTimeShare: number };
@@ -380,6 +382,15 @@ export function buildReport(w: World): RunReport {
   const affordDays = free.map((c) => daysOrNever(c.firstAffordDay, c));
   const affordWithinLimit = affordDays.filter((d) => d <= k.freePathMaxDays).length;
   const medianAffordDays = medianOrNull(affordDays);
+  // The first bid by hand (freeEntry.firstBidByHand): how long a free starter's truck sat before its owner's first bid.
+  const starters = carriers.filter((c) => c.freePath);
+  const handBidDays = starters.filter((c) => c.firstHandBidDay !== null).map((c) => c.firstHandBidDay! - c.createdDay);
+  const handBid = {
+    companies: starters.length,
+    bid: handBidDays.length,
+    medianDays: handBidDays.length ? median(handBidDays) : null,
+    meanDays: handBidDays.length ? sum(handBidDays) / handBidDays.length : null,
+  };
 
   const posted = sum(days.map((d) => d.posted));
   const cleared = sum(days.map((d) => d.cleared));
@@ -513,6 +524,7 @@ export function buildReport(w: World): RunReport {
       medianDays,
       affordWithinLimit,
       medianAffordDays,
+      handBid,
       pass: freePass,
     },
     board: {

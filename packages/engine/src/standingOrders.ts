@@ -91,12 +91,22 @@ export function scoreBid(w: World, ceiling: number, rate: number, reputation: nu
 export const hardCap = (w: World, load: Load) => load.ceiling * w.cfg.board.overCeilingMax;
 
 /**
+ * The first bid by hand (freeEntry.firstBidByHand; sprint 1): a one-truck company's standing orders wait until its
+ * owner has placed a bid or booked a load by hand, and its truck waits at home. A fleet of two or more runs its
+ * dispatcher from the start; a company that bid once stays unlocked, through a restart too.
+ */
+export function ordersWaitForHand(w: World, c: Company): boolean {
+  if (!w.cfg.freeEntry.firstBidByHand || c.role !== "carrier" || c.firstHandBidDay !== null) return false;
+  return (w.trucksByCompany.get(c.id)?.length ?? 0) <= 1;
+}
+
+/**
  * Turns a company's standing orders into sealed bids for its idle trucks. This
  * is the only bidding path, used identically by humans' saved orders and bots.
  */
 export function bidsFromStandingOrders(w: World, company: Company, idx: BoardIndex): Bid[] {
   const bidOrders = company.orders.filter((o): o is Extract<StandingOrder, { kind: "bid" }> => o.kind === "bid");
-  if (bidOrders.length === 0 || company.authority.status !== "active") return [];
+  if (bidOrders.length === 0 || company.authority.status !== "active" || ordersWaitForHand(w, company)) return [];
   const floor = company.orders.find((o): o is Extract<StandingOrder, { kind: "floor" }> => o.kind === "floor");
   const fuel = fuelPrice(w);
   const maxDh = Math.max(...bidOrders.map((o) => o.maxDeadheadMi));

@@ -1198,3 +1198,27 @@ open on the last since crews are off; no crew was hired anywhere; cargo thefts f
 only). The economy sat where 0.19.0 left it: the price $0.0013 → $0.0013 (85 to 137% of launch by seed), the pool
 $72k → $72k, liquidations 652 (640), the free path 45 days, owned trucks 537 (539), 14 shops and 57 truck stops open
 at the end (15 and 55), the strategy gate 1.40×. No crash.
+
+## Sprint 1 (2026-11-02): the first bid by hand
+
+Sprint 0's playtests found the game played itself: the default dispatcher bid for a new player before they had read
+the board. Jeff approved one rule and the economy is otherwise frozen. **`freeEntry.firstBidByHand`** (default off;
+on for beta one with the ruleset bump and a restart with no players): a carrier with one truck runs no standing
+order until its owner has placed a bid or booked a load by hand; its truck waits at home. The first accepted bid
+lifts it for good, win or lose. Fleets of two or more never wait. Bots place their first bid by hand too, reading
+their home board once a day the way a player would (`ruleBots.ts firstBidByHand`), so the batches still run.
+
+**What v55-a showed (the live profile with the switch on, seeds 1, 4, 8, 400 days; `runs/compare-v55.md`, beside
+v55-0, the same profile with it off):** every starter bid by hand and its truck waited one day (the first midnight's
+read of the board). The free path did not slow: the median starter bought its truck in 52 days against 56 with the switch off (45–63
+against 49–69 by seed), 289 against 275 bought within 84 days, liquidations 157 against 147 (131–186 against
+138–166, seeds moving both ways), cleared loads and owned trucks within half a percent. The one-day wait is the
+rule's whole cost in the simulator; what a player does with the wait is the sprint's question, not the economy's.
+
+**The first board** (`apps/sim/src/firstBoard.ts`; `studio/reviews/economy-first-board.md`): at the restart every
+starter hub offers a new authority a profitable open load nearly every round from day 2 (Chicago 100%, Dallas 94%,
+Phoenix 93%, Memphis 88% of rounds over fourteen days); only the first morning is thin (two rounds, Dallas 17%). The
+vetting gate locks half the van loads on the restart's board and almost none after the first week, when the brokered
+freight goes to vetted carriers first; what a newcomer lacks later is price by season (Chicago in May posts 1.2–1.8
+FD/mi against a leased truck's 2.0 break-even; in February it is the best board of the four). No lever moves without
+moving the market; the proposal is to run the world two game days before the page opens, and to keep Phoenix.

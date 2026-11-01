@@ -83,6 +83,7 @@ import { businessesOf, businessPriceFd, sitePriceFd, type BusinessKind } from "@
 import { financedCashNeed, openPurchaseLoans, purchaseTerms, salesTaxOn } from "@lanes/engine";
 import { crewFeeFd, crewOn, crewStakeFd, fenceShareOf, fittingsCut, hubTheftRisk, securityTheftMult } from "@lanes/engine";
 import { depositCredit, lotPrice, npcDealerMult } from "@lanes/engine";
+import { MANUAL_BID_MAX_DEADHEAD_MI, boardKey, canMakeHot, companyById, creditScore, dispatchProfile, estimateBreakEven, floorRate, fuelPrice, hardCap, hubMiles, indexOpenLoads, loadCreditPremium, mayTake, ordersWaitForHand, placeMiles, resting, vettingBlock, type BoardIndex, type Load } from "@lanes/engine";
 
 /**
  * Tier A rule bots (§AI-agent simulation): scripted greedy, conservative and
@@ -755,6 +756,47 @@ function crookery(w: World, c: Company, rng: Rng): void {
 }
 
 /**
+ * The first bid by hand (freeEntry.firstBidByHand; sprint 1): while its standing orders wait, a bot reads its home
+ * board the way a player would and counters on the open load it may take that pays best over its break-even, at the
+ * price its bid order would ask, through place_bid like a player. The bid clears at the next round; the orders run
+ * from then on, win or lose. A board with nothing it may take at a profit leaves the truck waiting another day.
+ */
+function firstBidByHand(w: World, c: Company, p: BotProfile, idx: BoardIndex): void {
+  const pricing = p.pricing;
+  if (!pricing || c.authority.status !== "active") return;
+  const truck = w.trucksByCompany.get(c.id)!.find((t) => t.status === "idle" && crewed(t) && !resting(w, t));
+  if (!truck || w.manualBids.has(truck.id)) return;
+  const fuel = fuelPrice(w);
+  const team = dispatchProfile(w, c, 1);
+  const floor = c.orders.find((o): o is Extract<StandingOrder, { kind: "floor" }> => o.kind === "floor");
+  const maxDh = Math.min(p.maxDeadheadMi, MANUAL_BID_MAX_DEADHEAD_MI);
+  let best: { load: Load; rate: number; profit: number } | null = null;
+  for (const hub of w.net.nearby[truck.hub]!) {
+    if (hubMiles(w, truck.hub, hub) > maxDh + w.cfg.commodities.placeSlackMi) break; // nearby is sorted nearest first
+    const loads = idx.get(boardKey(hub, truck.trailer));
+    if (!loads) continue;
+    for (const load of loads) {
+      if (load.status !== "open" || hubMiles(w, truck.hub, load.origin) > MANUAL_BID_MAX_DEADHEAD_MI) continue;
+      const dh = placeMiles(w, truck.place, load.originPlace);
+      if (dh > maxDh) continue;
+      if (load.brokerId === c.id || load.doubleBroker?.companyId === c.id) continue;
+      if (!mayTake(w, c, load) || vettingBlock(w, c, load) !== null) continue;
+      if (load.brokerId !== null && creditScore(w, companyById(w, load.brokerId)) < c.minBrokerCredit) continue; // no paper below the floor
+      if (load.hot > 0 && !canMakeHot(c, truck)) continue;
+      const be = estimateBreakEven(w, truck, load, dh, fuel, team);
+      const least = floorRate(w, load, be, floor, 0);
+      const ask = (pricing.mode === "ceilingPct" ? load.ceiling * pricing.value : be * (1 + pricing.value)) * (1 + loadCreditPremium(w, load.brokerId));
+      const rate = Math.max(least, Math.min(ask, hardCap(w, load)));
+      if (!(rate > 0)) continue;
+      const profit = (rate - be) * load.miles;
+      if (profit <= 0) continue;
+      if (!best || profit > best.profit || (profit === best.profit && load.id < best.load.id)) best = { load, rate, profit };
+    }
+  }
+  if (best) applyAction(w, c.id, { type: "place_bid", truckId: truck.id, loadId: best.load.id, rate: best.rate });
+}
+
+/**
  * Cuts the price when idle trucks keep losing, raises it when they keep winning.
  * In crowded hubs this pushes rates toward cost, so less FD is created per load.
  */
@@ -1303,6 +1345,9 @@ export const ruleBotHook: DailyAgentHook = (w) => {
   const capped = !live && cfg.token.enabled && cfg.token.betaAiFleetCap !== null;
   const botIds = capped ? w.companies.filter((c) => !c.strategy.startsWith("player:")).map((c) => c.id) : [];
   const grow = () => !capped || aiFleet(w) + botIds.reduce((s, id) => s + ordersOf(w, id).length, 0) < w.aiFleetStart * cfg.token.betaAiFleetCap!;
+  // The first bid by hand (freeEntry.firstBidByHand): the open board, indexed once, for the bots whose orders wait.
+  let openIdx: BoardIndex | null = null;
+  const boardIdx = () => (openIdx ??= indexOpenLoads(w));
 
   for (const c of w.companies) {
     const p = profiles.get(c);
@@ -1339,6 +1384,7 @@ export const ruleBotHook: DailyAgentHook = (w) => {
     }
 
     if (c.role === "carrier") {
+      if (ordersWaitForHand(w, c)) firstBidByHand(w, c, p, boardIdx());
       adaptPricing(w, c, p);
       recordOperating(c, p, dayOf(w.t, cfg));
       setConduct(w, c, p);

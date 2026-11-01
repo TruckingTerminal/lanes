@@ -115,6 +115,9 @@ import { dayOf } from "../src/clock.js";
 import { dockWaitTheft } from "../src/trips.js";
 import type { Contract } from "../src/types.js";
 import { COMMODITY_INDEX } from "@lanes/data";
+import { ordersWaitForHand } from "../src/standingOrders.js";
+import { hubMiles } from "../src/world.js";
+import type { StandingOrder } from "../src/types.js";
 
 const net = buildNetwork(hubs, cfg);
 /** Same economy with breakdowns switched off, for tests that time trips exactly. */
@@ -3538,5 +3541,101 @@ describe("the Back Lot v2 (2026-11-01, Jeff's morning rules): crews off the lot'
     runDays(w, 1);
     expect(heatOf(hirer)).toBeCloseTo(50 - k.decayPerDay - k.decayPerDay * k.quietMult, 3);
     w.ledger.assertBalanced();
+  });
+});
+
+describe("the first bid by hand (sprint 1, 2026-11-02): a one-truck company's standing orders wait for the owner's first bid", () => {
+  const byHand: EconomyConfig = { ...calm, freeEntry: { ...calm.freeEntry, firstBidByHand: true } };
+  // The web's default dispatcher, in short: a counter at break-even + 25%, a floor, a reposition toward open freight, a book-now at +20%.
+  const orders: StandingOrder[] = [
+    { kind: "bid", maxDeadheadMi: 150, price: { mode: "breakEvenPlus", pct: 0.25 } },
+    { kind: "floor", breakEvenPlusPct: 0.05 },
+    { kind: "reposition", afterIdleRounds: 1, to: { openLoadsWithinMi: 400 } },
+    { kind: "bookNow", breakEvenPlusPct: 0.2, maxDeadheadMi: 150 },
+  ];
+  const dal = net.hubs.findIndex((h) => h.id === "DAL");
+  const starter = (w: World) => formCompany(w, { name: "Starter", role: "carrier", homeHubId: "DAL", strategy: "player:test", human: true, orders, freePath: true });
+  /** An open van load on a hub's longest lane at 10 FD/mi, book-now included: it beats every NPC load on the board. */
+  const richLoad = (w: World, origin = dal) => {
+    const lane = net.lanesFrom[origin]!.reduce((a, b) => (b.miles > a.miles ? b : a));
+    const load = testLoad(w, lane);
+    w.loads.set(load.id, load);
+    return load;
+  };
+  // Oklahoma City: 203 road miles from Dallas, past the dispatcher's 150-mile reach and inside the reposition order's 400.
+  const okc = net.hubs.findIndex((h) => h.id === "OKC");
+
+  it("keeps the orders inert, the book-now closed and the truck at home until the owner bids by hand, then runs them", () => {
+    const w = createWorld({ cfg: byHand, net, feeds: neutralFeeds, seed: 61 });
+    const c = starter(w);
+    const truck = w.trucksByCompany.get(c.id)![0]!;
+    expect(ordersWaitForHand(w, c)).toBe(true);
+    const load = richLoad(w);
+    runDays(w, 6 / 24); // book-now checks at 02:00 and 04:00, then the 06:00 round
+    expect(load.status).toBe("open");
+    expect(truck.status).toBe("idle");
+    expect(c.bidStats.truckRounds).toBe(0);
+    // A loaded board next door doesn't move the truck either: it waits at home.
+    expect(hubMiles(w, dal, okc)).toBeGreaterThan(150);
+    for (let i = 0; i < 3; i++) richLoad(w, okc);
+    runDays(w, 12 / 24); // the 18:00 round: two rounds idle, the reposition order would fire
+    expect(truck.status).toBe("idle");
+    expect(truck.hub).toBe(dal);
+    // Changing the dispatcher isn't a bid.
+    expect(applyAction(w, c.id, { type: "set_standing_orders", orders })).toEqual({ ok: true });
+    expect(ordersWaitForHand(w, c)).toBe(true);
+    // The owner's first bid lifts the gate, win or lose: cancelled before the round, the dispatcher still takes over.
+    expect(applyAction(w, c.id, { type: "place_bid", truckId: truck.id, loadId: load.id, rate: 6 })).toEqual({ ok: true });
+    expect(c.firstHandBidDay).toBe(0);
+    expect(ordersWaitForHand(w, c)).toBe(false);
+    expect(applyAction(w, c.id, { type: "cancel_bid", truckId: truck.id })).toEqual({ ok: true });
+    runDays(w, 12 / 24); // to the next 06:00 round: booked, loaded and on the road by now
+    expect(load.status).not.toBe("open");
+    expect(load.carrierId).toBe(c.id);
+    expect(truck.loadId).toBe(load.id);
+  });
+
+  it("with the switch off, or with a second truck, the dispatcher runs from the first round, and runs the truck empty to freight", () => {
+    const off = createWorld({ cfg: calm, net, feeds: neutralFeeds, seed: 62 });
+    const a = starter(off);
+    expect(ordersWaitForHand(off, a)).toBe(false);
+    const loadA = richLoad(off);
+    runDays(off, 6 / 24);
+    expect(loadA.status).not.toBe("open");
+    expect(loadA.carrierId).toBe(a.id);
+
+    const two = createWorld({ cfg: byHand, net, feeds: neutralFeeds, seed: 63 });
+    const b = starter(two);
+    addTruck(two, b, "owned", "workhorse", "van");
+    expect(ordersWaitForHand(two, b)).toBe(false);
+    const loadB = richLoad(two);
+    runDays(two, 6 / 24);
+    expect(loadB.status).not.toBe("open");
+    expect(loadB.carrierId).toBe(b.id);
+
+    const roam = createWorld({ cfg: calm, net, feeds: neutralFeeds, seed: 64 });
+    const r = starter(roam);
+    const truck = roam.trucksByCompany.get(r.id)![0]!;
+    for (let i = 0; i < 3; i++) richLoad(roam, okc);
+    runDays(roam, 6 / 24);
+    expect(truck.status).toBe("repositioning");
+  });
+
+  it("bots place their first bid by hand, the way a player would, so their companies don't stall", () => {
+    const w = createWorld({ cfg: byHand, net, feeds: neutralFeeds, seed: 65 });
+    populate(w, { freeOwnerOperators: 60, fleets: 10, brokers: 6 });
+    const starters = w.companies.filter((c) => c.freePath);
+    expect(starters.every((c) => ordersWaitForHand(w, c))).toBe(true);
+    runDays(w, 2, ruleBotHook); // day 0's rounds pass the starters by; the hook at midnight bids; day 1's rounds clear
+    const bid = starters.filter((c) => c.firstHandBidDay !== null);
+    expect(bid.length).toBeGreaterThan(starters.length / 2);
+    for (const c of bid) expect(c.firstHandBidDay).toBeLessThanOrEqual(1);
+    expect(starters.some((c) => c.bidStats.wins > 0)).toBe(true);
+    // With the switch off nobody bids by hand: the orders did it.
+    const off = createWorld({ cfg: calm, net, feeds: neutralFeeds, seed: 65 });
+    populate(off, { freeOwnerOperators: 60, fleets: 10, brokers: 6 });
+    runDays(off, 2, ruleBotHook);
+    expect(off.companies.every((c) => c.firstHandBidDay === null)).toBe(true);
+    expect(off.companies.filter((c) => c.freePath && c.bidStats.wins > 0).length).toBeGreaterThan(0);
   });
 });

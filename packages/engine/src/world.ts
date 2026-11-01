@@ -562,6 +562,7 @@ export function formCompany(w: World, c: NewCompany): Company {
     lanePairToday: new Map(),
     firstOwnedTruckDay: null,
     firstAffordDay: null,
+    firstHandBidDay: null,
     createdDay: day,
     openBrokerLoads: 0,
     bidStats: { truckRounds: 0, wins: 0 },

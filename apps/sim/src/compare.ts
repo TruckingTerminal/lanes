@@ -316,6 +316,10 @@ rows.push(
   ["Token: newcomers after launch", (rs) => range(rs.map((r) => r.realMoney?.token?.newCompanies ?? NaN).filter(Number.isFinite), n0)],
   ["Free path: bought within 84 days (of all free starters)", (rs) => range(rs.map((r) => r.freePath.withinLimit), n0)],
   ["Free path median days (seeds where half bought)", (rs) => range(rs.map((r) => r.freePath.medianDays ?? NaN).filter(Number.isFinite), n0)],
+  [
+    "First bid by hand: free starters that bid / median and mean days the truck waited",
+    (rs) => (rs.some((r) => r.freePath.handBid?.bid) ? `${range(rs.map((r) => r.freePath.handBid.bid), n0)} of ${range(rs.map((r) => r.freePath.handBid.companies), n0)} / ${range(rs.map((r) => r.freePath.handBid.medianDays ?? NaN).filter(Number.isFinite), n0)} / ${range(rs.map((r) => r.freePath.handBid.meanDays ?? NaN).filter(Number.isFinite), (x) => x.toFixed(1))}` : "off"),
+  ],
   ["Top strategy vs segment median", (rs) => range(rs.map((r) => r.strategies[0]?.vsMedian ?? 0), x2)],
   // Staff, safety and fraud (config 0.9.0). Older runs have none of these fields.
   ["Crashes (fatal / at fault / willful)", (rs) => {
