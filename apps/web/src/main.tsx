@@ -102,6 +102,8 @@ async function boot(): Promise<void> {
   installTheme();
   loadTheme();
   loadWalkHidden();
+  // A phone opens on the panel (the map is one tap away); a wide screen on the split view.
+  if (window.matchMedia("(max-width: 760px)").matches) S.layout = "panel";
   whenAssetsReady(() => bumpData());
   truckSheet();
   setDefaultOrders(() => DEFAULT_ORDERS);
@@ -150,12 +152,21 @@ async function enterLive(meta: WorldMeta): Promise<void> {
   else showGame(lw);
 }
 
+/** The test build always opens on the title (Jeff, 2026-11-01); a world saved in this browser gets a Continue button there. */
 async function bootTest(): Promise<void> {
   S.platform = { db: null, uid: null, owner: true, local: true };
   const log = readTest();
+  S.savedTest = log && log !== "stale" ? { name: log.name, day: Math.floor(log.t / 1440) } : null;
+  showTitle({ kind: "test" });
+  if (log === "stale") toast("The rules changed since your last visit, so your old test world can't be replayed. Start a new one.");
+}
+
+/** Replays the saved test world (the title's Continue button). */
+async function continueTest(): Promise<void> {
+  const log = readTest();
   if (!log || log === "stale") {
+    S.savedTest = null;
     showTitle({ kind: "test" });
-    if (log === "stale") toast("The rules changed since your last visit, so your old test world can't be replayed. Start a new one.");
     return;
   }
   showLoading("Loading your test world", "Replaying its history in this browser.");
@@ -166,6 +177,7 @@ async function bootTest(): Promise<void> {
       S.loadShare = share;
     });
   } catch {
+    S.savedTest = null;
     showTitle({ kind: "test" });
     toast("Your saved test world couldn't be replayed, so it was set aside. Start a new one.", true);
     return;
@@ -179,6 +191,11 @@ async function bootTest(): Promise<void> {
 }
 
 function wireHandlers(): void {
+  H.continueTest = () => void continueTest();
+  H.showMenu = () => {
+    if (!S.game) return;
+    showTitle(S.game.kind === "test" && !S.live ? { kind: "test" } : { kind: "menu" });
+  };
   H.openTest = (name: string, start: StartKind, hub: string) => {
     const t = new TestGame(name, start, hub);
     S.test = t;

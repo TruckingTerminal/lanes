@@ -30,7 +30,8 @@ export type TitleMenu =
   | { kind: "openworld" }
   | { kind: "update"; theirs: string }
   | { kind: "join" }
-  | { kind: "test" };
+  | { kind: "test" }
+  | { kind: "menu" };
 export type Screen = { kind: "title"; menu: TitleMenu } | { kind: "loading"; title: string; note: string } | { kind: "game" };
 
 export const S = {
@@ -55,6 +56,8 @@ export const S = {
   /** The market view's trailer type. */
   ratesEq: "van" as Equipment,
   guidePage: "start",
+  /** The test build: the world saved in this browser, for the title's Continue button (name and the day it reached). */
+  savedTest: null as { name: string; day: number } | null,
   /** The walkthrough card (walkthrough.ts): hidden by the player for this browser; the step being read ahead, or null for the current one. */
   walkHidden: false,
   walkView: null as number | null,

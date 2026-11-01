@@ -266,6 +266,44 @@ table.mini td:first-child { font-family: inherit; }
   .detail { grid-template-columns: 1fr; }
   .tabs .btn span { display: none; }
 }
+/* Phones (Jeff, 2026-11-01: "not optimized for mobile at all"): one column, the panel first and the map one tap away,
+   bigger type and targets, the page scrolling instead of boxes inside it, tab labels back. */
+@media (max-width: 760px) {
+  html { -webkit-text-size-adjust: 100%; }
+  body { font-size: 15px; line-height: 1.5; }
+  h2 { font-size: 20px; }
+  h3 { font-size: 16px; }
+  .small { font-size: 14px; }
+  .label { font-size: 11px; }
+  .btn { min-height: 42px; padding: 8px 12px; font-size: 12px; }
+  .btn.sm { min-height: 36px; padding: 6px 10px; font-size: 11px; }
+  input, select, textarea { font-size: 16px; min-height: 40px; }
+  .board { grid-template-columns: minmax(0, 1fr); padding: 6px 8px; gap: 8px; }
+  .board.split .mapwrap { height: auto; aspect-ratio: 4 / 3; }
+  .board.map .mapwrap { height: auto; aspect-ratio: 3 / 4; }
+  .panelbox, .board.panel .panelbox { max-height: none; overflow: visible; padding-right: 0; }
+  .tabs { gap: 0; }
+  .tabs .btn { flex: 0 0 auto; min-width: 64px; min-height: 56px; padding: 6px 6px; }
+  .tabs .btn span { display: inline; font-size: 9px; letter-spacing: 0.04em; }
+  .tabs .btn img.px { width: 26px; height: 26px; }
+  .topbar { gap: 6px 8px; padding: 6px 8px; }
+  .brand img.px { height: 24px; }
+  .brand .sub { display: none; }
+  .stats { gap: 8px; margin-left: 0; width: 100%; }
+  .stat { font-size: 13px; }
+  .speeds .btn { min-width: 40px; }
+  .ticker { font-size: 12px; padding: 4px 8px; }
+  .kv { grid-template-columns: max-content 1fr; gap: 4px 10px; }
+  .truckhead { grid-template-columns: 1fr; }
+  .card { padding: 10px; }
+  .menu { width: 100%; }
+  .menu .card { padding: 12px; }
+  .title { padding: 8px 8px 24px; gap: 10px; }
+  .walkbody { flex-direction: column; }
+  .walkbody .portrait { align-self: flex-start; }
+  table { display: block; width: 100%; overflow-x: auto; }
+  .row { gap: 6px; }
+}
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }
 </style>
 <div id="app"></div>

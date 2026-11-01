@@ -9,4 +9,8 @@ export const H = {
   takeover: (): void => {},
   join: (_name: string, _hub: string): void => {},
   showTestMenu: (): void => {},
+  /** The test build: replay the world saved in this browser (the title shows a Continue button when there is one). */
+  continueTest: (): void => {},
+  /** The Menu button in the top bar: the title screen, with the game still running underneath. */
+  showMenu: (): void => {},
 };

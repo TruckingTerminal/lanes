@@ -143,6 +143,8 @@ function TitleScreen(): JSX.Element {
           </Card>
         ) : m.kind === "join" ? (
           <JoinMenu />
+        ) : m.kind === "menu" ? (
+          <MenuCard />
         ) : (
           <TestMenu />
         )}
@@ -154,6 +156,24 @@ function TitleScreen(): JSX.Element {
 
 function TestButton(): JSX.Element | null {
   return S.platform.owner ? <Btn onClick={H.showTestMenu}>Test world (private, pausable)</Btn> : null;
+}
+
+/** The Menu button's title: the game keeps running underneath. */
+function MenuCard(): JSX.Element {
+  const g = S.game;
+  return (
+    <section class="card stack">
+      <h2>Menu</h2>
+      <p>{g?.kind === "live" ? "The live world keeps running while you're here." : "Your test world is paused while you're here."}</p>
+      <div class="row">
+        <Btn primary onClick={g?.kind === "live" ? H.backToLive : H.backToTest}>
+          Back to the game
+        </Btn>
+        {g?.kind === "live" ? <TestButton /> : null}
+        {g?.kind === "test" && S.live ? <Btn onClick={H.backToLive}>Back to the live world</Btn> : null}
+      </div>
+    </section>
+  );
 }
 
 function StarterOptions(): JSX.Element {
@@ -267,7 +287,21 @@ function TestMenu(): JSX.Element {
   return (
     <form class="card stack" onSubmit={submit}>
       <h2>Test world</h2>
-      <p>{TEST_BUILD ? "The full game with only you and the AI in it, plus pause and speed controls for testing. Your world stays in this browser; starting a new one replaces it." : "A private copy of the rules with only you and the AI in it. You can pause it and run it fast. It isn't stored and doesn't touch the live world."}</p>
+      {S.test ? (
+        <div class="row">
+          <Btn primary onClick={H.backToTest}>
+            Back to {S.test.player?.name ?? "your world"}
+          </Btn>
+          {S.live ? <Btn onClick={H.backToLive}>Back to the live world</Btn> : null}
+        </div>
+      ) : S.savedTest ? (
+        <div class="row">
+          <Btn primary onClick={H.continueTest}>
+            Continue: {S.savedTest.name}, day {S.savedTest.day + 1}
+          </Btn>
+        </div>
+      ) : null}
+      <p>{TEST_BUILD ? `The full game with only you and the AI in it, plus pause and speed controls for testing. Your world stays in this browser${S.savedTest || S.test ? "; starting a new one below replaces it" : ""}.` : "A private copy of the rules with only you and the AI in it. You can pause it and run it fast. It isn't stored and doesn't touch the live world."}</p>
       <div class="field">
         <label class="label" for="tname">
           Company name
@@ -467,6 +501,9 @@ function TopBar(): JSX.Element {
         </span>
         <span class="sub">{g.kind === "test" ? "Test world" : "Live world"}</span>
       </div>
+      <Btn sm title="The title screen; the game keeps running" onClick={H.showMenu}>
+        Menu
+      </Btn>
       <Clock />
       {g.kind === "test" ? (
         <>
