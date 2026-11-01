@@ -43,7 +43,7 @@ export function Walkthrough(): JSX.Element | null {
         <div class="walkbody">
           <Iuliia mood="laugh" />
           <div>
-            <p class="small">Every step on my clipboard is ticked, in pen. Standing orders run the trucks while you sleep, the Guide has every system and every number, and the locked tabs are what comes next. I'll still be here when something breaks. Something always breaks; that's not pessimism, that's maintenance.</p>
+            <p class="small">Every step on my clipboard is ticked, in ink. Standing orders run the trucks while you sleep, the Guide has every system and every number, and the locked tabs are what comes next. I'll still be here when something breaks. Something always breaks; that isn't pessimism, that's maintenance.</p>
             <div class="row">
               <Btn sm ghost onClick={() => browse(total - 1)}>Back</Btn>
             </div>
