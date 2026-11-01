@@ -200,7 +200,7 @@ export function townKindAt(lon: number, lat: number, nearWater: boolean): TownKi
 }
 
 let titlePic: Pic | null = null;
-/** The title's long loop (assets/title/title.loop.png, 40 frames of 256 × 144 in 8 columns) once decoded. */
+/** The title's long loop (assets/title/title.loop.png, 96 frames of 256 × 144 in 12 columns) once decoded. */
 export function titleLoop(): HTMLImageElement | null {
   if (!titlePic) {
     if (!hasAsset("title/title.loop.png")) return null;
@@ -209,7 +209,8 @@ export function titleLoop(): HTMLImageElement | null {
   }
   return titlePic.ready ? titlePic.img : null;
 }
-export const TITLE_LOOP = { frames: 40, cols: 8, fps: 12 };
+/** A side-view parallax (tools/title-parallax.py) whose last frame leads into its first, so nothing crossfades. */
+export const TITLE_LOOP = { frames: 96, cols: 12, fps: 24, fade: 0 };
 
 let loadingPic: Pic | null = null;
 /** The loading screen's rig strip (16 frames of 256 × 72) once it has decoded. */

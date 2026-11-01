@@ -30,11 +30,12 @@ people() {
   "${P[@]}" image "pixel art portrait of a warehouse dock worker, head and shoulders, yellow hard hat, yellow safety vest over a brown shirt, holding a clipboard, facing the viewer, game character portrait" 64 64 apps/web/assets/people/dockworker.png --transparent --palette --detail high
 }
 
-# Block A of ASSET-PLAN.md: the Pro title scene (the style anchor) and its 16-frame loop.
+# Block A of ASSET-PLAN.md: the Pro title scene, the style anchor every painterly asset copies. It no longer ships as
+# the title screen: its loops streamed the road while nothing beside it moved (Jeff, 2026-11-01), and the screen is
+# now the side-view parallax (titleparallax below).
 title() {
   mkdir -p apps/web/assets/title
   "${P[@]}" pro "highly detailed HD pixel art, painterly shading, cinematic wide title screen: a cyan long-nose semi truck with a white trailer driving toward the viewer on a two-lane desert highway at dusk, a roadside diner with a glowing neon sign, telephone poles, red mesas on the horizon, a saturated orange and purple sunset sky with a few stars, long warm shadows" 256 144 apps/web/assets/title/title.png
-  "${P[@]}" animate apps/web/assets/title/title.png "the semi truck rolls slowly forward along the highway with its wheels turning and headlights glowing, clouds drift slowly across the sunset sky, the neon diner sign flickers and buzzes, heat shimmer rises off the road, a seamless loop that ends where it began" apps/web/assets/title/loop --frames 16 --view side --direction east --subject "a cyan long-nose semi truck with a white trailer on a desert highway at dusk beside a neon diner"
 }
 
 # Style samples (not shipped): isometric tycoon scenes in the painterly hand, for Jeff's 2026-10-29 look.
@@ -176,6 +177,31 @@ for mood, frame in (("point", 7), ("laugh", 6), ("wave", 6)):
 EOF
 }
 
+# The title screen (Jeff, 2026-11-01: "the road looks like the truck is driving but nothing in the background is
+# moving"): layers for tools/title-parallax.py, which holds the truck in place while the world streams past at speeds
+# set by distance and writes 96 frames at 24 fps that close without a crossfade. The painter draws the rig facing
+# left whatever the prompt says, so it is mirrored before it rolls.
+titleparallax() {
+  local st=apps/web/assets/title/title.png l=apps/web/assets/title/parallax
+  mkdir -p $l
+  "${P[@]}" pro "$HD: a wide desert landscape at dusk seen straight from the side, a saturated orange and purple sunset sky with long streaks of cloud and a few early stars near the top, red-purple mesas and buttes standing along the horizon across the lower middle, the flat empty desert floor in the bottom third, no road, no buildings, no poles, no vehicles, no people" 256 144 $l/back.png --style "$st" --seed 502479405 &
+  "${P[@]}" pro "$HD: side view of a small retro American roadside diner at dusk, a long low building with a row of warm lit windows and a chrome stripe, a glowing pink neon coffee cup sign on its roof, a strip of gravel lot, seen straight from the side, isolated on a transparent background" 112 64 $l/diner.png --style "$st" --transparent --seed 547048965 &
+  "${P[@]}" pro "$HD: a sprite sheet of separate desert plants seen from the side at dusk: round sagebrush bushes, dry grass tufts, a small saguaro cactus, a prickly pear cactus, small rocks and a tumbleweed, each one separate with empty space between them, isolated on a transparent background" 256 64 $l/scrub.png --style "$st" --transparent --seed 1367072652 &
+  "${P[@]}" pro "$HD: side view of $TRUCK in cyan paint pulling a white 53-foot dry van trailer, facing right, headlights and amber marker lights glowing, big black tires with chrome rims, seen straight from the side, isolated on a transparent background" 128 48 $l/rig-left.png --style "$st" --transparent --seed 1233878948 &
+  wait
+  python3 - <<'EOF'
+import importlib.util
+spec = importlib.util.spec_from_file_location("pm", "apps/web/tools/paint-map.py")
+pm = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(pm)
+l = "apps/web/assets/title/parallax"
+pm.write_png(f"{l}/rig.png", pm.read_png(f"{l}/rig-left.png")[:, ::-1].copy())
+EOF
+  "${P[@]}" animate $l/rig.png "the wheels turn, the truck bobs gently on its suspension as if rolling down the highway, a thin trail of exhaust drifts back from the stacks, a seamless loop that ends where it began, the truck stays in the same place and keeps its shape and colours" $l/rig-loop --frames 16 --view side --direction east --transparent --seed 4293338680
+  python3 apps/web/tools/pack-loop.py $l/rig-loop $l/rig.loop.png --cols 16
+  python3 apps/web/tools/title-parallax.py
+}
+
 case "$want" in
   rigs) rigs ;;
   scenes) scenes ;;
@@ -191,6 +217,7 @@ case "$want" in
   placespro) placespro ;;
   placesloops) placesloops ;;
   iuliia) iuliia ;;
+  titleparallax) titleparallax ;;
   all) rigs; scenes; people; title ;;
 esac
 "${P[@]}" balance

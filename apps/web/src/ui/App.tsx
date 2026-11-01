@@ -65,15 +65,14 @@ function TitleScene(): JSX.Element {
           ctx.imageSmoothingEnabled = false;
           const sheet = reduced ? null : titleLoop();
           if (sheet) {
-            // The long loop: 40 frames at 12 fps from the sheet next to the page, the last six
-            // frames crossfading into the first six so the wrap never jumps.
-            const { frames, cols, fps } = TITLE_LOOP;
+            // The long loop from the sheet next to the page (TITLE_LOOP). A loop that doesn't close
+            // crossfades its last `fade` frames into its first; the parallax loop closes, so its fade is 0.
+            const { frames, cols, fps, fade } = TITLE_LOOP;
             const i = Math.floor((t * fps) / 1000) % frames;
             const cell = (n: number) => [(n % cols) * TITLE_FRAME_W, Math.floor(n / cols) * TITLE_FRAME_H] as const;
             const [sx, sy] = cell(i);
             ctx.drawImage(sheet, sx, sy, TITLE_FRAME_W, TITLE_FRAME_H, 0, 0, cv.width, cv.height);
-            const fade = 6;
-            if (i >= frames - fade) {
+            if (fade > 0 && i >= frames - fade) {
               const [fx, fy] = cell(i - (frames - fade));
               ctx.globalAlpha = (i - (frames - fade) + 1) / (fade + 1);
               ctx.drawImage(sheet, fx, fy, TITLE_FRAME_W, TITLE_FRAME_H, 0, 0, cv.width, cv.height);
