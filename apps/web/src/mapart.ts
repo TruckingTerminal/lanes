@@ -199,23 +199,6 @@ export function townKindAt(lon: number, lat: number, nearWater: boolean): TownKi
   return "plains";
 }
 
-const titlePics = new Map<string, Pic>();
-/** A picture of the title's shots next to the page (assets/title/<name>, title.ts) once decoded, else null. */
-export function titlePicture(name: string): HTMLImageElement | null {
-  let p = titlePics.get(name);
-  if (!p) {
-    if (!hasAsset(`title/${name}`)) return null;
-    p = { src: `${ASSETS}title/${name}`, img: null, ready: false };
-    titlePics.set(name, p);
-    load(p);
-  }
-  return p.ready ? p.img : null;
-}
-/** The title's side-view loop (assets/title/title.loop.png, 96 frames of 256 × 144 in 12 columns) once decoded. */
-export const titleLoop = (): HTMLImageElement | null => titlePicture("title.loop.png");
-/** A side-view parallax (tools/title-parallax.py) whose last frame leads into its first, so it simply repeats. */
-export const TITLE_LOOP = { frames: 96, cols: 12, fps: 24 };
-
 let loadingPic: Pic | null = null;
 /** The loading screen's rig strip (16 frames of 256 × 72) once it has decoded. */
 export function loadingStrip(): HTMLImageElement | null {
