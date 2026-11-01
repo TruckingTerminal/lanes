@@ -1,0 +1,13 @@
+# Backlog (the producer's; Jeff sets the order)
+
+## Sprint 0 (2026-11-02): the slop audit and the bible
+- QA: play the test page as two personas, phone and laptop; `playtests/2026-11-02-slop-audit.md`.
+- UX: the screen audit and the first-ten-minutes proposal; `specs/first-ten-minutes.md`.
+- Director: bible draft 1 from the existing docs and Jeff's words, with the cut list and the questions; `BIBLE.md`.
+- Art: a style note on what in the client fights the pixel art; `reviews/art-style-note.md`.
+
+## Next (in Jeff's order, to confirm)
+- The first ten minutes, built: cut tabs, one voice, feedback on every action.
+- The authoritative server with accounts by email (engineering, a sprint of its own).
+- A Discord for the beta; the gauges dashboard.
+- The live world's restart on beta one and the republish with Iuliia and the report rule.
