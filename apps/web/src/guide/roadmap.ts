@@ -13,12 +13,12 @@ export function roadmapPages(cfg: EconomyConfig): GuidePage[] {
       section: S,
       title: "What's live, what's next",
       html:
-        p(`LANES is built in layers, each one tested in the simulator against bots before it reaches players. The beta you're in runs the hauling game end to end; the locked tabs are the layers that follow, shown so you can see where this goes. Each opens on a published day of the ladder.`) +
+        p(`LANES is built in layers, each one tested in the simulator against bots before it reaches players. The beta you're in runs the hauling game end to end, and the layers below are open in it; the locked tabs are the ones still on the drawing board, shown so you can see where this goes. From the token's launch the ladder opens each layer again on a published day, so the market settles before the deeper games begin.`) +
         ul([
           `<b>Live now:</b> the freight market, your trucks and trailers, docks, weather and terrain, parking, theft in the corridors, the used lot, loans, staff, the businesses and the yard, Miles.`,
-          `<b>Businesses and facilities</b> open ${L.businesses.afterDays} game days after the token's launch (${weeks(L.businesses.afterDays)}): shops, fuel stations, truck stops, dealerships, warehouses that ship their own freight.`,
-          `<b>Re-brokering</b> opens at ${L.brokerage.afterDays} game days (${weeks(L.brokerage.afterDays)}): a licence, a bond, and the right to post loads for other carriers.`,
-          `<b>The Back Lot</b> opens at ${L.robbery.afterDays} game days (${weeks(L.robbery.afterDays)}): crews for hire off a board, a fence and a chop shop with a demand list, bounties, heat. Player against player, in the open, and the law watching.`,
+          `<b>Businesses and facilities</b> reopen ${L.businesses.afterDays} game days after the token's launch (${weeks(L.businesses.afterDays)}): shops, fuel stations, truck stops, dealerships, warehouses that ship their own freight.`,
+          `<b>Re-brokering</b> reopens at ${L.brokerage.afterDays} game days (${weeks(L.brokerage.afterDays)}): a licence, a bond, and the right to post loads for other carriers.`,
+          `<b>The Back Lot</b> comes at ${L.robbery.afterDays} game days after the launch (${weeks(L.robbery.afterDays)}), once it leaves the simulator: crews for hire off a board, a fence and a chop shop with a demand list, bounties, heat. Player against player, in the open, and the law watching.`,
           `<b>The token's launch</b> ends the farming season: Miles become the airdrop, paid into the game and unlocked by the Logbook's milestones; FD leaves the game only through the bridge, with its timer and its tax.`,
           `<b>Later:</b> the authoritative server and accounts by email, the Monthly Economic Report, new territory when the hubs are crowded.`,
         ]) +
