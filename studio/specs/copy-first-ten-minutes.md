@@ -1,27 +1,23 @@
-# Copy: the first ten minutes (writer, draft 3, 2026-11-02; against UX draft 3, with the director's corrections)
+# Copy: the first ten minutes (writer, draft 4, 2026-11-02; against UX draft 4)
 
 Every string on sprint 1's screens, keyed to `specs/first-ten-minutes.md`. `{key}` is read from `economy.config.ts`, never typed; `{x}` without a key is a value from the world. Sentence case; terms per `copy-audit.md`. A string not listed stays as it is. Tabs: Truck · Loads · Money · More; "the board" is the thing on Loads, never a label.
 
-## S0 Title and forms
+## S0 Login
+
+Nothing to read: the title loop and one button. Connection states live on the button, never in a card.
 
 | Where | String |
 |---|---|
-| Tagline, live | One shared world, on the real clock. You start with one leased truck. |
-| Tagline, test build | Test build: the whole game against the AI, with pause and speed controls. |
-| Join card title / lead | Join the live world / One world, shared by every player, on the real clock: a game day every `{time.realHoursPerGameDayLive}` real hours. It never pauses, nothing resets, every order stands. |
-| Fields | Company name ("Lone Star Freight") · Home hub |
-| Hub card, line 2 | `{hub}` · `{few / a fair share of / many}` carriers (the season line below replaces "freight strong / even / thin", so a card never says freight twice) |
-| Hub card, line 3: the season | One line, on every hub card, the three starters and the "Change" list alike. `{month}` is the game calendar's current month, spelled out ("May", "September"), never the real one. The state is the economy designer's measure for that hub and month, with thresholds as config keys they name; the writer only owns the words. |
-| · thin | Freight is thin here in `{month}`. A new carrier waits. |
-| · a little thin | A little thin in `{month}`; the good loads go early. |
-| · fine | Freight is good here in `{month}`. |
-| Change | Change (opens the full hub list; each row carries its season line) |
-| Start line | Everyone starts the same way: one leased Workhorse with a dry van, `{company.startingGrantFd}` FD, and you driving. The lessor keeps `{costs.npcLeaseShareOfGross}` of every load. Go broke and you start again on a lease. |
-| Buttons | Start hauling · Test world: private, pausable |
-| Test form lead | A private copy of the rules with only you and the AI in it. Pause it, run it fast. It stays in this browser; a new one replaces it. |
-| How you start | Owner-operator. The live world's start. / Small fleet. Two used trucks and `{startingGrantFd + 20_000}` FD, to test the fleet game. |
-| Connection cards | Couldn't reach the world: The live world didn't answer. Try again in a moment. · Sign in to play: The live world lives on claude.ai. Sign in there and open this page again. · others unchanged |
-| Menu | Title screen · Full screen · Report a bug or an idea · lead lines unchanged |
+| Live, signed out | Sign in |
+| Live, signed in, no company | Enter the world |
+| Live, signed in, with a company | Continue · `{company}` |
+| Button states | Connecting… · Can't reach the world · Retry |
+| Test, saved world | Continue · `{company}`, day `{n}` |
+| Test, new | New test world |
+| Test, replacing a saved world | This replaces `{company}`. · Replace it · Keep it |
+| Test, first two game days | Starting the world… |
+| ≡ menu | Report a bug or an idea · Full screen |
+| Gone | the taglines, the join and test cards, the hub table, "Start hauling", the beta line, the theme picker |
 
 ## Chrome
 
@@ -45,13 +41,64 @@ Every string on sprint 1's screens, keyed to `specs/first-ten-minutes.md`. `{key
 | Business | Yards, shops, truck stops, warehouses. | Nobody needs a warehouse in week one. | on day `{unlockLadder.layers.businesses.afterDays}` |
 | Back Lot | A later beta. | A later chapter. I don't give away the plot. | with a later beta |
 
-## S1 Arrival
+## S1 First entry: choosing a home
 
 | Where | String |
 |---|---|
+| Strip, before a company | `{Wed Jan 3}` · `{08:14}` · Next round `{hh:00}` · ≡ |
+| Iuliia, 1 | Welcome. Iuliia, with two i's; my mother was thorough. This is the market, live, and nobody waits for us. · **Next** |
+| Iuliia, 2 | Before a truck, you need a home. Three good ones are ringed. Tap one, or any city you like. |
+| Under her line | the three starter cards · **All hubs** (list header: All hubs · busiest first) |
+
+### The hub card
+
+| Where | String |
+|---|---|
+| The hub | `{hub name}` · the character line (below) · the season line (below) |
+| Freight now | Freight now · `{n}` loads posted last round · `{rate}`/mi average · `{x}` loads per truck · `{hot / busy / even / slow}` · Ships `{more than / about what / less than}` it receives · Reload: `{easy / fair / hard}` |
+| Who's here | Who's here · Carriers based here: `{few / a fair share / many}` (`crowdWord`) · Shippers hold `{pct}` of van loads for locals first |
+| What it costs to live here | What it costs to live here · Insurance: `{pct}` `{above / below}` the base rate, or "at the base rate" · Yard: `{fd}` FD a week per truck past the first · Cargo theft: `{twice / three times / x times}` a quiet road's (only where above 1) |
+| Outbound by trailer | Outbound by trailer · Van `{strong / even / thin}` · Reefer `{…}` · Flatbed `{…}` |
+| Buttons | **See the board** · **Start here** |
+| The board, read-only | the S2 card without chip or buttons · footer: Start here to bid on these. · Back |
+
+No multipliers on the card ("×1.20", "1.1×", "2.0×"): the style sheet's rule; the words above carry the same figure.
+
+### The season line
+
+On every hub card, the three starters and the All hubs list alike. `{month}` is the game calendar's current month, spelled out ("May"), never the real one. The state is the economy designer's measure for that hub and month, thresholds as config keys they name; the writer owns only the words.
+
+| State | String |
+|---|---|
+| Thin | Freight is thin here in `{month}`. A new carrier waits. |
+| A little thin | A little thin in `{month}`; the good loads go early. |
+| Fine | Freight is good here in `{month}`. |
+| Fine, season running high | Busy season out of `{hub}` in `{month}`. |
+
+### The starter hubs
+
+Each character line is true to today's hub table; if the economy's figures move, the line moves with them. The default name fills the field and is generic on purpose.
+
+| Hub | Character | Default company name |
+|---|---|---|
+| Dallas | The middle of the country. Freight leaves in every direction, and so will you. | Trinity River Freight |
+| Los Angeles | The ports, day and night. Plenty of van freight out, crowded, and dear to insure. | Harbor Gate Transport |
+| Phoenix | More trucks come in than freight goes out, but locals get first call and living here is cheap. | Saguaro Line Freight |
+| Chicago (if Los Angeles fails its check) | Where the rails and the interstates meet. Freight to anywhere, most of the year. | Lakefront Hauling |
+| Any other hub | no character line; the season line only | `{hub name}` Freight |
+
+### Naming the company and arriving
+
+| Where | String |
+|---|---|
+| Iuliia, naming | `{hub}`. Good. Home is where this company stays. What do we call it? |
+| Field | Company name (default per hub, above; 32 characters) |
+| Test build only | How you start · Owner-operator. The live world's start. / Small fleet. Two used trucks and `{startingGrantFd + 20_000}` FD, to test the fleet game. |
+| Buttons | **Start at `{hub}`** · Back |
+| Live, while the act lands | Opening your authority… |
 | Map not drawn | Finding `{hub}`… |
 | Your sprite | You |
-| Sheet | Iuliia, step 1 (below) · button **Show me the board** |
+| Iuliia, arrival | This is `{hub}`, your home. One leased Workhorse, a dry van, and you driving. The lessor keeps `{costs.npcLeaseShareOfGross}` of every load. Let's find one. · **Show me the board** |
 | Ticker, before the first bid | The first load is your call. Bids clear at `{r1}` and `{r2}`. |
 
 ## S2 Loads
@@ -126,7 +173,7 @@ Every string on sprint 1's screens, keyed to `specs/first-ten-minutes.md`. `{key
 | Cash | Cash · `{fd}` FD · Cash, last `{n}` days |
 | Owed to you | Owed to you · Load · FD · Due · empty: Nothing owed yet. Your first invoice lands here. |
 | This week's costs | This week's costs · Lease minimum · Insurance · Yard · Per diem |
-| Standing | Standing · Miles `{n}` · your standing in the beta |
+| Standing | Standing · `{n}` Miles · your standing in the beta |
 | Loans (fold) | Loans · A loan on a truck you own: up to `{equipmentFinance.maxLoanToValue}` of its value, `{weeklyRate}` a week, over `{termWeeks}` weeks. Miss `{missedPaymentsToRepossess}` payments and the lender takes the truck. · Truck `{n}`: borrow up to `{fd}` FD · **Borrow** · Loan on truck `{n}`: `{fd}` FD owed · `{n}` missed · **Repay** |
 | The token (fold, below Loans) | The token · today's cards and the launch counter, unchanged (Jeff, 2026-11-02) |
 | In the red | You're in the red. `{insolvency.weeksInDebt}` weekly checks in a row more than `{insolvency.debtLimitFd}` FD under and the company is wound up. |
@@ -136,6 +183,7 @@ Every string on sprint 1's screens, keyed to `specs/first-ten-minutes.md`. `{key
 
 | Where | String |
 |---|---|
+| Before the first bid (one-truck company) | switch Bid for me while I'm away, off and disabled · Iuliia: Your first load is your call. After that, your dispatcher can bid while you're away. |
 | Iuliia, after the first bid | From now on your dispatcher bids when you don't. Check the rules before you go. · **See the dispatcher** |
 | Card | Your dispatcher · switch: Bid for me while I'm away (on) · Bid at break-even plus `[ ]` % · Send the truck empty up to `[ ]` mi · Bring me home after `[ ]` days · **Save** · More rules |
 | More rules | Never below break-even plus `[ ]` % · Book loads between rounds at break-even plus `[ ]` % · Move idle trucks to busier hubs after `[ ]` idle rounds · Contracts: today's row, unchanged |
@@ -143,14 +191,14 @@ Every string on sprint 1's screens, keyed to `specs/first-ten-minutes.md`. `{key
 
 ## Iuliia
 
-Say lines are 25 words or fewer; the sheet shows **Say**, the caption **Do**. The full paragraphs of `walkthrough.ts` stay on the Iuliia tab with these edits: "Davai" → "Go on"; "the Fleet tab" → "the Truck tab";  "the Company tab", "the Dealer tab", "the Staff tab", "the Business tab" → "Company / Dealer / Staff / Business, under More"; step 13's "the Logbook tab and at the top beside your cash" → "Money, under Standing". The end card stays.
+Say lines are 25 words or fewer; the sheet shows **Say**, the caption **Do**. The full paragraphs of `walkthrough.ts` stay on the Iuliia tab with these edits: "Davai" → "Go on"; "the Fleet tab" → "the Truck tab";  "the Company tab", "the Dealer tab", "the Staff tab", "the Business tab" → "Company / Dealer / Staff / Business, under More"; step 13's "the Logbook tab and at the top beside your cash" → "Money, under Standing". Step 1's full text keeps both old paragraphs, with "The Fleet tab is your truck; the map is everyone's trucks. Find your home hub on it." → "The map is everyone's trucks; the ringed cities are good homes." Step 1 ticks on **Start at `{hub}`**. The end card stays.
 
 | Step | Say | Do |
 |---|---|---|
-| 1 Welcome aboard | Good morning. Iuliia, with two i's; my mother was thorough. This is `{hub}`, your home. Let's find a load. | Show me the board. |
+| 1 Choose your home | Before a truck, you need a home. Three good ones are ringed. Tap one, or any city you like. | Choose your home: tap a ringed hub, then Start here. |
 | 2 Reading the board | Each line is a lane, the miles and a rate. Pick one near your truck, bid above break-even, and let the round clear. | Bid on a load leaving `{hub}`. |
-| 3 The truck rolls | You won one. Now the slow part, which is most of trucking: `{hos.drivingHoursPerDay}` driving hours a day, fuel every 400 miles, docks with their own hours. | Watch the ETA. Note where it sleeps tonight. |
-| 4 Getting paid | Delivered. The money lands on the due day, not today; Money shows what you're owed and when. Quick pay brings it forward, for a fee. | Find your first invoice on Money. |
+| 3 The truck rolls | You won one. Now the slow part, most of trucking: `{hos.drivingHoursPerDay}` hours of driving a day, fuel, and docks with their own hours. | Watch the ETA. Note where it sleeps tonight. |
+| 4 Getting paid | Delivered. The money lands on the due day, not today; Money shows what you're owed and when. Quick pay costs a fee. | Find your first invoice on Money. |
 | 5 The reload | Empty trailer, far end of the country. Nearest load first: driving home empty turns a good load into a bad week. | Pick the next load from Find loads, nearest first. |
 | 6 What it costs to exist | The page nobody enjoys: fuel, insurance, tolls, taxes, idling. Read it weekly, like an executive, with tea. Keep a cushion. | Compare revenue against costs on Money. |
 | 7 Keeping it on the road | Condition falls with the miles, and a worn truck breaks down, usually in the rain. Repairs at home are cheaper than away. | Check the condition bar; plan the rebuild before it's urgent. |
