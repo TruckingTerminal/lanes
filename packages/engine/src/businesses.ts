@@ -85,8 +85,9 @@ export function buyBusiness(w: World, c: Company, kind: HubBusinessKind, hubId: 
   if (bad) return bad;
   if (kind === "dealership" && !w.cfg.assets.enabled) return "no dealerships: trucks come from the NPC dealer";
   if (kind === "fence" || kind === "chopShop") {
-    // The Back Lot (robbery.backLot): behind the crews' layer of the ladder.
+    // The Back Lot (robbery.backLot): behind the crews' layer of the ladder; under the lot (robbery.lot) the NPC boards are the only buyers.
     if (!w.cfg.robbery.enabled || !w.cfg.robbery.backLot.enabled) return "the Back Lot isn't open";
+    if (w.cfg.robbery.lot.enabled) return "the lot's fence and chop shop are the only buyers";
     const closed = layerBlock(w, "robbery");
     if (closed) return closed;
   }

@@ -436,6 +436,43 @@ export const economyConfig = {
     bounty: { enabled: false, days: 90, minFd: 1_000 },
     // Notoriety (the spec's Heat for robbery): crews hired in the last this many game days, on the scorecard; no penalty.
     notorietyDays: 56,
+    // The Back Lot v2 (Jeff, 2026-11-01, the morning after the switch-on): crews hired on the lot's own board, the fee
+    // prepaid and burned, the victim a victim, a bare truck an easy mark and a fitted one a hard one, the law's interest as
+    // heat, the NPC fence and chop shop the only buyers with a public demand board, yards with security of their own, and
+    // Channel 19 a forum that hears of hits and caught crews after the fact. On, it replaces the stake, the cooldown, the
+    // one-crew rule, the newcomer shield, the advance warning and the player fences.
+    lot: {
+      enabled: false,
+      // The crew board: `count` NPC crews for hire at a time, refreshed every `refreshDays` from the seed, each with a skill
+      // (its odds), a discretion (whether it talks when caught) and a price (its multiplier on the fee).
+      crews: { count: 6, refreshDays: 7, skill: [0.6, 1] as const, discretion: [0.3, 0.95] as const, priceMult: [0.7, 1.6] as const },
+      // The fee, prepaid and burned: `feeShareOfBoard` of what the boards would pay for the truck as it stands (the fence
+      // board's price for the load aboard, the chop board's for the rig at `rigShare` odds), never under `feeMinFd`, times the
+      // crew's price. Low-value cargo never pays; high-value cargo pays when the truck is bare.
+      feeShareOfBoard: 0.5, feeMinFd: 4_000,
+      // The crew's odds the night the truck sleeps outside a truck stop or its secured yard: `baseOdds` for a bare truck, each
+      // fitting cutting them (these replace security.items' cuts), a security manager on top (labor.managers.roles), the crew's
+      // skill moving them by up to `skillSpan`.
+      baseOdds: 0.88, cuts: { tracker: 0.45, locks: 0.3, camera: 0.25 }, skillSpan: 0.3, maxOdds: 0.95,
+      // A miss: the crew is caught at these odds (a skilled crew half as often); a hit, at these. A caught crew talks unless
+      // its discretion holds, and a crew that talks is the biggest heat event for its hirer. Channel 19 hears of a caught crew.
+      catchOnMiss: 0.25, catchOnHit: 0.05,
+      // Heat: the law's interest in a company, private to it. Per hire, per crew that talked; decays daily, `quietMult` as
+      // fast after `quietDays` without a hire. At 100 it adds `pullInAtMax` to the weigh-station pull-in odds and
+      // `reviewAtMax` to the weekly odds of a compliance review; a review of a company at `investigateAt` or more becomes an
+      // investigation that finds the lot's books at `findAtMax` × heat/100 odds: a conviction forfeits the criminal unlocks,
+      // fines `fineMultOfFees` × the fees of the last 90 days, suspends the authority `suspendDays`, and halves the heat.
+      heat: { perHire: 4, perTalk: 30, decayPerDay: 0.4, quietDays: 28, quietMult: 2, pullInAtMax: 0.4, reviewAtMax: 0.5, investigateAt: 40, findAtMax: 0.9, fineMultOfFees: 3, suspendDays: 28 },
+      // The boards: the NPC fence pays the commodity's share (fenceByCommodity) of a load's value and the chop shop the tier's
+      // share of a rig's, each sagging as stolen supply of that kind comes in (`sagPerFd` per FD of the last `recoverDays`)
+      // down to `minMult`, with `hotCount` commodities, and sometimes a tier, at `hotMult` each refresh. Published on the lot.
+      board: { chopShareByTier: { workhorse: 0.15, highwayPro: 0.2, flagship: 0.25 }, sagPerFd: 1 / 1_500_000, minMult: 0.4, recoverDays: 56, hotCount: 4, hotMult: 1.5 },
+      // Yard security (catalogue items, sinks; the guard paid weekly): each cuts a crew's odds at the yard, and NPC thieves'
+      // odds on trailers dropped there; all of them and nothing at home is within reach.
+      yard: { yardGate: { cut: 0.4, weeklyFd: 0 }, yardCameras: { cut: 0.3, weeklyFd: 0 }, yardLighting: { cut: 0.15, weeklyFd: 0 }, yardGuard: { cut: 0.4, weeklyFd: 1_500 } },
+      // The free path: the lessor's rigs carry the lessor's tracker, and its policy carries the cargo deductible.
+      lessorTracker: true, lessorDeductible: true,
+    },
   },
   // Security fittings (robbery): up to `slots` a truck, each bought once (a sink) and cutting a crew's odds.
   security: { slots: 3, items: { tracker: { fd: 3_000, cut: 0.25 }, locks: { fd: 1_500, cut: 0.15 }, camera: { fd: 1_000, cut: 0.1 } } },
@@ -1054,6 +1091,11 @@ export const economyConfig = {
         tires: { priceFd: 6_000 }, // 20% less maintenance
         sleeper: { priceFd: 10_000 }, // per diem halved
         trailerSpace: { priceFd: 15_000 }, // assets: five more trailers in the yard (assets.yard.spacePerPurchase)
+        // Yard security (robbery.lot.yard): the cuts live there; these are the prices, through the catalogue split.
+        yardGate: { priceFd: 25_000 },
+        yardCameras: { priceFd: 15_000 },
+        yardLighting: { priceFd: 8_000 },
+        yardGuard: { priceFd: 5_000 },
       },
       split: { burn: 0.5, treasury: 0.25, reserve: 0.25 },
       indexBaseRate: 3.0, // a normal market's cleared rate, FD/mi: the index is 1 there

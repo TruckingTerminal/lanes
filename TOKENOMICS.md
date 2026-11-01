@@ -1104,3 +1104,72 @@ player bids; the team's vest had not started (its cliff, six real months, is 728
 after launch): once it runs it sells about 180k FD a game week, 0.8M a game month, against the 0.1–0.4M net the
 pool absorbed here, the sim's worst case of a team that sells every token on the clock; seasons on makes v47-b an
 imperfect baseline (its holding-cost sink of 41M becomes 2.5M when the season close takes the hoards).
+
+## The Back Lot v2 (Jeff, 2026-11-01, the morning after the switch-on; built, config `robbery.lot`, off)
+
+What v52 showed of v1 (hirers losing half of what they put in, the money going to whoever owned the fence) led
+Jeff to redraw the crime layer the same morning. His rules, and what was built behind `robbery.lot`:
+
+- **Channel 19 is a forum.** It hears of hits and of crews that got caught, after the fact; a hire is never
+  posted and the owner is never warned. The law treats it as hearsay: nothing said there opens a case.
+- **Crews are hired in the Back Lot, on its own board:** six NPC crews at a time, refreshed weekly from the
+  seed, each with a skill (its odds), a discretion (whether it talks when caught) and a price. A cheap crew is
+  more likely to get caught and to talk.
+- **The fee is prepaid and burned,** and keyed to what the boards would pay for the truck as it stands: half of
+  the fence board's price for the load aboard plus the chop board's price for the rig at its odds, never under
+  4,000 FD, times the crew's price. A load of paper never pays; a load of electronics pays when the truck is bare.
+- **The victim is a victim.** The claim less its deductible, the rig at its cover less its deductible, the
+  broker's penalty, the lost Miles. Nothing comes from the hirer. The stake, the restitution, the cooldown, the
+  one-crew rule and the newcomer shield of v1 are gone.
+- **A bare truck is an easy mark.** Outside a truck stop or a secured yard a crew hits a bare truck at 88%; a
+  tracker takes 45 points off, locks 30, a camera 25, a security manager up to half of what's left, and a weaker
+  crew less still. The hirer sees the truck, its trailer, what it hauls and who owns it, never the fittings.
+- **Yards get security of their own:** a gate, cameras, lighting and a guard on weekly pay, through the catalogue;
+  together they put everything standing at home out of reach, and they keep NPC thieves off the trailers.
+- **A caught crew may talk.** On a miss the crew is caught at 25% (a skilled crew half as often), on a hit at 5%;
+  a caught crew talks unless its discretion holds, and Channel 19 then names the hirer.
+- **Heat replaces the cooldown.** The law's interest in a company, private to it: 4 a hire, 30 a crew that talks,
+  cooling 0.4 a day and twice as fast after a month without a hire. At 100 it adds 40 points to the weigh-station
+  pull-in odds and 50 points to the weekly odds of a compliance review; a review of a company at 40 or more
+  becomes an investigation that finds the lot's books at odds rising with heat. A conviction forfeits the
+  criminal unlocks, fines three times the last quarter's fees, suspends the authority 28 game days and halves
+  the heat; a clean file cools it a third. A career criminal still runs a real company, because the audit reads
+  everything.
+- **The NPC fence and chop shop are the only buyers,** at a public demand board: the fence pays the commodity's
+  share of a load's value and the chop shop the tier's share of a rig's (15 / 20 / 25%), each sagging as stolen
+  supply of that kind comes in and recovering over eight weeks, with four commodities, and sometimes a tier, at
+  1.5× each week. The wash still comes off the hirer's end. Player fences and chop shops close under the lot.
+- **No shield for newcomers:** the free path's rigs carry the lessor's tracker and the lessor's policy carries
+  the cargo deductible, so a robbed starter loses the load and a day while the griefer loses the fee and gains
+  heat.
+
+What the bots do with it: an outlaw lays low above heat 35, picks a discreet crew when warm and the best skill
+for the price when cool, bets on the loaded trucks the boards pay most for assuming a bare truck (it knows the
+lessor's rigs carry a tracker), and avoids companies that got a crew pinched lately; a company hit, or with a
+crew pinched near its truck, fits a tracker, then locks, then a camera; fleets of eight or more fit trackers as a
+policy; a yard with ten or more trucks gets a gate, cameras and lighting, twenty a guard. The page's forms for
+hiring a crew, fitting security and the yard's items are not built yet: only the bots use them.
+
+**What v53 showed (the live profile with the lot on, seeds 1, 4, 8, four years; `runs/compare-v53.md`; v52-a is the
+live world's v1):** crime tripled and the economy didn't notice. 1,155 crews hired against 345, 645 hits against 140,
+197 rigs chopped against 38; the hit rate 56% against 41%, which is what fittings and the lessor's tracker leave of a
+bare truck's 88% on average. Hirers still lose, and that is the hidden fittings at work: the boards paid 3.8M FD against
+4.4M of fees burned, a net −0.67M (v1 −0.21M), 15% of what they put in (v1 23%); cheaper hires at 35% of the board lose
+the same share (−0.61M); with heat off the outlaws hire 15% more and lose 1.0M. The lot is a sink: 4.4M of fees and 2.2M
+of fittings burned against 3.8M paid from the reserve. Heat as set barely bites: 83 crews caught and 30 talked a seed,
+the hottest company 8 to 37 at the end, three investigations and one conviction per three seeds across some 45 outlaws
+in four years, because the outlaws lay low above 35 and stay under the investigation line at 40; heat off costs the law
+nothing it was collecting, and cuts hires by 15% when on, so it is a brake, not a trap. No starter was robbed by a crew:
+the lessor's tracker priced the free path's rigs out of every hire (no deductible was ever waived). The bots bought
+almost no yard security (one seed, 73k): at the sim's fleet sizes few yards hold ten trucks, so the items wait for
+players. The economy sat still: the price $0.0012 → $0.0012, the pool $67k → $64k, liquidations 648 (640), the free
+path 46 days (45); owned trucks ended at 511 against 539 from the chopping, the insurance sink rose from 8.6M to 10.5M,
+and more companies reached the criminal milestones (17 a crew hit against 5, 8 a rig chopped against 1) while fenced
+and cold-case stay at one. Bounties: 3.2M posted, 418k paid; the bots knew the hirer from the sim's own records, a
+leak fixed after the batch (a victim now bounties only a hirer a pinched crew named), so v53 overstates what players
+could do with bounties.
+
+**Knobs for the tuning Jeff expects:** heat's step and line (`perHire` 4, `perTalk` 30, `investigateAt` 40 leave a
+career criminal untouched if it paces itself; 6 / 40 / 30 would put a crew a week inside the law's reach), the fee's
+share and floor (they set the sink's size more than the hirers' loss, which the hidden fittings set), the catch odds
+(25% on a miss, 5% on a hit), the fittings' cuts against the base 88%, and the boards' sag and hot multipliers.

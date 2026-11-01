@@ -103,8 +103,9 @@ export function badInput(cfg: EconomyConfig, a: Action): string | null {
     case "fix_defects":
     case "return_lease":
     case "steal_load":
-    case "hire_crew":
       return isId(a.truckId) ? null : "bad truck id";
+    case "hire_crew":
+      return isId(a.truckId) && (a.crewId === undefined || isId(a.crewId)) ? null : "bad truck id";
     case "post_bounty":
       return isId(a.targetId) && isFd(a.fd) ? null : "bad bounty";
     case "buy_logbook_boost":
@@ -149,7 +150,7 @@ export function badInput(cfg: EconomyConfig, a: Action): string | null {
     case "set_pay_terms":
       return a.terms === "net" || a.terms === "quick" || a.terms === "factor" ? null : "bad terms";
     case "buy_item":
-      return ["yardSmall", "yardLarge", "trailerSpace", "apu", "aero", "tires", "sleeper"].includes(a.item) && (a.pay === "fd" || a.pay === "usd") && (a.truckId === undefined || isId(a.truckId)) ? null : "bad item";
+      return ["yardSmall", "yardLarge", "trailerSpace", "apu", "aero", "tires", "sleeper", "yardGate", "yardCameras", "yardLighting", "yardGuard"].includes(a.item) && (a.pay === "fd" || a.pay === "usd") && (a.truckId === undefined || isId(a.truckId)) ? null : "bad item";
     case "buy_business":
       return a.kind === "truckStop" ? (isId(a.siteId) ? null : "bad site") : (a.kind === "shop" || a.kind === "fuelStation" || a.kind === "dealership" || a.kind === "fence" || a.kind === "chopShop") && typeof a.hubId === "string" ? null : "bad business";
     case "set_shop_markup":
@@ -335,7 +336,7 @@ export function applyAction(w: World, companyId: number, action: Action): Action
     case "hire_crew": {
       const truck = truckById(w, action.truckId);
       if (!truck) return { ok: false, reason: "no such truck" };
-      return result(hireCrew(w, company, truck));
+      return result(hireCrew(w, company, truck, action.crewId));
     }
 
     case "fit_security": {

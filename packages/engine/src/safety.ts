@@ -1,4 +1,5 @@
 import { writeOffRig } from "./assets.js";
+import { heatPullInAdd, heatReviewOdds, investigate } from "./backlot.js";
 import { stationsOnRoute, weighStations, type Network } from "@lanes/data";
 import { opsCrashMult, opsPullInMult } from "./labor.js";
 import { dayOf, MINUTES_PER_HOUR } from "./clock.js";
@@ -233,7 +234,8 @@ function pullInOdds(w: World, c: Company): number {
   // Clean carriers mostly get the bypass; a bad score lights up the screen.
   let odds = c.safety.rating === "unsatisfactory" ? p.unsatisfactory : c.safety.rating === "conditional" ? p.conditional : c.safety.alerts.length > 0 ? p.alert : p.clean;
   if (today(w) - c.authority.since < w.cfg.safety.review.newEntrantDay) odds = Math.max(odds, p.newEntrant);
-  return odds * opsPullInMult(w, c); // an operations manager keeps the paperwork straight (labor.ts)
+  // Heat (robbery.lot): a company the law has its eye on gets pulled in more.
+  return (odds + heatPullInAdd(w, c)) * opsPullInMult(w, c); // an operations manager keeps the paperwork straight (labor.ts)
 }
 
 function weighStation(w: World, t: Truck, c: Company, station: number): boolean {
@@ -626,7 +628,9 @@ export function weeklySafety(w: World): void {
       s.reviewWanted ||
       (s.alerts.length >= review.alertsToReview && sinceReview >= review.alertCooldownDays) ||
       (s.rating === "none" && age >= review.newEntrantDay) ||
-      (s.reviewDay !== null && day >= s.reviewDay);
+      (s.reviewDay !== null && day >= s.reviewDay) ||
+      // Heat (robbery.lot): the law's interest brings the auditor in.
+      (heatReviewOdds(w, c) > 0 && w.rng.safety.next() < heatReviewOdds(w, c));
     if (due) complianceReview(w, c);
     syncFleet(w, c.id);
   }
@@ -675,7 +679,8 @@ export function complianceReview(w: World, c: Company): void {
   s.ratingDay = day;
   s.reviewWanted = false;
   w.metrics.onReview(rating);
-  const found = falseLogs + maintWeeks > 0 ? ` Found ${falseLogs} falsified log day${falseLogs === 1 ? "" : "s"} and ${maintWeeks} week${maintWeeks === 1 ? "" : "s"} of skipped maintenance; ${fmt(fines)} FD in fines.` : " Records clean.";
+  // A hot company's review becomes an investigation (backlot.ts): the lot's books, if found, convict.
+  const found = (falseLogs + maintWeeks > 0 ? ` Found ${falseLogs} falsified log day${falseLogs === 1 ? "" : "s"} and ${maintWeeks} week${maintWeeks === 1 ? "" : "s"} of skipped maintenance; ${fmt(fines)} FD in fines.` : " Records clean.") + investigate(w, c);
   if (rating === "unsatisfactory") {
     if (wasUnsat) {
       revoke(w, c, "Still unsatisfactory at the follow-up review.", c.authority.revocations > 0 ? bars.imminentHazard : bars.unsatisfactory);

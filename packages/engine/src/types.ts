@@ -238,6 +238,10 @@ export interface Company {
   yard: "none" | "small" | "large";
   /** Extra trailer space bought for the yard (assets.yard.spacePerPurchase each). */
   trailerSpaces: number;
+  /** Yard security installed (robbery.lot.yard). */
+  yardSecurity?: Partial<Record<YardItem, boolean>>;
+  /** Heat (robbery.lot.heat): the law's interest in this company, 0–100, private to it. */
+  heat?: number;
   yardBondFd: number;
   usdSpentBeta: number;
   /** Dollars spent on rigs and trailers in the farming season (catalogue.usdWindow.assets). */
@@ -276,7 +280,9 @@ export interface Company {
 /** A one-game-year insurance policy: the price per truck is fixed for the term. */
 /** The catalogue (items.ts): yards, and the upgrades a truck can carry. */
 export type TruckMod = "apu" | "aero" | "tires" | "sleeper";
-export type ItemKind = "yardSmall" | "yardLarge" | "trailerSpace" | TruckMod;
+/** Yard security (robbery.lot.yard): a gate, cameras, lighting, a guard; each cuts a crew's odds at the yard. */
+export type YardItem = "yardGate" | "yardCameras" | "yardLighting" | "yardGuard";
+export type ItemKind = "yardSmall" | "yardLarge" | "trailerSpace" | TruckMod | YardItem;
 
 /** A player-funded pool (pools.ts): units at net asset value, an exit queue, and the line's running income and losses. */
 export type PoolLine = "insurance" | "factoring" | "surety";
@@ -889,7 +895,7 @@ export type Action =
   | { type: "withdraw_listing"; listingId: number }
   | { type: "buy_listing"; listingId: number; finance?: boolean }
   /** Hired robbers (robbery.ts): a crew against another company's truck, and a security fitting on your own. */
-  | { type: "hire_crew"; truckId: number }
+  | { type: "hire_crew"; truckId: number; crewId?: number }
   /** A bounty on a company (robbery.bounty): FD held in escrow, paid to whoever's crew hits it. */
   | { type: "post_bounty"; targetId: number; fd: number }
   /** The logbook's shop item (token.airdrop.logbook.boost): brings a milestone forward, once. */

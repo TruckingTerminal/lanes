@@ -82,7 +82,7 @@ export interface RunReport {
    * owed and open at the end, interest paid, defaults, trucks taken back, stakes slashed and written off.
    */
   /** Hired robbers (robbery.ts): crews hired and their fees, hits, rigs chopped, cargo taken, what the hirers were paid, and the security fittings bought. */
-  robbery?: { hires: number; hits: number; rigsTaken: number; cargoTakenFd: number; takePaidFd: number; feesFd: number; fittingsFd: number; fencePaidFd: number; chopPaidFd: number; resaleFd: number; bountiesPostedFd: number; bountiesPaidFd: number; victimsPaidFd: number; stakesLockedFd: number };
+  robbery?: { hires: number; hits: number; rigsTaken: number; cargoTakenFd: number; takePaidFd: number; feesFd: number; fittingsFd: number; fencePaidFd: number; chopPaidFd: number; resaleFd: number; bountiesPostedFd: number; bountiesPaidFd: number; victimsPaidFd: number; stakesLockedFd: number; caught: number; talked: number; gaveUp: number; investigations: number; convictions: number; finesFd: number; suspensions: number; yardSecurityFd: number; lessorWaivedFd: number; heatOver: number; heatMax: number; yardsSecured: number };
   truckMoney?: {
     leaseDepositsEndFd: number;
     loansMadeFd: number;
@@ -544,7 +544,13 @@ export function buildReport(w: World): RunReport {
       cargoThefts: sum(days.map((d) => d.cargoThefts ?? 0)),
       cargoTheftFd: sum(days.map((d) => d.cargoTheftFd ?? 0)),
     },
-    robbery: { ...w.robbery.stats },
+    robbery: {
+      ...w.robbery.stats,
+      // The lot (robbery.lot): heat at the end, and yards with any security.
+      heatOver: w.companies.filter((c) => (c.heat ?? 0) >= w.cfg.robbery.lot.heat.investigateAt).length,
+      heatMax: Math.max(0, ...w.companies.map((c) => c.heat ?? 0)),
+      yardsSecured: w.companies.filter((c) => c.yardSecurity && Object.values(c.yardSecurity).some(Boolean)).length,
+    },
     truckMoney: {
       leaseDepositsEndFd: days.at(-1)?.leaseDepositsFd ?? 0,
       loansMadeFd: w.purchaseLending.madeFd,

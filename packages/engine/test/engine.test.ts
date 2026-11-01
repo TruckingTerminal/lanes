@@ -108,6 +108,10 @@ import { salesTaxOn } from "../src/salesTax.js";
 import { bountyAccount, crewFeeFd, crewOn, crewStakeAccount, crewStrike, fenceShareOf, fittingsCut, notoriety } from "../src/robbery.js";
 import { truckValue } from "../src/dealer.js";
 import { stealCargo } from "../src/risk.js";
+import { chopBoardMult, chopBoardPrice, crewById, heatOf, lotFeeFd, lotOdds, yardCut } from "../src/backlot.js";
+import { lotStrike } from "../src/robbery.js";
+import { complianceReview } from "../src/safety.js";
+import { dayOf } from "../src/clock.js";
 import { dockWaitTheft } from "../src/trips.js";
 import type { Contract } from "../src/types.js";
 import { COMMODITY_INDEX } from "@lanes/data";
@@ -3374,6 +3378,143 @@ describe("the early-sale tax on farmed FD only (proposal, 2026-10-31)", () => {
     expect(applyAction(w, a.id, { type: "sell_fd", fd: more })).toEqual({ ok: true });
     expect((burned() - b1) / more).toBeGreaterThan(launchTaxRate(w) * (1_000 / more) - 1e-9);
     expect(a.boughtFdOpen).toBe(0);
+    w.ledger.assertBalanced();
+  });
+});
+
+describe("the Back Lot v2 (2026-11-01, Jeff's morning rules): crews off the lot's board, the fee prepaid and burned, the victim a victim, heat, the NPC boards, yard security, the lessor's cover", () => {
+  const lotCfg: EconomyConfig = {
+    ...calm,
+    token: { ...calm.token, catalogue: { ...calm.token.catalogue, enabled: true } },
+    robbery: {
+      ...calm.robbery,
+      enabled: true,
+      rigShare: 1,
+      takeLocked: true,
+      lot: {
+        ...calm.robbery.lot,
+        enabled: true,
+        crews: { ...calm.robbery.lot.crews, skill: [1, 1], discretion: [0, 0], priceMult: [1, 1] },
+        baseOdds: 1,
+        maxOdds: 1,
+        catchOnMiss: 2,
+        catchOnHit: 2,
+        heat: { ...calm.robbery.lot.heat, findAtMax: 1 },
+      },
+    },
+  };
+
+  it("hires off the board at the boards' fee, burned, with no stake, no cooldown, no shield and nothing on Channel 19; a hit pays the boards' prices less the wash, spend-only, and the victim gets nothing back; a crew that talks heats the hirer", () => {
+    const w = createWorld({ cfg: lotCfg, net, feeds: neutralFeeds, seed: 96, keepLedgerEntries: true });
+    const hirer = carrier(w, "Hirer");
+    const victim = carrier(w, "Victim");
+    addTruck(w, hirer, "owned", "workhorse", "van");
+    const target = addTruck(w, victim, "owned", "workhorse", "van");
+    const other = addTruck(w, victim, "owned", "workhorse", "van");
+    fund(w, hirer.id, 300_000);
+    const k = lotCfg.robbery;
+    const crew = crewById(w, undefined)!;
+    expect(w.backlot.crews).toHaveLength(k.lot.crews.count);
+    const fee = lotFeeFd(w, target, crew);
+    expect(fee).toBeCloseTo(Math.max(k.lot.feeMinFd, k.lot.feeShareOfBoard * k.rigShare * chopBoardPrice(w, target)) * crew.priceMult, 2);
+    const before = w.ledger.balance(companyAccount(hirer.id));
+    // A brand-new company is fair game, and a second crew on the same company is fine.
+    expect(applyAction(w, hirer.id, { type: "hire_crew", truckId: target.id, crewId: crew.id })).toEqual({ ok: true });
+    expect(applyAction(w, hirer.id, { type: "hire_crew", truckId: other.id, crewId: crew.id })).toEqual({ ok: true });
+    expect(applyAction(w, hirer.id, { type: "hire_crew", truckId: other.id, crewId: 999 })).toEqual({ ok: false, reason: "a crew is already on that truck" });
+    const job = crewOn(w, target.id)!;
+    expect(job.feeFd).toBeCloseTo(fee, 2);
+    expect(job.stakeFd).toBeUndefined();
+    expect(job.crew?.name).toBe(crew.name);
+    expect(before - w.ledger.balance(companyAccount(hirer.id))).toBeCloseTo(fee + lotFeeFd(w, other, crew), 2);
+    expect(w.robbery.feed).toHaveLength(0);
+    expect(heatOf(hirer)).toBeCloseTo(2 * k.lot.heat.perHire, 6);
+    // The hit: the rig, at the chop board's price less the wash, spend-only; nothing goes back to the victim.
+    const price = chopBoardPrice(w, target);
+    const multBefore = chopBoardMult(w, "workhorse");
+    const hirerBefore = w.ledger.balance(companyAccount(hirer.id));
+    const lockedBefore = w.ledger.locked(companyAccount(hirer.id));
+    lotStrike(w, job, target, victim, "road");
+    expect(job.status).toBe("hit");
+    expect(w.ledger.balance(companyAccount(hirer.id)) - hirerBefore).toBeCloseTo(price * (1 - k.washFee), 1);
+    expect(w.ledger.locked(companyAccount(hirer.id)) - lockedBefore).toBeCloseTo(price * (1 - k.washFee), 1);
+    expect(w.robbery.stats.victimsPaidFd).toBe(0);
+    expect(target.status).toBe("retired");
+    expect(chopBoardMult(w, "workhorse")).toBeLessThan(multBefore);
+    // Channel 19 heard of the hit with no name on it, then of the crew getting pinched and talking.
+    const hit = w.robbery.feed.find((f) => f.kind === "hit")!;
+    expect(hit.hirerId).toBe(0);
+    const caught = w.robbery.feed.find((f) => f.kind === "caught")!;
+    expect(caught.hirerId).toBe(hirer.id);
+    expect(w.robbery.stats.caught).toBe(1);
+    expect(w.robbery.stats.talked).toBe(1);
+    expect(heatOf(hirer)).toBeCloseTo(2 * k.lot.heat.perHire + k.lot.heat.perTalk, 6);
+    w.ledger.assertBalanced();
+  });
+
+  it("odds: a bare truck in the open is the base; fittings, the lessor's tracker and a security manager cut them; a fully secured yard is out of reach; the lessor's policy carries the cargo deductible", () => {
+    const w = createWorld({ cfg: lotCfg, net, feeds: neutralFeeds, seed: 97 });
+    const victim = carrier(w, "Victim");
+    const bare = addTruck(w, victim, "owned", "workhorse", "van");
+    const leased = addTruck(w, victim, "npc", "workhorse", "van");
+    const k = lotCfg.robbery.lot;
+    const crew = { skill: 1 };
+    expect(lotOdds(w, bare, victim, crew, "road")).toBeCloseTo(k.baseOdds, 6);
+    expect(lotOdds(w, bare, victim, crew, "truckStop")).toBe(0);
+    expect(lotOdds(w, leased, victim, crew, "road")).toBeCloseTo(k.baseOdds * (1 - k.cuts.tracker), 6);
+    bare.security = { tracker: true, locks: true, camera: true };
+    expect(lotOdds(w, bare, victim, crew, "road")).toBeCloseTo(k.baseOdds * (1 - k.cuts.tracker - k.cuts.locks - k.cuts.camera), 6);
+    expect(lotOdds(w, bare, victim, { skill: 0.6 }, "road")).toBeCloseTo(k.baseOdds * (1 - k.cuts.tracker - k.cuts.locks - k.cuts.camera) * (1 - k.skillSpan * 0.4), 6);
+    // Yard security needs a yard and the lot; all of it and nothing at home is within reach.
+    fund(w, victim.id, 500_000);
+    expect(applyAction(w, victim.id, { type: "buy_item", item: "yardGate", pay: "fd" })).toEqual({ ok: false, reason: "yard security needs a yard" });
+    expect(applyAction(w, victim.id, { type: "buy_item", item: "yardSmall", pay: "fd" })).toEqual({ ok: true });
+    expect(applyAction(w, victim.id, { type: "buy_item", item: "yardGate", pay: "fd" })).toEqual({ ok: true });
+    expect(applyAction(w, victim.id, { type: "buy_item", item: "yardGate", pay: "fd" })).toEqual({ ok: false, reason: "already installed" });
+    expect(yardCut(w, victim)).toBeCloseTo(k.yard.yardGate.cut, 6);
+    for (const item of ["yardCameras", "yardLighting", "yardGuard"] as const) expect(applyAction(w, victim.id, { type: "buy_item", item, pay: "fd" })).toEqual({ ok: true });
+    expect(yardCut(w, victim)).toBe(1);
+    expect(lotOdds(w, leased, victim, crew, "yard")).toBe(0);
+    expect(w.robbery.stats.yardSecurityFd).toBeGreaterThan(0);
+    // The free path's rig: the lessor's policy carries the cargo deductible.
+    const lane = w.net.lanesFrom[leased.hub]![0]!;
+    const load = { ...testLoad(w, lane), cargoValue: 20_000, status: "assigned" as const, carrierId: victim.id, truckId: leased.id };
+    w.loads.set(load.id, load);
+    leased.loadId = load.id;
+    leased.status = "loaded";
+    const cash = w.ledger.balance(companyAccount(victim.id));
+    stealCargo(w, leased, victim, load, true);
+    expect(w.ledger.balance(companyAccount(victim.id))).toBeCloseTo(cash, 2);
+    w.ledger.assertBalanced();
+  });
+
+  it("heat: a review of a hot company becomes an investigation that convicts, fines three times the quarter's fees, suspends the authority and halves the heat; heat cools daily, faster when laying low", () => {
+    const w = createWorld({ cfg: lotCfg, net, feeds: neutralFeeds, seed: 98, keepLedgerEntries: true });
+    const hirer = carrier(w, "Hirer");
+    const victim = carrier(w, "Victim");
+    addTruck(w, hirer, "owned", "workhorse", "van");
+    const target = addTruck(w, victim, "owned", "workhorse", "van");
+    fund(w, hirer.id, 300_000);
+    const crew = crewById(w, undefined)!;
+    expect(applyAction(w, hirer.id, { type: "hire_crew", truckId: target.id, crewId: crew.id })).toEqual({ ok: true });
+    const fee = crewOn(w, target.id)!.feeFd!;
+    hirer.heat = 100;
+    const k = lotCfg.robbery.lot.heat;
+    const cash = w.ledger.balance(companyAccount(hirer.id));
+    complianceReview(w, hirer);
+    expect(w.robbery.stats.investigations).toBe(1);
+    expect(w.robbery.stats.convictions).toBe(1);
+    expect(w.robbery.stats.finesFd).toBeCloseTo(Math.round(k.fineMultOfFees * fee), 2);
+    expect(cash - w.ledger.balance(companyAccount(hirer.id))).toBeCloseTo(Math.round(k.fineMultOfFees * fee), 2);
+    expect(hirer.authority.status).toBe("suspended");
+    expect(hirer.authority.suspendedUntil).toBe(dayOf(w.t, w.cfg) + k.suspendDays);
+    expect(heatOf(hirer)).toBeCloseTo(50, 6);
+    // Cooling: the daily step, and twice as fast once the company has laid low.
+    runDays(w, 1);
+    expect(heatOf(hirer)).toBeCloseTo(50 - k.decayPerDay, 3);
+    w.backlot.lastHireDay.set(hirer.id, -1_000);
+    runDays(w, 1);
+    expect(heatOf(hirer)).toBeCloseTo(50 - k.decayPerDay - k.decayPerDay * k.quietMult, 3);
     w.ledger.assertBalanced();
   });
 });

@@ -32,6 +32,7 @@ export * from "./ceiling.js";
 export * from "./purchaseLoans.js";
 export * from "./scale.js";
 export * from "./robbery.js";
+export * from "./backlot.js";
 export * from "./logbook.js";
 export * from "./ladder.js";
 export * from "./trips.js";

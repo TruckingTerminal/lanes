@@ -307,6 +307,13 @@ the values of TOKENOMICS.md "The package switched on"; the price band and the si
    behind the crews' layer, the take spend-only, bounties on Channel 19, notoriety on the scorecard, the
    victim check on the criminal milestones; the Channel 19 page. **Not built (v2, after the server):** the
    dirty wallet and washing, the contraband board, corruption, aliases and the aged-authority market.
+   **Built (off, 2026-11-01, `robbery.lot`; TOKENOMICS.md "The Back Lot v2"; Jeff's morning rules after v52):** crews on
+   the lot's own board, the fee prepaid and burned and keyed to the boards, the victim a victim (no stake, no
+   restitution, no cooldown, no one-crew rule, no newcomer shield, no advance warning), a bare truck at 88% and
+   fittings hidden from the hirer, caught crews that talk, heat feeding pull-ins, reviews and investigations with
+   convictions, the NPC fence and chop shop as the only buyers with a demand board, yard security items, the lessor's
+   tracker and deductible on free-path rigs; bots use all of it. Batch v53 sized it (`runs/compare-v53.md`). The page's
+   hire, security and yard-security forms are still to build.
 8. **The unlock ladder:** each layer opens at a published date and a hard-to-fake metric (verified
    players, pool dollars), gradually; hauling, then businesses, then player brokerage, then the Back
    Lot and robbers, then aliases and crews; it starts at launch, the beta fully open.

@@ -12,7 +12,7 @@ import { companyAccount } from "./ledger.js";
 import { contractAccount } from "./receivables.js";
 import { chargeSalesTax, salesTaxOn } from "./salesTax.js";
 import { tokenLive } from "./token.js";
-import type { Company, ItemKind, TruckMod } from "./types.js";
+import type { Company, ItemKind, TruckMod, YardItem } from "./types.js";
 import { truckById, type World } from "./world.js";
 
 const TRUCK_MODS: readonly TruckMod[] = ["apu", "aero", "tires", "sleeper"];
@@ -58,6 +58,12 @@ export function buyItem(w: World, c: Company, item: ItemKind, pay: "fd" | "usd",
     if (c.yard === "none") return "more trailer space needs a yard";
     if ((c.trailerSpaces + 1) * y.spacePerPurchase > y.maxExtraSpace) return "the yard can't take more trailers";
   }
+  if (isYardItem(item)) {
+    // Yard security (robbery.lot.yard): for a yard, once each; the guard is paid weekly after (backlot.ts).
+    if (!w.cfg.robbery.enabled || !w.cfg.robbery.lot.enabled) return "no yard security on offer";
+    if (c.yard === "none") return "yard security needs a yard";
+    if (c.yardSecurity?.[item]) return "already installed";
+  }
   if (isTruckMod(item)) {
     if (!truck || truck.companyId !== c.id) return "not your truck";
     if (truck.lease === "npc") return "the NPC lessor's truck can't be modified";
@@ -94,9 +100,15 @@ export function buyItem(w: World, c: Company, item: ItemKind, pay: "fd" | "usd",
   if (item === "yardSmall") c.yard = "small";
   else if (item === "yardLarge") c.yard = "large";
   else if (item === "trailerSpace") c.trailerSpaces++;
-  else truck!.mods[item] = true;
+  else if (isYardItem(item)) {
+    (c.yardSecurity ??= {})[item] = true;
+    w.robbery.stats.yardSecurityFd += itemPriceFd(w, item);
+  } else truck!.mods[item] = true;
   return null;
 }
+
+const YARD_ITEMS: readonly string[] = ["yardGate", "yardCameras", "yardLighting", "yardGuard"];
+const isYardItem = (item: ItemKind): item is YardItem => YARD_ITEMS.includes(item);
 
 /** Liquidation: the yard is lost and its bond comes back to cash for the creditors. */
 export function releaseYard(w: World, c: Company): void {

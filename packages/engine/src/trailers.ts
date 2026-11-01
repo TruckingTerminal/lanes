@@ -13,6 +13,7 @@
 import type { Equipment } from "@lanes/config";
 import { dayOf } from "./clock.js";
 import { companyAccount } from "./ledger.js";
+import { yardCut } from "./backlot.js";
 import { securityTheftMult } from "./labor.js";
 import { hubTheftRisk } from "./risk.js";
 import type { Company, Trailer, Truck } from "./types.js";
@@ -272,7 +273,8 @@ export function yardTheftTonight(w: World, onStolen: (c: Company, tr: Trailer) =
   for (const c of w.companies) {
     const list = w.trailersByCompany.get(c.id);
     if (!list || list.length === 0) continue;
-    const risk = (w.cfg.theft.enabled ? hubTheftRisk(w, c.homeHub) : 1) * securityTheftMult(w, c);
+    // Yard security (robbery.lot.yard) keeps thieves off the lot too.
+    const risk = (w.cfg.theft.enabled ? hubTheftRisk(w, c.homeHub) : 1) * securityTheftMult(w, c) * (1 - yardCut(w, c));
     for (const tr of [...list]) {
       if (tr.status !== "dropped" || tr.lease !== "owned") continue;
       if (w.rng.ops.next() < odds * risk) onStolen(c, tr);

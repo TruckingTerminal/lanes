@@ -1,5 +1,6 @@
 import type { Equipment, FacilityType, TractorTier } from "@lanes/config";
 import { dcos, dexp, dlog, dpow } from "@lanes/data";
+import { chopBoardPrice, fenceBoardPrice, heatOf, lotFeeFd, lotOn } from "@lanes/engine";
 import {
   addTruck,
   applyAction,
@@ -638,6 +639,7 @@ function manageStaff(w: World, c: Company, p: BotProfile, rng: Rng, today: numbe
 function hireCrews(w: World, c: Company, p: BotProfile, today: number): void {
   const k = w.cfg.robbery;
   if ((today + c.id) % 7 !== 5 || w.ledger.balance(companyAccount(c.id)) < reserve(w, c, p)) return;
+  if (lotOn(w)) return hireCrewsLot(w, c, p, today);
   let best: { id: number; ev: number } | null = null;
   for (const t of w.trucks) {
     if (t.companyId === 0 || t.companyId === c.id || t.status !== "loaded" || t.loadId === null) continue;
@@ -659,10 +661,53 @@ function hireCrews(w: World, c: Company, p: BotProfile, today: number): void {
   if (best) applyAction(w, c.id, { type: "hire_crew", truckId: best.id });
 }
 
+/**
+ * The Back Lot v2 (robbery.lot): an outlaw lays low while it's hot, picks a discreet crew when warm and the best skill
+ * for the price when cool, and bets on the loaded trucks the boards pay most for, assuming a bare truck (it can't see
+ * fittings; it knows the lessor's rigs carry a tracker) and steering clear of companies that got a crew pinched lately.
+ */
+function hireCrewsLot(w: World, c: Company, p: BotProfile, today: number): void {
+  const k = w.cfg.robbery;
+  const lot = k.lot;
+  if (heatOf(c) > 35 || w.backlot.crews.length === 0) return;
+  const crews = [...w.backlot.crews];
+  const crew = heatOf(c) > 15 ? crews.sort((a, b) => b.discretion - a.discretion)[0]! : crews.sort((a, b) => b.skill / b.priceMult - a.skill / a.priceMult)[0]!;
+  const shy = new Set(w.robbery.feed.filter((f) => f.kind === "caught" && today - f.day <= 56).map((f) => f.victimId));
+  const cash = w.ledger.balance(companyAccount(c.id)) - reserve(w, c, p);
+  let best: { id: number; ev: number } | null = null;
+  for (const t of w.trucks) {
+    if (t.companyId === 0 || t.companyId === c.id || t.status !== "loaded" || t.loadId === null || crewOn(w, t.id)) continue;
+    const victim = w.companies[t.companyId - 1]!;
+    if (shy.has(victim.id)) continue;
+    const load = w.loads.get(t.loadId);
+    if (!load) continue;
+    const odds = lot.baseOdds * (1 - lot.skillSpan * (1 - crew.skill)) * (lot.lessorTracker && t.lease !== "owned" ? 1 - lot.cuts.tracker : 1);
+    const take = (fenceBoardPrice(w, load) + k.rigShare * chopBoardPrice(w, t)) * (1 - k.washFee);
+    const fee = lotFeeFd(w, t, crew);
+    if (cash < fee) continue;
+    const ev = odds * take - fee;
+    if (ev > 0 && (!best || ev > best.ev)) best = { id: t.id, ev };
+  }
+  if (best) applyAction(w, c.id, { type: "hire_crew", truckId: best.id, crewId: crew.id });
+}
+
 /** Payback (robbery.bounty): a company hit in the last week puts a bounty on the hirer, once per hit, when the cash is well clear of it. */
 function postBountyAfterHit(w: World, c: Company, p: BotProfile, today: number): void {
   const k = w.cfg.robbery.bounty;
   if (!k.enabled || (today + c.id) % 7 !== 1) return;
+  if (lotOn(w)) {
+    // The lot: a hit carries no name; a company puts a bounty on a hirer only once Channel 19 heard a pinched crew name them.
+    for (const f of w.robbery.feed) {
+      if (f.kind !== "caught" || f.victimId !== c.id || f.hirerId <= 0 || today - f.day > 14) continue;
+      const job = w.robbery.jobs.find((j) => j.victimId === c.id && j.hirerId === f.hirerId && j.truckId === f.truckId && j.status === "hit" && today - j.hiredDay <= 21);
+      if (!job || p.bountied.has(job.id)) continue;
+      p.bountied.add(job.id);
+      const fd = Math.max(k.minFd, 2 * (job.feeFd ?? k.minFd));
+      if (w.ledger.balance(companyAccount(c.id)) - reserve(w, c, p) < 2 * fd) continue;
+      applyAction(w, c.id, { type: "post_bounty", targetId: f.hirerId, fd });
+    }
+    return;
+  }
   for (const j of w.robbery.jobs) {
     if (j.victimId !== c.id || j.status !== "hit" || today - j.hiredDay > 14 || p.bountied.has(j.id)) continue;
     p.bountied.add(j.id);
@@ -674,9 +719,24 @@ function postBountyAfterHit(w: World, c: Company, p: BotProfile, today: number):
 
 /** A company a crew came for in the last four weeks fits its owned trucks with a tracker, then locks, as the cash allows. */
 function fitSecurityAfterThreat(w: World, c: Company, p: BotProfile, today: number): void {
-  if ((today + c.id) % 7 !== 3 || !w.robbery.jobs.some((j) => j.victimId === c.id && today - j.hiredDay <= 28)) return;
-  for (const t of w.trucksByCompany.get(c.id) ?? []) {
-    if (t.lease !== "owned" || t.status === "retired") continue;
+  if ((today + c.id) % 7 !== 3) return;
+  const owned = (w.trucksByCompany.get(c.id) ?? []).filter((t) => t.lease === "owned" && t.status !== "retired");
+  if (lotOn(w)) {
+    // The lot (robbery.lot): no warning comes, so a company fits security after a hit on it or a crew pinched near its truck,
+    // and a fleet of eight or more owned trucks fits trackers as a standing policy, then locks, then cameras, one a week.
+    const threatened = w.robbery.feed.some((f) => (f.kind === "hit" || f.kind === "caught") && f.victimId === c.id && today - f.day <= 28);
+    if (!threatened && owned.length < 8) return;
+    for (const item of ["tracker", "locks", "camera"] as const) {
+      const t = owned.find((x) => !x.security?.[item]);
+      if (!t) continue;
+      if (w.ledger.balance(companyAccount(c.id)) - reserve(w, c, p) < 4 * w.cfg.security.items[item].fd) return;
+      applyAction(w, c.id, { type: "fit_security", truckId: t.id, item });
+      return;
+    }
+    return;
+  }
+  if (!w.robbery.jobs.some((j) => j.victimId === c.id && today - j.hiredDay <= 28)) return;
+  for (const t of owned) {
     const item = !t.security?.tracker ? "tracker" : !t.security?.locks ? "locks" : null;
     if (!item) continue;
     if (w.ledger.balance(companyAccount(c.id)) - reserve(w, c, p) < 4 * w.cfg.security.items[item].fd) return;
@@ -1361,6 +1421,14 @@ export const ruleBotHook: DailyAgentHook = (w) => {
             else if (w.ledger.balance(acct) - reserve(w, c, p) >= itemPriceFd(w, yard) + cfg.token.catalogue.items[yard].bondFd) applyAction(w, c.id, { type: "buy_item", item: yard, pay: "fd" });
           }
         }
+        // Yard security (robbery.lot.yard): a yard with ten or more trucks gets a gate, then cameras, then lighting; twenty, a guard.
+        if (cfg.token.catalogue.enabled && lotOn(w) && c.yard !== "none" && active >= 10) {
+          for (const item of ["yardGate", "yardCameras", "yardLighting", "yardGuard"] as const) {
+            if (c.yardSecurity?.[item] || (item === "yardGuard" && active < 20)) continue;
+            if (w.ledger.balance(acct) - reserve(w, c, p) >= 3 * itemPriceFd(w, item)) applyAction(w, c.id, { type: "buy_item", item, pay: "fd" });
+            break;
+          }
+        }
         // Upgrades pay for themselves over a year: one a day, cheapest first, when the cash is well clear of the reserve.
         if (cfg.token.catalogue.enabled) {
           let bought = false;
@@ -1501,7 +1569,7 @@ function maybeBuyBusiness(w: World, c: Company, p: BotProfile, rng: Rng, today: 
   if (rng.next() > 0.25) return;
   const kinds: BusinessKind[] = c.role === "broker" ? ["fuelStation", "truckStop"] : w.cfg.assets.enabled ? ["shop", "dealership", "truckStop", "fuelStation"] : ["shop", "truckStop", "fuelStation"];
   // The Back Lot (robbery.backLot): an outlaw opens a fence, then a chop shop, before anything else.
-  if (p.conduct === "outlaw" && w.cfg.robbery.enabled && w.cfg.robbery.backLot.enabled) kinds.unshift("fence", "chopShop");
+  if (p.conduct === "outlaw" && w.cfg.robbery.enabled && w.cfg.robbery.backLot.enabled && !lotOn(w)) kinds.unshift("fence", "chopShop");
   const cash = w.ledger.balance(companyAccount(c.id)) - reserve(w, c, p);
   const hubId = w.net.hubs[c.homeHub]!.id;
   for (const kind of kinds) {

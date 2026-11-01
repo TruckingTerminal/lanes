@@ -126,10 +126,11 @@ export function nightTheft(w: World, truck: Truck, c: Company, where: "shoulder"
  * pool-written policy pays the rest of the cargo's value (a sink: the goods are gone), and the truck
  * goes on to the receiver's market empty after the police report.
  */
-export function stealCargo(w: World, truck: Truck, c: Company, load: Load): void {
+export function stealCargo(w: World, truck: Truck, c: Company, load: Load, waiveDeductible = false): void {
   const k = w.cfg.theft;
   const ref = `theft:${load.id}`;
-  const deductible = Math.min(load.cargoValue, w.cfg.safety.crash.cargoDeductibleFd);
+  // The lot (robbery.lot.lessorDeductible): on a free-path rig the lessor's policy carries the deductible.
+  const deductible = waiveDeductible ? 0 : Math.min(load.cargoValue, w.cfg.safety.crash.cargoDeductibleFd);
   if (deductible > 0.005) {
     w.ledger.post(w.t, companyAccount(c.id), "sink:cargo_claim", deductible, ref);
     c.operating.costFd += deductible;
@@ -143,5 +144,5 @@ export function stealCargo(w: World, truck: Truck, c: Company, load: Load): void
   truck.status = "repositioning";
   truck.breakdownMin += k.reportHours * 60;
   w.metrics.onCargoTheft(load.cargoValue);
-  w.listener?.({ kind: "notice", companyId: c.id, topic: "safety", text: `Truck ${truck.id}: the load was stolen overnight. You pay the ${Math.round(deductible)} FD cargo deductible and won't be paid for it; the truck goes on empty after the police report.`, tone: "bad", truckId: truck.id });
+  w.listener?.({ kind: "notice", companyId: c.id, topic: "safety", text: `Truck ${truck.id}: the load was stolen overnight. ${waiveDeductible ? "The lessor's policy carries the deductible" : `You pay the ${Math.round(deductible)} FD cargo deductible`} and you won't be paid for it; the truck goes on empty after the police report.`, tone: "bad", truckId: truck.id });
 }

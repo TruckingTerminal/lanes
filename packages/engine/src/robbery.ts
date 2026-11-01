@@ -20,6 +20,7 @@
  * the hires a company made lately, on Channel 19 and its scorecard, with no penalty from the game.
  */
 import { COMMODITIES } from "@lanes/data";
+import { addHeat, chopBoardPrice, crewById, dailyBackLot, fenceBoardPrice, lotFeeFd, lotOdds, lotOn, refreshBoard, type Crew, type LotWhere } from "./backlot.js";
 import { layerBlock } from "./ladder.js";
 import { logbookCount } from "./logbook.js";
 import { writeOffRig } from "./assets.js";
@@ -44,6 +45,9 @@ export interface CrewJob {
   status: "out" | "hit" | "missed" | "cancelled";
   /** The stake locked behind the hire (robbery.realStake), in its own account until the crew is done. */
   stakeFd?: number;
+  /** The Back Lot v2 (robbery.lot): the crew hired off the board, and what it cost. */
+  crew?: { name: string; skill: number; discretion: number };
+  feeFd?: number;
 }
 
 export interface Bounty {
@@ -58,7 +62,7 @@ export interface Bounty {
 
 export interface FeedItem {
   day: number;
-  kind: "hire" | "hit" | "missed" | "cancelled" | "bounty" | "bountyPaid";
+  kind: "hire" | "hit" | "missed" | "cancelled" | "bounty" | "bountyPaid" | "caught";
   hirerId: number;
   victimId: number;
   truckId: number;
@@ -87,6 +91,16 @@ export interface RobberyState {
     bountiesPaidFd: number;
     victimsPaidFd: number;
     stakesLockedFd: number;
+    /** The Back Lot v2 (robbery.lot). */
+    caught: number;
+    talked: number;
+    gaveUp: number;
+    investigations: number;
+    convictions: number;
+    finesFd: number;
+    suspensions: number;
+    yardSecurityFd: number;
+    lessorWaivedFd: number;
   };
 }
 
@@ -96,7 +110,7 @@ export const newRobberyState = (): RobberyState => ({
   lastHitDay: new Map(),
   bounties: [],
   resales: [],
-  stats: { hires: 0, hits: 0, rigsTaken: 0, cargoTakenFd: 0, takePaidFd: 0, feesFd: 0, fittingsFd: 0, fencePaidFd: 0, chopPaidFd: 0, resaleFd: 0, bountiesPostedFd: 0, bountiesPaidFd: 0, victimsPaidFd: 0, stakesLockedFd: 0 },
+  stats: { hires: 0, hits: 0, rigsTaken: 0, cargoTakenFd: 0, takePaidFd: 0, feesFd: 0, fittingsFd: 0, fencePaidFd: 0, chopPaidFd: 0, resaleFd: 0, bountiesPostedFd: 0, bountiesPaidFd: 0, victimsPaidFd: 0, stakesLockedFd: 0, caught: 0, talked: 0, gaveUp: 0, investigations: 0, convictions: 0, finesFd: 0, suspensions: 0, yardSecurityFd: 0, lessorWaivedFd: 0 },
 });
 
 export const crewStakeAccount = (jobId: number) => `co:crewstake:${jobId}`;
@@ -142,9 +156,13 @@ function equityFd(w: World, c: Company): number {
   return fd;
 }
 
-/** What hiring a crew against this truck costs. */
-export function crewFeeFd(w: World, t: Truck): number {
+/** What hiring a crew against this truck costs: on the lot (robbery.lot), the board's fee at the crew's price. */
+export function crewFeeFd(w: World, t: Truck, crew?: Crew): number {
   const k = w.cfg.robbery;
+  if (lotOn(w)) {
+    const c = crew ?? crewById(w, undefined);
+    return c ? lotFeeFd(w, t, c) : k.lot.feeMinFd;
+  }
   return Math.max(k.minFeeFd, k.feeShareOfValue * truckValue(w, t));
 }
 
@@ -164,7 +182,7 @@ export function notoriety(w: World, c: Company): number {
 const operating = (c: Company) => c.role !== "holder" && c.liquidatingSince === null && c.authority.status === "active";
 
 /** Hires a crew against a truck; returns why not. */
-export function hireCrew(w: World, hirer: Company, truck: Truck): string | null {
+export function hireCrew(w: World, hirer: Company, truck: Truck, crewId?: number): string | null {
   const k = w.cfg.robbery;
   if (!k.enabled) return "no crews for hire";
   const closed = layerBlock(w, "robbery"); // the unlock ladder (ladder.ts)
@@ -172,6 +190,7 @@ export function hireCrew(w: World, hirer: Company, truck: Truck): string | null 
   if (!operating(hirer)) return "only an operating company hires crews";
   if (truck.companyId === 0 || truck.status === "retired") return "no such truck";
   if (truck.companyId === hirer.id) return "that's your own truck";
+  if (lotOn(w)) return hireOnTheLot(w, hirer, truck, crewId);
   const victim = w.companies[truck.companyId - 1]!;
   const day = today(w);
   if (day - victim.createdDay < k.protectDays) return "that company is too new to be a target";
@@ -201,6 +220,109 @@ export function hireCrew(w: World, hirer: Company, truck: Truck): string | null 
     `Channel 19: ${hirer.name} put a crew on your truck ${truck.id}. Park it at a truck stop in the corridors, or fit security, for the next ${k.windowDays} days.`,
   );
   return null;
+}
+
+/**
+ * The Back Lot v2 (robbery.lot): a crew off the board, its fee prepaid and burned, no stake, no cooldown, no shield for
+ * newcomers, and nothing on Channel 19: the hire is the lot's business. The hirer's heat rises a little.
+ */
+function hireOnTheLot(w: World, hirer: Company, truck: Truck, crewId: number | undefined): string | null {
+  const k = w.cfg.robbery;
+  const victim = w.companies[truck.companyId - 1]!;
+  if (w.robbery.jobs.some((j) => j.truckId === truck.id && j.status === "out")) return "a crew is already on that truck";
+  const crew = crewById(w, crewId);
+  if (!crew) return "no such crew on the board";
+  const fee = lotFeeFd(w, truck, crew);
+  if (w.ledger.balance(companyAccount(hirer.id)) < fee) return "not enough FD for the crew's fee";
+  w.ledger.post(w.t, companyAccount(hirer.id), "sink:crew_fee", fee, `crew:${truck.id}`);
+  const day = today(w);
+  const job: CrewJob = { id: w.robbery.jobs.length + 1, hirerId: hirer.id, victimId: victim.id, truckId: truck.id, hiredDay: day, expiresDay: day + k.windowDays, status: "out", crew: { name: crew.name, skill: crew.skill, discretion: crew.discretion }, feeFd: fee };
+  w.robbery.jobs.push(job);
+  w.robbery.stats.hires++;
+  w.robbery.stats.feesFd += fee;
+  addHeat(hirer, k.lot.heat.perHire);
+  w.backlot.lastHireDay.set(hirer.id, day);
+  w.listener?.({ kind: "notice", companyId: hirer.id, topic: "safety", text: `The Back Lot: ${crew.name} are on ${victim.name}'s truck ${truck.id} for ${k.windowDays} days. ${Math.round(fee).toLocaleString("en-US")} FD, paid.`, tone: "info", truckId: truck.id });
+  return null;
+}
+
+/** The lot's buyers (robbery.lot): the NPC fence or chop shop pays the board's price, less the wash, spend-only when the take is locked. */
+function payBoard(w: World, hirer: Company, kind: "fence" | "chopShop", priceFd: number, ref: string): number {
+  const k = w.cfg.robbery;
+  if (priceFd <= 0.01) return 0;
+  const paid = priceFd * (1 - k.washFee);
+  const acct = companyAccount(hirer.id);
+  w.ledger.post(w.t, kind === "fence" ? "faucet:fence" : "faucet:chop_parts", acct, paid, ref);
+  if (k.takeLocked) w.ledger.lock(acct, paid);
+  w.robbery.stats.takePaidFd += paid;
+  if (kind === "fence") w.robbery.stats.fencePaidFd += paid;
+  else w.robbery.stats.chopPaidFd += paid;
+  return paid;
+}
+
+/**
+ * The lot's strike (robbery.lot): one attempt per hire, the night the truck sleeps in reach. A hit takes the load and,
+ * at `rigShare` odds, the rig, paid at the boards' prices; the victim pays its deductibles (the lessor's policy carries
+ * the cargo one on a free-path rig). Either way the crew may be caught, and a caught crew may talk: heat for the hirer,
+ * and Channel 19 hears both, the hit without a name, the talk with one.
+ */
+export function lotStrike(w: World, job: CrewJob, truck: Truck, victim: Company, where: LotWhere): void {
+  const k = w.cfg.robbery;
+  const L = k.lot;
+  if (where === "truckStop" || job.status !== "out") return;
+  const crew = job.crew ?? { name: "a crew", skill: 0.8, discretion: 0.6 };
+  const hirer = w.companies[job.hirerId - 1]!;
+  const hit = w.rng.ops.next() < lotOdds(w, truck, victim, crew, where);
+  const hub = w.net.hubs[truck.hub]?.id ?? "";
+  const counts = (w.trucksByCompany.get(victim.id)?.length ?? 0) >= k.logbookMinVictimTrucks;
+  if (hit) {
+    let paid = 0;
+    const parts: string[] = [];
+    const load = truck.loadId !== null ? w.loads.get(truck.loadId) : undefined;
+    if (load && truck.status === "loaded") {
+      const price = fenceBoardPrice(w, load);
+      const id = COMMODITIES[load.commodity]?.id ?? "";
+      w.robbery.stats.cargoTakenFd += load.cargoValue;
+      parts.push(`its load (${Math.round(load.cargoValue)} FD)`);
+      const waive = L.lessorDeductible && truck.lease !== "owned";
+      if (waive) w.robbery.stats.lessorWaivedFd += Math.min(load.cargoValue, w.cfg.safety.crash.cargoDeductibleFd);
+      stealCargo(w, truck, victim, load, waive);
+      w.backlot.supply[id] = (w.backlot.supply[id] ?? 0) + load.cargoValue;
+      paid += payBoard(w, hirer, "fence", price, `crew:${job.id}`);
+    }
+    if (w.rng.ops.next() < k.rigShare) {
+      const price = chopBoardPrice(w, truck);
+      const value = truckValue(w, truck);
+      parts.push("the rig itself, chopped");
+      writeOffRig(w, victim, truck);
+      w.robbery.stats.rigsTaken++;
+      if (counts) logbookCount(hirer, "rigs");
+      w.backlot.supplyTier[truck.tier] = (w.backlot.supplyTier[truck.tier] ?? 0) + value;
+      paid += payBoard(w, hirer, "chopShop", price, `crew:${job.id}`);
+    }
+    job.status = "hit";
+    w.robbery.lastHitDay.set(victim.id, today(w));
+    w.robbery.stats.hits++;
+    if (counts) {
+      logbookCount(hirer, "hits");
+      logbookCount(hirer, "takeFd", paid);
+    }
+    payBounties(w, victim, hirer, truck.id);
+    post(w, { kind: "hit", hirerId: 0, victimId: victim.id, truckId: truck.id, text: `Channel 19: a crew hit ${victim.name}'s truck ${truck.id}${hub ? ` near ${hub}` : ""}: ${parts.length ? parts.join(" and ") : "nothing worth fencing"}.` }, null);
+    w.listener?.({ kind: "notice", companyId: hirer.id, topic: "safety", text: `The Back Lot: ${crew.name} came through on ${victim.name}'s truck ${truck.id}: ${Math.round(paid).toLocaleString("en-US")} FD.`, tone: "good", truckId: truck.id });
+  } else {
+    job.status = "missed";
+    w.listener?.({ kind: "notice", companyId: hirer.id, topic: "safety", text: `The Back Lot: ${crew.name} came up empty on ${victim.name}'s truck ${truck.id}.`, tone: "bad", truckId: truck.id });
+  }
+  if (w.rng.ops.next() < (hit ? L.catchOnHit : L.catchOnMiss) * (1 - 0.5 * crew.skill)) {
+    w.robbery.stats.caught++;
+    const talked = w.rng.ops.next() >= crew.discretion;
+    if (talked) {
+      w.robbery.stats.talked++;
+      addHeat(hirer, L.heat.perTalk);
+    }
+    post(w, { kind: "caught", hirerId: talked ? hirer.id : 0, victimId: victim.id, truckId: truck.id, text: `Channel 19: ${crew.name} got pinched${hub ? ` near ${hub}` : ""} after going for ${victim.name}'s truck ${truck.id}${talked ? `; word is they were working for ${hirer.name}` : ""}.` }, null);
+  }
 }
 
 /** The open job on a truck, if any. */
@@ -275,7 +397,10 @@ export function crewStrike(w: World, truck: Truck, victim: Company, where: "shou
   const k = w.cfg.robbery;
   if (!k.enabled || w.robbery.jobs.length === 0) return;
   const job = crewOn(w, truck.id);
-  if (!job || where === "truckStop" || placeRisk < k.minPlaceRisk || truck.companyId !== job.victimId) return;
+  if (!job || truck.companyId !== job.victimId) return;
+  // The lot (robbery.lot): any night outside a truck stop, the place's risk aside.
+  if (lotOn(w)) return lotStrike(w, job, truck, victim, where === "truckStop" ? "truckStop" : "road");
+  if (where === "truckStop" || placeRisk < k.minPlaceRisk) return;
   const odds = Math.min(k.maxOdds, (k.odds * placeRisk) / k.riskNorm) * (1 - fittingsCut(w, truck)) * securityTheftMult(w, victim);
   if (w.rng.ops.next() >= odds) return;
   const hirer = w.companies[job.hirerId - 1]!;
@@ -365,6 +490,12 @@ export function dailyRobbery(w: World): void {
     if (day < j.expiresDay) continue;
     j.status = "missed";
     releaseStake(w, j);
+    if (lotOn(w)) {
+      // The lot: a crew that never found the truck in reach gives up quietly; the fee is spent.
+      w.robbery.stats.gaveUp++;
+      w.listener?.({ kind: "notice", companyId: j.hirerId, topic: "safety", text: `The Back Lot: ${j.crew?.name ?? "the crew"} gave up on ${name(w, j.victimId)}'s truck ${j.truckId}.`, tone: "bad", truckId: j.truckId });
+      continue;
+    }
     post(w, { kind: "missed", hirerId: j.hirerId, victimId: j.victimId, truckId: j.truckId, text: `Channel 19: the crew ${name(w, j.hirerId)} put on ${name(w, j.victimId)}'s truck ${j.truckId} gave up.` }, `Channel 19: the crew on your truck ${j.truckId} gave up.`);
   }
   for (const b of w.robbery.bounties) {
@@ -389,6 +520,8 @@ export function dailyRobbery(w: World): void {
     }
     w.robbery.resales = kept;
   }
+  // The lot (robbery.lot): the boards, heat, the guard's pay, and crews on trucks standing at a hub overnight.
+  dailyBackLot(w, (job, truck, victim, where) => lotStrike(w, job, truck, victim, where));
 }
 
 /** Fits a security item to a truck (a sink); returns why not. */

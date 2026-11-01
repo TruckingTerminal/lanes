@@ -1,5 +1,6 @@
 import type { Layer } from "./ladder.js";
 import { newRobberyState, type RobberyState } from "./robbery.js";
+import { newBackLotState, type BackLotState } from "./backlot.js";
 import type { EconomyConfig, Equipment, FacilityType, TractorTier } from "@lanes/config";
 import { buildSites } from "./sites.js";
 import { PLACE_OF_HUB, placeMiles as netPlaceMiles, placeMilesFast as netPlaceMilesFast, placeRoute as netPlaceRoute, type Feeds, type Network, type Route } from "@lanes/data";
@@ -76,6 +77,8 @@ export interface World {
   purchaseLoans: PurchaseLoan[];
   /** Hired robbers (robbery.ts): the crews out, the public feed, and the tallies. */
   robbery: RobberyState;
+  /** The Back Lot v2 (backlot.ts): the crew board, the demand boards, and who hired lately. */
+  backlot: BackLotState;
   /** The unlock ladder (ladder.ts): the day each layer opened after launch, null while closed. */
   ladder: Record<Layer, number | null>;
   /** The NPC used lot (usedMarket.npcLot): rigs on the lot, and rigs sold. */
@@ -208,6 +211,7 @@ export function createWorld(o: WorldOptions): World {
     listings: [],
     purchaseLoans: [],
     robbery: newRobberyState(),
+    backlot: newBackLotState(),
     ladder: { businesses: null, brokerage: null, robbery: null },
     usedLot: { stock: cfg.usedMarket.npcLot.stock, sold: 0 },
     purchaseLending: { madeFd: 0, interestFd: 0, defaults: 0, seized: 0, writtenOffFd: 0, stakeSlashedFd: 0 },
