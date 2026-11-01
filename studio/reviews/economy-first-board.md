@@ -214,3 +214,36 @@ done
 node "$LA/la-table.mjs" runs/la-v55h runs/la-v55h-notheft > runs/la-starters-table.md
 npx tsx apps/sim/src/compare.ts runs/v55-a runs/la-v55h runs/la-v55h-notheft > runs/compare-la-v55h.md
 ```
+
+### May on ten seeds: the first bid by hand on and off
+
+This settles the controls' May drop. The same test (days 120–133, LAX, DAL, PHX probes) over seeds 1–10, one seed a
+process, at the live ruleset (rule on) and with `freeEntry.firstBidByHand=false` (rule off). Seeds 1, 4 and 8
+reproduce the three-seed runs exactly. Each seed has 28 rounds, so the ten-seed share is the mean of the seeds:
+
+| Hub | first bid by hand | May share, 10 seeds | median seed | lowest – highest | seeds under 75% | clears 75% |
+|---|---|---|---|---|---|---|
+| Los Angeles | on | 100% | 100% | 100% – 100% | 0 | yes |
+| Los Angeles | off | 100% | 100% | 100% – 100% | 0 | yes |
+| Dallas | on | 81% | 91% | 29% – 100% | 3 (seeds 4, 5, 9) | yes |
+| Dallas | off | 96% | 100% | 75% – 100% | 0 | yes |
+| Phoenix | on | 84% | 100% | 14% – 100% | 3 (seeds 4, 8, 9) | yes |
+| Phoenix | off | 92% | 100% | 39% – 100% | 1 (seed 4) | yes |
+
+Both, and more of it seed noise. Three seeds drew bad Mays: seed 4 is the worst at Phoenix under both settings,
+and 4 and 8 pulled the three-seed shares down to 74% and 56%. On ten seeds Dallas (81%) and Phoenix (84%) clear
+the bar with the rule on. The rule's effect is real but smaller: −15 points at Dallas, −8 at Phoenix, none at Los
+Angeles. Where a seed differs between the settings it is lower with the rule on in 9 cases of 10 (Dallas 5 of 6,
+Phoenix 4 of 4), a sign test at p ≈ 0.02. The batch doesn't show the mechanism: the rule only holds a starter's
+truck for its first round or two, so the effect on May comes from the world's path, not a gate in May. What it
+costs: with the rule on, three Mays in ten fall under 75% at Dallas and at Phoenix, and none at Los Angeles.
+Ruling 4's seasonal line on a hub card covers those Mays. The hubs stand: Dallas, Los Angeles, Phoenix.
+
+```sh
+# runs/fb-may10/hand-{on,off}-seed{1..10}.md, then the table (runs/fb-may10-table.md)
+for g in 1 2 3 4 5 6 7 8 9 10; do
+  npx tsx apps/sim/src/firstBoard.ts --seeds $g --days 14 --warm 120 --hubs LAX,DAL,PHX > runs/fb-may10/hand-on-seed$g.md &
+  npx tsx apps/sim/src/firstBoard.ts --seeds $g --days 14 --warm 120 --hubs LAX,DAL,PHX --set freeEntry.firstBidByHand=false > runs/fb-may10/hand-off-seed$g.md &
+done; wait
+node "$LA/may10-table.mjs" runs/fb-may10 > runs/fb-may10-table.md   # $LA as in the commands above
+```
