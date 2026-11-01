@@ -28,22 +28,10 @@ jobs:
       - run: npm run typecheck
       - run: npm test
       - run: npm run build:site
-      - uses: actions/upload-artifact@v4
-        with:
-          name: site
-          path: apps/web/dist/site
-          retention-days: 7
-
-  deploy:
-    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
-    needs: test
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/download-artifact@v4
-        with:
-          name: site
-          path: site
+      # The site is published from this job (no stored artifact: each one was 438 MB and the account's artifact
+      # storage filled up on 2026-11-01, which blocked the deploy).
       - name: Publish to lanes-play
+        if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
         env:
           DEPLOY_KEY: ${{ secrets.LANES_PLAY_DEPLOY_KEY }}
         run: |
@@ -51,10 +39,10 @@ jobs:
           printf '%s\n' "$DEPLOY_KEY" > ~/.ssh/deploy && chmod 600 ~/.ssh/deploy
           export GIT_SSH_COMMAND="ssh -i ~/.ssh/deploy -o StrictHostKeyChecking=accept-new"
           git clone --depth 1 git@github.com:TruckingTerminal/lanes-play.git out
-          cp site/*.html out/
+          cp apps/web/dist/site/*.html out/
           # The painted map levels, seasons and sprites load from assets/ next to the page.
           rm -rf out/assets
-          cp -R site/assets out/
+          cp -R apps/web/dist/site/assets out/
           touch out/.nojekyll
           cd out
           git config user.name "lanes-ci"
