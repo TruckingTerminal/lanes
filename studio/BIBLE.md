@@ -1,20 +1,19 @@
-# LANES design bible (draft 1, 2026-11-02; the director proposes, Jeff decides through the producer)
+# LANES design bible (draft 2, 2026-11-02; owner: the game director; Jeff decides through the producer)
 
-Grounded in the README, TOKENOMICS, TODO, the decisions log, and ten minutes on the test page as a stranger
-(Red Dirt Freight, Dallas, ruleset 0.19.1).
+From the design records and four strangers on the test page (ruleset 0.19.1).
 
 ## The pitch, in one breath
-You start with one leased truck and a load board in an America that never pauses, and you build it into the one
-big company everyone else is trying to build too. The market is the game; the token keeps score. Jeff's words:
-"complete supply control"; "difficult, expensive and risky to grow"; "one large company, not many smaller ones".
+You start with one leased truck and a load board in an America that never pauses, and you build it into the big
+company everyone else is trying to build. The market is the game. The token is how the game settles with
+the world outside; a player who never hears of it should still have a company worth keeping.
 
 The feeling at the end of a good session: I made a call, it paid, and I'm one load closer to my own truck.
 
 ## Who it's for
 Freight people first: dispatchers and brokers who read a load board for a living, owner-operators, Trucking
-Terminal's own users. The trucking-sim crowd second. Crypto last, as a reward for a game people already play.
-Beta one is twenty to fifty people, so every screen gets one test: does a dispatcher in Tbilisi, on a phone,
-understand it without the guide.
+Terminal's users. Trucking-sim players second. Crypto last, as a reward for a game people already play.
+Beta one is twenty to fifty people; every screen gets one test: a dispatcher in Tbilisi, on a phone, without
+the guide.
 
 ## Pillars (three, no more)
 1. **The market is real.** Rates, hubs, docks, hours, seasons and roads behave the way they do out there. Test: a
@@ -27,66 +26,68 @@ understand it without the guide.
 What serves none of these is cut.
 
 ## The core loop (what a session of play is)
-- **A sitting: five minutes, a few times a day.** Open the page. See what happened since: what delivered, what it
-  paid, where the truck sleeps tonight. Make one decision: book or counter the next load, send the truck somewhere
-  better, or set the dispatcher for the hours you'll be away. Close. Bids clear every three real hours; the game
-  must be worth a glance that often and never demand more.
-- **A day: four game days.** One or two deliveries. Pay lands. The on-time record moves. A pull-in, a breakdown
-  or a dead market says no. The number is always loaded miles against total miles.
-- **A week: a game month.** Own the first truck and end the lessor's cut. Buy the second and hire a driver. Take
-  on the dispatcher at the third. Each step costs more than the last, and a lost contract, a season or a review
-  can take it back. Then the ladder: a business at day 28, a licence at day 91.
+- **A sitting: five minutes, a few times a day.** See what happened since: what delivered, what it paid, where
+  the truck sleeps tonight. Make one decision: book or counter a load, send the truck somewhere better, or set
+  the dispatcher for the hours you'll be away. Bids clear every three real hours; worth a glance that often.
+- **A day: four game days.** One or two deliveries. Pay lands. A pull-in, a breakdown or a
+  dead market says no. The number is always loaded miles against total miles.
+- **A week: a game month.** Own the first truck and end the lessor's cut. Buy the second, hire a driver, take on
+  the dispatcher at the third. Each step costs more than the last and a lost contract, a season or a review can
+  take it back.
 
-What the test page does today: the dispatcher plays the sitting for you from minute one. My truck left Dallas
-empty before I had read the board, and the walkthrough marked four of thirteen steps done that I never did. A
-game that plays itself is slop.
+Today the dispatcher plays the sitting from minute one and the walkthrough ticks its own boxes: four strangers,
+no load won by hand. A game that plays itself is slop.
 
 ## The first ten minutes
-Target: a stranger on a phone wins a load inside five minutes, understands why it paid what it paid,
-and knows what to do next.
+Target: a stranger on a phone wins a load inside five minutes, understands why it paid what it paid. The UX spec owns the screens; the bible owns the order:
 
-Proposal, screens in order: a name; a home hub as three choices with one line each (the ten-row table waits for
-the Company tab); the map with your truck at your hub; the board with loads out of your hub only, nearest first,
-"Book now" on each; the truck rolling on the map; the pay line in the open: rate × miles, less fuel, less the
-lessor's 15%, less the deposit held back, equals yours (today revenue says 6,691, cash falls 91, nothing says
-why); then "the next round is at 18:00; set your dispatcher before you go". Five tabs in the first hour: Fleet,
-Loads, Money, Company, Iuliia. Everything else appears the day it matters. The token is nowhere in the first
-hour: Money shows cash, costs and Miles as "your standing".
+A name; a home hub as three choices. The map at your hub, your truck on it. The board: loads out of your hub
+only, nearest first, the profit on every card, the loads a newcomer can't take dimmed and saying why. One bid,
+and a mark where it was made. The truck rolling. The pay line in the open: rate × miles, less fuel, less the
+lessor's 15%, less the deposit, equals yours. Then "the next round is at 18:00; set your dispatcher before you
+go". Five tabs in the first hour: Fleet, Loads, Money, Company, Iuliia; the rest appear the day they matter.
+The walkthrough ticks only on the player's own acts and says one Do at a time. The token is nowhere in the
+first hour: Money shows cash, what's owed and when, costs, and Miles as "your standing".
 
 ## What the game is not
-Not a dashboard. Not a wallet with a game attached. Not a crime sim with trucks in it. Not a wiki (a tab of
-forty-eight guide pages is one). Not an idle game: nothing happens to your company that you didn't set up.
+Not a dashboard. Not a wallet with a game attached. Not a crime sim with trucks in it. Not a wiki. Not an idle
+game: nothing happens to your company that you didn't set up.
 
 ## The cut list
-**Beta one: serves a pillar now, player-facing.** The board with counters and book-now. Standing orders, but only
-after the first load is booked by hand. HOS, docks, appointments, commodities and towns. Roads, tolls, terrain,
-weather, parking and where the truck sleeps. Costs, wear, breakdowns, rebuilds, insurance, yard rent. Seasons,
-headhaul and reload odds, the freight cycle (felt, never explained). Local-first shippers and contracts, shown at
-the first offer. The used lot, the lease deposit toward the first truck, purchase loans. Drivers, fatigue, home
-time. The staff ladder where it bites. The safety record, inspections, reviews, crashes, shutdowns. Liquidation
-with no free restart. NPC theft in the corridors. Miles as standing. The Report button and the walkthrough.
+**Beta one: serves a pillar now.** Everything a one-truck carrier meets on the road and at the bank: the board
+with counters and book-now; standing orders after the first hand-booked load; HOS, docks, roads, tolls, weather,
+parking; costs, wear, breakdowns, insurance, yard rent; seasons and the cycle, felt and never explained;
+local-first shippers and contracts at the first offer; the used lot, the deposit toward the first truck, loans;
+drivers, fatigue, home time; the staff ladder where it bites; the safety record; liquidation with no free
+restart; NPC theft; Miles as standing; the Report button.
 
 **Waits for a layer: built, hidden until its day.** Facilities, businesses, truck stops, dealerships (day 28).
-Brokerage: licence, bond, surety, re-posting (day 91). Managers, the CEO, sales and security roles, direct
-freight, scale discounts. The token: the exchange card, the opening auction, the bridge and its
-queue, the Logbook and its shop, the dollar window, the airdrop estimate, the "launch in 7,260" counter (after
-counsel and the server: a page with no accounts can't keep a promise or take a dollar). The Economy page as the
-Monthly Economic Report, published, not a tab. The Rates view folded into the board. Crews, the Back Lot,
-Channel 19, bounties and heat (a later beta).
+Brokerage and re-posting (day 91). Managers, sales, security,
+direct freight, scale discounts. The token: the exchange card, the auction, the bridge, the Logbook, the dollar
+prices, the airdrop estimate, the launch counter (after counsel and the server). The Economy tab as a published
+monthly report. Rates folded into the board. Crews, the Back Lot, Channel 19, bounties and heat (a later beta).
 
-**Goes.** The 34-theme picker: the game has one look. The Back Lot teaser tab: crime stays out of the player's
-face until it is a layer. Equipment Finance's deposit side: yield on idle FD is a wallet feature; loans come from
-the NPC lender. The dispatcher's re-post row on a day-one owner-operator's screen. The buyback-auction and
-dealer-cap-growth modes (dead config).
+**Goes.** The 34-theme picker: one look. Both locked teaser tabs (below). The eight-rule dispatcher form on a
+one-truck company's screen. Equipment Finance's deposit side: yield on idle FD is a wallet feature.
+
+## Two positions the bible takes
+**Locked teasers.** Jeff asked for locked tabs as teasers of the vision; the art director's guide says none. The
+bible sides with the art director, for a game reason: a tab that does nothing when tapped is the feeling Jeff
+called slop. The vision lives on the roadmap page, in one line from Iuliia the week before a layer opens,
+and in the layer arriving on its day. The Back Lot stays out of the
+chrome either way: crime is out of the player guide by studio rule.
+
+**The dispatcher.** For a one-truck company the standing orders start empty: the truck waits at home until the
+player books the first load by hand. The cost: an idle truck while a new player is away, on a lease charging
+250 FD a week either way. A rule change (a config default the bots also read): if Jeff says yes,
+the economy designer sizes it first.
 
 ## Open questions for Jeff (yes or no, in the order that unblocks the most)
-1. Is the pitch above the game, in your words or close enough to edit?
-2. Does the token leave the beta's screens entirely until counsel and the server, Miles shown only as standing?
-3. May the dispatcher stay off until a player books the first load by hand, and the first truck wait at home
-   instead of leaving empty? (A rule change.)
+1. Is the pitch above the game, and "one load closer to my own truck" the feeling you want?
+2. Is the first ten minutes, built, the next sprint, before the server and the live restart?
+3. Does the token leave the beta's screens until counsel and the server, Miles shown as standing?
 4. Beta one with five tabs, the rest appearing the day they matter?
-5. Are beta one's twenty to fifty people freight people from Trucking Terminal's list, not crypto?
-6. One look: does the theme picker go?
-7. Does the Back Lot teaser tab leave the beta, the layer staying on the roadmap page?
-8. Is "I made a call, it paid, and I'm one load closer to my own truck" the feeling you want at the end of a
-   session?
+5. Do the locked teaser tabs go, the roadmap page and Iuliia carrying the vision instead?
+6. For a one-truck company, does the dispatcher stay idle until the first hand-booked load? (A rule change.)
+7. One look: does the theme picker go?
+8. Are beta one's twenty to fifty people freight people from Trucking Terminal's list, not crypto?
