@@ -1,6 +1,9 @@
-# The first ten minutes (UX spec, draft 3, 2026-11-02; owner: UX)
+# The first ten minutes (UX spec, draft 4, 2026-11-02; owner: UX; S0, S1 and S9 amended by the director)
 
-Draft 3 applies Jeff's answers (`DECISIONS.md`, 2026-11-02). Quoted strings are the writer's placeholders
+Draft 3 applied Jeff's answers (`DECISIONS.md`, 2026-11-02). Draft 4 applies his ruling on the first two screens
+("the title screen is only a login screen with nice animations"; the hub is chosen inside the world, with the
+map, the date and the freight in view, Iuliia guiding), the director's gate corrections and hub ruling, and the
+economy's two approved proposals. Quoted strings are the writer's placeholders
 (`specs/copy-audit.md` wins); `{}` numbers come from config; other figures are one example load.
 
 ## Part one: the screens as they stand
@@ -61,9 +64,9 @@ row moves to More's open list with a "New" dot and the panel works.
 | Staff | at the second truck, or a truck without a driver |
 | Dealer | when walkthrough step 9 (`own`) is current |
 | Rates | at the first delivery |
-| Logbook | at the first delivery |
+| Logbook | at the token's launch |
 | Finance | at the second truck |
-| Economy | on game day 7 |
+| Economy | at the first Monthly Economic Report |
 | Business | its layer's day (`layerBlock`, day 28) |
 | Back Lot | its layer (`layerBlock`); text unchanged |
 
@@ -77,20 +80,64 @@ Report. Miles and "Beta · launch in 730d" move to Money's token group (S8).
 writer cuts lines to 25 words), "Next", then the step's Do, "Hide". Top of the sheet on a phone; at strip height
 her line is the strip. Never between a list's header and its first row.
 
-### S0 Title (0:00–0:40)
-The title loop; "Company name" (default "Lone Star Freight", 32 chars); three hub cards, Chicago, Dallas,
-Phoenix (Memphis replaces one the economy designer finds fails the first board); **Start hauling**. Each card:
-hub name, one freight line, one carriers line ("Dallas · freight even · a fair share of carriers"). The table,
-its caption and the beta line go; "How you start" stays, test build only. The five connection cards stay,
-reworded.
+### S0 Login (0:00–0:15)
+The title loop and its two shots, full screen, and nothing a stranger has to read. Under the logo, one action:
+- **Live build:** **Sign in**. Signed in with a company: **Continue · Red Dirt Freight**. Signed in without one:
+  **Enter the world**. Connecting and failure show on the button itself ("Connecting…", "Can't reach the world ·
+  Retry"), never as cards.
+- **Test build:** **Continue · Brazos Hauling, day 18** when a saved world exists, and **New test world** (if it
+  replaces a saved one, the button asks once: "This replaces Brazos Hauling"). A new test world shows "Starting
+  the world…" over the loop while it runs its first two game days (below), then enters.
+Nothing else: no company name, no hub, no "How you start", no table, no theme, no beta line. A small "≡" in the
+corner holds "Report a bug or an idea" and "Full screen".
 
-### S1 Arrival (0:40–1:30)
-The map flies from the country to the home hub in 1.5 s (none under reduced motion), to a zoom where the hub
-label, its roads and the cyan sprite labelled "You" read. AI carriers at 35 % opacity; players full. Sheet at
-half: Iuliia, "This is Dallas, your home. Let's find a load.", **Show me the board** (ticks step 1).
+### S1 First entry: the world, before a home (0:15–2:00)
+**The world opens on its third day.** Every new world runs two game days (four rounds) before anyone enters:
+the live world by its epoch at the restart, a test world behind "Starting the world…". The first board is
+then the day-3 board (economy review, `economy-first-board.md`). The date the player sees is the world's.
+
+**What the player sees.** The whole country map, every truck moving at full opacity (the world is alive and
+none of it is theirs yet). The top strip: the date and clock ("Wed Jan 3 · 08:14"), "Next round 18:00", "≡";
+no cash, no alerts, no speed control until the company exists. No bottom nav yet. Three hubs on the map carry
+a cyan ring and their label: Dallas, Los Angeles, Phoenix (Los Angeles pending the economy designer's check at
+every age and its theft; if it fails, Chicago takes the place, its card carrying its season). Every other hub is
+labelled and tappable.
+
+**Iuliia guides it.** The sheet opens at half (laptop: the panel), her portrait at 96 px:
+1. "Welcome. This is the market, live; nobody waits for us." **Next**
+2. "Before you have a truck, you need a home. Three good ones are ringed. Tap one, or any city you like." The
+   three starter cards sit under her line; **All hubs** opens the full list, sorted by the day's freight.
+
+**The hub card** (sheet at full; tapping a hub on the map opens the same card). Every figure is one the engine
+already reports, read for a dry van:
+- **The hub:** name, one line of character (writer), and the season line (writer, from the "Seasons now" read
+  for that origin: "Busy season out of Dallas" / "Freight is thin here this month").
+- **Freight now** (the Rates table's row): "38 loads posted last round · 4.46/mi average"; "2.5 loads per
+  truck · hot"; "Ships 1.1× what it receives"; "Reload: easy / fair / hard".
+- **Who's here** (the home-market read): "Carriers based here: a fair share" (`crowdWord`); "Shippers hold 45%
+  of van loads for locals first".
+- **What it costs to live here** (the hub table): "Insurance ×1.20"; "Yard: 27 FD a week per truck past the
+  first"; "Theft: 2.0× a quiet road" (only where above 1).
+- **Outbound by trailer:** "Van even · Reefer even · Flatbed even".
+- **See the board** opens S2's cards for that hub, read-only: rate, rate per mile, empty miles from the hub,
+  "usually clears near"; no profit chip and no Book or Bid ("Start here to bid on these"). Back returns to the
+  card.
+- **Start here**, pinned at the bottom.
+
+**Naming the company** (after **Start here**, same sheet): Iuliia, "Dallas. Good. Home is where this company
+stays. What do we call it?"; a field "Company name" (default from the hub, the writer's list; 32 characters);
+test build only, "How you start": owner-operator (the live world's start) or a small fleet; **Start at Dallas**.
+Back returns to the hub card. Live: the button writes the company to the store and shows "Opening your
+authority…" until the act is in effect (`LEAD_MIN`).
+
+**The fly-to-home** runs once, on the company's creation, never on a later session (later sessions open on the
+player's truck). The map flies from where the player left it to the home hub in 1.5 s (cut under reduced
+motion), to a zoom where the hub label, its roads and the cyan sprite labelled "You" read. AI carriers drop to
+35 % opacity; players full. The bottom nav and the cash appear. Sheet at half: Iuliia, "This is Dallas, your
+home. One leased truck, a dry van, and you driving it. Let's find a load." and **Show me the board**.
 States: map not drawn yet → the hub's painting with "Finding Dallas…" until the first frame.
 
-### S2 Board (1:30–4:00)
+### S2 Board (2:00–4:00)
 Header: "Loads from Dallas · 14 · next round 18:00 (in 5 h)". A truck selector only from two trucks.
 **Card** (88 px, the whole card a target):
 - line 1: "Dallas, TX → Charlotte, NC · 1,085 mi"
@@ -151,11 +198,17 @@ truck" −150 (when the deposit applies) · **"Yours" 1,442 FD** · "Paid" (due 
 ### S8 Money (8:00–9:00)
 A ledger, top to bottom: "Cash" with the sparkline; "Owed to you" (load, amount, due day; empty: "Nothing owed
 yet · your first invoice lands here"); "This week's costs" (lease minimum, insurance, yard, per diem);
-"Standing" (loaded miles). Then two folds, closed by default: "Loans" (today's Equipment Finance card) and
-"The token" (today's exchange, airdrop and auction cards, Miles, "Beta · launch in 730d", unchanged).
+"Standing" (Miles: "272 Miles · your standing in the beta"). Then two folds, closed by default: "Loans" (today's Equipment Finance card) and
+"The token" (today's exchange, airdrop and auction cards, "Beta · launch in 730d", unchanged).
 
 ### S9 Before you go (9:00–10:00)
-After the first bid by hand, Iuliia: "From now on your dispatcher bids when you don't. Check the rules before
+**Before the first bid by hand** (a one-truck company only; a small fleet's dispatcher runs from the start):
+Truck › Dispatcher shows the switch "Bid for me while I'm away", off and disabled, with one line from Iuliia
+under it, "Your first load is your call. After that, your dispatcher can bid while you're away.", and nothing
+else: the rows stay hidden. The truck card reads "Waiting at Dallas · the first load is your call"; the strip
+"Truck 1 · Waiting at Dallas · round 18:00".
+
+**After it:** Iuliia: "From now on your dispatcher bids when you don't. Check the rules before
 you go." and **See the dispatcher** → Truck › Dispatcher: a switch "Bid for me while I'm away" (on), then three
 rows: "Bid at break-even plus" [25] %, "Send the truck empty up to" [150] mi, "Bring me home after" [21] days,
 **Save**. "More rules" folds the rest (floor, book-now, move idle trucks, contracts). The re-post row is hidden
@@ -166,6 +219,10 @@ until brokerage opens.
   switch; a truck tap opens its Truck card.
 - **Truck:** truck cards, "Needs you" (alerts, tenders, tired, idle), the yard, Dispatcher, "Today" (the last
   eight feed lines).
+- **Walkthrough, first steps:** still thirteen. Step 1 becomes "Choose your home" (the Do: "Pick a home hub
+  and name your company"); it ticks on the company's creation, the player's own act. The old step 1's lines
+  (the leased truck, the lessor's share) move to the arrival line above. "Show me the board" is a button, not a
+  step. Step 2 ticks on the first bid or booking, as before; the rest are unchanged.
 - **Walkthrough targets:** `miles` → Money's Standing; `law` → More › Company; `own`, `driver`, `yard` → the
   teasers they open; the rest unchanged. `TAB_NAME` takes the new labels.
 
@@ -173,3 +230,23 @@ until brokerage opens.
 1. **Engineering:** can the client read a moving truck's overnight stop? If not, S6 ships without it.
 2. **Director:** on a phone the teasers live in More, not the bottom bar. Putting them in the bar makes it a
    scrolling strip and the four stop being always in reach; I recommend against.
+3. **Engineering:** the company does not exist during S1, so the client needs a world view with no company (the
+   map, the clock, the Rates and hub reads, a read-only board). Say if any read needs a company.
+
+## For the writer: strings that change in draft 4
+- **S0, new:** "Sign in", "Enter the world", "Continue · {company}", "Connecting…", "Can't reach the world ·
+  Retry", "New test world", "This replaces {company}", "Starting the world…".
+- **S0, gone:** "Company name" and its default, the hub cards and table, the beta line, "Start hauling",
+  "How you start" (moves to S1, test build only).
+- **S1, new:** Iuliia's two welcome lines; "All hubs"; the hub card's labels ("Freight now", "Who's here",
+  "What it costs to live here", "Outbound by trailer", "See the board", "Start here to bid on these", "Start
+  here"); the season lines per hub; one line of character per hub; the naming line ("Home is where this company
+  stays. What do we call it?"); a default company name per hub; "Start at {hub}"; "Opening your authority…";
+  the arrival line (now carrying the leased truck and the lessor).
+- **Walkthrough:** step 1's title and Do ("Choose your home"); the old step 1's text cut into the arrival line.
+- **S9, new:** "Your first load is your call. After that, your dispatcher can bid while you're away."; "Waiting
+  at {hub} · the first load is your call".
+- **Money:** "272 Miles · your standing in the beta" in Standing.
+- **Hubs:** Dallas, Los Angeles, Phoenix (Chicago if Los Angeles fails its check). Iuliia names Russian things,
+  never Russian words.
+
