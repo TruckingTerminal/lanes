@@ -30,9 +30,9 @@ people() {
   "${P[@]}" image "pixel art portrait of a warehouse dock worker, head and shoulders, yellow hard hat, yellow safety vest over a brown shirt, holding a clipboard, facing the viewer, game character portrait" 64 64 apps/web/assets/people/dockworker.png --transparent --palette --detail high
 }
 
-# Block A of ASSET-PLAN.md: the Pro title scene, the style anchor every painterly asset copies. It no longer ships as
-# the title screen: its loops streamed the road while nothing beside it moved (Jeff, 2026-11-01), and the screen is
-# now the side-view parallax (titleparallax below).
+# Block A of ASSET-PLAN.md: the Pro title scene, the style anchor every painterly asset copies, and since 2026-11-01
+# the title's poster and the head-on shot's painting; the screen itself is drawn live (src/title.ts; titleparallax,
+# titleapproach and titlesprites below).
 title() {
   mkdir -p apps/web/assets/title
   "${P[@]}" pro "highly detailed HD pixel art, painterly shading, cinematic wide title screen: a cyan long-nose semi truck with a white trailer driving toward the viewer on a two-lane desert highway at dusk, a roadside diner with a glowing neon sign, telephone poles, red mesas on the horizon, a saturated orange and purple sunset sky with a few stars, long warm shadows" 256 144 apps/web/assets/title/title.png
@@ -177,40 +177,36 @@ for mood, frame in (("point", 7), ("laugh", 6), ("wave", 6)):
 EOF
 }
 
-# The title screen (Jeff, 2026-11-01: "the road looks like the truck is driving but nothing in the background is
-# moving"): layers for tools/title-parallax.py, which holds the truck in place while the world streams past at speeds
-# set by distance and writes 96 frames at 24 fps that close without a crossfade. The truck is the east view of an
-# eight-direction object: a true side profile, which the Pro painter wouldn't draw (its rigs came out three-quarter,
-# and on a side-on road they looked to drive diagonally: Jeff, 2026-11-01). The object takes no seed; the one in the
-# shipped layers is object a0d7958b-50ab-4c04-a424-c78ccec72ba3.
+# The title screen, drawn live by src/title.ts (Jeff, 2026-11-01: a real semi, a head-on rig at highway speed, the
+# pickup and the life back, nothing on a loop). Its painted layers: the side view's sky, mesas and far desert, the
+# diner, and a sheet of plants.
 titleparallax() {
   local st=apps/web/assets/title/title.png l=apps/web/assets/title/parallax
   mkdir -p $l
   "${P[@]}" pro "$HD: a wide desert landscape at dusk seen straight from the side, a saturated orange and purple sunset sky with long streaks of cloud and a few early stars near the top, red-purple mesas and buttes standing along the horizon across the lower middle, the flat empty desert floor in the bottom third, no road, no buildings, no poles, no vehicles, no people" 256 144 $l/back.png --style "$st" --seed 502479405 &
   "${P[@]}" pro "$HD: side view of a small retro American roadside diner at dusk, a long low building with a row of warm lit windows and a chrome stripe, a glowing pink neon coffee cup sign on its roof, a strip of gravel lot, seen straight from the side, isolated on a transparent background" 112 64 $l/diner.png --style "$st" --transparent --seed 547048965 &
   "${P[@]}" pro "$HD: a sprite sheet of separate desert plants seen from the side at dusk: round sagebrush bushes, dry grass tufts, a small saguaro cactus, a prickly pear cactus, small rocks and a tumbleweed, each one separate with empty space between them, isolated on a transparent background" 256 64 $l/scrub.png --style "$st" --transparent --seed 1367072652 &
-  "${P[@]}" object "a cyan American long-nose semi truck with tall chrome stacks pulling a white 53-foot dry van trailer" 128 $l/truck --view side &
   wait
-  python3 - <<'EOF'
-import importlib.util
-spec = importlib.util.spec_from_file_location("pm", "apps/web/tools/paint-map.py")
-pm = importlib.util.module_from_spec(spec)
-spec.loader.exec_module(pm)
-l = "apps/web/assets/title/parallax"
-sheet = pm.read_png(f"{l}/truck/truck.png")  # 8 cells of 136: south, south-east, east, …
-pm.write_png(f"{l}/rig.png", sheet[36:100, 2 * 136 : 3 * 136].copy())
-EOF
-  "${P[@]}" animate $l/rig.png "the wheels turn, the truck bobs gently on its suspension as if rolling down the highway, a thin trail of exhaust drifts back from the stacks, a seamless loop that ends where it began, the truck stays in the same place and keeps its shape and colours" $l/rig-loop --frames 16 --view side --direction east --transparent --seed 4142411496
-  python3 apps/web/tools/pack-loop.py $l/rig-loop $l/rig.loop.png --cols 16
-  python3 apps/web/tools/title-parallax.py
 }
 
-# The title's head-on shot (Jeff, 2026-11-01: make the original make sense too, and cycle the two every 20 s): the
-# original painting with its truck painted out, for tools/title-approach.py, which cuts the truck out where the two
-# differ and draws it at 40 sizes; title.ts drives it up its lane from the horizon to its place in the painting.
+# The head-on shot's road: the original painting with its truck painted out (the truck is cut out where they differ).
 titleapproach() {
   "${P[@]}" edit apps/web/assets/title/title.png "the same desert highway scene at dusk with the semi truck removed: the empty two-lane road runs on to the horizon with its dashed centre line, the diner, the poles, the mesas and the sky exactly as they are" apps/web/assets/title/approach.png --seed 7
-  python3 apps/web/tools/title-approach.py
+}
+
+# The title's vehicles, as eight-direction objects (true side profiles, which the Pro painter won't draw, and the
+# coming and going three-quarter views): a bobtail tractor, its trailers drawn in title.ts; a pickup; a sedan. Objects
+# take no seed; the shipped ones are objects 4fcfe870-2776-4459-ae17-1f60ff2f9033 (tractor),
+# bf917e8a-d4a6-43c5-beb0-e7ff8b03319f (pickup) and ae028a00-bbbd-4514-8250-7cafd624fa3e (sedan). Then the atlas.
+titlesprites() {
+  local o=apps/web/assets/title/objects
+  mkdir -p $o
+  "${P[@]}" object "an American long-nose conventional semi tractor unit with no trailer, the whole truck from bumper to frame end, cyan paint, a sleeper cab, tall chrome exhaust stacks, a chrome grille, a fifth wheel coupling plate on the bare frame behind the cab, a steer axle and two drive axles" 80 $o/tractor-sheet --view side &
+  "${P[@]}" object "a red American full-size pickup truck with a chrome bumper" 80 $o/pickup-sheet --view side &
+  "${P[@]}" object "a dusty white four-door American sedan" 72 $o/sedan-sheet --view side &
+  wait
+  for k in tractor pickup sedan; do cp $o/$k-sheet/$k-sheet.png $o/$k.png; done
+  python3 apps/web/tools/title-sprites.py
 }
 
 case "$want" in
@@ -230,6 +226,7 @@ case "$want" in
   iuliia) iuliia ;;
   titleparallax) titleparallax ;;
   titleapproach) titleapproach ;;
+  titlesprites) titlesprites ;;
   all) rigs; scenes; people; title ;;
 esac
 "${P[@]}" balance
