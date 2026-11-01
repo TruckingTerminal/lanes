@@ -179,15 +179,17 @@ EOF
 
 # The title screen (Jeff, 2026-11-01: "the road looks like the truck is driving but nothing in the background is
 # moving"): layers for tools/title-parallax.py, which holds the truck in place while the world streams past at speeds
-# set by distance and writes 96 frames at 24 fps that close without a crossfade. The painter draws the rig facing
-# left whatever the prompt says, so it is mirrored before it rolls.
+# set by distance and writes 96 frames at 24 fps that close without a crossfade. The truck is the east view of an
+# eight-direction object: a true side profile, which the Pro painter wouldn't draw (its rigs came out three-quarter,
+# and on a side-on road they looked to drive diagonally: Jeff, 2026-11-01). The object takes no seed; the one in the
+# shipped layers is object a0d7958b-50ab-4c04-a424-c78ccec72ba3.
 titleparallax() {
   local st=apps/web/assets/title/title.png l=apps/web/assets/title/parallax
   mkdir -p $l
   "${P[@]}" pro "$HD: a wide desert landscape at dusk seen straight from the side, a saturated orange and purple sunset sky with long streaks of cloud and a few early stars near the top, red-purple mesas and buttes standing along the horizon across the lower middle, the flat empty desert floor in the bottom third, no road, no buildings, no poles, no vehicles, no people" 256 144 $l/back.png --style "$st" --seed 502479405 &
   "${P[@]}" pro "$HD: side view of a small retro American roadside diner at dusk, a long low building with a row of warm lit windows and a chrome stripe, a glowing pink neon coffee cup sign on its roof, a strip of gravel lot, seen straight from the side, isolated on a transparent background" 112 64 $l/diner.png --style "$st" --transparent --seed 547048965 &
   "${P[@]}" pro "$HD: a sprite sheet of separate desert plants seen from the side at dusk: round sagebrush bushes, dry grass tufts, a small saguaro cactus, a prickly pear cactus, small rocks and a tumbleweed, each one separate with empty space between them, isolated on a transparent background" 256 64 $l/scrub.png --style "$st" --transparent --seed 1367072652 &
-  "${P[@]}" pro "$HD: side view of $TRUCK in cyan paint pulling a white 53-foot dry van trailer, facing right, headlights and amber marker lights glowing, big black tires with chrome rims, seen straight from the side, isolated on a transparent background" 128 48 $l/rig-left.png --style "$st" --transparent --seed 1233878948 &
+  "${P[@]}" object "a cyan American long-nose semi truck with tall chrome stacks pulling a white 53-foot dry van trailer" 128 $l/truck --view side &
   wait
   python3 - <<'EOF'
 import importlib.util
@@ -195,11 +197,20 @@ spec = importlib.util.spec_from_file_location("pm", "apps/web/tools/paint-map.py
 pm = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(pm)
 l = "apps/web/assets/title/parallax"
-pm.write_png(f"{l}/rig.png", pm.read_png(f"{l}/rig-left.png")[:, ::-1].copy())
+sheet = pm.read_png(f"{l}/truck/truck.png")  # 8 cells of 136: south, south-east, east, …
+pm.write_png(f"{l}/rig.png", sheet[36:100, 2 * 136 : 3 * 136].copy())
 EOF
-  "${P[@]}" animate $l/rig.png "the wheels turn, the truck bobs gently on its suspension as if rolling down the highway, a thin trail of exhaust drifts back from the stacks, a seamless loop that ends where it began, the truck stays in the same place and keeps its shape and colours" $l/rig-loop --frames 16 --view side --direction east --transparent --seed 4293338680
+  "${P[@]}" animate $l/rig.png "the wheels turn, the truck bobs gently on its suspension as if rolling down the highway, a thin trail of exhaust drifts back from the stacks, a seamless loop that ends where it began, the truck stays in the same place and keeps its shape and colours" $l/rig-loop --frames 16 --view side --direction east --transparent --seed 4142411496
   python3 apps/web/tools/pack-loop.py $l/rig-loop $l/rig.loop.png --cols 16
   python3 apps/web/tools/title-parallax.py
+}
+
+# The title's head-on shot (Jeff, 2026-11-01: make the original make sense too, and cycle the two every 20 s): the
+# original painting with its truck painted out, for tools/title-approach.py, which cuts the truck out where the two
+# differ and draws it at 40 sizes; title.ts drives it up its lane from the horizon to its place in the painting.
+titleapproach() {
+  "${P[@]}" edit apps/web/assets/title/title.png "the same desert highway scene at dusk with the semi truck removed: the empty two-lane road runs on to the horizon with its dashed centre line, the diner, the poles, the mesas and the sky exactly as they are" apps/web/assets/title/approach.png --seed 7
+  python3 apps/web/tools/title-approach.py
 }
 
 case "$want" in
@@ -218,6 +229,7 @@ case "$want" in
   placesloops) placesloops ;;
   iuliia) iuliia ;;
   titleparallax) titleparallax ;;
+  titleapproach) titleapproach ;;
   all) rigs; scenes; people; title ;;
 esac
 "${P[@]}" balance

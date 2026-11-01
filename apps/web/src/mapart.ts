@@ -199,18 +199,22 @@ export function townKindAt(lon: number, lat: number, nearWater: boolean): TownKi
   return "plains";
 }
 
-let titlePic: Pic | null = null;
-/** The title's long loop (assets/title/title.loop.png, 96 frames of 256 × 144 in 12 columns) once decoded. */
-export function titleLoop(): HTMLImageElement | null {
-  if (!titlePic) {
-    if (!hasAsset("title/title.loop.png")) return null;
-    titlePic = { src: `${ASSETS}title/title.loop.png`, img: null, ready: false };
-    load(titlePic);
+const titlePics = new Map<string, Pic>();
+/** A picture of the title's shots next to the page (assets/title/<name>, title.ts) once decoded, else null. */
+export function titlePicture(name: string): HTMLImageElement | null {
+  let p = titlePics.get(name);
+  if (!p) {
+    if (!hasAsset(`title/${name}`)) return null;
+    p = { src: `${ASSETS}title/${name}`, img: null, ready: false };
+    titlePics.set(name, p);
+    load(p);
   }
-  return titlePic.ready ? titlePic.img : null;
+  return p.ready ? p.img : null;
 }
-/** A side-view parallax (tools/title-parallax.py) whose last frame leads into its first, so nothing crossfades. */
-export const TITLE_LOOP = { frames: 96, cols: 12, fps: 24, fade: 0 };
+/** The title's side-view loop (assets/title/title.loop.png, 96 frames of 256 × 144 in 12 columns) once decoded. */
+export const titleLoop = (): HTMLImageElement | null => titlePicture("title.loop.png");
+/** A side-view parallax (tools/title-parallax.py) whose last frame leads into its first, so it simply repeats. */
+export const TITLE_LOOP = { frames: 96, cols: 12, fps: 24 };
 
 let loadingPic: Pic | null = null;
 /** The loading screen's rig strip (16 frames of 256 × 72) once it has decoded. */

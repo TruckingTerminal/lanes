@@ -8,14 +8,14 @@ import { useEffect, useRef } from "preact/hooks";
 import { companyAccount, fdPriceUsd, garagingOf, homeCrowding, localShare, tokenLive, type World } from "@lanes/engine";
 import { hubs as HUBS } from "@lanes/data";
 import { drawLoadingRoad, drawTitleScene, iconUrl, PAL, TITLE_H, TITLE_W } from "../art.js";
-import { TITLE_FRAME_H, TITLE_FRAME_W, titleFrame } from "../title.js";
+import { drawTitleShots, TITLE_FRAME_H, TITLE_FRAME_W, titleFrame } from "../title.js";
 import { cls, fd, dateLabel, hhmm, pct, realUntil } from "../format.js";
 import { GAME_CONFIG, isHuman, RULESET, type StartKind } from "../game.js";
 import { H } from "../handlers.js";
 import { attentionItems, stuckTrucks, tiredTrucks } from "../logic.js";
 import { fitMap, maxZoom, mountMap, setZoom, zoomIndex, zoomLabel } from "../mapview.js";
 import { drawText } from "../font.js";
-import { ASSETS, hasAsset, loadingStrip, LOOP_FPS, TITLE_LOOP, titleLoop } from "../mapart.js";
+import { ASSETS, hasAsset, loadingStrip, LOOP_FPS } from "../mapart.js";
 import { LOGO, LOGO_TITLE, LOGO_TITLE_H, LOGO_W } from "../assets.js";
 import { Rig } from "./Loop.js";
 import { CityPane } from "./CityPane.js";
@@ -63,22 +63,8 @@ function TitleScene(): JSX.Element {
         }
         if (resized || img !== shown || !reduced) {
           ctx.imageSmoothingEnabled = false;
-          const sheet = reduced ? null : titleLoop();
-          if (sheet) {
-            // The long loop from the sheet next to the page (TITLE_LOOP). A loop that doesn't close
-            // crossfades its last `fade` frames into its first; the parallax loop closes, so its fade is 0.
-            const { frames, cols, fps, fade } = TITLE_LOOP;
-            const i = Math.floor((t * fps) / 1000) % frames;
-            const cell = (n: number) => [(n % cols) * TITLE_FRAME_W, Math.floor(n / cols) * TITLE_FRAME_H] as const;
-            const [sx, sy] = cell(i);
-            ctx.drawImage(sheet, sx, sy, TITLE_FRAME_W, TITLE_FRAME_H, 0, 0, cv.width, cv.height);
-            if (fade > 0 && i >= frames - fade) {
-              const [fx, fy] = cell(i - (frames - fade));
-              ctx.globalAlpha = (i - (frames - fade) + 1) / (fade + 1);
-              ctx.drawImage(sheet, fx, fy, TITLE_FRAME_W, TITLE_FRAME_H, 0, 0, cv.width, cv.height);
-              ctx.globalAlpha = 1;
-            }
-          } else ctx.drawImage(img, 0, 0, cv.width, cv.height);
+          // The two shots next to the page, 20 s each (title.ts drawTitleShots); the poster until they can play.
+          if (reduced || !drawTitleShots(ctx, cv.width, cv.height, t)) ctx.drawImage(img, 0, 0, cv.width, cv.height);
           drawLogo(ctx, cv.width, scale, reduced ? 0 : t);
           shown = img;
         }

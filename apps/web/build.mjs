@@ -39,8 +39,9 @@ rmSync(assetsOut, { recursive: true, force: true });
 let copied = 0;
 // The map layers and the sprites ride outside the page whole; the scenes, people and the loading
 // strip keep their stills inside it and only their loops outside. Iuliia's stills and the welcome strip
-// ride outside too: the walkthrough finds them through the manifest (Walkthrough.tsx, hasAsset).
-const RULES = { map: (f) => f !== "l0-summer.png", cities: () => true, towns: () => true, cityviews: () => true, icons: () => true, vfx: (f) => f.endsWith(".loop.png") || !f.includes("-"), scenes: (f) => f.endsWith(".loop.png") || f === "welcome.png", people: (f) => f.endsWith(".loop.png") || f.startsWith("iuliia"), loading: (f) => f.endsWith(".loop.png"), title: (f) => f.endsWith(".loop.png"), rigs: (f) => f.endsWith(".loop.png") };
+// ride outside too: the walkthrough finds them through the manifest (Walkthrough.tsx, hasAsset); so do the
+// title's head-on shot, its painting and the truck's sizes (title.ts).
+const RULES = { map: (f) => f !== "l0-summer.png", cities: () => true, towns: () => true, cityviews: () => true, icons: () => true, vfx: (f) => f.endsWith(".loop.png") || !f.includes("-"), scenes: (f) => f.endsWith(".loop.png") || f === "welcome.png", people: (f) => f.endsWith(".loop.png") || f.startsWith("iuliia"), loading: (f) => f.endsWith(".loop.png"), title: (f) => f.endsWith(".loop.png") || f.startsWith("approach"), rigs: (f) => f.endsWith(".loop.png") };
 for (const [sub, keep] of Object.entries(RULES)) {
   const src = join(here, "assets", sub);
   if (!existsSync(src)) continue;

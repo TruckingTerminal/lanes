@@ -4,10 +4,12 @@
 The truck holds its place with its wheels turning while the world streams past at speeds set by distance: the sky
 and the mesas stay put; the shoulder (its poles, wires, cacti and the diner) and the road move 4 px a frame; the
 scrub in front of the road 6. Every moving layer repeats a whole number of times in the 96 frames, so the frame
-after the last is the first and the loop needs no crossfade (mapart.ts TITLE_LOOP.fade 0).
+after the last is the first and the loop simply repeats (mapart.ts TITLE_LOOP).
 
 Layers (apps/web/assets/title/parallax, painted by asset-pass.sh titleparallax): back.png, the sky, the mesas and
-the far desert; diner.png; scrub.png, a sheet of plants cut apart here; rig.loop.png, the truck's 16-frame roll.
+the far desert; diner.png; scrub.png, a sheet of plants cut apart here; rig.loop.png, the truck's 16-frame roll, in
+true side profile (an eight-direction object's east view, dimmed toward the dusk by RIG_GRADE) so that it drives
+along the road and not across it. title.ts cuts between this shot and the head-on one (tools/title-approach.py).
 
   title-parallax.py [--frames <dir>]
       → assets/title/title.loop.png (+ .json), 96 frames of 256 × 144 in 12 columns, played at 24 fps, and the
@@ -35,13 +37,14 @@ FORE_W = FORE_V * N // 2  # 288: the foreground comes round twice
 # Rows: the shoulder behind the road, the road's far edge line, centre dashes and near edge line, the foreground.
 SHOULDER, ROAD, CENTRE, ROAD_END = 96, 106, 114, 124
 POLE_TOP, ARM = 44, 48
-TRUCK_X, TRUCK_FOOT = 60, 121  # the rig sprite's left edge and the row its tyres stand on
+TRUCK_X, TRUCK_FOOT = 58, 121  # the rig sprite's left edge and the row its tyres stand on
 
 DIRT, PEBBLE = (104, 64, 54), (72, 46, 40)
 ASPHALT, SHEEN = (46, 42, 60), (64, 54, 74)
 LINE, DASH = (196, 176, 150), (230, 186, 92)
 SAND, SAND_DEEP = (80, 47, 41), (62, 37, 35)
 POLE, POLE_DARK, INSULATOR, WIRE = (60, 40, 34), (40, 27, 26), (220, 210, 190), (34, 24, 28)
+RIG_GRADE = np.array([0.9, 0.8, 0.84], np.float32)
 
 
 def load(name: str) -> np.ndarray:
@@ -151,18 +154,25 @@ def fore_layer(plants: list) -> np.ndarray:
     return f
 
 
-def glow(frame: np.ndarray) -> None:
-    """The headlights' wash on the road ahead of the truck and the truck's shadow under it."""
-    shade = np.zeros((4, 112, 4), np.uint8)
+def glow(frame: np.ndarray, left: int, right: int) -> None:
+    """The truck's shadow under it and its headlights' wash on the road ahead (left, right: its outline's ends)."""
+    shade = np.zeros((4, right - left - 4, 4), np.uint8)
     shade[..., 3] = 90
-    over(frame, shade, TRUCK_X + 8, TRUCK_FOOT - 2)
-    beam = np.zeros((ROAD_END - ROAD - 3, 64, 4), np.uint8)
-    for x in range(64):
+    over(frame, shade, left + 2, TRUCK_FOOT - 2)
+    beam = np.zeros((ROAD_END - ROAD - 3, 56, 4), np.uint8)
+    for x in range(56):
         half = 1 + x // 8
         mid = (TRUCK_FOOT - 4) - ROAD
         beam[max(0, mid - half) : mid + half + 1, x, :3] = (255, 226, 150)
-        beam[max(0, mid - half) : mid + half + 1, x, 3] = int(70 * (1 - x / 64))
-    over(frame, beam, TRUCK_X + 118, ROAD + 1)
+        beam[max(0, mid - half) : mid + half + 1, x, 3] = int(80 * (1 - x / 56))
+    over(frame, beam, right, ROAD + 1)
+
+
+def dusk(rig: np.ndarray) -> np.ndarray:
+    """The truck's flat game colours dimmed and warmed toward the evening light of the painted layers."""
+    out = rig.copy()
+    out[..., :3] = (rig[..., :3].astype(np.float32) * RIG_GRADE).round().clip(0, 255).astype(np.uint8)
+    return out
 
 
 def main() -> None:
@@ -174,14 +184,16 @@ def main() -> None:
     sheet = load("rig.loop.png")
     meta = json.load(open(os.path.join(LAYERS, "rig.loop.json")))
     rw, rh, rn = meta["w"], meta["h"], meta["frames"]
-    rig = [sheet[(i // meta["cols"]) * rh : (i // meta["cols"] + 1) * rh, (i % meta["cols"]) * rw : (i % meta["cols"] + 1) * rw] for i in range(rn)]
+    rig = [dusk(sheet[(i // meta["cols"]) * rh : (i // meta["cols"] + 1) * rh, (i % meta["cols"]) * rw : (i % meta["cols"] + 1) * rw]) for i in range(rn)]
+    xs = np.nonzero((rig[0][..., 3] > 0).any(axis=0))[0]
+    left, right = TRUCK_X + int(xs.min()), TRUCK_X + int(xs.max()) + 1
     near, fore = near_layer(diner, cacti), fore_layer(low)
     frames = []
     for t in range(N):
         f = back.copy()
         wrapped(f, near, -((t * ROAD_V) % NEAR_W), 0, NEAR_W)
-        glow(f)
-        over(f, rig[t % rn], TRUCK_X, TRUCK_FOOT - rh + 2)
+        glow(f, left, right)
+        over(f, rig[t % rn], TRUCK_X, TRUCK_FOOT - rh + 1)
         wrapped(f, fore, -((t * FORE_V) % FORE_W), 0, FORE_W)
         frames.append(f)
     rows = -(-N // COLS)
