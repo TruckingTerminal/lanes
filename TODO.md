@@ -402,7 +402,8 @@ and off. What the batches settled, and what waits on Jeff:
   server; Miles are "your standing in the beta", never a promised conversion.
 - **Done (2026-11-01, Jeff: "configure beta one"; ruleset 0.19.1-phase0.30):** the ladder runs in the beta
   (`unlockLadder.beta.enabled`), crews off (`robbery.enabled` false), the test site rebuilt from CI for Jeff to play.
-  The live world is NOT restarted on it yet (world/meta still 0.19.0); batch v54 runs the exact profile first.
+  The live world is NOT restarted on it yet (world/meta still 0.19.0). Batch v54-a ran the exact profile: the ladder
+  opened on days 28 / 91 / 182 of the beta, no crews, the economy unchanged (`runs/compare-v54.md`).
 - **Next:** the authoritative server with accounts by email; a Discord for the beta; the gauges; the live restart.
 
 ## Later, agreed with Jeff on 2026-10-30 (not before the switch-on and the dashboard)

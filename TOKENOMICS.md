@@ -1191,3 +1191,10 @@ the deposit credit, the staff ladder, docks, weather, parking, the supply path, 
 TGE, the bridge, the auction and the team vest for the day the token launches. The page carries Iuliia's
 walkthrough, the roadmap, the Report button and the teaser tabs. The public test site runs it as a private,
 pausable world; the live world restarts on it when Jeff says.
+
+**What v54-a showed (the exact beta-one profile, seeds 1, 4, 8, four years; `runs/compare-v54.md`):** the ladder
+opened businesses on day 28, re-brokering on day 91 and the crews' layer on day 182 of the beta, with nothing to
+open on the last since crews are off; no crew was hired anywhere; cargo thefts fell from 967 to 805 (NPC thieves
+only). The economy sat where 0.19.0 left it: the price $0.0013 → $0.0013 (85 to 137% of launch by seed), the pool
+$72k → $72k, liquidations 652 (640), the free path 45 days, owned trucks 537 (539), 14 shops and 57 truck stops open
+at the end (15 and 55), the strategy gate 1.40×. No crash.
