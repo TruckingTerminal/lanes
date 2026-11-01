@@ -1,6 +1,6 @@
 # LANES design bible (draft 2, 2026-11-02; owner: the game director; Jeff decides through the producer)
 
-From the design records and four strangers on the test page (ruleset 0.19.1).
+From the design records and four strangers on the test page.
 
 ## The pitch, in one breath
 You start with one leased truck and a load board in an America that never pauses, and you build it into the big
@@ -27,7 +27,7 @@ What serves none of these is cut.
 
 ## The core loop (what a session of play is)
 - **A sitting: five minutes, a few times a day.** See what happened since: what delivered, what it paid, where
-  the truck sleeps tonight. Make one decision: book or counter a load, send the truck somewhere better, or set
+  the truck sleeps tonight. One decision: book or counter a load, send the truck somewhere better, or set
   the dispatcher for the hours you'll be away. Bids clear every three real hours; worth a glance that often.
 - **A day: four game days.** One or two deliveries. Pay lands. A pull-in, a breakdown or a
   dead market says no. The number is always loaded miles against total miles.
@@ -39,7 +39,8 @@ Today the dispatcher plays the sitting from minute one and the walkthrough ticks
 no load won by hand. A game that plays itself is slop.
 
 ## The first ten minutes
-Target: a stranger on a phone wins a load inside five minutes, understands why it paid what it paid. The UX spec owns the screens; the bible owns the order:
+Target: a stranger on a phone has a bid in inside five minutes, knows when it clears, and understands
+what it paid. The UX spec owns the screens; the bible owns the order:
 
 A name; a home hub as three choices. The map at your hub, your truck on it. The board: loads out of your hub
 only, nearest first, the profit on every card, the loads a newcomer can't take dimmed and saying why. One bid,
@@ -79,7 +80,7 @@ chrome either way: crime is out of the player guide by studio rule.
 
 **The dispatcher.** For a one-truck company the standing orders start empty: the truck waits at home until the
 player books the first load by hand. The cost: an idle truck while a new player is away, on a lease charging
-250 FD a week either way. A rule change (a config default the bots also read): if Jeff says yes,
+250 FD a week regardless. A rule change (a config default the bots also read): if Jeff says yes,
 the economy designer sizes it first.
 
 ## Open questions for Jeff (yes or no, in the order that unblocks the most)

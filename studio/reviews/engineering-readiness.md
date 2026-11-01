@@ -60,3 +60,14 @@ So onboarding stays client-only: it reads the world and writes only to localStor
 3. Pull the walkthrough's "where to click" into data (`target: tab + element id`) and keep its progress in a small
    versioned localStorage record, so a guided flow can point at real buttons.
 4. A `test:web` script running only `apps/web/test`, for a fast client loop.
+
+## Answer: can the client show tonight's stop ahead of time? (spec question 3)
+1. **No stored field.** `truck.restSite` is set only once the truck has parked (`parkForTheNight`); before that it is 0.
+2. `planNight` (sites.ts) decides hour by hour, and only returns a mile once the stop falls inside the current hour; it
+   keeps no plan between hours.
+3. **But it can be predicted client-side, read-only:** the engine exports `legRoute`, `sitesAlong`, `legMile`,
+   `hasRoom`, `drivingMinutesLeft` and `mphFor`. Calling `planNight(w, t, legRoute(w, t), legMile(t), reach, reach)` with
+   reach = hours left × mph gives "the last site with room in reach" now; null means the shoulder or the leg's end.
+4. Caveats: it's a forecast (sites fill, the mph changes with terrain and the speed policy), so it's labelled
+   "planned"; and the game config turns truck stops on (`businesses.enabled` is true), so it applies to this world.
+5. Cost: one client helper (~20 lines in `logic.tsx`) plus a test. No engine change and no replay risk: these reads change nothing (`sitesAlong` only caches).
