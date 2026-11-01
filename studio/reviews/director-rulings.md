@@ -34,3 +34,23 @@ Iuliia may name Russian things, people and places, and never say Russian words: 
 get it, cut it. So the samovar, the Moscow fleet, the nineties and the grandmother stay; "Davai" goes, and
 "Go on" is right. That is what "by bearing, never a costume" means, and it leaves room for the allusions Jeff
 asked for.
+
+## 4. The starter hubs after the first-board test (economy review, 2026-11-02)
+
+**Dallas, Los Angeles, Phoenix.** A starter hub is a promise to a stranger, and at the live clock Chicago's May
+is a real week every quarter in which the hub we recommended offers nothing. That is the market, and the
+market stays; it just doesn't get to be our default. Chicago stays one tap away under "Change", and every hub
+card, in that list too, carries the season honestly ("freight is thin here this month"). One condition: the
+economy designer runs Los Angeles through the same ages as the other three and checks a starter's first weeks
+at its 3.0× theft risk. If Los Angeles fails either, the three are Chicago, Dallas, Phoenix with that seasonal
+line on Chicago's card.
+
+## 5. The economy's two proposals for sprint 1
+
+1. **Two game days before the page opens: yes,** for the live restart and for every new test world, since the
+   test page is where sprint 1 is judged. An older world is an honest world; a planted load is not.
+2. **The profit chip on the dispatcher's break-even: yes,** on one condition: the chip, S3's "Your break-even"
+   row and S7's pay line use the same arithmetic, and S3 names the expected empty run as an expectation. One
+   number told three ways is the slop we are cutting.
+
+The vetting gate stays where it is: agreed with the economy designer, not worth a newcomer's exposure.
