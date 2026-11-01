@@ -404,11 +404,13 @@ and off. What the batches settled, and what waits on Jeff:
 ## Open for Jeff to decide
 - **Done (2026-11-01, Jeff: "Go"):** the switch-on, ruleset 0.19.0-phase0.29, every lever in
   `packages/config/src/live.ts` (TOKENOMICS.md "The package switched on"); the live world restarted with no
-  players (world/meta version 20, live page version 36). Shipped with it, still Jeff's to change (one more
-  restart while there are no players): **the team allocation** at 15% of the cap, six real months of nothing
-  after the TGE, then four years linear (his "what do you think is fair?" answered the same morning: the low
-  end of comparable launches, against 62% for the players); **the auction tranche** at 40M FD (4% of the cap),
-  $1,000 a person, the launch fee at 50% over 14 game days (v51's recommendation).
+  players (world/meta version 20, live page version 36). **The team allocation: Jeff confirmed 15% of the cap
+  (2026-11-01)**, six real months of nothing after the TGE, then four years linear. Still his to change (one
+  more restart while there are no players): **the auction tranche** at 40M FD (4% of the cap), $1,000 a person,
+  the launch fee at 50% over 14 game days (v51's recommendation). A tranche needs 2.6× its size in FD from the
+  pool and treasury allocations (the tranche itself plus the pool's FD side, 1.6× at v51's bids-to-window
+  ratio), and those hold 227M after the team's 150M: 40M uses 104M, 80M uses 208M, 10% of the cap (100M) would
+  need 260M and cannot be funded as the allocations stand.
 - The "free FD only" flag on used-truck listings and lease offers, so a seller can refuse locked FD and the
   market prices the lock (Jeff, 2026-11-01: "whatever you think is best", keep it on the list).
 - Whether later seasons' pots still shrink when the price sits below launch (pot × min(1, avg ÷ launch)):
