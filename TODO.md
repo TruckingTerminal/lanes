@@ -408,10 +408,11 @@ and off. What the batches settled, and what waits on Jeff:
 - **The team allocation:** the share of the cap and the vest's years (proposed 12%, a six-real-month cliff,
   linear over four years); the protocol treasury keeps the rest.
 - The auction tranche's size and the per-person cap (the sim's stand-ins: 20M FD, $1,000), and the
-  launch fee's start and days (50%, 14 game days). The v50 smoke (TOKENOMICS.md "The launch smoke"): the
-  auction takes the listing spike from 450× to about 20×, bigger tranches end higher (the clearing price
-  lands nearer where the market settles), the fee is not a bubble tool, the bridge's rules carry the
-  aftermath. v51 (full size, the whole package, 20M / 40M / 80M) decides.
+  launch fee's start and days (50%, 14 game days). v51 (TOKENOMICS.md "What the sim showed (v51)"): the
+  auction cuts the spike to 9× and turns the speculators' $85k gain into a loss; the end market cap is about
+  $250k whatever the tranche, so the size decides who carries the gap between the clearing price and the
+  economy's: 20M prices the airdrop highest and drops the bidders 75%, 80M drops them 55% with twice the FD
+  and a deeper pool. Recommendation: 40M, pending Jeff.
 - The "free FD only" flag on used-truck listings and lease offers, so a seller can refuse locked FD and the
   market prices the lock (Jeff, 2026-11-01: "whatever you think is best", keep it on the list).
 - Whether later seasons' pots still shrink when the price sits below launch (pot × min(1, avg ÷ launch)):

@@ -993,5 +993,51 @@ and lease offers, so a seller can refuse locked FD and the market prices the loc
 19 with bounties and notoriety); the opening auction and the bridge's queue on the Money tab; the used lot and
 the dollar window in the showroom; fences and chop shops in Business.
 
-**What the sim has to show (v51, running as this was written):** the package of v47-b with the bad actors of
-v46 and every new rule, at tranches of 20M, 40M and 80M, and the 20M case without the bridge.
+**What the sim showed (v51, 2026-11-01, `runs/compare-v51.md`):** full size, four years, seeds 1, 4, 8; the
+package of v47-b (mid truck prices, the used lot, the deposit credit, every sink, the ladder, the robbers) with
+the bad actors of v46, now holding FD in wallets, and every new rule except the Back Lot's (built after the
+batch was designed). Means of three seeds:
+
+| | v47-b (no bad actors) | v48-b (band ±15%, bad actors) | 20M tranche, no bridge | **20M tranche** | 40M | 80M |
+|---|---|---|---|---|---|---|
+| Pool at open | $36k | $33k | $267k | $267k | $267k | $267k |
+| Launch price | $0.00082 | $0.00075 | $0.0077 | $0.0077 | $0.0039 | $0.0019 |
+| Peak price (× launch) | 4× | 87× | 9× | 9× | 9× | 9× |
+| Peak market cap | $260k | $5.7M | $5.9M | $6.2M | $4.9M | $4.2M |
+| End price (× launch) | 1.17× | 0.93× | 0.25× | 0.25× | 0.33× | 0.45× |
+| End market cap | $113k | $79k | $261k | $261k | $245k | $239k |
+| Pool $ at end | $39k | $31k | $134k | $134k | $156k | $177k |
+| Farmers / sybils take | $0 / $0 | $18k / $12k | $18k / $5k | $11k / $3k | $6k / $1k | $3k / $757 |
+| Speculators' net | $0 | +$85k | −$81k | −$59k | −$60k | −$65k |
+| Owner-operators / fleets net | $26k / −$61k | $7k / −$113k | $46k / −$140k | $44k / −$149k | $22k / −$159k | $11k / −$160k |
+| FD outstanding, growth | +39% | +33% | +36% | +37% | +23% | +8% |
+| Airdrop queued under the path | 4.7M | 4.2M | 0 | 0 | 0 | 0 |
+
+- **The auction does what it was built for.** 501 bidders put in $155k; with the farming season's dollar window
+  the pool opened with $267k instead of $36k (rigs bought for dollars in the beta brought $112k of escrow).
+  The listing spike is 9× instead of 87× with the band, the speculators lose $60–80k instead of taking $85k
+  (they buy the top from each other and sell into a pool that holds), farmers take 40% less and sybils 75%
+  less than under the band, and the dollars left in the pool at the end are three to four times the band's.
+- **The clearing price sits above where the economy settles, and the tranche's size decides who carries the
+  gap.** The end market cap is the same at every tranche, about $250k: that is what an economy of this size
+  supports after four years, whatever the number of FD. A small tranche prices each FD higher (the airdrop is
+  worth 2.2× as much at 20M as at 80M) and lets the bidders fall further (−75% from their price); a big
+  tranche spreads the same dollars over more FD, the bidders fall less (−55%) and the pool keeps more ($177k
+  against $134k), but every holder's FD is worth less. The launch-price gate fails at every size because the
+  bad actors' money leaves; v47-b, without them, held 1.17×. 40M is the middle: bidders −67%, the airdrop at
+  1.5× the 80M price, $156k in the pool, farmers at $6k.
+- **The bridge** (20M with and without it): farmers' take $11k against $18k, sybils' $3k against $5k, the end
+  price and the pool the same, honest operators unchanged. A withdrawal waited 18 days on average (the timer
+  and the cap's queue); the cap held something back on about 900 company-days; 0.7M FD was still waiting at the
+  end. Requests were 53M FD over two years, cleared 52M.
+- **The airdrop inside the game.** 16M FD minted once (the launch pot and one later season), 6.4M unlocked by
+  honest milestones, 8.4M still locked at the end (the deadline lies past the run), and 9M of spend-only FD
+  sitting in accounts: the bots keep it as cash. Nothing is queued under the supply path any more; the path is
+  still run over by the economy's own growth (28% over, 521 days, at 20M; 1.8% at 80M, where the tranche
+  raises the base), so the vest held 74 of 104 weeks and the dial sat at its floor throughout, as in v47-b.
+- **What it cost the operators:** fleets put in $150–160k a seed buying FD to run their companies in a market
+  priced ten times higher at launch (v47-b: $61k), and newcomers were 178–192 against 201.
+- **Caveats:** the strategy gate reads 3–9× because single newcomers top a small segment (v47-b's 1.6× was an
+  established owner-operator; the bad actors' strategies need their own segment); the Back Lot's switches,
+  the real-time vest and the team allocation weren't on; the treasury's vest still sold from the whole
+  treasury allocation (3.6M FD for $16k, held by the path most weeks).
