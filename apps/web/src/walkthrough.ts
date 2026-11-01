@@ -6,7 +6,7 @@
  */
 import type { EconomyConfig } from "@lanes/config";
 import { dayOf, type Company, type World } from "@lanes/engine";
-import type { Tab } from "./state.js";
+import type { Tab } from "./tabs.js";
 
 /** Which of Iuliia's loops the step shows (assets/people/iuliia-*.loop.png; the still when a loop is missing). */
 export type Mood = "idle" | "wave" | "point" | "laugh";
@@ -28,7 +28,7 @@ export interface WalkStep {
 const n = (x: number) => Math.round(x).toLocaleString("en-US");
 const pct = (x: number) => `${Math.round(x * 100)}%`;
 
-export function walkSteps(cfg: EconomyConfig): WalkStep[] {
+export function walkSteps(cfg: EconomyConfig, hub = "your home hub"): WalkStep[] {
   const [r1, r2] = cfg.time.boardRoundHours;
   const round = (h: number) => `${String(h).padStart(2, "0")}:00`;
   const trucksOf = (w: World, c: Company) => (w.trucksByCompany.get(c.id) ?? []).filter((t) => t.status !== "retired");
@@ -42,13 +42,13 @@ export function walkSteps(cfg: EconomyConfig): WalkStep[] {
     {
       id: "welcome",
       title: "Welcome aboard",
-      tab: "fleet",
+      tab: "loads",
       mood: "wave",
       say: [
         `Good morning. Iuliia, with two i's; my mother was thorough. I ran operations for a fleet of four hundred trucks in Moscow before I was thirty, and now I run you, which the clipboard says is one leased Workhorse with a dry van. The lessor keeps ${pct(cfg.costs.npcLeaseShareOfGross)} of every load and does the maintenance; the rest is yours, and so is the driving, since the driver is you. A company of one. Lean. I approve.`,
-        `The clock is real: one game day every ${cfg.time.realHoursPerGameDayLive} hours of your life, and the market does not sleep. Neither did I, in the nineties; it was that kind of decade. The Fleet tab is your truck; the map is everyone's trucks. Find your home hub on it. My grandmother said a person who doesn't know where home is will drive past it twice. She meant my uncle. It applies to fleets.`,
+        `The clock is real: one game day every ${cfg.time.realHoursPerGameDayLive} hours of your life, and the market does not sleep. Neither did I, in the nineties; it was that kind of decade. The Truck tab is your truck; the map is everyone's trucks. Find your home hub on it. My grandmother said a person who doesn't know where home is will drive past it twice. She meant my uncle. It applies to fleets.`,
       ],
-      do: "Look at your truck on the Fleet tab, then find your home hub on the map.",
+      do: "Show me the board.",
       why: "Everything starts and ends at your hub: the loads you can see first, the shippers who prefer locals, and where the truck sleeps for free.",
       done: (w, c) => c.bidStats.truckRounds > 0 || c.bidStats.wins > 0 || c.delivered > 0,
     },
@@ -59,9 +59,9 @@ export function walkSteps(cfg: EconomyConfig): WalkStep[] {
       mood: "point",
       say: [
         `The Loads tab is the whole game in one list, so sit up straight. Each line is a lane, the miles, and a rate per mile. The shipper has a ceiling it won't pay above; your truck has a break-even it can't run below; the board shows you both, because I prefer my students to lose for interesting reasons. Loads near your truck first: an empty mile pays nothing and burns fuel. One doesn't drive to Vladivostok to say hello.`,
-        `Bids clear twice a day, at ${round(r1)} and ${round(r2)} game time. The lowest rate that still covers the shipper wins, so bidding high is a way to watch other people haul. Bid once and let it clear. If you bid nothing, your dispatcher bids for you, and for now your dispatcher is you, standing beside me, holding nothing. Davai.`,
+        `Bids clear twice a day, at ${round(r1)} and ${round(r2)} game time. The lowest rate that still covers the shipper wins, so bidding high is a way to watch other people haul. Bid once and let it clear. If you bid nothing, your dispatcher bids for you, and for now your dispatcher is you, standing beside me, holding nothing. Go on.`,
       ],
-      do: "Pick a load leaving your hub, bid a rate above your break-even, and wait for the next round.",
+      do: `Bid on a load leaving ${hub}.`,
       why: "Rates move with the market: a strong hub pays to leave, a weak one pays to arrive, and the board's recent rates tell you which is which.",
       done: (w, c) => c.bidStats.wins >= 1 || c.delivered >= 1,
     },
@@ -74,7 +74,7 @@ export function walkSteps(cfg: EconomyConfig): WalkStep[] {
         `You won one. Now the slow part, which is most of trucking and, I'm told, most of life. A driver may drive ${hours} hours in a day, then must rest, and the game counts; the truck fuels about every 400 miles, and the gallons are money. At night it sleeps where it stands: a truck stop is safe, a rest area is free, and the shoulder is illegal, about which the patrol writes a very courteous ticket.`,
         `Docks keep their own hours. The big dry-van docks never close; the rest work business hours, and a truck that arrives at midnight waits for the morning like a diplomat at a border. Watch the ETA on the Fleet card, waiting included, and the truck on the map. My grandfather drove the Moscow–Leningrad road for thirty years. I know a long haul when I see one, and I still like watching them go.`,
       ],
-      do: "Watch the truck on the map and the ETA on its Fleet card. Note where it sleeps tonight.",
+      do: "Watch the ETA. Note where it sleeps tonight.",
       why: "Hours, fuel and docks decide how many loads a week a truck can do; the rate only decides what each one pays.",
       done: (w, c) => c.delivered >= 1,
     },
@@ -87,7 +87,7 @@ export function walkSteps(cfg: EconomyConfig): WalkStep[] {
         `Delivered. The money is not in your account, because shippers pay net-30: thirty game days after the work. The Money tab shows what you're owed and the day it lands. Quick pay brings it forward for ${pct(cfg.token.payment.quickPayPct)}; an instrument for emergencies, not a policy. Companies that live on quick pay receive a goodbye note from me. Handwritten. Fountain pen.`,
         `What arrives is net of the lessor's ${pct(cfg.costs.npcLeaseShareOfGross)}. The lease also holds a deposit; you'll see it again when you buy a truck, so don't mourn it. Watch the cash line at the top of the screen every day, the way my grandmother watched the samovar. Trust, and verify. Mostly verify.`,
       ],
-      do: "Open the Money tab: find the receivable from your first load and its due day.",
+      do: "Find your first invoice on Money.",
       why: "Cash arrives a month after the work; costs arrive now. The gap is what kills new carriers, not the rates.",
       done: (w, c) => c.delivered >= 2,
     },
@@ -100,7 +100,7 @@ export function walkSteps(cfg: EconomyConfig): WalkStep[] {
         `Your truck is at the far end of the country with an empty trailer and a driver asking what's next. The Find loads list on the truck's card is sorted by distance for exactly this moment. A load from the hub you're in is best; a short hop to a strong hub is acceptable; driving home empty is how a good load becomes a bad week.`,
         `Hubs have characters. Strong ones have freight piling up and pay to leave; weak ones have trucks piling up and pay to arrive, thinly. Your home hub likes you a little: its shippers hold some loads for locals first. Everyone's home is like that. We have a saying: a guest is good when he leaves. A truck is good when it leaves loaded.`,
       ],
-      do: "From the truck's card, pick the next load from the Find loads list, nearest first.",
+      do: "Pick the next load from Find loads, nearest first.",
       why: "Loaded miles against total miles is the number that separates a fleet from a hobby.",
       done: (w, c) => c.delivered >= 4,
     },
@@ -113,7 +113,7 @@ export function walkSteps(cfg: EconomyConfig): WalkStep[] {
         `Here is the page of the clipboard nobody enjoys. Fuel, maintenance, insurance, tolls, the fuel tax, the sales tax on anything you buy, idling at night, and fines when a driver gets creative. The Money tab lists twenty days of it. Read it weekly, like an executive, with tea.`,
         `The books close every week. ${cfg.insolvency.weeksInDebt} weekly checks in a row more than ${n(cfg.insolvency.debtLimitFd)} FD under, and the company is liquidated: trucks sold, staff gone, and you begin again on a lease. Keep a cushion. A cushion is cheaper than a restart, and considerably cheaper than my sympathy, which is rationed.`,
       ],
-      do: "On the Money tab, compare freight revenue against operating costs for the last twenty days.",
+      do: "Compare revenue against costs on Money.",
       why: "Revenue is a rate times miles; profit is what's left after a truck's fixed costs, and those run whether it moves or not.",
       done: (w, c) => age(w, c) >= 14 && c.delivered >= 5,
     },
@@ -126,7 +126,7 @@ export function walkSteps(cfg: EconomyConfig): WalkStep[] {
         `Condition falls with the miles, and a worn truck breaks down more, usually in the rain. Defects accumulate if nobody attends to them, and an inspector will notice before you do. A rebuild resets the clock and costs real money, more the higher the odometer, because a shop can read an odometer too.`,
         `A breakdown on the road calls out road service, the dearest mechanic in the game, unless a truck stop with a shop is near. Repairs at home are cheaper than repairs away. A truck gets two rebuilds in a life, or about a million miles, then runs until it's worn out and goes for scrap. My grandfather's Volga got none and ran thirty years, on pride and good manners.`,
       ],
-      do: "Check the condition bar on your truck's Fleet card; plan the rebuild before it's urgent.",
+      do: "Check the condition bar; plan the rebuild before it's urgent.",
       why: "A breakdown costs the tow, the repair, the missed delivery and the driver's hours. A planned rebuild costs the rebuild.",
       done: (w, c) => age(w, c) >= 28 && c.delivered >= 8,
     },
@@ -137,9 +137,9 @@ export function walkSteps(cfg: EconomyConfig): WalkStep[] {
       mood: "idle",
       say: [
         `Weigh stations pull trucks in. A clean carrier mostly gets the bypass; one with alerts gets the full tour. Inspections find defects and hours violations, and both stay on your record for two years. Enough of them and an auditor comes: satisfactory, conditional, unsatisfactory, and unsatisfactory twice means the authority is revoked.`,
-        `A conditional rating costs you: higher insurance, more inspections, and strict brokers who won't load you until a clean follow-up. The Company tab shows your rating and what's behind it. Tired drivers break rules; home time is cheaper than fines. I have a chart. I have several. Tolstoy had his estate; I have charts.`,
+        `A conditional rating costs you: higher insurance, more inspections, and strict brokers who won't load you until a clean follow-up. Company, under More, shows your rating and what's behind it. Tired drivers break rules; home time is cheaper than fines. I have a chart. I have several. Tolstoy had his estate; I have charts.`,
       ],
-      do: "Open the Company tab: find your safety rating and the measures behind it.",
+      do: "Find your safety rating on Company.",
       why: "Brokers vet carriers on authority age, rating and record; the record is the slowest thing to repair.",
       done: (w, c) => age(w, c) >= 35,
     },
@@ -149,10 +149,10 @@ export function walkSteps(cfg: EconomyConfig): WalkStep[] {
       tab: "market",
       mood: "wave",
       say: [
-        `The lessor's ${pct(cfg.costs.npcLeaseShareOfGross)} is the most expensive thing you pay and the only one that ends when you buy. A new Workhorse with a van is about ${n(rig)} FD. The used lot on the Dealer tab sells a worn one at about a quarter of that: four years old, a great many miles, delivered like new, and good enough to earn. Not elegant. My first office had a view of a parking structure. One begins.`,
+        `The lessor's ${pct(cfg.costs.npcLeaseShareOfGross)} is the most expensive thing you pay and the only one that ends when you buy. A new Workhorse with a van is about ${n(rig)} FD. The used lot on Dealer, under More, sells a worn one at about a quarter of that: four years old, a great many miles, delivered like new, and good enough to earn. Not elegant. My first office had a view of a parking structure. One begins.`,
         `Your lease deposit counts toward it, and the Money tab's purchase loan covers the rest with ${pct(down0)} to ${pct(down1)} down. Owned trucks pay their own maintenance and insurance, cost you when they sit, and lose value every year. They also keep every dollar they earn. Buy the used one first. Ambition is for the second truck; the first one is arithmetic.`,
       ],
-      do: "On the Dealer tab, buy a rig from the used lot, with a purchase loan from the Money tab if the cash is short.",
+      do: "Buy a rig from the used lot, with a purchase loan if the cash is short.",
       why: "Ownership turns the lessor's cut into your margin and is the only way a one-truck company grows into two.",
       done: (w, c) => trucksOf(w, c).some((t) => t.lease === "owned"),
     },
@@ -162,10 +162,10 @@ export function walkSteps(cfg: EconomyConfig): WalkStep[] {
       tab: "staff",
       mood: "point",
       say: [
-        `A second truck needs a second driver, so: the Staff tab and the labor pool. Skill shows up as fuel, maintenance and fewer letters from the patrol. Pay decides who takes the job: offer below market and the good ones decline, politely, and work for your competitor. Morale decides who stays: home time every few weeks, or you'll be hiring again, and I'll be raising an eyebrow again. I do it in two languages.`,
+        `A second truck needs a second driver, so: Staff, under More, and the labor pool. Skill shows up as fuel, maintenance and fewer letters from the patrol. Pay decides who takes the job: offer below market and the good ones decline, politely, and work for your competitor. Morale decides who stays: home time every few weeks, or you'll be hiring again, and I'll be raising an eyebrow again. I do it in two languages.`,
         `You can run ${cfg.labor.owner.span} trucks yourself. From the next one you need a dispatcher, who bids and plans for the trucks you don't touch. Then every few trucks, another. It's a ladder; each rung costs money; it is also the only way up. I'll be at the top, with the clipboard and the good tea.`,
       ],
-      do: "On the Staff tab, hire a driver for the second truck. Set a pay the market will take.",
+      do: "Hire a driver at a pay the market will take.",
       why: "Drivers are the largest cost in the game and the largest difference between two companies with the same trucks.",
       done: (w, c) => trucksOf(w, c).length >= 2 && staffOf(w, c, "driver") >= 1,
     },
@@ -175,10 +175,10 @@ export function walkSteps(cfg: EconomyConfig): WalkStep[] {
       tab: "fleet",
       mood: "laugh",
       say: [
-        `Nobody bids every load by hand past two trucks, and the clock is indifferent to your sleep. The standing orders at the bottom of the Fleet tab are your rules: where to bid, how low, which lanes, when the drivers go home. Your dispatcher follows them for every truck you don't handle yourself.`,
+        `Nobody bids every load by hand past two trucks, and the clock is indifferent to your sleep. The standing orders at the bottom of the Truck tab are your rules: where to bid, how low, which lanes, when the drivers go home. Your dispatcher follows them for every truck you don't handle yourself.`,
         `Set them before you need them, then audit what they did, because a rule that looked clever on Tuesday finds a way to be foolish by Friday. I've managed rules. I've managed people. The rules, at least, have never asked me to invest in a cousin's restaurant.`,
       ],
-      do: "At the bottom of the Fleet tab, set the bidding rule and the home-time rule, then watch a round clear.",
+      do: "Set the bidding and home-time rules, then watch a round clear.",
       why: "Orders turn a company that needs you every six hours into one that runs while you're away.",
       done: (w, c) => trucksOf(w, c).length >= 3 || staffOf(w, c, "dispatcher") >= 1,
     },
@@ -191,20 +191,20 @@ export function walkSteps(cfg: EconomyConfig): WalkStep[] {
         `Past ${cfg.token.catalogue.trucksWithoutYard} trucks you need a yard: a place to park, drop trailers and swap them. It costs FD through the catalogue, plus a bond you get back and a little every week. With a yard come trailers of your own, so a tractor can drop one at a dock and pull another instead of waiting. That's how real fleets make one truck do two jobs, and how a good kitchen makes one chicken do a week.`,
         `Later a yard takes security: a gate, cameras, lights, a guard. Why would a yard need a guard? That's a later chapter. I don't give away the plot. Chekhov wouldn't, and he had a gun on the wall the entire first act.`,
       ],
-      do: "On the Business tab, buy a small yard when you pass five trucks; add trailer space as the fleet grows.",
+      do: "Buy a small yard; add trailer space as the fleet grows.",
       why: "Trailers are the cheap half of a rig and the half that waits at docks; owning spares turns waiting into hauling.",
       done: (w, c) => c.yard !== "none",
     },
     {
       id: "miles",
       title: "Miles",
-      tab: "logbook",
+      tab: "money",
       mood: "wave",
       say: [
-        `Every loaded mile earns Miles. That's your standing in the beta, on the Logbook tab and at the top beside your cash. What Miles become is announced when the token is; until then they're the score, and the score is how you get on my clipboard in ink rather than pencil.`,
+        `Every loaded mile earns Miles. That's your standing in the beta, on Money, under Standing. What Miles become is announced when the token is; until then they're the score, and the score is how you get on my clipboard in ink rather than pencil.`,
         `Two more things. The locked tabs are the layers still coming; the Guide's road ahead has the plan. And the Report button sends me a bug or an idea with everything I need already attached. I read every one. Some of them twice, with the eyebrow.`,
       ],
-      do: "Open the Logbook tab for your Miles, then the Guide's road ahead for what's coming.",
+      do: "Open Standing on Money, then the road ahead.",
       why: "The beta is tuned on what players do; your reports are how the market gets right.",
       done: (w, c) => miles(c) >= 25_000,
     },

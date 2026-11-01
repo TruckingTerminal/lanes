@@ -831,15 +831,15 @@ function selectOnMap(ev: { clientX: number; clientY: number }): void {
   const site = best ? null : nearestSite(x, y);
   if (best) {
     S.selTruck = best.id;
-    S.tab = best.status === "idle" ? "loads" : "fleet";
+    setTab(best.status === "idle" ? "loads" : "fleet");
   } else if (site !== null) {
     S.selSite = site;
-    S.tab = "business";
+    setTab("business");
   } else {
     const h = nearestHub(x, y);
     S.selHub = h;
     if (h !== null) {
-      S.tab = "loads";
+      setTab("loads");
       S.cityView = h;
       S.townView = null;
     } else if (zf >= 4) {
@@ -862,7 +862,7 @@ function selectOnMap(ev: { clientX: number; clientY: number }): void {
         S.townView = bt;
         S.cityView = pl[bt]!.market;
         S.selHub = pl[bt]!.market;
-        S.tab = "loads";
+        setTab("loads");
       }
     }
   }

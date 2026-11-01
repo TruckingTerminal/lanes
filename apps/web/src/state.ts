@@ -6,6 +6,8 @@ import type { DbLike, LiveWorld } from "./live.js";
 import { fd, hhmm, realUntil, TIER_NAME, TRAILER_NAME, FAC_NAME, usd } from "./format.js";
 import type { LiveAction } from "./live.js";
 import { VETTING_NAMES } from "@lanes/engine";
+import type { Tab } from "./tabs.js";
+import { freshOnboard, ONBOARD_KEY, parseOnboard, type Onboard } from "./onboard.js";
 
 /**
  * The screen's shared state: which world is on screen, what is selected, and the
@@ -19,7 +21,7 @@ declare const __LANES_TEST__: boolean | undefined;
 export const TEST_BUILD = typeof __LANES_TEST__ !== "undefined" && __LANES_TEST__;
 
 export type Session = LiveWorld | TestGame;
-export type Tab = "fleet" | "loads" | "staff" | "market" | "money" | "finance" | "business" | "logbook" | "backlot" | "rates" | "economy" | "company" | "guide";
+export type { Tab } from "./tabs.js";
 export type Layout = "split" | "panel" | "map";
 export type Platform = { db: DbLike | null; uid: string | null; owner: boolean; local: boolean };
 export type TitleMenu =
@@ -58,11 +60,13 @@ export const S = {
   guidePage: "start",
   /** The test build: the world saved in this browser, for the title's Continue button (name and the day it reached). */
   savedTest: null as { name: string; day: number } | null,
-  /** The walkthrough card (walkthrough.ts): hidden by the player for this browser; the step being read ahead, or null for the current one. */
-  walkHidden: false,
+  /** The walkthrough card (walkthrough.ts): the step being read ahead, or null for the current one. */
   walkView: null as number | null,
-  /** The report form (a bug or an idea) is open. */
+  /** What this browser has already been shown in the first ten minutes (onboard.ts). */
+  onboard: freshOnboard(),
+  /** The report form is open, and which kind it opens on. */
   reporting: false,
+  reportKind: "bug" as "bug" | "idea",
   /** Test-world speeds only: the live clock can't be changed. */
   speed: 1,
   toast: null as { text: string; err: boolean; at: number } | null,
@@ -72,12 +76,11 @@ export const S = {
 };
 
 export const SPEEDS: { label: string; title: string; hoursPerSec: number; icon: string }[] = [
-  { label: "❚❚", title: "Pause", hoursPerSec: 0, icon: "pause" },
-  { label: "▶", title: "One game day a minute", hoursPerSec: 24 / 60, icon: "play" },
-  { label: "▶▶", title: "One game day every 10 seconds", hoursPerSec: 2.4, icon: "ff" },
-  { label: "▶▶▶", title: "One game day every 2 seconds", hoursPerSec: 12, icon: "fff" },
+  { label: "Paused", title: "Paused", hoursPerSec: 0, icon: "pause" },
+  { label: "1×", title: "One game day a minute", hoursPerSec: 24 / 60, icon: "play" },
+  { label: "10×", title: "One game day every 6 seconds", hoursPerSec: 4, icon: "ff" },
+  { label: "30×", title: "One game day every 2 seconds", hoursPerSec: 12, icon: "fff" },
 ];
-
 // --- Change channels ---------------------------------------------------------------
 
 type Channel = { v: number; subs: Set<() => void> };
@@ -154,26 +157,28 @@ export function toast(text: string, err = false): void {
   bumpData();
 }
 
-const WALK_KEY = "lanes.walk.hidden";
-export function setWalkHidden(hidden: boolean): void {
-  S.walkHidden = hidden;
+/** Updates this browser's onboarding record (onboard.ts) and keeps it. */
+export function setOnboard(change: Partial<Omit<Onboard, "v">>): void {
+  S.onboard = { ...S.onboard, ...change };
   try {
-    localStorage.setItem(WALK_KEY, hidden ? "1" : "0");
+    localStorage.setItem(ONBOARD_KEY, JSON.stringify(S.onboard));
   } catch {
-    /* a private window: the card just shows again next time */
+    /* a private window: the first visit just plays again next time */
   }
   bumpData();
 }
-export function loadWalkHidden(): void {
+export function loadOnboard(): void {
   try {
-    S.walkHidden = localStorage.getItem(WALK_KEY) === "1";
+    S.onboard = parseOnboard(localStorage.getItem(ONBOARD_KEY));
   } catch {
-    S.walkHidden = false;
+    S.onboard = freshOnboard();
   }
 }
 
 export function setTab(tab: Tab): void {
   S.tab = tab;
+  // The first visit clears an opened teaser's "New" under More.
+  if (S.game?.player && !S.onboard.visited.includes(tab)) setOnboard({ visited: [...S.onboard.visited, tab] });
   bumpData();
 }
 export function setLayout(l: Layout): void {
@@ -403,62 +408,10 @@ export function toggleFullscreen(): void {
   Promise.resolve(p).catch(() => toast("The browser didn't allow full screen here. Use its own full-screen view instead.", true));
 }
 
-// --- Themes (Trucking Terminal's) -----------------------------------------------------
+// --- Theme ---------------------------------------------------------------------------
 
-export const THEMES: { id: string; name: string; group: "dark" | "light" | "mixed" }[] = [
-  { id: "cyber-ops", name: "Cyber Ops", group: "dark" },
-  { id: "midnight-navy", name: "Midnight Navy", group: "dark" },
-  { id: "carbon-fiber", name: "Carbon Fiber", group: "dark" },
-  { id: "emerald-freight", name: "Emerald Freight", group: "dark" },
-  { id: "titanium", name: "Titanium", group: "dark" },
-  { id: "neon-night", name: "Neon Night", group: "dark" },
-  { id: "gold-standard", name: "Gold Standard", group: "dark" },
-  { id: "matrix-green", name: "Matrix Green", group: "dark" },
-  { id: "stealth-mode", name: "Stealth Mode", group: "dark" },
-  { id: "deep-ocean", name: "Deep Ocean", group: "dark" },
-  { id: "crimson-command", name: "Crimson Command", group: "dark" },
-  { id: "slate-pro", name: "Slate Pro", group: "dark" },
-  { id: "obsidian", name: "Obsidian", group: "dark" },
-  { id: "aurora", name: "Aurora", group: "dark" },
-  { id: "arctic-clean", name: "Arctic Clean", group: "light" },
-  { id: "ice-chrome", name: "Ice Chrome", group: "light" },
-  { id: "cloud-white", name: "Cloud White", group: "light" },
-  { id: "paper", name: "Paper", group: "light" },
-  { id: "daylight", name: "Daylight", group: "light" },
-  { id: "ivory-rose", name: "Ivory Rose", group: "light" },
-  { id: "mint-fresh", name: "Mint Fresh", group: "light" },
-  { id: "silver-lining", name: "Silver Lining", group: "light" },
-  { id: "sunset-dispatch", name: "Sunset Dispatch", group: "mixed" },
-  { id: "desert-sand", name: "Desert Sand", group: "mixed" },
-  { id: "polar-night", name: "Polar Night", group: "mixed" },
-  { id: "storm-front", name: "Storm Front", group: "mixed" },
-  { id: "midnight-sun", name: "Midnight Sun", group: "mixed" },
-  { id: "ocean-breeze", name: "Ocean Breeze", group: "mixed" },
-  { id: "amber-terminal", name: "Amber Terminal", group: "mixed" },
-  { id: "blue-dispatch", name: "Blue Dispatch", group: "mixed" },
-  { id: "red-command", name: "Red Command", group: "mixed" },
-  { id: "sunset-hauler", name: "Sunset Hauler", group: "mixed" },
-  { id: "steel-runner", name: "Steel Runner", group: "mixed" },
-  { id: "fleet-classic", name: "Fleet Classic", group: "mixed" },
-];
-export function setTheme(id: string): void {
-  S.theme = id;
-  document.documentElement.setAttribute("data-theme", id);
-  try {
-    localStorage.setItem("lanes.theme", id);
-  } catch {
-    /* fine */
-  }
-  bumpData();
-}
+/** One theme for now (Jeff, 2026-11-02: the picker goes); a theme stored by the old picker is ignored. */
 export function loadTheme(): void {
-  let id = "cyber-ops";
-  try {
-    id = localStorage.getItem("lanes.theme") ?? id;
-  } catch {
-    /* fine */
-  }
-  if (!THEMES.some((t) => t.id === id)) id = "cyber-ops";
-  S.theme = id;
-  document.documentElement.setAttribute("data-theme", id);
+  S.theme = "cyber-ops";
+  document.documentElement.setAttribute("data-theme", S.theme);
 }

@@ -26,6 +26,10 @@ export function dateLabel(day: number): string {
   const m = Math.min(11, Math.floor(doy / 30));
   return `${DAYS[day % 7]} ${MONTHS[m]} ${doy - m * 30 + 1}, Year ${Math.floor(day / 365) + 1}`;
 }
+/** "Jan 29, Year 1": a date without its weekday, for when something opens. */
+export const dayDate = (day: number): string => dateLabel(day).slice(4);
+/** "Tue": the weekday alone, for the top strip's clock. */
+export const weekday = (day: number): string => DAYS[day % 7]!;
 /** "Oct 28" from a day number, for dense tables. */
 export function shortDate(day: number): string {
   const doy = day % 365;

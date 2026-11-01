@@ -1,45 +1,45 @@
 import type { JSX } from "preact";
 import { useState } from "preact/hooks";
-import { dayOf, layerBlock, type Layer, type World } from "@lanes/engine";
+import { dayOf } from "@lanes/engine";
 import { GAME_CONFIG } from "../game.js";
 import { walkProgress, walkSteps, type Mood } from "../walkthrough.js";
 import { ASSETS, hasAsset } from "../mapart.js";
-import { bumpData, S, setTab, setWalkHidden, toast, useData, type Tab } from "../state.js";
+import { bumpData, S, setTab, toast, useData } from "../state.js";
+import { TAB_NAME } from "../tabs.js";
 import { Btn, Card } from "./bits.js";
 import { Loop } from "./Loop.js";
 
 /** Iuliia's portrait: the step's loop when it's drawn (assets/people/iuliia-*.loop.png), the still, or a placeholder until the art lands. */
-function Iuliia({ mood }: { mood: Mood }): JSX.Element {
+export function Iuliia({ mood, size = 128 }: { mood: Mood; size?: 32 | 128 }): JSX.Element {
   const file = mood === "idle" ? "people/iuliia" : `people/iuliia-${mood}`;
   const base = hasAsset(`${file}.png`) ? file : hasAsset("people/iuliia.png") ? "people/iuliia" : null;
   if (!base) {
     return (
-      <span class="portrait placeholder" title="Iuliia, your trainer" aria-label="Iuliia">
+      <span class={size === 32 ? "portrait placeholder sm" : "portrait placeholder"} title="Iuliia, your trainer" aria-label="Iuliia">
         I
       </span>
     );
   }
-  return <Loop name={base} still={`${ASSETS}${base}.png`} w={128} h={128} scale={0.5} smooth class="portrait" alt="Iuliia" />;
+  return <Loop name={base} still={`${ASSETS}${base}.png`} w={128} h={128} scale={size === 32 ? 0.25 : 0.5} smooth class={size === 32 ? "portrait sm" : "portrait"} alt="Iuliia" />;
 }
 
-/** The walkthrough card (walkthrough.ts): Iuliia's current step, read from the world; the player can read ahead; hidden per browser. */
+/** The walkthrough card (walkthrough.ts), on the Iuliia tab: her current step in full, read from the world; the player can read ahead. */
 export function Walkthrough(): JSX.Element | null {
   useData();
   const g = S.game;
   const c = g?.player;
-  if (!g || !c || S.walkHidden) return null;
-  const steps = walkSteps(GAME_CONFIG);
+  if (!g || !c) return null;
+  const steps = walkSteps(GAME_CONFIG, g.w.net.hubs[c.homeHub]?.name);
   const { index, done, total } = walkProgress(GAME_CONFIG, g.w, c);
   const current = index >= 0 ? index : total;
   const view = S.walkView ?? current;
-  const hide = <Btn sm ghost title="Hide the walkthrough; the Guide tab brings it back" onClick={() => setWalkHidden(true)}>Hide</Btn>;
   const browse = (i: number) => {
     S.walkView = i === current ? null : Math.max(0, Math.min(total, i));
     bumpData();
   };
   if (view >= total) {
     return (
-      <Card class="walk" title="You're running a fleet" right={hide}>
+      <Card class="walk" title="You're running a fleet">
         <div class="walkbody">
           <Iuliia mood="laugh" />
           <div>
@@ -57,7 +57,7 @@ export function Walkthrough(): JSX.Element | null {
   // The welcome strip (scenes/welcome, from the Graphics session): her office, on the first step, when it's drawn.
   const strip = step.id === "welcome" && hasAsset("scenes/welcome.png");
   return (
-    <Card class="walk" title={`${view + 1} of ${total}: ${step.title}${isDone ? " ✓" : ""}`} right={hide}>
+    <Card class="walk" title={`${view + 1} of ${total}: ${step.title}${isDone ? " ✓" : ""}`}>
       {strip ? <Loop name="scenes/welcome" still={`${ASSETS}scenes/welcome.png`} w={256} h={128} scale={Math.max(1, Math.min(2, Math.floor(((window.innerWidth - 64) / 256) * 10) / 10))} class="welcome" alt="Iuliia's office" /> : null}
       <div class="walkbody">
         <Iuliia mood={step.mood} />
@@ -90,48 +90,41 @@ export function Walkthrough(): JSX.Element | null {
   );
 }
 
-export const TAB_NAME: Record<Tab, string> = { fleet: "Fleet", loads: "Loads", staff: "Staff", market: "Dealer", money: "Money", finance: "Finance", business: "Business", logbook: "Logbook", backlot: "Back Lot", rates: "Rates", economy: "Economy", company: "Company", guide: "Guide" };
 
-/** A locked tab's teaser: what the layer is and when the ladder opens it. */
-export interface Teaser {
-  title: string;
-  text: string;
-  opens: string;
+/**
+ * Iuliia's caption (specs/first-ten-minutes.md): her portrait at 32 px, the current step's Do line, and More, which
+ * opens her tab. It sits under the nav on every tab, so the full card never stands between a tab and its contents.
+ */
+export function Caption(): JSX.Element | null {
+  useData();
+  const g = S.game;
+  const c = g?.player;
+  if (!g || !c) return null;
+  const steps = walkSteps(GAME_CONFIG, g.w.net.hubs[c.homeHub]?.name);
+  const { index } = walkProgress(GAME_CONFIG, g.w, c);
+  const step = index >= 0 ? steps[index]! : null;
+  return (
+    <div class="caption">
+      <Iuliia mood={step?.mood ?? "laugh"} size={32} />
+      <span class="small">{step ? step.do : "You're running a fleet."}</span>
+      {S.tab !== "iuliia" ? (
+        <Btn sm ghost onClick={() => setTab("iuliia")}>
+          More
+        </Btn>
+      ) : null}
+    </div>
+  );
 }
 
-/** Why a tab is locked, or null when it's open. The Back Lot waits for its switch; the ladder's layers for their day. */
-export function tabLock(w: World, tab: Tab): Teaser | null {
-  const when = (layer: Layer) => {
-    const block = layerBlock(w, layer);
-    return block ? `${block}.` : "";
-  };
-  if (tab === "backlot") {
-    const lot = w.cfg.robbery.enabled && w.cfg.robbery.lot.enabled;
-    const block = lot ? layerBlock(w, "robbery") : "This layer is still in the simulator.";
-    if (!block) return null;
-    return {
-      title: "The Back Lot",
-      text: "Crews for hire off a board, each with a skill, a discretion and a price; a fence and a chop shop that post what they're buying and what they pay; bounties; heat, the law's interest in a company that hires too often. Player against player, in the open: a bare truck is an easy mark, a fitted one isn't, and the hirer can't see which. Channel 19 on the Logbook tab hears of every hit.",
-      opens: lot ? when("robbery") : "Comes with a later beta, once it leaves the simulator. Until then it's on the drawing board: tell us what you'd want from it.",
-    };
-  }
-  if (tab === "business" && layerBlock(w, "businesses")) {
-    return { title: "Businesses", text: "Shops, fuel stations, truck stops on the interstates, dealerships and warehouses that ship their own freight: an FD price through the catalogue, a staked bond, weekly upkeep, and the hub's trade for income.", opens: when("businesses") };
-  }
-  return null;
-}
-
-export function TeaserPanel({ teaser }: { teaser: Teaser }): JSX.Element {
+/** The Iuliia tab: her current step in full, and the road ahead. */
+export function IuliiaPanel(): JSX.Element {
+  useData();
   return (
     <div class="stack">
-      <Card class="teaser" title={teaser.title}>
-        <p>{teaser.text}</p>
-        <p class="muted small">{teaser.opens}</p>
-        <div class="row">
-          <Btn sm onClick={() => { S.reporting = true; bumpData(); }}>Tell us what you'd want here</Btn>
-          <Btn sm ghost onClick={() => { S.guidePage = "roadmap"; setTab("guide"); }}>The road ahead</Btn>
-        </div>
-      </Card>
+      <Walkthrough />
+      <div class="row">
+        <Btn sm ghost onClick={() => { S.guidePage = "roadmap"; setTab("guide"); }}>The road ahead</Btn>
+      </div>
     </div>
   );
 }
@@ -139,7 +132,7 @@ export function TeaserPanel({ teaser }: { teaser: Teaser }): JSX.Element {
 /** The report form (live.ts Report): a bug or an idea, with the day, the tab and the last orders attached. */
 export function ReportCard(): JSX.Element | null {
   useData();
-  const [kind, setKind] = useState<"bug" | "idea">("bug");
+  const [kind, setKind] = useState<"bug" | "idea">(S.reportKind);
   const [text, setText] = useState("");
   const [busy, setBusy] = useState(false);
   if (!S.reporting || !S.game) return null;

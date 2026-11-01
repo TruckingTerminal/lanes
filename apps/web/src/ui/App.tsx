@@ -1,35 +1,19 @@
-import { Business } from "./panels/Business.js";
-import { Logbook } from "./panels/Logbook.js";
-import { Economy } from "./panels/Economy.js";
-import { Finance } from "./panels/Finance.js";
-import { Rates } from "./panels/Rates.js";
 import type { JSX } from "preact";
 import { useEffect, useRef } from "preact/hooks";
-import { companyAccount, fdPriceUsd, garagingOf, homeCrowding, localShare, tokenLive, type World } from "@lanes/engine";
+import { garagingOf, homeCrowding, localShare, type World } from "@lanes/engine";
 import { hubs as HUBS } from "@lanes/data";
-import { drawLoadingRoad, drawTitleScene, iconUrl, PAL, TITLE_H, TITLE_W } from "../art.js";
+import { drawLoadingRoad, drawTitleScene, TITLE_H, TITLE_W } from "../art.js";
 import { drawTitleShots, TITLE_FRAME_H, TITLE_FRAME_W, titleFrame } from "../title.js";
-import { cls, fd, dateLabel, hhmm, pct, realUntil } from "../format.js";
-import { GAME_CONFIG, isHuman, RULESET, type StartKind } from "../game.js";
+import { cls, fd, pct } from "../format.js";
+import { GAME_CONFIG, RULESET, type StartKind } from "../game.js";
 import { H } from "../handlers.js";
-import { attentionItems, stuckTrucks, tiredTrucks } from "../logic.js";
-import { fitMap, maxZoom, mountMap, setZoom, zoomIndex, zoomLabel } from "../mapview.js";
 import { drawText } from "../font.js";
-import { ASSETS, hasAsset, loadingStrip, LOOP_FPS } from "../mapart.js";
-import { LOGO, LOGO_TITLE, LOGO_TITLE_H, LOGO_W } from "../assets.js";
+import { loadingStrip, LOOP_FPS } from "../mapart.js";
+import { LOGO_TITLE, LOGO_TITLE_H, LOGO_W } from "../assets.js";
 import { Rig } from "./Loop.js";
-import { CityPane } from "./CityPane.js";
-import { bumpData, clockMin, feed, fsActive, fsEnabled, S, setLayout, setTab, setTheme, SPEEDS, TEST_BUILD, THEMES, toggleFullscreen, useData, useTick, type Tab } from "../state.js";
-import { Badge, Btn, Card, Pixel } from "./bits.js";
-import { ReportCard, tabLock, TeaserPanel, Walkthrough } from "./Walkthrough.js";
-import { Company } from "./panels/Company.js";
-import { myTenders } from "./panels/Contracts.js";
-import { Dealer } from "./panels/Dealer.js";
-import { Fleet } from "./panels/Fleet.js";
-import { Guide } from "./panels/Guide.js";
-import { Loads } from "./panels/Loads.js";
-import { Money } from "./panels/Money.js";
-import { Staff } from "./panels/Staff.js";
+import { GameScreen } from "./Shell.js";
+import { S, TEST_BUILD, useData } from "../state.js";
+import { Btn, Card } from "./bits.js";
 
 /** The whole screen: title, loading, or the game. */
 export function App(): JSX.Element {
@@ -134,7 +118,6 @@ function TitleScreen(): JSX.Element {
         ) : (
           <TestMenu />
         )}
-        <ThemePickerRow />
       </div>
     </section>
   );
@@ -333,39 +316,6 @@ function TestMenu(): JSX.Element {
   );
 }
 
-function ThemePickerRow(): JSX.Element {
-  return (
-    <div class="row" style={{ justifyContent: "center" }}>
-      <ThemePicker />
-    </div>
-  );
-}
-
-export function ThemePicker(): JSX.Element {
-  useData();
-  const groups: ["dark" | "light" | "mixed", string][] = [
-    ["dark", "Dark"],
-    ["light", "Light"],
-    ["mixed", "Mixed"],
-  ];
-  return (
-    <label class="row" title="Theme">
-      <span class="label">Theme</span>
-      <select value={S.theme} onChange={(ev) => setTheme((ev.currentTarget as HTMLSelectElement).value)}>
-        {groups.map(([g, name]) => (
-          <optgroup label={name} key={g}>
-            {THEMES.filter((t) => t.group === g).map((t) => (
-              <option value={t.id} key={t.id}>
-                {t.name}
-              </option>
-            ))}
-          </optgroup>
-        ))}
-      </select>
-    </label>
-  );
-}
-
 // --- Loading -----------------------------------------------------------------------
 
 function LoadingScreen(): JSX.Element {
@@ -402,27 +352,6 @@ function LoadingScreen(): JSX.Element {
   );
 }
 
-// --- Game ----------------------------------------------------------------------------
-
-function GameScreen(): JSX.Element {
-  const layout = S.layout;
-  return (
-    <>
-      <TopBar />
-      <main class={cls("board", layout)}>
-        <div hidden={layout === "panel"} style={{ minWidth: 0 }}>
-          <MapView />
-        </div>
-        <div hidden={layout === "map"} style={{ minWidth: 0 }}>
-          <SideRack />
-        </div>
-      </main>
-      <Ticker />
-      <Toast />
-    </>
-  );
-}
-
 let logoImg: HTMLImageElement | null = null;
 let logoGlint: HTMLCanvasElement | null = null;
 /** The HD logo over the title at a quarter of the scene's scale (its own pixels at 4×), with a glint sweeping across every five seconds. */
@@ -456,282 +385,4 @@ function drawLogo(ctx: CanvasRenderingContext2D, cw: number, scale: number, t: n
   ctx.imageSmoothingQuality = "high";
   ctx.drawImage(logoGlint, Math.round((cw - w) / 2), 10 * scale, w, h);
   ctx.imageSmoothingEnabled = false;
-}
-function Clock(): JSX.Element {
-  useTick();
-  const minute = clockMin();
-  return (
-    <span class="clock">
-      {dateLabel(Math.floor(minute / 1440))} · {hhmm(minute)}
-    </span>
-  );
-}
-
-function TopBar(): JSX.Element {
-  useData();
-  const g = S.game!;
-  const w = g.w;
-  const c = g.player;
-  const day = Math.floor(clockMin() / 1440);
-  const bal = c ? w.ledger.balance(companyAccount(c.id)) : 0;
-  const miles = c ? c.milesHistory.reduce((a, b) => a + b, 0) + c.milesTotal : 0;
-  const stuck = c ? stuckTrucks().length : 0;
-  const tired = c ? tiredTrucks().length : 0;
-  const tenders = c ? myTenders(c).length : 0;
-  const todo = c ? attentionItems().length : 0;
-  return (
-    <header class="topbar">
-      <div class="brand">
-        <span class="logowrap">
-          <img class="logo hd" src={LOGO} alt="LANES" />
-        </span>
-        <span class="sub">{g.kind === "test" ? "Test world" : "Live world"}</span>
-      </div>
-      <Btn sm title="The title screen; the game keeps running" onClick={H.showMenu}>
-        Menu
-      </Btn>
-      <Clock />
-      {g.kind === "test" ? (
-        <>
-          <Badge tone="test" title="A private test world: nothing here is stored">
-            Test world
-          </Badge>
-          <div class="speeds" role="group" aria-label="Test world speed">
-            {SPEEDS.map((sp, i) => (
-              <Btn key={sp.icon} icon={sp.icon} title={sp.title} on={S.speed === i} onClick={() => setSpeed(i)} />
-            ))}
-          </div>
-          {S.live ? <Btn sm onClick={H.backToLive}>Back to the live world</Btn> : null}
-        </>
-      ) : (
-        <>
-          <Badge tone="live" title="One game day every 6 real hours. The live clock never stops.">
-            Live
-          </Badge>
-          {!c ? <Badge>Watching</Badge> : null}
-        </>
-      )}
-      <div class="stats">
-        {c ? (
-          <>
-            <span class="stat" title="Freight Dollars">
-              <img class="px" src={iconUrl("fd", 2)} alt="FD" />
-              <span class={cls("num", bal < 0 && "bad")}>{fd(bal)} FD</span>
-            </span>
-            <span class="stat" title="Miles (airdrop points)">
-              <img class="px" src={iconUrl("miles", 2)} alt="Miles" />
-              <span class="num">{fd(miles)}</span>
-            </span>
-          </>
-        ) : null}
-        {tokenLive(w) ? (
-          <span class="stat" title="FD price on the exchange">
-            <img class="px" src={iconUrl("usd", 2)} alt="Price" />
-            <span class="num">${fdPriceUsd(w).toFixed(4)}</span>
-          </span>
-        ) : (
-          <span class="label" title="FD launches on the exchange at the end of Year 2">
-            Beta · launch in {Math.max(0, GAME_CONFIG.token.betaYears * 365 - day)}d
-          </span>
-        )}
-        {c && c.authority.status !== "active" ? <Badge tone="alert">{c.authority.status === "revoked" ? "Authority revoked" : "Suspended"}</Badge> : null}
-        {g.kind === "live" && g.broken ? <Badge tone="alert" title={g.broken.reason}>World stopped</Badge> : null}
-        {g.kind === "live" ? <span class="label">{w.companies.filter(isHuman).length} players</span> : null}
-        {stuck ? (
-          <Badge tone="alert" title="Trucks idle a day or more: the Fleet tab says why">
-            {stuck} idle
-          </Badge>
-        ) : null}
-        {tired ? (
-          <Badge tone="alert" title="Drivers out three weeks or running tired: the Fleet tab says what to do">
-            {tired} tired
-          </Badge>
-        ) : null}
-        {todo ? (
-          <Badge tone="alert" title="Things that cost money while nobody looks: the Fleet tab lists them">
-            {todo} to do
-          </Badge>
-        ) : null}
-        {tenders ? (
-          <Badge tone="alert" title="Contract tenders waiting for you: the Fleet tab has them">
-            {tenders} tender{tenders > 1 ? "s" : ""}
-          </Badge>
-        ) : null}
-        <ThemePicker />
-        {fsEnabled() ? (
-          <Btn sm icon="full" title="Full screen (F)" onClick={toggleFullscreen}>
-            {fsActive() ? "Exit" : "Full screen"}
-          </Btn>
-        ) : null}
-      </div>
-    </header>
-  );
-}
-
-export function setSpeed(i: number): void {
-  if (S.game?.kind === "test") S.speed = i;
-}
-
-function MapView(): JSX.Element {
-  useData();
-  const canvas = useRef<HTMLCanvasElement>(null);
-  const wrap = useRef<HTMLDivElement>(null);
-  const tip = useRef<HTMLDivElement>(null);
-  useEffect(() => mountMap(canvas.current!, wrap.current!, tip.current!), []);
-  useEffect(() => {
-    fitMap();
-  }, [S.layout]);
-  return (
-    <div class="mapwrap" ref={wrap}>
-      <canvas id="map" ref={canvas} width={960} height={600} aria-label="Map of hubs and trucks" />
-      <div id="tip" ref={tip} hidden />
-      <CityPane />
-      <div class="mapzoom" role="group" aria-label="Map zoom">
-        <Btn sm title="Zoom out (-)" disabled={zoomIndex() === 0} onClick={() => setZoom(zoomIndex() - 1)}>
-          −
-        </Btn>
-        <span class="label" aria-live="polite">
-          {zoomLabel()}
-        </span>
-        <Btn sm title="Zoom in (+, wheel or double-click)" disabled={maxZoom()} onClick={() => setZoom(zoomIndex() + 1)}>
-          +
-        </Btn>
-        <Btn sm title="Whole map (0)" disabled={zoomIndex() === 0} onClick={() => setZoom(0)}>
-          Fit
-        </Btn>
-        <Btn sm title={S.layout === "map" ? "Show the side panel" : "Map only"} onClick={() => setLayout(S.layout === "map" ? "split" : "map")}>
-          {S.layout === "map" ? "⤡ Restore" : "⤢ Expand"}
-        </Btn>
-      </div>
-      <div class="maplegend">
-        <span>
-          <i class="dot" style={{ background: PAL.cyan }} />
-          Your trucks
-        </span>
-        <span>
-          <i class="dot" style={{ background: PAL.white, boxShadow: `0 0 0 2px ${PAL.lime}` }} />
-          Other players
-        </span>
-        <span>
-          <i class="dot" style={{ background: PAL.white }} />
-          AI carriers
-        </span>
-        <span>
-          <i class="dot" style={{ background: PAL.blueL }} />
-          Reefer
-        </span>
-        <span>
-          <i class="dot" style={{ background: PAL.amber }} />
-          Flatbed
-        </span>
-      </div>
-    </div>
-  );
-}
-
-const TABS: [Tab, string, string][] = [
-  ["fleet", "Fleet", "truck"],
-  ["loads", "Loads", "board"],
-  ["staff", "Staff", "people"],
-  ["market", "Dealer", "tag"],
-  ["money", "Money", "money"],
-  ["finance", "Finance", "fd"],
-  ["business", "Business", "wrench"],
-  ["logbook", "Logbook", "star"],
-  ["backlot", "Back Lot", "wrench"],
-  ["rates", "Rates", "pin"],
-  ["economy", "Economy", "star"],
-  ["company", "Company", "building"],
-  ["guide", "Guide", "book"],
-];
-
-function SideRack(): JSX.Element {
-  useData();
-  const g = S.game!;
-  const tab = S.tab;
-  const watching = !g.player && tab !== "company" && tab !== "guide" && tab !== "rates" && tab !== "economy";
-  const teaser = tabLock(g.w, tab);
-  return (
-    <aside class="side">
-      <div class="rackbar">
-        <nav class="tabs">
-          {TABS.map(([k, l, ic]) => {
-            const locked = tabLock(g.w, k) !== null;
-            return (
-              <Btn key={k} icon={hasAsset(`icons/${k}.png`) ? undefined : ic} on={k === tab} title={locked ? `${l}: not open yet. What it will be.` : l} class={locked ? "locked" : undefined} onClick={() => setTab(k)}>
-                {hasAsset(`icons/${k}.png`) ? <img class="px tabpic" src={`${ASSETS}icons/${k}.png`} alt="" /> : null}
-                <span>{l}</span>
-                {locked ? <span class="lock" aria-label="not open yet">🔒</span> : null}
-              </Btn>
-            );
-          })}
-        </nav>
-        <Btn sm title="Report a bug or an idea" onClick={() => { S.reporting = !S.reporting; bumpData(); }}>
-          Report
-        </Btn>
-        <Btn sm title={S.layout === "panel" ? "Show the map again (Esc)" : "Expand this panel to the whole screen"} onClick={() => setLayout(S.layout === "panel" ? "split" : "panel")}>
-          {S.layout === "panel" ? "⤡ Restore" : "⤢ Expand"}
-        </Btn>
-      </div>
-      <div class="panelbox">
-        <ReportCard />
-        {!watching && tab !== "guide" ? <Walkthrough /> : null}
-        {watching ? <WatchPanel /> : teaser ? <TeaserPanel teaser={teaser} /> : tab === "fleet" ? <Fleet /> : tab === "loads" ? <Loads /> : tab === "staff" ? <Staff /> : tab === "market" ? <Dealer /> : tab === "money" ? <Money /> : tab === "finance" ? <Finance /> : tab === "business" ? <Business /> : tab === "logbook" ? <Logbook /> : tab === "backlot" ? <TeaserPanel teaser={{ title: "The Back Lot", text: "Open.", opens: "" }} /> : tab === "rates" ? <Rates /> : tab === "economy" ? <Economy /> : tab === "company" ? <Company /> : <Guide />}
-      </div>
-    </aside>
-  );
-}
-
-/** For a page with no company on screen: joining, watching from another tab, or a viewer who can't play. */
-function WatchPanel(): JSX.Element {
-  const lw = S.live!;
-  const joining = lw.pending().find((r) => r.a.type === "join");
-  return (
-    <div class="stack">
-      <h2>The live world</h2>
-      {joining ? (
-        <Card title="Registering your company">
-          <p>
-            Your leased truck is ready at {hhmm(joining.at)}, in {realUntil(lw.msUntil(joining.at))}.
-          </p>
-        </Card>
-      ) : lw.lease === "busy" ? (
-        <Card title="Open in another tab">
-          <p>Your company is being run from another tab or device. This one is watching.</p>
-          <div class="row">
-            <Btn primary onClick={H.takeover}>
-              Play here instead
-            </Btn>
-          </div>
-        </Card>
-      ) : lw.lease === "denied" ? (
-        <Card title="Watching">
-          <p>You can watch the live world. To run a company in it, ask the owner to share this page with you as a Contributor.</p>
-        </Card>
-      ) : (
-        <Card title="Watching">
-          <p>Sign in to claude.ai to run a company.</p>
-        </Card>
-      )}
-      <p class="muted">Click a hub on the map to see its open loads on the Loads tab.</p>
-    </div>
-  );
-}
-
-function Ticker(): JSX.Element {
-  useData();
-  const f = feed();
-  const items = f.ticker.slice(0, 8);
-  return (
-    <footer class="ticker" aria-live="polite">
-      {items.length ? items.map((t, i) => <span class={t.cls} key={i}>{t.text}</span>) : <span class="muted">Your dispatcher is watching the board. Bids clear at 06:00 and 18:00.</span>}
-    </footer>
-  );
-}
-
-function Toast(): JSX.Element | null {
-  useData();
-  const t = S.toast;
-  if (!t) return null;
-  return <div class={cls("toast", t.err && "err")}>{t.text}</div>;
 }

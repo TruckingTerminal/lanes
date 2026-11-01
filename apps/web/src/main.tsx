@@ -9,7 +9,7 @@ import { createMeta, LiveWorld, readMeta, type DbLike, type WorldMeta } from "./
 import { checkAttention, checkIdleAlerts, setDefaultOrders } from "./logic.js";
 import { drawMap, fitMap, resetArt, setZoom, zoomIndex } from "./mapview.js";
 import { MemoryDb } from "./memdb.js";
-import { bumpData, bumpTick, feed, loadTheme, loadWalkHidden, markPersisted, persistTest, push, readTest, S, setLayout, SPEEDS, TEST_BUILD, toast, toggleFullscreen, truckNo, type Session, type TitleMenu } from "./state.js";
+import { bumpData, bumpTick, feed, loadOnboard, loadTheme, markPersisted, persistTest, push, readTest, S, setLayout, setTab, SPEEDS, TEST_BUILD, toast, toggleFullscreen, truckNo, type Session, type TitleMenu } from "./state.js";
 import { App } from "./ui/App.js";
 
 /**
@@ -57,7 +57,7 @@ function showGame(s: Session): void {
   S.game = s;
   feed(s).lastT = s.w.t;
   S.selTruck = s.player ? (s.w.trucksByCompany.get(s.player.id)?.find((t) => t.status !== "retired")?.id ?? null) : null;
-  S.tab = "fleet";
+  setTab("fleet");
   S.screen = { kind: "game" };
   bumpData();
   if (!looping) {
@@ -101,9 +101,9 @@ function onEvent(s: Session, e: GameEvent): void {
 async function boot(): Promise<void> {
   installTheme();
   loadTheme();
-  loadWalkHidden();
+  loadOnboard();
   // A phone opens on the panel (the map is one tap away); a wide screen on the split view.
-  if (window.matchMedia("(max-width: 760px)").matches) S.layout = "panel";
+  if (window.matchMedia("(max-width: 899px)").matches) S.layout = "panel";
   whenAssetsReady(() => bumpData());
   truckSheet();
   setDefaultOrders(() => DEFAULT_ORDERS);

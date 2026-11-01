@@ -1,7 +1,7 @@
 import type { JSX } from "preact";
 import { GAME_CONFIG } from "../../game.js";
 import { guidePages } from "../../guide.js";
-import { bumpData, S, setWalkHidden, TEST_BUILD, useData } from "../../state.js";
+import { bumpData, S, TEST_BUILD, useData } from "../../state.js";
 import { Btn, Panel } from "../bits.js";
 import { SCENES } from "../../assets.js";
 import { Scene } from "../Loop.js";
@@ -29,7 +29,7 @@ export function Guide(): JSX.Element {
     }
   };
   return (
-    <Panel title="Guide">
+    <Panel title="Help">
       <Scene name="guide" still={SCENES.guide} alt="A diner booth with the road atlas" />
       <section class="card guide" onClick={onClick}>
         <span class="label">{page.section}</span>
@@ -52,11 +52,6 @@ export function Guide(): JSX.Element {
             ))}
         </div>
       ))}
-      {S.walkHidden && S.game?.player ? (
-        <div class="row">
-          <Btn sm onClick={() => setWalkHidden(false)}>Show the walkthrough again</Btn>
-        </div>
-      ) : null}
       <p class="muted small">
         Every page, on one screen:{" "}
         <a href={DOCS_URL} target="_blank" rel="noopener">
