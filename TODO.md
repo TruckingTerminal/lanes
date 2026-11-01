@@ -50,9 +50,12 @@ Order is the working order. Design records live in TOKENOMICS.md (economy) and R
     change fuel burn, speed, breakdown and crash odds, tire and brake wear; winter closures and chain
     laws on passes; heat on reefers. The road graph already carries route geometry and winter risk
     flags: extend with elevation per edge (public DEM) and per-route weather feeds.
-14. **Authoritative server before real money**, then the settlement layer from audited standards
-    (fixed-supply ERC-20, ERC-4626 vaults, an existing DEX pool, OpenZeppelin vesting and
-    timelocks, one small audited bridge with a bounty).
+14. **Authoritative server before real money**, then the settlement layer from audited standards on
+    Solana (Jeff, 2026-10-31: not an EVM chain): a fixed-supply SPL token in an existing Solana pool,
+    standard vesting and locks, one small audited bridge with a bounty. The launch tools there: a
+    Metaplex Genesis uniform price auction or a Meteora Alpha Vault (whitelist, per-wallet caps), the
+    pool's decaying launch fee, and the farmed-FD tax charged at the bridge; a hard price band would
+    need our own pool program and a Token ACL allow list for its window.
 
 ## Launch without capital (Jeff, 2026-10-29): no outside money, no presale, no bundle
 15. **Protocol-owned one-sided liquidity.** At launch the treasury allocation posts FD-only liquidity
