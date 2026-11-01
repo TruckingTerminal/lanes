@@ -4,6 +4,7 @@ import { H } from "../handlers.js";
 import { isPhone, S, setTab, useData } from "../state.js";
 import { NAV, navOf, tabLabel, tabOpen, teaserTabs, type Tab } from "../tabs.js";
 import { Btn, Card } from "./bits.js";
+import { ChooseHub, choosing } from "./ChooseHub.js";
 import { isNew, More, TabIcon, TeaserCard, TeaserRow } from "./More.js";
 import { Caption, IuliiaPanel, ReportCard } from "./Walkthrough.js";
 import { Business } from "./panels/Business.js";
@@ -46,9 +47,11 @@ const WATCHABLE: readonly Tab[] = ["more", "iuliia", "guide", "company", "rates"
  * The nav: Truck · Loads · Money · More (a segmented control on the laptop, the bottom bar on a phone; the
  * stylesheet places it). More lights for every tab under it; a dot when an opened teaser is new.
  */
-export function Nav(): JSX.Element {
+export function Nav(): JSX.Element | null {
   useData();
   const g = S.game!;
+  // No nav before a company (S1): the world is to look at, and the sheet is the hub choice.
+  if (choosing()) return null;
   const on = navOf(S.tab);
   const moreNew = !!g.player && teaserTabs().some((t) => tabOpen(t.id, g.w, g.player) && isNew(t.id));
   // On a phone a nav tap raises the sheet: half for most, full for Loads (specs/first-ten-minutes.md).
@@ -101,7 +104,7 @@ export function RackBody(): JSX.Element {
             </Btn>
           </div>
         ) : null}
-        {watching ? <WatchPanel /> : tabOpen(tab, g.w, g.player) ? PANELS[tab]() : <TeaserCard id={tab} />}
+        {watching ? choosing() ? <ChooseHub /> : <WatchPanel /> : tabOpen(tab, g.w, g.player) ? PANELS[tab]() : <TeaserCard id={tab} />}
       </div>
     </>
   );

@@ -4,13 +4,15 @@ import { dayOf } from "@lanes/engine";
 import { GAME_CONFIG } from "../game.js";
 import { walkProgress, walkSteps, type Mood } from "../walkthrough.js";
 import { ASSETS, hasAsset } from "../mapart.js";
-import { bumpData, S, setTab, toast, useData } from "../state.js";
+import { bumpData, S, setOnboard, setTab, toast, useData } from "../state.js";
+import { ARRIVAL } from "../copy.js";
+import { pct } from "../format.js";
 import { TAB_NAME } from "../tabs.js";
 import { Btn, Card } from "./bits.js";
 import { Loop } from "./Loop.js";
 
 /** Iuliia's portrait: the step's loop when it's drawn (assets/people/iuliia-*.loop.png), the still, or a placeholder until the art lands. */
-export function Iuliia({ mood, size = 128 }: { mood: Mood; size?: 32 | 128 }): JSX.Element {
+export function Iuliia({ mood, size = 128 }: { mood: Mood; size?: 32 | 96 | 128 }): JSX.Element {
   const file = mood === "idle" ? "people/iuliia" : `people/iuliia-${mood}`;
   const base = hasAsset(`${file}.png`) ? file : hasAsset("people/iuliia.png") ? "people/iuliia" : null;
   if (!base) {
@@ -20,7 +22,7 @@ export function Iuliia({ mood, size = 128 }: { mood: Mood; size?: 32 | 128 }): J
       </span>
     );
   }
-  return <Loop name={base} still={`${ASSETS}${base}.png`} w={128} h={128} scale={size === 32 ? 0.25 : 0.5} smooth class={size === 32 ? "portrait sm" : "portrait"} alt="Iuliia" />;
+  return <Loop name={base} still={`${ASSETS}${base}.png`} w={128} h={128} scale={size === 32 ? 0.25 : size === 96 ? 0.75 : 0.5} smooth class={size === 32 ? "portrait sm" : size === 96 ? "portrait lg" : "portrait"} alt="Iuliia" />;
 }
 
 /** The walkthrough card (walkthrough.ts), on the Iuliia tab: her current step in full, read from the world; the player can read ahead. */
@@ -103,6 +105,23 @@ export function Caption(): JSX.Element | null {
   const steps = walkSteps(GAME_CONFIG, g.w.net.hubs[c.homeHub]?.name);
   const { index } = walkProgress(GAME_CONFIG, g.w, c);
   const step = index >= 0 ? steps[index]! : null;
+  // The arrival (S1): once, after the company is created, her line about the lease and one button to the board.
+  if (step?.id === "board" && !S.onboard.seen.includes("arrival") && S.tab !== "loads") {
+    const showBoard = () => {
+      setOnboard({ seen: [...S.onboard.seen, "arrival"] });
+      S.sheet = "full";
+      setTab("loads");
+    };
+    return (
+      <div class="caption">
+        <Iuliia mood="wave" size={32} />
+        <span class="small">{ARRIVAL.line(g.w.net.hubs[c.homeHub]!.name, pct(GAME_CONFIG.costs.npcLeaseShareOfGross))}</span>
+        <Btn sm primary onClick={showBoard}>
+          {ARRIVAL.showBoard}
+        </Btn>
+      </div>
+    );
+  }
   return (
     <div class="caption">
       <Iuliia mood={step?.mood ?? "laugh"} size={32} />

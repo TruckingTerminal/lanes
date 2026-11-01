@@ -25,6 +25,8 @@ export type { Tab } from "./tabs.js";
 export type Layout = "split" | "panel" | "map";
 /** The phone's sheet over the map (specs/first-ten-minutes.md, Layout): a strip with the state line, half, or full. */
 export type SheetStop = "strip" | "half" | "full";
+/** The first entry, before a company (specs/first-ten-minutes.md, S1): where the hub-choosing sheet stands. */
+export type EntryStage = "welcome" | "home" | "all" | "card" | "board" | "name";
 export type Platform = { db: DbLike | null; uid: string | null; owner: boolean; local: boolean };
 export type TitleMenu =
   | { kind: "connecting" }
@@ -33,7 +35,8 @@ export type TitleMenu =
   | { kind: "notopen" }
   | { kind: "openworld" }
   | { kind: "update"; theirs: string }
-  | { kind: "join" }
+  | { kind: "ready" }
+  | { kind: "starting" }
   | { kind: "test" }
   | { kind: "menu" };
 export type Screen = { kind: "title"; menu: TitleMenu } | { kind: "loading"; title: string; note: string } | { kind: "game" };
@@ -48,6 +51,7 @@ export const S = {
   tab: "fleet" as Tab,
   layout: "split" as Layout,
   sheet: "half" as SheetStop,
+  entry: { stage: "welcome" as EntryStage, hub: null as number | null },
   selTruck: null as number | null,
   selHub: null as number | null,
   /** The hub whose city pane is open over the map (opened by clicking the city or a town of its market), if any. */
@@ -210,7 +214,7 @@ let persistedActs = -1;
 
 /** Writes the test world's log when it has changed, at most every few seconds unless forced. */
 export function persistTest(force = false): void {
-  if (!TEST_BUILD || !S.test) return;
+  if (!TEST_BUILD || !S.test?.player) return;
   const log = S.test.log;
   if (log.t === persistedT && log.acts.length === persistedActs) return;
   if (!force && performance.now() - persistedAt < 5000) return;

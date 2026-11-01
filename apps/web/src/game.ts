@@ -37,10 +37,17 @@ export const GAME_CONFIG: EconomyConfig = {
  */
 export const RULESET = `lanes-live-1/${economyConfig.version}`;
 
+/**
+ * The three hubs the title offers first, in order (the director's ruling 4, 2026-11-02: Dallas, Los Angeles,
+ * Phoenix, pending the economy's check of Los Angeles; the fallback is Chicago, Dallas, Phoenix). Any starter hub
+ * id works here; every other starter stays one tap away under "Change".
+ */
+export const FIRST_HUBS: readonly string[] = ["DAL", "LAX", "PHX"];
+
 export const POPULATION = { freeOwnerOperators: 400, fleets: 120, brokers: 60 };
 /** Play dollars for the token market (this build has no real money). */
 export const PLAYER_WALLET_USD = 100;
-const FLEET_START_EXTRA_FD = 20_000;
+export const FLEET_START_EXTRA_FD = 20_000;
 
 export const DEFAULT_ORDERS: StandingOrder[] = [
   { kind: "bid", maxDeadheadMi: 150, price: { mode: "breakEvenPlus", pct: 0.25 } },
@@ -92,8 +99,26 @@ export interface TestLog {
   name: string;
   start: StartKind;
   hub: string;
+  /** Hours the world ran before the company joined (the warm start); absent in logs from before it, which joined at 0. */
+  warm?: number;
   t: number;
   acts: [number, Action][];
+}
+
+/**
+ * The warm start (the director's ruling 5, 2026-11-02): a new test world runs two game days, four rounds, before the
+ * company joins, so a newcomer arrives in a market already moving, at 06:00 as a round clears. No load is planted.
+ */
+export const WARM_HOURS = 54;
+
+/** Steps a world some hours in slices, so the page stays responsive and can show how far it is. */
+async function warmUp(w: World, hours: number, onProgress?: (share: number) => void): Promise<void> {
+  while (w.t < hours * 60) {
+    const end = performance.now() + 30;
+    while (w.t < hours * 60 && performance.now() < end) stepHour(w, ruleBotHook);
+    onProgress?.(w.t / (hours * 60));
+    await new Promise((r) => setTimeout(r, 0));
+  }
 }
 
 /**
@@ -104,24 +129,49 @@ export interface TestLog {
 export class TestGame {
   readonly kind = "test";
   readonly w: World;
-  readonly player: Company;
+  /** Your company, once you've chosen a home hub; null while the world waits for the choice. */
+  player: Company | null = null;
   readonly log: TestLog;
   private listeners: ((e: GameEvent) => void)[] = [];
 
-  constructor(name: string, start: StartKind, hub: string, seed = Math.floor(Math.random() * 1e9)) {
-    this.log = { v: 1, ruleset: RULESET, seed, name, start, hub, t: 0, acts: [] };
-    this.w = newWorld(seed);
-    this.player = joinCompany(this.w, "test", name, hub, start)!;
+  private constructor(log: TestLog, w: World) {
+    this.log = log;
+    this.w = w;
     this.w.listener = (e) => {
       for (const l of this.listeners) l(e);
     };
-    // Open at 06:00, as the first board round clears.
-    for (let h = 0; h < 6; h++) this.stepHour();
+  }
+
+  /**
+   * A new test world: two game days of the market without you (the warm start). You arrive with no company and
+   * choose your home hub inside the world (Jeff, 2026-11-02); `join` brings the company in at that minute.
+   */
+  static async create(onProgress?: (share: number) => void): Promise<TestGame> {
+    const seed = Math.floor(Math.random() * 1e9);
+    const w = newWorld(seed);
+    await warmUp(w, WARM_HOURS, onProgress);
+    return new TestGame({ v: 1, ruleset: RULESET, seed, name: "", start: "oo", hub: "", t: w.t, acts: [] }, w);
+  }
+
+  /** Your company joins at this minute, at the hub you chose; the log keeps when, so the world replays the same. */
+  join(name: string, start: StartKind, hub: string): Company | null {
+    if (this.player) return this.player;
+    const c = joinCompany(this.w, "test", name, hub, start);
+    if (!c) return null;
+    this.player = c;
+    Object.assign(this.log, { name, start, hub, warm: this.w.t / 60 });
+    return c;
   }
 
   /** Rebuilds a test world from its log, a slice at a time so the page stays responsive. */
   static async restore(log: TestLog, onProgress?: (share: number) => void): Promise<TestGame> {
-    const g = new TestGame(log.name, log.start, log.hub, log.seed);
+    const w = newWorld(log.seed);
+    if (log.warm) await warmUp(w, log.warm);
+    // A fresh log the replay writes into, as play would; the saved one is only read.
+    const g = new TestGame({ ...log, warm: undefined, t: w.t, acts: [] }, w);
+    g.join(log.name, log.start, log.hub);
+    // A log from before the warm start opened at 06:00 of day one, the company already in.
+    if (!log.warm) for (let h = 0; h < 6; h++) g.stepHour();
     const listeners = g.listeners;
     g.listeners = [];
     let next = 0;
@@ -147,6 +197,7 @@ export class TestGame {
   }
 
   act(action: Action): ActionResult {
+    if (!this.player) return { ok: false, reason: "choose your home hub first" };
     const r = applyAction(this.w, this.player.id, action);
     if (r.ok) this.log.acts.push([this.w.t, JSON.parse(JSON.stringify(action)) as Action]);
     return r;

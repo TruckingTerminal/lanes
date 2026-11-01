@@ -1,10 +1,12 @@
 import type { JSX } from "preact";
 import { companyAccount } from "@lanes/engine";
-import { cls, fdFull, hhmm, weekday } from "../format.js";
+import { cls, fdFull, hhmm, shortDate, weekday } from "../format.js";
+import { FIRST_ENTRY } from "../copy.js";
 import { H } from "../handlers.js";
-import { attentionItems, stuckTrucks, tiredTrucks } from "../logic.js";
+import { attentionItems, nextRoundHour, stuckTrucks, tiredTrucks } from "../logic.js";
 import { bumpData, clockMin, fsActive, fsEnabled, S, setTab, SPEEDS, toggleFullscreen, useData, useTick } from "../state.js";
 import { Badge, Btn } from "./bits.js";
+import { choosing } from "./ChooseHub.js";
 import { myTenders } from "./panels/Contracts.js";
 
 /**
@@ -18,10 +20,21 @@ export function TopBar(): JSX.Element {
   const c = g.player;
   const bal = c ? w.ledger.balance(companyAccount(c.id)) : 0;
   const needs = c ? stuckTrucks().length + tiredTrucks().length + myTenders(c).length + attentionItems().length : 0;
+  // Before a company (S1): the date, the clock and the next round, and nothing that belongs to a company yet.
+  if (choosing()) {
+    return (
+      <header class="topbar">
+        <Clock long />
+        <span class="muted">{FIRST_ENTRY.nextRound(nextRoundHour())}</span>
+        <span class="grow" />
+        <Menu />
+      </header>
+    );
+  }
   return (
     <header class="topbar">
       <Clock />
-      {c ? <span class={cls("cash num", bal < 0 && "bad")}>{fdFull(bal)} FD</span> : <Badge>Watching</Badge>}
+      {c ? <span class={cls("cash num", bal < 0 && "bad")}>{fdFull(bal)} FD</span> : choosing() ? null : <Badge>Watching</Badge>}
       {needs ? (
         <button type="button" class="alertdot" title={`Needs you: ${needs}`} onClick={() => setTab("fleet")}>
           {needs}
@@ -36,12 +49,13 @@ export function TopBar(): JSX.Element {
   );
 }
 
-function Clock(): JSX.Element {
+function Clock({ long = false }: { long?: boolean }): JSX.Element {
   useTick();
   const minute = clockMin();
+  const day = Math.floor(minute / 1440);
   return (
     <span class="clock">
-      {weekday(Math.floor(minute / 1440))} {hhmm(minute)}
+      {long ? `${weekday(day)} ${shortDate(day)} · ${hhmm(minute)}` : `${weekday(day)} ${hhmm(minute)}`}
     </span>
   );
 }

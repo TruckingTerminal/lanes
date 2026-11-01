@@ -1,6 +1,7 @@
 import type { JSX } from "preact";
 import { useEffect, useRef } from "preact/hooks";
-import { fitMap, maxZoom, mountMap, setZoom, zoomIndex, zoomLabel } from "../mapview.js";
+import { fitMap, mapPainted, maxZoom, mountMap, setZoom, zoomIndex, zoomLabel } from "../mapview.js";
+import { ASSETS, hasAsset } from "../mapart.js";
 import { S, useData } from "../state.js";
 import { Btn } from "./bits.js";
 import { CityPane } from "./CityPane.js";
@@ -19,6 +20,7 @@ export function MapView(): JSX.Element {
     <div class="mapwrap" ref={wrap}>
       <canvas id="map" ref={canvas} width={960} height={600} aria-label="Map of hubs and trucks" />
       <div id="tip" ref={tip} hidden />
+      <Finding />
       <CityPane />
       <div class="mapzoom" role="group" aria-label="Map zoom">
         <Btn sm title="Zoom out (-)" disabled={zoomIndex() === 0} onClick={() => setZoom(zoomIndex() - 1)}>
@@ -34,6 +36,19 @@ export function MapView(): JSX.Element {
           Fit
         </Btn>
       </div>
+    </div>
+  );
+}
+
+/** Until the map's painting is up (S1): the home hub's own picture and "Finding Dallas…", not an empty box. */
+function Finding(): JSX.Element | null {
+  const c = S.game?.player;
+  if (!c || mapPainted()) return null;
+  const hub = S.game!.w.net.hubs[c.homeHub]!;
+  return (
+    <div class="finding">
+      {hasAsset(`cityviews/${hub.id}.png`) ? <img class="px" src={`${ASSETS}cityviews/${hub.id}.png`} alt="" /> : null}
+      <p class="small">Finding {hub.name}…</p>
     </div>
   );
 }

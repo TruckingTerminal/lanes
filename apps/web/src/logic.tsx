@@ -16,6 +16,7 @@ import {
   hubToll,
   marketPay,
   operatingTrucks,
+  ordersWaitForHand,
   reloadOdds,
   resting,
   seasonality,
@@ -308,13 +309,15 @@ export function nextRoundLabel(): string {
 export function sheetLine(): string {
   const g = S.game!;
   const c = g.player;
-  if (!c) return "Watching the live world";
+  if (!c) return g.kind === "test" || g.writer ? "Choose your home hub" : "Watching the live world";
   const trucks = myTrucks();
   const bids = trucks.filter((t) => g.w.manualBids.has(t.id)).length;
   if (bids) return `${bids === 1 ? "1 bid in" : `${bids} bids in`} · clears ${nextRoundHour()}`;
   const t = trucks.find((x) => x.id === S.selTruck) ?? trucks[0];
   if (!t) return "No trucks on the road";
   const name = `Truck ${truckNo(t.id)}`;
+  // Under the first-bid rule the dispatcher waits for your first bid, and the truck waits at home (copy spec, S6).
+  if (t.status === "idle" && ordersWaitForHand(g.w, c)) return `${name} · Waiting at ${g.w.net.places[t.place]!.name} · round ${nextRoundHour()}`;
   if (t.status === "idle" && !resting(g.w, t)) return `${name} · Idle at ${g.w.net.places[t.place]!.name} · round ${nextRoundHour()}`;
   return `${name} · ${statusText(t)}`;
 }

@@ -238,8 +238,8 @@ table.mini td:first-child { font-family: inherit; }
 .teaserbar { display: flex; flex-wrap: wrap; gap: 4px; }
 .teaserseg { height: 32px; padding: 0 10px; border: 1px dashed var(--border); border-radius: var(--radius); background: transparent; color: var(--text-secondary); opacity: 0.6; font-family: var(--font-mono); font-size: 11px; cursor: pointer; }
 .teaserseg.on, .teaserseg:hover { opacity: 1; border-color: var(--accent); }
-.caption { display: flex; align-items: center; gap: 8px; min-height: 40px; }
-.caption .small { flex: 1; min-width: 0; }
+.caption { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; min-height: 40px; }
+.caption .small { flex: 1 1 200px; min-width: 0; }
 .caption .portrait.sm, .caption .portrait.placeholder.sm { width: 32px; height: 32px; flex: none; font-size: 14px; }
 .morelist { display: grid; border: 1px solid var(--border); border-radius: var(--radius); }
 .morerow { display: flex; align-items: center; gap: 10px; min-height: 48px; padding: 0 12px; border: 0; border-bottom: 1px solid var(--border); background: var(--bg-panel); text-align: left; cursor: pointer; }
@@ -253,6 +253,30 @@ table.mini td:first-child { font-family: inherit; }
 .teaserhead h3 { margin: 0; }
 .teaserhead p { margin: 0; }
 .phone-only { display: none !important; }
+.hubcards { display: grid; gap: 6px; }
+/* The login (S0): the loop, one action under it, a corner "≡". */
+.title { position: relative; }
+.titleaction { display: grid; justify-items: center; gap: 8px; min-height: 56px; }
+.titleaction .btn { min-height: 44px; }
+.row.center, .stack.center { justify-content: center; justify-items: center; text-align: center; }
+.starting { font-family: var(--font-mono); color: var(--text-secondary); margin: 12px 0; }
+.titlemenu { position: absolute; top: 8px; right: 8px; }
+/* The first entry (S1): Iuliia at 96 px, the hubs, the hub card and its read-only board. */
+.iuliiasay { display: flex; gap: 12px; align-items: flex-start; }
+.iuliiasay p { margin: 0; flex: 1; min-width: 0; }
+.portrait.lg, .portrait.placeholder.lg { width: 96px; height: 96px; flex: none; }
+.hubrows { display: grid; gap: 6px; }
+.hubrow { display: grid; gap: 2px; text-align: left; padding: 10px 12px; min-height: 48px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--bg-input); cursor: pointer; }
+.hubrow:hover { border-color: var(--accent); }
+.loadcard.ro { display: grid; gap: 2px; padding: 8px 10px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--bg-panel); }
+.row.pinned { position: sticky; bottom: 0; padding: 8px 0; background: var(--bg-primary); z-index: 1; }
+.startline { display: flex; flex-wrap: wrap; gap: 8px 12px; align-items: center; padding: 8px 10px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--bg-input); }
+.startline img.px { width: 172px; max-width: 100%; height: auto; }
+.startline span { flex: 1 1 180px; min-width: 0; }
+.hubcard { grid-template-columns: auto 1fr; min-height: 48px; }
+.hubcard.on { border-color: var(--accent); }
+.finding { position: absolute; inset: 0; z-index: 1; display: grid; place-content: center; justify-items: center; gap: 10px; background: #112640; }
+.finding img { max-width: min(90%, 520px); height: auto; border: 1px solid var(--border); border-radius: var(--radius); }
 .tabs .btn:hover { background: color-mix(in srgb, var(--accent) 8%, transparent); }
 .tabs .btn.on { background: transparent; color: var(--accent); border-bottom-color: var(--accent); }
 .tabs .btn img.px { width: 24px; height: 24px; }
@@ -319,6 +343,7 @@ table.mini td:first-child { font-family: inherit; }
   .sheetline { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: var(--font-mono); font-size: 13px; color: var(--text-secondary); }
   .sheetbody { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; display: flex; flex-direction: column; gap: 8px; padding: 0 8px 12px; }
   .sheet.strip .sheetbody { overflow: hidden; }
+  .sheetbody > * { flex: none; }
   /* The nav is the bottom bar: four targets, icon over label, 56 px, fixed. */
   .tabs { position: fixed; left: 0; right: 0; bottom: 0; z-index: 15; gap: 0; height: calc(56px + env(safe-area-inset-bottom)); padding-bottom: env(safe-area-inset-bottom); background: var(--bg-secondary); border-top: 1px solid var(--border); border-bottom: 0; }
   .tabs .btn { flex: 1 1 0; min-height: 56px; padding: 4px; border-bottom: 0; border-top: 2px solid transparent; }

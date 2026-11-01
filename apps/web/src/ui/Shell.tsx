@@ -2,6 +2,7 @@ import type { JSX } from "preact";
 import { useEffect, useRef, useState } from "preact/hooks";
 import { cls } from "../format.js";
 import { sheetLine } from "../logic.js";
+import { setMapInset } from "../mapview.js";
 import { feed, PHONE_QUERY, S, setSheet, useData, type SheetStop } from "../state.js";
 import { MapView } from "./MapRegion.js";
 import { Nav, RackBody, SideRack } from "./Rack.js";
@@ -92,6 +93,11 @@ function Sheet(): JSX.Element {
   const drag = useRef<{ y: number; h: number; now: number | null } | null>(null);
   const [live, setLive] = useState<number | null>(null);
   const room = () => (el.current?.parentElement ? roomPx(el.current.parentElement) : window.innerHeight - 100);
+  // The map keeps what it centres on above the sheet once the sheet settles (and nothing hidden when it goes).
+  useEffect(() => {
+    setMapInset(stopPx(S.sheet, room()));
+  }, [S.sheet]);
+  useEffect(() => () => setMapInset(0), []);
   const down = (ev: PointerEvent) => {
     try {
       (ev.currentTarget as HTMLElement).setPointerCapture(ev.pointerId);

@@ -91,6 +91,7 @@ export function TeaserCard({ id }: { id: Tab }): JSX.Element {
 export function TeaserRow(): JSX.Element | null {
   useData();
   const g = S.game!;
+  if (!g.player) return null;
   const coming = teaserTabs().filter((t) => !tabOpen(t.id, g.w, g.player));
   if (!coming.length) return null;
   return (

@@ -9,7 +9,7 @@ export type TractorTier = "workhorse" | "highwayPro" | "flagship";
 export type FacilityType = "warehouse" | "coldStorage" | "factory";
 
 export const economyConfig = {
-  version: "0.19.2-phase0.31", // Sprint 1 (2026-11-02): the first bid by hand switched on (freeEntry.firstBidByHand); beta one's ladder and crews as before; live levers in live.ts
+  version: "0.19.3-phase0.32", // Sprint 1 (2026-11-02): ui.season for the hub card (no sim effect); the first bid by hand switched on (freeEntry.firstBidByHand); beta one's ladder and crews as before; live levers in live.ts
 
   // §World, map and time
   time: {
@@ -1579,6 +1579,12 @@ export const economyConfig = {
       spreadMult: 2,
       suspensionDays: 30,
     },
+  },
+
+  // The hub card's season line (studio/reviews/economy-first-board.md): this block only feeds the hub card, never the sim.
+  // A hub reads its open dry-van loads whose ceiling clears a starter's break-even by `margin`, per round of its base van freight.
+  ui: {
+    season: { margin: 0.25, thinUnder: 0.15, fineFrom: 1.5, busyFrom: 4.5 },
   },
 } as const;
 

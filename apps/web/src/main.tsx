@@ -7,9 +7,9 @@ import { DEFAULT_ORDERS, RULESET, TestGame, type StartKind } from "./game.js";
 import { H } from "./handlers.js";
 import { createMeta, LiveWorld, readMeta, type DbLike, type WorldMeta } from "./live.js";
 import { checkAttention, checkIdleAlerts, setDefaultOrders } from "./logic.js";
-import { drawMap, fitMap, resetArt, setZoom, zoomIndex } from "./mapview.js";
+import { drawMap, fitMap, flyTo, resetArt, setZoom, zoomIndex } from "./mapview.js";
 import { MemoryDb } from "./memdb.js";
-import { bumpData, bumpTick, feed, loadOnboard, loadTheme, markPersisted, persistTest, push, readTest, S, setLayout, setTab, SPEEDS, TEST_BUILD, toast, toggleFullscreen, truckNo, type Session, type TitleMenu } from "./state.js";
+import { bumpData, bumpTick, feed, loadOnboard, setOnboard, loadTheme, markPersisted, persistTest, push, readTest, S, setLayout, setTab, SPEEDS, TEST_BUILD, toast, toggleFullscreen, truckNo, type Session, type TitleMenu } from "./state.js";
 import { App } from "./ui/App.js";
 
 /**
@@ -56,8 +56,13 @@ function showGame(s: Session): void {
   if (S.game !== s) resetArt();
   S.game = s;
   feed(s).lastT = s.w.t;
-  S.selTruck = s.player ? (s.w.trucksByCompany.get(s.player.id)?.find((t) => t.status !== "retired")?.id ?? null) : null;
+  const truck = s.player ? s.w.trucksByCompany.get(s.player.id)?.find((t) => t.status !== "retired") : undefined;
+  S.selTruck = truck?.id ?? null;
   setTab("fleet");
+  S.sheet = "half";
+  // Before a company, the first entry starts at Iuliia's welcome; a returning player opens on their truck, no flight.
+  if (!s.player) S.entry = { stage: "welcome", hub: null };
+  else if (truck) flyTo(truck.hub, true);
   S.screen = { kind: "game" };
   bumpData();
   if (!looping) {
@@ -109,6 +114,11 @@ async function boot(): Promise<void> {
   wireKeys();
   render(<App />, document.getElementById("app")!);
   if (TEST_BUILD) return bootTest();
+  await connectLive();
+}
+
+/** Signs in to the store and reads the world; the title's Sign in and Retry run this again. */
+async function connectLive(): Promise<void> {
   showTitle({ kind: "connecting" });
   S.platform = await connect();
   if (!S.platform.db) return showTitle({ kind: "signin" });
@@ -124,7 +134,8 @@ async function boot(): Promise<void> {
 
 async function enterLive(meta: WorldMeta): Promise<void> {
   if (meta.ruleset !== RULESET) return showTitle({ kind: "update", theirs: meta.ruleset });
-  showLoading("Catching up with the live world", "Every page replays the world's history from the start, so everyone sees the same world.");
+  // The replay runs behind the title, the button reading "Connecting…" (S0), so the title is the login and nothing else.
+  showTitle({ kind: "connecting" });
   const lw = await LiveWorld.open(S.platform.db!, meta, S.platform.uid);
   S.live = lw;
   lw.onEvent((e) => onEvent(lw, e));
@@ -139,15 +150,20 @@ async function enterLive(meta: WorldMeta): Promise<void> {
     push(lw, uid === S.platform.uid ? `${c.name} is on the road out of ${lw.w.net.hubs[c.homeHub]!.id}. Good luck.` : `${c.name} joined the world, hauling out of ${lw.w.net.hubs[c.homeHub]!.id}`, "good");
     if (uid === S.platform.uid) {
       S.selTruck = lw.w.trucksByCompany.get(c.id)?.[0]?.id ?? null;
+      // The flight home runs once, when this page's own join lands, never when a replay passes an old one.
+      if (joiningLive) {
+        joiningLive = false;
+        S.sheet = "half";
+        flyTo(c.homeHub);
+      }
       bumpData();
     }
   };
   await lw.rebuild((share) => {
     S.loadShare = share;
-    S.screen = { kind: "loading", title: "Catching up with the live world", note: `${hhmm(lw.w.t)}` };
   });
-  if (!lw.player && S.platform.uid && lw.writer) showTitle({ kind: "join" });
-  else showGame(lw);
+  // Caught up: the title offers Continue (with a company) or Enter the world (without one, the hub is chosen inside).
+  showTitle({ kind: "ready" });
 }
 
 /** The test build always opens on the title (Jeff, 2026-11-01); a world saved in this browser gets a Continue button there. */
@@ -188,28 +204,63 @@ async function continueTest(): Promise<void> {
   toast("Welcome back. The clock is paused; press ▶ or 1–3 to run it.");
 }
 
+/**
+ * A new test world: the market runs its two warm days behind the loading screen, then you're in it with no company,
+ * the clock paused, choosing your home hub (Jeff, 2026-11-02).
+ */
+async function openTest(): Promise<void> {
+  // "Starting the world…" over the title loop while the market runs its two warm days (S0).
+  showTitle({ kind: "starting" });
+  const t = await TestGame.create((share) => {
+    S.loadShare = share;
+  });
+  S.test = t;
+  t.onEvent((e) => onEvent(t, e));
+  S.speed = 0;
+  acc = 0;
+  showGame(t);
+}
+
+/** The hub chosen inside the world: in a test world the company joins now; live, the join is sent like any order. */
+let joiningLive = false;
+function choose(name: string, hub: string, start: StartKind): void {
+  const g = S.game;
+  if (!g || g.player) return;
+  const at = g.w.net.hubs.findIndex((h) => h.id === hub);
+  // A new company hears Iuliia's arrival line, even in a browser that heard it for an earlier one.
+  setOnboard({ seen: S.onboard.seen.filter((x) => x !== "arrival") });
+  if (g.kind === "test") {
+    const c = g.join(name, start, hub);
+    if (!c) return toast("That hub can't take a new company.", true);
+    S.selTruck = g.w.trucksByCompany.get(c.id)?.[0]?.id ?? null;
+    S.speed = 1;
+    persistTest(true);
+    flyTo(at);
+    bumpData();
+    return;
+  }
+  // Live: the join is an order like any other; the flight home waits for the company to exist (lw.onJoin).
+  joiningLive = true;
+  H.join(name, hub);
+}
+
 function wireHandlers(): void {
   H.continueTest = () => void continueTest();
   H.showMenu = () => {
     if (!S.game) return;
     showTitle(S.game.kind === "test" && !S.live ? { kind: "test" } : { kind: "menu" });
   };
-  H.openTest = (name: string, start: StartKind, hub: string) => {
-    const t = new TestGame(name, start, hub);
-    S.test = t;
-    t.onEvent((e) => onEvent(t, e));
-    S.speed = 1;
-    acc = 0;
-    showGame(t);
-    persistTest(true);
-    toast("Test world open. Pause and speed up from the top bar.");
+  H.openTest = () => void openTest();
+  H.enterWorld = () => {
+    if (S.live) showGame(S.live);
   };
+  H.retry = () => void connectLive();
+  H.choose = choose;
   H.backToLive = () => {
     S.test = null;
     if (S.live) {
-      if (S.live.player || !S.live.writer) showGame(S.live);
-      else showTitle({ kind: "join" });
-    } else void boot();
+      showGame(S.live);
+    } else void connectLive();
   };
   H.backToTest = () => {
     if (S.test) showGame(S.test);
@@ -226,7 +277,6 @@ function wireHandlers(): void {
   H.takeover = () => {
     void S.live?.retakeLease().then((ok) => {
       toast(ok ? "This tab now runs your company." : "Your company is still open somewhere else.", !ok);
-      if (ok && S.live && !S.live.player && !S.live.isPlayer(S.platform.uid ?? "")) showTitle({ kind: "join" });
       bumpData();
     });
   };
@@ -234,7 +284,6 @@ function wireHandlers(): void {
     const lw = S.live!;
     lw.submit({ type: "join", name, hub }).then(
       (r) => {
-        showGame(lw);
         toast(`Registering ${name}. Your truck is ready at ${hhmm(r.at)}, in ${realUntil(lw.msUntil(r.at))}.`);
       },
       (e: unknown) => toast(`Couldn't join: ${(e as { message?: string })?.message ?? "the store refused it"}`, true),

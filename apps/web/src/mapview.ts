@@ -2,7 +2,7 @@ import type { Equipment } from "@lanes/config";
 import { hubMiles, hubRoute, type Truck } from "@lanes/engine";
 import { icon, PAL } from "./art.js";
 import { drawText, textWidth } from "./font.js";
-import { isHuman } from "./game.js";
+import { FIRST_HUBS, isHuman } from "./game.js";
 import { buildMap, hash, headingDir, nightColor, nightShade, truckMarkers, type MapArt, type MarkerKind } from "./map.js";
 import { TRUCK_SCALE, truckFrame } from "./assets.js";
 import { CITY_SCALE, citySprite, drawRain, drawSnow, hasPaintedMap, MAP_H, MAP_W, mapLevel, seasonOf, spriteFrame, TOWN_SCALE, townKindAt, townSprite, vfxSprite, type Season } from "./mapart.js";
@@ -58,8 +58,22 @@ export const zoomIndex = (): number => zoomIdx;
 /** What the zoom readout shows: Fit, or the whole-number scale the map rests at. */
 export const zoomLabel = (): string => (zoomIdx === 0 ? "Fit" : `${levels()[zoomIdx]}×`);
 export const maxZoom = (): boolean => zoomIdx === levels().length - 1;
-/** Device pixels per art pixel with the whole map fitted to the window. */
-const fitK = () => (!cv || !art ? 1 : Math.min(cv.width / art.W, cv.height / art.H));
+/**
+ * Device pixels per art pixel at the fit: the whole map in the window, except in a portrait window (a phone), where
+ * the country at full width is a thin band; there the map fills at least the room above the half sheet, and pans.
+ */
+const fitK = () => {
+  if (!cv || !art) return 1;
+  const contain = Math.min(cv.width / art.W, cv.height / art.H);
+  return cv.height > cv.width ? Math.max(contain, (0.5 * cv.height) / art.H) : contain;
+};
+/** Device pixels at the canvas's foot hidden by the phone's sheet: centring and panning keep the map above them. */
+let insetB = 0;
+export function setMapInset(cssPx: number): void {
+  insetB = Math.round(cssPx * (window.devicePixelRatio || 1));
+  clampPan();
+}
+const viewH = (): number => Math.max(1, (cv?.height ?? 1) - insetB);
 const kScale = () => zf;
 const nearestLevel = (z: number): number => {
   const L = levels();
@@ -171,17 +185,62 @@ function clampPan(): void {
   const k = kScale();
   const mw = (art?.W ?? 0) * k;
   const mh = (art?.H ?? 0) * k;
+  const vh = viewH();
   panX = mw <= cv.width ? -Math.round((cv.width - mw) / 2) : Math.round(Math.max(0, Math.min(mw - cv.width, panX)));
-  panY = mh <= cv.height ? -Math.round((cv.height - mh) / 2) : Math.round(Math.max(0, Math.min(mh - cv.height, panY)));
+  panY = mh <= vh ? -Math.round((vh - mh) / 2) : Math.round(Math.max(0, Math.min(mh - vh, panY)));
 }
 export function centerOn(wx: number, wy: number): void {
   if (!cv) return;
   anchor = null;
   vel = [0, 0];
   panX = wx * kScale() - cv.width / 2;
-  panY = wy * kScale() - cv.height / 2;
+  panY = wy * kScale() - viewH() / 2;
   clampPan();
 }
+
+/**
+ * The arrival (specs/first-ten-minutes.md, S1): the view flies from where it is to a hub, at a zoom where the hub, its
+ * roads and your truck read, in 1.5 s (at once under reduced motion). Asked for before the map is painted, it waits.
+ */
+let fly: { hub: number; t0: number; z0: number; c0: [number, number] } | null = null;
+let flyPending: number | null = null;
+const FLY_MS = 1500;
+let flyInstant = false;
+export function flyTo(hub: number, instant = false): void {
+  flyPending = hub;
+  flyInstant = instant;
+}
+function startFly(now: number): void {
+  if (flyPending === null || !cv || !art) return;
+  const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  fly = { hub: flyPending, t0: reduced || flyInstant ? now - FLY_MS : now, z0: zf, c0: toWorld(cv.width / 2, viewH() / 2) };
+  flyPending = null;
+  anchor = null;
+  vel = [0, 0];
+}
+/** The fly's end: about two CSS pixels per art pixel, the level nearest that. */
+const flyZoom = (): number => levels()[nearestLevel(2 * sDev)]!;
+function stepFly(now: number): void {
+  if (!fly || !cv || !art) return;
+  const p = Math.min(1, (now - fly.t0) / FLY_MS);
+  const e = p * p * (3 - 2 * p);
+  const z1 = flyZoom();
+  const [hx, hy] = art.hubXY[fly.hub]!;
+  zf = zt = Math.exp(Math.log(fly.z0) + (Math.log(z1) - Math.log(fly.z0)) * e);
+  const cx = fly.c0[0] + (hx - fly.c0[0]) * e;
+  const cy = fly.c0[1] + (hy - fly.c0[1]) * e;
+  panX = cx * zf - cv.width / 2;
+  panY = cy * zf - viewH() / 2;
+  clampPan();
+  if (p >= 1) {
+    zoomIdx = nearestLevel(z1);
+    fly = null;
+    bumpData();
+  }
+}
+/** Whether the map has its painting up (or has given up waiting for it): until then the map shows the hub's picture. */
+let mountedAt = 0;
+export const mapPainted = (): boolean => !!art && (hasPaintedMap() || performance.now() - mountedAt > 4000);
 /** Heads for a zoom level, keeping the map point under canvas pixel (ax, ay) where it is; the frame loop eases the view there. */
 export function setZoom(idx: number, ax?: number, ay?: number): void {
   const L = levels();
@@ -326,7 +385,9 @@ function routeAhead(t: Truck): [number, number][] | null {
 export function drawMap(now: number): void {
   if (!cv || !art || !S.game) return;
   if (S.layout === "panel") return;
-  stepView(now);
+  startFly(now);
+  if (fly) stepFly(now);
+  else stepView(now);
   let ctx = cv.getContext("2d")!;
   const w = S.game.w;
   const W = cv.width;
@@ -477,7 +538,11 @@ export function drawMap(now: number): void {
     ctx.fillStyle = EQUIP_DOT[t.trailer];
     ctx.fillRect(X - u, Y - u, 2 * u, 2 * u);
   };
+  // The AI at 35 % once you have a company (S1): your own truck is what the eye should find. Before that, the whole
+  // market at full strength, alive and none of it yours yet.
+  ctx.globalAlpha = S.game.player ? 0.35 : 1;
   for (const t of w.trucks) if (t.companyId !== mine && !humans.has(t.companyId)) dot(t, false);
+  ctx.globalAlpha = 1;
   for (const t of w.trucks) if (t.companyId !== mine && humans.has(t.companyId)) dot(t, true);
   if (shade > 0) {
     ctx.globalAlpha = shade;
@@ -556,6 +621,11 @@ export function drawMap(now: number): void {
       }
     }
     if (t.status === "repair" || t.breakdownMin > 0) ctx.drawImage(icon("wrench", u), X - 6 * u, Y - 16 * u);
+    // A one-truck company's truck says "You" (S1), so the first look at the map finds it.
+    if (myTrucks().length === 1) {
+      const L = Math.max(1, Math.round(f * 2));
+      drawText(ctx, "YOU", X - Math.round((textWidth("YOU") * L) / 2), Y + 10 * u, L, PAL.cyan, PAL.ink0);
+    }
   }
   drawWeather(ctx, now, k, u);
   drawHubLabels(ctx, f, k, u, visible);
@@ -777,6 +847,20 @@ function drawHubLabels(ctx: CanvasRenderingContext2D, f: number, k: number, u: n
     drawText(ctx, text, x, y, L, i === S.selHub ? PAL.gold : PAL.white, PAL.ink0);
     if (count) drawText(ctx, count, x + tw + 3 * L, y, L, PAL.gold, PAL.ink0);
   }
+  // Before a company (S1): the three starter hubs carry a cyan ring, so the first look finds a home.
+  if (!S.game!.player) {
+    ctx.strokeStyle = PAL.cyan;
+    ctx.lineWidth = 2 * u;
+    for (const id of FIRST_HUBS) {
+      const i = w.net.hubs.findIndex((h) => h.id === id);
+      if (i < 0) continue;
+      const [X, Y] = toScreen(...art!.hubXY[i]!);
+      if (!visible(X, Y)) continue;
+      ctx.beginPath();
+      ctx.arc(X, Y, 12 * u, 0, Math.PI * 2);
+      ctx.stroke();
+    }
+  }
 }
 
 // --- Pointer -------------------------------------------------------------------------
@@ -866,8 +950,15 @@ function selectOnMap(ev: { clientX: number; clientY: number }): void {
       }
     }
   }
-  // On a phone a tap on the map drops the sheet to its strip, so the map is what you see (specs/first-ten-minutes.md).
-  S.sheet = "strip";
+  // On a phone a tap on the map drops the sheet to its strip, so the map is what you see (specs/first-ten-minutes.md);
+  // before there is a company a hub tap opens that hub's card in the sheet instead, never the city pane.
+  if (S.game?.player) S.sheet = "strip";
+  else if (S.selHub !== null) {
+    S.cityView = null;
+    S.townView = null;
+    S.entry = { stage: "card", hub: S.selHub };
+    S.sheet = "full";
+  }
   bumpData();
 }
 function showHubTip(ev: { clientX: number; clientY: number }): void {
@@ -908,6 +999,7 @@ export function mountMap(canvas: HTMLCanvasElement, wrapEl: HTMLElement, tipEl: 
   cv = canvas;
   wrap = wrapEl;
   tip = tipEl;
+  mountedAt = performance.now();
   const pointers = new Map<number, { x: number; y: number }>();
   let drag: { x: number; y: number; panX: number; panY: number; moved: boolean; lx: number; ly: number; lt: number; vx: number; vy: number } | null = null;
   let pinch: { dist: number; z0: number } | null = null;
@@ -920,6 +1012,11 @@ export function mountMap(canvas: HTMLCanvasElement, wrapEl: HTMLElement, tipEl: 
     canvas.setPointerCapture(ev.pointerId);
     pointers.set(ev.pointerId, { x: ev.clientX, y: ev.clientY });
     vel = [0, 0];
+    // A touch takes the map back from the arrival's flight.
+    if (fly) {
+      zoomIdx = nearestLevel(zf);
+      fly = null;
+    }
     if (pointers.size === 1) {
       drag = { x: ev.clientX, y: ev.clientY, panX, panY, moved: false, lx: ev.clientX, ly: ev.clientY, lt: performance.now(), vx: 0, vy: 0 };
       dragging = true;
