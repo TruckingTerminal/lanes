@@ -54,8 +54,11 @@ export function Walkthrough(): JSX.Element | null {
   }
   const step = steps[view]!;
   const isDone = step.done(g.w, c);
+  // The welcome strip (scenes/welcome, from the Graphics session): her office, on the first step, when it's drawn.
+  const strip = step.id === "welcome" && hasAsset("scenes/welcome.png");
   return (
     <Card class="walk" title={`${view + 1} of ${total}: ${step.title}${isDone ? " ✓" : ""}`} right={hide}>
+      {strip ? <Loop name="scenes/welcome" still={`${ASSETS}scenes/welcome.png`} w={256} h={128} scale={2} class="welcome" alt="Iuliia's office" /> : null}
       <div class="walkbody">
         <Iuliia mood={step.mood} />
         <div class="walktext">
