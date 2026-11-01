@@ -1,7 +1,7 @@
 import type { JSX } from "preact";
 import { GAME_CONFIG } from "../../game.js";
 import { guidePages } from "../../guide.js";
-import { bumpData, S, TEST_BUILD, useData } from "../../state.js";
+import { bumpData, S, setWalkHidden, TEST_BUILD, useData } from "../../state.js";
 import { Btn, Panel } from "../bits.js";
 import { SCENES } from "../../assets.js";
 import { Scene } from "../Loop.js";
@@ -52,6 +52,11 @@ export function Guide(): JSX.Element {
             ))}
         </div>
       ))}
+      {S.walkHidden && S.game?.player ? (
+        <div class="row">
+          <Btn sm onClick={() => setWalkHidden(false)}>Show the walkthrough again</Btn>
+        </div>
+      ) : null}
       <p class="muted small">
         Every page, on one screen:{" "}
         <a href={DOCS_URL} target="_blank" rel="noopener">

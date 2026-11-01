@@ -17,6 +17,7 @@ import { joinCompany, newWorld, RULESET } from "./game.js";
  *   players/<uid>              { acts: ActRecord[], archived }  (that player only)
  *   players/<uid>/log/<n>      older actions moved out of the player document
  *   players/<uid>/x/tab        the lease that makes one tab the player's writer
+ *   reports/<uid>              { items: Report[] }  the player's bug reports and ideas (that player writes, the owner reads)
  */
 
 export const MS_PER_GAME_HOUR = (6 * 3600 * 1000) / 24;
@@ -36,6 +37,22 @@ export interface WorldMeta {
 }
 
 export type JoinAction = { type: "join"; name: string; hub: string };
+/** A bug report or an idea from a player, with what the page knew at the time. */
+export interface Report {
+  kind: "bug" | "idea";
+  text: string;
+  atMs: number;
+  day: number;
+  t: number;
+  ruleset: string;
+  tab: string;
+  company: string | null;
+  truckId: number | null;
+  /** The player's last orders: type and the game minute they took effect. */
+  acts: { type: string; at: number }[];
+  ua: string;
+}
+const REPORTS_KEPT = 50;
 export type LiveAction = Action | JoinAction;
 /** One entry in a player's log: sequence number, the game minute it takes effect, the action. */
 export interface ActRecord {
@@ -155,6 +172,17 @@ export class LiveWorld {
     this.now = o.now ?? Date.now;
     this.holder = o.holder ?? `tab-${Math.floor(Math.random() * 1e12).toString(36)}`;
     this.w = this.fresh();
+  }
+
+  /** Sends a report: appended to this player's reports document (at most the last few dozen). */
+  async report(r: Omit<Report, "acts" | "ruleset">): Promise<void> {
+    if (!this.uid) throw new Error("not signed in");
+    const doc = this.db.doc(`reports/${this.uid}`);
+    const snap = await doc.get();
+    const items = ((snap.exists ? snap.data()?.items : null) as Report[] | undefined) ?? [];
+    const acts = this.own.acts.slice(-10).map((a) => ({ type: a.a.type, at: a.at }));
+    items.push({ ...r, ruleset: this.meta.ruleset, acts });
+    await doc.set({ items: items.slice(-REPORTS_KEPT) });
   }
 
   /** Loads the log, takes the writer lease if it can, and subscribes for other players' actions. */

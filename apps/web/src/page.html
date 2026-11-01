@@ -84,6 +84,14 @@ table.mini tbody tr { cursor: default; }
 
 /* Cards and panels */
 .card { background: var(--bg-panel); border: 1px solid var(--border); border-radius: var(--radius); padding: 10px 12px; display: grid; gap: 8px; }
+.card.walk { border-color: var(--accent, var(--border)); }
+.walkbody { display: flex; gap: 10px; align-items: flex-start; }
+.walkbody .walktext { min-width: 0; flex: 1; display: grid; gap: 6px; }
+.walkbody .portrait { flex: none; }
+.portrait.placeholder { display: inline-grid; place-items: center; width: 64px; height: 64px; border-radius: 50%; background: var(--bg-secondary); border: 1px solid var(--border); font-family: var(--font-mono); font-size: 24px; color: var(--text-secondary); }
+.card.report textarea { width: 100%; min-width: 0; box-sizing: border-box; font: inherit; background: var(--bg-secondary); color: inherit; border: 1px solid var(--border); border-radius: var(--radius); padding: 6px 8px; resize: vertical; }
+.tabs .btn.locked { opacity: 0.75; }
+.tabs .lock { font-size: 10px; margin-left: 2px; }
 .card.alert { border-color: var(--accent-danger); box-shadow: inset 3px 0 0 var(--accent-danger); }
 .card.sel { border-color: var(--accent); box-shadow: inset 3px 0 0 var(--accent); }
 .card.clickable { cursor: pointer; }

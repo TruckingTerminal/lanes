@@ -387,6 +387,22 @@ and off. What the batches settled, and what waits on Jeff:
   businesses, the team allocation and the real-time linear vest (numbers pending), the Back Lot v1, and the
   client's Logbook tab, the bridge and auction on Money, the used lot and the dollar window in the showroom.
 
+## The beta's first hour (Jeff, 2026-11-01, afternoon: "let's create a guide, a tutorial")
+- **Built (client only, 2026-11-01):** Iuliia's walkthrough (`apps/web/src/walkthrough.ts`, `ui/Walkthrough.tsx`): thirteen
+  steps from the leased rig to a fleet, each done when the company's own state says so (nothing saved), her lines,
+  where to click and why, read-ahead, hidden per browser; her portrait and loops requested from the Graphics session
+  (`assets/people/iuliia*.png`, idle / wave / point / laugh; a placeholder until they land). Locked teaser tabs (the
+  Back Lot now; the ladder's layers when a staged beta wants them) with a card that says what the layer is and when it
+  opens. The Guide's "The road ahead" and "Tell us what you think". The Report button: a bug or an idea with the day,
+  the tab, the company and the last orders, written to `reports/<uid>` in the live store (the artifact needs the db
+  rule `reports/{self}` write interact, read admin, on its next publish); in a test world it copies to the clipboard.
+- **Decided with Jeff the same afternoon:** the beta is staged, not fully open (the simple sim first, PvE only; the
+  ladder opens businesses, brokerage, then the Back Lot); the email list goes out from a separate domain as an opt-in
+  invitation, twenty to fifty people first, no "a sim that pays you" until counsel; accounts by email come with the
+  server; Miles are "your standing in the beta", never a promised conversion.
+- **Next:** the staged-beta config (the ladder counting from the world's start in the beta too) when Jeff calls it; the
+  authoritative server with accounts by email; a Discord for the beta; the gauges.
+
 ## Later, agreed with Jeff on 2026-10-30 (not before the switch-on and the dashboard)
 - **The world-economy story.** Scripted shocks on top of the cycle, seasons, weather and fuel feeds:
   recessions by sector for a season, hurricane relief freight into a region at premium rates, port

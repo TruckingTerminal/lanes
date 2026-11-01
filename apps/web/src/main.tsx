@@ -9,7 +9,7 @@ import { createMeta, LiveWorld, readMeta, type DbLike, type WorldMeta } from "./
 import { checkAttention, checkIdleAlerts, setDefaultOrders } from "./logic.js";
 import { drawMap, fitMap, resetArt, setZoom, zoomIndex } from "./mapview.js";
 import { MemoryDb } from "./memdb.js";
-import { bumpData, bumpTick, feed, loadTheme, markPersisted, persistTest, push, readTest, S, setLayout, SPEEDS, TEST_BUILD, toast, toggleFullscreen, truckNo, type Session, type TitleMenu } from "./state.js";
+import { bumpData, bumpTick, feed, loadTheme, loadWalkHidden, markPersisted, persistTest, push, readTest, S, setLayout, SPEEDS, TEST_BUILD, toast, toggleFullscreen, truckNo, type Session, type TitleMenu } from "./state.js";
 import { App } from "./ui/App.js";
 
 /**
@@ -101,6 +101,7 @@ function onEvent(s: Session, e: GameEvent): void {
 async function boot(): Promise<void> {
   installTheme();
   loadTheme();
+  loadWalkHidden();
   whenAssetsReady(() => bumpData());
   truckSheet();
   setDefaultOrders(() => DEFAULT_ORDERS);

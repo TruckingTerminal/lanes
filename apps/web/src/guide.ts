@@ -4,6 +4,7 @@ import { marketPages } from "./guide/market.js";
 import { moneyPages } from "./guide/money.js";
 import { operationsPages } from "./guide/operations.js";
 import { referencePages } from "./guide/reference.js";
+import { roadmapPages } from "./guide/roadmap.js";
 import { safetyPages } from "./guide/safety.js";
 import { staffPages } from "./guide/staff.js";
 import { startPages } from "./guide/start.js";
@@ -18,5 +19,5 @@ export type { GuidePage } from "./guide/util.js";
  * test site's docs page (docs.ts) both render these pages.
  */
 export function guidePages(cfg: EconomyConfig): GuidePage[] {
-  return [...startPages(cfg), ...marketPages(cfg), ...operationsPages(cfg), ...staffPages(cfg), ...growthPages(cfg), ...moneyPages(cfg), ...safetyPages(cfg), ...referencePages(cfg)];
+  return [...startPages(cfg), ...marketPages(cfg), ...operationsPages(cfg), ...staffPages(cfg), ...growthPages(cfg), ...moneyPages(cfg), ...safetyPages(cfg), ...roadmapPages(cfg), ...referencePages(cfg)];
 }

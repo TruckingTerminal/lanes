@@ -19,7 +19,7 @@ declare const __LANES_TEST__: boolean | undefined;
 export const TEST_BUILD = typeof __LANES_TEST__ !== "undefined" && __LANES_TEST__;
 
 export type Session = LiveWorld | TestGame;
-export type Tab = "fleet" | "loads" | "staff" | "market" | "money" | "finance" | "business" | "logbook" | "rates" | "economy" | "company" | "guide";
+export type Tab = "fleet" | "loads" | "staff" | "market" | "money" | "finance" | "business" | "logbook" | "backlot" | "rates" | "economy" | "company" | "guide";
 export type Layout = "split" | "panel" | "map";
 export type Platform = { db: DbLike | null; uid: string | null; owner: boolean; local: boolean };
 export type TitleMenu =
@@ -55,6 +55,11 @@ export const S = {
   /** The market view's trailer type. */
   ratesEq: "van" as Equipment,
   guidePage: "start",
+  /** The walkthrough card (walkthrough.ts): hidden by the player for this browser; the step being read ahead, or null for the current one. */
+  walkHidden: false,
+  walkView: null as number | null,
+  /** The report form (a bug or an idea) is open. */
+  reporting: false,
   /** Test-world speeds only: the live clock can't be changed. */
   speed: 1,
   toast: null as { text: string; err: boolean; at: number } | null,
@@ -144,6 +149,24 @@ export function toast(text: string, err = false): void {
     bumpData();
   }, 4200);
   bumpData();
+}
+
+const WALK_KEY = "lanes.walk.hidden";
+export function setWalkHidden(hidden: boolean): void {
+  S.walkHidden = hidden;
+  try {
+    localStorage.setItem(WALK_KEY, hidden ? "1" : "0");
+  } catch {
+    /* a private window: the card just shows again next time */
+  }
+  bumpData();
+}
+export function loadWalkHidden(): void {
+  try {
+    S.walkHidden = localStorage.getItem(WALK_KEY) === "1";
+  } catch {
+    S.walkHidden = false;
+  }
 }
 
 export function setTab(tab: Tab): void {

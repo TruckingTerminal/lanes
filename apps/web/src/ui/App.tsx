@@ -19,8 +19,9 @@ import { ASSETS, hasAsset, loadingStrip, LOOP_FPS, TITLE_LOOP, titleLoop } from 
 import { LOGO, LOGO_TITLE, LOGO_TITLE_H, LOGO_W } from "../assets.js";
 import { Rig } from "./Loop.js";
 import { CityPane } from "./CityPane.js";
-import { clockMin, feed, fsActive, fsEnabled, S, setLayout, setTab, setTheme, SPEEDS, TEST_BUILD, THEMES, toggleFullscreen, useData, useTick, type Tab } from "../state.js";
+import { bumpData, clockMin, feed, fsActive, fsEnabled, S, setLayout, setTab, setTheme, SPEEDS, TEST_BUILD, THEMES, toggleFullscreen, useData, useTick, type Tab } from "../state.js";
 import { Badge, Btn, Card, Pixel } from "./bits.js";
+import { ReportCard, tabLock, TeaserPanel, Walkthrough } from "./Walkthrough.js";
 import { Company } from "./panels/Company.js";
 import { myTenders } from "./panels/Contracts.js";
 import { Dealer } from "./panels/Dealer.js";
@@ -615,6 +616,7 @@ const TABS: [Tab, string, string][] = [
   ["finance", "Finance", "fd"],
   ["business", "Business", "wrench"],
   ["logbook", "Logbook", "star"],
+  ["backlot", "Back Lot", "wrench"],
   ["rates", "Rates", "pin"],
   ["economy", "Economy", "star"],
   ["company", "Company", "building"],
@@ -626,22 +628,34 @@ function SideRack(): JSX.Element {
   const g = S.game!;
   const tab = S.tab;
   const watching = !g.player && tab !== "company" && tab !== "guide" && tab !== "rates" && tab !== "economy";
+  const teaser = tabLock(g.w, tab);
   return (
     <aside class="side">
       <div class="rackbar">
         <nav class="tabs">
-          {TABS.map(([k, l, ic]) => (
-            <Btn key={k} icon={hasAsset(`icons/${k}.png`) ? undefined : ic} on={k === tab} title={l} onClick={() => setTab(k)}>
-              {hasAsset(`icons/${k}.png`) ? <img class="px tabpic" src={`${ASSETS}icons/${k}.png`} alt="" /> : null}
-              <span>{l}</span>
-            </Btn>
-          ))}
+          {TABS.map(([k, l, ic]) => {
+            const locked = tabLock(g.w, k) !== null;
+            return (
+              <Btn key={k} icon={hasAsset(`icons/${k}.png`) ? undefined : ic} on={k === tab} title={locked ? `${l}: not open yet. What it will be.` : l} class={locked ? "locked" : undefined} onClick={() => setTab(k)}>
+                {hasAsset(`icons/${k}.png`) ? <img class="px tabpic" src={`${ASSETS}icons/${k}.png`} alt="" /> : null}
+                <span>{l}</span>
+                {locked ? <span class="lock" aria-label="not open yet">🔒</span> : null}
+              </Btn>
+            );
+          })}
         </nav>
+        <Btn sm title="Report a bug or an idea" onClick={() => { S.reporting = !S.reporting; bumpData(); }}>
+          Report
+        </Btn>
         <Btn sm title={S.layout === "panel" ? "Show the map again (Esc)" : "Expand this panel to the whole screen"} onClick={() => setLayout(S.layout === "panel" ? "split" : "panel")}>
           {S.layout === "panel" ? "⤡ Restore" : "⤢ Expand"}
         </Btn>
       </div>
-      <div class="panelbox">{watching ? <WatchPanel /> : tab === "fleet" ? <Fleet /> : tab === "loads" ? <Loads /> : tab === "staff" ? <Staff /> : tab === "market" ? <Dealer /> : tab === "money" ? <Money /> : tab === "finance" ? <Finance /> : tab === "business" ? <Business /> : tab === "logbook" ? <Logbook /> : tab === "rates" ? <Rates /> : tab === "economy" ? <Economy /> : tab === "company" ? <Company /> : <Guide />}</div>
+      <div class="panelbox">
+        <ReportCard />
+        {!watching && tab !== "guide" ? <Walkthrough /> : null}
+        {watching ? <WatchPanel /> : teaser ? <TeaserPanel teaser={teaser} /> : tab === "fleet" ? <Fleet /> : tab === "loads" ? <Loads /> : tab === "staff" ? <Staff /> : tab === "market" ? <Dealer /> : tab === "money" ? <Money /> : tab === "finance" ? <Finance /> : tab === "business" ? <Business /> : tab === "logbook" ? <Logbook /> : tab === "backlot" ? <TeaserPanel teaser={{ title: "The Back Lot", text: "Open.", opens: "" }} /> : tab === "rates" ? <Rates /> : tab === "economy" ? <Economy /> : tab === "company" ? <Company /> : <Guide />}
+      </div>
     </aside>
   );
 }
