@@ -1,9 +1,9 @@
 import type { JSX } from "preact";
 import type { Equipment, FacilityType, TractorTier } from "@lanes/config";
-import { availableSupply, companyAccount, condition, dealerPrice, deliveryDays, facilityOutlook, lessorTrucksOf, newPrice, openListings, ordersOf, truckValue } from "@lanes/engine";
+import { assetPriceUsd, availableSupply, companyAccount, condition, dealerPrice, deliveryDays, facilityOutlook, lessorTrucksOf, newPrice, openListings, ordersOf, tokenLive, truckValue } from "@lanes/engine";
 import { facilityUrl } from "../../art.js";
 import { SCENES } from "../../assets.js";
-import { FAC_NAME, fd, pct, signedPct, TIER_NAME, TRAILER_NAME } from "../../format.js";
+import { FAC_NAME, fd, pct, signedPct, TIER_NAME, TRAILER_NAME, usd } from "../../format.js";
 import { act, me, myTrucks, S, useData } from "../../state.js";
 import { Btn, Card, Num, Panel, Pixel } from "../bits.js";
 import { Rig, Scene } from "../Loop.js";
@@ -14,6 +14,9 @@ export function Dealer(): JSX.Element {
   const w = S.game!.w;
   const c = me();
   const cash = w.ledger.balance(companyAccount(c.id));
+  // The farming season's dollar window for facilities (Jeff, 2026-11-01): every dollar held for the launch pool.
+  const uw = w.cfg.token.catalogue.usdWindow;
+  const dollarWindow = !tokenLive(w) && w.cfg.token.enabled && uw.enabled && uw.assets.enabled;
   const fleet = myTrucks();
   const onLease = fleet.some((t) => t.lease === "npc");
   const firstTruck = !fleet.some((t) => t.lease === "owned") && ordersOf(w, c.id).length === 0;
@@ -126,6 +129,16 @@ export function Dealer(): JSX.Element {
                 </Btn>
               ))}
             </div>
+            {dollarWindow ? (
+              <div class="row">
+                <span class="muted small">Or {usd(assetPriceUsd(w, spec.priceFd))} to the launch pool:</span>
+                {best.map((b) => (
+                  <Btn key={`usd-${b.h.id}`} disabled={!(c.usd.wallet >= assetPriceUsd(w, spec.priceFd) && w.facilitySupply[type] > 0)} onClick={() => act({ type: "buy_facility", facility: type, hubId: b.h.id, pay: "usd" }, `${FAC_NAME[type]} open at ${b.h.id}, paid in dollars`)}>
+                    {b.h.id} · {usd(assetPriceUsd(w, spec.priceFd))}
+                  </Btn>
+                ))}
+              </div>
+            ) : null}
           </Card>
         );
       })}

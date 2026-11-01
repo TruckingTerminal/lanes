@@ -1,4 +1,4 @@
-# LANES to-do (kept current; last edit 2026-10-31)
+# LANES to-do (kept current; last edit 2026-11-01)
 
 Order is the working order. Design records live in TOKENOMICS.md (economy) and README.md (what shipped).
 
@@ -130,6 +130,8 @@ Order is the working order. Design records live in TOKENOMICS.md (economy) and R
 3. **Done (2026-10-30):** Phase A (0.18.1: terrain, managers from the pool, truck stops resized) and
    parking (0.18.2: rest areas by traffic, the night at a site or a ticket on the shoulder); world/meta
    version 17, live page version 33.
+4. **Done (2026-11-01, Jeff: "Go"):** the package (TOKENOMICS.md "The package switched on"): ruleset
+   0.19.0-phase0.29, world/meta version 20, live page version 36; v52-a ran the exact profile first.
 
 ## The sequence, learning from EVE Online (Jeff, 2026-10-30: "do it as you have laid out")
 What EVE gets right and Lanes copies: destruction is a main sink, players make almost everything,
@@ -224,6 +226,8 @@ and the NPC dealer sold every new truck.
 ## Complete supply control (Jeff, 2026-10-31)
 "The name of the game here is complete supply control. With all faucets and sinks and metrics and
 vesting schedules all completely transparent." His answers to the 18 questions, the same day:
+**Switched on 2026-11-01 (ruleset 0.19.0-phase0.29):** every "Built (off)" below runs in the live world, with
+the values of TOKENOMICS.md "The package switched on"; the price band and the size fee stay off.
 1. **Build order:** the supply ceiling; the airdrop and taxes; the launch auction and price limit;
    trucks; then the highway robbers and the unlock ladder in the sim.
 2. **The supply ceiling.** FD outstanding after launch grows at most along a published path, flat after
@@ -398,21 +402,13 @@ and off. What the batches settled, and what waits on Jeff:
   South America is a map, not a market (no road link).
 
 ## Open for Jeff to decide
-- **The switch-on (the ruleset bump, one restart, no players):** mid truck prices, the used lot, the deposit
-  credit, every sink, the ladder, the managers, direct contracts, the scale discounts, the robbers and the Back
-  Lot (on in the beta: Jeff, 2026-11-01), the theft gaps, contract theft removed (`fraud.theft.byCarrier`
-  false), the logbook paid locked with the shop items, the bridge, the auction and the pool's fee, the farmed-FD
-  tax, the vest without the floor in real time, the dollar window for assets; `logbookMinVictimTrucks` 3,
-  `npcFenceShare` 0.6, `realStake`, `oneCrewPerVictim`, `takeLocked`, `fenceByCommodityOn`, bounties. Jeff
-  reviews before it ships (his default: nothing live without him).
-- **The team allocation:** the share of the cap and the vest's years (proposed 12%, a six-real-month cliff,
-  linear over four years); the protocol treasury keeps the rest.
-- The auction tranche's size and the per-person cap (the sim's stand-ins: 20M FD, $1,000), and the
-  launch fee's start and days (50%, 14 game days). v51 (TOKENOMICS.md "What the sim showed (v51)"): the
-  auction cuts the spike to 9× and turns the speculators' $85k gain into a loss; the end market cap is about
-  $250k whatever the tranche, so the size decides who carries the gap between the clearing price and the
-  economy's: 20M prices the airdrop highest and drops the bidders 75%, 80M drops them 55% with twice the FD
-  and a deeper pool. Recommendation: 40M, pending Jeff.
+- **Done (2026-11-01, Jeff: "Go"):** the switch-on, ruleset 0.19.0-phase0.29, every lever in
+  `packages/config/src/live.ts` (TOKENOMICS.md "The package switched on"); the live world restarted with no
+  players (world/meta version 20, live page version 36). Shipped with it, still Jeff's to change (one more
+  restart while there are no players): **the team allocation** at 15% of the cap, six real months of nothing
+  after the TGE, then four years linear (his "what do you think is fair?" answered the same morning: the low
+  end of comparable launches, against 62% for the players); **the auction tranche** at 40M FD (4% of the cap),
+  $1,000 a person, the launch fee at 50% over 14 game days (v51's recommendation).
 - The "free FD only" flag on used-truck listings and lease offers, so a seller can refuse locked FD and the
   market prices the lock (Jeff, 2026-11-01: "whatever you think is best", keep it on the list).
 - Whether later seasons' pots still shrink when the price sits below launch (pot × min(1, avg ÷ launch)):

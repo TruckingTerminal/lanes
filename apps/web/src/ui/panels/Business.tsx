@@ -1,5 +1,5 @@
 import type { JSX } from "preact";
-import { businessesAt, businessesOf, businessPriceFd, companyAccount, hubTheftRisk, itemPriceFd, itemPriceUsd, lotOf, openAssetSales, priceIndex, siteBusiness, sitePriceFd, tokenLive, trailerCap, yardTrucks, type Business as Biz, type BusinessKind, type TruckStopSite } from "@lanes/engine";
+import { assetPriceUsd, businessesAt, businessesOf, businessPriceFd, companyAccount, hubTheftRisk, itemPriceFd, itemPriceUsd, lotOf, openAssetSales, priceIndex, siteBusiness, sitePriceFd, tokenLive, trailerCap, yardTrucks, type Business as Biz, type BusinessKind, type TruckStopSite } from "@lanes/engine";
 import { fd, usd } from "../../format.js";
 import { act, bumpData, me, myTrucks, S, truckNo, useData } from "../../state.js";
 import { Btn, Card, Kv, Num, Panel } from "../bits.js";
@@ -49,6 +49,9 @@ export function Business(): JSX.Element {
   const biz = w.cfg.businesses;
   const live = tokenLive(w);
   const usdWindow = !live && cat.usdWindow.enabled;
+  // The farming season's dollar window for businesses (Jeff, 2026-11-01): the price in dollars, every one held for
+  // the launch pool; the bond stays FD.
+  const assetDollars = usdWindow && cat.usdWindow.assets.enabled;
   const owned = myTrucks().filter((t) => t.lease === "owned" && t.status !== "retired");
   const mine = businessesOf(w, c.id);
   const atCap = mine.length >= biz.maxPerCompany;
@@ -77,11 +80,28 @@ export function Business(): JSX.Element {
             <Btn primary disabled={atCap || cash < price + biz.kinds.truckStop.bondFd} onClick={() => act({ type: "buy_business", kind: "truckStop", siteId: s.id }, "Truck stop open: fuel, a shop and parking")}>
               Build a truck stop
             </Btn>
+            {assetDollars ? (
+              <Btn disabled={atCap || cash < biz.kinds.truckStop.bondFd || c.usd.wallet < assetPriceUsd(w, price)} onClick={() => act({ type: "buy_business", kind: "truckStop", siteId: s.id, pay: "usd" }, "Truck stop open, paid in dollars: fuel, a shop and parking")}>
+                Or {usd(assetPriceUsd(w, price))} (to the launch pool; the bond in FD)
+              </Btn>
+            ) : null}
           </div>
         ) : null}
       </Card>
     );
   };
+  /** A second row of hub buttons that pays the price in dollars (the bond in FD), when the window is open. */
+  const dollarRow = (kind: Exclude<BusinessKind, "truckStop">, price: number, bond: number, room: { h: { id: string; name: string } }[]) =>
+    assetDollars ? (
+      <div class="row">
+        <span class="muted small">Or {usd(assetPriceUsd(w, price))} to the launch pool (the bond in FD):</span>
+        {room.map(({ h }) => (
+          <Btn key={`usd-${h.id}`} disabled={atCap || cash < bond || c.usd.wallet < assetPriceUsd(w, price)} onClick={() => act({ type: "buy_business", kind, hubId: h.id, pay: "usd" }, `${KIND_NAME[kind]} open at ${h.name}, paid in dollars`)}>
+            {h.id} · {usd(assetPriceUsd(w, price))}
+          </Btn>
+        ))}
+      </div>
+    ) : null;
   return (
     <Panel title="Business">
       {cat.enabled ? (
@@ -154,6 +174,7 @@ export function Business(): JSX.Element {
                     </Btn>
                   ))}
                 </div>
+                {dollarRow(kind, price, spec.bondFd, room)}
               </Card>
             );
           })}
@@ -178,6 +199,7 @@ export function Business(): JSX.Element {
                         </Btn>
                       ))}
                     </div>
+                    {dollarRow(kind, price, spec.bondFd, room)}
                   </Card>
                 );
               })

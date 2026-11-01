@@ -9,7 +9,7 @@ export type TractorTier = "workhorse" | "highwayPro" | "flagship";
 export type FacilityType = "warehouse" | "coldStorage" | "factory";
 
 export const economyConfig = {
-  version: "0.18.4-phase0.28", // Dry-van docks: the big ones around the clock, the rest 7am–7pm weekdays (2026-10-31); live levers in live.ts
+  version: "0.19.0-phase0.29", // The package (2026-11-01): the trucks, every sink, the ladder, the robbers and the Back Lot, the logbook paid locked, the bridge, the auction, the team vest; live levers in live.ts
 
   // §World, map and time
   time: {
@@ -1136,11 +1136,11 @@ export const economyConfig = {
       // pressure as the game can carry, for as long as it can.
       // Jeff (2026-11-01): the price condition goes ("I don't like 'the treasury and airdrop recipients can only
       // sell if the price is over TGE'"): the vest is a published clock, a cliff and a weekly cap, nothing else.
-      // `priceFloor` keeps the old rule until the package ships on a ruleset bump; false is the decided rule.
+      // `priceFloor` keeps the old rule in the base; the live levers set it false, the decided rule.
       // `realTime` (Jeff, 2026-11-01: agreed): the cliff and the weekly share count real weeks (28 game days at the live
       // clock), not game weeks. `linear`: the week's share is of the allocation at launch, so the vest ends (26 + 208 real
-      // weeks at 0.0048 a week is four years); off, it's of what's left, and never ends. Proposed defaults for the package:
-      // dev 0.12, realTime, linear, cliffWeeks 26, perWeekShare 1/208.
+      // weeks at 1/208 a week: six months of nothing, then four years); off, it's of what's left, and never ends. The live
+      // levers (2026-11-01): dev 0.15, realTime, linear, cliffWeeks 26, perWeekShare 1/208.
       vest: { cliffWeeks: 26, perWeekShare: 0.0025, priceFloor: true, realTime: false, linear: false },
       buybackShare: 0.5, // §Burn and buyback: half of revenue buys FD back (all of it burned here); half runs the company
     },

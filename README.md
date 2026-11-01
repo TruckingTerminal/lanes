@@ -533,6 +533,19 @@ eased from 4.77 to 4.66 FD a mile and liquidations rose from 760 to 884: faster 
 for the same freight. The end price rose from $0.00046 to $0.00052 (`runs/compare-v41-a.md`). The live
 world restarted on it (world/meta version 19).
 
+**The package (2026-11-01, ruleset 0.19.0).** Jeff's "Go". Every switch of the combined test and the overnight
+build is on as live levers (`packages/config/src/live.ts`; TOKENOMICS.md "The package switched on"): the trucks
+at mid prices with the NPC used lot and the deposit credit, the staff ladder with direct freight and the scale
+discounts, the theft gaps with contract theft removed, the robbers and the Back Lot v1 on in the beta, the
+supply path at +10%, the logbook paid locked at the TGE with its shop items, the bridge, the opening auction (a
+40M FD tranche), the pool's decaying fee, the beta's dollar window for rigs, trailers, facilities and businesses,
+and the team allocation (15% of the cap) on a real-time linear vest. The client gained the dollar buttons for
+facilities and businesses and lost the steal button. Batch v52-a ran the exact profile first
+(`runs/compare-v52.md`): no crashes in three seeds of four years; the price ended between 79% and 143% of launch
+with the pool's dollars kept ($71k → $70k) and a worst drawdown of 59%; crews hired fell from 1,393 to 345 under
+the real stake and the one-crew rule; the bridge cleared 57.2M of 57.8M FD requested at a mean wait of 17.5 days
+and was capped on two days. The live world restarted on it (world/meta version 20, live page version 36).
+
 Jeff's direction (2026-10-29, TOKENOMICS.md "The circular economy"): a capped FD supply, staking as
 the bond behind every licence, player-funded pools for insurance, factoring and surety, payment
 terms, and a season schedule for later airdrops. All of it is on main and off by default

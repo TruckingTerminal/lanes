@@ -215,7 +215,7 @@ function TruckCard({ t, idx }: { t: Truck; idx: number }): JSX.Element {
             <Btn onClick={() => act({ type: "rebroker_load", loadId: load.id, rate: num(`rb-${t.id}`), pay: checked(`rbpay-${t.id}`) }, "Load re-posted. The truck is free where it stands")}>Re-post the load (won at {load.clearedRate.toFixed(2)})</Btn>
           </>
         ) : null}
-        {t.status === "loaded" && load && load.shipperId !== c.id ? (
+        {t.status === "loaded" && load && load.shipperId !== c.id && w.cfg.fraud.theft.byCarrier ? (
           <Btn
             danger
             onClick={() => {

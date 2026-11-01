@@ -1041,3 +1041,66 @@ batch was designed). Means of three seeds:
   established owner-operator; the bad actors' strategies need their own segment); the Back Lot's switches,
   the real-time vest and the team allocation weren't on; the treasury's vest still sold from the whole
   treasury allocation (3.6M FD for $16k, held by the path most weeks).
+
+## The package switched on (2026-11-01, config/live.ts; ruleset 0.19.0-phase0.29)
+
+Jeff's "Go" on the morning of 2026-11-01, after the night's build and v51. The live world restarted on it with
+no players (world/meta version 20, live page version 36). Every switch of the combined test and of the overnight
+build is on, as levers in `packages/config/src/live.ts`, so the sim's default profile and the live world read the
+same config; the base config stays what the tests and the design notes are written against.
+
+- **The trucks:** tractors and trailers as assets with wear, life and write-offs (`assets`); mid prices, the
+  realistic list × 0.62 (Workhorse 140k, HighwayPro 177k, Flagship 214k; van 42k, reefer 79k, flatbed 47k;
+  rebuilds 31.5k / 40k / 48k; refurbishments 4.8k / 9k / 5.3k); the NPC used lot as the free path's way in;
+  the lease deposit counting toward the first truck; purchase loans; leases priced by the truck's value.
+- **Staff, sales and direct freight:** the ladder (the owner runs two trucks, a dispatcher ten; a maintenance
+  manager from the fifth truck at fifteen each, an operations manager from the eighth at twenty), the optional
+  roles, direct contracts behind a sales rep and a performance stake, the scale discounts; a labor pool of 300
+  dispatchers, 60 operations and 90 maintenance managers to start.
+- **Theft and the Back Lot:** the theft gaps (claims move the insurance market, a theft costs dock time);
+  contract theft removed (`fraud.theft.byCarrier` false: cargo theft is NPC thieves and hired crews only, and
+  the Fleet tab no longer offers it); the robbers and the Back Lot v1 on in the beta (the fence's share by
+  commodity, a real stake behind every hire, one crew on a company at a time, the take spend-only, the reserve
+  paying 60% of a take when no player's fence buys it, fences and chop shops as businesses, bounties, a hit
+  counting toward the criminal milestones only against a victim of three trucks or more); the unlock ladder from
+  launch (businesses at 28 game days, re-brokering at 91, crews at 182).
+- **The supply path:** +10% over four years, the dial never under the launch rates; the whale rules on sales
+  (the frequency and falling-price limits).
+- **The airdrop inside the game:** the logbook, the whole allocation paid at the TGE, 1% free and the rest
+  spend-only until the milestones, with the shop items; the farmed-FD tax at the bridge (bought FD exempt); the
+  bridge, where every withdrawal is a sale with a timer (28 game days at launch, 8 by six real months) and a
+  daily cap (2% of the pool's FD for the whole game), cancellable for a 2% burn.
+- **The launch:** the opening auction, a 40M FD tranche (4% of the cap) at one clearing price, $1,000 a person,
+  every dollar into the pool; the pool's own decaying fee (50% falling to the normal fees over 14 game days);
+  the beta's dollar window for rigs, trailers, facilities and businesses at 1.5× the reference price, every
+  dollar to the pool at the TGE, no cap. Off, as decided: the price band and the size fee (neither exists in a
+  standard pool).
+- **The team allocation:** 15% of the cap (150M FD) in `alloc:dev`; the protocol treasury keeps 20.2% (the
+  tranche, the pool's top-up to the float, later seasons, bounties). Nothing for six real months after the TGE,
+  then 1/208 of the allocation a real week for four years, sold into the pool on the clock whatever the price
+  (the vest's price condition dropped, as Jeff decided). The sim books every vested FD as sold, the worst case;
+  a team that holds sells less. Why 15%: comparable launches give the team 15–25% of the supply with a cliff
+  and a three-to-four-year vest, and here the players' side is 62% (the reserve, earned through play, and the
+  airdrop); v51 carried more sell pressure than this (0.25% of the whole treasury a week, 0.88M FD, against
+  0.72M a week here). The share and the years are Jeff's to change: one more restart while there are no players.
+
+**What v52-a showed (the exact profile, seeds 1, 4, 8, seasons on; `runs/compare-v52.md`):** no crash in three
+seeds of four years. The price ended at 79–143% of launch ($0.0013 → $0.0012; one seed held), the pool's dollars
+kept ($71k → $70k; the window's dollars for assets opened it twice as deep as v47-b's $36k), the worst drawdown
+59% (v47-b 70%, v51-b 96%); market cap $113k → $148k. Net selling 98k FD a month (v47-b net buying of 397k;
+v51-b with the bad actors 1.7M sold). Supply 111M → 125M (+13%; 6.8% over the path on its worst day, the
+payouts held 28 weeks, nothing queued since the airdrop is paid once). The bridge cleared 57.2M of 57.8M FD
+requested at a mean wait of 17.5 days, capped on two days, 608k waiting at the end. The logbook paid 183k at
+launch and 7.3M by honest milestones (8k criminal), 9.3M still locked at the end; 5.2M spend-only FD in the
+economy at the end. Crews hired fell from 1,393 (v47-b) to 345 under the real stake, the one-crew rule and
+operating-only hirers: 140 hits, 38 rigs chopped; fences took 139k and chop shops 205k and resold 841k; victims
+were paid 408k from stakes; 447k of bounties posted, 40k paid. The free path's median 45 days (v47-b 41), 201
+newcomers, liquidations 640 (v47-b 561; 0.18.4 with seasons on 884), the strategy gate 1.51×. Two differences
+from the 0.18.4 live rules to watch on the dashboard: wealth concentrates more (Gini 0.73 against 0.56, the top
+10% holding 52%: the trucks and the ladder) and more companies sit a few hundred FD in the red at the end (261
+against about 100) while fewer are liquidated. Caveats: nobody bid in the auction (the honest bots don't; v51-b's
+501 bidders were the crowd), so the pool opened on the window's dollars alone, as the live world will if no
+player bids; the team's vest had not started (its cliff, six real months, is 728 game days, and the run ends 730
+after launch): once it runs it sells about 180k FD a game week, 0.8M a game month, against the 0.1–0.4M net the
+pool absorbed here, the sim's worst case of a team that sells every token on the clock; seasons on makes v47-b an
+imperfect baseline (its holding-cost sink of 41M becomes 2.5M when the season close takes the hoards).
