@@ -23,3 +23,6 @@
   until the Back Lot leaves the simulator; ruleset 0.19.1; on the test page, not yet on the live world.
 - 2026-11-01 — The team allocation 15% of the cap, six real months then four years linear; the tranche 40M.
 - 2026-11-01 — Iuliia: Russian, classy, an executive, long flowing hair, brown eyes; drawn and on main.
+- 2026-11-02 — The first bid by hand is on: a one-truck company's dispatcher waits until its owner bids or books
+  once by hand (Jeff's yes; economy's v55-a found no cost the batch can see). Ruleset 0.19.2-phase0.31; the live
+  world restarts with it on the next republish. Chicago's May board is the director's call (economy-first-board.md).

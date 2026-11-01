@@ -9,7 +9,7 @@ export type TractorTier = "workhorse" | "highwayPro" | "flagship";
 export type FacilityType = "warehouse" | "coldStorage" | "factory";
 
 export const economyConfig = {
-  version: "0.19.1-phase0.30", // Beta one (2026-11-01): the ladder opens the beta in layers from day one, crews off until the Back Lot leaves the simulator; live levers in live.ts
+  version: "0.19.2-phase0.31", // Sprint 1 (2026-11-02): the first bid by hand switched on (freeEntry.firstBidByHand); beta one's ladder and crews as before; live levers in live.ts
 
   // §World, map and time
   time: {
@@ -844,7 +844,8 @@ export const economyConfig = {
     // Sprint 1 (Jeff, 2026-11-02; studio/sprints/2026-11-02-first-ten-minutes.md): a one-truck company's standing
     // orders stay off until its owner has placed a bid (or booked a load) by hand, and the truck waits at home.
     // Sprint 0's playtests found the default dispatcher bid for a new player before they had read the board. Bots
-    // place their first bid by hand too (ruleBots.ts firstBidByHand). Off until the batch sizes it (runs/v55-a).
+    // place their first bid by hand too (ruleBots.ts firstBidByHand). Off in the base config; on live since
+    // 0.19.2-phase0.31 (v55-a sized it: the free path loses nothing the batch can see).
     firstBidByHand: false,
     // Extra NPC leases (§Assets: "the NPC lease fleet is separate, unlimited"):
     // a carrier that owns a truck can lease more Workhorses, any trailer, on the

@@ -12,6 +12,9 @@
  * actors) and v52-a (that exact profile). Beta one (2026-11-01, ruleset 0.19.1-phase0.30; Jeff: "configure beta
  * one"): the ladder runs from the world's first day, so new players meet hauling first and businesses, then
  * re-brokering, on published days; the crews are off until the Back Lot v2 leaves the simulator (v53).
+ * Sprint 1 (2026-11-02, ruleset 0.19.2-phase0.31; Jeff: yes to the dispatcher idle until the first hand-booked
+ * load): a one-truck company's dispatcher waits for its owner's first bid or booking by hand, sized as v55-a
+ * (studio/reviews/economy-first-board.md).
  *
  * Paths are config paths, as the sim's `--set` takes them, so a batch and the live world read alike.
  */
@@ -110,6 +113,8 @@ export const LIVE_LEVERS: Record<string, unknown> = {
   "robbery.bounty.enabled": true,
   "unlockLadder.enabled": true,
   "unlockLadder.beta.enabled": true,
+  // Sprint 1: the first bid by hand (the dispatcher idle until the owner has bid or booked once; v55-a).
+  "freeEntry.firstBidByHand": true,
   // The supply path (+10% over four years, the dial never under the launch rates) and the whale rules on sales.
   "token.supplyCeiling.enabled": true,
   "token.supplyCeiling.growth": 0.1,

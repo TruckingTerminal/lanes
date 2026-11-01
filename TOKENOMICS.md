@@ -1222,3 +1222,7 @@ vetting gate locks half the van loads on the restart's board and almost none aft
 freight goes to vetted carriers first; what a newcomer lacks later is price by season (Chicago in May posts 1.2–1.8
 FD/mi against a leased truck's 2.0 break-even; in February it is the best board of the four). No lever moves without
 moving the market; the proposal is to run the world two game days before the page opens, and to keep Phoenix.
+
+**Switched on (2026-11-02, ruleset 0.19.2-phase0.31).** Jeff's yes to the rule (the bible's third question) and
+v55-a's numbers above put `freeEntry.firstBidByHand` among the live levers. Nothing else in the profile moved; the
+live world restarts on the next republish (no players).
