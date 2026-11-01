@@ -24,7 +24,7 @@ w.listener = (e) => {
 // Where each persona's money goes: company outflows by destination tag.
 const flows = new Map<string, Map<string, number>>();
 const post = w.ledger.post.bind(w.ledger);
-w.ledger.post = (t, from, to, amount, ref) => {
+w.ledger.post = (t, from, to, amount, ref, mode) => {
   if (from.startsWith("co:") && /^co:\d+$/.test(from)) {
     const c = w.companies[Number(from.slice(3)) - 1];
     if (c && c.role === "carrier") {
@@ -35,7 +35,7 @@ w.ledger.post = (t, from, to, amount, ref) => {
       flows.set(k, m);
     }
   }
-  post(t, from, to, amount, ref);
+  return post(t, from, to, amount, ref, mode);
 };
 runDays(w, Number(values.days), ruleBotHook);
 

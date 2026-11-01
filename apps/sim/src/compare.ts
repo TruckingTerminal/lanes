@@ -125,6 +125,8 @@ rows.push(
   // Assets and destruction (the EVE plan, step 4): the bar is new equipment at 15% or more of all sinks.
   ["Robbery: crews hired / hits / rigs chopped", (rs) => `${n0(mean(rs.map((r) => r.robbery?.hires ?? 0)))} / ${n0(mean(rs.map((r) => r.robbery?.hits ?? 0)))} / ${n0(mean(rs.map((r) => r.robbery?.rigsTaken ?? 0)))}`],
   ["Robbery: cargo taken / paid to hirers / crew fees / security fittings bought", (rs) => `${fd(mean(rs.map((r) => r.robbery?.cargoTakenFd ?? 0)))} / ${fd(mean(rs.map((r) => r.robbery?.takePaidFd ?? 0)))} / ${fd(mean(rs.map((r) => r.robbery?.feesFd ?? 0)))} / ${fd(mean(rs.map((r) => r.robbery?.fittingsFd ?? 0)))}`],
+  // The Back Lot (2026-11-01).
+  ["Back Lot: fences paid / chop shops paid / their resales / victims paid from stakes / bounties posted → paid", (rs) => `${fd(mean(rs.map((r) => r.robbery?.fencePaidFd ?? 0)))} / ${fd(mean(rs.map((r) => r.robbery?.chopPaidFd ?? 0)))} / ${fd(mean(rs.map((r) => r.robbery?.resaleFd ?? 0)))} / ${fd(mean(rs.map((r) => r.robbery?.victimsPaidFd ?? 0)))} / ${fd(mean(rs.map((r) => r.robbery?.bountiesPostedFd ?? 0)))} → ${fd(mean(rs.map((r) => r.robbery?.bountiesPaidFd ?? 0)))}`],
   ["Leases by value: NPC lease deposits held at end", (rs) => range(rs.map((r) => r.truckMoney?.leaseDepositsEndFd ?? 0), fd)],
   ["Purchase loans: made / still owed at end (open loans)", (rs) => `${fd(mean(rs.map((r) => r.truckMoney?.loansMadeFd ?? 0)))} / ${fd(mean(rs.map((r) => r.truckMoney?.loansOwedEndFd ?? 0)))} (${n0(mean(rs.map((r) => r.truckMoney?.loansOpenEnd ?? 0)))})`],
   ["Purchase loans: interest / defaults / trucks taken back / stakes slashed / written off", (rs) => `${fd(mean(rs.map((r) => r.truckMoney?.interestFd ?? 0)))} / ${n0(mean(rs.map((r) => r.truckMoney?.defaults ?? 0)))} / ${n0(mean(rs.map((r) => r.truckMoney?.seized ?? 0)))} / ${fd(mean(rs.map((r) => r.truckMoney?.stakeSlashedFd ?? 0)))} / ${fd(mean(rs.map((r) => r.truckMoney?.writtenOffFd ?? 0)))}`],
@@ -236,6 +238,12 @@ rows.push(
     const f = rs.map((r) => r.realMoney?.token?.launchFee).filter((x) => x);
     return f.length ? `${pct(f[0]!.startPct)}, ${f[0]!.days}; $${fd(mean(f.map((x) => x!.buyUsd)))} / ${fd(mean(f.map((x) => x!.sellFd)))}` : "off";
   }],
+  // The bridge (Jeff, 2026-11-01: every withdrawal is a sale, with a timer and a daily cap).
+  ["Bridge: timer (days at launch → end) / FD requested → cleared / mean wait (days) / days capped / waiting at end", (rs) => {
+    const b = rs.map((r) => r.realMoney?.token?.bridge).filter((x) => x);
+    return b.length ? `${b[0]!.delayStart} → ${b[0]!.delayEnd} / ${fd(mean(b.map((x) => x!.requestedFd)))} → ${fd(mean(b.map((x) => x!.clearedFd)))} / ${mean(b.map((x) => x!.meanWaitDays)).toFixed(1)} / ${n0(mean(b.map((x) => x!.cappedDays)))} / ${fd(mean(b.map((x) => x!.queuedEndFd)))}` : "off";
+  }],
+  ["Locked (spend-only) FD at end", (rs) => range(rs.map((r) => r.realMoney?.token?.lockedEndSupplyFd ?? NaN).filter(Number.isFinite), fd)],
   // The airdrop logbook (Jeff, 2026-10-31: 1% at launch, the rest only for milestones).
   ["Logbook: paid at launch / by honest milestones / by criminal / still locked at end", (rs) => {
     const b = rs.map((r) => r.realMoney?.token?.logbook).filter((x) => x);

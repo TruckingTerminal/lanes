@@ -33,7 +33,7 @@ import { repossessDefaults, stepListings } from "./market.js";
 import { fleetOverheadPerWeek } from "./overhead.js";
 import { closeSeason } from "./season.js";
 import { chargeHoldingCost, checkSolvency, holdingCostApplies, processLiquidations } from "./solvency.js";
-import { dailyBuyback, launchToken, scaleDemand, seasonAirdrop, tokenLive, weeklyToken, weeklyVest } from "./token.js";
+import { dailyBridge, dailyBuyback, launchToken, scaleDemand, seasonAirdrop, tokenLive, weeklyToken, weeklyVest } from "./token.js";
 import { moveTrucks } from "./trips.js";
 import { companyById, operatingTrucks, payPermits, type World } from "./world.js";
 
@@ -156,7 +156,10 @@ function endOfDay(w: World, day: number, agents?: DailyAgentHook): void {
     launchToken(w);
     launchedToday = true;
   }
-  if (tokenLive(w)) dailyBuyback(w);
+  if (tokenLive(w)) {
+    dailyBridge(w);
+    dailyBuyback(w);
+  }
 
   // Broker bond via the Surety Desk: 2–12% of 75,000 FD a year by credit, charged daily (§Roles —
   // broker license and bond). The surety pool carries the bond while it is capitalised (pools.ts),

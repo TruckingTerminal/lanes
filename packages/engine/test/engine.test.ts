@@ -100,12 +100,12 @@ import { detachTruck, truckById } from "../src/world.js";
 import { loadFactor, managerEffect, managersNeeded, offerStaff, securityPremiumMult, securityTheftMult } from "../src/labor.js";
 import { acceptOffer, contractRoom, contractSlots, contractStakeAccount, rejectTender, weeklyContracts } from "../src/contracts.js";
 import { scaleDiscount, scaleDiscountFor } from "../src/scale.js";
-import { buyFeeRate, convictionForfeit, launchFeeRate, launchTaxRate, sizeFeeRate } from "../src/token.js";
+import { bridgeAccount, bridgeDelayDays, buyFeeRate, convictionForfeit, dailyBridge, launchFeeRate, launchTaxRate, sizeFeeRate } from "../src/token.js";
 import { logbookCatalogue } from "../src/logbook.js";
 import { dailyLadder, layerBlock, layerOpen } from "../src/ladder.js";
-import { dealerPrice, lotPrice } from "../src/dealer.js";
+import { dealerPrice, deliverOrders, lotPrice } from "../src/dealer.js";
 import { salesTaxOn } from "../src/salesTax.js";
-import { crewFeeFd, crewOn, crewStrike, fittingsCut } from "../src/robbery.js";
+import { bountyAccount, crewFeeFd, crewOn, crewStakeAccount, crewStrike, fenceShareOf, fittingsCut, notoriety } from "../src/robbery.js";
 import { truckValue } from "../src/dealer.js";
 import { stealCargo } from "../src/risk.js";
 import { dockWaitTheft } from "../src/trips.js";
@@ -846,7 +846,7 @@ describe("token", () => {
     const { w, a } = launched(35);
     const keep = cfg.holdingCost.minProtectedFd;
     expect(w.ledger.balance(companyAccount(a.id)) - (a.airdrop!.unlockedFd)).toBeCloseTo(keep, 2);
-    expect(a.lockedFd).toBeCloseTo(keep, 2);
+    expect(w.ledger.locked(companyAccount(a.id))).toBeCloseTo(keep, 2);
     // The pool is as deep as the float that survived the reset, and the launch price is the seed over it.
     const L = w.token.launch!;
     expect(w.ledger.balance(EXCHANGE_ACCOUNT)).toBeCloseTo(L.floatFd * tk.token.launch.poolDepthShareOfFloat, 2);
@@ -1150,7 +1150,8 @@ describe("trucks and the money behind them (2026-10-31): leases by value, purcha
     expect(spend.token.launchDay).not.toBeNull();
     const onFreePath = spend.companies.filter((x) => (spend.trucksByCompany.get(x.id) ?? []).some((t) => t.lease === "npc"));
     expect(onFreePath.some((x) => x.freePathLockedFd > 0)).toBe(true);
-    for (const x of onFreePath) expect(x.lockedFd).toBeGreaterThanOrEqual(x.freePathLockedFd - 1e-6);
+    // Spending draws the lock down as it happens (ledger.ts); the free path's counter is clamped to it at the unlock.
+    for (const x of onFreePath) expect(spend.ledger.locked(companyAccount(x.id))).toBeGreaterThanOrEqual(0);
     // Off the free path (its own truck arrived): what it earned there is sellable again.
     const graduated = spend.companies.filter((y) => y.freePath && y.firstOwnedTruckDay !== null && !(spend.trucksByCompany.get(y.id) ?? []).some((t) => t.lease === "npc"));
     expect(graduated.length).toBeGreaterThan(0);
@@ -2777,6 +2778,358 @@ describe("the launch on a standard pool (Jeff, 2026-11-01, option A): the openin
     expect(launchFeeRate(w2, 0.01)).toBeCloseTo(0.01 * Math.sqrt(50), 6);
     w2.t += 5 * w2.cfg.time.gameMinutesPerDay;
     expect(launchFeeRate(w2, 0.01)).toBe(0);
+  });
+});
+
+describe("the airdrop paid locked at the TGE, sticky locks and the bridge (Jeff, 2026-11-01)", () => {
+  const base = (over: Partial<EconomyConfig["token"]>): EconomyConfig => ({ ...calm, seasonClose: { ...calm.seasonClose, enabled: false }, token: { ...calm.token, enabled: true, ...over } });
+
+  it("pays the whole allocation at launch, 1% free and the rest spend-only; a milestone unlocks what's still there; locked FD travels locked; the deadline burns the rest", () => {
+    const cfg2 = base({ airdrop: { ...calm.token.airdrop, logbook: { ...calm.token.airdrop.logbook, enabled: true, paidLocked: true } } });
+    const w = createWorld({ cfg: cfg2, net, feeds: neutralFeeds, seed: 69, keepLedgerEntries: true });
+    const a = carrier(w, "A");
+    const b = carrier(w, "B");
+    fund(w, a.id, 100_000);
+    a.milesTotal = 3_000;
+    launchToken(w);
+    const k = cfg2.token.airdrop.logbook;
+    const acct = companyAccount(a.id);
+    const total = a.airdrop!.totalFd;
+    expect(total).toBeGreaterThan(0);
+    // The whole share is in the account at once; the working capital kept and the locked part are spend-only.
+    expect(w.token.airdrop.mintedFd).toBeCloseTo(total, 2);
+    expect(a.airdrop!.lockedFd).toBeCloseTo(total * (1 - k.atLaunch), 2);
+    expect(sellableFd(w, a)).toBeCloseTo(total * k.atLaunch, 2);
+    expect(w.ledger.locked(acct)).toBeGreaterThanOrEqual(total * (1 - k.atLaunch) - 0.01);
+    // A milestone unlocks its share for withdrawal; nothing is minted.
+    const cat = Object.fromEntries(logbookCatalogue(w, "carrier").map((m) => [m.id, m.share]));
+    const minted = w.token.airdrop.mintedFd;
+    a.loadsThisWeek = 30;
+    weeklyToken(w);
+    expect(a.airdrop!.logbook!.done).toEqual(["haul25"]);
+    expect(w.token.airdrop.mintedFd).toBe(minted);
+    expect(sellableFd(w, a)).toBeCloseTo(total * (k.atLaunch + cat.haul25!), 1);
+    expect(a.airdrop!.lockedFd).toBeCloseTo(total * (1 - k.atLaunch - cat.haul25!), 1);
+    // Spending draws on the locked FD first; a payment to another player carries the lock with it.
+    const lockedBefore = w.ledger.locked(acct);
+    w.ledger.post(w.t, acct, "sink:fuel", 1_000, `fuel:${a.id}`);
+    expect(w.ledger.locked(acct)).toBeCloseTo(lockedBefore - 1_000, 2);
+    const bAcct = companyAccount(b.id);
+    const bLocked = w.ledger.locked(bAcct);
+    const bFree = w.ledger.free(bAcct);
+    expect(w.ledger.post(w.t, acct, bAcct, 2_000, "lease:week:test")).toBeCloseTo(2_000, 6);
+    expect(w.ledger.locked(bAcct)).toBeCloseTo(bLocked + 2_000, 2);
+    expect(w.ledger.free(bAcct)).toBeCloseTo(bFree, 2);
+    expect(() => w.ledger.post(w.t, acct, bAcct, w.ledger.free(acct) + 1, "test", "freeOnly")).toThrow();
+    // A withdrawal takes free FD only.
+    expect(applyAction(w, a.id, { type: "sell_fd", fd: sellableFd(w, a) + 10 }).ok).toBe(false);
+    // At the deadline what is still locked and unspent burns; what was spent out of it is simply gone.
+    const forfeits = () => w.ledger.entries.filter((e) => e.to === "sink:airdrop_forfeit").reduce((s, e) => s + e.amount, 0);
+    const f0 = forfeits();
+    w.t = a.airdrop!.logbook!.deadlineDay * w.cfg.time.gameMinutesPerDay;
+    weeklyToken(w);
+    expect(a.airdrop!.logbook!.closed).toBe(true);
+    const burned = forfeits() - f0;
+    expect(burned).toBeGreaterThan(0);
+    expect(burned).toBeLessThanOrEqual(total * (1 - k.atLaunch - cat.haul25!) + 0.01);
+    expect(a.airdrop!.lockedFd).toBeCloseTo(0, 1);
+    expect(w.token.airdrop.mintedFd).toBe(minted);
+    w.ledger.assertBalanced();
+  });
+
+  it("the bridge: a sale is a withdrawal that waits out the timer, then clears through the exchange's rules under the daily cap; a wallet outside the game meets the pool at once", () => {
+    const cfg2 = base({ bridge: { ...calm.token.bridge, enabled: true, delayDays: { start: 4, end: 2, overDays: 100 }, dailyOutflowShareOfPool: 0.02 }, exchange: { ...calm.token.exchange, dailySellShareOfPool: 0 } });
+    const w = createWorld({ cfg: cfg2, net, feeds: neutralFeeds, seed: 70, keepLedgerEntries: true });
+    const a = carrier(w, "A");
+    const h = carrier(w, "H");
+    fund(w, a.id, 100_000);
+    a.milesTotal = 3_000;
+    h.milesTotal = 3_000;
+    launchToken(w);
+    const free0 = sellableFd(w, a);
+    expect(free0).toBeGreaterThan(1_000);
+    const want = Math.floor(free0 / 2);
+    expect(applyAction(w, a.id, { type: "sell_fd", fd: want })).toEqual({ ok: true });
+    expect(a.usd.out).toBe(0);
+    expect(w.ledger.balance(bridgeAccount(a.id))).toBeCloseTo(want, 2);
+    expect(sellableFd(w, a)).toBeCloseTo(free0 - want, 2);
+    expect(a.withdrawals).toEqual([{ fd: want, day: w.token.launchDay! }]);
+    expect(w.token.bridge.requestedFd).toBeCloseTo(want, 6);
+    // The timer: four days at launch, two once its days have run.
+    expect(bridgeDelayDays(w, w.token.launchDay!)).toBe(4);
+    expect(bridgeDelayDays(w, w.token.launchDay! + 100)).toBe(2);
+    dailyBridge(w);
+    expect(a.usd.out).toBe(0);
+    w.t += 4 * w.cfg.time.gameMinutesPerDay;
+    const pool = w.ledger.balance(EXCHANGE_ACCOUNT);
+    dailyBridge(w);
+    // Cleared as far as the day's cap allows: at most 2% of the pool's FD a day for the whole game; the rest waits.
+    const cap = 0.02 * pool;
+    const cleared = Math.min(want, cap);
+    expect(w.token.bridge.clearedFd).toBeCloseTo(cleared, 1);
+    expect(a.usd.out).toBeGreaterThan(0);
+    expect(w.ledger.balance(bridgeAccount(a.id))).toBeCloseTo(want - cleared, 1);
+    if (want > cap) {
+      expect(a.withdrawals[0]!.fd).toBeCloseTo(want - cap, 1);
+      expect(w.token.bridge.cappedDays).toBe(1);
+      expect(w.token.bridge.cappedFd).toBeCloseTo(want - cap, 1);
+    } else expect(a.withdrawals).toEqual([]);
+    // A wallet outside the game: no bridge, the pool alone.
+    h.onChain = true;
+    const hf = sellableFd(w, h);
+    expect(hf).toBeGreaterThan(0);
+    expect(applyAction(w, h.id, { type: "sell_fd", fd: hf })).toEqual({ ok: true });
+    expect(h.usd.out).toBeGreaterThan(0);
+    expect(h.withdrawals).toEqual([]);
+    // A change of mind: what waits comes back, less the cancel burn.
+    const left = w.ledger.balance(bridgeAccount(a.id));
+    const free1 = sellableFd(w, a);
+    const burned = () => w.ledger.entries.filter((e) => e.to === "sink:exchange_fee" && e.ref.startsWith("bridge:cancel")).reduce((s, e) => s + e.amount, 0);
+    if (left > 1) {
+      expect(applyAction(w, a.id, { type: "cancel_withdrawal" })).toEqual({ ok: true });
+      expect(a.withdrawals).toEqual([]);
+      expect(w.ledger.balance(bridgeAccount(a.id))).toBeCloseTo(0, 2);
+      expect(burned()).toBeCloseTo(Math.floor(left * cfg2.token.bridge.cancelBurn * 100) / 100, 2);
+      expect(sellableFd(w, a) - free1).toBeCloseTo(left - burned(), 1);
+    }
+    expect(applyAction(w, a.id, { type: "cancel_withdrawal" })).toEqual({ ok: false, reason: "nothing is waiting" });
+    w.ledger.assertBalanced();
+  });
+
+  it("assets remember their locked basis: a rig bought with spend-only FD sells for spend-only FD; in the farming season a rig sells for dollars held for the pool", () => {
+    const cfg2 = base({ airdrop: { ...calm.token.airdrop, logbook: { ...calm.token.airdrop.logbook, enabled: true, paidLocked: true } } });
+    const w = createWorld({ cfg: cfg2, net, feeds: neutralFeeds, seed: 71, keepLedgerEntries: true });
+    const a = carrier(w, "A");
+    const b = carrier(w, "B");
+    a.milesTotal = 3_000;
+    launchToken(w);
+    fund(w, b.id, 200_000);
+    const acct = companyAccount(a.id);
+    const locked0 = w.ledger.locked(acct);
+    expect(locked0).toBeGreaterThan(20_000);
+    expect(applyAction(w, a.id, { type: "buy_asset", tier: "workhorse", trailer: "van", replaceNpcLease: false })).toEqual({ ok: true });
+    const order = w.orders.find((o) => o.companyId === a.id)!;
+    expect(order.lockedPaidFd).toBeGreaterThan(0);
+    expect(w.ledger.locked(acct)).toBeCloseTo(locked0 - order.lockedPaidFd!, 1);
+    w.t = (order.dueDay + 1) * w.cfg.time.gameMinutesPerDay;
+    deliverOrders(w);
+    const truck = w.trucksByCompany.get(a.id)!.find((t) => (t.lockedBasisFd ?? 0) > 0)!;
+    expect(truck).toBeTruthy();
+    expect(truck.lockedBasisFd).toBeCloseTo(order.lockedPaidFd!, 6);
+    // Sold to B on the used market: A's proceeds are locked up to the basis; the truck's basis is now B's locked payment.
+    expect(applyAction(w, a.id, { type: "list_truck", truckId: truck.id, askFd: 10_000, floorFd: 8_000, stepFd: 500 })).toEqual({ ok: true });
+    const listing = w.listings.find((l) => l.truckId === truck.id && l.status === "open")!;
+    const basis = truck.lockedBasisFd!;
+    const bLocked = w.ledger.locked(companyAccount(b.id));
+    const free0 = w.ledger.free(acct);
+    const lockedBefore = w.ledger.locked(acct);
+    expect(applyAction(w, b.id, { type: "buy_listing", listingId: listing.id })).toEqual({ ok: true });
+    const netFd = 10_000 * (1 - w.cfg.usedMarket.feePct);
+    expect(w.ledger.locked(acct) - lockedBefore).toBeCloseTo(Math.min(netFd, basis), 1);
+    expect(w.ledger.free(acct) - free0).toBeCloseTo(netFd - Math.min(netFd, basis), 1);
+    expect(truck.lockedBasisFd).toBeCloseTo(Math.min(10_000, bLocked), 1);
+    w.ledger.assertBalanced();
+    // The farming season's dollar window: before launch, a paying company buys a rig for dollars, held for the pool.
+    const beta = { ...cfg2, token: { ...cfg2.token, betaYears: 10, catalogue: { ...cfg2.token.catalogue, usdWindow: { ...cfg2.token.catalogue.usdWindow, assets: { enabled: true, capUsdPerMc: null } } } } };
+    const w2 = createWorld({ cfg: beta, net, feeds: neutralFeeds, seed: 72 });
+    const d = carrier(w2, "D");
+    d.usd.wallet = 5_000;
+    const priceFd = dealerPrice(w2, { tier: "workhorse", trailer: "van" });
+    const usd = priceFd * beta.token.catalogue.usdWindow.referencePriceUsd * beta.token.catalogue.usdWindow.premium;
+    const bal = w2.ledger.balance(companyAccount(d.id));
+    expect(applyAction(w2, d.id, { type: "buy_asset", tier: "workhorse", trailer: "van", replaceNpcLease: false, pay: "usd" })).toEqual({ ok: true });
+    expect(d.usd.wallet).toBeCloseTo(5_000 - usd, 6);
+    expect(d.usdSpentBetaAssets).toBeCloseTo(usd, 6);
+    expect(w2.token.treasury.seedEscrowUsd).toBeCloseTo(usd, 6);
+    expect(w2.ledger.balance(companyAccount(d.id))).toBeCloseTo(bal, 2);
+    expect(w2.orders.find((o) => o.companyId === d.id)!.lockedPaidFd).toBe(0);
+    d.usd.wallet = 1;
+    expect(applyAction(w2, d.id, { type: "buy_asset", tier: "workhorse", trailer: "van", replaceNpcLease: false, pay: "usd" })).toEqual({ ok: false, reason: "not enough dollars" });
+  });
+});
+
+describe("the Back Lot (2026-11-01): the stake behind the hire, one crew a company, fences and chop shops, bounties, the fence's share by commodity, the take spend-only", () => {
+  const lot: EconomyConfig = {
+    ...calm,
+    businesses: { ...calm.businesses, enabled: true },
+    robbery: { ...calm.robbery, enabled: true, protectDays: 0, odds: 10, maxOdds: 1, rigShare: 1, realStake: true, oneCrewPerVictim: true, takeLocked: true, fenceByCommodityOn: true, npcFenceShare: 0.6, backLot: { ...calm.robbery.backLot, enabled: true }, bounty: { ...calm.robbery.bounty, enabled: true } },
+  };
+
+  it("a hire locks its stake, one crew on a company at a time, only an operating company hires; a hit pays the victim's deductibles from the stake and the rest comes back", () => {
+    const w = createWorld({ cfg: lot, net, feeds: neutralFeeds, seed: 94, keepLedgerEntries: true });
+    const hirer = carrier(w, "Hirer");
+    const victim = carrier(w, "Victim");
+    addTruck(w, hirer, "owned", "workhorse", "van");
+    const target = addTruck(w, victim, "owned", "workhorse", "van");
+    const other = addTruck(w, victim, "owned", "workhorse", "van");
+    fund(w, hirer.id, 200_000);
+    const k = lot.robbery;
+    const fee = crewFeeFd(w, target);
+    const stake = k.stakeCover * (k.rigFenceShare * truckValue(w, target));
+    const before = w.ledger.balance(companyAccount(hirer.id));
+    expect(applyAction(w, hirer.id, { type: "hire_crew", truckId: target.id })).toEqual({ ok: true });
+    const job = crewOn(w, target.id)!;
+    expect(job.stakeFd).toBeCloseTo(stake, 2);
+    expect(w.ledger.balance(crewStakeAccount(job.id))).toBeCloseTo(stake, 2);
+    expect(before - w.ledger.balance(companyAccount(hirer.id))).toBeCloseTo(fee + stake, 2);
+    expect(applyAction(w, hirer.id, { type: "hire_crew", truckId: other.id })).toEqual({ ok: false, reason: "a crew is already on that company" });
+    expect(notoriety(w, hirer)).toBe(1);
+    // A wallet outside the game can't hire.
+    const wallet = carrier(w, "Wallet");
+    wallet.role = "holder";
+    fund(w, wallet.id, 200_000);
+    expect(applyAction(w, wallet.id, { type: "hire_crew", truckId: other.id })).toEqual({ ok: false, reason: "only an operating company hires crews" });
+    // The hit: the rig goes; the victim's physical-damage deductible comes out of the stake first, the rest back to the hirer; the take is spend-only.
+    const value = truckValue(w, target);
+    const victimBefore = w.ledger.balance(companyAccount(victim.id));
+    const hirerBefore = w.ledger.balance(companyAccount(hirer.id));
+    const hirerLocked = w.ledger.locked(companyAccount(hirer.id));
+    crewStrike(w, target, victim, "shoulder", 3);
+    expect(job.status).toBe("hit");
+    const deductible = Math.min(value, lot.assets.physicalDamage.deductibleFd);
+    expect(w.robbery.stats.victimsPaidFd).toBeCloseTo(Math.min(stake, deductible), 2);
+    expect(w.ledger.balance(crewStakeAccount(job.id))).toBeCloseTo(0, 2);
+    // No player's chop shop: the reserve's fence pays its share of the washed take.
+    const take = k.npcFenceShare * k.rigFenceShare * value * (1 - k.washFee);
+    expect(w.ledger.balance(companyAccount(hirer.id)) - hirerBefore).toBeCloseTo(take + (stake - Math.min(stake, deductible)), 1);
+    expect(w.ledger.locked(companyAccount(hirer.id)) - hirerLocked).toBeCloseTo(take, 1);
+    expect(w.ledger.balance(companyAccount(victim.id)) - victimBefore).toBeGreaterThan(0); // the deductible back, and the insurer's payout
+    w.ledger.assertBalanced();
+  });
+
+  it("a fence and a chop shop buy what a crew takes and resell it a week later; a bounty on the victim pays the hirer; the fence's share follows the commodity", () => {
+    const w = createWorld({ cfg: lot, net, feeds: neutralFeeds, seed: 95, keepLedgerEntries: true });
+    const hirer = carrier(w, "Hirer");
+    const victim = carrier(w, "Victim");
+    const owner = carrier(w, "Owner");
+    const avenger = carrier(w, "Avenger");
+    addTruck(w, hirer, "owned", "workhorse", "van");
+    const target = addTruck(w, victim, "owned", "workhorse", "van");
+    fund(w, hirer.id, 300_000);
+    fund(w, owner.id, 1_000_000);
+    fund(w, avenger.id, 100_000);
+    const hubId = w.net.hubs[target.hub]!.id;
+    expect(applyAction(w, owner.id, { type: "buy_business", kind: "fence", hubId })).toEqual({ ok: true });
+    expect(applyAction(w, owner.id, { type: "buy_business", kind: "chopShop", hubId })).toEqual({ ok: true });
+    const shops = w.businesses.filter((b) => b.ownerId === owner.id);
+    expect(shops.map((b) => b.kind)).toEqual(["fence", "chopShop"]);
+    // A bounty on the victim, from a third company: held in escrow, on Channel 19.
+    const k = lot.robbery;
+    expect(applyAction(w, avenger.id, { type: "post_bounty", targetId: victim.id, fd: 500 })).toEqual({ ok: false, reason: `a bounty is at least ${k.bounty.minFd.toLocaleString("en-US")} FD` });
+    expect(applyAction(w, avenger.id, { type: "post_bounty", targetId: victim.id, fd: 5_000 })).toEqual({ ok: true });
+    expect(w.ledger.balance(bountyAccount(1))).toBeCloseTo(5_000, 2);
+    expect(w.robbery.feed.at(-1)!.kind).toBe("bounty");
+    // The fence's share by commodity.
+    expect(fenceShareOf(w, undefined)).toBe(k.fenceShare);
+    expect(applyAction(w, hirer.id, { type: "hire_crew", truckId: target.id })).toEqual({ ok: true });
+    const job = crewOn(w, target.id)!;
+    const value = truckValue(w, target);
+    const ownerBefore = w.ledger.balance(companyAccount(owner.id));
+    const hirerBefore = w.ledger.balance(companyAccount(hirer.id));
+    crewStrike(w, target, victim, "shoulder", 3);
+    expect(job.status).toBe("hit");
+    // The chop shop paid the rig's share (washed on the hirer's end), and the bounty went to the hirer.
+    const share = k.rigFenceShare * value;
+    expect(ownerBefore - w.ledger.balance(companyAccount(owner.id))).toBeCloseTo(share, 1);
+    expect(w.robbery.stats.chopPaidFd).toBeCloseTo(share * (1 - k.washFee), 1);
+    expect(w.robbery.stats.bountiesPaidFd).toBeCloseTo(5_000, 2);
+    expect(w.ledger.balance(bountyAccount(1))).toBeCloseTo(0, 2);
+    expect(w.ledger.balance(companyAccount(hirer.id)) - hirerBefore).toBeCloseTo(share * (1 - k.washFee) + 5_000 + (job.stakeFd ?? 0) - Math.min(job.stakeFd ?? 0, Math.min(value, lot.assets.physicalDamage.deductibleFd)), 1);
+    expect(w.robbery.resales).toHaveLength(1);
+    expect(w.robbery.resales[0]!.fd).toBeCloseTo(value * k.backLot.chopPartsYield, 1);
+    // A week on, the parts sell: the shop's income, a faucet.
+    const soldBefore = w.ledger.balance(companyAccount(owner.id));
+    w.t += (k.backLot.resaleDays + 1) * w.cfg.time.gameMinutesPerDay;
+    runDays(w, 1);
+    expect(w.ledger.balance(companyAccount(owner.id)) - soldBefore).toBeGreaterThan(value * k.backLot.chopPartsYield * 0.9);
+    expect(w.robbery.stats.resaleFd).toBeCloseTo(value * k.backLot.chopPartsYield, 1);
+    w.ledger.assertBalanced();
+  });
+
+  it("the logbook's shop item brings a milestone forward, once, for a share of the allocation", () => {
+    const boosted: EconomyConfig = { ...calm, seasonClose: { ...calm.seasonClose, enabled: false }, token: { ...calm.token, enabled: true, airdrop: { ...calm.token.airdrop, logbook: { ...calm.token.airdrop.logbook, enabled: true, boost: { ...calm.token.airdrop.logbook.boost, enabled: true } } } } };
+    const w = createWorld({ cfg: boosted, net, feeds: neutralFeeds, seed: 96, keepLedgerEntries: true });
+    const a = carrier(w, "A");
+    fund(w, a.id, 100_000);
+    a.milesTotal = 3_000;
+    launchToken(w);
+    fund(w, a.id, 50_000);
+    const k = boosted.token.airdrop.logbook;
+    const lb = a.airdrop!.logbook!;
+    const price = Math.max(k.boost.minFd, lb.allocationFd * k.boost.share);
+    expect(applyAction(w, a.id, { type: "buy_logbook_boost", milestone: "truck1" })).toEqual({ ok: false, reason: "that milestone can't be bought forward" });
+    const before = w.ledger.balance(companyAccount(a.id));
+    expect(applyAction(w, a.id, { type: "buy_logbook_boost", milestone: "haul25" })).toEqual({ ok: true });
+    expect(before - w.ledger.balance(companyAccount(a.id))).toBeCloseTo(price, 2);
+    expect(applyAction(w, a.id, { type: "buy_logbook_boost", milestone: "haul25" })).toEqual({ ok: false, reason: "already bought" });
+    // 19 loads reach a milestone that asked 25.
+    a.loadsThisWeek = 19;
+    weeklyToken(w);
+    expect(lb.done).toEqual(["haul25"]);
+    expect(applyAction(w, a.id, { type: "buy_logbook_boost", milestone: "haul25" })).toEqual({ ok: false, reason: "already reached" });
+    w.ledger.assertBalanced();
+  });
+});
+
+describe("the team allocation and the real-time linear vest; the dollar window for facilities (2026-11-01)", () => {
+  it("vests the team's allocation, not the treasury's, a real week at a time, linearly, with no price floor", () => {
+    const cfg2: EconomyConfig = {
+      ...calm,
+      seasonClose: { ...calm.seasonClose, enabled: false },
+      token: {
+        ...calm.token,
+        enabled: true,
+        circular: { ...calm.token.circular, enabled: true, shares: { ...calm.token.circular.shares, dev: 0.1 } },
+        treasury: { ...calm.token.treasury, vest: { cliffWeeks: 1, perWeekShare: 0.1, priceFloor: false, realTime: true, linear: true } },
+      },
+    };
+    const w = createWorld({ cfg: cfg2, net, feeds: neutralFeeds, seed: 97 });
+    const a = carrier(w, "A");
+    fund(w, a.id, 50_000);
+    a.milesTotal = 1_000;
+    const devFd = cfg2.token.circular.capFd * 0.1;
+    expect(w.ledger.balance("alloc:dev")).toBeCloseTo(devFd, 2);
+    launchToken(w);
+    expect(w.token.treasury.vestBaseFd).toBeCloseTo(devFd, 2);
+    const treasury = w.ledger.balance("alloc:treasury");
+    weeklyVest(w); // inside the cliff (a real week is 28 game days): nothing
+    expect(w.token.treasury.vestedFd).toBe(0);
+    w.t += 28 * w.cfg.time.gameMinutesPerDay;
+    for (let i = 0; i < 7; i++) w.token.priceHistory.push(w.token.launchPriceUsd / 2); // below launch: no floor, it sells anyway
+    weeklyVest(w);
+    // A game week's part of the real week's share of the allocation at launch: 10% × 7/28.
+    expect(w.token.treasury.vestedFd).toBeCloseTo(devFd * 0.1 * (7 / 28), 2);
+    expect(w.ledger.balance("alloc:dev")).toBeCloseTo(devFd - w.token.treasury.vestedFd, 2);
+    expect(w.ledger.balance("alloc:treasury")).toBeCloseTo(treasury, 2);
+    expect(w.token.treasury.devUsd).toBeGreaterThan(0);
+    w.ledger.assertBalanced();
+  });
+
+  it("a facility and a business sell for dollars in the farming season, every dollar held for the pool", () => {
+    const beta: EconomyConfig = {
+      ...calm,
+      businesses: { ...calm.businesses, enabled: true },
+      token: { ...calm.token, enabled: true, betaYears: 10, catalogue: { ...calm.token.catalogue, usdWindow: { ...calm.token.catalogue.usdWindow, assets: { enabled: true, capUsdPerMc: null } } } },
+    };
+    const w = createWorld({ cfg: beta, net, feeds: neutralFeeds, seed: 98, keepLedgerEntries: true });
+    const c = carrier(w, "C");
+    fund(w, c.id, 100_000);
+    c.usd.wallet = 20_000;
+    const uw = beta.token.catalogue.usdWindow;
+    const hubId = w.net.hubs[c.homeHub]!.id;
+    const fPrice = beta.facilities.types.warehouse.priceFd;
+    const bal0 = w.ledger.balance(companyAccount(c.id));
+    expect(applyAction(w, c.id, { type: "buy_facility", facility: "warehouse", hubId, pay: "usd" })).toEqual({ ok: true });
+    expect(w.token.treasury.seedEscrowUsd).toBeCloseTo(fPrice * uw.referencePriceUsd * uw.premium, 6);
+    expect(w.ledger.balance(companyAccount(c.id))).toBeCloseTo(bal0, 2);
+    const bPrice = beta.businesses.kinds.shop.priceFd;
+    const esc = w.token.treasury.seedEscrowUsd;
+    expect(applyAction(w, c.id, { type: "buy_business", kind: "shop", hubId, pay: "usd" })).toEqual({ ok: true });
+    expect(w.token.treasury.seedEscrowUsd - esc).toBeCloseTo(bPrice * uw.referencePriceUsd * uw.premium, 6);
+    // Only the bond left the account, in FD.
+    expect(bal0 - w.ledger.balance(companyAccount(c.id))).toBeCloseTo(beta.businesses.kinds.shop.bondFd, 2);
+    expect(w.businesses.at(-1)!.lockedBasisFd).toBe(0);
+    w.ledger.assertBalanced();
   });
 });
 

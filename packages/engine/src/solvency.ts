@@ -172,7 +172,8 @@ export function restart(w: World, c: Company): void {
   c.weeksInDebt = 0;
   // Judgments are discharged in the bankruptcy, like any other debt.
   c.judgmentFd = 0;
-  c.lockedFd = 0;
+  w.ledger.unlock(acct, w.ledger.locked(acct));
+  c.freePathLockedFd = 0;
   c.weeklySpend = [];
   c.orders = c.suspendedOrders;
   c.suspendedOrders = [];

@@ -1,8 +1,13 @@
 import type { JSX } from "preact";
 import type { Equipment, TractorTier } from "@lanes/config";
 import {
+  assetPriceUsd,
   bestSource,
   companyAccount,
+  lotPrice,
+  lotSpec,
+  npcDealerMult,
+  tokenLive,
   condition,
   dealershipsOpen,
   hasStock,
@@ -56,11 +61,31 @@ export function Showroom(): JSX.Element {
   const usedTrailers = openListings(w).filter((l) => l.trailerId > 0 && l.sellerId !== c.id).slice(0, 8);
   const offers = openLeaseOffers(w).filter((o) => o.lessorId !== c.id).sort((a, b) => a.weeklyFd - b.weeklyFd).slice(0, 8);
   const open = dealershipsOpen(w);
+  const uw = w.cfg.token.catalogue.usdWindow;
+  const dollarWindow = !tokenLive(w) && w.cfg.token.enabled && uw.enabled && uw.assets.enabled;
   return (
     <>
       <p class="muted small">
         New equipment comes from the factory each month. {open.length ? `${open.length} player dealership${open.length > 1 ? "s" : ""} sell it from stock in ${w.cfg.businesses.kinds.dealership.deliveryDays} days; the NPC dealer is the backstop at ${Math.round((w.cfg.assets.factory.npcPremium - 1) * 100)}% over list and a longer wait.` : "The NPC dealer sells it at list until a player opens a dealership."} Tractors take {w.cfg.assets.tractor.maxRebuilds} rebuilds or {life}, then run until they're worn out and go for scrap.
       </p>
+      {w.cfg.usedMarket.npcLot.enabled ? (
+        <>
+          <h3>The used lot</h3>
+          <p class="muted small">
+            Worn rigs at their used value: a Workhorse about {lotSpec(w, "van").odometer.toLocaleString("en-US")} miles and {Math.round((w.t / w.cfg.time.gameMinutesPerDay - lotSpec(w, "van").builtDay) / 365)} years old. {w.usedLot.stock} on the lot this week; delivered like a new one.
+          </p>
+          <div class="row">
+            {TYPES.map((tr) => {
+              const price = lotPrice(w, "workhorse", tr) * npcDealerMult(w);
+              return (
+                <Btn key={tr} disabled={!(w.usedLot.stock > 0 && cash >= price && trailerRoom > 0)} onClick={() => act({ type: "buy_asset", tier: "workhorse", trailer: tr, replaceNpcLease: onLease, used: true }, "Ordered from the used lot")}>
+                  Workhorse + {TRAILER_NAME[tr]} · {fd(price)}
+                </Btn>
+              );
+            })}
+          </div>
+        </>
+      ) : null}
       <h3>New rigs and tractors</h3>
       {TIERS.map((tier) =>
         TYPES.map((tr) => {
@@ -84,6 +109,11 @@ export function Showroom(): JSX.Element {
                 <Btn primary disabled={!(cash >= rig.price && rigLeft && trailerRoom > 0)} onClick={() => act({ type: "buy_asset", tier, trailer: tr, replaceNpcLease: onLease, dealershipId: rig.dealershipId || undefined }, `Ordered. Delivery in ${rig.days} days`)}>
                   Order the rig{onLease ? " (replaces your lease)" : ""}
                 </Btn>
+                {dollarWindow && !rig.dealershipId ? (
+                  <Btn disabled={!(c.usd.wallet >= assetPriceUsd(w, rig.price) && rigLeft && trailerRoom > 0)} onClick={() => act({ type: "buy_asset", tier, trailer: tr, replaceNpcLease: onLease, pay: "usd" }, `Ordered for dollars. Delivery in ${rig.days} days`)}>
+                    Or ${assetPriceUsd(w, rig.price).toLocaleString("en-US", { maximumFractionDigits: 0 })} (to the launch pool)
+                  </Btn>
+                ) : null}
                 {tr === "van" ? (
                   <Btn disabled={!(cash >= tractor.price && (tractor.dealershipId ? true : w.supply.tractor[tier] > 0))} onClick={() => act({ type: "buy_asset", tier, trailer: tr, replaceNpcLease: onLease, tractorOnly: true, dealershipId: tractor.dealershipId || undefined }, `Tractor ordered. It hooks a spare from your yard, or a rental`)}>
                     {TIER_NAME[tier]} tractor alone · {fd(tractor.price)}

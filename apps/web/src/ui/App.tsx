@@ -1,4 +1,5 @@
 import { Business } from "./panels/Business.js";
+import { Logbook } from "./panels/Logbook.js";
 import { Economy } from "./panels/Economy.js";
 import { Finance } from "./panels/Finance.js";
 import { Rates } from "./panels/Rates.js";
@@ -613,6 +614,7 @@ const TABS: [Tab, string, string][] = [
   ["money", "Money", "money"],
   ["finance", "Finance", "fd"],
   ["business", "Business", "wrench"],
+  ["logbook", "Logbook", "star"],
   ["rates", "Rates", "pin"],
   ["economy", "Economy", "star"],
   ["company", "Company", "building"],
@@ -639,7 +641,7 @@ function SideRack(): JSX.Element {
           {S.layout === "panel" ? "⤡ Restore" : "⤢ Expand"}
         </Btn>
       </div>
-      <div class="panelbox">{watching ? <WatchPanel /> : tab === "fleet" ? <Fleet /> : tab === "loads" ? <Loads /> : tab === "staff" ? <Staff /> : tab === "market" ? <Dealer /> : tab === "money" ? <Money /> : tab === "finance" ? <Finance /> : tab === "business" ? <Business /> : tab === "rates" ? <Rates /> : tab === "economy" ? <Economy /> : tab === "company" ? <Company /> : <Guide />}</div>
+      <div class="panelbox">{watching ? <WatchPanel /> : tab === "fleet" ? <Fleet /> : tab === "loads" ? <Loads /> : tab === "staff" ? <Staff /> : tab === "market" ? <Dealer /> : tab === "money" ? <Money /> : tab === "finance" ? <Finance /> : tab === "business" ? <Business /> : tab === "logbook" ? <Logbook /> : tab === "rates" ? <Rates /> : tab === "economy" ? <Economy /> : tab === "company" ? <Company /> : <Guide />}</div>
     </aside>
   );
 }

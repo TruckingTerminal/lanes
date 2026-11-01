@@ -15,6 +15,7 @@ import {
   lastBuybackPrice,
   averagePriceUsd,
   fdPriceUsd,
+  assetPriceUsd,
   EXCHANGE_ACCOUNT,
   quoteUsdForFd,
   sellableFd,
@@ -79,7 +80,7 @@ import {
 } from "@lanes/engine";
 import { businessesOf, businessPriceFd, sitePriceFd, type BusinessKind } from "@lanes/engine";
 import { financedCashNeed, openPurchaseLoans, purchaseTerms, salesTaxOn } from "@lanes/engine";
-import { crewFeeFd, crewOn, fittingsCut, hubTheftRisk, securityTheftMult } from "@lanes/engine";
+import { crewFeeFd, crewOn, crewStakeFd, fenceShareOf, fittingsCut, hubTheftRisk, securityTheftMult } from "@lanes/engine";
 import { depositCredit, lotPrice, npcDealerMult } from "@lanes/engine";
 
 /**
@@ -156,6 +157,8 @@ interface BotProfile {
    */
   farmer: boolean;
   sybil: boolean;
+  /** Crew jobs this company already answered with a bounty (robbery.bounty). */
+  bountied: Set<number>;
   quitDay: number;
   quit: boolean;
   /**
@@ -214,7 +217,7 @@ function carrierProfile(strategy: Strategy, rng: Rng): BotProfile {
 }
 
 function carrierProfileFor(strategy: Strategy, rng: Rng): BotProfile {
-  const base = { lastStats: { truckRounds: 0, wins: 0 }, opSnapshots: [], conduct: conductOf(rng), paysMarket: strategy !== "greedy", rebroker: null, cheating: false, noUnpark: new Map<number, number>(), farmer: false, sybil: false, quitDay: Infinity, quit: false };
+  const base = { lastStats: { truckRounds: 0, wins: 0 }, opSnapshots: [], conduct: conductOf(rng), paysMarket: strategy !== "greedy", rebroker: null, cheating: false, noUnpark: new Map<number, number>(), farmer: false, sybil: false, bountied: new Set<number>(), quitDay: Infinity, quit: false };
   switch (strategy) {
     case "greedy":
       return {
@@ -333,6 +336,7 @@ function brokerProfile(strategy: Strategy, rng: Rng): BotProfile {
     claimsEarly: strategy === "greedy",
     farmer: false,
     sybil: false,
+    bountied: new Set<number>(),
     quitDay: Infinity,
     quit: false,
   };
@@ -643,12 +647,29 @@ function hireCrews(w: World, c: Company, p: BotProfile, today: number): void {
     if (today - victim.createdDay < k.protectDays) continue;
     const last = w.robbery.lastHitDay.get(victim.id);
     if ((last !== undefined && today - last < k.cooldownDays) || crewOn(w, t.id)) continue;
-    const cargo = w.loads.get(t.loadId)?.cargoValue ?? 0;
+    if (k.oneCrewPerVictim && w.robbery.jobs.some((j) => j.victimId === victim.id && j.status === "out")) continue;
+    const load = w.loads.get(t.loadId);
+    const cargo = load?.cargoValue ?? 0;
     const odds = Math.min(k.maxOdds, (k.odds * risk) / k.riskNorm) * (1 - fittingsCut(w, t)) * securityTheftMult(w, victim);
-    const ev = odds * (k.fenceShare * cargo + k.rigShare * k.rigFenceShare * truckValue(w, t)) * (1 - k.washFee) - crewFeeFd(w, t);
+    const ev = odds * (fenceShareOf(w, load) * cargo + k.rigShare * k.rigFenceShare * truckValue(w, t)) * (1 - k.washFee) * k.npcFenceShare - crewFeeFd(w, t);
+    // The stake behind the hire (robbery.realStake) has to be there on top of the fee and the reserve.
+    if (w.ledger.balance(companyAccount(c.id)) - reserve(w, c, p) < crewFeeFd(w, t) + crewStakeFd(w, t)) continue;
     if (ev > 0 && (!best || ev > best.ev)) best = { id: t.id, ev };
   }
   if (best) applyAction(w, c.id, { type: "hire_crew", truckId: best.id });
+}
+
+/** Payback (robbery.bounty): a company hit in the last week puts a bounty on the hirer, once per hit, when the cash is well clear of it. */
+function postBountyAfterHit(w: World, c: Company, p: BotProfile, today: number): void {
+  const k = w.cfg.robbery.bounty;
+  if (!k.enabled || (today + c.id) % 7 !== 1) return;
+  for (const j of w.robbery.jobs) {
+    if (j.victimId !== c.id || j.status !== "hit" || today - j.hiredDay > 14 || p.bountied.has(j.id)) continue;
+    p.bountied.add(j.id);
+    const fd = Math.max(k.minFd, 2 * crewFeeFd(w, w.trucks[j.truckId - 1]!));
+    if (w.ledger.balance(companyAccount(c.id)) - reserve(w, c, p) < 2 * fd) continue;
+    applyAction(w, c.id, { type: "post_bounty", targetId: j.hirerId, fd });
+  }
 }
 
 /** A company a crew came for in the last four weeks fits its owned trucks with a tracker, then locks, as the cash allows. */
@@ -1081,6 +1102,7 @@ function spawnHolders(w: World, rng: Rng): void {
   const make = (kind: Holder["kind"], name: string, usd: number, h: Omit<Holder, "kind" | "entry" | "bought" | "selling">) => {
     const c = formCompany(w, { name, role: "holder", homeHubId: w.net.hubs[0]!.id, strategy: `spec:${kind}`, orders: [], freePath: false });
     c.usd.wallet = usd;
+    if (a.onChain) c.onChain = true; // a wallet, never a game account: the pool alone, no bridge
     m.set(c.id, { kind, entry: 0, bought: false, selling: false, ...h });
   };
   for (let i = 0; i < a.momentum.wallets; i++) make("momentum", `Momentum-${i + 1}`, lognormal(rng, a.momentum.usdMedian), { buyDay: day, sellDay: Infinity });
@@ -1266,6 +1288,7 @@ export const ruleBotHook: DailyAgentHook = (w) => {
       if (cfg.robbery.enabled) {
         if (p.conduct === "outlaw") hireCrews(w, c, p, dayOf(w.t, cfg));
         fitSecurityAfterThreat(w, c, p, dayOf(w.t, cfg));
+        postBountyAfterHit(w, c, p, dayOf(w.t, cfg));
       }
 
       // Worn trucks: rebuild, or past this bot's age limit sell and replace. A worn
@@ -1386,7 +1409,11 @@ export const ruleBotHook: DailyAgentHook = (w) => {
                 const short = price + need - cash;
                 // Purchase loans first when cash is short: the truck secures its own loan.
                 const onLoan = short > 0 && financedBudget(w, c, cash - need) >= price;
-                if (short <= 0 || onLoan || (p.leverage && borrowFor(w, c, short)) || (live && p.payToWin && buyFdFor(w, c, short))) {
+                // The farming season's dollar window (catalogue.usdWindow.assets): a paying bot short of FD buys the rig for dollars.
+                const uw = cfg.token.catalogue.usdWindow;
+                if (short > 0 && !onLoan && !live && cfg.token.enabled && p.payToWin && uw.enabled && uw.assets.enabled && !src?.dealershipId && c.usd.wallet >= assetPriceUsd(w, price) && (uw.assets.capUsdPerMc === null || c.usdSpentBetaAssets + assetPriceUsd(w, price) <= uw.assets.capUsdPerMc)) {
+                  ordered = applyAction(w, c.id, { type: "buy_asset", tier: pick.tier, trailer: spare?.type ?? pick.trailer, replaceNpcLease: false, tractorOnly: spare !== null, pay: "usd" }).ok;
+                } else if (short <= 0 || onLoan || (p.leverage && borrowFor(w, c, short)) || (live && p.payToWin && buyFdFor(w, c, short))) {
                   ordered = applyAction(w, c.id, { type: "buy_asset", tier: pick.tier, trailer: spare?.type ?? pick.trailer, replaceNpcLease: false, tractorOnly: spare !== null, dealershipId: src?.dealershipId || undefined, finance: onLoan || undefined }).ok;
                 }
               }
@@ -1473,6 +1500,8 @@ function maybeBuyBusiness(w: World, c: Company, p: BotProfile, rng: Rng, today: 
   if ((today + c.id) % 7 !== 3 || businessesOf(w, c.id).length >= k.maxPerCompany) return;
   if (rng.next() > 0.25) return;
   const kinds: BusinessKind[] = c.role === "broker" ? ["fuelStation", "truckStop"] : w.cfg.assets.enabled ? ["shop", "dealership", "truckStop", "fuelStation"] : ["shop", "truckStop", "fuelStation"];
+  // The Back Lot (robbery.backLot): an outlaw opens a fence, then a chop shop, before anything else.
+  if (p.conduct === "outlaw" && w.cfg.robbery.enabled && w.cfg.robbery.backLot.enabled) kinds.unshift("fence", "chopShop");
   const cash = w.ledger.balance(companyAccount(c.id)) - reserve(w, c, p);
   const hubId = w.net.hubs[c.homeHub]!.id;
   for (const kind of kinds) {
@@ -1502,7 +1531,7 @@ function maybeBuyBusiness(w: World, c: Company, p: BotProfile, rng: Rng, today: 
       // A new dealership prices a little under the NPC backstop's premium; monthly it follows its sales (priceDealerships).
       const b = businessesOf(w, c.id).at(-1)!;
       applyAction(w, c.id, { type: "set_shop_markup", businessId: b.id, markup: Math.min(k.kinds.dealership.markupRange[1], w.cfg.assets.factory.npcPremium - 0.03) });
-    } else if (kind !== "fuelStation") {
+    } else if (kind !== "fuelStation" && kind !== "fence" && kind !== "chopShop") {
       const b = businessesOf(w, c.id).at(-1)!;
       const [lo, hi] = k.kinds[kind].markupRange;
       applyAction(w, c.id, { type: "set_shop_markup", businessId: b.id, markup: rng.range(lo, hi) });

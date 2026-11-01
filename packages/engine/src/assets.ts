@@ -43,7 +43,10 @@ export function scrapTractor(w: World, truck: Truck, payTo: string, withTrailer:
   truck.status = "retired";
   truck.remainingMi = 0;
   truck.legKey = -1;
-  if (scrap > 0.01) w.ledger.post(w.t, "faucet:scrap", payTo, scrap, `scrap:truck:${truck.id}`);
+  if (scrap > 0.01) {
+    w.ledger.post(w.t, "faucet:scrap", payTo, scrap, `scrap:truck:${truck.id}`);
+    w.ledger.lock(payTo, Math.min(scrap, truck.lockedBasisFd ?? 0)); // bought with spend-only FD: scrapped for the same
+  }
   w.metrics.onScrap("tractor");
 }
 
@@ -67,7 +70,7 @@ export function writeOffRig(w: World, c: Company, truck: Truck): number {
   const tr = hookedTrailer(w, truck);
   if (tr && tr.lease === "owned") trailerGone(w, tr);
   else if (tr) handBack(w, tr);
-  const paid = payPhysicalDamage(w, c, value, `pd:truck:${truck.id}`, owner);
+  const paid = payPhysicalDamage(w, c, value, `pd:truck:${truck.id}`, owner, truck.lockedBasisFd ?? 0);
   const loan = activeLoanOn(w, truck.id);
   if (loan) settleLoanFromSale(w, loan, acct, paid);
   detachTruck(w, truck);
@@ -105,7 +108,7 @@ function stolenFromYard(w: World, c: Company, tr: Trailer): void {
   const value = trailerValue(w, tr);
   for (const l of w.listings) if (l.trailerId === tr.id && l.status === "open") l.status = "withdrawn";
   trailerGone(w, tr);
-  const paid = payPhysicalDamage(w, c, value, `pd:trailer:${tr.id}`);
+  const paid = payPhysicalDamage(w, c, value, `pd:trailer:${tr.id}`, c, tr.lockedBasisFd ?? 0);
   w.metrics.onYardTheft();
   notice(w, c.id, "fleet", `A ${TRAILER_NAME[tr.type]} trailer was stolen from your yard overnight; the insurer paid ${Math.round(paid)} FD.`, "bad");
 }

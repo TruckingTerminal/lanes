@@ -14,6 +14,7 @@
  * unlocked is paid by token.ts, under the supply ceiling like any slice.
  */
 import { dayOf } from "./clock.js";
+import { companyAccount } from "./ledger.js";
 import { facilitiesOf } from "./demand.js";
 import { isManager } from "./labor.js";
 import type { Company, Logbook, Role } from "./types.js";
@@ -34,6 +35,10 @@ interface Milestone {
 
 const day = (w: World) => dayOf(w.t, w.cfg);
 const QUARTER = 91;
+/** What a milestone asks, less its boost (logbook.boost) when the company bought that milestone forward. */
+const need = (w: World, lb: Logbook, id: string, n: number) => (lb.boosts?.includes(id) ? n * w.cfg.token.airdrop.logbook.boost.factor : n);
+/** The milestones a shop item can bring forward: the ones that count something. */
+export const BOOSTABLE = new Set(["haul25", "haul100", "haul250", "haul1000", "onTime", "profit100k", "profit1m", "truck5", "cleanQuarter", "year1", "year2", "year3", "crewHits5", "fenced"]);
 /** On the road: this many game days since the book opened (a game year is three real months), and freight handled. */
 const tenure = (w: World, lb: Logbook, years: number, loads: number) => day(w) - lb.startDay >= years * w.cfg.time.daysPerSeason && lb.handled >= loads;
 
@@ -43,22 +48,22 @@ const ownedTrucks = (w: World, c: Company) => (w.trucksByCompany.get(c.id) ?? []
 
 export const MILESTONES: Milestone[] = [
   // The honest path.
-  { id: "haul25", path: "honest", weight: 4, roles: ["carrier", "broker"], text: "25 loads handled", reached: (_w, _c, lb) => lb.handled >= 25 },
-  { id: "haul100", path: "honest", weight: 6, roles: ["carrier", "broker"], text: "100 loads handled", reached: (_w, _c, lb) => lb.handled >= 100 },
-  { id: "haul250", path: "honest", weight: 8, roles: ["carrier", "broker"], text: "250 loads handled", reached: (_w, _c, lb) => lb.handled >= 250 },
-  { id: "haul1000", path: "honest", weight: 10, roles: ["carrier", "broker"], text: "1,000 loads handled", reached: (_w, _c, lb) => lb.handled >= 1_000 },
+  { id: "haul25", path: "honest", weight: 4, roles: ["carrier", "broker"], text: "25 loads handled", reached: (w, _c, lb) => lb.handled >= need(w, lb, "haul25", 25) },
+  { id: "haul100", path: "honest", weight: 6, roles: ["carrier", "broker"], text: "100 loads handled", reached: (w, _c, lb) => lb.handled >= need(w, lb, "haul100", 100) },
+  { id: "haul250", path: "honest", weight: 8, roles: ["carrier", "broker"], text: "250 loads handled", reached: (w, _c, lb) => lb.handled >= need(w, lb, "haul250", 250) },
+  { id: "haul1000", path: "honest", weight: 10, roles: ["carrier", "broker"], text: "1,000 loads handled", reached: (w, _c, lb) => lb.handled >= need(w, lb, "haul1000", 1_000) },
   {
     id: "onTime",
     path: "honest",
     weight: 6,
     roles: ["carrier"],
     text: "100 loads delivered at 95% on time",
-    reached: (_w, c, lb) => c.delivered - lb.base.delivered >= 100 && (c.onTime - lb.base.onTime) / (c.delivered - lb.base.delivered) >= 0.95,
+    reached: (w, c, lb) => c.delivered - lb.base.delivered >= need(w, lb, "onTime", 100) && (c.onTime - lb.base.onTime) / (c.delivered - lb.base.delivered) >= 0.95,
   },
-  { id: "profit100k", path: "honest", weight: 6, roles: ["carrier", "broker"], text: "100,000 FD of operating profit", reached: (w, c, lb) => operating(w, c) - lb.base.profitFd >= 100_000 },
-  { id: "profit1m", path: "honest", weight: 10, roles: ["carrier", "broker"], text: "1,000,000 FD of operating profit", reached: (w, c, lb) => operating(w, c) - lb.base.profitFd >= 1_000_000 },
+  { id: "profit100k", path: "honest", weight: 6, roles: ["carrier", "broker"], text: "100,000 FD of operating profit", reached: (w, c, lb) => operating(w, c) - lb.base.profitFd >= need(w, lb, "profit100k", 100_000) },
+  { id: "profit1m", path: "honest", weight: 10, roles: ["carrier", "broker"], text: "1,000,000 FD of operating profit", reached: (w, c, lb) => operating(w, c) - lb.base.profitFd >= need(w, lb, "profit1m", 1_000_000) },
   { id: "truck1", path: "honest", weight: 5, roles: ["carrier"], text: "a truck more, owned", reached: (w, c, lb) => ownedTrucks(w, c) >= lb.base.ownedTrucks + 1 },
-  { id: "truck5", path: "honest", weight: 8, roles: ["carrier"], text: "five trucks more, owned", reached: (w, c, lb) => ownedTrucks(w, c) >= lb.base.ownedTrucks + 5 },
+  { id: "truck5", path: "honest", weight: 8, roles: ["carrier"], text: "five trucks more, owned", reached: (w, c, lb) => ownedTrucks(w, c) >= lb.base.ownedTrucks + need(w, lb, "truck5", 5) },
   { id: "business", path: "honest", weight: 6, roles: ["carrier", "broker"], text: "a business owned", open: (w) => w.cfg.businesses.enabled, reached: (w, c) => w.businesses.some((b) => b.ownerId === c.id) },
   { id: "manager", path: "honest", weight: 4, roles: ["carrier"], text: "a manager on staff", reached: (w, c) => w.staff.some((s) => s.companyId === c.id && s.status === "employed" && isManager(s.kind)) },
   {
@@ -69,12 +74,12 @@ export const MILESTONES: Milestone[] = [
     text: "a quarter with no at-fault crash and no claim, 25 loads handled",
     reached: (w, c, lb) => {
       const d = day(w);
-      return d - lb.startDay >= QUARTER && lb.handled >= 25 && !c.safety.crashes.some((k) => k.atFault && d - k.day < QUARTER) && !c.claims.some((k) => d - k.day < QUARTER);
+      return d - lb.startDay >= QUARTER && lb.handled >= need(w, lb, "cleanQuarter", 25) && !c.safety.crashes.some((k) => k.atFault && d - k.day < QUARTER) && !c.claims.some((k) => d - k.day < QUARTER);
     },
   },
-  { id: "year1", path: "honest", weight: 8, roles: ["carrier", "broker"], text: "a game year on the road, 100 loads handled", reached: (w, _c, lb) => tenure(w, lb, 1, 100) },
-  { id: "year2", path: "honest", weight: 10, roles: ["carrier", "broker"], text: "two game years on the road, 200 loads handled", reached: (w, _c, lb) => tenure(w, lb, 2, 200) },
-  { id: "year3", path: "honest", weight: 12, roles: ["carrier", "broker"], text: "three game years on the road, 300 loads handled", reached: (w, _c, lb) => tenure(w, lb, 3, 300) },
+  { id: "year1", path: "honest", weight: 8, roles: ["carrier", "broker"], text: "a game year on the road, 100 loads handled", reached: (w, _c, lb) => tenure(w, lb, 1, need(w, lb, "year1", 100)) },
+  { id: "year2", path: "honest", weight: 10, roles: ["carrier", "broker"], text: "two game years on the road, 200 loads handled", reached: (w, _c, lb) => tenure(w, lb, 2, need(w, lb, "year2", 200)) },
+  { id: "year3", path: "honest", weight: 12, roles: ["carrier", "broker"], text: "three game years on the road, 300 loads handled", reached: (w, _c, lb) => tenure(w, lb, 3, need(w, lb, "year3", 300)) },
   { id: "satisfactory", path: "honest", weight: 5, roles: ["carrier"], text: "a satisfactory compliance review", reached: (_w, c, lb) => c.safety.rating === "satisfactory" && c.safety.ratingDay !== null && c.safety.ratingDay >= lb.startDay },
   { id: "contract", path: "honest", weight: 6, roles: ["carrier"], text: "a contract term kept in full", reached: (_w, _c, lb) => lb.contractsKept >= 1 },
   {
@@ -88,9 +93,9 @@ export const MILESTONES: Milestone[] = [
   },
   // The criminal path.
   { id: "crewHit", path: "criminal", weight: 8, roles: ["carrier", "broker"], text: "a crew of yours hit", open: (w) => w.cfg.robbery.enabled, reached: (_w, _c, lb) => lb.hits >= 1 },
-  { id: "crewHits5", path: "criminal", weight: 10, roles: ["carrier", "broker"], text: "five hits by your crews", open: (w) => w.cfg.robbery.enabled, reached: (_w, _c, lb) => lb.hits >= 5 },
+  { id: "crewHits5", path: "criminal", weight: 10, roles: ["carrier", "broker"], text: "five hits by your crews", open: (w) => w.cfg.robbery.enabled, reached: (w, _c, lb) => lb.hits >= need(w, lb, "crewHits5", 5) },
   { id: "chopped", path: "criminal", weight: 6, roles: ["carrier", "broker"], text: "a rig taken and chopped", open: (w) => w.cfg.robbery.enabled, reached: (_w, _c, lb) => lb.rigs >= 1 },
-  { id: "fenced", path: "criminal", weight: 10, roles: ["carrier", "broker"], text: "100,000 FD fenced", reached: (_w, _c, lb) => lb.takeFd >= 100_000 },
+  { id: "fenced", path: "criminal", weight: 10, roles: ["carrier", "broker"], text: "100,000 FD fenced", reached: (w, _c, lb) => lb.takeFd >= need(w, lb, "fenced", 100_000) },
   { id: "coldCase", path: "criminal", weight: 8, roles: ["carrier", "broker"], text: "a case gone cold", reached: (_w, _c, lb) => lb.coldCases >= 1 },
 ];
 
@@ -120,7 +125,29 @@ export function openLogbook(w: World, c: Company, allocationFd: number): Logbook
     takeFd: 0,
     coldCases: 0,
     closed: false,
+    boosts: [],
   };
+}
+
+/**
+ * The logbook's shop item (logbook.boost; Jeff, 2026-10-31: milestones unlock "through achievements, items"): buys a
+ * milestone forward, once, for a share of the allocation (a sink); it then asks `factor` of what it did. Returns why not.
+ */
+export function buyLogbookBoost(w: World, c: Company, id: string): string | null {
+  const k = w.cfg.token.airdrop.logbook;
+  if (!k.enabled || !k.boost.enabled) return "no logbook items";
+  const lb = openBook(c);
+  if (!lb) return "no open logbook";
+  const m = MILESTONES.find((x) => x.id === id);
+  if (!m || !applies(w, m, c.role) || !BOOSTABLE.has(id)) return "that milestone can't be bought forward";
+  if (lb.done.includes(id)) return "already reached";
+  lb.boosts ??= [];
+  if (lb.boosts.includes(id)) return "already bought";
+  const price = Math.max(k.boost.minFd, lb.allocationFd * k.boost.share);
+  if (w.ledger.balance(companyAccount(c.id)) < price) return "not enough FD";
+  w.ledger.post(w.t, companyAccount(c.id), "sink:logbook_boost", price, `boost:${id}:${c.id}`);
+  lb.boosts.push(id);
+  return null;
 }
 
 /** The open logbook, if the company has one. */

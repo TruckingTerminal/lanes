@@ -93,9 +93,13 @@ export function buyAssetSale(w: World, buyer: Company, s: AssetSale): string | n
   if (w.ledger.balance(buyerAcct) < s.askFd + tax + bond) return "insufficient FD";
   const ref = `assetsale:${s.id}`;
   const fee = s.askFd * w.cfg.usedMarket.feePct;
-  w.ledger.post(w.t, buyerAcct, "sink:market_fee", fee, ref);
+  let lockedPaid = w.ledger.post(w.t, buyerAcct, "sink:market_fee", fee, ref);
   chargeSalesTax(w, buyer.id, s.askFd, ref);
-  w.ledger.post(w.t, buyerAcct, sellerAcct, s.askFd - fee, ref);
+  const carried = w.ledger.post(w.t, buyerAcct, sellerAcct, s.askFd - fee, ref);
+  lockedPaid += carried;
+  // Bought with spend-only FD (ledger.ts): sold for the same, up to that basis; the buyer's locked payment is the new basis.
+  const basis = s.kind === "business" ? (w.businesses[s.refId - 1]!.lockedBasisFd ?? 0) : s.kind === "facility" ? (w.facilities[s.refId - 1]!.lockedBasisFd ?? 0) : (seller.yardLockedBasisFd ?? 0);
+  w.ledger.lock(sellerAcct, Math.max(0, Math.min(s.askFd - fee, basis) - carried));
   const today = dayOf(w.t, w.cfg);
   if (s.kind === "business") {
     const b = w.businesses[s.refId - 1]!;
@@ -108,11 +112,13 @@ export function buyAssetSale(w: World, buyer: Company, s: AssetSale): string | n
     b.boughtDay = today;
     b.netFd = -(s.askFd + tax);
     b.purchaseFd = s.askFd + tax;
+    b.lockedBasisFd = lockedPaid;
   } else if (s.kind === "facility") {
     const f = w.facilities[s.refId - 1]!;
     f.ownerId = buyer.id;
     f.boughtDay = today;
     f.netFd = -(s.askFd + tax);
+    f.lockedBasisFd = lockedPaid;
   } else {
     if (seller.yardBondFd > 0) {
       w.ledger.post(w.t, contractAccount(seller.id), sellerAcct, seller.yardBondFd, `bond:yard:${seller.id}`);
@@ -120,6 +126,8 @@ export function buyAssetSale(w: World, buyer: Company, s: AssetSale): string | n
     }
     buyer.yard = seller.yard;
     buyer.yardBondFd = seller.yardBondFd;
+    buyer.yardLockedBasisFd = lockedPaid;
+    seller.yardLockedBasisFd = 0;
     buyer.trailerSpaces = seller.trailerSpaces;
     seller.yard = "none";
     seller.yardBondFd = 0;

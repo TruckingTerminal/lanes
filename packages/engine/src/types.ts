@@ -197,9 +197,11 @@ export interface Company {
   bankruptcies: number;
   /** Real money (buyback or token phase): outside dollars the owner will put in, and dollars put in and taken out so far. */
   usd: { wallet: number; in: number; out: number };
-  /** FD that can be spent in the game but not sold: launch carryover and post-launch starting grants. Spending uses it first. */
-  lockedFd: number;
-  /** freeEntry.freePath "spendOnly": the part of lockedFd the free path earned, unlocked with the first owned truck. */
+  /**
+   * Spend-only FD lives in the ledger (ledger.locked): the launch carryover, a post-launch grant, the free path's
+   * earnings, the airdrop paid locked, and locked FD received from other players. This is the part of it the free
+   * path earned (freeEntry.freePath "spendOnly"), unlocked with the first owned truck.
+   */
   freePathLockedFd: number;
   /** Staking (staking.ts): FD locked as the bond behind the licence, and FD in the exit queue with the day each slice clears. */
   stakedFd: number;
@@ -212,6 +214,12 @@ export interface Company {
   soldFd: { day: number; fd: number };
   /** Days with a sale on the exchange, within the frequency fee's window (token.exchange.frequency). */
   sellDays: number[];
+  /** The bridge (token.bridge): withdrawals waiting out the timer, the FD frozen in the company's bridge account. */
+  withdrawals: { fd: number; day: number }[];
+  /** Spend-only FD the yard was bought with: its resale returns proceeds locked up to it. */
+  yardLockedBasisFd?: number;
+  /** A wallet outside the game (adversaries.onChain): trades meet the pool alone, never the bridge. */
+  onChain?: boolean;
   /** Payment terms (receivables.ts): wait for the due day, take quick pay, or factor the invoice. */
   payTerms: "net" | "quick" | "factor";
   /** The factoring contract in force: its term and the stake locked behind it (receivables.ts). */
@@ -232,6 +240,8 @@ export interface Company {
   trailerSpaces: number;
   yardBondFd: number;
   usdSpentBeta: number;
+  /** Dollars spent on rigs and trailers in the farming season (catalogue.usdWindow.assets). */
+  usdSpentBetaAssets: number;
   /** Brokers: who carries the bond this term, the surety pool or the NPC surety, and what the bond has paid out on this company so far. */
   suretyWriter: "pool" | "npc";
   suretyClaimedFd: number;
@@ -396,6 +406,8 @@ export interface FraudCase {
 export interface Airdrop {
   totalFd: number;
   unlockedFd: number;
+  /** logbook.paidLocked: the allocation's spend-only part not yet unlocked for withdrawal (bookkeeping; the ledger holds the lock). */
+  lockedFd?: number;
   forfeitedFd: number;
   /** Unlocked but waiting for room under the supply ceiling (ceiling.ts): owed, paid as room comes back. */
   queuedFd: number;
@@ -424,6 +436,8 @@ export interface Logbook {
   takeFd: number;
   coldCases: number;
   closed: boolean;
+  /** Milestones bought forward (logbook.boost). */
+  boosts?: string[];
 }
 
 /**
@@ -453,6 +467,10 @@ export type LeaseKind = "npc" | "lessor" | "owned";
 export interface Truck {
   id: number;
   companyId: number;
+  /** Spend-only FD this truck was bought with (ledger.ts locks): a sale, a write-off or scrap returns proceeds locked up to it. */
+  lockedBasisFd?: number;
+  /** The part of its lease deposit that was paid with spend-only FD, refunded locked. */
+  depositLockedFd?: number;
   lease: LeaseKind;
   tier: TractorTier;
   trailer: Equipment;
@@ -555,6 +573,8 @@ export interface Trailer {
   id: number;
   /** The company that has it (owns or rents it); 0 once gone. */
   companyId: number;
+  /** Spend-only FD it was bought with: a sale, a write-off or scrap returns proceeds locked up to it. */
+  lockedBasisFd?: number;
   type: Equipment;
   lease: "owned" | "rental" | "npc";
   status: TrailerStatus;
@@ -673,6 +693,8 @@ export interface Facility {
   type: FacilityType;
   /** 0 once its owner was liquidated: the facility is closed and its slot is back in supply. */
   ownerId: number;
+  /** Spend-only FD it was bought with: a resale returns proceeds locked up to it. */
+  lockedBasisFd?: number;
   hub: number;
   equipment: Equipment;
   boughtDay: number;
@@ -680,7 +702,7 @@ export interface Facility {
   netFd: number;
 }
 
-export type BusinessKind = "shop" | "truckStop" | "fuelStation" | "dealership";
+export type BusinessKind = "shop" | "truckStop" | "fuelStation" | "dealership" | "fence" | "chopShop";
 
 /** A truck-stop site on an interstate (sites.ts): where a truck stop can be built. */
 export interface TruckStopSite {
@@ -709,6 +731,10 @@ export interface Business {
   kind: BusinessKind;
   /** 0 once closed (its owner liquidated): the slot is back in supply. */
   ownerId: number;
+  /** Spend-only FD it was bought with (a resale returns proceeds locked up to it), the same for the stock on its lot, and the locked part of its last sale's payment (for the order it fills). */
+  lockedBasisFd?: number;
+  stockLockedFd?: number;
+  lastSaleLockedFd?: number;
   /** Hub businesses: the hub; a truck stop: −1, and its site below. */
   hub: number;
   site: number;
@@ -751,6 +777,8 @@ export interface TruckOrder {
   replaceNpcLease: boolean;
   orderedDay: number;
   dueDay: number;
+  /** Spend-only FD the order was paid with: the delivered asset's locked basis (ledger.ts). */
+  lockedPaidFd?: number;
   /** From the NPC used lot (usedMarket.npcLot): the worn rig it delivers, as priced. */
   used?: { odometer: number; milesSinceRebuild: number; rebuilds: number; builtDay: number; trailerMilesSinceRefurb: number };
 }
@@ -832,9 +860,9 @@ export type Action =
   | { type: "set_standing_orders"; orders: StandingOrder[] }
   /** A dealer order. Assets: `tractorOnly` orders the tractor without a trailer (it hooks a spare from the yard, or a rental). */
   /** `finance`: on a purchase loan (purchaseLoans.ts) instead of cash. */
-  | { type: "buy_asset"; tier: TractorTier; trailer: Equipment; replaceNpcLease: boolean; tractorOnly?: boolean; dealershipId?: number; finance?: boolean; used?: boolean }
+  | { type: "buy_asset"; tier: TractorTier; trailer: Equipment; replaceNpcLease: boolean; tractorOnly?: boolean; dealershipId?: number; finance?: boolean; used?: boolean; pay?: "usd" }
   /** Assets: a trailer alone, delivered to the yard (or straight behind a tractor pulling a rental there). From a player dealership's stock, or the NPC dealer. */
-  | { type: "buy_trailer"; trailer: Equipment; dealershipId?: number }
+  | { type: "buy_trailer"; trailer: Equipment; dealershipId?: number; pay?: "usd" }
   /** Assets: sell an idle owned truck to a dealership's used lot at its trade-in share of value. */
   | { type: "trade_in"; truckId: number; dealershipId: number }
   /** Assets, player lessors: offer an idle tractor for lease by the week, withdraw the offer, or take one. A lessee hands it back with return_lease. */
@@ -862,12 +890,16 @@ export type Action =
   | { type: "buy_listing"; listingId: number; finance?: boolean }
   /** Hired robbers (robbery.ts): a crew against another company's truck, and a security fitting on your own. */
   | { type: "hire_crew"; truckId: number }
+  /** A bounty on a company (robbery.bounty): FD held in escrow, paid to whoever's crew hits it. */
+  | { type: "post_bounty"; targetId: number; fd: number }
+  /** The logbook's shop item (token.airdrop.logbook.boost): brings a milestone forward, once. */
+  | { type: "buy_logbook_boost"; milestone: string }
   | { type: "fit_security"; truckId: number; item: "tracker" | "locks" | "camera" }
   | { type: "deposit_finance"; amountFd: number }
   | { type: "withdraw_finance"; amountFd: number }
   | { type: "borrow"; truckId: number; amountFd: number }
   | { type: "repay_loan"; loanId: number }
-  | { type: "buy_facility"; facility: FacilityType; hubId: string }
+  | { type: "buy_facility"; facility: FacilityType; hubId: string; pay?: "usd" }
   | { type: "lease_truck"; trailer: Equipment }
   /** A sealed bid by hand for the next board round (§Load board: sealed bids, plus standing orders). It replaces this truck's standing-order bids that round. */
   | { type: "place_bid"; truckId: number; loadId: number; rate: number }
@@ -886,6 +918,8 @@ export type Action =
   | { type: "buy_fd"; usd: number }
   /** The opening auction (token.launch.auction): dollars bid before launch, cleared at one price when it opens. */
   | { type: "bid_auction"; usd: number }
+  /** The bridge (token.bridge): takes back the withdrawals still waiting, for the cancel burn. */
+  | { type: "cancel_withdrawal" }
   | { type: "sell_fd"; fd: number }
   | { type: "stake_fd"; fd: number }
   | { type: "unstake_fd"; fd: number; instant: boolean }
@@ -893,8 +927,8 @@ export type Action =
   | { type: "withdraw_pool"; line: PoolLine; amountFd: number }
   | { type: "set_pay_terms"; terms: "net" | "quick" | "factor" }
   | { type: "buy_item"; item: ItemKind; pay: "fd" | "usd"; truckId?: number }
-  | { type: "buy_business"; kind: "shop" | "fuelStation" | "dealership"; hubId: string }
-  | { type: "buy_business"; kind: "truckStop"; siteId: number }
+  | { type: "buy_business"; kind: "shop" | "fuelStation" | "dealership" | "fence" | "chopShop"; hubId: string; pay?: "usd" }
+  | { type: "buy_business"; kind: "truckStop"; siteId: number; pay?: "usd" }
   | { type: "set_shop_markup"; businessId: number; markup: number }
   | { type: "set_parking_price"; businessId: number; fd: number }
   | { type: "add_parking"; businessId: number }
@@ -964,6 +998,8 @@ export interface TokenState {
     seedEscrowUsd: number;
     vestedFd: number;
     devUsd: number;
+    /** The vest's allocation at launch (vest.linear: the week's share is of this). */
+    vestBaseFd?: number;
   };
   /** Daily pool price after launch. */
   priceHistory: number[];
@@ -981,6 +1017,8 @@ export interface TokenState {
   auction: { usd: number; fd: number; bidders: number; priceUsd: number; poolUsd: number; poolFd: number; treasuryUsd: number } | null;
   /** The pool's launch fees (exchange.launchFee, sizeFee): dollars taken on buys and FD burned on sales above the normal fees. */
   launchFee: { buyUsd: number; sellFd: number };
+  /** The bridge (token.bridge): today's outflow against the cap, and the tallies: requested, cleared, days a request waited, and FD held back by the cap. */
+  bridge: { dayOut: { day: number; fd: number }; requestedFd: number; clearedFd: number; waitDays: number; cleared: number; cappedFd: number; cappedDays: number; cancelledFd: number };
   airdrop: {
     mintedFd: number;
     forfeitedFd: number;

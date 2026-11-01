@@ -1,5 +1,6 @@
 import { layerBlock } from "./ladder.js";
-import { fitSecurity, hireCrew } from "./robbery.js";
+import { buyLogbookBoost } from "./logbook.js";
+import { fitSecurity, hireCrew, postBounty } from "./robbery.js";
 import { scaleDiscount } from "./scale.js";
 import { acceptOffer, acceptTender, declineOffer, mayTake, rejectTender } from "./contracts.js";
 import { addParking, buyBusiness, buyTruckStop, serviceBill, setParkingPrice, setShopMarkup } from "./businesses.js";
@@ -7,7 +8,8 @@ import { chargeSalesTax, salesTaxOn } from "./salesTax.js";
 import { bookLoad } from "./board.js";
 import { offerFd } from "./buyback.js";
 import { leaseTruck, returnLease } from "./capacity.js";
-import { bidAuction, buyFd, claimAirdropNow, sellFd } from "./token.js";
+import { bidAuction, buyFd, cancelWithdrawal, claimAirdropNow, sellFd } from "./token.js";
+import { payAssetUsd } from "./items.js";
 import { dayOf } from "./clock.js";
 import { dealerPrice, lotPrice, lotSpec, ordersOf, placeOrder, tractorOrdersOf, tractorPrice, trailerOrdersOf, trailerPrice } from "./dealer.js";
 import { fitTrailer, hook, hookedTrailer, ownedTrailers, rentTrailer, scrapTrailer, syncTrailer, trailerById, trailerCap, trailerCondition, trailerRefurbishable, unhook } from "./trailers.js";
@@ -103,6 +105,10 @@ export function badInput(cfg: EconomyConfig, a: Action): string | null {
     case "steal_load":
     case "hire_crew":
       return isId(a.truckId) ? null : "bad truck id";
+    case "post_bounty":
+      return isId(a.targetId) && isFd(a.fd) ? null : "bad bounty";
+    case "buy_logbook_boost":
+      return isStr(a.milestone) ? null : "bad milestone";
     case "fit_security":
       return isId(a.truckId) && (a.item === "tracker" || a.item === "locks" || a.item === "camera") ? null : "bad fitting";
     case "reposition_truck":
@@ -129,6 +135,8 @@ export function badInput(cfg: EconomyConfig, a: Action): string | null {
     case "buy_fd":
     case "bid_auction":
       return finiteIn(a.usd, 0.01, 1e9) ? null : "bad amount";
+    case "cancel_withdrawal":
+      return null;
     case "sell_fd":
       return finiteIn(a.fd, 0.01, 1e12) ? null : "bad amount";
     case "stake_fd":
@@ -143,7 +151,7 @@ export function badInput(cfg: EconomyConfig, a: Action): string | null {
     case "buy_item":
       return ["yardSmall", "yardLarge", "trailerSpace", "apu", "aero", "tires", "sleeper"].includes(a.item) && (a.pay === "fd" || a.pay === "usd") && (a.truckId === undefined || isId(a.truckId)) ? null : "bad item";
     case "buy_business":
-      return a.kind === "truckStop" ? (isId(a.siteId) ? null : "bad site") : (a.kind === "shop" || a.kind === "fuelStation" || a.kind === "dealership") && typeof a.hubId === "string" ? null : "bad business";
+      return a.kind === "truckStop" ? (isId(a.siteId) ? null : "bad site") : (a.kind === "shop" || a.kind === "fuelStation" || a.kind === "dealership" || a.kind === "fence" || a.kind === "chopShop") && typeof a.hubId === "string" ? null : "bad business";
     case "set_shop_markup":
       return isId(a.businessId) && finiteIn(a.markup, 0.5, 2) ? null : "bad markup";
     case "set_parking_price":
@@ -177,7 +185,7 @@ export function badInput(cfg: EconomyConfig, a: Action): string | null {
 const LIQUIDATING_BLOCKED = new Set<Action["type"]>(["place_bid", "book_load", "reposition_truck", "buy_asset", "buy_trailer", "rent_trailer", "buy_facility", "lease_truck", "borrow", "buy_listing", "unpark_truck", "offer_staff", "take_lease", "buy_asset_sale", "list_asset_sale"]);
 
 /** What a company whose authority was revoked can still do: wait out the bar, file again, and handle its money. */
-const ALLOWED_REVOKED = new Set<Action["type"]>(["wait", "refile_authority", "buy_fd", "bid_auction", "sell_fd", "offer_fd", "claim_airdrop_now", "withdraw_finance", "withdraw_listing", "set_compliance", "set_vetting", "set_auto_staff"]);
+const ALLOWED_REVOKED = new Set<Action["type"]>(["wait", "refile_authority", "buy_fd", "bid_auction", "sell_fd", "cancel_withdrawal", "offer_fd", "claim_airdrop_now", "withdraw_finance", "withdraw_listing", "set_compliance", "set_vetting", "set_auto_staff"]);
 const SCOPES: RuleScope[] = ["legal", "hot", "always"];
 /**
  * The bad-actor actions: an illegal policy, re-brokering and theft. Players may
@@ -424,11 +432,13 @@ export function applyAction(w: World, companyId: number, action: Action): Action
         const loan = action.finance ? financePurchase(w, company, dealershipPrice(w, b, company.id, kind, action.tier, action.trailer)) : null;
         if (typeof loan === "string") return { ok: false, reason: loan };
         const why = sellFromStock(w, company, b, kind, action.tier, action.trailer);
+        const lockedPaid = b.lastSaleLockedFd ?? 0;
         if (why) {
           if (loan) cancelPurchaseLoan(w, loan);
           return { ok: false, reason: why };
         }
         const order = placeOrder(w, company, action.tier, action.trailer, replacing, kind, cfg.businesses.kinds.dealership.deliveryDays);
+        order.lockedPaidFd = lockedPaid;
         if (loan) loan.orderId = order.id;
         company.firstOwnedTruckDay ??= dayOf(w.t, cfg);
         return { ok: true };
@@ -447,12 +457,13 @@ export function applyAction(w: World, companyId: number, action: Action): Action
           return { ok: false, reason: "insufficient FD" };
         }
         const ref = `buy:used:${company.id}:${action.tier}:${action.trailer}`;
-        w.ledger.post(w.t, acct, "sink:used_lot", price, ref);
+        const lockedPaid = w.ledger.post(w.t, acct, "sink:used_lot", price, ref);
         chargeSalesTax(w, company.id, price, ref);
         w.usedLot.stock--;
         w.usedLot.sold++;
         const order = placeOrder(w, company, action.tier, action.trailer, replacing, kind, npcDealerDays(w));
         order.used = lotSpec(w, action.trailer);
+        order.lockedPaidFd = lockedPaid;
         if (loan) loan.orderId = order.id;
         company.firstOwnedTruckDay ??= dayOf(w.t, cfg);
         return { ok: true };
@@ -462,6 +473,15 @@ export function applyAction(w: World, companyId: number, action: Action): Action
       // The NPC dealer: list price; while a player dealership is open, the backstop's premium and longer wait.
       // A big fleet buys at fleet pricing (scale.ts).
       const price = (kind === "tractor" ? tractorPrice(w, action.tier) : dealerPrice(w, action)) * npcDealerMult(w) * (1 - scaleDiscount(w, company));
+      // The farming season's dollar window (token.catalogue.usdWindow.assets): a new rig for dollars, every dollar held for the launch pool.
+      if (action.pay === "usd") {
+        const why = payAssetUsd(w, company, price);
+        if (why) return { ok: false, reason: why };
+        takeSupplyFor(w, kind, action.tier, action.trailer, firstTruck);
+        placeOrder(w, company, action.tier, action.trailer, replacing, kind, npcDealerDays(w)).lockedPaidFd = 0;
+        company.firstOwnedTruckDay ??= dayOf(w.t, cfg);
+        return { ok: true };
+      }
       if (replacing) releaseDepositFor(w, company, action.finance ? financedCashNeed(w, company, price) : price + salesTaxOn(w, price));
       const loan = action.finance ? financePurchase(w, company, price) : null;
       if (typeof loan === "string") return { ok: false, reason: loan };
@@ -471,10 +491,11 @@ export function applyAction(w: World, companyId: number, action: Action): Action
       }
 
       const ref = `buy:${company.id}:${action.tier}:${kind === "tractor" ? "tractor" : action.trailer}`;
-      w.ledger.post(w.t, acct, "sink:equipment_dealer", price, ref);
+      const lockedPaid = w.ledger.post(w.t, acct, "sink:equipment_dealer", price, ref);
       chargeSalesTax(w, company.id, price, ref);
       takeSupplyFor(w, kind, action.tier, action.trailer, firstTruck);
       const order = placeOrder(w, company, action.tier, action.trailer, replacing, kind, npcDealerDays(w));
+      order.lockedPaidFd = lockedPaid;
       if (loan) loan.orderId = order.id;
       company.firstOwnedTruckDay ??= dayOf(w.t, cfg);
       return { ok: true };
@@ -529,17 +550,24 @@ export function applyAction(w: World, companyId: number, action: Action): Action
         if (!b) return { ok: false, reason: "no such dealership" };
         const why = sellFromStock(w, company, b, "trailer", "workhorse", action.trailer);
         if (why) return { ok: false, reason: why };
-        placeOrder(w, company, "workhorse", action.trailer, false, "trailer", cfg.businesses.kinds.dealership.deliveryDays);
+        placeOrder(w, company, "workhorse", action.trailer, false, "trailer", cfg.businesses.kinds.dealership.deliveryDays).lockedPaidFd = b.lastSaleLockedFd ?? 0;
         return { ok: true };
       }
       if (availableSupplyFor(w, "trailer", "workhorse", action.trailer, false) <= 0) return { ok: false, reason: "PoC supply exhausted" };
       const price = trailerPrice(w, action.trailer) * npcDealerMult(w);
+      if (action.pay === "usd") {
+        const why = payAssetUsd(w, company, price);
+        if (why) return { ok: false, reason: why };
+        takeSupplyFor(w, "trailer", "workhorse", action.trailer, false);
+        placeOrder(w, company, "workhorse", action.trailer, false, "trailer", npcDealerDays(w)).lockedPaidFd = 0;
+        return { ok: true };
+      }
       if (w.ledger.balance(acct) < price) return { ok: false, reason: "insufficient FD" };
       const ref = `buy:${company.id}:trailer:${action.trailer}`;
-      w.ledger.post(w.t, acct, "sink:equipment_dealer", price, ref);
+      const lockedPaid = w.ledger.post(w.t, acct, "sink:equipment_dealer", price, ref);
       chargeSalesTax(w, company.id, price, ref);
       takeSupplyFor(w, "trailer", "workhorse", action.trailer, false);
-      placeOrder(w, company, "workhorse", action.trailer, false, "trailer", npcDealerDays(w));
+      placeOrder(w, company, "workhorse", action.trailer, false, "trailer", npcDealerDays(w)).lockedPaidFd = lockedPaid;
       return { ok: true };
     }
 
@@ -773,6 +801,15 @@ export function applyAction(w: World, companyId: number, action: Action): Action
     case "bid_auction":
       return result(bidAuction(w, company, action.usd));
 
+    case "post_bounty":
+      return result(postBounty(w, company, action.targetId, action.fd));
+
+    case "buy_logbook_boost":
+      return result(buyLogbookBoost(w, company, action.milestone));
+
+    case "cancel_withdrawal":
+      return result(cancelWithdrawal(w, company));
+
     case "sell_fd":
       return result(sellFd(w, company, action.fd));
 
@@ -792,7 +829,7 @@ export function applyAction(w: World, companyId: number, action: Action): Action
       return result(buyItem(w, company, action.item, action.pay, action.truckId));
 
     case "buy_business":
-      return result(action.kind === "truckStop" ? buyTruckStop(w, company, action.siteId) : buyBusiness(w, company, action.kind, action.hubId));
+      return result(action.kind === "truckStop" ? buyTruckStop(w, company, action.siteId, action.pay) : buyBusiness(w, company, action.kind, action.hubId, action.pay));
 
     case "set_shop_markup":
       return result(setShopMarkup(w, company, action.businessId, action.markup));
@@ -827,13 +864,21 @@ export function applyAction(w: World, companyId: number, action: Action): Action
       if (w.facilitySupply[action.facility] <= 0) return { ok: false, reason: "PoC supply exhausted" };
       if (facilitiesOf(w, company.id).length >= facilityCap(w, company)) return { ok: false, reason: "company facility cap" };
       const price = cfg.facilities.types[action.facility].priceFd;
-      if (w.ledger.balance(acct) < price) return { ok: false, reason: "insufficient FD" };
-      w.ledger.post(w.t, acct, "sink:facility_dealer", price, `facility:${company.id}:${action.facility}`);
-      chargeSalesTax(w, company.id, price, `facility:${company.id}:${action.facility}`);
+      let lockedPaid = 0;
+      if (action.pay === "usd") {
+        // The farming season's dollar window (token.catalogue.usdWindow.assets): every dollar held for the launch pool.
+        const why = payAssetUsd(w, company, price);
+        if (why) return { ok: false, reason: why };
+      } else {
+        if (w.ledger.balance(acct) < price) return { ok: false, reason: "insufficient FD" };
+        lockedPaid = w.ledger.post(w.t, acct, "sink:facility_dealer", price, `facility:${company.id}:${action.facility}`);
+        chargeSalesTax(w, company.id, price, `facility:${company.id}:${action.facility}`);
+      }
       w.facilitySupply[action.facility]--;
       w.facilities.push({
         id: w.facilities.length + 1,
         type: action.facility,
+        lockedBasisFd: lockedPaid,
         ownerId: company.id,
         hub,
         equipment: facilityEquipment(w, action.facility, hub),

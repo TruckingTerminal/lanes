@@ -1,5 +1,5 @@
 import type { JSX } from "preact";
-import { EXCHANGE_ACCOUNT, fdPriceUsd, tokenLive, valuation, type DayMetrics } from "@lanes/engine";
+import { bridgeDelayDays, ceilingFd, EXCHANGE_ACCOUNT, fdPriceUsd, outstandingFd, queuedAirdropFd, tokenLive, valuation, vestAccount, type DayMetrics } from "@lanes/engine";
 import { fd, pct, usd } from "../../format.js";
 import { S, useData } from "../../state.js";
 import { Bar, Card, Kv, Num, Panel, Sparkline } from "../bits.js";
@@ -129,6 +129,31 @@ export function Economy(): JSX.Element {
           />
         </Card>
       ) : null}
+      {live ? (
+        <Card title="Supply control">
+          <p class="muted small">Every faucet, sink and schedule, in the open (Jeff: "complete supply control"). The path never looks at the price.</p>
+          <Kv
+            rows={[
+              ...(w.token.ceiling.baseFd !== null
+                ? ([
+                    ["FD outstanding vs the published path", <Num class={outstandingFd(w) > ceilingFd(w) ? "bad" : "good"}>{fd(outstandingFd(w))} of {fd(ceilingFd(w))} allowed{w.token.ceiling.holding ? " · payouts waiting" : ""}</Num>],
+                    ["Airdrop owed under the path", <Num>{fd(queuedAirdropFd(w))} FD · {w.token.ceiling.weeksHolding} weeks held so far</Num>],
+                    ["The balance dial", <Num>NPC rates at {w.stab.rateMult.toFixed(3)}× (launched at {w.token.ceiling.launchMult.toFixed(3)}×)</Num>],
+                  ] as [string, JSX.Element][])
+                : []),
+              ["Spend-only FD", <Num>{fd(w.ledger.lockedSupply())} FD (the airdrop until its milestones, carryover, grants)</Num>],
+              ["Airdrop", <Num>{fd(w.token.airdrop.mintedFd)} minted · {fd(w.token.airdrop.forfeitedFd)} forfeited or burned</Num>],
+              ...(w.cfg.token.bridge.enabled
+                ? ([["The bridge", <Num>{fd(w.companies.reduce((s, c) => s + c.withdrawals.reduce((x, r) => x + r.fd, 0), 0))} FD waiting ({bridgeDelayDays(w, Math.floor(w.t / w.cfg.time.gameMinutesPerDay))} days today) · {fd(w.token.bridge.clearedFd)} cleared since launch · {w.token.bridge.cappedDays} days capped</Num>]] as [string, JSX.Element][])
+                : []),
+              ...(w.token.auction ? ([["The opening auction", <Num>{usd(w.token.auction.usd)} from {w.token.auction.bidders} bidders at ${w.token.auction.priceUsd.toFixed(5)} · the pool opened with {usd(w.token.auction.poolUsd)}</Num>]] as [string, JSX.Element][]) : []),
+              ...(circular ? ([["The vest", <Num>{fd(w.token.treasury.vestedFd)} FD sold for {usd(w.token.treasury.devUsd)} · {fd(w.ledger.balance(vestAccount(w)))} FD left to vest</Num>]] as [string, JSX.Element][]) : []),
+              ["Burned, last 30 days", <Num>{tally(days, (d) => d.burnByTag).map(([t, v]) => `${name(t)} ${fd(v)}`).join(" · ") || "none"}</Num>],
+              ["Minted, last 30 days", <Num>{tally(days, (d) => d.mintByTag).map(([t, v]) => `${name(t)} ${fd(v)}`).join(" · ") || "none"}</Num>],
+            ]}
+          />
+        </Card>
+      ) : null}
       <Card title="The market">
         <Kv
           rows={[
@@ -139,6 +164,7 @@ export function Economy(): JSX.Element {
             ["Breakdowns", <Num>{served ? `${pct(sum((d) => d.roadServiceStop ?? 0) / served)} by truck stops, ${pct(sum((d) => d.roadServiceHub ?? 0) / served)} by hub shops, the rest by NPC road service` : "none"}</Num>],
             ["Nights on the road", <Num>{nights ? `${pct(sum((d) => d.siteNights ?? 0) / nights)} at a site · ${fd(sum((d) => d.tickets ?? 0))} shoulder tickets` : "–"}</Num>],
             ["Cargo stolen", <Num>{fd(sum((d) => d.cargoThefts ?? 0))} loads · {fd(sum((d) => d.cargoTheftFd ?? 0))} FD of goods</Num>],
+            ...(w.cfg.robbery.enabled ? ([["Channel 19", <Num>{w.robbery.stats.hires} crews hired · {w.robbery.stats.hits} hits · {w.robbery.stats.rigsTaken} rigs chopped · {fd(w.robbery.stats.bountiesPaidFd)} FD of bounties paid · {count("fence")} fences, {count("chopShop")} chop shops</Num>]] as [string, JSX.Element][]) : []),
           ]}
         />
       </Card>

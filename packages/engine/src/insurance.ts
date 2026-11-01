@@ -146,13 +146,14 @@ export function insuredValue(w: World, c: Company): number {
  * pool-written policy from the pool, the NPC insurer's from the reserve (a faucet, the other side of its
  * premiums). Counts toward the market's loss ratio. Returns what was paid.
  */
-export function payPhysicalDamage(w: World, c: Company, valueFd: number, ref: string, payee: Company = c): number {
+export function payPhysicalDamage(w: World, c: Company, valueFd: number, ref: string, payee: Company = c, lockedBasisFd = 0): number {
   const due = Math.max(0, valueFd - w.cfg.assets.physicalDamage.deductibleFd);
   if (due <= 0.01) return 0;
   recordClaim(w, due);
-  if (c.insurance.writer === "pool") return payClaim(w, "insurance", companyAccount(payee.id), due, ref);
-  w.ledger.post(w.t, "faucet:insurance_pd", companyAccount(payee.id), due, ref);
-  return due;
+  const paid = c.insurance.writer === "pool" ? payClaim(w, "insurance", companyAccount(payee.id), due, ref) : (w.ledger.post(w.t, "faucet:insurance_pd", companyAccount(payee.id), due, ref), due);
+  // An asset bought with spend-only FD (ledger.ts) pays out as such, up to that basis.
+  if (lockedBasisFd > 0 && paid > 0) w.ledger.lock(companyAccount(payee.id), Math.min(paid, lockedBasisFd));
+  return paid;
 }
 
 /** What the insurers paid on a claim, for the market's loss ratio. */

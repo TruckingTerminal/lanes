@@ -490,7 +490,7 @@ export class MetricsRecorder {
       priceUsd: w.token.launchDay !== null ? w.token.poolUsd / Math.max(1e-9, w.ledger.balance("co:pool:exchange")) : 0,
       exchangeFd: w.ledger.balance("co:pool:exchange"),
       poolUsd: w.token.poolUsd,
-      lockedFd: w.companies.reduce((s, c) => s + c.lockedFd, 0),
+      lockedFd: w.ledger.lockedSupply(),
       ...valuation(w),
       outstandingFd: outstandingFd(w),
       ceilingFd: ceilingFd(w),
@@ -605,7 +605,7 @@ function trailerCount(w: World, lease: "owned" | "rental"): number {
 
 /** The token's circulating and total supply, and what they're worth at the pool's price (0 before launch). */
 export function valuation(w: World): { circulatingFd: number; totalSupplyFd: number; marketCapUsd: number; fdvUsd: number } {
-  const locked = w.companies.reduce((s, c) => s + c.lockedFd, 0);
+  const locked = w.ledger.lockedSupply();
   const circulatingFd = Math.max(0, w.ledger.supply() - locked);
   const minted = w.ledger.minted();
   const totalSupplyFd = minted > 0 ? minted - w.ledger.burned() : w.ledger.supply();

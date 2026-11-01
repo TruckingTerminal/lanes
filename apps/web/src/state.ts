@@ -19,7 +19,7 @@ declare const __LANES_TEST__: boolean | undefined;
 export const TEST_BUILD = typeof __LANES_TEST__ !== "undefined" && __LANES_TEST__;
 
 export type Session = LiveWorld | TestGame;
-export type Tab = "fleet" | "loads" | "staff" | "market" | "money" | "finance" | "business" | "rates" | "economy" | "company" | "guide";
+export type Tab = "fleet" | "loads" | "staff" | "market" | "money" | "finance" | "business" | "logbook" | "rates" | "economy" | "company" | "guide";
 export type Layout = "split" | "panel" | "map";
 export type Platform = { db: DbLike | null; uid: string | null; owner: boolean; local: boolean };
 export type TitleMenu =
@@ -274,6 +274,8 @@ export function describe(a: LiveAction): string {
       return `Buy FD with ${usd(a.usd)}`;
     case "bid_auction":
       return `Bid ${usd(a.usd)} in the opening auction`;
+    case "cancel_withdrawal":
+      return "Take back the withdrawals waiting at the bridge";
     case "sell_fd":
       return `Sell ${fd(a.fd)} FD`;
     case "claim_airdrop_now":

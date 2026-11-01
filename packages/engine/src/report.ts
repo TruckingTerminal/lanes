@@ -82,7 +82,7 @@ export interface RunReport {
    * owed and open at the end, interest paid, defaults, trucks taken back, stakes slashed and written off.
    */
   /** Hired robbers (robbery.ts): crews hired and their fees, hits, rigs chopped, cargo taken, what the hirers were paid, and the security fittings bought. */
-  robbery?: { hires: number; hits: number; rigsTaken: number; cargoTakenFd: number; takePaidFd: number; feesFd: number; fittingsFd: number };
+  robbery?: { hires: number; hits: number; rigsTaken: number; cargoTakenFd: number; takePaidFd: number; feesFd: number; fittingsFd: number; fencePaidFd: number; chopPaidFd: number; resaleFd: number; bountiesPostedFd: number; bountiesPaidFd: number; victimsPaidFd: number; stakesLockedFd: number };
   truckMoney?: {
     leaseDepositsEndFd: number;
     loansMadeFd: number;
@@ -271,6 +271,10 @@ export interface TokenReport {
   auction?: { usd: number; fd: number; bidders: number; priceUsd: number; poolUsd: number; poolFd: number; treasuryUsd: number; trancheFd: number; capUsd: number };
   /** The pool's launch fees (exchange.launchFee, sizeFee), when either is on: the start and days of the decay, and the dollars taken on buys and FD burned on sales above the normal fees. */
   launchFee?: { startPct: number; days: number; buyUsd: number; sellFd: number };
+  /** The bridge (token.bridge), when it's on: the timer's start and end, FD requested and cleared, the mean wait, days the cap held something back and the FD it held, and what still waits at the end. */
+  bridge?: { delayStart: number; delayEnd: number; requestedFd: number; clearedFd: number; meanWaitDays: number; cappedDays: number; cappedFd: number; queuedEndFd: number };
+  /** logbook.paidLocked: spend-only FD across every company at the end. */
+  lockedEndSupplyFd?: number;
 }
 
 /** Scores a run against the PoC kill criteria (§Proof of concept scope and kill criteria). */
@@ -820,6 +824,8 @@ function tokenReport(w: World, quarterLen: number): TokenReport | null {
     })(),
     ladder: w.cfg.unlockLadder.enabled ? Object.fromEntries(Object.entries(w.ladder).map(([k, d]) => [k, d === null ? null : d - tk.launchDay!])) : undefined,
     auction: tk.auction ? { ...tk.auction, trancheFd: w.cfg.token.launch.auction.trancheFd, capUsd: w.cfg.token.launch.auction.capUsd } : undefined,
+    bridge: w.cfg.token.bridge.enabled ? { delayStart: w.cfg.token.bridge.delayDays.start, delayEnd: w.cfg.token.bridge.delayDays.end, requestedFd: tk.bridge.requestedFd, clearedFd: tk.bridge.clearedFd, meanWaitDays: tk.bridge.cleared > 0 ? tk.bridge.waitDays / tk.bridge.cleared : 0, cappedDays: tk.bridge.cappedDays, cappedFd: tk.bridge.cappedFd, queuedEndFd: w.companies.reduce((s, c) => s + c.withdrawals.reduce((x, r) => x + r.fd, 0), 0) } : undefined,
+    lockedEndSupplyFd: w.ledger.lockedSupply(),
     launchFee: w.cfg.token.exchange.launchFee.enabled || w.cfg.token.exchange.sizeFee.enabled ? { startPct: w.cfg.token.exchange.launchFee.enabled ? w.cfg.token.exchange.launchFee.startPct : 0, days: w.cfg.token.exchange.launchFee.enabled ? w.cfg.token.exchange.launchFee.days : 0, ...tk.launchFee } : undefined,
     logbook: (() => {
       const st = tk.airdrop.logbook;

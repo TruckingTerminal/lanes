@@ -76,10 +76,17 @@ export function sellFromStock(w: World, buyer: Company, b: Business, kind: Truck
   if (price > 0) {
     if (w.ledger.balance(acct) < price + salesTaxOn(w, price)) return "insufficient FD";
     const ref = `dealership:${b.id}:${buyer.id}`;
-    w.ledger.post(w.t, acct, companyAccount(b.ownerId), price, ref);
+    b.lastSaleLockedFd = w.ledger.post(w.t, acct, companyAccount(b.ownerId), price, ref);
     chargeSalesTax(w, buyer.id, price, ref);
     b.netFd += price;
-  }
+    // Stock bought with spend-only FD (ledger.ts) sells for spend-only FD: the unit's share of the lot's locked basis.
+    const units = Object.values(b.stock.tractor).reduce((s, n) => s + n, 0) + Object.values(b.stock.trailer).reduce((s, n) => s + n, 0);
+    const basis = (b.stockLockedFd ?? 0) / Math.max(1, units);
+    if (basis > 0) {
+      w.ledger.lock(companyAccount(b.ownerId), Math.max(0, Math.min(price, basis) - (b.lastSaleLockedFd ?? 0)));
+      b.stockLockedFd = Math.max(0, (b.stockLockedFd ?? 0) - basis);
+    }
+  } else b.lastSaleLockedFd = 0;
   if (kind !== "trailer") b.stock.tractor[tier]--;
   if (kind !== "tractor") b.stock.trailer[type]--;
   b.soldMonth++;
@@ -129,9 +136,10 @@ export function monthlyFactory(w: World): void {
         const cost = n * wholesale;
         const acct = companyAccount(b.ownerId);
         const ref = `wholesale:${b.id}:${key}`;
-        w.ledger.post(w.t, acct, "sink:asset_burn", cost * split.burn, ref);
-        w.ledger.post(w.t, acct, "alloc:treasury", cost * split.treasury, ref);
-        w.ledger.post(w.t, acct, "sink:asset_reserve", cost * split.reserve, ref);
+        let lockedPaid = w.ledger.post(w.t, acct, "sink:asset_burn", cost * split.burn, ref);
+        lockedPaid += w.ledger.post(w.t, acct, "alloc:treasury", cost * split.treasury, ref);
+        lockedPaid += w.ledger.post(w.t, acct, "sink:asset_reserve", cost * split.reserve, ref);
+        b.stockLockedFd = (b.stockLockedFd ?? 0) + lockedPaid;
         b.netFd -= cost;
         w.metrics.onWholesale(cost);
         stock[key]! += n;
@@ -183,7 +191,9 @@ export function tradeIn(w: World, seller: Company, truck: Truck, b: Business): s
   if (loan && offer < loan.principalFd) return "the trade-in doesn't cover the loan on it";
   const sellerAcct = companyAccount(seller.id);
   const ref = `tradein:${b.id}:${truck.id}`;
-  w.ledger.post(w.t, ownerAcct, sellerAcct, offer, ref);
+  const lockedPaid = w.ledger.post(w.t, ownerAcct, sellerAcct, offer, ref);
+  w.ledger.lock(sellerAcct, Math.max(0, Math.min(offer, truck.lockedBasisFd ?? 0) - lockedPaid)); // bought with spend-only FD: traded in for the same
+  truck.lockedBasisFd = lockedPaid;
   if (loan) settleLoanFromSale(w, loan, sellerAcct, offer);
   b.netFd -= offer;
   const listing = listTruck(w, seller.id, truck, value, value * 0.85, value * 0.03);
@@ -229,5 +239,9 @@ export function releaseDealershipStock(w: World, b: Business): void {
     w.supply.trailer[type] += b.stock.trailer[type];
     b.stock.trailer[type] = 0;
   }
-  if (refund > 0.01 && b.ownerId) w.ledger.post(w.t, "faucet:dealer_buyback", companyAccount(b.ownerId), refund, `buyback:stock:${b.id}`);
+  if (refund > 0.01 && b.ownerId) {
+    w.ledger.post(w.t, "faucet:dealer_buyback", companyAccount(b.ownerId), refund, `buyback:stock:${b.id}`);
+    w.ledger.lock(companyAccount(b.ownerId), Math.min(refund, b.stockLockedFd ?? 0)); // stock bought with spend-only FD comes back as such
+  }
+  b.stockLockedFd = 0;
 }

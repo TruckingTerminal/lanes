@@ -240,11 +240,20 @@ vesting schedules all completely transparent." His answers to the 18 questions, 
    contract kept, a fully secured truck; crew hits, a chopped rig, FD fenced, a case gone cold), each
    unlocking its weight's share; the honest ones add up to all of it for every role, the criminal ones to
    at most 60%; no early claim; a conviction forfeits the rest; 1,460-day deadline; one book per company,
-   later seasons joining it. TOKENOMICS.md "The logbook". Still to do: the shop items that bring a
-   milestone forward, and the client's logbook page.
+   later seasons joining it. TOKENOMICS.md "The logbook".
+   **Built (off, 2026-11-01; Jeff: "keep the entire airdrop unlocked inside the game"):** `logbook.paidLocked`,
+   the whole allocation paid at the TGE, 1% free and the rest spend-only (ledger.ts sticky locks), unlocked for
+   withdrawal by the milestones, burned at the deadline if unspent; `logbook.boost`, the shop items
+   (`buy_logbook_boost`: a milestone bought forward once for 3% of the allocation, asking 75% of what it did);
+   the Logbook tab in the client. TOKENOMICS.md "The airdrop inside the game".
 4. **Selling early:** a 75% sell tax at launch, falling to the normal 7% over six real months,
    everyone pays, all burned ("we want players to farm this, not farmers"). Transfers: no FD sends
    between players; burn the part of a player-to-player sale above the used-truck index.
+   **Built (off, 2026-11-01; Jeff: no selling in the game, every withdrawal is a sale):** `token.bridge`: a
+   withdrawal waits 28 game days at launch (seven real days), falling to 8 by six real months, frozen; it
+   leaves through the early-sale tax and the daily limits on the day it clears, at most 2% of the pool's FD
+   a day for the whole game; cancellable for a 2% burn (`cancel_withdrawal`). The speculators of the batches
+   hold FD in wallets (`adversaries.onChain`). The Money tab shows the queue.
 5. **The launch:** an opening auction (verified people, a per-person cap, all its dollars into the
    pool) and a daily price limit of ±15% for the first three real months.
    **Built (off, 2026-10-31):** the daily limit, `token.exchange.priceBand` (±15% of the day's open for
@@ -288,6 +297,12 @@ vesting schedules all completely transparent." His answers to the 18 questions, 
    of the cargo and 20% of the rig, less a 25% wash, from the reserve; newcomers protected 120 game days, a
    28-day cooldown per victim, the hirer's equity must cover the take; `fit_security` (tracker, locks,
    camera; 3 slots); a truck with a crew on it heads for a truck stop; outlaw bots hire, threatened bots fit.
+   **Built (off, 2026-11-01), the Back Lot v1 (TOKENOMICS.md "The Back Lot, v1"; Jeff: on in the beta):**
+   the fence's share by commodity, a real stake behind the hire that pays the victim's deductibles first, one
+   crew on a company at a time, only operating companies hire, fences and chop shops as player businesses
+   behind the crews' layer, the take spend-only, bounties on Channel 19, notoriety on the scorecard, the
+   victim check on the criminal milestones; the Channel 19 page. **Not built (v2, after the server):** the
+   dirty wallet and washing, the contraband board, corruption, aliases and the aged-authority market.
 8. **The unlock ladder:** each layer opens at a published date and a hard-to-fake metric (verified
    players, pool dollars), gradually; hauling, then businesses, then player brokerage, then the Back
    Lot and robbers, then aliases and crews; it starts at launch, the beta fully open.
@@ -355,8 +370,11 @@ and off. What the batches settled, and what waits on Jeff:
   cuts the hires by a fifth to a half.
 - **Built 2026-11-01 (off):** the opening auction as a tranche, `token.launch.auction` (a literal auction,
   every bid as one buy against the opening pool, had lifted the open about 2,000× in a thin pool, so it was
-  reverted). **Not built:** the shop items that bring a logbook milestone forward; spend-first unlocks; the
-  client's pages for the logbook, the ladder, the lot, the auction and Channel 19.
+  reverted); overnight, the whole package of TOKENOMICS.md "The airdrop inside the game, the bridge and the
+  Back Lot": sticky locks, the airdrop paid locked at the TGE, the logbook's shop items, the bridge with its
+  timer and cap, the speculators in wallets, the beta dollar window for rigs, trailers, facilities and
+  businesses, the team allocation and the real-time linear vest (numbers pending), the Back Lot v1, and the
+  client's Logbook tab, the bridge and auction on Money, the used lot and the dollar window in the showroom.
 
 ## Later, agreed with Jeff on 2026-10-30 (not before the switch-on and the dashboard)
 - **The world-economy story.** Scripted shocks on top of the cycle, seasons, weather and fuel feeds:
@@ -380,13 +398,22 @@ and off. What the batches settled, and what waits on Jeff:
   South America is a map, not a market (no road link).
 
 ## Open for Jeff to decide
+- **The switch-on (the ruleset bump, one restart, no players):** mid truck prices, the used lot, the deposit
+  credit, every sink, the ladder, the managers, direct contracts, the scale discounts, the robbers and the Back
+  Lot (on in the beta: Jeff, 2026-11-01), the theft gaps, contract theft removed (`fraud.theft.byCarrier`
+  false), the logbook paid locked with the shop items, the bridge, the auction and the pool's fee, the farmed-FD
+  tax, the vest without the floor in real time, the dollar window for assets; `logbookMinVictimTrucks` 3,
+  `npcFenceShare` 0.6, `realStake`, `oneCrewPerVictim`, `takeLocked`, `fenceByCommodityOn`, bounties. Jeff
+  reviews before it ships (his default: nothing live without him).
+- **The team allocation:** the share of the cap and the vest's years (proposed 12%, a six-real-month cliff,
+  linear over four years); the protocol treasury keeps the rest.
 - The auction tranche's size and the per-person cap (the sim's stand-ins: 20M FD, $1,000), and the
   launch fee's start and days (50%, 14 game days). The v50 smoke (TOKENOMICS.md "The launch smoke"): the
   auction takes the listing spike from 450× to about 20×, bigger tranches end higher (the clearing price
   lands nearer where the market settles), the fee is not a bubble tool, the bridge's rules carry the
-  aftermath. Next: the full-size test at 20M / 40M / 80M with the sinks on, then Jeff's call.
-- Spend-first unlocks (each logbook slice spend-only for 30 real days before it can leave through the
-  bridge): proposed 2026-11-01, not built.
+  aftermath. v51 (full size, the whole package, 20M / 40M / 80M) decides.
+- The "free FD only" flag on used-truck listings and lease offers, so a seller can refuse locked FD and the
+  market prices the lock (Jeff, 2026-11-01: "whatever you think is best", keep it on the list).
 - Whether later seasons' pots still shrink when the price sits below launch (pot × min(1, avg ÷ launch)):
   it scales emission, it doesn't gate a sale; kept unless Jeff says otherwise.
 - Miles-to-profit airdrop weighting after the runs (0.6 / 0.4 to start).

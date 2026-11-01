@@ -115,21 +115,28 @@ export function buyListing(w: World, buyerId: number, listingId: number): string
   const fee = l.askFd * cfg.usedMarket.feePct;
   const net = l.askFd - fee;
   const ref = `listing:${l.id}`;
-  w.ledger.post(w.t, buyerAcct, "sink:market_fee", fee, ref);
+  let lockedPaid = w.ledger.post(w.t, buyerAcct, "sink:market_fee", fee, ref);
   chargeSalesTax(w, buyerId, l.askFd, ref);
   const loan = l.loanId !== null ? w.finance.loans[l.loanId - 1] : undefined;
   const loanOpen = loan !== undefined && (loan.status === "active" || loan.status === "defaulted" || loan.status === "repossessed");
+  const basis = truck.lockedBasisFd ?? 0; // what the seller bought it with in spend-only FD comes back locked (ledger.ts)
   if (l.sellerId === 0) {
     // A repossession: the pool keeps what it's owed, the former owner gets any surplus.
-    w.ledger.post(w.t, buyerAcct, POOL_ACCOUNT, net, ref);
+    lockedPaid += w.ledger.post(w.t, buyerAcct, POOL_ACCOUNT, net, ref, "lockedFirst");
     const surplus = loanOpen ? closeLoanFromPoolProceeds(w, loan, net) : net;
-    if (surplus > 0.01) w.ledger.post(w.t, POOL_ACCOUNT, companyAccount(l.formerOwnerId), surplus, `surplus:${l.id}`);
+    if (surplus > 0.01) {
+      const carried = w.ledger.post(w.t, POOL_ACCOUNT, companyAccount(l.formerOwnerId), surplus, `surplus:${l.id}`, "freeFirst");
+      w.ledger.lock(companyAccount(l.formerOwnerId), Math.max(0, Math.min(surplus, basis) - carried));
+    }
   } else {
     // An owner's sale: the seller is paid, then repays any loan on the truck from it.
     const sellerAcct = companyAccount(l.sellerId);
-    w.ledger.post(w.t, buyerAcct, sellerAcct, net, ref);
+    const carried = w.ledger.post(w.t, buyerAcct, sellerAcct, net, ref);
+    lockedPaid += carried;
+    w.ledger.lock(sellerAcct, Math.max(0, Math.min(net, basis) - carried)); // locked up to the basis in all, what the payment carried included
     if (loanOpen) settleLoanFromSale(w, loan, sellerAcct, net);
   }
+  truck.lockedBasisFd = lockedPaid;
 
   if (l.sellerId !== 0) companyById(w, l.sellerId).usedSold++;
   detachTruck(w, truck);
@@ -138,7 +145,7 @@ export function buyListing(w: World, buyerId: number, listingId: number): string
     detachTruck(w, npc);
     npc.status = "retired";
     buyer.firstOwnedTruckDay ??= dayOf(w.t, cfg);
-    unlockFreePathEarnings(buyer);
+    unlockFreePathEarnings(w, buyer);
   }
   attachTruck(w, truck, buyerId);
   buyer.usedBought++;
@@ -155,9 +162,12 @@ function buyTrailerListing(w: World, l: Listing, buyerId: number): string | null
   const tr = w.trailers[l.trailerId - 1]!;
   const fee = l.askFd * w.cfg.usedMarket.feePct;
   const ref = `listing:${l.id}`;
-  w.ledger.post(w.t, buyerAcct, "sink:market_fee", fee, ref);
+  let lockedPaid = w.ledger.post(w.t, buyerAcct, "sink:market_fee", fee, ref);
   chargeSalesTax(w, buyerId, l.askFd, ref);
-  w.ledger.post(w.t, buyerAcct, companyAccount(l.sellerId), l.askFd - fee, ref);
+  const carried = w.ledger.post(w.t, buyerAcct, companyAccount(l.sellerId), l.askFd - fee, ref);
+  lockedPaid += carried;
+  w.ledger.lock(companyAccount(l.sellerId), Math.max(0, Math.min(l.askFd - fee, tr.lockedBasisFd ?? 0) - carried)); // bought with spend-only FD: sold for the same
+  tr.lockedBasisFd = lockedPaid;
   companyById(w, l.sellerId).usedSold++;
   transferTrailer(w, tr, buyer);
   const truck = w.trucksByCompany.get(buyerId)!.find((t) => t.status === "idle" && t.hub === buyer.homeHub && hookedTrailer(w, t)?.lease === "rental");

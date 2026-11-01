@@ -1,5 +1,5 @@
 import type { JSX } from "preact";
-import { averagePriceUsd, borrowingCapacity, companyAccount, depositorValue, fdPriceUsd, poolCash, sellableFd, tokenLive } from "@lanes/engine";
+import { averagePriceUsd, borrowingCapacity, bridgeDelayDays, companyAccount, depositorValue, fdPriceUsd, lockedFd, poolCash, sellableFd, tokenLive } from "@lanes/engine";
 import { fd, usd } from "../../format.js";
 import { GAME_CONFIG } from "../../game.js";
 import { act, feed, me, myTrucks, S, truckNo, useData } from "../../state.js";
@@ -27,21 +27,39 @@ export function Money(): JSX.Element {
     const miles = c.milesHistory.reduce((a, b) => a + b, 0) + c.milesTotal;
     const total = w.companies.reduce((s, x) => s + x.milesHistory.reduce((a, b) => a + b, 0) + x.milesTotal, 0) || 1;
     const share = Math.min(GAME_CONFIG.token.airdrop.capShare, miles / total) * GAME_CONFIG.token.airdrop.fd;
+    const au = w.cfg.token.launch.auction;
+    const myBids = w.token.auctionBids.filter((b) => b.companyId === c.id).reduce((s, b) => s + b.usd, 0);
+    const allBids = w.token.auctionBids.reduce((s, b) => s + b.usd, 0);
+    const uw = w.cfg.token.catalogue.usdWindow;
     token = (
       <Card title={`FD exchange · opens in ${daysLeft} days`}>
-        <p class="muted small">At the end of Year 2, FD launches on an FD/USDC pool. Your FD above working capital is burned and what you keep is locked for operating; your Miles become an airdrop that unlocks as you keep hauling.</p>
+        <p class="muted small">
+          At the end of Year 2, FD launches on an FD/USDC pool. Your FD above working capital is burned and what you keep is locked for operating; your Miles become an airdrop paid into your account at once, unlocked for withdrawal by the Logbook's milestones.
+          {uw.enabled && uw.assets.enabled ? " In this farming season rigs, trailers, facilities and businesses can be bought for dollars; every dollar goes into the launch pool." : ""}
+        </p>
         <Kv
           rows={[
             ["Your Miles so far", <Num>{fd(miles)} ({((100 * miles) / total).toFixed(2)}% of all)</Num>],
             ["Airdrop at today's share", <Num>≈ {fd(share)} FD</Num>],
+            ...(au.enabled ? ([["Opening auction", <Num>{fd(au.trancheFd)} FD at one clearing price · ${allBids.toLocaleString("en-US")} bid so far · yours ${myBids.toLocaleString("en-US")} of ${au.capUsd.toLocaleString("en-US")}</Num>]] as [string, JSX.Element][]) : []),
           ]}
         />
+        {au.enabled ? (
+          <div class="row">
+            <input type="number" id="bid-usd" min="1" step="10" defaultValue="100" aria-label="Dollars to bid" />
+            <Btn disabled={c.usd.wallet < 1 || myBids >= au.capUsd} onClick={() => act({ type: "bid_auction", usd: num("bid-usd") }, "Bid placed")}>
+              Bid in the opening auction
+            </Btn>
+            <span class="muted small">Every dollar bid buys FD at the same price when the pool opens, and goes into the pool.</span>
+          </div>
+        ) : null}
       </Card>
     );
   } else {
     const price = fdPriceUsd(w);
     const hist = w.token.priceHistory.slice(-90);
     const a = c.airdrop;
+    const bridge = w.cfg.token.bridge;
     token = (
       <Card title="FD exchange">
         <Sparkline values={hist} color="var(--accent-warn)" />
@@ -49,22 +67,37 @@ export function Money(): JSX.Element {
           rows={[
             ["Price", <Num>${price.toFixed(5)} / FD (8-week avg ${averagePriceUsd(w, 56).toFixed(5)})</Num>],
             ["Your dollars", <Num>{usd(c.usd.wallet)} play $ · taken out {usd(c.usd.out)}</Num>],
-            ["Sellable FD", <Num>{fd(sellableFd(w, c))} (locked {fd(c.lockedFd)})</Num>],
-            ...(a ? ([["Airdrop", <Num>{fd(a.unlockedFd)} of {fd(a.totalFd)} unlocked{a.weeksLeft > 0 ? ` · ${a.weeksLeft} weeks left (3+ loads a week)` : ""}</Num>]] as [JSX.Element | string, JSX.Element][]) : []),
+            ["Sellable FD", <Num>{fd(sellableFd(w, c))} (locked {fd(lockedFd(w, c))})</Num>],
+            ...(a ? ([["Airdrop", <Num>{fd(a.unlockedFd)} of {fd(a.totalFd)} unlocked{a.weeksLeft > 0 ? ` · ${a.weeksLeft} weeks left (3+ loads a week)` : a.lockedFd !== undefined ? ` · ${fd(a.lockedFd)} spend-only until the Logbook unlocks it` : ""}</Num>]] as [JSX.Element | string, JSX.Element][]) : []),
           ]}
         />
         <div class="row">
           <input type="number" id="buy-usd" min="1" step="1" defaultValue="10" aria-label="Dollars to spend" />
           <Btn disabled={c.usd.wallet < 1} onClick={() => act({ type: "buy_fd", usd: num("buy-usd") }, "FD bought")}>
-            Buy FD with $
+            Buy FD with $ {bridge.enabled ? "(deposited)" : ""}
           </Btn>
         </div>
         <div class="row">
-          <input type="number" id="sell-fd" min="100" step="100" defaultValue={String(Math.max(100, Math.floor(sellableFd(w, c) / 2)))} aria-label="FD to sell" />
-          <Btn disabled={sellableFd(w, c) < 100} onClick={() => act({ type: "sell_fd", fd: num("sell-fd") }, "FD sold")}>
-            Sell FD for $
+          <input type="number" id="sell-fd" min="100" step="100" defaultValue={String(Math.max(100, Math.floor(sellableFd(w, c) / 2)))} aria-label="FD to withdraw" />
+          <Btn disabled={sellableFd(w, c) < 100} onClick={() => act({ type: "sell_fd", fd: num("sell-fd") }, bridge.enabled ? "Withdrawal requested" : "FD sold")}>
+            {bridge.enabled ? "Withdraw FD (a sale)" : "Sell FD for $"}
           </Btn>
         </div>
+        {bridge.enabled ? (
+          <>
+            <p class="muted small">
+              Every withdrawal is a sale: it waits {bridgeDelayDays(w, day)} days ({Math.round(bridgeDelayDays(w, day) / 4)} real days), frozen, then leaves through the early-sale tax and the daily limits, at most {Math.round(bridge.dailyOutflowShareOfPool * 100)}% of the pool a day for everyone. Taking it back burns {Math.round(bridge.cancelBurn * 100)}%.
+            </p>
+            {c.withdrawals.length ? (
+              <div class="row">
+                <span class="small">Waiting: {c.withdrawals.map((r) => `${fd(r.fd)} FD, ${Math.max(0, r.day + bridgeDelayDays(w, r.day) - day)} days`).join(" · ")}</span>
+                <Btn sm onClick={() => act({ type: "cancel_withdrawal" }, "Withdrawals taken back")}>
+                  Take back ({Math.round(bridge.cancelBurn * 100)}% burned)
+                </Btn>
+              </div>
+            ) : null}
+          </>
+        ) : null}
         {a && a.weeksLeft > 0 && !a.claimedEarly ? (
           <div class="row">
             <Btn onClick={() => act({ type: "claim_airdrop_now" }, "Airdrop claimed at half")}>Claim the rest now at half</Btn>

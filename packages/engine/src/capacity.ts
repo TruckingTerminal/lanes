@@ -37,7 +37,7 @@ export function leaseTruck(w: World, c: Company, trailer: Equipment): string | n
   const t = createTruck(w, c, "lessor", "workhorse", trailer);
   w.lessor.out++;
   if (deposit > 0) {
-    w.ledger.post(w.t, companyAccount(c.id), "sink:lease_deposit", deposit, `deposit:${t.id}`);
+    t.depositLockedFd = w.ledger.post(w.t, companyAccount(c.id), "sink:lease_deposit", deposit, `deposit:${t.id}`);
     t.depositFd = t.depositDueFd = deposit;
   }
   return null;

@@ -26,6 +26,17 @@ export interface LedgerEntry {
  */
 const NOT_SPENDING = ["season:", "launch:", "holding:", "swap:", "buyback:"];
 
+/**
+ * Spend-only FD (Jeff, 2026-11-01: the airdrop paid at the TGE "unlocked inside the game", the launch carryover,
+ * a post-launch grant, the free path's earnings): a locked sub-balance of an account. Spending draws on it first;
+ * a payment to another company or into an escrow carries it, still locked; it dies only in a true sink. So locked
+ * FD can be used anywhere in the game and can never be laundered into FD that leaves through the bridge. The
+ * exchange pool holds none: a withdrawal is free FD only.
+ */
+export type PostMode = "lockedFirst" | "freeFirst" | "freeOnly";
+const LOCK_FREE = new Set(["co:pool:exchange"]);
+const carriesLock = (acct: string) => acct.startsWith("co:") && !LOCK_FREE.has(acct);
+
 /** Cents, so balances are exact integers and replays compare bit-for-bit. */
 const toCents = (fd: number) => Math.round(fd * 100);
 
@@ -34,13 +45,15 @@ const toCents = (fd: number) => Math.round(fd * 100);
  * reserve (every NPC counterparty's wallet) and the allocations. Faucets then draw on the reserve
  * (or their allocation) and sinks refill it; only these sinks still destroy FD.
  */
-export type CircularConfig = { enabled: boolean; capFd: number; shares: { reserve: number; pool: number; airdrop: number } };
+export type CircularConfig = { enabled: boolean; capFd: number; shares: { reserve: number; pool: number; airdrop: number; dev?: number } };
 export const RESERVE_ACCOUNT = "reserve";
 const ALLOCATION_OF: Record<string, string> = { "faucet:airdrop": "alloc:airdrop", "faucet:launch_liquidity": "alloc:pool", "faucet:auction": "alloc:treasury" };
 export const CIRCULAR_BURNS = new Set(["sink:season_close", "sink:buyback", "sink:exchange_fee", "sink:airdrop_forfeit", "sink:unstake_haircut", "sink:profit_tax_burn", "sink:asset_burn"]);
 
 export class Ledger {
   private balances = new Map<string, number>();
+  /** Per account: the spend-only part of its balance, in cents (PostMode). */
+  private lockedCents = new Map<string, number>();
   readonly entries: LedgerEntry[] = [];
   /** Running totals by tag ("faucet:npc_shipper", "sink:fuel", …) in cents. */
   readonly totals = new Map<string, number>();
@@ -60,21 +73,37 @@ export class Ledger {
     const reserve = part(circular.shares.reserve);
     const pool = part(circular.shares.pool);
     const airdrop = part(circular.shares.airdrop);
+    const dev = part(circular.shares.dev ?? 0);
     this.balances.set("faucet:genesis", -cap);
     this.balances.set(RESERVE_ACCOUNT, reserve);
     this.balances.set("alloc:pool", pool);
     this.balances.set("alloc:airdrop", airdrop);
-    this.balances.set("alloc:treasury", cap - reserve - pool - airdrop);
+    if (dev > 0) this.balances.set("alloc:dev", dev); // the team's allocation (circular.shares.dev), vested by token.ts
+    this.balances.set("alloc:treasury", cap - reserve - pool - airdrop - dev);
     this.mintedCents = cap;
   }
 
-  post(t: number, from: string, to: string, amountFd: number, ref: string): void {
+  /**
+   * Posts an entry and returns the locked FD it carried. The mode says which part of the payer's balance goes
+   * first: locked (the default: spending), free (the refs NOT_SPENDING lists: burns of cash itself, where the
+   * lock should stay on what remains), or free only (a withdrawal; more than the free balance throws).
+   */
+  post(t: number, from: string, to: string, amountFd: number, ref: string, mode?: PostMode): number {
     const cents = toCents(amountFd);
     if (!Number.isFinite(cents)) throw new Error(`Bad ledger amount ${amountFd} (${from} → ${to})`);
-    if (cents === 0) return;
+    if (cents === 0) return 0;
     if (cents < 0) throw new Error(`Negative ledger amount ${amountFd} (${from} → ${to})`);
     if (from === to) throw new Error(`Ledger entry to itself (${from})`);
     const kind = classify(from, to);
+    let moved = 0;
+    if (carriesLock(from)) {
+      const locked = this.lockedCents.get(from) ?? 0;
+      const free = Math.max(0, (this.balances.get(from) ?? 0) - locked);
+      const m = mode ?? (NOT_SPENDING.some((p) => ref.startsWith(p)) ? "freeFirst" : "lockedFirst");
+      if (m === "freeOnly" && cents > free + 1) throw new Error(`${from} has ${free / 100} FD free, not ${cents / 100} (${ref})`); // a cent of rounding between a fee and its net is let through
+      moved = m === "lockedFirst" ? Math.min(cents, locked) : m === "freeFirst" ? Math.min(locked, Math.max(0, cents - free)) : 0;
+      if (moved > 0) this.lockedCents.set(from, locked - moved);
+    }
     // Circular mode: a faucet draws on its allocation or the reserve, a sink refills the reserve
     // unless it burns. The tags still carry the flow totals, so sinks-over-faucets stays meaningful.
     const debit = this.circular && kind === "faucet" ? (ALLOCATION_OF[from] ?? RESERVE_ACCOUNT) : from;
@@ -90,6 +119,8 @@ export class Ledger {
     }
     if (from.startsWith("co:") && kind === "sink" && !NOT_SPENDING.some((p) => ref.startsWith(p))) this.outflows.set(from, (this.outflows.get(from) ?? 0) + cents);
     if (this.keepEntries) this.entries.push({ t, from, to, amount: cents / 100, kind, ref });
+    if (moved > 0 && carriesLock(to)) this.lockedCents.set(to, (this.lockedCents.get(to) ?? 0) + moved);
+    return moved / 100;
   }
 
   outflowCents(account: string): number {
@@ -98,6 +129,40 @@ export class Ledger {
 
   balance(account: string): number {
     return (this.balances.get(account) ?? 0) / 100;
+  }
+
+  /** The spend-only part of an account's balance. */
+  locked(account: string): number {
+    return (this.lockedCents.get(account) ?? 0) / 100;
+  }
+
+  /** What an account may pay to another player freely, or withdraw: its balance less what's locked. */
+  free(account: string): number {
+    return Math.max(0, (this.balances.get(account) ?? 0) - (this.lockedCents.get(account) ?? 0)) / 100;
+  }
+
+  /** Makes up to `fd` of an account's free balance spend-only; returns what it locked. */
+  lock(account: string, fd: number): number {
+    const cents = Math.min(toCents(fd), toCents(this.free(account)));
+    if (!(cents > 0) || !carriesLock(account)) return 0;
+    this.lockedCents.set(account, (this.lockedCents.get(account) ?? 0) + cents);
+    return cents / 100;
+  }
+
+  /** Frees up to `fd` of an account's locked balance; returns what it unlocked. */
+  unlock(account: string, fd: number): number {
+    const locked = this.lockedCents.get(account) ?? 0;
+    const cents = Math.min(toCents(fd), locked);
+    if (!(cents > 0)) return 0;
+    this.lockedCents.set(account, locked - cents);
+    return cents / 100;
+  }
+
+  /** Spend-only FD across every company account. */
+  lockedSupply(): number {
+    let c = 0;
+    for (const [acct, v] of this.lockedCents) if (acct.startsWith("co:")) c += v;
+    return c / 100;
   }
 
   /** FD held by companies (the money supply). */

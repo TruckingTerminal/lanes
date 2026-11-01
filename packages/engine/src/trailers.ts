@@ -255,7 +255,10 @@ export function scrapTrailer(w: World, tr: Trailer): void {
   // Any listing it had is off the market.
   for (const l of w.listings) if (l.trailerId === tr.id && l.status === "open") l.status = "withdrawn";
   trailerGone(w, tr);
-  if (owner && scrap > 0.01) w.ledger.post(w.t, "faucet:scrap", companyAccount(owner), scrap, `scrap:trailer:${tr.id}`);
+  if (owner && scrap > 0.01) {
+    w.ledger.post(w.t, "faucet:scrap", companyAccount(owner), scrap, `scrap:trailer:${tr.id}`);
+    w.ledger.lock(companyAccount(owner), Math.min(scrap, tr.lockedBasisFd ?? 0)); // bought with spend-only FD: scrapped for the same
+  }
   w.metrics.onScrap("trailer");
 }
 

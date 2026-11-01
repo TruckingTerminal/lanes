@@ -81,9 +81,10 @@ export function buyItem(w: World, c: Company, item: ItemKind, pay: "fd" | "usd",
     const price = itemPriceFd(w, item);
     if (w.ledger.balance(acct) < price + bondDue + salesTaxOn(w, price)) return "insufficient FD";
     const s = k.split;
-    w.ledger.post(w.t, acct, "sink:asset_burn", price * s.burn, ref);
-    w.ledger.post(w.t, acct, "alloc:treasury", price * s.treasury, ref);
-    w.ledger.post(w.t, acct, "sink:asset_reserve", price * s.reserve, ref);
+    let locked = w.ledger.post(w.t, acct, "sink:asset_burn", price * s.burn, ref);
+    locked += w.ledger.post(w.t, acct, "alloc:treasury", price * s.treasury, ref);
+    locked += w.ledger.post(w.t, acct, "sink:asset_reserve", price * s.reserve, ref);
+    if (item === "yardSmall" || item === "yardLarge") c.yardLockedBasisFd = (c.yardLockedBasisFd ?? 0) + locked; // a yard bought with spend-only FD resells for the same
     chargeSalesTax(w, c.id, price, ref);
   }
   if (bondDue > 0) {
@@ -103,3 +104,24 @@ export function releaseYard(w: World, c: Company): void {
   c.yardBondFd = 0;
   c.yard = "none";
 }
+
+/** The farming season's dollar window for assets (catalogue.usdWindow.assets): what a rig, trailer, facility or business priced `priceFd` costs in dollars. */
+export function assetPriceUsd(w: World, priceFd: number): number {
+  const uw = w.cfg.token.catalogue.usdWindow;
+  return priceFd * uw.referencePriceUsd * uw.premium;
+}
+
+/** Pays for an asset with dollars in the farming season (Jeff, 2026-11-01), every dollar held for the launch pool; a reason when it can't. */
+export function payAssetUsd(w: World, c: Company, priceFd: number): string | null {
+  const uw = w.cfg.token.catalogue.usdWindow;
+  if (tokenLive(w) || !uw.enabled || !uw.assets.enabled || !w.cfg.token.enabled) return "dollars buy nothing after launch";
+  const usd = assetPriceUsd(w, priceFd);
+  if (uw.assets.capUsdPerMc !== null && c.usdSpentBetaAssets + usd > uw.assets.capUsdPerMc + 1e-9) return "over this season's dollar cap";
+  if (usd > c.usd.wallet + 1e-9) return "not enough dollars";
+  c.usd.wallet -= usd;
+  c.usd.in += usd;
+  c.usdSpentBetaAssets += usd;
+  w.token.treasury.seedEscrowUsd += usd; // held for the launch pool, every dollar of it
+  return null;
+}
+

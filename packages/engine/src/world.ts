@@ -244,6 +244,7 @@ export function createWorld(o: WorldOptions): World {
       auctionBids: [],
       auction: null,
       launchFee: { buyUsd: 0, sellFd: 0 },
+      bridge: { dayOut: { day: -1, fd: 0 }, requestedFd: 0, clearedFd: 0, waitDays: 0, cleared: 0, cappedFd: 0, cappedDays: 0, cancelledFd: 0 },
       airdrop: { mintedFd: 0, forfeitedFd: 0, haircutFd: 0, seasonsPaid: 0 },
       ceiling: { baseFd: null, launchMult: 1, holding: false, roomFd: 0, weeksHolding: 0, weeksAtFloor: 0, vestHeldWeeks: 0, releasedFd: 0 },
       baseCarriers: 0,
@@ -573,13 +574,12 @@ export function formCompany(w: World, c: NewCompany): Company {
     suspendedOrders: [],
     bankruptcies: 0,
     usd: { wallet: 0, in: 0, out: 0 },
-    // After launch a new company's grant is spend-only, so a fresh account can't be cashed out.
-    lockedFd: w.token.launchDay !== null && w.cfg.token.lockGrants ? w.cfg.company.startingGrantFd : 0,
     freePathLockedFd: 0,
     stakedFd: 0,
     unstaking: [],
     tierGraceDay: null,
     soldFd: { day: -1, fd: 0 },
+    withdrawals: [],
     sellDays: [],
     payTerms: "net",
     factoring: null,
@@ -590,6 +590,7 @@ export function formCompany(w: World, c: NewCompany): Company {
     yardBondFd: 0,
     trailerSpaces: 0,
     usdSpentBeta: 0,
+    usdSpentBetaAssets: 0,
     fuelGalMonth: 0,
     nightRisk: 1,
     suretyWriter: "npc",
@@ -635,6 +636,8 @@ export function formCompany(w: World, c: NewCompany): Company {
   // A holder is a wallet, not a company: no grant, no permits.
   if (c.role !== "holder") {
     w.ledger.post(w.t, "faucet:starting_grant", companyAccount(company.id), w.cfg.company.startingGrantFd, `grant:${company.id}`);
+    // After launch a new company's grant is spend-only, so a fresh account can't be cashed out.
+    if (w.token.launchDay !== null && w.cfg.token.lockGrants) w.ledger.lock(companyAccount(company.id), w.cfg.company.startingGrantFd);
     payPermits(w, company);
   }
   if (c.role === "carrier" && c.freePath) {
@@ -647,9 +650,14 @@ export function formCompany(w: World, c: NewCompany): Company {
 
 /** Hands back an NPC lease's deposit when the truck goes back to the lessor or is replaced. */
 export function refundLeaseDeposit(w: World, truck: Truck): void {
-  if (truck.depositFd > 0.005 && truck.companyId) w.ledger.post(w.t, "faucet:lease_deposit", companyAccount(truck.companyId), truck.depositFd, `deposit:${truck.id}`);
+  if (truck.depositFd > 0.005 && truck.companyId) {
+    w.ledger.post(w.t, "faucet:lease_deposit", companyAccount(truck.companyId), truck.depositFd, `deposit:${truck.id}`);
+    // What was paid in with spend-only FD comes back as such (ledger.ts).
+    w.ledger.lock(companyAccount(truck.companyId), Math.min(truck.depositFd, truck.depositLockedFd ?? 0));
+  }
   truck.depositFd = 0;
   truck.depositDueFd = 0;
+  truck.depositLockedFd = 0;
 }
 
 /** The deposit a company's NPC lease holds, when it counts toward the truck that replaces it (freeEntry.leases.byValue.depositToPurchase). */
@@ -668,8 +676,8 @@ export function releaseDepositFor(w: World, c: Company, needFd: number): void {
 }
 
 /** freeEntry.freePath "spendOnly": the first owned truck makes what the free path earned sellable. */
-export function unlockFreePathEarnings(c: Company): void {
-  c.lockedFd = Math.max(0, c.lockedFd - c.freePathLockedFd);
+export function unlockFreePathEarnings(w: World, c: Company): void {
+  w.ledger.unlock(companyAccount(c.id), c.freePathLockedFd);
   c.freePathLockedFd = 0;
 }
 

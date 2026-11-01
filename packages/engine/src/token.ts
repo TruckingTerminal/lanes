@@ -36,9 +36,14 @@ export function fdPriceUsd(w: World): number {
   return fd > 0 ? w.token.poolUsd / fd : 0;
 }
 
-/** FD a company may sell: its balance less what's locked (launch carryover, starting grant). */
+/** A company's spend-only FD (ledger.locked): the launch carryover, a grant, the free path's earnings, the airdrop paid locked, locked FD received. */
+export function lockedFd(w: World, c: Company): number {
+  return w.ledger.locked(companyAccount(c.id));
+}
+
+/** FD a company may withdraw (sell): its balance less what's locked. */
 export function sellableFd(w: World, c: Company): number {
-  return Math.max(0, w.ledger.balance(companyAccount(c.id)) - c.lockedFd);
+  return w.ledger.free(companyAccount(c.id));
 }
 
 /**
@@ -98,6 +103,21 @@ export function quoteUsdForFd(w: World, fd: number): number {
   let usd = net / (1 - w.cfg.token.exchange.buyFeePct);
   for (let i = 0; i < 6; i++) usd = net / (1 - buyFeeRate(w, usd));
   return usd;
+}
+
+/** The bridge (token.bridge.cancelBurn): takes back every withdrawal still waiting, less the cancel burn; the FD comes back free. */
+export function cancelWithdrawal(w: World, c: Company): string | null {
+  if (!w.cfg.token.bridge.enabled) return "there's no withdrawal queue";
+  if (c.withdrawals.length === 0) return "nothing is waiting";
+  const acct = bridgeAccount(c.id);
+  const held = w.ledger.balance(acct);
+  const burn = Math.floor(held * w.cfg.token.bridge.cancelBurn * 100) / 100;
+  if (burn > 0.005) w.ledger.post(w.t, acct, "sink:exchange_fee", burn, `bridge:cancel:${c.id}`);
+  if (held - burn > 0.005) w.ledger.post(w.t, acct, companyAccount(c.id), held - burn, `bridge:cancel:${c.id}`);
+  w.token.bridge.requestedFd -= c.withdrawals.reduce((s, r) => s + r.fd, 0);
+  w.token.bridge.cancelledFd += held;
+  c.withdrawals = [];
+  return null;
 }
 
 /** The opening auction (token.launch.auction): a bid before launch, its dollars held until the launch clears it. */
@@ -210,7 +230,7 @@ export function sellLimitShare(w: World): number {
 /** FD the company may still sell today. */
 export function sellRoomFd(w: World, c: Company): number {
   const share = sellLimitShare(w);
-  if (share <= 0) return Infinity;
+  if (share <= 0 || c.onChain || w.cfg.token.bridge.enabled) return Infinity; // the bridge caps what clears, not what's asked
   const sold = c.soldFd.day === dayOf(w.t, w.cfg) ? c.soldFd.fd : 0;
   return Math.max(0, w.ledger.balance(EXCHANGE_ACCOUNT) * share - sold);
 }
@@ -235,62 +255,149 @@ export function launchTaxRate(w: World): number {
   return t.startPct - (t.startPct - k.sellFeePct) * (since / t.days);
 }
 
+/** The bridge's holding account: FD waiting out the withdrawal timer (token.bridge), still inside the game. */
+export const bridgeAccount = (companyId: number) => `co:bridge:${companyId}`;
+
+/** The withdrawal timer (token.bridge.delayDays) for a request made on `day`: from its start at launch to its end after its days. */
+export function bridgeDelayDays(w: World, day: number): number {
+  const d = w.cfg.token.bridge.delayDays;
+  if (w.token.launchDay === null) return d.start;
+  const x = d.overDays > 0 ? Math.min(1, Math.max(0, day - w.token.launchDay) / d.overDays) : 1;
+  return Math.round(d.start - (d.start - d.end) * x);
+}
+
+/**
+ * A sale of FD. A wallet outside the game (a speculator, adversaries.onChain) meets the pool alone. A game account
+ * goes through the bridge (token.bridge): the FD is frozen in its bridge account and leaves when the timer has
+ * run, through the exchange's rules (dailyBridge); with the bridge off it leaves at once through the same rules.
+ * The sim treats every withdrawal as sold into the pool the day it clears (Jeff, 2026-11-01).
+ */
 export function sellFd(w: World, c: Company, fd: number): string | null {
   if (!tokenLive(w)) return "FD isn't on the market yet";
   if (!(fd > 0) || fd > sellableFd(w, c) + 0.01) return "only unlocked FD can be sold";
-  const acct = companyAccount(c.id);
+  if (c.onChain) return asError(settleSale(w, c, fd, companyAccount(c.id), "wallet", false));
+  if (!w.cfg.token.bridge.enabled) return asError(settleSale(w, c, fd, companyAccount(c.id), "bridge", false));
+  w.ledger.post(w.t, companyAccount(c.id), bridgeAccount(c.id), fd, `bridge:request:${c.id}`, "freeOnly");
+  c.withdrawals.push({ fd, day: dayOf(w.t, w.cfg) });
+  w.token.bridge.requestedFd += fd;
+  return null;
+}
+
+const asError = (r: string | number): string | null => (typeof r === "string" ? r : null);
+
+/**
+ * Sells `fd` from `from` into the pool and returns what sold, or why nothing did. The bridge path charges the
+ * exchange's rules: the early-sale tax on farmed FD, the per-company daily limit, the frequency and impact fees,
+ * the band when it's on, and the bridge's daily cap for the whole game; with `partial` it sells what the limits
+ * allow and leaves the rest. The wallet path pays the pool's own fees only (the base fee, the launch fee).
+ */
+function settleSale(w: World, c: Company, fd: number, from: string, path: "wallet" | "bridge", partial: boolean): string | number {
   const k = w.cfg.token.exchange;
   const pool = w.ledger.balance(EXCHANGE_ACCOUNT);
+  const today = dayOf(w.t, w.cfg);
+  const poolFee = launchFeeRate(w, k.sellFeePct);
   // FD the company bought and hasn't sold back pays only the normal fee (exchange.launchTax.boughtExempt). The
   // pool's own launch fee (exchange.launchFee) is the least any sale pays, bought FD included: a pool can't tell.
-  const exempt = k.launchTax.boughtExempt ? (c.boughtFdOpen ?? 0) : 0;
-  const feeRateWith = (x: number, poolFee: number) => {
-    const normal = Math.max(poolFee, Math.min(k.sellFeeMax, k.sellFeePct + frequencyFee(w, c) + k.sellFeePerImpact * (x / (pool + x))));
+  const exempt = path === "wallet" ? Infinity : k.launchTax.boughtExempt ? (c.boughtFdOpen ?? 0) : 0;
+  const feeRateWith = (x: number, pf: number) => {
+    const normal = path === "wallet" ? Math.max(pf, k.sellFeePct) : Math.max(pf, Math.min(k.sellFeeMax, k.sellFeePct + frequencyFee(w, c) + k.sellFeePerImpact * (x / (pool + x))));
     const rate = Math.max(launchTaxRate(w), normal);
     if (exempt <= 0 || x <= 0) return rate;
     const taxed = Math.max(0, x - exempt);
     return (normal * (x - taxed) + rate * taxed) / x;
   };
-  const poolFee = launchFeeRate(w, k.sellFeePct);
   const feeRate = (x: number) => feeRateWith(x, poolFee);
-  // The band: what drops the price to today's low fills, the rest waits. The pool takes the sale net of its
-  // fee, which grows with the sale, so the most it can be is found by a few steps up from below.
-  const band = priceBand(w);
-  if (band) {
-    const maxNet = Math.sqrt((w.token.poolUsd * pool) / band.lo) - pool;
-    if (!(maxNet > 0.01)) return "the price is at today's limit down";
-    let cap = maxNet;
-    for (let i = 0; i < 6; i++) cap = maxNet / (1 - feeRate(cap));
-    if (fd > cap) {
-      fd = cap;
-      w.token.bandClips++;
+  if (path === "bridge") {
+    // The whale rules (TOKENOMICS.md §3): a daily sell limit per company as a share of the pool's FD, and a sell
+    // fee that rises with the single sale's price impact, all of it burned. The bear-case fixes: the limit
+    // tightens while the price falls, and the fee rises with how often a company sells. The bridge's cap: the
+    // whole game may withdraw at most its share of the pool a day.
+    if (c.soldFd.day !== today) c.soldFd = { day: today, fd: 0 };
+    const share = sellLimitShare(w);
+    const b = w.cfg.token.bridge;
+    if (w.token.bridge.dayOut.day !== today) w.token.bridge.dayOut = { day: today, fd: 0 };
+    const roomCompany = share > 0 ? pool * share - c.soldFd.fd : Infinity;
+    const roomGame = b.enabled ? b.dailyOutflowShareOfPool * pool - w.token.bridge.dayOut.fd : Infinity;
+    const room = Math.min(roomCompany, roomGame);
+    if (fd > room + 0.01) {
+      if (!partial) return roomGame < roomCompany ? "over the bridge's daily cap" : "over today's sell limit";
+      if (roomGame < roomCompany) w.token.bridge.cappedFd += fd - Math.max(0, room);
+      fd = Math.max(0, room);
+      if (fd <= 0.01) return "nothing clears today";
+    }
+    // The band: what drops the price to today's low fills, the rest waits. The pool takes the sale net of its
+    // fee, which grows with the sale, so the most it can be is found by a few steps up from below.
+    const band = priceBand(w);
+    if (band) {
+      const maxNet = Math.sqrt((w.token.poolUsd * pool) / band.lo) - pool;
+      if (!(maxNet > 0.01)) return "the price is at today's limit down";
+      let cap = maxNet;
+      for (let i = 0; i < 6; i++) cap = maxNet / (1 - feeRate(cap));
+      if (fd > cap) {
+        fd = cap;
+        w.token.bandClips++;
+      }
     }
   }
-  // The whale rules (TOKENOMICS.md §3): a daily sell limit per company as a share of the pool's FD,
-  // and a sell fee that rises with the single sale's price impact, all of it burned. The bear-case
-  // fixes: the limit tightens while the price falls, and the fee rises with how often a company sells.
-  const today = dayOf(w.t, w.cfg);
-  if (c.soldFd.day !== today) c.soldFd = { day: today, fd: 0 };
-  const share = sellLimitShare(w);
-  if (share > 0 && c.soldFd.fd + fd > pool * share + 0.01) return "over today's sell limit";
-  const fee = fd * feeRate(fd);
+  // To the cent, so the fee and the net add up to exactly what's sold (the ledger keeps cents).
+  fd = Math.round(fd * 100) / 100;
+  const fee = Math.round(fd * feeRate(fd) * 100) / 100;
   const net = fd - fee;
   const usd = w.token.poolUsd - (w.token.poolUsd * pool) / (pool + net);
   // A one-sided launch has no dollars on the bid side until buyers bring them: nothing to sell into yet.
   if (usd <= 0.01) return "no dollars on the bid side yet";
-  w.ledger.post(w.t, acct, "sink:exchange_fee", fee, `swap:fee:${c.id}`);
+  const mode = from === companyAccount(c.id) ? "freeOnly" : undefined;
+  w.ledger.post(w.t, from, "sink:exchange_fee", fee, `swap:fee:${c.id}`, mode);
   if (poolFee > 0) w.token.launchFee.sellFd += Math.max(0, fee - fd * feeRateWith(fd, 0));
-  w.ledger.post(w.t, acct, EXCHANGE_ACCOUNT, net, `swap:sell:${c.id}`);
+  w.ledger.post(w.t, from, EXCHANGE_ACCOUNT, net, `swap:sell:${c.id}`, mode);
   w.token.exchange.soldFd += net;
   w.token.poolUsd -= usd;
   c.usd.out += usd;
-  c.soldFd.fd += fd;
-  if (exempt > 0) c.boughtFdOpen = Math.max(0, exempt - fd);
-  if (k.frequency.enabled) {
-    c.sellDays = c.sellDays.filter((d) => d > today - k.frequency.windowDays);
-    if (c.sellDays.at(-1) !== today) c.sellDays.push(today);
+  if (path === "bridge") {
+    c.soldFd.fd += fd;
+    w.token.bridge.dayOut.fd += fd;
+    if (exempt > 0 && Number.isFinite(exempt)) c.boughtFdOpen = Math.max(0, exempt - fd);
+    if (k.frequency.enabled) {
+      c.sellDays = c.sellDays.filter((d) => d > today - k.frequency.windowDays);
+      if (c.sellDays.at(-1) !== today) c.sellDays.push(today);
+    }
   }
-  return null;
+  return fd;
+}
+
+/** Daily: withdrawals whose timer has run leave through the exchange's rules, as far as the day's limits allow; the rest waits. */
+export function dailyBridge(w: World): void {
+  if (!w.cfg.token.bridge.enabled || !tokenLive(w)) return;
+  const today = dayOf(w.t, w.cfg);
+  const st = w.token.bridge;
+  for (const c of w.companies) {
+    if (c.withdrawals.length === 0) continue;
+    const kept: Company["withdrawals"] = [];
+    let capped = false;
+    for (const r of c.withdrawals) {
+      if (today < r.day + bridgeDelayDays(w, r.day)) {
+        kept.push(r);
+        continue;
+      }
+      const held = w.ledger.balance(bridgeAccount(c.id));
+      const want = Math.min(r.fd, held);
+      const sold = want > 0.01 ? settleSale(w, c, want, bridgeAccount(c.id), "bridge", true) : 0;
+      if (typeof sold === "string" || sold <= 0.005) {
+        kept.push(r);
+        capped = true;
+        continue;
+      }
+      if (sold < r.fd - 0.005) {
+        kept.push({ fd: r.fd - sold, day: r.day });
+        capped = true;
+      }
+      st.clearedFd += sold;
+      st.cleared++;
+      st.waitDays += today - r.day;
+    }
+    if (capped) st.cappedDays++;
+    c.withdrawals = kept;
+  }
 }
 
 function earn(w: World, usd: number, source: "fee" | "product"): void {
@@ -312,9 +419,48 @@ function lifetimeMiles(c: Company): number {
  */
 function unlockAirdrop(w: World, c: Company, fd: number): void {
   if (fd <= 0) return;
-  c.airdrop!.unlockedFd += fd;
-  if (w.token.ceiling.holding) c.airdrop!.queuedFd += fd;
+  const a = c.airdrop!;
+  a.unlockedFd += fd;
+  if (a.lockedFd !== undefined) {
+    // Paid locked at the TGE (logbook.paidLocked): the FD is already in the account; the milestone frees its share
+    // for withdrawal, as far as it is still there (spent locked FD is gone, and nothing is minted in its place).
+    const acct = companyAccount(c.id);
+    const own = Math.min(a.lockedFd, w.ledger.locked(acct));
+    const u = Math.min(fd, own);
+    w.ledger.unlock(acct, u);
+    a.lockedFd = Math.max(0, own - u);
+    return;
+  }
+  if (w.token.ceiling.holding) a.queuedFd += fd;
   else payAirdrop(w, c, fd);
+}
+
+/**
+ * logbook.paidLocked: pays `fd` of an allocation into the company's account at once, `freeShare` of it free and
+ * the rest spend-only (ledger.ts), unlocked later by the milestones.
+ */
+function payLockedAirdrop(w: World, c: Company, fd: number, freeShare: number): void {
+  if (fd <= 0) return;
+  const a = c.airdrop!;
+  const acct = companyAccount(c.id);
+  w.ledger.post(w.t, "faucet:airdrop", acct, fd, `airdrop:${c.id}`);
+  w.token.airdrop.mintedFd += fd;
+  const free = fd * Math.min(1, Math.max(0, freeShare));
+  const locked = w.ledger.lock(acct, fd - free);
+  a.lockedFd = (a.lockedFd ?? 0) + locked;
+  a.unlockedFd += free;
+}
+
+/** logbook.paidLocked: burns what's still locked and unspent of a forfeited or lapsed allocation, up to `fd`; returns what burned. */
+function burnLockedAirdrop(w: World, c: Company, fd: number): number {
+  const a = c.airdrop!;
+  if (a.lockedFd === undefined || fd <= 0) return 0;
+  const acct = companyAccount(c.id);
+  const own = Math.min(a.lockedFd, w.ledger.locked(acct));
+  const burn = Math.floor(Math.min(fd, own) * 100) / 100;
+  if (burn > 0.005) w.ledger.post(w.t, acct, "sink:airdrop_forfeit", burn, `forfeit:${c.id}`, "lockedFirst");
+  a.lockedFd = Math.max(0, own - burn);
+  return burn;
 }
 
 /** Mints an unlocked slice into the company's account. */
@@ -362,8 +508,9 @@ export function launchToken(w: World): void {
       w.ledger.post(w.t, acct, "sink:launch_reset", burn, `launch:${c.id}`);
       resetBurnedFd += burn;
     }
-    c.lockedFd = Math.max(0, keep);
-    lockedFd += c.lockedFd;
+    // What's kept is spend-only: locked in the ledger, on top of whatever was locked already.
+    w.ledger.lock(acct, Math.max(0, keep));
+    lockedFd += w.ledger.locked(acct);
   }
   // The lean launch (Jeff, 2026-10-29): stakes, exit queues and contract stakes are beta FD too, and
   // are burned like wallets, so every position after launch is backed by real FD and nobody carries
@@ -407,7 +554,8 @@ export function launchToken(w: World): void {
     const book = tc.airdrop.logbook.enabled;
     c.airdrop = { totalFd: share, unlockedFd: 0, forfeitedFd: 0, queuedFd: 0, weeksLeft: book ? 0 : tc.airdrop.unlockWeeks, claimedEarly: false, ...(book ? { logbook: openLogbook(w, c, share) } : {}) };
     allocatedFd += share;
-    unlockAirdrop(w, c, share * (book ? tc.airdrop.logbook.atLaunch : tc.airdrop.atLaunch));
+    if (book && tc.airdrop.logbook.paidLocked) payLockedAirdrop(w, c, share, tc.airdrop.logbook.atLaunch);
+    else unlockAirdrop(w, c, share * (book ? tc.airdrop.logbook.atLaunch : tc.airdrop.atLaunch));
     if (book) logbookStats(w).openFd += share * tc.airdrop.logbook.atLaunch;
   });
 
@@ -439,6 +587,7 @@ export function launchToken(w: World): void {
     c.seasonBase = { miles: lifetimeMiles(c), profit: operatingResult(w, c) };
   }
   w.token.profitTaxRate = tc.profitTaxRate;
+  w.token.treasury.vestBaseFd = tc.circular.enabled ? w.ledger.balance(vestAccount(w)) : 0;
   w.token.launchDay = dayOf(w.t, w.cfg);
   w.token.baseCarriers = w.companies.filter((c) => c.role === "carrier").length;
   w.listener?.({ kind: "launched" });
@@ -498,7 +647,8 @@ export function seasonAirdrop(w: World): void {
       open.allocationFd += share;
       open.deadlineDay = Math.max(open.deadlineDay, dayOf(w.t, w.cfg) + lb.deadlineDays);
       const d = doneShares(w, c, open);
-      unlockAirdrop(w, c, share * (lb.atLaunch + d.honest + d.criminal));
+      if (lb.paidLocked) payLockedAirdrop(w, c, share, lb.atLaunch + d.honest + d.criminal);
+      else unlockAirdrop(w, c, share * (lb.atLaunch + d.honest + d.criminal));
       const st = logbookStats(w);
       st.openFd += share * lb.atLaunch;
       st.honestFd += share * d.honest;
@@ -508,7 +658,8 @@ export function seasonAirdrop(w: World): void {
     const carried = !lb.enabled && prev && prev.weeksLeft > 0 && !prev.claimedEarly ? Math.max(0, prev.totalFd - prev.unlockedFd - prev.forfeitedFd) : 0;
     // Slices still queued under the supply ceiling stay owed in the new vest.
     c.airdrop = { totalFd: share + carried, unlockedFd: 0, forfeitedFd: 0, queuedFd: prev?.queuedFd ?? 0, weeksLeft: lb.enabled ? 0 : tc.airdrop.unlockWeeks, claimedEarly: false, ...(lb.enabled ? { logbook: openLogbook(w, c, share) } : {}) };
-    unlockAirdrop(w, c, share * (lb.enabled ? lb.atLaunch : tc.airdrop.atLaunch));
+    if (lb.enabled && lb.paidLocked) payLockedAirdrop(w, c, share, lb.atLaunch);
+    else unlockAirdrop(w, c, share * (lb.enabled ? lb.atLaunch : tc.airdrop.atLaunch));
     if (lb.enabled) logbookStats(w).openFd += share * lb.atLaunch;
   });
   w.token.airdrop.seasonsPaid++;
@@ -522,10 +673,22 @@ export function seasonAirdrop(w: World): void {
  * The dollars it brings are the developer's revenue; the sale is the sell pressure the runs must carry. Only
  * under the cap, where the treasury allocation exists.
  */
+/** The vest's source: the team's allocation when there is one (circular.shares.dev), else the treasury's. */
+export function vestAccount(w: World): string {
+  return (w.cfg.token.circular.shares.dev ?? 0) > 0 ? "alloc:dev" : "alloc:treasury";
+}
+
+/** A vest week in game days: a real week at the live clock (vest.realTime), else a game week. */
+function vestWeekDays(w: World): number {
+  const v = w.cfg.token.treasury.vest;
+  return v.realTime ? Math.round((7 * 24) / w.cfg.time.realHoursPerGameDayLive) : 7;
+}
+
 export function weeklyVest(w: World): void {
   const v = w.cfg.token.treasury.vest;
   if (!w.cfg.token.circular.enabled || v.perWeekShare <= 0 || w.token.launchDay === null) return;
-  if (dayOf(w.t, w.cfg) - w.token.launchDay < v.cliffWeeks * 7) return;
+  const weekDays = vestWeekDays(w);
+  if (dayOf(w.t, w.cfg) - w.token.launchDay < v.cliffWeeks * weekDays) return;
   // The supply ceiling holds the scheduled payouts this week (ceiling.ts): the treasury keeps its FD.
   if (w.token.ceiling.holding) {
     w.token.ceiling.vestHeldWeeks++;
@@ -533,20 +696,25 @@ export function weeklyVest(w: World): void {
   }
   const hist = w.token.priceHistory.slice(-7);
   const avg = hist.length ? hist.reduce((a, b) => a + b, 0) / hist.length : 0;
-  const held = w.ledger.balance("alloc:treasury");
+  const source = vestAccount(w);
+  const held = w.ledger.balance(source);
   const pool = w.ledger.balance(EXCHANGE_ACCOUNT);
   const floor = w.token.launchPriceUsd;
   if (held <= 0 || w.token.poolUsd <= 0 || pool <= 0) return;
+  // The week's share: of the allocation at launch (vest.linear: the vest ends), else of what's left; a game week's
+  // part of a real week's share when the clock is real time.
+  const base = v.linear ? (w.token.treasury.vestBaseFd ?? held) : held;
+  const weekShare = v.perWeekShare * (7 / weekDays);
   // The price floor: not in a week the price averaged below launch, and only what the pool absorbs without its
   // price falling through the launch price: after a sale of `fd` the pool prices at poolUsd·pool/(pool+fd)², so
   // the sale stops where that meets it. Without the floor the vest is a clock: the week's share sells.
   if (v.priceFloor && (floor <= 0 || avg < floor)) return;
   const room = v.priceFloor && floor > 0 ? Math.sqrt((w.token.poolUsd * pool) / floor) - pool : Infinity;
-  const fd = Math.min(held * v.perWeekShare, room);
+  const fd = Math.min(held, base * weekShare, room);
   if (fd <= 0.01) return;
   const usd = w.token.poolUsd - (w.token.poolUsd * pool) / (pool + fd);
   if (usd <= 0.01) return;
-  w.ledger.post(w.t, "alloc:treasury", EXCHANGE_ACCOUNT, fd, "vest:treasury");
+  w.ledger.post(w.t, source, EXCHANGE_ACCOUNT, fd, "vest:treasury");
   w.token.poolUsd -= usd;
   w.token.treasury.devUsd += usd;
   w.token.treasury.vestedFd += fd;
@@ -561,8 +729,10 @@ export function forfeitAirdrop(w: World, c: Company): void {
   const book = openBook(c);
   if (a.weeksLeft <= 0 && !book) return;
   const left = a.totalFd - a.unlockedFd - a.forfeitedFd;
+  // Paid locked (logbook.paidLocked): what's still locked and unspent burns; the rest of the share was spent in the game.
+  const burned = burnLockedAirdrop(w, c, left);
   a.forfeitedFd += left;
-  w.token.airdrop.forfeitedFd += left;
+  w.token.airdrop.forfeitedFd += a.lockedFd === undefined ? left : burned;
   a.weeksLeft = 0;
   if (book) book.closed = true;
 }
@@ -593,9 +763,11 @@ function logbookPay(w: World, c: Company): void {
     w.listener?.({ kind: "notice", companyId: c.id, topic: "airdrop", text: `Logbook: ${milestoneText(r.id)}. ${Math.round(r.fd).toLocaleString("en-US")} FD of your airdrop unlocked.`, tone: "good" });
   }
   if (lostFd > 0.005) {
+    // Paid locked (logbook.paidLocked): what's still locked and unspent at the deadline burns.
+    const burned = burnLockedAirdrop(w, c, lostFd);
     a.forfeitedFd += lostFd;
-    w.token.airdrop.forfeitedFd += lostFd;
-    st.lostFd += lostFd;
+    w.token.airdrop.forfeitedFd += a.lockedFd === undefined ? lostFd : burned;
+    st.lostFd += a.lockedFd === undefined ? lostFd : burned;
   }
 }
 
@@ -622,9 +794,7 @@ export function weeklyToken(w: World): void {
     }
     if (a && openBook(c)) logbookPay(w, c);
     c.loadsThisWeek = 0;
-    const spent = c.weeklySpend.at(-1) ?? 0;
-    c.lockedFd = Math.max(0, Math.min(c.lockedFd - spent, w.ledger.balance(companyAccount(c.id))));
-    c.freePathLockedFd = Math.min(c.freePathLockedFd, c.lockedFd); // spending uses the free path's locked FD too
+    c.freePathLockedFd = Math.min(c.freePathLockedFd, lockedFd(w, c)); // spending uses the free path's locked FD too
     if (c.liquidatingSince === null) active++;
   }
   if (w.token.profitTaxRate > 0) chargeProfitTax(w);

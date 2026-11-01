@@ -143,6 +143,10 @@ export const economyConfig = {
     momentum: { wallets: 0, usdMedian: 2_000, lookbackDays: 7, buyAfterRise: 0.15, sellAfterFall: 0.1, buyShare: 0.5 },
     crowd: { wallets: 0, usdMedian: 200, holdDays: [14, 60] as const, stopLoss: 0.25 },
     whale: { usd: 0, sellAfterGain: 1, sellAfterDays: 90 },
+    // The speculators hold FD in wallets, never in the game (2026-11-01): their buys and sales meet the pool alone
+    // (its own fees, the launch fee), none of the bridge's rules. Off: they trade as game accounts, as the batches
+    // before v51 had them.
+    onChain: false,
   },
 
   // Design proposal (Jeff, 2026-10-28): the real road network (packages/data/src/roads.ts, from
@@ -402,7 +406,37 @@ export const economyConfig = {
   // The hirer is paid `fenceShare` of the cargo and `rigFenceShare` of the rig, less `washFee`, from the reserve.
   // New companies are off limits for `protectDays`; a victim can't be targeted again for `cooldownDays`; a hirer
   // needs equity of `stakeCover` × the most the crew could take. Off until the batches size it.
-  robbery: { enabled: false, feeShareOfValue: 0.02, minFeeFd: 2_000, windowDays: 7, minPlaceRisk: 1.5, odds: 0.5, riskNorm: 2, maxOdds: 0.8, rigShare: 0.3, fenceShare: 0.3, rigFenceShare: 0.2, washFee: 0.25, protectDays: 120, cooldownDays: 28, stakeCover: 1 },
+  robbery: {
+    enabled: false, feeShareOfValue: 0.02, minFeeFd: 2_000, windowDays: 7, minPlaceRisk: 1.5, odds: 0.5, riskNorm: 2, maxOdds: 0.8, rigShare: 0.3,
+    fenceShare: 0.3, rigFenceShare: 0.2, washFee: 0.25, protectDays: 120, cooldownDays: 28, stakeCover: 1,
+    // The Back Lot (2026-11-01; the bad-actor spec §8, Jeff: "including the back lot"), every piece behind its switch:
+    // logbookMinVictimTrucks: a hit counts toward the logbook's criminal milestones only when the victim runs at least this
+    // many trucks (0: any), so two wallets can't rob each other to unlock their airdrops.
+    logbookMinVictimTrucks: 0,
+    // fenceByCommodityOn: the fence's share of stolen cargo by what it is (easy to sell, serialized, bulky), else the flat share.
+    fenceByCommodityOn: false,
+    fenceByCommodity: { electronics: 0.3, autoParts: 0.3, retail: 0.35, grocery: 0.35, parcels: 0.35, textiles: 0.35, furniture: 0.35, imports: 0.35, beverages: 0.4, meat: 0.35, frozen: 0.35, dairy: 0.35, produce: 0.35, pharma: 0.15, machinery: 0.1, oilfield: 0.1, steel: 0.2, lumber: 0.2, building: 0.2, chemicals: 0.2, paper: 0.2, feed: 0.2, hay: 0.2, potatoes: 0.2, trees: 0.2 } as Record<string, number>,
+    // realStake: `stakeCover` × the most the crew could take is locked behind the hire for the crew's window, counting every open
+    // crew; on a hit it pays the victim's uninsured loss first (the cargo and physical-damage deductibles), the rest comes back.
+    // Off: the equity check alone, as before.
+    realStake: false,
+    // oneCrewPerVictim: one open crew on a company at a time, so a fleet isn't raided on every truck in the same week.
+    oneCrewPerVictim: false,
+    // takeLocked: the hirer's take is spend-only (ledger.ts locks): "dirty FD is never directly cashable".
+    takeLocked: false,
+    // npcFenceShare: with no player's fence or chop shop to buy what a crew took, the reserve pays this share of the take (1:
+    // the whole take, as before the Back Lot).
+    npcFenceShare: 1,
+    // The Back Lot proper: fences and chop shops as player businesses (businesses.kinds.fence / chopShop), behind the crews'
+    // ladder layer. A fence buys stolen cargo at the fence's share and resells it `resaleDays` later for the share plus
+    // `fenceMarkup` of the cargo's value (half of that for perishables); a chop shop buys a chopped rig at `rigFenceShare` of its
+    // value and sells the parts for `chopPartsYield` of it. The wash fee comes off the hirer's end, to the reserve.
+    backLot: { enabled: false, fenceMarkup: 0.15, chopPartsYield: 0.45, resaleDays: 7, perishableHalf: true },
+    // Bounties (payback, Channel 19): FD put up on a company, held in escrow for `days`, paid to whoever's crew hits it.
+    bounty: { enabled: false, days: 90, minFd: 1_000 },
+    // Notoriety (the spec's Heat for robbery): crews hired in the last this many game days, on the scorecard; no penalty.
+    notorietyDays: 56,
+  },
   // Security fittings (robbery): up to `slots` a truck, each bought once (a sink) and cutting a crew's odds.
   security: { slots: 3, items: { tracker: { fd: 3_000, cut: 0.25 }, locks: { fd: 1_500, cut: 0.15 }, camera: { fd: 1_000, cut: 0.1 } } },
 
@@ -647,6 +681,9 @@ export const economyConfig = {
       // within the range, delivered from stock in a week. It takes trade-ins at a share of their value and
       // sells them on from its used lot. The NPC dealer stays as the backstop, dearer and slower.
       dealership: { priceFd: 150_000, bondFd: 50_000, upkeepPerWeekFd: 3_000, perHub: 1, markupRange: [0.95, 1.2] as const, wholesaleShare: 0.85, maxStock: 24, tradeInShare: 0.8, lotMax: 10, deliveryDays: 7 },
+      // The Back Lot (robbery.backLot): a fence buys what crews take and resells it; a chop shop buys chopped rigs for parts.
+      fence: { priceFd: 90_000, bondFd: 30_000, upkeepPerWeekFd: 1_200, perHub: 1 },
+      chopShop: { priceFd: 120_000, bondFd: 40_000, upkeepPerWeekFd: 1_500, perHub: 1 },
     },
     // Parking (Jeff, 2026-10-30): a truck sleeps at a site. Every site is a free public rest area with spaces
     // by its traffic (`spaces` at the quietest and the busiest); a player's truck stop on it adds shore
@@ -840,7 +877,10 @@ export const economyConfig = {
       capFd: 1_000_000_000,
       // Genesis: the reserve, the launch pool (25M FD at $0.01) and four airdrop seasons (23M);
       // the rest is held by the treasury, unissued.
-      shares: { reserve: 0.6, pool: 0.025, airdrop: 0.023 },
+      // `dev` (2026-11-01, proposed to Jeff): the team's allocation, split from the protocol treasury (the auction tranche,
+      // later seasons, liquidity, bounties) so the vest below is a bounded share with an end, not the whole treasury. 0:
+      // the vest sells from the treasury allocation, as before.
+      shares: { reserve: 0.6, pool: 0.025, airdrop: 0.023, dev: 0 },
       reserveFactor: { exponent: 1, clamp: [0.5, 2] as const }, // rates × (reserve ÷ genesis reserve)^exponent, clamped
       // How much of the profit tax still burns under the cap; the rest refills the reserve. With none
       // burning (runs/v25-a) the price ended $0.0044 against $0.0084 open: the dial Jeff weighs
@@ -911,7 +951,14 @@ export const economyConfig = {
       // honest milestones open to a role unlock all of it between them; the criminal ones at most `criminalShare`
       // of it, only while the company has no open case; a conviction forfeits what's still locked (counsel to
       // confirm). Off until the combined test.
-      logbook: { enabled: false, atLaunch: 0.01, deadlineDays: 1460, criminalShare: 0.6 },
+      // `paidLocked` (Jeff, 2026-11-01: "keep the entire airdrop unlocked inside the game"): the whole allocation is
+      // paid when the book opens, `atLaunch` of it free and the rest spend-only (ledger.ts locks); a milestone then
+      // unlocks its share for withdrawal instead of minting it, the supply path has nothing to queue, and at the
+      // deadline whatever is still locked and unspent is burned. Off: the milestones mint their shares, as before.
+      // `boost` (Jeff, 2026-10-31: milestones unlock "through achievements, items"): a shop item that brings a milestone
+      // forward, bought once per milestone for `share` of the allocation (at least `minFd`, a sink), cutting what the
+      // milestone asks (loads, profit, hits...) to `factor` of it.
+      logbook: { enabled: false, atLaunch: 0.01, deadlineDays: 1460, criminalShare: 0.6, paidLocked: false, boost: { enabled: false, share: 0.03, minFd: 1_000, factor: 0.75 } },
     },
     // Buying pays 1% in dollars to the treasury; selling pays 5% in FD, burned (the
     // spec's 5% protocol cut on secondary sales, §Two ledgers).
@@ -952,6 +999,17 @@ export const economyConfig = {
       // orders it is split into pay the band's clock instead. Off until tested.
       sizeFee: { enabled: false, refUsd: 1_000, perRefPct: 0.05, maxPct: 0.5, days: 30 },
     },
+    // The bridge (Jeff, 2026-11-01: no selling in the game, FD is its only currency; every withdrawal is treated as
+    // a sale and pays the taxes and limits on the way out, the one place they can be enforced). A withdrawal waits
+    // `delayDays` game days (from `start` at launch to `end` after `overDays`: seven real days falling to two by six
+    // real months) with the FD frozen, then leaves through the exchange's rules (the early-sale tax, the per-company
+    // limit, the frequency and impact fees), and the whole game may withdraw at most `dailyOutflowShareOfPool` of
+    // the pool's FD a day (a share s of a constant-product pool moves the price 1/(1+s)² − 1: 2% is about −4%);
+    // what doesn't fit waits for the next day. Off: a sale is immediate, as before. The sim treats every withdrawal
+    // as sold into the pool the day it clears.
+    // `cancelBurn` (Jeff, 2026-11-01: cancellable, "in case people change their mind"): a withdrawal can be taken back
+    // while it waits, for this share of it, burned, so a standing request isn't a free option.
+    bridge: { enabled: false, delayDays: { start: 28, end: 8, overDays: 730 }, dailyOutflowShareOfPool: 0.02, cancelBurn: 0.02 },
     // Design decision (Jeff, 2026-10-29; TOKENOMICS.md §2): staking, the bond behind every licence.
     // Tiers gate company size and roles, never performance; the stake is slashed on revocation;
     // leaving takes the exit queue or an instant haircut, burned. Off until 0.18.0 ships.
@@ -1000,7 +1058,10 @@ export const economyConfig = {
       split: { burn: 0.5, treasury: 0.25, reserve: 0.25 },
       indexBaseRate: 3.0, // a normal market's cleared rate, FD/mi: the index is 1 there
       indexClamp: [0.5, 3] as const,
-      usdWindow: { enabled: true, premium: 1.5, capUsdPerMc: 500, referencePriceUsd: 0.01 },
+      // `assets` (Jeff, 2026-11-01: "any proceeds from items or assets purchased in game must go to the LP at TGE"; no
+      // cap: "why would we cap it?"): in the farming season new rigs and trailers from the NPC dealer sell for dollars
+      // too, at the same reference price and premium, every dollar held for the launch pool; `capUsdPerMc` null is no cap.
+      usdWindow: { enabled: true, premium: 1.5, capUsdPerMc: 500, referencePriceUsd: 0.01, assets: { enabled: false, capUsdPerMc: null as number | null } },
     },
     // Design decision (Jeff, 2026-10-29; TOKENOMICS.md §4): player-funded pools, insurance first.
     // A capitalised pool writes policies cheaper than the NPC insurer and earns the premiums; it
@@ -1076,7 +1137,11 @@ export const economyConfig = {
       // Jeff (2026-11-01): the price condition goes ("I don't like 'the treasury and airdrop recipients can only
       // sell if the price is over TGE'"): the vest is a published clock, a cliff and a weekly cap, nothing else.
       // `priceFloor` keeps the old rule until the package ships on a ruleset bump; false is the decided rule.
-      vest: { cliffWeeks: 26, perWeekShare: 0.0025, priceFloor: true },
+      // `realTime` (Jeff, 2026-11-01: agreed): the cliff and the weekly share count real weeks (28 game days at the live
+      // clock), not game weeks. `linear`: the week's share is of the allocation at launch, so the vest ends (26 + 208 real
+      // weeks at 0.0048 a week is four years); off, it's of what's left, and never ends. Proposed defaults for the package:
+      // dev 0.12, realTime, linear, cliffWeeks 26, perWeekShare 1/208.
+      vest: { cliffWeeks: 26, perWeekShare: 0.0025, priceFloor: true, realTime: false, linear: false },
       buybackShare: 0.5, // §Burn and buyback: half of revenue buys FD back (all of it burned here); half runs the company
     },
     lockGrants: true, // after launch, starting grants are spend-only (sybils can't cash them out)

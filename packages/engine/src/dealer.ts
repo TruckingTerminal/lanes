@@ -169,7 +169,7 @@ export function deliverOrders(w: World): void {
       // The lease goes back to the NPC lessor (its trailer too, and its deposit back to the carrier); the new
       // truck starts where it stood, and takes its ladder slot.
       refundLeaseDeposit(w, npc);
-      unlockFreePathEarnings(company);
+      unlockFreePathEarnings(w, company);
       if (w.cfg.assets.enabled) unhook(w, npc);
       // A rig from the NPC used lot comes as worn as it was priced.
       const u = o.used;
@@ -193,6 +193,14 @@ export function deliverOrders(w: World): void {
       syncTruck(w, npc);
     }
     const delivered = npc ?? createTruck(w, company, "owned", o.tier, o.trailer, o.used, company.homeHub, o.kind === "tractor" ? "fit" : "new");
+    // The spend-only FD it was paid with is its locked basis (ledger.ts), shared with a rig's own trailer by list price.
+    const basis = o.lockedPaidFd ?? 0;
+    const tr = w.cfg.assets.enabled && o.kind === "rig" ? hookedTrailer(w, delivered) : null;
+    if (tr && basis > 0) {
+      const share = trailerPrice(w, o.trailer) / Math.max(1, trailerPrice(w, o.trailer) + tractorPrice(w, o.tier));
+      tr.lockedBasisFd = basis * share;
+      delivered.lockedBasisFd = basis * (1 - share);
+    } else delivered.lockedBasisFd = basis;
     bindOrderLoan(w, o.id, delivered.id); // a purchase loan takes the truck it paid for as security
     w.metrics.onTruckDelivered();
     w.listener?.({ kind: "truckDelivered", companyId: company.id, truckId: delivered.id });
@@ -203,6 +211,7 @@ export function deliverOrders(w: World): void {
 /** A trailer alone: behind a tractor idle at the yard that pulls a rental (handed back), else into the yard. */
 function deliverTrailer(w: World, c: Company, o: TruckOrder): void {
   const tr = newTrailer(w, c, o.trailer, "owned");
+  tr.lockedBasisFd = o.lockedPaidFd ?? 0; // paid with spend-only FD: sold for the same (ledger.ts)
   const truck = (w.trucksByCompany.get(c.id) ?? []).find((t) => t.status === "idle" && t.hub === c.homeHub && hookedTrailer(w, t)?.lease === "rental");
   if (truck) {
     unhook(w, truck);

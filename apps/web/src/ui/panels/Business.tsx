@@ -6,7 +6,7 @@ import { Btn, Card, Kv, Num, Panel } from "../bits.js";
 
 const num = (id: string): number => Number((document.getElementById(id) as HTMLInputElement | null)?.value);
 
-const KIND_NAME: Record<BusinessKind, string> = { shop: "Shop", fuelStation: "Fuel station", truckStop: "Truck stop", dealership: "Dealership" };
+const KIND_NAME: Record<BusinessKind, string> = { shop: "Shop", fuelStation: "Fuel station", truckStop: "Truck stop", dealership: "Dealership", fence: "Fence", chopShop: "Chop shop" };
 const MODS = [
   ["apu", "APU", "idling at half"],
   ["aero", "Aero kit", "5% less fuel"],
@@ -157,6 +157,31 @@ export function Business(): JSX.Element {
               </Card>
             );
           })}
+          {w.cfg.robbery.enabled && w.cfg.robbery.backLot.enabled
+            ? (["fence", "chopShop"] as const).map((kind) => {
+                const spec = biz.kinds[kind];
+                const price = businessPriceFd(w, kind);
+                const room = hubsByWeight.filter(({ i }) => businessesAt(w, i, kind).length < spec.perHub).slice(0, 4);
+                const bl = w.cfg.robbery.backLot;
+                return (
+                  <Card key={kind} title={`Open a ${KIND_NAME[kind].toLowerCase()} (the Back Lot)`}>
+                    <p class="muted small">
+                      {kind === "fence"
+                        ? `Buys what crews take off trucks near it at the fence's share and sells it on a week later for the share plus ${Math.round(bl.fenceMarkup * 100)}% of the cargo's value (half that for perishables). Hires are on Channel 19; so are you.`
+                        : `Buys chopped rigs from crews at ${Math.round(w.cfg.robbery.rigFenceShare * 100)}% of their value and sells the parts for ${Math.round(bl.chopPartsYield * 100)}% of it a week later.`}{" "}
+                      {fd(price)} FD + {fd(spec.bondFd)} bond, {fd(spec.upkeepPerWeekFd)} a week upkeep. Opens with the crews' layer of the ladder.
+                    </p>
+                    <div class="row">
+                      {room.map(({ h, i }) => (
+                        <Btn key={h.id} disabled={atCap || cash < price + spec.bondFd} onClick={() => act({ type: "buy_business", kind, hubId: h.id }, `${KIND_NAME[kind]} open at ${h.name}`)}>
+                          {h.id} · {businessesAt(w, i, kind).length}/{spec.perHub}
+                        </Btn>
+                      ))}
+                    </div>
+                  </Card>
+                );
+              })
+            : null}
           <h3>Truck stops on the interstates</h3>
           <p class="muted small">
             Every site is a free public rest area. A truck stop adds fuel ({Math.round(biz.kinds.truckStop.fuelMarginPct * 100)}% margin on the legs that pass it), a shop that comes out to breakdowns nearby, and paid parking with shore power. Click a site on the map to see it here. At most {biz.maxPerCompany} businesses per company.

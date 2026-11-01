@@ -913,3 +913,85 @@ it. In every variant the pool opens with the same $42k (the crowd's $34k and the
 **Next:** the full-size test with the sinks on (the package of v47-b plus the bad actors of v46): the auction
 and the fee with the farmed-FD tax and the logbook, at tranches of 20M, 40M and 80M FD, beside v49-a; then
 Jeff sizes the tranche and the cap.
+
+## The airdrop inside the game, the bridge and the Back Lot (built 2026-11-01, overnight; all behind switches, off)
+
+Jeff's calls of the evening of 2026-11-01, in order: no selling inside the game, FD is its only currency, and every
+withdrawal through the bridge is treated as a sale and pays the taxes and limits there; the whole airdrop paid at
+the TGE, spend-only inside the game, unlocked for withdrawal by the achievements; a withdrawal timer, cancellable;
+the farming season's dollar window for rigs, trailers, facilities and businesses, every dollar to the pool at the
+TGE, no cap; robbers and the Back Lot on in the beta; the vest in real time. What was built:
+
+**Sticky locks (ledger.ts).** Spend-only FD is a locked sub-balance of an account, not a number on the company.
+Spending draws on it first; a payment to another company or into any escrow (a stake, a deposit, a bond, a pool)
+carries it, still locked; it dies only in a true sink (fuel, wages, fees, burns, the house's goods). A withdrawal
+takes free FD only. Assets remember their locked basis: a truck, trailer, business, facility, yard or dealership's
+stock bought with locked FD returns its proceeds locked up to that basis when sold, traded in, written off or
+scrapped, and a lease deposit paid with it comes back locked. So locked FD can be used anywhere in the game and
+can never be laundered into FD that leaves. One bounded exception stays: a company that spends its own locked
+airdrop and then receives another's locked FD can unlock up to its own allocation of what it received through
+its milestones (the ledger doesn't tell one lock from another). It takes a second allocation to exploit, which
+the identity check prevents; it is recorded here, not hidden.
+
+**The airdrop paid at the TGE (`token.airdrop.logbook.paidLocked`).** The whole allocation lands in the account
+when the book opens, `atLaunch` (1%) free and the rest locked. A milestone unlocks its share for withdrawal
+instead of minting it, as far as the FD is still there (what was spent is gone, and nothing is minted in its
+place). The supply path has nothing to queue: the airdrop is minted once. At the deadline, what is still locked
+and unspent burns; a conviction or a liquidation burns it the same way. The shop items (`logbook.boost`,
+`buy_logbook_boost`): a milestone that counts something (loads, profit, trucks, hits, the take) can be bought
+forward once for 3% of the allocation (at least 1,000 FD, a sink); it then asks 75% of what it did.
+
+**The bridge (`token.bridge`).** A sale is a withdrawal request: the FD is frozen in the company's bridge
+account for the timer (28 game days at launch, seven real days, falling to 8 by six real months), then leaves
+through the exchange's rules on the day it clears (the early-sale tax on farmed FD, the per-company daily limit,
+the frequency and impact fees), and the whole game may withdraw at most 2% of the pool's FD a day (a share s of
+a constant-product pool moves the price 1/(1+s)² − 1: about −4%); what doesn't fit waits for the next day. A
+request can be taken back while it waits, for a 2% burn (Jeff: "in case people change their mind"; the burn
+keeps a standing request from being a free option). The sim treats every withdrawal as sold into the pool the
+day it clears. Deposited FD counts as bought (the early-sale tax never falls on it). The speculators of the
+batches now hold FD in wallets (`adversaries.onChain`): their buys and sales meet the pool alone, which is what a
+clean token faces; the batches before v51 had them trading as game accounts, under limits a chain can't apply.
+
+**The dollar window for assets (`token.catalogue.usdWindow.assets`).** In the farming season new rigs and
+trailers from the NPC dealer, facilities and businesses sell for dollars at the catalogue's reference price and
+premium, every dollar held for the launch pool, no cap (Jeff: "why would we cap it?"; the 1% cap on any one
+company's airdrop share bounds what dollars can buy from the pot, as long as one person is one company).
+Trades between players stay in FD: dollars reach only the house, so none bypasses the pool.
+
+**The team allocation and the vest.** `circular.shares.dev` splits a team allocation from the protocol treasury
+(the auction tranche, later seasons, liquidity, bounties); the vest then sells from it. `vest.realTime` counts
+the cliff and the weekly share in real weeks (28 game days at the live clock); `vest.linear` makes the week's
+share a share of the allocation at launch, so the vest ends. Proposed to Jeff, numbers pending: 12% of the cap,
+a six-real-month cliff, linear over four years. The price floor at the TGE price is gone (`vest.priceFloor`,
+Jeff, 2026-11-01).
+
+**The Back Lot, v1 (`robbery.*`, the bad-actor spec §8).** The fence's share of stolen cargo by commodity
+(`fenceByCommodityOn`: electronics 30%, groceries and merchandise 35%, beverages 40%, pharmaceuticals 15%,
+machinery 10%, steel and lumber 20%...). A real stake behind the hire (`realStake`): `stakeCover` × the most the
+crew could take, locked in its own account for the crew's window, counting every open crew; on a hit it pays the
+victim's cargo and physical-damage deductibles first and the rest comes back; the equity check is gone with it.
+One open crew on a company at a time (`oneCrewPerVictim`). Only operating companies hire or post bounties; a
+hirer's crews end with its authority. Fences and chop shops as player businesses (`backLot.enabled`,
+`businesses.kinds.fence` 90k + 30k bond, `chopShop` 120k + 40k, behind the crews' layer of the ladder): a fence
+buys what a crew took, at the truck's hub first, pays the hirer the share less the wash fee (which goes to the
+reserve) and resells it a week later for the share plus 15% of the cargo's value (half that for perishables); a
+chop shop buys a chopped rig at 20% of its value and sells the parts for 45% of it. With no player to buy, the
+reserve's fence pays `npcFenceShare` of the take (1 until the package sets it lower). The take can be made
+spend-only (`takeLocked`: "dirty FD is never directly cashable"). Bounties (`bounty`): FD put on a company,
+held in escrow for 90 days, paid to whoever's crew hits it (never the poster's own), on Channel 19 like the
+hires and the hits. Notoriety: the crews a company hired in the last 56 days, on its scorecard, with no penalty
+from the game. The logbook counts a hit on a company of at least `logbookMinVictimTrucks` trucks (0: any; the
+package sets 3), so two wallets can't rob each other to unlock their airdrops. Bots: outlaws open a fence and a
+chop shop before other businesses; a company hit puts a bounty on the hirer; outlaws need the stake in hand.
+
+**Not built (the Back Lot v2, after the server):** the dirty wallet and washing through fronts, the contraband
+board, off-book handoffs, corruption and services, aliases and shells, the aged-authority market, crew
+integrity, contract theft's return as alias fraud (spec §8.4–8.6, §9). The "free FD only" flag on listings
+and lease offers, so a seller can refuse locked FD and the market prices the lock (Jeff: keep it on the list).
+
+**The client:** a Logbook tab (the airdrop and its milestones with the shop items, the unlock ladder, Channel
+19 with bounties and notoriety); the opening auction and the bridge's queue on the Money tab; the used lot and
+the dollar window in the showroom; fences and chop shops in Business.
+
+**What the sim has to show (v51, running as this was written):** the package of v47-b with the bad actors of
+v46 and every new rule, at tranches of 20M, 40M and 80M, and the 20M case without the bridge.

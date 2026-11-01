@@ -14,7 +14,7 @@
 import { layerBlock } from "./ladder.js";
 import { dayOf } from "./clock.js";
 import { clamp } from "./economics.js";
-import { priceIndex } from "./items.js";
+import { payAssetUsd, priceIndex } from "./items.js";
 import { companyAccount } from "./ledger.js";
 import { contractAccount } from "./receivables.js";
 import { chargeSalesTax, salesTaxOn } from "./salesTax.js";
@@ -36,22 +36,38 @@ export function businessPriceFd(w: World, kind: HubBusinessKind): number {
   return w.cfg.businesses.kinds[kind].priceFd * (w.cfg.token.catalogue.enabled ? priceIndex(w) : 1);
 }
 
-function pay(w: World, c: Company, price: number, bond: number, ref: string): string | null {
-  const tax = salesTaxOn(w, price);
+/**
+ * Pays for a business, in FD through the catalogue split or, in the farming season's dollar window, in dollars held for
+ * the launch pool (the bond is FD either way); `lockedPaid` is the spend-only FD it was bought with (ledger.ts), its
+ * locked basis.
+ */
+function pay(w: World, c: Company, price: number, bond: number, ref: string, usd?: "usd"): string | null {
   const acct = companyAccount(c.id);
+  if (usd === "usd") {
+    if (w.ledger.balance(acct) < bond) return "the bond needs FD";
+    const why = payAssetUsd(w, c, price);
+    if (why) return why;
+    lockedPaid = 0;
+    if (bond > 0) w.ledger.post(w.t, acct, contractAccount(c.id), bond, `bond:business:${c.id}`);
+    return null;
+  }
+  const tax = salesTaxOn(w, price);
   if (w.ledger.balance(acct) < price + bond + tax) return "insufficient FD";
+  let locked = 0;
   if (w.cfg.token.catalogue.enabled) {
     const s = w.cfg.token.catalogue.split;
-    w.ledger.post(w.t, acct, "sink:asset_burn", price * s.burn, ref);
-    w.ledger.post(w.t, acct, "alloc:treasury", price * s.treasury, ref);
-    w.ledger.post(w.t, acct, "sink:asset_reserve", price * s.reserve, ref);
+    locked += w.ledger.post(w.t, acct, "sink:asset_burn", price * s.burn, ref);
+    locked += w.ledger.post(w.t, acct, "alloc:treasury", price * s.treasury, ref);
+    locked += w.ledger.post(w.t, acct, "sink:asset_reserve", price * s.reserve, ref);
   } else {
-    w.ledger.post(w.t, acct, "sink:business_dealer", price, ref);
+    locked += w.ledger.post(w.t, acct, "sink:business_dealer", price, ref);
   }
+  lockedPaid = locked;
   chargeSalesTax(w, c.id, price, ref);
   if (bond > 0) w.ledger.post(w.t, acct, contractAccount(c.id), bond, `bond:business:${c.id}`);
   return null;
 }
+let lockedPaid = 0;
 
 function canBuy(w: World, c: Company): string | null {
   const k = w.cfg.businesses;
@@ -64,25 +80,31 @@ function canBuy(w: World, c: Company): string | null {
   return null;
 }
 
-export function buyBusiness(w: World, c: Company, kind: HubBusinessKind, hubId: string): string | null {
+export function buyBusiness(w: World, c: Company, kind: HubBusinessKind, hubId: string, usd?: "usd"): string | null {
   const bad = canBuy(w, c);
   if (bad) return bad;
   if (kind === "dealership" && !w.cfg.assets.enabled) return "no dealerships: trucks come from the NPC dealer";
+  if (kind === "fence" || kind === "chopShop") {
+    // The Back Lot (robbery.backLot): behind the crews' layer of the ladder.
+    if (!w.cfg.robbery.enabled || !w.cfg.robbery.backLot.enabled) return "the Back Lot isn't open";
+    const closed = layerBlock(w, "robbery");
+    if (closed) return closed;
+  }
   const hub = w.net.hubs.findIndex((h) => h.id === hubId);
   if (hub < 0) return "unknown hub";
   const spec = w.cfg.businesses.kinds[kind];
   if (businessesAt(w, hub, kind).length >= spec.perHub) return "no room for another at this hub";
   const price = businessPriceFd(w, kind);
   const ref = `business:${kind}:${c.id}`;
-  const paid = pay(w, c, price, spec.bondFd, ref);
+  const paid = pay(w, c, price, spec.bondFd, ref, usd);
   if (paid) return paid;
   const outlay = price + salesTaxOn(w, price);
-  w.businesses.push({ id: w.businesses.length + 1, kind, ownerId: c.id, hub, site: 0, boughtDay: dayOf(w.t, w.cfg), bondFd: spec.bondFd, markup: kind === "shop" ? 1 : kind === "dealership" ? 1.05 : 0, parkingFd: 0, netFd: -outlay, purchaseFd: outlay, stock: emptyStock(), soldMonth: 0, soldLastMonth: 0 });
+  w.businesses.push({ id: w.businesses.length + 1, kind, ownerId: c.id, hub, site: 0, boughtDay: dayOf(w.t, w.cfg), bondFd: spec.bondFd, markup: kind === "shop" ? 1 : kind === "dealership" ? 1.05 : 0, parkingFd: 0, netFd: -outlay, purchaseFd: outlay, stock: emptyStock(), soldMonth: 0, soldLastMonth: 0, lockedBasisFd: lockedPaid });
   return null;
 }
 
 /** A truck stop at an open site, at the site's traffic-scaled price. */
-export function buyTruckStop(w: World, c: Company, siteId: number): string | null {
+export function buyTruckStop(w: World, c: Company, siteId: number, usd?: "usd"): string | null {
   const bad = canBuy(w, c);
   if (bad) return bad;
   const site = siteOf(w, siteId);
@@ -92,10 +114,10 @@ export function buyTruckStop(w: World, c: Company, siteId: number): string | nul
   const spec = w.cfg.businesses.kinds.truckStop;
   const price = sitePriceFd(w, site);
   const ref = `business:truckStop:${c.id}`;
-  const paid = pay(w, c, price, spec.bondFd, ref);
+  const paid = pay(w, c, price, spec.bondFd, ref, usd);
   if (paid) return paid;
   const outlay = price + salesTaxOn(w, price);
-  const b: Business = { id: w.businesses.length + 1, kind: "truckStop", ownerId: c.id, hub: -1, site: site.id, boughtDay: dayOf(w.t, w.cfg), bondFd: spec.bondFd, markup: spec.markupRange[0], parkingFd: w.cfg.businesses.parking.defaultPriceFd, netFd: -outlay, purchaseFd: outlay, stock: emptyStock(), soldMonth: 0, soldLastMonth: 0 };
+  const b: Business = { id: w.businesses.length + 1, kind: "truckStop", ownerId: c.id, hub: -1, site: site.id, boughtDay: dayOf(w.t, w.cfg), bondFd: spec.bondFd, markup: spec.markupRange[0], parkingFd: w.cfg.businesses.parking.defaultPriceFd, netFd: -outlay, purchaseFd: outlay, stock: emptyStock(), soldMonth: 0, soldLastMonth: 0, lockedBasisFd: lockedPaid };
   w.businesses.push(b);
   site.businessId = b.id;
   return null;
@@ -105,7 +127,7 @@ export function buyTruckStop(w: World, c: Company, siteId: number): string | nul
 export function setShopMarkup(w: World, c: Company, businessId: number, markup: number): string | null {
   const b = w.businesses[businessId - 1];
   if (!b || b.ownerId !== c.id) return "not your business";
-  if (b.kind === "fuelStation") return "only a shop prices its work";
+  if (b.kind !== "shop" && b.kind !== "truckStop" && b.kind !== "dealership") return "only a shop prices its work";
   const [lo, hi] = w.cfg.businesses.kinds[b.kind].markupRange;
   b.markup = clamp(markup, lo, hi);
   return null;
