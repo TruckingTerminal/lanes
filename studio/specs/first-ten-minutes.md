@@ -1,96 +1,163 @@
-# The first ten minutes (UX spec, draft 1, 2026-11-02)
+# The first ten minutes (UX spec, draft 2, 2026-11-02; owner: UX)
 
-Played the public test page fifteen minutes as a stranger ("Kartli Freight", Dallas) at 375 px and 1366 px. No economy rule moves here; the one default that would is flagged at the end.
+Draft 2 rewrites a temporary agent's draft 1 after two sessions of my own (`reviews/ux-first-look.md`). No rule
+moves here. Quoted strings are placeholders the writer owns (`specs/copy-audit.md` wins); `{}` numbers come from
+config; other figures are one example load.
 
 ## Part one: the screens as they stand
 
-**Shell, both layouts.** Top bar: logo, Menu, clock, Live/Test badge, four speed buttons, FD, Miles, "Beta · launch in 730d", alert badges, Theme picker (34 themes), Full screen. Map with −/+/Fit/Expand and a legend. Thirteen tabs, Report, Expand. The walkthrough card above every panel. A footer ticker; a toast, bottom right, 4.2 s.
+Shell: a sticky top bar of up to twelve items (246 px of an 812 px phone), a map, thirteen tabs, the walkthrough
+over every panel, a ticker, a toast.
 
-| Tab (`TABS` key) | What it is | Who needs it: owner-operator / five / twenty | Noise in week one | At 375 px |
-|---|---|---|---|---|
-| Fleet (`fleet`) | Needs attention; tenders; tired and idle alerts; Orders on the way; a card per truck (status, crew, condition, odometer, trailer, twelve buttons from Find loads to Steal the load); The yard; Dispatcher (seven rules) | the truck card / alerts, orders / same | the yard, the dispatcher form, Send empty, Steal | card fits; form overflows |
-| Loads (`loads`) | DAT-style search (six fields, a 61-market Destination among them); a ten-column table; a row opens Trip / Rate / Company with Book now and Counter | every session / every session / the dispatcher's | Age, Eq, Score, Company, cargo value, vetting, tolls, highway share, Season, "DH-O" | table scrolls sideways; detail stacks into 25 rows |
-| Staff (`staff`) | You; Dispatch; Auto-staff; payroll; four hiring tables (drivers, dispatchers, managers, poaching) | nothing ("no open seat" on every row) / drivers, a dispatcher / all | all four tables | four sideways tables |
-| Dealer (`market`) | Used listings; Lease another truck; the Showroom (used lot, nine new rigs, tractors and trailers alone, lease offers); three facilities | the used lot, about day 35 / trailers / facilities | 182k rigs beside 4,700 FD cash; "$ to the launch pool" | long, readable |
-| Money (`money`) | Cash with sparkline; exchange, airdrop, auction; Equipment Finance | cash, what's owed / loans / all | auction, airdrop, deposits; the receivable the walkthrough points to is on Finance | fits |
-| Finance (`finance`) | Stake; Getting paid (three terms); three pools; Credit | Getting paid / Stake, which caps trucks / all | pools, credit | fits |
-| Business (`business`) | Yard and mods; shops, fuel stations, dealerships; truck-stop sites; resale | nothing / the yard / all | everything; ladder-locked live | fits |
-| Logbook (`logbook`) | Airdrop milestones; the ladder; Channel 19 | nothing / nothing / crews | all; crime in the player's face | fits |
-| Back Lot (`backlot`) | A locked teaser | nothing | the tab itself | – |
-| Rates (`rates`) | Market table per equipment (seven columns, 61 rows); best lanes | day 3 on / the dispatcher lives here / same | Out/in, Reload, Theft | sideways |
-| Economy (`economy`) | Faucets, sinks, supply, the market | the economy designer | all | fits |
-| Company (`company`) | Stats; safety record and policy; contracts; home market; insurance; players; seasons; market report; biggest companies | day 35, the law step / insurance, contracts / all | policy, seasons, market report | fits |
-| Guide (`guide`) | A fifty-page manual | when stuck | – | fits |
+| Tab | Holds | Who needs it: one truck / five / twenty | Fate |
+|---|---|---|---|
+| Fleet | alerts, tenders, a card per truck, the yard, the eight-rule dispatcher | truck card / alerts / same | **Fleet** |
+| Loads | six-field search, ten-column table, load detail | every sitting / same / the dispatcher's | **Loads** |
+| Staff | four hiring tables | nothing / drivers / all | section of Fleet, from its trigger |
+| Dealer | used lot, showroom, facilities | used lot ~day 35 / trailers / facilities | section of Fleet, from step 9 |
+| Money | cash, exchange, airdrop, auction, loans and deposits | cash, owed / loans / all | **Money**, token removed |
+| Finance | stake, getting paid, pools, credit | getting paid / stake / all | folded into Money |
+| Business | yard mods, shops, truck stops | nothing / the yard / all | section of Company from day 28 |
+| Logbook | airdrop milestones, ladder, Channel 19 | nothing | waits for the token layer |
+| Back Lot | a locked teaser | nothing | out of the client; the roadmap page |
+| Rates | market table, 61 rows | day 3 on / the dispatcher's | "Rates by hub", a sub-screen of Loads |
+| Economy | faucets, sinks, supply | the economy designer | out; the Monthly Economic Report |
+| Company | stats, safety, contracts, insurance, players | day 35 / insurance / all | **Company** |
+| Guide | fifty pages | when stuck | "Help", inside **Iuliia** |
 
-**Walkthrough** (`Walkthrough.tsx`, `walkthrough.ts`): thirteen steps, two paragraphs plus Do and Why each, done-ness read from the world. Steps 1 to 3 tick themselves: the default standing orders act before the player does.
-
-**Styles** (`page.html`): 13 px body, a dense console; the phone sheet (≤760 px) stacks map over panel, wraps the top bar into five rows (about 300 of 812 px), shows three tabs in a sideways rack, and scrolls tables sideways.
-
-**What I saw.**
-1. A game day a minute and reposition after two idle rounds: within ninety seconds my only truck left Dallas empty, Loads said "No idle trucks right now", Iuliia said "pick a load leaving your hub". On day 2 the dispatcher booked SAT→AMA itself and the walkthrough ticked "You won one." Live, that order fires twelve real hours after joining.
-2. Phone: the map is a 359 × 269 thumbnail under five hundred AI dots, my truck invisible. A hub tap zoomed the map; the city pane never opened in three tries on either layout.
-3. Desktop, paused: the first load from home read "Not for you yet: authority under 30 days old", the second showed −286 FD at book-now. My counter at the suggested 2.37 lost to 2.03; the only notice was the ticker ("Lost DAL→BWI at 2.37/mi: it went for 2.03/mi") and the truck card's "sat out 2 rounds".
-4. At 1366 px the tab labels truncate and the loads table overflows the panel sideways.
-5. Every action gives a toast, sometimes a relabelled button; nothing acted on changes: no state on the row, the map or the tab.
+Seen in two stranger sessions: the dispatcher moved the truck within ninety seconds and ticked four walkthrough
+steps, but not my own bid; on a phone the first screen is 576 px wide, the first load 1,688 px down, the map
+behind "⤡ Restore" and blank for 1–3 s, and a city pane never opened; a lost bid is told only in the ticker, 6,876
+px down; the green button on a losing load is "Book now"; at 1366–1440 px the tab labels overprint.
 
 ## Part two: the proposal
 
-Principles: one truck, one job, one screen at a time; the map is the board and the panel one card; no tab before it's useful; every order leaves a mark where it was given; the walkthrough ticks only on the player's own acts.
+Principles: the map is the world, the panel one card; five tabs; every order leaves a mark where it was given;
+the walkthrough ticks only on the player's own orders (`walkthrough.ts` reads the player's act log, not the world).
 
 ### Layout
 
-**Phone (≤1100 px).** The map fills the screen behind a bottom sheet with three heights: strip (88 px, one line of state), half, full. Bottom nav, four items: **Truck · Board · Money · More**. Top strip, 44 px: clock, cash, one alert dot. Menu, Miles, the beta countdown, Theme, Full screen and Report go under More; speed buttons stay in the strip, test build only.
+**Phone (< 900 px).** Draft 1 said 1100; a 1024 px laptop is a laptop.
+- **Top strip, 44 px, fixed:** clock ("Tue 06:00"), cash ("4,700 FD"), an alert dot with a count (taps to
+  Fleet's "Needs you"), "≡". Test build adds one speed button cycling "Paused · 1× · 10× · 30×".
+- **"≡" menu:** "Title screen", "Full screen", "Report a bug or an idea".
+- **Bottom nav, 56 px, fixed, five items, icon over label:** **Fleet · Loads · Money · Company · Iuliia**, the
+  bible's five. A dot on an item when something waits there (Loads: a bid result; Money: an invoice; Fleet: an
+  alert; Iuliia: a new step).
+- **Sheet** over a full-screen map: strip (88 px: one state line, e.g. "Truck 1 · Idle at Dallas · round 18:00"),
+  half (50 %), full (to the top strip). Drag handle; a nav tap opens half, Loads opens full; tapping the map
+  drops the sheet to strip.
 
-**Laptop (>1100 px).** Map left, a fixed 420 px panel right with the same four sections as a segmented control; More is a list, never a rack; anything wider than the panel stacks.
+**Laptop (≥ 900 px).** One 44 px top row (the strip's items, four test-speed buttons). Map left; a 420 px
+panel right, the five as a segmented control (84 px each, never truncated), Iuliia's caption under it. The
+footer ticker stays, laptop only.
 
-### Screen by screen
+**Cut from the chrome:** the theme picker (one theme, `cyber-ops`), Miles and "Beta · launch in 730d", the
+legend, both Expand buttons, the rack's Report, the locks.
 
-**S0 Title (0:00–0:40).** The art, the tagline, Company name, "Home: Dallas · Change", **Start hauling**. Change opens the hub list: Hub, Freight out, Carriers.
+**Iuliia's caption** (both layouts): 32 px portrait, the current step's Do line, "More" opens the Iuliia tab.
+On a phone it is the sheet's first line, never between the header and a list.
 
-**S1 Arrival (0:40–1:30).** The map flies from the country to Dallas in 1.5 s, to a zoom where the hub, its roads and one cyan sprite labelled "You · Workhorse + dry van" read; AI dots dim, players bright. The sheet opens at half: Iuliia's caption (32 px portrait, three lines, the writer's words) and one button, **Show me the board**.
+### S0 Title (0:00–0:40)
+Contents: the title loop; "Company name" (default "Lone Star Freight", 32 chars); three hub cards; **Start
+hauling**. Each card: hub name, one freight line, one carriers line ("Dallas · freight even · a fair share of
+carriers"). The table, its caption and the beta line go; "How you start" stays, test build only. The five
+connection cards stay, reworded.
 
-**S2 Board (1:30–4:00).** Sheet full. Header: "Loads from Dallas · 14 · next round 18:00 (in 5h)". A card per load, nearest first: "Dallas → Manassas, VA · 1,300 mi"; "2,386 FD · 1.84/mi"; a profit chip, red "−286 FD at this rate" or green "+403 FD at 2.37". Loads the company can't take sit dimmed at the end with one chip, "Needs 30-day authority". **Filter** holds destination, max empty miles and commodity; equipment is the truck's. Cut from the first view: every item in the table's noise column.
+### S1 Arrival (0:40–1:30)
+The map flies from the country to the home hub in 1.5 s (none under reduced motion), to a zoom where the hub
+label, its roads and the cyan sprite labelled "You" read. AI carriers at 35 % opacity; players full. Sheet at
+half: Iuliia's step 1 Do, rewritten as "This is Dallas, your home. Let's find a load.", and **Show me the
+board**. Step 1 ticks on that tap.
+States: map not drawn yet → the hub's painting with "Finding Dallas…" until the first frame.
 
-**S3 Load (4:00–5:30).** Full sheet; the map behind draws the lane and the empty leg to the pickup. Three groups: Route (pick up, deliver by, miles, driving hours), The money (book-now, your break-even, profit at book-now, "usually clears near"), Shipper (name, on-time). Two actions pinned at the bottom: **Counter [2.37] /mi · +403 FD** (a stepper, 0.05 a tap) and **Book now · 1.84 · −286 FD**.
+### S2 Loads (1:30–4:00)
+Header: "Loads from Dallas · 14 · next round 18:00 (in 5 h)". A truck selector only from two trucks.
+**Card** (88 px, the whole card a target):
+- line 1: "Dallas, TX → Charlotte, NC · 1,085 mi"
+- line 2: "2,010 FD · 1.85/mi · 0 mi empty"
+- chip: green "+180 FD at book-now", or red "−245 FD at book-now" followed by grey "+338 FD at 2.39"
+  (profit at the suggested bid, `suggest` in `Loads.tsx`).
 
-**S4 Bid in (5:30).** No toast. The sheet drops to half; the load card stays pinned at its top in a new state, "Your bid · 2.37/mi · clears 18:00 · 5h", a ring that fills to the round, and **Withdraw**. The map draws the lane dashed. Board gets a nav dot; the strip reads "1 bid in".
+Sort control, three segments: "Nearest" (default) · "Best pay" · "Deliver by". First visit only: loads with
+profit at book-now ≥ 0 first. Loads the company can't take go last, dimmed, one chip with the reason from
+`vettingBlock` ("Needs 30-day authority · day 1").
+**Filter** button opens: Destination (hub list, "Anywhere"), "Empty miles, max" (slider 0–`{MANUAL_BID_MAX_DEADHEAD_MI}`,
+default 300), "Commodity or place". Footer link: "Rates by hub".
+Laptop: the same cards; a "Table" toggle keeps today's DAT table for dispatchers who want it.
+States: truck busy → "Your truck is on the road · loads show when it's free · ETA Jan 7 02:36". Nothing within
+range → "Nothing for a dry van within 300 mi of Dallas this round · next round 18:00" and **Widen the search**
+(clears Destination and the query). A bid in → that card pinned first in its bid state (S4).
 
-**S5 The round (at 18:00 or on return).** The pinned card becomes a result. Won: "You won Dallas → Manassas at 2.37/mi · 3,081 FD"; the sprite rolls out of the hub; the strip says "1 truck rolling". Lost: "Lost to 2.03/mi. Three of fourteen cleared under your break-even today." with **Bid again**, which reopens the board with the likeliest wins first (usual clearing rate above break-even).
+### S3 Load (4:00–5:30)
+Full sheet (laptop: the panel), back arrow "Loads". The map draws the empty leg dotted and the lane solid.
+Three groups, label/value rows:
+- **Route:** "Pick up" (Dallas, TX · now), "Deliver by" (Jan 7 02:36 · Charlotte, NC), "Miles" (1,085 loaded ·
+  0 empty), "Driving" (19.6 h), "Reload at Charlotte" (fair · about 57 mi empty to the next load).
+- **The money:** "Book now" (2,010 FD · 1.85/mi), "Your break-even" (2.08/mi), "Profit at book-now" (−245 FD),
+  "Usually clears near" (2.10/mi), "Ceiling" (2.42/mi).
+- **Shipper:** name, "On time" (—).
 
-**S6 Rolling (6:00–8:00).** Truck tab, one card: sprite, "Dallas → Manassas · 1,300 mi · ETA Jan 7 07:24", a progress bar along the lane with fuel and rest stops as dots, "Tonight: truck stop near Little Rock". The map follows the truck.
+"More about this load" folds: commodity, cargo value, tolls, two-lane share, season, load number.
+**Actions, pinned to the bottom:** **Book now · 1.85/mi · −245 FD**, and a bid control: "−" [2.39] "+" (0.05 a
+tap, inside the bid range, shown "2.18–3.63") with **Bid · +338 FD**. Primary style: Book now when its profit is ≥ 0,
+else Bid; negative figures red.
+States: blocked → both disabled, the reason in red above. Bid in → "Change bid" and **Withdraw**. Live, sent
+→ "Sent · in effect 06:02" (`LEAD_MIN`, ~30 real seconds). Refused → the reason in red under it; no toast.
 
-**S7 Money (8:00–9:00).** Three lines: Cash, Owed to you (due day), This week's costs; a sparkline. Exchange, auction, finance and pools move to More › Finance.
+### S4 Booked or bid in (5:30)
+**Book now:** the sheet drops to half with "Booked · Dallas → Charlotte · 2,010 FD" and goes to S6.
+**Bid:** the sheet drops to half; the load card pinned at its top: "Your bid · 2.39/mi · clears 06:00 · in
+10 h", a ring that fills to the round, **Withdraw**. The map draws the lane dashed; the strip line reads "1 bid
+in · clears 06:00". Step 2 ticks here.
 
-**S8 What's next (9:00–10:00).** Iuliia: "Next: reload at Manassas. I'll show you when it lands." Board while the truck is busy: "Your truck is on the road · loads appear when it's free · ETA Jan 7". The dispatcher stays idle for a one-truck company until the player turns a rule on under More › Dispatcher.
+### S5 The round (at the round, or on return)
+The pinned card becomes the result until "OK" or the next bid; Loads gets a dot.
+- Won: "Won Dallas → Charlotte at 2.39/mi · 2,593 FD" → the sprite leaves the hub → S6.
+- Lost: "Lost to 2.24/mi · your bid 2.39 · your break-even 2.08" and **Bid again** (the board sorted by profit
+  at "Usually clears near"). Draft 1's "three of fourteen cleared under…" goes: nothing computes it.
+
+### S6 Rolling (6:00–8:00)
+Fleet, one card: the rig, "Dallas → Charlotte · 1,085 mi", a progress bar, "ETA Jan 7 02:36", a chip "On time"
+or "Late 3 h". The map follows the truck until the player pans, then shows "Follow". Overnight stop: question 3.
+
+### S7 Delivered (on return)
+Result card on Fleet; Money gets a dot. "Delivered Dallas to Charlotte", then the pay line, one row each: "The
+load" 2,593 · "Fuel" −612 · "Tolls" −0 · "The lessor's `{npcLeaseShareOfGross}`" −389 · "Held toward your own
+truck" −150 (when the deposit applies) · **"Yours" 1,442 FD** · "Paid" (due day). Same rows as the ticker line,
+in the open.
+
+### S8 Money (8:00–9:00)
+Four groups: "Cash" with the sparkline; "Owed to you" (load, amount, due day; empty: "Nothing owed yet · your
+first invoice lands here"); "This week's costs" (lease minimum, insurance, yard, per diem); "Standing" (loaded
+miles, the bible's Miles). Under a fold: "Loans" (purchase loans only). Exchange, auction, airdrop, pools,
+deposits: not shown in the beta.
+
+### S9 Before you go (9:00–10:00)
+After the first hand-booked load, Iuliia's caption: "Next round 18:00. Set your dispatcher before you go." and
+**Set the dispatcher** → Fleet › Dispatcher: a switch "Bid for me while I'm away", then three rows: "Bid at
+break-even plus" [25] %, "Send the truck empty up to" [150] mi, "Bring me home after" [21] days, then **Save**.
+"More rules" folds the rest (floor, book-now, move idle trucks, contracts). The re-post row is hidden until
+brokerage opens. Defaults are `DEFAULT_ORDERS` until Jeff answers question 1.
 
 ### Map and panel
+A hub tap opens a hub card in the sheet or panel (its loads, then its market), never a modal or a tab switch. A
+truck tap opens its Fleet card.
 
-Phone: the map stays behind the sheet, a third of it visible at strip height, and every sheet state (a bid, a rolling truck) is drawn on it too. A hub tap opens the hub as a card in the sheet (board first, market second), never a modal. Laptop: the same card in the panel; the map never switches tabs by itself.
+### Where everything else lives
+- **Fleet:** truck cards, "Needs you" (alerts, tenders, tired, idle), the yard, Dispatcher, "Today" (the last
+  eight feed lines). Staff appears when a truck has no driver or at the second truck; "Buy your own truck"
+  (the Dealer's used lot) at walkthrough step 9.
+- **Company:** stats, safety record, contracts, insurance, home market, players; Business from its layer's day.
+- **Iuliia:** the current step in full, the list of thirteen, Help (the Guide), the roadmap page.
+- **Walkthrough targets move:** `own` → Fleet; `driver` → Fleet › Staff; `yard` → Fleet's yard; `miles` →
+  Money › Standing.
 
-### Iuliia
-
-A caption bar at the top of the sheet or panel: portrait, three lines, an arrow for the rest; never above the content, never ticked by the dispatcher's work. The thirteen steps keep their order; the writer cuts each to forty words and one Do.
-
-### Feedback
-
-| Action | Mark it leaves |
-|---|---|
-| Counter / Book now | the load card's pinned state; dashed lane on the map; nav dot; strip "1 bid in" |
-| Round clears | result card; sprite moves; strip; log entry |
-| Delivery | result card with the invoice and due day; Money gets a dot |
-| Any live-world order | the card shows "sent · in effect at 18:00 (2h)" until the world confirms |
-| A refusal | the reason in red on the control that refused, not a toast |
-
-The toast stays only for the live connection ("Reconnecting…", "Back").
-
-### Empty, loading, first time
-
-Loading: the road strip with the percentage, plus "Finding Dallas…". Board with no loads: "Nothing from Dallas for a dry van this round · next round 18:00" and **Widen the search**. Driverless truck: "Needs a driver" and **Hire**. Money before the first delivery: "Nothing owed yet · your first invoice lands here". First time only: S1's flight, "Show me the board", and a footnote under S2's chips: "Break-even: what this truck must earn a mile to cover fuel, the lessor and wear."
-
-### Keep, move, cut
-
-Keep, renamed: Fleet → **Truck** (**Trucks** from the second), Loads → **Board**, Money. Under More: Company, Guide (as Help), Rates (as Markets, also from a hub card), Finance (into Money), Dealer (surfaces on Truck as "Buy your own truck" at step 9), Staff (surfaces at a driverless or second truck), Dispatcher (its own screen). Cut: Economy (a docs page), Logbook until the TGE, the Back Lot teaser (a roadmap page), the theme picker (one default; the rest under Settings), the legend, "Beta · launch in 730d", both Expand buttons, Steal the load, Send empty's hub select (becomes "Move the truck" on a hub card). Strings kept: every walkthrough Do, "Book now", "Counter", "Withdraw", the hub names. For the writer: "DH-O max", "sat out 2 rounds", "No idle trucks right now", "Not for you yet", "Your dispatcher is watching the board."
-
-### The decision I need from the director
-
-Whether a one-truck company starts with the dispatcher's standing orders off (`DEFAULT_ORDERS` applied from the second truck, or once the player has bid by hand). Without it the first bid, win and loss are the dispatcher's, and no first ten minutes can be the player's.
+## Questions (the producer routes them)
+1. **Jeff, a rule:** standing orders off for a one-truck company until the first hand-booked load. Without it,
+   S2–S5 belong to the dispatcher.
+2. **Director and economy:** live, a bid resolves at the next round, up to three real hours away, so "wins a load
+   inside five minutes" is only possible through a profitable Book now. Does the first board promise one?
+   Today Dallas's nearest book-now lost 245 FD.
+3. **Engineering:** can the client read a moving truck's overnight stop? If not, S6 ships without it.
+4. **Director:** S0's three hubs. Mine: Chicago, Dallas, Phoenix.
