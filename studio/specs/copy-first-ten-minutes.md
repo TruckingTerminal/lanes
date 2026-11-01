@@ -10,7 +10,12 @@ Every string on sprint 1's screens, keyed to `specs/first-ten-minutes.md`. `{key
 | Tagline, test build | Test build: the whole game against the AI, with pause and speed controls. |
 | Join card title / lead | Join the live world / One world, shared by every player, on the real clock: a game day every `{time.realHoursPerGameDayLive}` real hours. It never pauses, nothing resets, every order stands. |
 | Fields | Company name ("Lone Star Freight") · Home hub |
-| Hub card, line 2 | `{hub}` · freight `{strong / even / thin}` · `{few / a fair share of / many}` carriers |
+| Hub card, line 2 | `{hub}` · `{few / a fair share of / many}` carriers (the season line below replaces "freight strong / even / thin", so a card never says freight twice) |
+| Hub card, line 3: the season | One line, on every hub card, the three starters and the "Change" list alike. `{month}` is the game calendar's current month, spelled out ("May", "September"), never the real one. The state is the economy designer's measure for that hub and month, with thresholds as config keys they name; the writer only owns the words. |
+| · thin | Freight is thin here in `{month}`. A new carrier waits. |
+| · a little thin | A little thin in `{month}`; the good loads go early. |
+| · fine | Freight is good here in `{month}`. |
+| Change | Change (opens the full hub list; each row carries its season line) |
 | Start line | Everyone starts the same way: one leased Workhorse with a dry van, `{company.startingGrantFd}` FD, and you driving. The lessor keeps `{costs.npcLeaseShareOfGross}` of every load. Go broke and you start again on a lease. |
 | Buttons | Start hauling · Test world: private, pausable |
 | Test form lead | A private copy of the rules with only you and the AI in it. Pause it, run it fast. It stays in this browser; a new one replaces it. |
