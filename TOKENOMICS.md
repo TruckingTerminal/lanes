@@ -861,3 +861,55 @@ is gone.
 **What the sim still has to show (v50, the launch smoke):** the auction tranche and the decaying fee
 against every bad actor, beside the ±5% band of v49-a that is no longer on the table on-chain: what the
 tranche's size does to the peak and to who takes what, and whether the fee does any of the band's work.
+
+## The launch smoke (v50, 2026-11-01): the auction tranche against the bad actors
+
+A small world (a quarter of the full one: 100 owner-operators, 30 fleets, 15 brokers), every bad actor at a
+quarter (farmers at 30% of players, three sybil clusters, 50 momentum traders, a 125-wallet crowd, a $12.5k
+whale), the token launching at half a year, 400 days, bare rules (no sinks), seeds 1, 4, 8 (`runs/compare-v50.md`).
+The sim lets the crowd and the whale bid in the auction, at most $1,000 each; the momentum traders buy after
+it. In every variant the pool opens with the same $42k (the crowd's $34k and the escrow). Means of three seeds:
+
+| | Launch price | Peak (× launch) | Peak market cap | End price | Pool $ at end | Farmers / sybils take | Speculators' net | Fleets' net |
+|---|---|---|---|---|---|---|---|---|
+| No protections (n) | $0.00062 | 450× | $6.5M | $0.000074 | $3k | $32k / $67k | −$82k | −$19k |
+| ±5% band, farmed tax, logbook (b, v49-a's package) | $0.00066 | 12× | $268k | $0.00039 | $6k | $6k / $4k | −$3k | −$11k |
+| The auction alone, 5M tranche (a) | $0.0068 | 19× | $3.0M | $0.00017 | $7k | $29k / $44k | −$75k | −$6k |
+| The launch fee alone (f) | $0.00062 | 340× | $4.7M | $0.000079 | $3k | $26k / $54k | −$79k | −$14k |
+| Option A: the auction and the fee (af) | $0.0068 | 19× | $2.8M | $0.00018 | $7k | $25k / $40k | −$75k | −$7k |
+| A with the size fee (afs) | $0.0068 | 16× | $2.5M | $0.00018 | $7k | $27k / $40k | −$90k | −$2k |
+| A with the bridge's rules: the farmed tax, the logbook (aft) | $0.0068 | 22× | $3.2M | $0.00068 | $13k | $14k / $18k | −$38k | −$10k |
+| aft with the ±5% band (aftb) | $0.0068 | 2.2× | $377k | $0.00077 | $14k | $8k / $7k | −$14k | −$12k |
+| A with a 2.5M tranche (af2) | $0.014 | 16× | $3.7M | $0.00013 | $4k | $37k / $66k | −$95k | −$19k |
+| A with a 10M tranche (af10) | $0.0034 | 20× | $2.3M | $0.00023 | $11k | $17k / $24k | −$61k | −$0.1k |
+
+- **The auction takes an order of magnitude off the bubble.** Without it the listing spikes 450× (the
+  dollars-supported open is $0.00062 against an $8k pool); with the tranche the pool opens five times
+  deeper and the spike is 16–22×, in absolute terms a peak price of $0.07–0.13 against $0.28. What is left
+  of it is the momentum traders' dollars (they don't bid in the sim) against the pool.
+- **The clearing price is set by the bidders' dollars over the tranche, and in this world it was ten times
+  what the economy supports:** $34k over 5M FD is $0.0068, and the price then fell 97% in the 218 days
+  after launch, as the bare world printed FD (supply +200%) that farmers sold. The tranche's size decides
+  how far: at 2.5M the launch read $151k of market cap and ended at $9k; at 10M it read $95k and ended at
+  $21k, with three times the pool dollars of the 2.5M case, half the farmers' and sybils' take, and the
+  fleets net even. Bigger is better: the clearing price lands nearer where the market settles. (The world
+  has no sinks, so nothing holds the launch price here; in v47-b, full size with the sinks on, the price
+  ended 17% above launch. The full-size test decides the size.)
+- **The decaying fee is not a bubble tool.** Alone it leaves the spike at 340×; on top of the auction it
+  changes nothing in the peak or the end. What it does is fund the buyback ($13k of dollars against $1k)
+  and burn 0.4–0.8M FD of early sales. The size fee is worth a little (the whale pays: the fleets' net goes
+  from −$7k to −$2k). Keep both as the pool's settings, not as the defense.
+- **The bridge's rules do the most for what comes after.** The farmed-FD tax and the logbook on top of the
+  auction quadruple the end price ($0.00068 against $0.00018), double the pool's dollars, halve what farmers
+  and sybils take and what speculators lose, bring 39 newcomers instead of 25, and burn 22.5M FD of early
+  sales (supply +155% instead of +220%). They don't touch the peak.
+- **The band's job is the one thing left on the table on-chain:** on top of everything (aftb) it caps the
+  peak at 2.2× and otherwise matches aft (the end price $0.00077 against $0.00068). Jeff chose no band
+  on-chain, so the launch defense is the tranche's depth and the bridge's rules, and a 20× spike-and-fall
+  in the first weeks is the cost, unless more of the speculative money arrives through the auction (a
+  bigger reach, a higher per-person cap) or the auction's FD vests to its bidders over the first weeks
+  (an Alpha Vault setting; not modelled yet).
+
+**Next:** the full-size test with the sinks on (the package of v47-b plus the bad actors of v46): the auction
+and the fee with the farmed-FD tax and the logbook, at tranches of 20M, 40M and 80M FD, beside v49-a; then
+Jeff sizes the tranche and the cap.

@@ -346,16 +346,17 @@ and off. What the batches settled, and what waits on Jeff:
 - **The launch defense:** the band turns the listing spike into a climb at the limit; the 75% early-sale tax
   on every sale makes that climb five times bigger; a ±5% band with the tax on farmed FD only and the
   logbook was the best (a peak market cap of $2.6M against $33.5M unprotected, farmers taking 85% less,
-  sybils 94% less). **Jeff to choose: the band's width, the tax's reach, and whether an auction tranche
-  (FD sold at the clearing price before launch) should meet the launch demand.**
+  sybils 94% less). **Jeff decided (2026-11-01):** no band on-chain (a plain token in a standard pool), the
+  auction tranche yes, the tax on farmed FD at the bridge; the tranche's size waits on the v50 smoke.
 - **The supply path and the logbook:** at +10% the path holds the logbook's unlocks as owed for good in some
   seeds (one paid nothing past the 1% opening). **Jeff to choose: widen the path, or let the logbook's
   payments through.**
 - **Robbery at realistic prices** chops about one owned truck in six; the unlock ladder (crews from day 182)
   cuts the hires by a fifth to a half.
-- **Not built:** the opening auction with a tranche (a literal one, every bid as one buy against the
-  opening pool, lifted the open about 2,000× in a thin pool, so it was reverted); the shop items that bring
-  a logbook milestone forward; the client's pages for the logbook, the ladder, the lot and Channel 19.
+- **Built 2026-11-01 (off):** the opening auction as a tranche, `token.launch.auction` (a literal auction,
+  every bid as one buy against the opening pool, had lifted the open about 2,000× in a thin pool, so it was
+  reverted). **Not built:** the shop items that bring a logbook milestone forward; spend-first unlocks; the
+  client's pages for the logbook, the ladder, the lot, the auction and Channel 19.
 
 ## Later, agreed with Jeff on 2026-10-30 (not before the switch-on and the dashboard)
 - **The world-economy story.** Scripted shocks on top of the cycle, seasons, weather and fuel feeds:
@@ -380,7 +381,10 @@ and off. What the batches settled, and what waits on Jeff:
 
 ## Open for Jeff to decide
 - The auction tranche's size and the per-person cap (the sim's stand-ins: 20M FD, $1,000), and the
-  launch fee's start and days (50%, 14 game days), once the v50 smoke has run.
+  launch fee's start and days (50%, 14 game days). The v50 smoke (TOKENOMICS.md "The launch smoke"): the
+  auction takes the listing spike from 450× to about 20×, bigger tranches end higher (the clearing price
+  lands nearer where the market settles), the fee is not a bubble tool, the bridge's rules carry the
+  aftermath. Next: the full-size test at 20M / 40M / 80M with the sinks on, then Jeff's call.
 - Spend-first unlocks (each logbook slice spend-only for 30 real days before it can leave through the
   bridge): proposed 2026-11-01, not built.
 - Whether later seasons' pots still shrink when the price sits below launch (pot × min(1, avg ÷ launch)):
