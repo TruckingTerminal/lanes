@@ -247,3 +247,76 @@ for g in 1 2 3 4 5 6 7 8 9 10; do
 done; wait
 node "$LA/may10-table.mjs" runs/fb-may10 > runs/fb-may10-table.md   # $LA as in the commands above
 ```
+
+## The hub card's season line: the measure (2026-11-02)
+
+Economy designer, for engineering and the writer. This is a spec only; no code changed.
+
+**The seasonal multiplier can't be the measure.** The "Seasons now" card and the provisional `seasonLine()` in
+`apps/web/src/hubcard.ts` read the engine's calendar, `seasonality(w, hub, "van", day)` (`demand.ts`). Its May van
+volume is Chicago 0.58, Los Angeles 0.72, Dallas 0.94, Phoenix 0.95, and Los Angeles reads 0.66–0.74 from
+February to May. No cut points on that number make Los Angeles in May read better than Dallas and Phoenix, yet its
+board is the only one of the three that passes on every seed. Today's provisional cuts (0.85 / 0.95 / 1.1) would
+print "Freight is thin here in May" on Los Angeles. Its freight is deep for reasons the calendar doesn't hold: the
+load-to-truck ratio, the reload run and rolled ceilings. The Rates table's loads per truck (`w.lastRatioEq`) is
+closer, but no run records it, so I can't calibrate it.
+
+**The measure: the hub's first board, read live.** Two steps, at the moment the card is drawn:
+
+1. In the loop `hubFacts()` already runs over the hub's open dry-van loads, count those whose ceiling clears a
+   starter's break-even by `ui.season.margin`. The starter is the free path's leased Workhorse with a dry van,
+   at the hub. Its break-even uses the same arithmetic as ruling 5's chip (`trueBreakEven` in
+   `apps/sim/src/firstBoard.ts`): `breakEvenPerMile` with the lessor's share, `fuelPrice(w)`, tolls and climb,
+   and the expected reload run (`expectedReloadDeadheadMi`) at the default dispatcher's foresight and reload
+   weight for a new owner.
+2. Divide by the hub's base van freight a round: `freight.baseLoadsPerRound × hub.weight ÷ Σ hub weights ×
+   freight.equipmentShare.van × hub.imbalance.van`, the season-free factors of `hubDemandPerRound`. That is
+   Chicago 12.1, Dallas 9.6, Phoenix 3.75, Los Angeles 15.1.
+
+The result is one number per hub: profitable open loads now, per round of the hub's normal freight. It is
+section 3's test (the "+25% loads a round" column) without the probe's gates, which lock 0–2 loads a round after
+the first week.
+
+**The keys:** a `ui.season` block in `packages/config/src/economy.config.ts`. There is no client config. The copy
+spec reads every `{key}` from that file. `tiredAt` sets a precedent for a threshold only the client reads. And
+these cut points are calibrated on the economy, so they should move and be versioned with the ruleset. Adding
+the block bumps the version, with no effect on the sim.
+
+| Key | Value | Reads |
+|---|---|---|
+| `ui.season.margin` | 0.25 | a load counts when its ceiling clears the break-even by this (the default dispatcher's bar) |
+| `ui.season.thinUnder` | 0.15 | below: thin (under about 2 profitable loads at Chicago or Los Angeles, under 1 at Phoenix) |
+| `ui.season.fineFrom` | 1.5 | below, and not thin: a little thin |
+| `ui.season.busyFrom` | 4.5 | from here: busy; between fine and busy: fine |
+
+**The four hubs by month, from the runs above** (the measure, its state, and in brackets the profitable loads a
+round). Dallas, Phoenix and Los Angeles come from this section's runs at 0.31; Chicago from section 3's at 0.30.
+Each cell is a 14-day mean:
+
+| Hub | Jan (days 0–13, the restart) | Mar (60–73) | May (120–133) | Sep (240–253) | Feb, year 2 (400–413) |
+|---|---|---|---|---|---|
+| Chicago | 4.45 fine (53.7) | 6.00 busy (72.3) | 0.00 thin (0.0) | 3.29 fine (39.7) | 2.78 fine (33.5) |
+| Dallas | 2.33 fine (22.3) | 3.22 fine (30.8) | 0.28 a little thin (2.7) | 4.71 busy (45.1) | 1.02 a little thin (9.8) |
+| Phoenix | 2.27 fine (8.5) | 3.17 fine (11.9) | 0.53 a little thin (2.0) | 3.57 fine (13.4) | 1.09 a little thin (4.1) |
+| Los Angeles | 5.82 busy (87.7) | 4.22 fine (63.7) | 2.57 fine (38.8) | 6.85 busy (103.3) | 1.68 fine (25.4) |
+
+May over the ten seeds:
+
+- **Los Angeles:** 2.28–4.64, fine on 9 seeds and busy on 1.
+- **Dallas:** thin on its three failing seeds (0.04–0.11; 29–68% of rounds), a little thin on its three weak ones
+  (0.30–0.43; 86–93%), fine or busy on the four strong ones.
+- **Phoenix:** thin on seed 4 (0.03; 14%), a little thin on 1, 8 and 9 (0.43–1.17; 68–86%), fine or busy on the
+  rest.
+
+So the state follows the board each world actually has. Section 3's ten-hub May agrees: Memphis, Atlanta, Newark
+and Columbus read thin (0.00–0.06), Houston and Miami a little thin (0.80, 0.85).
+
+**What I could not check.**
+
+1. **Rounds.** The runs keep 14-day means, so a card reading one round will cross a cut point where those means
+   sit near it. Dallas's weak Mays have rounds with no profitable load at all.
+2. **Months.** June and July, Dallas's and Phoenix's calendar peak, and five other months are in no run. Phoenix
+   never reads busy in the windows above.
+3. **Chicago at the live ruleset.**
+4. **The break-even.** The card's starter break-even, at the default skill and with no gates, is not the probe's
+   own, so a reading may differ from the probe's by a load or two.
