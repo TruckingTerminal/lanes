@@ -101,10 +101,9 @@ export interface Teaser {
 
 /** Why a tab is locked, or null when it's open. The Back Lot waits for its switch; the ladder's layers for their day. */
 export function tabLock(w: World, tab: Tab): Teaser | null {
-  const L = w.cfg.unlockLadder.layers;
-  const when = (layer: Layer, afterDays: number) => {
+  const when = (layer: Layer) => {
     const block = layerBlock(w, layer);
-    return block ? `Opens ${afterDays} game days after the token's launch (day ${(w.token.launchDay ?? 0) + afterDays}).` : "";
+    return block ? `${block}.` : "";
   };
   if (tab === "backlot") {
     const lot = w.cfg.robbery.enabled && w.cfg.robbery.lot.enabled;
@@ -113,11 +112,11 @@ export function tabLock(w: World, tab: Tab): Teaser | null {
     return {
       title: "The Back Lot",
       text: "Crews for hire off a board, each with a skill, a discretion and a price; a fence and a chop shop that post what they're buying and what they pay; bounties; heat, the law's interest in a company that hires too often. Player against player, in the open: a bare truck is an easy mark, a fitted one isn't, and the hirer can't see which. Channel 19 on the Logbook tab hears of every hit.",
-      opens: lot ? when("robbery", L.robbery.afterDays) : `Opens with the ladder's crews' layer, ${L.robbery.afterDays} game days after the token's launch. Until then, it's on the drawing board: tell us what you'd want from it.`,
+      opens: lot ? when("robbery") : "Comes with a later beta, once it leaves the simulator. Until then it's on the drawing board: tell us what you'd want from it.",
     };
   }
   if (tab === "business" && layerBlock(w, "businesses")) {
-    return { title: "Businesses", text: "Shops, fuel stations, truck stops on the interstates, dealerships and warehouses that ship their own freight: an FD price through the catalogue, a staked bond, weekly upkeep, and the hub's trade for income.", opens: when("businesses", L.businesses.afterDays) };
+    return { title: "Businesses", text: "Shops, fuel stations, truck stops on the interstates, dealerships and warehouses that ship their own freight: an FD price through the catalogue, a staked bond, weekly upkeep, and the hub's trade for income.", opens: when("businesses") };
   }
   return null;
 }

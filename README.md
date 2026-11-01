@@ -533,6 +533,11 @@ eased from 4.77 to 4.66 FD a mile and liquidations rose from 760 to 884: faster 
 for the same freight. The end price rose from $0.00046 to $0.00052 (`runs/compare-v41-a.md`). The live
 world restarted on it (world/meta version 19).
 
+**Beta one (2026-11-01, ruleset 0.19.1).** The trucking sim opened in layers: the ladder runs from the world's
+first day (businesses and facilities on day 28, re-brokering on day 91), crews are off until the Back Lot leaves the
+simulator, and the page carries Iuliia's walkthrough, the locked teaser tabs, the Guide's road ahead and the Report
+button. TOKENOMICS.md "Beta one".
+
 **The package (2026-11-01, ruleset 0.19.0).** Jeff's "Go". Every switch of the combined test and the overnight
 build is on as live levers (`packages/config/src/live.ts`; TOKENOMICS.md "The package switched on"): the trucks
 at mid prices with the NPC used lot and the deposit credit, the staff ladder with direct freight and the scale

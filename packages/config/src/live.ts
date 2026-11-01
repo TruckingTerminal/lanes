@@ -9,7 +9,9 @@
  * every sink, the staff ladder, the robbers and the Back Lot, the supply path, the airdrop paid locked at the
  * TGE, the bridge, the opening auction, the pool's decaying fee, the beta's dollar window, the team allocation
  * and its real-time vest. Tested as v47-b (the sinks and the trucks), v51-b (the launch rules against the bad
- * actors) and v52-a (this exact profile).
+ * actors) and v52-a (that exact profile). Beta one (2026-11-01, ruleset 0.19.1-phase0.30; Jeff: "configure beta
+ * one"): the ladder runs from the world's first day, so new players meet hauling first and businesses, then
+ * re-brokering, on published days; the crews are off until the Back Lot v2 leaves the simulator (v53).
  *
  * Paths are config paths, as the sim's `--set` takes them, so a batch and the live world read alike.
  */
@@ -95,7 +97,9 @@ export const LIVE_LEVERS: Record<string, unknown> = {
   "theft.claimsMoveMarket": true,
   "theft.dockWaits": true,
   "fraud.theft.byCarrier": false,
-  "robbery.enabled": true,
+  // Beta one: no crews of any kind until the Back Lot v2 (robbery.lot) is tuned on real players; the v1 switches below stay
+  // for the batches that compare against them.
+  "robbery.enabled": false,
   "robbery.logbookMinVictimTrucks": 3,
   "robbery.npcFenceShare": 0.6,
   "robbery.realStake": true,
@@ -105,6 +109,7 @@ export const LIVE_LEVERS: Record<string, unknown> = {
   "robbery.backLot.enabled": true,
   "robbery.bounty.enabled": true,
   "unlockLadder.enabled": true,
+  "unlockLadder.beta.enabled": true,
   // The supply path (+10% over four years, the dial never under the launch rates) and the whale rules on sales.
   "token.supplyCeiling.enabled": true,
   "token.supplyCeiling.growth": 0.1,

@@ -3382,6 +3382,28 @@ describe("the early-sale tax on farmed FD only (proposal, 2026-10-31)", () => {
   });
 });
 
+describe("beta one (Jeff, 2026-11-01): the ladder opens the beta in layers from day one", () => {
+  it("blocks businesses before day 28 of the beta with a message that says so, opens them on it, and keeps them open", () => {
+    const k0 = calm.unlockLadder;
+    const beta: EconomyConfig = { ...calm, businesses: { ...calm.businesses, enabled: true }, unlockLadder: { ...k0, enabled: true, beta: { enabled: true } } };
+    const w = createWorld({ cfg: beta, net, feeds: neutralFeeds, seed: 99 });
+    const c = carrier(w, "Starter");
+    fund(w, c.id, 1_000_000);
+    expect(w.token.launchDay).toBeNull();
+    expect(layerOpen(w, "businesses")).toBe(false);
+    expect(layerBlock(w, "businesses")).toBe(`Businesses open on day ${beta.unlockLadder.layers.businesses.afterDays} of the beta`);
+    const hubId = w.net.hubs[c.homeHub]!.id;
+    expect(applyAction(w, c.id, { type: "buy_business", kind: "shop", hubId }).ok).toBe(false);
+    runDays(w, beta.unlockLadder.layers.businesses.afterDays + 1);
+    expect(layerOpen(w, "businesses")).toBe(true);
+    expect(layerOpen(w, "brokerage")).toBe(false);
+    expect(w.ladder.businesses).toBe(beta.unlockLadder.layers.businesses.afterDays);
+    // An open beta (the switch off) opens everything before launch, as before.
+    const open = createWorld({ cfg: { ...beta, unlockLadder: { ...beta.unlockLadder, beta: { enabled: false } } }, net, feeds: neutralFeeds, seed: 99 });
+    expect(layerOpen(open, "brokerage")).toBe(true);
+  });
+});
+
 describe("the Back Lot v2 (2026-11-01, Jeff's morning rules): crews off the lot's board, the fee prepaid and burned, the victim a victim, heat, the NPC boards, yard security, the lessor's cover", () => {
   const lotCfg: EconomyConfig = {
     ...calm,

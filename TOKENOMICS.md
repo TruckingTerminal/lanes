@@ -1173,3 +1173,21 @@ could do with bounties.
 career criminal untouched if it paces itself; 6 / 40 / 30 would put a crew a week inside the law's reach), the fee's
 share and floor (they set the sink's size more than the hirers' loss, which the hidden fittings set), the catch odds
 (25% on a miss, 5% on a hit), the fittings' cuts against the base 88%, and the boards' sag and hot multipliers.
+
+## Beta one (Jeff, 2026-11-01: "configure beta one"; ruleset 0.19.1-phase0.30)
+
+The first beta is the trucking sim, opened in layers, with the crime layer held back until it leaves the simulator.
+Two rule changes on top of the 0.19.0 package, both live levers:
+
+- **The ladder runs in the beta** (`unlockLadder.beta.enabled`): the same schedule counted from the world's first
+  day, so a new player meets hauling first, businesses and facilities on day 28, re-brokering on day 91; a layer
+  opened in the beta stays open through the launch. The locked tabs say what each layer is and the day it opens.
+- **No crews** (`robbery.enabled` false): neither the v1 crews the package switched on nor the v2 lot, so no player
+  is robbed by a hired crew under rules that only bots have played. NPC theft in the corridors stays. The Back Lot
+  comes with a later beta, tuned on what real players do (v53's knobs).
+
+Everything else of 0.19.0 stands: the sinks and the dial, the trucks at mid prices with the used lot, loans and
+the deposit credit, the staff ladder, docks, weather, parking, the supply path, the logbook paid locked at the
+TGE, the bridge, the auction and the team vest for the day the token launches. The page carries Iuliia's
+walkthrough, the roadmap, the Report button and the teaser tabs. The public test site runs it as a private,
+pausable world; the live world restarts on it when Jeff says.

@@ -9,7 +9,7 @@ export type TractorTier = "workhorse" | "highwayPro" | "flagship";
 export type FacilityType = "warehouse" | "coldStorage" | "factory";
 
 export const economyConfig = {
-  version: "0.19.0-phase0.29", // The package (2026-11-01): the trucks, every sink, the ladder, the robbers and the Back Lot, the logbook paid locked, the bridge, the auction, the team vest; live levers in live.ts
+  version: "0.19.1-phase0.30", // Beta one (2026-11-01): the ladder opens the beta in layers from day one, crews off until the Back Lot leaves the simulator; live levers in live.ts
 
   // §World, map and time
   time: {
@@ -392,6 +392,9 @@ export const economyConfig = {
   // for verified players) and dollars in the pool. The beta stays fully open. Off until tested.
   unlockLadder: {
     enabled: false,
+    // beta one (Jeff, 2026-11-01): the same schedule from the world's first day, so the beta opens in layers too;
+    // a layer opened in the beta stays open through the launch.
+    beta: { enabled: false },
     layers: {
       businesses: { afterDays: 28, minActive: 0, minPoolUsd: 0 },
       brokerage: { afterDays: 91, minActive: 0, minPoolUsd: 0 },
