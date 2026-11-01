@@ -58,8 +58,12 @@ export const S = {
   cityView: null as number | null,
   /** The town (an index into net.places) the pane was opened from, if it was a town. */
   townView: null as number | null,
-  /** Load board: the expanded row. */
+  /** Load board: the load whose sheet is open (S3), or the expanded table row. */
   openLoad: null as number | null,
+  /** Bids placed by hand from the board, by load: their rate and break-even, so the round's result can say how they did (S5). */
+  handBids: new Map<number, { rate: number; be: number }>(),
+  /** The last round's result for a hand bid, shown on the board until OK or the next bid (S5); `seen` clears the Loads dot. */
+  result: null as null | { won: boolean; origin: number; dest: number; rate: number; winning: number | null; be: number; total: number; seen: boolean },
   /** The truck-stop site selected on the map (an id into w.sites), shown on the Business tab. */
   selSite: null as number | null,
   /** The market view's trailer type. */
@@ -411,6 +415,33 @@ export function act(a: Action, ok: string): void {
     },
     (e: unknown) => toast(`Couldn't send that order: ${(e as { message?: string })?.message ?? "the store refused it"}`, true),
   );
+}
+
+/** An order's outcome for a screen that shows it in place (S3: "Refused → the reason in red under it; no toast"). */
+export type OrderResult = { ok: true; at: number | null } | { ok: false; reason: string };
+
+/**
+ * Gives an order and answers in place: in a test world, at once; live, once it's in the store (it takes effect at
+ * `at`, and its own result arrives later through onOwnResult). No toast: the screen that asked says what happened.
+ */
+export async function order(a: Action, ok: string): Promise<OrderResult> {
+  const g = S.game!;
+  const sentence = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
+  if (g.kind === "test") {
+    const r = g.act(a);
+    persistTest(true);
+    bumpData();
+    return r.ok ? { ok: true, at: null } : { ok: false, reason: sentence(r.reason) };
+  }
+  if (!g.writer) return { ok: false, reason: "This tab is only watching." };
+  try {
+    const r = await g.submit(a);
+    S.okText.set(r.s, ok);
+    bumpData();
+    return { ok: true, at: r.at };
+  } catch (e) {
+    return { ok: false, reason: `Couldn't send that order: ${(e as { message?: string })?.message ?? "the store refused it"}` };
+  }
 }
 
 // Full screen, where the browser lets the page ask for it (Safari still uses the webkit names).

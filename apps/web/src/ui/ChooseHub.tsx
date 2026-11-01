@@ -157,7 +157,7 @@ function HubCard({ hub }: { hub: number }): JSX.Element {
             {HUB_CARD.startHere}
           </Btn>
         ) : (
-          <span class="muted small">{NAMING.notStarter}</span>
+          <span class="muted small">{NAMING.notStarter(f.name)}</span>
         )}
       </div>
     </div>
@@ -203,10 +203,10 @@ function Naming({ hub }: { hub: number }): JSX.Element {
   const h = S.game!.w.net.hubs[hub]!;
   const [typed, setTyped] = useState<string | null>(null);
   const [start, setStart] = useState<StartKind>("oo");
-  const name = typed ?? defaultName(h.id, h.name);
+  const name = typed ?? defaultName(h.id);
   const submit = (ev: Event) => {
     ev.preventDefault();
-    H.choose((name.trim() || defaultName(h.id, h.name)).slice(0, 32), h.id, TEST_BUILD ? start : "oo");
+    H.choose((name.trim() || defaultName(h.id) || `${h.name} Freight`).slice(0, 32), h.id, TEST_BUILD ? start : "oo");
   };
   return (
     <form class="stack" onSubmit={submit}>

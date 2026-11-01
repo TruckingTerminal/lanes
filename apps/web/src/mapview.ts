@@ -352,6 +352,25 @@ function truckPoint(t: Truck): [number, number] | null {
   return [p[0] + Math.cos(a) * r, p[1] + 3 + Math.abs(Math.sin(a)) * r * 0.7];
 }
 
+/** A road route between two hubs as map points (the board's lanes, S3–S4). */
+function routePoints(a: number, b: number): [number, number][] | null {
+  const w = S.game!.w;
+  if (a === b) return null;
+  const route = hubRoute(w, a, b);
+  if (!route) return null;
+  const roads = w.net.roads;
+  const pts: [number, number][] = [art!.hubXY[a]!];
+  for (const signed of route.edges) {
+    const e = roads.edges[signed >= 0 ? signed : -signed - 1]!;
+    for (let n = 0; n < e.gn; n++) {
+      const k = signed >= 0 ? e.g0 + n : e.g0 + e.gn - 1 - n;
+      pts.push(art!.project(roads.lon[k]!, roads.lat[k]!));
+    }
+  }
+  pts.push(art!.hubXY[b]!);
+  return pts;
+}
+
 function routeAhead(t: Truck): [number, number][] | null {
   const w = S.game!.w;
   const route = hubRoute(w, t.hub, t.targetHub);
@@ -576,6 +595,35 @@ export function drawMap(now: number): void {
         }
         carry = d - len;
       }
+    }
+  }
+  // The board's lanes (S3–S4): the open load's empty leg dotted and its lane solid; a bid in, its lane dashed.
+  const stroke = (pts: [number, number][] | null, dash: number[], color: string) => {
+    if (!pts) return;
+    ctx.save();
+    ctx.strokeStyle = color;
+    ctx.lineWidth = 2 * u;
+    ctx.setLineDash(dash.map((d) => d * u));
+    ctx.beginPath();
+    pts.forEach((p, i) => {
+      const [X, Y] = toScreen(p[0], p[1]);
+      if (i) ctx.lineTo(X, Y);
+      else ctx.moveTo(X, Y);
+    });
+    ctx.stroke();
+    ctx.restore();
+  };
+  if (S.game.player) {
+    const idleTruck = myTrucks().find((t) => t.id === S.selTruck && t.status === "idle") ?? myTrucks().find((t) => t.status === "idle");
+    const openL = S.openLoad !== null ? w.loads.get(S.openLoad) : undefined;
+    if (openL && openL.status === "open") {
+      if (idleTruck) stroke(routePoints(idleTruck.hub, openL.origin), [1, 3], PAL.white);
+      stroke(routePoints(openL.origin, openL.dest), [], PAL.cyan);
+    }
+    for (const t of myTrucks()) {
+      const bid = w.manualBids.get(t.id);
+      const bl = bid ? w.loads.get(bid.loadId) : undefined;
+      if (bl && bl.id !== openL?.id) stroke(routePoints(bl.origin, bl.dest), [6, 4], PAL.cyan);
     }
   }
   const draw = (t: Truck, kind: MarkerKind): [number, number, number] | null => {

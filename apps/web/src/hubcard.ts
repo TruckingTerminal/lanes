@@ -53,9 +53,27 @@ function measure(w: World, hub: number): number {
   const base = (f.baseLoadsPerRound * h.weight) / totalWeight * f.equipmentShare.van * h.imbalance.van;
   return base > 0 ? good / base : 0;
 }
+/**
+ * The reading the card shows: the mean of the last four rounds' readings for the hub, so the line doesn't flip from
+ * round to round near a cut point. Kept in memory as the page sees rounds pass; it starts again on a reload.
+ */
+const ROUNDS_KEPT = 4;
+const history = new WeakMap<World, Map<number, { round: number; value: number }[]>>();
+export function seasonReading(w: World, hub: number): number {
+  let byHub = history.get(w);
+  if (!byHub) history.set(w, (byHub = new Map()));
+  const list = byHub.get(hub) ?? [];
+  const round = Math.floor(w.t / (12 * 60));
+  const value = seasonMeasure(w, hub);
+  if (list.length && list[list.length - 1]!.round === round) list[list.length - 1]!.value = value;
+  else list.push({ round, value });
+  while (list.length > ROUNDS_KEPT) list.shift();
+  byHub.set(hub, list);
+  return list.reduce((a, x) => a + x.value, 0) / list.length;
+}
 export function seasonLine(w: World, hub: number): string {
   const k = w.cfg.ui.season;
-  const x = seasonMeasure(w, hub);
+  const x = seasonReading(w, hub);
   const month = monthName(dayOf(w.t, w.cfg));
   if (x < k.thinUnder) return SEASON.thin(month);
   if (x < k.fineFrom) return SEASON.littleThin(month);

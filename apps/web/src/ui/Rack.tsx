@@ -14,7 +14,7 @@ import { Economy } from "./panels/Economy.js";
 import { Finance } from "./panels/Finance.js";
 import { Fleet } from "./panels/Fleet.js";
 import { Guide } from "./panels/Guide.js";
-import { Loads } from "./panels/Loads.js";
+import { Loads } from "./panels/Board.js";
 import { Logbook } from "./panels/Logbook.js";
 import { Money } from "./panels/Money.js";
 import { Rates } from "./panels/Rates.js";
@@ -66,6 +66,7 @@ export function Nav(): JSX.Element | null {
           <TabIcon id={id} size={24} />
           <span>{tabLabel(id, g.w, g.player)}</span>
           {id === "more" && moreNew ? <span class="navdot" aria-label="something new" /> : null}
+          {id === "loads" && S.result && !S.result.seen ? <span class="navdot" aria-label="a bid result" /> : null}
         </Btn>
       ))}
     </nav>

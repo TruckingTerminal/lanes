@@ -10,8 +10,8 @@ import { SCENES } from "../../assets.js";
 import { Portrait, Scene } from "../Loop.js";
 
 /**
- * The load board, laid out like DAT One: a search bar, a dense sortable results
- * table, and a row that opens into the load's Trip, Rate and Company detail.
+ * The load board as a table, laid out like DAT One (the laptop's "Table" toggle on the board, ui/panels/Board.tsx):
+ * a search bar, a dense sortable results table, and a row that opens into the load's Trip, Rate and Company detail.
  */
 
 type SortKey = "rate" | "permi" | "age" | "trip" | "dh" | "pickup";
@@ -32,7 +32,7 @@ interface Row {
   block: string | null;
 }
 
-export function Loads(): JSX.Element {
+export function LoadsTable(): JSX.Element {
   useData();
   const g = S.game!;
   const w = g.w;

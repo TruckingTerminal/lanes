@@ -270,6 +270,27 @@ table.mini td:first-child { font-family: inherit; }
 .hubrow:hover { border-color: var(--accent); }
 .loadcard.ro { display: grid; gap: 2px; padding: 8px 10px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--bg-panel); }
 .row.pinned { position: sticky; bottom: 0; padding: 8px 0; background: var(--bg-primary); z-index: 1; }
+/* The board (S2–S5): cards with the profit chip, the pinned bid, the result, the load sheet. */
+.boardhead { display: flex; flex-wrap: wrap; gap: 6px 10px; align-items: center; justify-content: space-between; }
+.seg { display: inline-flex; gap: 2px; }
+.loadcards { display: grid; gap: 6px; }
+.loadcard { display: grid; gap: 3px; min-height: 88px; width: 100%; padding: 10px 12px; text-align: left; border: 1px solid var(--border); border-radius: var(--radius); background: var(--bg-panel); cursor: pointer; align-content: center; }
+.loadcard:hover { border-color: var(--accent); }
+.loadcard.blocked { opacity: 0.55; }
+.loadcard .l1 { font-weight: 600; }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.chip { display: inline-block; padding: 1px 8px; border-radius: 10px; border: 1px solid currentColor; font-family: var(--font-mono); font-size: 11px; }
+.chip.muted { color: var(--text-secondary); }
+.pinned-bid { border-color: var(--accent); }
+.pinned-bid .loadcard { min-height: 0; }
+.ring { width: 22px; height: 22px; border-radius: 50%; flex: none; -webkit-mask: radial-gradient(circle, transparent 6px, #000 7px); mask: radial-gradient(circle, transparent 6px, #000 7px); }
+.resultcard.won { border-color: var(--accent-success); }
+.resultcard.lost { border-color: var(--accent-warn); }
+.resultcard p { margin: 0; }
+.loadsheet .actions { display: grid; gap: 6px; }
+.actions.pinned { position: sticky; bottom: 0; padding: 8px 0; background: var(--bg-primary); z-index: 1; border-top: 1px solid var(--border); }
+.stepper .bidval { min-width: 4ch; text-align: center; font-size: 16px; }
+details.fold > summary { cursor: pointer; padding: 6px 0; color: var(--text-secondary); }
 .startline { display: flex; flex-wrap: wrap; gap: 8px 12px; align-items: center; padding: 8px 10px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--bg-input); }
 .startline img.px { width: 172px; max-width: 100%; height: auto; }
 .startline span { flex: 1 1 180px; min-width: 0; }

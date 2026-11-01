@@ -23,7 +23,7 @@ export const FIRST_ENTRY = {
   nextRound: (hhmm: string) => `Next round ${hhmm}`,
   welcome: "Welcome. Iuliia, with two i's; my mother was thorough. This is the market, live, and nobody waits for us.",
   next: "Next",
-  home: "Before a truck, you need a home. Three good ones are ringed. Tap one, or any city you like.",
+  home: "Before a truck, you need a home. The three ringed cities can be one; tap any other to see its freight.",
   allHubs: "All hubs",
   allHubsHeader: "All hubs · busiest first",
 };
@@ -56,14 +56,14 @@ export const SEASON = {
   busy: (hub: string, month: string) => `Busy season out of ${hub} in ${month}.`,
 };
 
-/** The starter hubs' character lines and default company names; any other hub: no line, "{hub} Freight". */
+/** The starter hubs' character lines and default company names; any other hub: no line and no default name. */
 export const STARTERS: Record<string, { character: string; name: string }> = {
   DAL: { character: "The middle of the country. Freight leaves in every direction, and so will you.", name: "Trinity River Freight" },
   LAX: { character: "The ports, day and night. Plenty of van freight out, crowded, and dear to insure.", name: "Harbor Gate Transport" },
   PHX: { character: "More trucks come in than freight goes out, but locals get first call and living here is cheap.", name: "Saguaro Line Freight" },
   CHI: { character: "Where the rails and the interstates meet. Freight to anywhere, most of the year.", name: "Lakefront Hauling" },
 };
-export const defaultName = (id: string, hubName: string): string => STARTERS[id]?.name ?? `${hubName} Freight`;
+export const defaultName = (id: string): string => STARTERS[id]?.name ?? "";
 
 export const NAMING = {
   line: (hub: string) => `${hub}. Good. Home is where this company stays. What do we call it?`,
@@ -76,8 +76,8 @@ export const NAMING = {
   start: (hub: string) => `Start at ${hub}`,
   back: "Back",
   opening: "Opening your authority…",
-  /** Not in the copy spec yet: the engine lets only the starter hubs be a home (game.ts joinCompany). */
-  notStarter: "Only the ringed and listed starter hubs can be a home for now.",
+  /** A hub that can't be a home (the engine lets only the starter hubs be one, game.ts joinCompany). */
+  notStarter: (hub: string) => `${hub} is a fine place to deliver to, not yet a place to live. The ringed cities are.`,
 };
 
 export const ARRIVAL = {
@@ -85,4 +85,75 @@ export const ARRIVAL = {
   showBoard: "Show me the board",
   finding: (hub: string) => `Finding ${hub}…`,
   you: "You",
+};
+
+/** The board, the load and the round (copy-first-ten-minutes.md, S2–S5). */
+export const BOARD = {
+  header: (hub: string, n: number, next: string) => `Loads from ${hub} · ${n} · next round ${next}`,
+  truck: (n: number, trailer: string) => `Truck ${n} · ${trailer}`,
+  line1: (from: string, to: string, miles: string) => `${from} → ${to} · ${miles} mi`,
+  line2: (total: string, rate: string, dh: number) => `${total} FD · ${rate}/mi · ${dh} mi empty`,
+  chipBook: (profit: string, positive: boolean) => (positive ? `+${profit} FD at book-now` : `−${profit} FD at book-now`),
+  chipSuggest: (profit: string, rate: string) => `+${profit} FD at ${rate}`,
+  sorts: { nearest: "Nearest", pay: "Best pay", deliver: "Deliver by" },
+  filter: "Filter",
+  destination: "Destination",
+  anywhere: "Anywhere",
+  maxEmpty: "Empty miles, max",
+  query: "Commodity or place",
+  queryPlaceholder: "produce, Tulsa",
+  ratesByHub: "Rates by hub",
+  table: "Table",
+  busy: (eta: string) => `Your truck is on the road · loads show when it's free · ETA ${eta}`,
+  nothing: (trailer: string, maxDh: number, hub: string, next: string) => `Nothing for a ${trailer} within ${maxDh} mi of ${hub} this round · next round ${next}`,
+  widen: "Widen the search",
+};
+
+export const LOAD = {
+  back: "Loads",
+  route: "Route",
+  pickUp: "Pick up",
+  deliverBy: "Deliver by",
+  miles: "Miles",
+  milesValue: (loaded: string, empty: number) => `${loaded} loaded · ${empty} empty`,
+  driving: "Driving",
+  reloadAt: (dest: string) => `Reload at ${dest}`,
+  reloadValue: (word: string, mi: number) => `${word} · about ${mi} mi empty to the next`,
+  money: "The money",
+  bookNow: "Book now",
+  breakEven: "Your break-even",
+  profitBook: "Profit at book-now",
+  clearsNear: "Usually clears near",
+  ceiling: "Ceiling",
+  shipper: "Shipper",
+  onTime: "On time",
+  vetting: "Vetting",
+  more: "More about this load",
+  commodity: "Commodity",
+  cargoValue: "Cargo value",
+  tolls: "Tolls",
+  none: "none",
+  twoLane: "Two-lane",
+  season: "Season",
+  loadNo: (id: number) => `Load #${id}`,
+  bookButton: (rate: string, profit: string) => `Book now · ${rate}/mi · ${profit} FD`,
+  bidButton: (profit: string) => `Bid · ${profit} FD`,
+  range: (lo: string, hi: string) => `range ${lo}–${hi}`,
+  changeBid: "Change bid",
+  withdraw: "Withdraw",
+  sent: (at: string) => `Sent · in effect ${at}`,
+  blocked: (reason: string) => `Not yet: ${reason}.`,
+};
+
+export const ROUND = {
+  pinned: (rate: string, clears: string, wait: string) => `Your bid · ${rate}/mi · clears ${clears} · in ${wait}`,
+  booked: (from: string, to: string, total: string) => `Booked · ${from} → ${to} · ${total} FD`,
+  won: (from: string, to: string, rate: string, total: string) => `Won ${from} → ${to} at ${rate}/mi · ${total} FD`,
+  lost: (winning: string, rate: string, be: string) => `Lost to ${winning}/mi · your bid ${rate} · your break-even ${be}`,
+  nobody: (rate: string) => `Nobody took it this round · your bid ${rate}`,
+  ok: "OK",
+  bidAgain: "Bid again",
+  toastBid: (rate: string, clears: string) => `Bid in at ${rate}/mi. It clears at ${clears}.`,
+  toastBooked: "Booked. The truck is on its way.",
+  toastWithdrawn: "Bid withdrawn.",
 };

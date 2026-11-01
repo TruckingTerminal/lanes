@@ -47,3 +47,19 @@ describe("the hub card's season measure", () => {
     }
   }, 60_000);
 });
+
+describe("the season line's rolling mean", () => {
+  it("averages the last four rounds' readings for a hub", async () => {
+    const { seasonMeasure, seasonReading } = await import("../src/hubcard.js");
+    const g = await TestGame.create();
+    const i = g.w.net.hubs.findIndex((h) => h.id === "LAX");
+    const seen: number[] = [];
+    for (let r = 0; r < 6; r++) {
+      seen.push(seasonMeasure(g.w, i));
+      const mean = seasonReading(g.w, i);
+      const last = seen.slice(-4);
+      expect(mean).toBeCloseTo(last.reduce((a, x) => a + x, 0) / last.length, 9);
+      for (let h = 0; h < 12; h++) g.stepHour();
+    }
+  }, 120_000);
+});

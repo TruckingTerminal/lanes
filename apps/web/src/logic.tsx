@@ -295,11 +295,19 @@ function nextRound(): { hour: number; at: number } {
 }
 /** "18:00": the next round, for short lines. */
 export const nextRoundHour = (): string => `${String(nextRound().hour).padStart(2, "0")}:00`;
-export function nextRoundLabel(): string {
+/** How long until the next round: real time live, game hours in a test world. */
+export function nextRoundWait(): string {
   const g = S.game!;
   const { at } = nextRound();
-  const wait = g.kind === "live" ? realUntil(g.msUntil(at)) : `${Math.ceil((at - clockMin()) / 60)}h`;
-  return `${nextRoundHour()} (in ${wait})`;
+  return g.kind === "live" ? realUntil(g.msUntil(at)) : `${Math.ceil((at - clockMin()) / 60)}h`;
+}
+/** How far through the current round the clock is, 0 to 1: the pinned bid's ring (S4). */
+export function roundProgress(): number {
+  const { at } = nextRound();
+  return Math.max(0, Math.min(1, 1 - (at - clockMin()) / (12 * 60)));
+}
+export function nextRoundLabel(): string {
+  return `${nextRoundHour()} (in ${nextRoundWait()})`;
 }
 
 /**

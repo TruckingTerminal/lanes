@@ -82,6 +82,16 @@ function onEvent(s: Session, e: GameEvent): void {
     if (s === S.game) toast("Launch day: FD can now be bought and sold.");
   }
   if (!s.player || !("companyId" in e) || e.companyId !== s.player.id) return;
+  // A bid placed by hand from the board: the round's result card says how it did (S5) until OK or the next bid.
+  if ((e.kind === "won" || e.kind === "lostBid") && s === S.game) {
+    const mine = S.handBids.get(e.loadId);
+    if (mine) {
+      S.handBids.delete(e.loadId);
+      const load = w.loads.get(e.loadId);
+      const winning = e.kind === "won" ? e.rate : e.winningRate;
+      S.result = { won: e.kind === "won", origin: e.origin, dest: e.dest, rate: e.kind === "won" ? e.rate : mine.rate, winning, be: mine.be, total: e.kind === "won" && load ? e.rate * load.miles : 0, seen: false };
+    }
+  }
   if (e.kind === "won") push(s, `Won ${hubName(e.origin)}→${hubName(e.dest)}, ${e.miles} mi at ${e.rate.toFixed(2)}/mi${e.manual ? " (your bid)" : ""}`, "good");
   if (e.kind === "delivered") push(s, `Delivered ${hubName(e.origin)}→${hubName(e.dest)}: +${fd(e.grossFd)} FD, ${fd(e.grossFd - e.costFd)} after costs${e.onTime ? "" : " (late)"}`);
   if (e.kind === "lostBid") push(s, `Lost ${hubName(e.origin)}→${hubName(e.dest)} at ${e.rate.toFixed(2)}/mi${e.winningRate !== null ? `: it went for ${e.winningRate.toFixed(2)}/mi` : ": nobody took it this round"}`, "warn");
