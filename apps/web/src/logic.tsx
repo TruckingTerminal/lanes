@@ -285,14 +285,38 @@ export function StatusLine({ t }: { t: Truck }): ComponentChildren {
   }
 }
 
-export function nextRoundLabel(): string {
-  const g = S.game!;
+/** The next bidding round's hour of the day (6 or 18) and its game minute. */
+function nextRound(): { hour: number; at: number } {
   const minute = clockMin();
   const hour = (minute / 60) % 24;
   const next = hour < 6 ? 6 : hour < 18 ? 18 : 30;
-  const at = minute + (next - hour) * 60;
-  const wait = g.kind === "live" ? realUntil(g.msUntil(at)) : `${Math.ceil(next - hour)}h`;
-  return `${String(next % 24).padStart(2, "0")}:00 (in ${wait})`;
+  return { hour: next % 24, at: minute + (next - hour) * 60 };
+}
+/** "18:00": the next round, for short lines. */
+export const nextRoundHour = (): string => `${String(nextRound().hour).padStart(2, "0")}:00`;
+export function nextRoundLabel(): string {
+  const g = S.game!;
+  const { at } = nextRound();
+  const wait = g.kind === "live" ? realUntil(g.msUntil(at)) : `${Math.ceil((at - clockMin()) / 60)}h`;
+  return `${nextRoundHour()} (in ${wait})`;
+}
+
+/**
+ * The sheet's state line on a phone (copy-first-ten-minutes.md): the bids waiting on the round when there are any,
+ * else the selected truck (or the first) in a few words.
+ */
+export function sheetLine(): string {
+  const g = S.game!;
+  const c = g.player;
+  if (!c) return "Watching the live world";
+  const trucks = myTrucks();
+  const bids = trucks.filter((t) => g.w.manualBids.has(t.id)).length;
+  if (bids) return `${bids === 1 ? "1 bid in" : `${bids} bids in`} · clears ${nextRoundHour()}`;
+  const t = trucks.find((x) => x.id === S.selTruck) ?? trucks[0];
+  if (!t) return "No trucks on the road";
+  const name = `Truck ${truckNo(t.id)}`;
+  if (t.status === "idle" && !resting(g.w, t)) return `${name} · Idle at ${g.w.net.places[t.place]!.name} · round ${nextRoundHour()}`;
+  return `${name} · ${statusText(t)}`;
 }
 
 /** How easily a truck of this type reloads after delivering at a hub, against the national average. */

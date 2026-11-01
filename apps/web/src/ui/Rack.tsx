@@ -1,7 +1,7 @@
 import type { JSX } from "preact";
 import { hhmm, realUntil } from "../format.js";
 import { H } from "../handlers.js";
-import { S, setLayout, setTab, useData } from "../state.js";
+import { isPhone, S, setTab, useData } from "../state.js";
 import { NAV, navOf, tabLabel, tabOpen, teaserTabs, type Tab } from "../tabs.js";
 import { Btn, Card } from "./bits.js";
 import { isNew, More, TabIcon, TeaserCard, TeaserRow } from "./More.js";
@@ -46,15 +46,20 @@ const WATCHABLE: readonly Tab[] = ["more", "iuliia", "guide", "company", "rates"
  * The nav: Truck · Loads · Money · More (a segmented control on the laptop, the bottom bar on a phone; the
  * stylesheet places it). More lights for every tab under it; a dot when an opened teaser is new.
  */
-function Nav(): JSX.Element {
+export function Nav(): JSX.Element {
   useData();
   const g = S.game!;
   const on = navOf(S.tab);
   const moreNew = !!g.player && teaserTabs().some((t) => tabOpen(t.id, g.w, g.player) && isNew(t.id));
+  // On a phone a nav tap raises the sheet: half for most, full for Loads (specs/first-ten-minutes.md).
+  const go = (id: Tab) => {
+    if (isPhone()) S.sheet = id === "loads" ? "full" : "half";
+    setTab(id);
+  };
   return (
     <nav class="tabs" aria-label="Tabs">
       {NAV.map((id) => (
-        <Btn key={id} on={id === on} title={tabLabel(id, g.w, g.player)} onClick={() => setTab(id)}>
+        <Btn key={id} on={id === on} title={tabLabel(id, g.w, g.player)} onClick={() => go(id)}>
           <TabIcon id={id} size={24} />
           <span>{tabLabel(id, g.w, g.player)}</span>
           {id === "more" && moreNew ? <span class="navdot" aria-label="something new" /> : null}
@@ -64,21 +69,27 @@ function Nav(): JSX.Element {
   );
 }
 
+/** The laptop's rack: the nav over the panel. */
 export function SideRack(): JSX.Element {
+  return (
+    <aside class="side">
+      <div class="rackbar">
+        <Nav />
+      </div>
+      <RackBody />
+    </aside>
+  );
+}
+
+/** What the nav opens: the teaser row (laptop), Iuliia's caption, and the tab's panel or its teaser card. On a phone the sheet holds this. */
+export function RackBody(): JSX.Element {
   useData();
   const g = S.game!;
   const tab = S.tab;
   const watching = !g.player && !WATCHABLE.includes(tab);
   const under = navOf(tab) === "more" && tab !== "more";
   return (
-    <aside class="side">
-      <div class="rackbar">
-        <Nav />
-        {/* Until the phone's sheet lands (build step 2): the map is one tap away. */}
-        <Btn sm class="phone-only" title={S.layout === "panel" ? "Show the map" : "Hide the map"} onClick={() => setLayout(S.layout === "panel" ? "split" : "panel")}>
-          {S.layout === "panel" ? "Map" : "Hide map"}
-        </Btn>
-      </div>
+    <>
       <TeaserRow />
       <Caption />
       <div class="panelbox">
@@ -92,7 +103,7 @@ export function SideRack(): JSX.Element {
         ) : null}
         {watching ? <WatchPanel /> : tabOpen(tab, g.w, g.player) ? PANELS[tab]() : <TeaserCard id={tab} />}
       </div>
-    </aside>
+    </>
   );
 }
 

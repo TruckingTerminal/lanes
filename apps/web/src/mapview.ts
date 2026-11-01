@@ -866,6 +866,8 @@ function selectOnMap(ev: { clientX: number; clientY: number }): void {
       }
     }
   }
+  // On a phone a tap on the map drops the sheet to its strip, so the map is what you see (specs/first-ten-minutes.md).
+  S.sheet = "strip";
   bumpData();
 }
 function showHubTip(ev: { clientX: number; clientY: number }): void {

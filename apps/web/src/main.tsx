@@ -102,8 +102,6 @@ async function boot(): Promise<void> {
   installTheme();
   loadTheme();
   loadOnboard();
-  // A phone opens on the panel (the map is one tap away); a wide screen on the split view.
-  if (window.matchMedia("(max-width: 899px)").matches) S.layout = "panel";
   whenAssetsReady(() => bumpData());
   truckSheet();
   setDefaultOrders(() => DEFAULT_ORDERS);

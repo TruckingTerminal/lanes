@@ -306,8 +306,20 @@ table.mini td:first-child { font-family: inherit; }
   .board.split .mapwrap { height: auto; aspect-ratio: 4 / 3; }
   .board.map .mapwrap { height: auto; aspect-ratio: 3 / 4; }
   .panelbox, .board.panel .panelbox { max-height: none; overflow: visible; padding-right: 0; }
+  /* The phone layout (ui/Shell.tsx): the map fills the screen, the panel rides in a sheet, the nav is the bottom bar. */
+  .phone { position: fixed; inset: 0; overflow: hidden; --room: calc(100dvh - 100px - env(safe-area-inset-top) - env(safe-area-inset-bottom)); }
+  .phonemap .mapwrap { position: fixed; top: calc(44px + env(safe-area-inset-top)); left: 0; right: 0; bottom: calc(56px + env(safe-area-inset-bottom)); height: auto; aspect-ratio: auto; border: 0; border-radius: 0; }
+  .sheet { position: fixed; left: 0; right: 0; bottom: calc(56px + env(safe-area-inset-bottom)); z-index: 12; display: flex; flex-direction: column; background: var(--bg-primary); border-top: 1px solid var(--border); border-radius: 12px 12px 0 0; box-shadow: 0 -8px 24px rgba(0,0,0,0.35); transition: height 0.2s ease-out; }
+  .sheet.strip { height: 88px; }
+  .sheet.half { height: calc(var(--room) / 2); }
+  .sheet.full { height: var(--room); border-radius: 0; }
+  .sheet.dragging { transition: none; }
+  .sheethandle { flex: none; display: grid; justify-items: center; gap: 4px; padding: 6px 12px 4px; touch-action: none; cursor: grab; }
+  .sheethandle .grip { width: 40px; height: 4px; border-radius: 2px; background: var(--border); }
+  .sheetline { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: var(--font-mono); font-size: 13px; color: var(--text-secondary); }
+  .sheetbody { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; display: flex; flex-direction: column; gap: 8px; padding: 0 8px 12px; }
+  .sheet.strip .sheetbody { overflow: hidden; }
   /* The nav is the bottom bar: four targets, icon over label, 56 px, fixed. */
-  body { padding-bottom: calc(56px + env(safe-area-inset-bottom)); }
   .tabs { position: fixed; left: 0; right: 0; bottom: 0; z-index: 15; gap: 0; height: calc(56px + env(safe-area-inset-bottom)); padding-bottom: env(safe-area-inset-bottom); background: var(--bg-secondary); border-top: 1px solid var(--border); border-bottom: 0; }
   .tabs .btn { flex: 1 1 0; min-height: 56px; padding: 4px; border-bottom: 0; border-top: 2px solid transparent; }
   .tabs .btn.on { border-top-color: var(--accent); }

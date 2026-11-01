@@ -23,6 +23,8 @@ export const TEST_BUILD = typeof __LANES_TEST__ !== "undefined" && __LANES_TEST_
 export type Session = LiveWorld | TestGame;
 export type { Tab } from "./tabs.js";
 export type Layout = "split" | "panel" | "map";
+/** The phone's sheet over the map (specs/first-ten-minutes.md, Layout): a strip with the state line, half, or full. */
+export type SheetStop = "strip" | "half" | "full";
 export type Platform = { db: DbLike | null; uid: string | null; owner: boolean; local: boolean };
 export type TitleMenu =
   | { kind: "connecting" }
@@ -45,6 +47,7 @@ export const S = {
   loadShare: 0,
   tab: "fleet" as Tab,
   layout: "split" as Layout,
+  sheet: "half" as SheetStop,
   selTruck: null as number | null,
   selHub: null as number | null,
   /** The hub whose city pane is open over the map (opened by clicking the city or a town of its market), if any. */
@@ -179,6 +182,14 @@ export function setTab(tab: Tab): void {
   S.tab = tab;
   // The first visit clears an opened teaser's "New" under More.
   if (S.game?.player && !S.onboard.visited.includes(tab)) setOnboard({ visited: [...S.onboard.visited, tab] });
+  bumpData();
+}
+/** The phone layout's breakpoint: under 900 px the map fills the screen and the panel rides in a sheet. */
+export const PHONE_QUERY = "(max-width: 899px)";
+export const isPhone = (): boolean => window.matchMedia(PHONE_QUERY).matches;
+export function setSheet(stop: SheetStop): void {
+  if (S.sheet === stop) return;
+  S.sheet = stop;
   bumpData();
 }
 export function setLayout(l: Layout): void {
