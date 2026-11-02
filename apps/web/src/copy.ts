@@ -185,3 +185,33 @@ export const DELIVERED = {
   today: "today",
   ok: "OK",
 };
+
+/** Money as a ledger (copy-first-ten-minutes.md, S8). */
+export const MONEY = {
+  title: "Money",
+  cash: "Cash",
+  cashDays: (n: number) => `Cash, last ${n} days`,
+  owed: "Owed to you",
+  colLoad: "Load",
+  colFd: "FD",
+  colDue: "Due",
+  nothingOwed: "Nothing owed yet. Your first invoice lands here.",
+  week: "This week's costs",
+  leaseMin: "Lease minimum",
+  insurance: "Insurance",
+  yard: "Yard",
+  perDiem: "Per diem",
+  /** Not in the copy spec yet: per diem is charged by the day, not the week. */
+  perDiemValue: (fd: string) => `${fd} FD a day`,
+  standing: "Standing",
+  miles: (n: string) => `${n} Miles · your standing in the beta`,
+  loans: "Loans",
+  loansLead: (ltv: string, rate: string, weeks: number, missed: number) => `A loan on a truck you own: up to ${ltv} of its value, ${rate} a week, over ${weeks} weeks. Miss ${missed} payments and the lender takes the truck.`,
+  borrowUpTo: (n: number, fd: string) => `Truck ${n}: borrow up to ${fd} FD`,
+  borrow: "Borrow",
+  loanOwed: (n: number, fd: string) => `Loan on truck ${n}: ${fd} FD owed`,
+  missed: (n: number) => `${n} missed`,
+  repay: "Repay",
+  token: "The token",
+  red: (weeks: number, limit: string) => `You're in the red. ${weeks} weekly checks in a row more than ${limit} FD under and the company is wound up.`,
+};

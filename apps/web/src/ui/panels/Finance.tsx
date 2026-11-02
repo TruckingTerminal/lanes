@@ -33,8 +33,6 @@ export function Finance(): JSX.Element {
   const mgr = w.cfg.labor.managers;
   const ops = opsCap(w, c);
   const score = creditScore(w, c);
-  const owed = receivablesOf(w, c.id);
-  const today = Math.floor(w.t / 1440);
   return (
     <Panel title="Finance">
       {k.staking.enabled ? (
@@ -65,26 +63,6 @@ export function Finance(): JSX.Element {
             <Btn danger disabled={c.stakedFd < 1} onClick={() => act({ type: "unstake_fd", fd: num("stake-fd"), instant: true }, "Unstaked at once, haircut burned")}>
               Unstake now
             </Btn>
-          </div>
-        </Card>
-      ) : null}
-      {k.payment.enabled && c.role === "carrier" ? (
-        <Card title="Getting paid">
-          <p class="muted small">
-            Shippers pay net {k.payment.termsDays}. Quick pay pays today for {pct(k.payment.quickPayPct)} off. Factoring is a {Math.round(k.payment.factoring.termDays / 365)}-year contract with a {fd(factoringStake(w, c))} FD stake: the factor advances each invoice at a discount set by who owes it and your credit, and leaving early forfeits the stake.
-          </p>
-          <Kv
-            rows={[
-              ["Terms now", <Num>{TERMS.find(([t]) => t === c.payTerms)?.[1] ?? c.payTerms}{c.factoring ? ` · contract to day ${c.factoring.until} (${c.factoring.until - today} days)` : ""}</Num>],
-              ["Owed to you", <Num>{fd(owed)} FD on open invoices</Num>],
-            ]}
-          />
-          <div class="row">
-            {TERMS.map(([t, label]) => (
-              <Btn key={t} on={c.payTerms === t} onClick={() => act({ type: "set_pay_terms", terms: t }, `${label} from now on`)}>
-                {label}
-              </Btn>
-            ))}
           </div>
         </Card>
       ) : null}
@@ -122,5 +100,39 @@ export function Finance(): JSX.Element {
         <Kv rows={[["Score", <Num>{Math.round(score)} · band {creditBand(score)}</Num>]]} />
       </Card>
     </Panel>
+  );
+}
+
+/** Payment terms (receivables.ts), on Money beside what's owed (S8, Finance folded in): net, quick pay or factoring. */
+export function GettingPaid(): JSX.Element | null {
+  useData();
+  const w = S.game!.w;
+  const c = me();
+  const k = w.cfg.token;
+  const owed = receivablesOf(w, c.id);
+  const today = Math.floor(w.t / 1440);
+  if (!k.payment.enabled || c.role !== "carrier") return null;
+  // A leased truck's loads are paid on delivery by the lessor (token.payment.lessorPaysOnDelivery): terms only matter
+  // once the company hauls with a truck of its own.
+  if (k.payment.lessorPaysOnDelivery && (w.trucksByCompany.get(c.id) ?? []).every((t) => t.lease === "npc" || t.status === "retired")) return null;
+  return (
+        <Card title="Getting paid">
+          <p class="muted small">
+            Shippers pay net {k.payment.termsDays}. Quick pay pays today for {pct(k.payment.quickPayPct)} off. Factoring is a {Math.round(k.payment.factoring.termDays / 365)}-year contract with a {fd(factoringStake(w, c))} FD stake: the factor advances each invoice at a discount set by who owes it and your credit, and leaving early forfeits the stake.
+          </p>
+          <Kv
+            rows={[
+              ["Terms now", <Num>{TERMS.find(([t]) => t === c.payTerms)?.[1] ?? c.payTerms}{c.factoring ? ` · contract to day ${c.factoring.until} (${c.factoring.until - today} days)` : ""}</Num>],
+              ["Owed to you", <Num>{fd(owed)} FD on open invoices</Num>],
+            ]}
+          />
+          <div class="row">
+            {TERMS.map(([t, label]) => (
+              <Btn key={t} on={c.payTerms === t} onClick={() => act({ type: "set_pay_terms", terms: t }, `${label} from now on`)}>
+                {label}
+              </Btn>
+            ))}
+          </div>
+        </Card>
   );
 }

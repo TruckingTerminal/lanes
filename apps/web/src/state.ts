@@ -66,6 +66,8 @@ export const S = {
   /** The last delivery, shown on the Truck tab until OK (S7); Money keeps a dot until it's opened. */
   delivered: null as null | { origin: number; dest: number; lateH: number; line: PayLine; dueDay: number | null },
   moneyDot: false,
+  /** The lane each invoice was for, by receivable id, as this page saw the deliveries (Money's "Load" column). */
+  invoiceLanes: new Map<number, string>(),
   /** The map follows your moving truck until you pan it (S6); "Follow" turns it back on. */
   following: true,
   /** The last round's result for a hand bid, shown on the board until OK or the next bid (S5); `seen` clears the Loads dot. */

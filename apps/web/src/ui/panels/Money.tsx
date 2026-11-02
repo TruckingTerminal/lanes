@@ -1,21 +1,29 @@
 import type { JSX } from "preact";
-import { averagePriceUsd, borrowingCapacity, bridgeDelayDays, companyAccount, depositorValue, fdPriceUsd, lockedFd, poolCash, sellableFd, tokenLive } from "@lanes/engine";
-import { fd, usd } from "../../format.js";
+import { averagePriceUsd, borrowingCapacity, bridgeDelayDays, companyAccount, fdPriceUsd, lockedFd, sellableFd, tokenLive } from "@lanes/engine";
+import { cls, fd, fdFull, pct, shortDate, usd } from "../../format.js";
+import { MONEY } from "../../copy.js";
+import { invoices, milesOf, weekCosts } from "../../ledger.js";
+import { GettingPaid } from "./Finance.js";
 import { GAME_CONFIG } from "../../game.js";
 import { act, feed, me, myTrucks, S, truckNo, useData } from "../../state.js";
 import { Btn, Card, Kv, Num, Panel, Sparkline } from "../bits.js";
-import { SCENES } from "../../assets.js";
-import { Scene } from "../Loop.js";
 
 const num = (id: string): number => Number((document.getElementById(id) as HTMLInputElement | null)?.value);
 
+/**
+ * Money as a ledger (specs/first-ten-minutes.md, S8): cash with its sparkline, what's owed and when, getting paid,
+ * this week's costs and the company's standing; loans and the token under folds, closed until opened. The deposit
+ * side of Equipment Finance is gone (the bible).
+ */
 export function Money(): JSX.Element {
   useData();
   const w = S.game!.w;
   const c = me();
   const bal = w.ledger.balance(companyAccount(c.id));
   const live = tokenLive(w);
-  const deposit = depositorValue(w, c.id);
+  const owed = invoices(w, c);
+  const week = weekCosts(w, c);
+  const ef = w.cfg.equipmentFinance;
   const loans = w.finance.loans.filter((l) => l.borrowerId === c.id && l.status === "active");
   const owned = myTrucks().filter((t) => t.lease === "owned");
   const borrowable = owned.map((t) => ({ t, cap: borrowingCapacity(w, t) })).filter((x) => x.cap > 100);
@@ -108,60 +116,82 @@ export function Money(): JSX.Element {
     );
   }
   return (
-    <Panel title="Money">
-      <Scene name="bank" still={SCENES.bank} alt="The bank" />
-      <Card>
-        <Kv
-          rows={[
-            ["Cash", <Num class={bal < 0 ? "bad" : ""}>{fd(bal)} FD</Num>],
-            ["Freight revenue", <Num>{fd(c.operating.revenueFd)} FD</Num>],
-            ["Operating costs", <Num>{fd(c.operating.costFd)} FD</Num>],
-            ["Fleet overhead paid", <Num>{fd(c.overheadPaidFd)} FD</Num>],
-          ]}
-        />
+    <Panel title={MONEY.title}>
+      <Card title={MONEY.cash}>
+        <p class={cls("bigcash", bal < 0 && "bad")}>{fdFull(bal)} FD</p>
         {cashHist.length > 1 ? (
           <>
-            <span class="label">Cash, last {cashHist.length} days</span>
+            <span class="label">{MONEY.cashDays(cashHist.length)}</span>
             <Sparkline values={cashHist} color="var(--accent)" />
           </>
         ) : null}
-        {bal < 0 ? <p class="bad">You're in the red. Four weekly checks more than 2,000 FD under and the company is liquidated.</p> : null}
+        {bal < 0 ? <p class="bad">{MONEY.red(w.cfg.insolvency.weeksInDebt, fdFull(w.cfg.insolvency.debtLimitFd))}</p> : null}
       </Card>
-      {token}
-      <Card title="Equipment Finance">
-        <p class="muted small">Borrow up to 35% of a truck's value at 1% a week over 26 weeks. Miss two payments and the repo man takes the truck. Or deposit spare FD and earn what borrowers pay.</p>
+      <Card title={MONEY.owed}>
+        {owed.length ? (
+          <table class="mini">
+            <thead>
+              <tr>
+                <th>{MONEY.colLoad}</th>
+                <th>{MONEY.colFd}</th>
+                <th>{MONEY.colDue}</th>
+              </tr>
+            </thead>
+            <tbody>
+              {owed.map((r) => (
+                <tr key={r.id}>
+                  <td>{S.invoiceLanes.get(r.id) ?? `#${r.id}`}</td>
+                  <td class="num">{fdFull(r.amountFd)}</td>
+                  <td class="num">{shortDate(r.dueDay)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        ) : (
+          <p class="muted">{MONEY.nothingOwed}</p>
+        )}
+      </Card>
+      <GettingPaid />
+      <Card title={MONEY.week}>
         <Kv
           rows={[
-            ["Pool cash", <Num>{fd(poolCash(w))} FD</Num>],
-            ["Your deposit", <Num>{fd(deposit)} FD</Num>],
+            [MONEY.leaseMin, `${fdFull(week.leaseMinimum)} FD`],
+            [MONEY.insurance, `${fdFull(week.insurance)} FD`],
+            [MONEY.yard, `${fdFull(week.yard)} FD`],
+            [MONEY.perDiem, MONEY.perDiemValue(fdFull(week.perDiemPerDay))],
           ]}
         />
-        <div class="row">
-          <input type="number" id="dep-amt" min="1000" step="1000" defaultValue="10000" aria-label="Amount" />
-          <Btn onClick={() => act({ type: "deposit_finance", amountFd: num("dep-amt") }, "Deposited")}>Deposit</Btn>
-          <Btn disabled={deposit <= 1} onClick={() => act({ type: "withdraw_finance", amountFd: num("dep-amt") }, "Withdrawn")}>
-            Withdraw
-          </Btn>
-        </div>
-        {borrowable.map((x) => (
-          <div class="row" key={x.t.id}>
-            <span>
-              Truck {truckNo(x.t.id)}: borrow up to <Num>{fd(x.cap)}</Num> FD
-            </span>
-            <Btn onClick={() => act({ type: "borrow", truckId: x.t.id, amountFd: Math.floor(borrowingCapacity(w, x.t)) }, "Loan funded")}>Borrow</Btn>
-          </div>
-        ))}
-        {loans.map((l) => (
-          <div class="row" key={l.id}>
-            <span>
-              Loan on truck {truckNo(l.truckId)}: <Num>{fd(l.principalFd)}</Num> FD owed{l.missed ? <span class="bad"> · {l.missed} missed</span> : null}
-            </span>
-            <Btn disabled={bal < l.principalFd} onClick={() => act({ type: "repay_loan", loanId: l.id }, "Loan repaid")}>
-              Repay
-            </Btn>
-          </div>
-        ))}
       </Card>
+      <Card title={MONEY.standing}>
+        <p>{MONEY.miles(fdFull(milesOf(c)))}</p>
+      </Card>
+      <details class="fold">
+        <summary>{MONEY.loans}</summary>
+        <Card>
+          <p class="muted small">{MONEY.loansLead(pct(ef.maxLoanToValue), pct(ef.weeklyRate), ef.termWeeks, ef.missedPaymentsToRepossess)}</p>
+          {borrowable.map((x) => (
+            <div class="row" key={x.t.id}>
+              <span>{MONEY.borrowUpTo(truckNo(x.t.id), fdFull(x.cap))}</span>
+              <Btn onClick={() => act({ type: "borrow", truckId: x.t.id, amountFd: Math.floor(borrowingCapacity(w, x.t)) }, "Loan funded")}>{MONEY.borrow}</Btn>
+            </div>
+          ))}
+          {loans.map((l) => (
+            <div class="row" key={l.id}>
+              <span>
+                {MONEY.loanOwed(truckNo(l.truckId), fdFull(l.principalFd))}
+                {l.missed ? <span class="bad"> · {MONEY.missed(l.missed)}</span> : null}
+              </span>
+              <Btn disabled={bal < l.principalFd} onClick={() => act({ type: "repay_loan", loanId: l.id }, "Loan repaid")}>
+                {MONEY.repay}
+              </Btn>
+            </div>
+          ))}
+        </Card>
+      </details>
+      <details class="fold">
+        <summary>{MONEY.token}</summary>
+        {token}
+      </details>
     </Panel>
   );
 }
