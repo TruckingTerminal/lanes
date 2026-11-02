@@ -47,3 +47,6 @@
 - 2026-11-02 — Director: Finance opens on the same trigger as the Dealer, when walkthrough step 9 ("Your first
   truck") becomes current, so Iuliia's explanation of factoring and quick pay never points at a locked tab.
   Engineering takes it into the step that wires Getting paid.
+- 2026-11-02 — Jeff, factoring, amended: the carriers' rate floors at 2.5% at fifty trucks (linear from 6% at
+  one). Brokers can factor their receivables too, at a flat 5% whatever the volume: a broker is a capital
+  depot and does not scale with factoring. Both under the economy's switch; both fees refill the reserve.
