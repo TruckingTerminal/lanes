@@ -97,8 +97,8 @@ export const NAMING = {
 
 export const ARRIVAL = {
   line: (hub: string, share: string) => `This is ${hub}, your home. One leased Workhorse, a dry van, and you driving. The lessor keeps ${share} of every load. Let's find one.`,
-  /** A small fleet's arrival (test build): two used trucks of its own, no lessor. Draft for the writer. */
-  lineFleet: (hub: string) => `This is ${hub}, your home. Two used trucks of your own, a van and a reefer, and nobody takes a share. Let's find them loads.`,
+  /** A small fleet's arrival (test build): two used trucks of its own, no lessor (the writer, 2026-11-03). */
+  lineFleet: (hub: string) => `This is ${hub}, your home. Two used trucks of your own, a van and a reefer, and no lessor's share. Let's find them loads.`,
   showBoard: "Show me the board",
   finding: (hub: string) => `Finding ${hub}…`,
   you: "You",
@@ -184,8 +184,8 @@ export const ROLLING = {
   follow: "Follow",
   tonightSite: (truckStop: boolean, near: string) => `Tonight, as planned: ${truckStop ? "a truck stop" : "a rest area"} near ${near}`,
   tonightShoulder: "Tonight, as planned: the shoulder. Nowhere legal to stop in reach.",
-  /** A load the dispatcher booked, with no legal stop in today's reach (QA, carry-over row 4). Draft for the writer. */
-  tonightDispatcher: "Tonight: your dispatcher is routing the stop.",
+  /** A load the dispatcher booked, with no legal stop in today's reach (QA, carry-over row 4; the writer's line). */
+  tonightDispatcher: "Tonight: your dispatcher picks the stop on the way.",
 };
 
 export const DELIVERED = {
@@ -430,4 +430,64 @@ export const FINANCE = {
   iuliiaBroker: "You factor at a flat rate now. Your carriers still expect their money on time.",
   iuliiaSigned: (date: string) => `Signed. Every truck, every invoice, until ${date}. A bigger fleet renews cheaper.`,
   iuliiaEnding: (date: string) => `Your contract ends on ${date}. Renew, or choose how you're paid after it.`,
+};
+
+/** Intel (specs/intel-ux.md; UX's placeholder strings until the writer's land). Never a cash figure (specs/intel.md, row 1). */
+export const INTEL = {
+  title: "Intel",
+  header: (n: number) => `Intel · ${n.toLocaleString("en-US")} companies`,
+  howOthers: "How others see you",
+  find: "Find a company",
+  myHub: "My hub",
+  hub: "Hub ▾",
+  anyHub: "Any hub",
+  players: "Players",
+  brokers: "Brokers",
+  sortMiles: "Miles",
+  sortTrucks: "Trucks",
+  sortMonth: "Last month",
+  player: "Player",
+  broker: "Broker",
+  carrier: "Carrier",
+  ai: "AI",
+  line2: (hub: string, trucks: number, miles: string) => `${hub} · ${trucks} truck${trucks === 1 ? "" : "s"} · ${miles} Miles`,
+  line2Broker: (hub: string, credit: string) => `${hub} · broker · credit ${credit}`,
+  more: "Show 50 more",
+  none: (what: string) => `No ${what}.`,
+  clear: "Clear filters",
+  back: "Back",
+  home: (hub: string) => `Home: ${hub}`,
+  authority: "Authority",
+  authorityValue: (age: string, status: string) => `${age} · ${status}`,
+  revokedBefore: "revoked once before",
+  running: "Running",
+  runningValue: (trucks: number, trailers: number, byType: string, drivers: number) => `${trucks} truck${trucks === 1 ? "" : "s"} · ${trailers} trailer${trailers === 1 ? "" : "s"}${byType ? ` (${byType})` : ""} · ${drivers} driver${drivers === 1 ? "" : "s"}`,
+  milesSeason: "Miles this season",
+  milesValue: (miles: string, rank: number, of: number) => `${miles} · #${rank} of ${of.toLocaleString("en-US")}`,
+  pastSeasons: "Past seasons",
+  pastRow: (n: number, miles: string, rank: number) => `Season ${n} · ${miles} · #${rank}`,
+  lastMonth: "Last month",
+  lastMonthValue: (fd: string, loads: number, onTime: string) => `Revenue ${fd} FD · ${loads} load${loads === 1 ? "" : "s"}${loads ? ` · ${onTime} on time` : ""}`,
+  firstMonth: "First month: no record yet",
+  safety: "Safety",
+  insurance: "Insurance",
+  insClean: "Clean",
+  insSurcharged: "Surcharged",
+  insHeavy: "Heavily surcharged",
+  credit: "Credit",
+  creditValue: (band: string) => `${band} (A is best, E worst)`,
+  brokerLine: (band: string, bonded: boolean, vetting: string) => `Credit ${band}${bonded ? " · Bonded" : ""} · ${vetting} vetting`,
+  bondedVetting: (bonded: boolean, vetting: string) => `${bonded ? "Bonded · " : ""}${vetting} vetting`,
+  ownCredit: (band: string, down: string, rate: string, n: number) => `At ${band}: truck loans ${down} down at ${rate} a week, up to ${n} at once`,
+  ownSafety: (tier: string, reason: string) => `${tier}-vetting brokers turn you down: ${reason}`,
+  ownSafetyClear: "No vetting tier blocks you",
+  ownInsurance: (pct: string) => `Your premium is ${pct} over a clean record's`,
+  ownInsuranceClean: "Your premium is a clean record's",
+  /** Not yet rated (a new authority): what that costs, so it doesn't read against "Clean" above. Draft for the writer. */
+  ownInsuranceUnrated: (pct: string) => `Not yet rated: your premium is ${pct} over a rated, clean record's`,
+  fullBooks: "Your full books ›",
+  everyCompany: "Every company, by Miles ›",
+  whoHere: "See who's here ›",
+  privateWorth: "Private: only you see this",
+  lostTo: (name: string) => `Lost to ${name} ›`,
 };

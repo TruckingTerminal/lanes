@@ -12,7 +12,7 @@ import { walkProgress, walkSteps } from "./walkthrough.js";
  * Money · More. More lists Iuliia, Help and Company, then the teasers: each a tab that opens on its trigger and
  * until then shows a card saying what it is and when it opens.
  */
-export const TAB_IDS = ["fleet", "loads", "money", "more", "iuliia", "guide", "company", "staff", "market", "rates", "logbook", "finance", "economy", "business", "backlot"] as const;
+export const TAB_IDS = ["fleet", "loads", "money", "more", "iuliia", "guide", "company", "intel", "staff", "market", "rates", "logbook", "finance", "economy", "business", "backlot"] as const;
 export type Tab = (typeof TAB_IDS)[number];
 
 export interface Teaser {
@@ -49,6 +49,7 @@ export const TABS: readonly TabDef[] = [
   { id: "iuliia", label: "Iuliia", icon: "people" },
   { id: "guide", label: "Help", icon: "book" },
   { id: "company", label: "Company", icon: "building" },
+  { id: "intel", label: "Intel", icon: "people" },
   {
     id: "staff",
     label: "Staff",
@@ -158,7 +159,7 @@ export const tabDef = (id: Tab): TabDef => BY_ID.get(id)!;
 /** The nav's four, in order. */
 export const NAV: readonly Tab[] = ["fleet", "loads", "money", "more"];
 /** Under More, before the teasers. */
-export const MORE: readonly Tab[] = ["iuliia", "guide", "company"];
+export const MORE: readonly Tab[] = ["iuliia", "guide", "company", "intel"];
 
 /** A tab's label for this company: "Truck" reads "Trucks" from the second truck. */
 export function tabLabel(id: Tab, w: World | null, c: Company | null): string {

@@ -74,6 +74,8 @@ export const S = {
   idleFrom: new Map<number, number>(),
   /** Loads the player bid on or booked by hand, so the Truck card can tell the dispatcher's loads from the player's own. */
   handLoads: new Set<number>(),
+  /** Intel (specs/intel-ux.md): the open card, where it was opened from, and the list's filters and sort. */
+  intel: { card: null as number | null, back: null as Tab | null, q: "", myHub: false, hub: null as string | null, players: false, brokers: false, sort: "miles" as "miles" | "trucks" | "month", shown: 50 },
   homeNow: new Set<number>(),
   /** The last delivery, shown on the Truck tab until OK (S7); Money keeps a dot until it's opened. */
   delivered: null as null | { from: string; to: string; lateH: number; line: PayLine; dueDay: number | null; hiredDriver: string | null },
@@ -83,7 +85,7 @@ export const S = {
   /** The map follows your moving truck until you pan it (S6); "Follow" turns it back on. */
   following: true,
   /** The last round's result for a hand bid, shown on the board until OK or the next bid (S5); `seen` clears the Loads dot. */
-  result: null as null | { won: boolean; from: string; to: string; rate: number; winning: number | null; be: number; total: number; seen: boolean },
+  result: null as null | { won: boolean; from: string; to: string; rate: number; winning: number | null; be: number; total: number; seen: boolean; winnerId?: number },
   /** The truck-stop site selected on the map (an id into w.sites), shown on the Business tab. */
   selSite: null as number | null,
   /** The market view's trailer type. */
@@ -213,6 +215,13 @@ export function loadOnboard(): void {
   }
 }
 
+/** Opens Intel at a company's card, or at the list filtered (a hub, the brokers); its back arrow returns to where it came from. */
+export function openIntel(at: { card?: number; hub?: string; brokers?: boolean; sort?: "miles" | "trucks" | "month" }): void {
+  const back = S.tab === "intel" ? S.intel.back : S.tab;
+  S.intel = { ...S.intel, card: at.card ?? null, back: at.card !== undefined ? back : null, hub: at.hub ?? (at.card !== undefined ? S.intel.hub : null), brokers: at.brokers ?? (at.card !== undefined ? S.intel.brokers : false), sort: at.sort ?? S.intel.sort, shown: 50 };
+  if (isPhone()) S.sheet = at.card !== undefined ? "full" : "half";
+  setTab("intel");
+}
 export function setTab(tab: Tab): void {
   S.tab = tab;
   if (tab === "money") S.moneyDot = false;

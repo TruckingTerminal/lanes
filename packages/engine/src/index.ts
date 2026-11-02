@@ -49,6 +49,7 @@ export * from "./equipment.js";
 export * from "./pools.js";
 export * from "./playerLeases.js";
 export * from "./receivables.js";
+export * from "./intel.js";
 export * from "./staking.js";
 export * from "./types.js";
 export * from "./wear.js";

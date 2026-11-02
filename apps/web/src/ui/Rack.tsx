@@ -14,6 +14,7 @@ import { Economy } from "./panels/Economy.js";
 import { Finance } from "./panels/Finance.js";
 import { Fleet } from "./panels/Fleet.js";
 import { Guide } from "./panels/Guide.js";
+import { Intel } from "./panels/Intel.js";
 import { Loads } from "./panels/Board.js";
 import { Logbook } from "./panels/Logbook.js";
 import { Money } from "./panels/Money.js";
@@ -29,6 +30,7 @@ const PANELS: Record<Tab, () => JSX.Element> = {
   iuliia: () => <IuliiaPanel />,
   guide: () => <Guide />,
   company: () => <Company />,
+  intel: () => <Intel />,
   staff: () => <Staff />,
   market: () => <Dealer />,
   rates: () => <Rates />,
@@ -41,7 +43,7 @@ const PANELS: Record<Tab, () => JSX.Element> = {
 };
 
 /** Tabs a page with no company can still read. */
-const WATCHABLE: readonly Tab[] = ["more", "iuliia", "guide", "company", "rates", "economy"];
+const WATCHABLE: readonly Tab[] = ["more", "iuliia", "guide", "company", "intel", "rates", "economy"];
 
 /**
  * The nav: Truck · Loads · Money · More (a segmented control on the laptop, the bottom bar on a phone; the

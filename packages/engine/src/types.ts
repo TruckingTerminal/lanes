@@ -181,6 +181,9 @@ export interface Company {
    * paid, against carrier pay and board fees.
    */
   operating: { revenueFd: number; costFd: number };
+  /** Intel's month close (intel.ts): the counters at the start of this game month, and last month's record. Screens only. */
+  monthMark?: { revenueFd: number; delivered: number; onTime: number };
+  lastMonth?: { revenueFd: number; loads: number; onTime: number; closedDay: number };
   overheadPaidFd: number;
   /** Operating (unparked) truck-weeks, counted at each weekly overhead charge. */
   truckWeeks: number;

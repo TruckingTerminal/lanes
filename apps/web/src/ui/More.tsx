@@ -1,7 +1,7 @@
 import type { JSX } from "preact";
 import { iconUrl } from "../art.js";
 import { ASSETS, hasAsset } from "../mapart.js";
-import { bumpData, S, setTab, useData } from "../state.js";
+import { bumpData, openIntel, S, setTab, useData } from "../state.js";
 import { MORE, tabDef, tabOpen, teaserTabs, type Tab } from "../tabs.js";
 import { Btn, Panel } from "./bits.js";
 import { Iuliia } from "./Walkthrough.js";
@@ -22,7 +22,7 @@ export function More(): JSX.Element {
   const opened = teaserTabs().filter((t) => tabOpen(t.id, g.w, g.player));
   const coming = teaserTabs().filter((t) => !tabOpen(t.id, g.w, g.player));
   const row = (id: Tab, fresh = false) => (
-    <button key={id} type="button" class="morerow" onClick={() => setTab(id)} data-need={fresh ? `opened:${id}` : undefined}>
+    <button key={id} type="button" class="morerow" onClick={() => (id === "intel" ? openIntel({}) : setTab(id))} data-need={fresh ? `opened:${id}` : undefined}>
       <TabIcon id={id} size={24} />
       <span>{tabDef(id).label}</span>
       {fresh ? <span class="newdot">New</span> : null}

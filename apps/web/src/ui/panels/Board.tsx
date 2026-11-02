@@ -3,10 +3,10 @@ import { useEffect, useState } from "preact/hooks";
 import { MANUAL_BID_MAX_DEADHEAD_MI, VETTING_NAMES, type Truck } from "@lanes/engine";
 import { COMMODITIES } from "@lanes/data";
 import { bidRange, boardRows, clearsNear, sortRows, type BoardRow, type BoardSort } from "../../board.js";
-import { BOARD, LOAD, ROUND } from "../../copy.js";
+import { BOARD, INTEL, LOAD, ROUND } from "../../copy.js";
 import { cls, fdFull, hhmm, pct, shortDate, TRAILER_NAME } from "../../format.js";
 import { nextRoundHour, nextRoundLabel, nextRoundWait, reloadLabel, roundProgress, seasonSwing } from "../../logic.js";
-import { bumpData, isPhone, me, myTrucks, order, S, selectTruck, setOnboard, setTab, toast, truckNo, useData } from "../../state.js";
+import { bumpData, isPhone, me, myTrucks, openIntel, order, S, selectTruck, setOnboard, setTab, toast, truckNo, useData } from "../../state.js";
 import { deliveryEtaMin } from "../../rolling.js";
 import { tabOpen } from "../../tabs.js";
 import { Btn, Card, Kv } from "../bits.js";
@@ -250,6 +250,11 @@ function ResultCard({ onBidAgain }: { onBidAgain?: () => void }): JSX.Element | 
             ? ROUND.lost(res.winning.toFixed(2), res.rate.toFixed(2), res.be.toFixed(2))
             : ROUND.nobody(res.rate.toFixed(2))}
       </p>
+      {!res.won && res.winnerId ? (
+        <button type="button" class="linkrow" onClick={() => openIntel({ card: res.winnerId })}>
+          {INTEL.lostTo(S.game!.w.companies[res.winnerId - 1]?.name ?? "")}
+        </button>
+      ) : null}
       <div class="row">
         {res.won ? (
           <Btn primary onClick={close}>
@@ -344,7 +349,11 @@ function LoadSheet({ r, truck }: { r: BoardRow; truck: Truck }): JSX.Element {
         />
       </Card>
       <Card title={LOAD.shipper}>
-        {poster ? <p class="small">{poster.name}</p> : null}
+        {poster ? (
+          <button type="button" class="linkrow" onClick={() => openIntel({ card: poster.id })}>
+            {poster.name} ›
+          </button>
+        ) : null}
         <Kv
           rows={[
             [LOAD.onTime, poster && poster.delivered ? pct(poster.onTime / poster.delivered) : "—"],

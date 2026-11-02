@@ -1,13 +1,13 @@
 import type { JSX } from "preact";
 import { useState } from "preact/hooks";
 import { hubs as HUBS } from "@lanes/data";
-import { defaultName, FIRST_ENTRY, HUB_CARD, NAMING } from "../copy.js";
+import { defaultName, FIRST_ENTRY, HUB_CARD, INTEL, NAMING } from "../copy.js";
 import { cls, fd } from "../format.js";
 import { FLEET_START_EXTRA_FD, GAME_CONFIG, type StartKind } from "../game.js";
 import { H } from "../handlers.js";
 import { clearsNear } from "../board.js";
 import { hubFacts, rankStarters } from "../hubcard.js";
-import { bumpData, S, TEST_BUILD, useData, type EntryStage } from "../state.js";
+import { bumpData, openIntel, S, TEST_BUILD, useData, type EntryStage } from "../state.js";
 import { Btn, Card } from "./bits.js";
 import { Iuliia } from "./Walkthrough.js";
 import { Portrait } from "./Loop.js";
@@ -157,6 +157,9 @@ function HubCard({ hub }: { hub: number }): JSX.Element {
       <p class="muted">{f.season}</p>
       {group(HUB_CARD.freightNow, f.freight)}
       {group(HUB_CARD.whosHere, f.whosHere)}
+      <button type="button" class="linkrow" onClick={() => openIntel({ hub: S.game!.w.net.hubs[hub]!.id })}>
+        {INTEL.whoHere}
+      </button>
       {group(HUB_CARD.costs, f.costs)}
       {group(HUB_CARD.outbound, [f.outbound])}
       <div class="row pinned">

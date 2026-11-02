@@ -213,6 +213,13 @@ table.mini td:first-child { font-family: inherit; }
 .bighead { font-size: 15px; line-height: 1.35; margin: 4px 0 6px; }
 .lookbtn { padding: 4px; border: 2px solid var(--border); border-radius: 8px; background: none; cursor: pointer; line-height: 0; }
 .lookbtn.on { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent); }
+.linkrow { display: block; padding: 6px 0; border: 0; background: none; color: var(--accent); font: inherit; font-size: 13px; text-align: left; cursor: pointer; }
+.intelrows { display: flex; flex-direction: column; }
+.intelrow { display: flex; flex-direction: column; justify-content: center; gap: 2px; min-height: 64px; padding: 6px 4px; border: 0; border-bottom: 1px solid var(--border); background: none; color: var(--text-primary); font: inherit; text-align: left; cursor: pointer; }
+.intelrow.you { background: var(--bg-secondary); }
+.intelrow .chip { margin-left: 6px; }
+.intelfind { width: 100%; }
+.chips { flex-wrap: wrap; }
 .needswrap { position: relative; display: inline-flex; }
 .needslist { position: fixed; top: 50px; left: 16px; z-index: 40; display: flex; flex-direction: column; width: min(360px, calc(100vw - 32px)); background: var(--bg-secondary); border: 1px solid var(--border); border-radius: 8px; box-shadow: 0 8px 24px rgba(0,0,0,.45); overflow: hidden; }
 .needslist button { display: flex; align-items: center; gap: 8px; min-height: 44px; padding: 8px 12px; border: 0; border-bottom: 1px solid var(--border); background: none; color: var(--text-primary); font: inherit; font-size: 13px; text-align: left; cursor: pointer; }

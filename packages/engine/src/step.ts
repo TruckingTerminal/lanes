@@ -1,4 +1,5 @@
 import { dailyAssets } from "./assets.js";
+import { monthlyIntel } from "./intel.js";
 import { monthlyFactory } from "./dealerships.js";
 import { billPlayerLeases } from "./playerLeases.js";
 import { billRentals } from "./trailers.js";
@@ -213,6 +214,7 @@ function endOfDay(w: World, day: number, agents?: DailyAgentHook): void {
     monthlyDealerPrices(w);
     monthlyFuelTax(w);
     monthlySites(w);
+    monthlyIntel(w); // last month's record for Intel, last of the close: it reads the month's counters, writes only its own
     if (tokenLive(w)) scaleDemand(w);
   }
 }
