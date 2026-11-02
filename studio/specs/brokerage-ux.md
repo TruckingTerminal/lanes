@@ -1,4 +1,4 @@
-# Brokerage (UX spec, draft 1, 2026-11-03; owner: UX)
+# Brokerage (UX spec, draft 2, 2026-11-03; owner: UX)
 
 Sprint 2, item 3. Jeff, 2026-11-02: a brokerage is its own company, separate from the carrier; a player has at
 most one of each. Rules from the director's `specs/brokerage-rule.md`; Jeff's three additions of 2026-11-03 are
@@ -41,9 +41,18 @@ slot; a brokerage never bids on the board, and who hauls its loads is its second
 
 ### Book
 Loads in four groups, in this order:
-1. **Offered to you:** shipper freight tendered to the brokerage. Card: lane, trailer, "Shipper pays 3,100 FD",
-   "You'd post at 2,790 (your 10% margin)", "Board fee 93" (`{board fee}` **[open]**). Actions: **Post** ·
-   **Tender to my carrier** (section 7; only when the player has a carrier) · **Pass** **[open: hand calls]**.
+1. **Offered to you:** loads held for the brokerage's decision, each for the game's one tender window
+   (`{contracts.tenderHours}`, 12 game hours). Card: lane, trailer, "Shipper pays 3,100 FD", "You'd post at 2,790
+   (your 10% margin)", "Board fee 93" (`{board fee}` **[open]**), and a ring to the window's end: "Decide by
+   18:00 · 9 h left". Two kinds:
+   - **A shipper's tender** to the brokerage. Actions: **Post** · **Tender to Red River Lines** (section 7; only
+     when the player has a carrier) · **Decline**. At the window's end the standing order acts; with none, the
+     tender is declined and goes on to another broker or the open board. Under the card, while the window runs:
+     "If you don't decide: your standing order posts it at 10%" (or "…it goes to another broker").
+   - **A load passed from Red River Lines** (section 6), with a "From Red River Lines" chip. Actions: **Post** only
+     (it can't be declined, and it can't go back to the carrier that passed it). Its window is the rest of the
+     carrier's tender window. At its end the standing order posts it, or, with none, it posts at
+     `{brokerage.defaultMarginPct}`; it is never dropped. The line under the card says which.
 2. **On the board:** "Posted at 2.58/mi · clears 18:00 · in 5 h", a ring to the round.
 3. **Moving:** "Taken by Prairie Haul at 2.52/mi · picked up Jan 9". "Yours" chip when the hauler is the owner's
    carrier.
@@ -63,7 +72,9 @@ round; yours start at 06:00."
   `{vetting.strict.minDelivered}` loads delivered".
 - **"Carriers who've hauled for you":** name, loads hauled for you, on time %, each a link to Intel; the owner's
   carrier with a "Yours" chip.
-- **"Your standing order":** margin %, cap on open loads, defaults from the economy **[open: fields]**.
+- **"Your standing order"** (what decides when the window runs out): margin %, cap on open loads, and a switch
+  "Offer to Red River Lines first" (shown only with a carrier; it tenders at the posting rate held inside the
+  lane's band, and the carrier still accepts or declines). Defaults from the economy.
 
 ### Money
 1. "Cash", with the sparkline.
@@ -95,7 +106,8 @@ with the player's figures: "Bond: 75,000 FD, locked while you broker" · "Licenc
 laptop), "1 of 3" at the top, **Back** and **Next** at the foot. Settled with the writer: the verb is **Start**
 throughout; three steps, the costs and the funding on one (the director's "one sheet before the button"):
 1. **Name it.** "Brokerage name" (default "{carrier name} Logistics", 32 characters). Home hub: the carrier's,
-   shown, not chosen **[open]**.
+   shown, not chosen, with "Fixed for the brokerage's life" under it (the director: it doesn't follow if the
+   carrier moves).
 2. **What it costs and how you fund it** (one sheet before the button, per the brief). Rows: Licence 300 ·
    Bond 75,000 (locked) · Surety 4,500 a year · then the first capital transfer from the carrier: an amount field,
    prefilled with bond + licence + the first year's premium + `{brokerage.startCashFd}` of working cash
@@ -123,30 +135,34 @@ the company in view first. The brokerage's row reads as any broker's: "Dallas ·
 ## 5. Iuliia
 
 The writer's lines, one each, under the placement rule: the seven-day card's first showing; starting; the first
-switch; the first "Broker it"; the first transfer. None on a refusal, a default or a fall-off.
+switch; the first pass; the first transfer. None on a refusal, a default or a fall-off.
 
-## 6. "Broker it": a carrier's direct tender handed to its brokerage
+## 6. "Pass to Red River Logistics": a carrier's direct tender handed to its brokerage
 
-**Where:** the carrier's contract tender card (Truck tab, "Contract tender: Chicago → Columbus, 355 mi"), beside
-**Accept** and **Leave it for the board**. **Only on a tender** (a load a shipper tendered directly to the carrier),
-never on a board load; only when the player has a brokerage that is active and not over its bond.
+The director's one flow (rule brief §3a, Rule A): one action on the carrier's side, every decision in the
+brokerage. No sheet and no margin control on the carrier's screen (draft 1's "Broker it" sheet is gone).
 
-**Tap:** a sheet titled "Broker it through Red River Logistics", over the carrier's screen, no switch:
-- rows: "Shipper pays" 1,060 FD (the contract rate) · "Post at" a margin control, 0–`{brokerage.maxMarginPct}`,
-  showing the posted rate and "yours 106 FD" live · "Board fee" 32 · "Bond after" "42,000 of 75,000 in use" ·
-  "Who may haul" the brokerage's setting.
-- **Post it** (primary) · **Cancel**.
+**Where:** the carrier's contract tender card (Truck tab, "Contract tender: Chicago → Columbus, 355 mi"), a third
+action beside **Accept** and **Leave it for the board**: **Pass to Red River Logistics**. Only on a contract tender,
+never a board load; only inside the tender's window; only when the player has a brokerage.
 
-**After:** the tender card on the carrier reads "Handed to Red River Logistics · posted at 2.69/mi" for the rest of
-the round, then leaves; the load appears in the brokerage's Book under On the board, trail starting at Tendered.
-**[open]**: whether handing it over counts as the carrier accepting the tender (its acceptance %).
+**Greyed, with the reason beside it,** when a check fails: "Red River Logistics is at its bond", "…isn't licensed",
+"…is under its bond: in its grace days", "The tender has expired". The carrier hauls it or leaves it as before.
 
-**Refusals, in red on the sheet:** "Red River Logistics is at its bond", "Red River Logistics' authority is
-suspended", "The tender has expired".
+**Tap:** the button turns into an in-place confirm on the card, one line and two buttons: "Red River Logistics
+takes it from here: it owes the hauler, and the shipper pays it." **Pass it** · **Keep it**. (A pass can't be
+undone, so it gets one tap of confirmation, but no sheet.)
+
+**After:** the carrier's card reads "Passed to Red River Logistics · counts as accepted" until the round ends, then
+leaves. The load appears in the brokerage's Book under Offered to you with the "From Red River Lines" chip and the
+rest of the window (section 2). Both feeds log it. If the passed load later falls off, the carrier's contract
+records it as not covered; the carrier's Contracts card shows that line, no caption.
 
 ## 7. "Tender to my carrier": the brokerage's direct freight, straight to its owner's carrier
 
-**Where:** Book › Offered to you, the middle action. Shown only when the player has a carrier.
+**Where:** Book › Offered to you, the middle action on a shipper's tender. Shown only when the player has a
+carrier; never on a load passed from that carrier. **Greyed, with the reason,** when the carrier can't take it at
+send: "Red River Lines has no free truck in reach of the pickup", "Red River Lines' authority isn't active".
 
 **Tap:** a sheet "Tender to Red River Lines":
 - "Shipper pays" 3,100 FD.
@@ -159,11 +175,17 @@ suspended", "The tender has expired".
 - **Tender it** (primary) · **Cancel**.
 
 **After:** the brokerage's card moves to "Tendered to Red River Lines"; the carrier gets an ordinary tender card
-headed "From Red River Logistics", with **Accept** (a truck) and **Leave it** as for any tender. Accepted: the trail
-continues under Moving with the "Yours" chip. Left or expired: back to Offered to you **[open]**.
+headed "From Red River Logistics", with **Accept** (a truck) and **Leave it** as for any tender, inside the same
+`{contracts.tenderHours}` window. Accepted: the trail continues under Moving with the "Yours" chip. **Left or
+expired: the load goes to the board at the rate the carrier was offered**, and the brokerage's card moves to On the
+board with "Red River Lines didn't take it · posted at 2.45/mi". It never returns to Offered.
 
-**Refusals:** "Red River Lines' authority isn't active", "That pay is outside the lane's band" (the slider can't
-reach it; the string is for a modified client), "Red River Logistics is at its bond".
+**Checked again at accept** (the world moves): if the carrier can no longer take it, the accept is refused in red
+on the carrier's card ("No free truck in reach of the pickup now"), the tender stands until its window ends, then
+goes to the board.
+
+**Refusals on the sheet:** "That pay is outside the lane's band" (the slider can't reach it; the string is for a
+modified client), "Red River Logistics is at its bond".
 
 ## 8. Moving money between the two companies
 
@@ -190,12 +212,13 @@ moves; no toast.
 
 ## Open
 
-1. **Economy:** `{brokerage.startCashFd}` (the prefilled working cash), `{brokerage.maxMarginPct}`,
+1. **Economy:** `{brokerage.startCashFd}` (the prefilled working cash), `{brokerage.defaultMarginPct}`,
    `{brokerage.ownTender.band}`, `{brokerage.transfer.feePct}` (1% proposed), the starting credit score, and the
    board fee's key (3% today; not found in config by name).
-2. **Director:** the rule brief's §3 row 3 says the own carrier wins only through the board; Jeff's addition 2
-   lets the brokerage tender to it directly. The revised brief should say both hold: direct tender for freight the
-   brokerage received directly, the board for everything posted.
-3. **Rules:** whether "Broker it" counts as the carrier accepting the tender; where a tender left by the own
-   carrier goes; whether hand calls (Post/Pass, re-price a stuck posting) are a rule (the brief's question 5);
-   the brokerage's home hub.
+2. **Re-pricing a posting that isn't moving** before it falls off: not in the director's answers; this spec gives it
+   no control.
+
+Settled by the director (rule brief §3a, 2026-11-03): one flow, "Pass to {brokerage}", counted as accepted; a
+declined or expired own-carrier tender goes to the board at the offered rate; the one hold is
+`{contracts.tenderHours}`; hand calls are that hold, the standing order decides after it; the home hub is the
+carrier's at formation, fixed.

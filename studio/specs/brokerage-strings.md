@@ -15,7 +15,7 @@ Short key names used below:
 | `{graceDays}` | `token.staking.graceDays` |
 | `{brokerRate}` | `token.payment.factoring.contract.brokerRate` |
 | `{defaultRate}`, `{lagDays}`, `{fallOff}` | `brokerRisk.defaultRate`, `.contractLagDays`, `.fallOffShare` |
-| `{boardFee}` | `market.posterFeePct` |
+| `{boardFee}` | `board.posterFeePct`: a share of what the shipper pays the brokerage, charged on delivery |
 | `{termsDays}` | `token.payment.termsDays` |
 | `{transferFee}` | `brokerage.transferFeePct`, to the reserve (Jeff, 2026-11-03: 3%) |
 | `{bandLow}`, `{bandHigh}` | the lane's band from `brokerage.ownTender.band`, per mile **[size]** |
@@ -210,7 +210,7 @@ Jeff, 2026-11-02: a brokerage that receives freight directly from a shipper may 
 | Button | Tender to `{carrier name}` |
 | Sheet title | Tender to `{carrier name}` |
 | Rows | Shipper pays you · `{fd}` FD · You pay `{carrier}` · [`{rate}`]/mi · Allowed on this lane · `{bandLow}`–`{bandHigh}`/mi |
-| Rows | Board fee · none [size] · Your margin · `{fd}` FD |
+| Rows | Board fee · `{boardFee}` · `{fd}` FD, charged on delivery · Your margin · `{fd}` FD |
 | Note | Paid at net `{termsDays}`, never factored: it's between your own companies. |
 | Note | The load counts once for you, not twice. |
 | Buttons | **Tender at `{rate}`/mi** · Not now · live: Sent · in effect `{hh:mm}` |
