@@ -81,3 +81,6 @@
 - 2026-11-02 — Jeff: traffic drives in the correct lane in both title shots, on the right as in the USA; this
   supersedes "keep the painting as is": the head-on shot is mirrored, with the diner's sign redrawn to read
   forward.
+- 2026-11-02 — Correction (the producer misread Jeff): the head-on shot is NOT mirrored; the painting's
+  orientation and lane were right. The side view's rig faces right in the bottom lane, oncoming traffic in the
+  top lane moving left, as it was. The fix the head-on shot needed was the roadside moving with the road.
