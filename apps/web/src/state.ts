@@ -64,7 +64,7 @@ export const S = {
   /** Bids placed by hand from the board, by load: their rate and break-even, so the round's result can say how they did (S5). */
   handBids: new Map<number, { rate: number; be: number }>(),
   /** The last delivery, shown on the Truck tab until OK (S7); Money keeps a dot until it's opened. */
-  delivered: null as null | { origin: number; dest: number; lateH: number; line: PayLine; dueDay: number | null },
+  delivered: null as null | { origin: number; dest: number; lateH: number; line: PayLine; dueDay: number | null; hiredDriver: string | null },
   moneyDot: false,
   /** The lane each invoice was for, by receivable id, as this page saw the deliveries (Money's "Load" column). */
   invoiceLanes: new Map<number, string>(),

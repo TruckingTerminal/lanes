@@ -104,7 +104,8 @@ function onEvent(s: Session, e: GameEvent): void {
       const line = payLine(w, truck, load, e.grossFd, e.costFd, beforeDelivery.get(truck.id) ?? { emptyMi: 0, depositFd: truck.depositFd ?? 0 });
       const due = w.receivables.filter((r) => r.holder === s.player!.id).reduce<{ id: number; dueDay: number } | null>((a, r) => (!a || r.id > a.id ? r : a), null);
       if (due) S.invoiceLanes.set(due.id, `${w.net.hubs[e.origin]!.name} → ${w.net.hubs[e.dest]!.name}`);
-      S.delivered = { origin: e.origin, dest: e.dest, lateH: Math.max(0, Math.ceil((w.t - load.dueT) / 60)), line, dueDay: due && due.dueDay > Math.floor(w.t / 1440) ? due.dueDay : null };
+      const driver = truck.driverId ? w.staff[truck.driverId - 1] : undefined;
+      S.delivered = { origin: e.origin, dest: e.dest, lateH: Math.max(0, Math.ceil((w.t - load.dueT) / 60)), line, dueDay: due && due.dueDay > Math.floor(w.t / 1440) ? due.dueDay : null, hiredDriver: driver && !driver.owner ? driver.name : null };
       S.moneyDot = true;
     }
   }

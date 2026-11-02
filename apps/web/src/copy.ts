@@ -165,9 +165,8 @@ export const ROLLING = {
   onTime: "On time",
   late: (h: number) => `Late ${h} h`,
   follow: "Follow",
-  /** Not in the copy spec yet (the spec's question 1, answered "planned"): tonight's stop. */
-  tonightSite: (near: string) => `Tonight: a rest area near ${near} (planned)`,
-  tonightShoulder: "Tonight: the shoulder, no site in reach (planned)",
+  tonightSite: (truckStop: boolean, near: string) => `Tonight, as planned: ${truckStop ? "a truck stop" : "a rest area"} near ${near}`,
+  tonightShoulder: "Tonight, as planned: the shoulder. Nowhere legal to stop in reach.",
 };
 
 export const DELIVERED = {
@@ -175,9 +174,9 @@ export const DELIVERED = {
   load: "The load",
   fuel: "Fuel",
   tolls: "Tolls",
-  /** Not in the copy spec yet: the engine charges the driver's pay and upkeep on every trip too, and the rows must sum. */
-  driver: "The driver's pay",
-  upkeep: "Upkeep",
+  driverOwner: "Your pay for driving",
+  driverHired: (name: string) => `Driver's pay · ${name}`,
+  upkeep: "Truck upkeep",
   lessor: (share: string) => `The lessor's ${share}`,
   held: "Held toward your own truck",
   yours: "Yours",
@@ -201,7 +200,6 @@ export const MONEY = {
   insurance: "Insurance",
   yard: "Yard",
   perDiem: "Per diem",
-  /** Not in the copy spec yet: per diem is charged by the day, not the week. */
   perDiemValue: (fd: string) => `${fd} FD a day`,
   standing: "Standing",
   miles: (n: string) => `${n} Miles · your standing in the beta`,
@@ -241,3 +239,20 @@ export const DISPATCHER = {
 
 /** Iuliia's caption (specs/first-ten-minutes.md, Layout): her line, then the step's Do. */
 export const CAPTION = { next: "Next", hide: "Hide", more: "More" };
+
+/** The Truck tab (copy-first-ten-minutes.md, S6; copy-audit.md's rewrites). */
+export const TRUCK = {
+  leased: (share: string) => `leased: the lessor keeps ${share} of every load`,
+  secondLease: (share: string, min: string) => `second lease: the lessor keeps ${share} of every load, at least ${min} FD a week`,
+  owned: (fd: string) => `owned · worth ${fd} FD`,
+  idle: (place: string, next: string) => `Idle at ${place} · next round ${next}`,
+  needsYou: "Needs you",
+  tired: "A tired driver crashes more, drives slower and loses heart.",
+  noLoadsInRange: (trailer: string, maxDh: number, hub: string) => `No ${trailer} loads within ${maxDh} mi of ${hub}, as far as your dispatcher sends a truck empty.`,
+  sendHome: (mi: number) => `Send home · ${mi} mi`,
+  sendEmpty: (hub: string, mi: number) => `Send empty to ${hub} · ${mi} mi`,
+  bidByHand: "Bid by hand",
+  noDriver: (n: number) => `Truck ${n} has no driver and earns nothing.`,
+  hireDriver: "Hire a driver",
+  today: "Today",
+};

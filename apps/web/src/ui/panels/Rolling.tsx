@@ -41,7 +41,7 @@ function RollingCard({ t }: { t: Truck }): JSX.Element | null {
         <span>{ROLLING.eta(when(eta))}</span>
         <span class={cls("chip", lateH > 0 ? "bad" : "good")}>{lateH > 0 ? ROLLING.late(lateH) : ROLLING.onTime}</span>
       </div>
-      {stop ? <p class="muted small">{stop.kind === "site" ? ROLLING.tonightSite(nearestPlace(w, stop.lat, stop.lon)) : ROLLING.tonightShoulder}</p> : null}
+      {stop ? <p class="muted small">{stop.kind === "site" ? ROLLING.tonightSite(w.sites[stop.siteId - 1]!.businessId !== 0, nearestPlace(w, stop.lat, stop.lon)) : ROLLING.tonightShoulder}</p> : null}
     </Card>
   );
 }
@@ -58,7 +58,7 @@ export function DeliveredCard(): JSX.Element | null {
     [DELIVERED.load, fdFull(d.line.load)],
     [DELIVERED.fuel, minus(d.line.fuel)],
     [DELIVERED.tolls, minus(d.line.tolls)],
-    ...(d.line.driver >= 0.5 ? ([[DELIVERED.driver, minus(d.line.driver)]] as [string, string][]) : []),
+    ...(d.line.driver >= 0.5 ? ([[d.hiredDriver ? DELIVERED.driverHired(d.hiredDriver) : DELIVERED.driverOwner, minus(d.line.driver)]] as [string, string][]) : []),
     ...(d.line.upkeep >= 0.5 ? ([[DELIVERED.upkeep, minus(d.line.upkeep)]] as [string, string][]) : []),
     ...(d.line.lessor >= 0.5 ? ([[DELIVERED.lessor(pct(GAME_CONFIG.costs.npcLeaseShareOfGross)), minus(d.line.lessor)]] as [string, string][]) : []),
     ...(d.line.held >= 0.5 ? ([[DELIVERED.held, minus(d.line.held)]] as [string, string][]) : []),
