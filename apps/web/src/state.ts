@@ -94,11 +94,16 @@ export const S = {
   okText: new Map<number, string>(),
 };
 
+/**
+ * The test world's speeds, named by what they are (Jeff, 2026-11-02: "1×" read as the game's real pace). "Live pace" is
+ * the live world's own clock (live.ts: a game day every six real hours), so a tester can feel the real rhythm.
+ */
 export const SPEEDS: { label: string; title: string; hoursPerSec: number; icon: string }[] = [
   { label: "Paused", title: "Paused", hoursPerSec: 0, icon: "pause" },
-  { label: "1×", title: "One game day a minute", hoursPerSec: 24 / 60, icon: "play" },
-  { label: "10×", title: "One game day every 6 seconds", hoursPerSec: 4, icon: "ff" },
-  { label: "30×", title: "One game day every 2 seconds", hoursPerSec: 12, icon: "fff" },
+  { label: "Live pace", title: "Test speed: the live world's pace, a game day every 6 real hours", hoursPerSec: 24 / 21600, icon: "play" },
+  { label: "Day a minute", title: "Test speed: a game day every real minute", hoursPerSec: 24 / 60, icon: "ff" },
+  { label: "Day in 6 s", title: "Test speed: a game day every 6 real seconds", hoursPerSec: 4, icon: "fff" },
+  { label: "Day in 2 s", title: "Test speed: a game day every 2 real seconds", hoursPerSec: 12, icon: "ffff" },
 ];
 // --- Change channels ---------------------------------------------------------------
 

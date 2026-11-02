@@ -28,7 +28,7 @@ import {
   type Truck,
 } from "@lanes/engine";
 import { GAME_CONFIG } from "./game.js";
-import { ARRIVAL, DISPATCHER } from "./copy.js";
+import { ARRIVAL, DISPATCHER, TRUCK } from "./copy.js";
 import { act, bumpData, clockMin, me, myTrucks, push, S, setTab, selectTruck, toast, truckNo } from "./state.js";
 import { fd, hoursLabel, pct, plural, realUntil, signedPct, TRAILER_NAME } from "./format.js";
 import { Btn } from "./ui/bits.js";
@@ -118,7 +118,7 @@ export function AttentionCard(): ComponentChildren {
   if (!items.length) return null;
   return (
     <section class="card alert">
-      <h3>Needs attention</h3>
+      <h3>{TRUCK.needsYou}</h3>
       {items.map((a) => (
         <div class="row" key={a.key}>
           <span class={a.tone}>{a.text}</span>
@@ -169,7 +169,7 @@ export function idleWhy(t: Truck): IdleWhy {
   const c = me();
   const hubName = w.net.hubs[t.hub]!.name;
   const trailer = TRAILER_NAME[t.trailer].toLowerCase();
-  const board = <Btn onClick={() => goLoads(t.id)}>Bid by hand</Btn>;
+  const board = <Btn onClick={() => goLoads(t.id)}>{TRUCK.bidByHand}</Btn>;
   if (!crewed(t)) return { why: "No driver is seated, so it can't run.", fixes: [<Btn primary onClick={goStaff}>Hire a driver</Btn>] };
   if (c.authority.status !== "active") return { why: c.authority.status === "revoked" ? "Your authority is revoked: nothing can haul." : "Your authority is suspended: nothing can haul until it's back.", fixes: [] };
   if (t.breakdownMin > 0) return { why: `Broken down: about ${Math.ceil(t.breakdownMin / 60)} h until the tow and repair are done.`, fixes: [] };
@@ -188,10 +188,10 @@ export function idleWhy(t: Truck): IdleWhy {
       .filter((x) => x.i !== t.hub && x.n > 0 && x.mi <= 800)
       .sort((a, b) => b.n - b.mi / 200 - (a.n - a.mi / 200))[0];
     return {
-      why: `No ${trailer} loads within ${maxDh} mi of ${hubName}, the dispatcher's limit${best ? `. The nearest freight worth the run is ${plural(best.n, "load")} at ${best.h.name}, ${best.mi} mi away` : ""}.`,
+      why: `${TRUCK.noLoadsInRange(trailer, maxDh, hubName)}${best ? ` The nearest freight worth the run is ${plural(best.n, "load")} at ${best.h.name}, ${best.mi} mi away.` : ""}`,
       fixes: [
-        ...(best ? [<Btn primary onClick={() => act({ type: "reposition_truck", truckId: t.id, hubId: best.h.id }, `Truck heading empty to ${best.h.id}`)}>Send empty to {best.h.id} · {best.mi} mi</Btn>] : []),
-        <Btn onClick={() => goLoads(t.id)}>Load board</Btn>,
+        ...(best ? [<Btn primary onClick={() => act({ type: "reposition_truck", truckId: t.id, hubId: best.h.id }, TRUCK.sendEmpty(best.h.name, best.mi))}>{TRUCK.sendEmpty(best.h.name, best.mi)}</Btn>] : []),
+        <Btn onClick={() => goLoads(t.id)}>{TRUCK.bidByHand}</Btn>,
       ],
     };
   }
@@ -265,11 +265,11 @@ export function StatusLine({ t }: { t: Truck }): ComponentChildren {
           </>
         );
       }
+      // The audit: not "sat out a round" thirty seconds in; the idle clock turns amber, then red, as it ages.
       const h = idleHours(t);
       return (
         <>
-          Idle at {name(t.place)} for <span class={h >= IDLE_ALERT_HOURS ? "bad" : h >= 12 ? "warn" : ""}>{idleLabel(t)}</span>
-          {t.idleRounds ? ` · sat out ${plural(t.idleRounds, "round")}` : ""}
+          <span class={h >= IDLE_ALERT_HOURS ? "bad" : h >= 12 ? "warn" : ""}>{TRUCK.idle(name(t.place), nextRoundHour())}</span>
           {bid ? <span class="good"> · your bid {bid.rate.toFixed(2)}/mi is in</span> : null}
         </>
       );

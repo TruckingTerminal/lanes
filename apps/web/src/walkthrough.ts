@@ -121,7 +121,7 @@ export function walkSteps(cfg: EconomyConfig, hub = "your home hub"): WalkStep[]
       brief: "The page nobody enjoys: fuel, insurance, tolls, taxes, idling. Read it weekly, like an executive, with tea. Keep a cushion.",
       say: [
         `Here is the page of the clipboard nobody enjoys. Fuel, maintenance, insurance, tolls, the fuel tax, the sales tax on anything you buy, idling at night, and fines when a driver gets creative. The Money tab lists twenty days of it. Read it weekly, like an executive, with tea.`,
-        `The books close every week. ${cfg.insolvency.weeksInDebt} weekly checks in a row more than ${n(cfg.insolvency.debtLimitFd)} FD under, and the company is liquidated: trucks sold, staff gone, and you begin again on a lease. Keep a cushion. A cushion is cheaper than a restart, and considerably cheaper than my sympathy, which is rationed.`,
+        `The books close every week. ${cfg.insolvency.weeksInDebt} weekly checks in a row more than ${n(cfg.insolvency.debtLimitFd)} FD under, and the company is wound up: trucks sold, staff gone, and you begin again on a lease. Keep a cushion. A cushion is cheaper than a restart, and considerably cheaper than my sympathy, which is rationed.`,
       ],
       do: "Compare revenue against costs on Money.",
       why: "Revenue is a rate times miles; profit is what's left after a truck's fixed costs, and those run whether it moves or not.",

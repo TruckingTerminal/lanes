@@ -1,5 +1,7 @@
 import type { JSX } from "preact";
 import { useEffect, useRef, useState } from "preact/hooks";
+import { ordersWaitForHand } from "@lanes/engine";
+import { FEED } from "../copy.js";
 import { cls } from "../format.js";
 import { sheetLine } from "../logic.js";
 import { setMapInset } from "../mapview.js";
@@ -146,13 +148,21 @@ function roomPx(phone: HTMLElement): number {
   return Math.max(120, nav - top);
 }
 
+/** The ticker with nothing in it: before the first bid by hand, the first load is the player's call (S1). */
+function quiet(): string {
+  const g = S.game!;
+  const [r1, r2] = g.w.cfg.time.boardRoundHours.map((h) => `${String(h).padStart(2, "0")}:00`);
+  if (g.player && ordersWaitForHand(g.w, g.player)) return FEED.firstLoad(r1!, r2!);
+  return `Your dispatcher is watching the board. Bids clear at ${r1} and ${r2}.`;
+}
+
 function Ticker(): JSX.Element {
   useData();
   const f = feed();
   const items = f.ticker.slice(0, 8);
   return (
     <footer class="ticker" aria-live="polite">
-      {items.length ? items.map((t, i) => <span class={t.cls} key={i}>{t.text}</span>) : <span class="muted">Your dispatcher is watching the board. Bids clear at 06:00 and 18:00.</span>}
+      {items.length ? items.map((t, i) => <span class={t.cls} key={i}>{t.text}</span>) : <span class="muted">{quiet()}</span>}
     </footer>
   );
 }

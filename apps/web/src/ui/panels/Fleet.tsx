@@ -1,11 +1,12 @@
 import type { JSX } from "preact";
-import { condition, crewed, hubMiles, ordersOf, rebuildable, rebuildCost, resting, truckValue, type Truck } from "@lanes/engine";
+import { condition, crewed, hubMiles, layerBlock, ordersOf, rebuildable, rebuildCost, resting, truckValue, type Truck } from "@lanes/engine";
 import { SCENES } from "../../assets.js";
-import { dateLabel, fd, pct, plural, TIER_NAME, TRAILER_NAME, hhmm, realUntil } from "../../format.js";
+import { cls, dateLabel, fd, fdFull, pct, plural, TIER_NAME, TRAILER_NAME, hhmm, realUntil } from "../../format.js";
+import { TRUCK } from "../../copy.js";
 import { GAME_CONFIG } from "../../game.js";
 import { AttentionCard, CrewLine, goLoads, goStaff, idleLabel, idleWhy, openLoadsAt, StatusLine, stuckTrucks, tiredTrucks, truckName } from "../../logic.js";
 import { focusTruck } from "../../mapview.js";
-import { act, describe, me, myTrucks, S, selectTruck, truckNo, useData } from "../../state.js";
+import { act, describe, feed, me, myTrucks, S, selectTruck, truckNo, useData } from "../../state.js";
 import { Bar, Btn, Card, Num, Panel, Pixel } from "../bits.js";
 import { Rig, Scene } from "../Loop.js";
 import { TendersCard } from "./Contracts.js";
@@ -25,6 +26,7 @@ export function Fleet(): JSX.Element {
     <Panel title="Your fleet">
       <DeliveredCard />
       <RollingCards />
+      <TodayCard />
       <Scene name="yard" still={SCENES.yard} alt="Your yard at dusk" />
       <AttentionCard />
       <TendersCard c={me()} />
@@ -38,6 +40,21 @@ export function Fleet(): JSX.Element {
       <YardCard />
       <DispatcherCard />
     </Panel>
+  );
+}
+
+/** Today (S6): the last eight lines of the feed, which a phone has no ticker for. */
+function TodayCard(): JSX.Element | null {
+  const lines = feed().ticker.slice(0, 8);
+  if (!lines.length) return null;
+  return (
+    <Card title={TRUCK.today}>
+      {lines.map((l, i) => (
+        <p key={i} class={cls("small", l.cls)}>
+          {l.text}
+        </p>
+      ))}
+    </Card>
   );
 }
 
@@ -69,14 +86,14 @@ function TiredAlerts(): JSX.Element {
         return (
           <Card key={t.id} alert title={`${d.owner ? "You have" : `${d.name} has`} been out ${plural(d.awayDays, "day")}${d.fatigue >= f.tiredAt ? ` and ${d.owner ? "are" : "is"} tired (${pct(d.fatigue)})` : ""}`}>
             <p>
-              Fatigue raises crash odds (×{(1 + f.crashMult * d.fatigue).toFixed(2)} now), slows the truck and wears on morale. {f.resetDays} days off at home reset it; every day sitting idle away from home costs {GAME_CONFIG.labor.driver.perDiemFd} FD per diem.
+              {TRUCK.tired} {f.resetDays} days off at home reset it; every day sitting idle away from home costs {GAME_CONFIG.labor.driver.perDiemFd} FD per diem.
             </p>
             {d.wantsHome ? (
               <p class="muted">Heading home for days off.</p>
             ) : t.status === "idle" ? (
               <div class="row">
                 <Btn primary onClick={() => act({ type: "send_home", truckId: t.id }, "Heading home for days off")}>
-                  Send home · {home} mi
+                  {TRUCK.sendHome(home)}
                 </Btn>
               </div>
             ) : (
@@ -117,7 +134,8 @@ function TruckCard({ t, idx }: { t: Truck; idx: number }): JSX.Element {
   const leasedIn = t.lessorId !== 0 && t.lessorId !== c.id;
   const mine = t.lease === "owned" && !leasedIn;
   const cond = condition(w.cfg, t);
-  const kind = t.lease === "npc" ? "NPC lease (15% of gross)" : t.lease === "lessor" ? "Extra lease (15% of gross, 250 FD/wk minimum)" : leasedIn ? `Leased from another carrier` : `Owned · worth ${fd(truckValue(w, t))} FD`;
+  const share = pct(w.cfg.costs.npcLeaseShareOfGross);
+  const kind = t.lease === "npc" ? TRUCK.leased(share) : t.lease === "lessor" ? TRUCK.secondLease(share, fdFull(w.cfg.freeEntry.leases.minWeeklyFd)) : leasedIn ? `Leased from another carrier` : TRUCK.owned(fdFull(truckValue(w, t)));
   const load = t.loadId !== null ? w.loads.get(t.loadId) : undefined;
   const nearby = w.net.hubs
     .map((h, i) => ({ h, i, mi: hubMiles(w, t.hub, i) }))
@@ -137,11 +155,9 @@ function TruckCard({ t, idx }: { t: Truck; idx: number }): JSX.Element {
         <Rig eq={t.trailer} alt={`${TIER_NAME[t.tier]} with ${TRAILER_NAME[t.trailer]}`} />
         <div>
           <h3>
-            Truck {idx + 1} · {TIER_NAME[t.tier]}
+            Truck {idx + 1} · {TIER_NAME[t.tier]} · {TRAILER_NAME[t.trailer]}
           </h3>
-          <p class="muted">
-            {TRAILER_NAME[t.trailer]} · {kind}
-          </p>
+          <p class="muted">{kind}</p>
         </div>
       </div>
       <p>
@@ -162,18 +178,19 @@ function TruckCard({ t, idx }: { t: Truck; idx: number }): JSX.Element {
       <div class="row" onClick={stop}>
         {t.status === "idle" ? (
           <>
-            <Btn onClick={() => goLoads(t.id)}>Find loads</Btn>
+            <Btn onClick={() => goLoads(t.id)}>{TRUCK.bidByHand}</Btn>
             <select id={`send-${t.id}`} aria-label="Destination hub">
               {nearby.map((x) => (
                 <option value={x.h.id} key={x.h.id}>
-                  {x.h.id} · {x.mi} mi · {openLoadsAt(x.i).filter((l) => l.equipment === t.trailer).length} loads
+                  {x.h.name} · {x.mi} mi · {openLoadsAt(x.i).filter((l) => l.equipment === t.trailer).length} loads
                 </option>
               ))}
             </select>
             <Btn
               onClick={() => {
                 const hubId = (document.getElementById(`send-${t.id}`) as HTMLSelectElement).value;
-                act({ type: "reposition_truck", truckId: t.id, hubId }, `Truck heading empty to ${hubId}`);
+                const to = nearby.find((x) => x.h.id === hubId);
+                act({ type: "reposition_truck", truckId: t.id, hubId }, to ? TRUCK.sendEmpty(to.h.name, to.mi) : "Sent empty");
               }}
             >
               Send empty
@@ -203,14 +220,17 @@ function TruckCard({ t, idx }: { t: Truck; idx: number }): JSX.Element {
           </Btn>
         ) : null}
         {!crewed(t) ? (
-          <Btn primary onClick={goStaff}>
-            Hire a driver
-          </Btn>
+          <>
+            <span class="bad small">{TRUCK.noDriver(idx + 1)}</span>
+            <Btn primary onClick={goStaff}>
+              {TRUCK.hireDriver}
+            </Btn>
+          </>
         ) : null}
         {t.status === "idle" && crewed(t) && !resting(w, t) && hubMiles(w, c.homeHub, t.hub) > w.cfg.map.nearbyRadiusMi ? (
-          <Btn onClick={() => act({ type: "send_home", truckId: t.id }, "Heading home for days off")}>Send home · {hubMiles(w, c.homeHub, t.hub)} mi</Btn>
+          <Btn onClick={() => act({ type: "send_home", truckId: t.id }, "Heading home for days off")}>{TRUCK.sendHome(hubMiles(w, c.homeHub, t.hub))}</Btn>
         ) : null}
-        {t.status === "toPickup" && load && load.status === "assigned" && load.carrierId === c.id && !load.doubleBroker && load.shipperId !== c.id ? (
+        {t.status === "toPickup" && !layerBlock(w, "brokerage") && load && load.status === "assigned" && load.carrierId === c.id && !load.doubleBroker && load.shipperId !== c.id ? (
           <>
             <input type="number" id={`rb-${t.id}`} step="0.01" min="0.5" max={(load.clearedRate - 0.01).toFixed(2)} defaultValue={(load.clearedRate * 0.85).toFixed(2)} aria-label="Rate to re-post at" />
             <label class="label">
@@ -218,16 +238,6 @@ function TruckCard({ t, idx }: { t: Truck; idx: number }): JSX.Element {
             </label>
             <Btn onClick={() => act({ type: "rebroker_load", loadId: load.id, rate: num(`rb-${t.id}`), pay: checked(`rbpay-${t.id}`) }, "Load re-posted. The truck is free where it stands")}>Re-post the load (won at {load.clearedRate.toFixed(2)})</Btn>
           </>
-        ) : null}
-        {t.status === "loaded" && load && load.shipperId !== c.id && w.cfg.fraud.theft.byCarrier ? (
-          <Btn
-            danger
-            onClick={() => {
-              if (confirm("Steal this load? Police will investigate, and a theft claim stays on your record for a year.")) act({ type: "steal_load", truckId: t.id }, "The load won't be delivered. The truck runs on empty to where it was going");
-            }}
-          >
-            Steal the load · cargo {fd(load.cargoValue)} FD
-          </Btn>
         ) : null}
       </div>
     </Card>

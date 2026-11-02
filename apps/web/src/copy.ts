@@ -256,3 +256,12 @@ export const TRUCK = {
   hireDriver: "Hire a driver",
   today: "Today",
 };
+
+/** The feed (the ticker on a laptop, "Today" on the Truck tab): copy-first-ten-minutes.md, S5, S7, S8. */
+export const FEED = {
+  won: (from: string, to: string, miles: number, rate: string, mine: boolean) => `Won ${from} to ${to}, ${miles.toLocaleString("en-US")} mi at ${rate}/mi, ${mine ? "your bid" : "your dispatcher's bid"}.`,
+  lost: (from: string, to: string, rate: string, winning: string | null) => `Lost ${from} to ${to} at ${rate}/mi: ${winning !== null ? `it went for ${winning}/mi` : "nobody took it this round"}.`,
+  delivered: (from: string, to: string, total: string, yours: string, paid: string) => `Delivered ${from} to ${to}: ${total} FD, ${yours} FD yours after fuel, tolls and the lessor's cut. Paid ${paid}.`,
+  woundUp: "The company is wound up: the trucks are sold, and you start again on a lease.",
+  firstLoad: (r1: string, r2: string) => `The first load is your call. Bids clear at ${r1} and ${r2}.`,
+};

@@ -77,7 +77,7 @@ export function LoadsTable(): JSX.Element {
           <input type="text" readOnly value={truck ? `${w.net.places[truck.place]!.name}, ${w.net.places[truck.place]!.state}` : "—"} />
         </div>
         <div class="field">
-          <span class="label">DH-O max</span>
+          <span class="label">Empty miles, max</span>
           <input type="number" min="0" max={MANUAL_BID_MAX_DEADHEAD_MI} value={maxDh} onInput={(ev) => setMaxDh(Math.max(0, Math.min(MANUAL_BID_MAX_DEADHEAD_MI, Number((ev.currentTarget as HTMLInputElement).value) || 0)))} />
         </div>
         <div class="field">
@@ -148,7 +148,7 @@ export function LoadsTable(): JSX.Element {
       <div class="results-head">
         <b>{rows.length} results</b>
         <span class="muted">
-          {TRAILER_NAME[truck.trailer]} loads within {maxDh} mi of {w.net.places[truck.place]!.name} · counters clear at {nextRoundLabel()}
+          {TRAILER_NAME[truck.trailer]} loads within {maxDh} mi of {w.net.places[truck.place]!.name} · bids clear at {nextRoundLabel()}
         </span>
         {sent && sent.a.type === "place_bid" ? (
           <span class="warn">
@@ -165,7 +165,7 @@ export function LoadsTable(): JSX.Element {
               {th("rate", "Rate")}
               {th("trip", "Trip")}
               <th>Lane</th>
-              {th("dh", "DH-O")}
+              {th("dh", "Empty")}
               {th("pickup", "Deliver by")}
               <th>Eq</th>
               <th>Load</th>
@@ -184,7 +184,7 @@ export function LoadsTable(): JSX.Element {
           No {TRAILER_NAME[truck.trailer].toLowerCase()} loads match within {maxDh} miles right now. Widen the search, send the truck to a busier hub, or wait for the next round.
         </p>
       )}
-      <p class="muted small">Book now and the load is yours at once. Or counter for more and wait: the poster takes the best counter within its max (lower asks, a better on-time record and fewer empty miles win), or the cheapest above the max if none is within it. One counter per truck per round; a counter by hand replaces your dispatcher's for that truck.</p>
+      <p class="muted small">Book now and the load is yours at once. Or bid and wait for the round: the poster takes the best bid under its ceiling, weighing price, on-time record and empty miles; a bid above the ceiling wins only if nobody bid under it. One bid per truck per round; yours replaces your dispatcher's.</p>
     </Panel>
   );
 }
@@ -192,7 +192,7 @@ export function LoadsTable(): JSX.Element {
 function poster(l: Load): { name: string; kind: string; rep: number | null; onTime: string } {
   const w = S.game!.w;
   const c = l.brokerId !== null ? w.companies[l.brokerId - 1] : l.shipperId !== null ? w.companies[l.shipperId - 1] : null;
-  if (!c) return { name: "Direct shipper", kind: "NPC shipper", rep: null, onTime: "—" };
+  if (!c) return { name: "Shipper", kind: "Shipper", rep: null, onTime: "—" };
   return { name: c.name, kind: l.brokerId !== null ? "Broker" : "Player shipper", rep: c.reputation, onTime: c.delivered ? pct(c.onTime / c.delivered) : "—" };
 }
 
@@ -225,7 +225,7 @@ function LoadRow({ r, truck, mine, pendingRate }: { r: Row; truck: Truck; mine: 
             ○ {dp.name}, {dp.state}
           </div>
         </td>
-        <td class="num">({r.dh})</td>
+        <td class="num">{r.dh}</td>
         <td class="num">
           {shortDate(Math.floor(l.appointmentT / 1440))} {hhmm(l.appointmentT)}
         </td>
@@ -334,12 +334,12 @@ function LoadDetail({ r, truck, mine, pendingRate }: { r: Row; truck: Truck; min
           <Kv
             rows={[
               ["Usually clears near", <Num>{l.refRate.toFixed(2)}/mi</Num>],
-              ["Poster's max", <Num>{l.ceiling.toFixed(2)}/mi</Num>],
-              ["Counter range", <Num>{(r.be * 1.05).toFixed(2)} – {(l.ceiling * w.cfg.board.overCeilingMax).toFixed(2)}</Num>],
-              ["Profit at your counter", <Num class={r.profit > 0 ? "good" : "bad"}>{fd(r.profit)} FD</Num>],
+              ["Ceiling", <Num>{l.ceiling.toFixed(2)}/mi</Num>],
+              ["Bid range", <Num>{(r.be * 1.05).toFixed(2)} – {(l.ceiling * w.cfg.board.overCeilingMax).toFixed(2)}</Num>],
+              ["Profit at your bid", <Num class={r.profit > 0 ? "good" : "bad"}>{fd(r.profit)} FD</Num>],
             ]}
           />
-          <p class="muted small">A counter above the max wins only if nobody offers within it.</p>
+          <p class="muted small">A bid above the ceiling wins only if nobody bids under it.</p>
         </div>
         <div>
           <h4>Company</h4>
@@ -361,9 +361,9 @@ function LoadDetail({ r, truck, mine, pendingRate }: { r: Row; truck: Truck; min
             </Btn>
           </div>
           <div class="row" style={{ marginTop: "8px" }}>
-            <input type="number" id={bidId} step="0.01" min="0.5" max={(l.ceiling * w.cfg.board.overCeilingMax).toFixed(2)} defaultValue={(mine && pendingRate !== undefined ? pendingRate : r.suggest).toFixed(2)} aria-label="Your counter per mile" disabled={off} />
+            <input type="number" id={bidId} step="0.01" min="0.5" max={(l.ceiling * w.cfg.board.overCeilingMax).toFixed(2)} defaultValue={(mine && pendingRate !== undefined ? pendingRate : r.suggest).toFixed(2)} aria-label="Your bid per mile" disabled={off} />
             <Btn on={mine} disabled={off} onClick={counter}>
-              {mine ? "Recounter" : "Counter"}
+              {mine ? "Change bid" : "Bid"}
             </Btn>
           </div>
         </div>

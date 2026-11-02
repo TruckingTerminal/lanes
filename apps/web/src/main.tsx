@@ -2,7 +2,8 @@ import { render } from "preact";
 import { companyAccount, crewed, type GameEvent } from "@lanes/engine";
 import { installTheme } from "./art.js";
 import { truckSheet, whenAssetsReady } from "./assets.js";
-import { fd, hhmm, realUntil } from "./format.js";
+import { fd, fdFull, hhmm, realUntil, shortDate } from "./format.js";
+import { FEED } from "./copy.js";
 import { DEFAULT_ORDERS, RULESET, TestGame, type StartKind } from "./game.js";
 import { H } from "./handlers.js";
 import { createMeta, LiveWorld, readMeta, type DbLike, type WorldMeta } from "./live.js";
@@ -77,7 +78,8 @@ function showGame(s: Session): void {
 
 function onEvent(s: Session, e: GameEvent): void {
   const w = s.w;
-  const hubName = (i: number) => w.net.hubs[i]!.id;
+  // The feed names cities, never airport codes (copy-audit.md).
+  const hubName = (i: number) => w.net.hubs[i]!.name;
   if (e.kind === "launched") {
     push(s, "FD is live on the exchange. Your airdrop's first quarter has landed.", "warn");
     if (s === S.game) toast("Launch day: FD can now be bought and sold.");
@@ -93,12 +95,15 @@ function onEvent(s: Session, e: GameEvent): void {
       S.result = { won: e.kind === "won", origin: e.origin, dest: e.dest, rate: e.kind === "won" ? e.rate : mine.rate, winning, be: mine.be, total: e.kind === "won" && load ? e.rate * load.miles : 0, seen: false };
     }
   }
-  if (e.kind === "won") push(s, `Won ${hubName(e.origin)}→${hubName(e.dest)}, ${e.miles} mi at ${e.rate.toFixed(2)}/mi${e.manual ? " (your bid)" : ""}`, "good");
+  if (e.kind === "won") push(s, FEED.won(hubName(e.origin), hubName(e.dest), e.miles, e.rate.toFixed(2), e.manual), "good");
   if (e.kind === "delivered") {
-    push(s, `Delivered ${hubName(e.origin)}→${hubName(e.dest)}: +${fd(e.grossFd)} FD, ${fd(e.grossFd - e.costFd)} after costs${e.onTime ? "" : " (late)"}`);
     // S7: the pay line, on the Truck tab until OK; Money gets a dot for the invoice.
     const truck = w.trucks[e.truckId - 1];
     const load = w.loads.get(e.loadId);
+    const held = truck && beforeDelivery.has(truck.id) ? Math.max(0, (truck.depositFd ?? 0) - beforeDelivery.get(truck.id)!.depositFd) : 0;
+    const owedTo = w.receivables.filter((r) => r.holder === s.player!.id).reduce<{ id: number; dueDay: number } | null>((a, r) => (!a || r.id > a.id ? r : a), null);
+    const paidOn = owedTo && owedTo.dueDay > Math.floor(w.t / 1440) ? shortDate(owedTo.dueDay) : "today";
+    push(s, FEED.delivered(hubName(e.origin), hubName(e.dest), fdFull(e.grossFd), fdFull(e.grossFd - e.costFd - held), paidOn));
     // Not while a replay passes old deliveries (a late order makes the live world replay its history).
     if (s === S.game && !rebuilding && truck && load) {
       const line = payLine(w, truck, load, e.grossFd, e.costFd, beforeDelivery.get(truck.id) ?? { emptyMi: 0, depositFd: truck.depositFd ?? 0 });
@@ -109,7 +114,7 @@ function onEvent(s: Session, e: GameEvent): void {
       S.moneyDot = true;
     }
   }
-  if (e.kind === "lostBid") push(s, `Lost ${hubName(e.origin)}→${hubName(e.dest)} at ${e.rate.toFixed(2)}/mi${e.winningRate !== null ? `: it went for ${e.winningRate.toFixed(2)}/mi` : ": nobody took it this round"}`, "warn");
+  if (e.kind === "lostBid") push(s, FEED.lost(hubName(e.origin), hubName(e.dest), e.rate.toFixed(2), e.winningRate !== null ? e.winningRate.toFixed(2) : null), "warn");
   if (e.kind === "breakdown") push(s, `Breakdown on truck ${truckNo(e.truckId)}${e.repairFd ? `: ${fd(e.repairFd)} FD repair bill` : " (lessor pays)"}`, "bad");
   if (e.kind === "truckDelivered") {
     const t = w.trucks[e.truckId - 1];
@@ -117,7 +122,7 @@ function onEvent(s: Session, e: GameEvent): void {
     push(s, `New truck delivered: truck ${truckNo(e.truckId)} is ready${needs ? " and needs a driver: hire one on the Staff tab" : ""}`, needs ? "warn" : "good");
     if (s === S.game && needs) toast(`Truck ${truckNo(e.truckId)} was delivered with no driver. Hire one on the Staff tab or it earns nothing.`, true);
   }
-  if (e.kind === "liquidated") push(s, "Your company went into liquidation: trucks are being sold and you'll restart on an NPC lease.", "bad");
+  if (e.kind === "liquidated") push(s, FEED.woundUp, "bad");
   if (e.kind === "notice") {
     const text = s === S.game ? e.text.replace(/\bTruck (\d+)\b/g, (m, id: string) => (truckNo(Number(id)) ? `Truck ${truckNo(Number(id))}` : m)) : e.text;
     push(s, text, e.tone === "good" ? "good" : e.tone === "bad" ? "bad" : "");
@@ -226,7 +231,7 @@ async function continueTest(): Promise<void> {
   markPersisted(t);
   S.speed = 0;
   showGame(t);
-  toast("Welcome back. The clock is paused; press ▶ or 1–3 to run it.");
+  toast("Welcome back. The clock is paused; press a speed or 1–4 to run it.");
 }
 
 /**
@@ -258,7 +263,7 @@ function choose(name: string, hub: string, start: StartKind): void {
     const c = g.join(name, start, hub);
     if (!c) return toast("That hub can't take a new company.", true);
     S.selTruck = g.w.trucksByCompany.get(c.id)?.[0]?.id ?? null;
-    S.speed = 1;
+    S.speed = 2; // a game day a minute (state.ts SPEEDS)
     persistTest(true);
     flyTo(at);
     bumpData();
@@ -322,7 +327,7 @@ function wireKeys(): void {
   document.addEventListener("visibilitychange", () => document.hidden && persistTest(true));
   document.addEventListener("fullscreenchange", () => S.game && fitMap());
   document.addEventListener("webkitfullscreenchange", () => S.game && fitMap());
-  // F toggles full screen, + - 0 zoom the map, Esc restores the split layout; in the test world only, space pauses and 1–3 set the speed.
+  // F toggles full screen, + - 0 zoom the map, Esc restores the split layout; in the test world only, space pauses and 1–4 set the speed.
   document.addEventListener("keydown", (ev) => {
     if ((ev.target as HTMLElement).closest("input,select,textarea")) return;
     const g = S.game;
@@ -340,11 +345,11 @@ function wireKeys(): void {
     if (ev.key === "Escape" && S.layout !== "split") setLayout("split");
     if (g.kind !== "test") return;
     if (ev.key === " ") {
-      S.speed = S.speed === 0 ? 1 : 0;
+      S.speed = S.speed === 0 ? 2 : 0;
       ev.preventDefault();
       bumpData();
     }
-    if (ev.key >= "1" && ev.key <= "3") {
+    if (ev.key >= "1" && ev.key <= "4") {
       S.speed = Number(ev.key);
       bumpData();
     }
