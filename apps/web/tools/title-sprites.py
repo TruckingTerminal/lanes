@@ -4,15 +4,14 @@
 title.ts draws both shots live, in code, from one atlas and a seeded schedule; this cuts the atlas. Sources, in
 assets/title/objects (asset-pass.sh titlesprites): tractor.png, pickup.png and sedan.png, PixelLab eight-direction
 sheets (cells south, south-east, east, north-east, north, north-west, west, south-west); assets/title/parallax:
-diner.png and scrub.png (plants on one sheet, cut apart at empty columns); assets/title/title.png and approach.png,
-the original painting and the same with its truck painted out, so the truck is cut out where the two differ.
+diner.png and scrub.png (plants on one sheet, cut apart at empty columns); assets/title/approach.png, the original
+painting with its truck painted out.
 
 Side view, at one scale (about 2.15 px a foot): the tractor's east view (the trailer behind it is drawn in code, so
-the gap, the fifth wheel, the landing gear and the rear tandem are exact) in four paints, the pickup and the sedan,
-the diner, the plants and a tumbleweed in four turns. Head-on view: the painting's truck and the pickup's and
-sedan's south-west (coming) and north-east (going) views at HEAD sizes, each the area average of its pixels snapped
-back to its own colours, shrinking only, except the painting's truck past its painted size, which is pixel-doubled
-for the moment it passes the camera. Everything but the painting's truck is dimmed toward the dusk.
+the gap, the fifth wheel, the landing gear and the rear tandem are exact) in four paints, the pickup in two, the sedan,
+the diner, the plants and a tumbleweed in four turns, dimmed toward the dusk. Head-on view: the painting's rig, cut
+out to stay where it stands; its diner, cut out to drive away from; and its sky and mesas with the poles and the diner
+taken out, for the world to stream past under.
 
   title-sprites.py   → assets/title/sprites.png, and the table between the sprite markers in src/title.ts
 """
@@ -33,12 +32,24 @@ TS = os.path.join(HERE, "..", "src", "title.ts")
 DIRS = ["s", "se", "e", "ne", "n", "nw", "w", "sw"]
 GRADE = np.array([0.88, 0.8, 0.84], np.float32)  # the game's flat colours toward the evening light
 SIDE = 0.7  # the tractor's sheet to the side view's scale
-HEAD_N, HEAD_S0, HEAD_S1 = 30, 0.1, 2.8  # head-on sizes: scale 1 is the depth where the painting has its truck
-HEAD_W1 = {"truck": None, "pickup": 30, "sedan": 28}  # width at scale 1 (the truck's is its painted width)
-BOX = (122, 56, 202, 112)  # the painting's truck, down to its tyres
 # The tractor's east view in its 85-px cell: tyre centres and radius, the fifth wheel, the frame top, the sleeper's back.
 TRACTOR = {"wheels": [(11, 57), (24, 57), (73, 57)], "r": 5, "fifth": 17, "frame": 48, "back": 34}
 PAINTS = {"red": 2, "white": None, "amber": 38}  # hue in degrees for the tractor's other paints (None: white)
+# The pickup's second paint, the slate teal of the first painted title's pickup: hue, and its saturation and value scales.
+PICKUP_TEAL = (192, 0.5, 0.82)
+# The side view's pickup and sedan, facing right, measured on their scaled sprites: tyre centres and radius (title.ts
+# rolls its own wheels there, so the painted tyres are taken out), the headlight, the tail light and the tailpipe.
+SIDE_CARS = {
+    "pickup": {"wheels": [[9, 16], [35, 16]], "r": 3, "head": [39, 10], "tail": [1, 9], "pipe": [3, 16]},
+    "sedan": {"wheels": [[9, 12], [29, 12]], "r": 2, "head": [34, 8], "tail": [0, 9], "pipe": [2, 12]},
+}
+# The head-on shot, its camera backing down the road ahead of the painting's rig: the rig (cut where the painting and
+# its truckless copy differ, inside this box), the diner (its building and roof, its sign) to drive away from, and the
+# sky and mesas above the horizon with the poles and the diner taken out.
+TRUCK_BOX = (122, 56, 202, 112)
+DINER_BOX = (8, 62, 85, 98)
+DINER_PARTS = [(9, 69, 84, 97), (44, 62, 75, 79)]
+SKY_ROWS = 89
 
 
 def read(*p: str) -> np.ndarray:
@@ -114,9 +125,36 @@ def repaint(img: np.ndarray, hue) -> np.ndarray:
     return out
 
 
-def painted_truck() -> np.ndarray:
+def repaint_red(img: np.ndarray, hue: float, s_k: float, v_k: float) -> np.ndarray:
+    """The pickup's red body moved to another paint, shading kept; chrome, glass and tyres untouched."""
+    out = img.copy()
+    for y in range(img.shape[0]):
+        for x in range(img.shape[1]):
+            if img[y, x, 3] == 0:
+                continue
+            r, g, b = (img[y, x, :3] / 255).tolist()
+            h, s, v = colorsys.rgb_to_hsv(r, g, b)
+            if (h < 0.04 or h > 0.94) and s > 0.35:
+                nr, ng, nb = colorsys.hsv_to_rgb(hue / 360, s * s_k, min(1, v * v_k))
+                out[y, x, :3] = [round(nr * 255), round(ng * 255), round(nb * 255)]
+    return out
+
+
+def tyres_out(img: np.ndarray, wheels, r: float) -> np.ndarray:
+    """The painted tyres taken out (their dark pixels inside each wheel's disc), for wheels drawn in code."""
+    out = img.copy()
+    ys, xs = np.mgrid[0 : img.shape[0], 0 : img.shape[1]]
+    dark = img[..., :3].astype(int).sum(2) < 200
+    for cx, cy in wheels:
+        out[((xs - round(cx)) ** 2 + (ys - round(cy)) ** 2 <= (r + 0.7) ** 2) & dark, 3] = 0
+    return out
+
+
+def painted_truck() -> tuple:
+    """The painting's rig, cut out where title.png and approach.png (the same with the truck painted out) differ:
+    closed, hole-filled, cropped; and where its top-left corner stands in the painting."""
     title, empty = read(TITLE, "title.png"), read(TITLE, "approach.png")
-    x0, y0, x1, y1 = BOX
+    x0, y0, x1, y1 = TRUCK_BOX
     d = np.abs(title[y0:y1, x0:x1, :3].astype(int) - empty[y0:y1, x0:x1, :3].astype(int)).sum(2)
     m = d > 45
     for _ in range(2):
@@ -124,9 +162,9 @@ def painted_truck() -> np.ndarray:
         g[1:] |= m[:-1]; g[:-1] |= m[1:]; g[:, 1:] |= m[:, :-1]; g[:, :-1] |= m[:, 1:]
         m = g
     for _ in range(2):
-        s = m.copy()
-        s[1:] &= m[:-1]; s[:-1] &= m[1:]; s[:, 1:] &= m[:, :-1]; s[:, :-1] &= m[:, 1:]
-        m = s
+        e = m.copy()
+        e[1:] &= m[:-1]; e[:-1] &= m[1:]; e[:, 1:] &= m[:, :-1]; e[:, :-1] &= m[:, 1:]
+        m = e
     outside = np.zeros_like(m)
     stack = [(y, x) for y in range(m.shape[0]) for x in (0, m.shape[1] - 1)] + [(y, x) for x in range(m.shape[1]) for y in (0, m.shape[0] - 1)]
     while stack:
@@ -139,7 +177,55 @@ def painted_truck() -> np.ndarray:
     rgba[..., :3] = title[y0:y1, x0:x1, :3]
     rgba[..., 3] = np.where(m, 255, 0)
     truck, cx, cy = crop(rgba)
-    return truck, (x0 + cx + truck.shape[1] / 2, y0 + cy + truck.shape[0])
+    return truck, (x0 + cx, y0 + cy)
+
+
+def head_diner() -> tuple:
+    """The painting's diner, cut on its own (its building and roof, its sign), and where it stands in the painting."""
+    empty = read(TITLE, "approach.png")
+    x0, y0, x1, y1 = DINER_BOX
+    out = np.zeros((y1 - y0, x1 - x0, 4), np.uint8)
+    out[..., :3] = empty[y0:y1, x0:x1, :3]
+    keep = np.zeros(out.shape[:2], bool)
+    for bx0, by0, bx1, by1 in DINER_PARTS:
+        keep[by0 - y0 : by1 - y0, bx0 - x0 : bx1 - x0] = True
+    out[..., 3] = np.where(keep, 255, 0)
+    return out, (x0, y0)
+
+
+def head_sky() -> np.ndarray:
+    """The painting above its horizon with the poles, their wires and the diner taken out, for a camera that moves:
+    thin dark poles and wires filled across from their neighbours, the diner's patch across from the mesa either side."""
+    empty = read(TITLE, "approach.png")
+    sky = empty[:SKY_ROWS].copy()
+    rgb = sky[..., :3].astype(int)
+    lum = rgb @ np.array([0.3, 0.59, 0.11])
+    mask = np.zeros(sky.shape[:2], bool)
+    right = np.zeros_like(mask)
+    right[:, 200:] = True
+    mask |= right & (lum < 78) & (rgb[..., 0] >= rgb[..., 2] - 4)  # the poles' and wires' brown, not the mesas' purple
+    grown = mask.copy()
+    grown[:, 1:] |= mask[:, :-1]
+    grown[:, :-1] |= mask[:, 1:]
+    mask = grown
+    for bx0, by0, bx1, by1 in DINER_PARTS:
+        mask[by0:min(by1, SKY_ROWS), bx0 - 1 : bx1 + 1] = True
+    out = sky.copy()
+    for y in range(SKY_ROWS):
+        row = mask[y]
+        if not row.any():
+            continue
+        xs = np.nonzero(~row)[0]
+        for x in np.nonzero(row)[0]:
+            l = xs[xs < x]
+            r = xs[xs > x]
+            if len(l) and len(r):
+                f = (x - l[-1]) / (r[0] - l[-1])
+                c = sky[y, l[-1], :3] * (1 - f) + sky[y, r[0], :3] * f
+            else:
+                c = sky[y, (l[-1] if len(l) else r[0]), :3]
+            out[y, x, :3] = np.clip(c + (np.random.default_rng(y * 999 + x).normal(0, 3)), 0, 255)
+    return out
 
 
 def plants(sheet: np.ndarray) -> list:
@@ -163,9 +249,6 @@ def main() -> None:
     te, tx, ty = crop(cell(tsheet, "e"))
     tractor = scaled(te, SIDE)
     k = tractor.shape[1] / te.shape[1]
-    sprites["tractor"] = dusk(tractor)
-    for name, hue in PAINTS.items():
-        sprites[f"tractor-{name}"] = dusk(scaled(repaint(te, hue), SIDE))
     t = TRACTOR
     meta["tractor"] = {
         "wheels": [[round((x - tx) * k, 1), round((y - ty) * k, 1)] for x, y in t["wheels"]],
@@ -174,30 +257,27 @@ def main() -> None:
         "frame": round((t["frame"] - ty) * k, 1),
         "back": round((t["back"] - tx) * k, 1),
     }
+    tw = meta["tractor"]["wheels"]
+    sprites["tractor"] = tyres_out(dusk(tractor), tw, 3)
+    for name, hue in PAINTS.items():
+        sprites[f"tractor-{name}"] = tyres_out(dusk(scaled(repaint(te, hue), SIDE)), tw, 3)
     for kind, s in (("pickup", 0.51), ("sedan", 0.42)):
         side = crop(cell(read(TITLE, "objects", f"{kind}.png"), "e"))[0]
-        sprites[kind] = dusk(scaled(side, s))
+        sprites[kind] = tyres_out(dusk(scaled(side, s)), SIDE_CARS[kind]["wheels"], SIDE_CARS[kind]["r"])
+        if kind == "pickup":
+            teal = repaint_red(side, *PICKUP_TEAL)
+            sprites["pickup-teal"] = tyres_out(dusk(scaled(teal, s)), SIDE_CARS[kind]["wheels"], SIDE_CARS[kind]["r"])
     sprites["diner"] = crop(read(TITLE, "parallax", "diner.png"))[0]
     sage, grass, saguaro, pear, rocks, weed = plants(read(TITLE, "parallax", "scrub.png"))
     sprites.update(sage=sage, grass=grass, saguaro=saguaro, pear=pear, rocks=rocks)
     weed = scaled(weed, 0.6)
     for i in range(4):
         sprites[f"weed{i}"] = np.rot90(weed, -i).copy()
-    # The head-on view.
-    truck, at = painted_truck()
-    meta["at"] = [round(at[0], 1), round(at[1], 1)]
-    heads = [HEAD_S0 * (HEAD_S1 / HEAD_S0) ** (i / (HEAD_N - 1)) for i in range(HEAD_N)]
-    for i, s in enumerate(heads):
-        sprites[f"truck-sw-{i}"] = scaled(truck, s)
-    for kind in ("pickup", "sedan"):
-        sheet = read(TITLE, "objects", f"{kind}.png")
-        for d in ("sw", "ne"):
-            src = dusk(crop(cell(sheet, d))[0])
-            for i, s in enumerate(heads):
-                w = max(2, round(HEAD_W1[kind] * s))
-                sprites[f"{kind}-{d}-{i}"] = resize(src, min(w, src.shape[1]), max(1, round(src.shape[0] * min(w, src.shape[1]) / src.shape[1])))
-    meta["heads"] = [round(s, 4) for s in heads]
-    meta["w1"] = {"truck": truck.shape[1], "pickup": HEAD_W1["pickup"], "sedan": HEAD_W1["sedan"]}
+    # The head-on view: its traffic is modelled and drawn live (tools/title-vehicles.py); only what stands in front of
+    # its far rails is cut from the painting here.
+    sprites["truck"], meta["truck"] = painted_truck()
+    sprites["head-diner"], meta["diner"] = head_diner()
+    sprites["head-sky"] = head_sky()
     # Shelf-pack, tallest first, one pixel apart.
     order = sorted(sprites, key=lambda n: -sprites[n].shape[0])
     width, x, y, row, rects = 512, 0, 0, 0, {}
@@ -216,9 +296,9 @@ def main() -> None:
         "// <sprites> written by tools/title-sprites.py\n"
         f"const SPR: Record<string, readonly [number, number, number, number]> = {{\n{table},\n}};\n"
         f"const TRACTOR = {repr(meta['tractor']).replace(chr(39), chr(34))} as const;\n"
-        f"const HEADS = {meta['heads']} as const;\n"
-        f"const HEAD_W1 = {repr(meta['w1']).replace(chr(39), chr(34))} as const;\n"
-        f"const PAINTED_AT = {meta['at']} as const;\n"
+        f"const CARS = {repr(SIDE_CARS).replace(chr(39), chr(34))} as const;\n"
+        f"const TRUCK_AT = {list(meta['truck'])} as const;\n"
+        f"const DINER_AT = {list(meta['diner'])} as const;\n"
         "// </sprites>"
     )
     src = open(TS).read()
