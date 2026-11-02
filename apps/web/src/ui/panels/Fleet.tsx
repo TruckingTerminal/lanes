@@ -1,14 +1,15 @@
 import type { JSX } from "preact";
-import { condition, crewed, hubMiles, ordersOf, rebuildable, rebuildCost, resting, truckValue, type StandingOrder, type Truck } from "@lanes/engine";
+import { condition, crewed, hubMiles, ordersOf, rebuildable, rebuildCost, resting, truckValue, type Truck } from "@lanes/engine";
 import { SCENES } from "../../assets.js";
 import { dateLabel, fd, pct, plural, TIER_NAME, TRAILER_NAME, hhmm, realUntil } from "../../format.js";
-import { DEFAULT_ORDERS, GAME_CONFIG } from "../../game.js";
+import { GAME_CONFIG } from "../../game.js";
 import { AttentionCard, CrewLine, goLoads, goStaff, idleLabel, idleWhy, openLoadsAt, StatusLine, stuckTrucks, tiredTrucks, truckName } from "../../logic.js";
 import { focusTruck } from "../../mapview.js";
 import { act, describe, me, myTrucks, S, selectTruck, truckNo, useData } from "../../state.js";
-import { Bar, Btn, Card, Label, Num, Panel, Pixel } from "../bits.js";
+import { Bar, Btn, Card, Num, Panel, Pixel } from "../bits.js";
 import { Rig, Scene } from "../Loop.js";
 import { TendersCard } from "./Contracts.js";
+import { DispatcherCard } from "./Dispatcher.js";
 import { DeliveredCard, RollingCards } from "./Rolling.js";
 import { TrailerLines, TruckAssetActions, YardCard } from "./Yard.js";
 
@@ -228,112 +229,6 @@ function TruckCard({ t, idx }: { t: Truck; idx: number }): JSX.Element {
             Steal the load · cargo {fd(load.cargoValue)} FD
           </Btn>
         ) : null}
-      </div>
-    </Card>
-  );
-}
-
-function DispatcherCard(): JSX.Element {
-  const c = me();
-  const find = <K extends StandingOrder["kind"]>(k: K) => c.orders.find((o): o is Extract<StandingOrder, { kind: K }> => o.kind === k);
-  const bid = find("bid");
-  const floor = find("floor");
-  const repo = find("reposition");
-  const rb = find("rebroker");
-  const bn = find("bookNow");
-  const hm = find("homeTime");
-  const ct = find("contracts");
-  const spotNow = ct ? (ct.spotAbovePct === null ? "always" : String(ct.spotAbovePct)) : "always";
-  const mode = bid?.price.mode ?? "breakEvenPlus";
-  const save = () => {
-    const m = (document.getElementById("o-mode") as HTMLSelectElement).value as "breakEvenPlus" | "ceilingPct";
-    const orders: StandingOrder[] = [
-      { kind: "bid", maxDeadheadMi: Math.max(0, Math.min(150, num("o-dh"))), price: { mode: m, pct: Math.max(0, num("o-pct")) / 100 } },
-      { kind: "floor", breakEvenPlusPct: Math.max(0, num("o-floor")) / 100 },
-    ];
-    if (checked("o-repo")) orders.push({ kind: "reposition", afterIdleRounds: Math.max(1, num("o-repo-r")), to: { openLoadsWithinMi: 400 } });
-    if (checked("o-rb")) orders.push({ kind: "rebroker", share: Math.min(1, Math.max(0, num("o-rb-share") / 100 || 0)), keepPct: Math.min(0.9, Math.max(0, num("o-rb-keep") / 100 || 0)), pays: checked("o-rb-pays") });
-    if (checked("o-bn")) orders.push({ kind: "bookNow", breakEvenPlusPct: Math.min(5, Math.max(0, num("o-bn-pct") / 100 || 0)), maxDeadheadMi: Math.max(0, Math.min(150, num("o-dh") || 0)) });
-    if (checked("o-home")) orders.push({ kind: "homeTime", afterDays: Math.min(365, Math.max(1, Math.round(num("o-home-after")) || 21)), restDays: Math.min(60, Math.max(1, Math.round(num("o-home-rest")) || 5)) });
-    if (checked("o-ct")) {
-      const spot = (document.getElementById("o-ct-spot") as HTMLSelectElement).value;
-      orders.push({ kind: "contracts", acceptOffers: true, spotAbovePct: spot === "always" ? null : Number(spot), maxDeadheadMi: Math.max(0, Math.min(150, num("o-dh") || 150)) });
-    }
-    act({ type: "set_standing_orders", orders }, "Dispatcher updated");
-  };
-  return (
-    <Card title="Dispatcher (standing orders)" key={c.orders.length}>
-      <p class="muted small">Your dispatcher bids for idle trucks every round you don't bid by hand.</p>
-      <div class="row">
-        <Label for="o-mode">Bid at</Label>
-        <select id="o-mode" defaultValue={mode}>
-          <option value="breakEvenPlus">break-even plus %</option>
-          <option value="ceilingPct">% of the posted ceiling</option>
-        </select>
-        <input type="number" id="o-pct" step="1" min="0" max="120" defaultValue={String(Math.round((bid?.price.pct ?? 0.25) * 100))} />
-        <span class="muted">%</span>
-      </div>
-      <div class="row">
-        <Label for="o-floor">Never below break-even +</Label>
-        <input type="number" id="o-floor" min="0" max="50" defaultValue={String(Math.round((floor?.breakEvenPlusPct ?? 0.05) * 100))} />
-        <span class="muted">%</span>
-      </div>
-      <div class="row">
-        <Label for="o-dh">Max empty miles to a pickup</Label>
-        <input type="number" id="o-dh" min="0" max="150" defaultValue={String(bid?.maxDeadheadMi ?? 150)} />
-      </div>
-      <div class="row">
-        <label class="label">
-          <input type="checkbox" id="o-repo" defaultChecked={Boolean(repo)} /> Move idle trucks to busier hubs
-        </label>
-        <span class="muted">after</span>
-        <input type="number" id="o-repo-r" min="1" max="20" defaultValue={String(repo?.afterIdleRounds ?? 3)} />
-        <span class="muted">idle rounds</span>
-      </div>
-      <div class="row">
-        <label class="label">
-          <input type="checkbox" id="o-rb" defaultChecked={Boolean(rb)} /> Re-post some won loads to other carriers before pickup
-        </label>
-        <input type="number" id="o-rb-share" min="0" max="100" defaultValue={String(Math.round((rb?.share ?? 0.1) * 100))} />
-        <span class="muted">% of loads, keeping</span>
-        <input type="number" id="o-rb-keep" min="0" max="90" defaultValue={String(Math.round((rb?.keepPct ?? 0.15) * 100))} />
-        <span class="muted">% of the rate</span>
-        <label class="label">
-          <input type="checkbox" id="o-rb-pays" defaultChecked={!rb || rb.pays} /> pay the hauler
-        </label>
-      </div>
-      <div class="row">
-        <label class="label">
-          <input type="checkbox" id="o-bn" defaultChecked={Boolean(bn)} /> Book loads between rounds at break-even +
-        </label>
-        <input type="number" id="o-bn-pct" min="0" max="100" defaultValue={String(Math.round((bn?.breakEvenPlusPct ?? 0.2) * 100))} />
-        <span class="muted">% (less the longer a truck sits, or the farther its driver is from home)</span>
-      </div>
-      <div class="row">
-        <label class="label">
-          <input type="checkbox" id="o-ct" defaultChecked={Boolean(ct)} /> Contracts: take offers from local shippers and
-        </label>
-        <select id="o-ct-spot" defaultValue={spotNow}>
-          <option value="always">honor every tender</option>
-          <option value="0.1">let a tender lapse when spot is 10% above the contract</option>
-          <option value="0.15">let it lapse at 15% above</option>
-          <option value="0.25">let it lapse at 25% above</option>
-        </select>
-      </div>
-      <div class="row">
-        <label class="label">
-          <input type="checkbox" id="o-home" defaultChecked={Boolean(hm)} /> Bring drivers home after
-        </label>
-        <input type="number" id="o-home-after" min="1" max="365" defaultValue={String(hm?.afterDays ?? 21)} />
-        <span class="muted">days out, for</span>
-        <input type="number" id="o-home-rest" min="1" max="60" defaultValue={String(hm?.restDays ?? 5)} />
-        <span class="muted">days off</span>
-      </div>
-      <div class="row">
-        <Btn primary onClick={save}>
-          Save dispatcher
-        </Btn>
-        <Btn onClick={() => act({ type: "set_standing_orders", orders: DEFAULT_ORDERS }, "Dispatcher back to defaults")}>Defaults</Btn>
       </div>
     </Card>
   );

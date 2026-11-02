@@ -28,6 +28,7 @@ import {
   type Truck,
 } from "@lanes/engine";
 import { GAME_CONFIG } from "./game.js";
+import { ARRIVAL, DISPATCHER } from "./copy.js";
 import { act, bumpData, clockMin, me, myTrucks, push, S, setTab, selectTruck, toast, truckNo } from "./state.js";
 import { fd, hoursLabel, pct, plural, realUntil, signedPct, TRAILER_NAME } from "./format.js";
 import { Btn } from "./ui/bits.js";
@@ -174,6 +175,8 @@ export function idleWhy(t: Truck): IdleWhy {
   if (t.breakdownMin > 0) return { why: `Broken down: about ${Math.ceil(t.breakdownMin / 60)} h until the tow and repair are done.`, fixes: [] };
   const bid = w.manualBids.get(t.id);
   if (bid) return { why: `Your bid of ${bid.rate.toFixed(2)}/mi is in for the next round.`, fixes: [] };
+  // The first bid by hand (S9): the dispatcher waits for the owner's first call, so the fix is the board, not the orders.
+  if (ordersWaitForHand(w, c)) return { why: DISPATCHER.waitingCard(hubName), fixes: [<Btn primary onClick={() => goLoads(t.id)}>{ARRIVAL.showBoard}</Btn>] };
   const order = c.orders.find((o): o is Extract<StandingOrder, { kind: "bid" }> => o.kind === "bid");
   if (!order) return { why: "Your dispatcher has no bid order, so nobody bids for this truck.", fixes: [<Btn primary onClick={() => act({ type: "set_standing_orders", orders: DEFAULTS() }, "Dispatcher back to defaults")}>Restore the default dispatcher</Btn>, board] };
   const floor = c.orders.find((o): o is Extract<StandingOrder, { kind: "floor" }> => o.kind === "floor");
@@ -252,6 +255,7 @@ export function StatusLine({ t }: { t: Truck }): ComponentChildren {
   switch (t.status) {
     case "idle": {
       const bid = w.manualBids.get(t.id);
+      if (!bid && ordersWaitForHand(w, me())) return <>{DISPATCHER.waitingCard(name(t.place))}</>;
       if (resting(w, t)) {
         const d = w.staff[t.driverId - 1]!;
         const left = d.homeUntilDay! - Math.floor(clockMin() / 1440) - (d.drivenMinToday > 0 ? 1 : 0);

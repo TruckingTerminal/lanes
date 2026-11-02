@@ -5,7 +5,7 @@ import { GAME_CONFIG } from "../game.js";
 import { walkProgress, walkSteps, type Mood } from "../walkthrough.js";
 import { ASSETS, hasAsset } from "../mapart.js";
 import { bumpData, S, setOnboard, setTab, toast, useData } from "../state.js";
-import { ARRIVAL } from "../copy.js";
+import { ARRIVAL, CAPTION, DISPATCHER } from "../copy.js";
 import { pct } from "../format.js";
 import { TAB_NAME } from "../tabs.js";
 import { Btn, Card } from "./bits.js";
@@ -105,30 +105,70 @@ export function Caption(): JSX.Element | null {
   const steps = walkSteps(GAME_CONFIG, g.w.net.hubs[c.homeHub]?.name);
   const { index } = walkProgress(GAME_CONFIG, g.w, c);
   const step = index >= 0 ? steps[index]! : null;
+  const seen = (k: string) => S.onboard.seen.includes(k);
+  const mark = (k: string) => setOnboard({ seen: [...S.onboard.seen, k] });
+  const say = (line: string, action: JSX.Element | null, mood: Mood = "point") => (
+    <div class="caption iuliia">
+      <Iuliia mood={mood} size={96} />
+      <span class="small">{line}</span>
+      {action}
+    </div>
+  );
   // The arrival (S1): once, after the company is created, her line about the lease and one button to the board.
-  if (step?.id === "board" && !S.onboard.seen.includes("arrival") && S.tab !== "loads") {
+  if (step?.id === "board" && !seen("arrival") && S.tab !== "loads") {
     const showBoard = () => {
-      setOnboard({ seen: [...S.onboard.seen, "arrival"] });
+      mark("arrival");
       S.sheet = "full";
       setTab("loads");
     };
-    return (
-      <div class="caption">
-        <Iuliia mood="wave" size={32} />
-        <span class="small">{ARRIVAL.line(g.w.net.hubs[c.homeHub]!.name, pct(GAME_CONFIG.costs.npcLeaseShareOfGross))}</span>
-        <Btn sm primary onClick={showBoard}>
-          {ARRIVAL.showBoard}
-        </Btn>
-      </div>
+    return say(
+      ARRIVAL.line(g.w.net.hubs[c.homeHub]!.name, pct(GAME_CONFIG.costs.npcLeaseShareOfGross)),
+      <Btn sm primary onClick={showBoard}>
+        {ARRIVAL.showBoard}
+      </Btn>,
+      "wave",
     );
   }
+  // After the first bid by hand (S9): once, the dispatcher is now on, and where its rules are.
+  if (c.firstHandBidDay !== null && g.w.cfg.freeEntry.firstBidByHand && !seen("dispatcher")) {
+    return say(
+      DISPATCHER.afterFirst,
+      <Btn
+        sm
+        primary
+        onClick={() => {
+          mark("dispatcher");
+          S.sheet = "full";
+          setTab("fleet");
+          requestAnimationFrame(() => document.querySelector(".dispatcher")?.scrollIntoView({ block: "start" }));
+        }}
+      >
+        {DISPATCHER.seeDispatcher}
+      </Btn>,
+    );
+  }
+  if (!step) return null;
+  // A step speaks once (its Say, then Next), then shows its Do until hidden; More opens her tab for the rest.
+  if (!seen(`say:${step.id}`)) {
+    return say(
+      step.brief,
+      <Btn sm onClick={() => mark(`say:${step.id}`)}>
+        {CAPTION.next}
+      </Btn>,
+      step.mood,
+    );
+  }
+  if (seen(`hide:${step.id}`)) return null;
   return (
     <div class="caption">
-      <Iuliia mood={step?.mood ?? "laugh"} size={32} />
-      <span class="small">{step ? step.do : "You're running a fleet."}</span>
+      <Iuliia mood={step.mood} size={32} />
+      <span class="small">{step.do}</span>
+      <Btn sm ghost onClick={() => mark(`hide:${step.id}`)}>
+        {CAPTION.hide}
+      </Btn>
       {S.tab !== "iuliia" ? (
         <Btn sm ghost onClick={() => setTab("iuliia")}>
-          More
+          {CAPTION.more}
         </Btn>
       ) : null}
     </div>

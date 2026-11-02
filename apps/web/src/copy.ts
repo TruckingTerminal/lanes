@@ -215,3 +215,29 @@ export const MONEY = {
   token: "The token",
   red: (weeks: number, limit: string) => `You're in the red. ${weeks} weekly checks in a row more than ${limit} FD under and the company is wound up.`,
 };
+
+/** The dispatcher and its two states (copy-first-ten-minutes.md, S9). */
+export const DISPATCHER = {
+  title: "Your dispatcher",
+  switchLabel: "Bid for me while I'm away",
+  waiting: "Your first load is your call. After that, your dispatcher can bid while you're away.",
+  afterFirst: "From now on your dispatcher bids when you don't. Check the rules before you go.",
+  seeDispatcher: "See the dispatcher",
+  bidAt: "Bid at break-even plus",
+  bidCeiling: "Bid at this share of the posted ceiling",
+  emptyUpTo: "Send the truck empty up to",
+  homeAfter: "Bring me home after",
+  save: "Save",
+  moreRules: "More rules",
+  floor: "Never below break-even plus",
+  bookNow: "Book loads between rounds at break-even plus",
+  moveIdle: "Move idle trucks to busier hubs after",
+  idleRounds: "idle rounds",
+  saved: "Dispatcher saved.",
+  defaults: "Dispatcher back to defaults.",
+  /** The Truck card and the idle reason while the dispatcher waits for the first bid by hand (S6). */
+  waitingCard: (hub: string) => `Waiting at ${hub} · the first load is your call`,
+};
+
+/** Iuliia's caption (specs/first-ten-minutes.md, Layout): her line, then the step's Do. */
+export const CAPTION = { next: "Next", hide: "Hide", more: "More" };

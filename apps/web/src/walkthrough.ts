@@ -68,7 +68,8 @@ export function walkSteps(cfg: EconomyConfig, hub = "your home hub"): WalkStep[]
       ],
       do: `Bid on a load leaving ${hub}.`,
       why: "Rates move with the market: a strong hub pays to leave, a weak one pays to arrive, and the board's recent rates tell you which is which.",
-      done: (w, c) => c.bidStats.wins >= 1 || c.delivered >= 1,
+      // Ticks on the player's own first bid or booking (draft 4), which the engine records: never on the dispatcher's.
+      done: (w, c) => c.firstHandBidDay !== null,
     },
     {
       id: "haul",

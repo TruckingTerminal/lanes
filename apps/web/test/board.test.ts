@@ -49,3 +49,22 @@ describe("the board", () => {
     expect(boardRows(g.w, c, truck, { dest: "any", maxDh: 300, query: "zzzz-nowhere" })).toHaveLength(0);
   }, 60_000);
 });
+
+describe("the walkthrough's first bid", () => {
+  it("ticks step 2 on the player's own bid or booking, never on the dispatcher's win", async () => {
+    const { walkSteps } = await import("../src/walkthrough.js");
+    const { GAME_CONFIG } = await import("../src/game.js");
+    const g = await TestGame.create();
+    // A small fleet's dispatcher runs from the start (the first bid by hand is a one-truck rule).
+    const c = g.join("Fleet Freight", "fleet", "DAL")!;
+    const board = walkSteps(GAME_CONFIG).find((s) => s.id === "board")!;
+    for (let h = 0; h < 24 * 4 && c.bidStats.wins === 0; h++) g.stepHour();
+    expect(board.done(g.w, c)).toBe(c.firstHandBidDay !== null);
+    expect(c.firstHandBidDay).toBeNull();
+    const truck = g.w.trucksByCompany.get(c.id)!.find((t) => t.status === "idle");
+    if (truck) {
+      const row = boardRows(g.w, c, truck, { dest: "any", maxDh: 300, query: "" }).find((r) => !r.block);
+      if (row && g.act({ type: "book_load", truckId: truck.id, loadId: row.l.id }).ok) expect(board.done(g.w, c)).toBe(true);
+    }
+  }, 120_000);
+});
