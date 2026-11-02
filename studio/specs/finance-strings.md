@@ -59,7 +59,8 @@ Jeff, 2026-11-02: "If a carrier needs it now, he needs it NOW." An open invoice 
 |---|---|
 | Already paid or cashed | This invoice is already paid. |
 | Own-company paper | Paper between your own companies can't be cashed early. |
-| A player shipper's invoice [size] | Invoices from player shippers can't be cashed early yet. |
+| A player shipper's invoice | Invoices from player shippers can't be cashed early yet. |
+| In liquidation | Your company is being wound up, so nothing can be cashed early. |
 | Due today | It's due today. It lands without a fee. |
 
 ## Card 1: Before your first truck (state A only)

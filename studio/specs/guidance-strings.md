@@ -236,7 +236,8 @@ One entry per figure key. `what` and `moves` are the writer's; `how` is engineer
 | `loan.rate` | What the loan costs each week on what's owed. | `{rateLow}` to `{rateHigh}` a week: the better your credit score at signing, the lower. | A better score lowers your next loan. A running loan's rate never changes. |
 | `finance.factoringRate` | The factor's share of every load under contract. | From your fleet size on the day you sign; fixed for the term. | More trucks at renewal lower it. |
 | `finance.quickPayFee` | The cost of being paid on delivery, one load at a time. | `{quickPayPct}` of the load. | Nothing: it's fixed. Use it for emergencies. |
-| `finance.cashNowFee` [switch cashNow] | The fee to cash an open invoice today instead of on its due day. | Under a contract: its rate plus a surcharge for each day early. Without: the spot rate. | Fewer days early; a contract, or a bigger fleet's contract rate. |
+| `invoice.cashNowFee` [switch cashNow] | The fee to cash an open invoice today instead of on its due day. | (engineering: the contract rate plus the aging per day early, or the spot rate) | Fewer days early; a contract, or a bigger fleet's contract rate. |
+| `invoice.cashNowLands` [switch cashNow] | What reaches your cash today if you cash this invoice now. | (engineering: the invoice, less the fee) | The fee: fewer days early, or a contract rate instead of spot. |
 | `guide.gapToTruck` | How far you are from your next truck. | The cheapest truck's cash needed now, less your deposit and cash above `{gapCushionWeeks}` weeks of costs. | Hauling; cheaper trucks on the used lot. |
 
 ### Danger
