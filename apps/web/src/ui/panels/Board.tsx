@@ -252,7 +252,7 @@ function ResultCard({ onBidAgain }: { onBidAgain?: () => void }): JSX.Element | 
       </p>
       {!res.won && res.winnerId ? (
         <button type="button" class="linkrow" onClick={() => openIntel({ card: res.winnerId })}>
-          {INTEL.lostTo(S.game!.w.companies[res.winnerId - 1]?.name ?? "")}
+          {INTEL.lostTo(S.game!.w.companies[res.winnerId - 1]?.name ?? "", (res.winning ?? 0).toFixed(2))}
         </button>
       ) : null}
       <div class="row">

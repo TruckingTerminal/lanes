@@ -39,7 +39,9 @@ export function Intel(): JSX.Element {
       {label}
     </Btn>
   );
-  const what = [f.brokers ? "brokers" : f.players ? "players" : "companies", hubIdx >= 0 ? `at ${w.net.hubs[hubIdx]!.name}` : f.myHub && me ? `at ${w.net.hubs[myHub]!.name}` : "", q ? `named "${f.q.trim()}"` : ""].filter(Boolean).join(" ");
+  // No match, the filters in words (the writer's strings): a name first, else who and where.
+  const where = hubIdx >= 0 ? w.net.hubs[hubIdx]!.name : f.myHub && me ? w.net.hubs[myHub]!.name : null;
+  const noneText = q ? INTEL.noneCalled(f.q.trim()) : where ? INTEL.noneAt(f.brokers ? "brokers" : f.players ? "players" : "companies", where) : INTEL.none;
   return (
     <Panel title={INTEL.header(shown.length)}>
       {mine && (g.kind === "test" || (g.kind === "live" && g.writer)) ? (
@@ -63,6 +65,7 @@ export function Intel(): JSX.Element {
         {chip(f.brokers, INTEL.brokers, () => set({ brokers: !f.brokers }))}
       </div>
       <div class="row">
+        <span class="label">{INTEL.sortBy}</span>
         {(["miles", "trucks", "month"] as const).map((s) => (
           <Btn sm key={s} on={f.sort === s} onClick={() => set({ sort: s })}>
             {s === "miles" ? INTEL.sortMiles : s === "trucks" ? INTEL.sortTrucks : INTEL.sortMonth}
@@ -77,18 +80,18 @@ export function Intel(): JSX.Element {
         </div>
       ) : (
         <>
-          <p class="muted">{INTEL.none(what)}</p>
+          <p class="muted">{noneText}</p>
           <Btn onClick={() => set({ q: "", myHub: false, hub: null, players: false, brokers: false })}>{INTEL.clear}</Btn>
         </>
       )}
       {shown.length > f.shown ? (
         <Btn
           onClick={() => {
-            S.intel = { ...S.intel, shown: S.intel.shown + 50 };
+            S.intel = { ...S.intel, shown: S.intel.shown + PAGE };
             bumpData();
           }}
         >
-          {INTEL.more}
+          {INTEL.more(PAGE)}
         </Btn>
       ) : null}
     </Panel>
@@ -126,11 +129,14 @@ function openCard(id: number): void {
   bumpData();
 }
 
-/** How long the authority has stood, in months (days under one). */
-function authorityAge(days: number, perMonth: number): string {
-  if (days < perMonth) return `${days} day${days === 1 ? "" : "s"}`;
-  const m = Math.floor(days / perMonth);
-  return `${m} month${m === 1 ? "" : "s"}`;
+/** The list's page size. */
+const PAGE = 50;
+
+/** How long the authority has stood: days under a month, then months, then years (a game year is a season's days). */
+function authorityAge(days: number, perMonth: number, perYear: number): string {
+  if (days < perMonth) return INTEL.ageDays(days);
+  if (days < perYear) return INTEL.ageMonths(Math.floor(days / perMonth));
+  return INTEL.ageYears(Math.floor(days / perYear));
 }
 
 /** The card: the director's fields in order, label left, value right. Own card: the band costs under each band. */
@@ -142,7 +148,9 @@ function CompanyCard({ row, own, rows }: { row: IntelRow; own: boolean; rows: In
   const status = a.status === "active" ? "active" : a.status;
   const byType = (["van", "reefer", "flatbed"] as const).filter((t) => row.trailers[t] > 0).map((t) => `${row.trailers[t]} ${t}`).join(", ");
   const trailers = row.trailers.van + row.trailers.reefer + row.trailers.flatbed;
-  const facilities = Object.entries(row.facilities).map(([k, n]) => `${n} ${k.replace(/([A-Z])/g, " $1").toLowerCase()}`).join(" · ");
+  // Only kinds with a public name: a fence or a chop shop is the Back Lot's and never shows (the director's page).
+  const fac: [string, number][] = [...(c.yard !== "none" ? ([["yard", 1]] as [string, number][]) : []), ...Object.entries(row.facilities)];
+  const facilities = fac.filter(([k]) => INTEL.facilityKind[k]).map(([k, n]) => INTEL.facilityCount(n, INTEL.facilityKind[k]!)).join(" · ");
   const rank = ranked(rows, "miles").find((x) => x.r.c === c)!.rank;
   const lm = c.lastMonth;
   const safety = safetyBand(c);
@@ -173,8 +181,8 @@ function CompanyCard({ row, own, rows }: { row: IntelRow; own: boolean; rows: In
         {row.broker ? <p class="bighead">{INTEL.brokerLine(row.credit, bonded, vetting)}</p> : null}
         <Kv
           rows={[
-            [INTEL.authority, <span class={a.status !== "active" ? "bad" : ""}>{INTEL.authorityValue(authorityAge(today - a.since, w.cfg.time.daysPerMonth), status)}{a.revocations > 0 ? ` · ${INTEL.revokedBefore}` : ""}</span>],
-            [INTEL.running, `${INTEL.runningValue(row.trucks, trailers, byType, row.drivers)}${facilities ? ` · ${facilities}` : ""}`],
+            [INTEL.authority, <span class={a.status !== "active" ? "bad" : ""}>{INTEL.authorityValue(authorityAge(today - a.since, w.cfg.time.daysPerMonth, w.cfg.time.daysPerSeason), status)}{a.revocations > 0 ? ` · ${INTEL.revokedBefore(a.revocations)}` : ""}</span>],
+            [INTEL.running, facilities ? <span>{INTEL.runningValue(row.trucks, trailers, byType, row.drivers)}<br />{facilities}</span> : INTEL.runningValue(row.trucks, trailers, byType, row.drivers)],
             [INTEL.milesSeason, INTEL.milesValue(fdFull(row.miles), rank, rows.length)],
             [INTEL.lastMonth, lm ? INTEL.lastMonthValue(fdFull(lm.revenueFd), lm.loads, pct(lm.loads ? lm.onTime / lm.loads : 0)) : INTEL.firstMonth],
             [INTEL.safety, <span>{[safety.rating, ...safety.alerts.map(alertName)].join(" · ")}</span>],

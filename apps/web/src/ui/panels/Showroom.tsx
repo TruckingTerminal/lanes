@@ -4,6 +4,8 @@ import {
   assetPriceUsd,
   bestSource,
   companyAccount,
+  depositCredit,
+  purchaseTerms,
   lotPrice,
   lotSpec,
   npcDealerMult,
@@ -26,7 +28,11 @@ import {
 } from "@lanes/engine";
 import { fd, pct, TIER_NAME, TRAILER_NAME } from "../../format.js";
 import { act, me, myTrucks, S } from "../../state.js";
-import { Btn, Card, Num } from "../bits.js";
+import { DEALER } from "../../copy.js";
+import { buyPlan } from "../../finance.js";
+import { useState } from "preact/hooks";
+import type { Action } from "@lanes/engine";
+import { Btn, Card, Kv, Num } from "../bits.js";
 import { Rig } from "../Loop.js";
 
 const TIERS: TractorTier[] = ["workhorse", "highwayPro", "flagship"];
@@ -56,6 +62,9 @@ export function Showroom(): JSX.Element {
   // Without a yard there's nowhere to keep a spare: only as many trailers as tractors.
   const tractors = fleet.filter((t) => t.lease !== "npc").length + ordersOf(w, c.id).filter((o) => o.kind !== "trailer").length;
   const trailerRoom = c.yard === "none" ? Math.min(trailerCap(w, c), tractors) - ownTrailers : trailerCap(w, c) - ownTrailers;
+  // A rig brings its own tractor, so only the company's trailer cap limits it (actions.ts buy_asset); the "no more
+  // trailers than tractors" rule without a yard is for a trailer bought alone (QA's Finance replay: the first rig was blocked).
+  const rigRoom = trailerCap(w, c) - ownTrailers;
   const lifeMi = w.cfg.assets.tractor.lifeMi;
   const life = lifeMi % 1_000_000 === 0 ? `${lifeMi === 1_000_000 ? "a million" : `${lifeMi / 1_000_000} million`} miles` : `${Math.round(lifeMi / 1000)}k miles`;
   const usedTrailers = openListings(w).filter((l) => l.trailerId > 0 && l.sellerId !== c.id).slice(0, 8);
@@ -74,16 +83,17 @@ export function Showroom(): JSX.Element {
           <p class="muted small">
             Worn rigs at their used value: a Workhorse about {lotSpec(w, "van").odometer.toLocaleString("en-US")} miles and {Math.round((w.t / w.cfg.time.gameMinutesPerDay - lotSpec(w, "van").builtDay) / 365)} years old. {w.usedLot.stock} on the lot this week; delivered like a new one.
           </p>
-          <div class="row">
-            {TYPES.map((tr) => {
-              const price = lotPrice(w, "workhorse", tr) * npcDealerMult(w);
-              return (
-                <Btn key={tr} disabled={!(w.usedLot.stock > 0 && cash >= price && trailerRoom > 0)} onClick={() => act({ type: "buy_asset", tier: "workhorse", trailer: tr, replaceNpcLease: onLease, used: true }, "Ordered from the used lot")}>
-                  Workhorse + {TRAILER_NAME[tr]} · {fd(price)}
-                </Btn>
-              );
-            })}
-          </div>
+          {TYPES.map((tr) => (
+            <Buy
+              key={tr}
+              what={`Workhorse + ${TRAILER_NAME[tr]}`}
+              price={lotPrice(w, "workhorse", tr) * npcDealerMult(w)}
+              replacing={onLease}
+              block={w.usedLot.stock < 1 ? DEALER.whyLotEmpty : rigRoom <= 0 ? DEALER.whyYard : null}
+              action={{ type: "buy_asset", tier: "workhorse", trailer: tr, replaceNpcLease: onLease, used: true }}
+              ok="Ordered from the used lot"
+            />
+          ))}
         </>
       ) : null}
       <h3>New rigs and tractors</h3>
@@ -105,22 +115,32 @@ export function Showroom(): JSX.Element {
                   </p>
                 </div>
               </div>
+              <Buy
+                what={`${TIER_NAME[tier]} + ${TRAILER_NAME[tr]}`}
+                label={`Order the rig${onLease ? " (replaces your lease)" : ""}`}
+                price={rig.price}
+                replacing={onLease}
+                block={!rigLeft ? DEALER.whySupply : rigRoom <= 0 ? DEALER.whyYard : null}
+                action={{ type: "buy_asset", tier, trailer: tr, replaceNpcLease: onLease, dealershipId: rig.dealershipId || undefined }}
+                ok={`Ordered. Delivery in ${rig.days} days`}
+              />
               <div class="row">
-                <Btn primary disabled={!(cash >= rig.price && rigLeft && trailerRoom > 0)} onClick={() => act({ type: "buy_asset", tier, trailer: tr, replaceNpcLease: onLease, dealershipId: rig.dealershipId || undefined }, `Ordered. Delivery in ${rig.days} days`)}>
-                  Order the rig{onLease ? " (replaces your lease)" : ""}
-                </Btn>
                 {dollarWindow && !rig.dealershipId ? (
                   <Btn disabled={!(c.usd.wallet >= assetPriceUsd(w, rig.price) && rigLeft && trailerRoom > 0)} onClick={() => act({ type: "buy_asset", tier, trailer: tr, replaceNpcLease: onLease, pay: "usd" }, `Ordered for dollars. Delivery in ${rig.days} days`)}>
                     Or ${assetPriceUsd(w, rig.price).toLocaleString("en-US", { maximumFractionDigits: 0 })} (to the launch pool)
                   </Btn>
                 ) : null}
-                {tr === "van" ? (
-                  <Btn disabled={!(cash >= tractor.price && (tractor.dealershipId ? true : w.supply.tractor[tier] > 0))} onClick={() => act({ type: "buy_asset", tier, trailer: tr, replaceNpcLease: onLease, tractorOnly: true, dealershipId: tractor.dealershipId || undefined }, `Tractor ordered. It hooks a spare from your yard, or a rental`)}>
-                    {TIER_NAME[tier]} tractor alone · {fd(tractor.price)}
-                    {spares ? ` (${spares} spare${spares > 1 ? "s" : ""} in the yard)` : ""}
-                  </Btn>
-                ) : null}
               </div>
+              {tr === "van" ? (
+                <Buy
+                  what={`${TIER_NAME[tier]} tractor alone${spares ? ` (${spares} spare${spares > 1 ? "s" : ""} in the yard)` : ""}`}
+                  price={tractor.price}
+                  replacing={onLease}
+                  block={tractor.dealershipId || w.supply.tractor[tier] > 0 ? null : DEALER.whySupply}
+                  action={{ type: "buy_asset", tier, trailer: tr, replaceNpcLease: onLease, tractorOnly: true, dealershipId: tractor.dealershipId || undefined }}
+                  ok="Tractor ordered. It hooks a spare from your yard, or a rental"
+                />
+              ) : null}
             </Card>
           );
         }),
@@ -183,5 +203,61 @@ export function Showroom(): JSX.Element {
         <p class="muted">No tractors offered for lease right now.</p>
       )}
     </>
+  );
+}
+
+/**
+ * A buy control (QA's Finance replay): for cash, and on a purchase loan when the rule offers one, its numbers shown on
+ * a sheet before it acts. A disabled button always says why, under it.
+ */
+function Buy({ what, label, price, replacing, block, action, ok }: { what: string; label?: string; price: number; replacing: boolean; block: string | null; action: Extract<Action, { type: "buy_asset" }>; ok: string }): JSX.Element {
+  const w = S.game!.w;
+  const c = me();
+  const [open, setOpen] = useState(false);
+  const p = buyPlan(w, c, price, replacing);
+  const dep = replacing ? DEALER.withDeposit : "";
+  const cashWhy = block ?? (p.cashOk ? null : DEALER.whyCash(fd(p.have), fd(p.cashNeed), dep));
+  const loanWhy = !p.loan ? null : block ?? (p.loan.why === "full" ? DEALER.whyLoans(purchaseTerms(w, c).maxLoans) : p.loan.why === "short" ? DEALER.whyLoan(fd(p.loan.cashNeed), fd(p.have), dep) : null);
+  const ef = w.cfg.equipmentFinance.purchase;
+  return (
+    <div class="stack buy">
+      <div class="row">
+        <Btn primary disabled={cashWhy !== null} onClick={() => act(action, ok)}>
+          {label ?? what} · {fd(price)}
+        </Btn>
+        {p.loan && !block ? (
+          <Btn onClick={() => setOpen(!open)} on={open}>
+            {DEALER.onLoan}
+          </Btn>
+        ) : null}
+      </div>
+      {cashWhy ? <p class="muted small">{cashWhy}</p> : null}
+      {open && p.loan ? (
+        <Card title={DEALER.loanTitle(what)}>
+          <Kv
+            rows={[
+              [DEALER.price, `${fd(price)} FD`],
+              [DEALER.tax, `${fd(p.tax)} FD`],
+              [DEALER.down, `${fd(p.loan.down)} FD`],
+              [DEALER.loan, `${fd(p.loan.loanFd)} FD`],
+              [DEALER.stake, DEALER.stakeValue(fd(p.loan.stake))],
+              [DEALER.weekly, DEALER.weeklyValue(fd(p.loan.weekly), p.loan.termWeeks, `${(p.loan.weeklyRate * 100).toFixed(2)}%`)],
+              ...(replacing && depositCredit(w, c) > 0.5 ? ([[DEALER.deposit, DEALER.depositValue(fd(depositCredit(w, c)))]] as [string, string][]) : []),
+              [DEALER.now, `${fd(p.loan.cashNeed)} FD`],
+            ]}
+          />
+          <p class="warn small">{DEALER.missed(ef.missedToDefault)}</p>
+          <div class="row">
+            <Btn primary disabled={loanWhy !== null} onClick={() => (act({ ...action, finance: true }, ok), setOpen(false))}>
+              {DEALER.buyLoan(fd(p.loan.cashNeed))}
+            </Btn>
+            <Btn ghost onClick={() => setOpen(false)}>
+              {DEALER.cancel}
+            </Btn>
+          </div>
+          {loanWhy ? <p class="muted small">{loanWhy}</p> : null}
+        </Card>
+      ) : null}
+    </div>
   );
 }

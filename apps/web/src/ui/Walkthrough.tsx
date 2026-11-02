@@ -6,7 +6,7 @@ import { stepDo, walkProgress, walkSteps, type Mood } from "../walkthrough.js";
 import { ASSETS, hasAsset } from "../mapart.js";
 import { drawPortrait } from "../portrait.js";
 import { bumpData, S, setOnboard, setTab, toast, useData } from "../state.js";
-import { ARRIVAL, CAPTION, DISPATCHER } from "../copy.js";
+import { ARRIVAL, CAPTION, DISPATCHER, INTEL } from "../copy.js";
 import { pct } from "../format.js";
 import { TAB_NAME } from "../tabs.js";
 import { Btn, Card } from "./bits.js";
@@ -142,6 +142,9 @@ export function Caption(): JSX.Element | null {
       {action}
     </div>
   );
+  // On Finance and Intel, the screen's own line first (one line at most, in the caption strip), once each.
+  const fin = S.tab === "finance" ? financeLine() : S.tab === "intel" && !seen("intel:first") ? { key: "intel:first", line: INTEL.iuliia } : null;
+  if (fin) return say(fin.line, <Btn sm onClick={() => mark(fin.key)}>{CAPTION.next}</Btn>);
   // The arrival (S1): once, after the company is created, her line about the lease and one button to the board. It
   // retires once a load is the truck's, by the player's bid or booking or the dispatcher's (Jeff, 2026-11-02: it
   // still said "Let's find one" with the truck loaded and rolling).
@@ -161,9 +164,6 @@ export function Caption(): JSX.Element | null {
       "wave",
     );
   }
-  // On Finance, its own line first (specs/finance.md: one line at most, in the caption strip), once.
-  const fin = S.tab === "finance" ? financeLine() : null;
-  if (fin) return say(fin.line, <Btn sm onClick={() => mark(fin.key)}>{CAPTION.next}</Btn>);
   // After the first bid by hand (S9): once, the dispatcher is now on, and where its rules are.
   if (c.firstHandBidDay !== null && g.w.cfg.freeEntry.firstBidByHand && !seen("dispatcher")) {
     return say(

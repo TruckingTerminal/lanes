@@ -37,7 +37,7 @@ export function Company(): JSX.Element {
               ["Loads delivered", <Num>{Math.round(c.delivered)} · {c.delivered ? pct(c.onTime / c.delivered) : "–"} on time</Num>],
               ["Reputation", <Num>{pct(c.reputation)} · level {level}</Num>],
               ["Miles", <Num>{fd(miles(c))} · #{rankMiles} of {carriers.length} carriers</Num>],
-              ["Net worth", <Num>{fd(worth(c))} FD · <span class="muted">{INTEL.privateWorth}</span></Num>],
+              [INTEL.netWorth, <Num>{fd(worth(c))} FD<br /><span class="muted small">{INTEL.privateWorth}</span></Num>],
               ["Trucks", <Num>{operatingTrucks(w, c.id)} running</Num>],
             ]}
           />

@@ -5,6 +5,7 @@ import { facilityUrl } from "../../art.js";
 import { SCENES } from "../../assets.js";
 import { FAC_NAME, fd, pct, signedPct, TIER_NAME, TRAILER_NAME, usd } from "../../format.js";
 import { act, me, myTrucks, S, useData } from "../../state.js";
+import { DEALER } from "../../copy.js";
 import { Btn, Card, Num, Panel, Pixel } from "../bits.js";
 import { Rig, Scene } from "../Loop.js";
 import { Showroom } from "./Showroom.js";
@@ -59,6 +60,7 @@ export function Dealer(): JSX.Element {
                 Buy today
               </Btn>
             </div>
+            {cash < l.askFd ? <p class="muted small">{DEALER.whyAsk(fd(cash), fd(l.askFd))}</p> : null}
           </Card>
         ))
       ) : (

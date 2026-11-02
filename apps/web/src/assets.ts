@@ -56,6 +56,9 @@ export const DRIVER_FACES = 8;
  * it by id, so the hire list and the roster show different people. The owner keeps face 1, the one picked at first entry.
  */
 export const driverFace = (s: { id: number; look: "m" | "f"; owner?: boolean }): string => `driver-${s.look}${s.owner ? 1 : 1 + (s.id % DRIVER_FACES)}`;
+/** Anyone on staff: a driver's face as above; every other kind its own portrait in the person's look (Graphics, a5d1c04: <kind>-<look>, the kind in kebab case). */
+export const staffFace = (s: { id: number; kind: string; look: "m" | "f"; owner?: boolean }): string =>
+  s.kind === "driver" ? driverFace(s) : `${s.kind.replace(/[A-Z]/g, (x) => `-${x.toLowerCase()}`)}-${s.look}`;
 
 let onReady: (() => void) | null = null;
 export function whenAssetsReady(f: () => void): void {

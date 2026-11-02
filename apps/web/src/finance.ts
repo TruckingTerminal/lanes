@@ -1,5 +1,8 @@
 import {
   activeLoanOn,
+  companyAccount,
+  financedCashNeed,
+  salesTaxOn,
   borrowingCapacity,
   contractOn,
   depositCredit,
@@ -115,3 +118,44 @@ export function borrowable(w: World, trucks: Truck[]): { t: Truck; cap: number }
 export const equipmentWeekly = (w: World, fd: number): number => fd / w.cfg.equipmentFinance.termWeeks + fd * w.cfg.equipmentFinance.weeklyRate;
 
 export { contractOn };
+
+/**
+ * Buying a truck at a price (the Dealer, QA's Finance replay): what cash pays and what a purchase loan pays, from the
+ * engine's own arithmetic (actions.ts buy_asset, purchaseLoans.ts financedCashNeed, salesTax.ts). Replacing the lessor's
+ * truck, its deposit credit counts toward either (world.ts releaseDepositFor).
+ */
+export interface BuyPlan {
+  price: number;
+  tax: number;
+  /** The cash a purchase for cash needs, and whether the company has it. */
+  cashNeed: number;
+  cashOk: boolean;
+  /** What the company can put toward it: cash, plus the lease deposit when the truck replaces the lessor's. */
+  have: number;
+  /** The loan: offered when the rule allows one; its numbers; why it can't, if it can't. */
+  loan: { down: number; loanFd: number; stake: number; weekly: number; termWeeks: number; weeklyRate: number; cashNeed: number; ok: boolean; why: string | null } | null;
+}
+export function buyPlan(w: World, c: Company, price: number, replacing: boolean): BuyPlan {
+  const tax = salesTaxOn(w, price);
+  const have = w.ledger.balance(companyAccount(c.id)) + (replacing ? depositCredit(w, c) : 0);
+  const k = w.cfg.equipmentFinance.purchase;
+  let loan: BuyPlan["loan"] = null;
+  if (k.enabled) {
+    const t = purchaseTerms(w, c);
+    const loanFd = price * (1 - t.downShare);
+    const need = financedCashNeed(w, c, price);
+    const full = openPurchaseLoans(w, c.id).length >= t.maxLoans;
+    loan = {
+      down: price * t.downShare,
+      loanFd,
+      stake: loanFd * k.stakeShare,
+      weekly: loanFd / k.termWeeks + loanFd * t.weeklyRate,
+      termWeeks: k.termWeeks,
+      weeklyRate: t.weeklyRate,
+      cashNeed: need,
+      ok: !full && have >= need,
+      why: full ? "full" : have >= need ? null : "short",
+    };
+  }
+  return { price, tax, cashNeed: price + tax, cashOk: have >= price + tax, have, loan };
+}

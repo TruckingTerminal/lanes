@@ -325,12 +325,6 @@ export function newSafetyRecord(): Company["safety"] {
 const FIRST_M = ["Marcus", "Luis", "Hector", "Andre", "Omar", "Ray", "Earl", "Darnell", "Tyrone", "Miguel", "Carlos", "Javier", "Diego", "Duc", "Tuan", "Hung", "Raj", "Vikram", "Arjun", "Sanjay", "Chidi", "Emeka", "Tunde", "Kwame", "Karim", "Tariq", "Nabil", "Yusuf", "Frank", "Dale", "Wayne", "Gary", "Bill", "Jake", "Hank", "Travis"];
 const FIRST_F = ["Maria", "Lucia", "Carmen", "Elena", "Sofia", "Lan", "Mai", "Trang", "Hoa", "Priya", "Anjali", "Deepa", "Sunita", "Ngozi", "Amara", "Chioma", "Adaeze", "Layla", "Yasmin", "Nadia", "Rania", "Peggy", "Brenda", "Donna", "Carol", "Linda", "Sharon", "Tammy", "Rosa", "Tanya", "Lena", "Nia", "June", "Ivy", "Darlene", "Keisha"];
 const FIRST = [...FIRST_M, ...FIRST_F];
-/**
- * Staff kinds painted in one look only (the client's people art: every kind past drivers shares the dispatcher's man's
- * portrait): their first name comes from that look's half, so the name always matches the face. A kind painted in both
- * looks drops out of here and draws from the whole list. One draw either way, so the labor stream replays the same.
- */
-const ONE_LOOK: Partial<Record<Staff["kind"], "m" | "f">> = { dispatcher: "m", opsManager: "m", maintManager: "m", ceo: "m", securityManager: "m", salesRep: "m" };
 const LAST = ["Reyes", "Walker", "Nguyen", "Brooks", "Patel", "Hayes", "Moreno", "Kowalski", "Price", "Okafor", "Bell", "Duarte", "Fischer", "Lam", "Carter", "Ruiz", "Mills", "Haddad", "Stone", "Ortiz", "Grant", "Silva", "Boone", "Ward", "Lowe", "Vance", "Cole", "Diaz", "Ford", "Hart"];
 
 /** A person for the labor pool (or an owner). Names come from the labor stream, so they replay. */
@@ -338,8 +332,8 @@ export function newStaff(w: World, kind: Staff["kind"], skill: number, potential
   const rng = w.rng.labor;
   const [lo, hi] = w.cfg.labor.pool.personal;
   // One draw for the first name, as ever, so the labor stream replays the same; the half it falls in is the look.
-  const only = ONE_LOOK[kind];
-  const first = only === "f" ? FIRST_M.length + rng.int(0, FIRST_F.length - 1) : only === "m" ? rng.int(0, FIRST_M.length - 1) : rng.int(0, FIRST.length - 1);
+  // Every kind is painted in both looks now (Graphics, a5d1c04), so every kind draws from the whole list.
+  const first = rng.int(0, FIRST.length - 1);
   const person: Staff = {
     id: w.staff.length + 1,
     kind,

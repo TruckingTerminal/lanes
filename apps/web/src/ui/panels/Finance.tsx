@@ -263,7 +263,8 @@ function Credit({ stateA, open, orders }: { stateA: boolean; open: (s: Sheet) =>
       {gets}
     </>
   );
-  if (stateA) {
+  // On the lessor's truck, the short card, unless a loan is already running (a first truck bought on a loan, on order).
+  if (stateA && !loanRows(w, c).length) {
     return (
       <div id="fin-loans">
         <Card title={FINANCE.creditTitle}>
@@ -465,7 +466,9 @@ export function FinanceLinks(): JSX.Element | null {
   const c = me();
   const k = w.cfg.token.payment;
   const f = c.factoring;
-  const state = f && contractOn(w) ? FINANCE.stateContract(shortDate(f.until)) : c.payTerms === "quick" ? FINANCE.stateQuick : FINANCE.stateNet(k.termsDays);
+  // The same state the Getting paid card shows: on the lessor's truck, the lessor pays on delivery.
+  const leasedOnly = c.role !== "broker" && !ownsATruck(w, c) && k.lessorPaysOnDelivery;
+  const state = leasedOnly ? FINANCE.stateLessor : f && contractOn(w) ? FINANCE.stateContract(shortDate(f.until)) : c.payTerms === "quick" ? FINANCE.stateQuick : FINANCE.stateNet(k.termsDays);
   const loans = loanRows(w, c);
   const owed = loans.reduce((s, l) => s + l.owedFd, 0);
   const weekly = loans.reduce((s, l) => s + l.weeklyFd, 0);
