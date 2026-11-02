@@ -124,6 +124,12 @@ export const LIVE_LEVERS: Record<string, unknown> = {
   "token.payment.factoring.contract.enabled": true,
   "population.dial.enabled": true,
   "token.demandScalesWithCarriers": false,
+  // The used lot (2026-11-03, ruleset 0.20.2-phase0.35; Jeff: "restart once later" with the lot): sixty rigs a week and
+  // a lot of a hundred and twenty, so a lessor at step 9 finds a rig on arrival and a good owner-operator owns one by
+  // day 21 instead of 42 (studio/reviews/economy-reserve.md §1; the four-year check v59-lot2 passed: liquidations,
+  // rates, the dial, the sinks and supply unchanged within noise).
+  "usedMarket.npcLot.perWeek": 60,
+  "usedMarket.npcLot.stock": 120,
   // The supply path (+10% over four years, the dial never under the launch rates) and the whale rules on sales.
   "token.supplyCeiling.enabled": true,
   "token.supplyCeiling.growth": 0.1,

@@ -9,7 +9,7 @@ export type TractorTier = "workhorse" | "highwayPro" | "flagship";
 export type FacilityType = "warehouse" | "coldStorage" | "factory";
 
 export const economyConfig = {
-  version: "0.20.1-phase0.34", // Patch (2026-11-02): a refused buy no longer releases the lease deposit (buy_listing and buy_asset run every check first); bot outcomes can change, so a restart; levers as 0.20.0
+  version: "0.20.2-phase0.35", // Restart (2026-11-03): the used lot at sixty a week and a lot of a hundred and twenty (live.ts), with the deposit fix of 0.20.1; levers otherwise as 0.20.0
 
   // §World, map and time
   time: {
