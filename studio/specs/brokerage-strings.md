@@ -1,6 +1,6 @@
 # Brokerage strings (writer, draft 1, 2026-11-03; against `brokerage-rule.md` and UX's `brokerage-ux.md` draft 0)
 
-Every string on the brokerage path: the teaser before day 91, forming the brokerage, the company switch, the brokerage's four tabs, posting and the carrier's trail, Jeff's two direct-freight flows (Pass to `{brokerage}`; Tender to `{carrier}`), moving capital between the two companies, and Intel's "same owner" line. Iuliia's brokerage lines are in `iuliia-lines.md`. `{key}` is read from `economy.config.ts`, never typed; `{x}` without a key is a value from the world. Sentence case; no string over 20 words. No crime words anywhere: the studio's words for the self-dealing rules stay in the director's brief.
+Every string on the brokerage path: the teaser before day 91, forming the brokerage, the company switch, the brokerage's four tabs, posting and the carrier's trail, Jeff's two direct-freight flows (Pass to `{brokerage}`; Tender to `{carrier}`), moving money between the two companies, and Intel's "same owner" line. Iuliia's brokerage lines are in `iuliia-lines.md`. `{key}` is read from `economy.config.ts`, never typed; `{x}` without a key is a value from the world. Sentence case; no string over 20 words. No crime words anywhere: the studio's words for the self-dealing rules stay in the director's brief.
 
 **Marked [size]:** waits on the economy's figures or a rule the brief leaves open. The string is drafted; its number or its existence may change.
 
@@ -17,8 +17,8 @@ Short key names used below:
 | `{defaultRate}`, `{lagDays}`, `{fallOff}` | `brokerRisk.defaultRate`, `.contractLagDays`, `.fallOffShare` |
 | `{boardFee}` | the board fee's share (3% today); engineering names the key (UX's question 6) |
 | `{termsDays}` | `token.payment.termsDays` |
-| `{transferFee}` | the capital transfer's fee share, proposed 1% to the reserve; engineering names the key. **[Jeff to confirm]** |
-| `{bandLow}`, `{bandHigh}` | the lane's band for a hauler's pay per mile, from the economy **[size]** |
+| `{transferFee}` | `brokerage.transfer.feePct`, proposed 1%, to the reserve **[Jeff to confirm]** |
+| `{bandLow}`, `{bandHigh}` | the lane's band from `brokerage.ownTender.band`, per mile **[size]** |
 
 ## Renames, everywhere a player reads
 
@@ -53,33 +53,36 @@ One verb throughout: **start**. UX's draft says "Form"; the director's says "Sta
 | Link | What brokers earned last month › |
 | Once started, More's row | `{brokerage name}` › |
 
-**The sheet.** UX's draft has four steps (name it, the licence, fund it, your terms); the producer's brief names the licence, the bond, the surety and the switch. The strings below cover all of them: the licence, bond and surety are one step, as the director's "one sheet before the button" asks, and the switch is the moment after the button. UX settles the step count.
+**The sheet: three steps** (UX, `brokerage-ux.md` §3): name it; what it costs and how you fund it; your terms. The switch is the moment after the button.
 
 | Where | String |
 |---|---|
-| Step counter | Step `{n}` of `{total}` |
+| Step counter | Step `{n}` of 3 |
 | Buttons | Back · Next |
-| **Step: name it** | Name your brokerage |
+| **Step 1: name it** | Name your brokerage |
 | Field | Brokerage name (default "`{carrier name}` Logistics", 32 characters) |
-| Field [size] | Home hub (any hub, or your carrier's: the brief leaves it open) |
-| **Step: what it costs** | What a brokerage costs |
+| Display row [size: may become a choice] | Home hub: `{carrier's hub}` |
+| **Step 2: heading** | What it costs, and how you fund it |
 | Row | Licence · `{licence}` FD a season · a cost |
 | Row | Bond · `{bond}` FD · held, not spent, while you broker |
 | Row | Surety · about `{fd}` FD a year at credit `{band}` · a cost |
-| Note | If you can't pay a carrier, the bond does. You can never owe carriers more than it. |
-| Note | Fall under your bond and new loads stop after `{graceDays}` days. |
-| Note [size] | Your brokerage starts with its own credit, not your carrier's. |
+| Bond note | If you can't pay a carrier, the bond does. You can never owe carriers more than it. |
+| Bond note | Fall under your bond and new loads stop after `{graceDays}` days. |
+| Funding row | Moving from `{carrier name}` · `{fd}` FD (prefilled) |
+| Funding row | Fee `{transferFee}` · `{fd}` FD |
+| Funding rows | `{carrier name}`'s cash after · `{fd}` FD · `{brokerage}`'s cash after · `{fd}` FD, `{bond}` of it the bond |
+| Capital note | Your own capital, moved between your companies. It's not revenue or a cost for either. |
 | Note | There's no starting grant: the money comes from your carrier. |
-| Short of the bond | You're `{fd}` FD short. · Next, disabled: Not enough for the bond yet. |
-| **Step: fund it** | Fund it from `{carrier name}` |
-| Rows | Moving from `{carrier}`: `{fd}` FD · `{carrier}`'s cash after: `{fd}` FD · `{brokerage}`'s cash after: `{fd}` FD, `{bond}` of it the bond |
-| Note | Your own capital, moved between your companies. It's not revenue or a cost for either. |
-| **Step: your terms** | Your terms |
+| Note [size] | Your brokerage starts with its own credit, not your carrier's. |
+| Short of the bond | `{carrier name}` would be `{fd}` FD short. · Next, disabled: Not enough for the bond yet. |
+| Link, when short | What brokers earned last month › |
+| **Step 3: your terms** | Your terms |
 | Rows | Your margin: `{pct}` of each load · Open loads, at most: `{n}` · Who may haul your loads |
 | Vetting segments | Open · Standard · Strict |
 | Lines under them | Any carrier · `{vetting.standard.minAuthorityDays}` days of authority · `{vetting.strict.minAuthorityDays}` days and `{vetting.strict.minDelivered}` loads delivered |
 | Under the control | Tighter is safer, and slower to fill. |
-| **Confirm** | Start `{brokerage name}` · then the summary, one row per step |
+| **Confirm** | Start `{brokerage name}` |
+| Summary rows | Name · `{brokerage name}`, home `{hub}` · Costs and funding · `{fd}` FD from `{carrier name}`, `{fd}` FD fee · Terms · `{pct}` margin, up to `{n}` loads, `{vetting}` |
 | Button | **Start `{brokerage name}`** · live: Sent · in effect `{hh:mm}` |
 | **The switch, once started** | You're in `{brokerage name}` now. Your carrier is one tap away, top left. |
 
@@ -161,7 +164,7 @@ One verb throughout: **start**. UX's draft says "Form"; the director's says "Sta
 | At the bond | New loads pass you by until this falls. |
 | This month | Margin · Shippers who didn't pay · Fall-off charges · Surety premium · Licence fee · Net |
 | Rate lag line | Your contract rates trail the open board by `{lagDays}` days: a boom squeezes you, a slump pads you. |
-| Link rows | Getting paid: `{Net {termsDays} / Factoring until {date}}` › · Move capital › |
+| Link rows | Getting paid: `{Net {termsDays} / Factoring until {date}}` › · Move money › |
 | Capital log row | Capital from `{carrier}`: `{fd}` FD / Capital to `{carrier}`: `{fd}` FD · private |
 | Own-company paper | Paid at net `{termsDays}`, never factored: it's between your own companies. |
 
@@ -224,16 +227,16 @@ Jeff, 2026-11-02: a brokerage that receives freight directly from a shipper may 
 | Carrier can't take it | `{carrier}` can't take it: `{reason}`. |
 | A load the carrier passed | `{carrier}` passed you this load. It can't go back: post it, or tender it elsewhere. |
 
-## Moving capital
+## Move money
 
 On both companies' Money, under the link rows.
 
 | Where | String |
 |---|---|
-| Sheet title | Move capital |
+| Sheet title | Move money |
 | Direction | From `{company}` to `{other}` · Swap (both ways) |
 | Field | Amount |
-| Rows | Fee · `{fd}` FD (`{transferFee}`, to the reserve) · `{other}` receives · `{fd}` FD |
+| Rows | Fee `{transferFee}` · `{fd}` FD (to the reserve) · Arrives · `{fd}` FD |
 | Rows | `{company}`'s cash after: `{fd}` FD · `{other}`'s cash after: `{fd}` FD |
 | Note | It counts as equity, not revenue: no profit, no Miles, no Intel figure. |
 | Note | Logged in both companies' Money. Nobody else sees it. |
