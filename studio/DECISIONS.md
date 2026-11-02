@@ -72,3 +72,6 @@
   names, with their own prices, economy, upkeep, breakdowns, driver appeal and depreciation; trailers unbranded,
   by type. A teaser for PvP on the Back Lot's coming-soon card. Iuliia speaks differently by tab and by button
   or card, humor allowed. All sprint 2; the director plans it after the gate.
+- 2026-11-02 — Jeff: three truck makes, not four, one per tier: Keystone the workhorse, Meridian the economical
+  highway truck, Ironwood the premium driver's favourite (the Peterbilt and Kenworth of it in one make).
+  Westmark dropped. Names pending counsel's trademark search.
