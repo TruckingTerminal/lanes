@@ -183,14 +183,17 @@ export function refile(w: World, c: Company): void {
 export function restart(w: World, c: Company): void {
   const acct = companyAccount(c.id);
   const owed = -w.ledger.balance(acct);
+  // The spend-only FD it owes is discharged with the rest (before the write-off, which is free FD and would pay it).
+  w.ledger.forgiveLockDebt(acct);
   // Unpaid debt is FD that was spent but never earned: writing it off is a faucet, tagged so it shows.
   if (owed > 0) w.ledger.post(w.t, "faucet:bankruptcy_writeoff", acct, owed, `writeoff:${c.id}`);
   c.liquidatingSince = null;
   c.weeksInDebt = 0;
   // Judgments are discharged in the bankruptcy, like any other debt.
   c.judgmentFd = 0;
-  w.ledger.unlock(acct, w.ledger.locked(acct));
-  c.freePathLockedFd = 0;
+  // What it still holds that was spend-only stays spend-only: a bankruptcy is no way to free locked FD (the red team,
+  // 2026-11-03: unlocking it here let a stake of airdrop FD come back free through a liquidation).
+  c.freePathLockedFd = Math.min(c.freePathLockedFd, w.ledger.locked(acct));
   c.weeklySpend = [];
   c.orders = c.suspendedOrders;
   c.suspendedOrders = [];

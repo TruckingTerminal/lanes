@@ -135,7 +135,7 @@ export function stakeFd(w: World, c: Company, fd: number, months?: number, roll 
     if (fd < w.cfg.token.staking.lockDiscounts.minLockFd) return `a lock is at least ${w.cfg.token.staking.lockDiscounts.minLockFd} FD`;
   }
   if (w.ledger.balance(acct) < fd - 0.01) return "insufficient FD";
-  fd = Math.min(fd, w.ledger.balance(acct));
+  fd = Math.round(Math.min(fd, w.ledger.balance(acct)) * 100) / 100; // in cents, as the ledger holds it, so the stake and its account agree
   w.ledger.post(w.t, acct, stakeAccount(c.id), fd, `stake:${c.id}`);
   c.stakedFd += fd;
   if (term) openLock(w, c, fd, term, roll);
@@ -154,7 +154,7 @@ function openLock(w: World, c: Company, fd: number, term: readonly [number, numb
 
 /** Breaks a running lock: its slash is burned (a forfeit) and the rest is ordinary stake, free to leave. Returns the slash. */
 export function breakLock(w: World, c: Company, l: StakeLock): number {
-  const slash = lockSlash(w, l);
+  const slash = Math.round(lockSlash(w, l) * 100) / 100;
   if (slash > 0.005) w.ledger.post(w.t, stakeAccount(c.id), "sink:lock_slash", slash, `lock:${c.id}:${l.id}`);
   c.stakedFd -= slash;
   c.locks = (c.locks ?? []).filter((x) => x !== l);
@@ -202,13 +202,16 @@ export function unstakeFd(w: World, c: Company, fd: number, instant: boolean, br
     fd = Math.min(fd, Math.max(0, c.stakedFd - lockedStakeFd(w, c)));
     if (!(fd > 0.005)) return "nothing left to unstake";
   }
-  fd = Math.min(fd, c.stakedFd);
+  fd = Math.round(Math.min(fd, c.stakedFd, Math.max(0, w.ledger.balance(stakeAccount(c.id)))) * 100) / 100; // in cents, within the account
+  if (!(fd > 0)) return "nothing left to unstake";
   c.stakedFd -= fd;
   const ref = `unstake:${c.id}`;
   if (instant) {
-    const cut = fd * k.instantHaircut;
-    w.ledger.post(w.t, stakeAccount(c.id), "sink:unstake_haircut", cut, ref);
-    w.ledger.post(w.t, stakeAccount(c.id), companyAccount(c.id), fd - cut, ref);
+    // In cents, the haircut and the rest summing to the amount unstaked exactly.
+    const fdCents = Math.round(fd * 100);
+    const cutCents = Math.round(fdCents * k.instantHaircut);
+    w.ledger.post(w.t, stakeAccount(c.id), "sink:unstake_haircut", cutCents / 100, ref);
+    w.ledger.post(w.t, stakeAccount(c.id), companyAccount(c.id), (fdCents - cutCents) / 100, ref);
   } else {
     w.ledger.post(w.t, stakeAccount(c.id), exitAccount(c.id), fd, ref);
     c.unstaking.push({ fd, day: dayOf(w.t, w.cfg) + k.exitDays });
@@ -265,9 +268,17 @@ export function dailyStaking(w: World): void {
   let room = total * k.exitLimitPerDay;
   for (const { c, e } of due) {
     if (room <= 0.01) break;
-    const fd = Math.min(e.fd, room);
+    // In cents, and never more than the escrow holds: partial clears of float amounts drifted a few cents past it
+    // and overdrew co:exit:<id> (the red team's fuzz, 2026-11-03, live seeds 4 and 5).
+    const held = Math.round(w.ledger.balance(exitAccount(c.id)) * 100);
+    const cents = Math.min(Math.round(e.fd * 100), Math.floor(room * 100), held);
+    if (cents <= 0) {
+      if (held <= 0) e.fd = 0; // the escrow is empty: what the entry still says it holds was rounding
+      continue;
+    }
+    const fd = cents / 100;
     w.ledger.post(w.t, exitAccount(c.id), companyAccount(c.id), fd, `unstake:${c.id}`);
-    e.fd -= fd;
+    e.fd = Math.max(0, e.fd - fd);
     room -= fd;
   }
   for (const c of w.companies) {

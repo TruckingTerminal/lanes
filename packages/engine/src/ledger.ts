@@ -52,8 +52,15 @@ export const CIRCULAR_BURNS = new Set(["sink:season_close", "sink:buyback", "sin
 
 export class Ledger {
   private balances = new Map<string, number>();
-  /** Per account: the spend-only part of its balance, in cents (PostMode). */
+  /** Per account: the spend-only part of its balance, in cents (PostMode). Never more than the balance (or 0 in the red). */
   private lockedCents = new Map<string, number>();
+  /**
+   * Per account: spend-only FD it owes, in cents. Locked FD that lands in an account already in the red fills a hole
+   * that free FD dug (an overdraft that paid others free FD), so it can't sit as locked cash; the account owes it, and
+   * the free FD it receives next becomes locked until the debt is paid. So the spend-only total (locked + owed) is
+   * conserved through every posting, and the locked part never exceeds the account's balance.
+   */
+  private lockDebtCents = new Map<string, number>();
   readonly entries: LedgerEntry[] = [];
   /** Running totals by tag ("faucet:npc_shipper", "sink:fuel", …) in cents. */
   readonly totals = new Map<string, number>();
@@ -119,8 +126,53 @@ export class Ledger {
     }
     if (from.startsWith("co:") && kind === "sink" && !NOT_SPENDING.some((p) => ref.startsWith(p))) this.outflows.set(from, (this.outflows.get(from) ?? 0) + cents);
     if (this.keepEntries) this.entries.push({ t, from, to, amount: cents / 100, kind, ref });
-    if (moved > 0 && carriesLock(to)) this.lockedCents.set(to, (this.lockedCents.get(to) ?? 0) + moved);
+    // A freeOnly payment may overdraw the free part by its cent of rounding: that cent of locked FD was spent.
+    if (carriesLock(from)) {
+      const lockedFrom = this.lockedCents.get(from) ?? 0;
+      const capFrom = Math.max(0, this.balances.get(from) ?? 0);
+      if (lockedFrom > capFrom) this.lockedCents.set(from, capFrom);
+    }
+    if (carriesLock(to)) this.settleLocks(to, moved, cents - moved);
     return moved / 100;
+  }
+
+  /** Locked FD and free FD arrive at `to`: the free part first pays its lock debt, and the locked part is capped at the balance, the rest owed. */
+  private settleLocks(to: string, movedCents: number, freeCents: number): void {
+    let debt = this.lockDebtCents.get(to) ?? 0;
+    if (movedCents <= 0 && debt <= 0) return;
+    let locked = (this.lockedCents.get(to) ?? 0) + movedCents;
+    if (debt > 0 && freeCents > 0) {
+      const pay = Math.min(debt, freeCents);
+      locked += pay;
+      debt -= pay;
+    }
+    const cap = Math.max(0, this.balances.get(to) ?? 0);
+    if (locked > cap) {
+      debt += locked - cap;
+      locked = cap;
+    }
+    this.lockedCents.set(to, locked);
+    if (debt > 0) this.lockDebtCents.set(to, debt);
+    else this.lockDebtCents.delete(to);
+  }
+
+  /** Spend-only FD an account owes (it landed in the red, see lockDebtCents). */
+  lockDebt(account: string): number {
+    return (this.lockDebtCents.get(account) ?? 0) / 100;
+  }
+
+  /** A bankruptcy discharges the lock debt with the rest of the debt (solvency.ts restart); returns what it forgave. */
+  forgiveLockDebt(account: string): number {
+    const d = this.lockDebtCents.get(account) ?? 0;
+    this.lockDebtCents.delete(account);
+    return d / 100;
+  }
+
+  /** Spend-only FD owed across every company account: with lockedSupply, the conserved total. */
+  lockDebtSupply(): number {
+    let c = 0;
+    for (const [acct, v] of this.lockDebtCents) if (acct.startsWith("co:")) c += v;
+    return c / 100;
   }
 
   outflowCents(account: string): number {

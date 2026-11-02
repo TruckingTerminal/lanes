@@ -4133,3 +4133,80 @@ describe("staking locks (Jeff, 2026-11-02): truck prices are the entry fee, a st
     expect(truckCap(w, c)).toBe(10);
   });
 });
+
+describe("the red team's ledger breaks (2026-11-03): escrows never overdrawn, spend-only FD conserved", () => {
+  it("E3-LOCK: locked FD that lands in an account in the red is owed, paid by the next free FD, and never stands above the balance", () => {
+    const l = new Ledger(true);
+    const total = () => l.lockedSupply() + l.lockDebtSupply();
+    // A broker's licence stake of spend-only FD sits in escrow; its cash is 297 in the red (paid out free FD it didn't have).
+    l.post(0, "faucet:starting_grant", "co:84", 75_000, "test");
+    l.lock("co:84", 75_000);
+    l.post(0, "co:84", "co:stake:84", 75_000, "stake:84");
+    expect(l.locked("co:stake:84")).toBe(75_000);
+    l.post(0, "co:84", "co:7", 297, "payment"); // an overdraft that paid another company free FD
+    expect(l.balance("co:84")).toBe(-297);
+    expect(l.free("co:7")).toBe(297);
+    // The stake comes home: 74,703 of cash, all spend-only, and 297 owed.
+    l.post(0, "co:stake:84", "co:84", 75_000, "unstake:84");
+    expect(l.balance("co:84")).toBe(74_703);
+    expect(l.locked("co:84")).toBe(74_703);
+    expect(l.lockDebt("co:84")).toBe(297);
+    expect(l.free("co:84")).toBe(0);
+    expect(total()).toBe(75_000); // conserved: nothing spend-only turned free
+    // The next free FD pays the debt first.
+    l.post(0, "faucet:npc_shipper", "co:84", 1_000, "load:1");
+    expect(l.locked("co:84")).toBe(75_000);
+    expect(l.lockDebt("co:84")).toBe(0);
+    expect(l.free("co:84")).toBe(703);
+    expect(total()).toBe(75_000);
+    // Spending still draws on it first, and the lock never exceeds the balance on the way down.
+    l.post(0, "co:84", "sink:fuel", 75_500, "fuel:1");
+    expect(l.locked("co:84")).toBeLessThanOrEqual(Math.max(0, l.balance("co:84")));
+    expect(l.locked("co:84")).toBe(0);
+    l.assertBalanced();
+  });
+
+  it("E3-LOCK: a bankruptcy discharges the spend-only FD owed but never frees what is still held", () => {
+    const tk: EconomyConfig = { ...calm, token: { ...calm.token, staking: { ...calm.token.staking, enabled: true } } };
+    const w = createWorld({ cfg: tk, net, feeds: neutralFeeds, seed: 91 });
+    const c = carrier(w);
+    const acct = companyAccount(c.id);
+    fund(w, c.id, 60_000);
+    w.ledger.lock(acct, w.ledger.balance(acct)); // all of it spend-only (an airdrop paid locked, say)
+    expect(applyAction(w, c.id, { type: "stake_fd", fd: 50_000 })).toEqual({ ok: true });
+    w.ledger.post(w.t, acct, "sink:fuel", w.ledger.balance(acct) + 3_000, "test"); // 3,000 in the red
+    startLiquidation(w, c); // the stake comes back to cash for the creditors: 47,000, all of it still spend-only
+    expect(w.ledger.balance(acct)).toBeCloseTo(47_000, 2);
+    expect(w.ledger.locked(acct)).toBeCloseTo(47_000, 2);
+    expect(w.ledger.lockDebt(acct)).toBeCloseTo(3_000, 2);
+    restart(w, c);
+    expect(w.ledger.locked(acct)).toBeCloseTo(47_000, 2); // a restart is no way to free locked FD
+    expect(w.ledger.lockDebt(acct)).toBe(0);
+    expect(w.ledger.free(acct)).toBe(0);
+    w.ledger.assertBalanced();
+  });
+
+  it("E2-EXIT: the unstake queue pays out in cents within its escrow, however the global limit slices it", () => {
+    const tight: EconomyConfig = { ...calm, token: { ...calm.token, staking: { ...calm.token.staking, enabled: true, exitLimitPerDay: 0.0137 } } };
+    const w = createWorld({ cfg: tight, net, feeds: neutralFeeds, seed: 92 });
+    const cs = [carrier(w, "A"), carrier(w, "B"), carrier(w, "C")];
+    const odd = [12_345.678, 9_876.543, 31_415.926];
+    cs.forEach((c, i) => {
+      fund(w, c.id, 100_000);
+      expect(applyAction(w, c.id, { type: "stake_fd", fd: odd[i]! })).toEqual({ ok: true });
+    });
+    cs.forEach((c, i) => expect(applyAction(w, c.id, { type: "unstake_fd", fd: odd[i]! / 3, instant: false })).toEqual({ ok: true }));
+    cs.forEach((c) => expect(applyAction(w, c.id, { type: "unstake_fd", fd: 1_234.567, instant: false })).toEqual({ ok: true }));
+    expect(applyAction(w, cs[0]!.id, { type: "unstake_fd", fd: 777.777, instant: true })).toEqual({ ok: true });
+    for (let d = 0; d < 90; d++) {
+      runDays(w, 1);
+      for (const c of cs) expect(w.ledger.balance(exitAccount(c.id))).toBeGreaterThanOrEqual(0);
+    }
+    for (const c of cs) {
+      expect(c.unstaking).toEqual([]);
+      expect(w.ledger.balance(exitAccount(c.id))).toBe(0);
+      expect(w.ledger.balance(stakeAccount(c.id))).toBeCloseTo(c.stakedFd, 6); // the stake and its account agree to the cent
+    }
+    w.ledger.assertBalanced();
+  });
+});

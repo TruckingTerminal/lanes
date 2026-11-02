@@ -11,6 +11,7 @@
  * It is read-only on the engine: it only drives companies through the public applyAction and reads the ledger.
  */
 import { parseArgs } from "node:util";
+import { pathToFileURL } from "node:url";
 import { applyAction, companyAccount, dayOf, stepHour, type Action, type Company, type World } from "@lanes/engine";
 import { hubs } from "@lanes/data";
 import { ruleBotHook } from "@lanes/agents";
@@ -217,4 +218,5 @@ function main(): void {
   console.log(anyBad ? "\nFUZZ FOUND VIOLATIONS" : "\nFuzz clean: every invariant held and replays matched.");
 }
 
-main();
+// Run as a script (npx tsx apps/sim/src/redteam/fuzz.ts …); imported (apps/sim/test/redteam.test.ts), it only exports fuzzSeed.
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) main();

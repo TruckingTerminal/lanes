@@ -162,7 +162,8 @@ function npcPaperOf(w: World, payerId: number, exceptId: number): number {
 
 /** Pays up to `amountFd` of a broker's paper out of its bond (its stake), to `to`. Returns what it paid. */
 function drawBond(w: World, broker: Company, amountFd: number, to: string, ref: string, npcHolder: boolean): number {
-  const pay = Math.min(amountFd, broker.stakedFd, Math.max(0, w.ledger.balance(stakeAccount(broker.id))));
+  // In cents, within what the stake account holds, so the bond and its account agree.
+  const pay = Math.min(Math.round(amountFd * 100), Math.round(broker.stakedFd * 100), Math.round(Math.max(0, w.ledger.balance(stakeAccount(broker.id))) * 100)) / 100;
   if (pay <= 0.005) return 0;
   w.ledger.post(w.t, stakeAccount(broker.id), to, pay, ref);
   broker.stakedFd -= pay;
