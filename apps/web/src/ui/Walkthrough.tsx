@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from "preact/hooks";
 import { dayOf } from "@lanes/engine";
 import { GAME_CONFIG } from "../game.js";
 import { stepDo, walkProgress, walkSteps, type Mood } from "../walkthrough.js";
+import { iuliiaMuted, iuliiaNow, setIuliiaMuted } from "../iuliia.js";
 import { ASSETS, hasAsset } from "../mapart.js";
 import { drawPortrait } from "../portrait.js";
 import { bumpData, S, setOnboard, setTab, toast, useData } from "../state.js";
@@ -182,9 +183,22 @@ export function Caption(): JSX.Element | null {
       </Btn>,
     );
   }
-  if (!step) return null;
+  // Her tab-and-card line (iuliia.ts) takes the Do line's place for a few seconds, only where the walkthrough's own line
+  // isn't speaking; called only when it would show, so its seconds start when it does.
+  const her = (mood: Mood = "point") => {
+    const text = iuliiaNow();
+    return text ? (
+      <div class="caption">
+        <Iuliia mood={mood} size={64} />
+        <span class="small">{text}</span>
+      </div>
+    ) : null;
+  };
+  if (!step) return her();
   // "You won one" waits for the win: the board step ticks on the bid itself, twelve hours before the round clears.
-  if (step.id === "haul" && !hasLoad) return null;
+  // (A bid alone retires the arrival line, but this line needs the load itself.)
+  const loaded = (g.w.trucksByCompany.get(c.id) ?? []).some((t) => t.loadId !== null) || c.delivered > 0;
+  if (step.id === "haul" && !loaded) return her();
   // A step speaks once (its Say, then Next), then shows its Do until hidden; More opens her tab for the rest.
   if (!seen(`say:${step.id}`)) {
     return say(
@@ -195,7 +209,9 @@ export function Caption(): JSX.Element | null {
       step.mood,
     );
   }
-  if (seen(`hide:${step.id}`)) return null;
+  if (seen(`hide:${step.id}`)) return her(step.mood);
+  const hers = her(step.mood);
+  if (hers) return hers;
   return (
     <div class="caption">
       <Iuliia mood={step.mood} size={64} />
@@ -212,12 +228,29 @@ export function Caption(): JSX.Element | null {
   );
 }
 
+/** Her tab-and-card line where the caption strip isn't (the hub screens, before a company exists). */
+export function IuliiaLine(): JSX.Element | null {
+  useData();
+  const text = iuliiaNow();
+  return text ? (
+    <div class="caption iuliia">
+      <Iuliia mood="point" size={64} />
+      <span class="small">{text}</span>
+    </div>
+  ) : null;
+}
+
 /** The Iuliia tab: her current step in full, and the road ahead. */
 export function IuliiaPanel(): JSX.Element {
   useData();
   return (
     <div class="stack">
       <Walkthrough />
+      <label class="row switchrow">
+        <input type="checkbox" role="switch" checked={iuliiaMuted()} onChange={(e) => setIuliiaMuted((e.currentTarget as HTMLInputElement).checked)} />
+        <span>{CAPTION.quiet}</span>
+      </label>
+      <p class="muted small">{CAPTION.quietNote}</p>
       <div class="row">
         <Btn sm ghost onClick={() => { S.guidePage = "roadmap"; setTab("guide"); }}>The road ahead</Btn>
       </div>

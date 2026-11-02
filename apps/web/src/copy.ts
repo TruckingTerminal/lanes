@@ -106,6 +106,10 @@ export const ARRIVAL = {
 
 /** The board, the load and the round (copy-first-ten-minutes.md, S2–S5). */
 export const BOARD = {
+  /** The board filtered to one poster (Intel's "Their loads on the board"): the chip, its ✕'s accessible name, and none in reach (the writer's strings). */
+  fromPoster: (name: string) => `Posted by ${name}`,
+  showEvery: "Show every load",
+  noneFromPoster: (name: string) => `Nothing from ${name} within reach of this truck. Clear the filter to see every load.`,
   header: (hub: string, n: number, next: string) => `Loads from ${hub} · ${n} · next round ${next}`,
   truck: (n: number, trailer: string) => `Truck ${n} · ${trailer}`,
   line1: (from: string, to: string, miles: string) => `${from} → ${to} · ${miles} mi`,
@@ -257,7 +261,14 @@ export const DISPATCHER = {
 };
 
 /** Iuliia's caption (specs/first-ten-minutes.md, Layout): her line, then the step's Do. */
-export const CAPTION = { next: "Next", hide: "Hide", more: "More" };
+export const CAPTION = {
+  next: "Next",
+  hide: "Hide",
+  more: "More",
+  /** The Iuliia tab's switch: mutes her tab-and-card lines, not the walkthrough's (iuliia-lines.md). Drafts for the writer. */
+  quiet: "Quiet",
+  quietNote: "Mutes her remarks on tabs and cards in this browser. Her walkthrough steps stay.",
+};
 
 /** The Truck tab (copy-first-ten-minutes.md, S6; copy-audit.md's rewrites). */
 export const TRUCK = {
@@ -474,9 +485,6 @@ export const INTEL = {
   facilityKind: { yard: "yard", shop: "repair shop", truckStop: "truck stop", fuelStation: "fuel station", dealership: "dealership", warehouse: "warehouse", coldStorage: "cold storage", factory: "factory" } as Record<string, string>,
   facilityCount: (n: number, kind: string) => `${n} ${kind}`,
   theirLoads: "Their loads on the board ›",
-  /** The board's chip while filtered to one poster; a tap clears it. Draft for the writer. */
-  fromPoster: (name: string) => `Loads from ${name} ✕`,
-  noneFromPoster: (name: string) => `No loads from ${name} within reach of this truck.`,
   milesSeason: "Miles this season",
   milesValue: (miles: string, rank: number, of: number) => `${miles} · #${rank} of ${of.toLocaleString("en-US")}`,
   pastSeasons: "Past seasons",
@@ -536,4 +544,73 @@ export const DEALER = {
   whySupply: "The factory has none left this month.",
   whyYard: "No room in your yard for another trailer.",
   withDeposit: ", counting your deposit",
+};
+
+/**
+ * Iuliia by tab and card (the writer's iuliia-lines.md): one line per screen at a time, on a first visit in a sitting or
+ * a named change there; variants rotate. Keys are `screen:trigger`. Finance's and Intel's own lines live with their blocks.
+ */
+export const IULIIA_SAY: Record<string, readonly string[]> = {
+  // First entry: the hub screen.
+  "hub:ringed": ["A good place to start this month. Read the costs before the character.", "Ringed for a reason: freight leaves here for a new carrier."],
+  "hub:starter": ["You may start here. Whether you should is what the card is for.", "Every city has a character. Look at what it costs to live with it."],
+  "hub:other": ["A fine place to deliver to. For a home, look at the rings."],
+  "hub:board": ["Look, don't touch: these are someone else's loads until you live here.", "Read the ceilings. Those are what shippers pay a stranger."],
+  "hub:all": ["Sorted by today's freight. Today's, not forever's."],
+  "hub:thin": ["Thin this month. My grandmother planted in May anyway; she also had a pension."],
+  // Truck.
+  "fleet:first": ["Your truck. Look at it as an accountant would, then as a mechanic.", "Every truck has a story; the odometer writes it.", "Check where it sleeps tonight. My grandmother checked the doors twice."],
+  "truck:waiting": ["It waits for you. The first load is your call."],
+  "truck:rolling": ["There it goes. I still like watching them leave.", "The slow part begins, which is most of trucking."],
+  "truck:worn": ["The condition bar is a calendar. Plan the rebuild before it plans you."],
+  "truck:shoulder": ["No legal place in reach tonight. Next time, plan the stop before the drive."],
+  "delivered:onTime": ["Delivered. Read the pay line, not only the top number.", "On time. The shipper noticed, even if they'd never say so."],
+  "delivered:late": ["Late once is weather. Twice is a habit.", "Late. The receiver will remember; so will your record."],
+  "needs:first": ["Something needs you. Not urgently, or I'd be louder."],
+  "truck:sendEmpty": ["Empty miles: expensive, but sometimes the only honest road.", "Running empty toward better freight. A calculated retreat.", "I'll pretend I didn't see the fuel bill."],
+  "truck:sendHome": ["Home time. Cheaper than a new driver, every time."],
+  "truck:rebuild": ["Two days in the shop. A planned rebuild is the cheapest repair there is."],
+  "truck:park": ["Parked. A truck that doesn't move still costs; the ledger will remind you."],
+  "dispatcher:on": ["Good. It bids while you sleep; check what it did in the morning.", "Rules on. They behave on Tuesday; audit them on Friday."],
+  "dispatcher:off": ["Off. Every load is yours to bid by hand, then.", "Off. Brave, or tired of its taste. Either way, I'm watching."],
+  "dispatcher:rules": ["The fine print. Set it once, then read what it did."],
+  // Loads.
+  "loads:first": ["The board. Read the ceiling before you fall in love with a rate.", "Nearest first. An empty mile pays nothing.", "Every load here is somebody's emergency. Price it accordingly."],
+  "board:empty": ["Nothing near you this round. Widen the search, or wait for the next."],
+  "load:open": ["Book now if the profit is green. Bid if you're patient.", "The break-even is yours; the ceiling is theirs. Live between them."],
+  "load:blocked": ["Not yours yet. Brokers want a record before they want you."],
+  "load:book": ["Booked. Decisive. I approve, provisionally.", "Yours at the posted price. Now make the appointment.", "Booked. Sometimes the bird in the hand is the whole lunch."],
+  "load:bid": ["Bid in. Now we wait, which is most of this business.", "A fair bid. The round will tell us whether the market agrees.", "Placed. Refreshing the page doesn't help; I've tried."],
+  "load:withdraw": ["Withdrawn. Changing your mind before the round is allowed. After is called a lesson."],
+  "result:won": ["Won. Good price, or good luck? Compare it with what it usually clears near.", "Won. Enjoy it for one minute, then plan the reload."],
+  "result:lost": ["Lost. If they went under your break-even, let them have it.", "Lost by cents. Next round, read \"usually clears near\" first."],
+  "result:nobody": ["Nobody bid. The shipper will raise the rate before you lower yours."],
+  // Money.
+  "money:first": ["The ledger never lies. It only waits for you to read it.", "Cash first, then what's owed, then what you wish were owed.", "Read this page weekly, like an executive, with tea."],
+  "money:invoice": ["Your first invoice. It lands on its due day; plan as if it might not."],
+  "money:red": ["You're below zero. Get loads moving, and read the warning above."],
+  "money:token": ["The token, as it stands. Read it; nothing here is a promise of money."],
+  // More and the panels under it.
+  "more:first": ["The rest of the house. Some rooms are still being painted.", "Help is in here. So am I, which is better."],
+  "iuliia:first": ["My clipboard. Every step on it, ticked or not.", "Read ahead if you like. I won't tell."],
+  "guide:first": ["Every system, every number. I've read it twice; once was for pleasure.", "The handbook. Dry, complete, occasionally right before I am."],
+  "company:first": ["Your record. Brokers read it before they read your rate.", "Reputation is slow to build and quick to spend."],
+  "company:rating": ["Your rating moved. Read what's behind it before the insurer does."],
+  "company:renewed": ["Renewed. The insurer read your record; so should you."],
+  "teaser:closed": ["Not open yet. Patience is also a business skill.", "Coming. Tell us what you'd want; I pass it on."],
+  "rates:first": ["Where freight pays, by trailer. A map of other people's mistakes.", "Strong hubs pay to leave; weak ones pay to arrive."],
+  "economy:first": ["The market's own books. Tolstoy wrote shorter ones."],
+  "logbook:first": ["What your Miles became. I kept the receipts."],
+  "business:first": ["Yards, shops, truck stops. A business is a truck that never leaves."],
+  "backlot:first": ["Someone will want your cargo one day. Lock the gate.", "Rivals have yards too. Mind yours."],
+  // Dealer.
+  "market:first": ["Window shopping is free. Signing is not.", "Every truck here is somebody's dream. Buy yours with arithmetic."],
+  "dealer:buyFirst": ["Yours. The lessor's cut ends today; the wait for your money starts."],
+  "dealer:buyLater": ["Another truck, another driver to find. Growth is a staffing problem."],
+  // Staff.
+  "staff:first": ["People are the dearest line in the ledger, and the only one that can quit.", "Hire slowly. Tolstoy took six years over one book."],
+  "staff:hireDriver": ["Pay decides who comes; home time decides who stays.", "Learn their name. They'll be learning yours."],
+  "staff:hireDispatcher": ["A dispatcher. Now someone else reads the board at three in the morning."],
+  "staff:hireManager": ["A manager. Your fleet just grew a middle, which every fleet needs."],
+  "staff:restless": ["Restless. Home time costs less than a replacement."],
 };

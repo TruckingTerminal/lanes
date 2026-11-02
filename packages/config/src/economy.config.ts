@@ -1652,6 +1652,9 @@ export const economyConfig = {
   // A hub reads its open dry-van loads whose ceiling clears a starter's break-even by `margin`, per round of its base van freight.
   ui: {
     season: { margin: 0.25, thinUnder: 0.15, fineFrom: 1.5, busyFrom: 4.5 },
+    // Iuliia by tab and card (the writer's iuliia-lines.md): never two of her lines within this many real seconds, and each
+    // shows this long before the walkthrough's Do line returns. Screens only: no rule reads it.
+    iuliia: { quietSeconds: 60, showSeconds: 6 },
   },
 } as const;
 

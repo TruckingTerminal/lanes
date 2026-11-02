@@ -12,6 +12,7 @@ export function Btn({
   on,
   disabled,
   title,
+  label,
   onClick,
   icon,
   type,
@@ -25,6 +26,8 @@ export function Btn({
   on?: boolean;
   disabled?: boolean;
   title?: string;
+  /** The accessible name, when the visible text alone isn't it (a ✕). */
+  label?: string;
   onClick?: (ev: MouseEvent) => void;
   icon?: string;
   type?: "button" | "submit";
@@ -32,7 +35,7 @@ export function Btn({
   class?: string;
 }): JSX.Element {
   return (
-    <button type={type ?? "button"} class={cls("btn", primary && "primary", danger && "danger", ghost && "ghost", sm && "sm", on && "on", extra)} disabled={disabled} title={title} aria-pressed={on} onClick={onClick}>
+    <button type={type ?? "button"} class={cls("btn", primary && "primary", danger && "danger", ghost && "ghost", sm && "sm", on && "on", extra)} disabled={disabled} title={title} aria-label={label} aria-pressed={on} onClick={onClick}>
       {icon ? <img class="px" src={iconUrl(icon, 2)} alt="" /> : null}
       {children}
     </button>

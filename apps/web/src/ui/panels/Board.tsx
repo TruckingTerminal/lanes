@@ -9,6 +9,7 @@ import { nextRoundHour, nextRoundLabel, nextRoundWait, reloadLabel, roundProgres
 import { bumpData, isPhone, me, myTrucks, openIntel, order, S, selectTruck, setOnboard, setTab, toast, truckNo, useData } from "../../state.js";
 import { deliveryEtaMin } from "../../rolling.js";
 import { tabOpen } from "../../tabs.js";
+import { iuliiaFirst, iuliiaOnChange, iuliiaSay } from "../../iuliia.js";
 import { Btn, Card, Kv } from "../bits.js";
 import { LoadsTable } from "./Loads.js";
 
@@ -64,6 +65,9 @@ export function Loads(): JSX.Element {
     );
   }
   const rows = boardRows(w, c, truck, { dest, maxDh, query, poster: S.boardPoster });
+  // After the render, not in it: her line bumps the data, and the board has early returns before any hook could go here.
+  const empty = rows.length === 0;
+  queueMicrotask(() => iuliiaOnChange(`board:${truck.id}`, empty, empty ? "board:empty" : null));
   const posterName = S.boardPoster ? w.companies[S.boardPoster - 1]?.name ?? "" : null;
   const open = S.openLoad !== null ? rows.find((r) => r.l.id === S.openLoad) : undefined;
   if (open) return <LoadSheet r={open} truck={truck} />;
@@ -88,21 +92,8 @@ export function Loads(): JSX.Element {
           </select>
         ) : null}
       </div>
-      {posterName !== null ? (
-        <div class="row">
-          <Btn
-            sm
-            on
-            onClick={() => {
-              S.boardPoster = null;
-              bumpData();
-            }}
-          >
-            {INTEL.fromPoster(posterName)}
-          </Btn>
-        </div>
-      ) : null}
-      {posterName !== null && !rows.length ? <p class="muted small">{INTEL.noneFromPoster(posterName)}</p> : null}
+      {posterName !== null ? <PosterChip name={posterName} /> : null}
+      {posterName !== null && !rows.length ? <p class="muted small">{BOARD.noneFromPoster(posterName)}</p> : null}
       <div class="row">
         <div class="seg" role="group" aria-label="Sort">
           {(["nearest", "pay", "deliver"] as const).map((k) => (
@@ -246,7 +237,10 @@ function PinnedBid({ r, rate, truck }: { r: BoardRow; rate: number; truck: Truck
 
 async function withdraw(truck: Truck): Promise<void> {
   const r = await order({ type: "cancel_bid", truckId: truck.id }, ROUND.toastWithdrawn);
-  if (r.ok) toast(ROUND.toastWithdrawn);
+  if (r.ok) {
+    toast(ROUND.toastWithdrawn);
+    iuliiaSay("load:withdraw");
+  }
   else toast(r.reason, true);
 }
 
@@ -304,6 +298,8 @@ function LoadSheet({ r, truck }: { r: BoardRow; truck: Truck }): JSX.Element {
   const bidHere = mine?.loadId === l.id;
   const [bid, setBid] = useState(Math.min(hi, Math.max(lo, bidHere ? mine!.rate : r.suggest)));
   const [note, setNote] = useState<{ text: string; bad: boolean } | null>(null);
+  // Iuliia on the sheet's first opening in a sitting: a blocked load has its own line (iuliia-lines.md, Loads).
+  useEffect(() => iuliiaFirst(r.block ? "load:blocked" : "load:open", r.block ? "screen:loadBlocked" : "screen:load"), []);
   const k = COMMODITIES[l.commodity]!;
   const poster = l.brokerId !== null ? w.companies[l.brokerId - 1] : l.shipperId !== null ? w.companies[l.shipperId - 1] : null;
   const bidProfit = (bid - r.be) * l.miles;
@@ -316,6 +312,7 @@ function LoadSheet({ r, truck }: { r: BoardRow; truck: Truck }): JSX.Element {
     S.handLoads.add(l.id);
     const res = await order({ type: "book_load", truckId: truck.id, loadId: l.id }, ROUND.toastBooked);
     if (!res.ok) return setNote({ text: res.reason, bad: true });
+    iuliiaSay("load:book");
     sent(res.at);
     toast(res.at === null ? ROUND.toastBooked : ROUND.booked(w.net.places[l.originPlace]!.name, w.net.places[l.destPlace]!.name, fdFull(r.total)));
     S.openLoad = null;
@@ -325,6 +322,7 @@ function LoadSheet({ r, truck }: { r: BoardRow; truck: Truck }): JSX.Element {
   const placeBid = async () => {
     const res = await order({ type: "place_bid", truckId: truck.id, loadId: l.id, rate: bid }, ROUND.toastBid(bid.toFixed(2), nextRoundHour()));
     if (!res.ok) return setNote({ text: res.reason, bad: true });
+    iuliiaSay("load:bid");
     S.handBids.set(l.id, { rate: bid, be: r.be, from: w.net.places[l.originPlace]!.name, to: w.net.places[l.destPlace]!.name });
     S.handLoads.add(l.id);
     S.result = null;
@@ -430,23 +428,31 @@ function PosterLoads({ poster }: { poster: number }): JSX.Element {
   const place = (i: number) => w.net.places[i]!.name;
   return (
     <div class="stack">
-      <div class="row">
-        <Btn
-          sm
-          on
-          onClick={() => {
-            S.boardPoster = null;
-            bumpData();
-          }}
-        >
-          {INTEL.fromPoster(name)}
-        </Btn>
-      </div>
+      <PosterChip name={name} />
       {loads.map((l) => (
         <p key={l.id} class="small">
           {BOARD.line1(place(l.originPlace), place(l.destPlace), Math.round(l.miles).toLocaleString("en-US"))} · {l.bookNow.toFixed(2)}/mi
         </p>
       ))}
+    </div>
+  );
+}
+
+/** The board's filter to one poster: "Posted by {name}" and a ✕ that shows every load again. */
+function PosterChip({ name }: { name: string }): JSX.Element {
+  return (
+    <div class="row">
+      <span class="chip">{BOARD.fromPoster(name)}</span>
+      <Btn
+        sm
+        label={BOARD.showEvery}
+        onClick={() => {
+          S.boardPoster = null;
+          bumpData();
+        }}
+      >
+        ✕
+      </Btn>
     </div>
   );
 }

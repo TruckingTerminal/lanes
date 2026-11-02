@@ -219,10 +219,12 @@ function Buy({ what, label, price, replacing, block, action, ok }: { what: strin
   const cashWhy = block ?? (p.cashOk ? null : DEALER.whyCash(fd(p.have), fd(p.cashNeed), dep));
   const loanWhy = !p.loan ? null : block ?? (p.loan.why === "full" ? DEALER.whyLoans(purchaseTerms(w, c).maxLoans) : p.loan.why === "short" ? DEALER.whyLoan(fd(p.loan.cashNeed), fd(p.have), dep) : null);
   const ef = w.cfg.equipmentFinance.purchase;
+  // Iuliia's line for the purchase: the first truck of its own, or one more (iuliia-lines.md, Dealer).
+  const said = myTrucks().some((t) => t.lease === "owned") || ordersOf(w, c.id).length ? "dealer:buyLater" : "dealer:buyFirst";
   return (
     <div class="stack buy">
       <div class="row">
-        <Btn primary disabled={cashWhy !== null} onClick={() => act(action, ok)}>
+        <Btn primary disabled={cashWhy !== null} onClick={() => act(action, ok, said)}>
           {label ?? what} · {fd(price)}
         </Btn>
         {p.loan && !block ? (
@@ -248,7 +250,7 @@ function Buy({ what, label, price, replacing, block, action, ok }: { what: strin
           />
           <p class="warn small">{DEALER.missed(ef.missedToDefault)}</p>
           <div class="row">
-            <Btn primary disabled={loanWhy !== null} onClick={() => (act({ ...action, finance: true }, ok), setOpen(false))}>
+            <Btn primary disabled={loanWhy !== null} onClick={() => (act({ ...action, finance: true }, ok, said), setOpen(false))}>
               {DEALER.buyLoan(fd(p.loan.cashNeed))}
             </Btn>
             <Btn ghost onClick={() => setOpen(false)}>

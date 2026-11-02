@@ -4,6 +4,7 @@ import { cls, fd, fdFull, shortDate, usd } from "../../format.js";
 import { MONEY } from "../../copy.js";
 import { invoices, milesOf, weekCosts } from "../../ledger.js";
 import { FinanceLinks } from "./Finance.js";
+import { iuliiaFirst } from "../../iuliia.js";
 import { GAME_CONFIG } from "../../game.js";
 import { act, feed, me, S, useData } from "../../state.js";
 import { Btn, Card, Kv, Num, Panel, Sparkline } from "../bits.js";
@@ -160,7 +161,7 @@ export function Money(): JSX.Element {
         <p>{MONEY.miles(fdFull(milesOf(c)))}</p>
       </Card>
       <details class="fold">
-        <summary>{MONEY.token}</summary>
+        <summary onClick={() => iuliiaFirst("money:token")}>{MONEY.token}</summary>
         {token}
       </details>
     </Panel>

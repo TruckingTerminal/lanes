@@ -1,15 +1,16 @@
 import type { JSX } from "preact";
-import { useState } from "preact/hooks";
+import { useEffect, useState } from "preact/hooks";
 import { hubs as HUBS } from "@lanes/data";
 import { defaultName, FIRST_ENTRY, HUB_CARD, INTEL, NAMING } from "../copy.js";
 import { cls, fd } from "../format.js";
 import { FLEET_START_EXTRA_FD, GAME_CONFIG, type StartKind } from "../game.js";
 import { H } from "../handlers.js";
 import { clearsNear } from "../board.js";
-import { hubFacts, rankStarters } from "../hubcard.js";
+import { hubFacts, rankStarters, seasonReading } from "../hubcard.js";
+import { iuliiaFirst } from "../iuliia.js";
 import { bumpData, openIntel, S, TEST_BUILD, useData, type EntryStage } from "../state.js";
 import { Btn, Card } from "./bits.js";
-import { Iuliia } from "./Walkthrough.js";
+import { Iuliia, IuliiaLine } from "./Walkthrough.js";
 import { Portrait } from "./Loop.js";
 
 /**
@@ -60,10 +61,11 @@ export function ChooseHub(): JSX.Element {
     );
   }
   if (stage === "home") return <Home />;
-  if (stage === "all") return <AllHubs />;
+  // Her line for these screens sits above them: the caption strip has nothing to say before a company exists.
+  if (stage === "all") return <><IuliiaLine /><AllHubs /></>;
   if (hub === null) return <Home />;
-  if (stage === "card") return <HubCard hub={hub} />;
-  if (stage === "board") return <ReadOnlyBoard hub={hub} />;
+  if (stage === "card") return <><IuliiaLine /><HubCard hub={hub} /></>;
+  if (stage === "board") return <><IuliiaLine /><ReadOnlyBoard hub={hub} /></>;
   return <Naming hub={hub} />;
 }
 
@@ -110,6 +112,7 @@ function Home(): JSX.Element {
 
 function AllHubs(): JSX.Element {
   const w = S.game!.w;
+  useEffect(() => iuliiaFirst("hub:all"), []);
   // The starters first, in the rings' order, then every other city busiest first.
   const rings = ringedHubs();
   const starters = [...rings, ...rankStarters(w).filter((i) => !rings.includes(i))];
@@ -136,6 +139,11 @@ function HubCard({ hub }: { hub: number }): JSX.Element {
   const w = S.game!.w;
   const f = hubFacts(w, hub);
   const starter = isStarter(w.net.hubs[hub]!.id);
+  // Iuliia on a card's first opening (iuliia-lines.md, first entry): a thin month first, else ringed, starter or neither.
+  useEffect(() => {
+    const thin = seasonReading(w, hub) < w.cfg.ui.season.thinUnder;
+    iuliiaFirst(thin ? "hub:thin" : ringedHubs().includes(hub) ? "hub:ringed" : starter ? "hub:starter" : "hub:other", `hub:${hub}`);
+  }, [hub]);
   const group = (title: string, lines: string[]) => (
     <Card title={title}>
       {lines.map((l) => (
@@ -179,6 +187,7 @@ function HubCard({ hub }: { hub: number }): JSX.Element {
 /** The hub's board as S2 will show it, read-only: no profit, no Book or Bid until there's a company to bid with. */
 function ReadOnlyBoard({ hub }: { hub: number }): JSX.Element {
   const w = S.game!.w;
+  useEffect(() => iuliiaFirst("hub:board", `hubBoard:${hub}`), [hub]);
   const name = (i: number) => w.net.hubs[i]!.name;
   const loads = [...w.loads.values()].filter((l) => l.status === "open" && l.equipment === "van" && l.origin === hub).sort((a, b) => b.bookNow - a.bookNow);
   return (

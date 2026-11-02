@@ -1,14 +1,16 @@
 import { render } from "preact";
-import { companyAccount, crewed, resting, type GameEvent } from "@lanes/engine";
+import { companyAccount, condition, crewed, resting, type GameEvent } from "@lanes/engine";
 import { installTheme } from "./art.js";
 import { truckSheet, whenAssetsReady } from "./assets.js";
 import { fd, fdFull, hhmm, realUntil, shortDate } from "./format.js";
 import { FEED, ROUND } from "./copy.js";
+import { iuliiaOnChange, iuliiaSay } from "./iuliia.js";
 import { DEFAULT_ORDERS, RULESET, TestGame, type StartKind } from "./game.js";
 import { H } from "./handlers.js";
 import { createMeta, LiveWorld, readMeta, type DbLike, type WorldMeta } from "./live.js";
-import { checkAttention, checkIdleAlerts, setDefaultOrders } from "./logic.js";
-import { payLine, type TruckBefore } from "./rolling.js";
+import { checkAttention, checkIdleAlerts, needs, setDefaultOrders } from "./logic.js";
+import { invoices } from "./ledger.js";
+import { nightStop, payLine, type TruckBefore } from "./rolling.js";
 import { sampleStarters } from "./hubcard.js";
 import { drawMap, fitMap, flyTo, resetArt, setZoom, zoomIndex } from "./mapview.js";
 import { MemoryDb } from "./memdb.js";
@@ -98,6 +100,7 @@ function onEvent(s: Session, e: GameEvent): void {
       S.handBids.delete(e.loadId);
       const load = w.loads.get(e.loadId);
       const winning = e.kind === "won" ? e.rate : e.winningRate;
+      iuliiaSay(e.kind === "won" ? "result:won" : e.winningRate === null ? "result:nobody" : "result:lost");
       S.result = { won: e.kind === "won", from: ends(e.loadId, e.origin, e.dest)[0], to: ends(e.loadId, e.origin, e.dest)[1], rate: e.kind === "won" ? e.rate : mine.rate, winning, be: mine.be, total: e.kind === "won" && load ? e.rate * load.miles : 0, seen: false, winnerId: e.kind === "lostBid" && load && load.carrierId ? load.carrierId : undefined };
     }
   }
@@ -126,6 +129,7 @@ function onEvent(s: Session, e: GameEvent): void {
       const driver = truck.driverId ? w.staff[truck.driverId - 1] : undefined;
       S.delivered = { from: ends(e.loadId, e.origin, e.dest)[0], to: ends(e.loadId, e.origin, e.dest)[1], lateH: Math.max(0, Math.ceil((w.t - load.dueT) / 60)), line, dueDay: due && due.dueDay > Math.floor(w.t / 1440) ? due.dueDay : null, hiredDriver: driver && !driver.owner ? driver.name : null };
       S.moneyDot = true;
+      iuliiaSay(e.onTime ? "delivered:onTime" : "delivered:late");
     }
   }
   if (e.kind === "lostBid") push(s, FEED.lost(...ends(e.loadId, e.origin, e.dest), e.rate.toFixed(2), e.winningRate !== null ? e.winningRate.toFixed(2) : null), "warn");
@@ -441,9 +445,34 @@ function observe(s: Session): void {
       if (load && load.status === "open") continue;
       S.handBids.delete(loadId);
       if (load && load.carrierId === s.player.id) continue; // ours after all: the won event has said so
+      iuliiaSay(load ? "result:lost" : "result:nobody");
       S.result = { won: false, from: hb.from ?? "", to: hb.to ?? "", rate: hb.rate, winning: load ? load.clearedRate : null, be: hb.be, total: 0, seen: false, winnerId: load?.carrierId ?? undefined };
       bumpData();
     }
+  }
+  // Iuliia on named changes (iuliia-lines.md): a truck rolling or waiting for its first load, wear past the rebuild line,
+  // a shoulder night on a load of the player's own, the first thing waiting, cash below zero, the first invoice on an owned
+  // truck, the safety rating moving, the policy renewing, a driver turning restless. The first look only sets a baseline.
+  if (s === S.game && s.player) {
+    const c = s.player;
+    for (const t of w.trucksByCompany.get(c.id) ?? []) {
+      iuliiaOnChange(`truck:${t.id}`, t.status, t.status === "loaded" ? "truck:rolling" : t.status === "idle" && c.firstHandBidDay === null ? "truck:waiting" : null);
+      const worn = t.lease === "owned" && condition(w.cfg, t) < w.cfg.wear.rebuildMaxCondition;
+      iuliiaOnChange(`worn:${t.id}`, worn, worn ? "truck:worn" : null);
+      const shoulder = t.status === "loaded" && t.loadId !== null && S.handLoads.has(t.loadId) && nightStop(w, t, c)?.kind === "shoulder";
+      iuliiaOnChange(`shoulder:${t.id}`, shoulder, shoulder ? "truck:shoulder" : null);
+    }
+    const waitingNow = needs().length > 0;
+    iuliiaOnChange("needs", waitingNow, waitingNow ? "needs:first" : null);
+    const red = w.ledger.balance(companyAccount(c.id)) < 0;
+    iuliiaOnChange("cash", red, red ? "money:red" : null);
+    const invoiced = invoices(w, c).length > 0 && (w.trucksByCompany.get(c.id) ?? []).some((t) => t.lease === "owned");
+    iuliiaOnChange("invoice", invoiced, invoiced ? "money:invoice" : null);
+    iuliiaOnChange("rating", c.safety.rating, "company:rating");
+    iuliiaOnChange("policy", c.insurance.signedDay, "company:renewed");
+    // Restless: below the morale where the engine's quit odds start to rise (labor.morale: base + slope × (0.5 − morale)).
+    const restless = (w.staffByCompany.get(c.id) ?? []).some((p) => !p.owner && p.status === "employed" && p.morale < 0.5);
+    iuliiaOnChange("restless", restless, restless ? "staff:restless" : null);
   }
   const crossed = Math.floor(w.t / 1440) !== Math.floor(f.lastT / 1440);
   f.lastT = w.t;

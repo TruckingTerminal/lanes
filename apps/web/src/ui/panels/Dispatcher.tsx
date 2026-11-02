@@ -5,6 +5,7 @@ import { DEFAULT_ORDERS } from "../../game.js";
 import { act, me, S, useData } from "../../state.js";
 import { Btn, Card, Label } from "../bits.js";
 import { Iuliia } from "../Walkthrough.js";
+import { iuliiaFirst } from "../../iuliia.js";
 
 const num = (id: string): number => Number((document.getElementById(id) as HTMLInputElement | null)?.value);
 const checked = (id: string): boolean => Boolean((document.getElementById(id) as HTMLInputElement | null)?.checked);
@@ -46,10 +47,13 @@ export function DispatcherCard(): JSX.Element {
     list.push({ kind: "homeTime", afterDays: Math.min(365, Math.max(1, Math.round(num("o-home-after")) || 21)), restDays: hm?.restDays ?? def("homeTime")?.restDays ?? 5 });
     return list;
   };
-  const save = (bidding: boolean) => act({ type: "set_standing_orders", orders: orders(bidding) }, DISPATCHER.saved);
+  const save = (bidding: boolean, said?: string) => act({ type: "set_standing_orders", orders: orders(bidding) }, DISPATCHER.saved, said);
   const switchRow = (
     <label class="row switchrow">
-      <input type="checkbox" role="switch" checked={on} disabled={waiting} onChange={(e) => save((e.currentTarget as HTMLInputElement).checked)} />
+      <input type="checkbox" role="switch" checked={on} disabled={waiting} onChange={(e) => {
+          const on = (e.currentTarget as HTMLInputElement).checked;
+          save(on, on ? "dispatcher:on" : "dispatcher:off");
+        }} />
       <span>{DISPATCHER.switchLabel}</span>
     </label>
   );
@@ -83,7 +87,7 @@ export function DispatcherCard(): JSX.Element {
         <span class="muted">days</span>
       </div>
       <details class="fold">
-        <summary>{DISPATCHER.moreRules}</summary>
+        <summary onClick={() => iuliiaFirst("dispatcher:rules")}>{DISPATCHER.moreRules}</summary>
         <div class="row">
           <Label for="o-floor">{DISPATCHER.floor}</Label>
           <input type="number" id="o-floor" min="0" max="50" defaultValue={String(Math.round((floor?.breakEvenPlusPct ?? 0.05) * 100))} />

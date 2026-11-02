@@ -77,6 +77,8 @@ export const S = {
   /** Intel (specs/intel-ux.md): the open card, where it was opened from, and the list's filters and sort. */
   /** The board filtered to one poster's loads (Intel's "Their loads on the board"), until cleared. */
   boardPoster: null as number | null,
+  /** Iuliia's tab-and-card line waiting for, or in, the caption strip (iuliia.ts). */
+  iuliiaLine: null as null | { text: string; shownAt: number | null },
   intel: { card: null as number | null, back: null as Tab | null, q: "", myHub: false, hub: null as string | null, players: false, brokers: false, sort: "miles" as "miles" | "trucks" | "month", shown: 50 },
   homeNow: new Set<number>(),
   /** The last delivery, shown on the Truck tab until OK (S7); Money keeps a dot until it's opened. */
@@ -422,13 +424,22 @@ export function describe(a: LiveAction): string {
  * Gives an order. In a test world it happens at once; in the live world it's sent
  * to everyone and takes effect half a minute later, at the same moment on every page.
  */
-export function act(a: Action, ok: string): void {
+/** Iuliia's line for an order that went through (iuliia.ts sets it; a hook, so state.ts needn't import her). */
+let saidHook: (key: string) => void = () => {};
+export function setSaidHook(f: (key: string) => void): void {
+  saidHook = f;
+}
+
+/** Gives an order with a toast; `said` is Iuliia's line for it, spoken only when it goes through (never on a refusal). */
+export function act(a: Action, ok: string, said?: string): void {
   const g = S.game!;
   if (g.kind === "test") {
     const r = g.act(a);
     persistTest(true);
-    if (r.ok) toast(ok);
-    else toast(r.reason.charAt(0).toUpperCase() + r.reason.slice(1), true);
+    if (r.ok) {
+      toast(ok);
+      if (said) saidHook(said);
+    } else toast(r.reason.charAt(0).toUpperCase() + r.reason.slice(1), true);
     bumpData();
     return;
   }
@@ -440,6 +451,7 @@ export function act(a: Action, ok: string): void {
     (r) => {
       S.okText.set(r.s, ok);
       toast(`Sent: ${describe(a)}. In effect at ${hhmm(r.at)} (${realUntil(g.msUntil(r.at))}).`);
+      if (said) saidHook(said);
       bumpData();
     },
     (e: unknown) => toast(`Couldn't send that order: ${(e as { message?: string })?.message ?? "the store refused it"}`, true),

@@ -90,7 +90,7 @@ function TiredAlerts(): JSX.Element {
               <p class="muted">Heading home for days off.</p>
             ) : t.status === "idle" ? (
               <div class="row">
-                <Btn primary onClick={() => act({ type: "send_home", truckId: t.id }, "Heading home for days off")}>
+                <Btn primary onClick={() => act({ type: "send_home", truckId: t.id }, "Heading home for days off", "truck:sendHome")}>
                   {TRUCK.sendHome(home)}
                 </Btn>
               </div>
@@ -186,7 +186,7 @@ function TruckCard({ t, idx }: { t: Truck; idx: number }): JSX.Element {
             <Btn
               onClick={() => {
                 const hubId = (document.getElementById(`send-${t.id}`) as HTMLSelectElement).value;
-                act({ type: "reposition_truck", truckId: t.id, hubId }, TRUCK.sentEmpty);
+                act({ type: "reposition_truck", truckId: t.id, hubId }, TRUCK.sentEmpty, "truck:sendEmpty");
               }}
             >
               Send empty
@@ -194,9 +194,9 @@ function TruckCard({ t, idx }: { t: Truck; idx: number }): JSX.Element {
           </>
         ) : null}
         {mine && t.status === "idle" && cond <= w.cfg.wear.rebuildMaxCondition && rebuildable(w.cfg, t) ? (
-          <Btn onClick={() => act({ type: "rebuild_truck", truckId: t.id }, "Truck is in the shop for two days")}>Rebuild · {fd(rebuildCost(w.cfg, t))} FD</Btn>
+          <Btn onClick={() => act({ type: "rebuild_truck", truckId: t.id }, "Truck is in the shop for two days", "truck:rebuild")}>Rebuild · {fd(rebuildCost(w.cfg, t))} FD</Btn>
         ) : null}
-        {mine && t.status === "idle" ? <Btn onClick={() => act({ type: "park_truck", truckId: t.id }, "Truck parked")}>Park</Btn> : null}
+        {mine && t.status === "idle" ? <Btn onClick={() => act({ type: "park_truck", truckId: t.id }, "Truck parked", "truck:park")}>Park</Btn> : null}
         {t.status === "parked" ? <Btn onClick={() => act({ type: "unpark_truck", truckId: t.id }, "Truck back on the road")}>Back on the road</Btn> : null}
         {mine && (t.status === "idle" || t.status === "parked") && myTrucks().length > 1 ? (
           <Btn
@@ -224,7 +224,7 @@ function TruckCard({ t, idx }: { t: Truck; idx: number }): JSX.Element {
           </>
         ) : null}
         {t.status === "idle" && crewed(t) && !resting(w, t) && hubMiles(w, c.homeHub, t.hub) > w.cfg.map.nearbyRadiusMi ? (
-          <Btn onClick={() => act({ type: "send_home", truckId: t.id }, "Heading home for days off")}>{TRUCK.sendHome(hubMiles(w, c.homeHub, t.hub))}</Btn>
+          <Btn onClick={() => act({ type: "send_home", truckId: t.id }, "Heading home for days off", "truck:sendHome")}>{TRUCK.sendHome(hubMiles(w, c.homeHub, t.hub))}</Btn>
         ) : null}
       </div>
     </Card>

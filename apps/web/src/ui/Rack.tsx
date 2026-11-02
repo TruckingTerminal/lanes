@@ -1,4 +1,6 @@
 import type { JSX } from "preact";
+import { useEffect } from "preact/hooks";
+import { iuliiaFirst } from "../iuliia.js";
 import { hhmm, realUntil } from "../format.js";
 import { H } from "../handlers.js";
 import { isPhone, S, setTab, useData } from "../state.js";
@@ -95,6 +97,13 @@ export function RackBody(): JSX.Element {
   const tab = S.tab;
   const watching = !g.player && !WATCHABLE.includes(tab);
   const under = navOf(tab) === "more" && tab !== "more";
+  const open = tabOpen(tab, g.w, g.player);
+  // Iuliia on a screen's first visit in a sitting (iuliia-lines.md): its own line, or the closed-teaser line.
+  useEffect(() => {
+    if (watching || !g.player) return;
+    if (open) iuliiaFirst(`${tab}:first`, `tab:${tab}`);
+    else iuliiaFirst("teaser:closed", `teaser:${tab}`);
+  }, [tab, open, watching]);
   return (
     <>
       <TeaserRow />
@@ -108,7 +117,7 @@ export function RackBody(): JSX.Element {
             </Btn>
           </div>
         ) : null}
-        {watching ? choosing() ? <ChooseHub /> : <WatchPanel /> : tabOpen(tab, g.w, g.player) ? PANELS[tab]() : <TeaserCard id={tab} />}
+        {watching ? choosing() ? <ChooseHub /> : <WatchPanel /> : open ? PANELS[tab]() : <TeaserCard id={tab} />}
       </div>
     </>
   );

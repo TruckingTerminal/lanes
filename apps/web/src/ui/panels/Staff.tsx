@@ -76,7 +76,7 @@ export function Staff(): JSX.Element {
   };
   const hire = (s: StaffT, pay: number, kind: "hire" | "poach") => {
     const v = sel(`${kind}-${s.id}`);
-    act({ type: "offer_staff", staffId: s.id, pay, truckId: v ? Number(v) : undefined }, kind === "hire" ? "Hired" : "Offer made: their employer has two days to match");
+    act({ type: "offer_staff", staffId: s.id, pay, truckId: v ? Number(v) : undefined }, kind === "hire" ? "Hired" : "Offer made: their employer has two days to match", kind === "hire" ? (s.kind === "driver" ? "staff:hireDriver" : s.kind === "dispatcher" ? "staff:hireDispatcher" : "staff:hireManager") : undefined);
   };
 
   const PersonCard = ({ s }: { s: StaffT }) => {
