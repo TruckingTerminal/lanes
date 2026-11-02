@@ -152,6 +152,22 @@ driverloops() {
   wait
   for ws in $seeds; do python3 apps/web/tools/pack-loop.py $d/driver-${ws%%:*}-loop $d/driver-${ws%%:*}.loop.png --cols 16; done
 }
+# The three tractor makes (Jeff, 2026-11-02): Keystone the workhorse, Meridian the economical highway truck, Ironwood the
+# premium driver's favourite. tools/makes.py models each in feet and renders its Dealer card's layout; a Pro edit
+# repaints each layout as painterly pixel art, told in words what the make is (an image reference instead copied the
+# reference or put stacks on the Meridian); makes.py then fits the paint to the rig cards' colours and renders the
+# map sheets from the same models. The edits take no seed back; the shipped ones reported 1744236630 (Keystone),
+# 18164897 (Meridian) and 1259596957 (Ironwood), kept as assets/makes/src/*-paint.png.
+MAKE="repaint as highly detailed HD pixel art with painterly shading, a crisp dark outline and warm late light, keeping the truck's shape, size and position exactly"
+makes() {
+  local s=apps/web/assets/makes/src
+  python3 apps/web/tools/makes.py layouts
+  "${P[@]}" edit $s/keystone-layout.png "$MAKE: a plain square workhorse American semi tractor in cyan paint with a medium flat hood, a grey grille with horizontal bars, a grey steel bumper, a flat-roof sleeper no taller than the cab, one grey exhaust stack, aluminium fuel tanks, grey steel wheels, no text, no logos" $s/keystone-paint.png --transparent &
+  "${P[@]}" edit $s/meridian-layout.png "$MAKE: a modern aerodynamic American semi tractor in cyan paint with a sloped short hood, a wide black mesh grille, a raked windshield with no sun visor, a tall smooth roof fairing, cyan side skirts covering the fuel tanks and steps all the way between the wheels, no exhaust stacks, almost no chrome, no text, no logos" $s/meridian-paint.png --transparent &
+  "${P[@]}" edit $s/ironwood-layout.png "$MAKE: a classic long-nose American semi tractor in cyan paint with a long square hood, a tall upright chrome grille with vertical bars, round chrome air cleaners beside the cowl, a chrome sun visor with amber lamps over an upright split windshield, a tall square sleeper, twin tall chrome exhaust stacks behind the sleeper, chrome fuel tanks, a big chrome bumper, no text, no logos" $s/ironwood-paint.png --transparent &
+  wait
+  python3 apps/web/tools/makes.py fit map
+}
 loading() {
   mkdir -p apps/web/assets/loading
   "${P[@]}" pro "$HD: side view of $TRUCK in cyan paint pulling a white 53-foot dry van trailer, driving to the right along a straight two-lane highway at dusk, the road and the flat desert horizon running seamlessly to both edges of the frame, telephone poles, a saturated orange and purple sky" 256 72 apps/web/assets/loading/rig.png --style apps/web/assets/title/title.png
@@ -258,6 +274,7 @@ case "$want" in
   peopleloops) peopleloops ;;
   drivers) drivers ;;
   driverloops) driverloops ;;
+  makes) makes ;;
   loading) loading ;;
   placespro) placespro ;;
   placesloops) placesloops ;;

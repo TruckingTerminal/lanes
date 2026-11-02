@@ -66,6 +66,22 @@ def cyl(axis, c0, c1, r, lo, hi, mat):
     return ("cyl", (axis, c0, c1, r, lo, hi), mat, 0.0)
 
 
+def block(x0, x1, y0, y1, z0, z1, mat, cuts=(), inside=None):
+    """A box with corners cut off: each cut is (plane, a0, b0, a1, b1), the line from (a0, b0) to (a1, b1) in that plane
+    ("xz", "yz" or "xy") run along the third axis, and the side away from `inside` (the box's middle unless given) goes."""
+    planes = [(-1, 0, 0, -x0), (1, 0, 0, x1), (0, -1, 0, -y0), (0, 1, 0, y1), (0, 0, -1, -z0), (0, 0, 1, z1)]
+    c = inside or ((x0 + x1) / 2, (y0 + y1) / 2, (z0 + z1) / 2)
+    for ax, a0, b0, a1, b1 in cuts:
+        i, j = "xyz".index(ax[0]), "xyz".index(ax[1])
+        n = [0.0, 0.0, 0.0]
+        n[i], n[j] = -(b1 - b0), a1 - a0
+        dd = n[i] * a0 + n[j] * b0
+        if n[0] * c[0] + n[1] * c[1] + n[2] * c[2] > dd:
+            n, dd = [-v for v in n], -dd
+        planes.append((*n, dd))
+    return ("poly", tuple(planes), mat, 0.0)
+
+
 def wheel(x, y0, y1, r=1.8):
     # The tyre, and the rim's face on the outside.
     out = y1 if abs(y1) > abs(y0) else y0
@@ -82,6 +98,8 @@ def stretched(pr):
     kind, g, mat, seams = pr
     if kind == "box":
         return (kind, (g[0] * LONG, g[1] * LONG, *g[2:]), mat, seams)
+    if kind == "poly":
+        return scaled(pr, LONG, 1.0)
     axis, c0, c1, r, lo, hi = g
     if axis == "x":
         return (kind, (axis, c0, c1, r, lo * LONG, hi * LONG), mat, seams)
@@ -119,8 +137,15 @@ def _tractor() -> list:
     return p
 
 
-def trailer(kind: str) -> list:
-    x0, x1 = 20.8 * LONG, L  # its nose four feet behind the sleeper, over the drive axles
+def scaled(pr, sx, sy):
+    """A block drawn sx times as long and sy times as wide (its planes' normals scale the other way)."""
+    kind, planes, mat, seams = pr
+    return (kind, tuple((nx / sx, ny / sy, nz, dd) for nx, ny, nz, dd in planes), mat, seams)
+
+
+def trailer(kind: str, nose: float = 20.8) -> list:
+    x0 = nose * LONG  # its nose four feet behind the sleeper, over the drive axles
+    x1 = x0 + 51.7
     p = [
         box(x0, x1, -1.5, 1.5, 3.6, 4.3, "dark"),  # rails
         box(x0 + 9.5, x0 + 10.3, 2.7, 3.4, 0.6, 4.3, "dark"),  # landing gear
@@ -186,6 +211,26 @@ def hits(prim, o, d):
         sgn = -np.sign(d[np.arange(n), ax])
         nrm[np.arange(n), ax] = sgn
         return t, nrm
+    if kind == "poly":
+        tn = np.full(n, -np.inf)
+        tf = np.full(n, np.inf)
+        miss = np.zeros(n, bool)
+        for nx, ny, nz, dd in g:
+            pn = np.array([nx, ny, nz], float)
+            den = d @ pn
+            num = dd - o @ pn
+            with np.errstate(divide="ignore", invalid="ignore"):
+                tq = num / den
+            enter = den < -1e-12
+            leave = den > 1e-12
+            later = enter & (tq > tn)
+            tn[later] = tq[later]
+            nrm[later] = pn / np.linalg.norm(pn)
+            tf[leave] = np.minimum(tf[leave], tq[leave])
+            miss |= ~enter & ~leave & (num < 0)
+        ok = ~miss & (tn <= tf) & (tn > 0)
+        t[ok] = tn[ok]
+        return t, nrm
     axis, c0, c1, r, lo, hi = g
     a = "xyz".index(axis)
     u, v = [i for i in range(3) if i != a]
@@ -218,6 +263,8 @@ def widened(pr):
     kind, g, mat, seams = pr
     if kind == "box":
         return (kind, (g[0], g[1], g[2] * WIDE, g[3] * WIDE, g[4], g[5]), mat, seams)
+    if kind == "poly":
+        return scaled(pr, 1.0, WIDE)
     axis, c0, c1, r, lo, hi = g
     if axis == "y":
         return (kind, (axis, c0, c1, r, lo * WIDE, hi * WIDE), mat, seams)
@@ -226,7 +273,8 @@ def widened(pr):
     return (kind, (axis, c0 * WIDE, c1, r, lo, hi), mat, seams)
 
 
-def render(prims: list, heading: float) -> np.ndarray:
+def render(prims: list, heading: float, length: float = L) -> np.ndarray:
+    """One heading of a rig `length` feet from bumper to tail, centred in the cell."""
     prims = [widened(p) for p in prims]
     th = np.radians(heading)
     f = np.array([np.cos(th), np.sin(th)])  # forward, on the map
@@ -244,7 +292,7 @@ def render(prims: list, heading: float) -> np.ndarray:
     Z = -sy * np.cos(TILT) + D0 * np.sin(TILT)
     vw = np.array([0.0, -np.cos(TILT), -np.sin(TILT)])
     # Into the rig's frame: x from the bumper back, y to its right, z up.
-    lx = L / 2 - (X * f[0] + Y * f[1])
+    lx = length / 2 - (X * f[0] + Y * f[1])
     ly = X * rgt[0] + Y * rgt[1]
     o = np.stack([lx, ly, Z], 1)
     dl = np.array([-(vw[0] * f[0] + vw[1] * f[1]), vw[0] * rgt[0] + vw[1] * rgt[1], vw[2]])
