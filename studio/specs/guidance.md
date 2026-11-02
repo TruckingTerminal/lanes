@@ -103,7 +103,7 @@ The writer words each line. Below are the intent and the trigger.
 | Milestone | Trigger | The point of her line | What now? turns to |
 |---|---|---|---|
 | The first owned truck | Step 9 done | The lessor's share is gone. Maintenance, insurance and depreciation are the player's now, and an owned truck costs money when it sits. Jeff's rule: say the risk plainly; this player must be well capitalised. | Keep it loaded. Quick pay or factoring if cash runs thin, with what each costs. |
-| The first hired week | A hired driver's first payday | Wages come weekly whether the truck earns or not. | Standing orders (step 11); the second truck's gap. |
+| The first hired week | A hired driver's first full week | A driver is paid by the mile, empty miles included, plus a per diem for each idle day away from home. The wages go out weekly. | Standing orders (step 11); the second truck's gap. |
 | The first dispatcher | Hired, or the third truck | The dispatcher follows the rules the player sets, and only those. | Check the rules against the lanes that paid. |
 | The first month's close | Day 30 of the company | The month in three figures: earned, spent, kept. Monthly bills (fuel tax, insurance) land now. | Read Money's month; the cushion. |
 | Day 28: businesses | The ladder | What a business is, and who it suits. For most first-month carriers, not yet, with the gap as the reason. | The next truck first, unless the cushion says otherwise. |
@@ -113,6 +113,13 @@ The writer words each line. Below are the intent and the trigger.
 | The stake | When the locks land | The term, the discount and the slash, plainly. No joke. Never framed as an investment. | Only if a discount covers costs the company already pays. |
 | The Reserve | When it lands (Jeff, 2026-11-02) | Thirteen weeks of the company's own spending, sheltered, with no fee and no yield. Above it the burn and the holding cost apply. | Fill it to the cushion. |
 | The season close and its burn | 30 game days before the close, then on the day | Cash above the carryover cap ({25,000} FD) is burned at the close, under the live rules. What to buy or shelter first. | Spend on what earns, or shelter in the Reserve. |
+
+**Rulings on engineering's batch 2 (2026-11-03).** Four figures engineering can't take exactly from the world's state. The rule behind every ruling below: a wrong figure is worse than none.
+
+1. **The first hired week.** Accept engineering's figure: the miles not yet paid out, times the driver's pay, reset at each weekly close. The *at* line names it as what it is, the week so far: "{name} has driven {mi} miles for you this week: {fd} FD in wages so far." It fires before the week's close, never after the reset. The reason above is corrected: pay is by the mile, not "whether the truck earns or not".
+2. **The first month's close.** Lifetime counters are not the month, so they are out. The engine's month-close record (built for Intel: revenue, loads delivered, on time) also carries **spent**: every operating cost **and overhead**. Earned, spent and kept (earned less spent) read from the company's first record. This is a record, not a rule change. Until the record carries spent, the *at* line has no figures: "Your first month has closed. Money has all of it."
+3. **Day 91.** Accept the line without the gap, and don't hold the milestone: a player should learn the layer is open on the day it opens. The reason reads "What a brokerage takes is on its card." The gap figure arrives when the economy has put the bond, the licence and the premium in config.
+4. **The dispatcher, triggered by a third truck.** Accept it undated. In the timeline it sits in order between its dated neighbours. When the third truck triggered it, its name is "Three trucks", not "The first dispatcher", because no dispatcher was hired.
 
 **Bad news.** The writer's silence rule stands: no unasked line on an error, a refused order, a crash, a theft, a revocation or a liquidation. **Silence means no unasked line. It never means silence when asked.** After the plain string, What now? still answers, and the strip's next step returns.
 
