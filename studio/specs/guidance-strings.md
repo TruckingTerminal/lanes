@@ -41,7 +41,7 @@ The reason line is shared; the action is the best single lever `nextAction` find
 | `now.danger.book.button` | button | Show me its loads |
 | `now.danger.cash.action` [switch cashNow] | action, offered first | Cash the invoices due by `{day}`. |
 | `now.danger.cash.reason2` [switch cashNow] | second line, under a contract | `{fd}` FD lands today, less `{fd}` FD in fees: your contract rate plus aging. |
-| `now.danger.cash.reason2Spot` [switch cashNow] | second line, no contract | `{fd}` FD lands today, less `{fd}` FD in fees at the spot rate. |
+| `now.danger.cash.reason2Spot` [switch cashNow] | second line, no contract | `{fd}` FD lands today, less `{fd}` FD in fees: the spot rate plus aging. |
 | `now.danger.cash.button` [switch cashNow] | button | Cash them now |
 | `now.danger.collect.action` [switch off, or nothing to cash] | action | Keep the trucks loaded until your invoices land. |
 | `now.danger.collect.reason2` | second line | `{fd}` FD is due to you by `{day}`, in time for the check that counts. |
@@ -236,8 +236,8 @@ One entry per figure key. `what` and `moves` are the writer's; `how` is engineer
 | `loan.rate` | What the loan costs each week on what's owed. | `{rateLow}` to `{rateHigh}` a week: the better your credit score at signing, the lower. | A better score lowers your next loan. A running loan's rate never changes. |
 | `finance.factoringRate` | The factor's share of every load under contract. | From your fleet size on the day you sign; fixed for the term. | More trucks at renewal lower it. |
 | `finance.quickPayFee` | The cost of being paid on delivery, one load at a time. | `{quickPayPct}` of the load. | Nothing: it's fixed. Use it for emergencies. |
-| `invoice.cashNowFee` [switch cashNow] | The fee to cash an open invoice today instead of on its due day. | (engineering: the contract rate plus the aging per day early, or the spot rate) | Fewer days early; a contract, or a bigger fleet's contract rate. |
-| `invoice.cashNowLands` [switch cashNow] | What reaches your cash today if you cash this invoice now. | (engineering: the invoice, less the fee) | The fee: fewer days early, or a contract rate instead of spot. |
+| `invoice.cashNowFee` [switch cashNow] | The fee to cash an open invoice today instead of on its due day. | (engineering: the contract or spot rate, plus aging for each day since it was raised) | A contract's rate instead of spot; cashing an invoice while it's fresh. |
+| `invoice.cashNowLands` [switch cashNow] | What reaches your cash today if you cash this invoice now. | (engineering: the invoice, less the fee) | The fee: a contract's rate instead of spot, and the invoice's age. |
 | `guide.gapToTruck` | How far you are from your next truck. | The cheapest truck's cash needed now, less your deposit and cash above `{gapCushionWeeks}` weeks of costs. | Hauling; cheaper trucks on the used lot. |
 
 ### Danger

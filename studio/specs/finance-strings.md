@@ -40,7 +40,7 @@ Short key names used below:
 
 ## Cash it now (Money › Owed to you, each invoice row) [switch cashNow]
 
-Jeff, 2026-11-02: "If a carrier needs it now, he needs it NOW." An open invoice can be cashed today: under a factoring contract at its rate plus an aging surcharge, without one at a spot rate. The fee goes to the reserve. Plain money language throughout.
+Jeff, 2026-11-02: "If a carrier needs it now, he needs it NOW." An open invoice can be cashed today: under a factoring contract at its rate, without one at a spot rate, plus an aging charge for each day since the invoice was raised. The freshest invoice is the cheapest. The fee goes to the reserve. Plain money language throughout.
 
 | Where | String |
 |---|---|
@@ -48,9 +48,9 @@ Jeff, 2026-11-02: "If a carrier needs it now, he needs it NOW." An open invoice 
 | Several due by a day (from What now?) | Cash `{n}` invoices · `{fd}` FD today |
 | Sheet title | Cash this invoice now |
 | Rows | Invoice · `{origin}` to `{dest}` · `{fd}` FD, due `{date}` |
-| Fee row, under a contract | Fee · `{rate}` contract + `{aging}` for `{n}` days early · `{fd}` FD |
-| Fee row, no contract | Fee · `{spot}` spot rate · `{fd}` FD |
-| You get | You get today · `{fd}` FD |
+| Fee row, under a contract | Fee · `{rate}` contract + `{aging}` at `{n}` days old · `{fd}` FD |
+| Fee row, no contract | Fee · `{spot}` spot + `{aging}` at `{n}` days old · `{fd}` FD |
+| You get | You get today · `{fd}` FD (also the figure's name on its explain sheet) |
 | Note | The shipper pays the factor on `{date}`. The fee goes to the reserve. |
 | Buttons | **Cash it now · `{fd}` FD** · Not now · live: Sent · in effect `{hh:mm}` |
 | Cashed, on the row | Cashed `{date}` · `{fd}` FD received |
