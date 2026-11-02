@@ -39,9 +39,9 @@ export function Btn({
   );
 }
 
-export function Card({ title, right, alert, sel, onClick, children, class: extra }: { title?: ComponentChildren; right?: ComponentChildren; alert?: boolean; sel?: boolean; onClick?: () => void; children?: ComponentChildren; class?: string }): JSX.Element {
+export function Card({ title, right, alert, sel, onClick, children, class: extra, need }: { title?: ComponentChildren; right?: ComponentChildren; alert?: boolean; sel?: boolean; onClick?: () => void; children?: ComponentChildren; class?: string; need?: string }): JSX.Element {
   return (
-    <section class={cls("card", alert && "alert", sel && "sel", onClick && "clickable", extra)} onClick={onClick}>
+    <section class={cls("card", alert && "alert", sel && "sel", onClick && "clickable", extra)} onClick={onClick} data-need={need}>
       {title || right ? (
         <header class="card-head">
           {title ? <h3>{title}</h3> : <span />}

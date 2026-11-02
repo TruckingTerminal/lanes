@@ -28,8 +28,10 @@ import {
   type Truck,
 } from "@lanes/engine";
 import { GAME_CONFIG } from "./game.js";
-import { ARRIVAL, DISPATCHER, TRUCK } from "./copy.js";
-import { act, bumpData, clockMin, me, myTrucks, push, S, setTab, selectTruck, toast, truckNo } from "./state.js";
+import { ARRIVAL, DISPATCHER, NEEDS, TRUCK } from "./copy.js";
+import { act, bumpData, clockMin, isPhone, me, myTrucks, push, S, setTab, selectTruck, toast, truckNo } from "./state.js";
+import { tabDef, tabOpen, teaserTabs, type Tab } from "./tabs.js";
+import { myTenders } from "./ui/panels/Contracts.js";
 import { fd, hoursLabel, pct, plural, realUntil, signedPct, TRAILER_NAME } from "./format.js";
 import { Btn } from "./ui/bits.js";
 
@@ -120,12 +122,61 @@ export function AttentionCard(): ComponentChildren {
     <section class="card alert">
       <h3>{TRUCK.needsYou}</h3>
       {items.map((a) => (
-        <div class="row" key={a.key}>
+        <div class="row" key={a.key} data-need={a.key}>
           <span class={a.tone}>{a.text}</span>
           {a.fix}
         </div>
       ))}
     </section>
+  );
+}
+
+/**
+ * Everything waiting on the player (the top strip's red count): where its card is, so a tap on the count opens that tab
+ * and brings the card, with its fix, into view (Jeff, 2026-11-02). The money alarms open Money, a bid's result Loads,
+ * a teaser that just opened More; the rest are cards on the Truck tab.
+ */
+export interface Need {
+  key: string;
+  text: string;
+  tab: Tab;
+  /** A CSS selector for the card to scroll to. */
+  target: string;
+}
+export function needs(): Need[] {
+  const g = S.game;
+  const c = g?.player;
+  if (!g || !c) return [];
+  const w = g.w;
+  const out: Need[] = [];
+  for (const a of attentionItems()) {
+    const money = a.key === "debt" || a.key === "cash";
+    out.push({ key: a.key, text: a.text, tab: money ? "money" : "fleet", target: money ? ".cashcard" : `[data-need="${a.key}"]` });
+  }
+  for (const l of myTenders(c)) out.push({ key: `tender:${l.id}`, text: NEEDS.tender(w.net.places[l.originPlace]!.name, w.net.places[l.destPlace]!.name), tab: "fleet", target: `[data-need="tender:${l.id}"]` });
+  for (const t of tiredTrucks()) {
+    const d = w.staff[t.driverId - 1]!;
+    out.push({ key: `tired:${t.id}`, text: NEEDS.tired(d.owner ? "You" : d.name), tab: "fleet", target: `[data-need="tired:${t.id}"]` });
+  }
+  for (const t of stuckTrucks()) out.push({ key: `idle:${t.id}`, text: NEEDS.idle(truckName(t), w.net.hubs[t.hub]!.name, idleLabel(t)), tab: "fleet", target: `[data-need="idle:${t.id}"]` });
+  if (S.result && !S.result.seen) out.push({ key: "result", text: NEEDS.result(S.result.won), tab: "loads", target: ".resultcard" });
+  for (const t of teaserTabs()) if (tabOpen(t.id, w, c) && !S.onboard.visited.includes(t.id)) out.push({ key: `opened:${t.id}`, text: NEEDS.opened(tabDef(t.id).label), tab: "more", target: `[data-need="opened:${t.id}"]` });
+  return out;
+}
+/** Opens a waiting thing's tab (the sheet at half on a phone) and scrolls its card into view, flashing it once. */
+export function openNeed(n: Need): void {
+  if (isPhone() && S.sheet === "strip") S.sheet = "half";
+  setTab(n.tab);
+  // Two frames: the tab renders, then the sheet has its height.
+  requestAnimationFrame(() =>
+    requestAnimationFrame(() => {
+      const el = document.querySelector<HTMLElement>(n.target);
+      if (!el) return;
+      el.scrollIntoView({ block: "start", behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" });
+      el.classList.remove("flash");
+      void el.offsetWidth;
+      el.classList.add("flash");
+    }),
   );
 }
 

@@ -117,7 +117,7 @@ export function Money(): JSX.Element {
   }
   return (
     <Panel title={MONEY.title}>
-      <Card title={MONEY.cash}>
+      <Card class="cashcard" title={MONEY.cash}>
         <p class={cls("bigcash", bal < 0 && "bad")}>{fdFull(bal)} FD</p>
         {/* From day one (S22): the days so far and now; one day alone is a flat line, not nothing. */}
         {cashHist.length ? <span class="label">{MONEY.cashDays(cashHist.length + 1)}</span> : null}

@@ -279,3 +279,14 @@ export const FEED = {
   watching: (r1: string, r2: string) => `Your dispatcher is watching the board. Bids clear at ${r1} and ${r2}.`,
   off: (r1: string, r2: string) => `Your dispatcher is off. Bids clear at ${r1} and ${r2}.`,
 };
+
+/** The top strip's red count, a button (Jeff, 2026-11-02): one tap opens what's waiting, or a short list of it. */
+export const NEEDS = {
+  title: "Needs you",
+  badge: (n: number) => `Needs you: ${n}. Open it`,
+  idle: (truck: string, hub: string, idle: string) => `${truck} idle ${idle} at ${hub}`,
+  tired: (who: string) => `${who} needs days off`,
+  tender: (from: string, to: string) => `Contract tender: ${from} → ${to}`,
+  result: (won: boolean) => (won ? "Your bid won: the result" : "Your bid's result is in"),
+  opened: (tab: string) => `${tab} just opened`,
+};

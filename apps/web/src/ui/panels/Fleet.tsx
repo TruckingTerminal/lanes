@@ -84,7 +84,7 @@ function TiredAlerts(): JSX.Element {
         const d = w.staff[t.driverId - 1]!;
         const home = hubMiles(w, me().homeHub, t.hub);
         return (
-          <Card key={t.id} alert title={`${d.owner ? "You have" : `${d.name} has`} been out ${plural(d.awayDays, "day")}${d.fatigue >= f.tiredAt ? ` and ${d.owner ? "are" : "is"} tired (${pct(d.fatigue)})` : ""}`}>
+          <Card key={t.id} alert need={`tired:${t.id}`} title={`${d.owner ? "You have" : `${d.name} has`} been out ${plural(d.awayDays, "day")}${d.fatigue >= f.tiredAt ? ` and ${d.owner ? "are" : "is"} tired (${pct(d.fatigue)})` : ""}`}>
             <p>
               {TRUCK.tired} {f.resetDays} days off at home reset it; every day sitting idle away from home costs {GAME_CONFIG.labor.driver.perDiemFd} FD per diem.
             </p>
@@ -113,7 +113,7 @@ function IdleAlerts(): JSX.Element {
       {stuckTrucks().map((t) => {
         const d = idleWhy(t);
         return (
-          <Card key={t.id} alert title={`${truckName(t)} has been idle ${idleLabel(t)} at ${w.net.hubs[t.hub]!.name}`}>
+          <Card key={t.id} alert need={`idle:${t.id}`} title={`${truckName(t)} has been idle ${idleLabel(t)} at ${w.net.hubs[t.hub]!.name}`}>
             <p>
               {d.why} It has sat out {plural(t.idleRounds, "bidding round")}
               {t.lease === "owned" ? ` and pays ${w.cfg.costs.idleFeePerDay} FD a day idle after ${w.cfg.costs.idleFeeAfterDays}` : ""}.

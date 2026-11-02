@@ -22,7 +22,7 @@ export function More(): JSX.Element {
   const opened = teaserTabs().filter((t) => tabOpen(t.id, g.w, g.player));
   const coming = teaserTabs().filter((t) => !tabOpen(t.id, g.w, g.player));
   const row = (id: Tab, fresh = false) => (
-    <button key={id} type="button" class="morerow" onClick={() => setTab(id)}>
+    <button key={id} type="button" class="morerow" onClick={() => setTab(id)} data-need={fresh ? `opened:${id}` : undefined}>
       <TabIcon id={id} size={24} />
       <span>{tabDef(id).label}</span>
       {fresh ? <span class="newdot">New</span> : null}

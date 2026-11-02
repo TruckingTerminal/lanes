@@ -1,13 +1,13 @@
 import type { JSX } from "preact";
+import { useEffect, useRef, useState } from "preact/hooks";
 import { companyAccount } from "@lanes/engine";
 import { cls, fdFull, hhmm, shortDate, weekday } from "../format.js";
-import { FIRST_ENTRY } from "../copy.js";
+import { FIRST_ENTRY, NEEDS } from "../copy.js";
 import { H } from "../handlers.js";
-import { attentionItems, nextRoundHour, stuckTrucks, tiredTrucks } from "../logic.js";
-import { bumpData, clockMin, fsActive, fsEnabled, S, setTab, SPEEDS, toggleFullscreen, useData, useTick } from "../state.js";
+import { needs as waiting, nextRoundHour, openNeed } from "../logic.js";
+import { bumpData, clockMin, fsActive, fsEnabled, S, SPEEDS, toggleFullscreen, useData, useTick } from "../state.js";
 import { Badge, Btn } from "./bits.js";
 import { choosing } from "./ChooseHub.js";
-import { myTenders } from "./panels/Contracts.js";
 
 /**
  * The top strip (specs/first-ten-minutes.md, Layout): the clock, cash, a dot counting what needs you, and "≡". The test
@@ -19,7 +19,7 @@ export function TopBar(): JSX.Element {
   const w = g.w;
   const c = g.player;
   const bal = c ? w.ledger.balance(companyAccount(c.id)) : 0;
-  const needs = c ? stuckTrucks().length + tiredTrucks().length + myTenders(c).length + attentionItems().length : 0;
+  const needs = waiting();
   // Before a company (S1): the date, the clock and the next round, and nothing that belongs to a company yet.
   if (choosing()) {
     return (
@@ -35,17 +35,58 @@ export function TopBar(): JSX.Element {
     <header class="topbar">
       <Clock />
       {c ? <span class={cls("cash num", bal < 0 && "bad")}>{fdFull(bal)} FD</span> : choosing() ? null : <Badge>Watching</Badge>}
-      {needs ? (
-        <button type="button" class="alertdot" title={`Needs you: ${needs}`} onClick={() => setTab("fleet")}>
-          {needs}
-        </button>
-      ) : null}
+      {needs.length ? <NeedsButton /> : null}
       {c && c.authority.status !== "active" ? <Badge tone="alert">{c.authority.status === "revoked" ? "Authority revoked" : "Suspended"}</Badge> : null}
       {g.kind === "live" && g.broken ? <Badge tone="alert" title={g.broken.reason}>World stopped</Badge> : null}
       <span class="grow" />
       {g.kind === "test" ? <Speeds /> : null}
       <Menu />
     </header>
+  );
+}
+
+/** The red count: one thing waiting opens it; more open a short list, each row opening its own (Jeff, 2026-11-02). */
+function NeedsButton(): JSX.Element {
+  const list = waiting();
+  const [open, setOpen] = useState(false);
+  const wrap = useRef<HTMLSpanElement>(null);
+  // A tap anywhere else, or Escape, closes the list.
+  useEffect(() => {
+    if (!open) return;
+    const away = (e: Event) => wrap.current && !wrap.current.contains(e.target as Node) && setOpen(false);
+    const esc = (e: KeyboardEvent) => e.key === "Escape" && setOpen(false);
+    document.addEventListener("pointerdown", away);
+    document.addEventListener("keydown", esc);
+    return () => {
+      document.removeEventListener("pointerdown", away);
+      document.removeEventListener("keydown", esc);
+    };
+  }, [open]);
+  const tap = () => (list.length === 1 ? openNeed(list[0]!) : setOpen(!open));
+  return (
+    <span class="needswrap" ref={wrap}>
+      <button type="button" class="alertdot" aria-label={NEEDS.badge(list.length)} aria-expanded={list.length > 1 ? open : undefined} onClick={tap}>
+        {list.length}
+      </button>
+      {open && list.length > 1 ? (
+        <div class="needslist" role="menu" aria-label={NEEDS.title}>
+          {list.map((n) => (
+            <button
+              type="button"
+              role="menuitem"
+              key={n.key}
+              onClick={() => {
+                setOpen(false);
+                openNeed(n);
+              }}
+            >
+              {n.text}
+              <span class="chev" aria-hidden="true">›</span>
+            </button>
+          ))}
+        </div>
+      ) : null}
+    </span>
   );
 }
 

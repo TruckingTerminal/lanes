@@ -22,7 +22,7 @@ export function TendersCard({ c }: { c: Company }): JSX.Element | null {
         const spot = l.bookNow;
         const id = `tender-${l.id}`;
         return (
-          <Card key={l.id} alert title={`Contract tender: ${w.net.places[l.originPlace]!.name} → ${w.net.places[l.destPlace]!.name}, ${l.miles} mi`}>
+          <Card key={l.id} alert need={`tender:${l.id}`} title={`Contract tender: ${w.net.places[l.originPlace]!.name} → ${w.net.places[l.destPlace]!.name}, ${l.miles} mi`}>
             <p>
               {COMMODITIES[l.commodity]!.name} at your contract rate <Num>{rate.toFixed(2)}</Num>/mi ({fd(rate * l.miles)} FD); spot is {spot.toFixed(2)} (
               <span class={spot > rate ? "warn" : "good"}>
