@@ -2,6 +2,8 @@ export * from "./actions.js";
 export * from "./assets.js";
 export * from "./assetSales.js";
 export * from "./board.js";
+export * from "./brokerage.js";
+export * from "./cashReserve.js";
 export * from "./buyback.js";
 export * from "./capacity.js";
 export * from "./clock.js";

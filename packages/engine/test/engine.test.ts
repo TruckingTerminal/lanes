@@ -109,7 +109,7 @@ import { highValueMult, theftRatePerMile, theftRiskAt } from "../src/risk.js";
 import { startLoading } from "../src/trips.js";
 import { dockWaitCost } from "../src/standingOrders.js";
 import { ceilingFd, outstandingFd, queuedAirdropFd } from "../src/ceiling.js";
-import { financedCashNeed, purchaseTerms } from "../src/purchaseLoans.js";
+import { debtToEquity, financedCashNeed, purchaseTerms, riskPremium, riskStats } from "../src/purchaseLoans.js";
 import { detachTruck, truckById } from "../src/world.js";
 import { loadFactor, managerEffect, managersNeeded, offerStaff, securityPremiumMult, securityTheftMult } from "../src/labor.js";
 import { acceptOffer, contractRoom, contractSlots, contractStakeAccount, rejectTender, weeklyContracts } from "../src/contracts.js";
@@ -1137,6 +1137,35 @@ describe("trucks and the money behind them (2026-10-31): leases by value, purcha
     expect(w.purchaseLending.writtenOffFd).toBeGreaterThan(0);
     expect(w.ledger.balance(`co:loanstake:${loan.id}`)).toBeCloseTo(0, 2);
     expect(loan.status).toBe("closed");
+    w.ledger.assertBalanced();
+  });
+
+  it("risk pricing (purchase.risk, off by default): a thin borrower pays a premium on its leverage, and in a bust the covenant defaults it on the first miss", () => {
+    expect(cfg.equipmentFinance.purchase.risk.enabled).toBe(false);
+    const risky: EconomyConfig = { ...lending, equipmentFinance: { ...lending.equipmentFinance, purchase: { ...lending.equipmentFinance.purchase, risk: { ...lending.equipmentFinance.purchase.risk, enabled: true } } } };
+    // A bust all the way through: the freight cycle at 0.8, under the covenant's 0.9.
+    const w = createWorld({ cfg: risky, net, feeds: { ...neutralFeeds, cycle: () => 0.8 }, seed: 72, keepLedgerEntries: true });
+    const c = carrier(w);
+    const acct = companyAccount(c.id);
+    const price = 140_000 + 40_000;
+    fund(w, c.id, financedCashNeed(w, c, price) + 10 - w.ledger.balance(acct));
+    expect(debtToEquity(w, c)).toBe(0);
+    expect(applyAction(w, c.id, { type: "buy_asset", tier: "workhorse", trailer: "van", replaceNpcLease: false, finance: true }).ok).toBe(true);
+    const loan = w.purchaseLoans[0]!;
+    expect(debtToEquity(w, c)).toBeGreaterThan(risky.equipmentFinance.purchase.risk.freeDebtToEquity);
+    // Cash for two or three weeks of payments, well under the covenant's eight: a premium and a breach every week.
+    fund(w, c.id, 6_000);
+    const premium = riskPremium(w, c);
+    expect(premium.breach).toBe(true);
+    expect(premium.rate).toBeGreaterThan(risky.equipmentFinance.purchase.risk.covenant.premium);
+    for (let d = 0; d < 70 && w.purchaseLending.defaults === 0; d++) runDays(w, 1);
+    expect(w.ledger.entries.some((e) => e.to === "sink:loan_risk" && e.ref === `loan:${loan.id}`)).toBe(true);
+    expect(riskStats(w).premiumFd).toBeGreaterThan(0);
+    expect(riskStats(w).breachWeeks).toBeGreaterThan(0);
+    // The first miss defaulted it, not the second.
+    expect(w.purchaseLending.defaults).toBe(1);
+    expect(loan.missed).toBe(1);
+    expect(riskStats(w).covenantDefaults).toBe(1);
     w.ledger.assertBalanced();
   });
 

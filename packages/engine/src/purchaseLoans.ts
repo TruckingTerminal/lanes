@@ -8,10 +8,14 @@
  * it may carry. Two missed payments default the loan: the lender takes the truck the next time it's idle
  * at a hub, at its market value, the stake covers what that doesn't, and the rest is written off. A truck
  * that leaves its owner while its loan is open settles it at once (world.ts detachTruck).
+ *
+ * Risk pricing (equipmentFinance.purchase.risk, off by default): the rate also follows the borrower's leverage, and
+ * a bust covenant brings a thin borrower's default forward (riskPremium below).
  */
+import { dayOf } from "./clock.js";
 import { clamp } from "./economics.js";
 import { creditScore } from "./credit.js";
-import { truckValue } from "./dealer.js";
+import { orderPrice, ordersOf, trailerValue, truckValue } from "./dealer.js";
 import { companyAccount } from "./ledger.js";
 import { salesTaxOn } from "./salesTax.js";
 import type { Company, PurchaseLoan } from "./types.js";
@@ -102,20 +106,96 @@ export function bindOrderLoan(w: World, orderId: number, truckId: number): void 
   if (loan) loan.truckId = truckId;
 }
 
+/** What a company owes: its open purchase loans and its Equipment Finance loans. */
+export function debtFd(w: World, companyId: number): number {
+  let debt = 0;
+  for (const l of openPurchaseLoans(w, companyId)) debt += l.principalFd;
+  for (const l of w.finance.loans) if (l.borrowerId === companyId && (l.status === "active" || l.status === "defaulted")) debt += l.principalFd;
+  return debt;
+}
+
+/**
+ * Debt over equity, as the lender reads the books: cash, the trucks and spare trailers it owns or has on order and
+ * its loan stakes, less what it owes. No debt is 0; equity at or under nothing is Infinity.
+ */
+export function debtToEquity(w: World, c: Company): number {
+  const debt = debtFd(w, c.id);
+  if (debt <= 0.01) return 0;
+  let assets = Math.max(0, w.ledger.balance(companyAccount(c.id)));
+  for (const t of w.trucksByCompany.get(c.id) ?? []) if (t.status !== "retired" && (!t.lessorId || t.lessorId === c.id)) assets += truckValue(w, t);
+  for (const tr of w.trailersByCompany.get(c.id) ?? []) if (tr.lease === "owned" && tr.status !== "hooked") assets += trailerValue(w, tr);
+  for (const o of ordersOf(w, c.id)) assets += orderPrice(w, o); // a truck on order counts at its price
+  for (const l of openPurchaseLoans(w, c.id)) assets += w.ledger.balance(loanStakeAccount(l.id));
+  const equity = assets - debt;
+  return equity > 0.01 ? debt / equity : Infinity;
+}
+
+/** A week of the payments on a company's active purchase loans, at their credit rates. */
+export function weeklyLoanPayments(w: World, companyId: number): number {
+  let s = 0;
+  for (const l of openPurchaseLoans(w, companyId)) if (l.status === "active") s += Math.min(l.principalFd, l.originalFd / l.termWeeks) + l.principalFd * l.weeklyRate;
+  return s;
+}
+
+/**
+ * Risk pricing (equipmentFinance.purchase.risk): the weekly rate a borrower pays over each loan's credit rate, and
+ * whether it is in breach of the bust covenant. Nothing when the switch is off or the company owes nothing.
+ */
+export function riskPremium(w: World, c: Company): { rate: number; breach: boolean } {
+  const k = w.cfg.equipmentFinance.purchase.risk;
+  if (!k.enabled) return { rate: 0, breach: false };
+  const de = debtToEquity(w, c);
+  if (de === 0) return { rate: 0, breach: false };
+  let rate = Math.min(k.maxPremium, k.perDebtToEquity * Math.max(0, de - k.freeDebtToEquity));
+  let breach = false;
+  const cv = k.covenant;
+  if (cv.enabled && w.feeds.cycle(dayOf(w.t, w.cfg)) < cv.bustBelow && w.ledger.balance(companyAccount(c.id)) < cv.coverWeeks * weeklyLoanPayments(w, c.id)) {
+    breach = true;
+    rate += cv.premium;
+  }
+  return { rate, breach };
+}
+
+/** What risk pricing has done in this world (reports only): premiums paid, borrower-weeks in breach, covenant defaults. */
+const riskTally = new WeakMap<World, { premiumFd: number; payingWeeks: number; breachWeeks: number; covenantDefaults: number }>();
+export const riskStats = (w: World) => riskTally.get(w) ?? { premiumFd: 0, payingWeeks: 0, breachWeeks: 0, covenantDefaults: 0 };
+
 /**
  * Weekly: each open loan pays its interest and an even share of what it borrowed. A borrower who can't
  * pay misses (the interest is added to what's owed); after `missedToDefault` misses in a row the loan
- * defaults, and the lender takes the truck the next time it's idle at a hub.
+ * defaults, and the lender takes the truck the next time it's idle at a hub. With risk pricing on, the
+ * interest includes the borrower's premium (a sink of its own, `loan_risk`), and a borrower in breach of
+ * the bust covenant defaults on its first miss.
  */
 export function weeklyPurchaseLoans(w: World): void {
   const k = w.cfg.equipmentFinance.purchase;
+  const risks = new Map<number, { rate: number; breach: boolean }>();
+  const riskOf = (id: number) => {
+    let r = risks.get(id);
+    if (!r) {
+      risks.set(id, (r = riskPremium(w, w.companies[id - 1]!)));
+      if (k.risk.enabled && (r.rate > 0 || r.breach)) {
+        let t = riskTally.get(w);
+        if (!t) riskTally.set(w, (t = { premiumFd: 0, payingWeeks: 0, breachWeeks: 0, covenantDefaults: 0 }));
+        if (r.rate > 0) t.payingWeeks++;
+        if (r.breach) t.breachWeeks++;
+      }
+    }
+    return r;
+  };
   for (const loan of w.purchaseLoans) {
     if (loan.status === "active") {
       const acct = companyAccount(loan.borrowerId);
-      const interest = loan.principalFd * loan.weeklyRate;
+      const risk = k.risk.enabled ? riskOf(loan.borrowerId) : { rate: 0, breach: false };
+      const premium = loan.principalFd * risk.rate;
+      const interest = loan.principalFd * loan.weeklyRate + premium;
       const principal = Math.min(loan.principalFd, loan.originalFd / loan.termWeeks);
       if (w.ledger.balance(acct) >= interest + principal) {
-        if (interest > 0.005) w.ledger.post(w.t, acct, "sink:loan_interest", interest, `loan:${loan.id}`);
+        if (premium > 0.005) {
+          w.ledger.post(w.t, acct, "sink:loan_risk", premium, `loan:${loan.id}`);
+          riskTally.get(w)!.premiumFd += premium;
+        }
+        if (interest - premium > 0.005) w.ledger.post(w.t, acct, "sink:loan_interest", interest - premium, `loan:${loan.id}`);
         if (principal > 0.005) w.ledger.post(w.t, acct, "sink:loan_principal", principal, `loan:${loan.id}`);
         w.purchaseLending.interestFd += interest;
         loan.principalFd -= principal;
@@ -129,9 +209,10 @@ export function weeklyPurchaseLoans(w: World): void {
       } else {
         loan.missed++;
         loan.principalFd += interest;
-        if (loan.missed >= k.missedToDefault) {
+        if (loan.missed >= (risk.breach ? k.risk.covenant.missedToDefault : k.missedToDefault)) {
           loan.status = "defaulted";
           w.purchaseLending.defaults++;
+          if (risk.breach && loan.missed < k.missedToDefault) riskTally.get(w)!.covenantDefaults++;
         }
       }
     }

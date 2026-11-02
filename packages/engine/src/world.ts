@@ -8,7 +8,7 @@ import { Ledger, companyAccount } from "./ledger.js";
 import { truckCap } from "./staking.js";
 import { newPool } from "./pools.js";
 import { Rng } from "./rng.js";
-import type { BuybackWeek, GameEvent, TokenState, Company, Business, Facility, TruckStopSite, FinancePool, FactoringLog, PopulationState, FraudCase, LeaseKind, Listing, Load, ManagerKind, Pool, PoolLine, PurchaseLoan, Receivable, Role, SeasonCloseRecord, Staff, StandingOrder, Trailer, Truck, TruckOrder, Contract, LeaseOffer } from "./types.js";
+import type { BuybackWeek, BrokerageLog, GameEvent, TokenState, Company, Business, Facility, TruckStopSite, FinancePool, FactoringLog, PopulationState, FraudCase, LeaseKind, Listing, Load, ManagerKind, Pool, PoolLine, PurchaseLoan, Receivable, Role, SeasonCloseRecord, Staff, StandingOrder, Trailer, Truck, TruckOrder, Contract, LeaseOffer } from "./types.js";
 import { fitTrailer, handBack, hook, hookedTrailer, newTrailer } from "./trailers.js";
 import type { AssetSale } from "./assetSales.js";
 import { signPolicy } from "./insurance.js";
@@ -82,7 +82,7 @@ export interface World {
   /** The unlock ladder (ladder.ts): the day each layer opened after launch, null while closed. */
   ladder: Record<Layer, number | null>;
   /** The NPC used lot (usedMarket.npcLot): rigs on the lot, and rigs sold. */
-  usedLot: { stock: number; sold: number };
+  usedLot: { stock: number; sold: number; due?: number };
   purchaseLending: { madeFd: number; interestFd: number; defaults: number; seized: number; writtenOffFd: number; stakeSlashedFd: number };
   /** Published stabilizers (§Circular economy — targets and stabilizers). */
   stab: { volumeMult: number; rackSpread: number; rateMult: number };
@@ -134,6 +134,10 @@ export interface World {
   receivables: Receivable[];
   /** The factoring log (receivables.ts), made on first use while payment terms are on. */
   factoringLog?: FactoringLog;
+  /** Player brokerages (brokerage.ts), made on first use. */
+  brokerageLog?: BrokerageLog;
+  /** The Reserve (cashReserve.ts), made on first use: holding cost and season burns taken from it, deposits and withdrawals. */
+  reserveStats?: { holdingFd: number; burnedFd: number; depositFd: number; withdrawFd: number };
   /** The population dial (population.ts), made on first use while it is on. */
   population?: PopulationState;
   /** Staking locks' tally (staking.ts lockStats), made on first use while they are on. */
@@ -742,6 +746,8 @@ export function closePurchaseLoan(w: World, loan: PurchaseLoan, stakeFirst = fal
 /** Carrier authority or broker license; paid at formation and renewed each season. */
 export function payPermits(w: World, company: Company): void {
   if (company.role === "holder") return;
+  // A player's brokerage wound down (brokerage.ts): its licence lapsed with its stake, and isn't renewed.
+  if (company.role === "broker" && w.cfg.brokerage.enabled && company.partnerId !== undefined && company.stakedFd < 0.01) return;
   const { permits } = w.cfg;
   const fee = company.role === "carrier" ? permits.carrierAuthorityFd : permits.brokerLicenseRenewalFd;
   w.ledger.post(w.t, companyAccount(company.id), "sink:permits", fee, `permit:${company.id}`);

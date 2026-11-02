@@ -1,4 +1,5 @@
 import { logbookCount } from "./logbook.js";
+import { partnerOf, passTender } from "./brokerage.js";
 import type { Equipment } from "@lanes/config";
 import { dlog, marketMix, originWeights, destWeights as placeDestWeights, PLACE_OF_HUB } from "@lanes/data";
 import { dayOf } from "./clock.js";
@@ -265,15 +266,36 @@ function record(w: World, c: Contract, accepted: boolean): void {
   carrier.tenderAcceptance = carrier.tenderAcceptance * (1 - a) + (accepted ? 1 : 0) * a;
 }
 
-/** Tenders nobody accepted in time go to the open board at spot. */
+/** Tenders nobody accepted in time go to the open board at spot (or, Rule A, to the carrier's brokerage when it passes them). */
 export function expireTenders(w: World): void {
   for (const load of w.loads.values()) {
     if (load.tenderedTo === 0 || load.status !== "open" || w.t < load.tenderUntil) continue;
+    // Player brokerages (brokerage.ts): a carrier that passes what its trucks don't take hands a direct tender to its
+    // brokerage at the window's end, when the contract pays at least the board's book-now (a load posted under the
+    // going rate falls off, and the fall-off charge costs more than the turned-down tender's slash).
+    if (load.contractId !== 0 && load.ownTenderRate === undefined) {
+      const carrier = w.companies[load.tenderedTo - 1]!;
+      const c = carrier.passTenders ? w.contracts.find((k) => k.id === load.contractId) : undefined;
+      if (c && c.ratePerMile >= load.bookNow && partnerOf(w, carrier) && passTender(w, carrier, load, true) === null) continue;
+    }
     rejectTender(w, load);
   }
 }
 
+/** Rule A: a passed load booked counts as the tender covered; one that fell off counts against the shipper's trust only (its brokerage paid the fall-off). */
+export function coverPassed(w: World, load: Load, covered: boolean): void {
+  const c = w.contracts.find((k) => k.id === load.contractId);
+  if (c) record(w, c, covered);
+}
+
 export function rejectTender(w: World, load: Load): void {
+  if (load.ownTenderRate !== undefined) {
+    // Rule B: the own carrier let its brokerage's tender lapse; the load is the brokerage's on the board again.
+    load.ownTenderRate = undefined;
+    load.tenderedTo = 0;
+    load.tenderUntil = 0;
+    return;
+  }
   const c = w.contracts.find((k) => k.id === load.contractId);
   if (c) {
     record(w, c, false);
@@ -298,6 +320,11 @@ export function rejectTender(w: World, load: Load): void {
 /** A tendered load its carrier books through the ordinary board (a bid, a book-now) counts as the tender accepted. */
 export function settleTender(w: World, company: Company, load: Load): void {
   if (load.tenderedTo !== company.id) return;
+  if (load.ownTenderRate !== undefined) {
+    load.tenderedTo = 0;
+    load.tenderUntil = 0;
+    return;
+  }
   const c = w.contracts.find((k) => k.id === load.contractId);
   if (c) record(w, c, true);
   load.tenderedTo = 0;
@@ -306,11 +333,12 @@ export function settleTender(w: World, company: Company, load: Load): void {
 
 export function acceptTender(w: World, company: Company, load: Load, truck: Truck): string | null {
   const c = w.contracts.find((k) => k.id === load.contractId);
-  if (!c || load.tenderedTo !== company.id || load.status !== "open") return "that tender isn't open to you";
+  const own = load.ownTenderRate !== undefined; // Rule B: the own brokerage's tender, no contract behind it
+  if ((!c && !own) || load.tenderedTo !== company.id || load.status !== "open") return "that tender isn't open to you";
   if (truck.companyId !== company.id || truck.status !== "idle" || !crewed(truck)) return "the truck isn't idle with a driver";
   if (truck.trailer !== load.equipment) return "wrong trailer";
   // Assignment is the board's job (bookLoad with the contract rate); the caller passes it on.
-  record(w, c, true);
+  if (c && !own) record(w, c, true);
   load.tenderedTo = 0;
   load.tenderUntil = 0;
   return null;
@@ -329,8 +357,10 @@ export function autoTenders(w: World): { company: Company; load: Load; truck: Tr
     const company = w.companies[load.tenderedTo - 1]!;
     const order = contractOrder(company);
     const c = w.contracts.find((k) => k.id === load.contractId);
-    if (!order || !c) continue;
-    if (order.spotAbovePct !== null && load.bookNow > c.ratePerMile * (1 + order.spotAbovePct)) continue; // chasing spot: let it lapse
+    const own = load.ownTenderRate; // Rule B: the own brokerage's tender, at its pay
+    if (!order || (!c && own === undefined)) continue;
+    const rate = own ?? c!.ratePerMile;
+    if (order.spotAbovePct !== null && load.bookNow > rate * (1 + order.spotAbovePct)) continue; // chasing spot: let it lapse
     const fleet = w.trucksByCompany.get(company.id)!;
     const team = dispatchProfile(w, company, fleet.filter((t) => t.status !== "parked" && t.status !== "listed").length);
     let best: { truck: Truck; dh: number } | null = null;
@@ -343,7 +373,7 @@ export function autoTenders(w: World): { company: Company; load: Load; truck: Tr
     }
     if (!best) continue;
     taken.add(best.truck.id);
-    out.push({ company, load, truck: best.truck, rate: c.ratePerMile, dh: best.dh });
+    out.push({ company, load, truck: best.truck, rate, dh: best.dh });
   }
   return out;
 }

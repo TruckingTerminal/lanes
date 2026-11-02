@@ -12,7 +12,7 @@ import { dayOf, isRoundBoundary, MINUTES_PER_HOUR, seasonOf } from "./clock.js";
 import { clamp, fuelPrice } from "./economics.js";
 import { companyAccount } from "./ledger.js";
 import type { DayMetrics } from "./metrics.js";
-import { dealerPrice, deliverOrders, restockUsedLot } from "./dealer.js";
+import { dealerPrice, deliverOrders, restockUsedLot, restockUsedLotDaily } from "./dealer.js";
 import { serviceLoans } from "./finance.js";
 import { weeklyPurchaseLoans } from "./purchaseLoans.js";
 import { dailyRobbery } from "./robbery.js";
@@ -34,6 +34,8 @@ import { dailySafety, monthlySafety, weeklySafety } from "./safety.js";
 import { repossessDefaults, stepListings } from "./market.js";
 import { fleetOverheadPerWeek } from "./overhead.js";
 import { closeSeason } from "./season.js";
+import { dailyReserve, weeklyReserve } from "./cashReserve.js";
+import { lapsedBrokerage, releaseLaunchHolds } from "./brokerage.js";
 import { chargeHoldingCost, checkSolvency, holdingCostApplies, processLiquidations } from "./solvency.js";
 import { dailyBridge, dailyBuyback, launchToken, scaleDemand, seasonAirdrop, tokenLive, weeklyToken, weeklyVest } from "./token.js";
 import { moveTrucks } from "./trips.js";
@@ -84,6 +86,8 @@ function endOfDay(w: World, day: number, agents?: DailyAgentHook): void {
   dailyStaking(w);
   dailyPools(w);
   dailyReceivables(w);
+  releaseLaunchHolds(w); // a player brokerage's beta bond behind paper open at the launch burns once that paper is paid (brokerage.ts)
+  dailyReserve(w); // the Reserve's withdrawals land in cash (cashReserve.ts)
 
   // Idle fee on owned assets unused for 7+ in-game days, parked and listed ones included (§Owned vs. leased).
   // And a sitting truck burns diesel from its first day: a crewed truck idle at day's end idles for the
@@ -103,6 +107,7 @@ function endOfDay(w: World, day: number, agents?: DailyAgentHook): void {
     }
   }
 
+  restockUsedLotDaily(w); // the NPC used lot, when its rigs come daily (dealer.ts)
   // Facility upkeep, weekly (§Assets and supply caps).
   if ((day + 1) % 7 === 0) {
     restockUsedLot(w); // the NPC used lot (dealer.ts)
@@ -144,6 +149,7 @@ function endOfDay(w: World, day: number, agents?: DailyAgentHook): void {
     // The buyback clears before the holding cost, so FD sold this week isn't charged for.
     if (cfg.buyback.enabled && !cfg.token.enabled) clearBuyback(w);
     if (holdingCostApplies(w)) chargeHoldingCost(w);
+    weeklyReserve(w); // the Reserve's week starts again from its balance now (cashReserve.ts)
     checkSolvency(w);
     if (tokenLive(w)) {
       weeklyCeiling(w); // the dial's step, and whether the airdrop's slices and the vest wait this week
@@ -172,6 +178,7 @@ function endOfDay(w: World, day: number, agents?: DailyAgentHook): void {
   let bonds = 0;
   for (const c of w.companies) {
     if (c.role !== "broker") continue;
+    if (lapsedBrokerage(w, c)) continue; // a player's brokerage wound down: its licence lapsed with its stake (brokerage.ts)
     const pct = worstPct - (worstPct - bestPct) * (creditScore(w, c) / 100); // the bond priced by credit (credit.ts)
     const premium = (cfg.permits.brokerBondFd * pct) / cfg.time.daysPerSeason;
     if (suretyMarkup !== null) {

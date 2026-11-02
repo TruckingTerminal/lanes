@@ -292,6 +292,15 @@ export interface Company {
   loadsThisWeek: number;
   /** Operating result (freight and facilities) at the last profit-tax week. */
   taxBaseFd: number;
+  /** Player brokerages (brokerage.ts): the owner's other company, the carrier's brokerage or the brokerage's carrier. */
+  partnerId?: number;
+  /** The Reserve (cashReserve.ts): its lowest balance this week, and withdrawals on their way to cash. */
+  reserveLowFd?: number;
+  reserveOut?: { fd: number; day: number }[];
+  /** Rule A, as a standing choice: a direct contract tender this carrier's trucks don't take is passed to its brokerage before it lapses. */
+  passTenders?: boolean;
+  /** A player brokerage across the launch reset (brokerage.ts): the part of its beta bond kept behind the paper open at the reset, what that paper has drawn from it since, and the paper. */
+  launchBond?: { heldFd: number; drawnFd: number; paper: number[] };
   /** The owner dispatching their own trucks (labor.ts): skill grows with loads dispatched. */
   ownerDispatch: { skill: number; potential: number; experience: number; learned: number };
   policy: CompliancePolicy;
@@ -331,6 +340,8 @@ export type PoolLine = "insurance" | "factoring" | "surety";
  */
 export interface FactoringLog {
   contracts: { companyId: number; day: number; trucks: number; rate: number; renewal: boolean; broker: boolean; invoicesFd: number; feesFd: number }[];
+  /** Cash now (token.payment.cashNow): invoices cashed, their face, the fees, and the cash-ins under a contract. */
+  cashNow?: { invoices: number; fd: number; feeFd: number; underContract: number; companies: number[] };
   lapses: number;
   /** Broker tenders some broker had to pass up at its posted bond (the AP cap), those no broker could take (they went to the open board), and bids and bookings refused on brokers' loads. */
   tendersCapped: number;
@@ -696,6 +707,46 @@ export interface Trailer {
 /** "expired": nobody hauled it before the shipper gave up (board.giveUpAfterRounds); the freight is lost. */
 export type LoadStatus = "open" | "assigned" | "inTransit" | "delivered" | "expired";
 
+/** Player brokerages (brokerage.ts): what the rule did in this world, for the reports. */
+export interface BrokerageLog {
+  /** Each pair formed: when, the capital it started with, the capital moved each way since and the fees on it. */
+  formed: { day: number; carrierId: number; brokerId: number; capitalFd: number; toBrokerFd: number; toCarrierFd: number; feeFd: number; marks?: { days: number; operatingFd: number; gainFd: number }[] }[];
+  /** Batch scenario (ruleBots.ts): carriers not chosen to form one that could have, and the day they first could (the control group). */
+  controls: { carrierId: number; day: number }[];
+  transfers: number;
+  transferFd: number;
+  feeFd: number;
+  /** Transfers into a company with negative cash or weeks in debt. */
+  rescues: number;
+  rescueFd: number;
+  refused: Record<string, number>;
+  passes: number;
+  passesBooked: number;
+  passesFellOff: number;
+  ownTenders: number;
+  ownTendersBooked: number;
+  ownTenderFd: number;
+  /** Booked own tenders: the pay over the lane's trailing clearing rate (brokerage.ts laneRate), summed (the rate flag), and at the band's edges. */
+  ownRateOverRef: number;
+  ownAtEdge: number;
+  /** A brokerage's board loads won by its own carrier, and their rate over the lane's trailing clearing rate. */
+  ownBoardWins: number;
+  ownBoardRateOverRef: number;
+  /** Every board booking (sealed bid, book-now, tender) within 0.2–5× the lane's trailing clearing rate: count and rate over it, for the comparison. */
+  clears: number;
+  clearsRateOverRef: number;
+  /** Loads not counted twice for one person (logbook loads, broker Miles). */
+  countedOnce: number;
+  /** The lane's band (brokerage.ts laneRate): trailing cleared rate per mile by lane id, and by origin hub and trailer, each [level, clears]. */
+  laneRates: Record<string, [number, number]>;
+  hubRates: Record<string, [number, number]>;
+  /** The launch reset (brokerage.ts launchHold): beta bond kept behind open paper, what that paper drew from it, what burned once it was paid, and the days it took. */
+  launchHeldFd: number;
+  launchDrawnFd: number;
+  launchLateBurnFd: number;
+  launchHoldDays: number[];
+}
+
 export interface Load {
   id: number;
   laneId: number;
@@ -750,6 +801,10 @@ export interface Load {
   contractId: number;
   tenderedTo: number;
   tenderUntil: number;
+  /** Rule A (brokerage.ts): the carrier that passed this direct contract tender to its brokerage; it is never tendered back to it. */
+  passedBy?: number;
+  /** Rule B: a tender from the broker to its own carrier at this pay per mile, inside the lane's band. */
+  ownTenderRate?: number;
 }
 
 /** A contract lane a local shipper gives a carrier: a weekly volume at a fixed rate for a term (contracts.ts). */
@@ -1013,6 +1068,19 @@ export type Action =
   | { type: "decline_contract"; contractId: number }
   | { type: "accept_tender"; loadId: number; truckId: number }
   | { type: "decline_tender"; loadId: number }
+  /** Cash now (receivables.ts cashInvoice): an open invoice the company holds, sold to the NPC factor today. */
+  | { type: "cash_invoice"; receivableId: number }
+  /** The Reserve (cashReserve.ts): cash in at once; out, free, in cash after the settle. */
+  | { type: "reserve_deposit"; fd: number }
+  | { type: "reserve_withdraw"; fd: number }
+  /** Player brokerages (brokerage.ts): a carrier forms its brokerage with this much capital (the bond and the licence come out of it). */
+  | { type: "form_brokerage"; name: string; capitalFd: number }
+  /** The owner's capital moved to its other company (equity, never revenue), less the transfer fee. */
+  | { type: "transfer_capital"; fd: number }
+  /** Rule A: a carrier passes a direct contract tender to its brokerage. */
+  | { type: "pass_tender"; loadId: number }
+  /** Rule B: a brokerage tenders one of its shipper loads to its own carrier at this pay per mile. */
+  | { type: "tender_own"; loadId: number; rate: number }
   /** Send an idle truck empty to another hub. */
   | { type: "reposition_truck"; truckId: number; hubId: string }
   | { type: "buy_fd"; usd: number }

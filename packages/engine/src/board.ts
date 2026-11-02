@@ -1,4 +1,5 @@
 import { acceptTender, autoTenders, expireTenders, mayTake, settleTender } from "./contracts.js";
+import { onAssign, onFallOff } from "./brokerage.js";
 import { fmtInt, fuelPrice } from "./economics.js";
 import { seasonality, EQUIPMENT } from "./demand.js";
 import { dayOf } from "./clock.js";
@@ -176,6 +177,7 @@ function assign(w: World, load: Load, truck: Truck, bid: Bid): void {
   load.carrierId = bid.companyId;
   load.truckId = truck.id;
   load.clearedRate = bid.rate;
+  if (cfg.brokerage.enabled) onAssign(w, load, bid.companyId, bid.rate); // player brokerages: the rate flag, a passed load covered
   // Due = the HOS schedule (11 driving hours, then off until the 24-hour duty day
   // resets) + worst-case loading and unloading + slack. A long breakdown makes it late.
   // A hot load's window assumes 15 driving hours a day and little slack: a solo driver makes it only on falsified logs.
@@ -315,6 +317,7 @@ function giveUp(w: World, load: Load): void {
   const ref = `load:${load.id}`;
   const rounds = load.roundsUnfilled;
   load.status = "expired";
+  if (w.cfg.brokerage.enabled) onFallOff(w, load);
   if (load.brokerId !== null) {
     const broker = companyById(w, load.brokerId);
     const charge = fallOffShare * load.shipperRate * load.miles;

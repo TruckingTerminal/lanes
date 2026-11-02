@@ -1,4 +1,5 @@
 import { dayOf } from "./clock.js";
+import { emptyReserve, reserveAccount, reserveFd, reserveOn, reserveStats, shelteredFd } from "./cashReserve.js";
 import { returnLease } from "./capacity.js";
 import { ordersOf } from "./dealer.js";
 import { facilitiesOf } from "./demand.js";
@@ -46,6 +47,14 @@ export function chargeHoldingCost(w: World): void {
     const acct = companyAccount(c.id);
     const excess = w.ledger.balance(acct) - workingCapital(w, c);
     if (excess > 0) w.ledger.post(w.t, acct, "sink:holding_cost", excess * rate, `holding:${c.id}`);
+    // The Reserve (cashReserve.ts): sheltered up to its cap, from the week's lowest balance; the rest pays as cash does.
+    if (reserveOn(w)) {
+      const over = reserveFd(w, c.id) - shelteredFd(w, c);
+      if (over > 0.005) {
+        w.ledger.post(w.t, reserveAccount(c.id), "sink:holding_cost", over * rate, `holding:${c.id}`);
+        reserveStats(w).holdingFd += over * rate;
+      }
+    }
   }
   const idle = poolCash(w);
   if (idle > 0) w.ledger.post(w.t, POOL_ACCOUNT, "sink:holding_cost", idle * rate, "holding:pool");
@@ -74,6 +83,7 @@ export function startLiquidation(w: World, c: Company): void {
     factoringLog(w).liquidations.push({ companyId: c.id, day: dayOf(w.t, w.cfg), ownedTrucks: owned });
   }
   c.liquidatingSince = dayOf(w.t, w.cfg);
+  if (reserveOn(w)) emptyReserve(w, c, `liquidation:${c.id}`); // the Reserve is the company's: it goes to its creditors with its cash
   c.suspendedOrders = c.orders;
   c.orders = [];
   releaseContractStakes(w, c); // contract stakes go first to the pool holding the company's paper

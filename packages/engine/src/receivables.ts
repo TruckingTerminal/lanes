@@ -15,6 +15,7 @@
  * bond pays its paper when its cash can't, the NPC factor's first: so the factor's advance is always matched by a
  * payment, and paying on delivery is never a faucet.
  */
+import { launchDraw, samePerson } from "./brokerage.js";
 import { dayOf } from "./clock.js";
 import { loadCreditPremium, recordPayment } from "./credit.js";
 import { companyAccount } from "./ledger.js";
@@ -160,6 +161,13 @@ function npcPaperOf(w: World, payerId: number, exceptId: number): number {
   return s;
 }
 
+/** Player brokerages: everything a broker owes other than `exceptId` and its own carrier's paper, which the bond pays last. */
+function paperAheadOfOwn(w: World, payerId: number, exceptId: number): number {
+  let s = 0;
+  for (const r of w.receivables) if (r.payer === payerId && r.id !== exceptId && !samePerson(w, payerId, r.payeeId)) s += r.amountFd;
+  return s;
+}
+
 /** Pays up to `amountFd` of a broker's paper out of its bond (its stake), to `to`. Returns what it paid. */
 function drawBond(w: World, broker: Company, amountFd: number, to: string, ref: string, npcHolder: boolean): number {
   // In cents, within what the stake account holds, so the bond and its account agree.
@@ -186,14 +194,26 @@ function settleBrokerPaper(w: World, payer: Company, r: Receivable): void {
   const npcHolder = r.holder === HOLDER_NPC_FACTOR;
   const amount = r.amountFd;
   r.amountFd = 0; // settled today, whatever is paid: the rest of today's pass no longer counts it as owed
-  const fromCash = Math.min(amount, Math.max(0, w.ledger.balance(companyAccount(payer.id))));
-  if (fromCash > 0.005) w.ledger.post(w.t, companyAccount(payer.id), to, fromCash, ref);
-  let rest = amount - fromCash;
-  if (rest > 0.005) {
-    const room = Math.max(0, payer.stakedFd - (npcHolder ? 0 : npcPaperOf(w, payer.id, r.id)));
-    rest -= drawBond(w, payer, Math.min(rest, room), to, ref, npcHolder);
+  // Player brokerages (brokerage.ts launchHold): paper open at the launch reset is paid first from the beta bond kept
+  // behind it, so the brokerage's new FD doesn't pay for beta freight and the carrier is paid after the reset.
+  let fromHold = 0;
+  const hold = payer.launchBond;
+  if (hold && hold.paper.includes(r.id)) {
+    fromHold = drawBond(w, payer, Math.min(amount, Math.max(0, hold.heldFd - hold.drawnFd)), to, ref, npcHolder);
+    launchDraw(payer, r.id, fromHold, w);
   }
-  recordPayment(payer, amount, fromCash < amount - 0.005);
+  const fromCash = Math.min(amount - fromHold, Math.max(0, w.ledger.balance(companyAccount(payer.id))));
+  if (fromCash > 0.005) w.ledger.post(w.t, companyAccount(payer.id), to, fromCash, ref);
+  let rest = amount - fromHold - fromCash;
+  // Player brokerages (brokerage.ts): its own carrier's paper stands last in the bond's queue, and stays out of credit.
+  const own = samePerson(w, payer.id, r.payeeId);
+  if (rest > 0.005) {
+    const room = Math.max(0, payer.stakedFd - (npcHolder ? 0 : own ? paperAheadOfOwn(w, payer.id, r.id) : npcPaperOf(w, payer.id, r.id)));
+    const drawn = drawBond(w, payer, Math.min(rest, room), to, ref, npcHolder);
+    if (payer.launchBond) launchDraw(payer, r.id, drawn, w); // the beta bond kept behind this paper (brokerage.ts)
+    rest -= drawn;
+  }
+  if (!own) recordPayment(payer, amount, fromHold + fromCash < amount - 0.005);
   if (rest <= 0.005) return;
   const log = factoringLog(w);
   if (payer.liquidatingSince !== null) {
@@ -211,10 +231,12 @@ function settleBrokerPaper(w: World, payer: Company, r: Receivable): void {
  */
 export function callBond(w: World, c: Company): void {
   if (!contractOn(w) || c.role !== "broker") return;
-  const mine = w.receivables.filter((r) => r.payer === c.id).sort((a, b) => Number(b.holder === HOLDER_NPC_FACTOR) - Number(a.holder === HOLDER_NPC_FACTOR) || a.dueDay - b.dueDay);
+  // The NPC holders first, the owner's own carrier (player brokerages) last.
+  const own = (r: Receivable) => Number(samePerson(w, c.id, r.payeeId));
+  const mine = w.receivables.filter((r) => r.payer === c.id).sort((a, b) => own(a) - own(b) || Number(b.holder === HOLDER_NPC_FACTOR) - Number(a.holder === HOLDER_NPC_FACTOR) || a.dueDay - b.dueDay);
   for (const r of mine) {
     const paid = drawBond(w, c, r.amountFd, holderAccount(r), `receivable:${r.id}`, r.holder === HOLDER_NPC_FACTOR);
-    if (paid > 0.005) recordPayment(c, paid, true);
+    if (paid > 0.005 && !own(r)) recordPayment(c, paid, true);
     r.amountFd -= paid;
   }
   w.receivables = w.receivables.filter((r) => r.amountFd > 0.005);
@@ -316,6 +338,11 @@ export function bill(w: World, b: Bill): void {
   }
   const payee = b.payee;
   const dueDay = dayOf(w.t, w.cfg) + k.termsDays;
+  // Player brokerages (brokerage.ts): paper between an owner's own two companies waits net, never factored or quick-paid.
+  if (b.payer !== 0 && samePerson(w, b.payer, payee.id)) {
+    w.receivables.push({ id: w.nextReceivableId++, payer: b.payer, faucet: b.faucet, payeeId: payee.id, amountFd: b.amountFd, dueDay, holder: payee.id });
+    return;
+  }
   if (k.lessorPaysOnDelivery && b.leased) {
     // The lessor's share already covers same-day pay: it pays now and collects the paper itself.
     w.ledger.post(w.t, "faucet:npc_lessor", companyAccount(payee.id), b.amountFd, b.ref);
@@ -375,6 +402,49 @@ export function bill(w: World, b: Bill): void {
     return;
   }
   w.receivables.push({ id: w.nextReceivableId++, payer: b.payer, faucet: b.faucet, payeeId: payee.id, amountFd: b.amountFd, dueDay, holder: payee.id });
+}
+
+/**
+ * Cash now (token.payment.cashNow; Jeff, 2026-11-02): what selling this open invoice to the NPC factor today costs,
+ * as a share of its face, or why it can't be sold. The contract's rate when one runs, else the spot rate, plus the
+ * aging surcharge for each day since the invoice was raised (its due day less the payment terms).
+ */
+export function cashNowRate(w: World, c: Company, r: Receivable): number | string {
+  const k = w.cfg.token.payment;
+  if (!k.enabled || !k.cashNow.enabled) return "cash now isn't open";
+  if (r.holder !== c.id || r.payeeId !== c.id || r.amountFd <= 0.005) return "only an open invoice you hold";
+  if (c.liquidatingSince !== null) return "the company is being wound up";
+  const today = dayOf(w.t, w.cfg);
+  if (r.dueDay <= today) return "it falls due today";
+  // Paper that always pays: an NPC shipper's; or that a bond backs: a broker's, under the AP cap. Not a player
+  // shipper's (no bond behind it), and never paper between one owner's two companies (brokerage.ts).
+  if (r.payer !== 0 && companyById(w, r.payer).role !== "broker") return "a player shipper's paper has no bond behind it";
+  if (r.payer !== 0 && samePerson(w, r.payer, c.id)) return "paper between your own companies isn't factored";
+  const age = Math.max(0, today - (r.dueDay - k.termsDays));
+  const base = c.factoring && c.factoring.rate !== undefined ? c.factoring.rate : k.cashNow.spotPct;
+  return base + Math.min(k.cashNow.agingCap, k.cashNow.agingPerDay * age);
+}
+
+/** Cash now: the NPC factor buys the invoice today, less the fee (a sink); it collects at the due day as factored paper. */
+export function cashInvoice(w: World, c: Company, receivableId: number): string | null {
+  const r = w.receivables.find((x) => x.id === receivableId);
+  if (!r) return "no such invoice";
+  const rate = cashNowRate(w, c, r);
+  if (typeof rate === "string") return rate;
+  const ref = `cashnow:${r.id}`;
+  const fee = r.amountFd * rate;
+  w.ledger.post(w.t, "faucet:npc_factor", companyAccount(c.id), r.amountFd, ref);
+  w.ledger.post(w.t, companyAccount(c.id), "sink:factoring_fee", fee, ref);
+  c.operating.costFd += fee;
+  r.holder = HOLDER_NPC_FACTOR;
+  const log = factoringLog(w);
+  const t = (log.cashNow ??= { invoices: 0, fd: 0, feeFd: 0, underContract: 0, companies: [] });
+  t.invoices++;
+  t.fd += r.amountFd;
+  t.feeFd += fee;
+  if (c.factoring) t.underContract++;
+  if (!t.companies.includes(c.id)) t.companies.push(c.id);
+  return null;
 }
 
 /** What a company is owed and has not yet collected (its own receivables, not the factored ones). */
@@ -444,8 +514,9 @@ export function dailyReceivables(w: World): void {
       settleBrokerPaper(w, payer, r);
       continue;
     }
+    const own = samePerson(w, payer.id, r.payeeId); // player brokerages: own paper stays out of credit
     if (payer.liquidatingSince !== null) {
-      recordPayment(payer, r.amountFd, true);
+      if (!own) recordPayment(payer, r.amountFd, true);
       // The payer is being wound up: a broker's bond covers its carrier, as far as the surety pool goes; otherwise the holder loses.
       const bondLeft = Math.max(0, w.cfg.token.staking.roles.broker - payer.suretyClaimedFd);
       if (payer.role === "broker" && payer.suretyWriter === "pool" && r.holder !== HOLDER_NPC_FACTOR && bondLeft > 0.01) {
@@ -457,7 +528,7 @@ export function dailyReceivables(w: World): void {
       continue;
     }
     // Paid with cash in hand, or from an overdraft: the difference is the credit record.
-    recordPayment(payer, r.amountFd, w.ledger.balance(companyAccount(payer.id)) < r.amountFd);
+    if (!own) recordPayment(payer, r.amountFd, w.ledger.balance(companyAccount(payer.id)) < r.amountFd);
     w.ledger.post(w.t, companyAccount(payer.id), toAcct, r.amountFd, `receivable:${r.id}`);
   }
   w.receivables = keep;

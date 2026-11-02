@@ -1,4 +1,6 @@
 import { doneShares, logbookWeek, milestoneText, openBook, openLogbook } from "./logbook.js";
+import { launchHold, partnerOf } from "./brokerage.js";
+import { emptyReserve, reserveOn } from "./cashReserve.js";
 import { dpow } from "@lanes/data";
 import { startCeiling } from "./ceiling.js";
 import { dayOf } from "./clock.js";
@@ -501,7 +503,15 @@ export function launchToken(w: World): void {
   let lockedFd = 0;
   // Under the factoring contract a broker's bond pays its paper before the reset takes it (the NPC factor's first),
   // so what it pays its carriers is beta FD like the rest of their wallets.
-  for (const c of w.companies) callBond(w, c);
+  // A player's brokerage (brokerage.ts) keeps the part of its bond behind open paper until that paper is paid instead.
+  const held = new Map<number, number>();
+  for (const c of w.companies) {
+    const h = launchHold(w, c);
+    if (h > 0) held.set(c.id, h);
+    else callBond(w, c);
+  }
+  // The Reserve (cashReserve.ts) is beta FD like the wallet it sits beside: it joins cash for the reset.
+  if (reserveOn(w)) for (const c of w.companies) emptyReserve(w, c, `launch:${c.id}`);
   for (const c of w.companies) {
     const acct = companyAccount(c.id);
     const balance = w.ledger.balance(acct);
@@ -520,14 +530,15 @@ export function launchToken(w: World): void {
   // play money through by parking it in a stake. Tiers and licences get their grace period to be
   // re-posted (staking.ts); factoring contracts end; the yard stays, its bond gone.
   for (const c of w.companies) {
+    const keepStake = held.get(c.id) ?? 0;
     for (const acct of [stakeAccount(c.id), exitAccount(c.id), contractAccount(c.id)]) {
-      const bal = w.ledger.balance(acct);
+      const bal = w.ledger.balance(acct) - (acct === stakeAccount(c.id) ? keepStake : 0);
       if (bal > 0.01) {
         w.ledger.post(w.t, acct, "sink:launch_reset", bal, `launch:${c.id}`);
         resetBurnedFd += bal;
       }
     }
-    c.stakedFd = 0;
+    c.stakedFd = keepStake;
     c.unstaking = [];
     c.locks = []; // locks are beta FD too
     c.tierGraceDay = null;
@@ -545,6 +556,7 @@ export function launchToken(w: World): void {
   const eligible = w.companies.map((c) => c.liquidatingSince === null && c.authority.status !== "revoked");
   const miles = w.companies.map((c, i) => (eligible[i] ? lifetimeMiles(c) : 0));
   const profits = w.companies.map((c, i) => (eligible[i] ? Math.max(0, operatingResult(w, c)) : 0));
+  onePersonOneShare(w, miles, profits);
   const totalMiles = miles.reduce((a, b) => a + b, 0);
   const totalProfit = profits.reduce((a, b) => a + b, 0);
   const cap = tc.airdrop.fd * tc.airdrop.capShare;
@@ -632,6 +644,7 @@ export function seasonAirdrop(w: World): void {
   const eligible = w.companies.map((c) => c.liquidatingSince === null && c.authority.status !== "revoked");
   const miles = w.companies.map((c, i) => (eligible[i] ? Math.max(0, lifetimeMiles(c) - c.seasonBase.miles) : 0));
   const profits = w.companies.map((c, i) => (eligible[i] ? Math.max(0, operatingResult(w, c) - c.seasonBase.profit) : 0));
+  onePersonOneShare(w, miles, profits);
   const totalMiles = miles.reduce((a, b) => a + b, 0);
   const totalProfit = profits.reduce((a, b) => a + b, 0);
   const cap = pot * tc.airdrop.capShare;
@@ -817,23 +830,57 @@ function operatingResult(w: World, c: Company): number {
 }
 
 /**
+ * Player brokerages (brokerage.ts): the airdrop is the person's, so a brokerage's Miles and profit score for its
+ * carrier and the per-company cap applies once to the two together.
+ */
+function onePersonOneShare(w: World, miles: number[], profits: number[]): void {
+  if (!w.cfg.brokerage.enabled) return;
+  w.companies.forEach((c, i) => {
+    const carrier = c.role === "broker" ? partnerOf(w, c) : null;
+    if (!carrier) return;
+    const j = carrier.id - 1;
+    miles[j]! += miles[i]!;
+    profits[j]! += profits[i]!;
+    miles[i] = 0;
+    profits[i] = 0;
+  });
+}
+
+/**
  * Weekly: a share of each company's operating profit this week, above the
  * allowance, is burned. Loss-making weeks and small operators pay nothing.
+ * Player brokerages (brokerage.ts): an owner's two companies share one allowance, their week's results together.
  */
 function chargeProfitTax(w: World): void {
   const { profitTaxAllowanceFd } = w.cfg.token;
   const profitTaxRate = w.token.profitTaxRate;
-  for (const c of w.companies) {
-    const now = operatingResult(w, c);
-    const taxable = now - c.taxBaseFd - profitTaxAllowanceFd;
-    c.taxBaseFd = now;
-    if (taxable <= 0 || c.liquidatingSince !== null) continue;
-    const tax = Math.min(taxable * profitTaxRate, Math.max(0, w.ledger.balance(companyAccount(c.id))));
-    if (tax <= 0.01) continue;
+  const pay = (c: Company, tax: number) => {
+    tax = Math.min(tax, Math.max(0, w.ledger.balance(companyAccount(c.id))));
+    if (tax <= 0.01) return;
     // The circular economy: a share of the tax still burns (circular.taxBurnShare), the rest refills the reserve.
     const burn = w.cfg.token.circular.enabled ? tax * w.cfg.token.circular.taxBurnShare : 0;
     if (burn > 0.01) w.ledger.post(w.t, companyAccount(c.id), "sink:profit_tax_burn", burn, `tax:${c.id}`);
     if (tax - burn > 0.01) w.ledger.post(w.t, companyAccount(c.id), "sink:profit_tax", tax - burn, `tax:${c.id}`);
+  };
+  for (const c of w.companies) {
+    const other = c.partnerId !== undefined ? partnerOf(w, c) : null;
+    if (other) {
+      if (other.id < c.id) continue; // the pair is taxed once, at the lower id
+      const mine = operatingResult(w, c) - c.taxBaseFd;
+      const theirs = operatingResult(w, other) - other.taxBaseFd;
+      c.taxBaseFd += mine;
+      other.taxBaseFd += theirs;
+      const taxable = mine + theirs - profitTaxAllowanceFd;
+      const gains = Math.max(0, mine) + Math.max(0, theirs);
+      if (taxable <= 0 || gains <= 0) continue;
+      for (const [x, part] of [[c, mine], [other, theirs]] as const) if (part > 0 && x.liquidatingSince === null) pay(x, (taxable * profitTaxRate * part) / gains);
+      continue;
+    }
+    const now = operatingResult(w, c);
+    const taxable = now - c.taxBaseFd - profitTaxAllowanceFd;
+    c.taxBaseFd = now;
+    if (taxable <= 0 || c.liquidatingSince !== null) continue;
+    pay(c, taxable * profitTaxRate);
   }
 }
 

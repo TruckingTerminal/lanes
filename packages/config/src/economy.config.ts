@@ -605,7 +605,9 @@ export const economyConfig = {
     // fuel, more maintenance, more breakdowns), at their used value (about a quarter of new with the asset rules),
     // delivered like a new truck. `perWeek` come in each week, up to `stock`; a sale is a sink, as at the dealer.
     // A free starter's way in when new trucks cost what real ones do. Off until tested.
-    npcLot: { enabled: false, ageYears: 4, odometer: 450_000, milesSinceRebuild: 120_000, rebuilds: 1, perWeek: 15, stock: 30 },
+    // `daily` (studio/reviews/economy-reserve.md, the lot's cadence): the week's `perWeek` rigs arrive a seventh a day
+    // instead of all at the week's end, so the lot isn't emptied on restock day and bare for the six after.
+    npcLot: { enabled: false, ageYears: 4, odometer: 450_000, milesSinceRebuild: 120_000, rebuilds: 1, perWeek: 15, stock: 30, daily: false },
   },
 
   // §DeFi buildings — Equipment Finance, in FD for Season 1. Depositors fund the
@@ -637,6 +639,19 @@ export const economyConfig = {
       termWeeks: 104,
       maxLoans: [5, 1] as const,
       missedToDefault: 2,
+      // Risk pricing (Jeff, 2026-11-02: "prudent businessmen must win in the long run"; option B of
+      // studio/reviews/economy-prudence.md). Off: the switch waits for Jeff. Each week every open loan pays its
+      // credit rate plus `perDebtToEquity` for each unit of the borrower's debt-to-equity over `freeDebtToEquity`,
+      // up to `maxPremium`, so leverage costs most when equity is thin. The bust covenant: while the freight cycle
+      // reads under `bustBelow`, a borrower holding less cash than `coverWeeks` of its loan payments pays `premium`
+      // more and defaults on its first missed payment. A company that borrows little pays nothing more.
+      risk: {
+        enabled: false,
+        freeDebtToEquity: 1,
+        perDebtToEquity: 0.001,
+        maxPremium: 0.004,
+        covenant: { enabled: true, bustBelow: 0.9, coverWeeks: 8, premium: 0.002, missedToDefault: 1 },
+      },
     },
   },
 
@@ -758,6 +773,10 @@ export const economyConfig = {
     // the cash that carries a fleet through a bust — survives the reset.
     workingCapitalWeeks: 4,
     reputationDecay: 0.3, // the reputation record (and level) shrinks 30%
+    // The year-end burn itself (studio/reviews/economy-reserve.md, the hoarding rule): false keeps the close's purchase
+    // lock, reputation decay and Miles snapshot but burns nothing, for the weekly holding cost (holdingCost.withSeasons)
+    // to do the job instead.
+    burn: true,
   },
 
   // PoC assumption (design proposal, for running without seasons): a weekly
@@ -1167,6 +1186,15 @@ export const economyConfig = {
       enabled: false,
       termsDays: 30,
       quickPayPct: 0.1,
+      // Cash now (Jeff, 2026-11-02: "If a carrier needs it now, he needs it NOW"; studio/reviews/economy-reserve.md). Off
+      // until sized. Any open invoice a company holds on paper that always pays (an NPC shipper's) or that a bond
+      // backs (a broker's, under the AP cap) can be sold to the NPC factor today: under a factoring contract at the
+      // contract's rate, without one at `spotPct`, plus `agingPerDay` for each day since the invoice was raised, up to
+      // `agingCap`. The fee is a sink (`factoring_fee`). Player shippers' paper (no bond) and paper between one
+      // owner's two companies can't be cashed (receivables.ts cashInvoice).
+      // `botsNetOnly` is a batch scenario, not a rule: owner-operator bots on their first trucks keep net terms (no
+      // contract, no quick pay), as a player who declined them would, so the invoice gap is theirs to bridge.
+      cashNow: { enabled: false, spotPct: 0.08, agingPerDay: 0.001, agingCap: 0.03, botsNetOnly: false },
       factoring: {
         discountNpc: 0.04, // an NPC shipper's paper, per 30-day invoice (× the pool's markup, or × pools.factoring.backstopMarkup at the NPC factor)
         discountPlayer: 0.06, // a player broker's or shipper's paper
@@ -1594,6 +1622,43 @@ export const economyConfig = {
     range: [0.85, 1.3] as const,
   },
 
+  // The Reserve (Jeff, 2026-11-02; studio/reviews/economy-reserve.md). Off until sized. An account beside cash: FD in it
+  // is sheltered from the season close's burn and the weekly holding cost up to `capWeeks` of the company's own
+  // spending (the weeks the working-capital rule reads, averaged); above the cap both apply as to cash. No yield; a
+  // deposit is instant, a withdrawal free and in cash `settleDays` later. The shelter reads the week's lowest balance,
+  // so cash can't dip in for the weekly check. It counts toward credit as capital, and can't be pledged, staked or
+  // posted as a bond. At the launch reset and in a liquidation it joins cash (cashReserve.ts).
+  cashReserve: { enabled: false, capWeeks: 13, settleDays: 1 },
+
+  // Player brokerages (Jeff, 2026-11-02: "Brokerages and carriers should be different companies. Each player can have 1
+  // of each at most"; studio/specs/brokerage-rule.md, studio/reviews/economy-brokerage.md): a second company under the
+  // same login. Off until the ruleset bump; while off nothing shows and nothing changes (engineering's two-company model
+  // reads `enabled` too). A player's carrier with an active authority, at least `minCarrierAgeDays` old, forms its one
+  // brokerage once the ladder's brokerage layer opens: the licence (permits.brokerLicenseRenewalFd), the bond as its
+  // stake (token.staking.roles.broker) and the surety premium (permits.suretyPctPerYear) as an AI broker has them, no
+  // starting grant, fresh credit. The owner moves capital between the two, either way, as equity (never revenue),
+  // guarded, for `transferFeePct` of it to the reserve (Jeff: 3%). Rule A: a carrier may pass a direct contract tender
+  // to its brokerage inside the tender's window. Rule B: a brokerage may tender its shipper freight straight to its own
+  // carrier, the hauler's pay inside `band` × the lane's market rate (its trailing cleared rate, own companies' clears
+  // left out). Between the two: a load counts once per person, payments stay out of credit, own paper is never
+  // factored, the own carrier stands last in the bond's queue, one profit-tax allowance and one airdrop share per
+  // person. At the launch reset a beta brokerage's bond burns, except the part behind open paper, which pays that
+  // paper first and burns once it is paid (brokerage.ts).
+  brokerage: {
+    enabled: false,
+    minCarrierAgeDays: 0,
+    transferFeePct: 0.03,
+    band: [0.85, 1.15] as const,
+    // Double brokering closed to player carriers in the rules, not only on the screens.
+    closeDoubleBrokering: true,
+    // Batch scenario (ruleBots.ts), not a rule: the share of carrier bots that form a brokerage when they can, and
+    // where their brokerage prices a tender to its own carrier inside the band (0 the floor, 1 the ceiling; null: its
+    // posted book-now, held inside the band).
+    // `fromDay`: no bot forms one before this day (the post-launch sizing); `marginPct`: their brokerages' margin, null
+    // for their owner's persona's.
+    bots: { share: 0.25, ownTenderAt: null as number | null, fromDay: 0, marginPct: null as number | null },
+  },
+
   // Design proposal (Jeff, 2026-10-28): fraud — double brokering and freight theft,
   // against players and AI alike — and the vetting brokers and shippers do to avoid it.
   fraud: {
@@ -1655,11 +1720,6 @@ export const economyConfig = {
     gapCushionWeeks: 4, // the gap to the next truck holds back this many weeks of the company's own spending
     cushionAvgWeeks: 4, // the cushion averages spending over this many weeks (at most seasonClose.workingCapitalWeeks are kept)
     milestoneWindowDays: 12, // a milestone's line shows within this many game days of its date (the director's gate)
-  },
-  // A player's brokerage (specs/brokerage-rule.md): a second company under the same login, one carrier and one brokerage
-  // at most. Off until the brokerage build lands with the economy's sizes; while off, nothing shows and nothing changes.
-  brokerage: {
-    enabled: false,
   },
   // A hub reads its open dry-van loads whose ceiling clears a starter's break-even by `margin`, per round of its base van freight.
   ui: {

@@ -22,7 +22,7 @@ import { endPlayerLease, leasedOut } from "./playerLeases.js";
 export const dialOn = (w: World) => w.cfg.population.dial.enabled;
 
 /** A simulated carrier the dial may act on: a rule-bot carrier, not a person and not a wave newcomer standing in for one. */
-export const dialBot = (c: Company) => c.role === "carrier" && !c.human && !c.strategy.startsWith("player:") && !c.strategy.startsWith("wave:");
+export const dialBot = (c: Company) => c.role === "carrier" && !c.human && !c.strategy.startsWith("player:") && !c.strategy.startsWith("wave:") && c.partnerId === undefined; // an owner with a brokerage is a player-like pair, not the dial's
 
 function state(w: World): PopulationState {
   return (w.population ??= { daily: [], mean: 0, state: "within", retired: 0, woundDown: 0, entered: 0, daysUnder: 0, daysOver: 0 });

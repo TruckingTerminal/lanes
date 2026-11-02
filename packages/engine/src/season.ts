@@ -1,4 +1,5 @@
 import { dayOf, dayOfSeason } from "./clock.js";
+import { reserveAccount, reserveFd, reserveOn, reserveStats, shelteredFd } from "./cashReserve.js";
 import { returnPoolCashToDepositors } from "./finance.js";
 import { companyAccount } from "./ledger.js";
 import type { SeasonCloseRecord } from "./types.js";
@@ -34,7 +35,17 @@ export function closeSeason(w: World, season: number, day: number): SeasonCloseR
   for (const c of w.companies) {
     const acct = companyAccount(c.id);
     const balance = w.ledger.balance(acct);
-    if (balance > 0) {
+    // The Reserve (cashReserve.ts): what it shelters stays; the rest burns as cash does.
+    if (seasonClose.burn && reserveOn(w)) {
+      const over = reserveFd(w, c.id) - shelteredFd(w, c);
+      if (over > 0.005) {
+        const burn = Math.ceil(over * 100) / 100;
+        w.ledger.post(w.t, reserveAccount(c.id), "sink:season_close", burn, `season:${season}`);
+        burnedFd += burn;
+        reserveStats(w).burnedFd += burn;
+      }
+    }
+    if (balance > 0 && seasonClose.burn) {
       const workingCapital = c.weeklySpend.reduce((a, b) => a + b, 0);
       const keep = Math.min(balance, Math.max(Math.min(balance * seasonClose.carryoverPct, seasonClose.carryoverCapFd), workingCapital));
       if (keep >= seasonClose.carryoverCapFd) companiesAtCap++;

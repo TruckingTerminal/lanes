@@ -64,6 +64,8 @@ function newCase(w: World, k: Omit<FraudCase, "id">): FraudCase {
  */
 export function rebrokerLoad(w: World, c: Company, load: Load, rate: number, pays: boolean): string | null {
   if (c.role !== "carrier") return "brokers broker legally";
+  // Player brokerages (brokerage.ts): a player brokers through a brokerage of its own; the re-post stays the AI's (the Back Lot's).
+  if (w.cfg.brokerage.enabled && w.cfg.brokerage.closeDoubleBrokering && (c.human || c.partnerId !== undefined)) return "a carrier brokers through its own brokerage";
   const closed = layerBlock(w, "brokerage"); // the unlock ladder (ladder.ts)
   if (closed) return closed;
   if (c.authority.status !== "active") return "your authority isn't active";

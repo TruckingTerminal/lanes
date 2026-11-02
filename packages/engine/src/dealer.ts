@@ -46,10 +46,20 @@ export function lotPrice(w: World, tier: TractorTier, trailer: Equipment): numbe
   return tractor + trailerV;
 }
 
-/** Weekly: rigs come onto the NPC used lot, up to its stock. */
+/** Weekly: rigs come onto the NPC used lot, up to its stock (unless they come daily). */
 export function restockUsedLot(w: World): void {
   const k = w.cfg.usedMarket.npcLot;
-  if (k.enabled) w.usedLot.stock = Math.min(k.stock, w.usedLot.stock + k.perWeek);
+  if (k.enabled && !k.daily) w.usedLot.stock = Math.min(k.stock, w.usedLot.stock + k.perWeek);
+}
+
+/** Daily, with `npcLot.daily`: a seventh of the week's rigs, whole rigs as they add up, up to the stock. */
+export function restockUsedLotDaily(w: World): void {
+  const k = w.cfg.usedMarket.npcLot;
+  if (!k.enabled || !k.daily) return;
+  const due = (w.usedLot.due ?? 0) + k.perWeek / 7;
+  const whole = Math.floor(due + 1e-9);
+  w.usedLot.due = due - whole;
+  w.usedLot.stock = Math.min(k.stock, w.usedLot.stock + whole);
 }
 
 /** What an order costs at the dealer today: the rig, the tractor alone, or the trailer alone. */

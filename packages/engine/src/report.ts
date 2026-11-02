@@ -3,8 +3,13 @@ import { facilitiesOf } from "./demand.js";
 import { depositorValue } from "./finance.js";
 import { companyAccount } from "./ledger.js";
 import type { DayMetrics } from "./metrics.js";
-import type { LaunchRecord } from "./types.js";
-import { operatingTrucks, type World } from "./world.js";
+import type { BrokerageLog, LaunchRecord } from "./types.js";
+import { creditScore } from "./credit.js";
+import { riskStats } from "./purchaseLoans.js";
+import { reserveCapFd, reserveFd, reserveHeldFd } from "./cashReserve.js";
+import { contractAccount } from "./receivables.js";
+import { exitAccount, stakeAccount } from "./staking.js";
+import { loanStakeAccount, operatingTrucks, type World } from "./world.js";
 
 export interface QuarterReport {
   season: number;
@@ -110,8 +115,26 @@ export interface RunReport {
   };
   /** The population dial (population.ts): its band, what it did, and the days it sat outside the band. */
   population?: { dial: boolean; band: readonly [number, number]; retired: number; woundDown: number; entered: number; daysUnder: number; daysOver: number };
-  /** Carriers by starting segment and strategy at the end: companies, mean wealth, the share liquidated at least once, mean operating result. */
-  byStrategy?: Record<string, Record<string, { companies: number; wealthFd: number; liquidatedShare: number; operatingFd: number }>>;
+  /**
+   * Carriers by starting segment and strategy at the end: companies, mean wealth, the share liquidated at least once,
+   * mean operating result; and (from v59) liquidations per company, median wealth, mean and median net worth (wealth
+   * with locked FD and businesses, less debt), trucks running, and the dollars put in and cashed out per company.
+   */
+  byStrategy?: Record<string, Record<string, { companies: number; wealthFd: number; liquidatedShare: number; operatingFd: number; bankruptcies?: number; medianWealthFd?: number; netWorthFd?: number; medianNetWorthFd?: number; trucks?: number; usdIn?: number; usdOut?: number }>>;
+  /**
+   * Player brokerages (brokerage.ts), when on: each pair (its carrier's and brokerage's net worth at the end, what the
+   * brokerage made for its owner, the capital each way and its fees), the control carriers that could have formed one,
+   * and the rule's flows (transfers, Rule A passes, Rule B own tenders and their rate against the board's clears).
+   */
+  brokerage?: Omit<BrokerageLog, "formed" | "controls" | "laneRates" | "hubRates"> & {
+    pairs: { segment: string; persona: string; day: number; carrierNetWorthFd: number; brokerNetWorthFd: number; brokerGainFd: number; brokerOperatingFd: number; brokerRevenueFd: number; capitalFd: number; toBrokerFd: number; toCarrierFd: number; feeFd: number; carrierLiquidations: number; brokerLiquidations: number; brokerStakeEndFd: number; brokerCredit: number; carrierTrucks: number; marks: { days: number; operatingFd: number; gainFd: number }[] }[];
+    controls: { segment: string; persona: string; day: number; carrierNetWorthFd: number; carrierLiquidations: number; carrierTrucks: number }[];
+    aiBrokers: { companies: number; operatingFd: number; revenueFd: number; liquidated: number; liquidationDays: number[] };
+    factoringBondPaidFd: number;
+    uncoveredFd: number;
+  };
+  /** The Reserve (cashReserve.ts), when on: held at the end in all, what it paid in holding cost and season burns, deposits and withdrawals, and by segment and strategy the mean held, its cap and how many hold any. */
+  cashReserve?: { heldEndFd: number; holdingFd: number; burnedFd: number; depositFd: number; withdrawFd: number; byStrategy: Record<string, { companies: number; heldFd: number; capFd: number; holders: number }> };
   /** Staking locks (token.staking.lockDiscounts): locks made by term, what became of them, the discounts given and the slashes burned. */
   locks?: { made: Record<string, { locks: number; fd: number }>; rolled: number; matured: number; broken: number; discountsFd: number; slashedFd: number; brokenDiscountsFd: number; lockedEndFd: number };
   /** Fleet sizes at the end: carriers running more than 5, 10 and 20 trucks, and the largest fleet. */
@@ -128,6 +151,8 @@ export interface RunReport {
     seized: number;
     stakeSlashedFd: number;
     writtenOffFd: number;
+    /** Risk pricing (equipmentFinance.purchase.risk), when on: premiums paid, borrower-weeks paying one and in breach of the bust covenant, defaults the covenant brought forward. */
+    risk?: { premiumFd: number; payingWeeks: number; breachWeeks: number; covenantDefaults: number };
   };
   /**
    * Assets and destruction (assets.enabled): what was scrapped, written off and stolen; the factory's
@@ -551,7 +576,7 @@ export function buildReport(w: World): RunReport {
 
   // Wealth concentration.
   const wealthOf = (companyId: number) => {
-    let wealth = w.ledger.balance(companyAccount(companyId)) + depositorValue(w, companyId);
+    let wealth = w.ledger.balance(companyAccount(companyId)) + depositorValue(w, companyId) + (cfg.cashReserve.enabled ? reserveHeldFd(w, companyId) : 0);
     // Assets: a leased tractor is its owner's wealth, not the lessee's; trailers in the yard count too.
     for (const t of w.trucksByCompany.get(companyId)!) if (!t.lessorId || t.lessorId === companyId) wealth += truckValue(w, t);
     for (const t of w.trucks) if (t.lessorId === companyId && t.companyId !== companyId && t.status !== "retired") wealth += truckValue(w, t);
@@ -572,22 +597,117 @@ export function buildReport(w: World): RunReport {
   });
   for (const seg of Object.keys(avgBySegment)) avgBySegment[seg]! /= segCounts[seg]!;
   // Prudence (Jeff, 2026-11-02: "players who are prudent businessmen win in the long run"): by segment and strategy.
-  const byStrategy: NonNullable<RunReport["byStrategy"]> = {};
+  // Wealth above counts what a company holds, not what it owes, so a borrower's truck counts in full. Net worth adds
+  // the FD it has locked up (stakes, the exit queue, contract and business bonds, loan stakes) and its businesses at
+  // cost, and takes off its purchase loans and Equipment Finance debt. Dollars in and out are real money a paying bot
+  // put in (to grow, or to stay out of liquidation) and cashed out, which FD figures leave out.
+  const netWorthOf = (c: (typeof counted)[number], wealth: number) => {
+    let nw = wealth;
+    for (const acct of [stakeAccount(c.id), exitAccount(c.id), contractAccount(c.id)]) nw += Math.max(0, w.ledger.balance(acct));
+    for (const l of w.purchaseLoans) if (l.borrowerId === c.id && (l.status === "active" || l.status === "defaulted")) nw += w.ledger.balance(loanStakeAccount(l.id)) - l.principalFd;
+    for (const l of w.finance.loans) if (l.borrowerId === c.id && (l.status === "active" || l.status === "defaulted")) nw -= l.principalFd;
+    for (const b of w.businesses) if (b.ownerId === c.id) nw += b.purchaseFd;
+    return nw;
+  };
+  type Prudence = Required<NonNullable<RunReport["byStrategy"]>[string][string]>;
+  const acc: Record<string, Record<string, Prudence>> = {};
+  const spreads: Record<string, { wealth: number[]; netWorth: number[] }> = {};
   counted.forEach((c, i) => {
     if (c.role !== "carrier") return;
     const [seg, strat] = c.strategy.split(":") as [string, string | undefined];
     if (!strat || (seg !== "oo" && seg !== "fleet" && seg !== "wave")) return;
-    const b = ((byStrategy[seg] ??= {})[strat] ??= { companies: 0, wealthFd: 0, liquidatedShare: 0, operatingFd: 0 });
+    const b = ((acc[seg] ??= {})[strat] ??= { companies: 0, wealthFd: 0, liquidatedShare: 0, operatingFd: 0, bankruptcies: 0, medianWealthFd: 0, netWorthFd: 0, medianNetWorthFd: 0, trucks: 0, usdIn: 0, usdOut: 0 });
+    const nw = netWorthOf(c, wealthAll[i]!);
     b.companies++;
     b.wealthFd += wealthAll[i]!;
+    b.netWorthFd += nw;
     b.liquidatedShare += c.bankruptcies > 0 ? 1 : 0;
     b.operatingFd += c.operating.revenueFd - c.operating.costFd;
+    b.bankruptcies += c.bankruptcies;
+    b.trucks += operatingTrucks(w, c.id);
+    b.usdIn += c.usd.in;
+    b.usdOut += c.usd.out;
+    const sp = (spreads[`${seg}:${strat}`] ??= { wealth: [], netWorth: [] });
+    sp.wealth.push(wealthAll[i]!);
+    sp.netWorth.push(nw);
   });
-  for (const seg of Object.values(byStrategy)) for (const b of Object.values(seg)) {
-    b.wealthFd /= b.companies;
-    b.liquidatedShare /= b.companies;
-    b.operatingFd /= b.companies;
+  for (const [seg, bySeg] of Object.entries(acc)) for (const [strat, b] of Object.entries(bySeg)) {
+    for (const k of ["wealthFd", "netWorthFd", "liquidatedShare", "operatingFd", "bankruptcies", "trucks", "usdIn", "usdOut"] as const) b[k] /= b.companies;
+    const sp = spreads[`${seg}:${strat}`]!;
+    b.medianWealthFd = median(sp.wealth);
+    b.medianNetWorthFd = median(sp.netWorth);
   }
+  const byStrategy: NonNullable<RunReport["byStrategy"]> = acc;
+  // The Reserve (cashReserve.ts), when on: what is held at the end by persona, what it shelters, and what it paid.
+  const cashReserve: RunReport["cashReserve"] = (() => {
+    if (!cfg.cashReserve.enabled) return undefined;
+    const by: Record<string, { companies: number; heldFd: number; capFd: number; holders: number }> = {};
+    let held = 0;
+    for (const c of counted) {
+      const h = reserveHeldFd(w, c.id);
+      held += h;
+      const b = (by[c.strategy.split(":").slice(0, 2).join(":")] ??= { companies: 0, heldFd: 0, capFd: 0, holders: 0 });
+      b.companies++;
+      b.heldFd += h;
+      b.capFd += reserveCapFd(w, c);
+      if (reserveFd(w, c.id) > 1) b.holders++;
+    }
+    for (const b of Object.values(by)) {
+      b.heldFd /= b.companies;
+      b.capFd /= b.companies;
+    }
+    return { heldEndFd: held, ...(w.reserveStats ?? { holdingFd: 0, burnedFd: 0, depositFd: 0, withdrawFd: 0 }), byStrategy: by };
+  })();
+  // Player brokerages (brokerage.ts): each pair against the carriers that could have formed one and didn't.
+  const brokerage: RunReport["brokerage"] = (() => {
+    const log = w.brokerageLog;
+    if (!cfg.brokerage.enabled || !log) return undefined;
+    const nwOf = (id: number) => {
+      const c = w.companies[id - 1]!;
+      return netWorthOf(c, wealthOf(id));
+    };
+    const pairs = log.formed.map((f) => {
+      const carrier = w.companies[f.carrierId - 1]!;
+      const broker = w.companies[f.brokerId - 1]!;
+      return {
+        segment: carrier.strategy.split(":")[0]!,
+        persona: carrier.strategy.split(":")[1] ?? "",
+        day: f.day,
+        carrierNetWorthFd: nwOf(carrier.id),
+        brokerNetWorthFd: nwOf(broker.id),
+        // What the brokerage made for its owner: its net worth now and what it sent back, less what went in (the capital, the fees on it).
+        brokerGainFd: nwOf(broker.id) + f.toCarrierFd - f.capitalFd - f.toBrokerFd,
+        brokerOperatingFd: broker.operating.revenueFd - broker.operating.costFd,
+        brokerRevenueFd: broker.operating.revenueFd,
+        capitalFd: f.capitalFd,
+        toBrokerFd: f.toBrokerFd,
+        toCarrierFd: f.toCarrierFd,
+        feeFd: f.feeFd,
+        carrierLiquidations: carrier.bankruptcies,
+        brokerLiquidations: broker.bankruptcies,
+        brokerStakeEndFd: broker.stakedFd,
+        brokerCredit: Math.round(creditScore(w, broker)),
+        carrierTrucks: operatingTrucks(w, carrier.id),
+        marks: f.marks ?? [],
+      };
+    });
+    const controls = log.controls.map((x) => {
+      const c = w.companies[x.carrierId - 1]!;
+      return { segment: c.strategy.split(":")[0]!, persona: c.strategy.split(":")[1] ?? "", day: x.day, carrierNetWorthFd: nwOf(c.id), carrierLiquidations: c.bankruptcies, carrierTrucks: operatingTrucks(w, c.id) };
+    });
+    const { formed: _f, controls: _c, laneRates: _l, hubRates: _h, ...flows } = log;
+    // The AI brokers beside them, for scale: their mean operating result and revenue over the run, and how many went under.
+    const ai = w.companies.filter((c) => c.role === "broker" && c.strategy.startsWith("broker:"));
+    const aiIds = new Set(ai.map((c) => c.id));
+    const aiBrokers = {
+      companies: ai.length,
+      operatingFd: ai.reduce((x, c) => x + c.operating.revenueFd - c.operating.costFd, 0) / Math.max(1, ai.length),
+      revenueFd: ai.reduce((x, c) => x + c.operating.revenueFd, 0) / Math.max(1, ai.length),
+      liquidated: ai.filter((c) => c.bankruptcies > 0).length,
+      liquidationDays: (w.factoringLog?.liquidations ?? []).filter((x) => aiIds.has(x.companyId)).map((x) => x.day),
+    };
+    return { pairs, controls, ...flows, aiBrokers, factoringBondPaidFd: w.factoringLog?.bondPaidFd ?? 0, uncoveredFd: w.factoringLog?.uncoveredFd ?? 0 };
+  })();
   const waveCos = w.companies.filter((c) => c.strategy.startsWith("wave:"));
   const waveDays = waveCos.filter((c) => c.firstOwnedTruckDay !== null).map((c) => c.firstOwnedTruckDay! - c.createdDay).sort((a, b) => a - b);
   const wave: RunReport["wave"] = waveCos.length
@@ -689,6 +809,8 @@ export function buildReport(w: World): RunReport {
     factoring: factoringReport(w),
     population,
     byStrategy,
+    brokerage,
+    cashReserve,
     wave,
     locks: w.lockStats ? { ...w.lockStats, lockedEndFd: w.companies.reduce((s, c) => s + (c.locks ?? []).filter((l) => l.endDay > (days.at(-1)?.day ?? 0)).reduce((a, l) => a + l.fd, 0), 0) } : undefined,
     fleets: (() => {
@@ -705,6 +827,7 @@ export function buildReport(w: World): RunReport {
       seized: w.purchaseLending.seized,
       stakeSlashedFd: w.purchaseLending.stakeSlashedFd,
       writtenOffFd: w.purchaseLending.writtenOffFd,
+      risk: cfg.equipmentFinance.purchase.risk.enabled ? riskStats(w) : undefined,
     },
     assets: (() => {
       const total = sum(Object.values(sinksByTag)) + sum(days.map((d) => d.burnFd));

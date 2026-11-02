@@ -22,6 +22,8 @@ import { facilitiesOf, facilityEquipment } from "./demand.js";
 import { borrow, deposit, repayLoan, withdraw } from "./finance.js";
 import { companyAccount } from "./ledger.js";
 import { rebrokerLoad, stealLoad, vettingBlock } from "./fraud.js";
+import { formBrokerage, partnerOf, passTender, tenderOwn, transferCapital } from "./brokerage.js";
+import { depositReserve, withdrawReserve } from "./cashReserve.js";
 import { finiteIn } from "./economics.js";
 import { offerStaff, releaseStaff, setPay, severance, startHomeTime } from "./labor.js";
 import { buyListing, listingBlock, listTrailer, listTruck, withdrawListing } from "./market.js";
@@ -32,7 +34,7 @@ import { refile } from "./solvency.js";
 import { facilityCap, locksOn, noteDiscount, peekDiscount, stakeDiscount, stakeFd, truckCap, unstakeFd } from "./staking.js";
 import { buyItem } from "./items.js";
 import { depositPool, withdrawPool } from "./pools.js";
-import { contractOn, endFactoring, setContractTerms, signFactoring } from "./receivables.js";
+import { cashInvoice, contractOn, endFactoring, setContractTerms, signFactoring } from "./receivables.js";
 import type { Action, RuleScope } from "./types.js";
 import { condition, rebuildable, rebuildCost } from "./wear.js";
 import { availableSupplyFor, companyById, crewed, depositCredit, hubMiles, invalidOrders, releaseDepositFor, seatDriver, staffById, syncFleet, takeSupplyFor, truckById, unseatDriver, type World, placeMiles, placeOfHub, placeLegMiles } from "./world.js";
@@ -95,6 +97,19 @@ export function badInput(cfg: EconomyConfig, a: Action): string | null {
       return isId(a.contractId) ? null : "bad contract";
     case "decline_tender":
       return isId(a.loadId) ? null : "bad load";
+    case "reserve_deposit":
+    case "reserve_withdraw":
+      return isFd(a.fd) && a.fd > 0 ? null : "bad amount";
+    case "cash_invoice":
+      return isId(a.receivableId) ? null : "bad invoice";
+    case "form_brokerage":
+      return isStr(a.name) && a.name.trim().length > 0 && isFd(a.capitalFd) ? null : "bad brokerage";
+    case "transfer_capital":
+      return isFd(a.fd) && a.fd > 0 ? null : "bad amount";
+    case "pass_tender":
+      return isId(a.loadId) ? null : "bad load";
+    case "tender_own":
+      return isId(a.loadId) && finiteIn(a.rate, 0.01, 100) ? null : "bad tender";
     case "rebuild_truck":
     case "park_truck":
     case "unpark_truck":
@@ -186,7 +201,7 @@ export function badInput(cfg: EconomyConfig, a: Action): string | null {
 const LIQUIDATING_BLOCKED = new Set<Action["type"]>(["place_bid", "book_load", "reposition_truck", "buy_asset", "buy_trailer", "rent_trailer", "buy_facility", "lease_truck", "borrow", "buy_listing", "unpark_truck", "offer_staff", "take_lease", "buy_asset_sale", "list_asset_sale"]);
 
 /** What a company whose authority was revoked can still do: wait out the bar, file again, and handle its money. */
-const ALLOWED_REVOKED = new Set<Action["type"]>(["wait", "refile_authority", "buy_fd", "bid_auction", "sell_fd", "cancel_withdrawal", "offer_fd", "claim_airdrop_now", "withdraw_finance", "withdraw_listing", "set_compliance", "set_vetting", "set_auto_staff"]);
+const ALLOWED_REVOKED = new Set<Action["type"]>(["wait", "transfer_capital", "reserve_withdraw", "cash_invoice", "refile_authority", "buy_fd", "bid_auction", "sell_fd", "cancel_withdrawal", "offer_fd", "claim_airdrop_now", "withdraw_finance", "withdraw_listing", "set_compliance", "set_vetting", "set_auto_staff"]);
 const SCOPES: RuleScope[] = ["legal", "hot", "always"];
 /**
  * The bad-actor actions: an illegal policy, re-brokering and theft. Players may
@@ -227,6 +242,8 @@ export function applyAction(w: World, companyId: number, action: Action): Action
   if (company.authority.status === "revoked" && !ALLOWED_REVOKED.has(action.type)) return { ok: false, reason: "your authority is revoked" };
   if (company.liquidatingSince !== null && LIQUIDATING_BLOCKED.has(action.type)) return { ok: false, reason: "the company is being wound up" };
   if (company.human && !cfg.fraud.players && badActor(action)) return { ok: false, reason: "that isn't available to players" };
+  // Player brokerages (brokerage.ts): re-posting a load taken off the board isn't a player carrier's action any more.
+  if (cfg.brokerage.enabled && cfg.brokerage.closeDoubleBrokering && (company.human || company.partnerId !== undefined) && company.role === "carrier" && (action.type === "rebroker_load" || (action.type === "set_standing_orders" && action.orders.some((o) => o.kind === "rebroker")))) return { ok: false, reason: "a carrier brokers through its own brokerage" };
   switch (action.type) {
     case "wait":
       return { ok: true };
@@ -379,12 +396,47 @@ export function applyAction(w: World, companyId: number, action: Action): Action
       const load = w.loads.get(action.loadId);
       if (!load || load.status !== "open" || load.tenderedTo !== company.id) return { ok: false, reason: "that tender isn't open to you" };
       const contract = w.contracts.find((k) => k.id === load.contractId);
-      if (!contract) return { ok: false, reason: "that contract is gone" };
+      const rate = load.ownTenderRate ?? contract?.ratePerMile; // Rule B: the own brokerage's tender carries its pay
+      if (rate === undefined) return { ok: false, reason: "that contract is gone" };
       const dh = placeMiles(w, truck.place, load.originPlace);
       if (dh > MANUAL_BID_MAX_DEADHEAD_MI) return { ok: false, reason: `the pickup is more than ${MANUAL_BID_MAX_DEADHEAD_MI} miles away` };
       const why = acceptTender(w, company, load, truck);
       if (why) return { ok: false, reason: why };
-      return result(bookLoad(w, company, truck, load, dh, true, contract.ratePerMile));
+      return result(bookLoad(w, company, truck, load, dh, true, rate));
+    }
+
+    // Cash now (receivables.ts).
+    case "cash_invoice":
+      return result(cashInvoice(w, company, action.receivableId));
+
+    // The Reserve (cashReserve.ts).
+    case "reserve_deposit":
+      return result(depositReserve(w, company, action.fd));
+    case "reserve_withdraw":
+      return result(withdrawReserve(w, company, action.fd));
+
+    // Player brokerages (brokerage.ts).
+    case "form_brokerage": {
+      const b = formBrokerage(w, company, action.name.trim(), action.capitalFd);
+      return typeof b === "string" ? { ok: false, reason: b } : { ok: true };
+    }
+
+    case "transfer_capital": {
+      const other = partnerOf(w, company);
+      if (!other) return { ok: false, reason: "you have no other company" };
+      return result(transferCapital(w, company, other, action.fd));
+    }
+
+    case "pass_tender": {
+      const load = w.loads.get(action.loadId);
+      if (!load) return { ok: false, reason: "that tender is gone" };
+      return result(passTender(w, company, load));
+    }
+
+    case "tender_own": {
+      const load = w.loads.get(action.loadId);
+      if (!load) return { ok: false, reason: "that load is gone" };
+      return result(tenderOwn(w, company, load, action.rate));
     }
 
     case "decline_tender": {

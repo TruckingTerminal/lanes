@@ -11,6 +11,7 @@
 import { dayOf } from "./clock.js";
 import { clamp } from "./economics.js";
 import { companyAccount } from "./ledger.js";
+import { reserveHeldFd } from "./cashReserve.js";
 import type { Company } from "./types.js";
 import type { World } from "./world.js";
 
@@ -43,7 +44,9 @@ export function creditScore(w: World, c: Company): number {
   score -= k.bankruptcyPoints * c.bankruptcies;
   score -= k.revocationPoints * c.authority.revocations;
   const owed = rc.owed.get(c.id) ?? 0;
-  if (owed > 0 && (c.stakedFd + Math.max(0, w.ledger.balance(companyAccount(c.id)))) / owed < k.coverageMin) score -= k.coveragePoints;
+  // The Reserve (cashReserve.ts) counts as capital beside cash.
+  const reserve = w.cfg.cashReserve.enabled ? reserveHeldFd(w, c.id) : 0;
+  if (owed > 0 && (c.stakedFd + Math.max(0, w.ledger.balance(companyAccount(c.id))) + reserve) / owed < k.coverageMin) score -= k.coveragePoints;
   const s = clamp(score, 0, 100);
   rc.scores.set(c.id, s);
   return s;

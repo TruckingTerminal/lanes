@@ -1,3 +1,4 @@
+import { brokerageLog, samePerson } from "./brokerage.js";
 import { commodityAttract, hubTheftRisk, stealCargo } from "./risk.js";
 import { securityTheftMult } from "./labor.js";
 import { crewStrike } from "./robbery.js";
@@ -372,10 +373,12 @@ function collectUpstream(w: World, load: Load, payee: Company, gross: number, fa
     const slump = Math.max(0, 1 - w.feeds.cycle(dayOf(w.t, cfg)));
     const defaulted = w.rng.ops.next() < brokerRisk.defaultRate * (1 + brokerRisk.downturnSensitivity * slump);
     const billed = load.shipperRate * load.miles * factor;
+    // Player brokerages (brokerage.ts): a load its owner's own carrier hauled counts once per person, for the carrier.
+    const ownHaul = samePerson(w, broker.id, payee.id);
     if (!defaulted) {
       bill(w, { payer: 0, faucet: "faucet:npc_shipper", payee: broker, amountFd: billed, ref });
       w.ledger.post(w.t, brokerAcct, "sink:board_fee", lockCost(w, broker, cfg.board.posterFeePct * billed, () => cfg.board.posterFeePct * billed * (1 - stakeDiscount(w, broker))), ref);
-      awardMiles(w, broker, cfg.miles.brokerPerMile * load.miles, load.laneId);
+      if (!ownHaul) awardMiles(w, broker, cfg.miles.brokerPerMile * load.miles, load.laneId);
       broker.operating.revenueFd += billed;
       broker.operating.costFd += cfg.board.posterFeePct * billed;
     } else {
@@ -384,7 +387,8 @@ function collectUpstream(w: World, load: Load, payee: Company, gross: number, fa
     bill(w, { payer: broker.id, payee, amountFd: gross, ref, leased, truckId });
     broker.operating.costFd += gross;
     broker.openBrokerLoads--;
-    broker.loadsThisWeek++;
+    if (!ownHaul) broker.loadsThisWeek++;
+    else brokerageLog(w).countedOnce++;
   } else if (load.shipperId !== null) {
     // Player-shipper freight: the NPC market buys the goods from the shipper,
     // who pays the carrier. A company hauling its own freight pays itself nothing.

@@ -92,6 +92,8 @@ import {
   type World,
 } from "@lanes/engine";
 import { businessesOf, businessPriceFd, sitePriceFd, type BusinessKind } from "@lanes/engine";
+import { brokerageLog, canFormBrokerage, formationCostFd, layerBlock, markPairs, ownBand, partnerOf } from "@lanes/engine";
+import { reserveCapFd, reserveFd, reserveOn } from "@lanes/engine";
 import { financedCashNeed, openPurchaseLoans, purchaseTerms, salesTaxOn } from "@lanes/engine";
 import { crewFeeFd, crewOn, crewStakeFd, fenceShareOf, fittingsCut, hubTheftRisk, securityTheftMult } from "@lanes/engine";
 import { depositCredit, lotPrice, npcDealerMult } from "@lanes/engine";
@@ -133,6 +135,13 @@ interface BotProfile {
   opSnapshots: { day: number; net: number }[];
   /** Weekly snapshots of its cumulative operating costs, for a month of costs (the factoring contract's cushion). */
   costMarks?: { day: number; cost: number }[];
+  /**
+   * The prudent businessman (Jeff, 2026-11-02; studio/reviews/economy-prudence.md): prices to win at a margin, borrows
+   * only what a bust can carry, keeps cash through the boom and spends it at the bottom, never expands at the top.
+   */
+  prudent?: boolean;
+  /** Player brokerages, the batch's pairs: this carrier owns a brokerage, so it re-posts nothing (brokerage.closeDoubleBrokering). */
+  ownsBrokerage?: boolean;
   targetFleet: number;
   /** FD kept after buying the first owned truck. */
   firstTruckBuffer: number;
@@ -262,23 +271,28 @@ function carrierProfileFor(strategy: Strategy, rng: Rng): BotProfile {
         claimsEarly: true,
       };
     case "conservative":
+      // The prudent businessman (studio/reviews/economy-prudence.md). It prices to win at a margin over its own
+      // break-even, as the greedy bot does but asking less and never chasing a load at a loss (it used to ask 97% of
+      // the ceiling and lost the loads it should have won); it keeps its cash in hand for the bust instead of parking
+      // it; the cycle rules (marketPhase, canCarry) are in the growth code.
       return {
         ...base,
-        pricing: { mode: "ceilingPct", value: 0.97, step: 0.01, min: 0.88, max: 1.0 },
+        pricing: { mode: "breakEvenPlus", value: 0.15, step: 0.02, min: 0.08, max: 0.6 },
         maxDeadheadMi: 120,
         otherOrders: [
-          { kind: "floor", breakEvenPlusPct: 0.15 },
+          { kind: "floor", breakEvenPlusPct: 0.08 },
           { kind: "reposition", afterIdleRounds: 2, to: { openLoadsWithinMi: 250 } },
           { kind: "reposition", afterIdleRounds: 4, to: { openLoadsWithinMi: 800 } },
         ],
-        targetFleet: 8,
+        targetFleet: 12,
         firstTruckBuffer: 4_000,
         reserveBase: 30_000,
         reservePerTruck: 8_000,
         rebuildAt: 0.6,
         maxPaybackWeeks: 26,
         leverage: false,
-        depositor: true,
+        depositor: false,
+        prudent: true,
         replaceAtMi: 500_000,
         maxLeadDays: 60,
         cashOut: { share: 0.3, keepMult: 1.5, askMult: 1.2 },
@@ -379,7 +393,8 @@ function bidOrder(p: BotProfile): StandingOrder {
   return { kind: "bid", maxDeadheadMi: p.maxDeadheadMi, price: { mode: pricing.mode, pct: pricing.value } };
 }
 
-const carrierOrders = (p: BotProfile): StandingOrder[] => [bidOrder(p), ...p.otherOrders, ...(p.cheating && p.rebroker ? [p.rebroker] : [])];
+// A carrier with a brokerage of its own (brokerage.closeDoubleBrokering) re-posts nothing: its outlaw streak keeps the rest.
+const carrierOrders = (p: BotProfile): StandingOrder[] => [bidOrder(p), ...p.otherOrders, ...(p.cheating && p.rebroker && !p.ownsBrokerage ? [p.rebroker] : [])];
 
 function brokerOrders(strategy: Strategy, rng: Rng): StandingOrder[] {
   const marginPct = strategy === "greedy" ? 0.12 : strategy === "conservative" ? 0.07 : rng.range(0.06, 0.12);
@@ -923,6 +938,51 @@ function profitPerTruckWeek(c: Company, p: BotProfile, today: number, trucks: nu
 }
 
 /**
+ * The market as a prudent owner reads it from the board: the last four weeks' cleared rate against the last year's.
+ * Over 8% above is the top of the cycle (no expansion), over 8% below is the bottom (cash buys cheap trucks).
+ */
+const phaseCache = new WeakMap<World, { day: number; phase: "top" | "mid" | "bottom" }>();
+function marketPhase(w: World): "top" | "mid" | "bottom" {
+  const day = dayOf(w.t, w.cfg);
+  const hit = phaseCache.get(w);
+  if (hit && hit.day === day) return hit.phase;
+  const ds = w.metrics.days;
+  let phase: "top" | "mid" | "bottom" = "mid";
+  if (ds.length >= 120) {
+    const rate = (xs: typeof ds) => {
+      const n = xs.reduce((s, d) => s + d.cleared, 0);
+      return n > 0 ? xs.reduce((s, d) => s + d.avgClearedRate * d.cleared, 0) / n : 0;
+    };
+    const year = rate(ds.slice(-364));
+    const r = year > 0 ? rate(ds.slice(-28)) / year : 1;
+    phase = r > 1.08 ? "top" : r < 0.92 ? "bottom" : "mid";
+  }
+  phaseCache.set(w, { day, phase });
+  return phase;
+}
+
+/** Weekly purchase-loan payments a company carries, with a new loan of `newLoanFd` on top. */
+function debtService(w: World, c: Company, newLoanFd = 0): number {
+  let s = 0;
+  for (const l of openPurchaseLoans(w, c.id)) if (l.status === "active") s += Math.min(l.principalFd, l.originalFd / l.termWeeks) + l.principalFd * l.weeklyRate;
+  if (newLoanFd > 0) s += newLoanFd / w.cfg.equipmentFinance.purchase.termWeeks + newLoanFd * purchaseTerms(w, c).weeklyRate;
+  return s;
+}
+
+/** Weeks of every loan payment a prudent owner keeps in hand past its cushion before it borrows: a quarter's bust. */
+const BUST_WEEKS = 13;
+
+/**
+ * A prudent owner borrows only what a bust can carry: after the down payment, the loan's stake and the tax on a truck
+ * priced `priceFd`, the cash left over its cushion (`keep`) must cover a quarter of every loan payment, the new one too.
+ */
+function canCarry(w: World, c: Company, priceFd: number, keep: number, weeks = BUST_WEEKS): boolean {
+  const loan = priceFd * (1 - purchaseTerms(w, c).downShare);
+  const after = w.ledger.balance(companyAccount(c.id)) - financedCashNeed(w, c, priceFd);
+  return after - keep >= weeks * debtService(w, c, loan);
+}
+
+/**
  * Another truck is worth it only if a typical truck in this fleet earns well
  * clear of what the next truck would add in overhead. Fleets stop growing where
  * scale stops paying, and leave that freight to smaller carriers.
@@ -1157,6 +1217,8 @@ function financedBudget(w: World, c: Company, budget: number): number {
 }
 
 function manageCash(w: World, c: Company, p: BotProfile): void {
+  if (p.prudent && reserveOn(w) && c.role === "carrier") manageReserve(w, c, p);
+  if (w.cfg.token.payment.enabled && w.cfg.token.payment.cashNow.enabled && c.role === "carrier") cashWhenShort(w, c);
   const acct = companyAccount(c.id);
   const need = reserve(w, c, p);
   if (locksOn(w)) manageLocks(w, c, need);
@@ -1236,6 +1298,11 @@ function manageLocks(w: World, c: Company, need: number): void {
  */
 function manageFactoring(w: World, c: Company, p: BotProfile, cash: number, need: number): void {
   const fleet = w.trucksByCompany.get(c.id)!;
+  // The cash-now scenario (token.payment.cashNow.botsNetOnly): owner-operators stay on net terms, as a player who declined the contract.
+  if (w.cfg.token.payment.cashNow.botsNetOnly && c.strategy.startsWith("oo:")) {
+    if (!c.factoring && c.payTerms !== "net") applyAction(w, c.id, { type: "set_pay_terms", terms: "net" });
+    return;
+  }
   const order = c.orders.find((o) => o.kind === "broker");
   const margin = order && order.kind === "broker" ? order.marginPct : 0;
   const may =
@@ -1428,11 +1495,61 @@ function runHolders(w: World): void {
 }
 
 function reserve(w: World, c: Company, p: BotProfile): number {
+  // The Reserve (cashReserve.ts): the prudent owner keeps its cushion there, so cash need only carry the rest.
+  if (p.prudent && reserveOn(w)) return Math.max(operatingFloor(w, c, p), cushion(w, c, p, true) - reserveFd(w, c.id));
+  return cushion(w, c, p);
+}
+
+/** The working capital a bot holds back before it invests: its persona's base and per-truck cushion. */
+function cushion(w: World, c: Company, p: BotProfile, sheltered = false): number {
   const trucks = operatingTrucks(w, c.id);
-  // FD left at the season close is mostly burned, so bots hold less back as it nears. Otherwise never
-  // below the working capital the economy lets a company hold free: stripping it is how greedy bots went broke.
-  const nearClose = daysUntilLock(w) <= 45 ? 0.5 : 1;
+  // FD left at the season close is mostly burned, so bots hold less back as it nears (not what the Reserve shelters).
+  // Otherwise never below the working capital the economy lets a company hold free: stripping it is how greedy bots went broke.
+  const nearClose = daysUntilLock(w) <= 45 && !sheltered ? 0.5 : 1;
   return Math.max(p.reserveBase + p.reservePerTruck * trucks, w.cfg.holdingCost.minProtectedFd) * nearClose;
+}
+
+/** Cash a prudent owner keeps out of its Reserve for the bills: two weeks of its spending, at least its first-truck buffer. */
+function operatingFloor(w: World, c: Company, p: BotProfile): number {
+  const weekly = c.weeklySpend.length ? c.weeklySpend.reduce((a, b) => a + b, 0) / c.weeklySpend.length : 0;
+  return Math.max(p.firstTruckBuffer, 2 * weekly);
+}
+
+/**
+ * Cash now, as an owner in the red would use it (token.payment.cashNow; studio/reviews/economy-reserve.md): once its
+ * cash is under zero it sells its open invoices to the factor, the freshest (cheapest) first, until it is 2,000 FD clear.
+ */
+function cashWhenShort(w: World, c: Company): void {
+  const acct = companyAccount(c.id);
+  if (w.ledger.balance(acct) >= 0) return;
+  const mine = w.receivables.filter((r) => r.holder === c.id).sort((a, b) => b.dueDay - a.dueDay || a.id - b.id);
+  for (const r of mine) {
+    if (w.ledger.balance(acct) >= 2_000) break;
+    applyAction(w, c.id, { type: "cash_invoice", receivableId: r.id });
+  }
+}
+
+/**
+ * The Reserve, the prudent owner's way (cashReserve.ts; studio/reviews/economy-reserve.md): daily, its cushion goes in up
+ * to the cap the Reserve shelters, what passes the cap comes out, and when cash runs under half its floor it draws on
+ * the Reserve (a day to settle) rather than run into the red.
+ */
+function manageReserve(w: World, c: Company, p: BotProfile): void {
+  const acct = companyAccount(c.id);
+  const cash = w.ledger.balance(acct);
+  const held = reserveFd(w, c.id);
+  const floor = operatingFloor(w, c, p);
+  const target = Math.min(cushion(w, c, p, true), reserveCapFd(w, c));
+  if (cash < floor * 0.5 && held > 1) {
+    applyAction(w, c.id, { type: "reserve_withdraw", fd: Math.min(held, floor - cash) });
+    return;
+  }
+  if (held > target + 1_000) {
+    applyAction(w, c.id, { type: "reserve_withdraw", fd: held - target });
+    return;
+  }
+  const room = Math.min(target - held, cash - floor);
+  if (room > 1_000) applyAction(w, c.id, { type: "reserve_deposit", fd: room });
 }
 
 /** Per-day cache of what a new facility of each type would ship at each hub. */
@@ -1506,6 +1623,9 @@ export const ruleBotHook: DailyAgentHook = (w) => {
   let openIdx: BoardIndex | null = null;
   const boardIdx = () => (openIdx ??= indexOpenLoads(w));
 
+  // Player brokerages (config brokerage; a batch scenario of player-like pairs): a share of carrier bots form one when they can.
+  if (cfg.brokerage.enabled) runBrokerages(w, dayOf(w.t, cfg));
+
   for (const c of w.companies) {
     const p = profiles.get(c);
     // Shut down: wait out the bar (new authority comes by itself when it ends).
@@ -1540,7 +1660,7 @@ export const ruleBotHook: DailyAgentHook = (w) => {
       if (p.payToWin && c.weeksInDebt >= 1) buyFdFor(w, c, -w.ledger.balance(acct) + 2_000);
     }
 
-    if (cfg.businesses.enabled) maybeBuyBusiness(w, c, p, rng, dayOf(w.t, cfg));
+    if (cfg.businesses.enabled && !(p.prudent && marketPhase(w) === "top")) maybeBuyBusiness(w, c, p, rng, dayOf(w.t, cfg)); // the prudent don't buy at the top
     if (cfg.assets.enabled && cfg.businesses.enabled && dayOf(w.t, cfg) % cfg.time.daysPerMonth === 2) {
       priceDealerships(w, c);
       sellWeakBusinesses(w, c);
@@ -1592,13 +1712,16 @@ export const ruleBotHook: DailyAgentHook = (w) => {
           const cash = w.ledger.balance(acct) + depositCredit(w, c);
           const used = npcTruck.status === "idle" ? bestListing(w, cash - p.firstTruckBuffer, c.id, true) : null;
           // Purchase loans: a used truck on credit, if the down payment and the loan's stake fit when the price doesn't.
-          const usedOnLoan = used || npcTruck.status !== "idle" ? null : bestListing(w, financedBudget(w, c, cash - p.firstTruckBuffer), c.id, true);
+          // The prudent owner's first loan must leave two months of its payments in hand past its buffer.
+          const carries = (price: number) => !p.prudent || canCarry(w, c, price, p.firstTruckBuffer, 8);
+          const usedOnLoanPick = used || npcTruck.status !== "idle" ? null : bestListing(w, financedBudget(w, c, cash - p.firstTruckBuffer), c.id, true);
+          const usedOnLoan = usedOnLoanPick && carries(usedOnLoanPick.askFd) ? usedOnLoanPick : null;
           // Assets: the cheapest new Workhorse and van, a dealership's in stock or the NPC dealer's.
           const src = cfg.assets.enabled ? bestSource(w, c.id, "rig", "workhorse", "van") : null;
           // The NPC used lot (usedMarket.npcLot): a worn Workhorse and van at its used value, cash or on credit.
           const lot = !used && !usedOnLoan && cfg.usedMarket.npcLot.enabled && cfg.assets.enabled && w.usedLot.stock > 0 ? lotPrice(w, "workhorse", "van") * npcDealerMult(w) : null;
           const lotCash = lot !== null && cash >= lot + p.firstTruckBuffer;
-          const lotLoan = lot !== null && !lotCash && financedBudget(w, c, cash - p.firstTruckBuffer) >= lot;
+          const lotLoan = lot !== null && !lotCash && financedBudget(w, c, cash - p.firstTruckBuffer) >= lot && carries(lot);
           if (used) applyAction(w, c.id, { type: "buy_listing", listingId: used.id });
           else if (usedOnLoan) applyAction(w, c.id, { type: "buy_listing", listingId: usedOnLoan.id, finance: true });
           else if (lotCash || lotLoan) applyAction(w, c.id, { type: "buy_asset", tier: "workhorse", trailer: "van", replaceNpcLease: true, used: true, finance: lotLoan || undefined });
@@ -1607,7 +1730,7 @@ export const ruleBotHook: DailyAgentHook = (w) => {
             const need = price + p.firstTruckBuffer;
             // Token mode: a paying player can buy the FD it's short instead of saving it up.
             const funded = cash >= need || (live && p.payToWin && buyFdFor(w, c, need - cash));
-            const onLoan = !funded && financedBudget(w, c, cash - p.firstTruckBuffer) >= price;
+            const onLoan = !funded && financedBudget(w, c, cash - p.firstTruckBuffer) >= price && carries(price);
             if (funded || onLoan) applyAction(w, c.id, { type: "buy_asset", tier: "workhorse", trailer: "van", replaceNpcLease: true, dealershipId: src?.dealershipId || undefined, finance: onLoan || undefined });
           }
           continue; // no other investment until the first truck is owned
@@ -1659,16 +1782,24 @@ export const ruleBotHook: DailyAgentHook = (w) => {
           if (short > 0 && live && p.payToWin) buyFdFor(w, c, short);
           if (w.ledger.balance(acct) - reserve(w, c, p) >= tier.stake - c.stakedFd) applyAction(w, c.id, { type: "stake_fd", fd: tier.stake - c.stakedFd });
         }
-        if (active > 0 && grow() && active + pending < p.targetFleet && fleet.length + pending < truckCap(w, c) && idle / active <= 0.3 && worthAnotherTruck(w, c, p, today, active)) {
-          // Cheapest capacity first: a parked truck, then a used one (today), then
-          // a new one (after the dealer's lead time), borrowing if this bot does.
-          const parked = fleet.find((t) => t.status === "parked" && (p.noUnpark.get(t.id) ?? 0) <= today && !openLeaseOffers(w).some((o) => o.truckId === t.id));
+        // The prudent owner (studio/reviews/economy-prudence.md): no expansion at the top of the cycle; at the bottom its
+        // cash buys cheap capacity, up to half again its usual fleet, while trucks still sit idle.
+        // At the top it still runs a truck it has parked, which puts no capital in.
+        const phase = p.prudent ? marketPhase(w) : "mid";
+        const target = p.prudent && phase === "bottom" ? Math.ceil(p.targetFleet * 1.5) : p.targetFleet;
+        const idleLimit = p.prudent && phase === "bottom" ? 0.5 : 0.3;
+        // Cheapest capacity first: a parked truck, then a used one (today), then
+        // a new one (after the dealer's lead time), borrowing if this bot does.
+        const parkedTruck = () => fleet.find((t) => t.status === "parked" && (p.noUnpark.get(t.id) ?? 0) <= today && !openLeaseOffers(w).some((o) => o.truckId === t.id));
+        if (active > 0 && grow() && active + pending < target && fleet.length + pending < truckCap(w, c) && idle / active <= idleLimit && worthAnotherTruck(w, c, p, today, active) && (phase !== "top" || parkedTruck())) {
+          const parked = parkedTruck();
           const cash = w.ledger.balance(acct);
           const need = reserve(w, c, p);
           // Assets: a tractor on lease from another carrier, if its rent is well inside what a truck here earns.
           const lease = parked || !cfg.assets.enabled ? null : bestLeaseOffer(w, c, p, today, active);
           const used = parked || lease ? null : bestListing(w, cash - need, c.id);
-          const usedOnLoan = parked || lease || used ? null : bestListing(w, financedBudget(w, c, cash - need), c.id);
+          const usedOnLoanPick = parked || lease || used ? null : bestListing(w, financedBudget(w, c, cash - need), c.id);
+          const usedOnLoan = usedOnLoanPick && (!p.prudent || canCarry(w, c, usedOnLoanPick.askFd, need)) ? usedOnLoanPick : null;
           if (parked) applyAction(w, c.id, { type: "unpark_truck", truckId: parked.id });
           else if (lease) applyAction(w, c.id, { type: "take_lease", offerId: lease });
           else if (used) applyAction(w, c.id, { type: "buy_listing", listingId: used.id });
@@ -1685,7 +1816,7 @@ export const ruleBotHook: DailyAgentHook = (w) => {
                 const price = src ? src.price : dealerPrice(w, pick);
                 const short = price + need - cash;
                 // Purchase loans first when cash is short: the truck secures its own loan.
-                const onLoan = short > 0 && financedBudget(w, c, cash - need) >= price;
+                const onLoan = short > 0 && financedBudget(w, c, cash - need) >= price && (!p.prudent || canCarry(w, c, price, need));
                 // The farming season's dollar window (catalogue.usdWindow.assets): a paying bot short of FD buys the rig for dollars.
                 const uw = cfg.token.catalogue.usdWindow;
                 if (short > 0 && !onLoan && !live && cfg.token.enabled && p.payToWin && uw.enabled && uw.assets.enabled && !src?.dealershipId && c.usd.wallet >= assetPriceUsd(w, price) && (uw.assets.capUsdPerMc === null || c.usdSpentBetaAssets + assetPriceUsd(w, price) <= uw.assets.capUsdPerMc)) {
@@ -1722,6 +1853,7 @@ export const ruleBotHook: DailyAgentHook = (w) => {
     if (ownedWeeks >= 4 && owned.reduce((s, f) => s + f.netFd, 0) < 0) continue;
     const budget = w.ledger.balance(acct) - reserve(w, c, p);
     if (budget < cfg.facilities.types.warehouse.priceFd) continue;
+    if (p.prudent && marketPhase(w) === "top") continue; // the prudent don't buy at the top
     const choice = chooseFacility(w, budget, p.maxPaybackWeeks * burnPressure, outlooks);
     if (!choice) continue;
     const r = applyAction(w, c.id, { type: "buy_facility", facility: choice.type, hubId: w.net.hubs[choice.hub]!.id });
@@ -1739,6 +1871,124 @@ export const ruleBotHook: DailyAgentHook = (w) => {
     else if (cfg.buyback.enabled && !cfg.token.enabled) offerToBuyback(w, c, p, today);
   }
 };
+
+/**
+ * Player brokerages, as a batch scenario (config brokerage.bots; studio/reviews/economy-brokerage.md). A share of
+ * carrier bots, chosen by id so no draw moves, form a brokerage once the layer opens and the carrier can fund the bond,
+ * the licence, a working float and the fee clear of its own reserve; the others that could have are logged as the
+ * control group. A pair then runs as a player would:
+ * - the brokerage brokers like an AI broker of the carrier's persona (its margin, its bond growth, its cash);
+ * - Rule A: the carrier passes the direct tenders its trucks don't take (passTenders);
+ * - Rule B: the brokerage tenders its open shipper loads to its own carrier when one of its trucks of that trailer
+ *   stands idle within reach, at its book-now held inside the band, or at `ownTenderAt` in the band (the probes);
+ * - weekly, a rescue transfer to whichever company is in the red from the other's spare cash, and once a month the
+ *   brokerage's cash over its float goes back to the carrier (the owner's profit, to grow the fleet);
+ * - an owner closes a brokerage that lost money over its last eight weeks once it has run a quarter: no new freight,
+ *   no more rescues, the bond unstaked once its paper is paid and its cash brought home.
+ */
+const BROKERAGE_FLOAT_FD = 15_000;
+const pairState = new WeakMap<Company, { formedDay: number; marks: { day: number; net: number }[]; closed: boolean; unstaked: boolean }>();
+const chosenForBrokerage = (w: World, c: Company) => ((Math.imul(c.id, 2654435761) >>> 0) / 4294967296) < w.cfg.brokerage.bots.share;
+
+function runBrokerages(w: World, today: number): void {
+  const { cfg } = w;
+  markPairs(w);
+  if (layerBlock(w, "brokerage")) return;
+  const log = brokerageLog(w);
+  const controlled = new Set(log.controls.map((x) => x.carrierId));
+  const need = formationCostFd(w, BROKERAGE_FLOAT_FD);
+  const capital = cfg.token.staking.roles.broker + cfg.permits.brokerLicenseRenewalFd + BROKERAGE_FLOAT_FD;
+  // Rule B's candidates, in one pass: each player brokerage's open shipper loads.
+  const open = new Map<number, Load[]>();
+  for (const load of w.loads.values()) {
+    if (load.brokerId === null || load.status !== "open" || load.tenderedTo !== 0 || load.doubleBroker) continue;
+    const b = w.companies[load.brokerId - 1]!;
+    if (b.partnerId === undefined) continue;
+    let xs = open.get(b.id);
+    if (!xs) open.set(b.id, (xs = []));
+    xs.push(load);
+  }
+  for (const c of w.companies) {
+    if (c.role !== "carrier" || c.retiredDay !== undefined || c.windingDownDay !== undefined) continue;
+    const p = profiles.get(c);
+    if (!p || p.farmer || !(c.strategy.startsWith("oo:") || c.strategy.startsWith("fleet:"))) continue;
+    const b = partnerOf(w, c);
+    if (!b) {
+      if (c.liquidatingSince !== null || canFormBrokerage(w, c)) continue;
+      const spare = w.ledger.balance(companyAccount(c.id)) - reserve(w, c, p);
+      if (spare < need || today < cfg.brokerage.bots.fromDay) continue;
+      if (!chosenForBrokerage(w, c)) {
+        if (!controlled.has(c.id)) log.controls.push({ carrierId: c.id, day: today });
+        continue;
+      }
+      if (!applyAction(w, c.id, { type: "form_brokerage", name: `${c.name} Brokerage`, capitalFd: capital }).ok) continue;
+      const broker = partnerOf(w, c)!;
+      const persona = (c.strategy.split(":")[1] ?? "random") as Strategy;
+      const rng = w.rng.agents.fork(`brokerage:${broker.id}`);
+      profiles.set(broker, brokerProfile(persona, rng));
+      const m = cfg.brokerage.bots.marginPct;
+      applyAction(w, broker.id, { type: "set_standing_orders", orders: m === null ? brokerOrders(persona, rng) : [{ kind: "broker", marginPct: m, maxOpenLoads: 40 }] });
+      broker.vetting = c.vetting;
+      c.passTenders = true;
+      if (cfg.brokerage.closeDoubleBrokering) {
+        p.ownsBrokerage = true;
+        applyAction(w, c.id, { type: "set_standing_orders", orders: carrierOrders(p) }); // a cheating streak's re-post order comes off
+      }
+      pairState.set(broker, { formedDay: today, marks: [], closed: false, unstaked: false });
+      continue;
+    }
+    if (b.liquidatingSince !== null) continue;
+    const st = pairState.get(b);
+    // Rule B: the brokerage's open loads to its own idle trucks.
+    const loads = open.get(b.id);
+    if (loads && !st?.closed && c.authority.status === "active" && c.liquidatingSince === null) {
+      const idle = (w.trucksByCompany.get(c.id) ?? []).filter((t) => t.status === "idle" && crewed(t) && !resting(w, t));
+      const at = cfg.brokerage.bots.ownTenderAt;
+      for (const load of loads) {
+        if (idle.length === 0) break;
+        if (load.passedBy === c.id) continue;
+        const i = idle.findIndex((t) => t.trailer === load.equipment && placeMiles(w, t.place, load.originPlace) <= p.maxDeadheadMi);
+        if (i < 0) continue;
+        const [lo, hi] = ownBand(w, load);
+        const rate = at === null ? Math.min(hi, Math.max(lo, load.bookNow)) : lo + at * (hi - lo);
+        if (applyAction(w, b.id, { type: "tender_own", loadId: load.id, rate }).ok) idle.splice(i, 1);
+      }
+    }
+    // The owner's money, weekly: a rescue for whichever is in the red, and the brokerage's profit home once a month.
+    if ((today + c.id) % 7 !== 3) continue;
+    const cash = (x: Company) => w.ledger.balance(companyAccount(x.id));
+    const fee = 1 + cfg.brokerage.transferFeePct;
+    const bp = profiles.get(b);
+    const brokerKeep = Math.max(BROKERAGE_FLOAT_FD, bp ? reserve(w, b, bp) : 0);
+    // A brokerage that lost money over its last eight weeks, once it has run a quarter, is closed by its owner.
+    if (st && !st.closed) {
+      const net = b.operating.revenueFd - b.operating.costFd;
+      st.marks.push({ day: today, net });
+      while (st.marks.length > 0 && today - st.marks[0]!.day > 56) st.marks.shift();
+      if (today - st.formedDay >= 91 && st.marks.length >= 8 && net < st.marks[0]!.net) {
+        st.closed = true;
+        c.passTenders = false;
+        applyAction(w, b.id, { type: "set_standing_orders", orders: [] });
+      }
+    }
+    if (st?.closed) {
+      // Wound down by its owner: once its paper is paid, the bond comes out through the exit queue and its cash goes home.
+      const paper = b.openBrokerLoads > 0 || w.receivables.some((r) => r.payer === b.id);
+      if (!paper && !st.unstaked && b.stakedFd > 0.01) st.unstaked = applyAction(w, b.id, { type: "unstake_fd", fd: b.stakedFd, instant: false }).ok;
+      if (!paper && cash(b) > 1_000) applyAction(w, b.id, { type: "transfer_capital", fd: (cash(b) - 500) / fee });
+      continue;
+    }
+    if (cash(c) < 0 || c.weeksInDebt > 0) {
+      const give = Math.min(cash(b) - brokerKeep, -cash(c) + reserve(w, c, p) * 0.5) / fee;
+      if (give > 500) applyAction(w, b.id, { type: "transfer_capital", fd: give });
+    } else if (cash(b) < 0 || b.weeksInDebt > 0) {
+      const give = Math.min(cash(c) - reserve(w, c, p), -cash(b) + BROKERAGE_FLOAT_FD) / fee;
+      if (give > 500) applyAction(w, c.id, { type: "transfer_capital", fd: give });
+    } else if (today % cfg.time.daysPerMonth < 7 && cash(b) - brokerKeep * 2 > 10_000) {
+      applyAction(w, b.id, { type: "transfer_capital", fd: (cash(b) - brokerKeep * 2) / fee });
+    }
+  }
+}
 
 /**
  * Businesses (0.18.0): once a week, a bot with cash well clear of its reserve buys one at its home
