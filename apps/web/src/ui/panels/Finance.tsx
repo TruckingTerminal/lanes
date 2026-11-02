@@ -1,5 +1,5 @@
 import type { JSX } from "preact";
-import { companyAccount, creditBand, creditScore, factoringStake, managersNeeded, nextTruckTier, operatingTrucks, opsCap, receivablesOf, stakeDiscount, truckCap } from "@lanes/engine";
+import { companyAccount, contractOn, creditBand, creditScore, factoringRateFor, factoringStake, managersNeeded, nextTruckTier, operatingTrucks, opsCap, receivablesOf, stakeDiscount, truckCap, type Company, type World } from "@lanes/engine";
 import { fd, pct } from "../../format.js";
 import { act, me, S, useData } from "../../state.js";
 import { Btn, Card, Kv, Num, Panel } from "../bits.js";
@@ -60,7 +60,7 @@ export function Finance(): JSX.Element {
           </div>
         </Card>
       ) : null}
-      <GettingPaid />
+      <GettingPaid always />
       <Card title="Credit">
         <p class="muted small">The game scores every company from its ledger: invoices paid on time, the licence's age, claims and bankruptcies. Carriers check a broker's score before hauling; it prices factoring, the surety bond and which loads shippers tender you.</p>
         <Kv rows={[["Score", <Num>{Math.round(score)} · band {creditBand(score)}</Num>]]} />
@@ -69,8 +69,26 @@ export function Finance(): JSX.Element {
   );
 }
 
-/** Payment terms (receivables.ts), on Money beside what's owed (S8, Finance folded in): net, quick pay or factoring. */
-export function GettingPaid(): JSX.Element | null {
+/**
+ * The factoring terms as the rules run them: the contract (three game months, the whole fleet, the rate by fleet size,
+ * quick pay closed while it runs) once the economy's switch is on, else the old one-year contract with its stake
+ * (QA B8: the client described the old contract after the republish).
+ */
+function factoringTerms(w: World, c: Company): string {
+  const f = w.cfg.token.payment.factoring;
+  if (contractOn(w)) {
+    const rate = c.role === "broker" ? f.contract.brokerRate : factoringRateFor(w, c);
+    return `Factoring is a ${f.contract.months}-month contract with the factor: it pays every invoice${f.contract.wholeFleet ? " of your whole fleet" : ""} on delivery, ${pct(rate)} off${c.role === "broker" ? "" : " at your fleet's size (less as it grows)"}. Quick pay closes while it runs, and it can't be left early.`;
+  }
+  return `Factoring is a ${Math.round(f.termDays / 365)}-year contract with a ${fd(factoringStake(w, c))} FD stake: the factor advances each invoice at a discount set by who owes it and your credit, and leaving early forfeits the stake.`;
+}
+
+/**
+ * Payment terms (receivables.ts), on Money beside what's owed (S8) and on Finance: net, quick pay or factoring. Money
+ * shows it once terms matter (a truck of your own); Finance always does (`always`), so Iuliia's step 9 points at it
+ * while the player still drives the lessor's truck (the director's gate, sprint 1).
+ */
+export function GettingPaid({ always = false }: { always?: boolean }): JSX.Element | null {
   useData();
   const w = S.game!.w;
   const c = me();
@@ -80,11 +98,21 @@ export function GettingPaid(): JSX.Element | null {
   if (!k.payment.enabled || c.role !== "carrier") return null;
   // A leased truck's loads are paid on delivery by the lessor (token.payment.lessorPaysOnDelivery): terms only matter
   // once the company hauls with a truck of its own.
-  if (k.payment.lessorPaysOnDelivery && (w.trucksByCompany.get(c.id) ?? []).every((t) => t.lease === "npc" || t.status === "retired")) return null;
+  const leasedOnly = k.payment.lessorPaysOnDelivery && (w.trucksByCompany.get(c.id) ?? []).every((t) => t.lease === "npc" || t.status === "retired");
+  if (leasedOnly && !always) return null;
+  if (leasedOnly) {
+    return (
+      <Card title="Getting paid">
+        <p class="muted small">
+          On the lessor's truck you're paid the day you deliver: the lessor sees to it. On a truck of your own, shippers pay net {k.payment.termsDays}, and you choose: wait, take quick pay today for {pct(k.payment.quickPayPct)} off, or factor. {factoringTerms(w, c)} The choice opens here with your first truck.
+        </p>
+      </Card>
+    );
+  }
   return (
         <Card title="Getting paid">
           <p class="muted small">
-            Shippers pay net {k.payment.termsDays}. Quick pay pays today for {pct(k.payment.quickPayPct)} off. Factoring is a {Math.round(k.payment.factoring.termDays / 365)}-year contract with a {fd(factoringStake(w, c))} FD stake: the factor advances each invoice at a discount set by who owes it and your credit, and leaving early forfeits the stake.
+            Shippers pay net {k.payment.termsDays}. Quick pay pays today for {pct(k.payment.quickPayPct)} off. {factoringTerms(w, c)}
           </p>
           <Kv
             rows={[

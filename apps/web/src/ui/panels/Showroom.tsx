@@ -37,7 +37,7 @@ function sourceLabel(src: Source): string {
   if (!src.dealershipId) return `the NPC dealer${npcBackstop(w) ? " (backstop: dearer and slower)" : ""}`;
   const b = w.businesses[src.dealershipId - 1]!;
   const owner = w.companies[b.ownerId - 1];
-  return `${owner?.name ?? "a player"}'s dealership at ${w.net.hubs[b.hub]?.id ?? "?"}`;
+  return `${owner?.name ?? "a player"}'s dealership in ${w.net.hubs[b.hub]?.name ?? "?"}`;
 }
 
 /**
@@ -142,7 +142,7 @@ export function Showroom(): JSX.Element {
       </div>
       {open.length ? (
         <p class="muted small">
-          In stock: {open.map((b) => `${w.net.hubs[b.hub]?.id ?? "?"} ${TIERS.filter((t) => hasStock(b, "tractor", t, "van")).length ? TIERS.map((t) => b.stock.tractor[t]).join("/") : "no tractors"} tractors, ${TYPES.map((t) => b.stock.trailer[t]).join("/")} trailers`).join(" · ")}
+          In stock: {open.map((b) => `${w.net.hubs[b.hub]?.name ?? "?"}: ${TIERS.filter((t) => hasStock(b, "tractor", t, "van")).length ? TIERS.map((t) => b.stock.tractor[t]).join("/") : "no tractors"} tractors, ${TYPES.map((t) => b.stock.trailer[t]).join("/")} trailers`).join(" · ")}
         </p>
       ) : null}
       <h3>Used trailers</h3>
@@ -171,7 +171,7 @@ export function Showroom(): JSX.Element {
           return (
             <div class="row" key={o.id}>
               <span>
-                {TIER_NAME[t.tier]} · {pct(condition(w.cfg, t))} · {Math.round(t.odometer / 1000)}k mi · at {w.net.hubs[t.hub]?.id} · <Num>{fd(o.weeklyFd)}</Num> FD a week, {o.minWeeks} weeks minimum · from {owner?.name ?? "?"} (value {fd(truckValue(w, t))})
+                {TIER_NAME[t.tier]} · {pct(condition(w.cfg, t))} · {Math.round(t.odometer / 1000)}k mi · at {w.net.hubs[t.hub]?.name} · <Num>{fd(o.weeklyFd)}</Num> FD a week, {o.minWeeks} weeks minimum · from {owner?.name ?? "?"} (value {fd(truckValue(w, t))})
               </span>
               <Btn sm onClick={() => act({ type: "take_lease", offerId: o.id }, "Leased: it joins your fleet where it stands, with your trailer")}>
                 Lease it

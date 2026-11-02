@@ -411,6 +411,8 @@ export interface Staff {
   id: number;
   kind: StaffKind;
   name: string;
+  /** The portrait's look, matching the first name (cosmetic: nothing in the rules reads it). */
+  look: "m" | "f";
   /** 0–1, shown as 1–5 stars; grows with experience toward `potential`. */
   skill: number;
   potential: number;

@@ -320,17 +320,24 @@ export function newSafetyRecord(): Company["safety"] {
   };
 }
 
-const FIRST = ["Alex", "Sam", "Jordan", "Casey", "Riley", "Morgan", "Taylor", "Jamie", "Avery", "Quinn", "Devon", "Rosa", "Luis", "Marcus", "Tanya", "Ray", "Dee", "Andre", "Kim", "Omar", "Lena", "Hector", "Bo", "Nia", "Vic", "Earl", "June", "Pat", "Cruz", "Ivy"];
+// First names: clearly men's, then clearly women's, no unisex names, the same mix of origins as the surnames (Jeff,
+// 2026-11-02: a man's portrait under "Tanya"). The half a name falls in sets the person's look.
+const FIRST_M = ["Marcus", "Luis", "Hector", "Andre", "Omar", "Ray", "Earl", "Darnell", "Tyrone", "Miguel", "Carlos", "Javier", "Diego", "Duc", "Tuan", "Hung", "Raj", "Vikram", "Arjun", "Sanjay", "Chidi", "Emeka", "Tunde", "Kwame", "Karim", "Tariq", "Nabil", "Yusuf", "Frank", "Dale", "Wayne", "Gary", "Bill", "Jake", "Hank", "Travis"];
+const FIRST_F = ["Maria", "Lucia", "Carmen", "Elena", "Sofia", "Lan", "Mai", "Trang", "Hoa", "Priya", "Anjali", "Deepa", "Sunita", "Ngozi", "Amara", "Chioma", "Adaeze", "Layla", "Yasmin", "Nadia", "Rania", "Peggy", "Brenda", "Donna", "Carol", "Linda", "Sharon", "Tammy", "Rosa", "Tanya", "Lena", "Nia", "June", "Ivy", "Darlene", "Keisha"];
+const FIRST = [...FIRST_M, ...FIRST_F];
 const LAST = ["Reyes", "Walker", "Nguyen", "Brooks", "Patel", "Hayes", "Moreno", "Kowalski", "Price", "Okafor", "Bell", "Duarte", "Fischer", "Lam", "Carter", "Ruiz", "Mills", "Haddad", "Stone", "Ortiz", "Grant", "Silva", "Boone", "Ward", "Lowe", "Vance", "Cole", "Diaz", "Ford", "Hart"];
 
 /** A person for the labor pool (or an owner). Names come from the labor stream, so they replay. */
 export function newStaff(w: World, kind: Staff["kind"], skill: number, potential: number): Staff {
   const rng = w.rng.labor;
   const [lo, hi] = w.cfg.labor.pool.personal;
+  // One draw for the first name, as ever, so the labor stream replays the same; the half it falls in is the look.
+  const first = rng.int(0, FIRST.length - 1);
   const person: Staff = {
     id: w.staff.length + 1,
     kind,
-    name: `${FIRST[rng.int(0, FIRST.length - 1)]!} ${LAST[rng.int(0, LAST.length - 1)]!}`,
+    name: `${FIRST[first]!} ${LAST[rng.int(0, LAST.length - 1)]!}`,
+    look: first < FIRST_M.length ? "m" : "f",
     skill,
     potential: Math.max(skill, potential),
     experience: 0,

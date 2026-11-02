@@ -5,6 +5,7 @@ import { defaultName, FIRST_ENTRY, HUB_CARD, NAMING } from "../copy.js";
 import { cls, fd } from "../format.js";
 import { FLEET_START_EXTRA_FD, GAME_CONFIG, type StartKind } from "../game.js";
 import { H } from "../handlers.js";
+import { clearsNear } from "../board.js";
 import { hubFacts, rankStarters } from "../hubcard.js";
 import { bumpData, S, TEST_BUILD, useData, type EntryStage } from "../state.js";
 import { Btn, Card } from "./bits.js";
@@ -187,10 +188,10 @@ function ReadOnlyBoard({ hub }: { hub: number }): JSX.Element {
       {loads.map((l) => (
         <div class="loadcard ro" key={l.id}>
           <div>
-            {name(l.origin)} → {name(l.dest)} · {Math.round(l.miles).toLocaleString("en-US")} mi
+            {S.game!.w.net.places[l.originPlace]!.name} → {S.game!.w.net.places[l.destPlace]!.name} · {Math.round(l.miles).toLocaleString("en-US")} mi
           </div>
           <div class="small">
-            {fd(l.bookNow * l.miles)} FD · {l.bookNow.toFixed(2)}/mi · 0 mi empty · usually clears near {l.refRate.toFixed(2)}/mi
+            {fd(l.bookNow * l.miles)} FD · {l.bookNow.toFixed(2)}/mi · 0 mi empty · usually clears near {clearsNear(l).toFixed(2)}/mi
           </div>
         </div>
       ))}

@@ -1,5 +1,5 @@
 import type { JSX } from "preact";
-import { condition, crewed, hubMiles, layerBlock, ordersOf, rebuildable, rebuildCost, resting, truckValue, type Truck } from "@lanes/engine";
+import { condition, crewed, hubMiles, ordersOf, rebuildable, rebuildCost, resting, truckValue, type Truck } from "@lanes/engine";
 import { SCENES } from "../../assets.js";
 import { cls, dateLabel, fd, fdFull, pct, plural, TIER_NAME, TRAILER_NAME, hhmm, realUntil } from "../../format.js";
 import { TRUCK } from "../../copy.js";
@@ -14,8 +14,6 @@ import { DispatcherCard } from "./Dispatcher.js";
 import { DeliveredCard, RollingCards } from "./Rolling.js";
 import { TrailerLines, TruckAssetActions, YardCard } from "./Yard.js";
 
-const num = (id: string): number => Number((document.getElementById(id) as HTMLInputElement | null)?.value);
-const checked = (id: string): boolean => Boolean((document.getElementById(id) as HTMLInputElement | null)?.checked);
 
 export function Fleet(): JSX.Element {
   useData();
@@ -136,7 +134,6 @@ function TruckCard({ t, idx }: { t: Truck; idx: number }): JSX.Element {
   const cond = condition(w.cfg, t);
   const share = pct(w.cfg.costs.npcLeaseShareOfGross);
   const kind = t.lease === "npc" ? TRUCK.leased(share) : t.lease === "lessor" ? TRUCK.secondLease(share, fdFull(w.cfg.freeEntry.leases.minWeeklyFd)) : leasedIn ? `Leased from another carrier` : TRUCK.owned(fdFull(truckValue(w, t)));
-  const load = t.loadId !== null ? w.loads.get(t.loadId) : undefined;
   const nearby = w.net.hubs
     .map((h, i) => ({ h, i, mi: hubMiles(w, t.hub, i) }))
     .filter((x) => x.i !== t.hub)
@@ -228,15 +225,6 @@ function TruckCard({ t, idx }: { t: Truck; idx: number }): JSX.Element {
         ) : null}
         {t.status === "idle" && crewed(t) && !resting(w, t) && hubMiles(w, c.homeHub, t.hub) > w.cfg.map.nearbyRadiusMi ? (
           <Btn onClick={() => act({ type: "send_home", truckId: t.id }, "Heading home for days off")}>{TRUCK.sendHome(hubMiles(w, c.homeHub, t.hub))}</Btn>
-        ) : null}
-        {t.status === "toPickup" && !layerBlock(w, "brokerage") && load && load.status === "assigned" && load.carrierId === c.id && !load.doubleBroker && load.shipperId !== c.id ? (
-          <>
-            <input type="number" id={`rb-${t.id}`} step="0.01" min="0.5" max={(load.clearedRate - 0.01).toFixed(2)} defaultValue={(load.clearedRate * 0.85).toFixed(2)} aria-label="Rate to re-post at" />
-            <label class="label">
-              <input type="checkbox" id={`rbpay-${t.id}`} defaultChecked /> pay the hauler
-            </label>
-            <Btn onClick={() => act({ type: "rebroker_load", loadId: load.id, rate: num(`rb-${t.id}`), pay: checked(`rbpay-${t.id}`) }, "Load re-posted. The truck is free where it stands")}>Re-post the load (won at {load.clearedRate.toFixed(2)})</Btn>
-          </>
         ) : null}
       </div>
     </Card>

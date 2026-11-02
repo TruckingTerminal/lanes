@@ -32,12 +32,20 @@ export interface BoardFilter {
 }
 
 /** The suggested bid: above book-now, toward the market and a margin over break-even, never over the ceiling. */
-export const suggestBid = (l: Load, be: number): number => Math.max(l.bookNow + 0.05, Math.min(l.ceiling, Math.max(be * 1.15, l.refRate)));
+/**
+ * What a load "usually clears near" on the board: the lane's recent clearing rate, never above this load's own ceiling
+ * (market truth, the director's gate: a rate above what the shipper will pay is not one this load clears at).
+ */
+export const clearsNear = (l: Load): number => Math.min(l.refRate, l.ceiling);
 
-/** The bid range the stepper allows: a little over break-even, up to what the poster takes over its ceiling. */
-export function bidRange(w: World, l: Load, be: number): [number, number] {
-  const hi = l.ceiling * w.cfg.board.overCeilingMax;
-  return [Math.min(hi, Math.max(0.5, be * 1.05)), hi];
+export const suggestBid = (l: Load, be: number): number => Math.max(l.bookNow + 0.05, Math.min(l.ceiling, Math.max(be * 1.15, clearsNear(l))));
+
+/**
+ * The bid range the stepper allows: a little over break-even, up to the ceiling. The engine still takes a bid over the
+ * ceiling (it wins only if nobody bids within it), but the board doesn't offer one (market truth, row 15).
+ */
+export function bidRange(_w: World, l: Load, be: number): [number, number] {
+  return [Math.min(l.ceiling, Math.max(0.5, be * 1.05)), l.ceiling];
 }
 
 /** The chip's words for a load this company can't take (copy-first-ten-minutes.md, S2 "Blocked chips"). */
@@ -96,7 +104,7 @@ export function boardRows(w: World, c: Company, truck: Truck, f: BoardFilter): B
  */
 export function sortRows(rows: BoardRow[], sort: BoardSort, firstVisit: boolean): BoardRow[] {
   const key = (r: BoardRow): number =>
-    sort === "nearest" ? r.dh : sort === "pay" ? -r.total : sort === "deliver" ? r.l.appointmentT : -(r.l.refRate - r.be) * r.l.miles;
+    sort === "nearest" ? r.dh : sort === "pay" ? -r.total : sort === "deliver" ? r.l.appointmentT : -(clearsNear(r.l) - r.be) * r.l.miles;
   return [...rows].sort((a, b) => {
     if (!!a.block !== !!b.block) return a.block ? 1 : -1;
     if (firstVisit && a.profitBook >= 0 !== b.profitBook >= 0) return a.profitBook >= 0 ? -1 : 1;

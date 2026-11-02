@@ -361,8 +361,6 @@ export function describe(a: LiveAction): string {
       return `Require ${VETTING_NAMES[a.tier].toLowerCase()} vetting on your freight`;
     case "refile_authority":
       return "File for new authority";
-    case "rebroker_load":
-      return `Re-post load #${a.loadId} at ${a.rate.toFixed(2)}/mi`;
     case "book_load":
       return `Book load #${a.loadId} now (truck ${truckNo(a.truckId)})`;
     case "send_home":

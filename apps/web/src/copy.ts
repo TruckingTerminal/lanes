@@ -258,6 +258,7 @@ export const TRUCK = {
   owned: (fd: string) => `owned · worth ${fd} FD`,
   idle: (place: string, next: string) => `Idle at ${place} · next round ${next}`,
   needsYou: "Needs you",
+  homeTime: (who: string, until: string) => `On home time: ${who} off until ${until}. Nobody bids for this truck until then.`,
   tired: "A tired driver crashes more, drives slower and loses heart.",
   noLoadsInRange: (trailer: string, maxDh: number, hub: string) => `No ${trailer} loads within ${maxDh} mi of ${hub}, as far as your dispatcher sends a truck empty.`,
   sendHome: (mi: number) => `Send home · ${mi} mi`,

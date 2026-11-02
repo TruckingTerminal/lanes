@@ -46,7 +46,7 @@ export function Dealer(): JSX.Element {
                   {TIER_NAME[t.tier]} + {TRAILER_NAME[t.trailer]}
                 </h3>
                 <p>
-                  {Math.round(t.odometer).toLocaleString("en-US")} mi · {pct(condition(w.cfg, t))} condition · at {w.net.hubs[t.hub]!.id}
+                  {Math.round(t.odometer).toLocaleString("en-US")} mi · {pct(condition(w.cfg, t))} condition · at {w.net.hubs[t.hub]!.name}
                   {l.sellerId === 0 ? <span class="warn"> · repo</span> : null}
                 </p>
                 <p>
@@ -124,8 +124,8 @@ export function Dealer(): JSX.Element {
             <p class="muted small">Ships its own freight from its hub; you earn the goods margin and shipper Miles.</p>
             <div class="row">
               {best.map((b) => (
-                <Btn key={b.h.id} disabled={!(cash >= spec.priceFd && w.facilitySupply[type] > 0)} onClick={() => act({ type: "buy_facility", facility: type, hubId: b.h.id }, `${FAC_NAME[type]} open at ${b.h.id}`)}>
-                  {b.h.id} · {(b.o.loadsPerRound * 2).toFixed(1)} loads/day
+                <Btn key={b.h.id} disabled={!(cash >= spec.priceFd && w.facilitySupply[type] > 0)} onClick={() => act({ type: "buy_facility", facility: type, hubId: b.h.id }, `${FAC_NAME[type]} open at ${b.h.name}`)}>
+                  {b.h.name} · {(b.o.loadsPerRound * 2).toFixed(1)} loads/day
                 </Btn>
               ))}
             </div>
@@ -133,8 +133,8 @@ export function Dealer(): JSX.Element {
               <div class="row">
                 <span class="muted small">Or {usd(assetPriceUsd(w, spec.priceFd))} to the launch pool:</span>
                 {best.map((b) => (
-                  <Btn key={`usd-${b.h.id}`} disabled={!(c.usd.wallet >= assetPriceUsd(w, spec.priceFd) && w.facilitySupply[type] > 0)} onClick={() => act({ type: "buy_facility", facility: type, hubId: b.h.id, pay: "usd" }, `${FAC_NAME[type]} open at ${b.h.id}, paid in dollars`)}>
-                    {b.h.id} · {usd(assetPriceUsd(w, spec.priceFd))}
+                  <Btn key={`usd-${b.h.id}`} disabled={!(c.usd.wallet >= assetPriceUsd(w, spec.priceFd) && w.facilitySupply[type] > 0)} onClick={() => act({ type: "buy_facility", facility: type, hubId: b.h.id, pay: "usd" }, `${FAC_NAME[type]} open at ${b.h.name}, paid in dollars`)}>
+                    {b.h.name} · {usd(assetPriceUsd(w, spec.priceFd))}
                   </Btn>
                 ))}
               </div>

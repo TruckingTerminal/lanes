@@ -1,7 +1,6 @@
 import type { ComponentChildren } from "preact";
 import type { Equipment } from "@lanes/config";
 import {
-  breakEvenPerMile,
   canMakeHot,
   companyAccount,
   crewed,
@@ -10,13 +9,12 @@ import {
   lessorTrucksOf,
   yardPerTruck,
   driverFatigue,
-  expectedReloadDeadheadMi,
-  fuelPrice,
   hubMiles,
-  hubToll,
   marketPay,
   operatingTrucks,
   ordersWaitForHand,
+  placeMiles,
+  placeToll,
   reloadOdds,
   resting,
   seasonality,
@@ -28,11 +26,12 @@ import {
   type Truck,
 } from "@lanes/engine";
 import { GAME_CONFIG } from "./game.js";
+import { trueBreakEven } from "./breakeven.js";
 import { ARRIVAL, DISPATCHER, NEEDS, TRUCK } from "./copy.js";
 import { act, bumpData, clockMin, isPhone, me, myTrucks, push, S, setTab, selectTruck, toast, truckNo } from "./state.js";
 import { tabDef, tabOpen, teaserTabs, type Tab } from "./tabs.js";
 import { myTenders } from "./ui/panels/Contracts.js";
-import { fd, hoursLabel, pct, plural, realUntil, signedPct, TRAILER_NAME } from "./format.js";
+import { dateLabel, fd, hoursLabel, pct, plural, realUntil, signedPct, TRAILER_NAME } from "./format.js";
 import { Btn } from "./ui/bits.js";
 
 /** Game reasoning the panels share: idle diagnoses, status lines, crew lines, reload and season reads. */
@@ -50,7 +49,7 @@ export const idleDays = (t: Truck): number => Math.floor(idleHours(t) / 24);
 export const idleLabel = (t: Truck): string => hoursLabel(idleHours(t));
 
 /** The player's trucks idle a day or more. */
-export const stuckTrucks = (): Truck[] => myTrucks().filter((t) => t.status === "idle" && idleHours(t) >= IDLE_ALERT_HOURS);
+export const stuckTrucks = (): Truck[] => myTrucks().filter((t) => t.status === "idle" && idleHours(t) >= IDLE_ALERT_HOURS && !resting(S.game!.w, t));
 
 /** Shouts once per idle day per truck, in the ticker and as a toast. */
 const idleAlerted = new Map<string, number>();
@@ -64,7 +63,7 @@ export function checkIdleAlerts(): void {
       continue;
     }
     const days = idleDays(t);
-    if (idleHours(t) < IDLE_ALERT_HOURS || idleAlerted.get(key) === days) continue;
+    if (idleHours(t) < IDLE_ALERT_HOURS || idleAlerted.get(key) === days || resting(g.w, t)) continue;
     idleAlerted.set(key, days);
     const text = `Truck ${truckNo(t.id)} has been idle ${idleLabel(t)} at ${g.w.net.hubs[t.hub]!.name}: ${idleWhy(t).why}`;
     push(g, text, "bad");
@@ -224,6 +223,11 @@ export function idleWhy(t: Truck): IdleWhy {
   if (!crewed(t)) return { why: "No driver is seated, so it can't run.", fixes: [<Btn primary onClick={goStaff}>Hire a driver</Btn>] };
   if (c.authority.status !== "active") return { why: c.authority.status === "revoked" ? "Your authority is revoked: nothing can haul." : "Your authority is suspended: nothing can haul until it's back.", fixes: [] };
   if (t.breakdownMin > 0) return { why: `Broken down: about ${Math.ceil(t.breakdownMin / 60)} h until the tow and repair are done.`, fixes: [] };
+  // Home time is rest, not a losing dispatcher (the director's gate, sprint 1).
+  if (resting(w, t)) {
+    const d = w.staff[t.driverId - 1]!;
+    return { why: TRUCK.homeTime(d.owner ? "you're" : `${d.name} is`, dateLabel(d.homeUntilDay!)), fixes: [] };
+  }
   const bid = w.manualBids.get(t.id);
   if (bid) return { why: `Your bid of ${bid.rate.toFixed(2)}/mi is in for the next round.`, fixes: [] };
   // The first bid by hand (S9): the dispatcher waits for the owner's first call, so the fix is the board, not the orders.
@@ -232,7 +236,7 @@ export function idleWhy(t: Truck): IdleWhy {
   if (!order) return { why: "Your dispatcher has no bid order, so nobody bids for this truck.", fixes: [<Btn primary onClick={() => act({ type: "set_standing_orders", orders: DEFAULTS() }, "Dispatcher back to defaults")}>Restore the default dispatcher</Btn>, board] };
   const floor = c.orders.find((o): o is Extract<StandingOrder, { kind: "floor" }> => o.kind === "floor");
   const maxDh = order.maxDeadheadMi;
-  const loads = [...w.loads.values()].filter((l) => l.status === "open" && l.equipment === t.trailer && l.brokerId !== c.id && hubMiles(w, t.hub, l.origin) <= maxDh);
+  const loads = [...w.loads.values()].filter((l) => l.status === "open" && l.equipment === t.trailer && l.brokerId !== c.id && placeMiles(w, t.place, l.originPlace) <= maxDh);
   if (loads.length === 0) {
     const best = w.net.hubs
       .map((h, i) => ({ h, i, mi: hubMiles(w, t.hub, i), n: openLoadsAt(i).filter((l) => l.equipment === t.trailer).length }))
@@ -249,16 +253,12 @@ export function idleWhy(t: Truck): IdleWhy {
   if (loads.every((l) => l.hot > 0) && !canMakeHot(c, t)) return { why: `The only ${trailer} loads in range are hot, and a solo driver can't make a hot window legally.`, fixes: [<Btn primary onClick={goStaff}>Seat a co-driver</Btn>] };
   const blocked = loads.map((l) => vettingBlock(w, c, l)).filter((x): x is string => x !== null);
   if (blocked.length === loads.length) return { why: `Every load in range requires vetting you don't pass: ${blocked[0]}.`, fixes: [] };
-  const fuel = fuelPrice(w);
   const floorPct = floor?.breakEvenPlusPct ?? 0;
-  const payable = loads.filter((l) => {
-    const dh = hubMiles(w, t.hub, l.origin);
-    const be = breakEvenPerMile(w.cfg, t, fuel, l.miles, dh + w.cfg.board.reloadWeight * expectedReloadDeadheadMi(w, l.dest, l.equipment), hubToll(w, t.hub, l.origin) + w.net.lanes[l.laneId]!.tollFd);
-    return l.ceiling >= be * (1 + floorPct);
-  });
-  if (payable.length === 0) return { why: `${plural(loads.length, `${trailer} load`)} in range, but none pays your floor (break-even + ${Math.round(floorPct * 100)}%) even at its ceiling.`, fixes: [board] };
   const running = operatingTrucks(w, c.id);
   const prof = dispatchProfile(w, c, running);
+  // The board's own break-even (breakeven.ts), so the alert and the cards never disagree about what pays.
+  const payable = loads.filter((l) => l.ceiling >= trueBreakEven(w, t, l, placeMiles(w, t.place, l.originPlace), placeToll(w, t.place, l.originPlace), prof.foresightDays, prof.reloadWeight) * (1 + floorPct));
+  if (payable.length === 0) return { why: `${plural(loads.length, `${trailer} load`)} in range, but none pays your floor (break-even + ${Math.round(floorPct * 100)}%) even at its ceiling.`, fixes: [board] };
   if (prof.coverage < 1) return { why: `Your dispatcher is stretched: ${prof.span} trucks' worth of attention for the ${running} you run, so this truck sits out about ${Math.round((1 - prof.coverage) * 100)}% of rounds.`, fixes: [<Btn primary onClick={goStaff}>Hire a dispatcher</Btn>, board] };
   return { why: `${plural(payable.length, `${trailer} load`)} in range pay enough, but the dispatcher's bids keep losing: other carriers bid lower or have the better record.`, fixes: [<Btn primary onClick={() => goLoads(t.id)}>Bid by hand</Btn>] };
 }

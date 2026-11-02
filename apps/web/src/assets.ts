@@ -50,8 +50,11 @@ export const LOGO_TITLE = logoTitlePng;
 export const LOGO_TITLE_H = 176;
 
 /** A driver's portrait: the owner and the odd-numbered hires are one face, the rest the other. */
-export const driverPortrait = (staffId: number): string => (staffId % 2 ? driverM : driverF);
-export const driverPerson = (staffId: number): Person => (staffId % 2 ? "driverM" : "driverF");
+/**
+ * A driver's portrait, by the look the engine gave them with their first name (Jeff, 2026-11-02). When Graphics' set of
+ * portraits per look lands, pick the variant within the look here by `s.id` (e.g. id % the look's count).
+ */
+export const driverPerson = (s: { id: number; look: "m" | "f" }): Person => (s.look === "f" ? "driverF" : "driverM");
 
 let onReady: (() => void) | null = null;
 export function whenAssetsReady(f: () => void): void {

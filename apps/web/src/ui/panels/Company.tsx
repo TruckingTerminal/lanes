@@ -23,10 +23,12 @@ export function Company(): JSX.Element {
   const miles = (x: CompanyT) => x.milesHistory.reduce((a, b) => a + b, 0) + x.milesTotal;
   const worth = (x: CompanyT) => w.ledger.balance(companyAccount(x.id)) + w.trucksByCompany.get(x.id)!.reduce((s, t) => s + truckValue(w, t), 0);
   const carriers = w.companies.filter((x) => x.role === "carrier");
-  const byWorth = [...w.companies].sort((a, b) => worth(b) - worth(a));
-  const top = byWorth.slice(0, 8);
+  // Other companies rank by Miles, never by worth: cash plus truck value gives away a company's live cash, which stays
+  // private (Jeff; the director's Intel page). Your own worth is yours to see.
+  const byMiles = [...w.companies].sort((a, b) => miles(b) - miles(a) || a.id - b.id);
+  const top = byMiles.slice(0, 8);
   if (c && !top.includes(c)) top.push(c);
-  const humans = w.companies.filter(isHuman).sort((a, b) => worth(b) - worth(a));
+  const humans = w.companies.filter(isHuman).sort((a, b) => miles(b) - miles(a) || a.id - b.id);
   const level = c ? Math.min(w.cfg.reputation.maxLevel, Math.floor(Math.sqrt(c.delivered / w.cfg.reputation.loadsPerLevelSq))) : 0;
   const rankMiles = c ? [...carriers].sort((a, b) => miles(b) - miles(a)).indexOf(c) + 1 : 0;
   return (
@@ -40,7 +42,7 @@ export function Company(): JSX.Element {
               ["Loads delivered", <Num>{Math.round(c.delivered)} · {c.delivered ? pct(c.onTime / c.delivered) : "–"} on time</Num>],
               ["Reputation", <Num>{pct(c.reputation)} · level {level}</Num>],
               ["Miles", <Num>{fd(miles(c))} · #{rankMiles} of {carriers.length} carriers</Num>],
-              ["Net worth", <Num>{fd(worth(c))} FD · #{byWorth.indexOf(c) + 1} of {w.companies.length}</Num>],
+              ["Net worth", <Num>{fd(worth(c))} FD</Num>],
               ["Trucks", <Num>{operatingTrucks(w, c.id)} running</Num>],
             ]}
           />
@@ -58,16 +60,16 @@ export function Company(): JSX.Element {
                   <th>#</th>
                   <th>Company</th>
                   <th>Home</th>
-                  <th>Worth</th>
+                  <th>Miles</th>
                 </tr>
               </thead>
               <tbody>
                 {humans.map((x) => (
                   <tr class={x === c ? "you" : ""} key={x.id}>
-                    <td class="num">{byWorth.indexOf(x) + 1}</td>
+                    <td class="num">{byMiles.indexOf(x) + 1}</td>
                     <td>{x.name}</td>
-                    <td>{w.net.hubs[x.homeHub]!.id}</td>
-                    <td class="num">{fd(worth(x))}</td>
+                    <td>{w.net.hubs[x.homeHub]!.name}</td>
+                    <td class="num">{fd(miles(x))}</td>
                   </tr>
                 ))}
               </tbody>
@@ -90,24 +92,24 @@ export function Company(): JSX.Element {
           ]}
         />
       </Card>
-      <Card title="Biggest companies">
+      <Card title="Most miles">
         <table>
           <thead>
             <tr>
               <th>#</th>
               <th>Company</th>
-              <th>Worth</th>
+              <th>Miles</th>
             </tr>
           </thead>
           <tbody>
             {top.map((x) => (
               <tr class={x === c ? "you" : ""} key={x.id}>
-                <td class="num">{byWorth.indexOf(x) + 1}</td>
+                <td class="num">{byMiles.indexOf(x) + 1}</td>
                 <td>
                   {x.name}
                   {isHuman(x) && x !== c ? <span class="good"> · player</span> : null}
                 </td>
-                <td class="num">{fd(worth(x))}</td>
+                <td class="num">{fd(miles(x))}</td>
               </tr>
             ))}
           </tbody>

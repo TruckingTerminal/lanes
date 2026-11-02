@@ -98,7 +98,7 @@ export function Staff(): JSX.Element {
     return (
       <Card key={s.id}>
         <div class="row">
-          <Portrait who={s.kind === "driver" ? driverPerson(s.id) : "dispatcher"} />
+          <Portrait who={s.kind === "driver" ? driverPerson(s) : "dispatcher"} />
           <b>{s.name}</b>
           <Stars skill={s.skill} />
           <span class="muted">{kindLabel(s.kind)}</span>
@@ -158,7 +158,7 @@ export function Staff(): JSX.Element {
       <tr key={s.id}>
         <td>
           <span class="row">
-            <Portrait who={driver ? driverPerson(s.id) : "dispatcher"} sm />
+            <Portrait who={driver ? driverPerson(s) : "dispatcher"} sm />
             {s.name}
           </span>
         </td>

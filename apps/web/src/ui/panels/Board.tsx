@@ -2,7 +2,7 @@ import type { JSX } from "preact";
 import { useEffect, useState } from "preact/hooks";
 import { MANUAL_BID_MAX_DEADHEAD_MI, VETTING_NAMES, type Truck } from "@lanes/engine";
 import { COMMODITIES } from "@lanes/data";
-import { bidRange, boardRows, sortRows, type BoardRow, type BoardSort } from "../../board.js";
+import { bidRange, boardRows, clearsNear, sortRows, type BoardRow, type BoardSort } from "../../board.js";
 import { BOARD, LOAD, ROUND } from "../../copy.js";
 import { cls, fdFull, hhmm, pct, shortDate, TRAILER_NAME } from "../../format.js";
 import { nextRoundHour, nextRoundLabel, nextRoundWait, reloadLabel, roundProgress, seasonSwing } from "../../logic.js";
@@ -294,7 +294,7 @@ function LoadSheet({ r, truck }: { r: BoardRow; truck: Truck }): JSX.Element {
     const res = await order({ type: "book_load", truckId: truck.id, loadId: l.id }, ROUND.toastBooked);
     if (!res.ok) return setNote({ text: res.reason, bad: true });
     sent(res.at);
-    toast(res.at === null ? ROUND.toastBooked : ROUND.booked(w.net.hubs[l.origin]!.name, w.net.hubs[l.dest]!.name, fdFull(r.total)));
+    toast(res.at === null ? ROUND.toastBooked : ROUND.booked(w.net.places[l.originPlace]!.name, w.net.places[l.destPlace]!.name, fdFull(r.total)));
     S.openLoad = null;
     S.sheet = "half";
     setTab("fleet");
@@ -336,7 +336,7 @@ function LoadSheet({ r, truck }: { r: BoardRow; truck: Truck }): JSX.Element {
             [LOAD.bookNow, `${fdFull(r.total)} FD · ${l.bookNow.toFixed(2)}/mi`],
             [LOAD.breakEven, `${r.be.toFixed(2)}/mi`],
             [LOAD.profitBook, <span class={bookUp ? "good" : "bad"}>{signed(r.profitBook)} FD</span>],
-            [LOAD.clearsNear, `${l.refRate.toFixed(2)}/mi`],
+            [LOAD.clearsNear, `${clearsNear(l).toFixed(2)}/mi`],
             [LOAD.ceiling, `${l.ceiling.toFixed(2)}/mi`],
           ]}
         />

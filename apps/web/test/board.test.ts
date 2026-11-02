@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { dispatchProfile, operatingTrucks, placeMiles, placeToll } from "@lanes/engine";
-import { bidRange, boardRows, sortRows, suggestBid } from "../src/board.js";
+import { bidRange, boardRows, clearsNear, sortRows, suggestBid } from "../src/board.js";
 import { trueBreakEven } from "../src/breakeven.js";
 import { TestGame } from "../src/game.js";
 
@@ -24,6 +24,18 @@ describe("the board", () => {
       expect(r.suggest).toBe(suggestBid(r.l, be));
       const [lo, hi] = bidRange(g.w, r.l, be);
       expect(lo).toBeLessThanOrEqual(hi);
+    }
+  }, 60_000);
+
+  it("never prints a clearing rate or offers a bid above the load's own ceiling (market truth)", async () => {
+    const { g, c, truck } = await world();
+    const rows = boardRows(g.w, c, truck, { dest: "any", maxDh: 300, query: "" });
+    for (const r of rows) {
+      expect(clearsNear(r.l)).toBeLessThanOrEqual(r.l.ceiling);
+      const [lo, hi] = bidRange(g.w, r.l, r.be);
+      expect(hi).toBe(r.l.ceiling);
+      expect(lo).toBeLessThanOrEqual(hi);
+      expect(r.suggest).toBeLessThanOrEqual(Math.max(r.l.ceiling, r.l.bookNow + 0.05));
     }
   }, 60_000);
 

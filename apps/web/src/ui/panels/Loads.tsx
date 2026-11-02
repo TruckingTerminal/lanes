@@ -1,7 +1,9 @@
 import type { JSX } from "preact";
 import { useState } from "preact/hooks";
-import { breakEvenPerMile, canMakeHot, expectedReloadDeadheadMi, fuelPrice, isLocal, localOnly, MANUAL_BID_MAX_DEADHEAD_MI, mayTake, placeMiles, placeToll, VETTING_NAMES, vettingBlock, type Load, type Truck } from "@lanes/engine";
+import { canMakeHot, dispatchProfile, expectedReloadDeadheadMi, isLocal, operatingTrucks, localOnly, MANUAL_BID_MAX_DEADHEAD_MI, mayTake, placeMiles, placeToll, VETTING_NAMES, vettingBlock, type Load, type Truck } from "@lanes/engine";
 import { COMMODITIES } from "@lanes/data";
+import { bidRange, clearsNear, suggestBid } from "../../board.js";
+import { trueBreakEven } from "../../breakeven.js";
 import { cls, fd, fdFull, hhmm, pct, shortDate, TRAILER_CODE, TRAILER_NAME } from "../../format.js";
 import { nextRoundLabel, openLoadsAt, reloadClass, reloadLabel, SeasonNote, seasonSwing, statusText } from "../../logic.js";
 import { act, bumpData, me, myTrucks, S, selectTruck, useData } from "../../state.js";
@@ -114,7 +116,8 @@ export function LoadsTable(): JSX.Element {
     );
   }
 
-  const fuel = fuelPrice(w);
+  // The board's arithmetic (breakeven.ts, board.ts), so this table and the cards never disagree (market truth).
+  const prof = dispatchProfile(w, me(), operatingTrucks(w, me().id));
   const pending = w.manualBids.get(truck.id);
   const sent = g.kind === "live" ? g.pending().find((r) => r.a.type === "place_bid" && r.a.truckId === truck.id) : undefined;
   const q = query.trim().toLowerCase();
@@ -132,8 +135,8 @@ export function LoadsTable(): JSX.Element {
     const reloadMi = expectedReloadDeadheadMi(w, l.dest, l.equipment);
     const lane = w.net.lanes[l.laneId]!;
     const tolls = placeToll(w, truck.place, l.originPlace) + l.routeTollFd;
-    const be = breakEvenPerMile(w.cfg, truck, fuel, l.miles, dh + w.cfg.board.reloadWeight * reloadMi, tolls);
-    const suggest = Math.max(l.bookNow + 0.05, Math.min(l.ceiling, Math.max(be * 1.15, l.refRate)));
+    const be = trueBreakEven(w, truck, l, dh, placeToll(w, truck.place, l.originPlace), prof.foresightDays, prof.reloadWeight);
+    const suggest = suggestBid(l, be);
     const block = vettingBlock(w, me(), l) ?? (l.hot > 0 && !canMakeHot(me(), truck) ? "a hot load needs a team" : !mayTake(w, me(), l) ? "local carriers have first call this round" : null);
     rows.push({ l, dh, be, suggest, profit: (suggest - be) * l.miles, profitBook: (l.bookNow - be) * l.miles, reloadMi, tolls, highway: lane.highwayShare, hours: l.routeHours, total: l.bookNow * l.miles, ageH: l.roundsUnfilled * 12, block });
   }
@@ -274,7 +277,7 @@ function LoadDetail({ r, truck, mine, pendingRate }: { r: Row; truck: Truck; min
   const p = poster(l);
   const off = Boolean(r.block);
   const bidId = `bid-${l.id}`;
-  const counter = () => {
+  const placeBid = () => {
     const rate = Number((document.getElementById(bidId) as HTMLInputElement).value);
     act({ type: "place_bid", truckId: truck.id, loadId: l.id, rate }, `Bid in at ${rate.toFixed(2)}/mi. It clears at ${nextRoundLabel()}`);
   };
@@ -333,9 +336,9 @@ function LoadDetail({ r, truck, mine, pendingRate }: { r: Row; truck: Truck; min
           <h4 style={{ marginTop: "10px" }}>Market rates</h4>
           <Kv
             rows={[
-              ["Usually clears near", <Num>{l.refRate.toFixed(2)}/mi</Num>],
+              ["Usually clears near", <Num>{clearsNear(l).toFixed(2)}/mi</Num>],
               ["Ceiling", <Num>{l.ceiling.toFixed(2)}/mi</Num>],
-              ["Bid range", <Num>{(r.be * 1.05).toFixed(2)} – {(l.ceiling * w.cfg.board.overCeilingMax).toFixed(2)}</Num>],
+              ["Bid range", <Num>{bidRange(w, l, r.be).map((x) => x.toFixed(2)).join(" – ")}</Num>],
               ["Profit at your bid", <Num class={r.profit > 0 ? "good" : "bad"}>{fd(r.profit)} FD</Num>],
             ]}
           />
@@ -361,8 +364,8 @@ function LoadDetail({ r, truck, mine, pendingRate }: { r: Row; truck: Truck; min
             </Btn>
           </div>
           <div class="row" style={{ marginTop: "8px" }}>
-            <input type="number" id={bidId} step="0.01" min="0.5" max={(l.ceiling * w.cfg.board.overCeilingMax).toFixed(2)} defaultValue={(mine && pendingRate !== undefined ? pendingRate : r.suggest).toFixed(2)} aria-label="Your bid per mile" disabled={off} />
-            <Btn on={mine} disabled={off} onClick={counter}>
+            <input type="number" id={bidId} step="0.01" min="0.5" max={l.ceiling.toFixed(2)} defaultValue={(mine && pendingRate !== undefined ? pendingRate : r.suggest).toFixed(2)} aria-label="Your bid per mile" disabled={off} />
+            <Btn on={mine} disabled={off} onClick={placeBid}>
               {mine ? "Change bid" : "Bid"}
             </Btn>
           </div>

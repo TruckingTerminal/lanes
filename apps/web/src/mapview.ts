@@ -599,18 +599,27 @@ export function drawMap(now: number): void {
     if (!p) return;
     const [X, Y] = toScreen(p[0], p[1]);
     if (!visible(X, Y)) return;
+    // The trailer reads by shape as well as colour (the director's gate: colour alone at 3–4 px): a van a solid square,
+    // a reefer a hollow one, a flatbed a low wide bar.
     const outer = player ? minDot + 2 * edge : minDot;
-    const h = Math.floor(outer / 2);
+    const ow = t.trailer === "flatbed" ? Math.round(outer * 1.6) : outer;
+    const oh = t.trailer === "flatbed" ? Math.max(3 * edge, Math.round(outer * 0.6)) : outer;
+    const x0 = X - Math.floor(ow / 2);
+    const y0 = Y - Math.floor(oh / 2);
     ctx.fillStyle = PAL.ink0;
-    ctx.fillRect(X - h, Y - h, outer, outer);
+    ctx.fillRect(x0, y0, ow, oh);
+    let e = edge;
     if (player) {
       ctx.fillStyle = PAL.lime;
-      ctx.fillRect(X - h + edge, Y - h + edge, outer - 2 * edge, outer - 2 * edge);
+      ctx.fillRect(x0 + edge, y0 + edge, ow - 2 * edge, oh - 2 * edge);
+      e = 2 * edge;
     }
-    const inner = player ? outer - 4 * edge : outer - 2 * edge;
-    const hi = Math.floor(inner / 2);
     ctx.fillStyle = EQUIP_DOT[t.trailer];
-    ctx.fillRect(X - hi, Y - hi, inner, inner);
+    ctx.fillRect(x0 + e, y0 + e, ow - 2 * e, oh - 2 * e);
+    if (t.trailer === "reefer" && ow - 2 * e >= 3 * edge) {
+      ctx.fillStyle = PAL.ink0;
+      ctx.fillRect(x0 + e + edge, y0 + e + edge, ow - 2 * e - 2 * edge, oh - 2 * e - 2 * edge);
+    }
   };
   // The AI at 80 % once you have a company (Jeff, 2026-11-02, over draft 4's 35 %): the interstates look busy and your
   // own truck, at full strength and drawn last, is still what the eye finds. Before that, the whole market at full.

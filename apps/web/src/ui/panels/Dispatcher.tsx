@@ -1,5 +1,5 @@
 import type { JSX } from "preact";
-import { layerBlock, ordersWaitForHand, type StandingOrder } from "@lanes/engine";
+import { ordersWaitForHand, type StandingOrder } from "@lanes/engine";
 import { DISPATCHER } from "../../copy.js";
 import { DEFAULT_ORDERS } from "../../game.js";
 import { act, me, S, useData } from "../../state.js";
@@ -12,7 +12,8 @@ const checked = (id: string): boolean => Boolean((document.getElementById(id) as
 /**
  * The dispatcher (specs/first-ten-minutes.md, S9): before a one-truck company's first bid by hand, only the switch,
  * off and disabled, and Iuliia's line (freeEntry.firstBidByHand: the orders wait for the owner's first call). After
- * it, the switch, three rows and Save, with "More rules" folding the rest; the re-post row waits for brokerage.
+ * it, the switch, three rows and Save, with "More rules" folding the rest. No re-post rule: what the engine runs as
+ * re-brokering is fraud, and no player screen offers it (the director's brokerage brief); saving drops one held from before.
  */
 export function DispatcherCard(): JSX.Element {
   useData();
@@ -23,12 +24,10 @@ export function DispatcherCard(): JSX.Element {
   const bid = find("bid");
   const floor = find("floor");
   const repo = find("reposition");
-  const rb = find("rebroker");
   const bn = find("bookNow");
   const hm = find("homeTime");
   const ct = find("contracts");
   const on = !waiting && Boolean(bid);
-  const brokerage = !layerBlock(w, "brokerage");
   const spotNow = ct ? (ct.spotAbovePct === null ? "always" : String(ct.spotAbovePct)) : "always";
   const def = <K extends StandingOrder["kind"]>(k: K) => DEFAULT_ORDERS.find((o): o is Extract<StandingOrder, { kind: K }> => o.kind === k);
   const orders = (bidding: boolean): StandingOrder[] => {
@@ -39,7 +38,6 @@ export function DispatcherCard(): JSX.Element {
       list.push({ kind: "floor", breakEvenPlusPct: Math.max(0, num("o-floor")) / 100 });
       if (checked("o-repo")) list.push({ kind: "reposition", afterIdleRounds: Math.max(1, num("o-repo-r")), to: { openLoadsWithinMi: 400 } });
       if (checked("o-bn")) list.push({ kind: "bookNow", breakEvenPlusPct: Math.min(5, Math.max(0, num("o-bn-pct") / 100 || 0)), maxDeadheadMi: dh });
-      if (brokerage && checked("o-rb")) list.push({ kind: "rebroker", share: Math.min(1, Math.max(0, num("o-rb-share") / 100 || 0)), keepPct: Math.min(0.9, Math.max(0, num("o-rb-keep") / 100 || 0)), pays: checked("o-rb-pays") });
       if (checked("o-ct")) {
         const spot = (document.getElementById("o-ct-spot") as HTMLSelectElement).value;
         list.push({ kind: "contracts", acceptOffers: true, spotAbovePct: spot === "always" ? null : Number(spot), maxDeadheadMi: dh });
@@ -116,20 +114,6 @@ export function DispatcherCard(): JSX.Element {
             <option value="0.25">let it lapse at 25% above</option>
           </select>
         </div>
-        {brokerage ? (
-          <div class="row">
-            <label class="label">
-              <input type="checkbox" id="o-rb" defaultChecked={Boolean(rb)} /> Re-post some won loads to other carriers before pickup
-            </label>
-            <input type="number" id="o-rb-share" min="0" max="100" defaultValue={String(Math.round((rb?.share ?? 0.1) * 100))} />
-            <span class="muted">% of loads, keeping</span>
-            <input type="number" id="o-rb-keep" min="0" max="90" defaultValue={String(Math.round((rb?.keepPct ?? 0.15) * 100))} />
-            <span class="muted">% of the rate</span>
-            <label class="label">
-              <input type="checkbox" id="o-rb-pays" defaultChecked={!rb || rb.pays} /> pay the hauler
-            </label>
-          </div>
-        ) : null}
       </details>
       <div class="row">
         <Btn primary onClick={() => save(on)}>
