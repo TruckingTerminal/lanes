@@ -23,3 +23,5 @@
 - **The title's traffic** (both shots): cars drive both ways in one lane into each other; the other vehicles
   are one still image each; trains overlap each other and the diner. Lane discipline, every vehicle animated,
   spacing and footprint rules, a real speed-limit sign. Art.
+- **The logo's two blues**: the E and S of LANES and "Terminal" are a darker navy in the logo file itself; one
+  blue per face. Art, first.
