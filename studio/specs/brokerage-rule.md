@@ -164,6 +164,17 @@ Freight a shipper tenders to the brokerage (NPC tenders today) may go to the own
 
 The carrier is untouched. Separate companies, separate liability.
 
+**The token launch reset.** A brokerage formed before the token launch loses its bond at the launch reset, like every beta stake (`TOKENOMICS.md`, the lean launch). **The forming sheet says so plainly, and the bond is not returned to cash before the reset.** Three reasons:
+- **Returning it would not save it.** The reset keeps only a company's working capital (the larger of 25,000 FD and four weeks of its own spending). A brokerage's spending is small, so most of a returned 75,000 would burn as cash instead of as a stake.
+- **It would leave the paper unbacked.** For the hours before the reset, the brokerage's carriers would have no bond behind their invoices, and the bond cap would fall to zero.
+- **It would reopen the hole the lean launch closed:** beta FD carried through by moving it out of a stake.
+
+Telling the truth on the sheet costs nothing and keeps the rule simple. A beta bond is beta money, the same as everything else in the beta.
+
+**For the writer,** on the forming sheet while the token hasn't launched, plain, with no joke: "Beta bond: it is burned at the token launch, like every beta stake. To keep brokering after launch, you post it again."
+
+**For the economy** *(size)*: the part of the bond behind paper still open at the reset should burn only when that paper is paid, so no carrier goes unpaid across the launch. After the reset, the 14-day grace applies, as for every re-posted stake.
+
 **A revocation.** A brokerage's authority revoked bars that person from forming another brokerage for the bar. It does not close the carrier. *(size)*: whether a carrier revoked for a serious record should bar forming a brokerage. Real regulators look at the people behind both; I'd say yes, for the bar's length.
 
 ## 5. Intel
@@ -199,7 +210,7 @@ Two things change:
 - **If not,** it shows what it takes (an active carrier, 75,000 FD for the bond, 300 FD, the premium) and how far away the player is. No dead tap.
 - **Iuliia** says one line, once, when the layer opens.
 
-**The engine's layer.** In the engine today, the `brokerage` layer also opens double brokering for carriers. Engineering took it off every player screen in 60d1a26, and it stays the Back Lot's. A rule that gives a person a legal brokerage should also close that action to player carriers in the rules, not just the chrome. *(size)*: the economy says whether that is part of this bump or the Back Lot's.
+**The engine's layer.** In the engine today, the `brokerage` layer also opens double brokering for carriers. Engineering took it off every player screen in 60d1a26, and it stays the Back Lot's. **Jeff, 2026-11-03: it closes to player carriers in the rules with the brokerage bump.** A player who wants to broker forms a brokerage. The AI's outlaws keep the action; for players it returns only if the Back Lot brings it back.
 
 ## 8. The server note
 
@@ -218,5 +229,5 @@ Until then the logbook leans on delivered-on-time and tenure, as the red team ad
 | Self-dealing rows 1–7 | None | Once-per-person counting, credit exclusion, no own-paper factoring, own carrier last in the bond queue, the lane's band on own tenders |
 | Direct freight | A carrier's `contracts.direct` tenders: accept onto a truck, or turn down (stake slashed) | Rule A: pass to the own brokerage, the shipper's payable re-papered to it, no tender back to the passer. Rule B: a brokerage's shipper tender straight to the own carrier inside the band |
 | Tenders to a player broker | AI brokers get tenders by weight on a standing order | The same for a player brokerage; hand calls if UX's question 5 says so |
-| Double brokering for player carriers | In the rules, off the screens (60d1a26) | Closed in the rules when this bump lands *(size)* |
+| Double brokering for player carriers | In the rules, off the screens (60d1a26) | Closed to player carriers in the rules with this bump (Jeff) |
 | Intel's two rows and the owner link | – | `specs/intel.md` plus section 5 |
