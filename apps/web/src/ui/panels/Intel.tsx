@@ -1,10 +1,12 @@
 import type { JSX } from "preact";
-import { VETTING_NAMES, type Company } from "@lanes/engine";
+import { BROKERAGE } from "../../copy.js";
+import { hasTwo } from "../../companies.js";
+import { partnerOf, VETTING_NAMES, type Company } from "@lanes/engine";
 import { INTEL } from "../../copy.js";
 import { cls, fdFull, pct } from "../../format.js";
 import { posterOf } from "../../board.js";
 import { insuranceBand, intelRows, ownCosts, pastSeasons, ranked, safetyBand, type IntelRow } from "../../intel.js";
-import { bumpData, S, setTab, useData } from "../../state.js";
+import { bumpData, openIntel, S, setTab, useData } from "../../state.js";
 import { Btn, Card, Kv, Panel } from "../bits.js";
 import { Fig } from "../Explain.js";
 
@@ -22,7 +24,7 @@ export function Intel(): JSX.Element {
   const rows = intelRows(w);
   if (f.card !== null) {
     const row = rows.find((r) => r.c.id === f.card);
-    if (row) return <Panel title={INTEL.title}>{<CompanyCard row={row} own={row.c === me} rows={rows} />}</Panel>;
+    if (row) return <Panel title={INTEL.title}>{<CompanyCard row={row} own={row.c === g.carrier || (!!g.brokerage && row.c === g.brokerage)} rows={rows} />}</Panel>;
   }
   const set = (p: Partial<typeof f>) => {
     S.intel = { ...S.intel, ...p, shown: 50 };
@@ -36,6 +38,8 @@ export function Intel(): JSX.Element {
       (!q || r.c.name.toLowerCase().includes(q)) && (!f.myHub || r.c.homeHub === myHub) && (hubIdx < 0 || r.c.homeHub === hubIdx) && (!f.players || r.player) && (!f.brokers || r.broker),
   );
   const mine = me ? ranked(rows, f.sort).find((x) => x.r.c === me) : undefined;
+  // With two companies, "How others see you" pins both, the one in view first (brokerage-ux.md section 4).
+  const other = hasTwo(g) ? ranked(rows, f.sort).find((x) => x.r.c === (me === g.brokerage ? g.carrier : g.brokerage)) : undefined;
   const chip = (on: boolean, label: string, flip: () => void) => (
     <Btn sm on={on} onClick={flip}>
       {label}
@@ -50,6 +54,7 @@ export function Intel(): JSX.Element {
         <div class="stack">
           <p class="label">{INTEL.howOthers}</p>
           <Row x={mine} own />
+          {other ? <Row x={other} own /> : null}
         </div>
       ) : null}
       <input type="search" class="intelfind" placeholder={INTEL.find} aria-label={INTEL.find} value={f.q} onInput={(e) => set({ q: (e.target as HTMLInputElement).value })} />
@@ -184,6 +189,12 @@ function CompanyCard({ row, own, rows }: { row: IntelRow; own: boolean; rows: In
           {row.player ? INTEL.player : INTEL.ai} · {row.broker ? INTEL.broker : INTEL.carrier} · {INTEL.home(w.net.hubs[c.homeHub]?.name ?? "")}
         </p>
         {row.broker ? <p class="bighead">{INTEL.brokerLine(row.credit, bonded, vetting)}</p> : null}
+        {/* A player's carrier and brokerage: common ownership is public (brokerage-rule.md section 5). */}
+        {partnerOf(w, c) ? (
+          <button type="button" class="linkish small" onClick={() => openIntel({ card: partnerOf(w, c)!.id })}>
+            {BROKERAGE.sameOwner(partnerOf(w, c)!.name)}
+          </button>
+        ) : null}
         <Kv
           rows={[
             [INTEL.authority, <span class={a.status !== "active" ? "bad" : ""}>{INTEL.authorityValue(authorityAge(today - a.since, w.cfg.time.daysPerMonth, w.cfg.time.daysPerSeason), status)}{a.revocations > 0 ? ` · ${INTEL.revokedBefore(a.revocations)}` : ""}</span>],

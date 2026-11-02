@@ -4,6 +4,7 @@ import { ASSETS, hasAsset } from "../mapart.js";
 import { bumpData, openIntel, S, setTab, useData } from "../state.js";
 import { MORE, tabDef, tabOpen, teaserTabs, type Tab } from "../tabs.js";
 import { Btn, Panel } from "./bits.js";
+import { BROKERAGE } from "../copy.js";
 import { Iuliia } from "./Walkthrough.js";
 
 /** A tab's icon: the painted one when it exists (assets/icons/<id>.png), else the code-drawn one. */
@@ -76,6 +77,11 @@ export function TeaserCard({ id }: { id: Tab }): JSX.Element {
         {ask ? (
           <Btn sm primary onClick={() => { S.reportKind = "idea"; S.reporting = true; bumpData(); }}>
             Tell us what you'd want here
+          </Btn>
+        ) : id === "brokerage" ? (
+          // The brokerage's working action before its day: what brokers earned (brokerage-rule.md section 7).
+          <Btn sm ghost onClick={() => openIntel({ brokers: true, sort: "month" })}>
+            {BROKERAGE.teaserButton}
           </Btn>
         ) : (
           <Btn sm ghost onClick={() => { S.guidePage = "roadmap"; setTab("guide"); }}>

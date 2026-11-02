@@ -80,6 +80,8 @@ export const S = {
   /** The explain sheet while open: the figure's key, what it was computed from, its label and value (ui/Explain.tsx). */
   /** The milestone line on the caption now (caption rule 3), kept until its button or a change of tab. */
   milestone: null as null | { key: string; phase: "before" | "at"; tab: string; at: number },
+  /** A brokerage started in the live world: switch to it once the world applies the start. */
+  brokerSwitch: false,
   /** Who last drove each of the player's trucks, as this page saw it (What now?'s "has gone" needs one who did). */
   lastDriver: new Map<number, string>(),
   explain: null as null | { key: string; ctx: import("./explain.js").FigureCtx; label: string; value: string; side?: "left" | "right" },
@@ -441,10 +443,10 @@ export function setSaidHook(f: (key: string) => void): void {
 }
 
 /** Gives an order with a toast; `said` is Iuliia's line for it, spoken only when it goes through (never on a refusal). */
-export function act(a: Action, ok: string, said?: string): void {
+export function act(a: Action, ok: string, said?: string, as?: "brokerage" | "carrier"): void {
   const g = S.game!;
   if (g.kind === "test") {
-    const r = g.act(a);
+    const r = g.act(a, as);
     persistTest(true);
     if (r.ok) {
       toast(ok);
@@ -457,7 +459,7 @@ export function act(a: Action, ok: string, said?: string): void {
     toast("This tab is only watching.", true);
     return;
   }
-  g.submit(a).then(
+  g.submit(a, as).then(
     (r) => {
       S.okText.set(r.s, ok);
       toast(`Sent: ${describe(a)}. In effect at ${hhmm(r.at)} (${realUntil(g.msUntil(r.at))}).`);
@@ -475,18 +477,19 @@ export type OrderResult = { ok: true; at: number | null } | { ok: false; reason:
  * Gives an order and answers in place: in a test world, at once; live, once it's in the store (it takes effect at
  * `at`, and its own result arrives later through onOwnResult). No toast: the screen that asked says what happened.
  */
-export async function order(a: Action, ok: string): Promise<OrderResult> {
+/** An order for the company in view, or for `as` (the brokerage's first orders, sent as it's formed). */
+export async function order(a: Action, ok: string, as?: "brokerage" | "carrier"): Promise<OrderResult> {
   const g = S.game!;
   const sentence = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
   if (g.kind === "test") {
-    const r = g.act(a);
+    const r = g.act(a, as);
     persistTest(true);
     bumpData();
     return r.ok ? { ok: true, at: null } : { ok: false, reason: sentence(r.reason) };
   }
   if (!g.writer) return { ok: false, reason: "This tab is only watching." };
   try {
-    const r = await g.submit(a);
+    const r = await g.submit(a, as);
     S.okText.set(r.s, ok);
     bumpData();
     return { ok: true, at: r.at };

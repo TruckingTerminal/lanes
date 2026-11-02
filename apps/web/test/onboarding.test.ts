@@ -14,7 +14,7 @@ describe("the tab registry", () => {
     expect(TAB_NAME.fleet).toBe("Truck");
     for (const t of MORE) expect(navOf(t)).toBe("more");
     for (const t of TABS.filter((d) => d.teaser)) expect(navOf(t.id)).toBe("more");
-    expect(TABS.filter((d) => d.teaser).map((d) => d.label)).toEqual(["Staff", "Dealer", "Rates", "Logbook", "Finance", "Economy", "Business", "Back Lot"]);
+    expect(TABS.filter((d) => d.teaser).map((d) => d.label)).toEqual(["Staff", "Dealer", "Rates", "Logbook", "Finance", "Economy", "Business", "Back Lot", "Brokerage"]);
   });
 
   it("reads Truck as Trucks from the second truck", () => {

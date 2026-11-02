@@ -1,4 +1,5 @@
 import type { JSX } from "preact";
+import { MoveMoneyLink } from "./Brokerage.js";
 import { averagePriceUsd, bridgeDelayDays, companyAccount, fdPriceUsd, lockedFd, sellableFd, tokenLive } from "@lanes/engine";
 import { cls, fd, fdFull, shortDate, usd } from "../../format.js";
 import { MONEY } from "../../copy.js";
@@ -162,6 +163,7 @@ export function Money(): JSX.Element {
         )}
         {/* How the company is paid and its loans live on Finance (specs/finance.md); Money links there. */}
         <FinanceLinks />
+        <MoveMoneyLink />
       </Card>
       <Card title={MONEY.week}>
         <Kv

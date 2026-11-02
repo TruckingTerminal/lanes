@@ -6,8 +6,8 @@ import { hhmm, realUntil } from "../format.js";
 import { H } from "../handlers.js";
 import { isPhone, S, setTab, useData } from "../state.js";
 import { navOf, tabLabel, tabOpen, teaserTabs, type Tab } from "../tabs.js";
-import { kindInView, navFor } from "../companies.js";
-import { Book, BrokerMoney, Carriers } from "./panels/Brokerage.js";
+import { kindInView, navFor, switchWhenFormed } from "../companies.js";
+import { Book, BrokerageTab, BrokerMoney, Carriers } from "./panels/Brokerage.js";
 import { Btn, Card } from "./bits.js";
 import { ChooseHub, choosing } from "./ChooseHub.js";
 import { isNew, More, TabIcon, TeaserCard, TeaserRow } from "./More.js";
@@ -46,6 +46,7 @@ const PANELS: Record<Tab, () => JSX.Element> = {
   business: () => <Business />,
   // Opens with its layer's switch; the panel comes with the layer.
   backlot: () => <TeaserCard id="backlot" />,
+  brokerage: () => <BrokerageTab />,
   book: () => <Book />,
   carriers: () => <Carriers />,
 };
@@ -100,6 +101,7 @@ export function SideRack(): JSX.Element {
 /** What the nav opens: the teaser row (laptop), Iuliia's caption, and the tab's panel or its teaser card. On a phone the sheet holds this. */
 export function RackBody(): JSX.Element {
   useData();
+  switchWhenFormed();
   const g = S.game!;
   const tab = S.tab;
   const watching = !g.player && !WATCHABLE.includes(tab);

@@ -22,6 +22,14 @@ export const otherCompany = (g: Session): Company | null => (!hasTwo(g) ? null :
 /** The bar for the company in view: Truck · Loads · Money · More, or Book · Carriers · Money · More. */
 export const navFor = (g: Session | null): readonly Tab[] => (g && kindInView(g) === "brokerage" ? BROKER_NAV : NAV);
 
+/** After a live start, brings the new brokerage into view the moment the world has it (once). */
+export function switchWhenFormed(): void {
+  const g = S.game;
+  if (!S.brokerSwitch || !g || !hasTwo(g)) return;
+  S.brokerSwitch = false;
+  switchCompany("brokerage");
+}
+
 /** Brings a company into view: changes nothing in the world, so no confirm. Asked answers and open sheets belong to the other. */
 export function switchCompany(kind: CompanyKind): void {
   const g = S.game;

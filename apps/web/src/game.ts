@@ -106,7 +106,8 @@ export interface TestLog {
   /** Hours the world ran before the company joined (the warm start); absent in logs from before it, which joined at 0. */
   warm?: number;
   t: number;
-  acts: [number, Action][];
+  /** Each order with the game minute it was taken; a third entry "brokerage" when the brokerage gave it. */
+  acts: ([number, Action] | [number, Action, "brokerage"])[];
 }
 
 /**
@@ -143,8 +144,17 @@ export class TestGame {
    * in the world.
    */
   carrier: Company | null = null;
-  brokerage: Company | null = null;
   inView: "carrier" | "brokerage" = "carrier";
+  /** Set only by tests; otherwise the brokerage is the carrier's partner (brokerage.ts), so it survives every replay. */
+  private brokerageOverride: Company | null | undefined = undefined;
+  get brokerage(): Company | null {
+    if (this.brokerageOverride !== undefined) return this.brokerageOverride;
+    const id = this.carrier?.partnerId;
+    return id ? (this.w.companies[id - 1] ?? null) : null;
+  }
+  set brokerage(c: Company | null) {
+    this.brokerageOverride = c;
+  }
   get player(): Company | null {
     return this.inView === "brokerage" && this.brokerage ? this.brokerage : this.carrier;
   }
@@ -196,7 +206,10 @@ export class TestGame {
     g.listeners = [];
     let next = 0;
     const applyDue = () => {
-      while (next < log.acts.length && log.acts[next]![0] <= g.w.t) g.act(log.acts[next++]![1]);
+      while (next < log.acts.length && log.acts[next]![0] <= g.w.t) {
+        const [, a, as] = log.acts[next++]!;
+        g.act(a, as);
+      }
     };
     while (g.w.t < log.t) {
       const end = performance.now() + 30;
@@ -216,10 +229,15 @@ export class TestGame {
     this.listeners.push(fn);
   }
 
-  act(action: Action): ActionResult {
-    if (!this.player) return { ok: false, reason: "choose your home hub first" };
-    const r = applyAction(this.w, this.player.id, action);
-    if (r.ok) this.log.acts.push([this.w.t, JSON.parse(JSON.stringify(action)) as Action]);
+  /**
+   * Applies an order for the company in view, or for `as` when given (the brokerage's first orders, sent as it's
+   * formed). The log keeps which company gave it, so a replay acts for the same one.
+   */
+  act(action: Action, as: "brokerage" | "carrier" | undefined = this.inView === "brokerage" && this.brokerage ? "brokerage" : "carrier"): ActionResult {
+    const who = as === "brokerage" ? this.brokerage : this.carrier;
+    if (!who) return { ok: false, reason: as === "brokerage" ? "you have no brokerage" : "choose your home hub first" };
+    const r = applyAction(this.w, who.id, action);
+    if (r.ok) this.log.acts.push(as === "brokerage" ? [this.w.t, JSON.parse(JSON.stringify(action)) as Action, as] : [this.w.t, JSON.parse(JSON.stringify(action)) as Action]);
     return r;
   }
 

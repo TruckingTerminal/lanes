@@ -12,7 +12,7 @@ import { walkProgress, walkSteps } from "./walkthrough.js";
  * Money · More. More lists Iuliia, Help and Company, then the teasers: each a tab that opens on its trigger and
  * until then shows a card saying what it is and when it opens.
  */
-export const TAB_IDS = ["fleet", "loads", "money", "more", "iuliia", "guide", "company", "intel", "staff", "market", "rates", "logbook", "finance", "economy", "business", "backlot", "book", "carriers"] as const;
+export const TAB_IDS = ["fleet", "loads", "money", "more", "iuliia", "guide", "company", "intel", "staff", "market", "rates", "logbook", "finance", "economy", "business", "backlot", "brokerage", "book", "carriers"] as const;
 export type Tab = (typeof TAB_IDS)[number];
 
 export interface Teaser {
@@ -24,6 +24,8 @@ export interface Teaser {
   opens: (w: World) => string;
   /** Whether it has opened for this company. */
   open: (w: World, c: Company | null) => boolean;
+  /** Not offered at all (its rule's switch is off): no card, no row. */
+  hidden?: () => boolean;
 }
 
 export interface TabDef {
@@ -37,7 +39,7 @@ export interface TabDef {
 
 const trucksOf = (w: World, c: Company) => (w.trucksByCompany.get(c.id) ?? []).filter((t) => t.status !== "retired");
 /** The day a layer opens, as a date: its published day of the beta, or after launch. */
-const layerDay = (w: World, layer: "businesses"): string => dayDate((w.token.launchDay ?? 0) + w.cfg.unlockLadder.layers[layer].afterDays);
+export const layerDay = (w: World, layer: "businesses" | "brokerage"): string => dayDate((w.token.launchDay ?? 0) + w.cfg.unlockLadder.layers[layer].afterDays);
 /** The walkthrough step the Dealer and Finance wait for ("when Iuliia says so": buying your first truck). */
 const OWN_STEP = walkSteps(GAME_CONFIG).findIndex((s) => s.id === "own");
 
@@ -151,6 +153,19 @@ export const TABS: readonly TabDef[] = [
       open: (w) => w.cfg.robbery.enabled && w.cfg.robbery.lot.enabled && !layerBlock(w, "robbery"),
     },
   },
+  {
+    // A player's brokerage (brokerage-rule.md section 7): the teaser before its layer opens, then "Start a brokerage".
+    id: "brokerage",
+    label: "Brokerage",
+    icon: "book",
+    teaser: {
+      what: "Your own brokerage: a second company that posts freight for other carriers to haul.",
+      iuliia: `You'll need an active carrier and ${GAME_CONFIG.token.staking.roles.broker.toLocaleString("en-US")} FD for the bond.`,
+      opens: (w) => `on ${layerDay(w, "brokerage")}`,
+      open: (w) => w.cfg.brokerage.enabled && !layerBlock(w, "brokerage"),
+      hidden: () => !GAME_CONFIG.brokerage.enabled,
+    },
+  },
   // A player's brokerage (specs/brokerage-ux.md section 2): its own bar's two places past Money and More.
   { id: "book", label: "Book", icon: "book" },
   { id: "carriers", label: "Carriers", icon: "people" },
@@ -179,6 +194,6 @@ export const tabOpen = (id: Tab, w: World, c: Company | null): boolean => {
   return !t || t.open(w, c);
 };
 /** The teaser tabs, open or not, in order. */
-export const teaserTabs = (): TabDef[] => TABS.filter((t) => t.teaser);
+export const teaserTabs = (): TabDef[] => TABS.filter((t) => t.teaser && !t.teaser.hidden?.());
 /** Which nav item a tab sits under: its own, or More for everything else. */
 export const navOf = (id: Tab): Tab => (NAV.includes(id) || BROKER_NAV.includes(id) ? id : "more");

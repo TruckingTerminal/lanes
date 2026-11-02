@@ -59,6 +59,8 @@ export interface ActRecord {
   s: number;
   at: number;
   a: LiveAction;
+  /** Given by the player's brokerage rather than its carrier (both are this uid's: brokerage.ts partnerId). */
+  as?: "brokerage";
 }
 
 // The subset of the artifact store this uses, so tests and local runs can supply their own.
@@ -142,8 +144,17 @@ export class LiveWorld {
    * in the world.
    */
   carrier: Company | null = null;
-  brokerage: Company | null = null;
   inView: "carrier" | "brokerage" = "carrier";
+  /** Set only by tests; otherwise the brokerage is the carrier's partner (brokerage.ts), so it survives every replay. */
+  private brokerageOverride: Company | null | undefined = undefined;
+  get brokerage(): Company | null {
+    if (this.brokerageOverride !== undefined) return this.brokerageOverride;
+    const id = this.carrier?.partnerId;
+    return id ? (this.w.companies[id - 1] ?? null) : null;
+  }
+  set brokerage(c: Company | null) {
+    this.brokerageOverride = c;
+  }
   get player(): Company | null {
     return this.inView === "brokerage" && this.brokerage ? this.brokerage : this.carrier;
   }
@@ -273,7 +284,6 @@ export class LiveWorld {
     this.replaying = true;
     this.w = this.fresh();
     this.player = null;
-    this.brokerage = null;
     this.companies.clear();
     this.last = null;
     this.queue = [];
@@ -288,14 +298,17 @@ export class LiveWorld {
   }
 
   /** Sends one of this player's actions. It takes effect at the returned game minute. */
-  async submit(a: LiveAction): Promise<ActRecord> {
+  /** Sends one of this player's actions, for the company in view or for `as`. It takes effect at the returned game minute. */
+  async submit(a: LiveAction, as: "brokerage" | "carrier" | undefined = this.inView === "brokerage" && this.brokerage ? "brokerage" : "carrier"): Promise<ActRecord> {
     if (!this.uid || !this.writer) throw new Error("This tab is only watching");
     if (a.type !== "join" && !this.player) throw new Error("Your company isn't registered yet");
     if (a.type === "join" && (this.companies.has(this.uid) || this.own.acts.some((r) => r.a.type === "join"))) throw new Error("You already have a company");
+    // One carrier and one brokerage per uid (brokerage-rule.md section 8; the server holds it per person later).
+    if (a.type === "form_brokerage" && (this.brokerage || this.pending().some((r) => r.a.type === "form_brokerage"))) throw new Error("You already have a brokerage");
     const prev = this.own.acts.at(-1);
     const nextS = prev ? prev.s + 1 : this.own.archived > 0 ? this.maxSeq(this.uid) + 1 : 0;
     const at = Math.max(prev?.at ?? 0, Math.ceil(this.gameMinute()) + LEAD_MIN);
-    const r: ActRecord = { s: nextS, at, a };
+    const r: ActRecord = as === "brokerage" ? { s: nextS, at, a, as } : { s: nextS, at, a };
     this.own.acts.push(r);
     try {
       await this.flushOwn();
@@ -482,11 +495,13 @@ export class LiveWorld {
       if (!this.replaying) this.onJoin?.(uid, c);
       return;
     }
-    const cid = this.companies.get(uid);
-    if (cid === undefined) return;
+    const carrierId = this.companies.get(uid);
+    if (carrierId === undefined) return;
+    // An order the brokerage gave acts for the carrier's partner; with none, it's refused like any order for nobody.
+    const cid = r.as === "brokerage" ? this.w.companies[carrierId - 1]?.partnerId : carrierId;
     let res: ActionResult;
     try {
-      res = applyAction(this.w, cid, r.a);
+      res = cid === undefined ? { ok: false, reason: "you have no brokerage" } : applyAction(this.w, cid, r.a);
     } catch {
       res = { ok: false, reason: "that order couldn't be carried out" };
     }

@@ -1,4 +1,5 @@
 import type { JSX } from "preact";
+import { PassToBrokerage } from "./Brokerage.js";
 import { activeContracts, crewed, localShare, MANUAL_BID_MAX_DEADHEAD_MI, offeredContracts, placeMiles, type Company, type Contract, type Load } from "@lanes/engine";
 import { COMMODITIES } from "@lanes/data";
 import { cls, dateLabel, fd, hhmm, pct } from "../../format.js";
@@ -17,12 +18,14 @@ export function TendersCard({ c }: { c: Company }): JSX.Element | null {
     <>
       {tenders.map((l) => {
         const k = w.contracts.find((x) => x.id === l.contractId);
-        const rate = k?.ratePerMile ?? 0;
+        // A tender from the owner's own brokerage (Rule B) carries its pay, and says whose it is.
+        const own = l.ownTenderRate !== undefined && l.brokerId !== null ? w.companies[l.brokerId - 1] : undefined;
+        const rate = l.ownTenderRate ?? k?.ratePerMile ?? 0;
         const trucks = myTrucks().filter((t) => t.status === "idle" && crewed(t) && t.trailer === l.equipment && placeMiles(w, t.place, l.originPlace) <= MANUAL_BID_MAX_DEADHEAD_MI);
         const spot = l.bookNow;
         const id = `tender-${l.id}`;
         return (
-          <Card key={l.id} alert need={`tender:${l.id}`} title={`Contract tender: ${w.net.places[l.originPlace]!.name} → ${w.net.places[l.destPlace]!.name}, ${l.miles} mi`}>
+          <Card key={l.id} alert need={`tender:${l.id}`} title={own ? `From ${own.name} · ${w.net.places[l.originPlace]!.name} to ${w.net.places[l.destPlace]!.name} · ${rate.toFixed(2)}/mi · accept by ${hhmm(l.tenderUntil)}` : `Contract tender: ${w.net.places[l.originPlace]!.name} → ${w.net.places[l.destPlace]!.name}, ${l.miles} mi`}>
             <p>
               {COMMODITIES[l.commodity]!.name} at your contract rate <Num>{rate.toFixed(2)}</Num>/mi ({fd(rate * l.miles)} FD); spot is {spot.toFixed(2)} (
               <span class={spot > rate ? "warn" : "good"}>
@@ -50,8 +53,13 @@ export function TendersCard({ c }: { c: Company }): JSX.Element | null {
                   No idle {l.equipment} truck within {MANUAL_BID_MAX_DEADHEAD_MI} mi.
                 </span>
               )}
-              <Btn onClick={() => act({ type: "decline_tender", loadId: l.id }, "Tender left for the board")}>Leave it for the board</Btn>
+              {own ? (
+                <Btn onClick={() => act({ type: "decline_tender", loadId: l.id }, `Declined. ${own.name} posts it to the board.`)}>Decline</Btn>
+              ) : (
+                <Btn onClick={() => act({ type: "decline_tender", loadId: l.id }, "Tender left for the board")}>Leave it for the board</Btn>
+              )}
             </div>
+            <PassToBrokerage load={l} />
           </Card>
         );
       })}
