@@ -29,8 +29,8 @@ import mechanic from "../assets/people/mechanic.png";
 import dockworker from "../assets/people/dockworker.png";
 
 /**
- * The PixelLab assets (apps/web/assets, made with tools/pixellab.py on the LANES palette):
- * the top-down truck sheet for the map, side-view rigs for the cards, scenes, and portraits.
+ * The art (apps/web/assets, most of it made with tools/pixellab.py on the LANES palette): the map's truck
+ * sheets (rendered by tools/rig-sheets.py), side-view rigs for the cards, scenes, and portraits.
  */
 
 const RIG_RAW: Record<Equipment, string> = { van: rigVan, reefer: rigReefer, flatbed: rigFlatbed };
@@ -58,7 +58,10 @@ export function whenAssetsReady(f: () => void): void {
   onReady = f;
 }
 
-/** The map trucks: a painted eight-heading sheet per trailer (68-px cells, their own pixels at 4×); the cab is repainted by owner. */
+/**
+ * The map trucks: an eight-heading sheet per trailer (68-px cells, their own pixels at 4×), each a tractor-trailer
+ * rendered by tools/rig-sheets.py; the cab is repainted by owner.
+ */
 const SHEETS: Record<Equipment, [string, SheetLayout]> = { van: [vanSheetUrl, vanLayout as SheetLayout], reefer: [reeferSheetUrl, reeferLayout as SheetLayout], flatbed: [flatbedSheetUrl, flatbedLayout as SheetLayout] };
 export function truckSheet(eq: Equipment = "van"): Sheet {
   return loadSheet(`truck-${eq}`, SHEETS[eq][0], SHEETS[eq][1], () => onReady?.());
