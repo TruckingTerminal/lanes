@@ -15,9 +15,9 @@ Short key names used below:
 | `{graceDays}` | `token.staking.graceDays` |
 | `{brokerRate}` | `token.payment.factoring.contract.brokerRate` |
 | `{defaultRate}`, `{lagDays}`, `{fallOff}` | `brokerRisk.defaultRate`, `.contractLagDays`, `.fallOffShare` |
-| `{boardFee}` | the board fee's share (3% today); engineering names the key (UX's question 6) |
+| `{boardFee}` | `market.posterFeePct` |
 | `{termsDays}` | `token.payment.termsDays` |
-| `{transferFee}` | `brokerage.transfer.feePct`, to the reserve (Jeff, 2026-11-03: 3%) |
+| `{transferFee}` | `brokerage.transferFeePct`, to the reserve (Jeff, 2026-11-03: 3%) |
 | `{bandLow}`, `{bandHigh}` | the lane's band from `brokerage.ownTender.band`, per mile **[size]** |
 
 ## Renames, everywhere a player reads

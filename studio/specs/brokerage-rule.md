@@ -130,6 +130,20 @@ Freight a shipper tenders to the brokerage (NPC tenders today) may go to the own
 - Both name the other company and are logged in both feeds.
 - No crime words: a pass and a tender are ordinary business.
 
+**Answers to engineering (2026-11-03).**
+
+1. **The hold, and what happens when it runs out.**
+   - **A shipper's tender to a player brokerage is held** in Offered for `contracts.tenderHours` (12 game hours, the same window every tender in the game has, so there is one number to learn). The player chooses **Post**, **Tender to {carrier}** or **Decline**.
+   - **On timeout, the brokerage's standing order acts.** With no standing order, the tender is declined and goes on, as today, to another broker or the open board. A brokerage never takes on bond exposure it didn't choose.
+   - **A passed load (Rule A) is different.** The brokerage already holds it, so it can't be declined. Its hold is the rest of the carrier's tender window. On timeout it is posted by the standing order, or, with none, at `{brokerage.defaultMarginPct}` (*size*). It is never dropped.
+   - **Hand calls are this same hold** (the brief's question 5): the player decides inside the window, and the standing order decides after it.
+   - **The standing order may name the own carrier:** "tender to {carrier} first". The rate is the posting rate held inside the lane's band (row 7). The carrier still accepts or declines.
+2. **Rule A has one flow: the writer's "Pass to {brokerage}".** One action on the carrier's side, and every decision made in the brokerage, where its tools are. UX's "Broker it" sheet with a margin control goes. **A pass counts as accepted** in the carrier's tender acceptance rate, and the contract counts the load as covered. If the passed load falls off, the contract records it as not covered (as above).
+3. **Confirmed:** a tender the own carrier declines or lets expire goes to the **board**, not back to Offered. It posts at the rate the carrier was offered. A return trip to Offered would loop, and the board is where the brokerage's tools already work.
+4. **Check both times.** At send, so an impossible tender is never offered: the writer's "{carrier} has no free truck in reach of the pickup". And again at accept, because the world moves. If the check fails at accept, the accept is refused, the tender stands until it expires, and then it goes to the board.
+5. **The brokerage's home hub is the carrier's home hub at formation, fixed for the brokerage's life.** It doesn't follow if the carrier later moves.
+6. **Agreed:** for a load between the owner's own two companies, the **hauler's** logbook entry carries it and the brokerage's is skipped. The hauler did the work, and Miles are the hauler's. Loads the brokerage places with anyone else count for it as usual.
+
 ## 4. The brokerage's own money
 
 **Stake and bond.** The 75,000 FD stake is the bond. Under the factoring contract switch (on, 0.20.0) it stays behind the brokerage's paper until the last invoice is paid. Under the stake, the brokerage takes no new tenders after 14 days of grace (`staking.graceDays`).
