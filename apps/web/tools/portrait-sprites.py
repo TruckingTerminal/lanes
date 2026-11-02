@@ -1,15 +1,18 @@
 #!/usr/bin/env python3
 """Iuliia's portrait sheet (Jeff, 2026-11-01: "She has 3 arms. This is slop. Don't make her animations loops").
 
-Her body never moves: one portrait, assets/people/iuliia.png, two hands (one on the folder, one with the pen), is the
-rest frame and the poster. Everything she does is a change to her face pasted over it: the source faces in
+Her body never moves: one portrait (assets/people/iuliia-faces/portrait.png), two hands, one on the folder and one with
+the pen. Her rest frame and poster, assets/people/iuliia.png, is that portrait with a composed, closed mouth painted on
+here (Jeff, 2026-11-02: "Why does Iuliia have a creepy smile on all the time?"), and the portrait's own half smile is
+one of her moments. Everything she does is a change to her face pasted over the rest frame: the source faces in
 assets/people/iuliia-faces (frames of PixelLab animations of that same portrait) are aligned to her face, and only the
 eye, mouth or face area where they differ is kept. src/portrait.ts plays them on a seeded schedule, with the nod, the
 breath and the pen's glint done in code. The sheet holds the rest frame and the patches at 128, 96 and 64 px, each size
 resized from the full composed face (area average snapped back to her colours) so a patch and its rest frame share
 every pixel they don't change.
 
-  portrait-sprites.py   → assets/people/iuliia-sheet.png, and the table between the portrait markers in src/portrait.ts
+  portrait-sprites.py   → assets/people/iuliia.png, assets/people/iuliia-sheet.png, and the table between the portrait
+                          markers in src/portrait.ts
 """
 import importlib.util
 import os
@@ -34,12 +37,40 @@ REGIONS = {"eyes": (46, 24, 80, 40), "mouth": (50, 42, 76, 58), "face": (44, 18,
 POSES = {
     "half": ("blink-half.png", ("eyes",)),
     "shut": ("blink.png", ("eyes",)),
-    "side": ("side.png", ("eyes", "mouth")),
+    "side": ("@glance", ("eyes",)),  # the glance aside: only the irises move, painted here from the rest frame
+    "smile": ("portrait.png", ("mouth",)),  # the portrait's own warm half smile, a moment now
     "grin": ("laugh1.png", ("mouth",)),
-    "laugh1": ("laugh1.png", ("face",)),
-    "laugh2": ("laugh2.png", ("face",)),
+    "laugh1": ("laugh1.png", ("eyes", "mouth")),  # eyes and mouth only: her nose and the face's outline stay put
+    "laugh2": ("laugh2.png", ("eyes", "mouth")),
 }
 PEN_BOX = (104, 100, 124, 113)  # the pen, above the hand that holds it, for its glint
+# Her composed mouth, painted over the portrait's half smile: the lips closed and level, the corners relaxed. Rows from
+# MOUTH_AT; "." keeps the portrait's pixel, a letter is one of the portrait's own skin and lip colours.
+MOUTH_AT = (54, 48)
+MOUTH = [
+    "...............",
+    "...........aaaa",
+    ".aojjjjjjjjoaa.",
+    ".iicccccccccia.",
+    "..gjff....fga..",
+    "...jjhhhhhjga..",
+    "..........jd...",
+]
+LIPS = {"a": (252, 182, 128), "d": (246, 151, 100), "f": (230, 122, 87), "g": (217, 109, 80), "h": (207, 98, 76),
+        "j": (185, 84, 68), "o": (125, 51, 43), "c": (102, 39, 36), "i": (83, 22, 23)}
+# Her glance aside, to the viewer's left: within each eye's opening the iris and pupil move over (the near eye two
+# pixels, the far, foreshortened one one) and the white fills in behind them; every lash, lid, brow and skin pixel is
+# the rest frame's, so her eyes move in her face and not on it. Rows of (x, y, the rest-frame pixel to copy, or "W" for
+# the white of the eye).
+GLANCE = [
+    # the far eye, rows 34 and 35
+    (49, 34, (50, 34)), (50, 34, (51, 34)), (51, 34, (52, 34)), (52, 34, (53, 34)), (53, 34, "W"),
+    (49, 35, (50, 35)), (50, 35, (51, 35)), (51, 35, (52, 35)), (52, 35, (53, 35)), (53, 35, "W"),
+    # the near eye, rows 33 and 34
+    (67, 33, (69, 33)), (68, 33, (70, 33)), (69, 33, (71, 33)), (70, 33, (72, 33)), (71, 33, (68, 33)), (72, 33, "W"),
+    (66, 34, (68, 34)), (67, 34, (69, 34)), (68, 34, (70, 34)), (69, 34, (71, 34)), (70, 34, (72, 34)), (71, 34, "W"), (72, 34, "W"),
+]
+WHITE = (239, 219, 199)
 
 
 def flat(img: np.ndarray, bg: np.ndarray) -> np.ndarray:
@@ -88,11 +119,32 @@ def composed(base: np.ndarray, src: np.ndarray, areas) -> np.ndarray:
     return out
 
 
+def glance(rest: np.ndarray) -> np.ndarray:
+    out = rest.copy()
+    for x, y, src in GLANCE:
+        out[y, x, :3] = WHITE if src == "W" else rest[src[1], src[0], :3]
+    return out
+
+
+def composed_mouth(portrait: np.ndarray) -> np.ndarray:
+    out = portrait.copy()
+    x0, y0 = MOUTH_AT
+    for r, row in enumerate(MOUTH):
+        for c, ch in enumerate(row):
+            if ch != ".":
+                out[y0 + r, x0 + c, :3] = LIPS[ch]
+    return out
+
+
 def main() -> None:
-    base = pm.read_png(os.path.join(PEOPLE, "iuliia.png"))
+    base = composed_mouth(pm.read_png(os.path.join(PEOPLE, "iuliia-faces", "portrait.png")))
+    pm.write_png(os.path.join(PEOPLE, "iuliia.png"), base)
     bg = base[0, 0, :3].astype(np.float32)
     poses = {}
     for name, (file, areas) in POSES.items():
+        if file == "@glance":
+            poses[name] = glance(base)
+            continue
         src = flat(pm.read_png(os.path.join(PEOPLE, "iuliia-faces", file)), bg)
         poses[name] = composed(base, aligned(src, base), areas)
     cells: dict = {}

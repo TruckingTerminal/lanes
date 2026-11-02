@@ -4,38 +4,44 @@ import { ASSETS } from "./mapart.js";
  * Iuliia, drawn live (Jeff, 2026-11-01: "She has 3 arms. This is slop. Don't make her animations loops either").
  *
  * Her body never moves: one portrait, two hands, the folder in one and the pen in the other (assets/people/iuliia.png,
- * which is also the rest frame and the poster). What she does happens in her face, pasted over it from one small sheet
- * (assets/people/iuliia-sheet.png, cut by tools/portrait-sprites.py), with the nod, the breath and the pen's glint done
- * here. When she does it comes from dice that are a pure function of time, so nothing repeats on a cycle: a blink every
- * few seconds, a breath, now and then a small nod, a glance down at the folder, a glint along the pen; the mood sets her
- * face at rest (wave: a warm grin; point: a glance to the side with an eyebrow up, looking back now and then; laugh: a
- * grin that breaks into a laugh). At tMs 0, or whenever nothing is scheduled, she is exactly the portrait.
+ * which is also the rest frame and the poster). At rest her face is composed, lips closed, attentive (Jeff, 2026-11-02:
+ * "Why does Iuliia have a creepy smile on all the time?"); a smile is a moment like a blink. What she does happens in
+ * her face, pasted over it from one small sheet (assets/people/iuliia-sheet.png, cut by tools/portrait-sprites.py),
+ * with the nod, the breath and the pen's glint done here. When she does it comes from dice that are a pure function of
+ * time, so nothing repeats on a cycle: a blink every few seconds, a breath, now and then a small nod, a glance down at
+ * the folder, a glint along the pen, a brief warm smile. The mood changes how often and what: wave smiles more and
+ * warmly, a grin at its peak; point looks aside at what she's showing, glancing back with a small smile; laugh laughs
+ * now and then, a smile on either side of it, and settles back to rest. At tMs 0, or whenever nothing is scheduled, she
+ * is exactly the rest frame.
  */
 export type PortraitMood = "idle" | "wave" | "point" | "laugh";
 
 // <portrait> written by tools/portrait-sprites.py
 const CELLS: Record<string, readonly [number, number, number, number, number, number]> = {
-  "grin-128": [157, 194, 26, 16, 50, 42],
-  "grin-64": [61, 221, 13, 8, 25, 21],
-  "grin-96": [0, 221, 20, 13, 37, 31],
-  "half-128": [87, 194, 34, 16, 46, 24],
-  "half-64": [21, 221, 19, 10, 22, 11],
-  "half-96": [184, 194, 28, 14, 33, 17],
-  "laugh1-128": [65, 129, 40, 44, 44, 18],
-  "laugh1-64": [27, 194, 20, 22, 22, 9],
-  "laugh1-96": [182, 129, 30, 34, 33, 13],
-  "laugh2-128": [106, 129, 40, 44, 44, 18],
-  "laugh2-64": [48, 194, 20, 22, 22, 9],
-  "laugh2-96": [213, 129, 30, 34, 33, 13],
+  "grin-128": [105, 194, 26, 16, 50, 42],
+  "grin-64": [60, 211, 13, 8, 25, 21],
+  "grin-96": [219, 194, 20, 13, 37, 31],
+  "half-128": [0, 194, 34, 16, 46, 24],
+  "half-64": [0, 211, 19, 10, 22, 11],
+  "half-96": [132, 194, 28, 14, 33, 17],
+  "laugh1-128": [65, 129, 34, 34, 46, 24],
+  "laugh1-64": [189, 129, 17, 17, 23, 12],
+  "laugh1-96": [135, 129, 26, 26, 34, 18],
+  "laugh2-128": [100, 129, 34, 34, 46, 24],
+  "laugh2-64": [207, 129, 17, 17, 23, 12],
+  "laugh2-96": [162, 129, 26, 26, 34, 18],
   "rest-128": [0, 0, 128, 128, 0, 0],
   "rest-64": [0, 129, 64, 64, 0, 0],
   "rest-96": [129, 0, 96, 96, 0, 0],
-  "shut-128": [122, 194, 34, 16, 46, 24],
-  "shut-64": [41, 221, 19, 10, 22, 11],
-  "shut-96": [213, 194, 28, 14, 33, 17],
-  "side-128": [147, 129, 34, 34, 46, 24],
-  "side-64": [69, 194, 17, 17, 23, 12],
-  "side-96": [0, 194, 26, 26, 34, 18],
+  "shut-128": [35, 194, 34, 16, 46, 24],
+  "shut-64": [20, 211, 19, 10, 22, 11],
+  "shut-96": [161, 194, 28, 14, 33, 17],
+  "side-128": [70, 194, 34, 16, 46, 24],
+  "side-64": [40, 211, 19, 10, 22, 11],
+  "side-96": [190, 194, 28, 14, 33, 17],
+  "smile-128": [74, 211, 14, 6, 55, 49],
+  "smile-64": [101, 211, 4, 4, 31, 24],
+  "smile-96": [89, 211, 11, 6, 41, 36],
 };
 const PEN = [[120, 102], [118, 103], [117, 104], [116, 105], [115, 106], [114, 107], [113, 108], [112, 109], [111, 111], [111, 112]] as const;
 // </portrait>
@@ -86,11 +92,19 @@ function slot(t: number, len: number, p: number, dur: number, seed: number, lead
 
 function moment(mood: PortraitMood, t: number): Moment {
   const m: Moment = { face: null, eyes: null, nod: false, breath: false, glint: -1 };
-  // The mood's face at rest.
-  if (mood === "wave" || mood === "laugh") m.face = "grin";
-  if (mood === "point") m.face = slot(t, 6, 0.5, 1.2, 7) >= 0 ? null : "side";
-  // A laugh, now and then, in the laughing mood: it breaks, peaks twice and settles back to the grin.
-  const laugh = mood === "laugh" ? slot(t, 3.8, 0.8, 0.9, 11) : -1;
+  // A warm smile now and then, from rest and back to it; more often, and with a grin at its peak, when she waves.
+  const smile = mood === "wave" ? slot(t, 4.2, 0.85, 1.7, 13) : mood === "idle" ? slot(t, 6.5, 0.6, 1.8, 16) : -1;
+  if (smile >= 0) m.face = mood === "wave" && smile >= 0.3 && smile < 0.65 ? "grin" : "smile";
+  // Pointing, she looks aside at what she's showing, and now and then back at you with a small smile.
+  if (mood === "point") {
+    const back = slot(t, 6, 0.5, 1.4, 7);
+    if (back < 0) m.eyes = "side";
+    else if (back >= 0.2 && back < 0.8) m.face = "smile";
+  }
+  // Laughing, she laughs now and then: a smile, the laugh peaking twice, a smile, and back to rest.
+  const ls = mood === "laugh" ? slot(t, 5, 0.8, 1.7, 11) : -1;
+  const laugh = ls >= 0.15 && ls < 0.68 ? (ls - 0.15) / 0.53 : -1;
+  if (ls >= 0) m.face = "smile";
   if (laugh >= 0) m.face = laugh < 0.13 || (laugh >= 0.33 && laugh < 0.46) || laugh >= 0.8 ? "laugh1" : "laugh2";
   // Breathing: a slow rise every few seconds.
   m.breath = slot(t, 4.6, 0.95, 1.3, 1) >= 0;

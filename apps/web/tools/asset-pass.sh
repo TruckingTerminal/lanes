@@ -143,24 +143,26 @@ placesloops() {
 }
 
 # Iuliia, the walkthrough's trainer (Jeff, 2026-11-01): a Russian executive, class first and then the wit, long
-# flowing blonde hair and brown eyes. The portrait in the staff's hand (Pro 128 × 128, the title as style) is her rest
-# frame and poster, two hands, the folder in one and the pen in the other; her body never moves again (the first
-# moods animated her arms and one frame came out with three: Jeff, "This is slop"). Animations of the portrait are
+# flowing blonde hair and brown eyes. The portrait in the staff's hand (Pro 128 × 128, the title as style, kept as
+# iuliia-faces/portrait.png), two hands, the folder in one and the pen in the other; her body never moves again (the
+# first moods animated her arms and one frame came out with three: Jeff, "This is slop"). Her rest frame and poster,
+# iuliia.png, is that portrait with a composed, closed mouth painted on by portrait-sprites.py (Jeff, 2026-11-02:
+# "a creepy smile on all the time"); the portrait's own half smile is a moment now. Animations of the portrait are
 # only a source of faces: a blink, a laugh, a glance aside, whose frames portrait-sprites.py aligns and pastes over the
 # face; src/portrait.ts plays them on a seeded schedule, never a loop. The welcome strip is her office at dusk (Pro
 # 256 × 128, the portrait as reference).
 iuliia() {
   local st=apps/web/assets/title/title.png d=apps/web/assets/people s=apps/web/assets/scenes f=apps/web/assets/people/iuliia-faces
+  mkdir -p $f
   local sub="a loop that ends where it began, the face and clothes stay the same"
-  "${P[@]}" pro "$PORTRAIT: a poised Russian corporate executive in her early thirties, long flowing blonde hair worn down past her shoulders in soft waves, warm brown eyes, small pearl earrings, a tailored charcoal suit jacket over a light ivory silk blouse, holding a slim dark leather folio against her chest like a board paper, a fountain pen in her other hand, composed, with a knowing half smile and one eyebrow a fraction raised, elegant and classy" 128 128 $d/iuliia.png --style "$st" --seed 1235705877
-  "${P[@]}" animate $d/iuliia.png "she breathes slowly, blinks once and gives a small composed nod, her hair stirring slightly, a subtle idle $sub" $d/iuliia-loop --frames 16 --view side --transparent --seed 1333339439 &
-  "${P[@]}" animate $d/iuliia.png "she laughs softly with her eyes closed and her head tilting back a little, then smiles at the viewer again, $sub" $d/iuliia-laugh-loop --frames 16 --view side --transparent --seed 173182654 &
-  "${P[@]}" animate $d/iuliia.png "she glances to the side, toward the edge of the picture, and raises one eyebrow with a knowing half smile, then looks back at the viewer, only her face moves; her hands, the folder, the pen, her shoulders and her hair stay perfectly still" $d/iuliia-side-loop --frames 16 --view side --seed 3075658587 &
-  "${P[@]}" pro "$HD: the corner office of a trucking company executive at dusk, a poised blonde woman in her early thirties with long flowing hair, a tailored charcoal suit and an ivory silk blouse, sits behind a polished dark wood desk smiling with one eyebrow raised, a large wall screen behind her shows a freight load board with rows of lanes beside a map of the United States, a white porcelain cup of tea with a slice of lemon on a saucer and a single black chess knight on the desk, tall windows with the city lights coming on, a warm desk lamp, a restrained elegant palette" 256 128 $s/welcome.png --style "$st" --reference $d/iuliia.png --seed 528154814 &
+  "${P[@]}" pro "$PORTRAIT: a poised Russian corporate executive in her early thirties, long flowing blonde hair worn down past her shoulders in soft waves, warm brown eyes, small pearl earrings, a tailored charcoal suit jacket over a light ivory silk blouse, holding a slim dark leather folio against her chest like a board paper, a fountain pen in her other hand, composed, with a knowing half smile and one eyebrow a fraction raised, elegant and classy" 128 128 $f/portrait.png --style "$st" --seed 1235705877
+  "${P[@]}" animate $f/portrait.png "she breathes slowly, blinks once and gives a small composed nod, her hair stirring slightly, a subtle idle $sub" $d/iuliia-loop --frames 16 --view side --transparent --seed 1333339439 &
+  "${P[@]}" animate $f/portrait.png "she laughs softly with her eyes closed and her head tilting back a little, then smiles at the viewer again, $sub" $d/iuliia-laugh-loop --frames 16 --view side --transparent --seed 173182654 &
+  "${P[@]}" animate $f/portrait.png "she glances to the side, toward the edge of the picture, and raises one eyebrow with a knowing half smile, then looks back at the viewer, only her face moves; her hands, the folder, the pen, her shoulders and her hair stay perfectly still" $d/iuliia-side-loop --frames 16 --view side --seed 3075658587 &
+  "${P[@]}" pro "$HD: the corner office of a trucking company executive at dusk, a poised blonde woman in her early thirties with long flowing hair, a tailored charcoal suit and an ivory silk blouse, sits behind a polished dark wood desk smiling with one eyebrow raised, a large wall screen behind her shows a freight load board with rows of lanes beside a map of the United States, a white porcelain cup of tea with a slice of lemon on a saucer and a single black chess knight on the desk, tall windows with the city lights coming on, a warm desk lamp, a restrained elegant palette" 256 128 $s/welcome.png --style "$st" --reference $f/portrait.png --seed 528154814 &
   wait
   "${P[@]}" animate $s/welcome.png "steam rises gently from the tea cup, the city lights twinkle in the windows, the desk lamp glows softly, she gives the viewer a slow knowing smile and a small nod, a seamless loop that ends exactly where it began, the wall screen, the sky, the camera and the furniture never change" $s/welcome-loop --frames 16 --view side --seed 2558438596
   python3 apps/web/tools/pack-loop.py $s/welcome-loop $s/welcome.loop.png --cols 16
-  mkdir -p $f
   cp $d/iuliia-loop/frame-09.png $f/blink-half.png
   cp $d/iuliia-loop/frame-12.png $f/blink.png
   cp $d/iuliia-laugh-loop/frame-03.png $f/laugh1.png
