@@ -60,7 +60,7 @@ export function DispatcherCard(): JSX.Element {
       <Card class="dispatcher" title={DISPATCHER.title}>
         {switchRow}
         <div class="caption">
-          <Iuliia mood="idle" size={32} />
+          <Iuliia mood="idle" size={64} />
           <span class="small">{DISPATCHER.waiting}</span>
         </div>
       </Card>
@@ -70,9 +70,9 @@ export function DispatcherCard(): JSX.Element {
     <Card class="dispatcher" title={DISPATCHER.title} key={c.orders.length}>
       {switchRow}
       <div class="row">
-        <Label for="o-pct">{bid?.price.mode === "ceilingPct" ? DISPATCHER.bidCeiling : DISPATCHER.bidAt}</Label>
+        <Label for="o-pct">{bid?.price.mode === "ceilingPct" ? "Bid at" : DISPATCHER.bidAt}</Label>
         <input type="number" id="o-pct" step="1" min="0" max="120" defaultValue={String(Math.round((bid?.price.pct ?? def("bid")?.price.pct ?? 0.25) * 100))} />
-        <span class="muted">%</span>
+        <span class="muted">{bid?.price.mode === "ceilingPct" ? DISPATCHER.ceilingSuffix : "%"}</span>
       </div>
       <div class="row">
         <Label for="o-dh">{DISPATCHER.emptyUpTo}</Label>

@@ -189,8 +189,7 @@ function TruckCard({ t, idx }: { t: Truck; idx: number }): JSX.Element {
             <Btn
               onClick={() => {
                 const hubId = (document.getElementById(`send-${t.id}`) as HTMLSelectElement).value;
-                const to = nearby.find((x) => x.h.id === hubId);
-                act({ type: "reposition_truck", truckId: t.id, hubId }, to ? TRUCK.sendEmpty(to.h.name, to.mi) : "Sent empty");
+                act({ type: "reposition_truck", truckId: t.id, hubId }, TRUCK.sentEmpty);
               }}
             >
               Send empty

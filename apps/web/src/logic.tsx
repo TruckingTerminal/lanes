@@ -190,7 +190,7 @@ export function idleWhy(t: Truck): IdleWhy {
     return {
       why: `${TRUCK.noLoadsInRange(trailer, maxDh, hubName)}${best ? ` The nearest freight worth the run is ${plural(best.n, "load")} at ${best.h.name}, ${best.mi} mi away.` : ""}`,
       fixes: [
-        ...(best ? [<Btn primary onClick={() => act({ type: "reposition_truck", truckId: t.id, hubId: best.h.id }, TRUCK.sendEmpty(best.h.name, best.mi))}>{TRUCK.sendEmpty(best.h.name, best.mi)}</Btn>] : []),
+        ...(best ? [<Btn primary onClick={() => act({ type: "reposition_truck", truckId: t.id, hubId: best.h.id }, TRUCK.sentEmpty)}>{TRUCK.sendEmpty(best.h.name, best.mi)}</Btn>] : []),
         <Btn onClick={() => goLoads(t.id)}>{TRUCK.bidByHand}</Btn>,
       ],
     };

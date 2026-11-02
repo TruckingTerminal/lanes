@@ -107,13 +107,13 @@ function TitleAction(): JSX.Element {
     case "unreachable":
       return <Btn primary onClick={H.retry}>{LOGIN.unreachable}</Btn>;
     case "notopen":
-      return <Btn primary disabled>Not open yet</Btn>;
+      return <Btn primary disabled>{LOGIN.notOpen}</Btn>;
     case "update":
-      return <Btn primary disabled title={`The world runs ${m.theirs}; this page has ${RULESET}.`}>Update in progress</Btn>;
+      return <Btn primary disabled title={LOGIN.updateHover(m.theirs, RULESET)}>{LOGIN.update}</Btn>;
     case "openworld":
       return (
         <div class="row center">
-          <Btn primary onClick={H.openWorld}>Open the live world</Btn>
+          <Btn primary onClick={H.openWorld}>{LOGIN.openWorld}</Btn>
           <TestButton />
         </div>
       );
@@ -161,7 +161,7 @@ function TitleAction(): JSX.Element {
 
 /** The owner's way to a private test world from the live page. */
 function TestButton(): JSX.Element | null {
-  return S.platform.owner && !TEST_BUILD ? <Btn ghost onClick={H.showTestMenu}>Test world</Btn> : null;
+  return S.platform.owner && !TEST_BUILD ? <Btn ghost onClick={H.showTestMenu}>{LOGIN.testWorld}</Btn> : null;
 }
 
 /** "≡" in the title's corner: full screen (and, with a world open, the report form's way in from the game). */

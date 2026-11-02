@@ -5,6 +5,7 @@ const S = "Getting started";
 
 export function startPages(cfg: EconomyConfig): GuidePage[] {
   const [r1, r2] = cfg.time.boardRoundHours;
+  const hh = (h: number) => `${String(h).padStart(2, "0")}:00`;
   const realDay = cfg.time.realHoursPerGameDayLive;
   return [
     {
@@ -15,7 +16,7 @@ export function startPages(cfg: EconomyConfig): GuidePage[] {
         p(`LANES is one shared freight market. You run a carrier: you bid on loads, haul them, and grow from one leased truck into a fleet. Every other company is a player or an AI competing for the same freight.`) +
         p(`You start as an owner-operator: one leased Workhorse with a dry van, ${n(cfg.company.startingGrantFd)} FD, and you behind the wheel. The lessor keeps ${pct(cfg.costs.npcLeaseShareOfGross)} of every load and maintains the truck.`) +
         ul([
-          `<b>Day 1:</b> choose your home city, open Loads, pick a load near your truck, and bid or book it. Bids clear at ${String(r1).padStart(2, "0")}:00 and ${r2}:00 game time.`,
+          `<b>Day 1:</b> pick a home city, open Loads, choose a load near your truck, and bid or book it. Bids clear at ${hh(r1)} and ${hh(r2)} game time.`,
           `<b>Every day:</b> after your first load by hand, your dispatcher bids for idle trucks you don't bid on yourself. Set its rules on the Truck tab.`,
           `<b>First goal:</b> your own truck. The used lot sells one for about a quarter of the ${n(cfg.dealerFd.tractor.workhorse + cfg.dealerFd.trailer.van)} FD a new rig costs; your lease deposit counts toward it and a purchase loan covers the rest. Owning ends the lessor's cut. See ${see("buying", "Buying trucks")}.`,
           `<b>Then:</b> more trucks, drivers to run them (${see("drivers", "Drivers")}), a dispatcher once you pass ${cfg.labor.owner.span} trucks (${see("dispatchers", "Dispatchers")}).`,

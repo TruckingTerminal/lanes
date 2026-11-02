@@ -153,7 +153,9 @@ function quiet(): string {
   const g = S.game!;
   const [r1, r2] = g.w.cfg.time.boardRoundHours.map((h) => `${String(h).padStart(2, "0")}:00`);
   if (g.player && ordersWaitForHand(g.w, g.player)) return FEED.firstLoad(r1!, r2!);
-  return `Your dispatcher is watching the board. Bids clear at ${r1} and ${r2}.`;
+  // The switch off (S9): no bid rule, so nobody bids for the idle trucks.
+  if (g.player && !g.player.orders.some((o) => o.kind === "bid")) return FEED.off(r1!, r2!);
+  return FEED.watching(r1!, r2!);
 }
 
 function Ticker(): JSX.Element {

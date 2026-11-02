@@ -17,7 +17,7 @@ export function marketPages(cfg: EconomyConfig): GuidePage[] {
       section: S,
       title: "The load board",
       html:
-        p(`Every load shows a <b>book-now</b> price: take it and it's yours at once (${see("booknow", "Book-now prices")}). Everything else is a <b>counter</b>: you ask more than the posted price, and counters clear in rounds at ${String(r1).padStart(2, "0")}:00 and ${r2}:00. Each load has a <b>ceiling</b>, the most its poster wants to pay per mile; nobody sees anyone else's counter.`) +
+        p(`Every load shows a <b>book-now</b> price: take it and it's yours at once (${see("booknow", "Book-now prices")}). Everything else is a <b>counter</b>: you ask more than the posted price, and counters clear in rounds at ${String(r1).padStart(2, "0")}:00 and ${String(r2).padStart(2, "0")}:00. Each load has a <b>ceiling</b>, the most its poster wants to pay per mile; nobody sees anyone else's counter.`) +
         h("How a round clears") +
         ul([
           `Every bid gets a score: ${pct(b.scoreWeights.price)} for price (how far under the ceiling), ${pct(b.scoreWeights.reputation)} for reputation (your on-time record), ${pct(b.scoreWeights.deadhead)} for empty miles to the pickup (none is best; at ${b.deadheadScaleMi} it scores zero and past that it counts against you).`,

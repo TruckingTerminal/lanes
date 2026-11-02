@@ -14,7 +14,7 @@ export function referencePages(cfg: EconomyConfig): GuidePage[] {
         ["", ""],
         [
           ["A game day (live)", `${cfg.time.realHoursPerGameDayLive} real hours`],
-          ["Board rounds", `${String(r1).padStart(2, "0")}:00 and ${r2}:00`],
+          ["Board rounds", `${String(r1).padStart(2, "0")}:00 and ${String(r2).padStart(2, "0")}:00`],
           ["Starting cash", `${n(cfg.company.startingGrantFd)} FD`],
           ["NPC lease", `${pct(cfg.costs.npcLeaseShareOfGross)} of each load's pay`],
           ["Workhorse + dry van, list", `${n(cfg.dealerFd.tractor.workhorse + cfg.dealerFd.trailer.van)} FD`],
