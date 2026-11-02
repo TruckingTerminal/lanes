@@ -78,3 +78,6 @@
 - 2026-11-02 — Jeff: the title's head-on shot keeps the painting's rig fixed in frame and moves the world
   past it in perspective, as the side view does; oncoming traffic sparse or none, nothing drawn as a still in
   motion. The approaching-vehicle work stops. Both shots 30 seconds.
+- 2026-11-02 — Jeff: traffic drives in the correct lane in both title shots, on the right as in the USA; this
+  supersedes "keep the painting as is": the head-on shot is mirrored, with the diner's sign redrawn to read
+  forward.
