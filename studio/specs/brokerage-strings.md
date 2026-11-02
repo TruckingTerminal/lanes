@@ -1,6 +1,6 @@
 # Brokerage strings (writer, draft 1, 2026-11-03; against `brokerage-rule.md` and UX's `brokerage-ux.md` draft 0)
 
-Every string on the brokerage path: the teaser before day 91, forming the brokerage, the company switch, the brokerage's four tabs, posting and the carrier's trail, moving capital between the two companies, and Intel's "same owner" line. Iuliia's brokerage lines are in `iuliia-lines.md`. `{key}` is read from `economy.config.ts`, never typed; `{x}` without a key is a value from the world. Sentence case; no string over 20 words. No crime words anywhere: the studio's words for the self-dealing rules stay in the director's brief.
+Every string on the brokerage path: the teaser before day 91, forming the brokerage, the company switch, the brokerage's four tabs, posting and the carrier's trail, Jeff's two direct-freight flows (Broker it; Tender to my carrier), moving capital between the two companies, and Intel's "same owner" line. Iuliia's brokerage lines are in `iuliia-lines.md`. `{key}` is read from `economy.config.ts`, never typed; `{x}` without a key is a value from the world. Sentence case; no string over 20 words. No crime words anywhere: the studio's words for the self-dealing rules stay in the director's brief.
 
 **Marked [size]:** waits on the economy's figures or a rule the brief leaves open. The string is drafted; its number or its existence may change.
 
@@ -17,6 +17,8 @@ Short key names used below:
 | `{defaultRate}`, `{lagDays}`, `{fallOff}` | `brokerRisk.defaultRate`, `.contractLagDays`, `.fallOffShare` |
 | `{boardFee}` | the board fee's share (3% today); engineering names the key (UX's question 6) |
 | `{termsDays}` | `token.payment.termsDays` |
+| `{transferFee}` | the capital transfer's fee share, proposed 1% to the reserve; engineering names the key. **[Jeff to confirm]** |
+| `{bandLow}`, `{bandHigh}` | the lane's band for a hauler's pay per mile, from the economy **[size]** |
 
 ## Renames, everywhere a player reads
 
@@ -116,7 +118,7 @@ One verb throughout: **start**. UX's draft says "Form"; the director's says "Sta
 | Header | `{name}` · `{n}` loads · `{fd}` FD margin this month |
 | Groups | Offered to you [size] · On the board · Moving · Waiting for pay |
 | Offered card | `{lane}` · `{trailer}` · Shipper pays `{fd}` FD · You'd post at `{fd}` (your `{pct}` margin) · Board fee `{fd}` |
-| Its actions [size: hand calls] | Post it · Pass |
+| Its actions [size: hand calls] | Post it · Tender to `{carrier name}` · Pass (the middle one only on freight tendered to you directly) |
 | On the board | Posted at `{rate}`/mi · clears `{hh:00}` · in `{wait}` |
 | Moving | Taken by `{carrier}` at `{rate}`/mi · picked up `{date}` |
 | Waiting for pay | Shipper pays you `{date}` · you pay `{carrier}` `{date}` |
@@ -165,6 +167,50 @@ One verb throughout: **start**. UX's draft says "Form"; the director's says "Sta
 
 Finance's broker variant (`finance-strings.md`) covers getting paid at `{brokerRate}`.
 
+## Broker it (on the carrier: a load a shipper tendered to it directly)
+
+Jeff, 2026-11-02: a carrier with a brokerage may broker the loads a shipper tenders **directly** to it, never a load it took off the board, with every brokerage requirement standing, the bond first. The button shows only on a direct tender, and only when the player has a brokerage.
+
+| Where | String |
+|---|---|
+| Tender card button | Broker it |
+| Under it | Hands this load to `{brokerage}`, under its bond. It never goes on the open board. |
+| Sheet title | Broker it through `{brokerage}` |
+| Rows | Shipper pays · `{fd}` FD · Bond in use after · `{fd}` of `{bond}` FD · Then · post it, or tender it to `{carrier}` |
+| Buttons | **Broker it** · Not now · live: Sent · in effect `{hh:mm}` |
+| Feed | `{origin}` to `{dest}` handed to `{brokerage}`: `{fd}` FD under its bond. |
+
+| Refusal | String |
+|---|---|
+| A board load | Only a load a shipper tendered to you directly can be brokered. |
+| Past the bond | `{brokerage}` would pass its bond. Pay carriers first. |
+| Brokerage not active | `{brokerage}` isn't taking loads: `{reason}`. |
+| Tender expired | The shipper's offer has lapsed. |
+
+## Tender to my carrier (on the brokerage's Book)
+
+Jeff, 2026-11-02: a brokerage that receives freight directly from a shipper may tender it straight to the player's own carrier, without the board. The producer's guard: the hauler's pay stays inside the lane's band.
+
+| Where | String |
+|---|---|
+| Button (accessible name "Tender to my carrier") | Tender to `{carrier name}` |
+| Sheet title | Tender to `{carrier name}` |
+| Rows | Shipper pays you · `{fd}` FD · You pay `{carrier}` · [`{rate}`]/mi · Allowed on this lane · `{bandLow}`–`{bandHigh}`/mi |
+| Rows | Board fee · none [size] · Your margin · `{fd}` FD |
+| Note | Paid at net `{termsDays}`, never factored: it's between your own companies. |
+| Note | The load counts once for you, not twice. |
+| Buttons | **Tender at `{rate}`/mi** · Not now · live: Sent · in effect `{hh:mm}` |
+| On the carrier's Truck tab | From `{brokerage}` · `{origin}` to `{dest}` · `{rate}`/mi · accept by `{hh:mm}` · **Accept** · Pass |
+| Feed, brokerage | Tendered `{origin}` to `{dest}` to `{carrier}` at `{rate}`/mi; your margin `{fd}` FD. |
+| Feed, carrier | `{brokerage}` tendered you `{origin}` to `{dest}` at `{rate}`/mi. |
+
+| Refusal | String |
+|---|---|
+| Outside the band | That's outside this lane's range: `{bandLow}`–`{bandHigh}`/mi. |
+| Not direct freight | Only freight a shipper sent you directly can go straight to your carrier. |
+| No truck in reach | `{carrier}` has no free truck in reach of the pickup. |
+| Carrier can't take it | `{carrier}` can't take it: `{reason}`. |
+
 ## Moving capital
 
 On both companies' Money, under the link rows.
@@ -172,10 +218,12 @@ On both companies' Money, under the link rows.
 | Where | String |
 |---|---|
 | Sheet title | Move capital |
-| Direction | From `{company}` to `{other}` · Swap |
+| Direction | From `{company}` to `{other}` · Swap (both ways) |
 | Field | Amount |
+| Rows | Fee · `{fd}` FD (`{transferFee}`, to the reserve) · `{other}` receives · `{fd}` FD |
 | Rows | `{company}`'s cash after: `{fd}` FD · `{other}`'s cash after: `{fd}` FD |
-| Note | Your own money, between your own companies. Not revenue, not a cost, and nobody else sees it. |
+| Note | It counts as equity, not revenue: no profit, no Miles, no Intel figure. |
+| Note | Logged in both companies' Money. Nobody else sees it. |
 | Button | **Move `{fd}` FD** · live: Sent · in effect `{hh:mm}` |
 
 **Refusals** (the guards, in plain words):

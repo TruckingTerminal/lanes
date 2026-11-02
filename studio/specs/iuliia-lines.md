@@ -164,7 +164,10 @@ A brokerage is the player's second company (Jeff, 2026-11-02). Rivalry's words o
 | Bond meter | passes 80% | Your bond is nearly full. New loads will pass you by until carriers are paid. |
 | Book, a load | first taken by a carrier | A carrier took your load. Now someone else's truck carries your promise. |
 | Book, a load | first margin paid | Your first margin. Brokers live on thin slices, and a great many of them. |
-| Move capital | first opened | Your money between your companies. It's private, and it isn't profit. |
+| Move capital | first opened | Your money between your companies, less a small fee. It's equity, not profit. |
+| Broker it | first shown on a direct tender | A shipper chose you directly. You may haul it, or broker it under your bond. |
+| Broker it | first pressed | Brokered. Your brokerage carries the promise now, and its bond stands behind it. |
+| Tender to my carrier | sheet first opened | Your own carrier, at a fair rate for the lane. The range is the market's. |
 | Intel, "same owner" | first seen | Everyone can see both are yours. Carriers like a broker with trucks behind it. |
 
 ## The truck makes
