@@ -33,3 +33,11 @@ Every company's size and standing, visible to everyone: trucks, drivers, authori
 safety and insurance bands, the credit band, last month's revenue and hauls. Live cash stays private (it is
 the Back Lot's target and a defense); financials in bands or a month behind. The director writes the page for
 sprint 2.
+
+## Sprint 2 candidates (2026-11-02)
+- **The brokerage chrome.** QA's broker pass: after day 91 the client offers only a re-post button and a
+  dispatcher rule; the engine's licence, stake, surety, payment trail, the bond cap and the broker's flat 5%
+  factoring have no screens. The live world reaches day 91 about 23 real days after the restart. Director and
+  UX spec it; engineering builds it. 13 findings in playtests/2026-11-02-sprint1-replay.md, part two.
+- **The Intel tab** (decided above).
+- **Getting paid**: the factoring contract and quick pay on Finance, once the economy's switch lands.
