@@ -25,3 +25,11 @@
   spacing and footprint rules, a real speed-limit sign. Art.
 - **The logo's two blues**: the E and S of LANES and "Terminal" are a darker navy in the logo file itself; one
   blue per face. Art, first.
+- **The map's trucks are box trucks**: the rig sprites (van, reefer, flatbed) draw a cab with a box flush behind
+  it; redraw as tractor-trailers at map scale. Art, before the title traffic.
+
+## Proposed (Jeff, 2026-11-02): a public Intel tab
+Every company's size and standing, visible to everyone: trucks, drivers, authority age, home hub, Miles, the
+safety and insurance bands, the credit band, last month's revenue and hauls. Live cash stays private (it is
+the Back Lot's target and a defense); financials in bands or a month behind. The director writes the page for
+sprint 2 once Jeff decides what is public.
