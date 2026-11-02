@@ -88,7 +88,13 @@ Each character line is true to today's hub table; if the economy's figures move,
 | Dallas | The middle of the country. Freight leaves in every direction, and so will you. | Trinity River Freight |
 | Los Angeles | The ports, day and night. Plenty of van freight out, crowded, and dear to insure. | Harbor Gate Transport |
 | Phoenix | More trucks come in than freight goes out, but locals get first call and living here is cheap. | Saguaro Line Freight |
-| Chicago (if Los Angeles fails its check) | Where the rails and the interstates meet. Freight to anywhere, most of the year. | Lakefront Hauling |
+| Chicago | Where the rails and the interstates meet. Freight to anywhere, most of the year. | Lakefront Hauling |
+| Houston | The port and the refineries. Flatbed freight goes out heavy, and the vans keep pace. | Ship Channel Freight |
+| Atlanta | The Southeast's crossroads. Most of the region's freight passes through on its way somewhere. | Peachtree Line Freight |
+| Newark | The ports of New York, next door. Plenty to haul, tight roads, and insurance that knows it. | Meadowlands Transport |
+| Memphis | The river, the rails and the air freight meet here. Vans leave full, and living here is cheap. | Bluff City Freight |
+| Columbus | A day's drive from half the country. Vans leave full, and the insurance is the gentlest on the list. | Scioto Freight Lines |
+| Miami | The end of the road. Freight arrives by the boatload and leaves thin, so locals keep what there is. | Biscayne Freight |
 | Any other hub | no character line; the season line only | none: it can't be a home yet |
 
 ### Naming the company and arriving
