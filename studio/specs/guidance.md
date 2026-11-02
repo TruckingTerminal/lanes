@@ -44,6 +44,14 @@ Three layers deliver it:
 | 5 | A milestone is near and needs preparing | The gap or the countdown: the next truck, the cushion, the licence, the season close (section 3). |
 | 6 | Nothing needs the player | "Nothing needs you. The next thing that will: {event} in {days}." Calm is an answer, and it should be honest. |
 
+**"A better load beside a lost bid"** (rule 2) is an open load the same truck may take now, and it must pass four tests:
+- **The truck can take it.** The trailer matches. The vetting and local-first checks pass (`vettingBlock` and `mayTake` clear). It isn't a hot load without a team.
+- **It is in the same reach the lost bid used.** For a hand bid, the hand-bid deadhead limit (`MANUAL_BID_MAX_DEADHEAD_MI`) from where the truck is or will be free. For the dispatcher's bid, the dispatcher's own range.
+- **Its profit chip is positive.** The chip is taken at its "usually clears near" rate, not its ceiling, with the one arithmetic of ruling 5.
+- **It pays at least what the lost load would have left at the rate it went for.**
+
+Ties go to the earlier pickup. If no load passes, the lost bid drops out of rule 2, and What now? falls through to rule 3.
+
 **What What now? never does:**
 - It never recommends buying or selling FD, a stake as an investment, or any token trade. It may explain a stake as the cost of something, such as the licence.
 - It never recommends anything from the Back Lot.
