@@ -41,3 +41,6 @@ sprint 2.
   UX spec it; engineering builds it. 13 findings in playtests/2026-11-02-sprint1-replay.md, part two.
 - **The Intel tab** (decided above).
 - **Getting paid**: the factoring contract and quick pay on Finance, once the economy's switch lands.
+- **The map at Fit on a phone**: grey bands above and below the country; paint the world beyond the map's edge
+  per season (art) and draw it behind the map (engineering). City names at Fit are huge and cluttered: no
+  labels until zoomed in enough, except a small name under the three ringed starter hubs on the first entry.
