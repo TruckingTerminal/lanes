@@ -1,13 +1,15 @@
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { companyAccount, truckValue } from "@lanes/engine";
 import { boardRows } from "../src/board.js";
 import { EXPLAIN } from "../src/copy.js";
 import { breakdown, FIRST_MONTH_KEYS } from "../src/explain.js";
 import { GAME_CONFIG, TestGame } from "../src/game.js";
 import { dueMilestone, history, milestones } from "../src/milestones.js";
-import { walkSteps } from "../src/walkthrough.js";
+import { stepDo, stepText, walkSteps } from "../src/walkthrough.js";
+import { S } from "../src/state.js";
+import { milestoneHeld, MilestoneLine } from "../src/ui/Milestones.js";
 
 /** Keys the writer's table names that no first-month screen shows yet, each with why. The test fails if one appears. */
 const NOT_ON_A_SCREEN: Record<string, string> = {
@@ -79,6 +81,69 @@ describe("the walkthrough's board step", () => {
     expect(c.firstHandBidDay).toBeNull();
     expect(board.done(g.w, c)).toBe(true);
   }, 120_000);
+});
+
+describe("the walkthrough's words for a fleet that owns its trucks", () => {
+  it("drops the lessor from the paid step when the company has no lessor's truck (QA)", async () => {
+    const paid = walkSteps(GAME_CONFIG).find((s) => s.id === "paid")!;
+    const g = await TestGame.create();
+    const fleet = g.join("Owner Freight", "fleet", "LAX")!;
+    expect(stepText(paid, g.w, fleet).brief).not.toMatch(/lessor/);
+    expect(stepDo(paid, g.w, fleet)).not.toMatch(/lessor/);
+    const g1 = await TestGame.create();
+    const leased = g1.join("Lease Freight", "oo", "LAX")!;
+    expect(stepText(paid, g1.w, leased).brief).toMatch(/lessor/);
+  }, 60_000);
+});
+
+describe("milestone lines queue", () => {
+  it("says two due on one day one after the other, each its seconds, each marked seen as it shows (QA)", async () => {
+    const g = await TestGame.create();
+    const c = g.join("Queue Freight", "fleet", "LAX")!;
+    const perDay = g.w.cfg.time.gameMinutesPerDay;
+    const today = Math.floor(g.w.t / perDay);
+    // Two due today: the first owned truck's at line, and a driver hired today (the payday's before line).
+    c.firstOwnedTruckDay = today;
+    const d = g.w.staff.find((s) => s.companyId === c.id && s.kind === "driver")!;
+    d.owner = false;
+    d.hiredDay = today;
+    S.game = g;
+    S.tab = "fleet";
+    S.milestone = null;
+    S.onboard = { ...S.onboard, seen: S.onboard.seen.filter((k) => !k.startsWith("ms:")).concat(["ms:monthClose:before", "ms:day28:before", "ms:day91:before", "ms:slump:at", "ms:debt:before"]) };
+    let now = 1e9;
+    const clock = vi.spyOn(performance, "now").mockImplementation(() => now);
+    try {
+      expect(MilestoneLine()).not.toBeNull();
+      expect(S.milestone).toMatchObject({ key: "ownTruck", phase: "at" });
+      await Promise.resolve();
+      expect(S.onboard.seen).toContain("ms:ownTruck:at");
+      expect(S.onboard.seen).not.toContain("ms:hiredWeek:before");
+      // Its seconds pass: the next due follows at once, without waiting out the quiet time.
+      now += GAME_CONFIG.ui.iuliia.showSeconds * 1000 + 1;
+      expect(MilestoneLine()).not.toBeNull();
+      expect(S.milestone).toMatchObject({ key: "hiredWeek", phase: "before" });
+      await Promise.resolve();
+      expect(S.onboard.seen).toContain("ms:hiredWeek:before");
+    } finally {
+      clock.mockRestore();
+      S.milestone = null;
+      S.game = null;
+    }
+  }, 60_000);
+});
+
+describe("a milestone line's hold", () => {
+  it("keeps the caption for ui.iuliia.showSeconds on its tab, then lets go", () => {
+    S.tab = "fleet";
+    S.milestone = { key: "ownTruck", phase: "at", tab: "fleet", at: performance.now() };
+    expect(milestoneHeld()).toBe(true);
+    S.milestone.at = performance.now() - GAME_CONFIG.ui.iuliia.showSeconds * 1000 - 1;
+    expect(milestoneHeld()).toBe(false);
+    S.milestone = { key: "ownTruck", phase: "at", tab: "money", at: performance.now() };
+    expect(milestoneHeld()).toBe(false);
+    S.milestone = null;
+  });
 });
 
 describe("milestones (milestones.ts)", () => {

@@ -640,10 +640,10 @@ export const NOW = {
   leaseAction: (n: number) => `Return the lease on Truck ${n}.`,
   leaseReason2: (min: string) => `It costs at least ${min} FD a week, earning or not.`,
   leaseButton: "Return the lease",
-  /** The writer's action; the reason is engineering's draft: quick pay doesn't advance invoices already open. */
-  collectAction: "Get paid sooner on what you're owed.",
-  collectReason2: (fd: string, day: string) => `${fd} FD is due to you by ${day}, in time for the check that counts. Keep the trucks loaded until it lands.`,
-  collectQuick: (pct: string) => `Quick pay would pay each new load at delivery, less ${pct}.`,
+  /** Rule 1's collect lever: quick pay doesn't advance invoices already open, so it waits for them. */
+  collectAction: "Keep the trucks loaded until your invoices land.",
+  collectReason2: (fd: string, day: string) => `${fd} FD is due to you by ${day}, in time for the check that counts.`,
+  collectQuick: (pct: string) => `Quick pay would pay each new load on delivery, less ${pct}. Open invoices keep their dates.`,
   collectButton: "Getting paid",
   sellAction: (n: number) => `Sell Truck ${n}.`,
   sellReason2: (fd: string, short: string) => `It should fetch about ${fd} FD. You're ${short} FD under the line.`,
@@ -656,8 +656,8 @@ export const NOW = {
   lostButton: "Show the load",
   driverAction: (n: number) => `Hire a driver for Truck ${n}.`,
   driverReason: (name: string) => `${name} has gone. A truck without a driver earns nothing.`,
-  /** Engineering's draft for the writer: a truck nobody has driven for you (QA: a small fleet's second truck, day 3). */
-  driverReasonNone: (n: number) => `Truck ${n} has no driver. A truck without a driver earns nothing.`,
+  /** A truck nobody has driven for you (QA: a small fleet's second truck, day 3). */
+  driverReasonNone: (n: number) => `Truck ${n} has no driver, so it earns nothing.`,
   driverButton: "Hire a driver",
   idleAction: (origin: string, dest: string) => `Bid on ${origin} to ${dest}.`,
   idleReason: (n: number, hub: string, fd: string) => `Truck ${n} is idle at ${hub}. This load pays about ${fd} FD over break-even.`,
@@ -728,8 +728,8 @@ export const EXPLAIN = (cfg: EconomyConfig): Record<string, Ex> => ({
   "intel.safetyBand.other": { what: "A company's safety rating from inspections and reviews.", how: "", moves: "Violations found at inspections and audits, and crashes, recent ones counting most." },
   "intel.insuranceBand.other": { what: "How much a company's record adds to its premium.", how: "", moves: "Its crashes and claims; the surcharge eases with time." },
   "truck.leaseDeposit": { what: "Money held back from your lease loads, toward your own truck.", how: "A share of each leased load, counted in full when you buy.", moves: "Every leased load adds to it." },
-  // Engineering's draft for the writer (QA's guidance replay: the Dealer's rows carried no figure to tap).
-  "dealer.price": { what: "What this rig costs from this source today.", how: "The make's list price, times the dealer's index for its tier, which moves monthly with the order backlog and stock.", moves: "The month's backlog and stock; another source; a used rig instead." },
+  // QA's guidance replay: the Dealer's rows carried no figure to tap.
+  "dealer.price": { what: "What this rig costs here today, before tax.", how: "The make's list price, times the dealer's monthly index, which follows the order backlog and stock.", moves: "The month's backlog and stock; another seller; a used rig instead." },
   "truck.value": { what: "What your owned truck would fetch today.", how: "Its list price, less depreciation by age and miles.", moves: "Time, miles, condition and the make." },
   "loan.downPayment": { what: "The share of the price you pay yourself on a purchase loan.", how: `${pctOf(cfg.equipmentFinance.purchase.downShare[0])} to ${pctOf(cfg.equipmentFinance.purchase.downShare[1])} of the price: the better your credit score, the lower.`, moves: "A better credit score, before you sign." },
   "loan.cashNow": { what: "The cash a purchase loan needs at signing.", how: `Down payment, a ${pctOf(cfg.equipmentFinance.purchase.stakeShare)} loan stake and sales tax. Your lease deposit comes off when this truck replaces the lessor's.`, moves: "Your credit score, and the price you choose." },
@@ -764,7 +764,7 @@ export const MILESTONE = {
     button: "Find its next load",
   },
   hiredWeek: {
-    name: "First payday",
+    name: "First week of wages",
     before: (name: string, day: string) => `${name} is paid by the mile, weekly from ${day}, plus a per diem for idle days away.`,
     at: (name: string, mi: string, fd: string) => `${name} has driven ${mi} miles for you this week: ${fd} FD in wages so far.`,
     reason: (perDiem: string) => `Your driver earns by the mile. An idle day away from home costs ${perDiem} FD in per diem.`,

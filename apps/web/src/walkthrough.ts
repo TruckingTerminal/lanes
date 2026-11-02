@@ -29,6 +29,8 @@ export interface WalkStep {
   doNow?: (w: World, c: Company) => string | null;
   /** Why it matters, in one line. */
   why: string;
+  /** The words instead for a company with no lessor's truck (a small fleet owns its two from the start). */
+  owned?: { brief: string; say: string[]; do: string; why: string };
   done: (w: World, c: Company) => boolean;
 }
 
@@ -104,6 +106,16 @@ export function walkSteps(cfg: EconomyConfig, hub = "your home hub"): WalkStep[]
       ],
       do: "On Money, find the lessor's share and the hold. Invoices come with a truck of your own.",
       why: "On a lease, pay lands on delivery and costs land as they come; what shrinks the pay is the lessor's share and the hold toward your own truck.",
+      // Engineering's draft for the writer: a small fleet owns its trucks, so no lessor pays it on delivery (QA).
+      owned: {
+        brief: `Delivered. On your own truck you invoice the shipper, who pays in ${cfg.token.payment.termsDays} days. Money shows what's owed and when.`,
+        say: [
+          `Delivered. With trucks of your own there's no lessor holding the paper: you invoice the shipper yourself, and shippers pay net-${cfg.token.payment.termsDays}, ${cfg.token.payment.termsDays} game days after the work. Quick pay brings that forward for ${pct(cfg.token.payment.quickPayPct)}; an instrument for emergencies, not a policy.`,
+          `Until the invoice is paid, fuel, wages and insurance still go out. That gap is the cushion's whole job. Money shows each invoice and its day. Watch the cash line at the top of the screen every day.`,
+        ],
+        do: "On Money, find each invoice and the day it's due.",
+        why: "On your own truck, pay lands when the shipper pays and costs land as they come; the gap between them is what the cushion is for.",
+      },
       done: (w, c) => c.delivered >= 2,
     },
     {
@@ -257,4 +269,10 @@ export function walkProgress(cfg: EconomyConfig, w: World, c: Company): { step: 
 }
 
 /** A step's "Do" line for the world as it is. */
-export const stepDo = (step: WalkStep, w: World, c: Company): string => step.doNow?.(w, c) ?? step.do;
+/** A step's words for this company: its owned-fleet words when it has no lessor's truck. */
+export function stepText(step: WalkStep, w: World, c: Company): { brief: string; say: string[]; do: string; why: string } {
+  const own = step.owned && !(w.trucksByCompany.get(c.id) ?? []).some((t) => t.lease === "npc");
+  return own ? step.owned! : step;
+}
+
+export const stepDo = (step: WalkStep, w: World, c: Company): string => step.doNow?.(w, c) ?? stepText(step, w, c).do;

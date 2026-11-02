@@ -6,7 +6,7 @@ import { GAME_CONFIG } from "../game.js";
 import { nextAction, type NextAction } from "../nextstep.js";
 import { act, bumpData, isPhone, me, S, selectTruck, setTab, truckNo } from "../state.js";
 import { TAB_NAME } from "../tabs.js";
-import { stepDo, walkSteps } from "../walkthrough.js";
+import { stepDo, stepText, walkSteps } from "../walkthrough.js";
 import { Btn } from "./bits.js";
 import { Iuliia } from "./Walkthrough.js";
 import { kindInView } from "../companies.js";
@@ -175,7 +175,7 @@ function words(a: NextAction): { action: string; reason: string; button: string;
     }
     case "step": {
       const step = walkSteps(GAME_CONFIG, w.net.hubs[c.homeHub]?.name)[a.index]!;
-      return { action: `${NOW.stepPrefix(a.index + 1, a.total)}${stepDo(step, w, c)}`, reason: step.why, button: NOW.stepButton(TAB_NAME[step.tab]), go: () => setTab(step.tab) };
+      return { action: `${NOW.stepPrefix(a.index + 1, a.total)}${stepDo(step, w, c)}`, reason: stepText(step, w, c).why, button: NOW.stepButton(TAB_NAME[step.tab]), go: () => setTab(step.tab) };
     }
     case "factoringEnds":
       return { action: NOW.factoringEndsAction(shortDate(a.untilDay)), reason: NOW.factoringEndsReason(a.days), button: NOW.factoringEndsButton, go: () => setTab("finance") };

@@ -79,7 +79,7 @@ export const S = {
   boardPoster: null as number | null,
   /** The explain sheet while open: the figure's key, what it was computed from, its label and value (ui/Explain.tsx). */
   /** The milestone line on the caption now (caption rule 3), kept until its button or a change of tab. */
-  milestone: null as null | { key: string; phase: "before" | "at"; tab: string },
+  milestone: null as null | { key: string; phase: "before" | "at"; tab: string; at: number },
   /** Who last drove each of the player's trucks, as this page saw it (What now?'s "has gone" needs one who did). */
   lastDriver: new Map<number, string>(),
   explain: null as null | { key: string; ctx: import("./explain.js").FigureCtx; label: string; value: string; side?: "left" | "right" },
@@ -190,9 +190,11 @@ export function push(s: Session, text: string, cls = ""): void {
 export const me = (): Company => S.game!.player!;
 /** Game time on screen: the live world shows the clock's minute, a test world its own hour. */
 export const clockMin = (s: Session | null = S.game): number => (!s ? 0 : s.kind === "live" ? Math.max(s.w.t, s.gameMinute()) : s.w.t);
+/** The player's trucks: the carrier's, whichever company is in view (a brokerage runs none; the map shows them both ways). */
 export function myTrucks(): Truck[] {
   const g = S.game;
-  return g?.player ? g.w.trucksByCompany.get(g.player.id)!.filter((t) => t.status !== "retired") : [];
+  const c = g?.carrier ?? g?.player;
+  return g && c ? (g.w.trucksByCompany.get(c.id) ?? []).filter((t) => t.status !== "retired") : [];
 }
 export function truckNo(id: number): number {
   return myTrucks().findIndex((t) => t.id === id) + 1 || 0;

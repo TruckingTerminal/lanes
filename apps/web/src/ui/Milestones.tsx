@@ -4,9 +4,10 @@ import { staffById, type Company, type World } from "@lanes/engine";
 import { GUIDE_LABEL, MILESTONE } from "../copy.js";
 import { cushion, gapToTruck } from "../figures.js";
 import { fdFull, shortDate } from "../format.js";
-import { iuliiaMayStart, iuliiaStarted } from "../iuliia.js";
+import { iuliiaMayStart, iuliiaMuted, iuliiaStarted } from "../iuliia.js";
 import { dueMilestone, history, milestones, type Milestone } from "../milestones.js";
-import { S, setOnboard, setTab, useData } from "../state.js";
+import { bumpData, S, setOnboard, setTab, useData } from "../state.js";
+import { GAME_CONFIG } from "../game.js";
 import { Btn, Card } from "./bits.js";
 import { Fig } from "./Explain.js";
 import { Iuliia } from "./Walkthrough.js";
@@ -14,22 +15,32 @@ import { askWhatNow, WhatNowChip } from "./WhatNow.js";
 
 /**
  * Milestones (guidance-ux.md section 4): caption rule 3, after the walkthrough's lines and before her tab lines. One at a
- * time; it waits for the quiet time, Quiet mutes it, and it's marked seen as it starts, so it speaks once per browser.
- * It stays until its button or a change of tab. Her line, the reason, and one button to where to act or prepare.
+ * time, each for ui.iuliia.showSeconds; Quiet mutes them, and each is marked seen as it reaches the caption, so it
+ * speaks once per browser. They queue in order (at lines first, then by date): when one ends, the next due follows at
+ * once rather than waiting out the quiet time, so two on one day are said one after the other (QA: a slump line held
+ * the caption and the hire day's line never spoke). Her line, the reason, and one button to where to act or prepare.
  */
-export function MilestoneLine({ atOnly = false }: { atOnly?: boolean } = {}): JSX.Element | null {
+let chainUntil = -Infinity;
+export function MilestoneLine(): JSX.Element | null {
   const g = S.game;
   const c = g?.player;
   if (!g || !c) return null;
   const seen = (k: string) => S.onboard.seen.includes(k);
   let cur = S.milestone;
   if (cur && cur.tab !== S.tab) cur = S.milestone = null;
+  // A line has its seconds, then gives way; the next one due may follow straight on, for a moment.
+  if (cur && performance.now() - cur.at > GAME_CONFIG.ui.iuliia.showSeconds * 1000) {
+    cur = S.milestone = null;
+    chainUntil = performance.now() + 2000;
+  }
   if (!cur) {
-    if (!iuliiaMayStart()) return null;
+    if (performance.now() < chainUntil ? iuliiaMuted() : !iuliiaMayStart()) return null;
     const due = dueMilestone(g.w, c, seen);
-    if (!due || (atOnly && due.phase !== "at")) return null;
-    cur = S.milestone = { key: due.m.key, phase: due.phase, tab: S.tab };
+    if (!due) return null;
+    cur = S.milestone = { key: due.m.key, phase: due.phase, tab: S.tab, at: performance.now() };
     iuliiaStarted();
+    // Held for ui.iuliia.showSeconds before a step line may take the caption back (milestoneHeld): redraw when it ends.
+    setTimeout(bumpData, GAME_CONFIG.ui.iuliia.showSeconds * 1000 + 50);
     const k = `ms:${due.m.key}:${due.phase}`;
     queueMicrotask(() => setOnboard({ seen: [...S.onboard.seen, k] }));
   }
@@ -56,6 +67,9 @@ export function MilestoneLine({ atOnly = false }: { atOnly?: boolean } = {}): JS
     </div>
   );
 }
+
+/** Whether a milestone line started under ui.iuliia.showSeconds ago on this tab: it keeps the caption until then. */
+export const milestoneHeld = (): boolean => !!S.milestone && S.milestone.tab === S.tab && performance.now() - S.milestone.at < GAME_CONFIG.ui.iuliia.showSeconds * 1000;
 
 /** A milestone's line, reason and button, in the writer's strings with this company's figures. */
 function words(w: World, c: Company, m: Milestone, phase: "before" | "at"): { line: string; reason: string | null; button: string; go: () => void } {

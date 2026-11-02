@@ -139,6 +139,7 @@ function NeedsButton(): JSX.Element {
                 openNeed(n);
               }}
             >
+              {n.company ? <img class="px" src={`${ASSETS}icons/${n.company === "carrier" ? "fleet" : "book"}.png`} width={16} height={16} alt={n.company === "carrier" ? BROKERAGE.kindCarrier : BROKERAGE.kindBrokerage} /> : null}
               {n.text}
               <span class="chev" aria-hidden="true">›</span>
             </button>

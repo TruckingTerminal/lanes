@@ -29,7 +29,7 @@ import {
 import { GAME_CONFIG } from "./game.js";
 import { trueBreakEven } from "./breakeven.js";
 import { ARRIVAL, BROKERAGE, DISPATCHER, NEEDS, TRUCK } from "./copy.js";
-import { hasTwo, kindInView } from "./companies.js";
+import { hasTwo, kindInView, switchCompany, type CompanyKind } from "./companies.js";
 import { act, bumpData, clockMin, isPhone, me, myTrucks, push, S, setTab, selectTruck, toast, truckNo } from "./state.js";
 import { tabDef, tabOpen, teaserTabs, type Tab } from "./tabs.js";
 import { myTenders } from "./ui/panels/Contracts.js";
@@ -144,29 +144,55 @@ export interface Need {
   tab: Tab;
   /** A CSS selector for the card to scroll to. */
   target: string;
+  /** With two companies, whose it is (the list names it and switches to it before opening). */
+  company?: CompanyKind;
 }
+/**
+ * What needs the player. With two companies (brokerage-ux.md section 1) it counts both: each is read in view in turn,
+ * and every row says whose it is.
+ */
 export function needs(): Need[] {
   const g = S.game;
-  const c = g?.player;
-  if (!g || !c) return [];
+  if (!g?.player) return [];
+  if (!hasTwo(g)) return needsInView(true);
+  const here = kindInView(g);
+  const there: CompanyKind = here === "carrier" ? "brokerage" : "carrier";
+  const mine = needsInView(here === "carrier").map((n) => ({ ...n, company: here }));
+  g.inView = there;
+  try {
+    return [...mine, ...needsInView(there === "carrier").map((n) => ({ ...n, key: `${there}:${n.key}`, company: there }))];
+  } finally {
+    g.inView = here;
+  }
+}
+/**
+ * The company in view's needs. The carrier's (`fleet`) are everything, with the page's own (a bid's result, a tab just
+ * opened); a brokerage runs no trucks, so it has only its own money's (the trucks' needs read the carrier's trucks).
+ */
+function needsInView(fleet: boolean): Need[] {
+  const page = fleet;
+  const g = S.game!;
+  const c = g.player!;
   const w = g.w;
   const out: Need[] = [];
   for (const a of attentionItems()) {
     const money = a.key === "debt" || a.key === "cash";
+    if (!fleet && !money) continue;
     out.push({ key: a.key, text: a.text, tab: money ? "money" : "fleet", target: money ? ".cashcard" : `[data-need="${a.key}"]` });
   }
   for (const l of myTenders(c)) out.push({ key: `tender:${l.id}`, text: NEEDS.tender(w.net.places[l.originPlace]!.name, w.net.places[l.destPlace]!.name), tab: "fleet", target: `[data-need="tender:${l.id}"]` });
-  for (const t of tiredTrucks()) {
+  for (const t of fleet ? tiredTrucks() : []) {
     const d = w.staff[t.driverId - 1]!;
     out.push({ key: `tired:${t.id}`, text: NEEDS.tired(d.owner ? "You" : d.name), tab: "fleet", target: `[data-need="tired:${t.id}"]` });
   }
-  for (const t of stuckTrucks()) out.push({ key: `idle:${t.id}`, text: NEEDS.idle(truckName(t), w.net.hubs[t.hub]!.name, idleLabel(t)), tab: "fleet", target: `[data-need="idle:${t.id}"]` });
-  if (S.result && !S.result.seen) out.push({ key: "result", text: NEEDS.result(S.result.won), tab: "loads", target: ".resultcard" });
-  for (const t of teaserTabs()) if (tabOpen(t.id, w, c) && !S.onboard.visited.includes(t.id)) out.push({ key: `opened:${t.id}`, text: NEEDS.opened(tabDef(t.id).label), tab: "more", target: `[data-need="opened:${t.id}"]` });
+  for (const t of fleet ? stuckTrucks() : []) out.push({ key: `idle:${t.id}`, text: NEEDS.idle(truckName(t), w.net.hubs[t.hub]!.name, idleLabel(t)), tab: "fleet", target: `[data-need="idle:${t.id}"]` });
+  if (page && S.result && !S.result.seen) out.push({ key: "result", text: NEEDS.result(S.result.won), tab: "loads", target: ".resultcard" });
+  if (page) for (const t of teaserTabs()) if (tabOpen(t.id, w, c) && !S.onboard.visited.includes(t.id)) out.push({ key: `opened:${t.id}`, text: NEEDS.opened(tabDef(t.id).label), tab: "more", target: `[data-need="opened:${t.id}"]` });
   return out;
 }
 /** Opens a waiting thing's tab (the sheet at half on a phone) and scrolls its card into view, flashing it once. */
 export function openNeed(n: Need): void {
+  if (n.company && S.game && kindInView(S.game) !== n.company) switchCompany(n.company);
   if (isPhone() && S.sheet === "strip") S.sheet = "half";
   setTab(n.tab);
   // Two frames: the tab renders, then the sheet has its height.

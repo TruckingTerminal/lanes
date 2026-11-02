@@ -8,6 +8,7 @@ import { TRUCK_SCALE, truckFrame } from "./assets.js";
 import { CITY_SCALE, citySprite, drawRain, drawSnow, hasPaintedMap, MAP_H, MAP_W, mapLevel, mapSurround, seasonOf, spriteFrame, TOWN_SCALE, townKindAt, townSprite, vfxSprite, type Season } from "./mapart.js";
 import { weatherAt, weatherLabel, type Weather } from "./weather.js";
 import { bumpData, clockMin, myTrucks, S, selectTruck, setTab } from "./state.js";
+import { hasTwo } from "./companies.js";
 import { rankStarters } from "./hubcard.js";
 import { openLoadsAt, reloadLabel, seasonSwing } from "./logic.js";
 import { signedPct, TRAILER_NAME } from "./format.js";
@@ -397,7 +398,7 @@ function truckPoint(t: Truck): [number, number] | null {
   if (!p || isMoving(t)) return p;
   const i = t.id % 64;
   // Your own trucks stay at their hub: the crowd's scatter (up to ~26 map pixels) put a Columbus truck near Cincinnati at 4×.
-  const r = t.companyId === S.game?.player?.id ? 3 : 5 + 2.6 * Math.sqrt(i);
+  const r = t.companyId === (S.game?.carrier ?? S.game?.player)?.id ? 3 : 5 + 2.6 * Math.sqrt(i);
   const a = i * 2.39996;
   return [p[0] + Math.cos(a) * r, p[1] + 3 + Math.abs(Math.sin(a)) * r * 0.7];
 }
@@ -561,7 +562,8 @@ export function drawMap(now: number): void {
   }
   const hour = (clockMin() / 60) % 24;
   const shade = nightShade(hour, 0.42);
-  const mine = S.game.player?.id ?? -1;
+  // The player's own: the carrier's trucks and sites, whichever company is in view (brokerage-ux.md section 1).
+  const mine = S.game.carrier?.id ?? S.game.player?.id ?? -1;
   const humans = new Set(w.companies.filter(isHuman).map((c) => c.id));
   if (S.selHub !== null) {
     const [X, Y] = toScreen(...art.hubXY[S.selHub]!);
@@ -710,6 +712,13 @@ export function drawMap(now: number): void {
       if (bl && bl.id !== openL?.id) stroke(routePoints(bl.origin, bl.dest), [6, 4], PAL.cyan);
     }
   }
+  // The player's brokerage (brokerage-ux.md section 1): a brokered load in motion is an amber dashed lane under its
+  // hauler; its open postings are amber pins at their origins (drawn after the trucks).
+  const brokerage = hasTwo(S.game) ? S.game.brokerage : null;
+  if (brokerage) for (const t of w.trucks) {
+    const l = t.loadId !== null ? w.loads.get(t.loadId) : undefined;
+    if (l && l.brokerId === brokerage.id) stroke(routePoints(l.origin, l.dest), [6, 4], PAL.amber);
+  }
   const draw = (t: Truck, kind: MarkerKind): [number, number, number] | null => {
     const p = truckPoint(t);
     if (!p) return null;
@@ -731,6 +740,22 @@ export function drawMap(now: number): void {
     }
     return [X, Y, dir];
   };
+  if (brokerage) {
+    for (const l of w.loads.values()) {
+      if (l.status !== "open" || l.brokerId !== brokerage.id) continue;
+      const [X, Y] = toScreen(...art.hubXY[l.origin]!);
+      if (!visible(X, Y)) continue;
+      // A pin: an amber head on an ink stem, standing on the origin, so it reads apart from the trucks' dots.
+      const x = Math.round(X), y = Math.round(Y);
+      ctx.fillStyle = PAL.ink0;
+      ctx.fillRect(x - u, y - 6 * u, 2 * u, 6 * u);
+      ctx.fillRect(x - 5 * u, y - 15 * u, 10 * u, 10 * u);
+      ctx.fillStyle = PAL.amber;
+      ctx.fillRect(x - 4 * u, y - 14 * u, 8 * u, 8 * u);
+      ctx.fillStyle = PAL.white;
+      ctx.fillRect(x - 2 * u, y - 12 * u, 2 * u, 2 * u);
+    }
+  }
   for (const t of myTrucks()) {
     const r = draw(t, "mine");
     if (!r) continue;
