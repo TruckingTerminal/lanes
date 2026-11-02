@@ -40,6 +40,7 @@
   Los Angeles, Phoenix (ruling 4), which stays as the tie-break and the fallback when the reading is not ready.
 - 2026-11-02 — Jeff, factoring and quick pay: Iuliia explains both to an owner-operator about to buy a truck;
   the risk is real and they must be well capitalized. A factoring contract lasts three full game months and
-  covers every truck in the fleet; the rate is set by fleet size, 6% at one truck falling to 3% past twenty.
+  covers every truck in the fleet; the rate is a straight line by fleet size, 6% at one truck down to 1.5% at fifty,
+  set at signing and re-read at each renewal.
   No pools for now: factoring and insurance are NPC, and their fees are sinks. Economy sizes it behind a
   switch; the writer words the step; engineering wires the contract into Getting paid after.
