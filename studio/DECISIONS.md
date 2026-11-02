@@ -56,3 +56,7 @@
 - 2026-11-02 — Jeff: the title's head-on shot keeps the painting's lane (the truck comes on the right). The
   traffic pass goes a third round: vehicles must pass the camera at full size with wheels, bounce and lamps
   that read, headway kept in time so nothing overlaps at any depth, tumbleweeds off the road.
+- 2026-11-02 — Jeff: a population dial. The loads-per-truck ratio stays within a band so the game always
+  welcomes new players; the dial acts on the simulated carriers, never on freight, so it adds no faucet; the
+  band is wide and the dial slow, so boom and bust cycles persist and prudent players win in the long run.
+  Economy builds it behind a switch and sizes it with a join wave (v57) after factoring.
