@@ -63,3 +63,12 @@
 - 2026-11-02 — Jeff: a red team role (studio/roles/redteam.md) that tries to exploit, break and game the
   rules; it runs once a day while rules are changing, not on every push, and as the last step before any
   republish. First pass once factoring and the population dial are in, so one pass covers both.
+- 2026-11-02 — Jeff: the pools come off the Finance tab for a long time; Finance holds Getting paid, credit and
+  the staking discounts. Staking reworked: no stake gate on fleet or facility size (truck prices are the entry
+  fee); a stake is a lock with a term, the discount set by the term and held for the term on purchases and the
+  running costs it covers; leaving early forfeits a slash, a multiple of the discounts taken plus a base,
+  burned. Economy builds it behind a switch.
+- 2026-11-02 — Jeff: four tractor makes modelled on Freightliner, Volvo, Peterbilt and Kenworth under fictional
+  names, with their own prices, economy, upkeep, breakdowns, driver appeal and depreciation; trailers unbranded,
+  by type. A teaser for PvP on the Back Lot's coming-soon card. Iuliia speaks differently by tab and by button
+  or card, humor allowed. All sprint 2; the director plans it after the gate.
