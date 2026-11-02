@@ -10,7 +10,8 @@ import { opsCap } from "./labor.js";
 import { dayOf } from "./clock.js";
 import { companyAccount } from "./ledger.js";
 import { yardTrucks } from "./items.js";
-import type { Company } from "./types.js";
+import { bondHeld, brokerApFd, callBond } from "./receivables.js";
+import type { Company, StakeLock } from "./types.js";
 import type { World } from "./world.js";
 
 export const stakeAccount = (companyId: number) => `co:stake:${companyId}`;
@@ -18,11 +19,72 @@ export const exitAccount = (companyId: number) => `co:exit:${companyId}`;
 
 const exiting = (c: Company) => c.unstaking.reduce((s, e) => s + e.fd, 0);
 
+/** Staking locks (token.staking.lockDiscounts): the tiers stop gating size and a stake earns its discount by its term. */
+export const locksOn = (w: World) => w.cfg.token.staking.enabled && w.cfg.token.staking.lockDiscounts.enabled;
+
+/** A company's locks still running today. */
+export function activeLocks(w: World, c: Company): StakeLock[] {
+  const today = dayOf(w.t, w.cfg);
+  return (c.locks ?? []).filter((l) => l.endDay > today);
+}
+
+/** FD under a running lock: what an unstake can't take without breaking it. */
+export const lockedStakeFd = (w: World, c: Company) => activeLocks(w, c).reduce((s, l) => s + l.fd, 0);
+
+/** The lock whose discount applies now: the best rate among the running locks with budget left, the soonest to end first. */
+function discountLock(w: World, c: Company): StakeLock | null {
+  let best: StakeLock | null = null;
+  for (const l of activeLocks(w, c)) {
+    if (l.usedFd >= l.budgetFd - 0.005) continue;
+    if (!best || l.rate > best.rate || (l.rate === best.rate && l.endDay < best.endDay)) best = l;
+  }
+  return best;
+}
+
+/** Locks: the discount a charge of `grossFd` would get, the lock's rate on it but never more than its budget has left. */
+export function peekDiscount(w: World, c: Company, grossFd: number): number {
+  if (!locksOn(w) || !(grossFd > 0)) return 0;
+  const l = discountLock(w, c);
+  return l ? Math.min(grossFd * l.rate, l.budgetFd - l.usedFd) : 0;
+}
+
+/** Locks: a discount given counts against the lock that gave it (its budget is what the lock can ever give). */
+export function noteDiscount(w: World, c: Company, savedFd: number): void {
+  if (!locksOn(w) || !(savedFd > 0)) return;
+  const l = discountLock(w, c);
+  if (!l) return;
+  const given = Math.min(savedFd, l.budgetFd - l.usedFd);
+  l.usedFd += given;
+  lockStats(w).discountsFd += given;
+}
+
+/**
+ * A running cost after the staking discount, given and noted at once: under locks the lock's capped discount, else the
+ * tier discount, computed as it always was (`tiered`, so the switch off changes nothing to the cent).
+ */
+export function lockCost(w: World, c: Company, grossFd: number, tiered: () => number): number {
+  if (!locksOn(w)) return tiered();
+  const saved = peekDiscount(w, c, grossFd);
+  noteDiscount(w, c, saved);
+  return grossFd - saved;
+}
+
+/** What breaking this lock today would burn: the multiple of the discounts it gave plus the base share of it, at most all of it. */
+export function lockSlash(w: World, l: StakeLock): number {
+  const k = w.cfg.token.staking.lockDiscounts.slash;
+  return Math.min(l.fd, k.discountMultiple * l.usedFd + k.baseShare * l.fd);
+}
+
+/** The batches' tally of locks (report.ts). */
+export function lockStats(w: World) {
+  return (w.lockStats ??= { made: {} as Record<string, { locks: number; fd: number }>, rolled: 0, matured: 0, broken: 0, discountsFd: 0, slashedFd: 0, brokenDiscountsFd: 0 });
+}
+
 /** Trucks the company may run at its stake (the config cap without staking), and within what its yard holds (items.ts). */
 export function truckCap(w: World, c: Company): number {
   const k = w.cfg.token.staking;
   const yard = w.cfg.token.catalogue.enabled ? yardTrucks(w, c) : w.cfg.company.maxTrucks;
-  if (!k.enabled) return Math.min(w.cfg.company.maxTrucks, yard);
+  if (!k.enabled || locksOn(w)) return Math.min(w.cfg.company.maxTrucks, yard); // locks on: truck prices are the entry fee
   let cap = 0;
   for (const [trucks, stake] of k.truckTiers) if (c.stakedFd + 1e-9 >= stake) cap = Math.max(cap, trucks);
   return Math.min(cap, w.cfg.company.maxTrucks, yard);
@@ -32,6 +94,7 @@ export function truckCap(w: World, c: Company): number {
 export function stakeDiscount(w: World, c: Company): number {
   const k = w.cfg.token.staking;
   if (!k.enabled) return 0;
+  if (locksOn(w)) return discountLock(w, c)?.rate ?? 0;
   let d = 0;
   for (const [stake, pct] of k.discounts) if (c.stakedFd + 1e-9 >= stake) d = Math.max(d, pct);
   return d;
@@ -39,7 +102,7 @@ export function stakeDiscount(w: World, c: Company): number {
 
 export function facilityCap(w: World, c: Company): number {
   const k = w.cfg.token.staking;
-  if (!k.enabled) return w.cfg.facilities.maxPerCompany;
+  if (!k.enabled || locksOn(w)) return w.cfg.facilities.maxPerCompany;
   let cap = 0;
   for (const [n, stake] of k.facilityTiers) if (c.stakedFd + 1e-9 >= stake) cap = Math.max(cap, n);
   return Math.min(cap, w.cfg.facilities.maxPerCompany);
@@ -48,7 +111,7 @@ export function facilityCap(w: World, c: Company): number {
 /** The next truck tier above the company's, or null at the top. */
 export function nextTruckTier(w: World, c: Company): { trucks: number; stake: number } | null {
   const k = w.cfg.token.staking;
-  if (!k.enabled) return null;
+  if (!k.enabled || locksOn(w)) return null;
   const cap = truckCap(w, c);
   for (const [trucks, stake] of k.truckTiers) if (trucks > cap) return { trucks, stake };
   return null;
@@ -60,23 +123,85 @@ export function brokerLicensed(w: World, c: Company): boolean {
   return !k.enabled || c.role !== "broker" || c.stakedFd + 1e-9 >= k.roles.broker;
 }
 
-export function stakeFd(w: World, c: Company, fd: number): string | null {
+export function stakeFd(w: World, c: Company, fd: number, months?: number, roll = false): string | null {
   if (!w.cfg.token.staking.enabled) return "staking isn't on";
   if (!(fd > 0)) return "bad amount";
   if (c.liquidatingSince !== null) return "in liquidation";
   const acct = companyAccount(c.id);
+  const term = months !== undefined ? w.cfg.token.staking.lockDiscounts.terms.find((t) => t[0] === months) : undefined;
+  if (months !== undefined) {
+    if (!locksOn(w)) return "stakes aren't locked for a term";
+    if (!term) return `a lock runs ${w.cfg.token.staking.lockDiscounts.terms.map((t) => t[0]).join(", ")} game months`;
+    if (fd < w.cfg.token.staking.lockDiscounts.minLockFd) return `a lock is at least ${w.cfg.token.staking.lockDiscounts.minLockFd} FD`;
+  }
   if (w.ledger.balance(acct) < fd - 0.01) return "insufficient FD";
   fd = Math.min(fd, w.ledger.balance(acct));
   w.ledger.post(w.t, acct, stakeAccount(c.id), fd, `stake:${c.id}`);
   c.stakedFd += fd;
+  if (term) openLock(w, c, fd, term, roll);
   return null;
 }
 
+/** A lock opens (or rolls) for its term at the term's discount, with a fresh budget. */
+function openLock(w: World, c: Company, fd: number, term: readonly [number, number, number], roll: boolean): void {
+  const today = dayOf(w.t, w.cfg);
+  const s = lockStats(w);
+  (c.locks ??= []).push({ id: (c.locks.at(-1)?.id ?? 0) + 1, fd, months: term[0], startDay: today, endDay: today + term[0] * w.cfg.time.daysPerMonth, rate: term[1], budgetFd: fd * term[2], usedFd: 0, roll });
+  const m = (s.made[String(term[0])] ??= { locks: 0, fd: 0 });
+  m.locks++;
+  m.fd += fd;
+}
+
+/** Breaks a running lock: its slash is burned (a forfeit) and the rest is ordinary stake, free to leave. Returns the slash. */
+export function breakLock(w: World, c: Company, l: StakeLock): number {
+  const slash = lockSlash(w, l);
+  if (slash > 0.005) w.ledger.post(w.t, stakeAccount(c.id), "sink:lock_slash", slash, `lock:${c.id}:${l.id}`);
+  c.stakedFd -= slash;
+  c.locks = (c.locks ?? []).filter((x) => x !== l);
+  const s = lockStats(w);
+  s.broken++;
+  s.slashedFd += slash;
+  s.brokenDiscountsFd += l.usedFd;
+  return slash;
+}
+
+/** Daily, under locks: a lock at its term rolls for another at the term's discount, or matures into free stake. */
+function matureLocks(w: World, c: Company): void {
+  if (!c.locks?.length) return;
+  const today = dayOf(w.t, w.cfg);
+  for (const l of [...c.locks]) {
+    if (l.endDay > today) continue;
+    c.locks = c.locks.filter((x) => x !== l);
+    const term = w.cfg.token.staking.lockDiscounts.terms.find((t) => t[0] === l.months);
+    if (l.roll && term && c.liquidatingSince === null) {
+      openLock(w, c, l.fd, term, true);
+      lockStats(w).rolled++;
+    } else lockStats(w).matured++;
+  }
+}
+
 /** Into the exit queue, or out at once for the haircut (burned). */
-export function unstakeFd(w: World, c: Company, fd: number, instant: boolean): string | null {
+export function unstakeFd(w: World, c: Company, fd: number, instant: boolean, breakLocks = false): string | null {
   const k = w.cfg.token.staking;
   if (!k.enabled) return "staking isn't on";
   if (!(fd > 0) || fd > c.stakedFd + 0.01) return "not that much staked";
+  // The AP cap (token.payment.factoring.contract): a broker's bond can't fall below what it owes carriers.
+  if (bondHeld(w, c) && c.stakedFd - Math.min(fd, c.stakedFd) < brokerApFd(w, c.id) - 0.005) return "your bond backs what you owe carriers: pay it down first";
+  // Locks: FD under a running lock leaves only by breaking it (the slash burned), the soonest to end first.
+  if (locksOn(w)) {
+    const free = c.stakedFd - lockedStakeFd(w, c);
+    if (fd > free + 0.01) {
+      const running = activeLocks(w, c).sort((a, b) => a.endDay - b.endDay || a.id - b.id);
+      if (!breakLocks) return `that FD is locked until day ${running[0]?.endDay}: leaving early burns ${Math.round(running.reduce((s, l) => s + lockSlash(w, l), 0))} FD`;
+      // Break locks, soonest to end first, until the FD asked for is free (each slash shrinks what a lock frees).
+      for (const l of running) {
+        if (c.stakedFd - lockedStakeFd(w, c) >= fd - 0.01) break;
+        breakLock(w, c, l);
+      }
+    }
+    fd = Math.min(fd, Math.max(0, c.stakedFd - lockedStakeFd(w, c)));
+    if (!(fd > 0.005)) return "nothing left to unstake";
+  }
   fd = Math.min(fd, c.stakedFd);
   c.stakedFd -= fd;
   const ref = `unstake:${c.id}`;
@@ -99,6 +224,7 @@ export function releaseStake(w: World, c: Company): void {
   }
   c.stakedFd = 0;
   c.unstaking = [];
+  c.locks = []; // a liquidation takes the stake for the creditors, locks and all
 }
 
 /**
@@ -106,6 +232,7 @@ export function releaseStake(w: World, c: Company): void {
  * the daily collection takes it for the victims; the rest is seized.
  */
 export function slashStake(w: World, c: Company): number {
+  callBond(w, c); // under the factoring contract a broker's bond pays its paper before the slash (the NPC factor's first)
   let toVictims = Math.max(0, c.judgmentFd);
   let slashed = 0;
   for (const acct of [stakeAccount(c.id), exitAccount(c.id)]) {
@@ -119,6 +246,7 @@ export function slashStake(w: World, c: Company): number {
   }
   c.stakedFd = 0;
   c.unstaking = [];
+  c.locks = [];
   return slashed;
 }
 
@@ -144,6 +272,7 @@ export function dailyStaking(w: World): void {
   }
   for (const c of w.companies) {
     if (c.unstaking.length) c.unstaking = c.unstaking.filter((e) => e.fd > 0.005);
+    if (locksOn(w)) matureLocks(w, c);
     if (c.liquidatingSince !== null) continue;
     const fleet = w.trucksByCompany.get(c.id) ?? [];
     const running = fleet.filter((t) => t.status !== "parked" && t.status !== "retired" && t.status !== "listed").length;

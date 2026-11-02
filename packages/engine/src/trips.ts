@@ -14,8 +14,8 @@ import { managerBreakdownMult, managerMaintenanceMult } from "./labor.js";
 import { dayOf, MINUTES_PER_HOUR } from "./clock.js";
 import { clamp, fuelPrice, tripCost } from "./economics.js";
 import { settleDoubleBroker } from "./fraud.js";
-import { bill } from "./receivables.js";
-import { stakeDiscount } from "./staking.js";
+import { bill, factoringLog } from "./receivables.js";
+import { lockCost, stakeDiscount } from "./staking.js";
 import { creditMiles, creditDriving, homeArrival } from "./labor.js";
 import { companyAccount } from "./ledger.js";
 import { closeDutyDay, drivingLimitMin, legalDrivingMin, mphFor, safetyTick } from "./safety.js";
@@ -323,10 +323,10 @@ export function payTripCosts(w: World, truck: Truck, ref: string): number {
   // Fuel at the hub's player station if there is one (businesses.ts), else the pump; maintenance at
   // the hub's shop or the NPC shop, leaner with a maintenance manager (labor.ts).
   // A big fleet buys fuel at a fleet discount (scale.ts).
-  const fuel = (c.fuel + climbGal * price) * keep * (1 - scaleDiscount(w, company));
+  const fuel = lockCost(w, company, (c.fuel + climbGal * price) * (1 - scaleDiscount(w, company)), () => (c.fuel + climbGal * price) * keep * (1 - scaleDiscount(w, company)));
   payLegFuel(w, company, truck, fuel, driven, ref); // the block rule: the origin, then the truck stops the leg passes
   w.ledger.post(w.t, acct, "sink:driver_wages", c.wages, ref);
-  const maintenance = serviceBill(w, company, truck.hub, c.maintenance * keep * managerMaintenanceMult(w, company), "maintenance", ref);
+  const maintenance = serviceBill(w, company, truck.hub, lockCost(w, company, c.maintenance * managerMaintenanceMult(w, company), () => c.maintenance * keep * managerMaintenanceMult(w, company)), "maintenance", ref);
   w.ledger.post(w.t, acct, "sink:tolls", tolls, ref);
   // Insurance isn't per trip: the yearly policy is billed weekly (insurance.ts).
   return fuel + maintenance + c.wages + tolls;
@@ -355,6 +355,14 @@ export function abandonLeg(w: World, truck: Truck): void {
 function collectUpstream(w: World, load: Load, payee: Company, gross: number, factor: number, ref: string, leased = false): void {
   const { cfg } = w;
   const payeeAcct = companyAccount(payee.id);
+  const truckId = load.truckId ?? undefined;
+  // The factoring log: brokered and direct NPC freight, and what it paid the carrier.
+  if (cfg.token.payment.enabled && load.shipperId === null) {
+    const side = factoringLog(w)[load.brokerId !== null ? "brokered" : "direct"];
+    side.loads++;
+    side.payFd += gross;
+    side.miles += load.miles;
+  }
   if (load.brokerId !== null) {
     const broker = companyById(w, load.brokerId);
     const brokerAcct = companyAccount(broker.id);
@@ -366,14 +374,14 @@ function collectUpstream(w: World, load: Load, payee: Company, gross: number, fa
     const billed = load.shipperRate * load.miles * factor;
     if (!defaulted) {
       bill(w, { payer: 0, faucet: "faucet:npc_shipper", payee: broker, amountFd: billed, ref });
-      w.ledger.post(w.t, brokerAcct, "sink:board_fee", cfg.board.posterFeePct * billed * (1 - stakeDiscount(w, broker)), ref);
+      w.ledger.post(w.t, brokerAcct, "sink:board_fee", lockCost(w, broker, cfg.board.posterFeePct * billed, () => cfg.board.posterFeePct * billed * (1 - stakeDiscount(w, broker))), ref);
       awardMiles(w, broker, cfg.miles.brokerPerMile * load.miles, load.laneId);
       broker.operating.revenueFd += billed;
       broker.operating.costFd += cfg.board.posterFeePct * billed;
     } else {
       w.metrics.onShipperDefault();
     }
-    bill(w, { payer: broker.id, payee, amountFd: gross, ref, leased });
+    bill(w, { payer: broker.id, payee, amountFd: gross, ref, leased, truckId });
     broker.operating.costFd += gross;
     broker.openBrokerLoads--;
     broker.loadsThisWeek++;
@@ -382,9 +390,9 @@ function collectUpstream(w: World, load: Load, payee: Company, gross: number, fa
     // who pays the carrier. A company hauling its own freight pays itself nothing.
     const shipper = companyById(w, load.shipperId);
     const shipperAcct = companyAccount(shipper.id);
-    const fee = cfg.board.posterFeePct * load.saleValue * (1 - stakeDiscount(w, shipper));
+    const fee = lockCost(w, shipper, cfg.board.posterFeePct * load.saleValue, () => cfg.board.posterFeePct * load.saleValue * (1 - stakeDiscount(w, shipper)));
     bill(w, { payer: 0, faucet: "faucet:npc_market", payee: shipper, amountFd: load.saleValue, ref });
-    if (shipper.id !== payee.id) bill(w, { payer: shipper.id, payee, amountFd: gross, ref, leased });
+    if (shipper.id !== payee.id) bill(w, { payer: shipper.id, payee, amountFd: gross, ref, leased, truckId });
     w.ledger.post(w.t, shipperAcct, "sink:board_fee", fee, ref);
     const facility = w.facilities[load.facilityId! - 1];
     // Self-hauled freight's carrier side is the owner's own cost, so only the goods margin counts here.
@@ -394,7 +402,7 @@ function collectUpstream(w: World, load: Load, payee: Company, gross: number, fa
       shipper.loadsThisWeek++;
     }
   } else {
-    bill(w, { payer: 0, faucet: "faucet:npc_shipper", payee, amountFd: gross, ref, leased });
+    bill(w, { payer: 0, faucet: "faucet:npc_shipper", payee, amountFd: gross, ref, leased, truckId });
   }
 }
 

@@ -24,9 +24,10 @@ import { monthlyFuelTax } from "./fuelTax.js";
 import { weeklyBusinesses } from "./businesses.js";
 import { monthlySites } from "./sites.js";
 import { dailyLabor, monthlyLabor, payDispatchers, weeklyLabor } from "./labor.js";
-import { dailyStaking, stakeDiscount } from "./staking.js";
+import { dailyStaking, lockCost, stakeDiscount } from "./staking.js";
 import { dailyPools, poolAccount, poolMarkup, poolsOn } from "./pools.js";
 import { dailyReceivables } from "./receivables.js";
+import { dailyPopulationDial } from "./population.js";
 import { creditScore } from "./credit.js";
 import { dailySafety, monthlySafety, weeklySafety } from "./safety.js";
 import { repossessDefaults, stepListings } from "./market.js";
@@ -94,7 +95,7 @@ function endOfDay(w: World, day: number, agents?: DailyAgentHook): void {
     }
     if (truck.status === "idle" && truck.companyId && truck.driverId && idleFuel > 0) {
       const c = companyById(w, truck.companyId);
-      const burned = idleFuel * (truck.mods.apu ? 0.5 : 1) * (1 - stakeDiscount(w, c)); // an APU halves it; locked FD earns its discount
+      const burned = lockCost(w, c, idleFuel * (truck.mods.apu ? 0.5 : 1), () => idleFuel * (truck.mods.apu ? 0.5 : 1) * (1 - stakeDiscount(w, c))); // an APU halves it; locked FD earns its discount
       c.fuelGalMonth += cfg.costs.idleFuelGalPerDay * (truck.mods.apu ? 0.5 : 1);
       w.ledger.post(w.t, companyAccount(truck.companyId), "sink:idle_fuel", burned, `idle:${truck.id}`);
       c.operating.costFd += burned;
@@ -201,6 +202,7 @@ function endOfDay(w: World, day: number, agents?: DailyAgentHook): void {
     if (tokenLive(w) && !launchedToday) seasonAirdrop(w);
   }
   w.metrics.closeDay(w, day, fuelPrice(w));
+  dailyPopulationDial(w, day); // the population dial reads the day just closed (population.ts)
   if ((day + 1) % cfg.time.daysPerMonth === 0) {
     monthlyStabilizers(w);
     monthlyCapacity(w);

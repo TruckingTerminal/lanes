@@ -11,7 +11,7 @@ import { clamp, fuelPrice } from "./economics.js";
 import { priceIndex } from "./items.js";
 import { companyAccount } from "./ledger.js";
 import { chargeSalesTax } from "./salesTax.js";
-import { stakeDiscount } from "./staking.js";
+import { lockCost, stakeDiscount } from "./staking.js";
 import { reeferUnit } from "./equipment.js";
 import { nightTheft, theftRiskAt, truckLatLon } from "./risk.js";
 import type { Business, Truck, TruckStopSite } from "./types.js";
@@ -220,7 +220,7 @@ export function parkForTheNight(w: World, truck: Truck, site: TruckStopSite | nu
     w.metrics.onNight("shoulder");
   }
   const gal = cfg.costs.idleFuelGalPerDay * (truck.mods.apu ? 0.5 : 1) * (stop ? cfg.businesses.kinds.truckStop.idleFuelMult : 1);
-  const burned = gal * fuelPrice(w) * (1 - stakeDiscount(w, c));
+  const burned = lockCost(w, c, gal * fuelPrice(w), () => gal * fuelPrice(w) * (1 - stakeDiscount(w, c)));
   c.fuelGalMonth += gal;
   if (burned > 0.005) {
     w.ledger.post(w.t, companyAccount(c.id), "sink:idle_fuel", burned, `rest:${truck.id}`);

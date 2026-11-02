@@ -1226,3 +1226,52 @@ moving the market; the proposal is to run the world two game days before the pag
 **Switched on (2026-11-02, ruleset 0.19.2-phase0.31).** Jeff's yes to the rule (the bible's third question) and
 v55-a's numbers above put `freeEntry.firstBidByHand` among the live levers. Nothing else in the profile moved; the
 live world restarts on the next republish (no players).
+
+## Factoring as a contract, no pools (Jeff, 2026-11-02; built, config `token.payment.factoring.contract`, off)
+
+Jeff: a factoring contract lasts three full game months and covers every truck; the rate is set by the fleet, 6% at
+one truck falling in a straight line to a 2.5% floor at fifty, fixed for the term and re-read at renewal; brokers
+factor at a flat 5% ("capital depots ... don't scale with factoring"); "For now, let's not use the pools.
+Factoring and insurance are NPC and sinks"; a broker can't owe its carriers more than its posted bond. One switch,
+`token.payment.factoring.contract.enabled` (`months` 3, `wholeFleet`, `rateByTrucks`, `brokerRate`), replaces the
+one-year contract and its stake: no stake, no early exit, the NPC factor pays on delivery and buys NPC shippers'
+paper and bonded brokers', and every discount goes to `sink:factoring_fee`, which refills the reserve as the
+lessor's share does (never a burn). Under the same switch the three pool lines stand down (`poolsOn()`; no pool lever
+changes value, `token.pools.enabled` stays on only for old units to leave), so the NPC insurer and surety write
+everything at their own price into their sinks; and a broker's accounts payable never pass its stake, checked on
+every tender and booking, its bond paying its paper (the factor's first) before any overdraft and held through a
+liquidation until the paper is paid. The factor's advance is then always matched by a payment: no faucet.
+
+**What v56-a showed (the live profile with the switch on, seeds 1, 4, 8, 400 days; `runs/compare-v56.md`, beside
+v56-0, the switch off, which reproduces v55-a exactly):** 518 of 520 carriers and 31 of 60 brokers signed, almost all
+small (no signer over eight trucks; carriers' mean discount 5.85%); 75% of starters signed within 30 days of their
+first truck. The discounts were 23.7M FD, 4.9% of all operating sinks, the fifth largest sink (above the lessor's
+share and either tax); operating sinks rose 8% and the whole-run sink ratio from 87% to 90%. Liquidations fell from
+157 to 93 (mostly brokers' repeat ones), companies in debt at the end from 45 to 20, and the debt written off at
+restarts (a faucet) from 525k to 184k; one-truck owners still went under at 6%, contract or not. The free path ran 16
+days faster (the old bots locked a 15k stake on the lease). Brokers' bonds paid 2.4M FD of factor and lessor paper,
+none unpaid; the cap sent 52.6k tenders to the open board and brokered deliveries fell 17%. Review and Iuliia's
+capital note: `studio/reviews/economy-factoring.md`.
+
+## The population dial (Jeff, 2026-11-02; built, config `population.dial`, off)
+
+Jeff: "Load to truck ratio should maintain within a band so that the game always welcomes new players. Boom and bust
+cycles still persist though, so there must be variance so that players who are prudent businessmen win in the long
+run." The dial reads one national number, NPC loads posted a day per truck in service over four weeks, and acts only
+outside a wide band taken from v55-a's own swing (0.55–1.25; the year-one troughs bottom at 0.56, the booms top at
+1.04), and only on the simulated carriers: under the floor a bankrupt bot isn't restarted (its debt stays unwritten,
+so the write-off faucet shrinks) and up to five of the weakest losing bots a week wind down and leave; over the
+ceiling up to five grant-less free-path bots a week enter. It never moves freight, cash, rates or costs, never touches a
+player, and so bails nobody out and mints nothing (a test runs the world inside the band with the dial on and off and
+gets the same reserve to the cent); under it `token.demandScalesWithCarriers` is held off, since freight that follows
+the carriers would hold the ratio still and grow the faucet with every sign-up.
+
+**What v57 showed (two years, seeds 1, 4, 8; `runs/compare-v57.md`):** the cycles survive the dial untouched (booms
+1.08, busts 0.69 loads per truck with or without it). On the standard profile no bust reaches the floor; the dial
+acted only on the ceiling in year two as the beta fleet thinned (35 entrants on average), too slowly at five a week to
+hold it (days over 10% → 8%). In a join wave of 96 newcomers it acted both ways (9 restarts held, 18 wind-downs, 15
+entrants; days outside the band 11% → 7%), but every newcomer still bought a truck in a median 26 days and about 35
+went under, with or without it. "Prudent wins" fails either way: the greedy persona out-earns the conservative one
+(owner-operators 98k against 55k after two years), because the conservative bot overprices its bids, leverage is cheap
+against truck returns and the busts never bite it. The options (fix the persona first, then price loans by leverage,
+let busts bite, stop taxing the cushion after launch) are in `studio/reviews/economy-population-dial.md`.

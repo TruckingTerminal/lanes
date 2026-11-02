@@ -10,7 +10,7 @@ import type { World } from "./world.js";
  * exchange fees, the launch reset, forfeited airdrops). Kept out of the operating
  * sink ratio, so the stabilizer doesn't add freight to make up for them.
  */
-export const BURN_TAGS = new Set(["sink:season_close", "sink:buyback", "sink:exchange_fee", "sink:launch_reset", "sink:airdrop_forfeit", "sink:unstake_haircut", "sink:profit_tax_burn", "sink:asset_burn"]);
+export const BURN_TAGS = new Set(["sink:season_close", "sink:buyback", "sink:exchange_fee", "sink:launch_reset", "sink:airdrop_forfeit", "sink:unstake_haircut", "sink:profit_tax_burn", "sink:asset_burn", "sink:lock_slash"]);
 /** One-time mints outside operations: starting grants, the airdrop, launch liquidity and the opening auction's tranche. */
 export const MINT_TAGS = new Set(["faucet:starting_grant", "faucet:airdrop", "faucet:launch_liquidity", "faucet:auction"]);
 
@@ -46,6 +46,10 @@ export interface DayMetrics {
   rackSpread: number;
   idleTrucks: number;
   ownedTrucks: number;
+  /** Every company's trucks on the road (not parked, listed or retired), free-path leases included: the population dial's denominator. */
+  trucksInService: number;
+  /** Carriers trading (not being wound up, not retired by the population dial). */
+  activeCarriers: number;
   facilityPosted: number;
   facilities: number;
   businesses: number;
@@ -383,8 +387,10 @@ export class MetricsRecorder {
     let idle = 0;
     let owned = 0;
     let conditionSum = 0;
+    let inService = 0;
     for (const t of w.trucks) {
       if (t.status === "idle") idle++;
+      if (t.companyId !== 0 && t.status !== "retired" && t.status !== "parked" && t.status !== "listed") inService++;
       if (t.lease === "owned" && t.companyId !== 0 && t.status !== "retired") {
         owned++;
         conditionSum += condition(w.cfg, t);
@@ -432,6 +438,8 @@ export class MetricsRecorder {
       rackSpread: w.stab.rackSpread,
       idleTrucks: idle,
       ownedTrucks: owned,
+      trucksInService: inService,
+      activeCarriers: w.companies.filter((c) => c.role === "carrier" && c.liquidatingSince === null && c.retiredDay === undefined).length,
       facilityPosted: a.facilityPosted,
       facilities: w.facilities.length,
       businesses: w.businesses.filter((b) => b.ownerId > 0).length,

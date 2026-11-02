@@ -24,6 +24,18 @@ import {
   tokenLive,
   brokerLicensed,
   capitalRatio,
+  poolsOn,
+  locksOn,
+  activeLocks,
+  lockedStakeFd,
+  dialOn,
+  dialBot,
+  dialState,
+  startWindDown,
+  windDownStep,
+  countEntrant,
+  contractOn,
+  brokerBooks,
   contractAccount,
   factoringStake,
   itemPriceFd,
@@ -119,6 +131,8 @@ interface BotProfile {
   lastStats: { truckRounds: number; wins: number };
   /** Weekly snapshots of the company's cumulative operating result, for a trailing profit estimate. */
   opSnapshots: { day: number; net: number }[];
+  /** Weekly snapshots of its cumulative operating costs, for a month of costs (the factoring contract's cushion). */
+  costMarks?: { day: number; cost: number }[];
   targetFleet: number;
   /** FD kept after buying the first owned truck. */
   firstTruckBuffer: number;
@@ -534,7 +548,7 @@ export function populate(w: World, o: PopulationOptions): void {
 
 /** Trucks run by AI companies (every company but the humans, whose strategy is "player:…"). */
 function aiFleet(w: World): number {
-  const bots = new Set(w.companies.filter((c) => !c.strategy.startsWith("player:")).map((c) => c.id));
+  const bots = new Set(w.companies.filter((c) => !c.strategy.startsWith("player:") && !c.strategy.startsWith("wave:")).map((c) => c.id));
   return w.trucks.filter((t) => t.companyId !== 0 && t.status !== "retired" && bots.has(t.companyId)).length;
 }
 
@@ -574,6 +588,58 @@ function admitNewcomers(w: World): void {
     profiles.set(c, profile);
     c.usd.wallet = WALLETS.newcomer(rng) * w.cfg.token.newCompanies.usdWalletMult; // the demand lever
     setConduct(w, c, profile);
+  }
+}
+
+/**
+ * The join wave (population.wave; a batch scenario): `perWeek` free-path newcomers a week for `weeks` weeks, standing in
+ * for new players (strategy "wave:…", the normal grant; the population dial never touches them).
+ */
+function admitWave(w: World, today: number): void {
+  const k = w.cfg.population.wave;
+  if (today < k.startDay || today >= k.startDay + 7 * k.weeks || (today - k.startDay) % 7 !== 0) return;
+  const rng = w.rng.agents;
+  for (let i = 0; i < k.perWeek; i++) {
+    const strategy = STRATEGIES[rng.int(0, STRATEGIES.length - 1)]!;
+    const profile = carrierProfile(strategy, rng);
+    const n = w.companies.filter((c) => c.strategy.startsWith("wave:")).length + 1;
+    const c = formCompany(w, { name: `Wave-${n}`, role: "carrier", homeHubId: starterHub(w, rng), strategy: `wave:${strategy}`, orders: carrierOrders(profile), freePath: true, ownerSkill: ownerSkill(w, rng) });
+    profiles.set(c, profile);
+    setConduct(w, c, profile);
+  }
+}
+
+/**
+ * The population dial (population.dial), weekly, on the simulated carriers only. Under the floor, up to
+ * `windDownPerWeek` of the weakest bots wind down: those losing money per truck over their last weeks, the worst
+ * first, none in its first eight weeks. Over the ceiling, up to `entrantsPerWeek` new bot companies enter on the free
+ * path with no starting grant. Inside the band, nothing.
+ */
+function runDial(w: World, today: number): void {
+  const k = w.cfg.population.dial;
+  const s = dialState(w);
+  const rng = w.rng.agents;
+  if (s === "under") {
+    const weak: { c: Company; profit: number }[] = [];
+    for (const c of w.companies) {
+      const p = profiles.get(c);
+      if (!p || !dialBot(c) || c.liquidatingSince !== null || c.retiredDay !== undefined || c.windingDownDay !== undefined) continue;
+      if (today - c.createdDay < 56) continue;
+      const trucks = operatingTrucks(w, c.id);
+      const profit = profitPerTruckWeek(c, p, today, trucks);
+      if (profit !== null && profit < 0) weak.push({ c, profit });
+    }
+    weak.sort((a, b) => a.profit - b.profit || a.c.id - b.c.id);
+    for (const { c } of weak.slice(0, k.windDownPerWeek)) startWindDown(w, c);
+  } else if (s === "over") {
+    for (let i = 0; i < k.entrantsPerWeek; i++) {
+      const strategy = STRATEGIES[rng.int(0, STRATEGIES.length - 1)]!;
+      const profile = carrierProfile(strategy, rng);
+      countEntrant(w);
+      const c = formCompany(w, { name: `Dial-${w.population!.entered}`, role: "carrier", homeHubId: starterHub(w, rng), strategy: `oo:${strategy}`, orders: carrierOrders(profile), freePath: true, ownerSkill: ownerSkill(w, rng), grant: false });
+      profiles.set(c, profile);
+      setConduct(w, c, profile);
+    }
   }
 }
 
@@ -829,6 +895,18 @@ function throttleBrokering(w: World, c: Company, p: BotProfile, today: number): 
   if (max !== order.maxOpenLoads) applyAction(w, c.id, { type: "set_standing_orders", orders: [{ ...order, maxOpenLoads: max }] });
 }
 
+/**
+ * The AP cap (token.payment.factoring.contract): what a broker owes carriers can't pass its posted bond, so once a week
+ * a broker whose books fill most of its bond posts what it can spare over its working cushion, up to 25k a week.
+ */
+function growBond(w: World, c: Company, p: BotProfile, today: number): void {
+  if ((today + c.id) % 7 !== 0) return;
+  const b = brokerBooks(w).get(c.id);
+  if (!b || b.apFd + b.postedFd < 0.8 * c.stakedFd) return;
+  const spare = w.ledger.balance(companyAccount(c.id)) - reserve(w, c, p);
+  if (spare >= 5_000) applyAction(w, c.id, { type: "stake_fd", fd: Math.min(spare, 25_000) });
+}
+
 /** Keeps four weeks of weekly operating snapshots. */
 function recordOperating(c: Company, p: BotProfile, today: number): void {
   if (today % 7 !== 0) return;
@@ -1080,12 +1158,14 @@ function financedBudget(w: World, c: Company, budget: number): number {
 
 function manageCash(w: World, c: Company, p: BotProfile): void {
   const acct = companyAccount(c.id);
-  const cash = w.ledger.balance(acct);
   const need = reserve(w, c, p);
+  if (locksOn(w)) manageLocks(w, c, need);
+  const cash = w.ledger.balance(acct);
   const deposited = depositorValue(w, c.id);
   // Payment terms (0.18.0): short of working capital, factor the invoices; otherwise wait for the due day.
   // A contract runs its term; short of working capital a bot signs one if it can post the stake, takes quick pay only when it is half short, and waits otherwise.
-  if (w.cfg.token.payment.enabled && !c.factoring) {
+  if (w.cfg.token.payment.enabled && w.cfg.token.payment.factoring.contract.enabled) manageFactoring(w, c, p, cash, need);
+  else if (w.cfg.token.payment.enabled && !c.factoring) {
     const want = cash < need ? (cash >= factoringStake(w, c) ? "factor" : cash < need * 0.5 ? "quick" : "net") : "net";
     if (c.payTerms !== want) applyAction(w, c.id, { type: "set_pay_terms", terms: want });
   }
@@ -1102,7 +1182,7 @@ function manageCash(w: World, c: Company, p: BotProfile): void {
   const spare = w.ledger.balance(acct) - need * 2;
   if (spare <= 20_000) return;
   // Pools (0.18.0): a depositor spreads spare FD over equipment finance and every pool still thin enough to pay for capital.
-  if (w.cfg.token.pools.enabled) {
+  if (poolsOn(w)) {
     const thin = (["insurance", "factoring", "surety"] as const).filter((line) => capitalRatio(w, line) < 2 * w.cfg.token.pools[line].minCapitalRatio);
     if (thin.length > 0) {
       const each = spare / (thin.length + 1);
@@ -1112,6 +1192,80 @@ function manageCash(w: World, c: Company, p: BotProfile): void {
     }
   }
   applyAction(w, c.id, { type: "deposit_finance", amountFd: spare });
+}
+
+/**
+ * Staking locks (token.staking.lockDiscounts), once a week: a bot with cash to spare over twice its cushion locks some
+ * for its persona's term (the careful for twelve months and rolling, the greedy for three, the rest for six), no more
+ * than its spending can use the discount on; freed stake goes home through the queue; a bot heading for liquidation
+ * breaks its lock and takes the slash rather than go under.
+ */
+function manageLocks(w: World, c: Company, need: number): void {
+  const k = w.cfg.token.staking.lockDiscounts;
+  const today = dayOf(w.t, w.cfg);
+  const acct = companyAccount(c.id);
+  const running = activeLocks(w, c);
+  if ((c.weeksInDebt >= 2 || w.ledger.balance(acct) < -w.cfg.insolvency.debtLimitFd) && running.length > 0) {
+    const l = running.sort((a, b) => b.endDay - a.endDay)[0]!;
+    applyAction(w, c.id, { type: "unstake_fd", fd: Math.min(l.fd, c.stakedFd), instant: true, breakLocks: true });
+    return;
+  }
+  if ((today + c.id) % 7 !== 3) return;
+  // Stake free of any lock, over what the broker licence needs: home through the exit queue.
+  const keep = c.role === "broker" ? w.cfg.token.staking.roles.broker : 0;
+  const free = c.stakedFd - lockedStakeFd(w, c) - keep;
+  if (free > 1_000 && c.unstaking.length === 0) applyAction(w, c.id, { type: "unstake_fd", fd: free, instant: false });
+  if (running.some((l) => l.usedFd < l.budgetFd - 0.005)) return;
+  const persona = c.strategy.split(":")[1] ?? "random";
+  const months = persona.startsWith("conservative") ? 12 : persona.startsWith("greedy") ? 3 : 6;
+  const term = k.terms.find((t) => t[0] === months);
+  if (!term) return;
+  const spare = w.ledger.balance(acct) - 2 * need;
+  const monthSpend = (c.weeklySpend.reduce((a, b) => a + b, 0) * 30) / Math.max(7, 7 * c.weeklySpend.length);
+  const useful = (term[1] * monthSpend * months) / term[2]; // the lock whose budget its spending would use up
+  const fd = Math.min(spare * 0.5, useful);
+  if (fd >= k.minLockFd) applyAction(w, c.id, { type: "stake_fd", fd, months, roll: months === 12 });
+}
+
+/**
+ * The factoring contract (token.payment.factoring.contract): a carrier that owns a truck and runs no NPC lease (the
+ * lessor already pays those on delivery) signs when its cash falls under about a month of its costs, and renews at
+ * term while it is still that thin; a broker signs and renews while its cash is under its working cushion (a broker's
+ * month of costs is mostly the carrier pay its own invoices cover), and only if its margin after the board fee still
+ * covers the discount: it doesn't factor at a loss on every load. Out of contract, quick pay when half short, as before.
+ */
+function manageFactoring(w: World, c: Company, p: BotProfile, cash: number, need: number): void {
+  const fleet = w.trucksByCompany.get(c.id)!;
+  const order = c.orders.find((o) => o.kind === "broker");
+  const margin = order && order.kind === "broker" ? order.marginPct : 0;
+  const may =
+    c.role === "broker"
+      ? margin - w.cfg.board.posterFeePct > w.cfg.token.payment.factoring.contract.brokerRate
+      : c.role === "carrier" && fleet.some((t) => t.lease === "owned") && !fleet.some((t) => t.lease === "npc");
+  const cushion = c.role === "carrier" ? monthOfCosts(w, c, p, need) : need; // a carrier's books are read every day, lease or not
+  const thin = may && cash < cushion;
+  if (c.factoring) {
+    if ((c.factoring.renew === true) !== thin) applyAction(w, c.id, { type: "set_pay_terms", terms: thin ? "factor" : "net" });
+    return;
+  }
+  const want = thin ? "factor" : cash < need * 0.5 ? "quick" : "net";
+  if (want === "factor" || c.payTerms !== want) applyAction(w, c.id, { type: "set_pay_terms", terms: want });
+}
+
+/** About a month of the company's costs: its operating costs over the last four weeks, scaled to 30 days, and a month of purchase-loan payments. */
+function monthOfCosts(w: World, c: Company, p: BotProfile, fallback: number): number {
+  const today = dayOf(w.t, w.cfg);
+  const marks = (p.costMarks ??= []);
+  if (marks.length === 0 || today - marks.at(-1)!.day >= 7) {
+    marks.push({ day: today, cost: c.operating.costFd });
+    if (marks.length > 5) marks.shift();
+  }
+  const oldest = marks[0]!;
+  const days = today - oldest.day;
+  let loans = 0;
+  for (const l of openPurchaseLoans(w, c.id)) if (l.status === "active") loans += Math.min(l.principalFd, l.originalFd / l.termWeeks) + l.principalFd * l.weeklyRate;
+  if (days < 7) return fallback;
+  return ((c.operating.costFd - oldest.cost) * 30) / days + (loans * 30) / 7;
 }
 
 /** FD this bot would turn into dollars this week: a share of what's above its reserve. Free-path drivers save for a truck instead. */
@@ -1328,6 +1482,9 @@ export const ruleBotHook: DailyAgentHook = (w) => {
   const outlooks: Outlooks = new Map();
   const live = tokenLive(w);
   if (live && dayOf(w.t, cfg) % 7 === 0) admitNewcomers(w);
+  // The join wave (population.wave, a batch scenario) and the population dial (population.dial).
+  if (cfg.population.wave.enabled) admitWave(w, dayOf(w.t, cfg));
+  if (dialOn(w) && dayOf(w.t, cfg) % 7 === 0) runDial(w, dayOf(w.t, cfg));
   // Adversaries (config adversaries): the speculators' wallets come with the launch, then trade daily. With the
   // opening auction on (token.launch.auction) they come the day before it, and the crowd and the whale bid.
   if (!live && cfg.adversaries.enabled && cfg.token.enabled && cfg.token.launch.auction.enabled && !holdersOf.has(w) && dayOf(w.t, cfg) + 2 >= Math.round(cfg.token.betaYears * cfg.time.daysPerSeason)) {
@@ -1343,7 +1500,7 @@ export const ruleBotHook: DailyAgentHook = (w) => {
   // replace and sell trucks; after launch, or with the token off, they grow as they judge.
   // Checked per company, trucks on order included, so a day when liquidations retire trucks doesn't let every bot order one.
   const capped = !live && cfg.token.enabled && cfg.token.betaAiFleetCap !== null;
-  const botIds = capped ? w.companies.filter((c) => !c.strategy.startsWith("player:")).map((c) => c.id) : [];
+  const botIds = capped ? w.companies.filter((c) => !c.strategy.startsWith("player:") && !c.strategy.startsWith("wave:")).map((c) => c.id) : [];
   const grow = () => !capped || aiFleet(w) + botIds.reduce((s, id) => s + ordersOf(w, id).length, 0) < w.aiFleetStart * cfg.token.betaAiFleetCap!;
   // The first bid by hand (freeEntry.firstBidByHand): the open board, indexed once, for the bots whose orders wait.
   let openIdx: BoardIndex | null = null;
@@ -1353,9 +1510,15 @@ export const ruleBotHook: DailyAgentHook = (w) => {
     const p = profiles.get(c);
     // Shut down: wait out the bar (new authority comes by itself when it ends).
     if (p && c.authority.status === "revoked") continue;
-    if (!p || c.liquidatingSince !== null) continue; // not a bot, or being wound up
+    if (!p || c.liquidatingSince !== null || c.retiredDay !== undefined) continue; // not a bot, being wound up, or gone
     const acct = companyAccount(c.id);
     const fleet = w.trucksByCompany.get(c.id)!;
+    // The population dial: a bot winding down sells its owned trucks as they come idle, hands leases back, then leaves.
+    if (c.windingDownDay !== undefined) {
+      for (const t of [...fleet]) if (t.lease === "owned" && t.status === "idle") sell(w, c, p, t.id, true);
+      windDownStep(w, c);
+      continue;
+    }
     // A farmer quits some months after launch (selling the trucks and the FD); a sybil wallet sells at its limit every day.
     if (live && p.farmer) {
       const today = dayOf(w.t, cfg);
@@ -1548,6 +1711,7 @@ export const ruleBotHook: DailyAgentHook = (w) => {
       if (w.ledger.balance(companyAccount(c.id)) >= need) applyAction(w, c.id, { type: "stake_fd", fd: need });
     }
     if (c.role === "broker") throttleBrokering(w, c, p, dayOf(w.t, cfg));
+    if (c.role === "broker" && contractOn(w) && cfg.token.staking.enabled && brokerLicensed(w, c)) growBond(w, c, p, dayOf(w.t, cfg));
 
     // Facilities: any company with spare FD can add the shipper role, unless the
     // ones it already owns are losing money.
@@ -1569,7 +1733,7 @@ export const ruleBotHook: DailyAgentHook = (w) => {
   const today = dayOf(w.t, cfg);
   for (const c of w.companies) {
     const p = profiles.get(c);
-    if (!p || c.liquidatingSince !== null) continue;
+    if (!p || c.liquidatingSince !== null || c.retiredDay !== undefined || c.windingDownDay !== undefined) continue;
     manageCash(w, c, p);
     if (live) tradeToken(w, c, p, today);
     else if (cfg.buyback.enabled && !cfg.token.enabled) offerToBuyback(w, c, p, today);

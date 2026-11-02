@@ -1083,6 +1083,27 @@ export const economyConfig = {
         [100_000, 0.1],
         [500_000, 0.15],
       ] as const,
+      // Locks (Jeff, 2026-11-02: "Staked FD should give discounts on things purchased based on the time locked, for the
+      // duration of the lock, with early withdrawal incurring a large slash penalty that is burned, the slash is a
+      // multiple of discounts used and then some"; studio/reviews/economy-staking-locks.md). On: the truck and facility
+      // tiers no longer gate size (truck prices are the entry fee; the broker licence stake and the stake's other uses
+      // stay), and a stake may be locked for one of `terms`: [game months, discount, discount budget as a share of the
+      // lock over the term]. The discount holds for the whole term on everything `discounts` covered (fuel,
+      // maintenance, rebuilds, refurbishments, insurance, board fees) plus purchases from the NPC dealer, the used lot
+      // and the catalogue, until the budget is spent. Leaving a lock early burns a slash of `slash.discountMultiple` × the
+      // discounts it gave plus `slash.baseShare` of the lock (a forfeit, sink:lock_slash), the rest leaving as any
+      // unstake does; at term end it rolls or is free. The tier discounts above don't apply while it is on.
+      lockDiscounts: {
+        enabled: false,
+        terms: [
+          [1, 0.03, 0.01],
+          [3, 0.06, 0.04],
+          [6, 0.09, 0.1],
+          [12, 0.12, 0.24],
+        ] as readonly (readonly [number, number, number])[],
+        slash: { discountMultiple: 2, baseShare: 0.1 },
+        minLockFd: 5_000,
+      },
     },
     // The catalogue (Jeff, 2026-10-29; TOKENOMICS.md "FD only"): yards and truck upgrades priced in
     // FD at the launch reference and scaled by the freight rate index; purchase FD half burned, a
@@ -1153,6 +1174,32 @@ export const economyConfig = {
         earlyExitForfeits: true,
         stakePerTruckFd: 15_000, // about two weeks of a truck's invoices
         stakeBrokerFd: 50_000,
+        // The contract (Jeff, 2026-11-02; studio/reviews/economy-factoring.md). On, it replaces the one-year contract
+        // above: factoring is a contract with the NPC factor that runs `months` full game months (time.daysPerMonth
+        // each) from signing, cannot be left early, and lapses at its end unless renewed. `wholeFleet`: every
+        // invoice of every truck the company runs while under contract goes to the factor, trucks added mid-term
+        // too, and quick pay is closed; no cherry-picking (false: only the trucks it was signed for). No stake.
+        // A carrier's discount per invoice is set by its fleet (operating trucks) at signing and re-read at each
+        // renewal: straight lines between the [trucks, rate] points, flat past either end (Jeff: 6% at one truck
+        // to a floor of 2.5% at fifty). A broker's is `brokerRate`, flat: brokers are capital depots and don't
+        // scale with factoring. The factor pays on delivery and buys NPC shippers' paper (always paid) and bonded
+        // brokers' (a carrier's invoice to its broker); a player shipper's waits net (no bond behind it yet). Every
+        // discount is a sink that refills the reserve (sink:factoring_fee), as the lessor's share does.
+        // The same switch: the pools stand down ("For now, let's not use the pools"): the NPC insurer and the NPC
+        // surety write every policy and bond at their own price, premiums to their sinks; and a broker's accounts
+        // payable (what it owes carriers on loads booked and not yet paid) never pass its posted bond (its stake),
+        // checked on every tender it takes and every booking on its loads, its bond paying its paper when its cash
+        // can't, the NPC factor's first. Off: as before.
+        contract: {
+          enabled: false,
+          months: 3,
+          wholeFleet: true,
+          rateByTrucks: [
+            [1, 0.06],
+            [50, 0.025],
+          ] as readonly (readonly [number, number])[],
+          brokerRate: 0.05,
+        },
       },
       lessorPaysOnDelivery: true,
     },
@@ -1579,6 +1626,26 @@ export const economyConfig = {
       spreadMult: 2,
       suspensionDays: 30,
     },
+  },
+
+  // The population dial (Jeff, 2026-11-02: "Load to truck ratio should maintain within a band so that the game always
+  // welcomes new players. Boom and bust cycles still persist though, so there must be variance so that players who are
+  // prudent businessmen win in the long run"; studio/reviews/economy-population-dial.md). The measure is national: NPC
+  // loads posted a day per truck in service (every company's trucks on the road, free-path leases included), averaged
+  // over `windowDays`. The dial acts only on the simulated carriers (rule-bot carriers; never a player, never a wave
+  // newcomer standing in for one), never on freight, and only outside `band`, from `startDay` (the opening's fleet is
+  // still forming): under the floor, a bot that goes under is not restarted (it retires, its debt unwritten: no
+  // write-off faucet), and each week up to `windDownPerWeek` of the weakest bots (the lowest trailing profit per truck,
+  // losing money) wind down: no orders, leases handed back, owned trucks sold, then retired. Over the ceiling, up to
+  // `entrantsPerWeek` new bot companies a week enter on the free path, with no starting grant. It never moves cash,
+  // rates or costs, so it bails nobody out and adds no faucet; under it NPC freight stays on its base path
+  // (token.demandScalesWithCarriers is held off). Off: as before.
+  population: {
+    dial: { enabled: false, windowDays: 28, band: [0.55, 1.25] as readonly [number, number], startDay: 112, entrantsPerWeek: 5, windDownPerWeek: 5 },
+    // A join wave for the batches (a scenario, not a rule): `perWeek` free-path newcomers a week for `weeks` weeks from
+    // `startDay`, rule bots standing in for new players (strategy "wave:…"; the dial never touches them). The beta admits
+    // no newcomers otherwise (token.newCompanies runs after launch), so the wave's twelve carry the normal two.
+    wave: { enabled: false, startDay: 140, weeks: 8, perWeek: 12 },
   },
 
   // The hub card's season line (studio/reviews/economy-first-board.md): this block only feeds the hub card, never the sim.

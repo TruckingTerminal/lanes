@@ -29,10 +29,10 @@ import { canRefile, notice } from "./safety.js";
 import { canMakeHot } from "./standingOrders.js";
 import { inCloseWindow } from "./season.js";
 import { refile } from "./solvency.js";
-import { facilityCap, stakeDiscount, stakeFd, truckCap, unstakeFd } from "./staking.js";
+import { facilityCap, locksOn, noteDiscount, peekDiscount, stakeDiscount, stakeFd, truckCap, unstakeFd } from "./staking.js";
 import { buyItem } from "./items.js";
 import { depositPool, withdrawPool } from "./pools.js";
-import { endFactoring, signFactoring } from "./receivables.js";
+import { contractOn, endFactoring, setContractTerms, signFactoring } from "./receivables.js";
 import type { Action, RuleScope } from "./types.js";
 import { condition, rebuildable, rebuildCost } from "./wear.js";
 import { availableSupplyFor, companyById, crewed, hubMiles, invalidOrders, releaseDepositFor, seatDriver, staffById, syncFleet, takeSupplyFor, truckById, unseatDriver, type World, placeMiles, placeOfHub, placeLegMiles } from "./world.js";
@@ -451,7 +451,9 @@ export function applyAction(w: World, companyId: number, action: Action): Action
         if (!cfg.usedMarket.npcLot.enabled || !cfg.assets.enabled) return { ok: false, reason: "there's no used lot" };
         if (kind !== "rig" || action.dealershipId) return { ok: false, reason: "the used lot sells whole rigs" };
         if (w.usedLot.stock < 1) return { ok: false, reason: "the used lot is empty this week" };
-        const price = lotPrice(w, action.tier, action.trailer) * npcDealerMult(w);
+        const lotList = lotPrice(w, action.tier, action.trailer) * npcDealerMult(w);
+        const lotSave = peekDiscount(w, company, lotList); // a staking lock's discount on the used lot, within its budget (staking.ts)
+        const price = lotList - lotSave;
         if (replacing) releaseDepositFor(w, company, action.finance ? financedCashNeed(w, company, price) : price + salesTaxOn(w, price));
         const loan = action.finance ? financePurchase(w, company, price) : null;
         if (typeof loan === "string") return { ok: false, reason: loan };
@@ -461,6 +463,7 @@ export function applyAction(w: World, companyId: number, action: Action): Action
         }
         const ref = `buy:used:${company.id}:${action.tier}:${action.trailer}`;
         const lockedPaid = w.ledger.post(w.t, acct, "sink:used_lot", price, ref);
+        noteDiscount(w, company, lotSave);
         chargeSalesTax(w, company.id, price, ref);
         w.usedLot.stock--;
         w.usedLot.sold++;
@@ -475,7 +478,9 @@ export function applyAction(w: World, companyId: number, action: Action): Action
       if (availableSupplyFor(w, kind, action.tier, action.trailer, firstTruck) <= 0) return { ok: false, reason: "PoC supply exhausted" };
       // The NPC dealer: list price; while a player dealership is open, the backstop's premium and longer wait.
       // A big fleet buys at fleet pricing (scale.ts).
-      const price = (kind === "tractor" ? tractorPrice(w, action.tier) : dealerPrice(w, action)) * npcDealerMult(w) * (1 - scaleDiscount(w, company));
+      const dealerList = (kind === "tractor" ? tractorPrice(w, action.tier) : dealerPrice(w, action)) * npcDealerMult(w) * (1 - scaleDiscount(w, company));
+      const dealerSave = peekDiscount(w, company, dealerList); // a staking lock's discount at the NPC dealer, within its budget (staking.ts)
+      const price = dealerList - dealerSave;
       // The farming season's dollar window (token.catalogue.usdWindow.assets): a new rig for dollars, every dollar held for the launch pool.
       if (action.pay === "usd") {
         const why = payAssetUsd(w, company, price);
@@ -495,6 +500,7 @@ export function applyAction(w: World, companyId: number, action: Action): Action
 
       const ref = `buy:${company.id}:${action.tier}:${kind === "tractor" ? "tractor" : action.trailer}`;
       const lockedPaid = w.ledger.post(w.t, acct, "sink:equipment_dealer", price, ref);
+      noteDiscount(w, company, dealerSave);
       chargeSalesTax(w, company.id, price, ref);
       takeSupplyFor(w, kind, action.tier, action.trailer, firstTruck);
       const order = placeOrder(w, company, action.tier, action.trailer, replacing, kind, npcDealerDays(w));
@@ -615,8 +621,10 @@ export function applyAction(w: World, companyId: number, action: Action): Action
       if (tr.refurbUntilT !== null) return { ok: false, reason: "it's in the shop" };
       if (!trailerRefurbishable(w, tr)) return { ok: false, reason: "it has had its refurbishment: run it out or scrap it" };
       if (trailerCondition(w, tr) > cfg.assets.trailer.refurbMaxCondition) return { ok: false, reason: "not worn enough to refurbish" };
-      const cost = cfg.assets.trailer.refurbFd[tr.type] * (1 - stakeDiscount(w, company));
+      const refurbSave = peekDiscount(w, company, cfg.assets.trailer.refurbFd[tr.type]); // a staking lock's discount (staking.ts)
+      const cost = locksOn(w) ? cfg.assets.trailer.refurbFd[tr.type] - refurbSave : cfg.assets.trailer.refurbFd[tr.type] * (1 - stakeDiscount(w, company));
       if (w.ledger.balance(acct) < cost) return { ok: false, reason: "insufficient FD" };
+      noteDiscount(w, company, refurbSave);
       company.operating.costFd += serviceBill(w, company, truck ? truck.hub : company.homeHub, cost, "rebuild", `refurb:${tr.id}`);
       tr.milesSinceRefurb = 0;
       tr.refurbs++;
@@ -666,8 +674,10 @@ export function applyAction(w: World, companyId: number, action: Action): Action
       if (truck.status !== "idle") return { ok: false, reason: "truck must be idle at a hub" };
       if (condition(cfg, truck) > cfg.wear.rebuildMaxCondition) return { ok: false, reason: "not worn enough to rebuild" };
       if (!rebuildable(cfg, truck)) return { ok: false, reason: "past its last rebuild: run it out, sell it, or scrap it" };
-      const cost = rebuildCost(cfg, truck) * (1 - stakeDiscount(w, company)); // locked FD earns its discount (staking.ts)
+      const rebuildSave = peekDiscount(w, company, rebuildCost(cfg, truck)); // a staking lock's discount (staking.ts)
+      const cost = locksOn(w) ? rebuildCost(cfg, truck) - rebuildSave : rebuildCost(cfg, truck) * (1 - stakeDiscount(w, company)); // locked FD earns its discount (staking.ts)
       if (w.ledger.balance(acct) < cost) return { ok: false, reason: "insufficient FD" };
+      noteDiscount(w, company, rebuildSave);
       company.operating.costFd += serviceBill(w, company, truck.hub, cost, "rebuild", `rebuild:${truck.id}`); // the hub's shop, or the NPC shop
       truck.status = "repair";
       truck.repairUntilT = w.t + cfg.wear.rebuildDays * cfg.time.gameMinutesPerDay;
@@ -818,10 +828,10 @@ export function applyAction(w: World, companyId: number, action: Action): Action
       return result(sellFd(w, company, action.fd));
 
     case "stake_fd":
-      return result(stakeFd(w, company, action.fd));
+      return result(stakeFd(w, company, action.fd, action.months, action.roll ?? false));
 
     case "unstake_fd":
-      return result(unstakeFd(w, company, action.fd, action.instant));
+      return result(unstakeFd(w, company, action.fd, action.instant, action.breakLocks ?? false));
 
     case "deposit_pool":
       return result(depositPool(w, action.line, company.id, action.amountFd));
@@ -845,6 +855,12 @@ export function applyAction(w: World, companyId: number, action: Action): Action
       return result(addParking(w, company, action.businessId));
 
     case "set_pay_terms": {
+      // The contract (token.payment.factoring.contract) can't be left early: while one runs, "factor" renews it at its
+      // end and "net" or "quick" lets it lapse into them then.
+      if (contractOn(w) && company.factoring) {
+        setContractTerms(company, action.terms);
+        return result(null);
+      }
       // Factoring is a contract: choosing it signs one (stake and all); leaving it before the term forfeits the stake.
       if (action.terms === "factor") return result(company.factoring ? null : signFactoring(w, company));
       if (company.factoring) endFactoring(w, company, dayOf(w.t, cfg) < company.factoring.until);

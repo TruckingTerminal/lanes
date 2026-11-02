@@ -11,6 +11,7 @@ import { clamp } from "./economics.js";
 import { companyAccount } from "./ledger.js";
 import { contractAccount } from "./receivables.js";
 import { chargeSalesTax, salesTaxOn } from "./salesTax.js";
+import { noteDiscount, peekDiscount } from "./staking.js";
 import { tokenLive } from "./token.js";
 import type { Company, ItemKind, TruckMod, YardItem } from "./types.js";
 import { truckById, type World } from "./world.js";
@@ -84,8 +85,11 @@ export function buyItem(w: World, c: Company, item: ItemKind, pay: "fd" | "usd",
     c.usdSpentBeta += usd;
     w.token.treasury.seedEscrowUsd += usd; // held for the launch pool, every dollar of it
   } else {
-    const price = itemPriceFd(w, item);
+    const listFd = itemPriceFd(w, item);
+    const save = peekDiscount(w, c, listFd); // a staking lock's discount on the catalogue, within its budget (staking.ts)
+    const price = listFd - save;
     if (w.ledger.balance(acct) < price + bondDue + salesTaxOn(w, price)) return "insufficient FD";
+    noteDiscount(w, c, save);
     const s = k.split;
     let locked = w.ledger.post(w.t, acct, "sink:asset_burn", price * s.burn, ref);
     locked += w.ledger.post(w.t, acct, "alloc:treasury", price * s.treasury, ref);

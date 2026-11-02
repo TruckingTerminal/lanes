@@ -8,7 +8,7 @@ import { companyAccount } from "./ledger.js";
 import { payClaim, poolAccount, poolMarkup, poolsOn } from "./pools.js";
 import { trailerValue, truckValue } from "./dealer.js";
 import { contractAccount } from "./receivables.js";
-import { stakeDiscount } from "./staking.js";
+import { lockCost, stakeDiscount } from "./staking.js";
 import type { Company, InsurancePolicy } from "./types.js";
 import { syncFleet, type World } from "./world.js";
 
@@ -118,7 +118,7 @@ export function billInsurance(w: World): void {
     if (trucks === 0) continue;
     // Assets: physical-damage cover on what the company owns (its tractors and trailers), priced as a share of their value.
     const pd = w.cfg.assets.enabled ? (w.cfg.assets.physicalDamage.annualShareOfValue * insuredValue(w, c)) / 52 : 0;
-    const premium = ((trucks * c.insurance.annualPerTruck) / 52 + pd) * (1 - stakeDiscount(w, c)); // locked FD earns its discount (staking.ts)
+    const premium = lockCost(w, c, (trucks * c.insurance.annualPerTruck) / 52 + pd, () => ((trucks * c.insurance.annualPerTruck) / 52 + pd) * (1 - stakeDiscount(w, c))); // locked FD earns its discount (staking.ts)
     // A pool-written policy pays its premium to the pool's depositors; the NPC insurer's is a sink.
     if (c.insurance.writer === "pool") {
       w.ledger.post(w.t, companyAccount(c.id), poolAccount("insurance"), premium, `pool:insurance:premium:${c.id}`);

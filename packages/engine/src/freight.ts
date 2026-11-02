@@ -9,6 +9,7 @@ import { EQUIPMENT, planFreight, planIndex, seasonality } from "./demand.js";
 import type { VettingTier, Company } from "./types.js";
 import { clamp, fscPerMile, fuelPrice } from "./economics.js";
 import { brokerLicensed } from "./staking.js";
+import { apCapBlock, brokerBooks, contractOn, factoringLog, type BrokerBook } from "./receivables.js";
 
 /**
  * The circular economy (0.18.0): what NPC shippers pay per mile follows the reserve against its
@@ -281,6 +282,8 @@ export function generateRoundFreight(w: World): RoundFreight {
 
   // 3. NPC loads, half of them tendered to brokers.
   const brokers = w.companies.filter((c) => c.role === "broker");
+  // The AP cap (token.payment.factoring.contract): a broker takes a tender only while what it owes and has posted fits its bond.
+  const books = contractOn(w) && brokers.length > 0 ? brokerBooks(w) : undefined;
   const created: Load[] = [];
   for (let i = 0; i < n; i++) {
     const lanes = net.lanesFrom[i]!;
@@ -296,7 +299,7 @@ export function generateRoundFreight(w: World): RoundFreight {
         if (rng.next() < localShare(w, i, eq)) load.localUntilRound = w.round + cfg.leverage.localRounds;
         if (rng.next() < cfg.freight.npcBrokerOnlyShare) {
           const contractRef = lane.baseRate * w.contractIndex[planIndex(i, e)]! * cfg.rates.equipmentPremium[eq] * reloadFactor(w, lane.dest, eq) + fsc + tollPerMile(lane) + terrainPerMile(lane) + theftPerMile(lane, eq) + exitPerMile(lane, eq);
-          tenderToBroker(w, load, brokers, contractRef * remoteMult(load) * cfg.rates.npcCeilingMarkup * (load.hot || 1));
+          tenderToBroker(w, load, brokers, contractRef * remoteMult(load) * cfg.rates.npcCeilingMarkup * (load.hot || 1), books);
         }
         finish(load, load.brokerId !== null ? w.companies[load.brokerId - 1]!.vetting : 0);
         w.loads.set(load.id, load);
@@ -366,19 +369,34 @@ export function openBookNow(w: World, ref: number, ceiling: number, ratio: numbe
   return Math.min(ceiling, ref * share);
 }
 
-function tenderToBroker(w: World, load: Load, brokers: Company[], contractShipperRate: number): void {
+function tenderToBroker(w: World, load: Load, brokers: Company[], contractShipperRate: number, books?: Map<number, BrokerBook>): void {
   const eligible: Company[] = [];
   const weights: number[] = [];
+  // What the load would add to a broker's books if posted at its ceiling (the high-value lift lands after the tender).
+  const posts = (b: Company) => contractShipperRate * (1 - clamp(marginOf(b), 0, 0.9)) * load.miles * highValueMult(w.cfg, load.commodity);
+  let capped = false;
   for (const b of brokers) {
     const order = b.orders.find((o) => o.kind === "broker");
     if (order && order.kind === "broker" && b.openBrokerLoads < order.maxOpenLoads && brokerLicensed(w, b)) {
+      if (books) {
+        const why = apCapBlock(w, b, books.get(b.id), posts(b), true);
+        if (why) {
+          capNotice(w, b, why);
+          capped = true;
+          continue;
+        }
+      }
       eligible.push(b);
       // Shippers favor brokers with strong credit that take a thinner cut (credit.ts).
       weights.push((0.25 + creditScore(w, b) / 100) / dpow(Math.max(0.01, order.marginPct), 2));
     }
   }
+  if (capped) factoringLog(w).tendersCapped++;
   // With no broker capacity the load stays on the open board as NPC spot freight.
-  if (eligible.length === 0) return;
+  if (eligible.length === 0) {
+    if (capped) factoringLog(w).tendersToBoard++;
+    return;
+  }
   const broker = eligible[w.rng.freight.weighted(weights)]!;
   const order = broker.orders.find((o) => o.kind === "broker");
   const margin = clamp(order && order.kind === "broker" ? order.marginPct : 0, 0, 0.9);
@@ -387,6 +405,25 @@ function tenderToBroker(w: World, load: Load, brokers: Company[], contractShippe
   load.ceiling = contractShipperRate * (1 - margin);
   load.bookNow = Math.min(load.bookNow, load.ceiling);
   broker.openBrokerLoads++;
+  if (books) {
+    let b = books.get(broker.id);
+    if (!b) books.set(broker.id, (b = { apFd: 0, postedFd: 0 }));
+    b.postedFd += posts(broker);
+  }
+}
+
+const marginOf = (b: Company) => {
+  const order = b.orders.find((o) => o.kind === "broker");
+  return order && order.kind === "broker" ? order.marginPct : 0;
+};
+
+/** A broker at its bond hears so once a game day; the tender goes to another broker or to the open board. */
+function capNotice(w: World, b: Company, why: string): void {
+  const log = factoringLog(w);
+  const today = dayOf(w.t, w.cfg);
+  if (log.capNoticeDay[b.id] === today) return;
+  log.capNoticeDay[b.id] = today;
+  w.listener?.({ kind: "notice", companyId: b.id, topic: "board", text: `A shipper's tender passed you by: ${why}. Post more bond to take more freight.`, tone: "bad" });
 }
 
 /**

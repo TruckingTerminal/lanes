@@ -8,7 +8,7 @@ import { Ledger, companyAccount } from "./ledger.js";
 import { truckCap } from "./staking.js";
 import { newPool } from "./pools.js";
 import { Rng } from "./rng.js";
-import type { BuybackWeek, GameEvent, TokenState, Company, Business, Facility, TruckStopSite, FinancePool, FraudCase, LeaseKind, Listing, Load, ManagerKind, Pool, PoolLine, PurchaseLoan, Receivable, Role, SeasonCloseRecord, Staff, StandingOrder, Trailer, Truck, TruckOrder, Contract, LeaseOffer } from "./types.js";
+import type { BuybackWeek, GameEvent, TokenState, Company, Business, Facility, TruckStopSite, FinancePool, FactoringLog, PopulationState, FraudCase, LeaseKind, Listing, Load, ManagerKind, Pool, PoolLine, PurchaseLoan, Receivable, Role, SeasonCloseRecord, Staff, StandingOrder, Trailer, Truck, TruckOrder, Contract, LeaseOffer } from "./types.js";
 import { fitTrailer, handBack, hook, hookedTrailer, newTrailer } from "./trailers.js";
 import type { AssetSale } from "./assetSales.js";
 import { signPolicy } from "./insurance.js";
@@ -132,6 +132,12 @@ export interface World {
   pools: Record<PoolLine, Pool>;
   /** Freight pay owed under payment terms (receivables.ts). */
   receivables: Receivable[];
+  /** The factoring log (receivables.ts), made on first use while payment terms are on. */
+  factoringLog?: FactoringLog;
+  /** The population dial (population.ts), made on first use while it is on. */
+  population?: PopulationState;
+  /** Staking locks' tally (staking.ts lockStats), made on first use while they are on. */
+  lockStats?: { made: Record<string, { locks: number; fd: number }>; rolled: number; matured: number; broken: number; discountsFd: number; slashedFd: number; brokenDiscountsFd: number };
   nextReceivableId: number;
   /** Dealer price index by tractor tier and trailer type (dealer.ts). */
   dealerIndex: { tractor: Record<TractorTier, number>; trailer: Record<Equipment, number> };
@@ -291,6 +297,8 @@ export interface NewCompany {
   authorityAgeDays?: number;
   /** Run by a person, not an agent. */
   human?: boolean;
+  /** The starting grant (default true); the population dial's entrants come without one, so they mint nothing. */
+  grant?: boolean;
 }
 
 export function newSafetyRecord(): Company["safety"] {
@@ -640,9 +648,11 @@ export function formCompany(w: World, c: NewCompany): Company {
   if (c.role === "carrier") addOwner(w, company, c.ownerSkill ?? w.cfg.labor.owner.humanSkill);
   // A holder is a wallet, not a company: no grant, no permits.
   if (c.role !== "holder") {
-    w.ledger.post(w.t, "faucet:starting_grant", companyAccount(company.id), w.cfg.company.startingGrantFd, `grant:${company.id}`);
-    // After launch a new company's grant is spend-only, so a fresh account can't be cashed out.
-    if (w.token.launchDay !== null && w.cfg.token.lockGrants) w.ledger.lock(companyAccount(company.id), w.cfg.company.startingGrantFd);
+    if (c.grant !== false) {
+      w.ledger.post(w.t, "faucet:starting_grant", companyAccount(company.id), w.cfg.company.startingGrantFd, `grant:${company.id}`);
+      // After launch a new company's grant is spend-only, so a fresh account can't be cashed out.
+      if (w.token.launchDay !== null && w.cfg.token.lockGrants) w.ledger.lock(companyAccount(company.id), w.cfg.company.startingGrantFd);
+    }
     payPermits(w, company);
   }
   if (c.role === "carrier" && c.freePath) {

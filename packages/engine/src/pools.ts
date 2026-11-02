@@ -20,7 +20,13 @@ export function newPool(): Pool {
   return { shares: new Map(), totalShares: 0, exiting: [], premiumsFd: 0, claimsFd: 0, shortfallFd: 0, exposureFd: 0 };
 }
 
-export const poolsOn = (w: World) => w.cfg.token.pools.enabled;
+/**
+ * The pools write business (policies, advances, bonds) and take deposits. The factoring contract stands them down
+ * (token.payment.factoring.contract; Jeff, 2026-11-02: "For now, let's not use the pools"): the NPC insurer, factor
+ * and surety take the business at their own prices, every fee a sink. Units already deposited still leave through
+ * the exit queue (`token.pools.enabled` alone governs that).
+ */
+export const poolsOn = (w: World) => w.cfg.token.pools.enabled && !(w.cfg.token.payment.enabled && w.cfg.token.payment.factoring.contract.enabled);
 
 export function poolLineCash(w: World, line: PoolLine): number {
   return w.ledger.balance(poolAccount(line));
@@ -76,7 +82,7 @@ export function depositPool(w: World, line: PoolLine, companyId: number, amountF
 
 /** Into the exit queue: the units leave the pool's capital count at once and pay out, at the value then, after the wait. */
 export function withdrawPool(w: World, line: PoolLine, companyId: number, amountFd: number): string | null {
-  if (!poolsOn(w)) return "pools aren't open";
+  if (!w.cfg.token.pools.enabled) return "pools aren't open";
   const p = w.pools[line];
   const held = p.shares.get(companyId) ?? 0;
   const value = held * sharePrice(w, line);
@@ -89,7 +95,7 @@ export function withdrawPool(w: World, line: PoolLine, companyId: number, amount
 
 /** Daily: the exit queue pays out oldest first, at most exitLimitPerDay of the pool a day, as far as cash allows. */
 export function dailyPools(w: World): void {
-  if (!poolsOn(w)) return;
+  if (!w.cfg.token.pools.enabled) return;
   const today = dayOf(w.t, w.cfg);
   for (const line of Object.keys(w.pools) as PoolLine[]) {
     const p = w.pools[line];

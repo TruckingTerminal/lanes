@@ -33,7 +33,7 @@ const usd4 = (x: number) => `$${x.toPrecision(2)}`;
 type Row = [string, (rs: Run[]) => string];
 type Valuation = NonNullable<NonNullable<Run["realMoney"]>["token"]>["valuation"];
 // The burns that leave the circular economy's cap for good (ledger CIRCULAR_BURNS); a launch reset refills the reserve instead.
-const CAP_BURNS = ["season_close", "buyback", "exchange_fee", "airdrop_forfeit", "unstake_haircut", "profit_tax_burn", "asset_burn"];
+const CAP_BURNS = ["season_close", "buyback", "exchange_fee", "airdrop_forfeit", "unstake_haircut", "profit_tax_burn", "asset_burn", "lock_slash"];
 /** Market cap and FDV: the report's own, or for reports written before them, from the daily price, supply, locked FD and burns. */
 const valuationOf = (r: Run): Valuation | null => {
   const tk = r.realMoney?.token;
@@ -357,7 +357,110 @@ rows.push(
     const xs = rs.filter((r) => r.daily.at(-1)!.wageIndex !== undefined);
     return xs.length ? `${mean(xs.map((r) => r.daily.at(-1)!.wageIndex)).toFixed(2)} / ${mean(xs.map((r) => r.daily.at(-1)!.avgDriverSkill)).toFixed(2)}` : "n/a";
   }],
+  // Factoring (receivables.ts; the contract under token.payment.factoring.contract, 2026-11-02).
+  ...factoringRows(),
+  // The population dial (population.ts, 2026-11-02).
+  ...populationRows(),
+  // Staking locks (staking.ts, 2026-11-02).
+  ["Fleets at end: carriers over 5 / 10 / 20 trucks; the largest", (rs) => (rs.every((r) => r.fleets) ? `${n0(mean(rs.map((r) => r.fleets!.over5)))} / ${n0(mean(rs.map((r) => r.fleets!.over10)))} / ${n0(mean(rs.map((r) => r.fleets!.over20)))}; ${n0(mean(rs.map((r) => r.fleets!.largest)))}` : "n/a")],
+  ["Locks made by term, 1 / 3 / 6 / 12 months: locks (FD)", (rs) => (rs.some((r) => r.locks) ? ["1", "3", "6", "12"].map((m) => `${n0(mean(rs.map((r) => r.locks?.made[m]?.locks ?? 0)))} (${fd(mean(rs.map((r) => r.locks?.made[m]?.fd ?? 0)))})`).join(" / ") : "off")],
+  ["Locks: rolled / matured / broken; locked at end", (rs) => (rs.some((r) => r.locks) ? `${n0(mean(rs.map((r) => r.locks?.rolled ?? 0)))} / ${n0(mean(rs.map((r) => r.locks?.matured ?? 0)))} / ${n0(mean(rs.map((r) => r.locks?.broken ?? 0)))}; ${fd(mean(rs.map((r) => r.locks?.lockedEndFd ?? 0)))}` : "off")],
+  ["Locks: discounts given / slashes burned (discounts the broken locks had given)", (rs) => (rs.some((r) => r.locks) ? `${fd(mean(rs.map((r) => r.locks?.discountsFd ?? 0)))} / ${fd(mean(rs.map((r) => r.locks?.slashedFd ?? 0)))} (${fd(mean(rs.map((r) => r.locks?.brokenDiscountsFd ?? 0)))})` : "off")],
 );
+
+function populationRows(): Row[] {
+  // The measure the dial reads: loads posted a day per truck in service, its 28-day mean, from day 112 (the opening's fleet formed).
+  const FROM = 112;
+  const series = (r: Run) => {
+    const m = r.daily.map((d) => (d.trucksInService ? d.posted / d.trucksInService : NaN));
+    const out: { day: number; x: number; cycle: number }[] = [];
+    for (let i = 27; i < m.length; i++) {
+      const sl = m.slice(i - 27, i + 1);
+      if (sl.some((v) => !Number.isFinite(v))) continue;
+      if (r.daily[i]!.day >= FROM) out.push({ day: r.daily[i]!.day, x: sl.reduce((a, b) => a + b, 0) / 28, cycle: r.daily[i]!.cycle });
+    }
+    return out;
+  };
+  const has = (rs: Run[]) => rs.every((r) => r.daily[0]?.trucksInService !== undefined);
+  const q = (xs: number[], p: number) => [...xs].sort((a, b) => a - b)[Math.floor(p * (xs.length - 1))]!;
+  const band = (rs: Run[]): readonly [number, number] => rs.find((r) => r.population)?.population!.band ?? [0.55, 1.25];
+  const at = (r: Run, day: number, f: (d: DayMetrics) => number) => {
+    const d = r.daily.find((x) => x.day === day) ?? r.daily.at(-1)!;
+    return f(d);
+  };
+  const strat = (seg: string) => (rs: Run[]) => {
+    const xs = rs.filter((r) => r.byStrategy?.[seg]);
+    if (!xs.length) return "n/a";
+    return ["conservative", "random", "greedy"]
+      .map((s) => `${fd(mean(xs.map((r) => r.byStrategy![seg]![s]?.wealthFd ?? 0)))} (${pct(mean(xs.map((r) => r.byStrategy![seg]![s]?.liquidatedShare ?? 0)))})`)
+      .join(" / ");
+  };
+  return [
+    ["Loads per truck in service, 28-day mean from day 112: mean / p5–p95 / min–max", (rs) => {
+      if (!has(rs)) return "n/a";
+      const xs = rs.flatMap((r) => series(r).map((p) => p.x));
+      return `${mean(xs).toFixed(2)} / ${q(xs, 0.05).toFixed(2)}–${q(xs, 0.95).toFixed(2)} / ${q(xs, 0).toFixed(2)}–${q(xs, 1).toFixed(2)}`;
+    }],
+    ["Loads per truck: booms / busts (demand dial over 1.1 / under 0.9); spread (sd)", (rs) => {
+      if (!has(rs)) return "n/a";
+      const ps = rs.flatMap((r) => series(r));
+      const boom = ps.filter((p) => p.cycle > 1.1).map((p) => p.x);
+      const bust = ps.filter((p) => p.cycle < 0.9).map((p) => p.x);
+      const all = ps.map((p) => p.x);
+      const mu = mean(all);
+      const sd = Math.sqrt(mean(all.map((x) => (x - mu) ** 2)));
+      return `${mean(boom).toFixed(2)} / ${mean(bust).toFixed(2)}; ${sd.toFixed(2)}`;
+    }],
+    ["Loads per truck: share of days under the floor / over the ceiling (the dial's band)", (rs) => {
+      if (!has(rs)) return "n/a";
+      const [lo, hi] = band(rs);
+      const xs = rs.flatMap((r) => series(r).map((p) => p.x));
+      return `${pct(xs.filter((x) => x < lo).length / xs.length)} / ${pct(xs.filter((x) => x > hi).length / xs.length)} (band ${lo}–${hi})`;
+    }],
+    ["Loads per truck by quarter (28-day mean at each quarter's end)", (rs) => {
+      if (!has(rs)) return "n/a";
+      const ends = [91, 182, 273, 364, 455, 546, 637, 728].filter((d) => rs.every((r) => r.daily.length > d));
+      return ends.map((d) => mean(rs.map((r) => series(r).find((p) => p.day === d)?.x ?? NaN)).toFixed(2)).join(" ");
+    }],
+    ["Carriers trading at day 112 / 365 / 546 / end", (rs) => (has(rs) ? [112, 365, 546, 100_000].map((d) => n0(mean(rs.map((r) => at(r, d, (x) => x.activeCarriers))))).join(" / ") : "n/a")],
+    ["Trucks in service at day 112 / 365 / 546 / end", (rs) => (has(rs) ? [112, 365, 546, 100_000].map((d) => n0(mean(rs.map((r) => at(r, d, (x) => x.trucksInService))))).join(" / ") : "n/a")],
+    ["Dial: days under / over the band; bots retired instead of restarted / wound down / entered", (rs) =>
+      rs.some((r) => r.population)
+        ? `${n0(mean(rs.map((r) => r.population?.daysUnder ?? 0)))} / ${n0(mean(rs.map((r) => r.population?.daysOver ?? 0)))}; ${n0(mean(rs.map((r) => r.population?.retired ?? 0)))} / ${n0(mean(rs.map((r) => r.population?.woundDown ?? 0)))} / ${n0(mean(rs.map((r) => r.population?.entered ?? 0)))}`
+        : "off"],
+    ["Sinks/faucets by quarter (operating)", (rs) => {
+      const n = Math.min(...rs.map((r) => r.cycleQuarters.length));
+      return Array.from({ length: n }, (_, i) => pct(mean(rs.map((r) => r.cycleQuarters[i]!.sinkFaucetRatio)))).join(" ");
+    }],
+    ["Join wave: newcomers / bought a first truck (median days; within 84 days) / liquidated at least once", (rs) =>
+      rs.some((r) => r.wave)
+        ? `${n0(mean(rs.map((r) => r.wave?.companies ?? 0)))} / ${n0(mean(rs.map((r) => r.wave?.bought ?? 0)))} (${n0(mean(rs.map((r) => r.wave?.medianDays ?? NaN)))}; ${n0(mean(rs.map((r) => r.wave?.within84 ?? 0)))}) / ${n0(mean(rs.map((r) => r.wave?.liquidated ?? 0)))}`
+        : "none"],
+    ["Prudence, owner-operators: mean wealth (share liquidated), conservative / random / greedy", strat("oo")],
+    ["Prudence, fleets: mean wealth (share liquidated), conservative / random / greedy", strat("fleet")],
+  ];
+}
+
+function factoringRows(): Row[] {
+  type F = NonNullable<Run["factoring"]>;
+  const has = (rs: Run[]) => rs.filter((r) => r.factoring).map((r) => r.factoring!);
+  const m = (rs: Run[], f: (x: F) => number) => mean(has(rs).map(f));
+  const total = (r: Run) => Object.values(r.sinksByTag).reduce((s, v) => s + v, 0);
+  return [
+    ["Operating sinks, all tags (FD)", (rs) => range(rs.map(total), fd)],
+    ["Sinks: factoring discounts / insurance / surety / NPC lessor's share", (rs) => ["factoring_fee", "insurance", "surety", "npc_lease"].map((t) => fd(mean(rs.map((r) => r.sinksByTag[t] ?? 0)))).join(" / ")],
+    ["Factoring discounts' share of operating sinks", (rs) => range(rs.map((r) => (r.sinksByTag["factoring_fee"] ?? 0) / Math.max(1, total(r))), (x) => `${(x * 100).toFixed(1)}%`)],
+    ["Factoring: carriers / brokers that signed; contracts signed / renewed / lapsed", (rs) => (has(rs).length ? `${n0(m(rs, (x) => x.signers.carriers))} / ${n0(m(rs, (x) => x.signers.brokers))}; ${n0(m(rs, (x) => x.contracts.signed))} / ${n0(m(rs, (x) => x.contracts.renewals))} / ${n0(m(rs, (x) => x.contracts.lapses))}` : "n/a")],
+    ["Factoring: carriers' first signing by fleet, 1 / 2 / 3-5 / 6-10 / 11-20 / 21+ trucks", (rs) => (has(rs).length ? ["1", "2", "3-5", "6-10", "11-20", "21+"].map((b) => n0(m(rs, (x) => x.firstSignByFleet[b] ?? 0))).join(" / ") : "n/a")],
+    ["Factoring: invoices factored, carriers / brokers (FD)", (rs) => (has(rs).length ? `${fd(m(rs, (x) => x.invoicesFd.carriers))} / ${fd(m(rs, (x) => x.invoicesFd.brokers))}` : "n/a")],
+    ["Factoring: discounts paid, carriers / brokers (FD); carriers' mean rate", (rs) => (has(rs).length ? `${fd(m(rs, (x) => x.feesFd.carriers))} / ${fd(m(rs, (x) => x.feesFd.brokers))}; ${(100 * m(rs, (x) => x.feesFd.carriers) / Math.max(1, m(rs, (x) => x.invoicesFd.carriers))).toFixed(2)}%` : "n/a")],
+    ["Starters: bought a first truck / had it running / signed within 30 days of its first day", (rs) => (has(rs).length ? `${n0(m(rs, (x) => x.starters.bought))} / ${n0(m(rs, (x) => x.starters.inService ?? 0))} / ${n0(m(rs, (x) => x.starters.signedWithin30))} (${pct(m(rs, (x) => x.starters.signedWithin30) / Math.max(1, m(rs, (x) => x.starters.inService ?? x.starters.bought)))})` : "n/a")],
+    ["One-truck owners liquidated after buying: signed at one truck / never signed", (rs) => (has(rs).length ? `${n0(m(rs, (x) => x.oneTruck.signersLiquidated))} of ${n0(m(rs, (x) => x.oneTruck.signers))} (${pct(m(rs, (x) => x.oneTruck.signersLiquidated) / Math.max(1, m(rs, (x) => x.oneTruck.signers)))}) / ${n0(m(rs, (x) => x.oneTruck.othersLiquidated))} of ${n0(m(rs, (x) => x.oneTruck.others))} (${pct(m(rs, (x) => x.oneTruck.othersLiquidated) / Math.max(1, m(rs, (x) => x.oneTruck.others)))})` : "n/a")],
+    ["Broker AP cap: tenders a broker passed up / of them no broker could take (to the open board) / bids and bookings refused", (rs) => (has(rs).length ? `${n0(m(rs, (x) => x.brokerCap.tendersCapped))} / ${n0(m(rs, (x) => x.brokerCap.tendersToBoard ?? 0))} / ${n0(m(rs, (x) => x.brokerCap.bookingsCapped))}` : "n/a")],
+    ["Broker bonds: paid for broker paper (to the NPC factor or lessor) / NPC paper unpaid / paid from an overdraft / posted at end", (rs) => (has(rs).length ? `${fd(m(rs, (x) => x.brokerCap.bondPaidFd))} (${fd(m(rs, (x) => x.brokerCap.bondToNpcFd))}) / ${fd(m(rs, (x) => x.brokerCap.uncoveredFd))} / ${fd(m(rs, (x) => x.brokerCap.overdraftFd))} / ${fd(m(rs, (x) => x.brokerCap.bondEndFd))}` : "n/a")],
+    ["NPC freight delivered: brokered / direct loads; carrier pay per mile", (rs) => (has(rs).length ? `${n0(m(rs, (x) => x.brokered.loads))} / ${n0(m(rs, (x) => x.direct.loads))}; ${m(rs, (x) => x.brokered.payPerMile).toFixed(2)} / ${m(rs, (x) => x.direct.payPerMile).toFixed(2)}` : "n/a")],
+  ];
+}
 
 console.log(`| Measure | ${dirs.join(" | ")} |`);
 console.log(`|---|${dirs.map(() => "---").join("|")}|`);

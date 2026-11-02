@@ -53,3 +53,4 @@ export * from "./staking.js";
 export * from "./types.js";
 export * from "./wear.js";
 export * from "./world.js";
+export * from "./population.js";

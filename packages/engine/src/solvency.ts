@@ -14,7 +14,8 @@ import type { Company } from "./types.js";
 import { trailerValue, truckValue } from "./dealer.js";
 import { forfeitAirdrop } from "./token.js";
 import { releaseStake } from "./staking.js";
-import { releaseContractStakes } from "./receivables.js";
+import { bondHeld, factoringLog, paperOpen, releaseContractStakes } from "./receivables.js";
+import { holdsRestart, retireCompany } from "./population.js";
 import { releaseYard } from "./items.js";
 import { releaseBusinesses } from "./businesses.js";
 import { createTruck, freshPaperwork, newSafetyRecord, type World } from "./world.js";
@@ -54,7 +55,7 @@ export function chargeHoldingCost(w: World): void {
 export function checkSolvency(w: World): void {
   const { insolvency } = w.cfg;
   for (const c of w.companies) {
-    if (c.liquidatingSince !== null) continue;
+    if (c.liquidatingSince !== null || c.retiredDay !== undefined) continue; // a carrier the population dial retired has left the market
     c.weeksInDebt = w.ledger.balance(companyAccount(c.id)) < -insolvency.debtLimitFd ? c.weeksInDebt + 1 : 0;
     if (c.weeksInDebt >= insolvency.weeksInDebt) startLiquidation(w, c);
   }
@@ -66,13 +67,21 @@ export function checkSolvency(w: World): void {
  * Its trucks are fire-sold as they come off the road.
  */
 export function startLiquidation(w: World, c: Company): void {
+  // The factoring log (payment terms): who went under, and with how many owned trucks.
+  if (w.cfg.token.payment.enabled) {
+    let owned = 0;
+    for (const t of w.trucksByCompany.get(c.id) ?? []) if (t.lease === "owned") owned++;
+    factoringLog(w).liquidations.push({ companyId: c.id, day: dayOf(w.t, w.cfg), ownedTrucks: owned });
+  }
   c.liquidatingSince = dayOf(w.t, w.cfg);
   c.suspendedOrders = c.orders;
   c.orders = [];
   releaseContractStakes(w, c); // contract stakes go first to the pool holding the company's paper
   releaseYard(w, c); // the yard is lost; its bond comes back for the creditors
   releaseBusinesses(w, c); // the businesses close; their bonds come back for the creditors
-  releaseStake(w, c); // the licence stake pays creditors before anything else
+  // The licence stake pays creditors before anything else; under the factoring contract a broker's stays its bond
+  // until the paper it backs is paid (processLiquidations releases it then).
+  if (!bondHeld(w, c)) releaseStake(w, c);
   for (const o of w.leaseOffers) if (o.status === "open" && o.lessorId === c.id) o.status = "withdrawn"; // assets: no new leases
   withdrawSalesOf(w, c); // …and nothing it listed for sale sells now
   for (const t of w.trucksByCompany.get(c.id)!) w.manualBids.delete(t.id);
@@ -101,7 +110,7 @@ export function processLiquidations(w: World): void {
   const { insolvency } = w.cfg;
   const today = dayOf(w.t, w.cfg);
   for (const c of w.companies) {
-    if (c.liquidatingSince === null) continue;
+    if (c.liquidatingSince === null || c.retiredDay !== undefined) continue;
     const fleet = w.trucksByCompany.get(c.id)!;
     for (const t of [...fleet]) {
       // Extra leases go back to the lessor as soon as they're idle; so does a player lessor's tractor.
@@ -138,6 +147,14 @@ export function processLiquidations(w: World): void {
     const trailersLeft = w.cfg.assets.enabled && (trailersOf(w, c.id).some((tr) => tr.lease === "owned") || w.trucks.some((t) => t.lessorId === c.id && leasedOut(t) && t.status !== "retired"));
     const done =
       !fleet.some((t) => t.lease !== "npc") && !trailersLeft && ordersOf(w, c.id).length === 0 && c.openBrokerLoads === 0 && today - c.liquidatingSince >= insolvency.restartAfterDays;
+    // A broker's bond stays behind its paper until the last invoice is paid (token.payment.factoring.contract).
+    if (done && bondHeld(w, c) && paperOpen(w, c.id)) continue;
+    if (done && bondHeld(w, c)) releaseStake(w, c);
+    // The population dial (population.ts): under the floor a bot that went under leaves the market instead of restarting.
+    if (done && holdsRestart(w, c)) {
+      retireCompany(w, c, "held");
+      continue;
+    }
     // A revoked authority waits out its bar; new authority comes with the restart (dailySafety).
     if (done && c.authority.status !== "revoked") restart(w, c);
   }

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { economyConfig as cfg, type EconomyConfig } from "@lanes/config";
+import { economyConfig as cfg, withLiveLevers, type EconomyConfig } from "@lanes/config";
 import { buildNetwork, hubs, neutralFeeds, syntheticCassCycle, PLACE_OF_HUB, PLACE_ROWS } from "@lanes/data";
 import { populate, ruleBotHook } from "@lanes/agents";
 import {
@@ -72,6 +72,20 @@ import {
   reloadFactor,
   expectedReloadDeadheadMi,
   tripCost,
+  factoringRate,
+  brokerApFd,
+  bookingCapBlock,
+  apCapBlock,
+  brokerBooks,
+  CIRCULAR_BURNS,
+  BURN_TAGS,
+  processLiquidations,
+  bandState,
+  dailyPopulationDial,
+  dialState,
+  lockSlash,
+  activeLocks,
+  noteDiscount,
   type Load,
   type TruckSpec,
   type World,
@@ -3637,5 +3651,485 @@ describe("the first bid by hand (sprint 1, 2026-11-02): a one-truck company's st
     runDays(off, 2, ruleBotHook);
     expect(off.companies.every((c) => c.firstHandBidDay === null)).toBe(true);
     expect(off.companies.filter((c) => c.freePath && c.bidStats.wins > 0).length).toBeGreaterThan(0);
+  });
+});
+
+describe("the factoring contract (Jeff, 2026-11-02): three months over the whole fleet, priced by the fleet, every discount a sink; a broker's payables within its bond", () => {
+  const k = calm.token.payment.factoring.contract;
+  const withContract = (contract: Partial<typeof k> = {}): EconomyConfig => ({
+    ...calm,
+    token: {
+      ...calm.token,
+      staking: { ...calm.token.staking, enabled: true },
+      pools: { ...calm.token.pools, enabled: true }, // on, as in the live levers: the contract stands them down
+      payment: { ...calm.token.payment, enabled: true, factoring: { ...calm.token.payment.factoring, contract: { ...k, enabled: true, ...contract } } },
+    },
+  });
+  const on = withContract();
+  const broker = (w: World, name = "Broker") => formCompany(w, { name, role: "broker", homeHubId: "DAL", strategy: "test", orders: [], freePath: false });
+  const today = (w: World) => dayOf(w.t, w.cfg);
+
+  it("runs three full game months from signing, can't be left early, lapses at its end unless renewed, and a renewal re-reads the fleet", () => {
+    const w = createWorld({ cfg: on, net, feeds: neutralFeeds, seed: 61, keepLedgerEntries: true });
+    const c = carrier(w);
+    fund(w, c.id, 500_000);
+    addTruck(w, c, "owned", "workhorse", "van");
+    const term = k.months * on.time.daysPerMonth;
+    expect(term).toBe(90);
+    expect(applyAction(w, c.id, { type: "set_pay_terms", terms: "factor" })).toEqual({ ok: true });
+    expect(c.factoring).toMatchObject({ until: term, stakeFd: 0, rate: 0.06, trucks: 1, renew: false });
+    expect(w.ledger.balance(contractAccount(c.id))).toBe(0); // no stake behind it
+    // No early exit: asking for net only says what to lapse into.
+    expect(applyAction(w, c.id, { type: "set_pay_terms", terms: "net" })).toEqual({ ok: true });
+    expect(c.factoring).not.toBeNull();
+    expect(c.payTerms).toBe("factor");
+    runDays(w, term - 1);
+    expect(today(w)).toBe(term - 1);
+    expect(c.factoring).not.toBeNull();
+    runDays(w, 1);
+    expect(c.factoring).toBeNull();
+    expect(c.payTerms).toBe("net");
+    // Signed again, then asked to renew; four more trucks join before the term ends, and the renewal prices them.
+    expect(applyAction(w, c.id, { type: "set_pay_terms", terms: "factor" })).toEqual({ ok: true });
+    const end = c.factoring!.until;
+    expect(applyAction(w, c.id, { type: "set_pay_terms", terms: "factor" })).toEqual({ ok: true });
+    expect(c.factoring!.renew).toBe(true);
+    for (let i = 0; i < 4; i++) addTruck(w, c, "owned", "workhorse", "van");
+    expect(c.factoring!.rate).toBe(0.06); // fixed for the term
+    runDays(w, end - today(w) + 1);
+    expect(c.factoring).toMatchObject({ until: end + term, trucks: 5, renew: false });
+    expect(c.factoring!.rate).toBeCloseTo(factoringRate(w, 5), 12);
+    const log = w.factoringLog!;
+    expect(log.contracts.map((x) => x.renewal)).toEqual([false, false, true]);
+    expect(log.lapses).toBe(1);
+  });
+
+  it("prices a carrier by its fleet, 6% at one truck down a straight line to a 2.5% floor at fifty, and a broker at a flat 5%", () => {
+    const w = createWorld({ cfg: on, net, feeds: neutralFeeds, seed: 62 });
+    expect(factoringRate(w, 0)).toBe(0.06);
+    expect(factoringRate(w, 1)).toBe(0.06);
+    expect(factoringRate(w, 25.5)).toBeCloseTo(0.0425, 12);
+    expect(factoringRate(w, 50)).toBeCloseTo(0.025, 12);
+    expect(factoringRate(w, 80)).toBeCloseTo(0.025, 12);
+    for (let n = 1; n < 60; n++) expect(factoringRate(w, n + 1)).toBeLessThanOrEqual(factoringRate(w, n));
+    expect((factoringRate(w, 1) - factoringRate(w, 2)) * 100).toBeCloseTo(3.5 / 49, 10); // about 0.071 points a truck
+    const b = broker(w);
+    expect(applyAction(w, b.id, { type: "set_pay_terms", terms: "factor" })).toEqual({ ok: true });
+    expect(b.factoring!.rate).toBe(0.05);
+  });
+
+  it("factors every invoice of the whole fleet on delivery, a truck added mid-term too, and the discount is a sink that refills the reserve, never a burn", () => {
+    const w = createWorld({ cfg: on, net, feeds: neutralFeeds, seed: 63, keepLedgerEntries: true });
+    const c = carrier(w);
+    fund(w, c.id, 100_000);
+    addTruck(w, c, "owned", "workhorse", "van");
+    expect(applyAction(w, c.id, { type: "set_pay_terms", terms: "factor" })).toEqual({ ok: true });
+    const later = addTruck(w, c, "owned", "workhorse", "van");
+    // Quick pay is closed while the contract runs: asking for it only sets the terms to lapse into.
+    expect(applyAction(w, c.id, { type: "set_pay_terms", terms: "quick" })).toEqual({ ok: true });
+    const before = w.ledger.balance(companyAccount(c.id));
+    bill(w, { payer: 0, faucet: "faucet:npc_shipper", payee: c, amountFd: 10_000, ref: "load:test", truckId: later.id });
+    expect(w.ledger.balance(companyAccount(c.id)) - before).toBeCloseTo(9_400, 2);
+    expect(w.ledger.balance("sink:factoring_fee")).toBeCloseTo(600, 2);
+    expect(w.receivables.at(-1)).toMatchObject({ holder: HOLDER_NPC_FACTOR, amountFd: 10_000 });
+    expect(w.factoringLog!.contracts[0]).toMatchObject({ invoicesFd: 10_000, feesFd: 600 });
+    // Not whole-fleet: a truck added after signing waits for its due day.
+    const some = createWorld({ cfg: withContract({ wholeFleet: false }), net, feeds: neutralFeeds, seed: 63 });
+    const s = carrier(some);
+    addTruck(some, s, "owned", "workhorse", "van");
+    expect(applyAction(some, s.id, { type: "set_pay_terms", terms: "factor" })).toEqual({ ok: true });
+    const extra = addTruck(some, s, "owned", "workhorse", "van");
+    bill(some, { payer: 0, faucet: "faucet:npc_shipper", payee: s, amountFd: 10_000, ref: "load:test", truckId: extra.id });
+    expect(some.receivables.at(-1)).toMatchObject({ holder: s.id });
+    // In the circular economy the discount goes where the lessor's share goes: back to the reserve, nothing burned.
+    expect(CIRCULAR_BURNS.has("sink:factoring_fee") || BURN_TAGS.has("sink:factoring_fee")).toBe(false);
+    const l = new Ledger(true, { enabled: true, capFd: 1_000_000, shares: { reserve: 0.6, pool: 0.025, airdrop: 0.023 } });
+    l.post(0, "faucet:npc_factor", "co:1", 10_000, "load:1");
+    l.post(0, "co:1", "sink:factoring_fee", 600, "load:1");
+    l.post(0, "co:1", "sink:npc_lease", 1_500, "load:2");
+    expect(l.reserve()).toBe(600_000 - 10_000 + 600 + 1_500);
+    expect(l.burned()).toBe(0);
+    w.ledger.assertBalanced();
+  });
+
+  it("stands the pools down: the NPC insurer writes at its own price into its sink, and no pool takes deposits", () => {
+    const w = createWorld({ cfg: on, net, feeds: neutralFeeds, seed: 64, keepLedgerEntries: true });
+    const c = carrier(w);
+    fund(w, c.id, 2_000_000);
+    addTruck(w, c, "owned", "workhorse", "van");
+    expect(applyAction(w, c.id, { type: "deposit_pool", line: "insurance", amountFd: 1_000_000 })).toEqual({ ok: false, reason: "pools aren't open" });
+    const plain = { ...on, token: { ...on.token, pools: { ...on.token.pools, enabled: false } } };
+    const base = quote(createWorld({ cfg: plain, net, feeds: neutralFeeds, seed: 64 }), c).annualPerTruck;
+    signPolicy(w, c, "rewrite");
+    expect(c.insurance.writer).toBe("npc");
+    expect(c.insurance.annualPerTruck).toBeCloseTo(base, 6); // no backstop markup: there is no pool to be thin
+    runDays(w, 7);
+    expect(w.ledger.balance("sink:insurance")).toBeGreaterThan(0);
+    expect(w.ledger.balance(poolAccount("insurance"))).toBe(0);
+  });
+
+  it("never buys a player shipper's paper: a shipper that defaults leaves its carrier unpaid and the factor out of it", () => {
+    const w = createWorld({ cfg: on, net, feeds: neutralFeeds, seed: 65, keepLedgerEntries: true });
+    const c = carrier(w);
+    addTruck(w, c, "owned", "workhorse", "van");
+    expect(applyAction(w, c.id, { type: "set_pay_terms", terms: "factor" })).toEqual({ ok: true });
+    const shipper = carrier(w, "Shipper");
+    bill(w, { payer: shipper.id, payee: c, amountFd: 8_000, ref: "load:shipper" });
+    expect(w.receivables.at(-1)).toMatchObject({ holder: c.id, payer: shipper.id });
+    shipper.liquidatingSince = 0;
+    w.receivables.at(-1)!.dueDay = 0;
+    const before = w.ledger.balance(companyAccount(c.id));
+    dailyReceivables(w);
+    expect(w.ledger.balance(companyAccount(c.id))).toBe(before);
+    expect(w.ledger.entries.some((e) => e.from === "faucet:npc_factor")).toBe(false);
+  });
+
+  it("caps a broker's accounts payable at its posted bond: a booking past it is refused with the reason, a post past it passes the broker by, and the bond can't be pulled under it", () => {
+    const w = createWorld({ cfg: on, net, feeds: neutralFeeds, seed: 66, keepLedgerEntries: true });
+    const b = broker(w);
+    fund(w, b.id, 100_000);
+    expect(applyAction(w, b.id, { type: "stake_fd", fd: 75_000 })).toEqual({ ok: true });
+    const c = carrier(w);
+    // 70k owed to carriers on delivered loads: 5k of room under the bond.
+    w.receivables.push({ id: w.nextReceivableId++, payer: b.id, payeeId: c.id, amountFd: 70_000, dueDay: 30, holder: c.id });
+    expect(brokerApFd(w, b.id)).toBe(70_000);
+    const lane = net.lanes.find((l) => l.miles > 400 && l.miles < 600)!;
+    const load = { ...testLoad(w, lane), brokerId: b.id };
+    w.loads.set(load.id, load);
+    const big = 6_000 / lane.miles;
+    expect(bookingCapBlock(w, load, big)).toMatch(/can't owe carriers more than its posted bond/);
+    expect(w.factoringLog!.bookingsCapped).toBe(1);
+    expect(bookingCapBlock(w, load, 4_000 / lane.miles)).toBeNull();
+    // A post counts what is open on the board too: this load, open at its ceiling, plus a new one past the room.
+    const books = brokerBooks(w);
+    expect(books.get(b.id)!.postedFd).toBeCloseTo(load.ceiling * lane.miles, 6);
+    expect(apCapBlock(w, b, books.get(b.id), 75_000 - 70_000 - load.ceiling * lane.miles + 1, true)).not.toBeNull();
+    expect(apCapBlock(w, b, books.get(b.id), 75_000 - 70_000 - load.ceiling * lane.miles - 1, true)).toBeNull();
+    // The bond backs the payables: no unstaking under them.
+    expect(applyAction(w, b.id, { type: "unstake_fd", fd: 10_000, instant: false })).toEqual({ ok: false, reason: "your bond backs what you owe carriers: pay it down first" });
+    expect(applyAction(w, b.id, { type: "unstake_fd", fd: 4_000, instant: false })).toEqual({ ok: true });
+    // Off, there's no cap.
+    const off = createWorld({ cfg: calm, net, feeds: neutralFeeds, seed: 66 });
+    const ob = broker(off);
+    const ol = { ...testLoad(off, lane), brokerId: ob.id };
+    expect(bookingCapBlock(off, ol, 1_000)).toBeNull();
+  });
+
+  it("holds every broker's payables within its bond while the bots run the world, and settles their paper without a faucet", () => {
+    const w = createWorld({ cfg: on, net, feeds: neutralFeeds, seed: 67, keepLedgerEntries: true });
+    populate(w, { freeOwnerOperators: 60, fleets: 12, brokers: 4 });
+    for (let d = 0; d < 45; d++) {
+      runDays(w, 1, ruleBotHook);
+      for (const c of w.companies) if (c.role === "broker" && c.liquidatingSince === null) expect(brokerApFd(w, c.id)).toBeLessThanOrEqual(c.stakedFd + 0.01);
+    }
+    const log = w.factoringLog!;
+    expect(log.uncoveredFd).toBe(0);
+    expect(log.overdraftFd).toBe(0);
+    // Owned-truck carriers sign when thin; the discounts they paid are the sink's whole balance.
+    const fees = log.contracts.reduce((s, x) => s + x.feesFd, 0);
+    expect(log.contracts.length).toBeGreaterThan(0);
+    expect(Math.abs(w.ledger.balance("sink:factoring_fee") - fees)).toBeLessThan(1); // the ledger rounds each entry to the cent
+    w.ledger.assertBalanced();
+  });
+
+  it("makes the NPC factor whole from a defaulting broker's bond first, then its carriers, and holds the bond through the liquidation until the paper is paid", () => {
+    const w = createWorld({ cfg: on, net, feeds: neutralFeeds, seed: 68, keepLedgerEntries: true });
+    const b = broker(w);
+    fund(w, b.id, 60_000);
+    expect(applyAction(w, b.id, { type: "stake_fd", fd: 60_000 })).toEqual({ ok: true });
+    const drain = (x: World, id: number) => x.ledger.post(x.t, companyAccount(id), "sink:fuel", Math.max(0, x.ledger.balance(companyAccount(id))), "test");
+    drain(w, b.id); // broke: nothing but the bond to pay with
+    const c1 = carrier(w, "Net carrier");
+    const c2 = carrier(w, "Factored carrier");
+    // The carrier's own paper falls due first in the list; the factor's 50k beside it. The bond is 60k, short of the 70k.
+    w.receivables.push({ id: w.nextReceivableId++, payer: b.id, payeeId: c1.id, amountFd: 20_000, dueDay: 0, holder: c1.id });
+    w.receivables.push({ id: w.nextReceivableId++, payer: b.id, payeeId: c2.id, amountFd: 50_000, dueDay: 0, holder: HOLDER_NPC_FACTOR });
+    startLiquidation(w, b);
+    expect(b.stakedFd).toBe(60_000); // the bond stays behind the paper
+    expect(w.ledger.balance(stakeAccount(b.id))).toBe(60_000);
+    const c1Before = w.ledger.balance(companyAccount(c1.id));
+    dailyReceivables(w);
+    expect(w.ledger.balance("sink:npc_factor")).toBeCloseTo(50_000, 2); // the factor first, in full
+    expect(w.ledger.balance(companyAccount(c1.id)) - c1Before).toBeCloseTo(10_000, 2); // the carrier gets what's left
+    expect(b.stakedFd).toBeCloseTo(0, 6);
+    const log = w.factoringLog!;
+    expect(log.bondToNpcFd).toBeCloseTo(50_000, 2);
+    expect(log.uncoveredFd).toBe(0);
+    expect(w.receivables).toHaveLength(0);
+    // With the paper paid, the liquidation can finish and the broker restart.
+    b.liquidatingSince = -on.insolvency.restartAfterDays;
+    processLiquidations(w);
+    expect(b.liquidatingSince).toBeNull();
+    // Within the cap the bond covers all of it: a 75k bond against 70k of paper pays every holder in full.
+    const w2 = createWorld({ cfg: on, net, feeds: neutralFeeds, seed: 68, keepLedgerEntries: true });
+    const b2 = broker(w2);
+    fund(w2, b2.id, 75_000);
+    expect(applyAction(w2, b2.id, { type: "stake_fd", fd: 75_000 })).toEqual({ ok: true });
+    drain(w2, b2.id);
+    const d1 = carrier(w2, "Net carrier");
+    const d1Before = w2.ledger.balance(companyAccount(d1.id));
+    w2.receivables.push({ id: w2.nextReceivableId++, payer: b2.id, payeeId: d1.id, amountFd: 20_000, dueDay: 0, holder: d1.id });
+    w2.receivables.push({ id: w2.nextReceivableId++, payer: b2.id, payeeId: d1.id, amountFd: 50_000, dueDay: 0, holder: HOLDER_NPC_FACTOR });
+    startLiquidation(w2, b2);
+    dailyReceivables(w2);
+    expect(w2.ledger.balance("sink:npc_factor")).toBeCloseTo(50_000, 2);
+    expect(w2.ledger.balance(companyAccount(d1.id)) - d1Before).toBeCloseTo(20_000, 2);
+    expect(b2.stakedFd).toBeCloseTo(5_000, 6);
+    w.ledger.assertBalanced();
+    w2.ledger.assertBalanced();
+  });
+});
+
+describe("the population dial (Jeff, 2026-11-02): the ratio held in a band by the simulated carriers, never by freight or money", () => {
+  const dial = (d: Partial<EconomyConfig["population"]["dial"]> = {}, base: EconomyConfig = calm): EconomyConfig => ({
+    ...base,
+    population: { ...base.population, dial: { ...base.population.dial, enabled: true, ...d } },
+  });
+  /** A day closed with this many loads posted against this many trucks on the road (the dial reads nothing else). */
+  const closeWith = (w: World, day: number, posted: number, trucks: number) => {
+    w.metrics.days.push({ ...(w.metrics.days.at(-1) ?? ({} as never)), day, posted, trucksInService: trucks } as never);
+    dailyPopulationDial(w, day);
+  };
+
+  it("reads the window's mean against the band, and only once the window is full and the opening is past", () => {
+    expect(bandState(0.49, [0.5, 1.2])).toBe("under");
+    expect(bandState(0.5, [0.5, 1.2])).toBe("within");
+    expect(bandState(1.2, [0.5, 1.2])).toBe("within");
+    expect(bandState(1.21, [0.5, 1.2])).toBe("over");
+    const w = createWorld({ cfg: dial({ windowDays: 7, startDay: 10, band: [0.5, 1.2] }), net, feeds: neutralFeeds, seed: 71 });
+    // A deep slump from day 0: nothing before day 10, however low the ratio.
+    for (let d = 0; d < 10; d++) closeWith(w, d, 300, 1_000);
+    expect(dialState(w)).toBe("within");
+    closeWith(w, 10, 300, 1_000);
+    expect(dialState(w)).toBe("under");
+    expect(w.population!.mean).toBeCloseTo(0.3, 12);
+    // Good days lift the mean back slowly, as the window turns over: (5 × 0.3 + 2 × 0.9) / 7 = 0.47, then 0.56.
+    for (let d = 11; d < 13; d++) closeWith(w, d, 900, 1_000);
+    expect(dialState(w)).toBe("under");
+    closeWith(w, 13, 900, 1_000);
+    expect(dialState(w)).toBe("within");
+    expect(w.population!.daysUnder).toBe(3);
+    // A boom: over the ceiling once the window's mean passes 1.2, (3 × 0.9 + 4 × 1.5) / 7 = 1.24 on the fourth day.
+    for (let d = 14; d < 17; d++) closeWith(w, d, 1_500, 1_000);
+    expect(dialState(w)).toBe("within");
+    closeWith(w, 17, 1_500, 1_000);
+    expect(dialState(w)).toBe("over");
+    expect(w.population!.daysOver).toBe(1);
+    // Off, the state is always within and nothing is kept.
+    const off = createWorld({ cfg: calm, net, feeds: neutralFeeds, seed: 71 });
+    for (let d = 0; d < 20; d++) closeWith(off, d, 100, 1_000);
+    expect(dialState(off)).toBe("within");
+    expect(off.population).toBeUndefined();
+  });
+
+  it("under the floor a bot that went under leaves the market instead of restarting, with no debt written off; inside the band it restarts as before", () => {
+    const run = (state: "under" | "within") => {
+      const w = createWorld({ cfg: dial({ startDay: 0 }), net, feeds: neutralFeeds, seed: 72, keepLedgerEntries: true });
+      populate(w, { freeOwnerOperators: 4, fleets: 0, brokers: 0 });
+      const c = w.companies.find((x) => x.role === "carrier")!;
+      w.ledger.post(w.t, companyAccount(c.id), "sink:fuel", w.ledger.balance(companyAccount(c.id)) + 10_000, "test"); // 10k in the red
+      startLiquidation(w, c);
+      c.liquidatingSince = -on_restartAfter();
+      w.population = { daily: [], mean: 0, state, retired: 0, woundDown: 0, entered: 0, daysUnder: 0, daysOver: 0 };
+      processLiquidations(w);
+      return { w, c };
+    };
+    const on_restartAfter = () => calm.insolvency.restartAfterDays;
+    const held = run("under");
+    expect(held.c.retiredDay).toBe(0);
+    expect(held.c.liquidatingSince).not.toBeNull(); // never restarted
+    expect(held.w.trucksByCompany.get(held.c.id)!.filter((t) => t.status !== "retired")).toHaveLength(0);
+    expect(held.w.ledger.entries.some((e) => e.from === "faucet:bankruptcy_writeoff")).toBe(false);
+    expect(held.w.ledger.balance(companyAccount(held.c.id))).toBeLessThan(0); // the debt stays on its books
+    expect(held.w.population!.retired).toBe(1);
+    // A player is never held, whatever the dial reads.
+    const back = run("within");
+    expect(back.c.retiredDay).toBeUndefined();
+    expect(back.c.liquidatingSince).toBeNull();
+    expect(back.w.ledger.entries.some((e) => e.from === "faucet:bankruptcy_writeoff")).toBe(true);
+  });
+
+  it("acts slowly on the bots alone: over the ceiling a few entrants a week on the free path with no grant, under the floor a few of the weakest wind down and leave", () => {
+    // A band the world never leaves on its own, so only the states set here act.
+    const k = { startDay: 0, entrantsPerWeek: 3, windDownPerWeek: 2, band: [0, 1e9] as const };
+    const w = createWorld({ cfg: dial(k), net, feeds: neutralFeeds, seed: 73, keepLedgerEntries: true });
+    populate(w, { freeOwnerOperators: 20, fleets: 4, brokers: 1 });
+    const player = formCompany(w, { name: "Player", role: "carrier", homeHubId: "DAL", strategy: "player:test", orders: [], freePath: true, human: true });
+    const grants = () => w.ledger.entries.filter((e) => e.from === "faucet:starting_grant").length;
+    const before = { companies: w.companies.length, grants: grants() };
+    w.population = { daily: [], mean: 2, state: "over", retired: 0, woundDown: 0, entered: 0, daysUnder: 0, daysOver: 0 };
+    ruleBotHook(w, 0);
+    expect(w.companies.length - before.companies).toBe(3);
+    expect(grants()).toBe(before.grants); // the entrants mint nothing
+    const entrants = w.companies.slice(before.companies);
+    expect(entrants.every((c) => c.freePath && w.trucksByCompany.get(c.id)!.some((t) => t.lease === "npc"))).toBe(true);
+    runDays(w, 1);
+    ruleBotHook(w, dayOf(w.t, w.cfg)); // not a dial day: nothing more
+    expect(w.companies.length - before.companies).toBe(3);
+    // Under the floor: the losing bots wind down, two a week at most; the player never.
+    runDays(w, 62, ruleBotHook);
+    for (const c of w.companies) if (c.role === "carrier") c.operating.costFd += 1e6; // every carrier deep in the red on its books
+    runDays(w, 14, ruleBotHook);
+    runDays(w, 7 - (dayOf(w.t, w.cfg) % 7));
+    expect(dayOf(w.t, w.cfg) % 7).toBe(0);
+    w.population!.state = "under";
+    ruleBotHook(w, dayOf(w.t, w.cfg));
+    const winding = w.companies.filter((c) => c.windingDownDay !== undefined);
+    expect(winding.length).toBeLessThanOrEqual(2);
+    expect(winding.length).toBeGreaterThan(0);
+    expect(winding.every((c) => c.orders.length === 0 && !c.human)).toBe(true);
+    expect(player.windingDownDay).toBeUndefined();
+    // They leave as their trucks come home: leases handed back, owned trucks for sale, then retired.
+    w.population!.state = "within";
+    runDays(w, 30, ruleBotHook);
+    expect(winding.some((c) => c.retiredDay !== undefined)).toBe(true);
+    for (const c of winding.filter((x) => x.retiredDay !== undefined)) expect(w.trucksByCompany.get(c.id)!.filter((t) => t.status !== "retired" && t.status !== "parked")).toHaveLength(0);
+    w.ledger.assertBalanced();
+  });
+
+  it("adds no faucet: with the dial on and the ratio inside its band the world, reserve and all, runs exactly as with it off", () => {
+    const live = withLiveLevers(calm);
+    const runWith = (c: EconomyConfig) => {
+      const w = createWorld({ cfg: c, net, feeds: neutralFeeds, seed: 74 });
+      populate(w, { freeOwnerOperators: 40, fleets: 8, brokers: 2 });
+      runDays(w, 30, ruleBotHook);
+      return w;
+    };
+    const off = runWith(live);
+    const on = runWith(dial({ startDay: 0, windowDays: 7, band: [0, 1e9] }, live));
+    expect(on.population!.state).toBe("within");
+    expect(on.metrics.days.map((d) => d.reserveFd)).toEqual(off.metrics.days.map((d) => d.reserveFd));
+    expect([...on.ledger.totals.entries()]).toEqual([...off.ledger.totals.entries()]);
+    expect(on.population!.daily.length).toBe(7);
+  });
+});
+
+describe("staking locks (Jeff, 2026-11-02): truck prices are the entry fee, a stake earns its discount by its term, and leaving early burns a slash", () => {
+  const locks: EconomyConfig = {
+    ...calm,
+    token: { ...calm.token, staking: { ...calm.token.staking, enabled: true, lockDiscounts: { ...calm.token.staking.lockDiscounts, enabled: true } } },
+  };
+  const tiered: EconomyConfig = { ...calm, token: { ...calm.token, staking: { ...calm.token.staking, enabled: true } } };
+
+  it("drops the truck and facility tiers: no stake needed past five trucks; the broker licence stake stays", () => {
+    const w = createWorld({ cfg: locks, net, feeds: neutralFeeds, seed: 81 });
+    const c = carrier(w);
+    fund(w, c.id, 500_000);
+    for (let i = 0; i < 5; i++) addTruck(w, c, "owned", "workhorse", "van");
+    expect(truckCap(w, c)).toBe(locks.company.maxTrucks);
+    expect(applyAction(w, c.id, { type: "buy_asset", tier: "workhorse", trailer: "van", replaceNpcLease: false })).toEqual({ ok: true });
+    const t = createWorld({ cfg: tiered, net, feeds: neutralFeeds, seed: 81 });
+    const d = carrier(t);
+    fund(t, d.id, 500_000);
+    for (let i = 0; i < 5; i++) addTruck(t, d, "owned", "workhorse", "van");
+    expect(applyAction(t, d.id, { type: "buy_asset", tier: "workhorse", trailer: "van", replaceNpcLease: false })).toEqual({ ok: false, reason: "company truck cap" });
+    const b = formCompany(w, { name: "Broker", role: "broker", homeHubId: "DAL", strategy: "test", orders: [], freePath: false });
+    expect(brokerLicensed(w, b)).toBe(false);
+  });
+
+  it("gives the term's discount for the whole term, on running costs and purchases alike, until its budget is spent, and none after", () => {
+    const w = createWorld({ cfg: locks, net, feeds: neutralFeeds, seed: 82, keepLedgerEntries: true });
+    const c = carrier(w);
+    fund(w, c.id, 1_000_000);
+    expect(applyAction(w, c.id, { type: "stake_fd", fd: 4_000, months: 12 })).toEqual({ ok: false, reason: "a lock is at least 5000 FD" });
+    expect(applyAction(w, c.id, { type: "stake_fd", fd: 50_000, months: 2 })).toEqual({ ok: false, reason: "a lock runs 1, 3, 6, 12 game months" });
+    expect(applyAction(w, c.id, { type: "stake_fd", fd: 100_000, months: 12 })).toEqual({ ok: true });
+    const [lock] = activeLocks(w, c);
+    expect(lock).toMatchObject({ fd: 100_000, months: 12, rate: 0.12, budgetFd: 24_000, usedFd: 0, endDay: 360 });
+    expect(stakeDiscount(w, c)).toBe(0.12);
+    // A truck from the NPC dealer: 12% off its price, the saving against the lock's budget.
+    const list = dealerPrice(w, { tier: "workhorse", trailer: "van" });
+    const before = w.ledger.balance(companyAccount(c.id));
+    expect(applyAction(w, c.id, { type: "buy_asset", tier: "workhorse", trailer: "van", replaceNpcLease: false })).toEqual({ ok: true });
+    const paid = before - w.ledger.balance(companyAccount(c.id));
+    expect(paid).toBeCloseTo(list * 0.88 + salesTaxOn(w, list * 0.88), 2);
+    expect(lock!.usedFd).toBeCloseTo(list * 0.12, 2);
+    // The budget caps every discount: a minimum lock (budget 1,200) can't buy a truck at the full 12%.
+    const w3 = createWorld({ cfg: locks, net, feeds: neutralFeeds, seed: 87, keepLedgerEntries: true });
+    const e = carrier(w3);
+    fund(w3, e.id, 200_000);
+    expect(applyAction(w3, e.id, { type: "stake_fd", fd: 5_000, months: 12 })).toEqual({ ok: true });
+    const list3 = dealerPrice(w3, { tier: "flagship", trailer: "reefer" });
+    expect(list3 * 0.12).toBeGreaterThan(1_200);
+    const before3 = w3.ledger.balance(companyAccount(e.id));
+    expect(applyAction(w3, e.id, { type: "buy_asset", tier: "flagship", trailer: "reefer", replaceNpcLease: false })).toEqual({ ok: true });
+    expect(before3 - w3.ledger.balance(companyAccount(e.id))).toBeCloseTo(list3 - 1_200 + salesTaxOn(w3, list3 - 1_200), 2);
+    expect(activeLocks(w3, e)[0]!.usedFd).toBe(1_200);
+    expect(stakeDiscount(w3, e)).toBe(0);
+    // Spend the rest of the budget: then no discount, though the lock still runs.
+    noteDiscount(w, c, 1e9);
+    expect(lock!.usedFd).toBe(24_000);
+    expect(stakeDiscount(w, c)).toBe(0);
+    // At term end it matures into free stake (no roll asked), and leaves with no slash.
+    const w2 = createWorld({ cfg: locks, net, feeds: neutralFeeds, seed: 83, keepLedgerEntries: true });
+    const d = carrier(w2);
+    fund(w2, d.id, 100_000);
+    expect(applyAction(w2, d.id, { type: "stake_fd", fd: 50_000, months: 1 })).toEqual({ ok: true });
+    expect(stakeDiscount(w2, d)).toBe(0.03);
+    runDays(w2, 31);
+    expect(activeLocks(w2, d)).toHaveLength(0);
+    expect(stakeDiscount(w2, d)).toBe(0);
+    expect(applyAction(w2, d.id, { type: "unstake_fd", fd: 50_000, instant: false })).toEqual({ ok: true });
+    expect(w2.ledger.balance("sink:lock_slash")).toBe(0);
+  });
+
+  it("burns a slash of twice the discounts taken plus a tenth of the lock when it is left early, and only when asked to break it", () => {
+    const w = createWorld({ cfg: locks, net, feeds: neutralFeeds, seed: 84, keepLedgerEntries: true });
+    const c = carrier(w);
+    fund(w, c.id, 200_000);
+    expect(applyAction(w, c.id, { type: "stake_fd", fd: 50_000, months: 3 })).toEqual({ ok: true });
+    const [lock] = activeLocks(w, c);
+    noteDiscount(w, c, 1_000); // 1,000 FD of discounts taken (the budget is 4% of 50k: 2,000)
+    expect(lock!.usedFd).toBe(1_000);
+    expect(lockSlash(w, lock!)).toBeCloseTo(2 * 1_000 + 0.1 * 50_000, 6);
+    const refused = applyAction(w, c.id, { type: "unstake_fd", fd: 50_000, instant: false });
+    expect(refused.ok).toBe(false);
+    expect(c.stakedFd).toBe(50_000);
+    expect(applyAction(w, c.id, { type: "unstake_fd", fd: 50_000, instant: false, breakLocks: true })).toEqual({ ok: true });
+    expect(w.ledger.balance("sink:lock_slash")).toBeCloseTo(7_000, 2);
+    expect(c.stakedFd).toBeCloseTo(0, 6);
+    expect(c.unstaking.reduce((s, e) => s + e.fd, 0)).toBeCloseTo(43_000, 2); // the rest leaves through the queue
+    // Breaking never pays: at any term, with the whole budget taken, the slash exceeds the discount.
+    for (const [months, , share] of locks.token.staking.lockDiscounts.terms) {
+      const l = { id: 1, fd: 100_000, months, startDay: 0, endDay: 1, rate: 0, budgetFd: 100_000 * share, usedFd: 100_000 * share, roll: false };
+      expect(lockSlash(w, l)).toBeGreaterThan(l.usedFd);
+    }
+    // The slash is a burn: in the circular economy it leaves the cap, unlike the factor's fee.
+    expect(CIRCULAR_BURNS.has("sink:lock_slash") && BURN_TAGS.has("sink:lock_slash")).toBe(true);
+    const l = new Ledger(true, { enabled: true, capFd: 1_000_000, shares: { reserve: 0.6, pool: 0.025, airdrop: 0.023 } });
+    l.post(0, "faucet:npc_shipper", "co:stake:1", 10_000, "load:1");
+    l.post(0, "co:stake:1", "sink:lock_slash", 7_000, "lock:1:1");
+    expect(l.burned()).toBe(7_000);
+    w.ledger.assertBalanced();
+  });
+
+  it("breaks locks soonest-ending first until the FD asked for is free, and never unstakes FD still under a lock", () => {
+    const w = createWorld({ cfg: locks, net, feeds: neutralFeeds, seed: 86, keepLedgerEntries: true });
+    const c = carrier(w);
+    fund(w, c.id, 100_000);
+    expect(applyAction(w, c.id, { type: "stake_fd", fd: 7_400, months: 3 })).toEqual({ ok: true });
+    runDays(w, 1);
+    expect(applyAction(w, c.id, { type: "stake_fd", fd: 6_500, months: 3 })).toEqual({ ok: true });
+    // 6,000: breaking the first lock frees 7,400 less its slash (740), enough; the second stays, still fully staked.
+    expect(applyAction(w, c.id, { type: "unstake_fd", fd: 6_000, instant: true, breakLocks: true })).toEqual({ ok: true });
+    expect(activeLocks(w, c)).toHaveLength(1);
+    expect(c.stakedFd).toBeCloseTo(13_900 - 740 - 6_000, 2);
+    expect(c.stakedFd).toBeGreaterThanOrEqual(6_500 - 0.01); // what is still locked is still staked
+    // 1,000 more: only 660 is free, so the second lock breaks too (its slash 650) and the 1,000 leaves.
+    expect(applyAction(w, c.id, { type: "unstake_fd", fd: 1_000, instant: true, breakLocks: true })).toEqual({ ok: true });
+    expect(activeLocks(w, c)).toHaveLength(0);
+    expect(c.stakedFd).toBeCloseTo(7_160 - 650 - 1_000, 2);
+    expect(w.ledger.balance("sink:lock_slash")).toBeCloseTo(740 + 650, 2);
+    w.ledger.assertBalanced();
+  });
+
+  it("changes nothing with the switch off: the tiers gate, and their discounts apply", () => {
+    const w = createWorld({ cfg: tiered, net, feeds: neutralFeeds, seed: 85 });
+    const c = carrier(w);
+    fund(w, c.id, 200_000);
+    expect(applyAction(w, c.id, { type: "stake_fd", fd: 20_000, months: 12 })).toEqual({ ok: false, reason: "stakes aren't locked for a term" });
+    expect(applyAction(w, c.id, { type: "stake_fd", fd: 20_000 })).toEqual({ ok: true });
+    expect(stakeDiscount(w, c)).toBe(0.05);
+    expect(truckCap(w, c)).toBe(10);
   });
 });

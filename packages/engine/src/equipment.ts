@@ -6,7 +6,7 @@
 import { clamp, fuelPrice } from "./economics.js";
 import { companyAccount } from "./ledger.js";
 import { winterNow } from "./safety.js";
-import { stakeDiscount } from "./staking.js";
+import { lockCost, stakeDiscount } from "./staking.js";
 import type { Company, Load, Truck } from "./types.js";
 import type { World } from "./world.js";
 
@@ -15,7 +15,7 @@ export function reeferUnit(w: World, c: Company, minutes: number, ref: string): 
   const ops = w.cfg.equipmentOps;
   const gal = (minutes / 60) * ops.reeferUnitGalPerHour;
   if (gal <= 0) return;
-  const fd = gal * fuelPrice(w) * (1 - stakeDiscount(w, c));
+  const fd = lockCost(w, c, gal * fuelPrice(w), () => gal * fuelPrice(w) * (1 - stakeDiscount(w, c)));
   c.fuelGalMonth += gal;
   if (fd > 0.005) w.ledger.post(w.t, companyAccount(c.id), "sink:reefer_fuel", fd, ref);
   c.operating.costFd += fd;

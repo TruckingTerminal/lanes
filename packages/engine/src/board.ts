@@ -10,6 +10,7 @@ import { creditDispatch, dispatchProfile, startHomeTime } from "./labor.js";
 import { companyAccount } from "./ledger.js";
 import { bidsFromStandingOrders, boardKey, canMakeHot, dockWaitCost, indexOpenLoads, scoreBid, desperation, estimateBreakEven, resting, trackingWouldShow, needsHome, homeward, hardCap, floorRate, lookaheadValue, ordersWaitForHand } from "./standingOrders.js";
 import { startLoading } from "./trips.js";
+import { bookingCapBlock, brokerBooks, contractOn, type BrokerBook } from "./receivables.js";
 import { setSlot } from "./docks.js";
 import type { Bid, Company, Load, StandingOrder, Truck } from "./types.js";
 import { companyById, crewed, hubHours, hubMiles, truckById, type World, placeHours, placeMiles, placeOfHub, placeLegMiles } from "./world.js";
@@ -64,9 +65,12 @@ export function runBoardRound(w: World): RoundResult {
   const rebrokered: [Company, Load, Extract<StandingOrder, { kind: "rebroker" }>][] = [];
   let cleared = 0;
   let clearedRateSum = 0;
+  // The AP cap (token.payment.factoring.contract): a broker's load clears only within what its bond covers.
+  const books = contractOn(w) ? brokerBooks(w) : undefined;
   for (const bid of bids) {
     const load = w.loads.get(bid.loadId)!;
     if (load.status !== "open" || truckTaken.has(bid.truckId)) continue;
+    if (books && bookingCapBlock(w, load, bid.rate, books)) continue;
     truckTaken.add(bid.truckId);
     assign(w, load, truckById(w, bid.truckId), bid);
     companyById(w, bid.companyId).bidStats.wins++;
@@ -222,7 +226,7 @@ function rollover(w: World, load: Load): void {
  * book-now). The caller has checked ownership, vetting and the hot-load rule;
  * this checks what can change under it and assigns.
  */
-export function bookLoad(w: World, company: Company, truck: Truck, load: Load, deadheadMi: number, manual: boolean, rate = load.bookNow): string | null {
+export function bookLoad(w: World, company: Company, truck: Truck, load: Load, deadheadMi: number, manual: boolean, rate = load.bookNow, books?: Map<number, BrokerBook>): string | null {
   if (load.status !== "open") return "that load is gone";
   if (truck.status !== "idle" || !crewed(truck)) return "the truck isn't idle with a driver";
   if (truck.trailer !== load.equipment) return "wrong trailer";
@@ -230,6 +234,9 @@ export function bookLoad(w: World, company: Company, truck: Truck, load: Load, d
   if (!mayTake(w, company, load)) return load.tenderedTo ? "that load is tendered to another carrier" : "local shippers only for now";
   settleTender(w, company, load);
   if (!(rate > 0)) return "that load has no book-now price";
+  // The AP cap: a booking that would push the load's broker past its bond is refused.
+  const capped = bookingCapBlock(w, load, rate, books);
+  if (capped) return capped;
   w.manualBids.delete(truck.id);
   assign(w, load, truck, { loadId: load.id, truckId: truck.id, companyId: company.id, rate, deadheadMi, score: 0, tiebreak: 0 });
   company.bidStats.truckRounds++;
@@ -247,8 +254,9 @@ export function bookLoad(w: World, company: Company, truck: Truck, load: Load, d
  */
 export function autoBook(w: World): void {
   // Contract tenders first: honoured at the contract rate.
+  const books = contractOn(w) ? brokerBooks(w) : undefined;
   for (const t of autoTenders(w)) {
-    if (acceptTender(w, t.company, t.load, t.truck) === null && bookLoad(w, t.company, t.truck, t.load, t.dh, false, t.rate) === null) creditDispatch(w, t.company);
+    if (acceptTender(w, t.company, t.load, t.truck) === null && bookLoad(w, t.company, t.truck, t.load, t.dh, false, t.rate, books) === null) creditDispatch(w, t.company);
   }
   const idx = indexOpenLoads(w);
   if (idx.size === 0) return;
@@ -291,7 +299,7 @@ export function autoBook(w: World): void {
           if (!best || profit > best.profit || (profit === best.profit && load.id < best.load.id)) best = { load, dh, profit };
         }
       }
-      if (best && bookLoad(w, company, truck, best.load, best.dh, false) === null) creditDispatch(w, company);
+      if (best && bookLoad(w, company, truck, best.load, best.dh, false, undefined, books) === null) creditDispatch(w, company);
     }
   }
 }

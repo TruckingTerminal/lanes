@@ -4,7 +4,7 @@ import { depositorValue } from "./finance.js";
 import { companyAccount } from "./ledger.js";
 import type { DayMetrics } from "./metrics.js";
 import type { LaunchRecord } from "./types.js";
-import type { World } from "./world.js";
+import { operatingTrucks, type World } from "./world.js";
 
 export interface QuarterReport {
   season: number;
@@ -85,6 +85,39 @@ export interface RunReport {
    */
   /** Hired robbers (robbery.ts): crews hired and their fees, hits, rigs chopped, cargo taken, what the hirers were paid, and the security fittings bought. */
   robbery?: { hires: number; hits: number; rigsTaken: number; cargoTakenFd: number; takePaidFd: number; feesFd: number; fittingsFd: number; fencePaidFd: number; chopPaidFd: number; resaleFd: number; bountiesPostedFd: number; bountiesPaidFd: number; victimsPaidFd: number; stakesLockedFd: number; caught: number; talked: number; gaveUp: number; investigations: number; convictions: number; finesFd: number; suspensions: number; yardSecurityFd: number; lessorWaivedFd: number; heatOver: number; heatMax: number; yardsSecured: number };
+  /**
+   * Factoring while payment terms are on (receivables.ts; the contract when token.payment.factoring.contract is on):
+   * who signed and at what fleet, what was factored and the discounts paid (a sink), the starters who signed within
+   * 30 days of their first truck, liquidations of one-truck owners that signed against those that never did, the
+   * brokers' AP cap and bond at work, and brokered against direct NPC freight.
+   */
+  factoring?: {
+    contract: boolean;
+    signers: { carriers: number; brokers: number };
+    contracts: { signed: number; renewals: number; lapses: number };
+    /** Carriers' first signings by operating trucks then. */
+    firstSignByFleet: Record<string, number>;
+    invoicesFd: { carriers: number; brokers: number };
+    feesFd: { carriers: number; brokers: number };
+    /** Carriers' terms by fleet at signing: contracts, invoices factored, discounts paid. */
+    byTrucks: Record<string, { contracts: number; invoicesFd: number; feesFd: number }>;
+    /** Free starters that bought a first truck, had it running, and signed within 30 days of its first day on the road. */
+    starters: { bought: number; inService: number; signedWithin30: number };
+    oneTruck: { signers: number; signersLiquidated: number; others: number; othersLiquidated: number };
+    brokerCap: { tendersCapped: number; tendersToBoard: number; bookingsCapped: number; bondPaidFd: number; bondToNpcFd: number; uncoveredFd: number; overdraftFd: number; bondEndFd: number };
+    brokered: { loads: number; payPerMile: number };
+    direct: { loads: number; payPerMile: number };
+  };
+  /** The population dial (population.ts): its band, what it did, and the days it sat outside the band. */
+  population?: { dial: boolean; band: readonly [number, number]; retired: number; woundDown: number; entered: number; daysUnder: number; daysOver: number };
+  /** Carriers by starting segment and strategy at the end: companies, mean wealth, the share liquidated at least once, mean operating result. */
+  byStrategy?: Record<string, Record<string, { companies: number; wealthFd: number; liquidatedShare: number; operatingFd: number }>>;
+  /** Staking locks (token.staking.lockDiscounts): locks made by term, what became of them, the discounts given and the slashes burned. */
+  locks?: { made: Record<string, { locks: number; fd: number }>; rolled: number; matured: number; broken: number; discountsFd: number; slashedFd: number; brokenDiscountsFd: number; lockedEndFd: number };
+  /** Fleet sizes at the end: carriers running more than 5, 10 and 20 trucks, and the largest fleet. */
+  fleets?: { over5: number; over10: number; over20: number; largest: number };
+  /** The join wave's newcomers (population.wave): how many, how many bought a first truck and in how many days (median), and how many went under. */
+  wave?: { companies: number; bought: number; medianDays: number | null; within84: number; liquidated: number };
   truckMoney?: {
     leaseDepositsEndFd: number;
     loansMadeFd: number;
@@ -283,6 +316,70 @@ export interface TokenReport {
 /** Companies younger than this don't enter the strategy table. */
 const STRATEGY_MIN_DAYS = 180;
 
+function factoringReport(w: World): RunReport["factoring"] {
+  const fl = w.factoringLog;
+  if (!fl) return undefined;
+  const firstSign = new Map<number, (typeof fl.contracts)[number]>();
+  for (const k of fl.contracts) if (!k.renewal && !firstSign.has(k.companyId)) firstSign.set(k.companyId, k);
+  const carriersSigned = [...firstSign.values()].filter((k) => !k.broker);
+  const band = (n: number) => (n <= 1 ? "1" : n === 2 ? "2" : n <= 5 ? "3-5" : n <= 10 ? "6-10" : n <= 20 ? "11-20" : "21+");
+  const firstSignByFleet: Record<string, number> = {};
+  for (const k of carriersSigned) firstSignByFleet[band(k.trucks)] = (firstSignByFleet[band(k.trucks)] ?? 0) + 1;
+  const byTrucks: Record<string, { contracts: number; invoicesFd: number; feesFd: number }> = {};
+  const invoicesFd = { carriers: 0, brokers: 0 };
+  const feesFd = { carriers: 0, brokers: 0 };
+  for (const k of fl.contracts) {
+    const side = k.broker ? "brokers" : "carriers";
+    invoicesFd[side] += k.invoicesFd;
+    feesFd[side] += k.feesFd;
+    if (k.broker) continue;
+    const b = (byTrucks[String(k.trucks)] ??= { contracts: 0, invoicesFd: 0, feesFd: 0 });
+    b.contracts++;
+    b.invoicesFd += k.invoicesFd;
+    b.feesFd += k.feesFd;
+  }
+  const liquidatedAfter = (id: number, day: number) => fl.liquidations.some((l) => l.companyId === id && l.day >= day);
+  const owners = w.companies.filter((c) => c.role === "carrier" && c.firstOwnedTruckDay !== null);
+  const starters = owners.filter((c) => c.freePath);
+  const running = starters.filter((c) => fl.firstInService[c.id] !== undefined);
+  const signedWithin30 = running.filter((c) => {
+    const k = firstSign.get(c.id);
+    const from = fl.firstInService[c.id]!;
+    return k !== undefined && k.day >= from && k.day <= from + 30;
+  }).length;
+  const atOne = owners.filter((c) => firstSign.get(c.id)?.trucks === 1);
+  const never = owners.filter((c) => !firstSign.has(c.id));
+  const perMile = (s: { payFd: number; miles: number }) => (s.miles > 0 ? s.payFd / s.miles : 0);
+  return {
+    contract: w.cfg.token.payment.factoring.contract.enabled,
+    signers: { carriers: carriersSigned.length, brokers: [...firstSign.values()].filter((k) => k.broker).length },
+    contracts: { signed: fl.contracts.filter((k) => !k.renewal).length, renewals: fl.contracts.filter((k) => k.renewal).length, lapses: fl.lapses },
+    firstSignByFleet,
+    invoicesFd,
+    feesFd,
+    byTrucks,
+    starters: { bought: starters.length, inService: running.length, signedWithin30 },
+    oneTruck: {
+      signers: atOne.length,
+      signersLiquidated: atOne.filter((c) => liquidatedAfter(c.id, c.firstOwnedTruckDay!)).length,
+      others: never.length,
+      othersLiquidated: never.filter((c) => liquidatedAfter(c.id, c.firstOwnedTruckDay!)).length,
+    },
+    brokerCap: {
+      tendersCapped: fl.tendersCapped,
+      tendersToBoard: fl.tendersToBoard,
+      bookingsCapped: fl.bookingsCapped,
+      bondPaidFd: fl.bondPaidFd,
+      bondToNpcFd: fl.bondToNpcFd,
+      uncoveredFd: fl.uncoveredFd,
+      overdraftFd: fl.overdraftFd,
+      bondEndFd: w.companies.filter((c) => c.role === "broker").reduce((s, c) => s + c.stakedFd, 0),
+    },
+    brokered: { loads: fl.brokered.loads, payPerMile: perMile(fl.brokered) },
+    direct: { loads: fl.direct.loads, payPerMile: perMile(fl.direct) },
+  };
+}
+
 export function buildReport(w: World): RunReport {
   const { cfg } = w;
   const k = cfg.killCriteria;
@@ -474,6 +571,32 @@ export function buildReport(w: World): RunReport {
     segCounts[seg] = (segCounts[seg] ?? 0) + 1;
   });
   for (const seg of Object.keys(avgBySegment)) avgBySegment[seg]! /= segCounts[seg]!;
+  // Prudence (Jeff, 2026-11-02: "players who are prudent businessmen win in the long run"): by segment and strategy.
+  const byStrategy: NonNullable<RunReport["byStrategy"]> = {};
+  counted.forEach((c, i) => {
+    if (c.role !== "carrier") return;
+    const [seg, strat] = c.strategy.split(":") as [string, string | undefined];
+    if (!strat || (seg !== "oo" && seg !== "fleet" && seg !== "wave")) return;
+    const b = ((byStrategy[seg] ??= {})[strat] ??= { companies: 0, wealthFd: 0, liquidatedShare: 0, operatingFd: 0 });
+    b.companies++;
+    b.wealthFd += wealthAll[i]!;
+    b.liquidatedShare += c.bankruptcies > 0 ? 1 : 0;
+    b.operatingFd += c.operating.revenueFd - c.operating.costFd;
+  });
+  for (const seg of Object.values(byStrategy)) for (const b of Object.values(seg)) {
+    b.wealthFd /= b.companies;
+    b.liquidatedShare /= b.companies;
+    b.operatingFd /= b.companies;
+  }
+  const waveCos = w.companies.filter((c) => c.strategy.startsWith("wave:"));
+  const waveDays = waveCos.filter((c) => c.firstOwnedTruckDay !== null).map((c) => c.firstOwnedTruckDay! - c.createdDay).sort((a, b) => a - b);
+  const wave: RunReport["wave"] = waveCos.length
+    ? { companies: waveCos.length, bought: waveDays.length, medianDays: waveDays.length * 2 >= waveCos.length ? waveDays[Math.floor(waveCos.length / 2)] ?? null : null, within84: waveDays.filter((d) => d <= 84).length, liquidated: waveCos.filter((c) => c.bankruptcies > 0).length }
+    : undefined;
+  const ps = w.population;
+  const population: RunReport["population"] = cfg.population.dial.enabled
+    ? { dial: true, band: cfg.population.dial.band, retired: ps?.retired ?? 0, woundDown: ps?.woundDown ?? 0, entered: ps?.entered ?? 0, daysUnder: ps?.daysUnder ?? 0, daysOver: ps?.daysOver ?? 0 }
+    : undefined;
   const sortedWealth = wealthAll.map((x) => Math.max(0, x)).sort((a, b) => b - a);
   const totalWealth = sum(sortedWealth) || 1;
   const topShare = (frac: number) => sum(sortedWealth.slice(0, Math.max(1, Math.round(sortedWealth.length * frac)))) / totalWealth;
@@ -563,6 +686,15 @@ export function buildReport(w: World): RunReport {
       heatMax: Math.max(0, ...w.companies.map((c) => c.heat ?? 0)),
       yardsSecured: w.companies.filter((c) => c.yardSecurity && Object.values(c.yardSecurity).some(Boolean)).length,
     },
+    factoring: factoringReport(w),
+    population,
+    byStrategy,
+    wave,
+    locks: w.lockStats ? { ...w.lockStats, lockedEndFd: w.companies.reduce((s, c) => s + (c.locks ?? []).filter((l) => l.endDay > (days.at(-1)?.day ?? 0)).reduce((a, l) => a + l.fd, 0), 0) } : undefined,
+    fleets: (() => {
+      const sizes = w.companies.filter((c) => c.role === "carrier").map((c) => operatingTrucks(w, c.id));
+      return { over5: sizes.filter((n) => n > 5).length, over10: sizes.filter((n) => n > 10).length, over20: sizes.filter((n) => n > 20).length, largest: Math.max(0, ...sizes) };
+    })(),
     truckMoney: {
       leaseDepositsEndFd: days.at(-1)?.leaseDepositsFd ?? 0,
       loansMadeFd: w.purchaseLending.madeFd,

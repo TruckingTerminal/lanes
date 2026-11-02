@@ -225,9 +225,28 @@ export interface Company {
   /** Payment terms (receivables.ts): wait for the due day, take quick pay, or factor the invoice. */
   payTerms: "net" | "quick" | "factor";
   /** The factoring contract in force: its term and the stake locked behind it (receivables.ts). */
-  factoring: { until: number; stakeFd: number } | null;
+  factoring: {
+    until: number;
+    stakeFd: number;
+    /**
+     * The contract (token.payment.factoring.contract): the discount per invoice, fixed for the term; the fleet it was set
+     * by; whether it renews at term (else it lapses into `thenTerms`, net by default); the trucks it covers when it isn't
+     * whole-fleet; and its line in the world's factoring log.
+     */
+    rate?: number;
+    trucks?: number;
+    renew?: boolean;
+    thenTerms?: "net" | "quick";
+    truckIds?: number[];
+    log?: number;
+  } | null;
   /** The deductible stake behind a pool-written insurance policy (insurance.ts). */
   insuranceStakeFd: number;
+  /** Staking locks (token.staking.lockDiscounts; staking.ts): FD locked for a term at its discount, with the discounts it has given. */
+  locks?: StakeLock[];
+  /** The population dial (population.ts): the day a simulated carrier began to wind down, and the day it left the market. */
+  windingDownDay?: number;
+  retiredDay?: number;
   /** The payment record behind the credit score (credit.ts): invoices paid with cash in hand, and from an overdraft or never. */
   credit: { onTimeFd: number; lateFd: number };
   /** Carriers: the lowest broker credit this company hauls for. */
@@ -290,6 +309,62 @@ export type ItemKind = "yardSmall" | "yardLarge" | "trailerSpace" | TruckMod | Y
 export type PoolLine = "insurance" | "factoring" | "surety";
 
 /** Freight pay owed under payment terms (receivables.ts): who pays, who is owed, and who holds the paper. */
+/**
+ * The factoring log (receivables.ts), kept while payment terms are on: every contract signed or renewed (the old
+ * one-year contract too) with what it factored and the discounts it paid, the brokers' bond at work, and each
+ * liquidation with the owned trucks it took, for the report.
+ */
+export interface FactoringLog {
+  contracts: { companyId: number; day: number; trucks: number; rate: number; renewal: boolean; broker: boolean; invoicesFd: number; feesFd: number }[];
+  lapses: number;
+  /** Broker tenders some broker had to pass up at its posted bond (the AP cap), those no broker could take (they went to the open board), and bids and bookings refused on brokers' loads. */
+  tendersCapped: number;
+  tendersToBoard: number;
+  bookingsCapped: number;
+  /** Brokers' paper paid from the bond because their cash couldn't, and the part of it that went to the NPC factor or lessor. */
+  bondPaidFd: number;
+  bondToNpcFd: number;
+  /** NPC-held paper (the factor's, the lessor's) its broker never paid, and paid from an overdraft: the faucet the cap closes. */
+  uncoveredFd: number;
+  overdraftFd: number;
+  /** Brokered and direct loads delivered, and their pay to the carrier (for the brokered-freight check). */
+  brokered: { loads: number; payFd: number; miles: number };
+  direct: { loads: number; payFd: number; miles: number };
+  liquidations: { companyId: number; day: number; ownedTrucks: number }[];
+  /** The day each company first ran an owned truck (an ordered one counts from its delivery). */
+  firstInService: Record<number, number>;
+  /** The last day a broker heard it was at its bond, so the notice comes once a day. */
+  capNoticeDay: Record<number, number>;
+}
+
+/** A staking lock (staking.ts): `fd` locked from `startDay` to `endDay` at `rate` off, up to `budgetFd` of discounts over the term. */
+export interface StakeLock {
+  id: number;
+  fd: number;
+  months: number;
+  startDay: number;
+  endDay: number;
+  rate: number;
+  budgetFd: number;
+  usedFd: number;
+  roll: boolean;
+}
+
+/** The population dial's state (population.ts), kept while it is on. */
+export interface PopulationState {
+  /** The last `windowDays` days' loads posted per truck in service. */
+  daily: number[];
+  /** Their mean, and where it sits against the band. */
+  mean: number;
+  state: "within" | "under" | "over";
+  /** Bot carriers held from a restart (retired), wound down, and entered; with the days the dial sat under and over the band. */
+  retired: number;
+  woundDown: number;
+  entered: number;
+  daysUnder: number;
+  daysOver: number;
+}
+
 export interface Receivable {
   id: number;
   /** Company id, or 0 for an NPC payer drawing on `faucet`. */
@@ -929,8 +1004,8 @@ export type Action =
   /** The bridge (token.bridge): takes back the withdrawals still waiting, for the cancel burn. */
   | { type: "cancel_withdrawal" }
   | { type: "sell_fd"; fd: number }
-  | { type: "stake_fd"; fd: number }
-  | { type: "unstake_fd"; fd: number; instant: boolean }
+  | { type: "stake_fd"; fd: number; months?: number; roll?: boolean }
+  | { type: "unstake_fd"; fd: number; instant: boolean; breakLocks?: boolean }
   | { type: "deposit_pool"; line: PoolLine; amountFd: number }
   | { type: "withdraw_pool"; line: PoolLine; amountFd: number }
   | { type: "set_pay_terms"; terms: "net" | "quick" | "factor" }

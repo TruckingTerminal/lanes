@@ -5,7 +5,7 @@ import { dayOf } from "./clock.js";
 import { facilitiesOf } from "./demand.js";
 import { returnPoolCashToDepositors } from "./finance.js";
 import { companyAccount } from "./ledger.js";
-import { contractAccount } from "./receivables.js";
+import { callBond, contractAccount } from "./receivables.js";
 import { exitAccount, stakeAccount } from "./staking.js";
 import { workingCapital } from "./solvency.js";
 import type { Company } from "./types.js";
@@ -499,6 +499,9 @@ export function launchToken(w: World): void {
   returnPoolCashToDepositors(w);
   let resetBurnedFd = 0;
   let lockedFd = 0;
+  // Under the factoring contract a broker's bond pays its paper before the reset takes it (the NPC factor's first),
+  // so what it pays its carriers is beta FD like the rest of their wallets.
+  for (const c of w.companies) callBond(w, c);
   for (const c of w.companies) {
     const acct = companyAccount(c.id);
     const balance = w.ledger.balance(acct);
@@ -526,6 +529,7 @@ export function launchToken(w: World): void {
     }
     c.stakedFd = 0;
     c.unstaking = [];
+    c.locks = []; // locks are beta FD too
     c.tierGraceDay = null;
     if (c.factoring) {
       c.factoring = null;
@@ -863,7 +867,9 @@ export function averagePriceUsd(w: World, days: number): number {
 
 /** Monthly, after launch: NPC freight grows with the carrier base, so new players find freight to haul. */
 export function scaleDemand(w: World): void {
-  if (!w.cfg.token.demandScalesWithCarriers || w.token.baseCarriers === 0) return;
+  // Under the population dial NPC freight stays on its base path: the dial moves the carriers to the freight, so the
+  // freight must not follow the carriers (it would hold the ratio still and grow the faucet with every sign-up).
+  if (!w.cfg.token.demandScalesWithCarriers || w.token.baseCarriers === 0 || w.cfg.population.dial.enabled) return;
   const carriers = w.companies.filter((c) => c.role === "carrier" && c.liquidatingSince === null).length;
   w.demandScale = Math.max(1, carriers / w.token.baseCarriers);
 }
