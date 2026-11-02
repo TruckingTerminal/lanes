@@ -1,4 +1,4 @@
-# Guidance strings (writer, draft 2, 2026-11-03; the director's gate W1–W4 applied)
+# Guidance strings (writer, draft 3, 2026-11-03; the director's gate W1–W5 applied)
 
 Jeff, 2026-11-02: "I need to make sure that Iuliia is guiding people every step of the way. As this is a true sim and very complex."
 
@@ -21,6 +21,8 @@ Short config keys used below:
 | `{gapCushionWeeks}` | `guide.gapCushionWeeks` (new; engineering's `guide.ts` reads the same key) |
 | `{cushionAvgWeeks}` | `guide.cushionAvgWeeks` (new; the same) |
 | `{restartAfterDays}` | `insolvency.restartAfterDays` |
+| `{priorLoads}` | `reputation.priorLoads` |
+| `{downLow}`–`{downHigh}`, `{rateLow}`–`{rateHigh}`, `{loanStake}` | `equipmentFinance.purchase.downShare`, `.weeklyRate`, `.stakeShare` |
 
 ## 1. What now?
 
@@ -203,10 +205,10 @@ One entry per figure key. `what` and `moves` are the writer's; `how` is engineer
 | Key | What it is | How it's computed | What moves it |
 |---|---|---|---|
 | `standing.miles` | Your standing in the beta: loaded miles hauled this season. | Every loaded mile delivered. Empty miles don't count. | Hauling, and hauling loaded. |
-| `standing.reputation` | How shippers and brokers rate you. | Your on-time record, claims and service, weighted to the recent. | Deliver on time; avoid claims. |
+| `standing.reputation` | How shippers and brokers rate you. | Your lifetime on-time share, smoothed by `{priorLoads}` loads at the starting value so one load can't swing it. | Delivering on time. Nothing else moves it. |
 | `standing.onTime` | The share of your loads delivered by the appointment. | Loads on time, divided by loads delivered. | Plan for hours, docks and weather. |
 | `intel.creditBand` | Your credit, A best to E worst. | Paying from cash in hand, authority age, open claims, bankruptcies, revocations, and cover for what you owe. | Pay from cash, not overdraft; time; no claims; keep cash and stake above what you owe. |
-| `intel.safetyBand` | Your safety rating from inspections and reviews. | Violations found at inspections and audits over two years. | Rested drivers, maintained trucks, no speeding. |
+| `intel.safetyBand` | Your safety rating from inspections and reviews. | Violations at inspections and audits over two years, recent ones counting more, plus crashes per truck. | Rested drivers, maintained trucks, no speeding, no crashes. |
 | `intel.insuranceBand` | How much your record adds to your premium. | Your at-fault surcharge: clean, surcharged or heavily surcharged. | Fewer crashes and claims; it eases with time. |
 
 **On another company's Intel card** (W2): third person, and no inputs, ever. The "how" row is left out; only what it is and what moves it.
@@ -214,7 +216,7 @@ One entry per figure key. `what` and `moves` are the writer's; `how` is engineer
 | Key | What it is | What moves it |
 |---|---|---|
 | `intel.creditBand.other` | A company's credit, A best to E worst. | Paying from cash in hand, its authority's age, claims, and cover for what it owes. |
-| `intel.safetyBand.other` | A company's safety rating from inspections and reviews. | Violations found at inspections and audits. |
+| `intel.safetyBand.other` | A company's safety rating from inspections and reviews. | Violations found at inspections and audits, and crashes, recent ones counting most. |
 | `intel.insuranceBand.other` | How much a company's record adds to its premium. | Its crashes and claims; the surcharge eases with time. |
 
 ### Toward a truck
@@ -223,8 +225,9 @@ One entry per figure key. `what` and `moves` are the writer's; `how` is engineer
 |---|---|---|---|
 | `truck.leaseDeposit` | Money held back from your lease loads, toward your own truck. | A share of each leased load, counted in full when you buy. | Every leased load adds to it. |
 | `truck.value` | What your owned truck would fetch today. | Its list price, less depreciation by age and miles. | Time, miles, condition and the make. |
-| `loan.downPayment` | What a purchase loan needs from you at signing. | A share of the price, set by your credit band. | A better credit band lowers it. |
-| `loan.rate` | What the loan costs each week on what's owed. | A weekly rate set by your credit band. | A better credit band lowers it. |
+| `loan.downPayment` | The share of the price you pay yourself on a purchase loan. | `{downLow}` to `{downHigh}` of the price: the better your credit score, the lower. | A better credit score, before you sign. |
+| `loan.cashNow` | The cash a purchase loan needs at signing. | Down payment, plus a stake of `{loanStake}` of the loan, locked until repaid, plus sales tax. | Your credit score, and the price you choose. |
+| `loan.rate` | What the loan costs each week on what's owed. | `{rateLow}` to `{rateHigh}` a week: the better your credit score at signing, the lower. | A better score lowers your next loan. A running loan's rate never changes. |
 | `finance.factoringRate` | The factor's share of every load under contract. | From your fleet size on the day you sign; fixed for the term. | More trucks at renewal lower it. |
 | `finance.quickPayFee` | The cost of being paid on delivery, one load at a time. | `{quickPayPct}` of the load. | Nothing: it's fixed. Use it for emergencies. |
 | `guide.gapToTruck` | How far you are from your next truck. | The cheapest truck's cash needed now, less your deposit and cash above `{gapCushionWeeks}` weeks of costs. | Hauling; cheaper trucks on the used lot. |
