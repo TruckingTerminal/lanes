@@ -9,7 +9,7 @@ export type TractorTier = "workhorse" | "highwayPro" | "flagship";
 export type FacilityType = "warehouse" | "coldStorage" | "factory";
 
 export const economyConfig = {
-  version: "0.20.0-phase0.33", // Republish (2026-11-02): the factoring contract and the population dial switched on in live.ts (token.demandScalesWithCarriers off with the dial); sprint 1 and beta one as before; the lock discounts still off
+  version: "0.20.1-phase0.34", // Patch (2026-11-02): a refused buy no longer releases the lease deposit (buy_listing and buy_asset run every check first); bot outcomes can change, so a restart; levers as 0.20.0
 
   // §World, map and time
   time: {

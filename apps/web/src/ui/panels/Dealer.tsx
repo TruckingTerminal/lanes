@@ -1,14 +1,13 @@
 import type { JSX } from "preact";
 import type { Equipment, FacilityType, TractorTier } from "@lanes/config";
-import { assetPriceUsd, availableSupply, companyAccount, condition, dealerPrice, deliveryDays, facilityOutlook, lessorTrucksOf, newPrice, openListings, ordersOf, tokenLive, truckValue } from "@lanes/engine";
+import { assetPriceUsd, availableSupply, listingBlock, companyAccount, condition, dealerPrice, deliveryDays, facilityOutlook, lessorTrucksOf, newPrice, openListings, ordersOf, tokenLive, truckValue } from "@lanes/engine";
 import { facilityUrl } from "../../art.js";
 import { SCENES } from "../../assets.js";
 import { FAC_NAME, fd, pct, signedPct, TIER_NAME, TRAILER_NAME, usd } from "../../format.js";
 import { act, me, myTrucks, S, useData } from "../../state.js";
-import { DEALER } from "../../copy.js";
 import { Btn, Card, Num, Panel, Pixel } from "../bits.js";
 import { Rig, Scene } from "../Loop.js";
-import { Showroom } from "./Showroom.js";
+import { Buy, Showroom } from "./Showroom.js";
 
 export function Dealer(): JSX.Element {
   useData();
@@ -55,12 +54,16 @@ export function Dealer(): JSX.Element {
                 </p>
               </div>
             </div>
-            <div class="row">
-              <Btn primary disabled={cash < l.askFd} onClick={() => act({ type: "buy_listing", listingId: l.id }, "Bought. It's yours, idle where it stands")}>
-                Buy today
-              </Btn>
-            </div>
-            {cash < l.askFd ? <p class="muted small">{DEALER.whyAsk(fd(cash), fd(l.askFd))}</p> : null}
+            {/* The same loan and deposit rules as the lot (QA's Dealer replay); the engine's own checks, cash aside, name any block. */}
+            <Buy
+              what={`${TIER_NAME[t.tier]} + ${TRAILER_NAME[t.trailer]}`}
+              label="Buy today"
+              price={l.askFd}
+              replacing={onLease}
+              block={listingBlock(w, c.id, l.id, Infinity)}
+              action={{ type: "buy_listing", listingId: l.id }}
+              ok="Bought. It's yours, idle where it stands"
+            />
           </Card>
         ))
       ) : (

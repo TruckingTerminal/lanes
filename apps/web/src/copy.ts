@@ -265,9 +265,9 @@ export const CAPTION = {
   next: "Next",
   hide: "Hide",
   more: "More",
-  /** The Iuliia tab's switch: mutes her tab-and-card lines, not the walkthrough's (iuliia-lines.md). Drafts for the writer. */
+  /** The Iuliia tab's switch: mutes her tab-and-card lines, not the walkthrough's (iuliia-lines.md; the writer's strings). */
   quiet: "Quiet",
-  quietNote: "Mutes her remarks on tabs and cards in this browser. Her walkthrough steps stay.",
+  quietNote: "Mutes Iuliia's remarks on tabs and cards, in this browser. Her walkthrough steps and What now? stay.",
 };
 
 /** The Truck tab (copy-first-ten-minutes.md, S6; copy-audit.md's rewrites). */

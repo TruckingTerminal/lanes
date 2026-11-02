@@ -15,7 +15,7 @@ import { dealerPrice, lotPrice, lotSpec, ordersOf, placeOrder, tractorOrdersOf, 
 import { fitTrailer, hook, hookedTrailer, ownedTrailers, rentTrailer, scrapTrailer, syncTrailer, trailerById, trailerCap, trailerCondition, trailerRefurbishable, unhook } from "./trailers.js";
 import { scrapOwnedTractor } from "./assets.js";
 import { dealershipPrice, npcDealerDays, npcDealerMult, sellFromStock, tradeIn } from "./dealerships.js";
-import { cancelPurchaseLoan, financedCashNeed, financePurchase } from "./purchaseLoans.js";
+import { cancelPurchaseLoan, financeBlock, financedCashNeed, financePurchase, purchaseTerms } from "./purchaseLoans.js";
 import { endPlayerLease, leasedOut, offerLease, takeLease, withdrawLeaseOffer } from "./playerLeases.js";
 import { buyAssetSale, listAssetSale, withdrawAssetSale } from "./assetSales.js";
 import { facilitiesOf, facilityEquipment } from "./demand.js";
@@ -24,7 +24,7 @@ import { companyAccount } from "./ledger.js";
 import { rebrokerLoad, stealLoad, vettingBlock } from "./fraud.js";
 import { finiteIn } from "./economics.js";
 import { offerStaff, releaseStaff, setPay, severance, startHomeTime } from "./labor.js";
-import { buyListing, listTrailer, listTruck, withdrawListing } from "./market.js";
+import { buyListing, listingBlock, listTrailer, listTruck, withdrawListing } from "./market.js";
 import { canRefile, notice } from "./safety.js";
 import { canMakeHot } from "./standingOrders.js";
 import { inCloseWindow } from "./season.js";
@@ -35,7 +35,7 @@ import { depositPool, withdrawPool } from "./pools.js";
 import { contractOn, endFactoring, setContractTerms, signFactoring } from "./receivables.js";
 import type { Action, RuleScope } from "./types.js";
 import { condition, rebuildable, rebuildCost } from "./wear.js";
-import { availableSupplyFor, companyById, crewed, hubMiles, invalidOrders, releaseDepositFor, seatDriver, staffById, syncFleet, takeSupplyFor, truckById, unseatDriver, type World, placeMiles, placeOfHub, placeLegMiles } from "./world.js";
+import { availableSupplyFor, companyById, crewed, depositCredit, hubMiles, invalidOrders, releaseDepositFor, seatDriver, staffById, syncFleet, takeSupplyFor, truckById, unseatDriver, type World, placeMiles, placeOfHub, placeLegMiles } from "./world.js";
 import type { EconomyConfig } from "@lanes/config";
 
 const TIERS = new Set(["workhorse", "highwayPro", "flagship"]);
@@ -454,6 +454,11 @@ export function applyAction(w: World, companyId: number, action: Action): Action
         const lotList = lotPrice(w, action.tier, action.trailer) * npcDealerMult(w);
         const lotSave = peekDiscount(w, company, lotList); // a staking lock's discount on the used lot, within its budget (staking.ts)
         const price = lotList - lotSave;
+        // Refused before the lease deposit moves (QA's Dealer replay: a refusal had released it, the lease still running).
+        if (action.finance) {
+          const why = financeBlock(w, company, price, replacing ? depositCredit(w, company) : 0);
+          if (why) return { ok: false, reason: why };
+        }
         if (replacing) releaseDepositFor(w, company, action.finance ? financedCashNeed(w, company, price) : price + salesTaxOn(w, price));
         const loan = action.finance ? financePurchase(w, company, price) : null;
         if (typeof loan === "string") return { ok: false, reason: loan };
@@ -489,6 +494,10 @@ export function applyAction(w: World, companyId: number, action: Action): Action
         placeOrder(w, company, action.tier, action.trailer, replacing, kind, npcDealerDays(w)).lockedPaidFd = 0;
         company.firstOwnedTruckDay ??= dayOf(w.t, cfg);
         return { ok: true };
+      }
+      if (action.finance) {
+        const why = financeBlock(w, company, price, replacing ? depositCredit(w, company) : 0);
+        if (why) return { ok: false, reason: why };
       }
       if (replacing) releaseDepositFor(w, company, action.finance ? financedCashNeed(w, company, price) : price + salesTaxOn(w, price));
       const loan = action.finance ? financePurchase(w, company, price) : null;
@@ -721,8 +730,18 @@ export function applyAction(w: World, companyId: number, action: Action): Action
     case "buy_listing": {
       if (inCloseWindow(w)) return LOCKED;
       const l = w.listings[action.listingId - 1];
-      // A free starter's lease deposit counts toward the truck that replaces it.
-      if (l && l.status === "open" && !l.trailerId) releaseDepositFor(w, company, action.finance ? financedCashNeed(w, company, l.askFd) : l.askFd + salesTaxOn(w, l.askFd));
+      // A free starter's lease deposit counts toward the truck that replaces it, but moves only once nothing will refuse
+      // the purchase (QA's Dealer replay: "on a trip" refused it after the deposit had been released).
+      const credit = l && l.status === "open" && !l.trailerId ? depositCredit(w, company) : 0;
+      if (action.finance) {
+        if (!l || l.status !== "open" || l.trailerId) return { ok: false, reason: "no such truck listing" };
+        const why = financeBlock(w, company, l.askFd, credit) ?? listingBlock(w, company.id, action.listingId, credit + l.askFd * (1 - purchaseTerms(w, company).downShare));
+        if (why) return { ok: false, reason: why };
+      } else {
+        const why = listingBlock(w, company.id, action.listingId, credit);
+        if (why) return { ok: false, reason: why };
+      }
+      if (credit > 0.005) releaseDepositFor(w, company, action.finance ? financedCashNeed(w, company, l!.askFd) : l!.askFd + salesTaxOn(w, l!.askFd));
       if (!action.finance) return result(buyListing(w, company.id, action.listingId));
       // On a purchase loan: a used truck (not a trailer alone), secured by itself once it's bought.
       if (!l || l.status !== "open" || l.trailerId) return { ok: false, reason: "no such truck listing" };

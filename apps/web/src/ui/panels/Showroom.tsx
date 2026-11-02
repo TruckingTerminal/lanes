@@ -4,7 +4,6 @@ import {
   assetPriceUsd,
   bestSource,
   companyAccount,
-  depositCredit,
   purchaseTerms,
   lotPrice,
   lotSpec,
@@ -27,7 +26,8 @@ import {
   type Source,
 } from "@lanes/engine";
 import { fd, pct, TIER_NAME, TRAILER_NAME } from "../../format.js";
-import { act, me, myTrucks, S } from "../../state.js";
+import { act, me, myTrucks, order, S, toast } from "../../state.js";
+import { iuliiaSay } from "../../iuliia.js";
 import { DEALER } from "../../copy.js";
 import { buyPlan } from "../../finance.js";
 import { useState } from "preact/hooks";
@@ -207,13 +207,15 @@ export function Showroom(): JSX.Element {
 }
 
 /**
- * A buy control (QA's Finance replay): for cash, and on a purchase loan when the rule offers one, its numbers shown on
- * a sheet before it acts. A disabled button always says why, under it.
+ * A buy control (QA's Finance and Dealer replays): for cash, and on a purchase loan when the rule offers one, its numbers
+ * shown on a sheet before it acts; the lot, a new rig, a tractor alone or another carrier's listing. A disabled button
+ * always says why, under it; a refusal from the rules shows there too, never as a toast.
  */
-function Buy({ what, label, price, replacing, block, action, ok }: { what: string; label?: string; price: number; replacing: boolean; block: string | null; action: Extract<Action, { type: "buy_asset" }>; ok: string }): JSX.Element {
+export function Buy({ what, label, price, replacing, block, action, ok }: { what: string; label?: string; price: number; replacing: boolean; block: string | null; action: Extract<Action, { type: "buy_asset" }> | Extract<Action, { type: "buy_listing" }>; ok: string }): JSX.Element {
   const w = S.game!.w;
   const c = me();
   const [open, setOpen] = useState(false);
+  const [refused, setRefused] = useState<string | null>(null);
   const p = buyPlan(w, c, price, replacing);
   const dep = replacing ? DEALER.withDeposit : "";
   const cashWhy = block ?? (p.cashOk ? null : DEALER.whyCash(fd(p.have), fd(p.cashNeed), dep));
@@ -221,10 +223,18 @@ function Buy({ what, label, price, replacing, block, action, ok }: { what: strin
   const ef = w.cfg.equipmentFinance.purchase;
   // Iuliia's line for the purchase: the first truck of its own, or one more (iuliia-lines.md, Dealer).
   const said = myTrucks().some((t) => t.lease === "owned") || ordersOf(w, c.id).length ? "dealer:buyLater" : "dealer:buyFirst";
+  const go = async (a: typeof action) => {
+    const r = await order(a, ok);
+    if (!r.ok) return setRefused(r.reason);
+    setRefused(null);
+    setOpen(false);
+    toast(ok);
+    iuliiaSay(said);
+  };
   return (
     <div class="stack buy">
       <div class="row">
-        <Btn primary disabled={cashWhy !== null} onClick={() => act(action, ok, said)}>
+        <Btn primary disabled={cashWhy !== null} onClick={() => void go(action)}>
           {label ?? what} · {fd(price)}
         </Btn>
         {p.loan && !block ? (
@@ -234,6 +244,7 @@ function Buy({ what, label, price, replacing, block, action, ok }: { what: strin
         ) : null}
       </div>
       {cashWhy ? <p class="muted small">{cashWhy}</p> : null}
+      {refused ? <p class="bad small">{refused}</p> : null}
       {open && p.loan ? (
         <Card title={DEALER.loanTitle(what)}>
           <Kv
@@ -244,14 +255,14 @@ function Buy({ what, label, price, replacing, block, action, ok }: { what: strin
               [DEALER.loan, `${fd(p.loan.loanFd)} FD`],
               [DEALER.stake, DEALER.stakeValue(fd(p.loan.stake))],
               [DEALER.weekly, DEALER.weeklyValue(fd(p.loan.weekly), p.loan.termWeeks, `${(p.loan.weeklyRate * 100).toFixed(2)}%`)],
-              ...(replacing && depositCredit(w, c) > 0.5 ? ([[DEALER.deposit, DEALER.depositValue(fd(depositCredit(w, c)))]] as [string, string][]) : []),
-              [DEALER.now, `${fd(p.loan.cashNeed)} FD`],
+              ...(p.deposit > 0.5 ? ([[DEALER.deposit, DEALER.depositValue(fd(p.deposit))]] as [string, string][]) : []),
+              [DEALER.now, `${fd(p.loanNowFd ?? 0)} FD`],
             ]}
           />
           <p class="warn small">{DEALER.missed(ef.missedToDefault)}</p>
           <div class="row">
-            <Btn primary disabled={loanWhy !== null} onClick={() => (act({ ...action, finance: true }, ok, said), setOpen(false))}>
-              {DEALER.buyLoan(fd(p.loan.cashNeed))}
+            <Btn primary disabled={loanWhy !== null} onClick={() => void go({ ...action, finance: true })}>
+              {DEALER.buyLoan(fd(p.loanNowFd ?? 0))}
             </Btn>
             <Btn ghost onClick={() => setOpen(false)}>
               {DEALER.cancel}

@@ -134,6 +134,10 @@ export interface BuyPlan {
   have: number;
   /** The loan: offered when the rule allows one; its numbers; why it can't, if it can't. */
   loan: { down: number; loanFd: number; stake: number; weekly: number; termWeeks: number; weeklyRate: number; cashNeed: number; ok: boolean; why: string | null } | null;
+  /** The lease deposit counted toward it (replacing the lessor's truck), and the cash out of pocket now after it. */
+  deposit: number;
+  cashNowFd: number;
+  loanNowFd: number | null;
 }
 export function buyPlan(w: World, c: Company, price: number, replacing: boolean): BuyPlan {
   const tax = salesTaxOn(w, price);
@@ -157,5 +161,9 @@ export function buyPlan(w: World, c: Company, price: number, replacing: boolean)
       why: full ? "full" : have >= need ? null : "short",
     };
   }
-  return { price, tax, cashNeed: price + tax, cashOk: have >= price + tax, have, loan };
+  // The engine releases the deposit into cash before it takes the price or the loan's cash (world.ts releaseDepositFor),
+  // so what leaves the player's pocket now is the need less the deposit (QA's Dealer replay: the sheet said "applied"
+  // and still counted it).
+  const deposit = replacing ? depositCredit(w, c) : 0;
+  return { price, tax, cashNeed: price + tax, cashOk: have >= price + tax, have, loan, deposit, cashNowFd: Math.max(0, price + tax - deposit), loanNowFd: loan ? Math.max(0, loan.cashNeed - deposit) : null };
 }

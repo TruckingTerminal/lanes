@@ -230,8 +230,9 @@ export function Staff(): JSX.Element {
       <PendingCard />
       <Card title="You">
         <div class="row">
-          <Portrait who="driverM" />
-          <Portrait who="dispatcher" />
+          {/* The owner's own face, the look picked at first entry (QA's Dealer replay: it was always the man's). */}
+          <Portrait file={owner ? staffFace(owner) : "driver-m1"} />
+          <Portrait file={`dispatcher-${owner?.look ?? "m"}`} />
           <span class="muted small">You drive and you dispatch, until you hire.</span>
         </div>
         <Kv

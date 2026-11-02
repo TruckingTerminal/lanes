@@ -94,24 +94,40 @@ export function withdrawListing(w: World, sellerId: number, listingId: number): 
   return null;
 }
 
-export function buyListing(w: World, buyerId: number, listingId: number): string | null {
-  const { cfg } = w;
+/**
+ * Why buying this truck listing would be refused, without buying: buyListing's checks, with `extraFd` counted as cash (a
+ * lease deposit about to be released toward it). A trailer listing goes to its own checks. Null when it would go through.
+ */
+export function listingBlock(w: World, buyerId: number, listingId: number, extraFd = 0): string | null {
   const l = w.listings[listingId - 1];
   if (!l || l.status !== "open") return "no such listing";
   if (l.sellerId === buyerId || l.formerOwnerId === buyerId) return "can't buy your own truck";
   const buyer = companyById(w, buyerId);
   if (buyer.role !== "carrier") return "only carriers run trucks in Phase 0";
-  const buyerAcct = companyAccount(buyerId);
-  if (w.ledger.balance(buyerAcct) < l.askFd + salesTaxOn(w, l.askFd)) return "insufficient FD";
-  if (l.trailerId) return buyTrailerListing(w, l, buyerId);
+  if (w.ledger.balance(companyAccount(buyerId)) + extraFd < l.askFd + salesTaxOn(w, l.askFd)) return "insufficient FD";
+  if (l.trailerId) return null;
   const fleet = w.trucksByCompany.get(buyerId)!;
   const npc = fleet.find((t) => t.lease === "npc");
-  if (!npc && fleet.length >= truckCap(w, companyById(w, buyerId))) return "company truck cap";
+  if (!npc && fleet.length >= truckCap(w, buyer)) return "company truck cap";
   if (npc && npc.status !== "idle") return "NPC-leased truck is on a trip";
-
   const truck = truckById(w, l.truckId);
   // Assets: the rig's own trailer comes with it, so it needs room in the yard.
   if (w.cfg.assets.enabled && hookedTrailer(w, truck)?.lease === "owned" && ownedTrailers(w, buyer).length + trailerOrdersOf(w, buyerId).length >= trailerCap(w, buyer)) return "no room in the yard for its trailer";
+  return null;
+}
+
+export function buyListing(w: World, buyerId: number, listingId: number): string | null {
+  const { cfg } = w;
+  const l = w.listings[listingId - 1];
+  const why = listingBlock(w, buyerId, listingId);
+  if (why) return why;
+  if (!l) return "no such listing";
+  const buyer = companyById(w, buyerId);
+  const buyerAcct = companyAccount(buyerId);
+  if (l.trailerId) return buyTrailerListing(w, l, buyerId);
+  const fleet = w.trucksByCompany.get(buyerId)!;
+  const npc = fleet.find((t) => t.lease === "npc");
+  const truck = truckById(w, l.truckId);
   const fee = l.askFd * cfg.usedMarket.feePct;
   const net = l.askFd - fee;
   const ref = `listing:${l.id}`;

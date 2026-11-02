@@ -45,13 +45,25 @@ export function financedCashNeed(w: World, c: Company, priceFd: number): number 
  * buyer's account and the stake is locked, so the purchase then pays the full price as for cash. Returns
  * the loan, or why not.
  */
-export function financePurchase(w: World, c: Company, priceFd: number): PurchaseLoan | string {
+/**
+ * Why a purchase loan at this price would be refused, without opening one: the same checks financePurchase makes, with
+ * `extraFd` counted as cash (a lease deposit about to be released toward the truck). Null when it would go through.
+ */
+export function financeBlock(w: World, c: Company, priceFd: number, extraFd = 0): string | null {
   const k = w.cfg.equipmentFinance.purchase;
   if (!k.enabled) return "no purchase loans";
   if (priceFd <= 0.01) return "nothing to finance";
   const terms = purchaseTerms(w, c);
   if (openPurchaseLoans(w, c.id).length >= terms.maxLoans) return `the lender carries at most ${terms.maxLoans} loans at your credit`;
-  if (w.ledger.balance(companyAccount(c.id)) < financedCashNeed(w, c, priceFd)) return "not enough FD for the down payment and the loan's stake";
+  if (w.ledger.balance(companyAccount(c.id)) + extraFd < financedCashNeed(w, c, priceFd)) return "not enough FD for the down payment and the loan's stake";
+  return null;
+}
+
+export function financePurchase(w: World, c: Company, priceFd: number): PurchaseLoan | string {
+  const k = w.cfg.equipmentFinance.purchase;
+  const why = financeBlock(w, c, priceFd);
+  if (why) return why;
+  const terms = purchaseTerms(w, c);
   const loanFd = priceFd * (1 - terms.downShare);
   const loan: PurchaseLoan = {
     id: w.purchaseLoans.length + 1,
