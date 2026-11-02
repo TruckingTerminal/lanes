@@ -53,7 +53,9 @@ with no lettering.
 
 - **Redraws:** the first `book` (a square board of four sheets) read as a window at 28 px. The first `carriers`
   (three small trucks) didn't fill its frame. Both were redrawn.
-- **Switch size:** if the top strip draws it smaller than 16 px, ask me for a hand-drawn pixel version.
+- **The top strip's switch:** `icons/switch16.png` is a hand-drawn version for the top strip, 16 × 16 and crisp. It has
+  the same two arrows (amber over cyan, ink outline) in palette colours. Show it at whole-number scales only (1×, 2×)
+  and unsmoothed; the painted one blurs below about 16 px. It's made by `tools/switch-glyph.py`.
 
 ## Cost
 
