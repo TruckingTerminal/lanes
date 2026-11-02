@@ -1,4 +1,4 @@
-# Guidance: the surface (UX spec, draft 1, 2026-11-03; owner: UX)
+# Guidance: the surface (UX spec, draft 2, 2026-11-03; owner: UX; the director's gate U1–U3 applied)
 
 The surface for the director's `specs/guidance.md`, which owns the rules, the rule order, the figures and the
 milestones. This spec says where each piece sits, phone first, and how they share one screen. Strings are the
@@ -94,6 +94,9 @@ the writer's): "Tap any number with a dotted line and I'll show you where it com
   scrolls so the tapped figure sits at least 16 px above the sheet's top edge, and the figure gets a 2 px outline
   in the accent colour while the sheet is open. **The figure is never covered.** A figure in the top strip (cash,
   the clock) needs no scroll; the strip stays visible.
+- **A figure near the end of a short page** (the page can't scroll far enough to clear it): first pad the page's
+  foot by the sheet's height, then scroll. The padding goes when the sheet closes. The sheet is never shrunk below
+  its contents to make room; the page grows instead.
 - **Header:** her 32 px face; the figure's label and its value, large: "Break-even · 2.36/mi".
 - **What it is:** one sentence.
 - **How it's computed:** label/value rows of this company's inputs, ending in a bold total that equals the
@@ -115,13 +118,26 @@ arrow points at the figure. Same contents. Esc or a click outside closes it. Tab
 
 ## 4. Milestones: progress without a quest log
 
-**When one fires** (the director's triggers), the caption shows, once:
-- her line;
-- the reason, one line;
-- one button carrying What now?'s next action for it ("Keep it loaded: see the board").
+**Two lines per milestone, each once** (the writer's `guidance-strings.md` §2): a *before* line and an *at*
+line. Both are caption rule 3: they wait for quiet time, Quiet mutes them, and each shows once per browser
+(remembered with the walkthrough's seen record, `ms:{key}:before` and `ms:{key}:at`).
 
-That's caption rule 3: it waits for quiet time, inside its window of `{guide.milestoneWindowDays}` game days, and
-Quiet mutes it.
+| Line | Shows when | Its window (`{guide.milestoneWindowDays}`, 12 game days) |
+|---|---|---|
+| **Before** | only where the date is known ahead | from 12 days before the date until the date; after the date it's dropped, never shown late |
+| **At** | the event has happened | from the event until 12 days after it; after that it's only in the timeline |
+
+**Which milestones get a before line:** the month close (day 30 of the company), day 28 (businesses), day 91
+(brokerage), the first hired week (the payday is known from the day of hiring), and the debt countdown (the next
+check's day is known; this is `now.danger.warn`'s case). Not the first owned truck (step 9 is its before), not the
+slump (no notice), not the first dispatcher (no date: its before line doesn't show; writer, drop it or the director
+gives it a trigger).
+
+**When both are due** (the player was away through the date), only the *at* line shows. **When two milestones are
+due at once,** the *at* lines first, then by date; one per caption, the next after quiet time.
+
+**Each line's layout:** her line; the reason, one line; one button carrying What now?'s next action for it ("Keep
+it loaded: see the board"). A *before* line's button opens where to prepare ("See the month so far").
 
 **Where progress lives: More › Iuliia, "Your company so far".** A vertical timeline of milestones that have
 happened, newest first: date, the milestone's name, and a tap to re-read her line and its reason. Under the
@@ -153,12 +169,23 @@ string where it happened and nothing in the caption: the caption keeps what it s
 The one exception is the director's: the debt countdown milestone, because she can help.
 
 **Asked, always something.** What now? always answers (rule 6 or "I don't have a step… Open Help"). An explain
-sheet always has at least what the figure is and what moves it. After a liquidation, What now? answers with the
-restart.
+sheet always has at least what the figure is and what moves it.
+
+**While the company is being wound up** (from the liquidation until the restart):
+- **The caption is silent:** no milestone, tab or card line, and no resting line (the step's Do line would be a
+  lesson for a company that is closing). Only her face and the What now? chip show; the amber dot is off.
+- **What now?** answers with the writer's `now.liquidating`: what is happening and the day the restart comes, in
+  plain words. One button, "See what's being sold" (Money), and **Not now**.
+- **The red badge** lists only what the player can still act on; anything the wind-up has frozen leaves it.
+- **Explain sheets** work as always.
+- **After the restart,** What now? answers with `now.restart` (the restart on a lease), its button opening the
+  board; the walkthrough resumes from the step the new company is on.
 
 ## Questions
 
 1. **Engineering:** which milestone dates can't be derived from the world (section 4).
 2. **Writer:** the discovery line, the "Next:" resting prefix, the no-rule answer, "That's changed. Ask me
    again.", and the explain sheet's three headings.
-3. **Config:** `{guide.milestoneWindowDays}` (the director's n).
+3. **Writer:** the first dispatcher's *before* line has no date to show against (section 4).
+
+Settled at the gate: `{guide.milestoneWindowDays}` is 12 game days (three real days at live pace).

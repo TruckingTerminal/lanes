@@ -1,4 +1,4 @@
-# Guidance strings (writer, draft 1, 2026-11-03; against the director's `guidance.md`)
+# Guidance strings (writer, draft 2, 2026-11-03; the director's gate W1–W4 applied)
 
 Jeff, 2026-11-02: "I need to make sure that Iuliia is guiding people every step of the way. As this is a true sim and very complex."
 
@@ -17,6 +17,10 @@ Short config keys used below:
 | `{carryCap}` | `seasonClose.carryoverCapFd` |
 | `{businessDay}`, `{brokerDay}` | `unlockLadder.layers.businesses.afterDays`, `.brokerage.afterDays`, as game dates |
 | `{lessorShare}` | `costs.npcLeaseShareOfGross` |
+| `{fuelTaxPerGal}` | `costs.fuelTax.perGal` |
+| `{gapCushionWeeks}` | `guide.gapCushionWeeks` (new; engineering's `guide.ts` reads the same key) |
+| `{cushionAvgWeeks}` | `guide.cushionAvgWeeks` (new; the same) |
+| `{restartAfterDays}` | `insolvency.restartAfterDays` |
 
 ## 1. What now?
 
@@ -84,7 +88,7 @@ The most urgent item first, by deadline.
 | Key | Part | String |
 |---|---|---|
 | `now.gap.action` | action | Keep hauling toward your own truck. |
-| `now.gap.reason` | reason | You're `{gap}` FD short, counting your deposit and a month of costs held back. |
+| `now.gap.reason` | reason | You're `{gap}` FD short, counting your deposit and `{gapCushionWeeks}` weeks of costs held back. |
 | `now.gap.button` | button | See the Dealer |
 | `now.cushion.action` | action | Build your cushion before you spend. |
 | `now.cushion.reason` | reason | Your cash covers `{n}` weeks of your own spending. |
@@ -105,8 +109,21 @@ The most urgent item first, by deadline.
 |---|---|---|
 | `now.calm.action` | action | Nothing needs you right now. |
 | `now.calm.reason` | reason | The next thing that will: `{event}`, in `{time}`. |
-| `now.calm.button` | button | Close |
+| `now.calm.button` | button | OK (UX's) |
 | `now.event.round` · `.monthClose` · `.seasonClose` · `.layer` · `.licence` · `.factoring` | `{event}` | the next round · the month's close · the season's close · `{Businesses / Brokerage}` opening · your licence renewal · your factoring contract's end |
+
+### While the company is being wound up, and after (W3)
+
+The caption stays silent, unasked. Asked, What now? answers with these.
+
+| Key | Part | String |
+|---|---|---|
+| `now.liquidating.action` | action | Your company is being wound up. |
+| `now.liquidating.reason` | reason | Its trucks are being sold. You start again on a lease on `{day}`. |
+| `now.liquidating.button` | button | What happens next (opens Help's "Going broke") |
+| `now.restart.action` | action | Start again on a lease. |
+| `now.restart.reason` | reason | The old company is closed. A new start: one leased truck, and no grant. |
+| `now.restart.button` | button | Start again |
 
 ### No rule fits
 
@@ -116,19 +133,31 @@ The most urgent item first, by deadline.
 | `now.none.reason` | reason | Help has every system and every number. |
 | `now.none.button` | button | Open Help |
 
+### UX's open strings (`guidance-ux.md`)
+
+| Key | Where | String |
+|---|---|---|
+| `guide.discovery` | the caption, once, the first time a covered figure shows | Tap any number with a dotted line and I'll show you where it comes from. (UX's, kept) |
+| `guide.nextPrefix` | the resting line after the walkthrough | Next: |
+| `now.notNow` | beside every What now? button | Not now |
+| `now.stepPrefix` | before rule 4's action | Step `{n}` of `{total}` · |
+| `now.waitingMore` | after rule 2's reason | `{n}` of `{m}` waiting › |
+| `now.stale` | the answer, when the world moved | That's changed. Ask me again. |
+| `explain.heading.what` · `.how` · `.moves` | the sheet's three headings | What it is · How it's computed · What moves it |
+
 ## 2. Milestones to day 91
 
-Each speaks once: a line **before** (when there is something to prepare) and a line **at** the moment, plus one sentence of reason. Then What now? takes over. *Light* marks the only lines where humor is allowed.
+Each speaks once: a line **before** only where the date is known (the month close, day 28, day 91; UX's U2), and a line **at** the moment, plus one sentence of reason. Then What now? takes over. *Light* marks the only lines where humor is allowed.
 
 | Key | Trigger | Before | At | Reason |
 |---|---|---|---|---|
 | `milestone.ownTruck` | step 9 done | (step 9 itself) | Your own truck. No lessor's share now, and no lessor to fix it. | Maintenance, insurance and value lost are yours, and a truck that sits still costs money. |
-| `milestone.hiredWeek` | a hired driver's first payday | You've hired a driver. Wages go out every week, loaded or not. | Payday. `{name}` was paid `{fd}` FD this week. | Wages come weekly whether the truck earns or not; keep it loaded. |
-| `milestone.dispatcher` *light* | a dispatcher hired, or the third truck | Past two trucks, the clock beats you. A dispatcher reads the board while you sleep. | Your dispatcher starts today. It follows your rules exactly, including the foolish ones. | Check the rules against the lanes that actually paid. |
+| `milestone.hiredWeek` | a hired driver's first payday | (none) | Payday. `{name}` was paid `{fd}` FD this week. | Wages come weekly whether the truck earns or not; keep it loaded. |
+| `milestone.dispatcher` *light* | a dispatcher hired, or the third truck | (none) | Your dispatcher starts today. It follows your rules exactly, including the foolish ones. | Check the rules against the lanes that actually paid. |
 | `milestone.monthClose` | day 30 of the company | Your first month closes in `{n}` days. Monthly bills land with it. | Your first month: earned `{fd}`, spent `{fd}`, kept `{fd}` FD. | The fuel tax and insurance land at the close. Read the month on Money. |
 | `milestone.day28` *light* | the businesses layer | Businesses open `{businessDay}`. Most first-month carriers should let them wait. | Businesses are open. Nobody needs a warehouse in week four; most need a second truck. | A business pays over years. Your gap to the next truck is `{gap}` FD. |
 | `milestone.slump` | the demand dial under 0.9, the first time | (none: a slump gives no notice) | Rates are falling for everyone, not just you. Slumps end. | The carrier still here when it ends is the one who didn't buy in it. Your cushion: `{n}` weeks. |
-| `milestone.debt` | the first weekly check in debt | The next check is `{day}`, and you'd be under the line. | You're in debt at a weekly check: 1 of `{weeksInDebt}`. Here is the way out. | `{weeksInDebt}` checks in a row under `{debtLine}` FD and the company is wound up. |
+| `milestone.debt` | the first weekly check in debt | (none: `now.danger.warn` covers it) | You're in debt at a weekly check: 1 of `{weeksInDebt}`. Here is the way out. | `{weeksInDebt}` checks in a row under `{debtLine}` FD and the company is wound up. |
 | `milestone.day91` | the brokerage layer | Brokerages open `{brokerDay}`. The bond is the hard part. | Brokerages are open. Here's what one takes, and how far you are. | Bond, licence and premium: you're `{gap}` FD short, or ready. |
 
 ## 3. Explain: the first month's figures
@@ -164,7 +193,7 @@ One entry per figure key. `what` and `moves` are the writer's; `how` is engineer
 | `pay.lessorShare` | The lessor's cut of every load on a leased truck. | `{lessorShare}` of what the load pays. | It ends when you own the truck. |
 | `pay.fuel` | Diesel burned on this load, empty miles included. | Miles divided by the truck's mpg, times the day's pump price. | Fewer empty miles, the make's mpg, the price of diesel. |
 | `pay.tolls` | Road tolls on this route. | The tolled roads the route uses, at their rates. | The route; some lanes have none. |
-| `pay.fuelTax` | Tax on the diesel you bought, paid monthly. | A share of each month's fuel spending, due at the month's close. | How much fuel you burn. |
+| `pay.fuelTax` | Tax on every gallon you burn, billed at the month's close. | `{fuelTaxPerGal}` FD a gallon, on the road and idling, added up over the month. | Gallons: fewer empty miles, less idling, a make with better mpg. |
 | `pay.maintenance` | Wear on the truck from these miles. | The tractor's cost per mile, times the miles. | The make, the truck's condition, a timely rebuild. |
 | `pay.insurance` | Your policy's cost for this period. | Base premium, times your record, your home hub and the market. | A clean safety record; your home hub. |
 | `pay.ownerPay` | What you pay yourself for driving. | Your driver's rate per mile, times the miles. | Your pay setting. |
@@ -176,9 +205,17 @@ One entry per figure key. `what` and `moves` are the writer's; `how` is engineer
 | `standing.miles` | Your standing in the beta: loaded miles hauled this season. | Every loaded mile delivered. Empty miles don't count. | Hauling, and hauling loaded. |
 | `standing.reputation` | How shippers and brokers rate you. | Your on-time record, claims and service, weighted to the recent. | Deliver on time; avoid claims. |
 | `standing.onTime` | The share of your loads delivered by the appointment. | Loads on time, divided by loads delivered. | Plan for hours, docks and weather. |
-| `intel.creditBand` | Your credit, A best to E worst. | Paying on time, licence age, claims, past bankruptcies. | Pay what you owe on time, and time itself. |
+| `intel.creditBand` | Your credit, A best to E worst. | Paying from cash in hand, authority age, open claims, bankruptcies, revocations, and cover for what you owe. | Pay from cash, not overdraft; time; no claims; keep cash and stake above what you owe. |
 | `intel.safetyBand` | Your safety rating from inspections and reviews. | Violations found at inspections and audits over two years. | Rested drivers, maintained trucks, no speeding. |
 | `intel.insuranceBand` | How much your record adds to your premium. | Your at-fault surcharge: clean, surcharged or heavily surcharged. | Fewer crashes and claims; it eases with time. |
+
+**On another company's Intel card** (W2): third person, and no inputs, ever. The "how" row is left out; only what it is and what moves it.
+
+| Key | What it is | What moves it |
+|---|---|---|
+| `intel.creditBand.other` | A company's credit, A best to E worst. | Paying from cash in hand, its authority's age, claims, and cover for what it owes. |
+| `intel.safetyBand.other` | A company's safety rating from inspections and reviews. | Violations found at inspections and audits. |
+| `intel.insuranceBand.other` | How much a company's record adds to its premium. | Its crashes and claims; the surcharge eases with time. |
 
 ### Toward a truck
 
@@ -190,13 +227,13 @@ One entry per figure key. `what` and `moves` are the writer's; `how` is engineer
 | `loan.rate` | What the loan costs each week on what's owed. | A weekly rate set by your credit band. | A better credit band lowers it. |
 | `finance.factoringRate` | The factor's share of every load under contract. | From your fleet size on the day you sign; fixed for the term. | More trucks at renewal lower it. |
 | `finance.quickPayFee` | The cost of being paid on delivery, one load at a time. | `{quickPayPct}` of the load. | Nothing: it's fixed. Use it for emergencies. |
-| `guide.gapToTruck` | How far you are from your next truck. | The cheapest truck's cash needed now, less your deposit and cash above a month's costs. | Hauling; cheaper trucks on the used lot. |
+| `guide.gapToTruck` | How far you are from your next truck. | The cheapest truck's cash needed now, less your deposit and cash above `{gapCushionWeeks}` weeks of costs. | Hauling; cheaper trucks on the used lot. |
 
 ### Danger
 
 | Key | What it is | How it's computed | What moves it |
 |---|---|---|---|
-| `guide.cushion` | How many weeks your cash covers your own spending. | Your cash, divided by your average weekly spending over four weeks. | Earning more, spending less, buying nothing in a slump. |
+| `guide.cushion` | How many weeks your cash covers your own spending. | Your cash, divided by your average weekly spending over the last `{cushionAvgWeeks}` weeks. | Earning more, spending less, buying nothing in a slump. |
 | `guide.debtCountdown` | Weekly checks in a row with cash under the line. | Checked weekly: under `{debtLine}` FD counts one; `{weeksInDebt}` in a row winds you up. | Cash back above the line resets it. |
 
 ### The market
