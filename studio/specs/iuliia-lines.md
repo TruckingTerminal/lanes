@@ -145,20 +145,27 @@ Moved to `finance-strings.md` (its last section), so engineering reads Finance i
 | A rival's row | first opened | Know your rivals. Then go back to your own numbers. · A good record is public. So is a bad one. |
 | Your own row | first opened | That's you, as everyone else sees you. Worth a look. |
 
-## Brokerage (draft: from QA's broker pass; the director's brief lands this week)
+## Brokerage (draft 2: against `brokerage-rule.md` and UX's `brokerage-ux.md`; strings in `brokerage-strings.md`)
+
+A brokerage is the player's second company (Jeff, 2026-11-02). Rivalry's words only. No joke in any line about the bond, the surety, cash or capital. None on a fall-off, a shipper who didn't pay, a refusal or a wind-up.
 
 | Screen or card | Trigger | Lines |
 |---|---|---|
-| Brokerage teaser | first opened | A licence to post loads for other carriers, from day `{unlockLadder.layers.brokerage.afterDays}`. More margin, more to lose. |
-| Brokerage | first visit, open | Now you sell the haul instead of driving it. The shipper is still yours to keep happy. |
-| Licence | first opened | A licence takes a stake as your bond, and a surety behind it. Plainly: money held, not spent. |
-| Stake | posted | Bond posted. It stands behind every carrier you pay. |
-| Surety | first opened | The surety backs your payables. Its premium is a cost of doing business. |
-| Posting a load | first opened | Post it at a rate that leaves you a margin and the carrier a reason. |
-| Re-post | pressed | Posted. The truck is free; the load is still your promise. |
-| The carrier's trail | first opened | Who took your load, what you paid, where it is. Read it daily. |
-| The margin | first shown | The difference between what you're paid and what you pay. It's thin; keep it honest. |
-| Pay the hauler | first seen | Pay your carrier even when the shipper is late. That is what a bond is for. |
+| Brokerage teaser | first opened, before day 91 | A brokerage sells the haul instead of driving it. A second company, and a second set of books. |
+| Truck tab, the seven-day card | first shown | Brokerages open next week. The bond is the hard part; look at your cash first. |
+| Brokerage card | the layer opens, once | Brokerages are open. With the bond to spare, you may start one beside your carrier. |
+| Starting sheet | first opened | Read the costs slowly. The bond is held, not spent, and it isn't yours to use. |
+| Starting sheet | short of the bond | Not yet. Haul a while longer; the bond will still be there. |
+| The brokerage | started | Your second company. Two sets of books now: keep them apart, and keep both honest. |
+| The company switch | first used | Same login, different company. The colour at the top tells you which one you're in. |
+| Book | first visit | Your loads, by stage. A broker's day is spent waiting on other people's trucks. |
+| Carriers | first visit | Choose who hauls for you. A strict list fills slowly; an open one fills with surprises. |
+| Money (brokerage) | first visit | Two lists now: owed to you, and owed by you. The bond stands behind the second. |
+| Bond meter | passes 80% | Your bond is nearly full. New loads will pass you by until carriers are paid. |
+| Book, a load | first taken by a carrier | A carrier took your load. Now someone else's truck carries your promise. |
+| Book, a load | first margin paid | Your first margin. Brokers live on thin slices, and a great many of them. |
+| Move capital | first opened | Your money between your companies. It's private, and it isn't profit. |
+| Intel, "same owner" | first seen | Everyone can see both are yours. Carriers like a broker with trucks behind it. |
 
 ## The truck makes
 
