@@ -114,34 +114,41 @@ Any open invoice can be cashed on the spot. Lands with the brokerage bump, behin
 - **Without one:** the spot rate, `{payment.cashNow.spotPct}`.
 - The fee goes to the reserve; the player sees only fee and what lands.
 
-**Which invoices have it.** Under Net 30, every open invoice. Under a contract, the ones still open (paper billed
-before signing, and player shippers' loads, which wait 30 days even under contract). Under Quick pay there are
-none to cash (already paid). **Never on paper between the owner's own two companies** (the brokerage rule, row 4):
-those rows show "Between your own companies: waits 30 days" in place of the button.
+**Which invoices have it.** Under Net 30, every open invoice from an NPC shipper or a bonded broker. Under a
+contract, the ones still open from those payers (paper billed before signing). Under Quick pay there are none to
+cash (already paid). **Not cashable, the button replaced by the writer's line in muted type:**
+- **a player shipper's invoice**, for now, until the economy sizes the credit risk of cashing a player's paper:
+  "Invoices from player shippers can't be cashed early yet.";
+- **paper between the owner's own two companies** (the brokerage rule, row 4): "Paper between your own companies
+  can't be cashed early.";
+- **an invoice due today:** "It's due today. It lands without a fee."
 
 **The invoice row** (Money › Owed to you, Finance › Open invoices; one component). The phone row is two lines, not
 the three-column table:
 - line 1: "Chicago → Columbus · 2,380 FD · due Jan 31 (19 days)";
-- line 2: "Cash now: 2,142 lands · fee 238" and **Cash it now** (sm), right-aligned.
+- line 2: "You get today 2,142 · fee 238" and **Cash it now** (sm), right-aligned.
 Both figures in line 2 are explain keys (`invoice.cashNowFee`, `invoice.cashNowLands`): the sheet's "how" shows the
 rate's parts with this invoice's days.
 
 **The confirm sheet** (full on a phone; a card in the panel on a laptop), "Cash this invoice now":
-- rows: "Invoice" Chicago → Columbus, 2,380 FD · "Due" Jan 31, in 19 days · "Rate" 10.0%, with its parts under
-  it in muted type ("your contract's 5.9% + 4.1% for 19 days early") or "the spot rate" · "Fee" 238 FD ·
-  **"Lands now" 2,142 FD** · "Your cash after" 23,542 FD;
-- buttons: **Cash it now · 2,142 FD** (primary), **Keep waiting**.
+- rows, in the writer's words (`finance-strings.md`, "Cash it now"): "Invoice" Chicago to Columbus · 2,380 FD,
+  due Jan 31 · "Fee" 5.9% contract + 4.1% for 19 days early · 238 FD (or "10% spot rate · 238 FD") ·
+  **"You get today" 2,142 FD** · "Your cash after" 23,542 FD · the note "The shipper pays the factor on Jan 31.
+  The fee goes to the reserve.";
+- buttons: **Cash it now · 2,142 FD** (primary), **Not now**.
 - Live world: "Sent · in effect 06:02" on the button until the world applies it.
+- **Several invoices at once** (only from What now?, when more than one is due within a day of need): the same
+  sheet with one Invoice row each and the totals; button "Cash 3 invoices · 6,240 FD today".
 
-**After:** the row stays where it was until its due day, greyed, line 2 replaced by "Cashed Jan 12 · fee 238 ·
-2,142 landed". Cash moves at once; Money's sparkline shows it the next day. No toast. Both feeds (and the
-brokerage's, for its paper) log "Cashed {lane}: {lands} FD, fee {fee}".
+**After:** the row stays where it was until its due day, greyed, line 2 replaced by "Cashed Jan 12 · 2,142 FD
+received". Cash moves at once; Money's sparkline shows it the next day. No toast. Both feeds (and the
+brokerage's, for its paper) log the cashing.
 
-**Refusals,** in red under the button: "In liquidation", "Already paid", "Between your own companies" (a modified
-client). No line from Iuliia on any of them.
+**Refusals,** in red under the button (a world that moved, or a modified client): "This invoice is already
+paid.", "In liquidation", and the three not-cashable lines above. No line from Iuliia on any of them.
 
-**Guidance:** What now?'s rule 1 "collect" lever offers the invoice with the lowest rate first and its button opens
-this sheet (Jeff: her collect advice offers it first).
+**Guidance:** What now?'s rule 1 "collect" lever offers the cashable invoice with the lowest rate first and its
+button opens this sheet (Jeff: her collect advice offers it first).
 
 ### Card 3: Credit
 
