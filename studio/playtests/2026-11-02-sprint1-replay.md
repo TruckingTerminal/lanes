@@ -136,3 +136,24 @@ Deployed with run 41374982184 (3cea47a, after 0e1fca1). New test world, owner-op
 | 22 | Cash sparkline | **Pass.** A line under "Cash · 4,746 FD · Cash, last 2 days" |
 
 Tester's note: with the browser pane hidden the page's timers stall (it sat on "Starting the world…" until a screenshot woke it). That's the test harness, not the build.
+
+---
+
+# Re-check 2: fcf46be on the test page (phone, 375×812)
+
+New test world, owner-operator, Chicago (ringed). A hand bid on Chicago, IL → Macomb, IL, which was lost. The dispatcher then ran the truck. Day in 2 s to the first-truck step. Console: no errors.
+
+| Item | Result |
+|---|---|
+| Row 3, place names | **Pass.** The board and the lost card read "Lost Chicago to Macomb at 5.29/mi: it went for 3.29/mi" / "Lost to 3.29/mi · your bid 5.29 · your break-even 2.36". The strip says "Loaded Chicago → St. Petersburg", the feed "Won Chicago to St. Petersburg", the Truck card "Chicago → St. Petersburg · 1,220 mi". Later: "Delivered Pittsburgh to Indianapolis", "Delivered Indianapolis to Chicago". No hub swaps seen. (I didn't win by hand this time, so the Won result card was checked through the feed only) |
+| Row 5, clock until the first bid | **Pass.** After Start at Chicago the clock opens at **Live pace** (a game day every 6 real hours) and stood at Wed 06:00 for 5 s. It runs only if the player picks a faster speed (Day a minute: 06:00 → 08:00 in 5 s) |
+| Row 18, one ETA | **Pass.** Loads "Your truck is on the road · loads show when it's free · ETA Jan 5 06:29"; Truck card "ETA Jan 5 06:29" |
+| Red badge in the strip | **Pass.** A button "Needs you: 1. Open it". Tapped from Money, it opened Loads with the item on screen: the lost-bid card and **Bid again** |
+| Iuliia's arrival line retires | **Pass.** It was shown on landing and gone from Truck right after the first bid (the brief said "once you've booked"; it retires on the first bid as well) |
+| City names at Fit | **Pass.** At Fit only the three ringed hubs are named (Chicago, Columbus, Newark), small, under bold cyan rings; the whole country fits the phone now |
+| Finance without the pools | **Pass.** It opened with Dealer when step 9 became current (Read ahead to step 9 doesn't open it; reaching it for real does). Shows Stake and Credit only; no insurance, factoring or surety pool. Note: there's no Getting paid section either, so Iuliia's step-9 talk of quick pay and factoring has nowhere to point yet |
+| Back Lot card | **Pass.** "A later beta: player against player. Crews for hire, a gate and cameras for your yard, and a meter for how much attention you draw. / Someone will want your cargo one day; someone else's may tempt you. Lock the gate either way." with **Tell us what you'd want here** |
+| Your truck as a semi | **Pass.** At 4× the "You" sprite is a white tractor-trailer in its ring |
+| Reefer / flatbed vs van on the map | **Fail (partly).** Other carriers are still small squares at 4× and 8× (white, blue, orange), so trailer type reads only by colour, at 3–4 px. My own truck was a van all session, so I couldn't see a reefer or flatbed semi sprite |
+
+Still open, not on this list: the idle alert again blamed losing bids ("156 dry van loads in range pay enough, but the dispatcher's bids keep losing") while the strip said "Home time at Chicago" and the feed "You're home for 5 days off". **S**.
