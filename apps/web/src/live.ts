@@ -36,7 +36,7 @@ export interface WorldMeta {
   ruleset: string;
 }
 
-export type JoinAction = { type: "join"; name: string; hub: string };
+export type JoinAction = { type: "join"; name: string; hub: string; look?: "m" | "f" };
 /** A bug report or an idea from a player, with what the page knew at the time. */
 export interface Report {
   kind: "bug" | "idea";
@@ -118,6 +118,7 @@ export function parseActs(raw: unknown): ActRecord[] {
       // The engine takes these on trust, so they're shaped here.
       if (typeof body.name !== "string" || typeof body.hub !== "string") continue;
       body.name = body.name.slice(0, MAX_NAME_CHARS);
+      body.look = body.look === "f" ? "f" : "m";
     }
     out.push({ s: s as number, at: at as number, a: body });
   }
@@ -457,7 +458,7 @@ export class LiveWorld {
       if (this.companies.has(uid)) return;
       let c: ReturnType<typeof joinCompany>;
       try {
-        c = joinCompany(this.w, uid, String(r.a.name ?? ""), String(r.a.hub ?? ""));
+        c = joinCompany(this.w, uid, String(r.a.name ?? ""), String(r.a.hub ?? ""), "oo", r.a.look === "f" ? "f" : "m");
       } catch {
         return;
       }

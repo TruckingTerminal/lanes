@@ -18,6 +18,12 @@ describe("staff names", () => {
       expect(t.name).toBe(s.name);
       expect(t.look).toBe(s.look);
     }
+    // A kind painted in one look only (every kind past drivers today) takes names from that look's half.
+    for (let i = 0; i < 60; i++) {
+      const d = newStaff(w, i % 2 ? "dispatcher" : "opsManager", 0.5, 0.6);
+      w.staff.push(d);
+      expect(d.look).toBe("m");
+    }
     // Both looks turn up, and one first name never carries both.
     expect(looks).toEqual(new Set(["m", "f"]));
     const byFirst = new Map<string, string>();

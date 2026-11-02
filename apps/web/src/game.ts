@@ -67,7 +67,7 @@ export function newWorld(seed: number): World {
 export type StartKind = "oo" | "fleet";
 
 /** A human company. The live world only offers the owner-operator start, the same free path every newcomer gets. */
-export function joinCompany(w: World, key: string, name: string, hub: string, start: StartKind = "oo"): Company | null {
+export function joinCompany(w: World, key: string, name: string, hub: string, start: StartKind = "oo", look: "m" | "f" = "m"): Company | null {
   if (!hubs.some((h) => h.id === hub && h.isStarter)) return null;
   const c = formCompany(w, {
     name: name.trim().slice(0, 32) || "Unnamed Freight",
@@ -84,6 +84,9 @@ export function joinCompany(w: World, key: string, name: string, hub: string, st
     w.ledger.post(w.t, "faucet:starting_grant", companyAccount(c.id), FLEET_START_EXTRA_FD, `grant:${c.id}:fleet`);
   }
   c.usd.wallet = PLAYER_WALLET_USD;
+  // The owner's look is the player's pick at first entry (QA row 9); cosmetic, carried on the join so replays agree.
+  const owner = w.staffByCompany.get(c.id)?.find((s) => s.owner);
+  if (owner) owner.look = look;
   return c;
 }
 
@@ -98,6 +101,8 @@ export interface TestLog {
   name: string;
   start: StartKind;
   hub: string;
+  /** The owner's look, picked at first entry (absent in older logs: the man's). */
+  look?: "m" | "f";
   /** Hours the world ran before the company joined (the warm start); absent in logs from before it, which joined at 0. */
   warm?: number;
   t: number;
@@ -156,12 +161,12 @@ export class TestGame {
   }
 
   /** Your company joins at this minute, at the hub you chose; the log keeps when, so the world replays the same. */
-  join(name: string, start: StartKind, hub: string): Company | null {
+  join(name: string, start: StartKind, hub: string, look: "m" | "f" = "m"): Company | null {
     if (this.player) return this.player;
-    const c = joinCompany(this.w, "test", name, hub, start);
+    const c = joinCompany(this.w, "test", name, hub, start, look);
     if (!c) return null;
     this.player = c;
-    Object.assign(this.log, { name, start, hub, warm: this.w.t / 60 });
+    Object.assign(this.log, { name, start, hub, look, warm: this.w.t / 60 });
     return c;
   }
 
@@ -171,7 +176,7 @@ export class TestGame {
     if (log.warm) await warmUp(w, log.warm);
     // A fresh log the replay writes into, as play would; the saved one is only read.
     const g = new TestGame({ ...log, warm: undefined, t: w.t, acts: [] }, w);
-    g.join(log.name, log.start, log.hub);
+    g.join(log.name, log.start, log.hub, log.look ?? "m");
     // A log from before the warm start opened at 06:00 of day one, the company already in.
     if (!log.warm) for (let h = 0; h < 6; h++) g.stepHour();
     const listeners = g.listeners;

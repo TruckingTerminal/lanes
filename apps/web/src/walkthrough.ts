@@ -22,6 +22,8 @@ export interface WalkStep {
   say: string[];
   /** Where to click, in one line. */
   do: string;
+  /** The line instead, when the world can't do what `do` asks today (step 9: the used lot is empty). */
+  doElse?: { when: (w: World) => boolean; line: string };
   /** Why it matters, in one line. */
   why: string;
   done: (w: World, c: Company) => boolean;
@@ -166,6 +168,11 @@ export function walkSteps(cfg: EconomyConfig, hub = "your home hub"): WalkStep[]
         `Your lease deposit counts toward it, and the Money tab's purchase loan covers the rest with ${pct(down0)} to ${pct(down1)} down. Owned trucks pay their own maintenance and insurance, cost you when they sit, and lose value every year. They also keep every dollar they earn. Buy the used one first. Ambition is for the second truck; the first one is arithmetic.`,
       ],
       do: "Buy a rig from the used lot, with a purchase loan if the cash is short.",
+      // QA (carry-over row 5): the line named the used lot while nothing was on it. Draft for the writer.
+      doElse: {
+        when: (w) => !(w.cfg.usedMarket.npcLot.enabled && w.cfg.assets.enabled && w.usedLot.stock > 0) && !w.listings.some((l) => l.status === "open" && l.truckId > 0),
+        line: "The used lot is empty this week. Buy a new rig at the Dealer, with a purchase loan, or wait for the lot to restock.",
+      },
       why: "Ownership turns the lessor's cut into your margin and is the only way a one-truck company grows into two.",
       done: (w, c) => trucksOf(w, c).some((t) => t.lease === "owned"),
     },
@@ -235,3 +242,6 @@ export function walkProgress(cfg: EconomyConfig, w: World, c: Company): { step: 
   const index = steps.findIndex((s) => !s.done(w, c));
   return { step: index >= 0 ? steps[index]! : null, index, done, total: steps.length };
 }
+
+/** A step's "Do" line for the world as it is. */
+export const stepDo = (step: WalkStep, w: World): string => (step.doElse && step.doElse.when(w) ? step.doElse.line : step.do);

@@ -49,12 +49,13 @@ export const LOGO_H = 128;
 export const LOGO_TITLE = logoTitlePng;
 export const LOGO_TITLE_H = 176;
 
-/** A driver's portrait: the owner and the odd-numbered hires are one face, the rest the other. */
+/** Faces painted per look (Graphics, 52ca12b: assets/people/driver-m1..8 and driver-f1..8). */
+export const DRIVER_FACES = 8;
 /**
- * A driver's portrait, by the look the engine gave them with their first name (Jeff, 2026-11-02). When Graphics' set of
- * portraits per look lands, pick the variant within the look here by `s.id` (e.g. id % the look's count).
+ * A driver's portrait file under assets/people: the look the engine gave them with their first name, then a face within
+ * it by id, so the hire list and the roster show different people. The owner keeps face 1, the one picked at first entry.
  */
-export const driverPerson = (s: { id: number; look: "m" | "f" }): Person => (s.look === "f" ? "driverF" : "driverM");
+export const driverFace = (s: { id: number; look: "m" | "f"; owner?: boolean }): string => `driver-${s.look}${s.owner ? 1 : 1 + (s.id % DRIVER_FACES)}`;
 
 let onReady: (() => void) | null = null;
 export function whenAssetsReady(f: () => void): void {

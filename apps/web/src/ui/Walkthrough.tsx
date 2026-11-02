@@ -2,7 +2,7 @@ import type { JSX } from "preact";
 import { useEffect, useRef, useState } from "preact/hooks";
 import { dayOf } from "@lanes/engine";
 import { GAME_CONFIG } from "../game.js";
-import { walkProgress, walkSteps, type Mood } from "../walkthrough.js";
+import { stepDo, walkProgress, walkSteps, type Mood } from "../walkthrough.js";
 import { ASSETS, hasAsset } from "../mapart.js";
 import { drawPortrait } from "../portrait.js";
 import { bumpData, S, setOnboard, setTab, toast, useData } from "../state.js";
@@ -10,6 +10,7 @@ import { ARRIVAL, CAPTION, DISPATCHER } from "../copy.js";
 import { pct } from "../format.js";
 import { TAB_NAME } from "../tabs.js";
 import { Btn, Card } from "./bits.js";
+import { financeLine } from "./panels/Finance.js";
 import { Loop } from "./Loop.js";
 
 let poster: HTMLImageElement | null = null;
@@ -97,7 +98,7 @@ export function Walkthrough(): JSX.Element | null {
             </p>
           ))}
           <p class="small">
-            <b>Do:</b> {step.do}
+            <b>Do:</b> {stepDo(step, g.w)}
           </p>
           <p class="muted small">
             <b>Why:</b> {step.why}
@@ -152,13 +153,17 @@ export function Caption(): JSX.Element | null {
       setTab("loads");
     };
     return say(
-      ARRIVAL.line(g.w.net.hubs[c.homeHub]!.name, pct(GAME_CONFIG.costs.npcLeaseShareOfGross)),
+      // A small fleet starts on its own two trucks, not the lessor's (QA, carry-over row 3).
+      (g.w.trucksByCompany.get(c.id) ?? []).some((t) => t.lease === "npc") ? ARRIVAL.line(g.w.net.hubs[c.homeHub]!.name, pct(GAME_CONFIG.costs.npcLeaseShareOfGross)) : ARRIVAL.lineFleet(g.w.net.hubs[c.homeHub]!.name),
       <Btn sm primary onClick={showBoard}>
         {ARRIVAL.showBoard}
       </Btn>,
       "wave",
     );
   }
+  // On Finance, its own line first (specs/finance.md: one line at most, in the caption strip), once.
+  const fin = S.tab === "finance" ? financeLine() : null;
+  if (fin) return say(fin.line, <Btn sm onClick={() => mark(fin.key)}>{CAPTION.next}</Btn>);
   // After the first bid by hand (S9): once, the dispatcher is now on, and where its rules are.
   if (c.firstHandBidDay !== null && g.w.cfg.freeEntry.firstBidByHand && !seen("dispatcher")) {
     return say(
@@ -194,7 +199,7 @@ export function Caption(): JSX.Element | null {
   return (
     <div class="caption">
       <Iuliia mood={step.mood} size={64} />
-      <span class="small">{step.do}</span>
+      <span class="small">{stepDo(step, g.w)}</span>
       <Btn sm ghost onClick={() => mark(`hide:${step.id}`)}>
         {CAPTION.hide}
       </Btn>

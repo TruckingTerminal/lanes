@@ -41,7 +41,7 @@ function RollingCard({ t }: { t: Truck }): JSX.Element | null {
         <span>{ROLLING.eta(when(eta))}</span>
         <span class={cls("chip", lateH > 0 ? "bad" : "good")}>{lateH > 0 ? ROLLING.late(lateH) : ROLLING.onTime}</span>
       </div>
-      {stop ? <p class="muted small">{stop.kind === "site" ? ROLLING.tonightSite(w.sites[stop.siteId - 1]!.businessId !== 0, nearestPlace(w, stop.lat, stop.lon)) : ROLLING.tonightShoulder}</p> : null}
+      {stop ? <p class="muted small">{stop.kind === "site" ? ROLLING.tonightSite(w.sites[stop.siteId - 1]!.businessId !== 0, nearestPlace(w, stop.lat, stop.lon)) : S.handLoads.has(l.id) ? ROLLING.tonightShoulder : ROLLING.tonightDispatcher}</p> : null}
     </Card>
   );
 }

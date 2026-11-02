@@ -10,6 +10,7 @@ import { hubFacts, rankStarters } from "../hubcard.js";
 import { bumpData, S, TEST_BUILD, useData, type EntryStage } from "../state.js";
 import { Btn, Card } from "./bits.js";
 import { Iuliia } from "./Walkthrough.js";
+import { Portrait } from "./Loop.js";
 
 /**
  * The first entry (specs/first-ten-minutes.md, S1, draft 4): the world before a home. No company exists yet, so
@@ -211,11 +212,13 @@ function Naming({ hub }: { hub: number }): JSX.Element {
   const h = S.game!.w.net.hubs[hub]!;
   const [typed, setTyped] = useState<string | null>(null);
   const [start, setStart] = useState<StartKind>("oo");
+  // The owner's look: none picked until the player taps one; without a pick the owner keeps the man's portrait.
+  const [look, setLook] = useState<"m" | "f" | null>(null);
   // The writer's name for the hub, or "{city} Freight" for a starter the writer hasn't named yet.
   const name = typed ?? (defaultName(h.id) || `${h.name} Freight`);
   const submit = (ev: Event) => {
     ev.preventDefault();
-    H.choose((name.trim() || defaultName(h.id) || `${h.name} Freight`).slice(0, 32), h.id, TEST_BUILD ? start : "oo");
+    H.choose((name.trim() || defaultName(h.id) || `${h.name} Freight`).slice(0, 32), h.id, TEST_BUILD ? start : "oo", look ?? "m");
   };
   return (
     <form class="stack" onSubmit={submit}>
@@ -228,6 +231,17 @@ function Naming({ hub }: { hub: number }): JSX.Element {
           {NAMING.field}
         </label>
         <input type="text" id="cname" maxLength={32} value={name} onInput={(e) => setTyped((e.target as HTMLInputElement).value)} required />
+      </div>
+      <div class="field">
+        <span class="label">{NAMING.you}</span>
+        {/* The owner keeps face 1 of the look picked here (assets.ts driverFace). */}
+        <div class="row lookpick" role="radiogroup" aria-label={NAMING.you}>
+          {(["m", "f"] as const).map((l) => (
+            <button type="button" key={l} role="radio" aria-checked={look === l} aria-label={l === "m" ? NAMING.lookM : NAMING.lookF} class={cls("lookbtn", look === l && "on")} onClick={() => setLook(l)}>
+              <Portrait file={`driver-${l}1`} />
+            </button>
+          ))}
+        </div>
       </div>
       {TEST_BUILD ? (
         <div class="field">

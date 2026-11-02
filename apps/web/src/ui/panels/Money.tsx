@@ -1,11 +1,11 @@
 import type { JSX } from "preact";
-import { averagePriceUsd, borrowingCapacity, bridgeDelayDays, companyAccount, fdPriceUsd, lockedFd, sellableFd, tokenLive } from "@lanes/engine";
-import { cls, fd, fdFull, pct, shortDate, usd } from "../../format.js";
+import { averagePriceUsd, bridgeDelayDays, companyAccount, fdPriceUsd, lockedFd, sellableFd, tokenLive } from "@lanes/engine";
+import { cls, fd, fdFull, shortDate, usd } from "../../format.js";
 import { MONEY } from "../../copy.js";
 import { invoices, milesOf, weekCosts } from "../../ledger.js";
-import { GettingPaid } from "./Finance.js";
+import { FinanceLinks } from "./Finance.js";
 import { GAME_CONFIG } from "../../game.js";
-import { act, feed, me, myTrucks, S, truckNo, useData } from "../../state.js";
+import { act, feed, me, S, useData } from "../../state.js";
 import { Btn, Card, Kv, Num, Panel, Sparkline } from "../bits.js";
 
 const num = (id: string): number => Number((document.getElementById(id) as HTMLInputElement | null)?.value);
@@ -23,10 +23,6 @@ export function Money(): JSX.Element {
   const live = tokenLive(w);
   const owed = invoices(w, c);
   const week = weekCosts(w, c);
-  const ef = w.cfg.equipmentFinance;
-  const loans = w.finance.loans.filter((l) => l.borrowerId === c.id && l.status === "active");
-  const owned = myTrucks().filter((t) => t.lease === "owned");
-  const borrowable = owned.map((t) => ({ t, cap: borrowingCapacity(w, t) })).filter((x) => x.cap > 100);
   const day = Math.floor(w.t / 1440);
   const cashHist = feed().history.map((h) => h.cash);
   let token: JSX.Element;
@@ -147,8 +143,9 @@ export function Money(): JSX.Element {
         ) : (
           <p class="muted">{MONEY.nothingOwed}</p>
         )}
+        {/* How the company is paid and its loans live on Finance (specs/finance.md); Money links there. */}
+        <FinanceLinks />
       </Card>
-      <GettingPaid />
       <Card title={MONEY.week}>
         <Kv
           rows={[
@@ -162,29 +159,6 @@ export function Money(): JSX.Element {
       <Card title={MONEY.standing}>
         <p>{MONEY.miles(fdFull(milesOf(c)))}</p>
       </Card>
-      <details class="fold">
-        <summary>{MONEY.loans}</summary>
-        <Card>
-          <p class="muted small">{MONEY.loansLead(pct(ef.maxLoanToValue), pct(ef.weeklyRate), ef.termWeeks, ef.missedPaymentsToRepossess)}</p>
-          {borrowable.map((x) => (
-            <div class="row" key={x.t.id}>
-              <span>{MONEY.borrowUpTo(truckNo(x.t.id), fdFull(x.cap))}</span>
-              <Btn onClick={() => act({ type: "borrow", truckId: x.t.id, amountFd: Math.floor(borrowingCapacity(w, x.t)) }, "Loan funded")}>{MONEY.borrow}</Btn>
-            </div>
-          ))}
-          {loans.map((l) => (
-            <div class="row" key={l.id}>
-              <span>
-                {MONEY.loanOwed(truckNo(l.truckId), fdFull(l.principalFd))}
-                {l.missed ? <span class="bad"> · {MONEY.missed(l.missed)}</span> : null}
-              </span>
-              <Btn disabled={bal < l.principalFd} onClick={() => act({ type: "repay_loan", loanId: l.id }, "Loan repaid")}>
-                {MONEY.repay}
-              </Btn>
-            </div>
-          ))}
-        </Card>
-      </details>
       <details class="fold">
         <summary>{MONEY.token}</summary>
         {token}

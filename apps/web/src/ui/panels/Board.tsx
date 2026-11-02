@@ -291,6 +291,7 @@ function LoadSheet({ r, truck }: { r: BoardRow; truck: Truck }): JSX.Element {
   const sent = (at: number | null) => (at !== null ? setNote({ text: LOAD.sent(hhmm(at)), bad: false }) : undefined);
   const book = async () => {
     S.bookedLoads.add(l.id);
+    S.handLoads.add(l.id);
     const res = await order({ type: "book_load", truckId: truck.id, loadId: l.id }, ROUND.toastBooked);
     if (!res.ok) return setNote({ text: res.reason, bad: true });
     sent(res.at);
@@ -303,6 +304,7 @@ function LoadSheet({ r, truck }: { r: BoardRow; truck: Truck }): JSX.Element {
     const res = await order({ type: "place_bid", truckId: truck.id, loadId: l.id, rate: bid }, ROUND.toastBid(bid.toFixed(2), nextRoundHour()));
     if (!res.ok) return setNote({ text: res.reason, bad: true });
     S.handBids.set(l.id, { rate: bid, be: r.be });
+    S.handLoads.add(l.id);
     S.result = null;
     toast(ROUND.toastBid(bid.toFixed(2), nextRoundHour()));
     S.openLoad = null;

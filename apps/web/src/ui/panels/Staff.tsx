@@ -5,7 +5,7 @@ import { GAME_CONFIG } from "../../game.js";
 import { atHub, marketPayOf, moraleClass, moraleWord, staffPay, Stars } from "../../logic.js";
 import { act, me, myTrucks, S, truckNo, useData } from "../../state.js";
 import { Btn, Card, Kv, Panel } from "../bits.js";
-import { SCENES, driverPerson } from "../../assets.js";
+import { SCENES, driverFace } from "../../assets.js";
 import { Portrait, Scene } from "../Loop.js";
 import { PendingCard } from "./Fleet.js";
 
@@ -98,7 +98,7 @@ export function Staff(): JSX.Element {
     return (
       <Card key={s.id}>
         <div class="row">
-          <Portrait who={s.kind === "driver" ? driverPerson(s) : "dispatcher"} />
+          {s.kind === "driver" ? <Portrait file={driverFace(s)} /> : <Portrait who="dispatcher" />}
           <b>{s.name}</b>
           <Stars skill={s.skill} />
           <span class="muted">{kindLabel(s.kind)}</span>
@@ -158,7 +158,7 @@ export function Staff(): JSX.Element {
       <tr key={s.id}>
         <td>
           <span class="row">
-            <Portrait who={driver ? driverPerson(s) : "dispatcher"} sm />
+            {driver ? <Portrait file={driverFace(s)} sm /> : <Portrait who="dispatcher" sm />}
             {s.name}
           </span>
         </td>

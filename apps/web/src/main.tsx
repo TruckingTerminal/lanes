@@ -1,5 +1,5 @@
 import { render } from "preact";
-import { companyAccount, crewed, type GameEvent } from "@lanes/engine";
+import { companyAccount, crewed, resting, type GameEvent } from "@lanes/engine";
 import { installTheme } from "./art.js";
 import { truckSheet, whenAssetsReady } from "./assets.js";
 import { fd, fdFull, hhmm, realUntil, shortDate } from "./format.js";
@@ -115,6 +115,9 @@ function onEvent(s: Session, e: GameEvent): void {
     const owedTo = w.receivables.filter((r) => r.holder === s.player!.id).reduce<{ id: number; dueDay: number } | null>((a, r) => (!a || r.id > a.id ? r : a), null);
     const paidOn = owedTo && owedTo.dueDay > Math.floor(w.t / 1440) ? shortDate(owedTo.dueDay) : "today";
     push(s, FEED.delivered(...ends(e.loadId, e.origin, e.dest), fdFull(e.grossFd), fdFull(e.grossFd - e.costFd - held), paidOn));
+    const fd = feed(s).deliveries;
+    fd.push({ day: Math.floor(w.t / 1440), grossFd: e.grossFd });
+    if (fd.length > 60) fd.shift();
     // Not while a replay passes old deliveries (a late order makes the live world replay its history).
     if (s === S.game && !rebuilding && truck && load) {
       const line = payLine(w, truck, load, e.grossFd, e.costFd, beforeDelivery.get(truck.id) ?? { emptyMi: 0, depositFd: truck.depositFd ?? 0 });
@@ -278,14 +281,14 @@ async function openTest(): Promise<void> {
 let joiningLive = false;
 /** The test world speeds up to Day a minute once, at the player's first bid by hand. */
 let firstBidSped = true;
-function choose(name: string, hub: string, start: StartKind): void {
+function choose(name: string, hub: string, start: StartKind, look: "m" | "f" = "m"): void {
   const g = S.game;
   if (!g || g.player) return;
   const at = g.w.net.hubs.findIndex((h) => h.id === hub);
   // A new company hears Iuliia's arrival line, even in a browser that heard it for an earlier one.
   setOnboard({ seen: S.onboard.seen.filter((x) => x !== "arrival") });
   if (g.kind === "test") {
-    const c = g.join(name, start, hub);
+    const c = g.join(name, start, hub, look);
     if (!c) return toast("That hub can't take a new company.", true);
     S.selTruck = g.w.trucksByCompany.get(c.id)?.[0]?.id ?? null;
     // Live pace until the first bid by hand (QA, 2026-11-02: at Day a minute the first round cleared while a stranger
@@ -303,7 +306,7 @@ function choose(name: string, hub: string, start: StartKind): void {
   }
   // Live: the join is an order like any other; the flight home waits for the company to exist (lw.onJoin).
   joiningLive = true;
-  H.join(name, hub);
+  H.join(name, hub, look);
 }
 
 function wireHandlers(): void {
@@ -342,9 +345,9 @@ function wireHandlers(): void {
       bumpData();
     });
   };
-  H.join = (name: string, hub: string) => {
+  H.join = (name: string, hub: string, look: "m" | "f" = "m") => {
     const lw = S.live!;
-    lw.submit({ type: "join", name, hub }).then(
+    lw.submit({ type: "join", name, hub, look }).then(
       (r) => {
         toast(`Registering ${name}. Your truck is ready at ${hhmm(r.at)}, in ${realUntil(lw.msUntil(r.at))}.`);
       },
@@ -422,6 +425,13 @@ function observe(s: Session): void {
   const f = feed(s);
   const w = s.w;
   if (s.player) for (const t of w.trucksByCompany.get(s.player.id) ?? []) beforeDelivery.set(t.id, { emptyMi: t.emptyMi, depositFd: t.depositFd ?? 0 });
+  if (s === S.game && s.player) {
+    for (const t of w.trucksByCompany.get(s.player.id) ?? []) {
+      const home = resting(w, t);
+      if (home) S.homeNow.add(t.id);
+      else if (S.homeNow.delete(t.id)) S.idleFrom.set(t.id, w.t);
+    }
+  }
   if (w.t === f.lastT) return;
   const crossed = Math.floor(w.t / 1440) !== Math.floor(f.lastT / 1440);
   f.lastT = w.t;

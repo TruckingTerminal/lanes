@@ -66,6 +66,15 @@ export const S = {
   handBids: new Map<number, { rate: number; be: number }>(),
   /** Loads booked by hand from the board, so the feed says "Booked" for them, not "Won" (S4). */
   bookedLoads: new Set<number>(),
+  /**
+   * When each of your trucks last came off home time (game minute), as this page saw it: the idle clock restarts there,
+   * so home time never counts as idling (QA, carry-over row 3). The engine's own idle clock is a rule (per diem, idle
+   * fees) and stays as it is.
+   */
+  idleFrom: new Map<number, number>(),
+  /** Loads the player bid on or booked by hand, so the Truck card can tell the dispatcher's loads from the player's own. */
+  handLoads: new Set<number>(),
+  homeNow: new Set<number>(),
   /** The last delivery, shown on the Truck tab until OK (S7); Money keeps a dot until it's opened. */
   delivered: null as null | { from: string; to: string; lateH: number; line: PayLine; dueDay: number | null; hiredDriver: string | null },
   moneyDot: false,
@@ -142,14 +151,16 @@ export const useData = (): number => useChannel(data);
 export interface Feed {
   ticker: { text: string; cls: string }[];
   history: { day: number; cash: number }[];
+  /** The company's deliveries as this page saw them (gross, game day), newest last: Finance's "average load" (specs/finance.md). */
+  deliveries: { day: number; grossFd: number }[];
   band: string;
   lastT: number;
 }
 const feeds = new Map<Session, Feed>();
 export function feed(s: Session | null = S.game): Feed {
-  if (!s) return { ticker: [], history: [], band: "", lastT: 0 };
+  if (!s) return { ticker: [], history: [], deliveries: [], band: "", lastT: 0 };
   let f = feeds.get(s);
-  if (!f) feeds.set(s, (f = { ticker: [], history: [], band: "", lastT: s.w.t }));
+  if (!f) feeds.set(s, (f = { ticker: [], history: [], deliveries: [], band: "", lastT: s.w.t }));
   return f;
 }
 export function push(s: Session, text: string, cls = ""): void {

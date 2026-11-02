@@ -44,7 +44,8 @@ export function openLoadsAt(hub: number): Load[] {
 
 /** A truck counts as stuck after this many hours idle: the dispatcher has had two rounds at it. */
 export const IDLE_ALERT_HOURS = 24;
-export const idleHours = (t: Truck): number => Math.max(0, (clockMin() - t.idleSinceT) / 60);
+/** Hours idle, counted from the later of the engine's idle start and the end of the truck's last home time (S.idleFrom). */
+export const idleHours = (t: Truck): number => Math.max(0, (clockMin() - Math.max(t.idleSinceT, S.idleFrom.get(t.id) ?? -Infinity)) / 60);
 export const idleDays = (t: Truck): number => Math.floor(idleHours(t) / 24);
 export const idleLabel = (t: Truck): string => hoursLabel(idleHours(t));
 

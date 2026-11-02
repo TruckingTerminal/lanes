@@ -152,7 +152,12 @@ export function Rig({ eq, paint, alt, scale = 1 }: { eq: Equipment; paint?: "red
   return <Loop name={`rigs/${eq}`} still={rig(eq)} w={256} h={96} scale={scale} class={cls("rig", paint ? `paint-${paint}` : "")} alt={alt ?? ""} />;
 }
 
-/** Someone's portrait: a 128 × 128 painting with its idle loop, 48 CSS px (32 when small). */
-export function Portrait({ who, sm }: { who: Person; sm?: boolean }): JSX.Element {
-  return <Loop name={`people/${PEOPLE_FILE[who]}`} still={PEOPLE[who]} w={128} h={128} scale={sm ? 0.25 : 0.375} smooth class={cls("portrait", sm ? "sm" : "")} alt="" />;
+/**
+ * Someone's portrait: a 128 × 128 painting with its idle loop, 48 CSS px (32 when small). `file` names one of the faces
+ * served next to the page (assets/people/<file>.png and its loop: the drivers' set) in place of a `who`.
+ */
+export function Portrait({ who, file, sm }: { who?: Person; file?: string; sm?: boolean }): JSX.Element {
+  const name = file ?? PEOPLE_FILE[who ?? "driverM"];
+  const still = file ? `${ASSETS}people/${file}.png` : PEOPLE[who ?? "driverM"];
+  return <Loop name={`people/${name}`} still={still} w={128} h={128} scale={sm ? 0.25 : 0.375} smooth class={cls("portrait", sm ? "sm" : "")} alt="" />;
 }
