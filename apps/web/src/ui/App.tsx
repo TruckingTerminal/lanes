@@ -32,32 +32,42 @@ function TitleScene(): JSX.Element {
     let raf = 0;
     let shown: HTMLImageElement | null | undefined;
     const frame = (t: number) => {
-      const avail = Math.min(1280, cv.parentElement?.clientWidth || 960);
+      // The login is the loop full screen (S0, draft 4): the canvas is the viewport in device pixels, and the shots fill
+      // it (title.ts: the band at a whole-pixel scale, sky above, ground below); the logo sits over the sky.
+      const dpr = window.devicePixelRatio || 1;
+      const W = Math.max(320, Math.round((cv.clientWidth || window.innerWidth) * dpr));
+      const H = Math.max(180, Math.round((cv.clientHeight || window.innerHeight) * dpr));
+      const resized = cv.width !== W || cv.height !== H;
+      if (resized) {
+        cv.width = W;
+        cv.height = H;
+      }
       const img = titleFrame(reduced ? 0 : t);
+      // The band's own pixel scale (title.ts viewport), which the logo is drawn at too.
+      const scale = Math.max(1, Math.ceil(W / TITLE_FRAME_W));
+      ctx.imageSmoothingEnabled = false;
       if (img) {
-        // The painted loop at a whole-number scale, 2× to 4×, so every pixel stays square.
-        const scale = Math.max(2, Math.min(4, Math.floor(avail / TITLE_FRAME_W)));
-        const resized = cv.width !== TITLE_FRAME_W * scale;
-        if (resized) {
-          cv.width = TITLE_FRAME_W * scale;
-          cv.height = TITLE_FRAME_H * scale;
-        }
         if (resized || img !== shown || !reduced) {
-          ctx.imageSmoothingEnabled = false;
-          // The two shots next to the page, 20 s each (title.ts drawTitleShots); the poster until they can play.
-          if (reduced || !drawTitleShots(ctx, cv.width, cv.height, t)) ctx.drawImage(img, 0, 0, cv.width, cv.height);
-          drawLogo(ctx, cv.width, scale);
+          if (reduced || !drawTitleShots(ctx, W, H, t)) {
+            // The poster until the shots can play: the painting at its whole-pixel scale, centred on the dark.
+            ctx.fillStyle = "#090c17";
+            ctx.fillRect(0, 0, W, H);
+            const ps = Math.max(1, Math.floor(Math.min(W / TITLE_FRAME_W, H / TITLE_FRAME_H)));
+            ctx.drawImage(img, Math.round((W - TITLE_FRAME_W * ps) / 2), Math.round((H - TITLE_FRAME_H * ps) / 2), TITLE_FRAME_W * ps, TITLE_FRAME_H * ps);
+          }
+          drawLogo(ctx, W, scale);
           shown = img;
         }
       } else {
-        // Until the frames decode: the code-drawn scene.
-        const scale = Math.max(2, Math.min(4, Math.floor(avail / TITLE_W)));
-        if (cv.width !== TITLE_W * scale) {
-          cv.width = TITLE_W * scale;
-          cv.height = TITLE_H * scale;
-        }
-        drawTitleScene(ctx, scale, reduced ? 0 : t);
-        drawLogo(ctx, cv.width, scale);
+        // Until the frames decode: the code-drawn scene, centred.
+        ctx.fillStyle = "#090c17";
+        ctx.fillRect(0, 0, W, H);
+        const ss = Math.max(1, Math.floor(Math.min(W / TITLE_W, H / TITLE_H)));
+        ctx.save();
+        ctx.translate(Math.round((W - TITLE_W * ss) / 2), Math.round((H - TITLE_H * ss) / 2));
+        drawTitleScene(ctx, ss, reduced ? 0 : t);
+        ctx.restore();
+        drawLogo(ctx, W, scale);
         shown = undefined;
       }
       if (!reduced || !img) raf = requestAnimationFrame(frame);
@@ -160,7 +170,7 @@ function TitleMenuButton(): JSX.Element | null {
   return (
     <div class="titlemenu">
       <Btn sm ghost title={LOGIN.fullScreen} onClick={toggleFullscreen}>
-        ≡ {LOGIN.fullScreen}
+        <span aria-label={LOGIN.fullScreen}>≡</span>
       </Btn>
     </div>
   );

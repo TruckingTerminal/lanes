@@ -255,12 +255,14 @@ table.mini td:first-child { font-family: inherit; }
 .phone-only { display: none !important; }
 .hubcards { display: grid; gap: 6px; }
 /* The login (S0): the loop, one action under it, a corner "≡". */
-.title { position: relative; }
-.titleaction { display: grid; justify-items: center; gap: 8px; min-height: 56px; }
+.title { position: fixed; inset: 0; overflow: hidden; background: #090c17; }
+.title > canvas { position: absolute; inset: 0; width: 100%; height: 100%; max-width: none; border: 0; border-radius: 0; }
+.titleaction { position: absolute; left: 16px; right: 16px; bottom: calc(24px + env(safe-area-inset-bottom)); z-index: 2; display: grid; justify-items: center; gap: 8px; min-height: 56px; }
+.titleaction p { margin: 0; padding: 6px 10px; border-radius: var(--radius); background: color-mix(in srgb, #090c17 70%, transparent); }
 .titleaction .btn { min-height: 44px; }
 .row.center, .stack.center { justify-content: center; justify-items: center; text-align: center; }
 .starting { font-family: var(--font-mono); color: var(--text-secondary); margin: 12px 0; }
-.titlemenu { position: absolute; top: 8px; right: 8px; }
+.titlemenu { position: absolute; top: calc(8px + env(safe-area-inset-top)); right: 8px; z-index: 2; }
 /* The first entry (S1): Iuliia at 96 px, the hubs, the hub card and its read-only board. */
 .iuliiasay { display: flex; gap: 12px; align-items: flex-start; }
 .iuliiasay p { margin: 0; flex: 1; min-width: 0; }
@@ -326,8 +328,6 @@ details.fold > summary { cursor: pointer; padding: 6px 0; color: var(--text-seco
 .results-head b { font-size: 15px; }
 
 /* Title */
-.title { display: grid; gap: 14px; justify-items: center; padding: 14px 12px 40px; }
-.title canvas { max-width: 100%; height: auto; border: 1px solid var(--border); border-radius: var(--radius); background: #090c17; }
 .tagline { font-family: var(--font-mono); font-size: 11px; letter-spacing: 0.12em; color: var(--text-secondary); text-align: center; text-transform: uppercase; }
 .menu { width: min(100%, 720px); display: grid; gap: 12px; }
 .menu .card { padding: 14px 16px; }
@@ -386,7 +386,6 @@ details.fold > summary { cursor: pointer; padding: 6px 0; color: var(--text-seco
   .card { padding: 10px; }
   .menu { width: 100%; }
   .menu .card { padding: 12px; }
-  .title { padding: 8px 8px 24px; gap: 10px; }
   .walkbody { flex-direction: column; }
   .walkbody .portrait { align-self: flex-start; }
   table { display: block; width: 100%; overflow-x: auto; }
