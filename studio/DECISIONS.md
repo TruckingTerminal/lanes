@@ -50,3 +50,6 @@
 - 2026-11-02 — Jeff, factoring, amended: the carriers' rate floors at 2.5% at fifty trucks (linear from 6% at
   one). Brokers can factor their receivables too, at a flat 5% whatever the volume: a broker is a capital
   depot and does not scale with factoring. Both under the economy's switch; both fees refill the reserve.
+- 2026-11-02 — Jeff: a public Intel tab, every company visible to everyone: trucks, drivers, authority age,
+  home hub, Miles, the safety, insurance and credit bands, last month's revenue and hauls. Live cash stays
+  private. The director writes the page for sprint 2.
