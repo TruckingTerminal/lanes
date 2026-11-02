@@ -932,9 +932,7 @@ function drawHubLabels(ctx: CanvasRenderingContext2D, f: number, k: number, u: n
   if (!S.game!.player) {
     ctx.strokeStyle = PAL.cyan;
     ctx.lineWidth = 2 * u;
-    for (const id of FIRST_HUBS) {
-      const i = w.net.hubs.findIndex((h) => h.id === id);
-      if (i < 0) continue;
+    for (const i of S.entry.rings ?? FIRST_HUBS.map((id) => w.net.hubs.findIndex((h) => h.id === id)).filter((x) => x >= 0)) {
       const [X, Y] = toScreen(...art!.hubXY[i]!);
       if (!visible(X, Y)) continue;
       ctx.beginPath();
@@ -1037,7 +1035,7 @@ function selectOnMap(ev: { clientX: number; clientY: number }): void {
   else if (S.selHub !== null) {
     S.cityView = null;
     S.townView = null;
-    S.entry = { stage: "card", hub: S.selHub };
+    S.entry = { ...S.entry, stage: "card", hub: S.selHub };
     S.sheet = "full";
   }
   bumpData();

@@ -46,7 +46,7 @@ export function walkSteps(cfg: EconomyConfig, hub = "your home hub"): WalkStep[]
       title: "Choose your home",
       tab: "fleet",
       mood: "wave",
-      brief: "Three ringed cities take new carriers. Tap one to start, or any other to see its freight.",
+      brief: "The rings mark where a new carrier finds freight right now. You may start at any starter city; any city shows its freight.",
       say: [
         `Good morning. Iuliia, with two i's; my mother was thorough. I ran operations for a fleet of four hundred trucks in Moscow before I was thirty, and now I run you, which the clipboard says is one leased Workhorse with a dry van. The lessor keeps ${pct(cfg.costs.npcLeaseShareOfGross)} of every load and does the maintenance; the rest is yours, and so is the driving, since the driver is you. A company of one. Lean. I approve.`,
         `The clock is real: one game day every ${cfg.time.realHoursPerGameDayLive} hours of your life, and the market does not sleep. Neither did I, in the nineties; it was that kind of decade. The map is everyone's trucks; the ringed cities are good homes. My grandmother said a person who doesn't know where home is will drive past it twice. She meant my uncle. It applies to fleets.`,
@@ -96,7 +96,7 @@ export function walkSteps(cfg: EconomyConfig, hub = "your home hub"): WalkStep[]
         `What arrives is net of the lessor's ${pct(cfg.costs.npcLeaseShareOfGross)}. The lease also holds a little back from each load toward a truck of your own; you'll see it again when you buy, so don't mourn it. Money shows both. Watch the cash line at the top of the screen every day, the way my grandmother watched the samovar. Trust, and verify. Mostly verify.`,
       ],
       do: "On Money, find the lessor's share and the hold. Invoices come with a truck of your own.",
-      why: "Cash arrives a month after the work; costs arrive now. The gap is what kills new carriers, not the rates.",
+      why: "On a lease, pay lands on delivery and costs land as they come; what shrinks the pay is the lessor's share and the hold toward your own truck.",
       done: (w, c) => c.delivered >= 2,
     },
     {

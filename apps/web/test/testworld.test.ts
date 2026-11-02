@@ -63,3 +63,19 @@ describe("the season line's rolling mean", () => {
     }
   }, 120_000);
 });
+
+describe("the live rings", () => {
+  it("falls back to Dallas, Los Angeles, Phoenix until the readings are in, then ranks the starters by the four-round mean", async () => {
+    const { rankStarters, sampleStarters, seasonReading, starterHubs } = await import("../src/hubcard.js");
+    const cold = await TestGame.create();
+    const ids = (w: typeof cold.w, xs: number[]) => xs.map((i) => w.net.hubs[i]!.id);
+    expect(ids(cold.w, rankStarters(cold.w).slice(0, 3))).toEqual(["DAL", "LAX", "PHX"]);
+    const warm = await TestGame.create(undefined, (w) => {
+      if (w.t % 720 === 360) sampleStarters(w);
+    });
+    const ranked = rankStarters(warm.w);
+    expect(ranked).toHaveLength(starterHubs(warm.w).length);
+    const scores = ranked.map((i) => seasonReading(warm.w, i));
+    for (let k = 1; k < scores.length; k++) expect(scores[k]!).toBeLessThanOrEqual(scores[k - 1]! + 1e-12);
+  }, 120_000);
+});

@@ -38,9 +38,8 @@ export const GAME_CONFIG: EconomyConfig = {
 export const RULESET = `lanes-live-1/${economyConfig.version}`;
 
 /**
- * The three hubs the title offers first, in order (the director's ruling 4, 2026-11-02: Dallas, Los Angeles,
- * Phoenix, pending the economy's check of Los Angeles; the fallback is Chicago, Dallas, Phoenix). Any starter hub
- * id works here; every other starter stays one tap away under "Change".
+ * The rings' fallback and tie-break (Jeff, 2026-11-02: the rings are the best freight at the time of year the player
+ * starts, hubcard.ts rankStarters; until the readings are in, and between equal readings, these three in this order).
  */
 export const FIRST_HUBS: readonly string[] = ["DAL", "LAX", "PHX"];
 
@@ -112,10 +111,13 @@ export interface TestLog {
 export const WARM_HOURS = 54;
 
 /** Steps a world some hours in slices, so the page stays responsive and can show how far it is. */
-async function warmUp(w: World, hours: number, onProgress?: (share: number) => void): Promise<void> {
+async function warmUp(w: World, hours: number, onProgress?: (share: number) => void, onHour?: (w: World) => void): Promise<void> {
   while (w.t < hours * 60) {
     const end = performance.now() + 30;
-    while (w.t < hours * 60 && performance.now() < end) stepHour(w, ruleBotHook);
+    while (w.t < hours * 60 && performance.now() < end) {
+      stepHour(w, ruleBotHook);
+      onHour?.(w);
+    }
     onProgress?.(w.t / (hours * 60));
     await new Promise((r) => setTimeout(r, 0));
   }
@@ -146,10 +148,10 @@ export class TestGame {
    * A new test world: two game days of the market without you (the warm start). You arrive with no company and
    * choose your home hub inside the world (Jeff, 2026-11-02); `join` brings the company in at that minute.
    */
-  static async create(onProgress?: (share: number) => void): Promise<TestGame> {
-    const seed = Math.floor(Math.random() * 1e9);
+  /** `onHour` sees the world after each warm-up hour (the screen samples the hub readings there; it only reads). */
+  static async create(onProgress?: (share: number) => void, onHour?: (w: World) => void, seed = Math.floor(Math.random() * 1e9)): Promise<TestGame> {
     const w = newWorld(seed);
-    await warmUp(w, WARM_HOURS, onProgress);
+    await warmUp(w, WARM_HOURS, onProgress, onHour);
     return new TestGame({ v: 1, ruleset: RULESET, seed, name: "", start: "oo", hub: "", t: w.t, acts: [] }, w);
   }
 

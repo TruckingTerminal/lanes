@@ -15,6 +15,11 @@ export const LOGIN = {
   replace: "Replace it",
   keep: "Keep it",
   starting: "Starting the world…",
+  notOpen: "Not open yet",
+  update: "Update in progress",
+  updateHover: (theirs: string, ours: string) => `The live world runs rules ${theirs}; this page has ${ours}. Reload in a little while.`,
+  openWorld: "Open the live world",
+  testWorld: "Test world",
   report: "Report a bug or an idea",
   fullScreen: "Full screen",
 };
@@ -23,7 +28,7 @@ export const FIRST_ENTRY = {
   nextRound: (hhmm: string) => `Next round ${hhmm}`,
   welcome: "I'm Iuliia, your guide. This is America's freight market, live: every truck you see is real and moving. First, pick a home city.",
   next: "Next",
-  home: "Three ringed cities take new carriers. Tap one to start, or any other to see its freight.",
+  home: "The rings mark where a new carrier finds freight right now. You may start at any starter city; any city shows its freight.",
   allHubs: "All hubs",
   allHubsHeader: "All hubs · busiest first",
 };
@@ -222,7 +227,7 @@ export const DISPATCHER = {
   afterFirst: "From now on your dispatcher bids when you don't. Check the rules before you go.",
   seeDispatcher: "See the dispatcher",
   bidAt: "Bid at break-even plus",
-  bidCeiling: "Bid at this share of the posted ceiling",
+  ceilingSuffix: "% of the ceiling",
   emptyUpTo: "Send the truck empty up to",
   homeAfter: "Bring me home after",
   save: "Save",
@@ -254,6 +259,7 @@ export const TRUCK = {
   bidByHand: "Bid by hand",
   noDriver: (n: number) => `Truck ${n} has no driver and earns nothing.`,
   hireDriver: "Hire a driver",
+  sentEmpty: "The truck is heading out empty.",
   today: "Today",
 };
 
@@ -264,4 +270,6 @@ export const FEED = {
   delivered: (from: string, to: string, total: string, yours: string, paid: string) => `Delivered ${from} to ${to}: ${total} FD, ${yours} FD yours after fuel, tolls and the lessor's cut. Paid ${paid}.`,
   woundUp: "The company is wound up: the trucks are sold, and you start again on a lease.",
   firstLoad: (r1: string, r2: string) => `The first load is your call. Bids clear at ${r1} and ${r2}.`,
+  watching: (r1: string, r2: string) => `Your dispatcher is watching the board. Bids clear at ${r1} and ${r2}.`,
+  off: (r1: string, r2: string) => `Your dispatcher is off. Bids clear at ${r1} and ${r2}.`,
 };

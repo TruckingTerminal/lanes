@@ -3,9 +3,9 @@ import { useState } from "preact/hooks";
 import { hubs as HUBS } from "@lanes/data";
 import { defaultName, FIRST_ENTRY, HUB_CARD, NAMING } from "../copy.js";
 import { cls, fd } from "../format.js";
-import { FIRST_HUBS, FLEET_START_EXTRA_FD, GAME_CONFIG, type StartKind } from "../game.js";
+import { FLEET_START_EXTRA_FD, GAME_CONFIG, type StartKind } from "../game.js";
 import { H } from "../handlers.js";
-import { hubFacts } from "../hubcard.js";
+import { hubFacts, rankStarters } from "../hubcard.js";
 import { bumpData, S, TEST_BUILD, useData, type EntryStage } from "../state.js";
 import { Btn, Card } from "./bits.js";
 import { Iuliia } from "./Walkthrough.js";
@@ -25,14 +25,17 @@ export function choosing(): boolean {
 }
 
 const isStarter = (id: string): boolean => HUBS.some((h) => h.id === id && h.isStarter);
-/** The three ringed hubs (game.ts FIRST_HUBS) as world hub indices. */
+/**
+ * The three ringed hubs: the starters with the best freight right now (hubcard.ts rankStarters), ranked once when the
+ * choice opens and kept for it, so the rings don't move under the player's thumb.
+ */
 export const ringedHubs = (): number[] => {
-  const w = S.game!.w;
-  return FIRST_HUBS.map((id) => w.net.hubs.findIndex((h) => h.id === id)).filter((i) => i >= 0);
+  S.entry.rings ??= rankStarters(S.game!.w).slice(0, 3);
+  return S.entry.rings;
 };
 
 function go(stage: EntryStage, hub: number | null = S.entry.hub): void {
-  S.entry = { stage, hub };
+  S.entry = { ...S.entry, stage, hub };
   if (hub !== null) S.selHub = hub;
   S.sheet = stage === "card" || stage === "board" || stage === "all" ? "full" : "half";
   bumpData();
@@ -105,7 +108,11 @@ function Home(): JSX.Element {
 
 function AllHubs(): JSX.Element {
   const w = S.game!.w;
-  const order = w.net.hubs.map((_, i) => ({ i, posted: hubFacts(w, i).posted })).sort((a, b) => b.posted - a.posted || a.i - b.i);
+  // The starters first, in the rings' order, then every other city busiest first.
+  const rings = ringedHubs();
+  const starters = [...rings, ...rankStarters(w).filter((i) => !rings.includes(i))];
+  const rest = w.net.hubs.map((_, i) => ({ i, posted: hubFacts(w, i).posted })).filter((x) => !starters.includes(x.i)).sort((a, b) => b.posted - a.posted || a.i - b.i);
+  const order = [...starters.map((i) => ({ i })), ...rest];
   return (
     <div class="stack">
       <div class="row">
@@ -203,7 +210,8 @@ function Naming({ hub }: { hub: number }): JSX.Element {
   const h = S.game!.w.net.hubs[hub]!;
   const [typed, setTyped] = useState<string | null>(null);
   const [start, setStart] = useState<StartKind>("oo");
-  const name = typed ?? defaultName(h.id);
+  // The writer's name for the hub, or "{city} Freight" for a starter the writer hasn't named yet.
+  const name = typed ?? (defaultName(h.id) || `${h.name} Freight`);
   const submit = (ev: Event) => {
     ev.preventDefault();
     H.choose((name.trim() || defaultName(h.id) || `${h.name} Freight`).slice(0, 32), h.id, TEST_BUILD ? start : "oo");

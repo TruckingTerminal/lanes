@@ -1,5 +1,7 @@
 import { dayOf, EQUIPMENT, garagingOf, homeCrowding, hubTheftRisk, localShare, planIndex, reloadOdds, type World } from "@lanes/engine";
+import { hubs as HUBS } from "@lanes/data";
 import { starterBreakEven } from "./breakeven.js";
+import { FIRST_HUBS } from "./game.js";
 import { HUB_CARD, SEASON, STARTERS } from "./copy.js";
 import { fd, pct } from "./format.js";
 
@@ -71,6 +73,32 @@ export function seasonReading(w: World, hub: number): number {
   byHub.set(hub, list);
   return list.reduce((a, x) => a + x.value, 0) / list.length;
 }
+/** How many rounds' readings the rolling mean has for a hub so far. */
+export const seasonRounds = (w: World, hub: number): number => history.get(w)?.get(hub)?.length ?? 0;
+
+/** The starter hubs (the only ones a company may call home), as world hub indices. */
+export const starterHubs = (w: World): number[] => w.net.hubs.map((h, i) => (HUBS.some((x) => x.id === h.id && x.isStarter) ? i : -1)).filter((i) => i >= 0);
+
+/** Takes a reading of every starter hub for the rolling mean (the test world's warm-up calls it after each round). */
+export function sampleStarters(w: World): void {
+  for (const i of starterHubs(w)) seasonReading(w, i);
+}
+
+/**
+ * The starter hubs, best freight right now first (Jeff, 2026-11-02): by the four-round mean of the season measure.
+ * Until every starter has its four rounds, and between equal readings, the fallback order (game.ts FIRST_HUBS) decides.
+ */
+export function rankStarters(w: World): number[] {
+  const starters = starterHubs(w);
+  const fall = (i: number) => {
+    const k = FIRST_HUBS.indexOf(w.net.hubs[i]!.id);
+    return k < 0 ? FIRST_HUBS.length : k;
+  };
+  const ready = starters.every((i) => seasonRounds(w, i) >= ROUNDS_KEPT);
+  const score = new Map(starters.map((i) => [i, ready ? seasonReading(w, i) : 0]));
+  return [...starters].sort((a, b) => score.get(b)! - score.get(a)! || fall(a) - fall(b) || a - b);
+}
+
 export function seasonLine(w: World, hub: number): string {
   const k = w.cfg.ui.season;
   const x = seasonReading(w, hub);

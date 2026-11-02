@@ -9,6 +9,7 @@ import { H } from "./handlers.js";
 import { createMeta, LiveWorld, readMeta, type DbLike, type WorldMeta } from "./live.js";
 import { checkAttention, checkIdleAlerts, setDefaultOrders } from "./logic.js";
 import { payLine, type TruckBefore } from "./rolling.js";
+import { sampleStarters } from "./hubcard.js";
 import { drawMap, fitMap, flyTo, resetArt, setZoom, zoomIndex } from "./mapview.js";
 import { MemoryDb } from "./memdb.js";
 import { bumpData, bumpTick, feed, loadOnboard, setOnboard, loadTheme, markPersisted, persistTest, push, readTest, S, setLayout, setTab, SPEEDS, TEST_BUILD, toast, toggleFullscreen, truckNo, type Session, type TitleMenu } from "./state.js";
@@ -63,7 +64,7 @@ function showGame(s: Session): void {
   setTab("fleet");
   S.sheet = "half";
   // Before a company, the first entry starts at Iuliia's welcome; a returning player opens on their truck, no flight.
-  if (!s.player) S.entry = { stage: "welcome", hub: null };
+  if (!s.player) S.entry = { stage: "welcome", hub: null, rings: null };
   else if (truck) flyTo(truck.hub, true);
   S.screen = { kind: "game" };
   bumpData();
@@ -241,9 +242,15 @@ async function continueTest(): Promise<void> {
 async function openTest(): Promise<void> {
   // "Starting the world…" over the title loop while the market runs its two warm days (S0).
   showTitle({ kind: "starting" });
-  const t = await TestGame.create((share) => {
-    S.loadShare = share;
-  });
+  // The warm-up reads the starter hubs after each of its four rounds, so the rings' four-round mean is ready on arrival.
+  const t = await TestGame.create(
+    (share) => {
+      S.loadShare = share;
+    },
+    (w) => {
+      if (w.t % 720 === 360) sampleStarters(w);
+    },
+  );
   S.test = t;
   t.onEvent((e) => onEvent(t, e));
   S.speed = 0;

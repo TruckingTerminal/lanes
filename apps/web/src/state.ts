@@ -52,7 +52,8 @@ export const S = {
   tab: "fleet" as Tab,
   layout: "split" as Layout,
   sheet: "half" as SheetStop,
-  entry: { stage: "welcome" as EntryStage, hub: null as number | null },
+  /** The first entry's sheet, and the three ringed hubs, ranked once when it opens so they never shuffle under a thumb. */
+  entry: { stage: "welcome" as EntryStage, hub: null as number | null, rings: null as number[] | null },
   selTruck: null as number | null,
   selHub: null as number | null,
   /** The hub whose city pane is open over the map (opened by clicking the city or a town of its market), if any. */
