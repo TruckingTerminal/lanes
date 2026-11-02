@@ -459,9 +459,11 @@ export function drawMap(now: number): void {
   const lvl = mapLevel(season, k);
   ctx.fillStyle = lvl ? edgeShade(lvl.img) : PAL.seaD;
   ctx.fillRect(0, 0, W, H);
-  // The world past the map's edge (Graphics' surround, per season), wherever the map doesn't reach the window's edge.
+  // The world past the map's edge (Graphics' surround, per season), wherever the map doesn't reach the window's edge;
+  // the painting's last 48 px fade into it (tools/map-surround.py), so it's under them too, even at the panning limits.
   const sur = mapSurround(season);
-  if (sur && (panX < 0 || panY < 0 || art.W * k - panX < W || art.H * k - panY < H)) {
+  const fade = 48 * k;
+  if (sur && (panX < fade || panY < fade || art.W * k - panX < W + fade || art.H * k - panY < H + fade)) {
     ctx.imageSmoothingEnabled = !Number.isInteger(k);
     ctx.setTransform(k, 0, 0, k, -panX, -panY);
     ctx.drawImage(sur, -(sur.width - MAP_W) / 2, -(sur.height - MAP_H) / 2);
