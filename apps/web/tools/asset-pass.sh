@@ -168,6 +168,54 @@ makes() {
   wait
   python3 apps/web/tools/makes.py fit map
 }
+# Both looks for every staff kind (QA's replay, 2026-11-03: half the staff names couldn't match their faces). The four
+# originals above are all men, so each gets a woman drawn with it as style; the five kinds that borrowed the
+# dispatcher's face (operations, maintenance, the CEO, security, sales) get a man and a woman each, office roles in the
+# dispatcher's or broker's light and the maintenance manager in the mechanic's. Each kind keeps what says its job (a
+# headset, a suit, coveralls, a hard hat, a radio); the hands never move in the loops. Files are <kind>-m and <kind>-f
+# (kebab case, ops-manager, maint-manager, ceo, security-manager, sales-rep); the originals are copied to <kind>-m.
+STAFF="$PORTRAIT, no logos"
+staff() {
+  local d=apps/web/assets/people
+  "${P[@]}" pro "$STAFF: a freight dispatcher, a Latina woman in her thirties with dark hair in a low bun, a black headset with a microphone, a navy blue polo shirt, a focused expression lit by a monitor" 128 128 $d/dispatcher-f.png --style $d/dispatcher.png --seed 527400335 &
+  "${P[@]}" pro "$STAFF: a freight broker, a South Asian woman in her forties with sleek black hair to the shoulders, a small wireless earpiece, a charcoal blazer over a white silk blouse, a sharp calculating look" 128 128 $d/broker-f.png --style $d/broker.png --seed 2019762299 &
+  "${P[@]}" pro "$STAFF: a diesel mechanic, a white woman in her late twenties with a short blonde pixie cut under a red bandana and a smudge of grease on one cheek, dark blue coveralls with grease stains, a red rag over the shoulder, a wry grin" 128 128 $d/mechanic-f.png --style $d/mechanic.png --seed 1901508790 &
+  "${P[@]}" pro "$STAFF: a warehouse dock worker, a Black woman in her forties with braids under a yellow hard hat, a yellow safety vest over a brown shirt, holding a clipboard, a steady look" 128 128 $d/dockworker-f.png --style $d/dockworker.png --seed 40598912 &
+  "${P[@]}" pro "$STAFF: a trucking company's operations manager, a Black man in his forties with a trimmed beard, a light blue button-down shirt with the sleeves rolled up, a lanyard with a blank ID card, no headset, a no-nonsense look" 128 128 $d/ops-manager-m.png --style $d/broker.png --seed 1545675022 &
+  "${P[@]}" pro "$STAFF: a trucking company's operations manager, a white woman in her forties with shoulder-length brown hair and reading glasses pushed up on her head, a grey cardigan over a white shirt, a lanyard with a blank ID card, a brisk capable look" 128 128 $d/ops-manager-f.png --style $d/dispatcher.png --seed 42856984 &
+  "${P[@]}" pro "$STAFF: a truck shop's maintenance manager, a heavy-set white man in his fifties with a grey goatee and safety glasses pushed up on his forehead, a dark grey work shirt with pens in the chest pocket, a steady practical look" 128 128 $d/maint-manager-m.png --style $d/mechanic.png --seed 1412143874 &
+  wait
+  "${P[@]}" pro "$STAFF: a truck shop's maintenance manager, a Latina woman in her forties with her hair tied back and safety glasses pushed up on her head, a dark grey work shirt with pens in the chest pocket, a steady practical look" 128 128 $d/maint-manager-f.png --style $d/mechanic.png --seed 62489522 &
+  "${P[@]}" pro "$STAFF: the chief executive of a trucking company, an East Asian man in his fifties with silver at the temples, a navy suit and an open-collar white shirt, composed and quietly confident" 128 128 $d/ceo-m.png --style $d/broker.png --seed 735768993 &
+  "${P[@]}" pro "$STAFF: the chief executive of a trucking company, a Black woman in her fifties with short grey natural hair, a navy tailored suit jacket and a small pearl stud in each ear, composed and quietly confident" 128 128 $d/ceo-f.png --style $d/broker.png --seed 1551578010 &
+  "${P[@]}" pro "$STAFF: a trucking company's security manager, a broad white man in his forties with a shaved head and a short dark beard, a black polo shirt with a plain grey shoulder patch, a radio earpiece with a coiled wire, a watchful look" 128 128 $d/security-manager-m.png --style $d/dispatcher.png --seed 1592429627 &
+  "${P[@]}" pro "$STAFF: a trucking company's security manager, a Latina woman in her thirties with her black hair in a tight braid, a black polo shirt with a plain grey shoulder patch, a radio earpiece with a coiled wire, a watchful look" 128 128 $d/security-manager-f.png --style $d/dispatcher.png --seed 411687790 &
+  "${P[@]}" pro "$STAFF: a freight sales representative, a young white man in his late twenties with neat blond hair, a navy quarter-zip pullover over a collared shirt, a bright confident salesman's smile" 128 128 $d/sales-rep-m.png --style $d/broker.png --seed 1520406350 &
+  "${P[@]}" pro "$STAFF: a freight sales representative, an East Asian woman in her late twenties with long dark hair, a red blazer over a black top, a bright confident smile" 128 128 $d/sales-rep-f.png --style $d/broker.png --seed 1307698206 &
+  wait
+  for k in dispatcher broker mechanic dockworker; do cp $d/$k.png $d/$k-m.png; cp $d/$k.loop.png $d/$k-m.loop.png; cp $d/$k.loop.json $d/$k-m.loop.json; done
+}
+# Their idle loops: the drivers' motion, or, where a hand is up at the ear or the chin, no tilt of the head and the hands
+# held still (a moving hand is where the three arms came from). Checked like the drivers': the first loops of
+# ops-manager-m, maint-manager-m and sales-rep-m jumped at the wrap and were redrawn; dockworker-f came out orange
+# twice (a yellow vest seems to set it off) and the second was fitted back to its still with one affine colour map.
+# The original dockworker's loop (2026-10-29) drifted orange and popped back at the wrap; it's redrawn here, still.
+staffloops() {
+  local d=apps/web/assets/people
+  local sub="a subtle idle loop that ends where it began, the face and clothes stay the same"
+  local idle="breathes slowly, blinks, the eyes glance aside and back, a slight tilt of the head, $sub"
+  local still="breathes slowly, blinks, the eyes glance aside and back, only the face moves; the head, the hands and the arms stay perfectly still, $sub"
+  local n=0
+  for who in dockworker dispatcher-f broker-f mechanic-f dockworker-f ops-manager-m ops-manager-f maint-manager-m maint-manager-f ceo-m ceo-f security-manager-m security-manager-f sales-rep-m sales-rep-f; do
+    local motion=$idle
+    case $who in dockworker|dispatcher-f|broker-f|dockworker-f|ops-manager-f|ceo-m|security-manager-m|sales-rep-m) motion=$still ;; esac
+    "${P[@]}" animate $d/$who.png "$motion" $d/$who-loop --frames 16 --view side --transparent &
+    n=$((n + 1)); (( n % 7 == 0 )) && wait
+  done
+  wait
+  for who in dockworker dispatcher-f broker-f mechanic-f dockworker-f ops-manager-m ops-manager-f maint-manager-m maint-manager-f ceo-m ceo-f security-manager-m security-manager-f sales-rep-m sales-rep-f; do python3 apps/web/tools/pack-loop.py $d/$who-loop $d/$who.loop.png --cols 16; done
+  for k in dispatcher broker mechanic dockworker; do cp $d/$k.loop.png $d/$k-m.loop.png; cp $d/$k.loop.json $d/$k-m.loop.json; done
+}
 loading() {
   mkdir -p apps/web/assets/loading
   "${P[@]}" pro "$HD: side view of $TRUCK in cyan paint pulling a white 53-foot dry van trailer, driving to the right along a straight two-lane highway at dusk, the road and the flat desert horizon running seamlessly to both edges of the frame, telephone poles, a saturated orange and purple sky" 256 72 apps/web/assets/loading/rig.png --style apps/web/assets/title/title.png
@@ -275,6 +323,8 @@ case "$want" in
   drivers) drivers ;;
   driverloops) driverloops ;;
   makes) makes ;;
+  staff) staff ;;
+  staffloops) staffloops ;;
   loading) loading ;;
   placespro) placespro ;;
   placesloops) placesloops ;;

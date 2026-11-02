@@ -93,6 +93,25 @@ const DIR_VEC: [number, number][] = [[1, 0], [0.7071, 0.7071], [0, 1], [-0.7071,
 const CITY_TOP = [4, 6, 10, 13];
 /** Dot colour by equipment for the other carriers' trucks: white van, blue reefer, amber flatbed. */
 const EQUIP_DOT: Record<Equipment, string> = { van: PAL.white, reefer: PAL.blueL, flatbed: PAL.amber };
+const diamonds = new Map<string, HTMLCanvasElement>();
+/** The reefer's mark: a blue diamond `r` device pixels from centre to tip, outlined in ink (inside a lime one for a player). */
+function reeferDiamond(r: number, edge: number, player: boolean): HTMLCanvasElement {
+  const key = `${r}|${edge}|${player}`;
+  let cv = diamonds.get(key);
+  if (cv) return cv;
+  cv = document.createElement("canvas");
+  cv.width = cv.height = 2 * r + 1;
+  const g = cv.getContext("2d")!;
+  const fill = (rr: number, c: string) => {
+    g.fillStyle = c;
+    for (let dy = -rr; dy <= rr; dy++) g.fillRect(r - (rr - Math.abs(dy)), r + dy, 2 * (rr - Math.abs(dy)) + 1, 1);
+  };
+  fill(r, PAL.ink0);
+  if (player) fill(r - edge, PAL.lime);
+  fill(r - (player ? 2 : 1) * edge, EQUIP_DOT.reefer);
+  diamonds.set(key, cv);
+  return cv;
+}
 
 export function resetArt(): void {
   art = null;
@@ -600,8 +619,13 @@ export function drawMap(now: number): void {
     const [X, Y] = toScreen(p[0], p[1]);
     if (!visible(X, Y)) return;
     // The trailer reads by shape as well as colour (the director's gate: colour alone at 3–4 px): a van a solid square,
-    // a reefer a hollow one, a flatbed a low wide bar.
+    // a reefer a diamond, a flatbed a low wide bar. (A hollow square for the reefer read as a dark dot: QA, 2026-11-03.)
     const outer = player ? minDot + 2 * edge : minDot;
+    if (t.trailer === "reefer") {
+      const r = Math.round(outer * 0.62);
+      ctx.drawImage(reeferDiamond(r, edge, player), Math.round(X) - r, Math.round(Y) - r);
+      return;
+    }
     const ow = t.trailer === "flatbed" ? Math.round(outer * 1.6) : outer;
     const oh = t.trailer === "flatbed" ? Math.max(3 * edge, Math.round(outer * 0.6)) : outer;
     const x0 = X - Math.floor(ow / 2);
@@ -616,10 +640,6 @@ export function drawMap(now: number): void {
     }
     ctx.fillStyle = EQUIP_DOT[t.trailer];
     ctx.fillRect(x0 + e, y0 + e, ow - 2 * e, oh - 2 * e);
-    if (t.trailer === "reefer" && ow - 2 * e >= 3 * edge) {
-      ctx.fillStyle = PAL.ink0;
-      ctx.fillRect(x0 + e + edge, y0 + e + edge, ow - 2 * e - 2 * edge, oh - 2 * e - 2 * edge);
-    }
   };
   // The AI at 80 % once you have a company (Jeff, 2026-11-02, over draft 4's 35 %): the interstates look busy and your
   // own truck, at full strength and drawn last, is still what the eye finds. Before that, the whole market at full.
