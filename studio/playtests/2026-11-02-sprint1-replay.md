@@ -78,3 +78,43 @@ Working as spec:
 - A lost bid.
 - The small-fleet start in the new flow.
 - The loads panel's sideways scroll at 1366 (the board had rows; I saw no horizontal scroll).
+
+---
+
+# Part two: player brokers after day 91 (Jeff's question)
+
+New test world, small fleet, Chicago (ringed), laptop 1366×800. I hired a driver for truck 2 and ran the clock at Day in 2 s to about day 98 (early April), then at Day in 6 s and Day a minute while I walked the path. Cash ran down to −35.5k around day 35, back to 38k by day 49 as the net-30 invoices came in, then 215.8k at day 98 and 250k at the end.
+
+## Answer for Jeff
+
+**Partly.** After day 91 a player can re-post a load they have won to other carriers: the dispatcher rule appears and a per-load button appears. Nothing else in the broker path exists in the client:
+- no brokerage tab or teaser
+- no licence
+- no 75,000 FD stake
+- no surety premium
+- no way to take NPC shipper loads as a broker
+- no sign of a carrier winning your post
+- no carrier payment
+- no margin line
+
+The process today is: win a load as a carrier → before pickup, press **Re-post the load (won at X)** on the truck card → "Load re-posted. The truck is free where it stands." After that, the trail is one unlabelled "#38263" row in Owed to you. I couldn't find what the carrier was paid or what the margin was.
+
+## Findings
+
+| # | Screen | Did | Saw | Expected (the Help page, a stranger) | Sev |
+|---|---|---|---|---|---|
+| B1 | More / Soon row, days 0–98 | Looked for a brokerage tab or teaser | None. The teasers are Staff, Dealer, Rates, Logbook, Finance, Economy, Business, Back Lot. The word "broker" appears in no tab's UI, only in Help and Finance's pool text | Help: "Re-brokering opens on day 91 (3 real weeks): a licence, a bond, and the right to post loads". A layer this size needs its teaser like Business | B |
+| B2 | Finance, after day 91 | Looked for a licence, its 75,000 FD stake and a surety premium | Only the carrier's truck stake ("Staked FD is the bond behind your licence… 10 trucks at 20.0k"). The surety pool is a deposit to earn premiums, not a bond to buy | A licence step with its stake and premium before you may post | B |
+| B3 | Truck, dispatcher More rules | Day 98: ticked "Re-post some won loads to other carriers before pickup", set 100 % keeping 15 %, Save → "Dispatcher saved." Saved in the act log as `rebroker share 1 keepPct 0.15` | The next four won loads were hauled by my own trucks; per-load re-post buttons kept appearing. Four "#…" rows later turned up in Owed to you, so some may have been re-posted silently. Not provable from the screen | Each re-post says so in the feed | S |
+| B4 | Truck card | Pressed **Re-post the load (won at 6.94)** | Toast "Load re-posted. The truck is free where it stands". Nothing in Today or the feed names the load, the carrier who took it, the rate paid, or the margin | "Re-posted {lane} at {rate}; {carrier} took it at {rate}; your margin {fd}" | S |
+| B5 | Money › Owed to you | Read after re-posting | Rows "#35852 2,536 · May 13", "#36035 809", "#37877 2,859", "#38263 5,049". Load numbers where every other row has a lane; no mark that these are brokered | Lane names; a "brokered" tag; an "Owed by you" line for the carrier | S |
+| B6 | Card label "Pay the hauler" | Read | A ticked checkbox beside the re-post button and in the rules. Its meaning is never explained (pay the carrier when the shipper doesn't?) | A sentence | L |
+| B7 | Default / double-brokering | Looked for a way to post a load twice or post one I didn't hold | The button vanishes after one press; there's no posting form, so double-brokering can't be attempted from the client. A shipper default (Help: "about 2% of loads") never showed in my feed, so I can't say what a broker sees | – | not testable |
+| B8 | Money › Getting paid (now shown) | Read | "Quick pay pays today for 10% off. Factoring is a 1-year contract with a 30.0k FD stake…" | Jeff, 2026-11-02: a factoring contract of three game months, 6 % at one truck down to 2.5 % at fifty, no pools. The client still shows the old rule | S |
+| B9 | Feed, owned trucks | Deliveries | "…FD yours after fuel, tolls and the lessor's cut" on every delivery of an owned truck; the delivered card correctly has no lessor row | No lessor on owned trucks | S |
+| B10 | Arrival, small fleet | Started | "This is Chicago, your home. One leased Workhorse, a dry van, and you driving. The lessor keeps 15%…" to a two-truck owned fleet | The small fleet's own line | S |
+| B11 | Idle alert | Truck 1 idle 3 days at Chicago | "1 dry van load in range pay enough, but the dispatcher's bids keep losing" ("pay" for one load), repeated every few hours in the ticker | Grammar; fewer repeats | L |
+| B12 | Strip date | Running the clock | The strip shows only "Sat 07:00"; you can't tell day 91 from day 21 without opening Money's "Cash, last N days" or reading due dates | The date somewhere one tap away | L |
+| B13 | Week one cash | No action of mine | −35.5k by day 35, past "4 weekly checks in a row" territory, recovered only because invoices came due. Owed to you now lists each load with its due day, so this is legible. Good | – | – |
+
+Console in this world: no errors (hooked `error` and `unhandledrejection`, and `read_console_messages` for the page).
