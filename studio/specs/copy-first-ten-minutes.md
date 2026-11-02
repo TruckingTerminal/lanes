@@ -42,7 +42,7 @@ Nothing to read: the title loop and one button. Connection states live on the bu
 | Finance | Getting paid on your own truck: quick pay, load by load, and the factoring contract. | Read it before you buy, not after. The wait for your money starts with your first load. | when Iuliia says it's time to buy, with the Dealer |
 | Economy | The market's own books: what comes in, what goes out. | A month in, you'll want it. | at the first monthly report |
 | Business | Yards, shops, truck stops, warehouses. | Nobody needs a warehouse in week one. | on day `{unlockLadder.layers.businesses.afterDays}` |
-| Back Lot | A later beta. | A later chapter. I don't give away the plot. | with a later beta |
+| Back Lot | A later beta: player against player. Crews for hire, a gate and cameras for your yard, and a meter for how much attention you draw. | Someone will want your cargo one day; someone else's may tempt you. Lock the gate either way. | with a later beta (Jeff, 2026-11-02: this card may tease the layer) |
 
 ## S1 First entry: choosing a home
 
