@@ -1,16 +1,10 @@
 import type { JSX } from "preact";
-import { capitalRatio, companyAccount, creditBand, creditScore, factoringStake, managersNeeded, nextTruckTier, operatingTrucks, opsCap, poolDepositorValue, poolLineCash, poolMarkup, receivablesOf, stakeDiscount, truckCap, type PoolLine } from "@lanes/engine";
+import { companyAccount, creditBand, creditScore, factoringStake, managersNeeded, nextTruckTier, operatingTrucks, opsCap, receivablesOf, stakeDiscount, truckCap } from "@lanes/engine";
 import { fd, pct } from "../../format.js";
 import { act, me, S, useData } from "../../state.js";
 import { Btn, Card, Kv, Num, Panel } from "../bits.js";
 
 const num = (id: string): number => Number((document.getElementById(id) as HTMLInputElement | null)?.value);
-
-const LINES: [PoolLine, string, string][] = [
-  ["insurance", "Insurance", "Writes carriers' policies: earns their premiums, pays their claims."],
-  ["factoring", "Factoring", "Advances carriers' invoices at a discount and collects them when due."],
-  ["surety", "Surety", "Carries brokers' bonds: earns the premiums, pays a failed broker's carriers."],
-];
 
 const TERMS: ["net" | "quick" | "factor", string][] = [
   ["net", "Net 30"],
@@ -18,7 +12,7 @@ const TERMS: ["net" | "quick" | "factor", string][] = [
   ["factor", "Factor"],
 ];
 
-/** Staking, payment terms, the player-funded pools and the company's credit (0.18.0). */
+/** Getting paid, staking and the company's credit. The player-funded pools are gone from the client (Jeff, 2026-11-02: not for a long time). */
 export function Finance(): JSX.Element {
   useData();
   const w = S.game!.w;
@@ -66,35 +60,7 @@ export function Finance(): JSX.Element {
           </div>
         </Card>
       ) : null}
-      {k.pools.enabled
-        ? LINES.map(([line, name, what]) => {
-            const markup = poolMarkup(w, line);
-            const mine = poolDepositorValue(w, line, c.id);
-            return (
-              <Card key={line} title={`${name} pool`}>
-                <p class="muted small">
-                  {what} Withdrawals wait {k.pools.exitDays} days and pay out at most {pct(k.pools.exitLimitPerDay)} of the pool a day.
-                </p>
-                <Kv
-                  rows={[
-                    ["Pool", <Num>{fd(poolLineCash(w, line))} FD · capital {capitalRatio(w, line).toFixed(2)}× its yearly premiums</Num>],
-                    ["Writing", markup === null ? <span class="warn">too thin to write: the NPC backstop is charging more</span> : <Num>at {markup.toFixed(2)}× its base price</Num>],
-                    ["Your deposit", <Num>{fd(mine)} FD</Num>],
-                  ]}
-                />
-                <div class="row">
-                  <input type="number" id={`pool-${line}`} min="1" step="100" defaultValue="1000" aria-label={`FD for the ${name.toLowerCase()} pool`} />
-                  <Btn disabled={cash < 1} onClick={() => act({ type: "deposit_pool", line, amountFd: num(`pool-${line}`) }, `Deposited in the ${name.toLowerCase()} pool`)}>
-                    Deposit
-                  </Btn>
-                  <Btn disabled={mine < 1} onClick={() => act({ type: "withdraw_pool", line, amountFd: num(`pool-${line}`) }, `Withdrawal queued: ${k.pools.exitDays} days`)}>
-                    Withdraw
-                  </Btn>
-                </div>
-              </Card>
-            );
-          })
-        : null}
+      <GettingPaid />
       <Card title="Credit">
         <p class="muted small">The game scores every company from its ledger: invoices paid on time, the licence's age, claims and bankruptcies. Carriers check a broker's score before hauling; it prices factoring, the surety bond and which loads shippers tender you.</p>
         <Kv rows={[["Score", <Num>{Math.round(score)} · band {creditBand(score)}</Num>]]} />

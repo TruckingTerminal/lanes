@@ -75,3 +75,6 @@
 - 2026-11-02 — Jeff: three truck makes, not four, one per tier: Keystone the workhorse, Meridian the economical
   highway truck, Ironwood the premium driver's favourite (the Peterbilt and Kenworth of it in one make).
   Westmark dropped. Names pending counsel's trademark search.
+- 2026-11-02 — Jeff: the title's head-on shot keeps the painting's rig fixed in frame and moves the world
+  past it in perspective, as the side view does; oncoming traffic sparse or none, nothing drawn as a still in
+  motion. The approaching-vehicle work stops. Both shots 30 seconds.

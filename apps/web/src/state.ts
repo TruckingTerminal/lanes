@@ -329,10 +329,6 @@ export function describe(a: LiveAction): string {
       return `Return truck ${truckNo(a.truckId)}'s lease`;
     case "buy_facility":
       return `Open a ${FAC_NAME[a.facility].toLowerCase()} at ${a.hubId}`;
-    case "deposit_finance":
-      return `Deposit ${fd(a.amountFd)} FD`;
-    case "withdraw_finance":
-      return `Withdraw ${fd(a.amountFd)} FD`;
     case "borrow":
       return `Borrow against truck ${truckNo(a.truckId)}`;
     case "repay_loan":
@@ -385,10 +381,6 @@ export function describe(a: LiveAction): string {
       return `Stake ${fd(a.fd)} FD`;
     case "unstake_fd":
       return a.instant ? `Unstake ${fd(a.fd)} FD now` : `Unstake ${fd(a.fd)} FD`;
-    case "deposit_pool":
-      return `Deposit ${fd(a.amountFd)} FD in the ${a.line} pool`;
-    case "withdraw_pool":
-      return `Withdraw ${fd(a.amountFd)} FD from the ${a.line} pool`;
     case "set_pay_terms":
       return a.terms === "net" ? "Get paid net 30" : a.terms === "quick" ? "Take quick pay" : "Sign a factoring contract";
     case "buy_item":

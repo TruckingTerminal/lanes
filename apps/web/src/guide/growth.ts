@@ -78,8 +78,7 @@ export function growthPages(cfg: EconomyConfig): GuidePage[] {
       title: "Equipment Finance",
       html: ul([
         `<b>Borrow</b> up to ${pct(ef.maxLoanToValue)} of an owned truck's value at ${pct(ef.weeklyRate)} a week, repaid over ${ef.termWeeks} weeks.`,
-        `<b>Miss ${ef.missedPaymentsToRepossess} payments</b> and the truck is repossessed and sold; depositors absorb any shortfall.`,
-        `<b>Deposit</b> spare FD to earn the interest borrowers pay. Idle cash in the pool pays the holding cost like any other.`,
+        `<b>Miss ${ef.missedPaymentsToRepossess} payments</b> and the truck is repossessed and sold.`,
       ]),
     },
     {
