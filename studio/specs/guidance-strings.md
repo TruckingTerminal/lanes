@@ -154,7 +154,7 @@ Each speaks once: a line **before** only where the date is known (the month clos
 | Key | Trigger | Before | At | Reason |
 |---|---|---|---|---|
 | `milestone.ownTruck` | step 9 done | (step 9 itself) | Your own truck. No lessor's share now, and no lessor to fix it. | Maintenance, insurance and value lost are yours, and a truck that sits still costs money. |
-| `milestone.hiredWeek` | a hired driver's first payday | `{name}` is paid `{day}`, and every week after, loaded or not. | Payday. `{name}` was paid `{fd}` FD this week. | Wages come weekly whether the truck earns or not; keep it loaded. |
+| `milestone.hiredWeek` | a hired driver's first payday | `{name}` is paid by the mile, weekly from `{day}`, plus a per diem for idle days away. | `{name}` has driven `{mi}` miles for you this week: `{fd}` FD in wages so far. | Your driver earns by the mile. An idle day away from home costs `{labor.driver.perDiemFd}` FD in per diem. |
 | `milestone.dispatcher` *light* | a dispatcher hired, or the third truck | (none) | Your dispatcher starts today. It follows your rules exactly, including the foolish ones. | Check the rules against the lanes that actually paid. |
 | `milestone.monthClose` | day 30 of the company | Your first month closes in `{n}` days. Monthly bills land with it. | Your first month: earned `{fd}`, spent `{fd}`, kept `{fd}` FD. | The fuel tax and insurance land at the close. Read the month on Money. |
 | `milestone.day28` *light* | the businesses layer | Businesses open `{businessDay}`. Most first-month carriers should let them wait. | Businesses are open. Nobody needs a warehouse in week four; most need a second truck. | A business pays over years. Your gap to the next truck is `{gap}` FD. |
