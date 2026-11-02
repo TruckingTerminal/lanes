@@ -218,6 +218,16 @@ Say lines are 25 words or fewer; the sheet shows **Say**, the caption **Do**. Th
 > Delivered, and paid the same day. That's the lease: the lessor holds the paper and pays you on delivery, less its share. When you haul with a truck of your own, you'll invoice the shipper yourself, and shippers pay net-30: thirty game days after the work. Quick pay brings that forward for `{token.payment.quickPayPct}`; an instrument for emergencies, not a policy. Companies that live on quick pay receive a goodbye note from me. Handwritten. Fountain pen.
 >
 > What arrives is net of the lessor's `{costs.npcLeaseShareOfGross}`. The lease also holds a little back from each load toward a truck of your own; you'll see it again when you buy, so don't mourn it. Money shows both. Watch the cash line at the top of the screen every day, the way my grandmother watched the samovar. Trust, and verify. Mostly verify.
+
+Step 9's full text is replaced, four paragraphs. Numbers are placeholders: `{monthOfCosts}` from the economy designer (`reviews/economy-factoring.md`); the factoring keys are engineering's to name when the rule lands (`{factoring.termMonths}`, `{factoring.rateOneTruck}`, `{factoring.rateAtCap}`, `{factoring.capTrucks}`).
+
+> The lessor's `{costs.npcLeaseShareOfGross}` is the most expensive thing you pay and the only one that ends when you buy. A worn Workhorse from the used lot costs about a quarter of the `{rig}` FD a new rig does, and your lease deposit counts toward it. Not elegant. My first office had a view of a parking structure. One begins.
+>
+> Now the part the lessor was protecting you from. On your own truck the shipper's paper is yours: you send the invoice, and shippers pay `{payment.termsDays}` days after delivery. Fuel, tolls, your pay and upkeep land today. So before you buy, have a month of costs in cash, about `{monthOfCosts}` FD. The lessor's `{costs.npcLeaseShareOfGross}` was the price of never having this problem.
+>
+> If the cash runs short, there are two instruments. Quick pay: the shipper pays one load now, less `{token.payment.quickPayPct}` of it, no contract. For emergencies, as I said, not a policy. Factoring: an outside company buys all your invoices, pays you at once and keeps a share: `{factoring.rateOneTruck}` with one truck, a little less with each truck you add, down to `{factoring.rateAtCap}` at `{factoring.capTrucks}`. The contract runs `{factoring.termMonths}` full game months, covers every truck you run, and nobody leaves it early. The rate is set when you sign and read again at each renewal, so a growing fleet pays less each time.
+>
+> So: the used truck first, with the month already in the drawer. Ambition is for the second truck; the first one is arithmetic.
  The end card stays.
 
 | Step | Say | Do |
@@ -231,7 +241,8 @@ Say lines are 25 words or fewer; the sheet shows **Say**, the caption **Do**. Th
 | 6 What it costs to exist | The page nobody enjoys: fuel, insurance, tolls, taxes, idling. Read it weekly, like an executive, with tea. Keep a cushion. | Compare revenue against costs on Money. |
 | 7 Keeping it on the road | Condition falls with the miles, and a worn truck breaks down, usually in the rain. Repairs at home are cheaper than away. | Check the condition bar; plan the rebuild before it's urgent. |
 | 8 The law | Weigh stations pull trucks in; inspections stay on your record two years. Tired drivers break rules; home time is cheaper than fines. | Find your safety rating on Company. |
-| 9 Your first truck | The lessor's `{npcLeaseShareOfGross}` ends the day you buy. Buy the used one first; ambition is for the second truck. | Buy a rig from the used lot, with a purchase loan if the cash is short. |
+| 9 Your first truck | Before you buy: on your own truck, shippers pay `{payment.termsDays}` days after delivery and costs land now. Keep `{monthOfCosts}` FD in cash. | Buy a rig from the used lot once your cash covers `{monthOfCosts}` FD. |
+| 9, Why | Owning ends the lessor's cut and starts the wait for your money; the cash in hand is what carries you through it. | |
 | 10 Hiring a driver | A second truck needs a second driver. Pay decides who takes the job; home time decides who stays. | Hire a driver at a pay the market will take. |
 | 11 Standing orders | Nobody bids every load by hand past two trucks. Your dispatcher's rules run the trucks you don't touch. | Set the bidding and home-time rules, then watch a round clear. |
 | 12 The yard | Past `{token.catalogue.trucksWithoutYard}` trucks you need a yard: park, drop trailers, swap them. That's how one truck does two jobs. | Buy a small yard; add trailer space as the fleet grows. |
