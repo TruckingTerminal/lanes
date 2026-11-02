@@ -38,3 +38,8 @@
   the hubs with the best freight for a new carrier at that moment of the game year, read live from the boards
   (the season measure), so Chicago is ringed in September and not in May. Replaces the director's fixed Dallas,
   Los Angeles, Phoenix (ruling 4), which stays as the tie-break and the fallback when the reading is not ready.
+- 2026-11-02 — Jeff, factoring and quick pay: Iuliia explains both to an owner-operator about to buy a truck;
+  the risk is real and they must be well capitalized. A factoring contract lasts three full game months and
+  covers every truck in the fleet; the rate is set by fleet size, 6% at one truck falling to 3% past twenty.
+  No pools for now: factoring and insurance are NPC, and their fees are sinks. Economy sizes it behind a
+  switch; the writer words the step; engineering wires the contract into Getting paid after.
