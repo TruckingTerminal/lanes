@@ -30,3 +30,7 @@
   inside the world on first entry, where the player sees the map, the date, the freight and the hubs' numbers
   before starting; Iuliia guides everything once inside. S0 and S1 of the first-ten-minutes spec go to draft 4
   (director); engineering's step 3 reshaped to it.
+- 2026-11-02 — Jeff, on the map: the clouds take too much of the screen and the other trucks are too faint and
+  small to read; the weather becomes a hint, the AI trucks go to 80% and get a minimum dot size zoomed out so
+  the interstates look busy, and the player's trucks stand out above both. Overrides draft 4's "AI carriers at
+  35%". Engineering, with step 5.
