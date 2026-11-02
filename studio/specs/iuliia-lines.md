@@ -123,20 +123,7 @@ The sheet's two opening lines and the naming and arrival lines are in `copy-firs
 
 ## Finance
 
-Before the first truck, Finance speaks plainly: Jeff's "the risk is real". No jokes in this section's first three rows.
-
-| Screen or card | Trigger | Lines |
-|---|---|---|
-| Finance | first visit, before the first owned truck | On your own truck, shippers pay `{token.payment.termsDays}` days after delivery. Your costs don't wait. Read this first. |
-| Getting paid › quick pay | first opened | Quick pay: one load paid now, less `{token.payment.quickPayPct}` of it. No contract. For emergencies. |
-| Getting paid › factoring | first opened | Factoring: every truck's invoices paid on delivery for a fee, for `{token.payment.factoring.contract.months}` game months. No leaving early. |
-| Quick pay | pressed | Paid today. Use it twice and it's a habit; three times, a business model. |
-| Factoring | signed | Signed. Every truck, every invoice, until the term ends. A bigger fleet renews cheaper. |
-| Factoring | a renewal is due in `{n}` days | Renewal soon. The rate is re-read on your fleet that day. |
-| Getting paid, a broker | first opened, licensed | Brokers factor at a flat rate. Your carriers still expect their money. |
-| Credit | first visit | What lenders think of you, in one number. It moves slower than you'd like. |
-| Credit | a loan is taken | A loan on the truck. The truck pays it, or the lender takes it. |
-| Staking | the card shows "later" | Staking comes later. Nothing to lock yet; I'll say when. |
+Moved to `finance-strings.md` (its last section), so engineering reads Finance in one place. The triggers follow UX's Finance spec: the first visit in each state, a contract signed, seven days before it ends.
 
 ## Staff
 
