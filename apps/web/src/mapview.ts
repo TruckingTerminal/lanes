@@ -561,27 +561,36 @@ export function drawMap(now: number): void {
       }
     }
   }
-  // Other carriers are dots: colour says the equipment, a lime ring says a player.
+  // The weather under every truck: a hint over the roads, never a blanket over what moves on them.
+  drawWeather(ctx, now, k, u);
+  const myMarks: [number, number][] = [];
+  // Other carriers are dots: colour says the equipment, a lime ring says a player. Zoomed out, a dot is
+  // never under about 3.5 screen pixels with a one-pixel dark outline, so a busy interstate reads as a
+  // string of trucks (Jeff, 2026-11-02).
+  const dpr = window.devicePixelRatio || 1;
+  const edge = Math.max(1, Math.round(dpr));
+  const minDot = Math.max(4 * u, Math.round(3.5 * dpr) + 2 * edge);
   const dot = (t: Truck, player: boolean) => {
     const p = truckPoint(t);
     if (!p) return;
     const [X, Y] = toScreen(p[0], p[1]);
     if (!visible(X, Y)) return;
+    const outer = player ? minDot + 2 * edge : minDot;
+    const h = Math.floor(outer / 2);
+    ctx.fillStyle = PAL.ink0;
+    ctx.fillRect(X - h, Y - h, outer, outer);
     if (player) {
-      ctx.fillStyle = PAL.ink0;
-      ctx.fillRect(X - 3 * u, Y - 3 * u, 6 * u, 6 * u);
       ctx.fillStyle = PAL.lime;
-      ctx.fillRect(X - 2 * u, Y - 2 * u, 4 * u, 4 * u);
-    } else {
-      ctx.fillStyle = PAL.ink0;
-      ctx.fillRect(X - 2 * u, Y - 2 * u, 4 * u, 4 * u);
+      ctx.fillRect(X - h + edge, Y - h + edge, outer - 2 * edge, outer - 2 * edge);
     }
+    const inner = player ? outer - 4 * edge : outer - 2 * edge;
+    const hi = Math.floor(inner / 2);
     ctx.fillStyle = EQUIP_DOT[t.trailer];
-    ctx.fillRect(X - u, Y - u, 2 * u, 2 * u);
+    ctx.fillRect(X - hi, Y - hi, inner, inner);
   };
-  // The AI at 35 % once you have a company (S1): your own truck is what the eye should find. Before that, the whole
-  // market at full strength, alive and none of it yours yet.
-  ctx.globalAlpha = S.game.player ? 0.35 : 1;
+  // The AI at 80 % once you have a company (Jeff, 2026-11-02, over draft 4's 35 %): the interstates look busy and your
+  // own truck, at full strength and drawn last, is still what the eye finds. Before that, the whole market at full.
+  ctx.globalAlpha = S.game.player ? 0.8 : 1;
   for (const t of w.trucks) if (t.companyId !== mine && !humans.has(t.companyId)) dot(t, false);
   ctx.globalAlpha = 1;
   for (const t of w.trucks) if (t.companyId !== mine && humans.has(t.companyId)) dot(t, true);
@@ -691,14 +700,20 @@ export function drawMap(now: number): void {
       }
     }
     if (t.status === "repair" || t.breakdownMin > 0) ctx.drawImage(icon("wrench", u), X - 6 * u, Y - 16 * u);
-    // A one-truck company's truck says "You" (S1), so the first look at the map finds it.
-    if (myTrucks().length === 1) {
-      const L = Math.max(1, Math.round(f * 2));
-      drawText(ctx, "YOU", X - Math.round((textWidth("YOU") * L) / 2), Y + 10 * u, L, PAL.cyan, PAL.ink0);
-    }
+    myMarks.push([X, Y]);
   }
-  drawWeather(ctx, now, k, u);
   drawHubLabels(ctx, f, k, u, visible);
+  // Your trucks over everything (Jeff, 2026-11-02): a cyan ring and "You" at every zoom, after the labels.
+  const L = Math.max(1, Math.round(f * 2));
+  const ring = Math.max(10 * u, Math.round(8 * dpr));
+  ctx.strokeStyle = PAL.cyan;
+  ctx.lineWidth = Math.max(2 * u, Math.round(1.5 * dpr));
+  for (const [X, Y] of myMarks) {
+    ctx.beginPath();
+    ctx.arc(X, Y, ring, 0, Math.PI * 2);
+    ctx.stroke();
+    drawText(ctx, "YOU", X - Math.round((textWidth("YOU") * L) / 2), Y + ring + 2 * u, L, PAL.cyan, PAL.ink0);
+  }
 }
 
 let spriteCanvas: HTMLCanvasElement | null = null;
@@ -782,16 +797,16 @@ function drawWeather(ctx: CanvasRenderingContext2D, now: number, k: number, u: n
       const X = gx - panX;
       const Y = gy - panY;
       const cs = Math.floor(gx / cell) * 73 + Math.floor(gy / cell) * 151;
-      // A painted cloud over about half the cloudy cells, each its own size, side, place and pace, so
-      // they read as scattered weather rather than a lattice.
-      if (cloudFx && wx.kind !== "fog" && hash(cs, 9, 73) < (wx.kind === "cloud" ? 0.4 : 0.6)) {
-        const cw = cell * (0.6 + hash(cs, 10, 74) * 1.2);
+      // A painted cloud over a quarter of the cloudy cells, never wider than its cell and faint, so the
+      // weather reads as weather without hiding the roads and the trucks (Jeff, 2026-11-02).
+      if (cloudFx && wx.kind !== "fog" && hash(cs, 9, 73) < 0.25) {
+        const cw = cell * (0.5 + hash(cs, 10, 74) * 0.5);
         const chh = (cw * cloudFx.fh) / cloudFx.fw;
         const drift = ((now / (160 + hash(cs, 11, 75) * 160) + cs * 3) % (cell * 3)) - cell * 1.2;
         const cx = X + drift + (hash(cs, 14, 78) - 0.5) * cell;
         const cy = Y + (hash(cs, 12, 76) - 0.5) * cell * 0.8;
         const flip = hash(cs, 15, 79) < 0.5;
-        ctx.globalAlpha = (wx.kind === "cloud" ? 0.45 : 0.65) * (0.6 + 0.4 * hash(cs, 16, 80)) * (0.7 + 0.3 * wx.intensity);
+        ctx.globalAlpha = 0.25 * (0.7 + 0.3 * hash(cs, 16, 80)) * (0.8 + 0.2 * wx.intensity);
         ctx.imageSmoothingEnabled = true;
         ctx.save();
         ctx.translate(Math.round(cx + cw / 2), Math.round(cy + chh / 2));
@@ -801,10 +816,9 @@ function drawWeather(ctx: CanvasRenderingContext2D, now: number, k: number, u: n
         ctx.imageSmoothingEnabled = false;
         ctx.globalAlpha = 1;
       }
-      // Cloud shade and fog banks: soft-edged patches wider than their cell, each its own size and
-      // drift, so neighbours merge into weather systems instead of a grid of discs.
+      // Fog banks: faint soft-edged patches no wider than their cell (the storm shade is gone: it blanketed the map).
       const blob = (r: number, g: number, b: number, alpha: number, speed: number) => {
-        const rad = cell * (0.8 + hash(cs, 7, 71) * 0.4);
+        const rad = cell * (0.4 + hash(cs, 7, 71) * 0.1);
         const drift = ((now / speed + cs * 3) % (cell * 2)) - cell;
         const cx = X + cell / 2 + drift;
         const cy = Y + cell / 2 + (hash(cs, 8, 72) - 0.5) * cell * 0.6;
@@ -816,13 +830,10 @@ function drawWeather(ctx: CanvasRenderingContext2D, now: number, k: number, u: n
         ctx.fillStyle = grad;
         ctx.fillRect(cx - rad, cy - rad, rad * 2, rad * 2);
       };
-      if (wx.kind === "storm" || wx.kind === "rain" || wx.kind === "snow") {
-        blob(9, 12, 23, (wx.kind === "storm" ? 0.16 : 0.09) * (0.5 + 0.5 * wx.intensity), 140);
-      }
       if (wx.kind === "rain" || wx.kind === "storm") {
-        if (rainFx) drawRain(ctx, rainFx, now, X, Y, cell, cell, fxScale, (wx.kind === "storm" ? 0.75 : 0.55) * (0.6 + 0.4 * wx.intensity));
+        if (rainFx) drawRain(ctx, rainFx, now, X, Y, cell, cell, fxScale, (wx.kind === "storm" ? 0.45 : 0.3) * (0.6 + 0.4 * wx.intensity));
         else {
-          ctx.globalAlpha = 0.55;
+          ctx.globalAlpha = 0.35;
           ctx.fillStyle = PAL.blueL;
           const n = 3 + Math.round(wx.intensity * 6);
           for (let i = 0; i < n; i++) {
@@ -833,9 +844,9 @@ function drawWeather(ctx: CanvasRenderingContext2D, now: number, k: number, u: n
         }
         if (wx.kind === "storm" && (Math.floor(now / 90) + cs) % 97 === 0) lights.push([X, Y, wx]);
       } else if (wx.kind === "snow") {
-        if (snowFx) drawSnow(ctx, snowFx, now, X, Y, cell, cell, fxScale, 0.6 + 0.4 * wx.intensity);
+        if (snowFx) drawSnow(ctx, snowFx, now, X, Y, cell, cell, fxScale, 0.35 + 0.25 * wx.intensity);
         else {
-          ctx.globalAlpha = 0.85;
+          ctx.globalAlpha = 0.5;
           ctx.fillStyle = PAL.white;
           const n = 3 + Math.round(wx.intensity * 6);
           for (let i = 0; i < n; i++) {
@@ -846,15 +857,15 @@ function drawWeather(ctx: CanvasRenderingContext2D, now: number, k: number, u: n
           }
         }
       } else if (wx.kind === "fog") {
-        blob(182, 196, 220, (fogFx ? 0.1 : 0.22) + 0.3 * wx.intensity * (fogFx ? 0.5 : 1), 220);
+        blob(182, 196, 220, 0.06 + 0.08 * wx.intensity, 220);
         if (fogFx) {
           const [sx, sy] = spriteFrame(fogFx, now, cs);
-          const fw = cell * 1.6;
+          const fw = cell;
           const fh = (fw * fogFx.fh) / fogFx.fw;
           const drift = ((now / (200 + hash(cs, 13, 77) * 100) + cs * 5) % (cell * 2)) - cell;
-          ctx.globalAlpha = 0.35 + 0.4 * wx.intensity;
+          ctx.globalAlpha = 0.15 + 0.15 * wx.intensity;
           ctx.imageSmoothingEnabled = true;
-          ctx.drawImage(fogFx.img, sx, sy, fogFx.fw, fogFx.fh, Math.round(X + drift - cell * 0.3), Math.round(Y + cell * 0.2), Math.round(fw), Math.round(fh));
+          ctx.drawImage(fogFx.img, sx, sy, fogFx.fw, fogFx.fh, Math.round(X + drift * 0.5), Math.round(Y + cell * 0.2), Math.round(fw), Math.round(fh));
           ctx.imageSmoothingEnabled = false;
           ctx.globalAlpha = 1;
         }
@@ -865,9 +876,9 @@ function drawWeather(ctx: CanvasRenderingContext2D, now: number, k: number, u: n
   ctx.restore();
   const boltFx = vfxSprite("bolt");
   for (const [X, Y] of lights) {
-    ctx.globalAlpha = 0.5;
+    ctx.globalAlpha = 0.3;
     ctx.fillStyle = PAL.white;
-    ctx.fillRect(X - cell, Y - cell, cell * 3, cell * 3);
+    ctx.fillRect(X, Y, cell, cell);
     ctx.globalAlpha = 1;
     if (boltFx) {
       const bh = cell * 1.4;

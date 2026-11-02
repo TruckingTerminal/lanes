@@ -21,9 +21,9 @@ export const LOGIN = {
 
 export const FIRST_ENTRY = {
   nextRound: (hhmm: string) => `Next round ${hhmm}`,
-  welcome: "Welcome. Iuliia, with two i's; my mother was thorough. This is the market, live, and nobody waits for us.",
+  welcome: "I'm Iuliia, your guide. This is America's freight market, live: every truck you see is real and moving. First, pick a home city.",
   next: "Next",
-  home: "Before a truck, you need a home. The three ringed cities can be one; tap any other to see its freight.",
+  home: "Three ringed cities take new carriers. Tap one to start, or any other to see its freight.",
   allHubs: "All hubs",
   allHubsHeader: "All hubs · busiest first",
 };
