@@ -48,6 +48,8 @@ RAMPS = {
     "stripe": [(98, 104, 128), (126, 133, 158), (150, 157, 180)],
     "deck": [(38, 35, 57), (70, 58, 62), (96, 76, 70)],
     "tarp": [(52, 56, 30), (72, 78, 40), (96, 102, 54), (124, 130, 72), (150, 154, 94)],
+    "tarpw": [(90, 40, 24), (140, 62, 30), (190, 90, 40), (225, 125, 55), (245, 165, 90)],
+    "band": [(18, 30, 90), (24, 44, 128), (32, 62, 170), (40, 80, 200)],  # a royal blue that stays bold in full light
     "strap": [(150, 70, 30), (201, 106, 38), (232, 140, 60)],
     "lamp": [(244, 168, 60), (255, 217, 106)],
     "tail": [(142, 42, 36), (216, 74, 58)],
@@ -134,10 +136,10 @@ def trailer(kind: str) -> list:
         for i in range(n):  # the load in four tarped bundles, gaps between them, two straps over each
             b0 = x0 + 2.5 + i * span + 0.8
             b1 = b0 + span - 1.6
-            p.append(box(b0, b1, -3.9, 3.9, 5.3, 9.4, "tarp"))
+            p.append(box(b0, b1, -3.9, 3.9, 5.3, 8.6, "tarpw"))
             for q in (0.3, 0.7):
                 x = b0 + q * (b1 - b0)
-                p.append(box(x - 0.6, x + 0.6, -4.0, 4.0, 5.3, 9.5, "strap"))
+                p.append(box(x - 0.6, x + 0.6, -4.0, 4.0, 5.3, 8.7, "dark"))
         p.append(box(x1 - 0.1, x1 + 0.02, 3.0, 3.9, 4.4, 5.2, "tail"))
         p.append(box(x1 - 0.1, x1 + 0.02, -3.9, -3.0, 4.4, 5.2, "tail"))
     else:
@@ -148,10 +150,15 @@ def trailer(kind: str) -> list:
         p.append(box(x1 + 0.03, x1 + 0.06, -3.9, 3.9, 4.6, 13.2, "white"))
         p.append(box(x1 - 0.05, x1 + 0.03, 3.1, 4.0, 4.6, 5.4, "tail"))
         p.append(box(x1 - 0.05, x1 + 0.03, -4.0, -3.1, 4.6, 5.4, "tail"))
+        # What tells them apart at map scale, from the side and from above: the dry van one dark band and a dark line
+        # down its roof; the reefer a bold blue band, a blue roof stripe and its dark refrigeration unit on the nose.
+        band, z0, z1, roof = ("band", 5.0, 9.8, 1.8) if kind == "reefer" else ("dark", 6.2, 8.6, 0.7)
+        p.append(box(x0 + 0.3, x1 - 0.3, 4.24, 4.33, z0, z1, band))
+        p.append(box(x0 + 0.3, x1 - 0.3, -4.33, -4.24, z0, z1, band))
+        p.append(box(x0 + 1.0, x1 - 1.0, -roof, roof, 13.59, 13.68, band))
         if kind == "reefer":
-            p.append(box(x0 - 0.9, x0, -3.2, 3.2, 9.0, 13.2, "chrome"))  # the refrigeration unit on its nose
-            p.append(box(x0 + 0.5, x1 - 0.5, 4.24, 4.3, 6.2, 7.0, "stripe"))
-            p.append(box(x0 + 0.5, x1 - 0.5, -4.3, -4.24, 6.2, 7.0, "stripe"))
+            p.append(box(x0 - 2.2, x0, -3.7, 3.7, 6.2, 13.4, "dark"))  # the refrigeration unit on its nose
+            p.append(box(x0 - 2.25, x0 - 2.15, -3.0, 3.0, 7.0, 12.6, "chrome"))
     return p
 
 
