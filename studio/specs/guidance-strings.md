@@ -38,8 +38,9 @@ The reason line is shared; the action is the best single lever `nextAction` find
 | `now.danger.warn` | reason, before the first | The next weekly check is `{day}`. You'd be `{fd}` FD under the line. |
 | `now.danger.book.action` | action | Book a load for Truck `{n}` today. |
 | `now.danger.book.button` | button | Show me its loads |
-| `now.danger.collect.action` | action | Get paid sooner on what you're owed. |
-| `now.danger.collect.reason2` | second line | `{fd}` FD is owed to you. Quick pay brings it in now, less `{quickPayPct}`. |
+| `now.danger.collect.action` | action | Keep the trucks loaded until your invoices land. |
+| `now.danger.collect.reason2` | second line | `{fd}` FD is due to you by `{day}`, in time for the check that counts. |
+| `now.danger.collect.quick` | third line | Quick pay would pay each new load on delivery, less `{quickPayPct}`. Open invoices keep their dates. |
 | `now.danger.collect.button` | button | Getting paid |
 | `now.danger.lease.action` | action | Return the lease on Truck `{n}`. |
 | `now.danger.lease.reason2` | second line | It costs at least `{leaseMin}` FD a week, earning or not. |
@@ -172,7 +173,7 @@ One entry per figure key. `what` and `moves` are the writer's; `how` is engineer
 |---|---|---|---|
 | `money.cash` | The FD in your company's account right now. | Every payment in, less every cost out, as they land. | Loads paid; fuel, wages, leases and loans going out. |
 | `money.trend` | Your cash at each day's end, for the last weeks. | One point a day from the ledger. | The same as cash, seen over time. |
-| `money.owed` | Invoices shippers owe you, and the day each is due. | Each delivered load on an owned truck, paid `{termsDays}` days later. | More deliveries; quick pay or factoring brings them in sooner. |
+| `money.owed` | Invoices shippers owe you, and the day each is due. | Each delivered load on an owned truck, paid `{termsDays}` days later. | More deliveries. Quick pay or factoring pays new loads on delivery; open invoices keep their dates. |
 
 ### On a load
 
