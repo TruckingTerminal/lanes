@@ -110,6 +110,48 @@ peopleloops() {
   wait
   for who in driver-m driver-f dispatcher broker mechanic dockworker; do python3 apps/web/tools/pack-loop.py apps/web/assets/people/$who-loop apps/web/assets/people/$who.loop.png --cols 16; done
 }
+# Sixteen drivers for the Staff roster (Jeff, 2026-11-03: "there's only 2 for drivers"): m1 and f1 are the two above,
+# copied, and the other fourteen are drawn with them as style, so the light, the outline and the dark ground match.
+# Each a different person at a glance even at 48 px: age, build, skin, hair, beards, hats and hi-vis. Then the
+# originals' idle loop for each. Checked by eye and by number (colour drift against the still, the jump from the last
+# frame back to the first): the first loops of m3, m8 and f6 jumped at the wrap and f8's drifted, so they were redrawn
+# (the seeds below are the kept ones; f8 took three); m8's second came out orange-skinned and was fitted back to its
+# still with an affine colour map. f5's first still looked thirty, not late fifties, and was redrawn. The men inherit
+# a 1 px dark frame on the bottom and right edges from driver-m, removed after drawing (stills, loops and frames).
+DRIVER="$PORTRAIT, no logos: an American truck driver"
+drivers() {
+  local d=apps/web/assets/people
+  local m=$d/driver-m.png f=$d/driver-f.png
+  "${P[@]}" pro "$DRIVER, a broad-shouldered Black man in his fifties with a shaved head and a short grey beard, a tan canvas work jacket over a white t-shirt, a warm easy smile" 128 128 $d/driver-m2.png --style $m --seed 1008802678 &
+  "${P[@]}" pro "$DRIVER, a young Latino man in his twenties with short black hair in a fade, clean-shaven, a lime yellow hi-vis safety vest over a black t-shirt, a bright grin" 128 128 $d/driver-m3.png --style $m --seed 1760079830 &
+  "${P[@]}" pro "$DRIVER, a weathered white man in his sixties with a big white walrus moustache, a tan felt cowboy hat, a faded denim shirt with pearl snaps, squinting kindly" 128 128 $d/driver-m4.png --style $m --seed 546722334 &
+  "${P[@]}" pro "$DRIVER, a heavy-set white man in his thirties with a long full brown beard, a dark green knit beanie, a grey hoodie, a calm steady look" 128 128 $d/driver-m5.png --style $m --seed 898098256 &
+  "${P[@]}" pro "$DRIVER, a Sikh man in his forties with a navy blue turban and a full neat black beard, a charcoal quilted vest over a maroon shirt, a quiet confident smile" 128 128 $d/driver-m6.png --style $m --seed 94585503 &
+  "${P[@]}" pro "$DRIVER, an East Asian man in his late thirties with short neat black hair and thin wire-rimmed glasses, an olive green work shirt, a slight thoughtful smile" 128 128 $d/driver-m7.png --style $m --seed 170554824 &
+  "${P[@]}" pro "$DRIVER, a lanky young white man in his twenties with a short ginger beard and freckles, a plain green and white mesh trucker cap worn forward, a black t-shirt, a cheeky half grin" 128 128 $d/driver-m8.png --style $m --seed 699671970 &
+  wait
+  "${P[@]}" pro "$DRIVER, a Black woman in her forties with short natural hair and small gold hoop earrings, a mustard yellow zip-up work jacket, a warm knowing smile" 128 128 $d/driver-f2.png --style $f --seed 1927941587 &
+  "${P[@]}" pro "$DRIVER, a white woman in her sixties with short silver hair and red reading glasses, a faded denim jacket, a kind crinkly grin" 128 128 $d/driver-f3.png --style $f --seed 571344999 &
+  "${P[@]}" pro "$DRIVER, a young Latina woman in her twenties with long straight black hair under a plain black baseball cap, a lime yellow hi-vis safety vest over a white t-shirt, a confident grin" 128 128 $d/driver-f4.png --style $f --seed 916045724 &
+  "${P[@]}" pro "$DRIVER, a stout round-faced white woman in her late fifties with laugh lines, short curly auburn hair going grey at the temples and freckles, a green and black flannel shirt, a broad cheerful smile" 128 128 $d/driver-f5.png --style $f --seed 200874546 &
+  "${P[@]}" pro "$DRIVER, an East Asian woman in her thirties with a short black bob and sunglasses pushed up on her head, a navy windbreaker zipped to the collar, a cool composed look" 128 128 $d/driver-f6.png --style $f --seed 1176682442 &
+  "${P[@]}" pro "$DRIVER, a young Black woman in her twenties with long box braids tied up high and a small nose stud, an open khaki work shirt over a white t-shirt, a playful smile" 128 128 $d/driver-f7.png --style $f --seed 1034563015 &
+  "${P[@]}" pro "$DRIVER, a Native American woman in her forties with long straight black hair in a single braid over one shoulder, a maroon fleece pullover, a calm half smile" 128 128 $d/driver-f8.png --style $f --seed 284181788 &
+  wait
+  for s in m f; do cp $d/driver-$s.png $d/driver-${s}1.png; cp $d/driver-$s.loop.png $d/driver-${s}1.loop.png; cp $d/driver-$s.loop.json $d/driver-${s}1.loop.json; done
+}
+driverloops() {
+  local d=apps/web/assets/people
+  local sub="a subtle idle loop that ends where it began, the face and clothes stay the same"
+  local seeds="m2:121483720 m3:4072239020 m4:681322299 m5:3011097698 m6:147102564 m7:1290064252 m8:2375017116 f2:4240114158 f3:2293088666 f4:2086532722 f5:3603165020 f6:2267517212 f7:3074697073 f8:2057797402"
+  local n=0
+  for ws in $seeds; do
+    "${P[@]}" animate $d/driver-${ws%%:*}.png "breathes slowly, blinks, the eyes glance aside and back, a slight tilt of the head, $sub" $d/driver-${ws%%:*}-loop --frames 16 --view side --transparent --seed ${ws##*:} &
+    n=$((n + 1)); (( n % 6 == 0 )) && wait
+  done
+  wait
+  for ws in $seeds; do python3 apps/web/tools/pack-loop.py $d/driver-${ws%%:*}-loop $d/driver-${ws%%:*}.loop.png --cols 16; done
+}
 loading() {
   mkdir -p apps/web/assets/loading
   "${P[@]}" pro "$HD: side view of $TRUCK in cyan paint pulling a white 53-foot dry van trailer, driving to the right along a straight two-lane highway at dusk, the road and the flat desert horizon running seamlessly to both edges of the frame, telephone poles, a saturated orange and purple sky" 256 72 apps/web/assets/loading/rig.png --style apps/web/assets/title/title.png
@@ -214,6 +256,8 @@ case "$want" in
   scenesloops) scenesloops ;;
   peoplepro) peoplepro ;;
   peopleloops) peopleloops ;;
+  drivers) drivers ;;
+  driverloops) driverloops ;;
   loading) loading ;;
   placespro) placespro ;;
   placesloops) placesloops ;;
