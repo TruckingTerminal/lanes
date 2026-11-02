@@ -112,3 +112,16 @@
 - 2026-11-02 — Jeff: FD transfers between a player's own carrier and brokerage are allowed both ways, as the
   owner's capital (equity, never revenue), guarded, with a fee of 3% to the reserve ("higher than 1%; let's do
   3%"): `brokerage.transferFeePct` 0.03.
+- 2026-11-02 — Jeff ("go with your recommendation for both"): (1) the hoarding tax stays, but on hoards, not
+  cushions: the Reserve, a sheltered account up to thirteen weeks of the company's own spending, no fee, no
+  yield, counted toward credit, withdrawable any time with a one-day settle; above the cap the season burn and
+  the holding cost apply as today; the economy builds it behind a switch, sizes it, and measures running the
+  weekly holding cost in both phases in place of the year-end burn (conditional on the sink-to-faucet target
+  holding). (2) Step 9 keeps the rule: no easier first truck; the step reads the exact gap from the Dealer and
+  advances when either route opens; the economy checks the used lot's restock cadence so a lessor rarely waits
+  more than a game week.
+- 2026-11-02 — Jeff: "I need to make sure that Iuliia is guiding people every step of the way. As this is a true
+  sim and very complex." A standing rule for every screen and every stage: the player is never without Iuliia's
+  next step and an explanation one tap away. The director writes the guidance spec (the path through the first
+  month, the first truck, the first hire, day 28, day 91, the first bust; help on every figure; a "What now?"
+  prompt), UX the surface, the writer the lines, engineering the wiring.
