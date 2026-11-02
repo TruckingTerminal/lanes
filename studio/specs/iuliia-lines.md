@@ -136,14 +136,13 @@ Moved to `finance-strings.md` (its last section), so engineering reads Finance i
 | Hire away from other companies | first opened | Their people, your offer. They'll match it, or they won't. Rivalry is polite here. |
 | A driver's morale | falls to "restless" | Restless. Home time costs less than a replacement. |
 
-## Intel (draft: the director's page lands this week)
+## Intel (strings in `intel-strings.md`)
+
+One line, on the first visit to Intel; none on a card (UX). Plain, and nothing in it from which cash can be read.
 
 | Screen or card | Trigger | Lines |
 |---|---|---|
-| Intel teaser | first opened | Every company in the world, sized and ranked. Their cash stays their own. |
-| Intel | first visit | Who's big, who's growing, who's on time. Their cash stays private. So does yours. |
-| A rival's row | first opened | Know your rivals. Then go back to your own numbers. · A good record is public. So is a bad one. |
-| Your own row | first opened | That's you, as everyone else sees you. Worth a look. |
+| Intel | first visit | Every company in the world, by size and record. Nobody's cash is here, yours included. |
 
 ## Brokerage (draft 2: against `brokerage-rule.md` and UX's `brokerage-ux.md`; strings in `brokerage-strings.md`)
 
