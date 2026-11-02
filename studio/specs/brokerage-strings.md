@@ -159,6 +159,9 @@ One verb throughout: **start**. UX's draft says "Form"; the director's says "Sta
 |---|---|
 | Cash | Cash · `{fd}` FD |
 | Owed to you | Owed to you · `{lane}` · brokered · `{fd}` · due `{date}` |
+| Each row [switch cashNow] | Cash it now (the sheet as in `finance-strings.md`; the contract rate is `{brokerRate}` plus aging) |
+| Under the sheet's rows, a brokerage only | Cashing it doesn't change what you owe carriers, or when. |
+| Own carrier's paper | Paper between your own companies can't be cashed early. |
 | Its risk line | About `{defaultRate}` of loads are never paid, more in a slump. |
 | Owed by you | Owed by you · `{lane}` · `{carrier}` · `{fd}` · due `{date}` |
 | Bond meter | `{fd}` of your `{bond}` FD bond in use |

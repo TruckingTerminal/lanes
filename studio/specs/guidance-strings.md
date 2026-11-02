@@ -21,6 +21,7 @@ Short config keys used below:
 | `{gapCushionWeeks}` | `guide.gapCushionWeeks` (new; engineering's `guide.ts` reads the same key) |
 | `{cushionAvgWeeks}` | `guide.cushionAvgWeeks` (new; the same) |
 | `{restartAfterDays}` | `insolvency.restartAfterDays` |
+| `{cashNow}` | the switch for cashing open invoices now (Jeff, 2026-11-02); the economy names it and sizes the aging surcharge and the spot rate **[size]** |
 | `{priorLoads}` | `reputation.priorLoads` |
 | `{downLow}`–`{downHigh}`, `{rateLow}`–`{rateHigh}`, `{loanStake}` | `equipmentFinance.purchase.downShare`, `.weeklyRate`, `.stakeShare` |
 
@@ -38,7 +39,11 @@ The reason line is shared; the action is the best single lever `nextAction` find
 | `now.danger.warn` | reason, before the first | The next weekly check is `{day}`. You'd be `{fd}` FD under the line. |
 | `now.danger.book.action` | action | Book a load for Truck `{n}` today. |
 | `now.danger.book.button` | button | Show me its loads |
-| `now.danger.collect.action` | action | Keep the trucks loaded until your invoices land. |
+| `now.danger.cash.action` [switch cashNow] | action, offered first | Cash the invoices due by `{day}`. |
+| `now.danger.cash.reason2` [switch cashNow] | second line, under a contract | `{fd}` FD lands today, less `{fd}` FD in fees: your contract rate plus aging. |
+| `now.danger.cash.reason2Spot` [switch cashNow] | second line, no contract | `{fd}` FD lands today, less `{fd}` FD in fees at the spot rate. |
+| `now.danger.cash.button` [switch cashNow] | button | Cash them now |
+| `now.danger.collect.action` [switch off, or nothing to cash] | action | Keep the trucks loaded until your invoices land. |
 | `now.danger.collect.reason2` | second line | `{fd}` FD is due to you by `{day}`, in time for the check that counts. |
 | `now.danger.collect.quick` | third line | Quick pay would pay each new load on delivery, less `{quickPayPct}`. Open invoices keep their dates. |
 | `now.danger.collect.button` | button | Getting paid |
@@ -173,7 +178,7 @@ One entry per figure key. `what` and `moves` are the writer's; `how` is engineer
 |---|---|---|---|
 | `money.cash` | The FD in your company's account right now. | Every payment in, less every cost out, as they land. | Loads paid; fuel, wages, leases and loans going out. |
 | `money.trend` | Your cash at each day's end, for the last weeks. | One point a day from the ledger. | The same as cash, seen over time. |
-| `money.owed` | Invoices shippers owe you, and the day each is due. | Each delivered load on an owned truck, paid `{termsDays}` days later. | More deliveries. Quick pay or factoring pays new loads on delivery; open invoices keep their dates. |
+| `money.owed` | Invoices shippers owe you, and the day each is due. | Each delivered load on an owned truck, paid `{termsDays}` days later. | More deliveries. Quick pay or factoring pays new loads on delivery. [switch cashNow] Cash it now pays an open invoice today, for a fee. |
 
 ### On a load
 
@@ -231,6 +236,7 @@ One entry per figure key. `what` and `moves` are the writer's; `how` is engineer
 | `loan.rate` | What the loan costs each week on what's owed. | `{rateLow}` to `{rateHigh}` a week: the better your credit score at signing, the lower. | A better score lowers your next loan. A running loan's rate never changes. |
 | `finance.factoringRate` | The factor's share of every load under contract. | From your fleet size on the day you sign; fixed for the term. | More trucks at renewal lower it. |
 | `finance.quickPayFee` | The cost of being paid on delivery, one load at a time. | `{quickPayPct}` of the load. | Nothing: it's fixed. Use it for emergencies. |
+| `finance.cashNowFee` [switch cashNow] | The fee to cash an open invoice today instead of on its due day. | Under a contract: its rate plus a surcharge for each day early. Without: the spot rate. | Fewer days early; a contract, or a bigger fleet's contract rate. |
 | `guide.gapToTruck` | How far you are from your next truck. | The cheapest truck's cash needed now, less your deposit and cash above `{gapCushionWeeks}` weeks of costs. | Hauling; cheaper trucks on the used lot. |
 
 ### Danger

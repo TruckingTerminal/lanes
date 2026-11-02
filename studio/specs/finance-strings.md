@@ -12,6 +12,7 @@ Short key names used below:
 | `{rate}` | `factoringRateFor` at the fleet named, from `token.payment.factoring.contract.rateByTrucks`, one decimal |
 | `{brokerRate}` | `token.payment.factoring.contract.brokerRate` |
 | `{maxTrucks}` | `company.maxTrucks` |
+| `{cashNow}` | the cash-it-now switch, the aging surcharge and the spot rate: the economy names and sizes them **[size]** |
 | `{leaseMin}` | `freeEntry.leases.minWeeklyFd` |
 | `{loanRate}`, `{loanWeeks}`, `{repoAfter}` | `equipmentFinance.weeklyRate`, `.termWeeks`, `.missedPaymentsToRepossess` |
 | `{missedToDefault}` | `equipmentFinance.purchase.missedToDefault` |
@@ -36,6 +37,30 @@ Short key names used below:
 | Panel title | Finance |
 | A refused order, under its button | the engine's reason, sentence case, full stop ("The lender carries at most 3 loans at your credit.") |
 | Live world, on a button after it's pressed | Sent · in effect `{hh:mm}` |
+
+## Cash it now (Money › Owed to you, each invoice row) [switch cashNow]
+
+Jeff, 2026-11-02: "If a carrier needs it now, he needs it NOW." An open invoice can be cashed today: under a factoring contract at its rate plus an aging surcharge, without one at a spot rate. The fee goes to the reserve. Plain money language throughout.
+
+| Where | String |
+|---|---|
+| Row button | Cash it now |
+| Several due by a day (from What now?) | Cash `{n}` invoices · `{fd}` FD today |
+| Sheet title | Cash this invoice now |
+| Rows | Invoice · `{origin}` to `{dest}` · `{fd}` FD, due `{date}` |
+| Fee row, under a contract | Fee · `{rate}` contract + `{aging}` for `{n}` days early · `{fd}` FD |
+| Fee row, no contract | Fee · `{spot}` spot rate · `{fd}` FD |
+| You get | You get today · `{fd}` FD |
+| Note | The shipper pays the factor on `{date}`. The fee goes to the reserve. |
+| Buttons | **Cash it now · `{fd}` FD** · Not now · live: Sent · in effect `{hh:mm}` |
+| Cashed, on the row | Cashed `{date}` · `{fd}` FD received |
+
+| Refusal | String |
+|---|---|
+| Already paid or cashed | This invoice is already paid. |
+| Own-company paper | Paper between your own companies can't be cashed early. |
+| A player shipper's invoice [size] | Invoices from player shippers can't be cashed early yet. |
+| Due today | It's due today. It lands without a fee. |
 
 ## Card 1: Before your first truck (state A only)
 
