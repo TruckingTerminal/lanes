@@ -9,13 +9,17 @@ describe("Intel", () => {
     const perMonth = g.w.cfg.time.daysPerMonth;
     // Run to the second month close after joining, so one whole month sits between two marks.
     const closes: number[] = [];
-    let markAtFirst = { revenueFd: 0, delivered: 0, onTime: 0 };
+    let markAtFirst = { revenueFd: 0, delivered: 0, onTime: 0, costFd: 0, overheadFd: 0 };
+    let firstRecord: typeof c.lastMonth;
     for (let h = 0; h < 24 * (2 * perMonth + 2) && closes.length < 2; h++) {
       const before = c.lastMonth?.closedDay;
       g.stepHour();
       if (c.lastMonth && c.lastMonth.closedDay !== before) {
         closes.push(c.lastMonth.closedDay);
-        if (closes.length === 1) markAtFirst = { ...c.monthMark! };
+        if (closes.length === 1) {
+          markAtFirst = { ...c.monthMark! };
+          firstRecord = { ...c.lastMonth };
+        }
       }
     }
     expect(closes.length).toBe(2);
@@ -26,6 +30,9 @@ describe("Intel", () => {
     expect(lm.loads).toBe(c.monthMark!.delivered >= markAtFirst.delivered ? c.monthMark!.delivered - markAtFirst.delivered : c.monthMark!.delivered);
     expect(lm.loads).toBeGreaterThanOrEqual(0);
     expect(lm.onTime).toBeLessThanOrEqual(lm.loads);
+    // What the month spent: operating costs and fleet overhead between the marks. The first record is kept whole.
+    expect(lm.spentFd).toBeCloseTo(c.monthMark!.costFd - markAtFirst.costFd + (c.monthMark!.overheadFd - markAtFirst.overheadFd), 6);
+    expect(c.firstMonth).toEqual(firstRecord);
     // Every company has its record, and the list ranks them all.
     expect(g.w.companies.every((x) => x.lastMonth !== undefined)).toBe(true);
     const rows = ranked(intelRows(g.w), "miles");

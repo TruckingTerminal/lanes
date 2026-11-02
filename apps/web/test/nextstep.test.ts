@@ -51,6 +51,19 @@ describe("What now? (nextAction), rule by rule", () => {
     expect(a.lever?.kind).toBe("book");
   }, 60_000);
 
+  it("rule 2: a lost hand bid with a better load beside it, at its usually-clears-near rate; none when nothing beats it", async () => {
+    const { g, c, truck } = await fresh();
+    const rows = boardRows(g.w, c, truck, { dest: "any", maxDh: 300, query: "" }).filter((r) => !r.block);
+    const lostLoad = rows[0]!.l;
+    const a = nextAction(GAME_CONFIG, g.w, c, { loadId: lostLoad.id, truckId: truck.id, profitAtWinningFd: 0 });
+    if (a.kind !== "lost") throw new Error(a.kind);
+    expect(a.truckId).toBe(truck.id);
+    expect(a.loadId).not.toBe(lostLoad.id);
+    expect(a.profitFd).toBeGreaterThan(0);
+    // Nothing beside it would have left as much as the lost load at the winning rate: rule 3 as usual.
+    expect(nextAction(GAME_CONFIG, g.w, c, { loadId: lostLoad.id, truckId: truck.id, profitAtWinningFd: 1e9 }).rule).toBe(3);
+  }, 60_000);
+
   it("rule 0: being wound up answers with the restart's day", async () => {
     const { g, c } = await fresh();
     c.liquidatingSince = 10;

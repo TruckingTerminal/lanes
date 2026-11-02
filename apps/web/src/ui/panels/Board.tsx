@@ -324,7 +324,7 @@ function LoadSheet({ r, truck }: { r: BoardRow; truck: Truck }): JSX.Element {
     const res = await order({ type: "place_bid", truckId: truck.id, loadId: l.id, rate: bid }, ROUND.toastBid(bid.toFixed(2), nextRoundHour()));
     if (!res.ok) return setNote({ text: res.reason, bad: true });
     iuliiaSay("load:bid");
-    S.handBids.set(l.id, { rate: bid, be: r.be, from: w.net.places[l.originPlace]!.name, to: w.net.places[l.destPlace]!.name });
+    S.handBids.set(l.id, { rate: bid, be: r.be, truckId: truck.id, from: w.net.places[l.originPlace]!.name, to: w.net.places[l.destPlace]!.name });
     S.handLoads.add(l.id);
     S.result = null;
     toast(ROUND.toastBid(bid.toFixed(2), nextRoundHour()));

@@ -1,4 +1,5 @@
 import type { JSX } from "preact";
+import type { Company, World } from "@lanes/engine";
 import { NOW } from "../copy.js";
 import { fdFull, hhmm, shortDate } from "../format.js";
 import { GAME_CONFIG } from "../game.js";
@@ -17,12 +18,18 @@ import { Iuliia } from "./Walkthrough.js";
  * a line, so it survives Quiet. Asked, so it skips quiet time.
  */
 
+/** The answer now, fed the last hand bid that lost (rule 2's "a better load beside it"), while its result is up. */
+function currentAction(w: World, c: Company): NextAction {
+  const r = S.result;
+  return nextAction(GAME_CONFIG, w, c, r && !r.won ? (r.lost ?? null) : null);
+}
+
 /** Ask What now? (the chip, the "?" key, the explain sheet's foot, the debt milestone). */
 export function askWhatNow(): void {
   const g = S.game;
   const c = g?.player;
   if (!g || !c) return;
-  S.whatNow = { a: nextAction(GAME_CONFIG, g.w, c), tab: S.tab };
+  S.whatNow = { a: currentAction(g.w, c), tab: S.tab };
   if (isPhone() && S.sheet === "strip") S.sheet = "half";
   bumpData();
 }
@@ -32,7 +39,7 @@ export function WhatNowChip(): JSX.Element | null {
   const g = S.game;
   const c = g?.player;
   if (!g || !c) return null;
-  const now = nextAction(GAME_CONFIG, g.w, c);
+  const now = currentAction(g.w, c);
   const dot = now.rule >= 1 && now.rule <= 3 && walkSteps(GAME_CONFIG).some((s) => !s.done(g.w, c));
   return (
     <Btn sm class="whatnowchip" onClick={askWhatNow} label={NOW.chip}>
@@ -50,7 +57,7 @@ export function WhatNowAnswer(): JSX.Element | null {
   // The answer belongs to the tab it was asked on.
   if (S.whatNow && S.whatNow.tab !== S.tab) S.whatNow = null;
   if (!S.whatNow) return null;
-  const now = nextAction(GAME_CONFIG, g.w, c);
+  const now = currentAction(g.w, c);
   const close = () => {
     S.whatNow = null;
     bumpData();

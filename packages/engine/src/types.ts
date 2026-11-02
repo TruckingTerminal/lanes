@@ -142,6 +142,15 @@ export interface Authority {
 
 export type CrashSeverity = "pdo" | "injury" | "fatal";
 
+/** A month-close record (intel.ts): a month behind, for the screens. */
+export interface MonthRecord {
+  revenueFd: number;
+  loads: number;
+  onTime: number;
+  spentFd: number;
+  closedDay: number;
+}
+
 export interface Company {
   id: number;
   name: string;
@@ -182,8 +191,11 @@ export interface Company {
    */
   operating: { revenueFd: number; costFd: number };
   /** Intel's month close (intel.ts): the counters at the start of this game month, and last month's record. Screens only. */
-  monthMark?: { revenueFd: number; delivered: number; onTime: number };
-  lastMonth?: { revenueFd: number; loads: number; onTime: number; closedDay: number };
+  monthMark?: { revenueFd: number; delivered: number; onTime: number; costFd: number; overheadFd: number };
+  /** `spentFd`: operating costs and fleet overhead over the month. */
+  lastMonth?: MonthRecord;
+  /** The company's first month-close record, kept (Iuliia's first-month milestone). Screens only. */
+  firstMonth?: MonthRecord;
   overheadPaidFd: number;
   /** Operating (unparked) truck-weeks, counted at each weekly overhead charge. */
   truckWeeks: number;

@@ -63,7 +63,7 @@ export const S = {
   /** Load board: the load whose sheet is open (S3), or the expanded table row. */
   openLoad: null as number | null,
   /** Bids placed by hand from the board, by load: their rate and break-even, so the round's result can say how they did (S5). */
-  handBids: new Map<number, { rate: number; be: number; from?: string; to?: string }>(),
+  handBids: new Map<number, { rate: number; be: number; truckId?: number; from?: string; to?: string }>(),
   /** Loads booked by hand from the board, so the feed says "Booked" for them, not "Won" (S4). */
   bookedLoads: new Set<number>(),
   /**
@@ -95,7 +95,7 @@ export const S = {
   /** The map follows your moving truck until you pan it (S6); "Follow" turns it back on. */
   following: true,
   /** The last round's result for a hand bid, shown on the board until OK or the next bid (S5); `seen` clears the Loads dot. */
-  result: null as null | { won: boolean; from: string; to: string; rate: number; winning: number | null; be: number; total: number; seen: boolean; winnerId?: number },
+  result: null as null | { won: boolean; from: string; to: string; rate: number; winning: number | null; be: number; total: number; seen: boolean; winnerId?: number; lost?: import("./nextstep.js").LostBid },
   /** The truck-stop site selected on the map (an id into w.sites), shown on the Business tab. */
   selSite: null as number | null,
   /** The market view's trailer type. */

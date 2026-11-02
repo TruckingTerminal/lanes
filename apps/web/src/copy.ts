@@ -752,27 +752,32 @@ export const MILESTONE = {
     name: "Your own truck",
     at: "Your own truck. No lessor's share now, and no lessor to fix it.",
     reason: "Maintenance, insurance and value lost are yours, and a truck that sits still costs money.",
-    button: "Keep it loaded: see the board",
+    button: "Find its next load",
   },
   hiredWeek: {
     name: "First payday",
-    at: (name: string, fd: string) => `Payday. ${name} was paid ${fd} FD this week.`,
-    reason: "Wages come weekly whether the truck earns or not; keep it loaded.",
-    button: "Keep it loaded: see the board",
+    before: (name: string, day: string) => `${name} is paid by the mile, weekly from ${day}, plus a per diem for idle days away.`,
+    at: (name: string, mi: string, fd: string) => `${name} has driven ${mi} miles for you this week: ${fd} FD in wages so far.`,
+    reason: (perDiem: string) => `Your driver earns by the mile. An idle day away from home costs ${perDiem} FD in per diem.`,
+    button: "Find its next load",
   },
   dispatcher: {
     name: "Your dispatcher",
+    /** The director: reached by a third truck with no dispatcher hired, it's undated and named so. */
+    nameTrucks: "Three trucks",
     at: "Your dispatcher starts today. It follows your rules exactly, including the foolish ones.",
     reason: "Check the rules against the lanes that actually paid.",
-    button: "Its rules",
+    button: "Check its rules",
   },
   monthClose: {
     name: "Your first month",
     before: (n: number) => `Your first month closes in ${n} days. Monthly bills land with it.`,
     at: (earned: string, spent: string, kept: string) => `Your first month: earned ${earned}, spent ${spent}, kept ${kept} FD.`,
+    /** The director: until the engine's first month-close record exists. */
+    atNoRecord: "Your first month has closed. Money has all of it.",
     reason: "The fuel tax and insurance land at the close. Read the month on Money.",
     beforeButton: "See the month so far",
-    button: "Money",
+    button: "Read the month",
   },
   day28: {
     name: "Businesses open",
@@ -786,10 +791,11 @@ export const MILESTONE = {
     name: "The first slump",
     at: "Rates are falling for everyone, not just you. Slumps end.",
     reason: (n: string) => `The carrier still here when it ends is the one who didn't buy in it. Your cushion: ${n} weeks.`,
-    button: "Money",
+    button: "See your cushion",
   },
   debt: {
     name: "In debt at a weekly check",
+    before: (day: string) => `The weekly check is ${day}. At today's cash you'd be under the line.`,
     at: (weeksInDebt: number) => `You're in debt at a weekly check: 1 of ${weeksInDebt}. Here is the way out.`,
     reason: (weeksInDebt: number, debtLine: string) => `${weeksInDebt} checks in a row under ${debtLine} FD and the company is wound up.`,
     button: "What now?",
@@ -798,7 +804,11 @@ export const MILESTONE = {
     name: "Brokerages open",
     before: (brokerDay: string) => `Brokerages open ${brokerDay}. The bond is the hard part.`,
     at: "Brokerages are open. Here's what one takes, and how far you are.",
-    // The reason's {gap} (bond, licence and premium) waits for the brokerage rule's costs in config: none exist yet.
+    // The director: the line stands without the gap until the economy sizes the brokerage's costs.
+    reason: "What a brokerage takes is on its card.",
+    /** The writer's, for when the gap can be shown: */
+    reasonGap: (gap: string) => `Bond, licence and premium: you're ${gap} FD short.`,
+    reasonReady: "You have what it takes.",
     beforeButton: "What it takes",
     button: "What it takes",
   },

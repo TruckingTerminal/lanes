@@ -87,6 +87,28 @@ describe("milestones (milestones.ts)", () => {
     expect(history(g.w, c).some((m) => m.key === "monthClose")).toBe(true);
   }, 60_000);
 
+  it("the first payday speaks before, then on its day only; the debt check warns ahead", async () => {
+    const g = await TestGame.create();
+    const c = g.join("Payday Freight", "oo", "LAX")!;
+    const perDay = g.w.cfg.time.gameMinutesPerDay;
+    const only = (key: string) => (k: string) => !k.startsWith(`ms:${key}:`);
+    const today = Math.floor(g.w.t / perDay);
+    const driver = g.w.staff.find((s) => s.companyId === c.id && s.kind === "driver")!;
+    driver.owner = false;
+    driver.hiredDay = today;
+    const pay = today + ((6 - (today % 7) + 7) % 7);
+    if (pay > today) expect(dueMilestone(g.w, c, only("hiredWeek"))).toMatchObject({ phase: "before", m: { key: "hiredWeek", day: pay } });
+    g.w.t = pay * perDay + 60;
+    expect(dueMilestone(g.w, c, only("hiredWeek"))).toMatchObject({ phase: "at", m: { key: "hiredWeek" } });
+    g.w.t = (pay + 1) * perDay + 60;
+    expect(dueMilestone(g.w, c, only("hiredWeek"))).toBeNull();
+    expect(history(g.w, c).some((m) => m.key === "hiredWeek")).toBe(true);
+    // Under the line before any check in debt: the next check's day, ahead.
+    const bal = g.w.ledger.balance(companyAccount(c.id));
+    g.w.ledger.post(g.w.t, companyAccount(c.id), "sink:test", bal + g.w.cfg.insolvency.debtLimitFd + 1_000, "test");
+    expect(dueMilestone(g.w, c, only("debt"))).toMatchObject({ phase: "before", m: { key: "debt" } });
+  }, 60_000);
+
   it("a missed before line is dropped, never shown late; the debt run dates from its first check", async () => {
     const g = await TestGame.create();
     const c = g.join("Late Freight", "oo", "LAX")!;

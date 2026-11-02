@@ -65,14 +65,24 @@ function words(w: World, c: Company, m: Milestone, phase: "before" | "at"): { li
     case "ownTruck":
       return { line: MILESTONE.ownTruck.at, reason: MILESTONE.ownTruck.reason, button: MILESTONE.ownTruck.button, go: go("loads") };
     case "hiredWeek": {
-      // Drivers are paid by the mile as they drive: what's owed them since the last weekly close (labor.ts `pending`).
+      // Drivers are paid by the mile: the miles since the last weekly close (labor.ts `pending`), at the driver's rate. The
+      // figure resets at the close, so the timeline re-reads the reason alone once it has.
       const s = m.staffId !== undefined ? staffById(w, m.staffId) : null;
-      return { line: MILESTONE.hiredWeek.at(s?.name ?? "", fdFull((s?.pending ?? 0) * (s?.pay ?? 0))), reason: MILESTONE.hiredWeek.reason, button: MILESTONE.hiredWeek.button, go: go("loads") };
+      const name = s?.name ?? "";
+      const reason = MILESTONE.hiredWeek.reason(fdFull(w.cfg.labor.driver.perDiemFd));
+      const line =
+        phase === "before"
+          ? MILESTONE.hiredWeek.before(name, shortDate(m.day!))
+          : today <= (m.atUntil ?? Infinity)
+            ? MILESTONE.hiredWeek.at(name, fdFull(s?.pending ?? 0), fdFull((s?.pending ?? 0) * (s?.pay ?? 0)))
+            : reason;
+      return { line, reason: line === reason ? null : reason, button: MILESTONE.hiredWeek.button, go: go("loads") };
     }
     case "dispatcher":
       return {
-        line: MILESTONE.dispatcher.at,
-        reason: MILESTONE.dispatcher.reason,
+        // Three trucks and no dispatcher: no dispatcher starts, so the timeline re-reads the reason alone.
+        line: m.via === "trucks" ? MILESTONE.dispatcher.reason : MILESTONE.dispatcher.at,
+        reason: m.via === "trucks" ? null : MILESTONE.dispatcher.reason,
         button: MILESTONE.dispatcher.button,
         go: () => {
           setTab("fleet");
@@ -81,9 +91,9 @@ function words(w: World, c: Company, m: Milestone, phase: "before" | "at"): { li
       };
     case "monthClose":
       if (phase === "before") return { line: MILESTONE.monthClose.before(Math.max(0, m.day! - today)), reason: MILESTONE.monthClose.reason, button: MILESTONE.monthClose.beforeButton, go: go("money") };
-      // The company's operating counters since it began: freight paid, and the costs of earning it.
+      // The engine's first month-close record (intel.ts): earned, spent (operating costs and overhead), kept.
       return {
-        line: MILESTONE.monthClose.at(fdFull(c.operating.revenueFd), fdFull(c.operating.costFd), fdFull(c.operating.revenueFd - c.operating.costFd)),
+        line: c.firstMonth ? MILESTONE.monthClose.at(fdFull(c.firstMonth.revenueFd), fdFull(c.firstMonth.spentFd), fdFull(c.firstMonth.revenueFd - c.firstMonth.spentFd)) : MILESTONE.monthClose.atNoRecord,
         reason: MILESTONE.monthClose.reason,
         button: MILESTONE.monthClose.button,
         go: go("money"),
@@ -102,14 +112,14 @@ function words(w: World, c: Company, m: Milestone, phase: "before" | "at"): { li
     case "debt": {
       const k = w.cfg.insolvency;
       return {
-        line: MILESTONE.debt.at(k.weeksInDebt),
+        line: phase === "before" ? MILESTONE.debt.before(shortDate(m.day!)) : MILESTONE.debt.at(k.weeksInDebt),
         reason: MILESTONE.debt.reason(k.weeksInDebt, fdFull(-k.debtLimitFd)),
         button: MILESTONE.debt.button,
         go: askWhatNow,
       };
     }
     case "day91":
-      return { line: phase === "before" ? MILESTONE.day91.before(shortDate(m.day!)) : MILESTONE.day91.at, reason: null, button: phase === "before" ? MILESTONE.day91.beforeButton : MILESTONE.day91.button, go: go("guide") };
+      return { line: phase === "before" ? MILESTONE.day91.before(shortDate(m.day!)) : MILESTONE.day91.at, reason: MILESTONE.day91.reason, button: phase === "before" ? MILESTONE.day91.beforeButton : MILESTONE.day91.button, go: go("guide") };
   }
 }
 
@@ -133,7 +143,7 @@ export function CompanySoFar(): JSX.Element | null {
             return (
               <li key={m.key}>
                 <button type="button" class="linkish" onClick={() => setOpen(open === m.key ? null : m.key)}>
-                  <span class="muted small">{m.day !== null ? shortDate(m.day) : MILESTONE.noDate}</span> {MILESTONE[m.key].name}
+                  <span class="muted small">{m.day !== null ? shortDate(m.day) : MILESTONE.noDate}</span> {m.via === "trucks" ? MILESTONE.dispatcher.nameTrucks : MILESTONE[m.key].name}
                 </button>
                 {open === m.key ? (
                   <p class="small">
