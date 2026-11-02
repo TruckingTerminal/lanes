@@ -101,3 +101,11 @@
   licence at day 91, the two companies under one login, self-dealing between a player's own two companies, Intel
   and the ladder), the economy sizes it after the prudence pair, then UX, the writer and engineering; a ruleset
   bump and a restart while the world has no players.
+- 2026-11-02 — Jeff, two rules for the brokerage: (1) a carrier with a brokerage arm may broker the loads a
+  shipper tenders DIRECTLY to it (never a load it took off the board), with every brokerage requirement standing,
+  the bond first; (2) a player's brokerage that receives direct shipper freight may tender it straight to the
+  player's own carrier without posting it on the board. This replaces the brief's "own carrier only through the
+  board". Producer's guard, to the economy: the hauler's pay on such a tender stays inside the lane's band, so the
+  tender channel can't move money untaxed; a load counts once per person. Jeff asks whether the two companies may
+  transfer FD to each other and whether to tax it: the producer recommends yes, both ways, as the owner's capital
+  (equity, never revenue), guarded, with a 1% fee to the reserve; Jeff to confirm the fee.
