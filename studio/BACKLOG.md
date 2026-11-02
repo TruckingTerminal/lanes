@@ -47,3 +47,11 @@ sprint 2.
 - **The red badge in the strip does nothing.** A tap opens the tab that needs attention, scrolls to the card,
   and the card carries its fix; more than one thing waiting opens a short list. Iuliia's arrival line also
   outlives the first booking. Engineering, this sprint.
+
+## The server sprint (from the red team's first pass, 2026-11-03)
+Three holes only an authoritative server closes: Sybil airdrop farming (N accounts, N allocations; a
+verified login with a same-owner check gating the bridge per person); logbook volume milestones washed between
+two owned wallets (an arm's-length rule on the milestones; until then weight delivered-on-time and tenure);
+a modified client rewriting its own action log (the server stamps each action's minute, keeps the log
+append-only, binds writes to an identity). The shared world is only as permanent as the players' own logs until
+then. Report: studio/reviews/redteam-2026-11-03.md.
