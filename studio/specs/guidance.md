@@ -44,6 +44,16 @@ Three layers deliver it:
 | 5 | A milestone is near and needs preparing | The gap or the countdown: the next truck, the cushion, the licence, the season close (section 3). |
 | 6 | Nothing needs the player | "Nothing needs you. The next thing that will: {event} in {days}." Calm is an answer, and it should be honest. |
 
+**Rule 1's collect lever** (Jeff, 2026-11-03: "If a carrier needs it now, he needs it NOW"). Any open invoice can be cashed now:
+- under a factoring contract, at the contract's rate plus an aging surcharge;
+- without one, at a spot rate.
+
+Both are behind the economy's switch and land with the brokerage bump. The levers stay in their order: book, collect, return a lease, sell.
+
+- **Switch on.** Collect offers **cashing first**. Its reason names three figures: what lands, the fee, and that it lands before the deciding check ("{fd} FD lands today, {fee} FD in fees, before the check on {day}"). It names the invoices to cash, the fewest that clear the line, oldest first.
+- **Cashing wouldn't cover the line, or the switch is off.** Collect falls back to waiting for the dated invoices, and names those that are due before the check. If waiting won't clear the line either, rule 1 moves on to the next lever (return a lease, then sell). It never offers a lever that can't work.
+- **No joke here, and no word against the fee.** Iuliia states what it costs. The player decides whether now is worth it.
+
 **"A better load beside a lost bid"** (rule 2) is an open load the same truck may take now, and it must pass four tests:
 - **The truck can take it.** The trailer matches. The vetting and local-first checks pass (`vettingBlock` and `mayTake` clear). It isn't a hot load without a team.
 - **It is in the same reach the lost bid used.** For a hand bid, the hand-bid deadhead limit (`MANUAL_BID_MAX_DEADHEAD_MI`) from where the truck is or will be free. For the dispatcher's bid, the dispatcher's own range.
