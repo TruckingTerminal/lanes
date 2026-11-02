@@ -53,3 +53,6 @@
 - 2026-11-02 — Jeff: a public Intel tab, every company visible to everyone: trucks, drivers, authority age,
   home hub, Miles, the safety, insurance and credit bands, last month's revenue and hauls. Live cash stays
   private. The director writes the page for sprint 2.
+- 2026-11-02 — Jeff: the title's head-on shot keeps the painting's lane (the truck comes on the right). The
+  traffic pass goes a third round: vehicles must pass the camera at full size with wheels, bounce and lamps
+  that read, headway kept in time so nothing overlaps at any depth, tumbleweeds off the road.
