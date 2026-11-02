@@ -238,6 +238,25 @@ function stepFly(now: number): void {
     bumpData();
   }
 }
+/** The truck the map follows (S6): the selected one if it's on the road, else your first truck on the road. */
+export function followed(): Truck | undefined {
+  const moving = myTrucks().filter((t) => isMoving(t));
+  return moving.find((t) => t.id === S.selTruck) ?? moving[0];
+}
+/** Eases the view toward the followed truck, at the zoom the player chose, while following is on. */
+function followTruck(): void {
+  if (!S.following || dragging || !cv) return;
+  const t = followed();
+  const p = t ? truckPoint(t) : null;
+  if (!p) return;
+  const k = kScale();
+  const tx = p[0] * k - cv.width / 2;
+  const ty = p[1] * k - viewH() / 2;
+  panX += (tx - panX) * 0.15;
+  panY += (ty - panY) * 0.15;
+  clampPan();
+}
+
 /** Whether the map has its painting up (or has given up waiting for it): until then the map shows the hub's picture. */
 let mountedAt = 0;
 export const mapPainted = (): boolean => !!art && (hasPaintedMap() || performance.now() - mountedAt > 4000);
@@ -406,7 +425,10 @@ export function drawMap(now: number): void {
   if (S.layout === "panel") return;
   startFly(now);
   if (fly) stepFly(now);
-  else stepView(now);
+  else {
+    stepView(now);
+    followTruck();
+  }
   let ctx = cv.getContext("2d")!;
   const w = S.game.w;
   const W = cv.width;
@@ -1088,7 +1110,14 @@ export function mountMap(canvas: HTMLCanvasElement, wrapEl: HTMLElement, tipEl: 
       const r = canvas.getBoundingClientRect();
       const dx = ev.clientX - drag.x;
       const dy = ev.clientY - drag.y;
-      if (!drag.moved && Math.hypot(dx, dy) > 4) drag.moved = true;
+      if (!drag.moved && Math.hypot(dx, dy) > 4) {
+        drag.moved = true;
+        // A pan takes the map from following the truck; "Follow" gives it back (S6).
+        if (S.following) {
+          S.following = false;
+          bumpData();
+        }
+      }
       if (drag.moved && canPan()) {
         const sx = canvas.width / r.width;
         const sy = canvas.height / r.height;

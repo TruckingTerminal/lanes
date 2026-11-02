@@ -7,6 +7,7 @@ import { DEFAULT_ORDERS, RULESET, TestGame, type StartKind } from "./game.js";
 import { H } from "./handlers.js";
 import { createMeta, LiveWorld, readMeta, type DbLike, type WorldMeta } from "./live.js";
 import { checkAttention, checkIdleAlerts, setDefaultOrders } from "./logic.js";
+import { payLine, type TruckBefore } from "./rolling.js";
 import { drawMap, fitMap, flyTo, resetArt, setZoom, zoomIndex } from "./mapview.js";
 import { MemoryDb } from "./memdb.js";
 import { bumpData, bumpTick, feed, loadOnboard, setOnboard, loadTheme, markPersisted, persistTest, push, readTest, S, setLayout, setTab, SPEEDS, TEST_BUILD, toast, toggleFullscreen, truckNo, type Session, type TitleMenu } from "./state.js";
@@ -93,7 +94,19 @@ function onEvent(s: Session, e: GameEvent): void {
     }
   }
   if (e.kind === "won") push(s, `Won ${hubName(e.origin)}→${hubName(e.dest)}, ${e.miles} mi at ${e.rate.toFixed(2)}/mi${e.manual ? " (your bid)" : ""}`, "good");
-  if (e.kind === "delivered") push(s, `Delivered ${hubName(e.origin)}→${hubName(e.dest)}: +${fd(e.grossFd)} FD, ${fd(e.grossFd - e.costFd)} after costs${e.onTime ? "" : " (late)"}`);
+  if (e.kind === "delivered") {
+    push(s, `Delivered ${hubName(e.origin)}→${hubName(e.dest)}: +${fd(e.grossFd)} FD, ${fd(e.grossFd - e.costFd)} after costs${e.onTime ? "" : " (late)"}`);
+    // S7: the pay line, on the Truck tab until OK; Money gets a dot for the invoice.
+    const truck = w.trucks[e.truckId - 1];
+    const load = w.loads.get(e.loadId);
+    // Not while a replay passes old deliveries (a late order makes the live world replay its history).
+    if (s === S.game && !rebuilding && truck && load) {
+      const line = payLine(w, truck, load, e.grossFd, e.costFd, beforeDelivery.get(truck.id) ?? { emptyMi: 0, depositFd: truck.depositFd ?? 0 });
+      const due = w.receivables.filter((r) => r.holder === s.player!.id).reduce<{ id: number; dueDay: number } | null>((a, r) => (!a || r.id > a.id ? r : a), null);
+      S.delivered = { origin: e.origin, dest: e.dest, lateH: Math.max(0, Math.ceil((w.t - load.dueT) / 60)), line, dueDay: due && due.dueDay > Math.floor(w.t / 1440) ? due.dueDay : null };
+      S.moneyDot = true;
+    }
+  }
   if (e.kind === "lostBid") push(s, `Lost ${hubName(e.origin)}→${hubName(e.dest)} at ${e.rate.toFixed(2)}/mi${e.winningRate !== null ? `: it went for ${e.winningRate.toFixed(2)}/mi` : ": nobody took it this round"}`, "warn");
   if (e.kind === "breakdown") push(s, `Breakdown on truck ${truckNo(e.truckId)}${e.repairFd ? `: ${fd(e.repairFd)} FD repair bill` : " (lessor pays)"}`, "bad");
   if (e.kind === "truckDelivered") {
@@ -364,9 +377,12 @@ async function resync(): Promise<void> {
 }
 
 /** Daily bookkeeping for the screen: the cash sparkline and the freight-cycle headlines. */
+/** Each of your trucks as the screen last saw it, for the pay line of a delivery that happens between frames (rolling.ts). */
+const beforeDelivery = new Map<number, TruckBefore>();
 function observe(s: Session): void {
   const f = feed(s);
   const w = s.w;
+  if (s.player) for (const t of w.trucksByCompany.get(s.player.id) ?? []) beforeDelivery.set(t.id, { emptyMi: t.emptyMi, depositFd: t.depositFd ?? 0 });
   if (w.t === f.lastT) return;
   const crossed = Math.floor(w.t / 1440) !== Math.floor(f.lastT / 1440);
   f.lastT = w.t;

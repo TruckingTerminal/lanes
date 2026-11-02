@@ -1,8 +1,9 @@
 import type { JSX } from "preact";
 import { useEffect, useRef } from "preact/hooks";
-import { fitMap, mapPainted, maxZoom, mountMap, setZoom, zoomIndex, zoomLabel } from "../mapview.js";
+import { fitMap, followed, mapPainted, maxZoom, mountMap, setZoom, zoomIndex, zoomLabel } from "../mapview.js";
+import { ROLLING } from "../copy.js";
 import { ASSETS, hasAsset } from "../mapart.js";
-import { S, useData } from "../state.js";
+import { bumpData, S, useData } from "../state.js";
 import { Btn } from "./bits.js";
 import { CityPane } from "./CityPane.js";
 
@@ -22,6 +23,19 @@ export function MapView(): JSX.Element {
       <div id="tip" ref={tip} hidden />
       <Finding />
       <CityPane />
+      {!S.following && S.game?.player && followed() ? (
+        <div class="mapfollow">
+          <Btn
+            sm
+            onClick={() => {
+              S.following = true;
+              bumpData();
+            }}
+          >
+            {ROLLING.follow}
+          </Btn>
+        </div>
+      ) : null}
       <div class="mapzoom" role="group" aria-label="Map zoom">
         <Btn sm title="Zoom out (-)" disabled={zoomIndex() === 0} onClick={() => setZoom(zoomIndex() - 1)}>
           −

@@ -9,6 +9,7 @@ import { act, describe, me, myTrucks, S, selectTruck, truckNo, useData } from ".
 import { Bar, Btn, Card, Label, Num, Panel, Pixel } from "../bits.js";
 import { Rig, Scene } from "../Loop.js";
 import { TendersCard } from "./Contracts.js";
+import { DeliveredCard, RollingCards } from "./Rolling.js";
 import { TrailerLines, TruckAssetActions, YardCard } from "./Yard.js";
 
 const num = (id: string): number => Number((document.getElementById(id) as HTMLInputElement | null)?.value);
@@ -21,6 +22,8 @@ export function Fleet(): JSX.Element {
   const pending = ordersOf(w, me().id);
   return (
     <Panel title="Your fleet">
+      <DeliveredCard />
+      <RollingCards />
       <Scene name="yard" still={SCENES.yard} alt="Your yard at dusk" />
       <AttentionCard />
       <TendersCard c={me()} />

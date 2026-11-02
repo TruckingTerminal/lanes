@@ -157,3 +157,31 @@ export const ROUND = {
   toastBooked: "Booked. The truck is on its way.",
   toastWithdrawn: "Bid withdrawn.",
 };
+
+/** A truck on the road and a delivery (copy-first-ten-minutes.md, S6–S7). */
+export const ROLLING = {
+  lane: (from: string, to: string, miles: string) => `${from} → ${to} · ${miles} mi`,
+  eta: (when: string) => `ETA ${when}`,
+  onTime: "On time",
+  late: (h: number) => `Late ${h} h`,
+  follow: "Follow",
+  /** Not in the copy spec yet (the spec's question 1, answered "planned"): tonight's stop. */
+  tonightSite: (near: string) => `Tonight: a rest area near ${near} (planned)`,
+  tonightShoulder: "Tonight: the shoulder, no site in reach (planned)",
+};
+
+export const DELIVERED = {
+  title: (from: string, to: string) => `Delivered ${from} to ${to}`,
+  load: "The load",
+  fuel: "Fuel",
+  tolls: "Tolls",
+  /** Not in the copy spec yet: the engine charges the driver's pay and upkeep on every trip too, and the rows must sum. */
+  driver: "The driver's pay",
+  upkeep: "Upkeep",
+  lessor: (share: string) => `The lessor's ${share}`,
+  held: "Held toward your own truck",
+  yours: "Yours",
+  paid: "Paid",
+  today: "today",
+  ok: "OK",
+};

@@ -8,6 +8,7 @@ import type { LiveAction } from "./live.js";
 import { VETTING_NAMES } from "@lanes/engine";
 import type { Tab } from "./tabs.js";
 import { freshOnboard, ONBOARD_KEY, parseOnboard, type Onboard } from "./onboard.js";
+import type { PayLine } from "./rolling.js";
 
 /**
  * The screen's shared state: which world is on screen, what is selected, and the
@@ -62,6 +63,11 @@ export const S = {
   openLoad: null as number | null,
   /** Bids placed by hand from the board, by load: their rate and break-even, so the round's result can say how they did (S5). */
   handBids: new Map<number, { rate: number; be: number }>(),
+  /** The last delivery, shown on the Truck tab until OK (S7); Money keeps a dot until it's opened. */
+  delivered: null as null | { origin: number; dest: number; lateH: number; line: PayLine; dueDay: number | null },
+  moneyDot: false,
+  /** The map follows your moving truck until you pan it (S6); "Follow" turns it back on. */
+  following: true,
   /** The last round's result for a hand bid, shown on the board until OK or the next bid (S5); `seen` clears the Loads dot. */
   result: null as null | { won: boolean; origin: number; dest: number; rate: number; winning: number | null; be: number; total: number; seen: boolean },
   /** The truck-stop site selected on the map (an id into w.sites), shown on the Business tab. */
@@ -188,6 +194,7 @@ export function loadOnboard(): void {
 
 export function setTab(tab: Tab): void {
   S.tab = tab;
+  if (tab === "money") S.moneyDot = false;
   // The first visit clears an opened teaser's "New" under More.
   if (S.game?.player && !S.onboard.visited.includes(tab)) setOnboard({ visited: [...S.onboard.visited, tab] });
   bumpData();
