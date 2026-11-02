@@ -125,3 +125,9 @@
   next step and an explanation one tap away. The director writes the guidance spec (the path through the first
   month, the first truck, the first hire, day 28, day 91, the first bust; help on every figure; a "What now?"
   prompt), UX the surface, the writer the lines, engineering the wiring.
+- 2026-11-03 — Jeff: (1) the live world restarts once, later, carrying ruleset 0.20.1 (the deposit fix) and the
+  used lot's levers (usedMarket.npcLot.perWeek 60, stock 120) once the lot's four-year check passes; (2) the
+  prudent persona (option A) stays and option B (loan rates by leverage, the bust covenant) stays off, per the
+  economy's pair: the greedy fleets' lead is outside money, not debt; (3) double brokering closes to player
+  carriers in the rules with the brokerage bump, not only in the chrome; (4) the Mac mini as the studio's batch box
+  and the beta's hosting are for later.
