@@ -226,7 +226,7 @@ One entry per figure key. `what` and `moves` are the writer's; `how` is engineer
 | `truck.leaseDeposit` | Money held back from your lease loads, toward your own truck. | A share of each leased load, counted in full when you buy. | Every leased load adds to it. |
 | `truck.value` | What your owned truck would fetch today. | Its list price, less depreciation by age and miles. | Time, miles, condition and the make. |
 | `loan.downPayment` | The share of the price you pay yourself on a purchase loan. | `{downLow}` to `{downHigh}` of the price: the better your credit score, the lower. | A better credit score, before you sign. |
-| `loan.cashNow` | The cash a purchase loan needs at signing. | Down payment, plus a stake of `{loanStake}` of the loan, locked until repaid, plus sales tax. | Your credit score, and the price you choose. |
+| `loan.cashNow` | The cash a purchase loan needs at signing. | Down payment, a `{loanStake}` loan stake and sales tax. Your lease deposit comes off when this truck replaces the lessor's. | Your credit score, and the price you choose. |
 | `loan.rate` | What the loan costs each week on what's owed. | `{rateLow}` to `{rateHigh}` a week: the better your credit score at signing, the lower. | A better score lowers your next loan. A running loan's rate never changes. |
 | `finance.factoringRate` | The factor's share of every load under contract. | From your fleet size on the day you sign; fixed for the term. | More trucks at renewal lower it. |
 | `finance.quickPayFee` | The cost of being paid on delivery, one load at a time. | `{quickPayPct}` of the load. | Nothing: it's fixed. Use it for emergencies. |
