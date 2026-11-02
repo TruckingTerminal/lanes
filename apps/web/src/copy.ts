@@ -728,6 +728,9 @@ export const EXPLAIN = (cfg: EconomyConfig): Record<string, Ex> => ({
   "intel.safetyBand.other": { what: "A company's safety rating from inspections and reviews.", how: "", moves: "Violations found at inspections and audits, and crashes, recent ones counting most." },
   "intel.insuranceBand.other": { what: "How much a company's record adds to its premium.", how: "", moves: "Its crashes and claims; the surcharge eases with time." },
   "truck.leaseDeposit": { what: "Money held back from your lease loads, toward your own truck.", how: "A share of each leased load, counted in full when you buy.", moves: "Every leased load adds to it." },
+  // Cash it now: engineering's drafts until the writer's what and moves arrive; the how is the rate's parts.
+  "invoice.cashNowFee": { what: "What cashing this invoice today costs.", how: "The invoice times the rate: your contract's rate or the spot rate, plus a little for each day since it was raised.", moves: "A factoring contract's rate; cashing an invoice while it's fresh." },
+  "invoice.cashNowLands": { what: "What reaches your cash today if you cash this invoice.", how: "The invoice, less the fee.", moves: "The fee: your contract's rate, or the spot rate, and how old the invoice is." },
   // QA's guidance replay: the Dealer's rows carried no figure to tap.
   "dealer.price": { what: "What this rig costs here today, before tax.", how: "The make's list price, times the dealer's monthly index, which follows the order backlog and stock.", moves: "The month's backlog and stock; another seller; a used rig instead." },
   "truck.value": { what: "What your owned truck would fetch today.", how: "Its list price, less depreciation by age and miles.", moves: "Time, miles, condition and the make." },
@@ -974,4 +977,35 @@ export const BROKERAGE = {
   refusePassedBack: (carrier: string) => `${carrier} passed you this load. It can't go back: post it, or tender it elsewhere.`,
   // Intel.
   sameOwner: (other: string) => `Same owner as ${other} ›`,
+};
+
+/**
+ * Cash it now (the writer's finance-strings.md, [switch cashNow]; UX's finance.md draft 2): any open invoice sold to
+ * the NPC factor today. `rowLine` is UX's (the row's second line); the rest are the writer's.
+ */
+export const CASHNOW = {
+  rowButton: "Cash it now",
+  rowLine: (lands: string, fee: string) => [`Cash now: ${lands} lands`, `· fee ${fee}`] as const,
+  /** The two figures' names on their explain sheets (engineering's, for the writer). */
+  landsLabel: "Lands today",
+  feeLabel: "Fee",
+  several: (n: number, fd: string) => `Cash ${n} invoices · ${fd} FD today`,
+  sheetTitle: "Cash this invoice now",
+  invoiceRow: (o: string, d: string, fd: string, date: string) => `Invoice · ${o} to ${d} · ${fd} FD, due ${date}`,
+  feeContract: (rate: string, aging: string, n: number, fd: string) => `Fee · ${rate} contract + ${aging} for ${n} days early · ${fd} FD`,
+  feeSpot: (spot: string, fd: string) => `Fee · ${spot} spot rate · ${fd} FD`,
+  youGet: (fd: string) => `You get today · ${fd} FD`,
+  note: (date: string) => `The shipper pays the factor on ${date}. The fee goes to the reserve.`,
+  /** A brokerage's sheet only (brokerage-strings.md). */
+  brokerNote: "Cashing it doesn't change what you owe carriers, or when.",
+  button: (fd: string) => `Cash it now · ${fd} FD`,
+  notNow: "Not now",
+  cashed: (date: string, fd: string) => `Cashed ${date} · ${fd} FD received`,
+  refusePaid: "This invoice is already paid.",
+  refuseOwn: "Paper between your own companies can't be cashed early.",
+  refusePlayer: "Invoices from player shippers can't be cashed early yet.",
+  refuseLiquidation: "Your company is being wound up, so nothing can be cashed early.",
+  refuseDueToday: "It's due today. It lands without a fee.",
+  /** Finance › Open invoices (UX). */
+  openHeader: (n: number, fd: string) => `Open invoices: ${n} · ${fd} FD`,
 };

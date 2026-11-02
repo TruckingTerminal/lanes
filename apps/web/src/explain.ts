@@ -1,4 +1,5 @@
 import {
+  cashNowRate,
   companyAccount,
   condition,
   creditBand,
@@ -37,6 +38,8 @@ export interface FigureCtx {
   /** An amount the figure is built on (a price for a loan, a gross for the lessor's share). */
   fd?: number;
   replacing?: boolean;
+  /** The open invoice a cash-now figure is for. */
+  invoiceId?: number;
 }
 
 export interface Row {
@@ -53,6 +56,7 @@ export interface Breakdown {
 const fd = (x: number) => `${x < 0 ? "−" : ""}${Math.round(Math.abs(x)).toLocaleString("en-US")} FD`;
 const perMi = (x: number) => `${x.toFixed(2)}/mi`;
 const pct = (x: number) => `${Math.round(x * 100)}%`;
+const pct1 = (x: number) => `${(Math.round(x * 1000) / 10).toFixed(1)}%`;
 
 type Fn = (w: World, c: Company, ctx: FigureCtx) => Breakdown | null;
 
@@ -82,6 +86,24 @@ function breakEvenParts(w: World, c: Company, ctx: FigureCtx): { parts: [string,
     ["Tolls and climbs", per(tolls)],
   ];
   return { parts, total: parts.reduce((s, [, x]) => s + x, 0), loaded: l.miles };
+}
+
+function cashNowParts(w: World, c: Company, ctx: FigureCtx, total: "fee" | "lands"): Breakdown | null {
+  const r = ctx.invoiceId !== undefined ? w.receivables.find((x) => x.id === ctx.invoiceId) : undefined;
+  if (!r) return null;
+  const rate = cashNowRate(w, c, r);
+  if (typeof rate === "string") return null;
+  const k = w.cfg.token.payment;
+  const base = c.factoring && c.factoring.rate !== undefined ? c.factoring.rate : k.cashNow.spotPct;
+  const age = Math.max(0, dayOf(w.t, w.cfg) - (r.dueDay - k.termsDays));
+  const fee = r.amountFd * rate;
+  const rows: Row[] = [
+    { label: "The invoice", value: fd(r.amountFd) },
+    { label: c.factoring ? "Your contract's rate" : "The spot rate", value: pct1(base) },
+    { label: `Aging: ${age} days since it was raised`, value: pct1(rate - base) },
+    { label: "The fee", value: fd(-fee) },
+  ];
+  return total === "fee" ? { rows: rows.slice(0, 3), total: { label: "Fee", value: fd(fee) } } : { rows, total: { label: "Lands today", value: fd(r.amountFd - fee) } };
 }
 
 const BREAKDOWNS: Record<string, Fn> = {
@@ -132,6 +154,9 @@ const BREAKDOWNS: Record<string, Fn> = {
     if (tr) rows.push({ label: "Its trailer, valued the same way", value: fd(trailerValue(w, tr)) });
     return { rows, total: { label: "Worth", value: fd(truckValue(w, t)) } };
   },
+  // Cash it now (receivables.ts cashNowRate): the invoice, the rate's parts with this invoice's days, the fee and what lands.
+  "invoice.cashNowFee": (w, c, ctx) => cashNowParts(w, c, ctx, "fee"),
+  "invoice.cashNowLands": (w, c, ctx) => cashNowParts(w, c, ctx, "lands"),
   "money.cash": (w, c) => ({ rows: [], total: { label: "Cash", value: fd(w.ledger.balance(companyAccount(c.id))) } }),
   "guide.cushion": (w, c) => {
     const cu = cushion(w, c);

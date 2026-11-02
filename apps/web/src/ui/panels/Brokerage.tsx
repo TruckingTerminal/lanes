@@ -8,6 +8,7 @@ import { nextRoundHour } from "../../logic.js";
 import { bumpData, me, openIntel, order, S, toast, useData } from "../../state.js";
 import { layerDay } from "../../tabs.js";
 import { Btn, Card, Kv, Panel } from "../bits.js";
+import { InvoiceRows } from "./CashNow.js";
 
 /**
  * A player's brokerage (specs/brokerage-rule.md, brokerage-ux.md draft 2, the writer's brokerage-strings.md), on the
@@ -398,18 +399,13 @@ export function BrokerMoney(): JSX.Element {
   const bond = w.cfg.token.staking.roles.broker;
   const used = brokerBooks(w).get(c.id)?.apFd ?? 0;
   const share = used / Math.max(1, bond);
-  const owedTo = w.receivables.filter((r) => r.holder === c.id && r.amountFd > 0.005);
   const owedBy = w.receivables.filter((r) => r.payer === c.id && r.amountFd > 0.005);
   const pair = brokerageLog(w).formed.find((f) => f.brokerId === c.id);
   return (
     <Panel title="Money">
       <p class="bigcash num">{BROKERAGE.cash(fd(cash(w, c)))}</p>
       <Card title={BROKERAGE.owedToYou}>
-        {owedTo.map((r) => (
-          <p class="small" key={r.id}>
-            brokered · {fd(r.amountFd)} · due {shortDate(r.dueDay)}
-          </p>
-        ))}
+        <InvoiceRows c={c} />
         <p class="muted small">{BROKERAGE.riskLine(pct(w.cfg.brokerRisk.defaultRate))}</p>
       </Card>
       <Card title={BROKERAGE.owedByYou}>

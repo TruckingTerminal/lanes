@@ -1,4 +1,6 @@
 import type { JSX } from "preact";
+import { cashNowOn, InvoiceRows } from "./CashNow.js";
+import { CASHNOW } from "../../copy.js";
 import { useState } from "preact/hooks";
 import { brokerBooks, companyAccount, creditBand, creditScore, nextTruckTier, operatingTrucks, purchaseTerms, stakeDiscount, truckCap, type Action, type Company, type World } from "@lanes/engine";
 import { FINANCE } from "../../copy.js";
@@ -187,6 +189,13 @@ function GettingPaid({ stateA, open, orders }: { stateA: boolean; open: (s: Shee
         </p>
         {contract ? <p class="muted small">{FINANCE.whatFactor(fk.months)}</p> : null}
         <p class="small">{FINANCE.risk}</p>
+        {/* "Open invoices", under the options (finance.md draft 2): the same rows as Money's, each with Cash it now. */}
+        {!stateA && cashNowOn(w) && invoices(w, c).length ? (
+          <>
+            <p class="label">{CASHNOW.openHeader(invoices(w, c).length, fdFull(invoices(w, c).reduce((s, r) => s + r.amountFd, 0)))}</p>
+            <InvoiceRows c={c} />
+          </>
+        ) : null}
         {contract && !broker ? <RateFold c={c} /> : null}
       </Card>
     </div>

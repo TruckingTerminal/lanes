@@ -1,7 +1,7 @@
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it, vi } from "vitest";
-import { companyAccount, truckValue } from "@lanes/engine";
+import { cashNowRate, companyAccount, truckValue } from "@lanes/engine";
 import { boardRows } from "../src/board.js";
 import { EXPLAIN } from "../src/copy.js";
 import { breakdown, FIRST_MONTH_KEYS } from "../src/explain.js";
@@ -222,5 +222,31 @@ describe("milestones (milestones.ts)", () => {
     const debt = milestones(g.w, c).find((m) => m.key === "debt")!;
     expect((debt.day! + 1) % 7).toBe(0);
     expect(debt.day).toBeLessThan(Math.floor(g.w.t / perDay) - 6);
+  }, 60_000);
+});
+
+describe("cash it now's figures (explain.ts)", () => {
+  it("break down to the engine's rate: the fee, and what lands today", async () => {
+    const pay = GAME_CONFIG.token.payment as { enabled: boolean; cashNow: { enabled: boolean } };
+    const was = [pay.enabled, pay.cashNow.enabled];
+    pay.enabled = true;
+    pay.cashNow.enabled = true;
+    try {
+      const g = await TestGame.create();
+      const c = g.join("Cash Freight", "fleet", "LAX")!;
+      const today = Math.floor(g.w.t / g.w.cfg.time.gameMinutesPerDay);
+      const r = { id: 999_101, payer: 0, faucet: "faucet:test", payeeId: c.id, amountFd: 2_380, dueDay: today + 19, holder: c.id };
+      g.w.receivables.push(r);
+      const rate = cashNowRate(g.w, c, r) as number;
+      expect(typeof rate).toBe("number");
+      const fee = breakdown(g.w, c, "invoice.cashNowFee", { invoiceId: r.id })!;
+      const lands = breakdown(g.w, c, "invoice.cashNowLands", { invoiceId: r.id })!;
+      expect(fee.total.value).toBe(`${Math.round(2_380 * rate).toLocaleString("en-US")} FD`);
+      expect(lands.total.value).toBe(`${Math.round(2_380 * (1 - rate)).toLocaleString("en-US")} FD`);
+      // Own-company or player paper has no breakdown: it can't be cashed.
+      expect(breakdown(g.w, c, "invoice.cashNowFee", { invoiceId: 123_456 })).toBeNull();
+    } finally {
+      [pay.enabled, pay.cashNow.enabled] = was as [boolean, boolean];
+    }
   }, 60_000);
 });

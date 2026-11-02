@@ -1,4 +1,5 @@
 import type { JSX } from "preact";
+import { InvoiceRows } from "./CashNow.js";
 import { MoveMoneyLink } from "./Brokerage.js";
 import { averagePriceUsd, bridgeDelayDays, companyAccount, fdPriceUsd, lockedFd, sellableFd, tokenLive } from "@lanes/engine";
 import { cls, fd, fdFull, shortDate, usd } from "../../format.js";
@@ -139,28 +140,8 @@ export function Money(): JSX.Element {
         {bal < 0 ? <p class="bad">{MONEY.red(w.cfg.insolvency.weeksInDebt, fdFull(w.cfg.insolvency.debtLimitFd))}</p> : null}
       </Card>
       <Card title={<Fig k="money.owed" label={MONEY.owed}>{MONEY.owed}</Fig>}>
-        {owed.length ? (
-          <table class="mini">
-            <thead>
-              <tr>
-                <th>{MONEY.colLoad}</th>
-                <th>{MONEY.colFd}</th>
-                <th>{MONEY.colDue}</th>
-              </tr>
-            </thead>
-            <tbody>
-              {owed.map((r) => (
-                <tr key={r.id}>
-                  <td>{S.invoiceLanes.get(r.id) ?? `#${r.id}`}</td>
-                  <td class="num">{fdFull(r.amountFd)}</td>
-                  <td class="num">{shortDate(r.dueDay)}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        ) : (
-          <p class="muted">{MONEY.nothingOwed}</p>
-        )}
+        {/* One row per invoice: line 2 is Cash it now while its switch is on (finance.md draft 2). */}
+        {owed.length || S.cashed.length ? <InvoiceRows c={c} /> : <p class="muted">{MONEY.nothingOwed}</p>}
         {/* How the company is paid and its loans live on Finance (specs/finance.md); Money links there. */}
         <FinanceLinks />
         <MoveMoneyLink />

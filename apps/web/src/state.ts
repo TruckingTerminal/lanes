@@ -80,6 +80,8 @@ export const S = {
   /** The explain sheet while open: the figure's key, what it was computed from, its label and value (ui/Explain.tsx). */
   /** The milestone line on the caption now (caption rule 3), kept until its button or a change of tab. */
   milestone: null as null | { key: string; phase: "before" | "at"; tab: string; at: number },
+  /** Invoices cashed early in this page (Cash it now): shown greyed on their rows until the due day. */
+  cashed: [] as import("./ui/panels/CashNow.js").Cashed[],
   /** A brokerage started in the live world: switch to it once the world applies the start. */
   brokerSwitch: false,
   /** Who last drove each of the player's trucks, as this page saw it (What now?'s "has gone" needs one who did). */
