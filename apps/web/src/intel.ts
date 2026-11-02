@@ -30,13 +30,16 @@ export const insuranceBand = (c: Company): InsuranceBand => (c.safety.insuranceS
 /** The safety band: the engine's own rating, and the names of any BASIC alerts. Never the hidden (undetected) record. */
 export const safetyBand = (c: Company): { rating: string; alerts: string[] } => ({ rating: ratingLabel(c), alerts: [...c.safety.alerts] });
 
-const cache = new WeakMap<World, { t: number; rows: IntelRow[] }>();
+const cache = new WeakMap<World, { t: number; n: number; rows: IntelRow[] }>();
 
-/** Every company's row, built in one pass over trailers, facilities, businesses and staff; cached for the game hour. */
+/**
+ * Every company's row, built in one pass over trailers, facilities, businesses and staff; cached for the game hour and
+ * the company count, so a company created or joined this hour shows at once (QA's Intel replay: the new player's own row).
+ */
 export function intelRows(w: World): IntelRow[] {
   const hit = cache.get(w);
   const hour = Math.floor(w.t / 60);
-  if (hit && hit.t === hour) return hit.rows;
+  if (hit && hit.t === hour && hit.n === w.companies.length) return hit.rows;
   const zero = (): Record<Equipment, number> => ({ van: 0, reefer: 0, flatbed: 0 });
   const trailers = new Map<number, Record<Equipment, number>>();
   const add = (id: number, eq: Equipment) => {
@@ -71,7 +74,7 @@ export function intelRows(w: World): IntelRow[] {
     pastMiles: c.milesHistory,
     credit: creditBand(creditScore(w, c)),
   }));
-  cache.set(w, { t: hour, rows });
+  cache.set(w, { t: hour, n: w.companies.length, rows });
   return rows;
 }
 

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { dispatchProfile, operatingTrucks, placeMiles, placeToll } from "@lanes/engine";
-import { bidRange, boardRows, clearsNear, sortRows, suggestBid } from "../src/board.js";
+import { bidRange, boardRows, clearsNear, posterOf, sortRows, suggestBid } from "../src/board.js";
+import { intelRows } from "../src/intel.js";
 import { trueBreakEven } from "../src/breakeven.js";
 import { TestGame } from "../src/game.js";
 
@@ -36,6 +37,23 @@ describe("the board", () => {
       expect(hi).toBe(r.l.ceiling);
       expect(lo).toBeLessThanOrEqual(hi);
       expect(r.suggest).toBeLessThanOrEqual(Math.max(r.l.ceiling, r.l.bookNow + 0.05));
+    }
+  }, 60_000);
+
+  it("filters to one poster's loads (Intel's 'Their loads on the board'), and Intel lists a company joined this hour", async () => {
+    const g = await TestGame.create();
+    const before = intelRows(g.w).length;
+    const c = g.join("Poster Freight", "oo", "LAX")!;
+    // The rows cache keys on the company count too, so the new company is listed within the same game hour.
+    expect(intelRows(g.w).length).toBe(before + 1);
+    expect(intelRows(g.w).some((r) => r.c === c)).toBe(true);
+    const truck = g.w.trucksByCompany.get(c.id)![0]!;
+    const all = boardRows(g.w, c, truck, { dest: "any", maxDh: 300, query: "" });
+    const poster = all.map((r) => posterOf(r.l)).find((p) => p !== null);
+    if (poster) {
+      const mine = boardRows(g.w, c, truck, { dest: "any", maxDh: 300, query: "", poster });
+      expect(mine.length).toBeGreaterThan(0);
+      expect(mine.every((r) => posterOf(r.l) === poster)).toBe(true);
     }
   }, 60_000);
 

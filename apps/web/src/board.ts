@@ -29,7 +29,12 @@ export interface BoardFilter {
   dest: string;
   maxDh: number;
   query: string;
+  /** Only the loads this company posted, as broker or shipper (Intel's "Their loads on the board"). */
+  poster?: number | null;
 }
+
+/** The company that posted a load: its broker, else its shipper (null for an NPC shipper's load). */
+export const posterOf = (l: Load): number | null => l.brokerId ?? l.shipperId ?? null;
 
 /** The suggested bid: above book-now, toward the market and a margin over break-even, never over the ceiling. */
 /**
@@ -74,6 +79,7 @@ export function boardRows(w: World, c: Company, truck: Truck, f: BoardFilter): B
     const dh = placeMiles(w, truck.place, l.originPlace);
     if (dh > f.maxDh) continue;
     if (f.dest !== "any" && w.net.hubs[l.dest]!.id !== f.dest) continue;
+    if (f.poster && posterOf(l) !== f.poster) continue;
     if (q) {
       const op = w.net.places[l.originPlace]!;
       const dp = w.net.places[l.destPlace]!;

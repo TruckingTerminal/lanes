@@ -310,8 +310,8 @@ export const FINANCE = {
   linkNoLoans: "Loans: none ›",
   stateNet: (days: number) => `Net ${days}`,
   stateQuick: "Quick pay",
-  /** On the lessor's truck, as the Finance card's header says (QA's Finance replay). Draft for the writer. */
-  stateLessor: "the lessor pays on delivery",
+  /** On the lessor's truck, as the Finance card's header says (QA's Finance replay; the writer's string). */
+  stateLessor: "On delivery, by the lessor",
   stateContract: (date: string) => `Factoring until ${date}`,
   // Card 1: before your first truck.
   firstTitle: "Before your first truck",
@@ -474,6 +474,9 @@ export const INTEL = {
   facilityKind: { yard: "yard", shop: "repair shop", truckStop: "truck stop", fuelStation: "fuel station", dealership: "dealership", warehouse: "warehouse", coldStorage: "cold storage", factory: "factory" } as Record<string, string>,
   facilityCount: (n: number, kind: string) => `${n} ${kind}`,
   theirLoads: "Their loads on the board ›",
+  /** The board's chip while filtered to one poster; a tap clears it. Draft for the writer. */
+  fromPoster: (name: string) => `Loads from ${name} ✕`,
+  noneFromPoster: (name: string) => `No loads from ${name} within reach of this truck.`,
   milesSeason: "Miles this season",
   milesValue: (miles: string, rank: number, of: number) => `${miles} · #${rank} of ${of.toLocaleString("en-US")}`,
   pastSeasons: "Past seasons",
@@ -507,30 +510,30 @@ export const INTEL = {
   iuliia: "Every company in the world, by size and record. Nobody's cash is here, yours included.",
 };
 
-/** The Dealer's buy controls (QA's Finance replay): a disabled button always says why; a loan shows its numbers first. Drafts for the writer. */
+/** The Dealer's buy controls (QA's Finance replay): a disabled button always says why; a loan shows its numbers first (the writer's strings). */
 export const DEALER = {
-  onLoan: "On a loan ›",
+  onLoan: "Buy on a loan ›",
   loanTitle: (what: string) => `Buy ${what} on a purchase loan`,
   price: "Price",
   tax: "Sales tax",
   down: "Down payment",
-  loan: "The loan",
+  loan: "Amount borrowed",
   stake: "Loan stake",
-  stakeValue: (fd: string) => `${fd} FD, locked, back when it's repaid`,
+  stakeValue: (fd: string) => `${fd} FD, locked until the loan is repaid`,
   weekly: "Weekly payment",
-  weeklyValue: (fd: string, weeks: number, rate: string) => `${fd} FD for ${weeks} weeks (${rate} a week on what's owed)`,
+  weeklyValue: (fd: string, weeks: number, rate: string) => `${fd} FD for ${weeks} weeks · ${rate} a week on what's owed`,
   deposit: "Your lease deposit",
-  depositValue: (fd: string) => `${fd} FD, applied`,
-  now: "You put in now",
+  depositValue: (fd: string) => `${fd} FD, counted toward the price`,
+  now: "Cash needed now",
   buyLoan: (fd: string) => `Buy on a loan · ${fd} FD now`,
   missed: (n: number) => `Miss ${n} payments and the lender takes the truck.`,
   cancel: "Not now",
-  whyCash: (have: string, need: string, dep = "") => `You have ${have} FD${dep}; it costs ${need} FD with tax.`,
-  whyAsk: (have: string, ask: string) => `You have ${have} FD; the seller asks ${ask} FD.`,
-  whyLoan: (need: string, have: string, dep = "") => `A loan needs ${need} FD now (down payment, stake and tax); you have ${have} FD${dep}.`,
+  whyCash: (have: string, need: string, dep = "") => `You have ${have} FD${dep}. It costs ${need} FD with tax.`,
+  whyAsk: (have: string, ask: string) => `You have ${have} FD. The seller asks ${ask} FD.`,
+  whyLoan: (need: string, have: string, dep = "") => `A loan needs ${need} FD now: down payment, stake and tax. You have ${have} FD${dep}.`,
   whyLoans: (n: number) => `The lender carries at most ${n} loans at your credit.`,
   whyLotEmpty: "The used lot is empty this week.",
-  whySupply: "None left at the factory this month.",
-  whyYard: "No room for another trailer.",
-  withDeposit: " with your deposit",
+  whySupply: "The factory has none left this month.",
+  whyYard: "No room in your yard for another trailer.",
+  withDeposit: ", counting your deposit",
 };

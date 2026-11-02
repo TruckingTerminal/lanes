@@ -433,6 +433,18 @@ function observe(s: Session): void {
     }
   }
   if (w.t === f.lastT) return;
+  // A hand bid whose load left the board before the round (booked by another carrier) is dropped by the engine without
+  // an event, and the dispatcher bids for the truck as usual (QA's Intel replay: no result, no "Lost to"). Say so here.
+  if (s === S.game && s.player) {
+    for (const [loadId, hb] of S.handBids) {
+      const load = w.loads.get(loadId);
+      if (load && load.status === "open") continue;
+      S.handBids.delete(loadId);
+      if (load && load.carrierId === s.player.id) continue; // ours after all: the won event has said so
+      S.result = { won: false, from: hb.from ?? "", to: hb.to ?? "", rate: hb.rate, winning: load ? load.clearedRate : null, be: hb.be, total: 0, seen: false, winnerId: load?.carrierId ?? undefined };
+      bumpData();
+    }
+  }
   const crossed = Math.floor(w.t / 1440) !== Math.floor(f.lastT / 1440);
   f.lastT = w.t;
   if (!crossed) return;

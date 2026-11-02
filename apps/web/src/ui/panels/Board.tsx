@@ -2,7 +2,7 @@ import type { JSX } from "preact";
 import { useEffect, useState } from "preact/hooks";
 import { MANUAL_BID_MAX_DEADHEAD_MI, VETTING_NAMES, type Truck } from "@lanes/engine";
 import { COMMODITIES } from "@lanes/data";
-import { bidRange, boardRows, clearsNear, sortRows, type BoardRow, type BoardSort } from "../../board.js";
+import { bidRange, boardRows, clearsNear, posterOf, sortRows, type BoardRow, type BoardSort } from "../../board.js";
 import { BOARD, INTEL, LOAD, ROUND } from "../../copy.js";
 import { cls, fdFull, hhmm, pct, shortDate, TRAILER_NAME } from "../../format.js";
 import { nextRoundHour, nextRoundLabel, nextRoundWait, reloadLabel, roundProgress, seasonSwing } from "../../logic.js";
@@ -59,10 +59,12 @@ export function Loads(): JSX.Element {
       <div class="stack">
         <ResultCard />
         <p class="muted">{BOARD.busy(eta ?? "—")}</p>
+        {S.boardPoster ? <PosterLoads poster={S.boardPoster} /> : null}
       </div>
     );
   }
-  const rows = boardRows(w, c, truck, { dest, maxDh, query });
+  const rows = boardRows(w, c, truck, { dest, maxDh, query, poster: S.boardPoster });
+  const posterName = S.boardPoster ? w.companies[S.boardPoster - 1]?.name ?? "" : null;
   const open = S.openLoad !== null ? rows.find((r) => r.l.id === S.openLoad) : undefined;
   if (open) return <LoadSheet r={open} truck={truck} />;
   const pending = w.manualBids.get(truck.id);
@@ -86,6 +88,21 @@ export function Loads(): JSX.Element {
           </select>
         ) : null}
       </div>
+      {posterName !== null ? (
+        <div class="row">
+          <Btn
+            sm
+            on
+            onClick={() => {
+              S.boardPoster = null;
+              bumpData();
+            }}
+          >
+            {INTEL.fromPoster(posterName)}
+          </Btn>
+        </div>
+      ) : null}
+      {posterName !== null && !rows.length ? <p class="muted small">{INTEL.noneFromPoster(posterName)}</p> : null}
       <div class="row">
         <div class="seg" role="group" aria-label="Sort">
           {(["nearest", "pay", "deliver"] as const).map((k) => (
@@ -308,7 +325,7 @@ function LoadSheet({ r, truck }: { r: BoardRow; truck: Truck }): JSX.Element {
   const placeBid = async () => {
     const res = await order({ type: "place_bid", truckId: truck.id, loadId: l.id, rate: bid }, ROUND.toastBid(bid.toFixed(2), nextRoundHour()));
     if (!res.ok) return setNote({ text: res.reason, bad: true });
-    S.handBids.set(l.id, { rate: bid, be: r.be });
+    S.handBids.set(l.id, { rate: bid, be: r.be, from: w.net.places[l.originPlace]!.name, to: w.net.places[l.destPlace]!.name });
     S.handLoads.add(l.id);
     S.result = null;
     toast(ROUND.toastBid(bid.toFixed(2), nextRoundHour()));
@@ -401,6 +418,35 @@ function LoadSheet({ r, truck }: { r: BoardRow; truck: Truck }): JSX.Element {
         </div>
         {note ? <p class={cls("small", note.bad && "bad")}>{note.text}</p> : null}
       </div>
+    </div>
+  );
+}
+
+/** One poster's open loads, read-only, while no truck is free to take them (Intel's "Their loads on the board"). */
+function PosterLoads({ poster }: { poster: number }): JSX.Element {
+  const w = S.game!.w;
+  const name = w.companies[poster - 1]?.name ?? "";
+  const loads = [...w.loads.values()].filter((l) => l.status === "open" && posterOf(l) === poster).sort((a, b) => a.id - b.id);
+  const place = (i: number) => w.net.places[i]!.name;
+  return (
+    <div class="stack">
+      <div class="row">
+        <Btn
+          sm
+          on
+          onClick={() => {
+            S.boardPoster = null;
+            bumpData();
+          }}
+        >
+          {INTEL.fromPoster(name)}
+        </Btn>
+      </div>
+      {loads.map((l) => (
+        <p key={l.id} class="small">
+          {BOARD.line1(place(l.originPlace), place(l.destPlace), Math.round(l.miles).toLocaleString("en-US"))} · {l.bookNow.toFixed(2)}/mi
+        </p>
+      ))}
     </div>
   );
 }

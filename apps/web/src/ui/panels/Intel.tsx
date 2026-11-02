@@ -2,6 +2,7 @@ import type { JSX } from "preact";
 import { VETTING_NAMES, type Company } from "@lanes/engine";
 import { INTEL } from "../../copy.js";
 import { cls, fdFull, pct } from "../../format.js";
+import { posterOf } from "../../board.js";
 import { insuranceBand, intelRows, ownCosts, pastSeasons, ranked, safetyBand, type IntelRow } from "../../intel.js";
 import { bumpData, S, setTab, useData } from "../../state.js";
 import { Btn, Card, Kv, Panel } from "../bits.js";
@@ -166,6 +167,9 @@ function CompanyCard({ row, own, rows }: { row: IntelRow; own: boolean; rows: In
     else bumpData();
   };
   const past = pastSeasons(w, c);
+  // A broker's or a player shipper's loads open on the board (the writer's "Their loads on the board").
+  let theirLoads = 0;
+  for (const l of w.loads.values()) if (l.status === "open" && posterOf(l) === c.id) theirLoads++;
   return (
     <div class="stack">
       <div class="row">
@@ -199,6 +203,19 @@ function CompanyCard({ row, own, rows }: { row: IntelRow; own: boolean; rows: In
               </p>
             ))}
           </details>
+        ) : null}
+        {!own && theirLoads > 0 ? (
+          <button
+            type="button"
+            class="linkrow"
+            onClick={() => {
+              S.boardPoster = c.id;
+              S.intel = { ...S.intel, card: null, back: null };
+              setTab("loads");
+            }}
+          >
+            {INTEL.theirLoads}
+          </button>
         ) : null}
         {costs ? (
           <>

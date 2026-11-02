@@ -63,7 +63,7 @@ export const S = {
   /** Load board: the load whose sheet is open (S3), or the expanded table row. */
   openLoad: null as number | null,
   /** Bids placed by hand from the board, by load: their rate and break-even, so the round's result can say how they did (S5). */
-  handBids: new Map<number, { rate: number; be: number }>(),
+  handBids: new Map<number, { rate: number; be: number; from?: string; to?: string }>(),
   /** Loads booked by hand from the board, so the feed says "Booked" for them, not "Won" (S4). */
   bookedLoads: new Set<number>(),
   /**
@@ -75,6 +75,8 @@ export const S = {
   /** Loads the player bid on or booked by hand, so the Truck card can tell the dispatcher's loads from the player's own. */
   handLoads: new Set<number>(),
   /** Intel (specs/intel-ux.md): the open card, where it was opened from, and the list's filters and sort. */
+  /** The board filtered to one poster's loads (Intel's "Their loads on the board"), until cleared. */
+  boardPoster: null as number | null,
   intel: { card: null as number | null, back: null as Tab | null, q: "", myHub: false, hub: null as string | null, players: false, brokers: false, sort: "miles" as "miles" | "trucks" | "month", shown: 50 },
   homeNow: new Set<number>(),
   /** The last delivery, shown on the Truck tab until OK (S7); Money keeps a dot until it's opened. */
