@@ -133,6 +133,8 @@ export function Caption(): JSX.Element | null {
   const g = S.game;
   const c = g?.player;
   if (!g || !c) return null;
+  // Being wound up: the caption is silent; What now? still answers (guidance-ux.md U3).
+  if (c.liquidatingSince !== null) return null;
   const steps = walkSteps(GAME_CONFIG, g.w.net.hubs[c.homeHub]?.name);
   const { index } = walkProgress(GAME_CONFIG, g.w, c);
   const step = index >= 0 ? steps[index]! : null;
@@ -203,8 +205,9 @@ export function Caption(): JSX.Element | null {
   if (step.id === "haul" && !loaded) return her();
   // A step speaks once (its Say, then Next), then shows its Do until hidden; More opens her tab for the rest.
   if (!seen(`say:${step.id}`)) {
+    // A step that reads the company's state (step 9) speaks that state, not its fixed brief (QA's step-9 replay).
     return say(
-      step.brief,
+      step.doNow?.(g.w, c) ?? step.brief,
       <Btn sm onClick={() => mark(`say:${step.id}`)}>
         {CAPTION.next}
       </Btn>,

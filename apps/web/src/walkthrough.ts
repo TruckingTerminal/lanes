@@ -9,7 +9,7 @@ import { dayOf, type Company, type World } from "@lanes/engine";
 import type { Tab } from "./tabs.js";
 import { STEP9 } from "./copy.js";
 import { firstTruckRoute } from "./finance.js";
-import { shortDate } from "./format.js";
+import { shortDate, TIER_NAME as TIER_LABEL, TRAILER_NAME as TRAILER_LABEL } from "./format.js";
 
 /** Iuliia's mood for the step: her face at rest in the live portrait (portrait.ts). */
 export type Mood = "idle" | "wave" | "point" | "laugh";
@@ -168,15 +168,21 @@ export function walkSteps(cfg: EconomyConfig, hub = "your home hub"): WalkStep[]
       brief: `The lessor's ${pct(cfg.costs.npcLeaseShareOfGross)} ends the day you buy. Buy the used one first; ambition is for the second truck.`,
       say: [
         `The lessor's ${pct(cfg.costs.npcLeaseShareOfGross)} is the most expensive thing you pay and the only one that ends when you buy. A new Workhorse with a van is about ${n(rig)} FD. The used lot on Dealer, under More, sells a worn one at about a quarter of that: four years old, a great many miles, delivered like new, and good enough to earn. Not elegant. My first office had a view of a parking structure. One begins.`,
-        `Your lease deposit counts toward it, and the Money tab's purchase loan covers the rest with ${pct(down0)} to ${pct(down1)} down. Owned trucks pay their own maintenance and insurance, cost you when they sit, and lose value every year. They also keep every dollar they earn. Buy the used one first. Ambition is for the second truck; the first one is arithmetic.`,
+        `Your lease deposit counts toward it, and the Dealer's purchase loan covers the rest with ${pct(down0)} to ${pct(down1)} down. Owned trucks pay their own maintenance and insurance, cost you when they sit, and lose value every year. They also keep every dollar they earn. Buy the used one first. Ambition is for the second truck; the first one is arithmetic.`,
       ],
       do: "Buy a rig from the used lot, with a purchase loan if the cash is short.",
-      // The used lot or a listing when there's one; else the gap to a new rig on a loan, from the Dealer's own figures.
+      // From the Dealer's own figures, only routes the company can take now (QA's step-9 replay): the lot keeps the step's
+      // line; a listing it can buy, a new rig on a loan it can carry, or the gap and the lot's restock.
       doNow: (w, c) => {
         const r = firstTruckRoute(w, c);
-        if (r.used) return null;
         const fd = (x: number) => Math.round(x).toLocaleString("en-US");
-        return r.ok ? STEP9.loanNow(fd(r.need)) : STEP9.gap(fd(r.need), fd(r.have), r.deposit ? STEP9.withDeposit : "", shortDate(r.restockDay));
+        if (r.route === "lot") return null;
+        if (r.route === "listing" && r.listing) {
+          const t = w.trucks[r.listing.truckId - 1];
+          return STEP9.listing(t ? `${TIER_LABEL[t.tier]} + ${TRAILER_LABEL[t.trailer]}` : "used truck", fd(r.listing.askFd));
+        }
+        if (r.route === "none") return STEP9.none(shortDate(r.restockDay));
+        return r.route === "loan" ? STEP9.loanNow(fd(r.need)) : STEP9.gap(fd(r.need), fd(r.have), "", shortDate(r.restockDay));
       },
       why: "Ownership turns the lessor's cut into your margin and is the only way a one-truck company grows into two.",
       done: (w, c) => trucksOf(w, c).some((t) => t.lease === "owned"),

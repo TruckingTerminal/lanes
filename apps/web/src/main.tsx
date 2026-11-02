@@ -375,6 +375,8 @@ function wireKeys(): void {
     if (ev.key === "+" || ev.key === "=") setZoom(zoomIndex() + 1);
     if (ev.key === "-" || ev.key === "_") setZoom(zoomIndex() - 1);
     if (ev.key === "0") setZoom(0);
+    // "?" asks What now? from anywhere outside a text field (guidance-ux.md, laptop).
+    if (ev.key === "?") (document.querySelector(".whatnowrow button") as HTMLButtonElement | null)?.click();
     if (ev.key === "Escape" && S.cityView !== null) {
       S.cityView = null;
       S.townView = null;

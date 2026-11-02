@@ -1,0 +1,111 @@
+import type { EconomyConfig } from "@lanes/config";
+import { crewed, MANUAL_BID_MAX_DEADHEAD_MI, truckValue, type Company, type Truck, type World } from "@lanes/engine";
+import { boardRows, clearsNear } from "./board.js";
+import { bestLoad, cushion, debtCountdown, freeTrucks, gapToTruck, nextEvent, type NextEvent } from "./figures.js";
+import { walkProgress } from "./walkthrough.js";
+
+/**
+ * What now? (specs/guidance.md, section 1): an ordered list of rules over the world and the company, first match wins,
+ * always one action. It returns what to do and the figures behind it, never words: the client turns it into the writer's
+ * strings (guidance-strings.md), and the economy can run it as a bot. It reads and saves nothing, so it's right after
+ * every reload. It never recommends an FD trade, a stake as an investment, or anything from the Back Lot.
+ */
+export type NextAction =
+  | { rule: 0; kind: "liquidating"; restartDay: number }
+  | { rule: 1; kind: "danger"; debt: ReturnType<typeof debtCountdown>; lever: Lever | null }
+  | { rule: 2; kind: "tender"; loadId: number; untilMin: number; shipperId: number | null }
+  | { rule: 2; kind: "driver"; truckId: number }
+  | { rule: 2; kind: "lost"; loadId: number; truckId: number; profitFd: number; clearsNear: number }
+  | { rule: 3; kind: "idle"; truckId: number; loadId: number; profitFd: number }
+  | { rule: 4; kind: "step"; index: number; total: number }
+  | { rule: 5; kind: "factoringEnds"; untilDay: number; days: number }
+  | { rule: 5; kind: "cushion"; weeks: number }
+  | { rule: 5; kind: "gap"; gapFd: number }
+  | { rule: 6; kind: "calm"; event: NextEvent }
+  | { rule: -1; kind: "none" };
+
+/** Rule 1's levers, each a real, possible action: book an idle truck's paying load, return a second lease, sell an owned truck. */
+export type Lever = { kind: "book"; truckId: number; loadId: number; profitFd: number } | { kind: "lease"; truckId: number } | { kind: "sell"; truckId: number; valueFd: number };
+
+/** A hand bid that lost, for rule 2's "a better load beside it" (the client knows it from the round's result). */
+export interface LostBid {
+  loadId: number;
+  truckId: number;
+  /** What the lost load would have left at the rate that actually won. */
+  profitAtWinningFd: number;
+}
+
+export function nextAction(cfg: EconomyConfig, w: World, c: Company, lost?: LostBid | null): NextAction {
+  const perDay = w.cfg.time.gameMinutesPerDay;
+  const today = Math.floor(w.t / perDay);
+  // Being wound up: what's happening and when the restart comes (W3). Silence unasked; asked, this.
+  if (c.liquidatingSince !== null) return { rule: 0, kind: "liquidating", restartDay: c.liquidatingSince + w.cfg.insolvency.restartAfterDays };
+
+  // 1. Danger: in debt at a weekly check, or the next check would make it so. The best single lever that's possible now.
+  const debt = debtCountdown(w, c);
+  if (debt.n > 0 || debt.under) {
+    let lever: Lever | null = null;
+    for (const t of freeTrucks(w, c)) {
+      const r = bestLoad(w, c, t);
+      if (r && (!lever || (lever.kind === "book" && r.profitBook > lever.profitFd))) lever = { kind: "book", truckId: t.id, loadId: r.l.id, profitFd: r.profitBook };
+    }
+    const fleet = w.trucksByCompany.get(c.id) ?? [];
+    if (!lever) {
+      const lease = fleet.find((t) => t.lease === "lessor" && t.status === "idle");
+      if (lease) lever = { kind: "lease", truckId: lease.id };
+    }
+    if (!lever) {
+      const owned = fleet.filter((t) => t.lease === "owned" && t.status !== "listed" && t.status !== "retired" && t.lessorId === 0).sort((a, b) => truckValue(w, b) - truckValue(w, a))[0];
+      if (owned) lever = { kind: "sell", truckId: owned.id, valueFd: truckValue(w, owned) };
+    }
+    return { rule: 1, kind: "danger", debt, lever };
+  }
+
+  // 2. Something waiting on the player, by deadline: a tender lapsing, a truck without a driver, a lost bid with a better load beside it.
+  const tenders = [...w.loads.values()].filter((l) => l.status === "open" && l.tenderedTo === c.id).sort((a, b) => a.tenderUntil - b.tenderUntil);
+  if (tenders[0]) return { rule: 2, kind: "tender", loadId: tenders[0].id, untilMin: tenders[0].tenderUntil, shipperId: tenders[0].brokerId ?? tenders[0].shipperId };
+  const driverless = (w.trucksByCompany.get(c.id) ?? []).find((t) => !crewed(t) && t.status !== "listed" && t.status !== "parked" && t.status !== "retired");
+  if (driverless) return { rule: 2, kind: "driver", truckId: driverless.id };
+  if (lost) {
+    // The director's definition: an open load the same truck may take now, within the reach the bid used, whose profit at
+    // its "usually clears near" rate is positive and at least what the lost load would have left at the winning rate.
+    const truck = w.trucks[lost.truckId - 1];
+    if (truck && freeTrucks(w, c).includes(truck)) {
+      let best: { loadId: number; profit: number; rate: number; due: number } | null = null;
+      for (const r of bestRows(w, c, truck)) {
+        const rate = clearsNear(r.l);
+        const profit = (rate - r.be) * r.l.miles;
+        if (profit <= 0 || profit < lost.profitAtWinningFd || r.l.id === lost.loadId) continue;
+        if (!best || profit > best.profit || (profit === best.profit && r.l.appointmentT < best.due)) best = { loadId: r.l.id, profit, rate, due: r.l.appointmentT };
+      }
+      if (best) return { rule: 2, kind: "lost", loadId: best.loadId, truckId: truck.id, profitFd: best.profit, clearsNear: best.rate };
+    }
+  }
+
+  // 3. A truck idle with loads in reach that pay: the best by the profit chip.
+  let idle: { truckId: number; loadId: number; profitFd: number } | null = null;
+  for (const t of freeTrucks(w, c)) {
+    const r = bestLoad(w, c, t);
+    if (r && (!idle || r.profitBook > idle.profitFd)) idle = { truckId: t.id, loadId: r.l.id, profitFd: r.profitBook };
+  }
+  if (idle) return { rule: 3, kind: "idle", ...idle };
+
+  // 4. A walkthrough step is current.
+  const p = walkProgress(cfg, w, c);
+  if (p.index >= 0) return { rule: 4, kind: "step", index: p.index, total: p.total };
+
+  // 5. A milestone near: the factoring contract's last week, a thin cushion, the gap to the next truck.
+  if (c.factoring && !c.factoring.renew && c.factoring.until - today <= 7) return { rule: 5, kind: "factoringEnds", untilDay: c.factoring.until, days: Math.max(0, c.factoring.until - today) };
+  const cu = cushion(w, c);
+  if (cu.weeks !== null && cu.weeks < w.cfg.guide.gapCushionWeeks) return { rule: 5, kind: "cushion", weeks: cu.weeks };
+  const gap = gapToTruck(w, c);
+  if (gap.gapFd > 0) return { rule: 5, kind: "gap", gapFd: gap.gapFd };
+
+  // 6. Nothing needs the player: the next thing that will, honestly.
+  return { rule: 6, kind: "calm", event: nextEvent(w, c) };
+}
+
+/** Every load the truck may take now, within the hand-bid reach (rule 2's comparison). */
+function bestRows(w: World, c: Company, truck: Truck) {
+  return boardRows(w, c, truck, { dest: "any", maxDh: Math.min(300, MANUAL_BID_MAX_DEADHEAD_MI), query: "" }).filter((r) => !r.block);
+}

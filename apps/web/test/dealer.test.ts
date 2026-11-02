@@ -1,9 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { companyAccount, financedCashNeed, listTruck } from "@lanes/engine";
-import { buyPlan, firstTruckRoute } from "../src/finance.js";
+import { buyPlan, cheapestNewRig, firstTruckRoute } from "../src/finance.js";
 import { stepDo, walkSteps } from "../src/walkthrough.js";
 import { GAME_CONFIG } from "../src/game.js";
-import { bestSource } from "@lanes/engine";
 import { boardRows } from "../src/board.js";
 import { TestGame } from "../src/game.js";
 
@@ -45,22 +44,37 @@ describe("the Dealer's refusals", () => {
     expect(p.have).toBeCloseTo(g.w.ledger.balance(companyAccount(c.id)) + 12_000, 6);
   }, 60_000);
 
-  it("has step 9 read the gap from the Dealer's own figures when the used lot can't serve it", async () => {
+  it("has step 9 read the Dealer's own figures, counting only routes the company can take now (QA's step-9 replay)", async () => {
     const g = await TestGame.create();
     const c = g.join("Gap Freight", "oo", "LAX")!;
     const own = walkSteps(GAME_CONFIG).find((s) => s.id === "own")!;
+    const npc = g.w.trucksByCompany.get(c.id)![0]!;
     g.w.usedLot.stock = 0;
     for (const l of g.w.listings) if (l.status === "open") l.status = "withdrawn" as typeof l.status;
-    const r = firstTruckRoute(g.w, c);
-    expect(r.used).toBe(false);
-    const plan = buyPlan(g.w, c, bestSource(g.w, c.id, "rig", "workhorse", "van").price, true);
-    expect(r.need).toBeCloseTo(plan.loan!.cashNeed, 6);
-    expect(r.have).toBeCloseTo(plan.have, 6);
-    const line = stepDo(own, g.w, c);
-    expect(line).not.toBe(own.do);
-    expect(line).toContain(Math.round(r.need).toLocaleString("en-US"));
-    // With a rig on the lot, the step keeps its own line.
-    g.w.usedLot.stock = 3;
-    expect(stepDo(own, g.w, c)).toBe(own.do);
+    // A listing the company could pay for, but the leased truck is out on a load: it doesn't count.
+    const seller = g.w.companies.find((x) => x.id !== c.id && x.role === "carrier" && (g.w.trucksByCompany.get(x.id) ?? []).some((t) => t.lease === "owned" && t.status === "idle"))!;
+    const truck = g.w.trucksByCompany.get(seller.id)!.find((t) => t.lease === "owned" && t.status === "idle")!;
+    const listing = listTruck(g.w, seller.id, truck, 500, 100, 100);
+    expect(typeof listing).not.toBe("string");
+    const row = boardRows(g.w, c, npc, { dest: "any", maxDh: 300, query: "" }).find((r) => !r.block)!;
+    expect(g.act({ type: "book_load", truckId: npc.id, loadId: row.l.id }).ok).toBe(true);
+    let r = firstTruckRoute(g.w, c);
+    expect(r.route === "listing").toBe(false);
+    const rig = cheapestNewRig(g.w, c);
+    if (rig) {
+      const plan = buyPlan(g.w, c, rig.price, true);
+      expect(r.need).toBeCloseTo(plan.loanNowFd!, 6);
+      expect(r.have).toBeCloseTo(plan.have - plan.deposit, 6);
+      expect(stepDo(own, g.w, c)).toContain(Math.round(r.need).toLocaleString("en-US"));
+    } else expect(r.route).toBe("none");
+    expect(stepDo(own, g.w, c)).not.toBe(own.do);
+    // The factory sold out: no new route, and the line says so.
+    for (const k of Object.keys(g.w.supply.tractor) as (keyof typeof g.w.supply.tractor)[]) g.w.supply.tractor[k] = 0;
+    expect(firstTruckRoute(g.w, c).route).toBe("none");
+    // The truck back and idle: the listing it can buy now becomes the step's line.
+    npc.status = "idle";
+    r = firstTruckRoute(g.w, c);
+    expect(r.route).toBe("listing");
+    expect(stepDo(own, g.w, c)).toContain("500");
   }, 60_000);
 });

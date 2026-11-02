@@ -1,6 +1,10 @@
+import type { Equipment, TractorTier } from "@lanes/config";
 import {
   activeLoanOn,
   bestSource,
+  listingBlock,
+  lotPrice,
+  npcDealerMult,
   companyAccount,
   financedCashNeed,
   salesTaxOn,
@@ -170,18 +174,49 @@ export function buyPlan(w: World, c: Company, price: number, replacing: boolean)
 }
 
 /**
- * Step 9's state from the Dealer's own figures (Jeff, 2026-11-02: the step reads the gap): the used lot or a listing when
- * there's one; else a new Workhorse with a van on a purchase loan, what that needs now against what the company has (its
- * lease deposit counted), and the day the used lot restocks.
+ * The cheapest new rig the company could order today: from a player dealership's stock, or the NPC dealer while the
+ * factory has the tractor and the trailer (the Dealer's "The factory has none left this month" otherwise). Null if none.
  */
-export function firstTruckRoute(w: World, c: Company): { used: boolean; need: number; have: number; deposit: boolean; ok: boolean; restockDay: number } {
-  const lot = w.cfg.usedMarket.npcLot.enabled && w.cfg.assets.enabled && w.usedLot.stock > 0;
-  const listed = w.listings.some((l) => l.status === "open" && l.truckId > 0 && l.sellerId !== c.id && l.formerOwnerId !== c.id);
-  const price = bestSource(w, c.id, "rig", "workhorse", "van").price;
-  const plan = buyPlan(w, c, price, true);
+export function cheapestNewRig(w: World, c: Company): { price: number; tier: TractorTier; trailer: Equipment } | null {
+  let best: { price: number; tier: TractorTier; trailer: Equipment } | null = null;
+  for (const tier of ["workhorse", "highwayPro", "flagship"] as const) {
+    for (const trailer of ["van", "reefer", "flatbed"] as const) {
+      const src = bestSource(w, c.id, "rig", tier, trailer);
+      const left = src.dealershipId ? true : w.supply.tractor[tier] > 0 && w.supply.trailer[trailer] > 0;
+      if (left && (!best || src.price < best.price)) best = { price: src.price, tier, trailer };
+    }
+  }
+  return best;
+}
+
+/**
+ * Step 9's state from the Dealer's own figures (Jeff, 2026-11-02: the step reads the gap; QA's step-9 replay): only routes
+ * the company can take now count. The used lot when it has a rig the company can pay for (cash, or a loan); else the
+ * cheapest listing nothing but cash stands in the way of, if the company has it; else a new Workhorse with a van on a
+ * purchase loan. The figures are the Dealer's net ones: what's needed now after the lease deposit, against cash alone.
+ */
+export function firstTruckRoute(w: World, c: Company): { route: "lot" | "listing" | "loan" | "short" | "none"; listing: { truckId: number; askFd: number } | null; need: number; have: number; restockDay: number } {
+  const replacing = (w.trucksByCompany.get(c.id) ?? []).some((t) => t.lease === "npc");
+  const can = (price: number) => {
+    const p = buyPlan(w, c, price, replacing);
+    return p.cashOk || Boolean(p.loan?.ok);
+  };
   const today = Math.floor(w.t / w.cfg.time.gameMinutesPerDay);
   // The lot restocks at the close of every seventh day (step.ts, (day + 1) % 7 === 0): on the morning after it.
   let d = today;
   while ((d + 1) % 7 !== 0) d++;
-  return { used: lot || listed, need: plan.loan?.cashNeed ?? plan.cashNeed, have: plan.have, deposit: plan.deposit > 0.5, ok: plan.loan ? plan.loan.ok : plan.cashOk, restockDay: d + 1 };
+  const restockDay = d + 1;
+  // A new rig only while the factory or a dealership has one (QA's phone check: the line offered a sold-out Workhorse).
+  const rig = cheapestNewRig(w, c);
+  const newPlan = rig ? buyPlan(w, c, rig.price, replacing) : null;
+  const cashNow = w.ledger.balance(companyAccount(c.id));
+  const base = { need: newPlan ? (newPlan.loanNowFd ?? newPlan.cashNowFd) : 0, have: cashNow, restockDay };
+  if (w.cfg.usedMarket.npcLot.enabled && w.cfg.assets.enabled && w.usedLot.stock > 0 && can(lotPrice(w, "workhorse", "van") * npcDealerMult(w))) return { route: "lot", listing: null, ...base };
+  // A listing counts when nothing but cash would refuse it (listingBlock with cash set aside) and the cash is there.
+  const listings = w.listings
+    .filter((l) => l.status === "open" && l.truckId > 0 && listingBlock(w, c.id, l.id, Infinity) === null && can(l.askFd))
+    .sort((a, b) => a.askFd - b.askFd);
+  if (listings[0]) return { route: "listing", listing: { truckId: listings[0].truckId, askFd: listings[0].askFd }, ...base };
+  if (!newPlan) return { route: "none", listing: null, ...base };
+  return { route: newPlan.loan?.ok || newPlan.cashOk ? "loan" : "short", listing: null, ...base };
 }

@@ -314,8 +314,12 @@ export const NEEDS = {
 /** Step 9 when the used lot can't serve it (Jeff, 2026-11-02: the step reads the gap). The producer's draft; the writer will word it. */
 export const STEP9 = {
   loanNow: (need: string) => `A new rig on a loan needs ${need} FD now, and you have it. Buy on a loan at the Dealer.`,
+  /** A carrier's listing the company can buy now (QA's step-9 replay). The producer's style; the writer will word it. */
+  listing: (what: string, ask: string) => `A ${what} is listed at ${ask} FD, and you can buy it now. It's at the Dealer.`,
   gap: (need: string, have: string, dep: string, when: string) => `A new rig on a loan needs ${need} FD now; you have ${have} FD${dep}. The used lot restocks ${when}. A few more loads close it.`,
   withDeposit: ", counting your deposit",
+  /** No new rig left this month and nothing used to buy (QA's step-9 replay). The producer's style; the writer will word it. */
+  none: (when: string) => `The factory has no new rigs left this month, and the used lot restocks ${when}. Keep hauling until then.`,
 };
 
 /** Finance (specs/finance.md, the writer's specs/finance-strings.md): every string on the panel and Money's link rows. */
@@ -620,4 +624,59 @@ export const IULIIA_SAY: Record<string, readonly string[]> = {
   "staff:hireDispatcher": ["A dispatcher. Now someone else reads the board at three in the morning."],
   "staff:hireManager": ["A manager. Your fleet just grew a middle, which every fleet needs."],
   "staff:restless": ["Restless. Home time costs less than a replacement."],
+};
+
+/** What now? (the writer's guidance-strings.md, section 1): one action, one reason with this company's figures, one button. */
+export const NOW = {
+  chip: "What now?",
+  notNow: "Not now",
+  stale: "That's changed. Ask me again.",
+  stepPrefix: (n: number, total: number) => `Step ${n} of ${total} · `,
+  dangerReason: (n: number, of: number, day: string) => `${n} of ${of} weekly checks in debt. The next is ${day}.`,
+  dangerWarn: (day: string, fd: string) => `The next weekly check is ${day}. You'd be ${fd} FD under the line.`,
+  bookAction: (n: number) => `Book a load for Truck ${n} today.`,
+  bookButton: "Show me its loads",
+  leaseAction: (n: number) => `Return the lease on Truck ${n}.`,
+  leaseReason2: (min: string) => `It costs at least ${min} FD a week, earning or not.`,
+  leaseButton: "Return the lease",
+  sellAction: (n: number) => `Sell Truck ${n}.`,
+  sellReason2: (fd: string, short: string) => `It should fetch about ${fd} FD. You're ${short} FD under the line.`,
+  sellButton: "Sell it",
+  tenderAction: (shipper: string) => `Answer ${shipper}'s tender.`,
+  tenderReason: (hhmm: string) => `It lapses at ${hhmm}. Accept it, or it goes to the open board.`,
+  tenderButton: "Show the tender",
+  lostAction: (origin: string, dest: string) => `Bid on ${origin} to ${dest} instead.`,
+  lostReason: (rate: string, fd: string) => `You lost the last one. This load clears near ${rate}/mi and pays ${fd} FD over break-even.`,
+  lostButton: "Show the load",
+  driverAction: (n: number) => `Hire a driver for Truck ${n}.`,
+  driverReason: (name: string) => `${name} has gone. A truck without a driver earns nothing.`,
+  driverButton: "Hire a driver",
+  idleAction: (origin: string, dest: string) => `Bid on ${origin} to ${dest}.`,
+  idleReason: (n: number, hub: string, fd: string) => `Truck ${n} is idle at ${hub}. This load pays about ${fd} FD over break-even.`,
+  idleButton: "Show the load",
+  stepButton: (tab: string) => `Go to ${tab}`,
+  gapAction: "Keep hauling toward your own truck.",
+  gapReason: (gap: string, weeks: number) => `You're ${gap} FD short, counting your deposit and ${weeks} weeks of costs held back.`,
+  gapButton: "See the Dealer",
+  cushionAction: "Build your cushion before you spend.",
+  cushionReason: (n: string) => `Your cash covers ${n} weeks of your own spending.`,
+  cushionButton: "Money",
+  factoringEndsAction: (date: string) => `Choose how you're paid after ${date}.`,
+  factoringEndsReason: (n: number) => `Your factoring contract ends in ${n} days.`,
+  factoringEndsButton: "Getting paid",
+  calmAction: "Nothing needs you right now.",
+  calmReason: (event: string, time: string) => `The next thing that will: ${event}, in ${time}.`,
+  calmButton: "OK",
+  eventRound: "the next round",
+  eventMonthClose: "the month's close",
+  eventLayer: (layer: string) => `${layer} opening`,
+  eventFactoring: "your factoring contract's end",
+  liquidatingAction: "Your company is being wound up.",
+  liquidatingReason: (day: string) => `Its trucks are being sold. You start again on a lease on ${day}.`,
+  liquidatingButton: "What happens next",
+  noneAction: "I don't have a sure answer for this one.",
+  noneReason: "Help has every system and every number.",
+  noneButton: "Open Help",
+  /** The driver's name when the engine no longer has it. Draft for the writer. */
+  yourDriver: "Your driver",
 };

@@ -217,9 +217,10 @@ export function Buy({ what, label, price, replacing, block, action, ok }: { what
   const [open, setOpen] = useState(false);
   const [refused, setRefused] = useState<string | null>(null);
   const p = buyPlan(w, c, price, replacing);
-  const dep = replacing ? DEALER.withDeposit : "";
-  const cashWhy = block ?? (p.cashOk ? null : DEALER.whyCash(fd(p.have), fd(p.cashNeed), dep));
-  const loanWhy = !p.loan ? null : block ?? (p.loan.why === "full" ? DEALER.whyLoans(purchaseTerms(w, c).maxLoans) : p.loan.why === "short" ? DEALER.whyLoan(fd(p.loan.cashNeed), fd(p.have), dep) : null);
+  // The reasons use the sheet's net figures (QA's Dealer re-check): what's needed after the lease deposit, against cash alone.
+  const cash = p.have - p.deposit;
+  const cashWhy = block ?? (p.cashOk ? null : DEALER.whyCash(fd(cash), fd(p.cashNowFd)));
+  const loanWhy = !p.loan ? null : block ?? (p.loan.why === "full" ? DEALER.whyLoans(purchaseTerms(w, c).maxLoans) : p.loan.why === "short" ? DEALER.whyLoan(fd(p.loanNowFd ?? 0), fd(cash)) : null);
   const ef = w.cfg.equipmentFinance.purchase;
   // Iuliia's line for the purchase: the first truck of its own, or one more (iuliia-lines.md, Dealer).
   const said = myTrucks().some((t) => t.lease === "owned") || ordersOf(w, c.id).length ? "dealer:buyLater" : "dealer:buyFirst";

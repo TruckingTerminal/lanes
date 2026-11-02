@@ -1649,6 +1649,13 @@ export const economyConfig = {
   },
 
   // The hub card's season line (studio/reviews/economy-first-board.md): this block only feeds the hub card, never the sim.
+  // Guidance (specs/guidance.md, the writer's guidance-strings.md): Iuliia's figures and milestones read these, and so do
+  // her sentences, so the two can't drift apart. Screens and the guide bot only: no rule reads them.
+  guide: {
+    gapCushionWeeks: 4, // the gap to the next truck holds back this many weeks of the company's own spending
+    cushionAvgWeeks: 4, // the cushion averages spending over this many weeks (at most seasonClose.workingCapitalWeeks are kept)
+    milestoneWindowDays: 12, // a milestone's line shows within this many game days of its date (the director's gate)
+  },
   // A hub reads its open dry-van loads whose ceiling clears a starter's break-even by `margin`, per round of its base van freight.
   ui: {
     season: { margin: 0.25, thinUnder: 0.15, fineFrom: 1.5, busyFrom: 4.5 },
