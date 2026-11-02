@@ -91,3 +91,7 @@
   businessman rather than a timid one, then B (loan rates by leverage and a bust covenant, behind a switch) only
   if the pair still shows the greedy bot ahead. (3) The Back Lot card takes the director's softer line: player
   against player, the gate and the cameras stay; the hiring and the temptation go.
+- 2026-11-02 — Jeff (a Staff screenshot: two driver faces for the whole roster, "Tanya Mills" on the man's,
+  "Earl Kowalski" on the woman's): new driver portraits, a set of them, and men must have men's names and women
+  women's names, the portrait matching. Art paints eight of each look; engineering splits the name list by look
+  and stores the look on the person, no replay change.
