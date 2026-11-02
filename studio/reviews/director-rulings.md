@@ -37,6 +37,11 @@ asked for.
 
 ## 4. The starter hubs after the first-board test (economy review, 2026-11-02)
 
+**Superseded by Jeff (DECISIONS.md, 2026-11-02):** the first entry rings the three starter hubs with the best
+freight for a new carrier at that moment of the game year, read live from the economy's season measure.
+Dallas, Los Angeles and Phoenix remain the tie-break and the fallback while the reading isn't ready. The reason
+below still holds, and the live rings meet it better than a fixed three: a ringed hub is a promise to a stranger.
+
 **Dallas, Los Angeles, Phoenix.** A starter hub is a promise to a stranger, and at the live clock Chicago's May
 is a real week every quarter in which the hub we recommended offers nothing. That is the market, and the
 market stays; it just doesn't get to be our default. Chicago stays one tap away under "Change", and every hub

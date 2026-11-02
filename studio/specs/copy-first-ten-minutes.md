@@ -47,7 +47,7 @@ Nothing to read: the title loop and one button. Connection states live on the bu
 |---|---|
 | Strip, before a company | `{Wed Jan 3}` · `{08:14}` · Next round `{hh:00}` · ≡ |
 | Iuliia, 1 | I'm Iuliia, your guide. This is America's freight market, live: every truck you see is real and moving. First, pick a home city. · **Next** |
-| Iuliia, 2 | Three ringed cities take new carriers. Tap one to start, or any other to see its freight. |
+| Iuliia, 2 | The rings mark where a new carrier finds freight right now. You may start at any starter city; any city shows its freight. |
 | Under her line | the three starter cards · **All hubs** (list header: All hubs · busiest first) |
 
 ### The hub card
@@ -206,10 +206,11 @@ Say lines are 25 words or fewer; the sheet shows **Say**, the caption **Do**. Th
 
 | Step | Say | Do |
 |---|---|---|
-| 1 Choose your home | Three ringed cities take new carriers. Tap one to start, or any other to see its freight. | Choose your home: tap a ringed hub, then Start here. |
+| 1 Choose your home | The rings mark where a new carrier finds freight right now. You may start at any starter city; any city shows its freight. | Choose your home: tap a ringed hub, then Start here. |
 | 2 Reading the board | Each line is a lane, the miles and a rate. Pick one near your truck, bid above break-even, and let the round clear. | Bid on a load leaving `{hub}`. |
 | 3 The truck rolls | You won one. Now the slow part, most of trucking: `{hos.drivingHoursPerDay}` hours of driving a day, fuel, and docks with their own hours. | Watch the ETA. Note where it sleeps tonight. |
 | 4 Getting paid | Delivered, and paid today: the lessor sees to that. Money shows its share and the hold toward your own truck. | On Money, find the lessor's share and the hold. Invoices come with a truck of your own. |
+| 4, Why (replaces "Cash arrives a month after the work; costs arrive now") | On a lease, pay lands on delivery and costs land as they come; what shrinks the pay is the lessor's share and the hold toward your own truck. | |
 | 5 The reload | Empty trailer, far end of the country. Nearest load first: driving home empty turns a good load into a bad week. | Pick the next load from Find loads, nearest first. |
 | 6 What it costs to exist | The page nobody enjoys: fuel, insurance, tolls, taxes, idling. Read it weekly, like an executive, with tea. Keep a cushion. | Compare revenue against costs on Money. |
 | 7 Keeping it on the road | Condition falls with the miles, and a worn truck breaks down, usually in the rain. Repairs at home are cheaper than away. | Check the condition bar; plan the rebuild before it's urgent. |
