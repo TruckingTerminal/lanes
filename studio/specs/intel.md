@@ -7,11 +7,14 @@ Jeff's rule (`DECISIONS.md`, 2026-11-02): every company's size and standing is v
 
 Later it becomes the Back Lot's scouting screen. Nothing on it may hand the Back Lot its target.
 
-## First: the client breaks the rule today
+## Row 1, the rule every public screen follows: no figure from which live cash can be derived
 
-The Company tab's **Players in the world** and **Biggest companies** (`apps/web/src/ui/panels/Company.tsx`) show each company's exact worth in FD, live. Worth is cash plus the trucks' value, the trucks are public, and the engine prices them. So anyone can subtract the fleet and read the cash. This is on the live world now.
-
-Fix, chrome only, this week: replace Worth with trucks and Miles, and rank by Miles. The player's own net worth stays on their own card.
+- **Out:** net worth, cash, and any figure that is cash plus or minus a value someone else can know or price. That includes worth, equity, "assets", balance less loans, and a stake amount next to a known total.
+- **Size reads as:** trucks, trailers, drivers, facilities, and last month's revenue and hauls.
+- **Applies everywhere:** Intel, the Company tab, rankings, the hub card's "Who's here", the feed, and any future leaderboard.
+- **The test before shipping a public figure:** could someone combine it with what is public, or what the engine prices, to get today's cash? If so, it doesn't ship.
+- **The breach today:** the Company tab's **Players in the world** and **Biggest companies** (`apps/web/src/ui/panels/Company.tsx`) show each company's exact worth in FD, live. Worth is cash plus the trucks' value, and the trucks are public and priced by the engine, so subtracting gives the cash. It is on the live world now.
+- **The fix:** chrome only, in engineering's carry-over batch. Replace Worth with the size fields above and rank by Miles. A player's own net worth stays on their own private card.
 
 **What "private" means for now.** Until the server sprint, every client replays the whole world and holds every company's cash. Private means not on any screen. It does not mean secret, and the red team should treat it that way. This is one more reason the Back Lot waits for the server.
 
@@ -35,7 +38,7 @@ Default sort: Miles. Filters: my hub, a hub, players only, brokers. Tapping a ro
 |---|---|---|---|
 | 1 | Name, player or AI, carrier or broker, home hub | `Company` | Text |
 | 2 | Authority: age and status | `authority.since`, `.status`, `.revocations` | "Authority 4 months · active". Suspended or revoked shows plainly, with "revoked once before" where true |
-| 3 | Trucks running, drivers employed | `operatingTrucks`, staff | Counts |
+| 3 | Size: trucks running, trailers by type, drivers employed, facilities by kind | `operatingTrucks`, trailers, staff, businesses and facilities | Counts. Never a value |
 | 4 | Miles: this season, rank, past seasons | `milesTotal`, `milesHistory` | Exact (it is earned in public) |
 | 5 | Last month: revenue | **Not kept today**: engineering adds a month-close snapshot per company | Exact FD, a month behind (Jeff's "a month behind") |
 | 6 | Last month: loads delivered, share on time | **Not kept today**, same snapshot (`delivered` and `onTime` are lifetime) | Count and percentage |
@@ -68,10 +71,11 @@ The bond shows only as "bonded". It is a fixed 75,000, so the amount adds nothin
 
 - The month-close snapshot (rows 5 and 6): a small engine change. Does it need a ruleset bump? It changes no rule, but it changes world state.
 - Band cut-offs for safety and insurance, in the economy's words.
-- The Company tab's worth columns are off this week (above).
+- The Company tab's worth columns, in the carry-over batch (row 1).
+- Trailer and facility counts per company: confirm both are cheap to read for every company.
 
 ## Done means
 
 - UX has placed it, and the spec has passed the gate.
 - The worth columns are gone from the live world.
-- QA has checked on a phone that no screen shows another company's cash or net worth.
+- QA has checked on a phone that no public screen shows a figure from which another company's live cash can be derived (row 1's test).
