@@ -118,3 +118,21 @@ The process today is: win a load as a carrier → before pickup, press **Re-post
 | B13 | Week one cash | No action of mine | −35.5k by day 35, past "4 weekly checks in a row" territory, recovered only because invoices came due. Owed to you now lists each load with its due day, so this is legible. Good | – | – |
 
 Console in this world: no errors (hooked `error` and `unhandledrejection`, and `read_console_messages` for the page).
+
+---
+
+# Re-check: 0e1fca1 on the test page (phone, 375×812)
+
+Deployed with run 41374982184 (3cea47a, after 0e1fca1). New test world, owner-operator, Chicago (ringed). One hand bid on Chicago, IL → Greenwood, IN, 199 mi; the round run at Day a minute; then the delivery. Console: no errors.
+
+| Row | Check | Result |
+|---|---|---|
+| 1 (blocker) | Iuliia's portrait after the first bid | **Pass.** Now a canvas, fully drawn. It changed frame within 3 s (two distinct frames in six samples) and shows on screen beside "From now on your dispatcher bids…" |
+| 2 (blocker) | Arrival sheet where Start lands you | **Pass.** Start at Chicago lands on the sheet with "This is Chicago, your home. One leased Workhorse… Let's find one." and **Show me the board**, above the Truck card ("Waiting at Chicago · the first load is your call") |
+| 3 | Place names | **Fail.** The strip and Truck card now use the load's places ("Loaded Chicago → Greenwood", "Unloading at Greenwood"). But the result card says "Won Chicago → Indianapolis at 3.86/mi · 768 FD", and the feed and delivered card say "Won / Delivered Chicago to Indianapolis". The next load reads "Greenwood → White Oak" on the card but "Won Indianapolis to Cincinnati" in the feed |
+| 5 | Clock until the first bid | **Fail.** A new world still starts at Day a minute: 08:00 → 11:00 in 6 s with no company action. With a load open on the board, the 18:00 round cleared and closed the panel (Wed 15:00 → 19:00, panel gone) |
+| 18 | One ETA | **Fail.** The board's busy line said "ETA Jan 7 21:37" for the 199-mi load won Thu Jan 4 06:00; the truck was unloading at Greenwood by Thu 12:00. The board shows the deliver-by, not the ETA. (Also: the next card read "ETA Jan 4 21:26 · On time" at Thu 22:00, an ETA already past) |
+| 20 | Owner-operator's pay row | **Pass.** "Your pay for driving −152" on the phone. Rows sum: 768 −147 −0 −152 −46 −115 −230 = 78 = "Yours 78 FD" |
+| 22 | Cash sparkline | **Pass.** A line under "Cash · 4,746 FD · Cash, last 2 days" |
+
+Tester's note: with the browser pane hidden the page's timers stall (it sat on "Starting the world…" until a screenshot woke it). That's the test harness, not the build.
