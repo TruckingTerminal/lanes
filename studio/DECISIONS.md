@@ -109,3 +109,6 @@
   tender channel can't move money untaxed; a load counts once per person. Jeff asks whether the two companies may
   transfer FD to each other and whether to tax it: the producer recommends yes, both ways, as the owner's capital
   (equity, never revenue), guarded, with a 1% fee to the reserve; Jeff to confirm the fee.
+- 2026-11-02 — Jeff: FD transfers between a player's own carrier and brokerage are allowed both ways, as the
+  owner's capital (equity, never revenue), guarded, with a fee of 3% to the reserve ("higher than 1%; let's do
+  3%"): `brokerage.transferFeePct` 0.03.
