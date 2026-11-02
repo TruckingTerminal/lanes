@@ -11,3 +11,12 @@
 - The authoritative server with accounts by email (engineering, a sprint of its own).
 - A Discord for the beta; the gauges dashboard.
 - The live world's restart on beta one and the republish with Iuliia and the report rule.
+
+## Slop to fix (Jeff's list, from playing the test page, 2026-11-02)
+- **Iuliia has three arms** in the waving portrait (a hand on the folder, a raised hand, and a third). Every pose
+  and mood gets an anatomy pass. Art.
+- **Her animations loop** and read as loops. Idle moments (a blink, a breath, the hair, a nod, the pen) on a seeded
+  schedule that never repeats on a cycle, the way the title now plays. Art draws, engineering wires.
+- **The login screen on a phone** shows the title as a band at the top over black instead of full screen with
+  the one button at the bottom. Engineering, with step 6.
+- The test build's speed labels ("1×" reads as the real pace). Engineering, with step 8.
