@@ -95,3 +95,9 @@
   "Earl Kowalski" on the woman's): new driver portraits, a set of them, and men must have men's names and women
   women's names, the portrait matching. Art paints eight of each look; engineering splits the name list by look
   and stores the look on the person, no replay change.
+- 2026-11-02 — Jeff, on the broker path: "Brokerages and carriers should be different companies. Each player can
+  have 1 of each at most." So a player's brokerage is a second company formed as a broker, not a desk inside the
+  carrier; one carrier and one brokerage per player. The director writes the rule brief (forming it, the bond and
+  licence at day 91, the two companies under one login, self-dealing between a player's own two companies, Intel
+  and the ladder), the economy sizes it after the prudence pair, then UX, the writer and engineering; a ruleset
+  bump and a restart while the world has no players.
