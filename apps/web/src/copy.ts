@@ -846,6 +846,7 @@ export const BROKERAGE = {
   stateLine: (name: string, n: number) => `${name} · ${n} loads posted`,
   bookHeader: (name: string, n: number, fd: string) => `${name} · ${n} loads · ${fd} FD margin this month`,
   groups: ["On the board", "Moving", "Waiting for pay"] as const,
+  posted: (rate: string, hh: string, wait: string) => `Posted at ${rate}/mi · clears ${hh} · in ${wait}`,
   bookEmpty: (hh: string) => `No loads yet. Shippers offer loads to brokers every round; yours start at ${hh}.`,
   whoMayHaul: "Who may haul your loads",
   haulers: "Carriers who've hauled for you",

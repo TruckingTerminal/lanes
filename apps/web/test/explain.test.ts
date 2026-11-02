@@ -88,11 +88,12 @@ describe("the walkthrough's words for a fleet that owns its trucks", () => {
     const paid = walkSteps(GAME_CONFIG).find((s) => s.id === "paid")!;
     const g = await TestGame.create();
     const fleet = g.join("Owner Freight", "fleet", "LAX")!;
-    expect(stepText(paid, g.w, fleet).brief).not.toMatch(/lessor/);
-    expect(stepDo(paid, g.w, fleet)).not.toMatch(/lessor/);
+    // No lessor pays it, takes a share or holds anything back toward a truck.
+    const wrong = /lessor sees|lessor's share|the hold/;
+    for (const line of [stepText(paid, g.w, fleet).brief, ...stepText(paid, g.w, fleet).say, stepDo(paid, g.w, fleet)]) expect(line).not.toMatch(wrong);
     const g1 = await TestGame.create();
     const leased = g1.join("Lease Freight", "oo", "LAX")!;
-    expect(stepText(paid, g1.w, leased).brief).toMatch(/lessor/);
+    expect(stepText(paid, g1.w, leased).brief).toMatch(/lessor sees/);
   }, 60_000);
 });
 

@@ -106,15 +106,15 @@ export function walkSteps(cfg: EconomyConfig, hub = "your home hub"): WalkStep[]
       ],
       do: "On Money, find the lessor's share and the hold. Invoices come with a truck of your own.",
       why: "On a lease, pay lands on delivery and costs land as they come; what shrinks the pay is the lessor's share and the hold toward your own truck.",
-      // Engineering's draft for the writer: a small fleet owns its trucks, so no lessor pays it on delivery (QA).
+      // A small fleet owns its trucks, so no lessor pays it on delivery (QA).
       owned: {
-        brief: `Delivered. On your own truck you invoice the shipper, who pays in ${cfg.token.payment.termsDays} days. Money shows what's owed and when.`,
+        brief: `Delivered. With no lessor, you invoice the shipper, who pays in ${cfg.token.payment.termsDays} days. Money shows what's owed and when.`,
         say: [
-          `Delivered. With trucks of your own there's no lessor holding the paper: you invoice the shipper yourself, and shippers pay net-${cfg.token.payment.termsDays}, ${cfg.token.payment.termsDays} game days after the work. Quick pay brings that forward for ${pct(cfg.token.payment.quickPayPct)}; an instrument for emergencies, not a policy.`,
-          `Until the invoice is paid, fuel, wages and insurance still go out. That gap is the cushion's whole job. Money shows each invoice and its day. Watch the cash line at the top of the screen every day.`,
+          `Delivered. With trucks of your own, no lessor holds the paper: you invoice the shipper, who pays net-${cfg.token.payment.termsDays}, ${cfg.token.payment.termsDays} game days after the work. Quick pay pays each new load on delivery instead, less ${pct(cfg.token.payment.quickPayPct)}: an instrument for emergencies, not a policy.`,
+          `Until an invoice is paid, fuel, wages and insurance still go out. That gap is what your cushion is for. Money shows each invoice and its day; watch the cash line at the top every day. Trust, and verify. Mostly verify.`,
         ],
         do: "On Money, find each invoice and the day it's due.",
-        why: "On your own truck, pay lands when the shipper pays and costs land as they come; the gap between them is what the cushion is for.",
+        why: "On your own truck, pay lands when the shipper pays and costs land as they come. The cushion covers the gap.",
       },
       done: (w, c) => c.delivered >= 2,
     },

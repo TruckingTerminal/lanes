@@ -8,7 +8,7 @@ import { TRUCK_SCALE, truckFrame } from "./assets.js";
 import { CITY_SCALE, citySprite, drawRain, drawSnow, hasPaintedMap, MAP_H, MAP_W, mapLevel, mapSurround, seasonOf, spriteFrame, TOWN_SCALE, townKindAt, townSprite, vfxSprite, type Season } from "./mapart.js";
 import { weatherAt, weatherLabel, type Weather } from "./weather.js";
 import { bumpData, clockMin, myTrucks, S, selectTruck, setTab } from "./state.js";
-import { hasTwo } from "./companies.js";
+import { hasTwo, kindInView, switchCompany } from "./companies.js";
 import { rankStarters } from "./hubcard.js";
 import { openLoadsAt, reloadLabel, seasonSwing } from "./logic.js";
 import { signedPct, TRAILER_NAME } from "./format.js";
@@ -702,9 +702,11 @@ export function drawMap(now: number): void {
   if (S.game.player) {
     const idleTruck = myTrucks().find((t) => t.id === S.selTruck && t.status === "idle") ?? myTrucks().find((t) => t.status === "idle");
     const openL = S.openLoad !== null ? w.loads.get(S.openLoad) : undefined;
+    // The brokerage's posting opened from its pin is its lane in amber, with no truck's empty miles to it.
+    const brokered = openL && hasTwo(S.game) && kindInView(S.game) === "brokerage";
     if (openL && openL.status === "open") {
-      if (idleTruck) stroke(routePoints(idleTruck.hub, openL.origin), [1, 3], PAL.white);
-      stroke(routePoints(openL.origin, openL.dest), [], PAL.cyan);
+      if (idleTruck && !brokered) stroke(routePoints(idleTruck.hub, openL.origin), [1, 3], PAL.white);
+      stroke(routePoints(openL.origin, openL.dest), [], brokered ? PAL.amber : PAL.cyan);
     }
     for (const t of myTrucks()) {
       const bid = w.manualBids.get(t.id);
@@ -1080,7 +1082,30 @@ function nearestSite(x: number, y: number): number | null {
   }
   return best;
 }
-/** Selects your truck under the pointer, else a truck-stop site, else the nearest hub. */
+/**
+ * The brokerage's open posting whose pin is under the pointer, if any. A pin stands above its origin (its head about ten
+ * units up), so the tap is measured against where the head is drawn, in canvas pixels.
+ */
+function pinAt(ev: { clientX: number; clientY: number }): number | null {
+  const g = S.game;
+  if (!g || !hasTwo(g) || !g.brokerage) return null;
+  const [cx, cy] = canvasPoint(ev);
+  const u = Math.max(1, Math.round(fitK() * Math.min(zoom(), 4)));
+  let best: number | null = null;
+  let bd = 9 * u;
+  for (const l of g.w.loads.values()) {
+    if (l.status !== "open" || l.brokerId !== g.brokerage.id) continue;
+    const [X, Y] = toScreen(...art!.hubXY[l.origin]!);
+    const d = Math.hypot(X - cx, Y - 10 * u - cy);
+    if (d < bd) {
+      bd = d;
+      best = l.id;
+    }
+  }
+  return best;
+}
+
+/** Selects your truck under the pointer, else a brokerage pin, else a truck-stop site, else the nearest hub. */
 function selectOnMap(ev: { clientX: number; clientY: number }): void {
   const [x, y] = toWorld(...canvasPoint(ev));
   let best: Truck | null = null;
@@ -1094,17 +1119,28 @@ function selectOnMap(ev: { clientX: number; clientY: number }): void {
       best = t;
     }
   }
-  const site = best ? null : nearestSite(x, y);
+  const pin = best ? null : pinAt(ev);
+  const site = best || pin !== null ? null : nearestSite(x, y);
   if (best) {
+    // A truck is the carrier's: with the brokerage in view, the tap switches back first (brokerage-ux.md section 1).
+    if (S.game && kindInView(S.game) === "brokerage") switchCompany("carrier");
     S.selTruck = best.id;
     setTab(best.status === "idle" ? "loads" : "fleet");
+  } else if (pin !== null) {
+    // A pin is the brokerage's posting: switch to it and open that load in its Book.
+    switchCompany("brokerage");
+    S.openLoad = pin;
+    setTab("book");
   } else if (site !== null) {
     S.selSite = site;
     setTab("business");
   } else {
+    // A hub or a town opens the board, which is the carrier's: with the brokerage in view, switch back first.
+    const toCarrier = () => S.game && kindInView(S.game) === "brokerage" && switchCompany("carrier");
     const h = nearestHub(x, y);
     S.selHub = h;
     if (h !== null) {
+      toCarrier();
       setTab("loads");
       S.cityView = h;
       S.townView = null;
@@ -1125,6 +1161,7 @@ function selectOnMap(ev: { clientX: number; clientY: number }): void {
         }
       }
       if (bt !== null) {
+        toCarrier();
         S.townView = bt;
         S.cityView = pl[bt]!.market;
         S.selHub = pl[bt]!.market;
@@ -1134,7 +1171,8 @@ function selectOnMap(ev: { clientX: number; clientY: number }): void {
   }
   // On a phone a tap on the map drops the sheet to its strip, so the map is what you see (specs/first-ten-minutes.md);
   // before there is a company a hub tap opens that hub's card in the sheet instead, never the city pane.
-  if (S.game?.player) S.sheet = "strip";
+  // A pin opens its load, so the sheet rises to show it.
+  if (S.game?.player) S.sheet = pin !== null ? "half" : "strip";
   else if (S.selHub !== null) {
     S.cityView = null;
     S.townView = null;
