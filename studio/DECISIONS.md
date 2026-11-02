@@ -131,3 +131,9 @@
   economy's pair: the greedy fleets' lead is outside money, not debt; (3) double brokering closes to player
   carriers in the rules with the brokerage bump, not only in the chrome; (4) the Mac mini as the studio's batch box
   and the beta's hosting are for later.
+- 2026-11-02 — Jeff: "Add cashing open invoices definitely. If a carrier needs it now, he needs it NOW. Waiting
+  would cause them to go bust regardless of the contract." So an open invoice can be cashed now: under a
+  factoring contract at the contract rate plus an aging surcharge; without one at a spot rate, the economy to
+  size both behind a switch; the fee to the reserve. Iuliia's collect advice offers it first when it exists. The
+  economy sizes it, the red team probes it, UX puts "Cash it now" on the invoice rows, the writer rewrites the
+  collect lines, engineering builds it with the brokerage bump.
