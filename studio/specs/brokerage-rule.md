@@ -1,6 +1,12 @@
-# The brokerage rule (director's brief for the economy and UX, sprint 2 item 3; 2026-11-03; owner: the director)
+# The brokerage rule (director's brief for the economy and UX, sprint 2 item 3; revision 1, 2026-11-03; owner: the director)
 
-Jeff's ruling (`DECISIONS.md`, 2026-11-02): "Brokerages and carriers should be different companies. Each player can have 1 of each at most." This replaces the broker-desk option in `specs/brokerage-brief.md`. That brief's screens and inventory still apply wherever they don't depend on the desk.
+Jeff's ruling (`DECISIONS.md`, 2026-11-02): "Brokerages and carriers should be different companies. Each player can have 1 of each at most."
+
+Revision 1 adds two more of Jeff's rules, as section 3a:
+- "Carriers can broker their loads tendered directly to them if they have a brokerage arm, but all requirements are still there with the bond etc."
+- "If a player owned brokerage is receiving direct freight from a shipper, they can also tender them directly to their carrier company without posting it on the loadboard."
+
+It also adds the fee on the owner's transfer (section 2). This replaces the broker-desk option in `specs/brokerage-brief.md`. That brief's screens and inventory still apply wherever they don't depend on the desk.
 
 Who does what:
 - **The economy** sizes every figure marked *(size)* and sims the self-dealing rows.
@@ -64,7 +70,8 @@ The guards on a transfer:
   - would be left with negative cash.
 - **A brokerage can't transfer out below its bond while it has paper open.** The bond stays behind its paper, as it does today.
 - **A transfer is equity, not revenue or cost.** It counts toward no profit, Miles, logbook, Intel revenue or profit tax.
-- **Every transfer is logged** in both companies' Money, privately.
+- **A fee of {1%} of every transfer**, in either direction, goes to the reserve. It is a sink, like the factoring fee, and its config key is `brokerage.transferFeePct`. Jeff confirms the figure. The fee is the only tax on a transfer. It keeps money moving between the two companies from being free. And because every other channel between them (section 3a's tender, row 7) is held to the lane's band, a transfer is the one way to move money untaxed by freight, and it is taxed here.
+- **Every transfer is logged** in both companies' Money, privately, with its fee.
 
 ## 3. Self-dealing: allowed, with no advantage
 
@@ -78,13 +85,50 @@ Inside one account the client knows both companies have the same owner, so every
 |---|---|---|
 | 1 | **Logbook volume milestones and anything token-side** (red team hole 2: the broker posts, its own carrier hauls, both score) | A load counts **once per person**. The logbook and the airdrop are the person's, not each company's. |
 | 2 | **Credit**: a brokerage paying its own carrier on time would buy a top credit band, so a cheap surety and carriers willing to haul for it | Payments between own companies **don't enter either credit record**, on time or late. |
-| 3 | **Winning its own postings** | The own carrier wins only through the board's normal round: no direct assignment, no early sight of sealed bids. The brokerage's posted rate is public like anyone's. |
+| 3 | **Getting its own brokerage's loads** | Two ways only. The board's normal round, with no early sight of sealed bids. Or, for freight a shipper tendered to the brokerage, a direct tender to the own carrier (Jeff's rule, section 3a), with the hauler's pay inside the lane's band. |
 | 4 | **Factoring or quick pay on own paper.** The carrier's invoice to its own brokerage, factored, would turn the locked bond into a cheap loan from the NPC factor | **Forbidden.** Paper between own companies is paid at net 30, never factored or quick-paid. |
 | 5 | **The bond cap** | What the brokerage owes its own carrier counts toward the cap like any carrier's. No exemption. |
 | 6 | **A wind-up**: the bond paying the owner's own carrier before strangers | The own carrier stands **last** in the bond's queue, after the NPC factor, the lessor and every other carrier. |
-| 7 | **Moving money through freight rates** to get around section 2's guards | Not prevented outright: a high posting loses to any lower bid, so it's no reliable channel. The economy sims it *(size)*: own-company rates against the lane's clearing rate, flagged if they run high. |
+| 7 | **Moving money through freight rates** around section 2's guards and fee | On a direct tender to the own carrier, the hauler's pay must sit **inside the lane's band, floor to ceiling** *(size: the economy defines the band, e.g. from the lane's recent clearing rates)*. A tender outside it is refused. On the board, a high posting loses to any lower bid, so it's no reliable channel. The economy still sims own-company rates against the lane's clearing rate. |
 
 Miles and on-time stay counted for the hauling carrier, because the freight is real: an NPC shipper pays for it. Intel's last-month revenue counts it for both companies, as real books would.
+
+## 3a. Direct freight between the two companies (Jeff's rules, revision 1)
+
+**Rule A: a carrier may pass its direct freight to its own brokerage.**
+
+A carrier holds a contract with a local shipper (`contracts.direct`). Each load of that contract reaches the carrier as a tender. It is never a board load. Today the carrier hauls the tender, or turns it down: turning it down slashes the contract's performance stake and costs the shipper's trust. With a brokerage, the carrier gets a third choice: **Pass to {brokerage}**.
+
+- **Every requirement holds.** The brokerage must be licensed, bonded at its stake, inside its grace, and under its bond cap with this load added. If any check fails, the pass is refused, and the carrier hauls or turns the load down as before. The pass must happen inside the tender's window (`contracts.tenderHours`).
+- **The shipper's payable moves to the brokerage.** The load is re-papered:
+  - The shipper pays the **brokerage**, at the contract rate, on the shipper's usual terms.
+  - That invoice is the brokerage's receivable, factorable at the brokerage's flat 5%.
+  - The brokerage owes the hauler, under its bond cap, with its bond and the NPC surety behind it.
+  - The carrier neither bills nor owes anything on the load.
+- **The carrier's credit is untouched.** It is neither payer nor payee, so the pass enters no credit record.
+- **The carrier's contract counts the load as covered.** No stake slash and no lost trust, so long as the load is delivered.
+- **If the passed load falls off** (nobody hauls it before the shipper gives up), the shipper is made whole **once**: by the brokerage's fall-off charge, under its bond. The carrier's stake is not slashed as well. The carrier's contract records the load as not covered, for trust only. *(size)*: whether that trust cost is right.
+- **Its volume cap stays as it is.** A carrier still holds contract volume only up to what its own trucks can haul (`loadsPerTruckWeek`). A brokerage gives the carrier an outlet for a busy week, not a way to sign freight it could never haul. *(size)*: whether a brokerage should lift that cap at all.
+- **Where the brokerage sends a passed load:** it may post it to the board, or tender it to another carrier under the board's rules. It may **not** tender it back to the carrier that passed it. That round trip would leave the load where it started, re-papered so it factors at 5% instead of the carrier's line, and pay nothing for it.
+
+**Rule B: a brokerage may tender its own shipper freight straight to its own carrier.**
+
+Freight a shipper tenders to the brokerage (NPC tenders today) may go to the owner's carrier as a direct tender, without a board posting.
+
+- **The carrier accepts or declines,** like any tender. A decline sends the load to the board.
+- **The hauler's pay sits inside the lane's band** (row 7). The tender shows the band and refuses a figure outside it.
+- **The bond cap counts it** like any carrier's payable (row 5).
+- **Everything else in section 3 holds:**
+  - The own carrier is last in the bond's queue.
+  - The load counts once per person.
+  - Payments between the two stay out of credit.
+  - Own paper is never factored (row 4). The carrier's invoice to its own brokerage waits net, and the brokerage's receivable from the shipper factors at 5% as usual.
+
+**What the player sees.**
+- The carrier's contract tender gains **Pass to {brokerage}**. It is greyed out, with the reason, when a check fails.
+- A brokerage's shipper tender gains **Tender to {carrier}**, with the band shown.
+- Both name the other company and are logged in both feeds.
+- No crime words: a pass and a tender are ordinary business.
 
 ## 4. The brokerage's own money
 
@@ -156,8 +200,9 @@ Until then the logbook leans on delivered-on-time and tenure, as the red team ad
 | A broker company with licence, bond stake, surety, bond cap, 5% factoring, defaults, contract lag, fall-off, wind-up | Yes: AI companies formed `role: "broker"` (`world.ts` `formCompany`, `receivables.ts`, `solvency.ts`, `freight.ts`) | – |
 | Players' companies | One per uid, always `role: "carrier"` (`game.ts:74`, `live.ts:279`) | A second join for a brokerage, gated on an active carrier and the open layer |
 | Owner across companies | None: companies don't know their owner beyond the uid | An owner link between the two companies of one uid |
-| Capital transfers | None | The owner's transfer, with section 2's guards |
-| Self-dealing rows 1–7 | None | Once-per-person counting, credit exclusion, no own-paper factoring, own carrier last in the bond queue, the rate flag |
+| Capital transfers | None | The owner's transfer, with section 2's guards and the `{1%}` fee to the reserve |
+| Self-dealing rows 1–7 | None | Once-per-person counting, credit exclusion, no own-paper factoring, own carrier last in the bond queue, the lane's band on own tenders |
+| Direct freight | A carrier's `contracts.direct` tenders: accept onto a truck, or turn down (stake slashed) | Rule A: pass to the own brokerage, the shipper's payable re-papered to it, no tender back to the passer. Rule B: a brokerage's shipper tender straight to the own carrier inside the band |
 | Tenders to a player broker | AI brokers get tenders by weight on a standing order | The same for a player brokerage; hand calls if UX's question 5 says so |
 | Double brokering for player carriers | In the rules, off the screens (60d1a26) | Closed in the rules when this bump lands *(size)* |
 | Intel's two rows and the owner link | – | `specs/intel.md` plus section 5 |
