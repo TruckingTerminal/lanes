@@ -9,6 +9,7 @@ import { focusTruck } from "../../mapview.js";
 import { act, describe, feed, me, myTrucks, S, selectTruck, truckNo, useData } from "../../state.js";
 import { Bar, Btn, Card, Num, Panel, Pixel } from "../bits.js";
 import { Rig, Scene } from "../Loop.js";
+import { Fig } from "../Explain.js";
 import { TendersCard } from "./Contracts.js";
 import { DispatcherCard } from "./Dispatcher.js";
 import { DeliveredCard, RollingCards } from "./Rolling.js";
@@ -133,7 +134,7 @@ function TruckCard({ t, idx }: { t: Truck; idx: number }): JSX.Element {
   const mine = t.lease === "owned" && !leasedIn;
   const cond = condition(w.cfg, t);
   const share = pct(w.cfg.costs.npcLeaseShareOfGross);
-  const kind = t.lease === "npc" ? TRUCK.leased(share) : t.lease === "lessor" ? TRUCK.secondLease(share, fdFull(w.cfg.freeEntry.leases.minWeeklyFd)) : leasedIn ? `Leased from another carrier` : TRUCK.owned(fdFull(truckValue(w, t)));
+  const kind = t.lease === "npc" ? TRUCK.leased(share) : t.lease === "lessor" ? TRUCK.secondLease(share, fdFull(w.cfg.freeEntry.leases.minWeeklyFd)) : leasedIn ? `Leased from another carrier` : <Fig k="truck.value" label="Worth" ctx={{ truckId: t.id }}>{TRUCK.owned(fdFull(truckValue(w, t)))}</Fig>;
   const nearby = w.net.hubs
     .map((h, i) => ({ h, i, mi: hubMiles(w, t.hub, i) }))
     .filter((x) => x.i !== t.hub)

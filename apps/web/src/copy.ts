@@ -1,3 +1,4 @@
+import type { EconomyConfig } from "@lanes/config";
 /**
  * The first ten minutes' words (studio/specs/copy-first-ten-minutes.md, draft 4), in one place so the writer's next
  * pass is one file. Numbers come in as arguments from the config or the world; none is typed here.
@@ -314,8 +315,8 @@ export const NEEDS = {
 /** Step 9 when the used lot can't serve it (Jeff, 2026-11-02: the step reads the gap). The producer's draft; the writer will word it. */
 export const STEP9 = {
   loanNow: (need: string) => `A new rig on a loan needs ${need} FD now, and you have it. Buy on a loan at the Dealer.`,
-  /** A carrier's listing the company can buy now (QA's step-9 replay). The producer's style; the writer will word it. */
-  listing: (what: string, ask: string) => `A ${what} is listed at ${ask} FD, and you can buy it now. It's at the Dealer.`,
+  /** A carrier's listing the company can buy now (QA's step-9 replay; the writer's string). */
+  listing: (what: string, ask: string) => `Another carrier is selling a ${what} for ${ask} FD, and you have the cash. It's at the Dealer.`,
   gap: (need: string, have: string, dep: string, when: string) => `A new rig on a loan needs ${need} FD now; you have ${have} FD${dep}. The used lot restocks ${when}. A few more loads close it.`,
   withDeposit: ", counting your deposit",
   /** No new rig left this month and nothing used to buy (QA's step-9 replay). The producer's style; the writer will word it. */
@@ -679,4 +680,134 @@ export const NOW = {
   noneButton: "Open Help",
   /** The driver's name when the engine no longer has it. Draft for the writer. */
   yourDriver: "Your driver",
+};
+
+/**
+ * The explain sheet (the writer's guidance-strings.md section 3): per figure key, what it is, how it's computed (the
+ * writer's sentence; explain.ts adds this company's inputs under it) and what moves it. Plain throughout: no joke.
+ * Functions take the config values the writer named as `{key}`.
+ */
+type Ex = { what: string; how: string; moves: string };
+const pctOf = (x: number) => `${Math.round(x * 100)}%`;
+const pct2 = (x: number) => `${(x * 100).toFixed(2)}%`;
+export const EXPLAIN_HEAD = { what: "What it is", how: "How it's computed", moves: "What moves it", none: "I can't break this one down yet." };
+export const EXPLAIN = (cfg: EconomyConfig): Record<string, Ex> => ({
+  "money.cash": { what: "The FD in your company's account right now.", how: "Every payment in, less every cost out, as they land.", moves: "Loads paid; fuel, wages, leases and loans going out." },
+  "money.trend": { what: "Your cash at each day's end, for the last weeks.", how: "One point a day from the ledger.", moves: "The same as cash, seen over time." },
+  "money.owed": { what: "Invoices shippers owe you, and the day each is due.", how: `Each delivered load on an owned truck, paid ${cfg.token.payment.termsDays} days later.`, moves: "More deliveries; quick pay or factoring brings them in sooner." },
+  "board.profitChip": { what: "What this load leaves you after your costs, at that price.", how: "Rate times miles, less break-even times all the miles you'd drive.", moves: "The rate, the empty miles, and your own costs per mile." },
+  "truck.breakEven": { what: "The rate per mile that just covers this truck's costs on this load.", how: "Fuel, maintenance, insurance, tolls and pay per mile, empty miles included, plus the lessor's share.", moves: "Fewer empty miles, cheaper fuel, a better-kept truck, owning instead of leasing." },
+  "board.ceiling": { what: "The most this shipper will pay per mile.", how: "Set by the shipper from the lane's market when the load is posted.", moves: "The lane, the season, and how long the load has waited." },
+  "board.clearsNear": { what: "Where loads like this one usually go.", how: "The recent winning rates on this lane and trailer.", moves: "The market: more trucks push it down, more freight pushes it up." },
+  "board.bookNow": { what: "The price that takes the load at once, with no round.", how: "The shipper's posted offer, below its ceiling.", moves: "It rises the longer the load sits unbooked." },
+  "board.bid": { what: "Your offer per mile, decided at the next round.", how: "The best bid under the ceiling wins, weighing price, record and empty miles.", moves: "Your price, your on-time record, how near your truck is." },
+  "board.deadhead": { what: "Miles your truck drives empty to reach the pickup.", how: "Road miles from where your truck is to the load's origin.", moves: "Where your truck waits; nearer loads." },
+  "truck.eta": { what: "When the truck should arrive, waiting included.", how: "Driving hours left, rest stops, and the dock's opening hours.", moves: "Hours of service, the weather, the road and the dock." },
+  "truck.hosLeft": { what: "Hours the driver may still drive today.", how: `${cfg.hos.drivingHoursPerDay} hours a day, less what's driven since the last rest.`, moves: "Rest resets it; a team drives longer." },
+  "pay.lessorShare": { what: "The lessor's cut of every load on a leased truck.", how: `${pctOf(cfg.costs.npcLeaseShareOfGross)} of what the load pays.`, moves: "It ends when you own the truck." },
+  "pay.fuel": { what: "Diesel burned on this load, empty miles included.", how: "Miles divided by the truck's mpg, times the day's pump price.", moves: "Fewer empty miles, the make's mpg, the price of diesel." },
+  "pay.tolls": { what: "Road tolls on this route.", how: "The tolled roads the route uses, at their rates.", moves: "The route; some lanes have none." },
+  "pay.fuelTax": { what: "Tax on every gallon you burn, billed at the month's close.", how: `${cfg.costs.fuelTax.perGal} FD a gallon, on the road and idling, added up over the month.`, moves: "Gallons: fewer empty miles, less idling, a make with better mpg." },
+  "pay.maintenance": { what: "Wear on the truck from these miles.", how: "The tractor's cost per mile, times the miles.", moves: "The make, the truck's condition, a timely rebuild." },
+  "pay.insurance": { what: "Your policy's cost for this period.", how: "Base premium, times your record, your home hub and the market.", moves: "A clean safety record; your home hub." },
+  "pay.ownerPay": { what: "What you pay yourself for driving.", how: "Your driver's rate per mile, times the miles.", moves: "Your pay setting." },
+  "standing.miles": { what: "Your standing in the beta: loaded miles hauled this season.", how: "Every loaded mile delivered. Empty miles don't count.", moves: "Hauling, and hauling loaded." },
+  "standing.reputation": { what: "How shippers and brokers rate you.", how: `Your lifetime on-time share, smoothed by ${cfg.reputation.priorLoads} loads at the starting value so one load can't swing it.`, moves: "Delivering on time. Nothing else moves it." },
+  "standing.onTime": { what: "The share of your loads delivered by the appointment.", how: "Loads on time, divided by loads delivered.", moves: "Plan for hours, docks and weather." },
+  "intel.creditBand": { what: "Your credit, A best to E worst.", how: "Paying from cash in hand, authority age, open claims, bankruptcies, revocations, and cover for what you owe.", moves: "Pay from cash, not overdraft; time; no claims; keep cash and stake above what you owe." },
+  "intel.safetyBand": { what: "Your safety rating from inspections and reviews.", how: "Violations at inspections and audits over two years, recent ones counting more, plus crashes per truck.", moves: "Rested drivers, maintained trucks, no speeding, no crashes." },
+  "intel.insuranceBand": { what: "How much your record adds to your premium.", how: "Your at-fault surcharge: clean, surcharged or heavily surcharged.", moves: "Fewer crashes and claims; it eases with time." },
+  "intel.creditBand.other": { what: "A company's credit, A best to E worst.", how: "", moves: "Paying from cash in hand, its authority's age, claims, and cover for what it owes." },
+  "intel.safetyBand.other": { what: "A company's safety rating from inspections and reviews.", how: "", moves: "Violations found at inspections and audits, and crashes, recent ones counting most." },
+  "intel.insuranceBand.other": { what: "How much a company's record adds to its premium.", how: "", moves: "Its crashes and claims; the surcharge eases with time." },
+  "truck.leaseDeposit": { what: "Money held back from your lease loads, toward your own truck.", how: "A share of each leased load, counted in full when you buy.", moves: "Every leased load adds to it." },
+  "truck.value": { what: "What your owned truck would fetch today.", how: "Its list price, less depreciation by age and miles.", moves: "Time, miles, condition and the make." },
+  "loan.downPayment": { what: "The share of the price you pay yourself on a purchase loan.", how: `${pctOf(cfg.equipmentFinance.purchase.downShare[0])} to ${pctOf(cfg.equipmentFinance.purchase.downShare[1])} of the price: the better your credit score, the lower.`, moves: "A better credit score, before you sign." },
+  "loan.cashNow": { what: "The cash a purchase loan needs at signing.", how: `Down payment, a ${pctOf(cfg.equipmentFinance.purchase.stakeShare)} loan stake and sales tax. Your lease deposit comes off when this truck replaces the lessor's.`, moves: "Your credit score, and the price you choose." },
+  "loan.rate": { what: "What the loan costs each week on what's owed.", how: `${pct2(cfg.equipmentFinance.purchase.weeklyRate[0])} to ${pct2(cfg.equipmentFinance.purchase.weeklyRate[1])} a week: the better your credit score at signing, the lower.`, moves: "A better score lowers your next loan. A running loan's rate never changes." },
+  "finance.factoringRate": { what: "The factor's share of every load under contract.", how: "From your fleet size on the day you sign; fixed for the term.", moves: "More trucks at renewal lower it." },
+  "finance.quickPayFee": { what: "The cost of being paid on delivery, one load at a time.", how: `${pctOf(cfg.token.payment.quickPayPct)} of the load.`, moves: "Nothing: it's fixed. Use it for emergencies." },
+  "guide.gapToTruck": { what: "How far you are from your next truck.", how: `The cheapest truck's cash needed now, less your deposit and cash above ${cfg.guide.gapCushionWeeks} weeks of costs.`, moves: "Hauling; cheaper trucks on the used lot." },
+  "guide.cushion": { what: "How many weeks your cash covers your own spending.", how: `Your cash, divided by your average weekly spending over the last ${cfg.guide.cushionAvgWeeks} weeks.`, moves: "Earning more, spending less, buying nothing in a slump." },
+  "guide.debtCountdown": { what: "Weekly checks in a row with cash under the line.", how: `Checked weekly: under ${cfg.insolvency.debtLimitFd.toLocaleString("en-US")} FD counts one; ${cfg.insolvency.weeksInDebt} in a row winds you up.`, moves: "Cash back above the line resets it." },
+});
+
+/** Labels for Iuliia's figures where they show on Money (figures.ts). Drafts for the writer. */
+export const GUIDE_LABEL = {
+  cushion: "Cushion",
+  cushionValue: (weeks: number | null) => (weeks === null ? "Cushion: no spending yet" : `Cushion: ${weeks.toFixed(1)} weeks of your own spending`),
+  debt: "Weekly checks in debt",
+  debtValue: (n: number, of: number) => `Weekly checks in debt: ${n} of ${of}`,
+  gap: "Gap to the next truck",
+  gapValue: (fd: string) => `Your next truck: ${fd} FD away`,
+};
+
+/**
+ * Milestones to day 91 (the writer's guidance-strings.md section 2): a line before (only where the date is known) and a
+ * line at, each once, with one sentence of reason. `name`, `button` and the timeline's strings are engineering's
+ * drafts, flagged for the writer.
+ */
+export const MILESTONE = {
+  ownTruck: {
+    name: "Your own truck",
+    at: "Your own truck. No lessor's share now, and no lessor to fix it.",
+    reason: "Maintenance, insurance and value lost are yours, and a truck that sits still costs money.",
+    button: "Keep it loaded: see the board",
+  },
+  hiredWeek: {
+    name: "First payday",
+    at: (name: string, fd: string) => `Payday. ${name} was paid ${fd} FD this week.`,
+    reason: "Wages come weekly whether the truck earns or not; keep it loaded.",
+    button: "Keep it loaded: see the board",
+  },
+  dispatcher: {
+    name: "Your dispatcher",
+    at: "Your dispatcher starts today. It follows your rules exactly, including the foolish ones.",
+    reason: "Check the rules against the lanes that actually paid.",
+    button: "Its rules",
+  },
+  monthClose: {
+    name: "Your first month",
+    before: (n: number) => `Your first month closes in ${n} days. Monthly bills land with it.`,
+    at: (earned: string, spent: string, kept: string) => `Your first month: earned ${earned}, spent ${spent}, kept ${kept} FD.`,
+    reason: "The fuel tax and insurance land at the close. Read the month on Money.",
+    beforeButton: "See the month so far",
+    button: "Money",
+  },
+  day28: {
+    name: "Businesses open",
+    before: (businessDay: string) => `Businesses open ${businessDay}. Most first-month carriers should let them wait.`,
+    at: "Businesses are open. Nobody needs a warehouse in week four; most need a second truck.",
+    reason: (gap: string) => `A business pays over years. Your gap to the next truck is ${gap} FD.`,
+    beforeButton: "See the Dealer",
+    button: "See the Dealer",
+  },
+  slump: {
+    name: "The first slump",
+    at: "Rates are falling for everyone, not just you. Slumps end.",
+    reason: (n: string) => `The carrier still here when it ends is the one who didn't buy in it. Your cushion: ${n} weeks.`,
+    button: "Money",
+  },
+  debt: {
+    name: "In debt at a weekly check",
+    at: (weeksInDebt: number) => `You're in debt at a weekly check: 1 of ${weeksInDebt}. Here is the way out.`,
+    reason: (weeksInDebt: number, debtLine: string) => `${weeksInDebt} checks in a row under ${debtLine} FD and the company is wound up.`,
+    button: "What now?",
+  },
+  day91: {
+    name: "Brokerages open",
+    before: (brokerDay: string) => `Brokerages open ${brokerDay}. The bond is the hard part.`,
+    at: "Brokerages are open. Here's what one takes, and how far you are.",
+    // The reason's {gap} (bond, licence and premium) waits for the brokerage rule's costs in config: none exist yet.
+    beforeButton: "What it takes",
+    button: "What it takes",
+  },
+  /** More › Iuliia (guidance-ux.md section 4): drafts. */
+  timeline: "Your company so far",
+  timelineNone: "Nothing yet. The company's firsts land here as they happen.",
+  nextOnRoad: "Next on the road:",
+  nextTruck: (fd: string) => `your next truck, ${fd} FD away`,
+  nextLayer: (what: string, date: string) => `${what} open ${date}`,
+  nextMonth: (n: number) => `your first month closes in ${n} days`,
+  noDate: "no date",
 };

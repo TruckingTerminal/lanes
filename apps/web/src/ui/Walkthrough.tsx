@@ -13,6 +13,8 @@ import { TAB_NAME } from "../tabs.js";
 import { Btn, Card } from "./bits.js";
 import { financeLine } from "./panels/Finance.js";
 import { Loop } from "./Loop.js";
+import { CompanySoFar, MilestoneLine } from "./Milestones.js";
+import { WhatNowAnswer, WhatNowChip } from "./WhatNow.js";
 
 let poster: HTMLImageElement | null = null;
 
@@ -133,8 +135,18 @@ export function Caption(): JSX.Element | null {
   const g = S.game;
   const c = g?.player;
   if (!g || !c) return null;
-  // Being wound up: the caption is silent; What now? still answers (guidance-ux.md U3).
-  if (c.liquidatingSince !== null) return null;
+  // A What now? answer takes the caption's place: one caption, one portrait (guidance-ux.md section 1).
+  const answer = WhatNowAnswer();
+  if (answer) return answer;
+  // Only her face and the chip, when she has nothing to say: being wound up (U3), or no line now.
+  const bare = (mood: Mood = "idle") => (
+    <div class="caption">
+      <Iuliia mood={mood} size={64} />
+      <span class="grow" />
+      <WhatNowChip />
+    </div>
+  );
+  if (c.liquidatingSince !== null) return bare();
   const steps = walkSteps(GAME_CONFIG, g.w.net.hubs[c.homeHub]?.name);
   const { index } = walkProgress(GAME_CONFIG, g.w, c);
   const step = index >= 0 ? steps[index]! : null;
@@ -145,6 +157,7 @@ export function Caption(): JSX.Element | null {
       <Iuliia mood={mood} size={96} />
       <span class="small">{line}</span>
       {action}
+      <WhatNowChip />
     </div>
   );
   // On Finance and Intel, the screen's own line first (one line at most, in the caption strip), once each.
@@ -190,19 +203,23 @@ export function Caption(): JSX.Element | null {
   // Her tab-and-card line (iuliia.ts) takes the Do line's place for a few seconds, only where the walkthrough's own line
   // isn't speaking; called only when it would show, so its seconds start when it does.
   const her = (mood: Mood = "point") => {
+    // Caption rule 3: a milestone's line comes before her tab-and-card lines.
+    const ms = MilestoneLine();
+    if (ms) return ms;
     const text = iuliiaNow();
     return text ? (
       <div class="caption">
         <Iuliia mood={mood} size={64} />
         <span class="small">{text}</span>
+        <WhatNowChip />
       </div>
     ) : null;
   };
-  if (!step) return her();
+  if (!step) return her() ?? bare();
   // "You won one" waits for the win: the board step ticks on the bid itself, twelve hours before the round clears.
   // (A bid alone retires the arrival line, but this line needs the load itself.)
   const loaded = (g.w.trucksByCompany.get(c.id) ?? []).some((t) => t.loadId !== null) || c.delivered > 0;
-  if (step.id === "haul" && !loaded) return her();
+  if (step.id === "haul" && !loaded) return her() ?? bare(step.mood);
   // A step speaks once (its Say, then Next), then shows its Do until hidden; More opens her tab for the rest.
   if (!seen(`say:${step.id}`)) {
     // A step that reads the company's state (step 9) speaks that state, not its fixed brief (QA's step-9 replay).
@@ -214,7 +231,7 @@ export function Caption(): JSX.Element | null {
       step.mood,
     );
   }
-  if (seen(`hide:${step.id}`)) return her(step.mood);
+  if (seen(`hide:${step.id}`)) return her(step.mood) ?? bare(step.mood);
   const hers = her(step.mood);
   if (hers) return hers;
   return (
@@ -229,6 +246,7 @@ export function Caption(): JSX.Element | null {
           {CAPTION.more}
         </Btn>
       ) : null}
+      <WhatNowChip />
     </div>
   );
 }
@@ -251,6 +269,7 @@ export function IuliiaPanel(): JSX.Element {
   return (
     <div class="stack">
       <Walkthrough />
+      <CompanySoFar />
       <label class="row switchrow">
         <input type="checkbox" role="switch" checked={iuliiaMuted()} onChange={(e) => setIuliiaMuted((e.currentTarget as HTMLInputElement).checked)} />
         <span>{CAPTION.quiet}</span>

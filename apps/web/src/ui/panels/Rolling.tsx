@@ -6,6 +6,7 @@ import { GAME_CONFIG } from "../../game.js";
 import { etaMin, nearestPlace, nightStop } from "../../rolling.js";
 import { bumpData, me, myTrucks, S, truckNo, useData } from "../../state.js";
 import { Bar, Btn, Card, Kv } from "../bits.js";
+import { Fig } from "../Explain.js";
 
 const when = (min: number): string => `${shortDate(Math.floor(min / 1440))} ${hhmm(min)}`;
 
@@ -38,7 +39,7 @@ function RollingCard({ t }: { t: Truck }): JSX.Element | null {
       <p>{ROLLING.lane(place(l.originPlace), place(l.destPlace), Math.round(l.miles).toLocaleString("en-US"))}</p>
       <Bar share={done} />
       <div class="row">
-        <span>{ROLLING.eta(when(eta))}</span>
+        <Fig k="truck.eta" label={ROLLING.eta("")} ctx={{ truckId: t.id, loadId: l.id }}>{ROLLING.eta(when(eta))}</Fig>
         <span class={cls("chip", lateH > 0 ? "bad" : "good")}>{lateH > 0 ? ROLLING.late(lateH) : ROLLING.onTime}</span>
       </div>
       {stop ? <p class="muted small">{stop.kind === "site" ? ROLLING.tonightSite(w.sites[stop.siteId - 1]!.businessId !== 0, nearestPlace(w, stop.lat, stop.lon)) : S.handLoads.has(l.id) ? ROLLING.tonightShoulder : ROLLING.tonightDispatcher}</p> : null}
@@ -52,13 +53,15 @@ export function DeliveredCard(): JSX.Element | null {
   const d = S.delivered;
   if (!d) return null;
   const minus = (x: number) => `−${fdFull(x)}`;
-  const rows: [string, string][] = [
+  // Each pay row explains itself (explain.ts); the lessor's share from what the load paid.
+  const f = (k: string, label: string, v: string, fdIn?: number): [string, JSX.Element] => [label, <Fig k={k} label={label} ctx={{ fd: fdIn }}>{v}</Fig>];
+  const rows: [string, string | JSX.Element][] = [
     [DELIVERED.load, fdFull(d.line.load)],
-    [DELIVERED.fuel, minus(d.line.fuel)],
-    [DELIVERED.tolls, minus(d.line.tolls)],
-    ...(d.line.driver >= 0.5 ? ([[d.hiredDriver ? DELIVERED.driverHired(d.hiredDriver) : DELIVERED.driverOwner, minus(d.line.driver)]] as [string, string][]) : []),
-    ...(d.line.upkeep >= 0.5 ? ([[DELIVERED.upkeep, minus(d.line.upkeep)]] as [string, string][]) : []),
-    ...(d.line.lessor >= 0.5 ? ([[DELIVERED.lessor(pct(GAME_CONFIG.costs.npcLeaseShareOfGross)), minus(d.line.lessor)]] as [string, string][]) : []),
+    f("pay.fuel", DELIVERED.fuel, minus(d.line.fuel)),
+    f("pay.tolls", DELIVERED.tolls, minus(d.line.tolls)),
+    ...(d.line.driver >= 0.5 ? [d.hiredDriver ? ([DELIVERED.driverHired(d.hiredDriver), minus(d.line.driver)] as [string, string]) : f("pay.ownerPay", DELIVERED.driverOwner, minus(d.line.driver))] : []),
+    ...(d.line.upkeep >= 0.5 ? [f("pay.maintenance", DELIVERED.upkeep, minus(d.line.upkeep))] : []),
+    ...(d.line.lessor >= 0.5 ? [f("pay.lessorShare", DELIVERED.lessor(pct(GAME_CONFIG.costs.npcLeaseShareOfGross)), minus(d.line.lessor), d.line.load)] : []),
     ...(d.line.held >= 0.5 ? ([[DELIVERED.held, minus(d.line.held)]] as [string, string][]) : []),
   ];
   return (

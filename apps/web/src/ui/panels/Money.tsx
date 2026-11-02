@@ -4,6 +4,9 @@ import { cls, fd, fdFull, shortDate, usd } from "../../format.js";
 import { MONEY } from "../../copy.js";
 import { invoices, milesOf, weekCosts } from "../../ledger.js";
 import { FinanceLinks } from "./Finance.js";
+import { Fig } from "../Explain.js";
+import { cushion, debtCountdown } from "../../figures.js";
+import { GUIDE_LABEL } from "../../copy.js";
 import { iuliiaFirst } from "../../iuliia.js";
 import { GAME_CONFIG } from "../../game.js";
 import { act, feed, me, S, useData } from "../../state.js";
@@ -115,13 +118,26 @@ export function Money(): JSX.Element {
   return (
     <Panel title={MONEY.title}>
       <Card class="cashcard" title={MONEY.cash}>
-        <p class={cls("bigcash", bal < 0 && "bad")}>{fdFull(bal)} FD</p>
+        <p class={cls("bigcash", bal < 0 && "bad")}>
+          <Fig k="money.cash" label={MONEY.cash}>{fdFull(bal)} FD</Fig>
+        </p>
         {/* From day one (S22): the days so far and now; one day alone is a flat line, not nothing. */}
         {cashHist.length ? <span class="label">{MONEY.cashDays(cashHist.length + 1)}</span> : null}
-        <Sparkline values={cashHist.length ? [...cashHist, bal] : [bal, bal]} color="var(--accent)" />
+        <Fig k="money.trend" label={MONEY.cash}>
+          <Sparkline values={cashHist.length ? [...cashHist, bal] : [bal, bal]} color="var(--accent)" />
+        </Fig>
+        {/* Iuliia's figures (figures.ts): the cushion, and the countdown once cash is under the line. */}
+        <p class="small">
+          <Fig k="guide.cushion" label={GUIDE_LABEL.cushion}>{GUIDE_LABEL.cushionValue(cushion(w, c).weeks)}</Fig>
+        </p>
+        {debtCountdown(w, c).under || c.weeksInDebt > 0 ? (
+          <p class="small bad">
+            <Fig k="guide.debtCountdown" label={GUIDE_LABEL.debt}>{GUIDE_LABEL.debtValue(c.weeksInDebt, w.cfg.insolvency.weeksInDebt)}</Fig>
+          </p>
+        ) : null}
         {bal < 0 ? <p class="bad">{MONEY.red(w.cfg.insolvency.weeksInDebt, fdFull(w.cfg.insolvency.debtLimitFd))}</p> : null}
       </Card>
-      <Card title={MONEY.owed}>
+      <Card title={<Fig k="money.owed" label={MONEY.owed}>{MONEY.owed}</Fig>}>
         {owed.length ? (
           <table class="mini">
             <thead>
@@ -151,7 +167,7 @@ export function Money(): JSX.Element {
         <Kv
           rows={[
             [MONEY.leaseMin, `${fdFull(week.leaseMinimum)} FD`],
-            [MONEY.insurance, `${fdFull(week.insurance)} FD`],
+            [MONEY.insurance, <Fig k="pay.insurance" label={MONEY.insurance}>{`${fdFull(week.insurance)} FD`}</Fig>],
             [MONEY.yard, `${fdFull(week.yard)} FD`],
             [MONEY.perDiem, MONEY.perDiemValue(fdFull(week.perDiemPerDay))],
           ]}

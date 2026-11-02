@@ -7,6 +7,7 @@ import { cls, fdFull, hhmm, pct, shortDate } from "../../format.js";
 import { invoices } from "../../ledger.js";
 import { feed, isPhone, me, myTrucks, order, S, setTab, truckNo, useData } from "../../state.js";
 import { Bar, Btn, Card, Kv, Panel } from "../bits.js";
+import { Fig } from "../Explain.js";
 
 /** A rate per load, one decimal: "5.9%". */
 const rate1 = (x: number): string => `${(x * 100).toFixed(1)}%`;
@@ -108,7 +109,7 @@ function BeforeFirstTruck(): JSX.Element {
         rows={[
           [FINANCE.firstMonth, FINANCE.firstMonthValue(fdFull(Math.round(month / 100) * 100))],
           [FINANCE.firstPays, FINANCE.firstPaysValue(w.cfg.token.payment.termsDays)],
-          [FINANCE.firstDeposit, FINANCE.firstDepositValue(fdFull(leaseDeposit(w, c)))],
+          [FINANCE.firstDeposit, <Fig k="truck.leaseDeposit" label={FINANCE.firstDeposit}>{FINANCE.firstDepositValue(fdFull(leaseDeposit(w, c)))}</Fig>],
           [FINANCE.firstCash, `${fdFull(cash)} FD`],
         ]}
       />
@@ -181,7 +182,9 @@ function GettingPaid({ stateA, open, orders }: { stateA: boolean; open: (s: Shee
             <p class="muted small">{FINANCE.brokerNote}</p>
           </>
         ) : null}
-        <p class="muted small">{FINANCE.whatQuick(pct(k.quickPayPct))}</p>
+        <p class="muted small">
+          <Fig k="finance.quickPayFee" label={FINANCE.rowQuick}>{FINANCE.whatQuick(pct(k.quickPayPct))}</Fig>
+        </p>
         {contract ? <p class="muted small">{FINANCE.whatFactor(fk.months)}</p> : null}
         <p class="small">{FINANCE.risk}</p>
         {contract && !broker ? <RateFold c={c} /> : null}
@@ -417,7 +420,7 @@ function ConfirmSheet({ sheet, close, orders }: { sheet: NonNullable<Sheet>; clo
       <Card title={FINANCE.sheetTitle}>
         <Kv
           rows={[
-            [FINANCE.sheetRate, FINANCE.sheetRateValue(rate1(r), shortDate(end))],
+            [FINANCE.sheetRate, <Fig k="finance.factoringRate" label={FINANCE.sheetRate}>{FINANCE.sheetRateValue(rate1(r), shortDate(end))}</Fig>],
             [FINANCE.sheetSetBy, FINANCE.sheetSetByValue(operatingTrucks(w, c.id))],
             [FINANCE.sheetCovers, FINANCE.sheetCoversValue],
             [FINANCE.sheetRuns, FINANCE.sheetRunsValue(shortDate(today(w)), shortDate(end), months)],

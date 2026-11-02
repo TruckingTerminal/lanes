@@ -1,7 +1,7 @@
 import type { JSX } from "preact";
 import { useEffect } from "preact/hooks";
 import { iuliiaFirst } from "../iuliia.js";
-import { WhatNow } from "./WhatNow.js";
+import { ExplainSheet } from "./Explain.js";
 import { hhmm, realUntil } from "../format.js";
 import { H } from "../handlers.js";
 import { isPhone, S, setTab, useData } from "../state.js";
@@ -109,7 +109,7 @@ export function RackBody(): JSX.Element {
     <>
       <TeaserRow />
       <Caption />
-      <WhatNow />
+      <ExplainSheet />
       <div class="panelbox">
         <ReportCard key={S.reportKind} />
         {under ? (

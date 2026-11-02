@@ -34,6 +34,7 @@ import { useState } from "preact/hooks";
 import type { Action } from "@lanes/engine";
 import { Btn, Card, Kv, Num } from "../bits.js";
 import { Rig } from "../Loop.js";
+import { Fig } from "../Explain.js";
 
 const TIERS: TractorTier[] = ["workhorse", "highwayPro", "flagship"];
 const TYPES: Equipment[] = ["van", "reefer", "flatbed"];
@@ -252,12 +253,12 @@ export function Buy({ what, label, price, replacing, block, action, ok }: { what
             rows={[
               [DEALER.price, `${fd(price)} FD`],
               [DEALER.tax, `${fd(p.tax)} FD`],
-              [DEALER.down, `${fd(p.loan.down)} FD`],
+              [DEALER.down, <Fig k="loan.downPayment" label={DEALER.down}>{`${fd(p.loan.down)} FD`}</Fig>],
               [DEALER.loan, `${fd(p.loan.loanFd)} FD`],
               [DEALER.stake, DEALER.stakeValue(fd(p.loan.stake))],
-              [DEALER.weekly, DEALER.weeklyValue(fd(p.loan.weekly), p.loan.termWeeks, `${(p.loan.weeklyRate * 100).toFixed(2)}%`)],
+              [DEALER.weekly, <Fig k="loan.rate" label={DEALER.weekly}>{DEALER.weeklyValue(fd(p.loan.weekly), p.loan.termWeeks, `${(p.loan.weeklyRate * 100).toFixed(2)}%`)}</Fig>],
               ...(p.deposit > 0.5 ? ([[DEALER.deposit, DEALER.depositValue(fd(p.deposit))]] as [string, string][]) : []),
-              [DEALER.now, `${fd(p.loanNowFd ?? 0)} FD`],
+              [DEALER.now, <Fig k="loan.cashNow" label={DEALER.now} ctx={{ fd: price, replacing }}>{`${fd(p.loanNowFd ?? 0)} FD`}</Fig>],
             ]}
           />
           <p class="warn small">{DEALER.missed(ef.missedToDefault)}</p>

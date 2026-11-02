@@ -3,55 +3,65 @@ import { NOW } from "../copy.js";
 import { fdFull, hhmm, shortDate } from "../format.js";
 import { GAME_CONFIG } from "../game.js";
 import { nextAction, type NextAction } from "../nextstep.js";
-import { act, bumpData, isPhone, me, S, selectTruck, setTab, truckNo, useData } from "../state.js";
+import { act, bumpData, isPhone, me, S, selectTruck, setTab, truckNo } from "../state.js";
 import { TAB_NAME } from "../tabs.js";
 import { stepDo, walkSteps } from "../walkthrough.js";
 import { Btn } from "./bits.js";
 import { Iuliia } from "./Walkthrough.js";
 
 /**
- * What now? (specs/guidance.md section 1, guidance-ux.md section 2): a chip beside Iuliia's caption on every screen; a
- * tap answers with one action, one reason in this company's figures and one button, until the player acts, taps Not now
- * or changes tabs. An amber dot on the chip says a rule above the walkthrough's step (danger, something waiting, an idle
- * truck that could earn) outranks it; a state, not a line, so it survives Quiet. Asked, so it skips quiet time.
+ * What now? (specs/guidance.md section 1, guidance-ux.md section 1): a chip in Iuliia's caption, in its own button row, on
+ * every screen; a tap answers with one action, one reason in this company's figures and one button, in the caption's
+ * place (one caption, one portrait), until the player acts, taps Not now or changes tabs. An amber dot on the chip says a
+ * rule above the walkthrough's step (danger, something waiting, an idle truck that could earn) outranks it; a state, not
+ * a line, so it survives Quiet. Asked, so it skips quiet time.
  */
-export function WhatNow(): JSX.Element | null {
-  useData();
+
+/** Ask What now? (the chip, the "?" key, the explain sheet's foot, the debt milestone). */
+export function askWhatNow(): void {
+  const g = S.game;
+  const c = g?.player;
+  if (!g || !c) return;
+  S.whatNow = { a: nextAction(GAME_CONFIG, g.w, c), tab: S.tab };
+  if (isPhone() && S.sheet === "strip") S.sheet = "half";
+  bumpData();
+}
+
+/** The chip, for the caption's button row. */
+export function WhatNowChip(): JSX.Element | null {
   const g = S.game;
   const c = g?.player;
   if (!g || !c) return null;
   const now = nextAction(GAME_CONFIG, g.w, c);
-  const asked = S.whatNow;
-  // The answer belongs to the tab it was asked on.
-  if (asked && asked.tab !== S.tab) S.whatNow = null;
   const dot = now.rule >= 1 && now.rule <= 3 && walkSteps(GAME_CONFIG).some((s) => !s.done(g.w, c));
-  const open = () => {
-    S.whatNow = { a: now, tab: S.tab };
-    if (isPhone() && S.sheet === "strip") S.sheet = "half";
-    bumpData();
-  };
-  if (!S.whatNow) {
-    return (
-      <div class="row whatnowrow">
-        <Btn sm onClick={open} label={NOW.chip}>
-          {NOW.chip}
-          {dot ? <span class="amberdot" aria-hidden="true" /> : null}
-        </Btn>
-      </div>
-    );
-  }
-  // If the world moved and the action is no longer the one to take, say so; never a stale action.
-  const stale = !same(S.whatNow.a, now);
+  return (
+    <Btn sm class="whatnowchip" onClick={askWhatNow} label={NOW.chip}>
+      {NOW.chip}
+      {dot ? <span class="amberdot" aria-hidden="true" /> : null}
+    </Btn>
+  );
+}
+
+/** The answer, in the caption's place, while one is asked on this tab; null otherwise. */
+export function WhatNowAnswer(): JSX.Element | null {
+  const g = S.game;
+  const c = g?.player;
+  if (!g || !c) return null;
+  // The answer belongs to the tab it was asked on.
+  if (S.whatNow && S.whatNow.tab !== S.tab) S.whatNow = null;
+  if (!S.whatNow) return null;
+  const now = nextAction(GAME_CONFIG, g.w, c);
   const close = () => {
     S.whatNow = null;
     bumpData();
   };
-  if (stale) {
+  // If the world moved and the action is no longer the one to take, say so; never a stale action.
+  if (!same(S.whatNow.a, now)) {
     return (
       <div class="caption whatnow">
         <Iuliia mood="idle" size={64} />
         <span class="small">{NOW.stale}</span>
-        <Btn sm onClick={open}>
+        <Btn sm onClick={askWhatNow}>
           {NOW.chip}
         </Btn>
       </div>

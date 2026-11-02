@@ -12,6 +12,7 @@ import { tabOpen } from "../../tabs.js";
 import { iuliiaFirst, iuliiaOnChange, iuliiaSay } from "../../iuliia.js";
 import { Btn, Card, Kv } from "../bits.js";
 import { LoadsTable } from "./Loads.js";
+import { Fig } from "../Explain.js";
 
 /**
  * The board (specs/first-ten-minutes.md, S2–S5): load cards with the profit chip, three sorts and a filter, blocked
@@ -332,6 +333,8 @@ function LoadSheet({ r, truck }: { r: BoardRow; truck: Truck }): JSX.Element {
     bumpData();
   };
   const op = w.net.places[l.originPlace]!;
+  // What this sheet's figures were computed from, for their explain sheets (explain.ts).
+  const fx = { loadId: l.id, truckId: truck.id };
   const swing = seasonSwing(l.origin, l.equipment);
   return (
     <div class="stack loadsheet">
@@ -346,7 +349,7 @@ function LoadSheet({ r, truck }: { r: BoardRow; truck: Truck }): JSX.Element {
           rows={[
             [LOAD.pickUp, `${op.name}, ${op.state} · now`],
             [LOAD.deliverBy, `${shortDate(Math.floor(l.appointmentT / 1440))} ${hhmm(l.appointmentT)} · ${place(l.destPlace)}`],
-            [LOAD.miles, LOAD.milesValue(Math.round(l.miles).toLocaleString("en-US"), Math.round(r.dh))],
+            [LOAD.miles, <Fig k="board.deadhead" label={LOAD.miles} ctx={fx}>{LOAD.milesValue(Math.round(l.miles).toLocaleString("en-US"), Math.round(r.dh))}</Fig>],
             [LOAD.driving, `${l.routeHours.toFixed(1)} h`],
             [LOAD.reloadAt(w.net.hubs[l.dest]!.name), LOAD.reloadValue(reloadLabel(l.dest, l.equipment), Math.round(r.reloadMi))],
           ]}
@@ -355,11 +358,11 @@ function LoadSheet({ r, truck }: { r: BoardRow; truck: Truck }): JSX.Element {
       <Card title={LOAD.money}>
         <Kv
           rows={[
-            [LOAD.bookNow, `${fdFull(r.total)} FD · ${l.bookNow.toFixed(2)}/mi`],
-            [LOAD.breakEven, `${r.be.toFixed(2)}/mi`],
-            [LOAD.profitBook, <span class={bookUp ? "good" : "bad"}>{signed(r.profitBook)} FD</span>],
-            [LOAD.clearsNear, `${clearsNear(l).toFixed(2)}/mi`],
-            [LOAD.ceiling, `${l.ceiling.toFixed(2)}/mi`],
+            [LOAD.bookNow, <Fig k="board.bookNow" label={LOAD.bookNow} ctx={fx}>{`${fdFull(r.total)} FD · ${l.bookNow.toFixed(2)}/mi`}</Fig>],
+            [LOAD.breakEven, <Fig k="truck.breakEven" label={LOAD.breakEven} ctx={fx}>{`${r.be.toFixed(2)}/mi`}</Fig>],
+            [LOAD.profitBook, <Fig k="board.profitChip" label={LOAD.profitBook} ctx={fx}><span class={bookUp ? "good" : "bad"}>{signed(r.profitBook)} FD</span></Fig>],
+            [LOAD.clearsNear, <Fig k="board.clearsNear" label={LOAD.clearsNear} ctx={fx}>{`${clearsNear(l).toFixed(2)}/mi`}</Fig>],
+            [LOAD.ceiling, <Fig k="board.ceiling" label={LOAD.ceiling} ctx={fx}>{`${l.ceiling.toFixed(2)}/mi`}</Fig>],
           ]}
         />
       </Card>
@@ -398,7 +401,7 @@ function LoadSheet({ r, truck }: { r: BoardRow; truck: Truck }): JSX.Element {
           <Btn sm disabled={!!r.block || bid <= lo} onClick={() => step(-0.05)} title="Bid 0.05 lower">
             −
           </Btn>
-          <span class="num bidval">{bid.toFixed(2)}</span>
+          <Fig k="board.bid" label={LOAD.bidButton("")} ctx={{ ...fx, fd: bid }}><span class="num bidval">{bid.toFixed(2)}</span></Fig>
           <Btn sm disabled={!!r.block || bid >= hi} onClick={() => step(0.05)} title="Bid 0.05 higher">
             +
           </Btn>

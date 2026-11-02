@@ -16,6 +16,7 @@ import { drawMap, fitMap, flyTo, resetArt, setZoom, zoomIndex } from "./mapview.
 import { MemoryDb } from "./memdb.js";
 import { bumpData, bumpTick, feed, loadOnboard, setOnboard, loadTheme, markPersisted, persistTest, push, readTest, S, setLayout, setTab, SPEEDS, TEST_BUILD, toast, toggleFullscreen, truckNo, type Session, type TitleMenu } from "./state.js";
 import { App } from "./ui/App.js";
+import { askWhatNow } from "./ui/WhatNow.js";
 
 /**
  * Boot, sessions and the game loop. The screen itself is the Preact app in ui/;
@@ -376,7 +377,7 @@ function wireKeys(): void {
     if (ev.key === "-" || ev.key === "_") setZoom(zoomIndex() - 1);
     if (ev.key === "0") setZoom(0);
     // "?" asks What now? from anywhere outside a text field (guidance-ux.md, laptop).
-    if (ev.key === "?") (document.querySelector(".whatnowrow button") as HTMLButtonElement | null)?.click();
+    if (ev.key === "?") askWhatNow();
     if (ev.key === "Escape" && S.cityView !== null) {
       S.cityView = null;
       S.townView = null;

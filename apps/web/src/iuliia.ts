@@ -82,6 +82,13 @@ export function iuliiaOnChange(id: string, now: unknown, key: string | null): vo
   if (was !== undefined && was !== now && key) iuliiaSay(key);
 }
 
+/** Whether a new unasked line may start now (caption rule 3, the milestones): not on Quiet, and the quiet time is over. */
+export const iuliiaMayStart = (): boolean => !muted && performance.now() - lastShownAt >= GAME_CONFIG.ui.iuliia.quietSeconds * 1000;
+/** A milestone line started: the quiet time runs from now, as after her tab lines. */
+export function iuliiaStarted(): void {
+  lastShownAt = performance.now();
+}
+
 /** The line to show in the caption strip now, if any; the caption calls this only when the walkthrough's own line is not showing. */
 export function iuliiaNow(): string | null {
   const l = S.iuliiaLine;

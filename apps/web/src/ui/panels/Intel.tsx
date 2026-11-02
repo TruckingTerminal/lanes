@@ -6,6 +6,7 @@ import { posterOf } from "../../board.js";
 import { insuranceBand, intelRows, ownCosts, pastSeasons, ranked, safetyBand, type IntelRow } from "../../intel.js";
 import { bumpData, S, setTab, useData } from "../../state.js";
 import { Btn, Card, Kv, Panel } from "../bits.js";
+import { Fig } from "../Explain.js";
 
 /**
  * Intel (specs/intel.md, specs/intel-ux.md): every company, players and AI, carriers and brokers, by Miles; a card per
@@ -189,9 +190,10 @@ function CompanyCard({ row, own, rows }: { row: IntelRow; own: boolean; rows: In
             [INTEL.running, facilities ? <span>{INTEL.runningValue(row.trucks, trailers, byType, row.drivers)}<br />{facilities}</span> : INTEL.runningValue(row.trucks, trailers, byType, row.drivers)],
             [INTEL.milesSeason, INTEL.milesValue(fdFull(row.miles), rank, rows.length)],
             [INTEL.lastMonth, lm ? INTEL.lastMonthValue(fdFull(lm.revenueFd), lm.loads, pct(lm.loads ? lm.onTime / lm.loads : 0)) : INTEL.firstMonth],
-            [INTEL.safety, <span>{[safety.rating, ...safety.alerts.map(alertName)].join(" · ")}</span>],
-            [INTEL.insurance, insLabel],
-            ...(row.broker ? [] : ([[INTEL.credit, INTEL.creditValue(row.credit)]] as [string, string][])),
+            // Bands explain on tap; another company's in general terms only, never its inputs (Intel's row 1).
+            [INTEL.safety, <Fig k={own ? "intel.safetyBand" : "intel.safetyBand.other"} label={INTEL.safety}>{[safety.rating, ...safety.alerts.map(alertName)].join(" · ")}</Fig>],
+            [INTEL.insurance, <Fig k={own ? "intel.insuranceBand" : "intel.insuranceBand.other"} label={INTEL.insurance}>{insLabel}</Fig>],
+            ...(row.broker ? [] : ([[INTEL.credit, <Fig k={own ? "intel.creditBand" : "intel.creditBand.other"} label={INTEL.credit}>{INTEL.creditValue(row.credit)}</Fig>]] as [string, JSX.Element][])),
           ]}
         />
         {past.length ? (

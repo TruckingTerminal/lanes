@@ -5,6 +5,7 @@ import { cls, dateLabel, fd, pct, signedPct, TRAILER_NAME } from "../../format.j
 import { H } from "../../handlers.js";
 import { act, clockMin, openIntel, S, useData } from "../../state.js";
 import { INTEL } from "../../copy.js";
+import { Fig } from "../Explain.js";
 import { Btn, Card, Kv, Label, Num, Panel } from "../bits.js";
 import { ContractsCard } from "./Contracts.js";
 import { SCENES } from "../../assets.js";
@@ -34,9 +35,9 @@ export function Company(): JSX.Element {
           <Kv
             rows={[
               ["Home hub", w.net.hubs[c.homeHub]!.name],
-              ["Loads delivered", <Num>{Math.round(c.delivered)} · {c.delivered ? pct(c.onTime / c.delivered) : "–"} on time</Num>],
-              ["Reputation", <Num>{pct(c.reputation)} · level {level}</Num>],
-              ["Miles", <Num>{fd(miles(c))} · #{rankMiles} of {carriers.length} carriers</Num>],
+              ["Loads delivered", <Fig k="standing.onTime" label="On time"><Num>{Math.round(c.delivered)} · {c.delivered ? pct(c.onTime / c.delivered) : "–"} on time</Num></Fig>],
+              ["Reputation", <Fig k="standing.reputation" label="Reputation"><Num>{pct(c.reputation)} · level {level}</Num></Fig>],
+              ["Miles", <Fig k="standing.miles" label="Miles"><Num>{fd(miles(c))} · #{rankMiles} of {carriers.length} carriers</Num></Fig>],
               [INTEL.netWorth, <Num>{fd(worth(c))} FD<br /><span class="muted small">{INTEL.privateWorth}</span></Num>],
               ["Trucks", <Num>{operatingTrucks(w, c.id)} running</Num>],
             ]}
@@ -246,7 +247,7 @@ function HomeAndInsurance({ c }: { c: CompanyT }): JSX.Element {
       <Card title="Insurance">
         <Kv
           rows={[
-            ["Policy", <Num>{fd(p.annualPerTruck)} FD per truck a year ({fd(p.annualPerTruck / 52)} a week), renews {dateLabel(p.renewDay)}</Num>],
+            ["Policy", <Fig k="pay.insurance" label="Insurance"><Num>{fd(p.annualPerTruck)} FD per truck a year ({fd(p.annualPerTruck / 52)} a week), renews {dateLabel(p.renewDay)}</Num></Fig>],
             ["Priced from", `your record ×${p.risk.toFixed(2)} · ${hub.id} garaging ×${p.garaging.toFixed(2)} · market ×${p.market.toFixed(2)}`],
             ["Insurance market", `index ×${w.insuranceMarket.index.toFixed(2)} · insurers paid out ${pct(lossRatio(w))} of premiums this year`],
           ]}
