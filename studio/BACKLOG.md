@@ -20,3 +20,6 @@
 - **The login screen on a phone** shows the title as a band at the top over black instead of full screen with
   the one button at the bottom. Engineering, with step 6.
 - The test build's speed labels ("1×" reads as the real pace). Engineering, with step 8.
+- **The title's traffic** (both shots): cars drive both ways in one lane into each other; the other vehicles
+  are one still image each; trains overlap each other and the diner. Lane discipline, every vehicle animated,
+  spacing and footprint rules, a real speed-limit sign. Art.
