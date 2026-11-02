@@ -46,8 +46,8 @@ Nothing to read: the title loop and one button. Connection states live on the bu
 | Where | String |
 |---|---|
 | Strip, before a company | `{Wed Jan 3}` · `{08:14}` · Next round `{hh:00}` · ≡ |
-| Iuliia, 1 | Welcome. Iuliia, with two i's; my mother was thorough. This is the market, live, and nobody waits for us. · **Next** |
-| Iuliia, 2 | Before a truck, you need a home. The three ringed cities can be one; tap any other to see its freight. |
+| Iuliia, 1 | I'm Iuliia, your guide. This is America's freight market, live: every truck you see is real and moving. First, pick a home city. · **Next** |
+| Iuliia, 2 | Three ringed cities take new carriers. Tap one to start, or any other to see its freight. |
 | Under her line | the three starter cards · **All hubs** (list header: All hubs · busiest first) |
 
 ### The hub card
@@ -196,7 +196,7 @@ Say lines are 25 words or fewer; the sheet shows **Say**, the caption **Do**. Th
 
 | Step | Say | Do |
 |---|---|---|
-| 1 Choose your home | Before a truck, you need a home. The three ringed cities can be one; tap any other to see its freight. | Choose your home: tap a ringed hub, then Start here. |
+| 1 Choose your home | Three ringed cities take new carriers. Tap one to start, or any other to see its freight. | Choose your home: tap a ringed hub, then Start here. |
 | 2 Reading the board | Each line is a lane, the miles and a rate. Pick one near your truck, bid above break-even, and let the round clear. | Bid on a load leaving `{hub}`. |
 | 3 The truck rolls | You won one. Now the slow part, most of trucking: `{hos.drivingHoursPerDay}` hours of driving a day, fuel, and docks with their own hours. | Watch the ETA. Note where it sleeps tonight. |
 | 4 Getting paid | Delivered. The money lands on the due day, not today; Money shows what you're owed and when. Quick pay costs a fee. | Find your first invoice on Money. |
