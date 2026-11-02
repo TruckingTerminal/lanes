@@ -18,4 +18,10 @@ paint market "a chrome truck key with a big orange price tag hanging from it, a 
 paint money "a stack of gold coins beside a bundle of folded green banknotes, a single blue token coin leaning on them"
 paint company "a small trucking company office building with a lit window, a blank sign board over the door and a flag on a pole"
 paint guide "an open road atlas with a red route drawn across a map page, a brass compass resting on it"
+# Sprint 3 (2026-11-03): Intel in the More list, the brokerage's own bar (its book of posted loads and its carriers), and
+# the company switcher in the top strip.
+paint intel "a brass spyglass lying across a plain cream company dossier card with a blank photo square, a red wax seal on the card"
+paint book "a round-cornered cork board tilted a little, with three blank white paper sheets pinned at different angles by big red pushpins, one corner curling"
+paint carriers "two big American semi trucks side by side filling the frame, front three-quarter view, one cyan cab and one red cab, a third white truck peeking out behind them"
+paint switch "two thick curved arrows, one orange and one cyan, chasing each other in a circle"
 "${P[@]}" balance

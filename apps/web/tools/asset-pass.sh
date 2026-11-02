@@ -166,6 +166,16 @@ makes() {
   "${P[@]}" edit $s/meridian-layout.png "$MAKE: a modern aerodynamic American semi tractor in cyan paint with a sloped short hood, a wide black mesh grille, a raked windshield with no sun visor, a tall smooth roof fairing, cyan side skirts covering the fuel tanks and steps all the way between the wheels, no exhaust stacks, almost no chrome, no text, no logos" $s/meridian-paint.png --transparent &
   "${P[@]}" edit $s/ironwood-layout.png "$MAKE: a classic long-nose American semi tractor in cyan paint with a long square hood, a tall upright chrome grille with vertical bars, round chrome air cleaners beside the cowl, a chrome sun visor with amber lamps over an upright split windshield, a tall square sleeper, twin tall chrome exhaust stacks behind the sleeper, chrome fuel tanks, a big chrome bumper, no text, no logos" $s/ironwood-paint.png --transparent &
   wait
+  # The rig cards (sprint 3 prep, 2026-11-03): each make pulling a dry van, for the Dealer's "rig as a shortcut".
+  # Keystone and Ironwood repaint whole; four repaints of the whole Meridian rig each came back at another scale, so
+  # its tractor is repainted alone in its place and the trailer is the Keystone's (the Ironwood's where that is hidden).
+  local van="pulling a plain white 53-foot dry van trailer with no text, no logos and no markings"
+  python3 apps/web/tools/makes.py rigs rig-tractor meridian
+  "${P[@]}" edit $s/keystone-rig-layout.png "$MAKE: a plain square workhorse American semi tractor in cyan paint with a medium flat hood, a grey grille with horizontal bars, a grey steel bumper, a flat-roof sleeper no taller than the cab, one grey exhaust stack, aluminium fuel tanks, grey steel wheels, $van" $s/keystone-rig-paint.png --transparent &
+  "${P[@]}" edit $s/ironwood-rig-layout.png "$MAKE: a classic long-nose American semi tractor in cyan paint with a long square hood, a tall upright chrome grille with vertical bars, round chrome air cleaners beside the cowl, a chrome sun visor with amber lamps over an upright split windshield, a tall square sleeper, twin tall chrome exhaust stacks behind the sleeper, chrome fuel tanks, a big chrome bumper, $van" $s/ironwood-rig-paint.png --transparent &
+  "${P[@]}" edit $s/meridian-rig-tractor-layout.png "$MAKE: a modern aerodynamic American semi tractor in cyan paint with a sloped short hood, a wide black mesh grille, a raked windshield with no sun visor, a tall smooth roof fairing, cyan side skirts covering the fuel tanks and steps all the way between the wheels, no exhaust stacks, almost no chrome, no text, no logos" $s/meridian-rig-tractor-paint.png --transparent &
+  wait
+  python3 apps/web/tools/makes.py rig-compose meridian keystone ironwood
   python3 apps/web/tools/makes.py fit map
 }
 # Both looks for every staff kind (QA's replay, 2026-11-03: half the staff names couldn't match their faces). The four

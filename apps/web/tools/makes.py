@@ -27,7 +27,10 @@ band so the owner recolour works, pulling each trailer and none (bobtail).
 
   makes.py layouts  → assets/makes/src/{make}-layout.png, each card's layout; asset-pass.sh makes repaints each
                       → src/{make}-paint.png
-  makes.py fit      → assets/makes/{keystone,meridian,ironwood}.png (the Dealer's cards, 128 × 96)
+  makes.py rigs     → assets/makes/src/{make}-rig-layout.png, each make pulling a dry van (256 × 96, the rig cards'
+                      frame); asset-pass.sh makes repaints each → src/{make}-rig-paint.png
+  makes.py fit      → assets/makes/{keystone,meridian,ironwood}.png (the Dealer's cards, 128 × 96) and
+                      {make}-rig.png (the rig as a shortcut, 256 × 96)
   makes.py map      → assets/trucks/makes/{make}-{van,reefer,flatbed,bobtail}.png and layout.json (the map)
 """
 import importlib.util
@@ -301,7 +304,9 @@ CARD = {
     "lamp": [(250, 169, 98), (252, 219, 139), (255, 249, 201)],
     "amber": [(237, 114, 40), (242, 129, 52), (250, 169, 98)],
     "tail": [(164, 38, 42), (191, 46, 49)],
+    "white": [(118, 102, 129), (141, 136, 176), (176, 170, 199), (203, 196, 212), (219, 221, 234), (241, 235, 239), (243, 245, 246)],
 }
+RIG_W = 256  # the rig cards' frame (assets/rigs), 256 × 96
 
 
 def camera():
@@ -379,11 +384,20 @@ def extent(prims) -> tuple[float, float, float, float]:
     return sx.min(), sx.max(), sy.max(), sy.min()
 
 
-def card(make: str, scale: float, ground: float) -> np.ndarray:
-    prims = [taller(q) for q in MODELS[make](True)[0]]
+def card(make: str, scale: float, ground: float, names: bool = False):
+    """A make's card layout, 128 × 96 (with `names`, also which part each pixel shows)."""
+    return draw([taller(q) for q in MODELS[make](True)[0]], scale, ground, W, H, names)
+
+
+def draw(prims: list, scale: float, ground: float, W: int, H: int, names: bool = False, frame=None, parts: bool = False):
+    """Parts seen from the card's camera, W × H, centred, their lowest point on the `ground` row, at `scale` px a foot
+    (or placed by `frame`, the (middle, bottom) of another set's outline). With `names`, also which part each pixel shows
+    by material; with `parts`, by index."""
     c, r, u = camera()
     left, right, _top, bot = extent(prims)
     mid = (left + right) / 2
+    if frame is not None:
+        mid, bot = frame
     N = W * SS, H * SS
     px = (np.arange(N[0]) + 0.5) / SS
     py = (np.arange(N[1]) + 0.5) / SS
@@ -485,7 +499,70 @@ def card(make: str, scale: float, ground: float) -> np.ndarray:
     ring &= ~on
     out[ring, :3] = INK
     out[ring, 3] = 255
+    if parts:
+        return out, owner
+    if names:
+        return out, np.where(owner >= 0, kinds[np.maximum(owner, 0)], "none")
     return out
+
+
+def rig(make: str) -> list:
+    """A make pulling a dry van, in true feet: rig-sheets.py's 53-foot trailer, its nose where the make's fifth wheel puts
+    it (rig-sheets stretches tractors on the map, so its nose is given in map feet), plain white: the dark band down its
+    sides and roof is the map's way of telling a van from a reefer at a glance, and a card doesn't need it."""
+    parts, nose = MODELS[make](True)
+    van = [q for q in rs.trailer("van", nose / rs.LONG) if not (q[0] == "box" and q[2] == "dark" and q[1][4] in (6.2, 13.59))]
+    return [taller(q) for q in parts + van]
+
+
+def rig_frame(make: str) -> tuple[float, float]:
+    left, right, _top, bot = extent(rig(make))
+    return (left + right) / 2, bot
+
+
+def rig_tractor_layout(make: str) -> np.ndarray:
+    """The make's tractor alone where it stands in its rig card, the rig card's right half (128 × 96): a repaint of the
+    whole rig wouldn't hold the Meridian's layout (four tries, each redrawn at another scale), but a tractor alone holds."""
+    scale, ground = rig_layout()
+    full = draw([taller(q) for q in MODELS[make](True)[0]], scale, ground, RIG_W, H, frame=rig_frame(make))
+    return full[:, RIG_W - W:]
+
+
+def rig_composed(make: str, donors: tuple[str, ...]) -> np.ndarray:
+    """A rig card's paint built from parts: the van trailer as the donors painted it (the first that shows each pixel,
+    moved to where this make's fifth wheel puts it), then this make's tractor repainted alone over it."""
+    scale, ground = rig_layout()
+    n = len(MODELS[make](True)[0])
+    _, own = draw(rig(make), scale, ground, RIG_W, H, parts=True)
+    want = own >= n  # where this make's trailer shows
+    ys, xs = np.nonzero(want)
+    out = np.zeros((H, RIG_W, 4), np.uint8)
+    filled = np.zeros((H, RIG_W), bool)
+    for donor in donors:
+        nd = len(MODELS[donor](True)[0])
+        _, od = draw(rig(donor), scale, ground, RIG_W, H, parts=True)
+        have = od >= nd
+        dy, dx = np.nonzero(have)
+        sx, sy = xs.min() - dx.min(), ys.max() - dy.max()  # the tail (the end no tractor hides) and the wheels line up
+        paint = pm.read_png(os.path.join(ASSETS, "makes", "src", f"{donor}-rig-paint.png"))
+        for y, x in zip(dy, dx):
+            ty, tx = y + sy, x + sx
+            if 0 <= ty < H and 0 <= tx < RIG_W and want[ty, tx] and not filled[ty, tx] and paint[y, x, 3]:
+                out[ty, tx] = paint[y, x]
+                filled[ty, tx] = True
+    tractor = pm.read_png(os.path.join(ASSETS, "makes", "src", f"{make}-rig-tractor-paint.png"))
+    on = tractor[..., 3] > 0
+    out[:, RIG_W - W:][on] = tractor[on]
+    return out
+
+
+def rig_layout() -> tuple[float, float]:
+    """One scale for the three rig cards, so the longest rig fills the rig cards' frame; the make cards' ground row."""
+    wide = tall = 0.0
+    for make in MAKES:
+        left, right, top, bot = extent(rig(make))
+        wide, tall = max(wide, right - left), max(tall, top - bot)
+    return min((RIG_W - 8) / wide, (H - 10) / tall), H - 4
 
 
 def card_layout() -> tuple[float, float]:
@@ -519,31 +596,60 @@ def rear(parts) -> float:
     return max(b[0][1] for b in map(bounds, parts) if b is not None)
 
 
-def fit(paint: np.ndarray) -> np.ndarray:
-    """The repainted card in the rig cards' own colours: its paint (the teal band) takes the cards' cab cyan, a ramp of
-    their eight commonest cab colours matched by brightness (the repaint's spread stretched onto the cab's), and every
-    other pixel snaps to the nearest colour the cards use."""
+def fit(paint: np.ndarray, names: np.ndarray | None = None) -> np.ndarray:
+    """The repainted card in the rig cards' own colours. Its paint (the teal band) takes the cards' cab cyan, a ramp of
+    their eight commonest cab colours matched by brightness (the repaint's spread stretched onto the cab's); every other
+    pixel snaps to the nearest colour the cards use. Where the model (`names`, the part each pixel shows) says a pixel
+    is cab paint, any lit colour there is paint too, and a warm one just inside its edge; where it says trailer side,
+    the same onto the van card's trailer whites. The repaint's late light on roofs and boxes read as a second paint."""
     cards = [pm.read_png(os.path.join(ASSETS, "rigs", f"{n}.png")) for n in ("van", "reefer", "flatbed")]
     pal = np.array(sorted({tuple(c) for a in cards for c in a[a[..., 3] > 0][:, :3]}), float)
     cab = np.concatenate([a[:, 150:][a[:, 150:, 3] > 0][:, :3] for a in cards]).astype(float)
     hue, light, sat = hls(cab)
     cab = cab[(hue > 175) & (hue < 200) & (sat > 0.3) & (light > 0.15)]
-    cols, counts = np.unique(cab, axis=0, return_counts=True)
-    ramp = cols[np.argsort(-counts)[:8]]
-    ramp = ramp[np.argsort(ramp.mean(1))]
-    cab_l = cab.mean(1)
+    box = cards[0][:, :150][cards[0][:, :150, 3] > 0][:, :3].astype(float)
+    hue, light, sat = hls(box)
+    box = box[(sat < 0.3) & (light > 0.45)]
     img = paint.astype(float)
     op = img[..., 3] > 0
     hue, light, sat = hls(img[..., :3])
     teal = op & (hue > 160) & (hue < 205) & (sat > 0.2) & (light > 0.12)
-    v = img[..., :3][teal].mean(1)
-    want = cab_l.mean() + (v - v.mean()) * cab_l.std() / max(v.std(), 1e-6)
-    img[..., :3][teal] = ramp[np.abs(ramp.mean(1)[None] - want[:, None]).argmin(1)]
-    rest = op & ~teal
+    white = np.zeros_like(op)
+    if names is not None:
+        warm = (hue > 10) & (hue < 65) & (sat > 0.25) & (light > 0.3)
+        m = names == "paint"
+        teal |= op & ((shrunk(m) & (light > 0.22)) | (m & warm))
+        white = op & shrunk(names == "white") & (light > 0.3) & ~teal
+    onto(img, teal, cab, 8)
+    if white.any():
+        onto(img, white, box, 6)
+    rest = op & ~teal & ~white
     q = img[..., :3][rest]
     img[..., :3][rest] = pal[((q[:, None] - pal[None]) ** 2).sum(-1).argmin(1)]
     img[..., 3] = np.where(op, 255, 0)
     return img.astype(np.uint8)
+
+
+def onto(img: np.ndarray, sel: np.ndarray, ref: np.ndarray, n: int) -> None:
+    """The `sel` pixels onto a ramp of the n commonest colours in `ref`, by brightness: the selection's spread stretched
+    onto the reference's."""
+    cols, counts = np.unique(ref, axis=0, return_counts=True)
+    ramp = cols[np.argsort(-counts)[:n]]
+    ramp = ramp[np.argsort(ramp.mean(1))]
+    rl = ref.mean(1)
+    v = img[..., :3][sel].mean(1)
+    want = rl.mean() + (v - v.mean()) * rl.std() / max(v.std(), 1e-6)
+    img[..., :3][sel] = ramp[np.abs(ramp.mean(1)[None] - want[:, None]).argmin(1)]
+
+
+def shrunk(m: np.ndarray) -> np.ndarray:
+    """A mask one pixel in from its edges, so a pixel's slip in the repaint never paints chrome or glass."""
+    out = m.copy()
+    out[1:] &= m[:-1]
+    out[:-1] &= m[1:]
+    out[:, 1:] &= m[:, :-1]
+    out[:, :-1] &= m[:, 1:]
+    return out
 
 
 def hls(rgb: np.ndarray):
@@ -558,7 +664,7 @@ def hls(rgb: np.ndarray):
 
 
 def main() -> None:
-    what = sys.argv[1:] or ["layouts", "fit", "map"]
+    what = sys.argv[1:] or ["layouts", "rigs", "fit", "map"]
     src = os.path.join(ASSETS, "makes", "src")
     if "layouts" in what:
         os.makedirs(src, exist_ok=True)
@@ -567,9 +673,33 @@ def main() -> None:
         for make in MAKES:
             pm.write_png(os.path.join(src, f"{make}-layout.png"), card(make, scale, ground))
             print(f"makes/src/{make}-layout.png: {W}×{H}")
-    if "fit" in what:
+    if "rigs" in what:
+        scale, ground = rig_layout()
+        print(f"rig layouts: {scale:.2f} px a foot")
         for make in MAKES:
-            pm.write_png(os.path.join(ASSETS, "makes", f"{make}.png"), fit(pm.read_png(os.path.join(src, f"{make}-paint.png"))))
+            pm.write_png(os.path.join(src, f"{make}-rig-layout.png"), draw(rig(make), scale, ground, RIG_W, H))
+            print(f"makes/src/{make}-rig-layout.png: {RIG_W}×{H}")
+    if "rig-tractor" in what:
+        make = what[what.index("rig-tractor") + 1]
+        pm.write_png(os.path.join(src, f"{make}-rig-tractor-layout.png"), rig_tractor_layout(make))
+        print(f"makes/src/{make}-rig-tractor-layout.png: {W}×{H}")
+    if "rig-compose" in what:
+        make, *donors = what[what.index("rig-compose") + 1:]
+        pm.write_png(os.path.join(src, f"{make}-rig-paint.png"), rig_composed(make, tuple(donors)))
+        print(f"makes/src/{make}-rig-paint.png: composed, the trailer from {', '.join(donors)}")
+    if "fit" in what:
+        rscale, rground = rig_layout()
+        for make in MAKES:
+            paint = os.path.join(src, f"{make}-rig-paint.png")
+            if os.path.exists(paint):
+                names = draw(rig(make), rscale, rground, RIG_W, H, names=True)[1]
+                pm.write_png(os.path.join(ASSETS, "makes", f"{make}-rig.png"), fit(pm.read_png(paint), names))
+                print(f"makes/{make}-rig.png: {RIG_W}×{H}")
+        scale, ground = card_layout()
+        for make in MAKES:
+            names = card(make, scale, ground, names=True)[1]
+            img = fit(pm.read_png(os.path.join(src, f"{make}-paint.png")), names)
+            pm.write_png(os.path.join(ASSETS, "makes", f"{make}.png"), img)
             print(f"makes/{make}.png: {W}×{H}")
     if "map" in what:
         os.makedirs(os.path.join(ASSETS, "trucks", "makes"), exist_ok=True)
