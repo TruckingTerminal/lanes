@@ -44,3 +44,6 @@
   set at signing and re-read at each renewal.
   No pools for now: factoring and insurance are NPC, and their fees are sinks. Economy sizes it behind a
   switch; the writer words the step; engineering wires the contract into Getting paid after.
+- 2026-11-02 — Director: Finance opens on the same trigger as the Dealer, when walkthrough step 9 ("Your first
+  truck") becomes current, so Iuliia's explanation of factoring and quick pay never points at a locked tab.
+  Engineering takes it into the step that wires Getting paid.
