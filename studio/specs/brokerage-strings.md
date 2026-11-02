@@ -68,6 +68,7 @@ One verb throughout: **start**. UX's draft says "Form"; the director's says "Sta
 | Row | Surety · about `{fd}` FD a year at credit `{band}` · a cost |
 | Bond note | If you can't pay a carrier, the bond does. You can never owe carriers more than it. |
 | Bond note | Fall under your bond and new loads stop after `{graceDays}` days. |
+| Bond note, the beta (director's brief) | Beta bond: it's burned at the token's launch, like every beta stake. To broker after launch, post it again. |
 | Funding row | Moving from `{carrier name}` · `{fd}` FD (prefilled) |
 | Funding row | Fee `{transferFee}` · `{fd}` FD |
 | Funding rows | `{carrier name}`'s cash after · `{fd}` FD · `{brokerage}`'s cash after · `{fd}` FD, `{bond}` of it the bond |
