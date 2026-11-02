@@ -1,5 +1,6 @@
 import {
   activeLoanOn,
+  bestSource,
   companyAccount,
   financedCashNeed,
   salesTaxOn,
@@ -166,4 +167,21 @@ export function buyPlan(w: World, c: Company, price: number, replacing: boolean)
   // and still counted it).
   const deposit = replacing ? depositCredit(w, c) : 0;
   return { price, tax, cashNeed: price + tax, cashOk: have >= price + tax, have, loan, deposit, cashNowFd: Math.max(0, price + tax - deposit), loanNowFd: loan ? Math.max(0, loan.cashNeed - deposit) : null };
+}
+
+/**
+ * Step 9's state from the Dealer's own figures (Jeff, 2026-11-02: the step reads the gap): the used lot or a listing when
+ * there's one; else a new Workhorse with a van on a purchase loan, what that needs now against what the company has (its
+ * lease deposit counted), and the day the used lot restocks.
+ */
+export function firstTruckRoute(w: World, c: Company): { used: boolean; need: number; have: number; deposit: boolean; ok: boolean; restockDay: number } {
+  const lot = w.cfg.usedMarket.npcLot.enabled && w.cfg.assets.enabled && w.usedLot.stock > 0;
+  const listed = w.listings.some((l) => l.status === "open" && l.truckId > 0 && l.sellerId !== c.id && l.formerOwnerId !== c.id);
+  const price = bestSource(w, c.id, "rig", "workhorse", "van").price;
+  const plan = buyPlan(w, c, price, true);
+  const today = Math.floor(w.t / w.cfg.time.gameMinutesPerDay);
+  // The lot restocks at the close of every seventh day (step.ts, (day + 1) % 7 === 0): on the morning after it.
+  let d = today;
+  while ((d + 1) % 7 !== 0) d++;
+  return { used: lot || listed, need: plan.loan?.cashNeed ?? plan.cashNeed, have: plan.have, deposit: plan.deposit > 0.5, ok: plan.loan ? plan.loan.ok : plan.cashOk, restockDay: d + 1 };
 }

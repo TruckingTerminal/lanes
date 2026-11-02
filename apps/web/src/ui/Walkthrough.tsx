@@ -62,7 +62,9 @@ export function Walkthrough(): JSX.Element | null {
   if (!g || !c) return null;
   const steps = walkSteps(GAME_CONFIG, g.w.net.hubs[c.homeHub]?.name);
   const { index, done, total } = walkProgress(GAME_CONFIG, g.w, c);
-  const current = index >= 0 ? index : total;
+  // "The truck rolls" waits for the load itself, as the caption does (QA's Iuliia replay): until then the board step stays current.
+  const loaded = (g.w.trucksByCompany.get(c.id) ?? []).some((t) => t.loadId !== null) || c.delivered > 0;
+  const current = index < 0 ? total : steps[index]!.id === "haul" && !loaded && index > 0 ? index - 1 : index;
   const view = S.walkView ?? current;
   const browse = (i: number) => {
     S.walkView = i === current ? null : Math.max(0, Math.min(total, i));
@@ -99,7 +101,7 @@ export function Walkthrough(): JSX.Element | null {
             </p>
           ))}
           <p class="small">
-            <b>Do:</b> {stepDo(step, g.w)}
+            <b>Do:</b> {stepDo(step, g.w, c)}
           </p>
           <p class="muted small">
             <b>Why:</b> {step.why}
@@ -215,7 +217,7 @@ export function Caption(): JSX.Element | null {
   return (
     <div class="caption">
       <Iuliia mood={step.mood} size={64} />
-      <span class="small">{stepDo(step, g.w)}</span>
+      <span class="small">{stepDo(step, g.w, c)}</span>
       <Btn sm ghost onClick={() => mark(`hide:${step.id}`)}>
         {CAPTION.hide}
       </Btn>

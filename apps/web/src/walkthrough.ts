@@ -7,6 +7,9 @@
 import type { EconomyConfig } from "@lanes/config";
 import { dayOf, type Company, type World } from "@lanes/engine";
 import type { Tab } from "./tabs.js";
+import { STEP9 } from "./copy.js";
+import { firstTruckRoute } from "./finance.js";
+import { shortDate } from "./format.js";
 
 /** Iuliia's mood for the step: her face at rest in the live portrait (portrait.ts). */
 export type Mood = "idle" | "wave" | "point" | "laugh";
@@ -22,8 +25,8 @@ export interface WalkStep {
   say: string[];
   /** Where to click, in one line. */
   do: string;
-  /** The line instead, when the world can't do what `do` asks today (step 9: the used lot is empty). */
-  doElse?: { when: (w: World) => boolean; line: string };
+  /** The line instead, from the company's state today (step 9: the used lot empty, the gap to a new rig on a loan); null keeps `do`. */
+  doNow?: (w: World, c: Company) => string | null;
   /** Why it matters, in one line. */
   why: string;
   done: (w: World, c: Company) => boolean;
@@ -168,10 +171,12 @@ export function walkSteps(cfg: EconomyConfig, hub = "your home hub"): WalkStep[]
         `Your lease deposit counts toward it, and the Money tab's purchase loan covers the rest with ${pct(down0)} to ${pct(down1)} down. Owned trucks pay their own maintenance and insurance, cost you when they sit, and lose value every year. They also keep every dollar they earn. Buy the used one first. Ambition is for the second truck; the first one is arithmetic.`,
       ],
       do: "Buy a rig from the used lot, with a purchase loan if the cash is short.",
-      // QA (carry-over row 5): the line named the used lot while nothing was on it (the writer's line).
-      doElse: {
-        when: (w) => !(w.cfg.usedMarket.npcLot.enabled && w.cfg.assets.enabled && w.usedLot.stock > 0) && !w.listings.some((l) => l.status === "open" && l.truckId > 0),
-        line: "The used lot is empty this week. Wait for the restock, or buy new at the Dealer with a purchase loan.",
+      // The used lot or a listing when there's one; else the gap to a new rig on a loan, from the Dealer's own figures.
+      doNow: (w, c) => {
+        const r = firstTruckRoute(w, c);
+        if (r.used) return null;
+        const fd = (x: number) => Math.round(x).toLocaleString("en-US");
+        return r.ok ? STEP9.loanNow(fd(r.need)) : STEP9.gap(fd(r.need), fd(r.have), r.deposit ? STEP9.withDeposit : "", shortDate(r.restockDay));
       },
       why: "Ownership turns the lessor's cut into your margin and is the only way a one-truck company grows into two.",
       done: (w, c) => trucksOf(w, c).some((t) => t.lease === "owned"),
@@ -244,4 +249,4 @@ export function walkProgress(cfg: EconomyConfig, w: World, c: Company): { step: 
 }
 
 /** A step's "Do" line for the world as it is. */
-export const stepDo = (step: WalkStep, w: World): string => (step.doElse && step.doElse.when(w) ? step.doElse.line : step.do);
+export const stepDo = (step: WalkStep, w: World, c: Company): string => step.doNow?.(w, c) ?? step.do;

@@ -311,6 +311,13 @@ export const NEEDS = {
   opened: (tab: string) => `${tab} just opened`,
 };
 
+/** Step 9 when the used lot can't serve it (Jeff, 2026-11-02: the step reads the gap). The producer's draft; the writer will word it. */
+export const STEP9 = {
+  loanNow: (need: string) => `A new rig on a loan needs ${need} FD now, and you have it. Buy on a loan at the Dealer.`,
+  gap: (need: string, have: string, dep: string, when: string) => `A new rig on a loan needs ${need} FD now; you have ${have} FD${dep}. The used lot restocks ${when}. A few more loads close it.`,
+  withDeposit: ", counting your deposit",
+};
+
 /** Finance (specs/finance.md, the writer's specs/finance-strings.md): every string on the panel and Money's link rows. */
 export const FINANCE = {
   title: "Finance",
