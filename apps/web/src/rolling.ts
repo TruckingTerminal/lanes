@@ -30,9 +30,11 @@ function legMph(w: World, t: Truck, c: Company): number {
 export function etaMin(w: World, t: Truck, c: Company): number {
   const mph = legMph(w, t, c);
   if (mph <= 0) return w.t;
-  let left = (t.remainingMi / mph) * MIN_PER_HOUR;
-  let at = w.t;
-  let today = drivingLeftMin(w, t, c);
+  return drive(w, t, c, w.t, drivingLeftMin(w, t, c), (t.remainingMi / mph) * MIN_PER_HOUR)[0];
+}
+
+/** From `at`, with `today` driving minutes left in the duty day, `left` minutes of driving: when it ends, and what's left of that day. */
+function drive(w: World, t: Truck, c: Company, at: number, today: number, left: number): [number, number] {
   const full = drivingLimitMin(w, t, c);
   const off = (24 - w.cfg.hos.drivingHoursPerDay) * MIN_PER_HOUR;
   while (left > today + 1e-6) {
@@ -40,7 +42,27 @@ export function etaMin(w: World, t: Truck, c: Company): number {
     left -= today;
     today = full;
   }
-  return at + left;
+  return [at + left, today - left];
+}
+
+/**
+ * When the load should reach its delivery, whatever the truck is doing now (QA row 18: one ETA, the board's busy line
+ * and the Truck card alike): rolling, the leg's ETA; on its way to the pickup, that ETA, the dock's average loading time,
+ * then the loaded miles at the same pace and nights; loading, the dock time left, then the same; unloading, now.
+ */
+export function deliveryEtaMin(w: World, t: Truck, c: Company, l: Load): number {
+  if (t.status === "loaded") return etaMin(w, t, c);
+  if (t.status === "unloading") return w.t;
+  const [lo, hi] = w.cfg.dwell.loadMinutes;
+  const dwell = (lo + hi) / 2;
+  const mph = mphFor(w, t, c, w.cfg.hos.avgMph);
+  const loadedMin = mph > 0 ? (l.miles / mph) * MIN_PER_HOUR : 0;
+  if (t.status === "toPickup") {
+    const legMphNow = legMph(w, t, c);
+    const [atPickup, todayLeft] = legMphNow > 0 ? drive(w, t, c, w.t, drivingLeftMin(w, t, c), (t.remainingMi / legMphNow) * MIN_PER_HOUR) : [w.t, drivingLeftMin(w, t, c)];
+    return drive(w, t, c, atPickup + dwell, todayLeft, loadedMin)[0];
+  }
+  return drive(w, t, c, w.t + (t.status === "loading" ? t.dwellMin : dwell), drivingLeftMin(w, t, c), loadedMin)[0];
 }
 
 /** Where tonight's stop is planned, or null when the leg ends within today's hours. */

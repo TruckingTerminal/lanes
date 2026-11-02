@@ -7,7 +7,7 @@ import { BOARD, LOAD, ROUND } from "../../copy.js";
 import { cls, fdFull, hhmm, pct, shortDate, TRAILER_NAME } from "../../format.js";
 import { nextRoundHour, nextRoundLabel, nextRoundWait, reloadLabel, roundProgress, seasonSwing } from "../../logic.js";
 import { bumpData, isPhone, me, myTrucks, order, S, selectTruck, setOnboard, setTab, toast, truckNo, useData } from "../../state.js";
-import { etaMin } from "../../rolling.js";
+import { deliveryEtaMin } from "../../rolling.js";
 import { tabOpen } from "../../tabs.js";
 import { Btn, Card, Kv } from "../bits.js";
 import { LoadsTable } from "./Loads.js";
@@ -167,12 +167,12 @@ const place = (i: number): string => {
   return `${p.name}, ${p.state}`;
 };
 const money = (x: number): string => fdFull(Math.abs(x));
-/** The busy line's ETA: the rolling card's own (rolling.ts etaMin) once loaded, so the two never disagree (S18). */
+/** The busy line's ETA: the delivery's, as the Truck card reads it (rolling.ts), never the deliver-by (QA row 18). */
 function etaOf(t: Truck): string | null {
   const w = S.game!.w;
   const l = t.loadId !== null ? w.loads.get(t.loadId) : undefined;
   if (!l) return null;
-  const at = t.status === "loaded" ? etaMin(w, t, me()) : l.appointmentT;
+  const at = deliveryEtaMin(w, t, me(), l);
   return `${shortDate(Math.floor(at / 1440))} ${hhmm(at)}`;
 }
 /** Opens a load's sheet: full on a phone (S3). */
