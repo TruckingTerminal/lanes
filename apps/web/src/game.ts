@@ -136,8 +136,21 @@ async function warmUp(w: World, hours: number, onProgress?: (share: number) => v
 export class TestGame {
   readonly kind = "test";
   readonly w: World;
-  /** Your company, once you've chosen a home hub; null while the world waits for the choice. */
-  player: Company | null = null;
+  /** Your carrier, once you've chosen a home hub; null while the world waits for the choice. */
+  /**
+   * The player's companies (specs/brokerage-rule.md section 2): the carrier, and the brokerage once formed, at most one
+   * of each. `player` is the company in view: what the screens show and the orders act for. Switching changes nothing
+   * in the world.
+   */
+  carrier: Company | null = null;
+  brokerage: Company | null = null;
+  inView: "carrier" | "brokerage" = "carrier";
+  get player(): Company | null {
+    return this.inView === "brokerage" && this.brokerage ? this.brokerage : this.carrier;
+  }
+  set player(c: Company | null) {
+    this.carrier = c;
+  }
   readonly log: TestLog;
   private listeners: ((e: GameEvent) => void)[] = [];
 

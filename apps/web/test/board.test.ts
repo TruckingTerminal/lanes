@@ -81,20 +81,27 @@ describe("the board", () => {
 });
 
 describe("the walkthrough's first bid", () => {
-  it("ticks step 2 on the player's own bid or booking, never on the dispatcher's win", async () => {
+  it("ticks step 2 on the player's own bid or booking, or, for a fleet whose dispatcher books from the start, on its first load", async () => {
     const { walkSteps } = await import("../src/walkthrough.js");
     const { GAME_CONFIG } = await import("../src/game.js");
     const g = await TestGame.create();
-    // A small fleet's dispatcher runs from the start (the first bid by hand is a one-truck rule).
+    // A small fleet's dispatcher runs from the start (the first bid by hand is a one-truck rule), so the step can't wait
+    // for a bid by hand that may never come (QA's guidance replay): its first load ticks it.
     const c = g.join("Fleet Freight", "fleet", "DAL")!;
     const board = walkSteps(GAME_CONFIG).find((s) => s.id === "board")!;
+    expect(board.done(g.w, c)).toBe(false);
     for (let h = 0; h < 24 * 4 && c.bidStats.wins === 0; h++) g.stepHour();
-    expect(board.done(g.w, c)).toBe(c.firstHandBidDay !== null);
     expect(c.firstHandBidDay).toBeNull();
-    const truck = g.w.trucksByCompany.get(c.id)!.find((t) => t.status === "idle");
+    expect(board.done(g.w, c)).toBe(c.bidStats.wins > 0 || c.delivered > 0);
+    // A one-truck company still waits for the player's own bid or booking.
+    const g1 = await TestGame.create();
+    const solo = g1.join("Solo Freight", "oo", "DAL")!;
+    for (let h = 0; h < 24; h++) g1.stepHour();
+    expect(board.done(g1.w, solo)).toBe(false);
+    const truck = g1.w.trucksByCompany.get(solo.id)!.find((t) => t.status === "idle");
     if (truck) {
-      const row = boardRows(g.w, c, truck, { dest: "any", maxDh: 300, query: "" }).find((r) => !r.block);
-      if (row && g.act({ type: "book_load", truckId: truck.id, loadId: row.l.id }).ok) expect(board.done(g.w, c)).toBe(true);
+      const row = boardRows(g1.w, solo, truck, { dest: "any", maxDh: 300, query: "" }).find((r) => !r.block);
+      if (row && g1.act({ type: "book_load", truckId: truck.id, loadId: row.l.id }).ok) expect(board.done(g1.w, solo)).toBe(true);
     }
   }, 120_000);
 });

@@ -1,7 +1,7 @@
 import type { JSX } from "preact";
 import type { Company, World } from "@lanes/engine";
 import { NOW } from "../copy.js";
-import { fdFull, hhmm, shortDate } from "../format.js";
+import { fdFull, hhmm, pct, shortDate } from "../format.js";
 import { GAME_CONFIG } from "../game.js";
 import { nextAction, type NextAction } from "../nextstep.js";
 import { act, bumpData, isPhone, me, S, selectTruck, setTab, truckNo } from "../state.js";
@@ -9,6 +9,7 @@ import { TAB_NAME } from "../tabs.js";
 import { stepDo, walkSteps } from "../walkthrough.js";
 import { Btn } from "./bits.js";
 import { Iuliia } from "./Walkthrough.js";
+import { kindInView } from "../companies.js";
 
 /**
  * What now? (specs/guidance.md section 1, guidance-ux.md section 1): a chip in Iuliia's caption, in its own button row, on
@@ -28,7 +29,7 @@ function currentAction(w: World, c: Company): NextAction {
 export function askWhatNow(): void {
   const g = S.game;
   const c = g?.player;
-  if (!g || !c) return;
+  if (!g || !c || kindInView(g) === "brokerage") return;
   S.whatNow = { a: currentAction(g.w, c), tab: S.tab };
   if (isPhone() && S.sheet === "strip") S.sheet = "half";
   bumpData();
@@ -137,6 +138,14 @@ function words(a: NextAction): { action: string; reason: string; button: string;
       const reason = a.debt.n > 0 ? NOW.dangerReason(a.debt.n, a.debt.of, shortDate(a.debt.nextDay)) : NOW.dangerWarn(shortDate(a.debt.nextDay), fd(a.debt.shortFd));
       const l = a.lever;
       if (l?.kind === "book") return { red: true, action: NOW.bookAction(truckNo(l.truckId)), reason, button: NOW.bookButton, go: () => openLoadOf(l.truckId, l.loadId) };
+      if (l?.kind === "collect")
+        return {
+          red: true,
+          action: NOW.collectAction,
+          reason: `${reason} ${NOW.collectReason2(fd(l.owedFd), shortDate(l.byDay))}${l.quickPayOpen ? ` ${NOW.collectQuick(pct(w.cfg.token.payment.quickPayPct))}` : ""}`,
+          button: NOW.collectButton,
+          go: () => setTab("finance"),
+        };
       if (l?.kind === "lease") return { red: true, action: NOW.leaseAction(truckNo(l.truckId)), reason: `${reason} ${NOW.leaseReason2(fd(w.cfg.freeEntry.leases.minWeeklyFd))}`, button: NOW.leaseButton, go: () => act({ type: "return_lease", truckId: l.truckId }, NOW.leaseButton) };
       if (l?.kind === "sell") return { red: true, action: NOW.sellAction(truckNo(l.truckId)), reason: `${reason} ${NOW.sellReason2(fd(l.valueFd), fd(a.debt.shortFd))}`, button: NOW.sellButton, go: () => setTab("fleet") };
       return { red: true, action: NOW.noneAction, reason, button: NOW.noneButton, go: () => setTab("guide") };
@@ -145,8 +154,11 @@ function words(a: NextAction): { action: string; reason: string; button: string;
       const shipper = a.shipperId ? (w.companies[a.shipperId - 1]?.name ?? "") : "";
       return { action: NOW.tenderAction(shipper || "A shipper"), reason: NOW.tenderReason(hhmm(a.untilMin)), button: NOW.tenderButton, go: () => setTab("fleet") };
     }
-    case "driver":
-      return { action: NOW.driverAction(truckNo(a.truckId)), reason: NOW.driverReason(NOW.yourDriver), button: NOW.driverButton, go: () => setTab("staff") };
+    case "driver": {
+      // "Has gone" only for a driver this page saw drive the truck; a truck nobody has driven reads differently (QA).
+      const gone = S.lastDriver.get(a.truckId);
+      return { action: NOW.driverAction(truckNo(a.truckId)), reason: gone ? NOW.driverReason(gone) : NOW.driverReasonNone(truckNo(a.truckId)), button: NOW.driverButton, go: () => setTab("staff") };
+    }
     case "lost": {
       const l = load(a.loadId);
       return { action: NOW.lostAction(l ? place(l.originPlace) : "", l ? place(l.destPlace) : ""), reason: NOW.lostReason(a.clearsNear.toFixed(2), fd(a.profitFd)), button: NOW.lostButton, go: () => openLoadOf(a.truckId, a.loadId) };

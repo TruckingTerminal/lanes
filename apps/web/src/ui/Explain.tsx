@@ -24,7 +24,8 @@ export function Fig({ k, ctx = {}, label, children }: { k: string; ctx?: FigureC
 let lit: HTMLElement | null = null;
 function openExplain(key: string, ctx: FigureCtx, label: string, value: string, el: HTMLElement): void {
   closeExplain(false);
-  S.explain = { key, ctx, label, value };
+  // On the laptop the card takes the corner away from the figure: the map's side for a figure in the panel.
+  S.explain = { key, ctx, label, value, side: el.closest(".side") ? "left" : "right" };
   lit = el;
   el.classList.add("figon");
   // Pad the page's foot by the sheet's height, then bring the figure to the top: the sheet can never sit on it. On the
@@ -55,7 +56,7 @@ export function ExplainSheet(): JSX.Element | null {
   const b = c ? breakdown(g.w, c, e.key, e.ctx) : null;
   const other = e.key.endsWith(".other");
   return (
-    <section class="explainsheet" role="dialog" aria-label={e.label}>
+    <section class={`explainsheet ${e.side ?? "right"}`} role="dialog" aria-label={e.label}>
       <header class="row">
         <Iuliia mood="point" size={64} />
         <div class="stack">
@@ -75,7 +76,7 @@ export function ExplainSheet(): JSX.Element | null {
                 <div class="kvrow" key={i}>
                   <span class="small">{r.label}</span>
                   {r.key && EXPLAIN(GAME_CONFIG)[r.key] ? (
-                    <button type="button" class="fig" onClick={() => (S.explain = { key: r.key!, ctx: e.ctx, label: r.label, value: r.value }, bumpData())}>
+                    <button type="button" class="fig" onClick={() => (S.explain = { key: r.key!, ctx: e.ctx, label: r.label, value: r.value, side: e.side }, bumpData())}>
                       {r.value}
                     </button>
                   ) : (

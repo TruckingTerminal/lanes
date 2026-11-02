@@ -99,6 +99,8 @@ function Sheet(): JSX.Element {
   // The map keeps what it centres on above the sheet once the sheet settles (and nothing hidden when it goes).
   useEffect(() => {
     setMapInset(stopPx(S.sheet, room()));
+    // At strip height the sheet shows its top, Iuliia's caption, wherever the panel was scrolled to.
+    if (S.sheet === "strip") el.current?.querySelector(".sheetbody")?.scrollTo({ top: 0 });
   }, [S.sheet]);
   useEffect(() => () => setMapInset(0), []);
   const down = (ev: PointerEvent) => {
@@ -136,7 +138,15 @@ function Sheet(): JSX.Element {
         <span class="grip" aria-hidden="true" />
         <span class="sheetline">{sheetLine()}</span>
       </div>
-      <div class="sheetbody">
+      <div
+        class="sheetbody"
+        onClick={(ev) => {
+          // At strip height her caption is face · text · What now? (guidance-ux.md section 1): a tap on the face or
+          // the text raises the sheet to half, where her own button is.
+          const t = ev.target as HTMLElement;
+          if (S.sheet === "strip" && t.closest(".caption") && !t.closest("button")) setSheet("half");
+        }}
+      >
         <RackBody />
       </div>
     </section>

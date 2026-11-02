@@ -34,12 +34,13 @@ export function milestones(w: World, c: Company): Milestone[] {
   const now = today(w);
   const out: Milestone[] = [];
   if (c.firstOwnedTruckDay !== null) out.push({ key: "ownTruck", day: c.firstOwnedTruckDay, happened: true, before: false });
-  // The first payday: the weekly close after the first hired driver's hiring day. Its at line is the week so far, so it
-  // speaks on that day, before the close resets the figure, and never after (the director).
+  // The first payday: the weekly close after the first hired driver's hiring day. Its before line is the hiring day's;
+  // its at line is the week so far, any day of that first week up to the close, never after the close resets the figure
+  // (the director). A one-day window was too narrow to survive quiet time (QA's guidance replay).
   const hired = w.staff.filter((s) => s.companyId === c.id && s.kind === "driver" && !s.owner).sort((a, b) => a.hiredDay - b.hiredDay)[0];
   if (hired) {
     const pay = closeOnOrAfter(hired.hiredDay);
-    out.push({ key: "hiredWeek", day: pay, happened: now >= pay, before: true, atUntil: pay, staffId: hired.id });
+    out.push({ key: "hiredWeek", day: pay, happened: now > hired.hiredDay || now >= pay, before: true, atUntil: pay, staffId: hired.id });
   }
   const disp = w.staff.filter((s) => s.companyId === c.id && s.kind === "dispatcher" && !s.owner).sort((a, b) => a.hiredDay - b.hiredDay)[0];
   const trucks = (w.trucksByCompany.get(c.id) ?? []).filter((t) => t.status !== "retired").length;
@@ -89,7 +90,9 @@ const ORDER: MilestoneKey[] = ["ownTruck", "hiredWeek", "dispatcher", "monthClos
 
 /** The company's history for the timeline: what has happened, newest first; an undated one sits just after its last dated forerunner. */
 export function history(w: World, c: Company): Milestone[] {
-  const done = milestones(w, c).filter((m) => m.happened);
+  const now = today(w);
+  // The timeline lists what has happened by its date: the first payday once it's paid.
+  const done = milestones(w, c).filter((m) => m.happened && (m.day === null || m.day <= now));
   const when = (m: Milestone): number => {
     if (m.day !== null) return m.day;
     const before = done.filter((x) => x.day !== null && ORDER.indexOf(x.key) < ORDER.indexOf(m.key)).map((x) => x.day!);

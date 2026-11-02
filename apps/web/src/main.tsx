@@ -1,5 +1,5 @@
 import { render } from "preact";
-import { companyAccount, condition, crewed, resting, type GameEvent } from "@lanes/engine";
+import { companyAccount, condition, crewed, resting, staffById, type GameEvent } from "@lanes/engine";
 import { installTheme } from "./art.js";
 import { truckSheet, whenAssetsReady } from "./assets.js";
 import { fd, fdFull, hhmm, realUntil, shortDate } from "./format.js";
@@ -459,6 +459,9 @@ function observe(s: Session): void {
   if (s === S.game && s.player) {
     const c = s.player;
     for (const t of w.trucksByCompany.get(c.id) ?? []) {
+      // Who last drove each truck, while this page watched: What now? names a driver who has gone only when one did.
+      const d = t.driverId ? staffById(w, t.driverId) : null;
+      if (d && !d.owner) S.lastDriver.set(t.id, d.name);
       iuliiaOnChange(`truck:${t.id}`, t.status, t.status === "loaded" ? "truck:rolling" : t.status === "idle" && c.firstHandBidDay === null ? "truck:waiting" : null);
       const worn = t.lease === "owned" && condition(w.cfg, t) < w.cfg.wear.rebuildMaxCondition;
       iuliiaOnChange(`worn:${t.id}`, worn, worn ? "truck:worn" : null);

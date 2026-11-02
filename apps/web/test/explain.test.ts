@@ -1,12 +1,13 @@
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { companyAccount } from "@lanes/engine";
+import { companyAccount, truckValue } from "@lanes/engine";
 import { boardRows } from "../src/board.js";
 import { EXPLAIN } from "../src/copy.js";
 import { breakdown, FIRST_MONTH_KEYS } from "../src/explain.js";
 import { GAME_CONFIG, TestGame } from "../src/game.js";
 import { dueMilestone, history, milestones } from "../src/milestones.js";
+import { walkSteps } from "../src/walkthrough.js";
 
 /** Keys the writer's table names that no first-month screen shows yet, each with why. The test fails if one appears. */
 const NOT_ON_A_SCREEN: Record<string, string> = {
@@ -55,9 +56,29 @@ describe("help on every figure (explain.ts)", () => {
       const p = breakdown(g.w, c, "board.profitChip", ctx)!;
       expect(p.total.value).toBe(`${r.profitBook < 0 ? "−" : ""}${Math.round(Math.abs(r.profitBook)).toLocaleString("en-US")} FD`);
     }
+    // The truck's worth: rows from the price new to the figure on the Fleet card.
+    const g2 = await TestGame.create();
+    const fleet = g2.join("Value Freight", "fleet", "DAL")!;
+    const owned = g2.w.trucksByCompany.get(fleet.id)!.find((t) => t.lease === "owned")!;
+    const v = breakdown(g2.w, fleet, "truck.value", { truckId: owned.id })!;
+    expect(v.total.value).toBe(`${Math.round(truckValue(g2.w, owned)).toLocaleString("en-US")} FD`);
+    const num = (s: string) => Number(s.replace("−", "-").replace(/[^0-9-]/g, ""));
+    expect(Math.abs(v.rows.reduce((a, r) => a + num(r.value), 0) - truckValue(g2.w, owned))).toBeLessThanOrEqual(v.rows.length);
     // Another company's figure never breaks down its inputs (Intel's row 1).
     expect(breakdown(g.w, c, "intel.creditBand.other", {})).toBeNull();
   }, 60_000);
+});
+
+describe("the walkthrough's board step", () => {
+  it("ticks for a fleet whose dispatcher books from the start, once a truck has a load (QA's guidance replay)", async () => {
+    const g = await TestGame.create();
+    const c = g.join("Fleet Freight", "fleet", "LAX")!;
+    const board = walkSteps(GAME_CONFIG).find((s) => s.id === "board")!;
+    expect(board.done(g.w, c)).toBe(false);
+    for (let h = 0; h < 48 && !board.done(g.w, c); h++) g.stepHour();
+    expect(c.firstHandBidDay).toBeNull();
+    expect(board.done(g.w, c)).toBe(true);
+  }, 120_000);
 });
 
 describe("milestones (milestones.ts)", () => {
@@ -72,13 +93,15 @@ describe("milestones (milestones.ts)", () => {
     // Before the window: no month-close line.
     expect(milestones(g.w, c).find((m) => m.key === "monthClose")).toMatchObject({ day: month, happened: false });
     g.w.t = (month - win - 1) * perDay;
-    expect(dueMilestone(g.w, c, s)?.m.key === "monthClose").toBe(false);
+    expect(dueMilestone(g.w, c, (k) => s(k) || !k.startsWith("ms:monthClose"))).toBeNull();
     g.w.t = (month - 3) * perDay;
-    const before = dueMilestone(g.w, c, (k) => s(k) || k.startsWith("ms:day"))!;
+    // Only the month close: the world's own slump or payday may be due too, by its seed.
+    const only = (k: string) => s(k) || !k.startsWith("ms:monthClose");
+    const before = dueMilestone(g.w, c, only)!;
     expect(before).toMatchObject({ phase: "before", m: { key: "monthClose" } });
     seen.add("ms:monthClose:before");
     g.w.t = (month + 1) * perDay;
-    const at = dueMilestone(g.w, c, (k) => s(k) || k.startsWith("ms:day") || k.startsWith("ms:slump"))!;
+    const at = dueMilestone(g.w, c, only)!;
     expect(at).toMatchObject({ phase: "at", m: { key: "monthClose" } });
     seen.add("ms:monthClose:at");
     // Past its window, only the timeline has it.

@@ -1,7 +1,8 @@
 import type { EconomyConfig } from "@lanes/config";
-import { crewed, MANUAL_BID_MAX_DEADHEAD_MI, truckValue, type Company, type Truck, type World } from "@lanes/engine";
+import { companyAccount, crewed, MANUAL_BID_MAX_DEADHEAD_MI, truckValue, type Company, type Truck, type World } from "@lanes/engine";
 import { boardRows, clearsNear } from "./board.js";
-import { bestLoad, cushion, debtCountdown, freeTrucks, gapToTruck, nextEvent, type NextEvent } from "./figures.js";
+import { bestLoad, cushion, debtCountdown, freeTrucks, gapToTruck, nextEvent, owed, type NextEvent } from "./figures.js";
+import { invoices } from "./ledger.js";
 import { walkProgress } from "./walkthrough.js";
 
 /**
@@ -24,8 +25,15 @@ export type NextAction =
   | { rule: 6; kind: "calm"; event: NextEvent }
   | { rule: -1; kind: "none" };
 
-/** Rule 1's levers, each a real, possible action: book an idle truck's paying load, return a second lease, sell an owned truck. */
-export type Lever = { kind: "book"; truckId: number; loadId: number; profitFd: number } | { kind: "lease"; truckId: number } | { kind: "sell"; truckId: number; valueFd: number };
+/**
+ * Rule 1's levers, each a real, possible action: book an idle truck's paying load; collect what's owed, when invoices
+ * due before the deciding check cover the shortfall; return a second lease; sell an owned truck, the last lever.
+ */
+export type Lever =
+  | { kind: "book"; truckId: number; loadId: number; profitFd: number }
+  | { kind: "collect"; owedFd: number; byDay: number; quickPayOpen: boolean }
+  | { kind: "lease"; truckId: number }
+  | { kind: "sell"; truckId: number; valueFd: number };
 
 /** A hand bid that lost, for rule 2's "a better load beside it" (the client knows it from the round's result). */
 export interface LostBid {
@@ -50,6 +58,21 @@ export function nextAction(cfg: EconomyConfig, w: World, c: Company, lost?: Lost
       if (r && (!lever || (lever.kind === "book" && r.profitBook > lever.profitFd))) lever = { kind: "book", truckId: t.id, loadId: r.l.id, profitFd: r.profitBook };
     }
     const fleet = w.trucksByCompany.get(c.id) ?? [];
+    // Invoices already dated: what lands before the check that would wind the company up (QA's guidance replay: it
+    // advised selling a 153k truck over a 14k dip with 25k due within two weeks). Quick pay and factoring don't advance
+    // invoices already open, so the lever is to wait for them, keeping the trucks loaded; quick pay speeds the next ones.
+    if (!lever) {
+      const deciding = debt.nextDay + 7 * Math.max(0, debt.of - debt.n - 1);
+      const line = -w.cfg.insolvency.debtLimitFd;
+      let cash = w.ledger.balance(companyAccount(c.id));
+      let owedFd = 0;
+      for (const i of invoices(w, c)) {
+        if (cash >= line || i.dueDay > deciding) break;
+        cash += i.amountFd;
+        owedFd += i.amountFd;
+        if (cash >= line) lever = { kind: "collect", owedFd, byDay: i.dueDay, quickPayOpen: owed(w, c).quickPayOpen };
+      }
+    }
     if (!lever) {
       const lease = fleet.find((t) => t.lease === "lessor" && t.status === "idle");
       if (lease) lever = { kind: "lease", truckId: lease.id };

@@ -5,7 +5,9 @@ import { ExplainSheet } from "./Explain.js";
 import { hhmm, realUntil } from "../format.js";
 import { H } from "../handlers.js";
 import { isPhone, S, setTab, useData } from "../state.js";
-import { NAV, navOf, tabLabel, tabOpen, teaserTabs, type Tab } from "../tabs.js";
+import { navOf, tabLabel, tabOpen, teaserTabs, type Tab } from "../tabs.js";
+import { kindInView, navFor } from "../companies.js";
+import { Book, BrokerMoney, Carriers } from "./panels/Brokerage.js";
 import { Btn, Card } from "./bits.js";
 import { ChooseHub, choosing } from "./ChooseHub.js";
 import { isNew, More, TabIcon, TeaserCard, TeaserRow } from "./More.js";
@@ -28,7 +30,8 @@ import { Staff } from "./panels/Staff.js";
 const PANELS: Record<Tab, () => JSX.Element> = {
   fleet: () => <Fleet />,
   loads: () => <Loads />,
-  money: () => <Money />,
+  // The brokerage in view has its own Money (brokerage-ux.md section 2).
+  money: () => (kindInView(S.game!) === "brokerage" ? <BrokerMoney /> : <Money />),
   more: () => <More />,
   iuliia: () => <IuliiaPanel />,
   guide: () => <Guide />,
@@ -43,13 +46,16 @@ const PANELS: Record<Tab, () => JSX.Element> = {
   business: () => <Business />,
   // Opens with its layer's switch; the panel comes with the layer.
   backlot: () => <TeaserCard id="backlot" />,
+  book: () => <Book />,
+  carriers: () => <Carriers />,
 };
 
 /** Tabs a page with no company can still read. */
 const WATCHABLE: readonly Tab[] = ["more", "iuliia", "guide", "company", "intel", "rates", "economy"];
 
 /**
- * The nav: Truck · Loads · Money · More (a segmented control on the laptop, the bottom bar on a phone; the
+ * The nav: Truck · Loads · Money · More, or the brokerage's Book · Carriers · Money · More when it's in view (a
+ * segmented control on the laptop, the bottom bar on a phone; the
  * stylesheet places it). More lights for every tab under it; a dot when an opened teaser is new.
  */
 export function Nav(): JSX.Element | null {
@@ -66,7 +72,7 @@ export function Nav(): JSX.Element | null {
   };
   return (
     <nav class="tabs" aria-label="Tabs">
-      {NAV.map((id) => (
+      {navFor(g).map((id) => (
         <Btn key={id} on={id === on} title={tabLabel(id, g.w, g.player)} onClick={() => go(id)}>
           <TabIcon id={id} size={24} />
           <span>{tabLabel(id, g.w, g.player)}</span>

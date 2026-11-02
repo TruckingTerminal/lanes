@@ -80,7 +80,9 @@ export const S = {
   /** The explain sheet while open: the figure's key, what it was computed from, its label and value (ui/Explain.tsx). */
   /** The milestone line on the caption now (caption rule 3), kept until its button or a change of tab. */
   milestone: null as null | { key: string; phase: "before" | "at"; tab: string },
-  explain: null as null | { key: string; ctx: import("./explain.js").FigureCtx; label: string; value: string },
+  /** Who last drove each of the player's trucks, as this page saw it (What now?'s "has gone" needs one who did). */
+  lastDriver: new Map<number, string>(),
+  explain: null as null | { key: string; ctx: import("./explain.js").FigureCtx; label: string; value: string; side?: "left" | "right" },
   /** What now?'s answer while it shows, and the tab it was asked on (ui/WhatNow.tsx). */
   whatNow: null as null | { a: import("./nextstep.js").NextAction; tab: Tab },
   /** Iuliia's tab-and-card line waiting for, or in, the caption strip (iuliia.ts). */

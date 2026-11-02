@@ -245,13 +245,25 @@ export function Buy({ what, label, price, replacing, block, action, ok }: { what
           </Btn>
         ) : null}
       </div>
+      {/* The row's figures, tappable without opening the loan sheet (QA's guidance replay). */}
+      <p class="small">
+        {DEALER.price} <Fig k="dealer.price" label={DEALER.price}>{`${fd(price)} FD`}</Fig>
+        {p.loan ? (
+          <>
+            {" · "}
+            {DEALER.now} <Fig k="loan.cashNow" label={DEALER.now} ctx={{ fd: price, replacing }}>{`${fd(p.loanNowFd ?? 0)} FD`}</Fig>
+            {" · "}
+            {DEALER.down} <Fig k="loan.downPayment" label={DEALER.down}>{`${fd(p.loan.down)} FD`}</Fig>
+          </>
+        ) : null}
+      </p>
       {cashWhy ? <p class="muted small">{cashWhy}</p> : null}
       {refused ? <p class="bad small">{refused}</p> : null}
       {open && p.loan ? (
         <Card title={DEALER.loanTitle(what)}>
           <Kv
             rows={[
-              [DEALER.price, `${fd(price)} FD`],
+              [DEALER.price, <Fig k="dealer.price" label={DEALER.price}>{`${fd(price)} FD`}</Fig>],
               [DEALER.tax, `${fd(p.tax)} FD`],
               [DEALER.down, <Fig k="loan.downPayment" label={DEALER.down}>{`${fd(p.loan.down)} FD`}</Fig>],
               [DEALER.loan, `${fd(p.loan.loanFd)} FD`],

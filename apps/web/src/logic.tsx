@@ -20,6 +20,7 @@ import {
   seasonality,
   stars,
   vettingBlock,
+  type Company,
   type Load,
   type Staff,
   type StandingOrder,
@@ -27,7 +28,8 @@ import {
 } from "@lanes/engine";
 import { GAME_CONFIG } from "./game.js";
 import { trueBreakEven } from "./breakeven.js";
-import { ARRIVAL, DISPATCHER, NEEDS, TRUCK } from "./copy.js";
+import { ARRIVAL, BROKERAGE, DISPATCHER, NEEDS, TRUCK } from "./copy.js";
+import { hasTwo, kindInView } from "./companies.js";
 import { act, bumpData, clockMin, isPhone, me, myTrucks, push, S, setTab, selectTruck, toast, truckNo } from "./state.js";
 import { tabDef, tabOpen, teaserTabs, type Tab } from "./tabs.js";
 import { myTenders } from "./ui/panels/Contracts.js";
@@ -374,6 +376,13 @@ export function sheetLine(): string {
   const g = S.game!;
   const c = g.player;
   if (!c) return g.kind === "test" || g.writer ? "Choose your home hub" : "Watching the live world";
+  // With two companies the line opens with the one in view (brokerage-ux.md section 1).
+  if (hasTwo(g)) return kindInView(g) === "brokerage" ? BROKERAGE.stateLine(c.name, c.openBrokerLoads) : `${c.name} · ${carrierLine(g, c)}`;
+  return carrierLine(g, c);
+}
+
+/** The carrier's own state line: the bids waiting on the round, else the selected truck in a few words. */
+function carrierLine(g: NonNullable<typeof S.game>, c: Company): string {
   const trucks = myTrucks();
   const bids = trucks.filter((t) => g.w.manualBids.has(t.id)).length;
   if (bids) return `${bids === 1 ? "1 bid in" : `${bids} bids in`} · clears ${nextRoundHour()}`;

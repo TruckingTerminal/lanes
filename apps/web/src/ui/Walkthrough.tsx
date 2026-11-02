@@ -15,6 +15,7 @@ import { financeLine } from "./panels/Finance.js";
 import { Loop } from "./Loop.js";
 import { CompanySoFar, MilestoneLine } from "./Milestones.js";
 import { WhatNowAnswer, WhatNowChip } from "./WhatNow.js";
+import { kindInView } from "../companies.js";
 
 let poster: HTMLImageElement | null = null;
 
@@ -135,6 +136,8 @@ export function Caption(): JSX.Element | null {
   const g = S.game;
   const c = g?.player;
   if (!g || !c) return null;
+  // Her walkthrough, milestones and What now? are the carrier's; the brokerage's lines come with its build.
+  if (kindInView(g) === "brokerage") return null;
   // A What now? answer takes the caption's place: one caption, one portrait (guidance-ux.md section 1).
   const answer = WhatNowAnswer();
   if (answer) return answer;
@@ -152,6 +155,17 @@ export function Caption(): JSX.Element | null {
   const step = index >= 0 ? steps[index]! : null;
   const seen = (k: string) => S.onboard.seen.includes(k);
   const mark = (k: string) => setOnboard({ seen: [...S.onboard.seen, k] });
+  // A step that has stood guide.stepYieldDays yields to a milestone's at line, so a step the player hasn't
+  // reached can't starve the company's history (QA's guidance replay). When it became current is kept with the seen record.
+  if (step) {
+    const today = Math.floor(g.w.t / g.w.cfg.time.gameMinutesPerDay);
+    const since = S.onboard.seen.find((k) => k.startsWith(`at:${step.id}:`));
+    if (!since) queueMicrotask(() => !S.onboard.seen.some((k) => k.startsWith(`at:${step.id}:`)) && mark(`at:${step.id}:${today}`));
+    else if (today - Number(since.split(":")[2]) >= g.w.cfg.guide.stepYieldDays) {
+      const ms = MilestoneLine({ atOnly: true });
+      if (ms) return ms;
+    }
+  }
   const say = (line: string, action: JSX.Element | null, mood: Mood = "point") => (
     <div class="caption iuliia">
       <Iuliia mood={mood} size={96} />

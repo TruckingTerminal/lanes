@@ -17,7 +17,7 @@ import { askWhatNow, WhatNowChip } from "./WhatNow.js";
  * time; it waits for the quiet time, Quiet mutes it, and it's marked seen as it starts, so it speaks once per browser.
  * It stays until its button or a change of tab. Her line, the reason, and one button to where to act or prepare.
  */
-export function MilestoneLine(): JSX.Element | null {
+export function MilestoneLine({ atOnly = false }: { atOnly?: boolean } = {}): JSX.Element | null {
   const g = S.game;
   const c = g?.player;
   if (!g || !c) return null;
@@ -27,7 +27,7 @@ export function MilestoneLine(): JSX.Element | null {
   if (!cur) {
     if (!iuliiaMayStart()) return null;
     const due = dueMilestone(g.w, c, seen);
-    if (!due) return null;
+    if (!due || (atOnly && due.phase !== "at")) return null;
     cur = S.milestone = { key: due.m.key, phase: due.phase, tab: S.tab };
     iuliiaStarted();
     const k = `ms:${due.m.key}:${due.phase}`;

@@ -5,7 +5,7 @@
  * says about it, where to click, and why; the player can read ahead.
  */
 import type { EconomyConfig } from "@lanes/config";
-import { dayOf, type Company, type World } from "@lanes/engine";
+import { dayOf, ordersWaitForHand, type Company, type World } from "@lanes/engine";
 import type { Tab } from "./tabs.js";
 import { STEP9 } from "./copy.js";
 import { firstTruckRoute } from "./finance.js";
@@ -73,8 +73,10 @@ export function walkSteps(cfg: EconomyConfig, hub = "your home hub"): WalkStep[]
       ],
       do: `Bid on a load leaving ${hub}.`,
       why: "Rates move with the market: a strong hub pays to leave, a weak one pays to arrive, and the board's recent rates tell you which is which.",
-      // Ticks on the player's own first bid or booking (draft 4), which the engine records: never on the dispatcher's.
-      done: (w, c) => c.firstHandBidDay !== null,
+      // Ticks on the player's own first bid or booking (draft 4), which the engine records. A fleet whose dispatcher
+      // books from the start (no first bid by hand to wait for) ticks it on its first load instead (QA's guidance
+      // replay: a small fleet never had a truck idle to bid by hand, and the step stood for a month).
+      done: (w, c) => c.firstHandBidDay !== null || (!ordersWaitForHand(w, c) && (c.delivered > 0 || (w.trucksByCompany.get(c.id) ?? []).some((t) => t.loadId !== null))),
     },
     {
       id: "haul",

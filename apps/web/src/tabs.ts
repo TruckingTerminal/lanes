@@ -12,7 +12,7 @@ import { walkProgress, walkSteps } from "./walkthrough.js";
  * Money · More. More lists Iuliia, Help and Company, then the teasers: each a tab that opens on its trigger and
  * until then shows a card saying what it is and when it opens.
  */
-export const TAB_IDS = ["fleet", "loads", "money", "more", "iuliia", "guide", "company", "intel", "staff", "market", "rates", "logbook", "finance", "economy", "business", "backlot"] as const;
+export const TAB_IDS = ["fleet", "loads", "money", "more", "iuliia", "guide", "company", "intel", "staff", "market", "rates", "logbook", "finance", "economy", "business", "backlot", "book", "carriers"] as const;
 export type Tab = (typeof TAB_IDS)[number];
 
 export interface Teaser {
@@ -151,6 +151,9 @@ export const TABS: readonly TabDef[] = [
       open: (w) => w.cfg.robbery.enabled && w.cfg.robbery.lot.enabled && !layerBlock(w, "robbery"),
     },
   },
+  // A player's brokerage (specs/brokerage-ux.md section 2): its own bar's two places past Money and More.
+  { id: "book", label: "Book", icon: "book" },
+  { id: "carriers", label: "Carriers", icon: "people" },
 ];
 
 const BY_ID = new Map(TABS.map((t) => [t.id, t]));
@@ -158,6 +161,8 @@ export const tabDef = (id: Tab): TabDef => BY_ID.get(id)!;
 
 /** The nav's four, in order. */
 export const NAV: readonly Tab[] = ["fleet", "loads", "money", "more"];
+/** The brokerage's four (specs/brokerage-ux.md section 2): the same places as the carrier's, so the thumb learns one bar. */
+export const BROKER_NAV: readonly Tab[] = ["book", "carriers", "money", "more"];
 /** Under More, before the teasers. */
 export const MORE: readonly Tab[] = ["iuliia", "guide", "company", "intel"];
 
@@ -176,4 +181,4 @@ export const tabOpen = (id: Tab, w: World, c: Company | null): boolean => {
 /** The teaser tabs, open or not, in order. */
 export const teaserTabs = (): TabDef[] => TABS.filter((t) => t.teaser);
 /** Which nav item a tab sits under: its own, or More for everything else. */
-export const navOf = (id: Tab): Tab => (NAV.includes(id) ? id : "more");
+export const navOf = (id: Tab): Tab => (NAV.includes(id) || BROKER_NAV.includes(id) ? id : "more");

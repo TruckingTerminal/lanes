@@ -1,6 +1,9 @@
 import {
   companyAccount,
+  condition,
   creditBand,
+  dayOf,
+  dealerPrice,
   creditScore,
   dispatchProfile,
   expectedReloadDeadheadMi,
@@ -9,7 +12,10 @@ import {
   operatingTrucks,
   placeMiles,
   placeToll,
+  tractorLifeUsed,
+  trailerValue,
   tripCost,
+  truckValue,
   type Company,
   type World,
 } from "@lanes/engine";
@@ -99,6 +105,32 @@ const BREAKDOWNS: Record<string, Fn> = {
       ],
       total: { label: "Profit", value: fd((rate - b.total) * l.miles) },
     };
+  },
+  // The truck's worth, as dealer.ts truckValue: the price new today, less the share of its life its miles used, less
+  // its age, held at its floor, less wear; with the assets on, its trailer is valued on its own and added.
+  "truck.value": (w, _c, ctx) => {
+    const t = ctx.truckId !== undefined ? w.trucks[ctx.truckId - 1] : undefined;
+    if (!t || t.lease !== "owned") return null;
+    const d = w.cfg.depreciation;
+    const today = dayOf(w.t, w.cfg);
+    const years = Math.max(0, today - t.builtDay) / w.cfg.time.daysPerSeason;
+    const assets = w.cfg.assets.enabled;
+    const P = assets ? w.cfg.dealerFd.tractor[t.tier] * w.dealerIndex.tractor[t.tier] : dealerPrice(w, t);
+    const life = assets ? tractorLifeUsed(w.cfg, t) : t.odometer / d.lifetimeMiles;
+    const floor = assets ? w.cfg.assets.tractor.scrapShare : d.floorPct;
+    const raw = 1 - life - years * d.perYear;
+    const left = Math.max(floor, raw);
+    const wear = left * d.conditionWeight * (1 - condition(w.cfg, t));
+    const rows: Row[] = [
+      { label: assets ? "The tractor new today" : "Price new today", value: fd(P) },
+      { label: `Less miles: ${Math.round(t.odometer).toLocaleString("en-US")} mi, ${pct(life)} of its life`, value: fd(-P * life) },
+      { label: `Less age: ${years.toFixed(1)} years`, value: fd(-P * years * d.perYear) },
+      ...(raw < floor ? [{ label: `Held at its floor, ${pct(floor)} of new`, value: fd(P * (floor - raw)) }] : []),
+      { label: `Less wear: condition ${pct(condition(w.cfg, t))}`, value: fd(-P * wear) },
+    ];
+    const tr = assets && t.trailerId ? w.trailers[t.trailerId - 1] : undefined;
+    if (tr) rows.push({ label: "Its trailer, valued the same way", value: fd(trailerValue(w, tr)) });
+    return { rows, total: { label: "Worth", value: fd(truckValue(w, t)) } };
   },
   "money.cash": (w, c) => ({ rows: [], total: { label: "Cash", value: fd(w.ledger.balance(companyAccount(c.id))) } }),
   "guide.cushion": (w, c) => {

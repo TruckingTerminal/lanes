@@ -1655,6 +1655,12 @@ export const economyConfig = {
     gapCushionWeeks: 4, // the gap to the next truck holds back this many weeks of the company's own spending
     cushionAvgWeeks: 4, // the cushion averages spending over this many weeks (at most seasonClose.workingCapitalWeeks are kept)
     milestoneWindowDays: 12, // a milestone's line shows within this many game days of its date (the director's gate)
+    stepYieldDays: 2, // a walkthrough step standing this many game days yields the caption to a milestone's at line (QA)
+  },
+  // A player's brokerage (specs/brokerage-rule.md): a second company under the same login, one carrier and one brokerage
+  // at most. Off until the brokerage build lands with the economy's sizes; while off, nothing shows and nothing changes.
+  brokerage: {
+    enabled: false,
   },
   // A hub reads its open dry-van loads whose ceiling clears a starter's break-even by `margin`, per round of its base van freight.
   ui: {

@@ -1,8 +1,10 @@
 import type { JSX } from "preact";
 import { useEffect, useRef, useState } from "preact/hooks";
-import { companyAccount } from "@lanes/engine";
+import { companyAccount, type Company } from "@lanes/engine";
 import { cls, fdFull, hhmm, shortDate, weekday } from "../format.js";
-import { FIRST_ENTRY, NEEDS } from "../copy.js";
+import { BROKERAGE, FIRST_ENTRY, NEEDS } from "../copy.js";
+import { hasTwo, kindInView, switchCompany, type CompanyKind } from "../companies.js";
+import { ASSETS } from "../mapart.js";
 import { H } from "../handlers.js";
 import { needs as waiting, nextRoundHour, openNeed } from "../logic.js";
 import { bumpData, clockMin, fsActive, fsEnabled, S, SPEEDS, toggleFullscreen, useData, useTick } from "../state.js";
@@ -32,7 +34,8 @@ export function TopBar(): JSX.Element {
     );
   }
   return (
-    <header class="topbar">
+    <header class={cls("topbar", hasTwo(g) && `co-${kindInView(g)}`)}>
+      <CompanySwitch />
       <Clock />
       {c ? <span class={cls("cash num", bal < 0 && "bad")}>{fdFull(bal)} FD</span> : choosing() ? null : <Badge>Watching</Badge>}
       {needs.length ? <NeedsButton /> : null}
@@ -42,6 +45,62 @@ export function TopBar(): JSX.Element {
       {g.kind === "test" ? <Speeds /> : null}
       <Menu />
     </header>
+  );
+}
+
+/**
+ * The company switch (brokerage-ux.md section 1): a chip at the left of the strip, only once the player has two
+ * companies. Its ring is the company's colour; on a laptop it names the company. A tap opens both, one row each; the
+ * other one's row switches at once.
+ */
+function CompanySwitch(): JSX.Element | null {
+  const [open, setOpen] = useState(false);
+  const wrap = useRef<HTMLSpanElement>(null);
+  useEffect(() => {
+    if (!open) return;
+    const away = (e: Event) => wrap.current && !wrap.current.contains(e.target as Node) && setOpen(false);
+    const esc = (e: KeyboardEvent) => e.key === "Escape" && setOpen(false);
+    document.addEventListener("pointerdown", away);
+    document.addEventListener("keydown", esc);
+    return () => {
+      document.removeEventListener("pointerdown", away);
+      document.removeEventListener("keydown", esc);
+    };
+  }, [open]);
+  const g = S.game!;
+  if (!hasTwo(g)) return null;
+  const c = g.player!;
+  const kind = kindInView(g);
+  const rows: [CompanyKind, Company][] = [
+    ["carrier", g.carrier!],
+    ["brokerage", g.brokerage!],
+  ];
+  return (
+    <span class="needswrap" ref={wrap}>
+      <button type="button" class={cls("coswitch", `co-${kind}`)} aria-label={BROKERAGE.chipLabel(c.name)} aria-expanded={open} onClick={() => setOpen(!open)}>
+        <img class="px" src={`${ASSETS}icons/switch16.png`} width={32} height={32} alt="" />
+        <span class="coname">{BROKERAGE.chipLaptop(c.name)}</span>
+      </button>
+      {open ? (
+        <div class="needslist" role="menu" aria-label={BROKERAGE.sheetTitle}>
+          {rows.map(([k, co]) => (
+            <button
+              type="button"
+              role="menuitem"
+              key={k}
+              class={`co-${k}`}
+              onClick={() => {
+                setOpen(false);
+                switchCompany(k);
+              }}
+            >
+              <span>{BROKERAGE.row(co.name, k === "carrier" ? BROKERAGE.kindCarrier : BROKERAGE.kindBrokerage, fdFull(g.w.ledger.balance(companyAccount(co.id))))}</span>
+              {k === kind ? <span class="chev">{BROKERAGE.inView}</span> : null}
+            </button>
+          ))}
+        </div>
+      ) : null}
+    </span>
   );
 }
 

@@ -64,6 +64,30 @@ describe("What now? (nextAction), rule by rule", () => {
     expect(nextAction(GAME_CONFIG, g.w, c, { loadId: lostLoad.id, truckId: truck.id, profitAtWinningFd: 1e9 }).rule).toBe(3);
   }, 60_000);
 
+  it("rule 1: invoices due before the deciding check come before selling a truck (QA's guidance replay)", async () => {
+    const g = await TestGame.create();
+    const c = g.join("Owed Freight", "fleet", "LAX")!;
+    // Both trucks busy: no load to book, so the levers are collect, then sell.
+    for (const t of g.w.trucksByCompany.get(c.id)!) g.w.manualBids.set(t.id, { loadId: 0, rate: 0 } as never);
+    const acct = companyAccount(c.id);
+    const short = 10_000;
+    g.w.ledger.post(g.w.t, acct, "sink:test", g.w.ledger.balance(acct) + g.w.cfg.insolvency.debtLimitFd + short, "test");
+    c.weeksInDebt = 1;
+    const before = nextAction(GAME_CONFIG, g.w, c);
+    if (before.kind !== "danger") throw new Error(before.kind);
+    expect(before.lever?.kind).toBe("sell");
+    // An invoice dated before the check that would wind the company up, covering the shortfall: collect, not sell.
+    const deciding = before.debt.nextDay + 7 * (before.debt.of - before.debt.n - 1);
+    g.w.receivables.push({ id: 999_001, payer: 0, faucet: "faucet:test", payeeId: c.id, amountFd: short + 500, dueDay: deciding, holder: c.id });
+    const after = nextAction(GAME_CONFIG, g.w, c);
+    if (after.kind !== "danger") throw new Error(after.kind);
+    expect(after.lever).toMatchObject({ kind: "collect", byDay: deciding });
+    // Due after that check, it can't save the company: selling stays the lever.
+    g.w.receivables.at(-1)!.dueDay = deciding + 1;
+    const late = nextAction(GAME_CONFIG, g.w, c);
+    expect(late.kind === "danger" && late.lever?.kind).toBe("sell");
+  }, 60_000);
+
   it("rule 0: being wound up answers with the restart's day", async () => {
     const { g, c } = await fresh();
     c.liquidatingSince = 10;

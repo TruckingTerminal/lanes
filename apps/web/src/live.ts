@@ -136,7 +136,20 @@ export interface LiveOptions {
 export class LiveWorld {
   readonly kind = "live";
   w: World;
-  player: Company | null = null;
+  /**
+   * The player's companies (specs/brokerage-rule.md section 2): the carrier, and the brokerage once formed, at most one
+   * of each. `player` is the company in view: what the screens show and the orders act for. Switching changes nothing
+   * in the world.
+   */
+  carrier: Company | null = null;
+  brokerage: Company | null = null;
+  inView: "carrier" | "brokerage" = "carrier";
+  get player(): Company | null {
+    return this.inView === "brokerage" && this.brokerage ? this.brokerage : this.carrier;
+  }
+  set player(c: Company | null) {
+    this.carrier = c;
+  }
   /** True while this page is replaying history rather than keeping up with the clock. */
   replaying = true;
   /** This tab holds the player's writer lease and may send actions. */
@@ -260,6 +273,7 @@ export class LiveWorld {
     this.replaying = true;
     this.w = this.fresh();
     this.player = null;
+    this.brokerage = null;
     this.companies.clear();
     this.last = null;
     this.queue = [];
