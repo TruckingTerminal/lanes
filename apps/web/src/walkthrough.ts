@@ -8,7 +8,7 @@ import type { EconomyConfig } from "@lanes/config";
 import { dayOf, type Company, type World } from "@lanes/engine";
 import type { Tab } from "./tabs.js";
 
-/** Which of Iuliia's loops the step shows (assets/people/iuliia-*.loop.png; the still when a loop is missing). */
+/** Iuliia's mood for the step: her face at rest in the live portrait (portrait.ts). */
 export type Mood = "idle" | "wave" | "point" | "laugh";
 
 export interface WalkStep {

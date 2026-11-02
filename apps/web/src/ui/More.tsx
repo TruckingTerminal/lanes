@@ -69,7 +69,7 @@ export function TeaserCard({ id }: { id: Tab }): JSX.Element {
       </header>
       <p class="small">{t.what}</p>
       <div class="caption">
-        <Iuliia mood="idle" size={32} />
+        <Iuliia mood="idle" size={64} />
         <span class="small">{t.iuliia}</span>
       </div>
       <div class="row">

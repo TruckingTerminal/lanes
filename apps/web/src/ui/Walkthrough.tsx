@@ -1,9 +1,10 @@
 import type { JSX } from "preact";
-import { useState } from "preact/hooks";
+import { useEffect, useRef, useState } from "preact/hooks";
 import { dayOf } from "@lanes/engine";
 import { GAME_CONFIG } from "../game.js";
 import { walkProgress, walkSteps, type Mood } from "../walkthrough.js";
 import { ASSETS, hasAsset } from "../mapart.js";
+import { drawPortrait } from "../portrait.js";
 import { bumpData, S, setOnboard, setTab, toast, useData } from "../state.js";
 import { ARRIVAL, CAPTION, DISPATCHER } from "../copy.js";
 import { pct } from "../format.js";
@@ -11,18 +12,44 @@ import { TAB_NAME } from "../tabs.js";
 import { Btn, Card } from "./bits.js";
 import { Loop } from "./Loop.js";
 
-/** Iuliia's portrait: the step's loop when it's drawn (assets/people/iuliia-*.loop.png), the still, or a placeholder until the art lands. */
-export function Iuliia({ mood, size = 128 }: { mood: Mood; size?: 32 | 96 | 128 }): JSX.Element {
-  const file = mood === "idle" ? "people/iuliia" : `people/iuliia-${mood}`;
-  const base = hasAsset(`${file}.png`) ? file : hasAsset("people/iuliia.png") ? "people/iuliia" : null;
-  if (!base) {
-    return (
-      <span class={size === 32 ? "portrait placeholder sm" : "portrait placeholder"} title="Iuliia, your trainer" aria-label="Iuliia">
-        I
-      </span>
-    );
-  }
-  return <Loop name={base} still={`${ASSETS}${base}.png`} w={128} h={128} scale={size === 32 ? 0.25 : size === 96 ? 0.75 : 0.5} smooth class={size === 32 ? "portrait sm" : size === 96 ? "portrait lg" : "portrait"} alt="Iuliia" />;
+let poster: HTMLImageElement | null = null;
+
+/**
+ * Iuliia, drawn live (portrait.ts, Graphics 2026-11-02): one canvas that draws her every animation frame on the page
+ * clock, so she blinks and glances on no cycle; the poster (people/iuliia.png, which is her rest frame) until her sheet
+ * decodes, so there is no flash between them. 96 px in the sheet, 64 in a caption, 128 on her tab.
+ */
+export function Iuliia({ mood, size = 128 }: { mood: Mood; size?: 64 | 96 | 128 }): JSX.Element {
+  const ref = useRef<HTMLCanvasElement>(null);
+  useEffect(() => {
+    const cv = ref.current!;
+    const ctx = cv.getContext("2d")!;
+    const reduced = matchMedia("(prefers-reduced-motion: reduce)").matches;
+    if (!poster) {
+      poster = new Image();
+      poster.src = `${ASSETS}people/iuliia.png`;
+    }
+    let raf = 0;
+    let drawn = false;
+    const frame = (t: number) => {
+      const px = Math.round(size * (window.devicePixelRatio || 1));
+      if (cv.width !== px) cv.width = cv.height = px;
+      const live = drawPortrait(ctx, 0, 0, px, mood, reduced ? 0 : t);
+      if (!live && poster!.complete && poster!.naturalWidth) {
+        ctx.imageSmoothingEnabled = px % poster!.naturalWidth !== 0;
+        ctx.drawImage(poster!, 0, 0, px, px);
+      }
+      drawn = live;
+      // Under reduced motion she rests once drawn; otherwise she lives.
+      if (!reduced || !drawn) raf = requestAnimationFrame(frame);
+    };
+    // The first frame now, not on the next animation frame, so she is never an empty box; the poster stands in when the
+    // sheet isn't decoded yet, and repaints itself the moment it is.
+    frame(performance.now());
+    poster.addEventListener("load", () => frame(performance.now()), { once: true });
+    return () => cancelAnimationFrame(raf);
+  }, [mood, size]);
+  return <canvas ref={ref} class={size === 64 ? "portrait md" : size === 96 ? "portrait lg" : "portrait xl"} role="img" aria-label="Iuliia" />;
 }
 
 /** The walkthrough card (walkthrough.ts), on the Iuliia tab: her current step in full, read from the world; the player can read ahead. */
@@ -161,7 +188,7 @@ export function Caption(): JSX.Element | null {
   if (seen(`hide:${step.id}`)) return null;
   return (
     <div class="caption">
-      <Iuliia mood={step.mood} size={32} />
+      <Iuliia mood={step.mood} size={64} />
       <span class="small">{step.do}</span>
       <Btn sm ghost onClick={() => mark(`hide:${step.id}`)}>
         {CAPTION.hide}

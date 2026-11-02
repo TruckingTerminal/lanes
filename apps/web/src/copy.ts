@@ -67,6 +67,12 @@ export const STARTERS: Record<string, { character: string; name: string }> = {
   LAX: { character: "The ports, day and night. Plenty of van freight out, crowded, and dear to insure.", name: "Harbor Gate Transport" },
   PHX: { character: "More trucks come in than freight goes out, but locals get first call and living here is cheap.", name: "Saguaro Line Freight" },
   CHI: { character: "Where the rails and the interstates meet. Freight to anywhere, most of the year.", name: "Lakefront Hauling" },
+  HOU: { character: "The port and the refineries. Flatbed freight goes out heavy, and the vans keep pace.", name: "Ship Channel Freight" },
+  ATL: { character: "The Southeast's crossroads. Most of the region's freight passes through on its way somewhere.", name: "Peachtree Line Freight" },
+  EWR: { character: "The ports of New York, next door. Plenty to haul, tight roads, and insurance that knows it.", name: "Meadowlands Transport" },
+  MEM: { character: "The river, the rails and the air freight meet here. Vans leave full, and living here is cheap.", name: "Bluff City Freight" },
+  CMH: { character: "A day's drive from half the country. Vans leave full, and the insurance is the gentlest on the list.", name: "Scioto Freight Lines" },
+  MIA: { character: "The end of the road. Freight arrives by the boatload and leaves thin, so locals keep what there is.", name: "Biscayne Freight" },
 };
 export const defaultName = (id: string): string => STARTERS[id]?.name ?? "";
 
