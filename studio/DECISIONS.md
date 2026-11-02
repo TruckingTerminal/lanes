@@ -34,3 +34,7 @@
   small to read; the weather becomes a hint, the AI trucks go to 80% and get a minimum dot size zoomed out so
   the interstates look busy, and the player's trucks stand out above both. Overrides draft 4's "AI carriers at
   35%". Engineering, with step 5.
+- 2026-11-02 — Jeff: the recommended starter hubs are not a fixed best-on-average three; the first entry rings
+  the hubs with the best freight for a new carrier at that moment of the game year, read live from the boards
+  (the season measure), so Chicago is ringed in September and not in May. Replaces the director's fixed Dallas,
+  Los Angeles, Phoenix (ruling 4), which stays as the tie-break and the fallback when the reading is not ready.
