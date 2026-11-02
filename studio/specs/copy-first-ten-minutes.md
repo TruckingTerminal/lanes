@@ -197,7 +197,12 @@ Each character line is true to today's hub table; if the economy's figures move,
 
 ## Iuliia
 
-Say lines are 25 words or fewer; the sheet shows **Say**, the caption **Do**. The full paragraphs of `walkthrough.ts` stay on the Iuliia tab with these edits: "Davai" → "Go on"; "the Fleet tab" → "the Truck tab";  "the Company tab", "the Dealer tab", "the Staff tab", "the Business tab" → "Company / Dealer / Staff / Business, under More"; step 13's "the Logbook tab and at the top beside your cash" → "Money, under Standing". Step 1's full text keeps both old paragraphs, with "The Fleet tab is your truck; the map is everyone's trucks. Find your home hub on it." → "The map is everyone's trucks; the ringed cities are good homes." Step 1 ticks on **Start at `{hub}`**. Step 4's full text still says shippers pay net-30, which a leased starter never sees; it needs the same correction as its Say line. The end card stays.
+Say lines are 25 words or fewer; the sheet shows **Say**, the caption **Do**. The full paragraphs of `walkthrough.ts` stay on the Iuliia tab with these edits: "Davai" → "Go on"; "the Fleet tab" → "the Truck tab";  "the Company tab", "the Dealer tab", "the Staff tab", "the Business tab" → "Company / Dealer / Staff / Business, under More"; step 13's "the Logbook tab and at the top beside your cash" → "Money, under Standing". Step 1's full text keeps both old paragraphs, with "The Fleet tab is your truck; the map is everyone's trucks. Find your home hub on it." → "The map is everyone's trucks; the ringed cities are good homes." Step 1 ticks on **Start at `{hub}`**. Step 4's full text is replaced, both paragraphs:
+
+> Delivered, and paid the same day. That's the lease: the lessor holds the paper and pays you on delivery, less its share. When you haul with a truck of your own, you'll invoice the shipper yourself, and shippers pay net-30: thirty game days after the work. Quick pay brings that forward for `{token.payment.quickPayPct}`; an instrument for emergencies, not a policy. Companies that live on quick pay receive a goodbye note from me. Handwritten. Fountain pen.
+>
+> What arrives is net of the lessor's `{costs.npcLeaseShareOfGross}`. The lease also holds a little back from each load toward a truck of your own; you'll see it again when you buy, so don't mourn it. Money shows both. Watch the cash line at the top of the screen every day, the way my grandmother watched the samovar. Trust, and verify. Mostly verify.
+ The end card stays.
 
 | Step | Say | Do |
 |---|---|---|
