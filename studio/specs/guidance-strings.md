@@ -149,17 +149,17 @@ The caption stays silent, unasked. Asked, What now? answers with these.
 
 ## 2. Milestones to day 91
 
-Each speaks once: a line **before** only where the date is known (the month close, day 28, day 91; UX's U2), and a line **at** the moment, plus one sentence of reason. Then What now? takes over. *Light* marks the only lines where humor is allowed.
+Each speaks once: a line **before** only where the date is known (the month close, day 28, day 91, the hired driver's payday, the next weekly check; UX's U2), and a line **at** the moment, plus one sentence of reason. Then What now? takes over. *Light* marks the only lines where humor is allowed.
 
 | Key | Trigger | Before | At | Reason |
 |---|---|---|---|---|
 | `milestone.ownTruck` | step 9 done | (step 9 itself) | Your own truck. No lessor's share now, and no lessor to fix it. | Maintenance, insurance and value lost are yours, and a truck that sits still costs money. |
-| `milestone.hiredWeek` | a hired driver's first payday | (none) | Payday. `{name}` was paid `{fd}` FD this week. | Wages come weekly whether the truck earns or not; keep it loaded. |
+| `milestone.hiredWeek` | a hired driver's first payday | `{name}` is paid `{day}`, and every week after, loaded or not. | Payday. `{name}` was paid `{fd}` FD this week. | Wages come weekly whether the truck earns or not; keep it loaded. |
 | `milestone.dispatcher` *light* | a dispatcher hired, or the third truck | (none) | Your dispatcher starts today. It follows your rules exactly, including the foolish ones. | Check the rules against the lanes that actually paid. |
 | `milestone.monthClose` | day 30 of the company | Your first month closes in `{n}` days. Monthly bills land with it. | Your first month: earned `{fd}`, spent `{fd}`, kept `{fd}` FD. | The fuel tax and insurance land at the close. Read the month on Money. |
 | `milestone.day28` *light* | the businesses layer | Businesses open `{businessDay}`. Most first-month carriers should let them wait. | Businesses are open. Nobody needs a warehouse in week four; most need a second truck. | A business pays over years. Your gap to the next truck is `{gap}` FD. |
 | `milestone.slump` | the demand dial under 0.9, the first time | (none: a slump gives no notice) | Rates are falling for everyone, not just you. Slumps end. | The carrier still here when it ends is the one who didn't buy in it. Your cushion: `{n}` weeks. |
-| `milestone.debt` | the first weekly check in debt | (none: `now.danger.warn` covers it) | You're in debt at a weekly check: 1 of `{weeksInDebt}`. Here is the way out. | `{weeksInDebt}` checks in a row under `{debtLine}` FD and the company is wound up. |
+| `milestone.debt` | the first weekly check in debt | The weekly check is `{day}`. At today's cash you'd be under the line. | You're in debt at a weekly check: 1 of `{weeksInDebt}`. Here is the way out. | `{weeksInDebt}` checks in a row under `{debtLine}` FD and the company is wound up. |
 | `milestone.day91` | the brokerage layer | Brokerages open `{brokerDay}`. The bond is the hard part. | Brokerages are open. Here's what one takes, and how far you are. | Bond, licence and premium: you're `{gap}` FD short, or ready. |
 
 ## 3. Explain: the first month's figures
