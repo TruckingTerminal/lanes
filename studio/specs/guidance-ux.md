@@ -34,6 +34,11 @@ One row in the page's flow, never an overlay, so nothing she says can sit on a f
   at the right of the button row.
 - **The walkthrough hidden ("Hide"):** the caption collapses to the 44 px row: face, chip, nothing else. What now?
   never hides.
+- **Not accepted: the chip in its own row under the caption** (as built in bb8e161, looked at on the test page at
+  375 × 812, 2026-11-02). Two faults, both from the separate row: at strip height the row falls below the 88 px
+  strip, so What now? can't be reached with the sheet down; and the answer opens as a second caption with a second
+  portrait under the first, repeating the caption's line word for word (rule 4). The change: the chip goes in the
+  caption's own button row, and the answer replaces the caption's content, one portrait (sections 2 and 5).
 
 **Laptop.** The caption under the five-tab control, as built, with the chip at the right of its button row. The
 key **?** opens What now? from anywhere outside a text field.
