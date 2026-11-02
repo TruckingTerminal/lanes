@@ -44,11 +44,12 @@ export function titleFrame(tMs: number): HTMLImageElement | null {
 // Both are drawn live, every frame, from one sprite atlas (tools/title-sprites.py) and a schedule of dice that are a
 // pure function of time: what passes, when and how fast is fixed by the slot it falls in, so nothing repeats on a
 // cycle and there is no seam. Head-on: the original painting's rig holds its place at the centre of the screen, alive,
-// while the camera backs down the road ahead of it and the world falls away behind it toward the horizon (the road's
-// lines, the poles and wires, the scrub, the signs, the painting's diner); clouds drift, birds cross, a train runs along
-// the foot of the mesas, and now and then a car pulls away up the far lane. Side view: the camera rides beside a cyan
-// semi (its trailer drawn here, so the gap, the fifth wheel, the landing gear and both tandems are exact) while the
-// road, the poles and the roadside stream past, and now and then a pickup, a sedan or another rig comes the other way.
+// in the lane the painting has it, while the road and everything beside it (its lines, the poles and wires, the scrub,
+// the signs, the painting's diner) stream at the camera from the horizon, growing as they come; clouds drift, birds
+// cross, a train runs along the foot of the mesas, and once a shot a car overtakes the camera in the far lane and pulls
+// away. Side view: the camera rides beside a cyan semi heading right in the near lane (its trailer drawn here, so the
+// gap, the fifth wheel, the landing gear and both tandems are exact) while the road, the poles and the roadside stream
+// past, and now and then a pickup, a sedan or another rig comes the other way in the far lane.
 // Jeff's rules (2026-11-02), both shots: one lane each way and nothing ever drives against its lane; it's a desert, so
 // barely any traffic and never two on screen at once; a track carries one train at a time, always the same way, led by
 // its locomotive; the roadside is placed so nothing stands in anything else; nothing on the road is a still (wheels
@@ -364,9 +365,8 @@ function train(a: Ctx, aw: number, rail: number, t: number, seed: number, carW: 
 
 // --- The side view -------------------------------------------------------------------------------------------
 
-// The road's rows in the band: the dirt shoulder, the asphalt with its edge lines, the far lane (the rig's tyres on
-// `far`), the centre line, the near lane (the oncoming traffic's tyres on `near`, so it passes in front of the rig and
-// is seen whole, the way the head-on painting keeps its lanes); the poles' tops and crossarms; the rails.
+// The road's rows in the band: the dirt shoulder, the asphalt with its edge lines, the far lane (the oncoming traffic's
+// tyres on `far`), the centre line, the near lane (the rig's tyres on `near`); the poles' tops and crossarms; the rails.
 const ROW = { shoulder: 96, road: 103, far: 111, centre: 115, near: 125, roadEnd: 128, arm: 44, poleTop: 40, rail: 95 } as const;
 const DIRT: RGB = [104, 64, 54];
 const ASPHALT: RGB = [46, 42, 60];
@@ -730,7 +730,7 @@ interface Car {
   trailer: Trailer;
 }
 /**
- * The oncoming traffic at time t of side shot n, driving left in the near lane. It's a desert (Jeff, 2026-11-02: "barely
+ * The oncoming traffic at time t of side shot n, driving left in the far lane. It's a desert (Jeff, 2026-11-02: "barely
  * any traffic"): the shot's 30 s are three 10 s slots, shuffled, one holding a pickup (the first titles' own, red or
  * slate teal), one a semi in another paint with a van, a reefer, a flatbed or a tanker, and one a sedan, the other
  * pickup or nothing. Each crosses the screen in two seconds or less, well inside its slot and clear of the fades, so two
@@ -802,16 +802,17 @@ function sideShot(a: Ctx, aw: number, ah: number, t: number, n: number): void {
   tile(a, tx.asphalt, -D, by + ROW.road, aw);
   a.fillStyle = DASH;
   for (let x = ((-D % 32) + 32) % 32 - 32; x < aw; x += 32) a.fillRect(x, by + ROW.centre, 12, 2);
-  // The rig in the far lane: its shadow, then the rig with its lights and smoke.
+  // Now and then something coming the other way in the far lane, behind the rig (Jeff, 2026-11-02: "the right (bottom)
+  // lane with incoming traffic in the left lane").
+  const c = oncoming(n, aw, t);
+  if (c?.kind === "semi") semi(a, c.x, by + ROW.far, -1, c.paint, c.trailer, c.dist, t, c.seed);
+  else if (c) sideCar(a, c.kind, c.paint, c.x, by + ROW.far, -1, c.dist, t, c.seed);
+  // The rig in the near lane: its shadow, then the rig with its lights and smoke.
   const len = rigLength();
   const x = Math.round(aw / 2 - len / 2) + 4;
-  const g = by + ROW.far;
+  const g = by + ROW.near;
   rect(a, x + 3, g - 1, len - 6, 2, "rgba(10,8,20,0.35)");
   semi(a, x, g, 1, "tractor", "ours", D, t, 0, 56);
-  // Now and then something coming the other way in the near lane, passing in front of it.
-  const c = oncoming(n, aw, t);
-  if (c?.kind === "semi") semi(a, c.x, by + ROW.near, -1, c.paint, c.trailer, c.dist, t, c.seed);
-  else if (c) sideCar(a, c.kind, c.paint, c.x, by + ROW.near, -1, c.dist, t, c.seed);
   // The ground in front of the road, to the bottom of the screen, darker toward the viewer.
   const fx = -Math.round(D * FG);
   for (let y = by + ROW.roadEnd; y < ah; y += tx.sand.height) tile(a, tx.sand, fx, y, aw);
@@ -833,12 +834,12 @@ function sideShot(a: Ctx, aw: number, ah: number, t: number, n: number): void {
 // --- The head-on view ----------------------------------------------------------------------------------------
 
 const RAIL = 86; // the far rails, along the foot of the mesas
-const VSPEED = 62; // the far lane's traffic, feet a second (about 42 mph)
-const HSPEED = 80; // the rig's speed, feet a second (55 mph), and so the world's past the camera
-// Which way the world goes by: the rig faces us and drives at us, held in the frame by a camera backing down the road
-// ahead of it, so the road and everything by it fall away behind it toward the horizon (+1). -1 would stream them at
-// the camera instead, as if the rig were reversing.
-const DRIFT = 1;
+const PASS = 60; // feet a second the far lane's car pulls away from the camera once it has overtaken it
+const HSPEED = 80; // the world's speed past the camera, feet a second (55 mph)
+// Which way the world goes by (Jeff, 2026-11-02: the things beside the road stood still while the road moved): the
+// road and everything by it stream at the camera from the horizon, growing as they come and sliding out past the
+// frame (-1); +1 would have them fall away toward the horizon behind the rig.
+const DRIFT = -1;
 const ROAD = { right: -1.8, left: -32, centre: -17 } as const; // across the road from the camera, feet
 const HAZE: RGB = [122, 84, 104]; // the painting's ground at the horizon
 const RIG_DEPTH = 40; // feet: what's nearer than this draws in front of the painted rig
@@ -1199,15 +1200,15 @@ function rideShadow(a: Ctx, ox: number, by: number, r: Rider): void {
 }
 
 /**
- * Head-on traffic: one car a shot, going away up the far lane, out past the rig from behind the camera (so it pulls
- * away even faster than the road, the camera backing the other way), seen from behind with its tail lights. One is
- * plenty: it's a desert (Jeff, 2026-11-02: "barely any traffic").
+ * Head-on traffic: one car a shot in the far lane, going the other way from the rig: it overtakes the camera from
+ * behind and pulls away up the road toward the horizon, seen from behind with its tail lights, the way the first
+ * painted title's pickup did. One is plenty: it's a desert (Jeff, 2026-11-02: "barely any traffic").
  */
 function headTraffic(n: number, u: number): Rider[] {
   const kind: VKind = dice(n, 78) < 0.5 ? "pickup" : "sedan";
   const ts = 6 + dice(n, 76) * 14;
-  const d = -VMODELS[kind].L - 2 + (VSPEED + HSPEED * DRIFT) * (u - ts);
-  return u >= ts && d < VSPAWN ? [{ kind, view: "going", d, dist: VSPEED * (u - ts), seed: n * 37 }] : [];
+  const d = -VMODELS[kind].L - 2 + PASS * (u - ts);
+  return u >= ts && d < VSPAWN ? [{ kind, view: "going", d, dist: (HSPEED + PASS) * (u - ts), seed: n * 37 }] : [];
 }
 
 // The ground under the head-on camera, drawn every frame: for each pixel below the horizon, the point of the road or
@@ -1409,7 +1410,7 @@ function roadThings(a: Ctx, aw: number, ox: number, by: number, gone: number, t:
     });
   }
   // The diner: where the painting has it at the opening, and again every few thousand feet.
-  const DINER_EVERY = 2600;
+  const DINER_EVERY = 1800; // so another one comes up the road within the shot
   const [dw, dh] = [sw("head-diner"), sh("head-diner")];
   for (let k = Math.floor((uFor(60) - DINER_U) / DINER_EVERY); k <= Math.ceil((uFor(1400) - DINER_U) / DINER_EVERY); k++) {
     const Y = DINER_U + k * DINER_EVERY + gone;
@@ -1490,7 +1491,7 @@ function headShot(a: Ctx, aw: number, ah: number, u: number, n: number, t: numbe
   const by = bandTop(ah);
   // A narrow screen keeps the rig at its centre, as far as the painting reaches.
   const ox = Math.max(aw - BW, Math.min(0, Math.round(aw / 2 - (TRUCK_AT[0] + 40))));
-  const gone = HSPEED * u * DRIFT; // feet the world has gone by, toward the horizon
+  const gone = HSPEED * u * DRIFT; // feet the world has moved along the road, away from the camera
   if (by > 0) skyAbove(a, aw, by, topOf(back()), t);
   spr(a, "head-sky", ox, by);
   clouds(a, aw, by, t, n);
