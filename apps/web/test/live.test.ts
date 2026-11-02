@@ -90,3 +90,23 @@ describe("live world", () => {
     expect(summary(a.w)).toBe(summary(b.w));
   }, 120_000);
 });
+
+describe("the live rings", () => {
+  it("reads the starter hubs during the replay's last two game days, so the page rings from the first look, and the world is the same", async () => {
+    const { rankStarters, sampleStarters, seasonRounds, starterHubs } = await import("../src/hubcard.js");
+    const clock = 5 * 24 * MS_PER_GAME_HOUR + 7 * MS_PER_GAME_HOUR;
+    const now = () => clock;
+    const meta: WorldMeta = { v: 1, seed: 77, epochMs: 0, msPerGameHour: MS_PER_GAME_HOUR, ruleset: RULESET };
+    const sampled = await LiveWorld.open(new MemoryDb(now), meta, "carol", { now, holder: "c" });
+    sampled.onHour = (w) => {
+      if (w.t % 720 === 360 && w.t >= sampled.gameMinute() - 2 * 1440) sampleStarters(w);
+    };
+    const plain = await LiveWorld.open(new MemoryDb(now), meta, "dave", { now, holder: "d" });
+    await sampled.rebuild();
+    await plain.rebuild();
+    expect(starterHubs(sampled.w).every((i) => seasonRounds(sampled.w, i) >= 4)).toBe(true);
+    expect(rankStarters(sampled.w)).toHaveLength(starterHubs(sampled.w).length);
+    // Reading the world changes nothing in it.
+    expect(summary(sampled.w)).toBe(summary(plain.w));
+  }, 120_000);
+});

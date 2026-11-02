@@ -150,6 +150,8 @@ export class LiveWorld {
 
   onOwnResult: ((r: ActRecord, res: ActionResult) => void) | null = null;
   onJoin: ((uid: string, c: Company) => void) | null = null;
+  /** Sees the world after every hour it steps, the replay's included. It must only read: every page has to compute the same world. */
+  onHour: ((w: World) => void) | null = null;
   private events: ((e: GameEvent) => void)[] = [];
 
   private logs = new Map<string, Map<number, ActRecord>>();
@@ -240,6 +242,12 @@ export class LiveWorld {
         this.broken = { at: this.w.t, reason: (e as { message?: string })?.message ?? String(e) };
         this.replaying = false;
         return true;
+      }
+      // The screen's read of the hour, apart from the engine's try: a page's own error never marks the world broken.
+      try {
+        this.onHour?.(this.w);
+      } catch (e) {
+        console.error(e);
       }
     }
     return false;

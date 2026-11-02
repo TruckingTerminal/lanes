@@ -38,7 +38,7 @@ export interface TabDef {
 const trucksOf = (w: World, c: Company) => (w.trucksByCompany.get(c.id) ?? []).filter((t) => t.status !== "retired");
 /** The day a layer opens, as a date: its published day of the beta, or after launch. */
 const layerDay = (w: World, layer: "businesses"): string => dayDate((w.token.launchDay ?? 0) + w.cfg.unlockLadder.layers[layer].afterDays);
-/** The walkthrough step the Dealer waits for ("when Iuliia says so": buying your first truck). */
+/** The walkthrough step the Dealer and Finance wait for ("when Iuliia says so": buying your first truck). */
 const OWN_STEP = walkSteps(GAME_CONFIG).findIndex((s) => s.id === "own");
 
 export const TABS: readonly TabDef[] = [
@@ -105,8 +105,15 @@ export const TABS: readonly TabDef[] = [
     teaser: {
       what: "Getting paid faster, and what that costs.",
       iuliia: "A second truck makes it worth reading.",
-      opens: () => "at your second truck",
-      open: (w, c) => !!c && trucksOf(w, c).length >= 2,
+      // The director, 2026-11-02 (2b32a9d): Finance opens with the first-truck step, beside the Dealer, so Iuliia never
+      // points at a locked tab.
+      opens: () => "when Iuliia says so",
+      open: (w, c) => {
+        if (!c) return false;
+        if (trucksOf(w, c).length >= 2) return true;
+        const { index } = walkProgress(GAME_CONFIG, w, c);
+        return index < 0 || index >= OWN_STEP;
+      },
     },
   },
   {

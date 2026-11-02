@@ -177,6 +177,11 @@ async function enterLive(meta: WorldMeta): Promise<void> {
     else toast(`${r.a.type.replace(/_/g, " ")} failed: ${res.reason}`, true);
     bumpData();
   };
+  // The live rings (S1): read the starter hubs after each round of the replay's last two game days and from then on, so
+  // the rings' four-round mean is ready at the first look instead of falling back.
+  lw.onHour = (w) => {
+    if (w.t % 720 === 360 && w.t >= lw.gameMinute() - 2 * 1440) sampleStarters(w);
+  };
   lw.onJoin = (uid, c) => {
     push(lw, uid === S.platform.uid ? `${c.name} is on the road out of ${lw.w.net.hubs[c.homeHub]!.id}. Good luck.` : `${c.name} joined the world, hauling out of ${lw.w.net.hubs[c.homeHub]!.id}`, "good");
     if (uid === S.platform.uid) {
