@@ -144,8 +144,8 @@ export const TABS: readonly TabDef[] = [
     label: "Back Lot",
     icon: "wrench",
     teaser: {
-      what: "A later beta: player against player. Crews for hire, a gate and cameras for your yard, and a meter for how much attention you draw.",
-      iuliia: "Someone will want your cargo one day; someone else's may tempt you. Lock the gate either way.",
+      what: "A later beta: player against player. A gate and cameras for your yard, and a meter for how much attention you draw.",
+      iuliia: "Someone will want your cargo one day. Lock the gate.",
       opens: () => "with a later beta",
       open: (w) => w.cfg.robbery.enabled && w.cfg.robbery.lot.enabled && !layerBlock(w, "robbery"),
     },

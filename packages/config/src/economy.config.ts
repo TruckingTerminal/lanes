@@ -9,7 +9,7 @@ export type TractorTier = "workhorse" | "highwayPro" | "flagship";
 export type FacilityType = "warehouse" | "coldStorage" | "factory";
 
 export const economyConfig = {
-  version: "0.19.3-phase0.32", // Sprint 1 (2026-11-02): ui.season for the hub card (no sim effect); the first bid by hand switched on (freeEntry.firstBidByHand); beta one's ladder and crews as before; live levers in live.ts
+  version: "0.20.0-phase0.33", // Republish (2026-11-02): the factoring contract and the population dial switched on in live.ts (token.demandScalesWithCarriers off with the dial); sprint 1 and beta one as before; the lock discounts still off
 
   // §World, map and time
   time: {

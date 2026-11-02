@@ -115,6 +115,15 @@ export const LIVE_LEVERS: Record<string, unknown> = {
   "unlockLadder.beta.enabled": true,
   // Sprint 1: the first bid by hand (the dispatcher idle until the owner has bid or booked once; v55-a).
   "freeEntry.firstBidByHand": true,
+  // Republish (2026-11-02, ruleset 0.20.0-phase0.33; Jeff: "go with your recommendation"): the factoring contract
+  // (three game months, the whole fleet, 6% → 2.5% by fleet size, brokers flat 5%, the fee to the reserve, the pools
+  // standing down) and the population dial (loads posted per truck in service held inside its band from day 112, the
+  // cycles kept) switched on, sized as v56 and v57 (studio/reviews/economy-factoring.md, economy-population-dial.md);
+  // demand no longer scales with the carrier count (the dial moves carriers instead). The lock discounts wait for a
+  // four-year batch.
+  "token.payment.factoring.contract.enabled": true,
+  "population.dial.enabled": true,
+  "token.demandScalesWithCarriers": false,
   // The supply path (+10% over four years, the dial never under the launch rates) and the whale rules on sales.
   "token.supplyCeiling.enabled": true,
   "token.supplyCeiling.growth": 0.1,

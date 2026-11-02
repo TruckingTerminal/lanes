@@ -84,3 +84,10 @@
 - 2026-11-02 — Correction (the producer misread Jeff): the head-on shot is NOT mirrored; the painting's
   orientation and lane were right. The side view's rig faces right in the bottom lane, oncoming traffic in the
   top lane moving left, as it was. The fix the head-on shot needed was the roadside moving with the road.
+- 2026-11-02 — Jeff ("go with your recommendation for all 3"): (1) the live world is republished now from main
+  with the factoring contract and the population dial switched on (ruleset 0.20.0-phase0.33, live.ts; demand no
+  longer scales with the carrier count) and the lock discounts off until a four-year batch has run; no players,
+  so the restart costs nothing. (2) Prudent-versus-greedy: option A first, the conservative bot made a prudent
+  businessman rather than a timid one, then B (loan rates by leverage and a bust covenant, behind a switch) only
+  if the pair still shows the greedy bot ahead. (3) The Back Lot card takes the director's softer line: player
+  against player, the gate and the cameras stay; the hiring and the temptation go.
