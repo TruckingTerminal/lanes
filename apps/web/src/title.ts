@@ -6,8 +6,8 @@ import { PAL } from "./art.js";
 import { drawText, textWidth } from "./font.js";
 
 /**
- * The title scene's poster, inside the page: the head-on shot's first frame (the painting with its own rig, mirrored for
- * US lanes, before the road starts moving; rendered by drawTitleShots itself), 256×144, shown until the shots below can play, and for good
+ * The title scene's poster, inside the page: the head-on shot's first frame (the painting with its own rig, before the
+ * road starts moving; rendered by drawTitleShots itself), 256×144, shown until the shots below can play, and for good
  * when motion is reduced.
  */
 export const TITLE_FRAME_W = 256;
@@ -43,19 +43,18 @@ export function titleFrame(tMs: number): HTMLImageElement | null {
 // --- The two shots (Jeff, 2026-11-01) ------------------------------------------------------------------------
 // Both are drawn live, every frame, from one sprite atlas (tools/title-sprites.py) and a schedule of dice that are a
 // pure function of time: what passes, when and how fast is fixed by the slot it falls in, so nothing repeats on a
-// cycle and there is no seam. Both are drawn the way the painting drives, on the left, and mirrored for US lanes
-// (`mirror`), their lettering set back to front to read forward. Head-on: the original painting's rig holds its place
-// at the centre of the screen, alive, while the camera backs down the road ahead of it and the world falls away behind
-// it toward the horizon (the road's lines, the poles and wires, the scrub, the signs, the painting's diner); clouds
-// drift, birds cross, a train runs along the foot of the mesas, and once a shot a car pulls away up the far lane. Side
-// view: the camera rides beside a cyan semi (its trailer drawn here, so the gap, the fifth wheel, the landing gear and
-// both tandems are exact) while the road, the poles and the roadside stream past, and now and then a pickup, a sedan or
-// another rig comes the other way. Jeff's rules (2026-11-02), both shots: one lane each way and nothing ever drives
-// against its lane; it's a desert, so barely any traffic and never two on screen at once; a track carries one train at
-// a time, always the same way, led by its locomotive; the roadside is placed so nothing stands in anything else;
-// nothing on the road is a still (wheels roll, bodies bounce, stacks smoke, and at this hour every lamp is lit). Each
-// shot holds 30 s and fades into the other over a second; the first is head-on, from the frame the poster shows. On a
-// screen of any other shape the 256 × 144 band keeps its pixel size and the sky grows above it and the ground below.
+// cycle and there is no seam. Head-on: the original painting's rig holds its place at the centre of the screen, alive,
+// while the camera backs down the road ahead of it and the world falls away behind it toward the horizon (the road's
+// lines, the poles and wires, the scrub, the signs, the painting's diner); clouds drift, birds cross, a train runs along
+// the foot of the mesas, and now and then a car pulls away up the far lane. Side view: the camera rides beside a cyan
+// semi (its trailer drawn here, so the gap, the fifth wheel, the landing gear and both tandems are exact) while the
+// road, the poles and the roadside stream past, and now and then a pickup, a sedan or another rig comes the other way.
+// Jeff's rules (2026-11-02), both shots: one lane each way and nothing ever drives against its lane; it's a desert, so
+// barely any traffic and never two on screen at once; a track carries one train at a time, always the same way, led by
+// its locomotive; the roadside is placed so nothing stands in anything else; nothing on the road is a still (wheels
+// roll, bodies bounce, stacks smoke, and at this hour every lamp is lit). Each shot holds 30 s and fades into the other
+// over a second; the first is head-on, from the frame the poster shows. On a screen of any other shape the 256 × 144
+// band keeps its pixel size and the sky grows above it and the ground below.
 
 const SHOT_MS = 30_000;
 const FADE_MS = 1_000;
@@ -367,8 +366,7 @@ function train(a: Ctx, aw: number, rail: number, t: number, seed: number, carW: 
 
 // The road's rows in the band: the dirt shoulder, the asphalt with its edge lines, the far lane (the rig's tyres on
 // `far`), the centre line, the near lane (the oncoming traffic's tyres on `near`, so it passes in front of the rig and
-// is seen whole); the poles' tops and crossarms; the rails. Drawn with the rig facing right and mirrored after (`mirror`),
-// so on screen it drives right to left in the far lane, the US way, seen from its driver's side.
+// is seen whole, the way the head-on painting keeps its lanes); the poles' tops and crossarms; the rails.
 const ROW = { shoulder: 96, road: 103, far: 111, centre: 115, near: 125, roadEnd: 128, arm: 44, poleTop: 40, rail: 95 } as const;
 const DIRT: RGB = [104, 64, 54];
 const ASPHALT: RGB = [46, 42, 60];
@@ -515,7 +513,7 @@ function trailerArt(kind: Trailer): HTMLCanvasElement {
     }
     if (kind === "ours") {
       f(1, 12, TL - 2, 2, PAL.teal);
-      letter(g, "LANES", Math.round(TL / 2 - textWidth("LANES") / 2), 3, PAL.blueD);
+      drawText(g, "LANES", Math.round(TL / 2 - textWidth("LANES") / 2), 3, 1, PAL.blueD);
     }
   }
   trailers.set(kind, c);
@@ -592,30 +590,6 @@ const MICRO: Record<string, readonly number[]> = {
   T: [7, 2, 2, 2, 2],
 };
 const microW = (s: string): number => [...s].reduce((w, ch) => w + (ch === "I" ? 1 : 3) + 1, -1);
-let textCv: HTMLCanvasElement | null = null;
-/**
- * Lettering at (x, y), set back to front in its own box, so it reads forward once the shot is mirrored (both are; see
- * `shot`): the font's 5 × 7, or with `small` the 3 × 5 above; with `glow`, a one-pixel border in that colour round it.
- */
-function letter(a: Ctx, s: string, x: number, y: number, c: string, small = false, glow?: string): void {
-  const o = glow ? 1 : 0;
-  const w = (small ? microW(s) : textWidth(s)) + 2 * o;
-  const h = (small ? 5 : 7) + 2 * o;
-  textCv ??= document.createElement("canvas");
-  if (textCv.width < w || textCv.height < h) {
-    textCv.width = Math.max(textCv.width, w);
-    textCv.height = Math.max(textCv.height, h);
-  }
-  const g = textCv.getContext("2d")!;
-  g.clearRect(0, 0, textCv.width, textCv.height);
-  if (small) micro(g, s, 0, 0, c);
-  else drawText(g, s, o, o, 1, c, glow);
-  a.save();
-  a.translate(Math.round(x) - o + w, Math.round(y) - o);
-  a.scale(-1, 1);
-  a.drawImage(textCv, 0, 0, w, h, 0, 0, w, h);
-  a.restore();
-}
 function micro(a: Ctx, s: string, x: number, y: number, c: string): void {
   a.fillStyle = c;
   for (const ch of s) {
@@ -635,9 +609,9 @@ function speedSign(a: Ctx, x: number, base: number): void {
   rect(a, x + 11, base - 12, 1, 13, PAL.fog);
   rect(a, x, top, SPEED_W, h, PAL.ink0);
   rect(a, x + 1, top + 1, SPEED_W - 2, h - 2, PAL.white);
-  letter(a, "SPEED", x + Math.round((SPEED_W - microW("SPEED")) / 2), top + 3, PAL.ink0, true);
-  letter(a, "LIMIT", x + Math.round((SPEED_W - microW("LIMIT")) / 2), top + 9, PAL.ink0, true);
-  letter(a, "65", x + Math.round((SPEED_W - textWidth("65")) / 2), top + 16, PAL.ink0);
+  micro(a, "SPEED", x + Math.round((SPEED_W - microW("SPEED")) / 2), top + 3, PAL.ink0);
+  micro(a, "LIMIT", x + Math.round((SPEED_W - microW("LIMIT")) / 2), top + 9, PAL.ink0);
+  drawText(a, "65", x + Math.round((SPEED_W - textWidth("65")) / 2), top + 16, 1, PAL.ink0);
 }
 
 const guideW = (text: string): number => textWidth(text) + 5;
@@ -647,7 +621,7 @@ function guideSign(a: Ctx, x: number, base: number, text: string): void {
   rect(a, x + w - 4, base - 16, 1, 17, PAL.mist);
   rect(a, x, base - 28, w, 12, PAL.paper);
   rect(a, x + 1, base - 27, w - 2, 10, PAL.forest);
-  letter(a, text, x + 3, base - 26, PAL.white);
+  drawText(a, text, x + 3, base - 26, 1, PAL.white);
 }
 
 const BILLBOARD_W = 64;
@@ -656,8 +630,8 @@ function billboard(a: Ctx, x: number, base: number, lines: readonly string[]): v
   rect(a, x + 48, base - 14, 2, 15, PAL.mtnD);
   rect(a, x, base - 34, BILLBOARD_W, 21, PAL.ink0);
   rect(a, x + 1, base - 33, BILLBOARD_W - 2, 19, PAL.ink2);
-  letter(a, lines[0]!, x + 32 - Math.round(textWidth(lines[0]!) / 2), base - 31, PAL.gold);
-  letter(a, lines[1]!, x + 32 - Math.round(textWidth(lines[1]!) / 2), base - 22, PAL.paper);
+  drawText(a, lines[0]!, x + 32 - Math.round(textWidth(lines[0]!) / 2), base - 31, 1, PAL.gold);
+  drawText(a, lines[1]!, x + 32 - Math.round(textWidth(lines[1]!) / 2), base - 22, 1, PAL.paper);
   lamp(a, x + 5, base - 36, MARKER, 1);
   lamp(a, x + 58, base - 36, MARKER, 1);
 }
@@ -712,7 +686,7 @@ function roadside(a: Ctx, aw: number, by: number, D: number, t: number): void {
       if (p === "mile") {
         rect(a, x + 3, base - 8, 1, 9, PAL.mist);
         rect(a, x, base - 17, 7, 9, PAL.grassD);
-        letter(a, String((117 + g / 16) % 10), x + 1, base - 16, PAL.white);
+        drawText(a, String((117 + g / 16) % 10), x + 1, base - 16, 1, PAL.white);
       } else if (p === "speed") speedSign(a, x, base);
       else if (p.startsWith("sign:")) guideSign(a, x, base, p.slice(5));
       else spr(a, p, x, y - sh(p) + (p === "sage" ? 6 : 0));
@@ -1348,22 +1322,6 @@ function signCanvas(kind: string): HTMLCanvasElement {
   }
   return c;
 }
-/** Where the diner's sign sits on its sprite, and its size: x, y, w, h. */
-const DINER_SIGN = [32, 3, 33, 11] as const;
-let dinerArt: HTMLCanvasElement | null = null;
-/** The diner's sign: a dark panel in a teal frame, DINER in pink neon. */
-function dinerSign(): HTMLCanvasElement {
-  if (!dinerArt) {
-    dinerArt = document.createElement("canvas");
-    dinerArt.width = DINER_SIGN[2];
-    dinerArt.height = DINER_SIGN[3];
-    const g = dinerArt.getContext("2d")!;
-    rect(g, 0, 0, DINER_SIGN[2], DINER_SIGN[3], PAL.teal);
-    rect(g, 1, 1, DINER_SIGN[2] - 2, DINER_SIGN[3] - 2, "rgb(36,22,50)");
-    letter(g, "DINER", 2, 2, "rgb(255,132,214)", false, "rgb(122,44,110)");
-  }
-  return dinerArt;
-}
 function roadThings(a: Ctx, aw: number, ox: number, by: number, gone: number, t: number): Thing[] {
   const things: Thing[] = [];
   const at = (X: number, Y: number, Z: number): [number, number] => {
@@ -1450,8 +1408,7 @@ function roadThings(a: Ctx, aw: number, ox: number, by: number, gone: number, t:
       },
     });
   }
-  // The diner: where the painting has it at the opening, and again every few thousand feet, its sign redrawn over the
-  // painted one (which read DNHER) so it says DINER.
+  // The diner: where the painting has it at the opening, and again every few thousand feet.
   const DINER_EVERY = 2600;
   const [dw, dh] = [sw("head-diner"), sh("head-diner")];
   for (let k = Math.floor((uFor(60) - DINER_U) / DINER_EVERY); k <= Math.ceil((uFor(1400) - DINER_U) / DINER_EVERY); k++) {
@@ -1466,11 +1423,8 @@ function roadThings(a: Ctx, aw: number, ox: number, by: number, gone: number, t:
         const [x, y] = at(DINER_X, Y, 0);
         const w = dw * s;
         const h = dh * s;
-        const [x0, y0] = [Math.round(x - w / 2), Math.round(y - h)];
-        a.drawImage(atlas(), R[0], R[1], R[2], R[3], x0, y0, Math.max(1, Math.round(w)), Math.max(1, Math.round(h)));
-        const [sx, sy, signW, signH] = DINER_SIGN;
-        a.drawImage(dinerSign(), x0 + Math.round(sx * s), y0 + Math.round(sy * s), Math.max(1, Math.round(signW * s)), Math.max(1, Math.round(signH * s)));
-        if (dice(Math.floor(t * 9), k) < 0.06) rect(a, x0 + sx * s, y0 + sy * s, signW * s, signH * s, "rgba(18,9,26,0.55)"); // the neon catching
+        a.drawImage(atlas(), R[0], R[1], R[2], R[3], Math.round(x - w / 2), Math.round(y - h), Math.max(1, Math.round(w)), Math.max(1, Math.round(h)));
+        if (dice(Math.floor(t * 9), k) < 0.06) rect(a, x - w / 2 + 37 * s, y - h + 1 * s, 30 * s, 15 * s, "rgba(18,9,26,0.55)"); // the neon catching
       },
     });
   }
@@ -1579,32 +1533,6 @@ const back = (): HTMLImageElement => pics![2]!;
 function shot(a: Ctx, n: number, aw: number, ah: number, tMs: number): void {
   if (n % 2 === 0) headShot(a, aw, ah, (tMs - n * SHOT_MS) / 1000, n, tMs / 1000);
   else sideShot(a, aw, ah, tMs / 1000, n);
-  mirror(a, aw, ah);
-}
-
-let flipCv: HTMLCanvasElement | null = null;
-/**
- * US lanes (Jeff, 2026-11-02: "on the right lane to keep it true to how we drive in USA"). The painting drives on the
- * left, so both shots are drawn the painting's way and then mirrored: head-on, the rig comes on in the camera's left
- * lane and the far lane goes away on the right; side-on, the rig drives right to left in the far lane, seen from its
- * driver's side, and what comes the other way passes in front of it in the near lane. Lettering is set back to front
- * to begin with (`letter`), so it reads forward.
- */
-function mirror(a: Ctx, aw: number, ah: number): void {
-  flipCv ??= document.createElement("canvas");
-  if (flipCv.width !== aw || flipCv.height !== ah) {
-    flipCv.width = aw;
-    flipCv.height = ah;
-  }
-  const g = flipCv.getContext("2d")!;
-  g.globalCompositeOperation = "copy";
-  g.drawImage(a.canvas, 0, 0);
-  a.save();
-  a.globalAlpha = 1;
-  a.globalCompositeOperation = "copy";
-  a.setTransform(-1, 0, 0, 1, aw, 0);
-  a.drawImage(flipCv, 0, 0);
-  a.restore();
 }
 
 /**
