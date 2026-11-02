@@ -16,6 +16,9 @@ Nothing to read: the title loop and one button. Connection states live on the bu
 | Test, new | New test world |
 | Test, replacing a saved world | This replaces `{company}`. · Replace it · Keep it |
 | Test, first two game days | Starting the world… |
+| Not open yet (kept) | Not open yet |
+| Update in progress (kept; its hover line replaced) | Update in progress · hover: The live world runs rules `{theirs}`; this page has `{RULESET}`. Reload in a little while. |
+| Owner only (both kept) | Open the live world · Test world |
 | ≡ menu | Report a bug or an idea · Full screen |
 | Gone | the taglines, the join and test cards, the hub table, "Start hauling", the beta line, the theme picker |
 
@@ -101,6 +104,7 @@ Each character line is true to today's hub table; if the economy's figures move,
 | Your sprite | You |
 | Iuliia, arrival | This is `{hub}`, your home. One leased Workhorse, a dry van, and you driving. The lessor keeps `{costs.npcLeaseShareOfGross}` of every load. Let's find one. · **Show me the board** |
 | Ticker, before the first bid | The first load is your call. Bids clear at `{r1}` and `{r2}`. |
+| Ticker, after the first bid, nothing new (kept) | Your dispatcher is watching the board. Bids clear at `{r1}` and `{r2}`. · if the switch is off: Your dispatcher is off. Bids clear at `{r1}` and `{r2}`. |
 
 ## S2 Loads
 
@@ -154,6 +158,7 @@ Each character line is true to today's hub table; if the economy's figures move,
 | Tonight (`ROLLING.tonightSite`) | Tonight, as planned: `{a truck stop / a rest area}` near `{place}` |
 | Tonight, no site (`ROLLING.tonightShoulder`) | Tonight, as planned: the shoulder. Nowhere legal to stop in reach. |
 | Waiting (before the first bid) | Waiting at `{hub}` · the first load is your call · **Show me the board** · strip: Truck 1 · Waiting at `{hub}` · round `{hh:00}` |
+| Send empty, no destination chosen (button kept; toast replaced) | Send empty · toast: The truck is heading out empty. |
 | Idle (after it) | Idle at `{place}` · next round `{hh:00}` · other status lines unchanged |
 | Map | Follow |
 | Needs you | Needs you |
@@ -193,7 +198,18 @@ Each character line is true to today's hub table; if the economy's figures move,
 | Iuliia, after the first bid | From now on your dispatcher bids when you don't. Check the rules before you go. · **See the dispatcher** |
 | Card | Your dispatcher · switch: Bid for me while I'm away (on) · Bid at break-even plus `[ ]` % · Send the truck empty up to `[ ]` mi · Bring me home after `[ ]` days · **Save** · More rules |
 | More rules | Never below break-even plus `[ ]` % · Book loads between rounds at break-even plus `[ ]` % · Move idle trucks to busier hubs after `[ ]` idle rounds · Contracts: today's row, unchanged |
+| Ceiling mode row (replaces "Bid at this share of the posted ceiling") | Bid at `[ ]` % of the ceiling |
 | Toasts | Dispatcher saved. · Dispatcher back to defaults. |
+
+## The guide's first pages (engineering's rewrite)
+
+| Where | String |
+|---|---|
+| Your first week, Day 1 (kept, one word changed) | Day 1: pick a home city, open Loads, choose a load near your truck, and bid or book it. Bids clear at `{r1}` and `{r2}` game time. |
+| Your first week, Every day (kept) | Every day: after your first load by hand, your dispatcher bids for idle trucks you don't bid on yourself. Set its rules on the Truck tab. |
+| The screen, the tabs (kept) | Truck (your trucks and the dispatcher), Loads (the board), Money (cash, what's owed, this week's costs, loans), and More: Iuliia, this Help, Company (your record, the leaderboard), and the tabs still to come, each opening when it's useful. |
+| The screen, Today (kept) | Today on the Truck tab (and the ticker along the bottom on a laptop) lists what just happened to your company: loads won and delivered, breakdowns, inspections, staff news. |
+| Tell us what you think (kept) | "Report a bug or an idea", under ≡ at the top of the screen, sends it straight to us… (rest unchanged) |
 
 ## Iuliia
 
