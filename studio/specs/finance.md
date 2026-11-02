@@ -1,4 +1,4 @@
-# Finance (UX spec, draft 1, 2026-11-02; owner: UX)
+# Finance (UX spec, draft 2, 2026-11-03; owner: UX; Cash it now added)
 
 Sprint 2, item 2. The rules are ruleset 0.20.0, live: the factoring contract on
 (`token.payment.factoring.contract`), purchase loans on, lease deposits counting toward the first truck. The
@@ -47,8 +47,8 @@ The arithmetic Iuliia's step 9 asks for, done for the player. Four rows, label l
 | "Your cash" | "21,400 FD" | the ledger |
 
 Under the rows, one verdict line, computed, never Iuliia's: green "You have the month." when cash ≥ the month,
-else amber "You're 2,600 FD short of a month. Quick pay or factoring would close it; both cost." Button: **Go to
-the Dealer**.
+else amber "You're 2,600 FD short of a month. Quick pay, factoring or cashing an invoice would close it; all
+cost." Button: **Go to the Dealer**.
 
 ### Card 2: Getting paid
 
@@ -88,6 +88,10 @@ fleet, one decimal.
 - Exceptions, each shown only when it applies: "Leased trucks: the lessor still pays on delivery, no fee." ·
   "Loads for player shippers wait 30 days even under contract: 1 load, 2,100 FD."
 
+**"Open invoices"**, under the option rows (or under the contract's rows): the same invoice rows as Money's
+"Owed to you", with **Cash it now** on each (section "Cash it now" below). Header: "Open invoices: 3 · 6,940 FD".
+Empty: hidden.
+
 **"Your rate by fleet size"**, a fold, closed: 1 truck 6.0% · 5 trucks 5.7% · 10 trucks 5.4% · 20 trucks 4.6% ·
 30 trucks 3.9% (from `rateByTrucks`, stopping at `{company.maxTrucks}`), the player's row marked.
 
@@ -97,6 +101,47 @@ dimmed, with Line 3 hidden and the note "Opens with your first truck of your own
 **Broker variant:** one rate, "5% of each load, flat" (`{contract.brokerRate}`), the same contract shape and
 sheet; plus a bar "Owed to carriers: 41,000 of your 75,000 FD bond", red past 80%, and the line "Factoring
 doesn't raise what you may owe carriers." The bond's controls belong to the brokerage spec.
+
+### Cash it now (Jeff, 2026-11-02: "If a carrier needs it now, he needs it NOW")
+
+Any open invoice can be cashed on the spot. Lands with the brokerage bump, behind the economy's switch
+(`{payment.cashNow.enabled}`); with it off, nothing below shows.
+
+**The rate,** computed per invoice, never typed:
+- **Under a factoring contract:** the contract's rate plus an aging surcharge, `{payment.cashNow.agingPct}` for
+  each day still to run to the due day (the economy's shape; if it sizes a different curve, only the "why" line
+  changes).
+- **Without one:** the spot rate, `{payment.cashNow.spotPct}`.
+- The fee goes to the reserve; the player sees only fee and what lands.
+
+**Which invoices have it.** Under Net 30, every open invoice. Under a contract, the ones still open (paper billed
+before signing, and player shippers' loads, which wait 30 days even under contract). Under Quick pay there are
+none to cash (already paid). **Never on paper between the owner's own two companies** (the brokerage rule, row 4):
+those rows show "Between your own companies: waits 30 days" in place of the button.
+
+**The invoice row** (Money › Owed to you, Finance › Open invoices; one component). The phone row is two lines, not
+the three-column table:
+- line 1: "Chicago → Columbus · 2,380 FD · due Jan 31 (19 days)";
+- line 2: "Cash now: 2,142 lands · fee 238" and **Cash it now** (sm), right-aligned.
+Both figures in line 2 are explain keys (`invoice.cashNowFee`, `invoice.cashNowLands`): the sheet's "how" shows the
+rate's parts with this invoice's days.
+
+**The confirm sheet** (full on a phone; a card in the panel on a laptop), "Cash this invoice now":
+- rows: "Invoice" Chicago → Columbus, 2,380 FD · "Due" Jan 31, in 19 days · "Rate" 10.0%, with its parts under
+  it in muted type ("your contract's 5.9% + 4.1% for 19 days early") or "the spot rate" · "Fee" 238 FD ·
+  **"Lands now" 2,142 FD** · "Your cash after" 23,542 FD;
+- buttons: **Cash it now · 2,142 FD** (primary), **Keep waiting**.
+- Live world: "Sent · in effect 06:02" on the button until the world applies it.
+
+**After:** the row stays where it was until its due day, greyed, line 2 replaced by "Cashed Jan 12 · fee 238 ·
+2,142 landed". Cash moves at once; Money's sparkline shows it the next day. No toast. Both feeds (and the
+brokerage's, for its paper) log "Cashed {lane}: {lands} FD, fee {fee}".
+
+**Refusals,** in red under the button: "In liquidation", "Already paid", "Between your own companies" (a modified
+client). No line from Iuliia on any of them.
+
+**Guidance:** What now?'s rule 1 "collect" lever offers the invoice with the lowest rate first and its button opens
+this sheet (Jeff: her collect advice offers it first).
 
 ### Card 3: Credit
 
@@ -154,6 +199,5 @@ One line at most, in the caption strip, never over a card's figures (the sprint 
 
 1. **Economy:** a helper for "a month of running one truck" (card 1), so the figure is the engine's, not the
    client's arithmetic.
-2. **Economy and engineering:** quick pay is a standing term today. The economy's own note says "on the loads you
-   choose". A per-invoice **Cash it now** on Money's "Owed to you" rows (same 10%) would be that, and is a new
-   action, so a rule question; this spec doesn't assume it.
+2. **Economy:** `{payment.cashNow.enabled}`, `{payment.cashNow.agingPct}` (per day to the due day, or the curve
+   it sizes instead) and `{payment.cashNow.spotPct}`. Settled by Jeff 2026-11-02: Cash it now exists.

@@ -79,7 +79,11 @@ round; yours start at 06:00."
 ### Money
 1. "Cash", with the sparkline.
 2. "Owed to you": shippers' invoices, lane, "brokered", due day; under it "About 1 load in 50 is never paid, more
-   in a slump." (`{brokerRisk.defaultRate}`).
+   in a slump." (`{brokerRisk.defaultRate}`). **Each row has Cash it now**, the same row, sheet and after-state as
+   the carrier's (`specs/finance.md`, "Cash it now"), at the brokerage's rates: under its contract the flat
+   `{contract.brokerRate}` plus the aging surcharge, without one the spot rate. One extra line on the brokerage's
+   sheet: "You still owe Prairie Haul 2,720 FD on Feb 8; cashing this doesn't change that." Paper from the
+   owner's carrier never appears here (the brokerage owes it; it isn't owed).
 3. **"Owed by you":** to carriers: lane, carrier, due day. Above it the **bond meter**: "41,000 of your 75,000 FD
    bond in use" (`{staking.roles.broker}`), amber past 80%, red at 100% with "New tenders pass you by until this
    falls."
