@@ -54,7 +54,8 @@ function SplitLayout({ top, map, rack, ticker, toast }: Regions): JSX.Element {
           {rack}
         </div>
       </main>
-      {ticker}
+      {/* Before a company exists there is nothing to tick (S10). */}
+      {S.game?.player ? ticker : null}
       {toast}
     </>
   );

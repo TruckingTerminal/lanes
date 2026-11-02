@@ -3,7 +3,7 @@ import { companyAccount, crewed, type GameEvent } from "@lanes/engine";
 import { installTheme } from "./art.js";
 import { truckSheet, whenAssetsReady } from "./assets.js";
 import { fd, fdFull, hhmm, realUntil, shortDate } from "./format.js";
-import { FEED } from "./copy.js";
+import { FEED, ROUND } from "./copy.js";
 import { DEFAULT_ORDERS, RULESET, TestGame, type StartKind } from "./game.js";
 import { H } from "./handlers.js";
 import { createMeta, LiveWorld, readMeta, type DbLike, type WorldMeta } from "./live.js";
@@ -79,8 +79,13 @@ function showGame(s: Session): void {
 
 function onEvent(s: Session, e: GameEvent): void {
   const w = s.w;
-  // The feed names cities, never airport codes (copy-audit.md).
+  // The feed names cities, never airport codes (copy-audit.md), and a load by its own places, the ones its card showed
+  // (QA, 2026-11-02: the load said Carrollton → El Dorado, the result Dallas → Wichita).
   const hubName = (i: number) => w.net.hubs[i]!.name;
+  const ends = (loadId: number, o: number, d: number): [string, string] => {
+    const l = w.loads.get(loadId);
+    return l ? [w.net.places[l.originPlace]!.name, w.net.places[l.destPlace]!.name] : [hubName(o), hubName(d)];
+  };
   if (e.kind === "launched") {
     push(s, "FD is live on the exchange. Your airdrop's first quarter has landed.", "warn");
     if (s === S.game) toast("Launch day: FD can now be bought and sold.");
@@ -93,10 +98,15 @@ function onEvent(s: Session, e: GameEvent): void {
       S.handBids.delete(e.loadId);
       const load = w.loads.get(e.loadId);
       const winning = e.kind === "won" ? e.rate : e.winningRate;
-      S.result = { won: e.kind === "won", origin: e.origin, dest: e.dest, rate: e.kind === "won" ? e.rate : mine.rate, winning, be: mine.be, total: e.kind === "won" && load ? e.rate * load.miles : 0, seen: false };
+      S.result = { won: e.kind === "won", from: ends(e.loadId, e.origin, e.dest)[0], to: ends(e.loadId, e.origin, e.dest)[1], rate: e.kind === "won" ? e.rate : mine.rate, winning, be: mine.be, total: e.kind === "won" && load ? e.rate * load.miles : 0, seen: false };
     }
   }
-  if (e.kind === "won") push(s, FEED.won(hubName(e.origin), hubName(e.dest), e.miles, e.rate.toFixed(2), e.manual), "good");
+  if (e.kind === "won") {
+    const [from, to] = ends(e.loadId, e.origin, e.dest);
+    const booked = S.bookedLoads.delete(e.loadId);
+    const load = w.loads.get(e.loadId);
+    push(s, booked ? ROUND.booked(from, to, fdFull(load ? e.rate * load.miles : 0)) : FEED.won(from, to, e.miles, e.rate.toFixed(2), e.manual), "good");
+  }
   if (e.kind === "delivered") {
     // S7: the pay line, on the Truck tab until OK; Money gets a dot for the invoice.
     const truck = w.trucks[e.truckId - 1];
@@ -104,18 +114,18 @@ function onEvent(s: Session, e: GameEvent): void {
     const held = truck && beforeDelivery.has(truck.id) ? Math.max(0, (truck.depositFd ?? 0) - beforeDelivery.get(truck.id)!.depositFd) : 0;
     const owedTo = w.receivables.filter((r) => r.holder === s.player!.id).reduce<{ id: number; dueDay: number } | null>((a, r) => (!a || r.id > a.id ? r : a), null);
     const paidOn = owedTo && owedTo.dueDay > Math.floor(w.t / 1440) ? shortDate(owedTo.dueDay) : "today";
-    push(s, FEED.delivered(hubName(e.origin), hubName(e.dest), fdFull(e.grossFd), fdFull(e.grossFd - e.costFd - held), paidOn));
+    push(s, FEED.delivered(...ends(e.loadId, e.origin, e.dest), fdFull(e.grossFd), fdFull(e.grossFd - e.costFd - held), paidOn));
     // Not while a replay passes old deliveries (a late order makes the live world replay its history).
     if (s === S.game && !rebuilding && truck && load) {
       const line = payLine(w, truck, load, e.grossFd, e.costFd, beforeDelivery.get(truck.id) ?? { emptyMi: 0, depositFd: truck.depositFd ?? 0 });
       const due = w.receivables.filter((r) => r.holder === s.player!.id).reduce<{ id: number; dueDay: number } | null>((a, r) => (!a || r.id > a.id ? r : a), null);
       if (due) S.invoiceLanes.set(due.id, `${w.net.hubs[e.origin]!.name} → ${w.net.hubs[e.dest]!.name}`);
       const driver = truck.driverId ? w.staff[truck.driverId - 1] : undefined;
-      S.delivered = { origin: e.origin, dest: e.dest, lateH: Math.max(0, Math.ceil((w.t - load.dueT) / 60)), line, dueDay: due && due.dueDay > Math.floor(w.t / 1440) ? due.dueDay : null, hiredDriver: driver && !driver.owner ? driver.name : null };
+      S.delivered = { from: ends(e.loadId, e.origin, e.dest)[0], to: ends(e.loadId, e.origin, e.dest)[1], lateH: Math.max(0, Math.ceil((w.t - load.dueT) / 60)), line, dueDay: due && due.dueDay > Math.floor(w.t / 1440) ? due.dueDay : null, hiredDriver: driver && !driver.owner ? driver.name : null };
       S.moneyDot = true;
     }
   }
-  if (e.kind === "lostBid") push(s, FEED.lost(hubName(e.origin), hubName(e.dest), e.rate.toFixed(2), e.winningRate !== null ? e.winningRate.toFixed(2) : null), "warn");
+  if (e.kind === "lostBid") push(s, FEED.lost(...ends(e.loadId, e.origin, e.dest), e.rate.toFixed(2), e.winningRate !== null ? e.winningRate.toFixed(2) : null), "warn");
   if (e.kind === "breakdown") push(s, `Breakdown on truck ${truckNo(e.truckId)}${e.repairFd ? `: ${fd(e.repairFd)} FD repair bill` : " (lessor pays)"}`, "bad");
   if (e.kind === "truckDelivered") {
     const t = w.trucks[e.truckId - 1];
@@ -189,6 +199,7 @@ async function enterLive(meta: WorldMeta): Promise<void> {
       // The flight home runs once, when this page's own join lands, never when a replay passes an old one.
       if (joiningLive) {
         joiningLive = false;
+        setTab("fleet");
         S.sheet = "half";
         flyTo(c.homeHub);
       }
@@ -265,6 +276,8 @@ async function openTest(): Promise<void> {
 
 /** The hub chosen inside the world: in a test world the company joins now; live, the join is sent like any order. */
 let joiningLive = false;
+/** The test world speeds up to Day a minute once, at the player's first bid by hand. */
+let firstBidSped = true;
 function choose(name: string, hub: string, start: StartKind): void {
   const g = S.game;
   if (!g || g.player) return;
@@ -275,7 +288,14 @@ function choose(name: string, hub: string, start: StartKind): void {
     const c = g.join(name, start, hub);
     if (!c) return toast("That hub can't take a new company.", true);
     S.selTruck = g.w.trucksByCompany.get(c.id)?.[0]?.id ?? null;
-    S.speed = 2; // a game day a minute (state.ts SPEEDS)
+    // Live pace until the first bid by hand (QA, 2026-11-02: at Day a minute the first round cleared while a stranger
+    // read a load). The world still moves at its real rhythm; the first bid sets Day a minute, so the round comes soon.
+    // A small fleet's dispatcher runs from the start (no first bid by hand to wait for), so it starts at Day a minute.
+    S.speed = start === "fleet" ? 2 : 1;
+    firstBidSped = start === "fleet";
+    // The arrival opens where the player lands (S1): the Truck tab, the sheet at half, Iuliia's arrival line.
+    setTab("fleet");
+    S.sheet = "half";
     persistTest(true);
     flyTo(at);
     bumpData();
@@ -430,6 +450,10 @@ function loop(now: number): void {
     else lw.advance(S.game === lw ? 8 : 4);
   }
   const t = S.test;
+  if (t && S.game === t && !firstBidSped && t.player?.firstHandBidDay !== null && t.player) {
+    firstBidSped = true;
+    if (S.speed === 1) S.speed = 2;
+  }
   if (t && S.game === t) {
     acc += (dt / 1000) * SPEEDS[S.speed]!.hoursPerSec;
     const budget = now + 10;

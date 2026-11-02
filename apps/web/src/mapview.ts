@@ -65,7 +65,10 @@ export const maxZoom = (): boolean => zoomIdx === levels().length - 1;
 const fitK = () => {
   if (!cv || !art) return 1;
   const contain = Math.min(cv.width / art.W, cv.height / art.H);
-  return cv.height > cv.width ? Math.max(contain, (0.5 * cv.height) / art.H) : contain;
+  // Before a company (S1) the whole country fits, so every ringed city is in view (QA: cut at Kansas City on a phone).
+  // On a phone, a margin, so a coast city's label isn't cut at the screen's edge (Seattle, Los Angeles).
+  if (cv.height > cv.width) return S.game?.player ? Math.max(contain, (0.5 * cv.height) / art.H) : 0.9 * contain;
+  return contain;
 };
 /** Device pixels at the canvas's foot hidden by the phone's sheet: centring and panning keep the map above them. */
 let insetB = 0;
@@ -366,7 +369,8 @@ function truckPoint(t: Truck): [number, number] | null {
   const p = truckXY(t);
   if (!p || isMoving(t)) return p;
   const i = t.id % 64;
-  const r = 5 + 2.6 * Math.sqrt(i);
+  // Your own trucks stay at their hub: the crowd's scatter (up to ~26 map pixels) put a Columbus truck near Cincinnati at 4×.
+  const r = t.companyId === S.game?.player?.id ? 3 : 5 + 2.6 * Math.sqrt(i);
   const a = i * 2.39996;
   return [p[0] + Math.cos(a) * r, p[1] + 3 + Math.abs(Math.sin(a)) * r * 0.7];
 }
@@ -421,7 +425,8 @@ function routeAhead(t: Truck): [number, number][] | null {
 }
 
 export function drawMap(now: number): void {
-  if (!cv || !art || !S.game) return;
+  // A canvas briefly zero-sized (a layout change mid-resize) can't be drawn on or drawn from (QA's console, 2026-11-02).
+  if (!cv || !art || !S.game || !cv.width || !cv.height) return;
   if (S.layout === "panel") return;
   startFly(now);
   if (fly) stepFly(now);
@@ -900,7 +905,8 @@ function drawWeather(ctx: CanvasRenderingContext2D, now: number, k: number, u: n
 function drawHubLabels(ctx: CanvasRenderingContext2D, f: number, k: number, u: number, visible: (X: number, Y: number) => boolean): void {
   const w = S.game!.w;
   const z = zoom();
-  const L = Math.max(1, Math.round(f * (z >= 3 ? 3 : 2)));
+  // Labels never under about 14 screen pixels tall at the whole map (QA: unreadable at 1366).
+  const L = Math.max(1, Math.round(f * (z >= 3 ? 3 : 2)), Math.round(1.5 * (window.devicePixelRatio || 1)));
   let open: Map<number, number> | null = null;
   if (z >= 3) {
     open = new Map();
@@ -931,12 +937,13 @@ function drawHubLabels(ctx: CanvasRenderingContext2D, f: number, k: number, u: n
   // Before a company (S1): the three starter hubs carry a cyan ring, so the first look finds a home.
   if (!S.game!.player) {
     ctx.strokeStyle = PAL.cyan;
-    ctx.lineWidth = 2 * u;
+    const dprR = window.devicePixelRatio || 1;
+    ctx.lineWidth = Math.max(2 * u, Math.round(2 * dprR));
     for (const i of S.entry.rings ?? FIRST_HUBS.map((id) => w.net.hubs.findIndex((h) => h.id === id)).filter((x) => x >= 0)) {
       const [X, Y] = toScreen(...art!.hubXY[i]!);
       if (!visible(X, Y)) continue;
       ctx.beginPath();
-      ctx.arc(X, Y, 12 * u, 0, Math.PI * 2);
+      ctx.arc(X, Y, Math.max(12 * u, Math.round(14 * dprR)), 0, Math.PI * 2);
       ctx.stroke();
     }
   }
@@ -949,7 +956,9 @@ function canvasPoint(ev: { clientX: number; clientY: number }): [number, number]
   return [((ev.clientX - r.left) / r.width) * cv!.width, ((ev.clientY - r.top) / r.height) * cv!.height];
 }
 // A hub is hit within 14 screen pixels, or anywhere on its city sprite (32 art pixels wide) when zoomed in.
-function nearestHub(x: number, y: number, max = Math.max(14 / zoom(), 12)): number | null {
+// A hub is hit within about 22 screen pixels at any zoom (QA, 2026-11-02: at the whole map a near miss fell through to
+// the double-click zoom), and anywhere on its city sprite when zoomed in.
+function nearestHub(x: number, y: number, max = Math.max(14 / zoom(), 12, (22 * (window.devicePixelRatio || 1)) / kScale())): number | null {
   let best: number | null = null;
   let bd = max;
   art!.hubXY.forEach(([hx, hy], i) => {

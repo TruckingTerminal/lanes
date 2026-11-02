@@ -142,7 +142,7 @@ export function Caption(): JSX.Element | null {
     </div>
   );
   // The arrival (S1): once, after the company is created, her line about the lease and one button to the board.
-  if (step?.id === "board" && !seen("arrival") && S.tab !== "loads") {
+  if (step?.id === "board" && !seen("arrival")) {
     const showBoard = () => {
       mark("arrival");
       S.sheet = "full";
@@ -175,6 +175,8 @@ export function Caption(): JSX.Element | null {
     );
   }
   if (!step) return null;
+  // "You won one" waits for the win: the board step ticks on the bid itself, twelve hours before the round clears.
+  if (step.id === "haul" && c.delivered === 0 && !(g.w.trucksByCompany.get(c.id) ?? []).some((t) => t.loadId !== null)) return null;
   // A step speaks once (its Say, then Next), then shows its Do until hidden; More opens her tab for the rest.
   if (!seen(`say:${step.id}`)) {
     return say(

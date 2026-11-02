@@ -51,8 +51,6 @@ export function DeliveredCard(): JSX.Element | null {
   useData();
   const d = S.delivered;
   if (!d) return null;
-  const w = S.game!.w;
-  const name = (i: number) => w.net.hubs[i]!.name;
   const minus = (x: number) => `−${fdFull(x)}`;
   const rows: [string, string][] = [
     [DELIVERED.load, fdFull(d.line.load)],
@@ -64,7 +62,7 @@ export function DeliveredCard(): JSX.Element | null {
     ...(d.line.held >= 0.5 ? ([[DELIVERED.held, minus(d.line.held)]] as [string, string][]) : []),
   ];
   return (
-    <Card class="delivered" title={DELIVERED.title(name(d.origin), name(d.dest))} right={<span class={cls("chip", d.lateH > 0 ? "bad" : "good")}>{d.lateH > 0 ? ROLLING.late(d.lateH) : ROLLING.onTime}</span>}>
+    <Card class="delivered" title={DELIVERED.title(d.from, d.to)} right={<span class={cls("chip", d.lateH > 0 ? "bad" : "good")}>{d.lateH > 0 ? ROLLING.late(d.lateH) : ROLLING.onTime}</span>}>
       <Kv rows={rows} />
       <p class="payyours">
         <b>

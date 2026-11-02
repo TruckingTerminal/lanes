@@ -103,11 +103,11 @@ export const TABS: readonly TabDef[] = [
     label: "Finance",
     icon: "fd",
     teaser: {
-      what: "Getting paid faster, and what that costs.",
-      iuliia: "A second truck makes it worth reading.",
+      what: "Getting paid on your own truck: quick pay, load by load, and the factoring contract.",
+      iuliia: "Read it before you buy, not after. The wait for your money starts with your first load.",
       // The director, 2026-11-02 (2b32a9d): Finance opens with the first-truck step, beside the Dealer, so Iuliia never
       // points at a locked tab.
-      opens: () => "when Iuliia says so",
+      opens: () => "when Iuliia says it's time to buy, with the Dealer",
       open: (w, c) => {
         if (!c) return false;
         if (trucksOf(w, c).length >= 2) return true;

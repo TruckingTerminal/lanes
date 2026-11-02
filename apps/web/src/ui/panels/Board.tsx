@@ -7,6 +7,7 @@ import { BOARD, LOAD, ROUND } from "../../copy.js";
 import { cls, fdFull, hhmm, pct, shortDate, TRAILER_NAME } from "../../format.js";
 import { nextRoundHour, nextRoundLabel, nextRoundWait, reloadLabel, roundProgress, seasonSwing } from "../../logic.js";
 import { bumpData, isPhone, me, myTrucks, order, S, selectTruck, setOnboard, setTab, toast, truckNo, useData } from "../../state.js";
+import { etaMin } from "../../rolling.js";
 import { tabOpen } from "../../tabs.js";
 import { Btn, Card, Kv } from "../bits.js";
 import { LoadsTable } from "./Loads.js";
@@ -166,9 +167,13 @@ const place = (i: number): string => {
   return `${p.name}, ${p.state}`;
 };
 const money = (x: number): string => fdFull(Math.abs(x));
+/** The busy line's ETA: the rolling card's own (rolling.ts etaMin) once loaded, so the two never disagree (S18). */
 function etaOf(t: Truck): string | null {
-  const l = t.loadId !== null ? S.game!.w.loads.get(t.loadId) : undefined;
-  return l ? `${shortDate(Math.floor(l.appointmentT / 1440))} ${hhmm(l.appointmentT)}` : null;
+  const w = S.game!.w;
+  const l = t.loadId !== null ? w.loads.get(t.loadId) : undefined;
+  if (!l) return null;
+  const at = t.status === "loaded" ? etaMin(w, t, me()) : l.appointmentT;
+  return `${shortDate(Math.floor(at / 1440))} ${hhmm(at)}`;
 }
 /** Opens a load's sheet: full on a phone (S3). */
 function openLoad(id: number | null): void {
@@ -232,8 +237,6 @@ async function withdraw(truck: Truck): Promise<void> {
 function ResultCard({ onBidAgain }: { onBidAgain?: () => void }): JSX.Element | null {
   const res = S.result;
   if (!res) return null;
-  const w = S.game!.w;
-  const name = (i: number) => w.net.hubs[i]!.name;
   const close = () => {
     S.result = null;
     bumpData();
@@ -242,7 +245,7 @@ function ResultCard({ onBidAgain }: { onBidAgain?: () => void }): JSX.Element | 
     <Card class={cls("resultcard", res.won ? "won" : "lost")}>
       <p>
         {res.won
-          ? ROUND.won(name(res.origin), name(res.dest), res.rate.toFixed(2), fdFull(res.total))
+          ? ROUND.won(res.from, res.to, res.rate.toFixed(2), fdFull(res.total))
           : res.winning !== null
             ? ROUND.lost(res.winning.toFixed(2), res.rate.toFixed(2), res.be.toFixed(2))
             : ROUND.nobody(res.rate.toFixed(2))}
@@ -287,6 +290,7 @@ function LoadSheet({ r, truck }: { r: BoardRow; truck: Truck }): JSX.Element {
   const step = (d: number) => setBid(Math.round(Math.min(hi, Math.max(lo, bid + d)) * 100) / 100);
   const sent = (at: number | null) => (at !== null ? setNote({ text: LOAD.sent(hhmm(at)), bad: false }) : undefined);
   const book = async () => {
+    S.bookedLoads.add(l.id);
     const res = await order({ type: "book_load", truckId: truck.id, loadId: l.id }, ROUND.toastBooked);
     if (!res.ok) return setNote({ text: res.reason, bad: true });
     sent(res.at);

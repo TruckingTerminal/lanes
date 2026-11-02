@@ -17,12 +17,12 @@ export function marketPages(cfg: EconomyConfig): GuidePage[] {
       section: S,
       title: "The load board",
       html:
-        p(`Every load shows a <b>book-now</b> price: take it and it's yours at once (${see("booknow", "Book-now prices")}). Everything else is a <b>counter</b>: you ask more than the posted price, and counters clear in rounds at ${String(r1).padStart(2, "0")}:00 and ${String(r2).padStart(2, "0")}:00. Each load has a <b>ceiling</b>, the most its poster wants to pay per mile; nobody sees anyone else's counter.`) +
+        p(`Every load shows a <b>book-now</b> price: take it and it's yours at once (${see("booknow", "Book-now prices")}). Or <b>bid</b> more than the posted price and wait: bids clear in rounds at ${String(r1).padStart(2, "0")}:00 and ${String(r2).padStart(2, "0")}:00. Each load has a <b>ceiling</b>, the most its poster will pay per mile; nobody sees anyone else's bid.`) +
         h("How a round clears") +
         ul([
           `Every bid gets a score: ${pct(b.scoreWeights.price)} for price (how far under the ceiling), ${pct(b.scoreWeights.reputation)} for reputation (your on-time record), ${pct(b.scoreWeights.deadhead)} for empty miles to the pickup (none is best; at ${b.deadheadScaleMi} it scores zero and past that it counts against you).`,
-          `Counters clear best score first. A truck wins at most one load a round, and a load goes to one truck.`,
-          `A counter above the ceiling, up to ${cfg.board.overCeilingMax}× it, is taken only if nobody offers within the ceiling, cheapest first: in a hot market the poster pays over its max rather than leave the load.`,
+          `Bids clear best score first. A truck wins at most one load a round, and a load goes to one truck.`,
+          `A bid above the ceiling, up to ${cfg.board.overCeilingMax} times it, wins only if nobody bids within the ceiling, cheapest first: in a hot market the poster pays over its ceiling rather than leave the load.`,
           `A load nobody takes rolls to the next round with its ceiling up ${pct(b.rolloverCeilingStep)} and its appointment moved back a round. Nobody but a carrier ever hauls it: it rolls until a truck takes it or, after ${b.giveUpAfterRounds} rounds, the shipper gives up and the freight is lost. Open loads piling up where trucks are scarce lift that market's load-to-truck ratio, and so every new rate posted there.`,
         ]) +
         h("Bidding by hand") +
@@ -38,7 +38,7 @@ export function marketPages(cfg: EconomyConfig): GuidePage[] {
       section: S,
       title: "Book-now prices",
       html:
-        p(`Every load shows a <b>book-now</b> price: what the poster is offering right now. Take it and the load is yours at once, no round to wait for. Want more? Counter above it and wait for the round: the poster takes the best counter within its ceiling, or, if none is within it, the cheapest above (${see("board", "The load board")}). Anyone who'd take the posted price just books.`) +
+        p(`Every load shows a <b>book-now</b> price: what the poster is offering right now. Take it and the load is yours at once, no round to wait for. Want more? Bid above it and wait for the round: the poster takes the best bid within its ceiling or, if none is within it, the cheapest above (${see("board", "The load board")}). Anyone who'd take the posted price just books.`) +
         h("How posters set it") +
         ul([
           `It opens as a share of the reference rate set by the load-to-truck ratio at the origin: about ${pct(cfg.bookNow.openAtRatio[0][1])} where trucks pile up (ratio ${cfg.bookNow.openAtRatio[0][0]}), ${pct(cfg.bookNow.openAtRatio[1][1])} at a balanced ${cfg.bookNow.openAtRatio[1][0]}, ${pct(cfg.bookNow.openAtRatio[2][1])} when trucks are scarce (ratio ${cfg.bookNow.openAtRatio[2][0]}), never above the ceiling.`,
@@ -70,7 +70,7 @@ export function marketPages(cfg: EconomyConfig): GuidePage[] {
         h("Contracts") +
         ul([
           `Every week local shippers offer contract lanes to the carriers based nearby with the best record: a weekly volume (${cfg.contracts.loadsPerWeek[0]}–${cfg.contracts.loadsPerWeek[1]} loads) on a lane at a fixed rate for ${cfg.contracts.termDays} days. The rate is the market's trailing contract level, the same brokers get: below spot in a tight season, above it in a slump. You can hold ${cfg.contracts.maxPerCompany} at a time; offers stand ${cfg.contracts.offerDays} days.`,
-          `A <b>tender</b> is a load on that lane held for you for ${cfg.contracts.tenderHours} hours at the contract rate. Accept it onto an idle truck within reach, or leave it: it goes to the spot board, where you can even counter for it at spot.`,
+          `A <b>tender</b> is a load on that lane held for you for ${cfg.contracts.tenderHours} hours at the contract rate. Accept it onto an idle truck within reach, or leave it: it goes to the spot board, where you can still bid for it at spot.`,
           `<b>Acceptance</b> is what the shipper watches. Below ${pct(cfg.contracts.cutBelow)} after ${cfg.contracts.afterTenders} tenders they cut a load a week, and local shippers pass you over for ${cfg.leverage.unreliableDays} days. At ${pct(cfg.contracts.renewAbove)} or better the term renews at the then-current rate.`,
           `The dispatcher takes offers and honors tenders unless you tell it to let a tender lapse when spot runs a set share above the contract. That's the produce-season choice: keep your customers, or chase the spike.`,
         ]),
