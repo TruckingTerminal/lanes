@@ -2,7 +2,7 @@ import type { JSX } from "preact";
 import { useEffect, useRef, useState } from "preact/hooks";
 import { dayOf } from "@lanes/engine";
 import { GAME_CONFIG } from "../game.js";
-import { stepDo, stepText, walkProgress, walkSteps, type Mood } from "../walkthrough.js";
+import { stepDo, stepText, walkProgress, walkSteps, type Mood, type WalkStep } from "../walkthrough.js";
 import { iuliiaMuted, iuliiaNow, setIuliiaMuted } from "../iuliia.js";
 import { ASSETS, hasAsset } from "../mapart.js";
 import { drawPortrait } from "../portrait.js";
@@ -160,16 +160,15 @@ export function Caption(): JSX.Element | null {
   const step = index >= 0 ? steps[index]! : null;
   const seen = (k: string) => S.onboard.seen.includes(k);
   const mark = (k: string) => setOnboard({ seen: [...S.onboard.seen, k] });
-  // A step that has stood guide.stepYieldDays yields to the milestone lines in their queue, so a step the player hasn't
-  // reached can't starve the company's history (QA's guidance replay). When it became current is kept with the seen record.
-  if (step) {
-    const today = Math.floor(g.w.t / g.w.cfg.time.gameMinutesPerDay);
-    const since = S.onboard.seen.find((k) => k.startsWith(`at:${step.id}:`));
-    if (!since) queueMicrotask(() => !S.onboard.seen.some((k) => k.startsWith(`at:${step.id}:`)) && mark(`at:${step.id}:${today}`));
-    else if (today - Number(since.split(":")[2]) >= g.w.cfg.guide.stepYieldDays) {
-      const ms = MilestoneLine();
-      if (ms) return ms;
-    }
+  // Every line has its seconds (QA's guidance replays): a step's line holds ui.iuliia.showSeconds before the next step's
+  // may replace it, so steps that tick within moments of each other are each read; and once a standing step's line has
+  // had its seconds, a milestone line that is due takes its turn, then the step's line returns. Nothing starves.
+  const showMs = GAME_CONFIG.ui.iuliia.showSeconds * 1000;
+  const now = performance.now();
+  const held = stepShown && stepShown.id !== step?.id && now - stepShown.at < showMs ? steps.find((x) => x.id === stepShown!.id) : undefined;
+  if (!held && step && stepShown?.id === step.id && now - stepShown.at >= showMs) {
+    const ms = MilestoneLine();
+    if (ms) return ms;
   }
   const say = (line: string, action: JSX.Element | null, mood: Mood = "point") => (
     <div class="caption iuliia">
@@ -239,7 +238,15 @@ export function Caption(): JSX.Element | null {
   // (A bid alone retires the arrival line, but this line needs the load itself.)
   const loaded = (g.w.trucksByCompany.get(c.id) ?? []).some((t) => t.loadId !== null) || c.delivered > 0;
   if (step.id === "haul" && !loaded) return her() ?? bare(step.mood);
+  // The line on show: the step just past while its seconds run, else the current one; its seconds start when it shows.
+  const st = held ?? step;
+  if (!held && stepShown?.id !== st.id) {
+    stepShown = { id: st.id, at: now };
+    setTimeout(bumpData, showMs + 50);
+  }
+  if (held) setTimeout(bumpData, showMs - (now - stepShown!.at) + 50);
   // A step speaks once (its Say, then Next), then shows its Do until hidden; More opens her tab for the rest.
+  const stepLine = (step: WalkStep): JSX.Element => {
   if (!seen(`say:${step.id}`)) {
     // A step that reads the company's state (step 9) speaks that state, not its fixed brief (QA's step-9 replay).
     return say(
@@ -268,7 +275,12 @@ export function Caption(): JSX.Element | null {
       <WhatNowChip />
     </div>
   );
+  };
+  return stepLine(st);
 }
+
+/** The step whose line last reached the caption, and when (its seconds run from then). */
+let stepShown: { id: string; at: number } | null = null;
 
 /** Her tab-and-card line where the caption strip isn't (the hub screens, before a company exists). */
 export function IuliiaLine(): JSX.Element | null {
