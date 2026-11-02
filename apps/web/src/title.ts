@@ -44,10 +44,10 @@ export function titleFrame(tMs: number): HTMLImageElement | null {
 // Both are drawn live, every frame, from one sprite atlas (tools/title-sprites.py) and a schedule of dice that are a
 // pure function of time: what passes, when and how fast is fixed by the slot it falls in, so nothing repeats on a
 // cycle and there is no seam. Head-on: the original painting's rig holds its place at the centre of the screen, alive,
-// in the lane the painting has it, while the road and everything beside it (its lines, the poles and wires, the scrub,
-// the signs, the painting's diner) stream at the camera from the horizon, growing as they come; clouds drift, birds
-// cross, a train runs along the foot of the mesas, and once a shot a car overtakes the camera in the far lane and pulls
-// away. Side view: the camera rides beside a cyan semi heading right in the near lane (its trailer drawn here, so the
+// in the lane the painting has it, coming at the camera as the camera backs off ahead of it, while the road and
+// everything beside it (its lines, the poles and wires, the scrub, the signs, the painting's diner) fall away behind the
+// rig toward the horizon: they come in large at the near edges as the camera backs over them and shrink into the haze;
+// clouds drift, birds cross, and a train runs along the foot of the mesas. Side view: the camera rides beside a cyan semi heading right in the near lane (its trailer drawn here, so the
 // gap, the fifth wheel, the landing gear and both tandems are exact) while the road, the poles and the roadside stream
 // past, and now and then a pickup, a sedan or another rig comes the other way in the far lane.
 // Jeff's rules (2026-11-02), both shots: one lane each way and nothing ever drives against its lane; it's a desert, so
@@ -95,13 +95,13 @@ const DINER_AT = [8, 62] as const;
 // </sprites>
 // <vehicles> written by tools/title-vehicles.py
 const VCAM = {"px": 211.0, "py": 89.0, "f": 120.0, "h": 7.0} as const;
-const VLANES = {"coming": -14.0, "going": -26.0} as const;
+const VLANES = {"coming": -24.5, "going": -9.5} as const;
 const VSPAWN = 420.0;
 const VPOSTER = 36.5;
 const VSUN = [0.3498, -0.5997, 0.7197] as const;
 const VRAMPS: Record<string, readonly (readonly [number, number, number])[]> = {"chrome": [[59, 51, 70], [77, 79, 98], [110, 110, 132], [143, 140, 151], [202, 199, 206]], "cream": [[96, 86, 76], [138, 126, 108], [178, 166, 144], [214, 202, 176], [244, 236, 212]], "dark": [[13, 11, 34], [38, 35, 57], [59, 51, 70]], "glass": [[13, 11, 34], [24, 26, 44], [40, 44, 66], [77, 79, 98]], "lamp": [[244, 168, 60], [255, 217, 106]], "red": [[64, 16, 24], [110, 26, 32], [158, 40, 40], [204, 62, 52], [236, 110, 88]], "tail": [[142, 42, 36], [216, 74, 58]], "tyre": [[13, 11, 34], [24, 21, 42], [38, 35, 57]], "white": [[143, 140, 151], [166, 173, 198], [184, 189, 208], [214, 216, 230], [242, 240, 252]]};
 const VMODELS = {"pickup":{"L":19.1,"W":3.3,"top":6.33,"over":true,"prims":[["b",0.0,0.45,-3.35,3.35,1.05,1.85,"chrome"],["b",0.1,0.5,-3.0,3.0,0.8,1.05,"dark"],["b",0.35,0.55,-2.35,2.35,1.9,3.35,"chrome"],["b",0.28,0.4,-2.15,2.15,2.0,3.25,"dark"],["b",0.25,0.3,-2.15,2.15,2.3,2.42,"chrome"],["b",0.25,0.3,-2.15,2.15,2.65,2.77,"chrome"],["b",0.25,0.3,-2.15,2.15,3.0,3.12,"chrome"],["b",0.35,0.55,2.35,3.25,2.45,3.35,"chrome"],["b",0.35,0.55,-3.25,-2.35,2.45,3.35,"chrome"],["b",0.27,0.36,2.45,3.15,2.55,3.25,"lamp"],["b",0.27,0.36,-3.15,-2.45,2.55,3.25,"lamp"],["b",0.5,6.0,-3.25,3.25,2.95,3.6,"red"],["b",5.8,6.4,-3.25,3.25,3.6,4.0,"red"],["b",6.0,10.6,-3.3,3.3,2.95,4.0,"red"],["b",6.4,10.4,-3.1,3.1,4.0,6.2,"red"],["b",6.6,10.3,-2.95,2.95,6.2,6.33,"red"],["b",6.33,6.43,-2.85,2.85,4.1,6.05,"glass"],["b",6.9,10.0,3.1,3.14,4.2,5.95,"glass"],["b",6.9,10.0,-3.14,-3.1,4.2,5.95,"glass"],["b",10.38,10.48,-2.6,2.6,4.3,5.85,"glass"],["b",6.5,6.9,3.3,3.9,4.4,4.9,"dark"],["b",6.5,6.9,-3.9,-3.3,4.4,4.9,"dark"],["b",9.6,9.95,3.3,3.34,3.45,3.62,"chrome"],["b",9.6,9.95,-3.34,-3.3,3.45,3.62,"chrome"],["b",0.6,18.6,3.3,3.34,2.95,3.05,"chrome"],["b",0.6,18.6,-3.34,-3.3,2.95,3.05,"chrome"],["b",10.6,18.6,-2.9,2.9,2.0,2.6,"dark"],["b",10.6,18.8,2.9,3.3,2.95,3.95,"red"],["b",10.6,18.8,-3.3,-2.9,2.95,3.95,"red"],["b",10.6,18.8,2.85,3.3,3.95,4.05,"chrome"],["b",10.6,18.8,-3.3,-2.85,3.95,4.05,"chrome"],["b",10.6,10.9,-3.3,3.3,2.0,3.95,"red"],["b",18.5,18.8,-3.3,3.3,2.0,3.85,"red"],["b",18.79,18.83,-2.0,2.0,2.6,3.5,"dark"],["b",18.78,18.88,2.6,3.25,2.6,3.7,"tail"],["b",18.78,18.88,-3.25,-2.6,2.6,3.7,"tail"],["b",18.7,19.1,-3.35,3.35,1.05,1.85,"chrome"],["b",5.99,6.11,3.3,3.33,2.1,3.95,"dark"],["b",5.99,6.11,-3.33,-3.3,2.1,3.95,"dark"],["b",10.44,10.56,3.3,3.33,2.1,3.95,"dark"],["b",10.44,10.56,-3.33,-3.3,2.1,3.95,"dark"],["b",1.6,5.0,-3.0,3.0,0.9,2.95,"dark"],["b",13.3,16.7,-3.0,3.0,0.9,2.95,"dark"],["b",0.5,1.6,-3.3,3.3,1.0,2.95,"red"],["b",5.0,13.3,-3.3,3.3,1.0,2.95,"red"],["b",16.7,18.7,-3.3,3.3,1.0,2.95,"red"]],"wheels":[[3.3,1.45,2.55,3.35],[15.0,1.45,2.55,3.35]],"heads":[[0.3,2.8,2.9],[0.3,-2.8,2.9]],"tails":[[18.9,2.92,3.15],[18.9,-2.92,3.15]],"stacks":[],"pipe":[18.9,2.2,1.0]},"sedan":{"L":16.4,"W":3.1,"top":4.55,"over":true,"prims":[["b",0.0,0.4,-3.15,3.15,0.9,1.6,"chrome"],["b",0.1,0.45,-2.8,2.8,0.7,0.9,"dark"],["b",0.3,0.45,-1.9,1.9,1.75,2.7,"chrome"],["b",0.25,0.35,-1.75,1.75,1.85,2.6,"dark"],["b",0.22,0.27,-1.75,1.75,2.05,2.15,"chrome"],["b",0.22,0.27,-1.75,1.75,2.35,2.45,"chrome"],["b",0.3,0.45,1.95,3.0,1.95,2.75,"chrome"],["b",0.3,0.45,-3.0,-1.95,1.95,2.75,"chrome"],["b",0.25,0.32,2.05,2.9,2.05,2.65,"lamp"],["b",0.25,0.32,-2.9,-2.05,2.05,2.65,"lamp"],["b",0.45,16.0,-3.1,3.1,2.45,3.0,"cream"],["b",4.8,11.2,-2.75,2.75,3.0,4.4,"cream"],["b",5.3,10.9,-2.6,2.6,4.4,4.55,"cream"],["b",4.75,4.85,-2.5,2.5,3.1,4.3,"glass"],["b",11.15,11.25,-2.4,2.4,3.1,4.25,"glass"],["b",5.3,7.9,2.75,2.79,3.12,4.3,"glass"],["b",8.2,10.7,2.75,2.79,3.12,4.3,"glass"],["b",5.3,7.9,-2.79,-2.75,3.12,4.3,"glass"],["b",8.2,10.7,-2.79,-2.75,3.12,4.3,"glass"],["b",0.6,15.9,3.1,3.14,2.25,2.33,"chrome"],["b",0.6,15.9,-3.14,-3.1,2.25,2.33,"chrome"],["b",15.98,16.08,1.6,3.0,2.2,2.85,"tail"],["b",15.98,16.08,-3.0,-1.6,2.2,2.85,"tail"],["b",16.0,16.4,-3.15,3.15,0.9,1.6,"chrome"],["b",4.84,4.96,3.1,3.13,1.7,2.95,"dark"],["b",4.84,4.96,-3.13,-3.1,1.7,2.95,"dark"],["b",7.99,8.11,3.1,3.13,1.7,2.95,"dark"],["b",7.99,8.11,-3.13,-3.1,1.7,2.95,"dark"],["b",10.94,11.06,3.1,3.13,1.7,2.95,"dark"],["b",10.94,11.06,-3.13,-3.1,1.7,2.95,"dark"],["b",1.5,4.5,-2.8,2.8,0.9,2.45,"dark"],["b",11.4,14.4,-2.8,2.8,0.9,2.45,"dark"],["b",0.45,1.5,-3.1,3.1,1.0,2.45,"cream"],["b",4.5,11.4,-3.1,3.1,1.0,2.45,"cream"],["b",14.4,16.0,-3.1,3.1,1.0,2.45,"cream"]],"wheels":[[3.0,1.25,2.35,3.08],[12.9,1.25,2.35,3.08]],"heads":[[0.28,2.48,2.35],[0.28,-2.48,2.35]],"tails":[[16.1,2.3,2.5],[16.1,-2.3,2.5]],"stacks":[],"pipe":[16.4,2.0,0.9]}} as const;
-const VGAP = {"coming": {"pickup>pickup": 257.2, "pickup>sedan": 257.2, "sedan>pickup": 238.3, "sedan>sedan": 238.3}, "going": {"pickup>pickup": 162.8, "pickup>sedan": 162.8, "sedan>pickup": 162.8, "sedan>sedan": 162.8}} as const;
+const VGAP = {"coming": {"pickup>pickup": 175.7, "pickup>sedan": 175.7, "sedan>pickup": 175.7, "sedan>sedan": 175.7}, "going": {"pickup>pickup": 299.7, "pickup>sedan": 299.7, "sedan>pickup": 299.7, "sedan>sedan": 299.7}} as const;
 // </vehicles>
 
 type RGB = readonly [number, number, number];
@@ -834,12 +834,11 @@ function sideShot(a: Ctx, aw: number, ah: number, t: number, n: number): void {
 // --- The head-on view ----------------------------------------------------------------------------------------
 
 const RAIL = 86; // the far rails, along the foot of the mesas
-const PASS = 60; // feet a second the far lane's car pulls away from the camera once it has overtaken it
 const HSPEED = 80; // the world's speed past the camera, feet a second (55 mph)
-// Which way the world goes by (Jeff, 2026-11-02: the things beside the road stood still while the road moved): the
-// road and everything by it stream at the camera from the horizon, growing as they come and sliding out past the
-// frame (-1); +1 would have them fall away toward the horizon behind the rig.
-const DRIFT = -1;
+// Which way the world goes by: the rig comes at the camera, so the road and everything by it fall away toward the
+// horizon behind it (+1). Streaming them at the camera (-1) had the rig backing up (Jeff, 2026-11-02: "now the truck is
+// in reverse going backwards").
+const DRIFT = 1;
 const ROAD = { right: -1.8, left: -32, centre: -17 } as const; // across the road from the camera, feet
 const HAZE: RGB = [122, 84, 104]; // the painting's ground at the horizon
 const RIG_DEPTH = 40; // feet: what's nearer than this draws in front of the painted rig
@@ -1200,15 +1199,13 @@ function rideShadow(a: Ctx, ox: number, by: number, r: Rider): void {
 }
 
 /**
- * Head-on traffic: one car a shot in the far lane, going the other way from the rig: it overtakes the camera from
- * behind and pulls away up the road toward the horizon, seen from behind with its tail lights, the way the first
- * painted title's pickup did. One is plenty: it's a desert (Jeff, 2026-11-02: "barely any traffic").
+ * Head-on traffic: none for now (Jeff, 2026-11-02: "oncoming traffic goes directly onto the truck"). The camera stands
+ * on the right shoulder, so the right-hand lane runs between it and the rig: a car that passed the camera there would
+ * sweep across the rig's grille before it drew clear. If the shot gets a car again, it pulls onto the road from a side
+ * road on the right beyond the rig and drives away up the right lane, one a shot (it's a desert).
  */
-function headTraffic(n: number, u: number): Rider[] {
-  const kind: VKind = dice(n, 78) < 0.5 ? "pickup" : "sedan";
-  const ts = 6 + dice(n, 76) * 14;
-  const d = -VMODELS[kind].L - 2 + PASS * (u - ts);
-  return u >= ts && d < VSPAWN ? [{ kind, view: "going", d, dist: (HSPEED + PASS) * (u - ts), seed: n * 37 }] : [];
+function headTraffic(): Rider[] {
+  return [];
 }
 
 // The ground under the head-on camera, drawn every frame: for each pixel below the horizon, the point of the road or
@@ -1331,31 +1328,35 @@ function roadThings(a: Ctx, aw: number, ox: number, by: number, gone: number, t:
   };
   const seen = (Y: number) => Y > 2.5 && Y < 1400;
   const uFor = (Y: number) => Y - gone;
-  // Poles, every 132 feet on the right, and the two wires between each and the next.
+  // Poles, every 132 feet on the right, and the two wires between each and the next (from the one the camera has just
+  // backed past, too, so they don't pop in when it goes).
   const POLE = 132;
   for (let k = Math.floor(uFor(2.5) / POLE); k <= Math.ceil(uFor(1400) / POLE); k++) {
     const Y = k * POLE + gone;
-    if (!seen(Y)) continue;
+    const Y2 = Y + POLE;
+    if (!seen(Y) && !seen(Y2)) continue;
     const X = 6.5;
     things.push({
       Y,
       draw: () => {
-        const [bx, byy] = at(X, Y, 0);
-        const [, ty] = at(X, Y, 30);
-        const w = Math.max(1, Math.round((0.9 * VCAM.f) / Y));
-        rect(a, bx - w / 2, ty, w, byy - ty, "rgb(52,36,32)");
-        const [ax0, ay] = at(X - 4, Y, 27);
-        const [ax1] = at(X + 4, Y, 27);
-        rect(a, ax0, ay, ax1 - ax0, Math.max(1, Math.round((0.5 * VCAM.f) / Y)), "rgb(52,36,32)");
+        if (seen(Y)) {
+          const [bx, byy] = at(X, Y, 0);
+          const [, ty] = at(X, Y, 30);
+          const w = Math.max(1, Math.round((0.9 * VCAM.f) / Y));
+          rect(a, bx - w / 2, ty, w, byy - ty, "rgb(52,36,32)");
+          const [ax0, ay] = at(X - 4, Y, 27);
+          const [ax1] = at(X + 4, Y, 27);
+          rect(a, ax0, ay, ax1 - ax0, Math.max(1, Math.round((0.5 * VCAM.f) / Y)), "rgb(52,36,32)");
+        }
         // The wires on to the next pole, sagging.
-        const Y2 = Y + POLE;
+        const Y1 = Math.max(Y, 2.5);
         for (const dx of [-3.5, 3.5]) {
-          const [sx0, sy0] = at(X + dx, Y, 27);
+          const [sx0, sy0] = at(X + dx, Y1, 27);
           const [sx1, sy1] = at(X + dx, Y2, 27);
           const steps = Math.max(8, Math.min(900, Math.ceil(Math.hypot(sx1 - sx0, sy1 - sy0) * 1.5)));
           for (let i = 0; i <= steps; i++) {
             // Even steps on screen are even steps in 1/depth; the sag goes by the true share of the span.
-            const yy = 1 / ((1 - i / steps) / Y + i / steps / Y2);
+            const yy = 1 / ((1 - i / steps) / Y1 + i / steps / Y2);
             const f = (yy - Y) / POLE;
             const [wx, wy] = at(X + dx, yy, 27 - 3 * 4 * f * (1 - f));
             if (wx >= 0 && wx < aw) a.fillRect(Math.round(wx), Math.round(wy), 1, 1);
@@ -1409,12 +1410,13 @@ function roadThings(a: Ctx, aw: number, ox: number, by: number, gone: number, t:
       },
     });
   }
-  // The diner: where the painting has it at the opening, and again every few thousand feet.
+  // The diner: where the painting has it at the opening, and again every few thousand feet, coming in from the near
+  // edge and fading into the haze as it goes.
   const DINER_EVERY = 1800; // so another one comes up the road within the shot
   const [dw, dh] = [sw("head-diner"), sh("head-diner")];
-  for (let k = Math.floor((uFor(60) - DINER_U) / DINER_EVERY); k <= Math.ceil((uFor(1400) - DINER_U) / DINER_EVERY); k++) {
+  for (let k = Math.floor((uFor(30) - DINER_U) / DINER_EVERY); k <= Math.ceil((uFor(1400) - DINER_U) / DINER_EVERY); k++) {
     const Y = DINER_U + k * DINER_EVERY + gone;
-    if (!seen(Y) || Y < 60) continue;
+    if (!seen(Y) || Y < 30) continue; // nearer than this it's wholly off the left of the screen
     things.push({
       Y,
       draw: () => {
@@ -1424,8 +1426,10 @@ function roadThings(a: Ctx, aw: number, ox: number, by: number, gone: number, t:
         const [x, y] = at(DINER_X, Y, 0);
         const w = dw * s;
         const h = dh * s;
+        a.globalAlpha = Math.min(1, (1400 - Y) / 400);
         a.drawImage(atlas(), R[0], R[1], R[2], R[3], Math.round(x - w / 2), Math.round(y - h), Math.max(1, Math.round(w)), Math.max(1, Math.round(h)));
         if (dice(Math.floor(t * 9), k) < 0.06) rect(a, x - w / 2 + 37 * s, y - h + 1 * s, 30 * s, 15 * s, "rgba(18,9,26,0.55)"); // the neon catching
+        a.globalAlpha = 1;
       },
     });
   }
@@ -1491,7 +1495,7 @@ function headShot(a: Ctx, aw: number, ah: number, u: number, n: number, t: numbe
   const by = bandTop(ah);
   // A narrow screen keeps the rig at its centre, as far as the painting reaches.
   const ox = Math.max(aw - BW, Math.min(0, Math.round(aw / 2 - (TRUCK_AT[0] + 40))));
-  const gone = HSPEED * u * DRIFT; // feet the world has moved along the road, away from the camera
+  const gone = HSPEED * u * DRIFT; // feet the world has gone by, toward the horizon
   if (by > 0) skyAbove(a, aw, by, topOf(back()), t);
   spr(a, "head-sky", ox, by);
   clouds(a, aw, by, t, n);
@@ -1501,7 +1505,7 @@ function headShot(a: Ctx, aw: number, ah: number, u: number, n: number, t: numbe
   streamGround(a, aw, ah, by, ox, gone);
   // The roadside and the far lane's traffic, far to near, the rig among them where its depth puts it.
   const things = roadThings(a, aw, ox, by, gone, t);
-  const riders = headTraffic(n, u);
+  const riders = headTraffic();
   const R = raster(aw, ah);
   const drawRiders = (near: boolean) => {
     const these = riders.filter((r) => (r.d < 38) === near);

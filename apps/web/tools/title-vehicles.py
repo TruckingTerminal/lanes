@@ -6,8 +6,10 @@ Every vehicle that drives up or down the painted road is a model measured in fee
 tools/rig-sheets.py (the tractor with a van, a reefer, a flatbed or a tanker), boxes and cylinders with the old sheets'
 colour ramps. title.ts draws them live, every frame, through the camera the painting implies: level, about seven feet
 up, looking straight down the road at its vanishing point (211, 89) with a focal length of about 120 px (the ground
-alone doesn't fix it; the painted truck's three-quarter view does), the coming lane about 14 feet to its left and the
-going lane about 26. So a vehicle turns into three-quarter view as it comes, passes the camera at full size, and its
+alone doesn't fix it; the painted truck's three-quarter view does). It's a US road seen from its right shoulder: the
+coming lane, the painted rig's, is the left of the screen, about 24.5 feet to the camera's left; the going lane, for
+what drives away up the road, is the right, about 9.5 (Jeff, 2026-11-02: "Put any oncoming traffic in the right
+lane"). So a vehicle turns into three-quarter view as it comes, passes the camera at full size, and its
 wheels, springs, lamps and exhaust move at every depth. This also works out, for each pair of kinds, the least gap a
 follower keeps behind its leader so that their pictures never overlap at any depth (render() and the preview are for
 looking at a model from the same camera).
@@ -37,7 +39,7 @@ rs = load("rs", "rig-sheets.py")
 TITLE = os.path.join(HERE, "..", "assets", "title")
 TS = os.path.join(HERE, "..", "src", "title.ts")
 CAM = {"px": 211.0, "py": 89.0, "f": 120.0, "h": 7.0}  # the painting's camera, in band pixels and feet: a wide lens
-LANES = {"coming": -14.0, "going": -26.0}  # lane centres, feet to the camera's right (so: left)
+LANES = {"coming": -24.5, "going": -9.5}  # lane centres, feet to the camera's right (so: left); the road is -32 to -1.8
 STEPS = [round(72 / 1.25**k, 2) for k in range(13)]  # depths of the anchor (front or rear), feet
 SPAWN = 420.0  # where the coming lane's traffic appears, as lamps on the horizon, and the going lane's leaves it
 POSTER_Y = 36.5  # the painting's truck: the rig's front at this depth fills the poster where the painted one stood
