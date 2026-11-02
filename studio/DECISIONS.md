@@ -60,3 +60,6 @@
   welcomes new players; the dial acts on the simulated carriers, never on freight, so it adds no faucet; the
   band is wide and the dial slow, so boom and bust cycles persist and prudent players win in the long run.
   Economy builds it behind a switch and sizes it with a join wave (v57) after factoring.
+- 2026-11-02 — Jeff: a red team role (studio/roles/redteam.md) that tries to exploit, break and game the
+  rules; it runs once a day while rules are changing, not on every push, and as the last step before any
+  republish. First pass once factoring and the population dial are in, so one pass covers both.
