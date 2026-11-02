@@ -1,6 +1,6 @@
 # Iuliia's contextual lines, and the truck makes (writer, sprint 2 draft 1, 2026-11-02)
 
-Jeff, 2026-11-02: "Iuliia should have a different dialogue depending on which tab you are on and which button or card you're pressing. Some humor is allowed." This spec gives her a line for each tab on entry and for each key button and card, with two or three variants so she doesn't repeat. It also sets a rule for how often she speaks, and ends with four fictional truck makes for the Dealer.
+Jeff, 2026-11-02: "Iuliia should have a different dialogue depending on which tab you are on and which button or card you're pressing. Some humor is allowed." This spec gives her a line for each tab on entry and for each key button and card, with two or three variants so she doesn't repeat. It also sets a rule for how often she speaks, and ends with three fictional truck makes for the Dealer.
 
 Her register is unchanged: an executive who ran a fleet of four hundred trucks in Moscow. Poised, dry, warm underneath, sass by understatement. She names Russian things (her grandmother, the samovar, the Volga, Tolstoy) and never says a Russian word. Every line is under 20 words. Numbers, where any appear, come from the config.
 
@@ -55,11 +55,10 @@ Engineering wires the hook later. The rule keeps her a colleague, not a nag.
 
 ## Truck makes for the Dealer
 
-Four fictional makes, each modelled loosely on a real one by role and reputation, never by name, badge or shape. Counsel reviews all four names, and checks them against existing trucking and automotive trademarks before anything ships; I haven't run that search. How the makes map onto the game's tractor tiers (Workhorse, Highway Pro, Flagship) is the director's and the economy designer's call.
+Three fictional makes, one per tractor tier (Jeff, 2026-11-02), each modelled loosely on real ones by role and reputation, never by name, badge or shape. Counsel reviews all three names, and checks them against existing trucking and automotive trademarks before anything ships; I haven't run that search.
 
-| Make | Modelled on | Role | Dealer line |
+| Make | Tier | Modelled on | Dealer line |
 |---|---|---|---|
-| Keystone | Freightliner | the workhorse | Half the interstate drives one. Cheap to buy, cheap to fix, never pretty. |
-| Meridian | Volvo | the economical | Built by people who measure fuel to the drop. Quiet, safe, kind to the books. |
-| Ironwood | Peterbilt | the driver's favourite | Long hood, plenty of chrome, and drivers who stay for it. You pay for the loyalty. |
-| Westmark | Kenworth | the premium | The one in the brochure. Best in the wind, best at resale, priced to match. |
+| Keystone | Workhorse | Freightliner | Half the interstate drives one. Cheap to buy, cheap to fix, never pretty. |
+| Meridian | Highway Pro | Volvo | Built by people who measure fuel to the drop. Quiet, safe, kind to the books. |
+| Ironwood | Flagship | Peterbilt and Kenworth | Long hood, plenty of chrome, best at resale, and drivers who stay for it. Priced to match. |
