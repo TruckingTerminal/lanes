@@ -136,14 +136,13 @@ Short key names used below:
 
 ## Card 4: Staking
 
-The producer's brief: the card is marked **Later**, with one line on the lock discounts. UX's spec also shows the stake tiers that gate fleet size today; their strings are below so engineering has them if the tiers stay live. Which one ships is the producer's call.
+Both ship (the producer, 2026-11-03). The stake tiers are the live rule, so their rows show first; the Later line sits under them. Engineering removes the tier rows with the lever, when the lock discounts switch on.
 
 | Where | String |
 |---|---|
-| Title | Staking · badge "Later" |
-| The one line | Discounts for locking FD come with lock terms, later in the beta. |
+| Title | Staking |
 
-**Today's tiers, if they show:**
+**Today's tiers, while the tiers are live** (removed with the lever):
 
 | Where | String |
 |---|---|
@@ -152,6 +151,13 @@ The producer's brief: the card is marked **Later**, with one line on the lock di
 | Field | FD to stake |
 | Buttons | **Stake** · Unstake (back in `{exitDays}` days) · Unstake now (`{1 − haircut}` back now, the rest burned) |
 | Unstake now sheet | Unstake now? · You get back `{fd}` FD · Burned: `{fd}` FD · **Unstake now** · Keep it |
+
+**Under the tiers, always:**
+
+| Where | String |
+|---|---|
+| Badge | Later |
+| The one line | Discounts for locking FD come with lock terms, later in the beta. |
 
 **When the locks switch on:**
 
