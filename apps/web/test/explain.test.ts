@@ -9,7 +9,7 @@ import { GAME_CONFIG, TestGame } from "../src/game.js";
 import { dueMilestone, history, milestones } from "../src/milestones.js";
 import { stepDo, stepText, walkSteps } from "../src/walkthrough.js";
 import { S } from "../src/state.js";
-import { milestoneHeld, MilestoneLine } from "../src/ui/Milestones.js";
+import { milestoneHeld, MilestoneLine, milestoneScope } from "../src/ui/Milestones.js";
 
 /** Keys the writer's table names that no first-month screen shows yet, each with why. The test fails if one appears. */
 const NOT_ON_A_SCREEN: Record<string, string> = {
@@ -111,21 +111,31 @@ describe("milestone lines queue", () => {
     S.game = g;
     S.tab = "fleet";
     S.milestone = null;
-    S.onboard = { ...S.onboard, seen: S.onboard.seen.filter((k) => !k.startsWith("ms:")).concat(["ms:monthClose:before", "ms:day28:before", "ms:day91:before", "ms:slump:at", "ms:debt:before"]) };
+    const sc = milestoneScope(g.w, c);
+    S.onboard = { ...S.onboard, seen: ["ms:monthClose:before", "ms:day28:before", "ms:day91:before", "ms:slump:at", "ms:debt:before"].map((k) => `${sc}|${k}`) };
     let now = 1e9;
     const clock = vi.spyOn(performance, "now").mockImplementation(() => now);
     try {
       expect(MilestoneLine()).not.toBeNull();
       expect(S.milestone).toMatchObject({ key: "ownTruck", phase: "at" });
       await Promise.resolve();
-      expect(S.onboard.seen).toContain("ms:ownTruck:at");
-      expect(S.onboard.seen).not.toContain("ms:hiredWeek:before");
+      expect(S.onboard.seen).toContain(`${sc}|ms:ownTruck:at`);
+      expect(S.onboard.seen).not.toContain(`${sc}|ms:hiredWeek:before`);
       // Its seconds pass: the next due follows at once, without waiting out the quiet time.
       now += GAME_CONFIG.ui.iuliia.showSeconds * 1000 + 1;
       expect(MilestoneLine()).not.toBeNull();
       expect(S.milestone).toMatchObject({ key: "hiredWeek", phase: "before" });
       await Promise.resolve();
-      expect(S.onboard.seen).toContain("ms:hiredWeek:before");
+      expect(S.onboard.seen).toContain(`${sc}|ms:hiredWeek:before`);
+      // A new world in the same browser (QA's replays): the last world's record doesn't silence this one's lines.
+      const g2 = await TestGame.create();
+      const c2 = g2.join("Queue Freight", "fleet", "LAX")!;
+      c2.firstOwnedTruckDay = Math.floor(g2.w.t / perDay);
+      S.game = g2;
+      S.milestone = null;
+      now += GAME_CONFIG.ui.iuliia.showSeconds * 1000 + 61_000;
+      expect(MilestoneLine()).not.toBeNull();
+      expect(S.milestone).toMatchObject({ key: "ownTruck", phase: "at" });
     } finally {
       clock.mockRestore();
       S.milestone = null;

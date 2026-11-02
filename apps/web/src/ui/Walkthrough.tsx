@@ -13,7 +13,7 @@ import { TAB_NAME } from "../tabs.js";
 import { Btn, Card } from "./bits.js";
 import { financeLine } from "./panels/Finance.js";
 import { Loop } from "./Loop.js";
-import { CompanySoFar, milestoneHeld, MilestoneLine } from "./Milestones.js";
+import { CompanySoFar, milestoneHeld, MilestoneLine, milestoneScope } from "./Milestones.js";
 import { WhatNowAnswer, WhatNowChip } from "./WhatNow.js";
 import { kindInView } from "../companies.js";
 
@@ -160,13 +160,19 @@ export function Caption(): JSX.Element | null {
   const step = index >= 0 ? steps[index]! : null;
   const seen = (k: string) => S.onboard.seen.includes(k);
   const mark = (k: string) => setOnboard({ seen: [...S.onboard.seen, k] });
-  // Every line has its seconds (QA's guidance replays): a step's line holds ui.iuliia.showSeconds before the next step's
-  // may replace it, so steps that tick within moments of each other are each read; and once a standing step's line has
-  // had its seconds, a milestone line that is due takes its turn, then the step's line returns. Nothing starves.
+  // Every line has its seconds (QA's guidance replays). Steps queue: each step's line holds ui.iuliia.showSeconds, and
+  // steps that tick within moments of each other are shown in order, each for its seconds, until the caption catches up
+  // with the current one. Once a standing step's line has had its seconds, a milestone line that is due takes its turn,
+  // then the step's line returns. Nothing starves.
   const showMs = GAME_CONFIG.ui.iuliia.showSeconds * 1000;
   const now = performance.now();
-  const held = stepShown && stepShown.id !== step?.id && now - stepShown.at < showMs ? steps.find((x) => x.id === stepShown!.id) : undefined;
-  if (!held && step && stepShown?.id === step.id && now - stepShown.at >= showMs) {
+  const scope = milestoneScope(g.w, c);
+  if (stepShown && stepShown.scope !== scope) stepShown = null;
+  const shownIdx = stepShown ? steps.findIndex((x) => x.id === stepShown!.id) : -1;
+  const behind = shownIdx >= 0 && shownIdx < (index >= 0 ? index : steps.length);
+  const holding = behind && now - stepShown!.at < showMs;
+  const queued = behind ? (holding ? steps[shownIdx] : steps[shownIdx + 1]) : undefined;
+  if (!behind && step && stepShown?.id === step.id && now - stepShown.at >= showMs) {
     const ms = MilestoneLine();
     if (ms) return ms;
   }
@@ -233,18 +239,17 @@ export function Caption(): JSX.Element | null {
       </div>
     ) : null;
   };
-  if (!step) return her() ?? bare();
+  if (!step && !queued) return her() ?? bare();
   // "You won one" waits for the win: the board step ticks on the bid itself, twelve hours before the round clears.
   // (A bid alone retires the arrival line, but this line needs the load itself.)
   const loaded = (g.w.trucksByCompany.get(c.id) ?? []).some((t) => t.loadId !== null) || c.delivered > 0;
-  if (step.id === "haul" && !loaded) return her() ?? bare(step.mood);
-  // The line on show: the step just past while its seconds run, else the current one; its seconds start when it shows.
-  const st = held ?? step;
-  if (!held && stepShown?.id !== st.id) {
-    stepShown = { id: st.id, at: now };
+  if (!queued && step!.id === "haul" && !loaded) return her() ?? bare(step!.mood);
+  // The line on show: the next step in the queue, else the current one; its seconds start when it shows.
+  const st = (queued ?? step)!;
+  if (stepShown?.id !== st.id) {
+    stepShown = { id: st.id, at: now, scope };
     setTimeout(bumpData, showMs + 50);
-  }
-  if (held) setTimeout(bumpData, showMs - (now - stepShown!.at) + 50);
+  } else if (holding) setTimeout(bumpData, showMs - (now - stepShown.at) + 50);
   // A step speaks once (its Say, then Next), then shows its Do until hidden; More opens her tab for the rest.
   const stepLine = (step: WalkStep): JSX.Element => {
   if (!seen(`say:${step.id}`)) {
@@ -279,8 +284,8 @@ export function Caption(): JSX.Element | null {
   return stepLine(st);
 }
 
-/** The step whose line last reached the caption, and when (its seconds run from then). */
-let stepShown: { id: string; at: number } | null = null;
+/** The step whose line last reached the caption, when (its seconds run from then), and whose company it was. */
+let stepShown: { id: string; at: number; scope: string } | null = null;
 
 /** Her tab-and-card line where the caption strip isn't (the hub screens, before a company exists). */
 export function IuliiaLine(): JSX.Element | null {

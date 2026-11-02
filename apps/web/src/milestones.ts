@@ -4,8 +4,8 @@ import { debtCountdown, nextWeeklyCheckDay } from "./figures.js";
 /**
  * Milestones after the walkthrough (specs/guidance.md section 3, guidance-ux.md section 4): events in the company's
  * life, derived from the world and saving nothing, like the walkthrough. Each has a line at the event and, where its
- * date is known ahead, a line before it; each line speaks once per browser (the client's seen record, `ms:{key}:before`
- * and `ms:{key}:at`) and only inside `guide.milestoneWindowDays` of the date. A milestone whose date the world doesn't
+ * date is known ahead, a line before it; each line speaks once per company (the client's seen record, `ms:{key}:before`
+ * and `ms:{key}:at`, scoped to the company in ui/Milestones.tsx) and only inside `guide.milestoneWindowDays` of the date. A milestone whose date the world doesn't
  * keep (a third truck) has `day` null: its at line shows while it holds, and the timeline lists it without a date.
  */
 export type MilestoneKey = "ownTruck" | "hiredWeek" | "dispatcher" | "monthClose" | "day28" | "slump" | "debt" | "day91";

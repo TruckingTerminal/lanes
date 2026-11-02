@@ -21,11 +21,17 @@ import { askWhatNow, WhatNowChip } from "./WhatNow.js";
  * the caption and the hire day's line never spoke). Her line, the reason, and one button to where to act or prepare.
  */
 let chainUntil = -Infinity;
+
+/** The company a milestone key belongs to: its world (by seed), its id, and the day it began (a fresh start is new). */
+export const milestoneScope = (w: World, c: Company): string => `${w.seed}:${c.id}:${c.createdDay}`;
 export function MilestoneLine(): JSX.Element | null {
   const g = S.game;
   const c = g?.player;
   if (!g || !c) return null;
-  const seen = (k: string) => S.onboard.seen.includes(k);
+  // Said once per company, not per browser: the seen record is the browser's, so each key carries the company in its
+  // world (QA: a new test world in the same browser found the last world's slump and payday lines already said).
+  const scope = milestoneScope(g.w, c);
+  const seen = (k: string) => S.onboard.seen.includes(`${scope}|${k}`);
   let cur = S.milestone;
   if (cur && cur.tab !== S.tab) cur = S.milestone = null;
   // A line has its seconds, then gives way; the next one due may follow straight on, for a moment.
@@ -41,7 +47,7 @@ export function MilestoneLine(): JSX.Element | null {
     iuliiaStarted();
     // Held for ui.iuliia.showSeconds before a step line may take the caption back (milestoneHeld): redraw when it ends.
     setTimeout(bumpData, GAME_CONFIG.ui.iuliia.showSeconds * 1000 + 50);
-    const k = `ms:${due.m.key}:${due.phase}`;
+    const k = `${scope}|ms:${due.m.key}:${due.phase}`;
     queueMicrotask(() => setOnboard({ seen: [...S.onboard.seen, k] }));
   }
   const m = milestones(g.w, c).find((x) => x.key === cur!.key);
