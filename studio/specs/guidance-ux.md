@@ -29,7 +29,11 @@ One row in the page's flow, never an overlay, so nothing she says can sit on a f
 
 **Phone.**
 - **Sheet at strip height (88 px):** the state line on top, as built; under it a 44 px caption row: her 32 px
-  face, the caption's current text cut to one line, and the **What now?** chip (36 px tall, right-aligned).
+  face, the caption's current text, and the **What now?** chip (36 px tall, right-aligned). **Her own button
+  (Next, Show me the board…) is not in this row**: it stays at half and full. The text takes the whole width
+  between the face and the chip, up to two lines at 13 px, then an ellipsis; a tap on the face or the text raises
+  the sheet to half, where her button is. (As built in d62e775 both buttons share the row and squeeze the line to
+  about 145 px, "Each line is a l…", or "This…" beside a wider button; looked at in an isolated copy at 375 × 812.)
 - **Sheet at half or full:** the caption as built (96 px portrait, her line, its button), with the What now? chip
   at the right of the button row.
 - **The walkthrough hidden ("Hide"):** the caption collapses to the 44 px row: face, chip, nothing else. What now?
@@ -118,8 +122,13 @@ the writer's): "Tap any number with a dotted line and I'll show you where it com
 - **No humor** anywhere in it (the director's rule).
 
 ### The explain sheet, laptop
-A 320 px popover anchored beside the figure, opening toward the map side, never over the figure or its row; an
-arrow points at the figure. Same contents. Esc or a click outside closes it. Tab moves through its links.
+**A 320 px card fixed in a bottom corner, not a popover** (accepted as built in d62e775: simpler, the same
+component as the phone's, and no arrow to aim). **The one change: the card takes the bottom corner on the side away
+from the figure.** A figure in the panel (nearly all of them) opens the card bottom-left, over the map, 16 px from
+the map's edges; a figure on the map side (a hub card's numbers) opens it bottom-right. As built it always sits
+bottom-right, over the panel's own lower rows (other figures, the next card), and the panel has to scroll to keep
+the tapped figure clear; on the map side neither happens. Same contents. Esc or a click outside closes it. Tab
+moves through its links.
 
 ## 4. Milestones: progress without a quest log
 
