@@ -2,12 +2,13 @@ import type { Equipment } from "@lanes/config";
 import { hubMiles, hubRoute, type Truck } from "@lanes/engine";
 import { icon, PAL } from "./art.js";
 import { drawText, textWidth } from "./font.js";
-import { FIRST_HUBS, isHuman } from "./game.js";
+import { isHuman } from "./game.js";
 import { buildMap, hash, headingDir, nightColor, nightShade, truckMarkers, type MapArt, type MarkerKind } from "./map.js";
 import { TRUCK_SCALE, truckFrame } from "./assets.js";
-import { CITY_SCALE, citySprite, drawRain, drawSnow, hasPaintedMap, MAP_H, MAP_W, mapLevel, seasonOf, spriteFrame, TOWN_SCALE, townKindAt, townSprite, vfxSprite, type Season } from "./mapart.js";
+import { CITY_SCALE, citySprite, drawRain, drawSnow, hasPaintedMap, MAP_H, MAP_W, mapLevel, mapSurround, seasonOf, spriteFrame, TOWN_SCALE, townKindAt, townSprite, vfxSprite, type Season } from "./mapart.js";
 import { weatherAt, weatherLabel, type Weather } from "./weather.js";
 import { bumpData, clockMin, myTrucks, S, selectTruck, setTab } from "./state.js";
+import { rankStarters } from "./hubcard.js";
 import { openLoadsAt, reloadLabel, seasonSwing } from "./logic.js";
 import { signedPct, TRAILER_NAME } from "./format.js";
 
@@ -174,10 +175,17 @@ function edgeShade(img: HTMLImageElement): string {
   if (!s) {
     const c = document.createElement("canvas");
     c.width = c.height = 1;
-    const g = c.getContext("2d")!;
-    g.drawImage(img, 2, 2, 1, 1, 0, 0, 1, 1);
-    const [r, gg, b] = g.getImageData(0, 0, 1, 1).data;
-    s = `rgb(${Math.round(r! * 0.62)},${Math.round(gg! * 0.62)},${Math.round(b! * 0.68)})`;
+    const g = c.getContext("2d", { willReadFrequently: true })!;
+    // The sea itself, as painted: the darkest of a few points along the painting's foot (the Gulf and the Pacific). Its
+    // top corner is land (snow in winter) and its outer margin a pale slate, which both read as a grey band (Jeff).
+    let best = [0, 0, 0, Infinity];
+    for (const fx of [0.35, 0.45, 0.5, 0.55, 0.6]) {
+      g.drawImage(img, Math.floor(img.width * fx), img.height - 3, 1, 1, 0, 0, 1, 1);
+      const [r, gg, b] = g.getImageData(0, 0, 1, 1).data;
+      const lum = r! + gg! + b!;
+      if (lum < best[3]!) best = [r!, gg!, b!, lum];
+    }
+    s = `rgb(${best[0]},${best[1]},${best[2]})`;
     shades.set(img, s);
   }
   return s;
@@ -451,6 +459,15 @@ export function drawMap(now: number): void {
   const lvl = mapLevel(season, k);
   ctx.fillStyle = lvl ? edgeShade(lvl.img) : PAL.seaD;
   ctx.fillRect(0, 0, W, H);
+  // The world past the map's edge (Graphics' surround, per season), wherever the map doesn't reach the window's edge.
+  const sur = mapSurround(season);
+  if (sur && (panX < 0 || panY < 0 || art.W * k - panX < W || art.H * k - panY < H)) {
+    ctx.imageSmoothingEnabled = !Number.isInteger(k);
+    ctx.setTransform(k, 0, 0, k, -panX, -panY);
+    ctx.drawImage(sur, -(sur.width - MAP_W) / 2, -(sur.height - MAP_H) / 2);
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.imageSmoothingEnabled = false;
+  }
   if (lvl) {
     const s = k / lvl.scale;
     ctx.imageSmoothingEnabled = !Number.isInteger(s);
@@ -904,14 +921,17 @@ function drawWeather(ctx: CanvasRenderingContext2D, now: number, k: number, u: n
 
 function drawHubLabels(ctx: CanvasRenderingContext2D, f: number, k: number, u: number, visible: (X: number, Y: number) => boolean): void {
   const w = S.game!.w;
-  const z = zoom();
-  // Labels never under about 14 screen pixels tall at the whole map (QA: unreadable at 1366).
-  const L = Math.max(1, Math.round(f * (z >= 3 ? 3 : 2)), Math.round(1.5 * (window.devicePixelRatio || 1)));
-  let open: Map<number, number> | null = null;
-  if (z >= 3) {
-    open = new Map();
-    for (const l of w.loads.values()) if (l.status === "open") open.set(l.origin, (open.get(l.origin) ?? 0) + 1);
+  const dprL = window.devicePixelRatio || 1;
+  // Zoomed out it's the map, not text (Jeff, 2026-11-02): no city names until 4×, where the sprite layer starts (the
+  // towns; the hub cities' own sprites come at 8×, the last level, too deep to wait for). Then about 9–14 screen pixels.
+  if (k < LABEL_K) {
+    // The one exception, before a company: the three ringed starters, small under the ring, since one must be picked.
+    if (!S.game!.player) starterRings(ctx, u, visible, Math.max(1, Math.round(dprL)));
+    return;
   }
+  const L = Math.max(2, Math.round(1.4 * dprL)) + (k >= 8 ? 1 : 0);
+  const open = new Map<number, number>();
+  for (const l of w.loads.values()) if (l.status === "open") open.set(l.origin, (open.get(l.origin) ?? 0) + 1);
   // Every city by its full name, the biggest first; a name that would overlap one already placed
   // waits for the next zoom in, so the crowded corridors stay readable at every level.
   const order = w.net.hubs.map((_, i) => i).sort((a, b) => (a === S.selHub ? -1 : b === S.selHub ? 1 : w.net.hubs[b]!.weight - w.net.hubs[a]!.weight));
@@ -919,11 +939,10 @@ function drawHubLabels(ctx: CanvasRenderingContext2D, f: number, k: number, u: n
   for (const i of order) {
     const h = w.net.hubs[i]!;
     const cls = art!.cityClass[i]!;
-    if (z === 1 && cls < 2 && i !== S.selHub) continue;
     const [X, Y] = toScreen(...art!.hubXY[i]!);
     if (!visible(X, Y)) continue;
     const text = h.name.toUpperCase();
-    const count = open ? String(open.get(i) ?? 0) : "";
+    const count = String(open.get(i) ?? 0);
     const tw = textWidth(text) * L;
     const x = X - Math.round(tw / 2);
     const top = k >= CITY_SCALE && citySprite(h.id) ? ((128 * k) / CITY_SCALE) * 1.2 : CITY_TOP[cls]! * k;
@@ -934,18 +953,37 @@ function drawHubLabels(ctx: CanvasRenderingContext2D, f: number, k: number, u: n
     drawText(ctx, text, x, y, L, i === S.selHub ? PAL.gold : PAL.white, PAL.ink0);
     if (count) drawText(ctx, count, x + tw + 3 * L, y, L, PAL.gold, PAL.ink0);
   }
-  // Before a company (S1): the three starter hubs carry a cyan ring, so the first look finds a home.
-  if (!S.game!.player) {
-    ctx.strokeStyle = PAL.cyan;
-    const dprR = window.devicePixelRatio || 1;
-    ctx.lineWidth = Math.max(2 * u, Math.round(2 * dprR));
-    for (const i of S.entry.rings ?? FIRST_HUBS.map((id) => w.net.hubs.findIndex((h) => h.id === id)).filter((x) => x >= 0)) {
-      const [X, Y] = toScreen(...art!.hubXY[i]!);
-      if (!visible(X, Y)) continue;
-      ctx.beginPath();
-      ctx.arc(X, Y, Math.max(12 * u, Math.round(14 * dprR)), 0, Math.PI * 2);
-      ctx.stroke();
-    }
+  if (!S.game!.player) starterRings(ctx, u, visible, 0);
+}
+/** City names show from this many device pixels per level-0 art pixel (the 4× level). */
+const LABEL_K = 4;
+
+/** Before a company (S1): the three starter hubs carry a cyan ring, so the first look finds a home; `L` > 0 names them under it. */
+function starterRings(ctx: CanvasRenderingContext2D, u: number, visible: (X: number, Y: number) => boolean, L: number): void {
+  const w = S.game!.w;
+  const dprR = window.devicePixelRatio || 1;
+  const r = Math.max(12 * u, Math.round(14 * dprR));
+  ctx.strokeStyle = PAL.cyan;
+  ctx.lineWidth = Math.max(2 * u, Math.round(2 * dprR));
+  const placed: [number, number, number, number][] = [];
+  // The same three the hub list names (ChooseHub ringedHubs): from the first look, not only once the list has shown.
+  S.entry.rings ??= rankStarters(w).slice(0, 3);
+  for (const i of S.entry.rings) {
+    const [X, Y] = toScreen(...art!.hubXY[i]!);
+    if (!visible(X, Y)) continue;
+    ctx.beginPath();
+    ctx.arc(X, Y, r, 0, Math.PI * 2);
+    ctx.stroke();
+    if (!L) continue;
+    // Under the ring, or above it when that would run into a name already placed (Los Angeles and Phoenix).
+    const text = w.net.hubs[i]!.name.toUpperCase();
+    const tw = textWidth(text) * L;
+    const x = X - Math.round(tw / 2);
+    const hit = (y: number) => placed.some((b) => b[0] < x + tw && x < b[2] && b[1] < y + 8 * L && y < b[3]);
+    const below = Y + r + 2 * u;
+    const y = hit(below) ? Y - r - 2 * u - 8 * L : below;
+    placed.push([x - L, y - L, x + tw + L, y + 8 * L]);
+    drawText(ctx, text, x, y, L, i === S.selHub ? PAL.gold : PAL.cyan, PAL.ink0);
   }
 }
 

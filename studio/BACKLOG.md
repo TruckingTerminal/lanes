@@ -44,3 +44,6 @@ sprint 2.
 - **The map at Fit on a phone**: grey bands above and below the country; paint the world beyond the map's edge
   per season (art) and draw it behind the map (engineering). City names at Fit are huge and cluttered: no
   labels until zoomed in enough, except a small name under the three ringed starter hubs on the first entry.
+- **The red badge in the strip does nothing.** A tap opens the tab that needs attention, scrolls to the card,
+  and the card carries its fix; more than one thing waiting opens a short list. Iuliia's arrival line also
+  outlives the first booking. Engineering, this sprint.

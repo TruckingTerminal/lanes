@@ -111,6 +111,20 @@ export function mapLevel(season: Season, k: number): { img: HTMLImageElement; sc
   return best ? { img: best.img!, scale: best.scale, season: best.season } : null;
 }
 
+/**
+ * The world past the map's edge (Graphics): assets/map/surround-{season}.png at level-0 scale, the map's MAP_W × MAP_H
+ * centred in it with equal margins; summer's stands in for a season not painted yet, and null until one ships.
+ */
+const SURROUND = Object.fromEntries((["summer", "autumn", "winter", "spring"] as const).map((s) => [s, { src: `${ASSETS}map/surround-${s}.png`, img: null, ready: false }])) as Record<Season, Pic>;
+export function mapSurround(season: Season): HTMLImageElement | null {
+  for (const s of [season, "summer"] as const) {
+    const p = SURROUND[s];
+    load(p);
+    if (p.ready) return p.img;
+  }
+  return null;
+}
+
 /** A sprite, still or a loop: `frames` cells of `fw` × `fh` in `cols` columns of the image. */
 export interface Sprite {
   img: HTMLImageElement;
