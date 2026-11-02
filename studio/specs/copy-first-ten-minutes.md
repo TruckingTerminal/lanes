@@ -39,7 +39,7 @@ Nothing to read: the title loop and one button. Connection states live on the bu
 | Dealer | New, used and leased rigs, and trailers of your own. | I'll say when it's time to buy. The first one is arithmetic. | when Iuliia says so |
 | Rates | What each hub pays, by trailer, and which way freight runs. | Useful once you've been paid and know what a rate is. | at your first delivery |
 | Logbook | What your Miles become, and when. | It opens with the token, and not before. | at the token's launch |
-| Finance | Getting paid faster, and what that costs. | A second truck makes it worth reading. | at your second truck |
+| Finance | Getting paid on your own truck: quick pay, load by load, and the factoring contract. | Read it before you buy, not after. The wait for your money starts with your first load. | when Iuliia says it's time to buy, with the Dealer |
 | Economy | The market's own books: what comes in, what goes out. | A month in, you'll want it. | at the first monthly report |
 | Business | Yards, shops, truck stops, warehouses. | Nobody needs a warehouse in week one. | on day `{unlockLadder.layers.businesses.afterDays}` |
 | Back Lot | A later beta. | A later chapter. I don't give away the plot. | with a later beta |
@@ -216,6 +216,10 @@ Each character line is true to today's hub table; if the economy's figures move,
 | The screen, the tabs (kept) | Truck (your trucks and the dispatcher), Loads (the board), Money (cash, what's owed, this week's costs, loans), and More: Iuliia, this Help, Company (your record, the leaderboard), and the tabs still to come, each opening when it's useful. |
 | The screen, Today (kept) | Today on the Truck tab (and the ticker along the bottom on a laptop) lists what just happened to your company: loads won and delivered, breakdowns, inspections, staff news. |
 | Tell us what you think (kept) | "Report a bug or an idea", under ≡ at the top of the screen, sends it straight to us… (rest unchanged) |
+| The market, the board (guide/market.ts, the paragraph with "Everything else is a counter") | Every load shows a **book-now** price: take it and it's yours at once (Book-now prices). Or **bid** more than the posted price and wait: bids clear in rounds at `{r1}` and `{r2}`. Each load has a **ceiling**, the most its poster will pay per mile; nobody sees anyone else's bid. |
+| The market, how a round clears (the two list items) | Bids clear best score first. A truck wins at most one load a round, and a load goes to one truck. · A bid above the ceiling, up to `{board.overCeilingMax}` times it, wins only if nobody bids within the ceiling, cheapest first: in a hot market the poster pays over its ceiling rather than leave the load. |
+| Book-now prices (the "Want more? Counter above it" paragraph) | Every load shows a **book-now** price: what the poster is offering right now. Take it and the load is yours at once, no round to wait for. Want more? Bid above it and wait for the round: the poster takes the best bid within its ceiling or, if none is within it, the cheapest above (The load board). Anyone who'd take the posted price just books. |
+| Contracts, a tender (the "even counter for it at spot" sentence) | …or leave it: it goes to the spot board, where you can still bid for it at spot. |
 
 ## Iuliia
 
