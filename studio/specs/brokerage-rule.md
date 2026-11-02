@@ -70,7 +70,7 @@ The guards on a transfer:
   - would be left with negative cash.
 - **A brokerage can't transfer out below its bond while it has paper open.** The bond stays behind its paper, as it does today.
 - **A transfer is equity, not revenue or cost.** It counts toward no profit, Miles, logbook, Intel revenue or profit tax.
-- **A fee of {1%} of every transfer**, in either direction, goes to the reserve. It is a sink, like the factoring fee, and its config key is `brokerage.transferFeePct`. Jeff confirms the figure. The fee is the only tax on a transfer. It keeps money moving between the two companies from being free. And because every other channel between them (section 3a's tender, row 7) is held to the lane's band, a transfer is the one way to move money untaxed by freight, and it is taxed here.
+- **A fee of {3%} of every transfer**, in either direction, goes to the reserve. It is a sink, like the factoring fee, and its config key is `brokerage.transferFeePct`. Jeff set it at 3% (2026-11-03: "higher than 1%"). The fee is the only tax on a transfer. It keeps money moving between the two companies from being free. And because every other channel between them (section 3a's tender, row 7) is held to the lane's band, a transfer is the one way to move money untaxed by freight, and it is taxed here.
 - **Every transfer is logged** in both companies' Money, privately, with its fee.
 
 ## 3. Self-dealing: allowed, with no advantage
@@ -200,7 +200,7 @@ Until then the logbook leans on delivered-on-time and tenure, as the red team ad
 | A broker company with licence, bond stake, surety, bond cap, 5% factoring, defaults, contract lag, fall-off, wind-up | Yes: AI companies formed `role: "broker"` (`world.ts` `formCompany`, `receivables.ts`, `solvency.ts`, `freight.ts`) | – |
 | Players' companies | One per uid, always `role: "carrier"` (`game.ts:74`, `live.ts:279`) | A second join for a brokerage, gated on an active carrier and the open layer |
 | Owner across companies | None: companies don't know their owner beyond the uid | An owner link between the two companies of one uid |
-| Capital transfers | None | The owner's transfer, with section 2's guards and the `{1%}` fee to the reserve |
+| Capital transfers | None | The owner's transfer, with section 2's guards and the `{3%}` fee to the reserve |
 | Self-dealing rows 1–7 | None | Once-per-person counting, credit exclusion, no own-paper factoring, own carrier last in the bond queue, the lane's band on own tenders |
 | Direct freight | A carrier's `contracts.direct` tenders: accept onto a truck, or turn down (stake slashed) | Rule A: pass to the own brokerage, the shipper's payable re-papered to it, no tender back to the passer. Rule B: a brokerage's shipper tender straight to the own carrier inside the band |
 | Tenders to a player broker | AI brokers get tenders by weight on a standing order | The same for a player brokerage; hand calls if UX's question 5 says so |

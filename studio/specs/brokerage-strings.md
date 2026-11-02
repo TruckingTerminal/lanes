@@ -17,7 +17,7 @@ Short key names used below:
 | `{defaultRate}`, `{lagDays}`, `{fallOff}` | `brokerRisk.defaultRate`, `.contractLagDays`, `.fallOffShare` |
 | `{boardFee}` | the board fee's share (3% today); engineering names the key (UX's question 6) |
 | `{termsDays}` | `token.payment.termsDays` |
-| `{transferFee}` | `brokerage.transfer.feePct`, proposed 1%, to the reserve **[Jeff to confirm]** |
+| `{transferFee}` | `brokerage.transfer.feePct`, to the reserve (Jeff, 2026-11-03: 3%) |
 | `{bandLow}`, `{bandHigh}` | the lane's band from `brokerage.ownTender.band`, per mile **[size]** |
 
 ## Renames, everywhere a player reads
