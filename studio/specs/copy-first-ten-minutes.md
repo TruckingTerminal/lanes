@@ -151,6 +151,8 @@ Each character line is true to today's hub table; if the economy's figures move,
 | Where | String |
 |---|---|
 | Truck card | Truck `{n}` · Workhorse · `{Dry van}` · leased: the lessor keeps `{npcLeaseShareOfGross}` of every load / owned · worth `{fd}` FD · `{origin}` → `{dest}` · `{miles}` mi · ETA `{Jan 7 02:36}` · chip On time / Late `{h}` h |
+| Tonight (`ROLLING.tonightSite`) | Tonight, as planned: `{a truck stop / a rest area}` near `{place}` |
+| Tonight, no site (`ROLLING.tonightShoulder`) | Tonight, as planned: the shoulder. Nowhere legal to stop in reach. |
 | Waiting (before the first bid) | Waiting at `{hub}` · the first load is your call · **Show me the board** · strip: Truck 1 · Waiting at `{hub}` · round `{hh:00}` |
 | Idle (after it) | Idle at `{place}` · next round `{hh:00}` · other status lines unchanged |
 | Map | Follow |
@@ -165,6 +167,8 @@ Each character line is true to today's hub table; if the economy's figures move,
 |---|---|
 | Card | Delivered `{Dallas}` to `{Charlotte}` · chip On time / Late `{h}` h |
 | Rows | The load `{fd}` · Fuel −`{fd}` · Tolls −`{fd}` · The lessor's `{npcLeaseShareOfGross}` −`{fd}` · Held toward your own truck −`{fd}` (when the deposit applies) · **Yours `{fd}` FD** · Paid `{date}` |
+| Driver's pay row (`DELIVERED.driver`) | Your pay for driving (owner-operator) / Driver's pay · `{name}` (hired) |
+| Upkeep row (`DELIVERED.upkeep`) | Truck upkeep |
 | Feed | Delivered `{Dallas}` to `{Charlotte}`: `{total}` FD, `{yours}` FD yours after fuel, tolls and the lessor's cut. Paid `{date}`. |
 
 ## S8 Money
@@ -174,6 +178,7 @@ Each character line is true to today's hub table; if the economy's figures move,
 | Cash | Cash · `{fd}` FD · Cash, last `{n}` days |
 | Owed to you | Owed to you · Load · FD · Due · empty: Nothing owed yet. Your first invoice lands here. |
 | This week's costs | This week's costs · Lease minimum · Insurance · Yard · Per diem |
+| Per diem value (`MONEY.perDiemValue`) | `{n}` FD a day |
 | Standing | Standing · `{n}` Miles · your standing in the beta |
 | Loans (fold) | Loans · A loan on a truck you own: up to `{equipmentFinance.maxLoanToValue}` of its value, `{weeklyRate}` a week, over `{termWeeks}` weeks. Miss `{missedPaymentsToRepossess}` payments and the lender takes the truck. · Truck `{n}`: borrow up to `{fd}` FD · **Borrow** · Loan on truck `{n}`: `{fd}` FD owed · `{n}` missed · **Repay** |
 | The token (fold, below Loans) | The token · today's cards and the launch counter, unchanged (Jeff, 2026-11-02) |
@@ -192,14 +197,14 @@ Each character line is true to today's hub table; if the economy's figures move,
 
 ## Iuliia
 
-Say lines are 25 words or fewer; the sheet shows **Say**, the caption **Do**. The full paragraphs of `walkthrough.ts` stay on the Iuliia tab with these edits: "Davai" → "Go on"; "the Fleet tab" → "the Truck tab";  "the Company tab", "the Dealer tab", "the Staff tab", "the Business tab" → "Company / Dealer / Staff / Business, under More"; step 13's "the Logbook tab and at the top beside your cash" → "Money, under Standing". Step 1's full text keeps both old paragraphs, with "The Fleet tab is your truck; the map is everyone's trucks. Find your home hub on it." → "The map is everyone's trucks; the ringed cities are good homes." Step 1 ticks on **Start at `{hub}`**. The end card stays.
+Say lines are 25 words or fewer; the sheet shows **Say**, the caption **Do**. The full paragraphs of `walkthrough.ts` stay on the Iuliia tab with these edits: "Davai" → "Go on"; "the Fleet tab" → "the Truck tab";  "the Company tab", "the Dealer tab", "the Staff tab", "the Business tab" → "Company / Dealer / Staff / Business, under More"; step 13's "the Logbook tab and at the top beside your cash" → "Money, under Standing". Step 1's full text keeps both old paragraphs, with "The Fleet tab is your truck; the map is everyone's trucks. Find your home hub on it." → "The map is everyone's trucks; the ringed cities are good homes." Step 1 ticks on **Start at `{hub}`**. Step 4's full text still says shippers pay net-30, which a leased starter never sees; it needs the same correction as its Say line. The end card stays.
 
 | Step | Say | Do |
 |---|---|---|
 | 1 Choose your home | Three ringed cities take new carriers. Tap one to start, or any other to see its freight. | Choose your home: tap a ringed hub, then Start here. |
 | 2 Reading the board | Each line is a lane, the miles and a rate. Pick one near your truck, bid above break-even, and let the round clear. | Bid on a load leaving `{hub}`. |
 | 3 The truck rolls | You won one. Now the slow part, most of trucking: `{hos.drivingHoursPerDay}` hours of driving a day, fuel, and docks with their own hours. | Watch the ETA. Note where it sleeps tonight. |
-| 4 Getting paid | Delivered. The money lands on the due day, not today; Money shows what you're owed and when. Quick pay costs a fee. | Find your first invoice on Money. |
+| 4 Getting paid | Delivered, and paid today: the lessor sees to that. Money shows its share and the hold toward your own truck. | On Money, find the lessor's share and the hold. Invoices come with a truck of your own. |
 | 5 The reload | Empty trailer, far end of the country. Nearest load first: driving home empty turns a good load into a bad week. | Pick the next load from Find loads, nearest first. |
 | 6 What it costs to exist | The page nobody enjoys: fuel, insurance, tolls, taxes, idling. Read it weekly, like an executive, with tea. Keep a cushion. | Compare revenue against costs on Money. |
 | 7 Keeping it on the road | Condition falls with the miles, and a worn truck breaks down, usually in the rain. Repairs at home are cheaper than away. | Check the condition bar; plan the rebuild before it's urgent. |
