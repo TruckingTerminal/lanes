@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { economyConfig as cfg, type EconomyConfig } from "@lanes/config";
 import { buildNetwork, hubs, neutralFeeds } from "@lanes/data";
-import { addTruck, clearsNear, createWorld, cycleLimitMin, drivingMinutesLeft, formCompany, invalidOrders, marketMood, noteClear, rollover, type World } from "@lanes/engine";
+import { addTruck, clearsNear, companyAccount, createWorld, cycleLimitMin, drivingMinutesLeft, formCompany, invalidOrders, marketMood, noteClear, parkForTheNight, rollover, type World } from "@lanes/engine";
 
 // Stage 2 of economy-player34.md: R11's board keys, R1's bid anchor and R12's weekly clock, each off at today's value.
 const net = buildNetwork(hubs, cfg);
@@ -35,6 +35,24 @@ describe("R12: the 70-hour clock and the 34-hour restart", () => {
     expect(drivingMinutesLeft(w, t, w.t + 33 * H)).toBeLessThanOrEqual(30);
     expect(drivingMinutesLeft(w, t, w.t + 34 * H)).toBe(r12.hos.drivingHoursPerDay * H);
     expect(t.cycleMin).toBe(0);
+  });
+
+  it("the restart is one stop: one space and one night's bill, however many duty days it spans (economy-player34.md §3d)", () => {
+    const { w, t } = truckAt(r12);
+    const site = w.sites[0]!;
+    t.shiftDrivenMin = 11 * H; // the day that ran the clock out
+    parkForTheNight(w, t, site);
+    expect(site.parked).toBe(1);
+    expect(t.restSite).toBe(site.id);
+    const cash = w.ledger.balance(companyAccount(t.companyId!));
+    for (const h of [10, 20, 30]) {
+      // Each restHours a new duty day opens and closes with no mile driven.
+      t.shiftStartT = w.t + h * H;
+      t.shiftDrivenMin = 0;
+      parkForTheNight(w, t, site);
+    }
+    expect(site.parked).toBe(1);
+    expect(w.ledger.balance(companyAccount(t.companyId!))).toBeCloseTo(cash, 6);
   });
 
   it("on falsified logs the company drives through the clock", () => {

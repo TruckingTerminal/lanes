@@ -74,6 +74,16 @@ export function mphFor(w: World, t: Truck, c: Company, roadMph = w.cfg.hos.avgMp
   return roadMph * skill * tired * (speeding(w, t, c) ? safety.speed.fastMph / hos.avgMph : 1);
 }
 
+/** R18: what a stretch of driving earned, at the load's rate (or the board's average with none): its miles at the nominal pace. */
+function drivingEarnedFd(w: World, t: Truck, minutes: number): number {
+  const load = currentLoad(w, t);
+  const rate = load?.clearedRate ?? w.metrics.days.at(-1)?.avgClearedRate ?? 0;
+  return (minutes / MINUTES_PER_HOUR) * w.cfg.hos.avgMph * rate;
+}
+
+/** R18: a fine of at least fineEarnedMult × what the breach earned (the flat draw when the key is 0). */
+const scaledFine = (w: World, flat: number, earnedFd: number | undefined): number => Math.max(flat, w.cfg.safety.enforcement.fineEarnedMult * (earnedFd ?? 0));
+
 /**
  * A duty day closes: hours driven past the legal limit go on a falsified log —
  * hidden until someone looks. On a load with tracking (strict vetting), the
@@ -87,6 +97,7 @@ export function closeDutyDay(w: World, t: Truck): void {
   const c = companyById(w, t.companyId);
   const day = today(w);
   const load = currentLoad(w, t);
+  const over = t.overMin;
   t.overMin = 0;
   if (load && load.vet === 2) {
     const { fines, points } = w.cfg.safety.enforcement;
@@ -97,7 +108,8 @@ export function closeDutyDay(w: World, t: Truck): void {
   }
   t.logDays.push(day);
   while (t.logDays.length > 0 && t.logDays[0]! < day - w.cfg.safety.enforcement.recentLogDays) t.logDays.shift();
-  c.safety.hidden.push({ day, kind: "falseLog", truckId: t.id });
+  const earned = w.cfg.safety.enforcement.fineEarnedMult > 0 ? drivingEarnedFd(w, t, over) : undefined;
+  c.safety.hidden.push(earned === undefined ? { day, kind: "falseLog", truckId: t.id } : { day, kind: "falseLog", truckId: t.id, earnedFd: earned });
 }
 
 // --- Records, fines, money owed --------------------------------------------------------
@@ -109,6 +121,7 @@ export function violate(w: World, c: Company, basic: Basic, points: number, what
 export function fine(w: World, c: Company, amount: number, ref: string): void {
   w.ledger.post(w.t, companyAccount(c.id), "sink:fines", amount, `fine:${ref}`);
   c.safety.finesFd += amount;
+  c.finesOffCostsFd = (c.finesOffCostsFd ?? 0) + amount; // the month record's spent (intel.ts); no rule reads it
 }
 
 /**
@@ -252,7 +265,9 @@ function policeStop(w: World, t: Truck, c: Company, fast: boolean): boolean {
   const rng = w.rng.safety;
   let ticketed = false;
   if (fast && rng.next() < e.speedingTicket) {
-    const amount = rng.int(e.fines.speeding[0], e.fines.speeding[1]);
+    // R18: the day's time saved at 56 mph against 50, at the load's rate.
+    const saved = e.fineEarnedMult > 0 ? drivingEarnedFd(w, t, t.shiftDrivenMin * (1 - w.cfg.hos.avgMph / w.cfg.safety.speed.fastMph)) : undefined;
+    const amount = Math.round(scaledFine(w, rng.int(e.fines.speeding[0], e.fines.speeding[1]), saved));
     fine(w, c, amount, `speeding:${t.id}`);
     violate(w, c, "unsafe", e.points.speeding, "speeding");
     if (t.driverId) staffById(w, t.driverId).violations++;
@@ -282,9 +297,9 @@ export function inspect(w: World, t: Truck, c: Company, level: number, where: st
     if (t.overMin > 0 && rng.next() < Math.min(0.95, e.logDetect + 0.3)) {
       violate(w, c, "hos", e.points.hos, "driving past the hours limit");
       violate(w, c, "hos", e.points.falseLog, "false log");
-      fine(w, c, rng.int(e.fines.hosOos[0], e.fines.hosOos[1]), `hos:${t.id}`);
+      fine(w, c, Math.round(scaledFine(w, rng.int(e.fines.hosOos[0], e.fines.hosOos[1]), e.fineEarnedMult > 0 ? drivingEarnedFd(w, t, t.overMin) : undefined)), `hos:${t.id}`);
       oosMin = Math.max(oosMin, e.oosHours.hos * MINUTES_PER_HOUR);
-      found.push("over hours today (driver out of service 10 h)");
+      found.push(`over hours today (driver out of service ${e.oosHours.hos} h)`);
       // The 10-hour break starts a new duty day once it's served.
       t.overMin = 0;
       t.shiftStartT = w.t + e.oosHours.hos * MINUTES_PER_HOUR;
@@ -296,9 +311,9 @@ export function inspect(w: World, t: Truck, c: Company, level: number, where: st
     for (const d of t.logDays) {
       if (rng.next() < e.logDetect) {
         violate(w, c, "hos", e.points.falseLog, "false log");
-        fine(w, c, rng.int(e.fines.falseLog[0], e.fines.falseLog[1]), `falselog:${t.id}`);
-        found.push(`a falsified log (day ${d})`);
         const i = c.safety.hidden.findIndex((h) => h.kind === "falseLog" && h.truckId === t.id && h.day === d);
+        fine(w, c, Math.round(scaledFine(w, rng.int(e.fines.falseLog[0], e.fines.falseLog[1]), i >= 0 ? c.safety.hidden[i]!.earnedFd : undefined)), `falselog:${t.id}`);
+        found.push(`a falsified log (day ${d})`);
         if (i >= 0) c.safety.hidden.splice(i, 1);
       } else kept.push(d);
     }
@@ -611,7 +626,13 @@ export function weeklySafety(w: World): void {
     if (c.authority.status === "revoked") continue;
     // A week on deferred maintenance with defects on the truck is on the maintenance records, for an auditor to find.
     if (c.policy.maintenance === "deferred") {
-      for (const t of w.trucksByCompany.get(c.id)!) if (t.defects > 0) s.hidden.push({ day, kind: "maintenance", truckId: t.id });
+      const mult = w.cfg.safety.enforcement.fineEarnedMult;
+      for (const t of w.trucksByCompany.get(c.id)!) {
+        if (t.defects <= 0) continue;
+        // R18: the week's skipped maintenance, at a typical week's miles.
+        const earned = mult > 0 ? w.cfg.tractors[t.tier].maintPerMile * (1 - w.cfg.safety.maintenance.deferredCostMult) * w.cfg.labor.hiring.milesPerWeek : undefined;
+        s.hidden.push(earned === undefined ? { day, kind: "maintenance", truckId: t.id } : { day, kind: "maintenance", truckId: t.id, earnedFd: earned });
+      }
     }
     const cut = day - 730;
     s.violations = s.violations.filter((v) => v.day > cut);
@@ -624,6 +645,8 @@ export function weeklySafety(w: World): void {
     const age = day - c.authority.since;
     // Alerts call in an auditor at most twice a year.
     const sinceReview = s.ratingDay === null ? Infinity : day - s.ratingDay;
+    // R18 (safety.review.auditDays): any alert books an audit within the days; never rated, whatever the cooldown.
+    if (review.auditDays !== null && s.alerts.length > 0 && s.reviewDay === null && (s.rating === "none" || sinceReview >= review.alertCooldownDays)) s.reviewDay = day + review.auditDays;
     const due =
       s.reviewWanted ||
       (s.alerts.length >= review.alertsToReview && sinceReview >= review.alertCooldownDays) ||
@@ -656,15 +679,18 @@ export function complianceReview(w: World, c: Company): void {
   const before = s.rating;
   let falseLogs = 0;
   let maintWeeks = 0;
+  let scaled = 0;
   const kept: typeof s.hidden = [];
   for (const h of s.hidden) {
     if (rng.next() < review.hiddenDetect) {
       if (h.kind === "falseLog") falseLogs++;
       else maintWeeks++;
+      scaled += scaledFine(w, h.kind === "falseLog" ? review.fines.falseLogDay : review.fines.maintenanceWeek, h.earnedFd);
     } else kept.push(h);
   }
   s.hidden = kept;
-  const fines = Math.min(review.finesCap, falseLogs * review.fines.falseLogDay + maintWeeks * review.fines.maintenanceWeek);
+  // R18 scales each finding with what it earned (fineEarnedMult); off, the flat fines as today. The cap holds either way.
+  const fines = Math.min(review.finesCap, w.cfg.safety.enforcement.fineEarnedMult > 0 ? scaled : falseLogs * review.fines.falseLogDay + maintWeeks * review.fines.maintenanceWeek);
   if (fines > 0) fine(w, c, fines, `review:${c.id}`);
   // What the auditor found follows the company to its insurer.
   s.insuranceSurcharge = Math.min(s.insuranceSurcharge + review.surchargePerFinding * (falseLogs + maintWeeks), review.surchargeCap);

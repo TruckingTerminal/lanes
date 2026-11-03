@@ -207,13 +207,19 @@ export function planNight(w: World, truck: Truck, route: Route, mile: number, re
  */
 export function parkForTheNight(w: World, truck: Truck, site: TruckStopSite | null): void {
   if (truck.restShiftT === truck.shiftStartT) return;
+  // R12's restart (hos.cycleHours): with the weekly clock out, a duty day opens and closes every restHours without a
+  // mile driven. That is the same stop, not another night: no second space, idling bill or patrol. Without the clock
+  // a duty day always drives before its night, so this never applies.
+  const sameStop = w.cfg.hos.cycleHours > 0 && truck.restShiftT !== null && truck.shiftDrivenMin <= 1e-9;
   truck.restShiftT = truck.shiftStartT;
+  if (sameStop) return;
   if (!truck.companyId || !truck.driverId) return;
   const { cfg } = w;
   const c = companyById(w, truck.companyId);
   const stop = site ? siteBusiness(w, site) : null;
   if (site) {
-    site.parked++;
+    if (truck.restSite && truck.restSite !== site.id) leaveParking(w, truck); // never two spaces at once
+    if (truck.restSite !== site.id) site.parked++;
     truck.restSite = site.id;
     w.metrics.onNight("site");
   } else {

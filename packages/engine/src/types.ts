@@ -102,6 +102,8 @@ export interface HiddenViolation {
   day: number;
   kind: "falseLog" | "maintenance";
   truckId: number;
+  /** R18 (safety.enforcement.fineEarnedMult), set only while it's on: what the breach earned, which its fine is a multiple of. */
+  earnedFd?: number;
 }
 
 export interface SafetyRecord {
@@ -195,8 +197,13 @@ export interface Company {
    */
   operating: { revenueFd: number; costFd: number };
   /** Intel's month close (intel.ts): the counters at the start of this game month, and last month's record. Screens only. */
-  monthMark?: { revenueFd: number; delivered: number; onTime: number; costFd: number; overheadFd: number };
-  /** `spentFd`: operating costs and fleet overhead over the month. */
+  monthMark?: { revenueFd: number; delivered: number; onTime: number; costFd: number; overheadFd: number; finesFd?: number };
+  /**
+   * Fines paid outside operating costs (safety.ts fine, fraud.ts's double-brokering fine; a shoulder ticket is an
+   * operating cost already), so the month record counts them. Screens only: no rule reads it.
+   */
+  finesOffCostsFd?: number;
+  /** `spentFd`: operating costs, fleet overhead and the fines outside operating costs over the month. */
   lastMonth?: MonthRecord;
   /** The company's first month-close record, kept (Iuliia's first-month milestone). Screens only. */
   firstMonth?: MonthRecord;

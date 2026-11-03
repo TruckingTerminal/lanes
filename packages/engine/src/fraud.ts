@@ -267,6 +267,7 @@ function resolveDoubleBroker(w: World, k: FraudCase, c: Company): void {
   const amount = d.fineFd + d.spreadMult * Math.max(0, k.amountFd);
   w.ledger.post(w.t, companyAccount(c.id), "sink:fines", amount, `fine:doublebroker:${k.loadId}`);
   c.safety.finesFd += amount;
+  c.finesOffCostsFd = (c.finesOffCostsFd ?? 0) + amount; // the month record's spent (intel.ts)
   c.milesTotal = 0;
   if (c.authority.frauds >= 2) {
     revoke(w, c, "Caught double brokering a second time.", w.cfg.safety.bars.fraud);

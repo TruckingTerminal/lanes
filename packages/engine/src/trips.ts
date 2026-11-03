@@ -210,7 +210,8 @@ export function moveTrucks(w: World): void {
           const r = placeRoute(w, truck.place, truck.targetPlace);
           const here = r ? siteHere(w, r, legMile(truck)) : null;
           if (here && !(here.parked < here.spaces)) w.metrics.onFull();
-          parkForTheNight(w, truck, here && here.parked < here.spaces ? here : null);
+          // A truck already in a space here keeps it (R12's restart runs several duty days without a drive).
+          parkForTheNight(w, truck, here && (here.parked < here.spaces || truck.restSite === here.id) ? here : null);
           break;
         }
         budget = hourEnd - resetAt;

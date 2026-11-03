@@ -124,7 +124,9 @@ export function weeklyContracts(w: World): void {
     if (day >= c.endDay) {
       endContract(w, c);
       if (c.acceptance >= k.renewAbove) logbookCount(carrier, "contractsKept");
-      if (c.acceptance >= k.renewAbove) {
+      const rated = c.acceptance >= k.renewAbove ? contractRatingBlock(w, carrier) : null;
+      if (rated) note(w, carrier.id, `Your ${w.net.hubs[c.origin]!.id}→${w.net.hubs[c.dest]!.id} ${c.equipment} contract ended; the shipper isn't renewing with ${rated}.`, "bad");
+      else if (c.acceptance >= k.renewAbove) {
         const rate = contractRate(w, c.origin, c.dest, c.equipment);
         offer(w, carrier, c.origin, c.dest, c.equipment, c.originPlace, c.destPlace, c.loadsPerWeek, rate);
         note(w, carrier.id, `Your ${w.net.hubs[c.origin]!.id}→${w.net.hubs[c.dest]!.id} ${c.equipment} contract ended with ${Math.round(c.acceptance * 100)}% acceptance; the shipper offers a new term at ${rate.toFixed(2)}/mi.`, "good");
@@ -147,7 +149,7 @@ export function weeklyContracts(w: World): void {
   // New offers: at each market, shippers pick local carriers in good standing, more of them where trucks pile up.
   const month = Math.floor(((day % cfg.time.daysPerSeason) / cfg.time.daysPerSeason) * 12);
   for (let m = 0; m < w.net.hubs.length; m++) {
-    const locals = w.companies.filter((c) => c.role === "carrier" && c.authority.status === "active" && c.liquidatingSince === null && isLocal(w, c, m) && activeContracts(w, c.id).length + offeredContracts(w, c.id).length < contractSlots(w, c));
+    const locals = w.companies.filter((c) => c.role === "carrier" && c.authority.status === "active" && c.liquidatingSince === null && isLocal(w, c, m) && activeContracts(w, c.id).length + offeredContracts(w, c.id).length < contractSlots(w, c) && contractRatingBlock(w, c) === null);
     if (locals.length === 0) continue;
     for (const eq of EQUIPMENT) {
       // Only carriers that run this trailer.
@@ -217,8 +219,18 @@ function offer(w: World, c: Company, origin: number, dest: number, eq: Equipment
   return contract;
 }
 
+/** R18 (contracts.closedToBadRating): why a carrier's safety rating keeps it from contract offers, or null. */
+export function contractRatingBlock(w: World, c: Company): string | null {
+  if (!w.cfg.contracts.closedToBadRating) return null;
+  if (c.safety.rating === "unsatisfactory") return "an unsatisfactory safety rating";
+  if (c.safety.rating === "conditional") return "a conditional safety rating";
+  return null;
+}
+
 export function acceptOffer(w: World, c: Company, contract: Contract): string | null {
   if (contract.carrierId !== c.id || contract.status !== "offered") return "that offer isn't yours to take";
+  const rated = contractRatingBlock(w, c);
+  if (rated) return `shippers don't sign contracts with ${rated}`;
   const slots = contractSlots(w, c);
   if (activeContracts(w, c.id).length >= slots) return w.cfg.contracts.direct.enabled ? `your sales reps carry ${slots} contracts` : `you can hold ${slots} contracts at a time`;
   // Direct freight: a performance stake against the contract, slashed to make the shipper whole when a tender is turned down.

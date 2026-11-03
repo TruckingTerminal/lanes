@@ -464,3 +464,450 @@ Runs are in `runs/p34/`:
 - four years: `y4-K2`, `y4-P2`, `y4-D`, `y4-Q`, `y4-Q12`, `y4-Qf`, `y4-Qf8`, `y4-Q25f`, `y4-inb`, `y4-r17`.
 
 Scratch, not in the tree: `apps/sim/src/anatomy.ts`, `p34.ts`, `p34diag.ts`.
+
+## Stage 3: R18 (compliance with teeth), and what the "always" options cost
+
+### 3a. A bug in stage 2's clock, found while checking the legal fleet's fines
+
+You asked whether the legal companies' fines under R12 (2.8k a month on the honest fleet) are shoulder tickets. They
+are, all of them. Most of the rise, though, was a bug in my 70-hour clock, not R12's rests.
+
+- **The bug.** During a 34-hour restart the truck can't drive, so a new duty day opens and closes every 10 hours
+  without a mile driven. Each of those duty days was charged as another night (`sites.ts parkForTheNight`):
+  - another space taken at the same site, and never given back (the space leaks);
+  - another night's idling;
+  - another patrol roll on the shoulder.
+- **What it did.** A 120-day run on the bump's hours (`apps/sim/src/parkdiag.ts`, scratch, seed 1) had 849 spaces
+  taken by 267 trucks on day 120. Over four years the leaked spaces fill the rest areas:
+
+| Seeds 1–4, four years (the bump without R18) | Today | The bump, with the bug | The bump, fixed |
+|---|---|---|---|
+| Times a truck found its site full | 130 | 1,061,000 | 44 |
+| Nights on the shoulder | 57k (9% of nights) | 400k (48%) | 133k (23%) |
+| Shoulder tickets | 19k | 132k | 44k |
+| All fines, four years | 14.2M | 46.5M | 23.1M |
+
+- **The fix** (stage 2's code, so in this bump): a duty day that opens and closes with no mile driven is the same stop,
+  not a new night. The truck keeps its one space and pays one night. It applies only with `hos.cycleHours` on, so
+  today's rules are untouched (byte-identical; see the files).
+- **The honest fleet's month after the fix** (the gamer persona with all three levers off, four seeds), fines by kind:
+  - stage 1: 0.6k, of which 0.56k shoulder tickets;
+  - the bump, with the bug: 3.7k, all shoulder;
+  - the bump, fixed: 1.6k, all shoulder; with R18 as well, 1.1k.
+- **What's left is R12's.** The 10-hour rest comes wherever the 11 hours run out, and the weekly clock can run out
+  between sites. A legal truck still sleeps on the shoulder 23% of nights against 9% today: 25k more tickets over four
+  years, 6M FD. On the honest fleet that is 1.1–1.6k a month, about half a percent of revenue. Two cheap cures for
+  later:
+  - a driver with under an hour or two on the weekly clock takes the restart where he stands, at the site;
+  - the night planner (`planNight`) plans the restart's site as it plans the night's.
+- **The four-year sizing of stage 2 had the bug in it.** Its fines were a sink that won't be there. So I reran the
+  bump's four years with the fix (§3d). The markup at 1.2 still holds.
+
+### 3b. Today's teeth: the gamer's month and the season
+
+**The gamer's month.** Six seeds; net worth on day 36, the full exploit against the same start run legally.
+
+| Rules | Cheating's month (net worth, full against legal) | Fines, share of revenue | Rated by day 36 |
+|---|---|---|---|
+| Today | +6.6k | 3% | 0 of 6 ("Not yet rated", as in the diary) |
+| Stage 1 | +37.4k | 4% | 0 of 6 |
+| The bump without R18 (stages 1–2, fixed) | +70.6k | 3% | 1 of 6 (Conditional) |
+
+- **The month card overstates a cheater's month.** The card's "kept" is the month record's earned less spent
+  (`Company.firstMonth`). Spent counts operating costs and overhead, but not safety fines, which go straight to the
+  ledger. The diary's 271,665 kept didn't count his fines. The fix is in §3e.
+- **R12 makes cheating pay much more.** A legal log stops at the 70-hour clock, and a falsified one drives through it.
+  Without R18 the bump would hand the gamer 70k for cheating in his first month, against 6.6k today. So R18 isn't
+  optional once R12's clock is in.
+
+**Over a season** (`apps/sim/src/policy.ts`, scratch).
+- Every third clean-conduct carrier (by id) runs the policy from day 0. The other clean carriers of the same personas
+  are the controls.
+- 365 days; seeds 1–2 today, 1–3 on the bump.
+- Net worth at the end, treated against controls, owner-operators / fleets:
+
+| Policy | Today | The bump without R18 (fixed) |
+|---|---|---|
+| 15-hour days, always | −23% / −34%; 24% / 10% revoked; fines 6.9% of revenue | −41% / −33%; 26% / 7% revoked; fines 9.0% of revenue |
+| 56 mph, always | −14% / −26%; none revoked; fines 0.8% of revenue | −19% / −37%; none revoked; fines 1.1% of revenue |
+| Deferred maintenance | −17% / −36% | −18% / −28% |
+| All three | −21% / −33%; 36% / 31% revoked | −49% / −41%; 39% / 24% revoked |
+
+- **Over a season the options already lose on average, even today.** The record catches up: the 90-day audit and the
+  two-alert audit, crashes and their settlements, revocations.
+- **What fails is the first month.** A cheater who stays out of the audits is ahead. His rating reads "Not yet rated"
+  with an alert on the books, and a few percent of revenue in fines buys about a third more miles. That is the gamer's
+  month, and R18's job.
+
+### 3c. R18, as built (every key at today's value)
+
+- **`safety.enforcement.fineEarnedMult`** (new, 0): a fine is at least this multiple of what the breach earned.
+  - A falsified log day earned its over-hours miles at the load's rate. That figure goes on the hidden log when the
+    day closes, so a roadside find or an audit fines from it.
+  - A week of deferred maintenance earned the maintenance it skipped: 45% of `tractors[tier].maintPerMile` over 1,000
+    miles.
+  - A speeding day earned the time 56 mph saved over 50.
+- **`safety.review.auditDays`** (new, null): any alert books an audit within this many days. A company never rated
+  gets one whatever the cooldown, so a company with alerts is always rated.
+- **`safety.enforcement.oosHours`** (`{ hos: 10, defect: [4, 12] }` today): an out-of-service order's hours.
+- **`safety.review.hiddenDetect`** (0.35 today): the share of the hidden log an auditor finds.
+- **`contracts.closedToBadRating`** (new, false): a carrier rated Conditional or Unsatisfactory gets no contract
+  offer and no renewal, and can't take an offer it holds: "shippers don't sign contracts with a conditional safety
+  rating". A contract already running runs out its term.
+- **Doors a bad rating already closes in the engine:**
+  - strict-vetting loads: Conditional, or any alert;
+  - standard loads: Unsatisfactory;
+  - the insurance rating;
+  - and Unsatisfactory has 45 days to clean up before revocation.
+
+### 3d. Sized
+
+**The R18 values:** `fineEarnedMult` 3, `auditDays` 14, out of service 34 hours for hours (a restart) and 24–48 hours
+for a defect, `hiddenDetect` 0.6, and contracts closed to a bad rating.
+
+**The gamer's month, six seeds, all fixed:**
+
+| | The bump without R18 | **The bump with R18** |
+|---|---|---|
+| Cheating's month (net worth, full against legal) | +70.6k | **−31.5k** |
+| Fines, share of revenue | 3% | 18% |
+| Rated by day 36 | 1 of 6 (Conditional) | 5 of 6 (4 Unsatisfactory, 1 Conditional) |
+
+- The gamer's three levers no longer pay in month one. Pay and the margin stopped paying in stage 1, and the policy
+  stops here.
+- Stronger values (×5, audits in 7 days, 0.8 found; then alerts pulled in at 0.6) took the month to −69k and −149k
+  before the fix. They aren't needed.
+
+**Over a season, with R18** (seeds 1–3, fixed), owner-operators / fleets:
+
+| Policy | Net worth against clean twins | Revoked within the season | Fines, share of revenue (controls) |
+|---|---|---|---|
+| 15-hour days, always | −135% / −73% | 96% / 100% | 20.4% / 12.2% (0.7% / 0.6%) |
+| 56 mph, always | −13% / −31% | none | 1.4% / 1.3% |
+| Deferred maintenance | −19% / −22% | 0 / 2% | 0.8% / 0.6% |
+| All three | −132% / −72% | 98% / 100% | 22.0% / 11.0% |
+
+**Jeff's figure: the "always" options over a season, for a typical company:**
+- **15-hour days, always.** Today a company ends the season 23–34% poorer than its honest twin, and one owner-operator
+  in four is revoked. With R18 revocation is all but certain within the year. The first alert brings an audit within
+  14 days, the audit finds the falsified days, the rating goes Unsatisfactory, and the follow-up revokes.
+- **56 mph, always.** With R18, 13% poorer for an owner-operator and 31% for a fleet, about what it costs today (14%
+  and 26%). That cost is crashes and their settlements. The speeding tickets add under 1% of revenue to the controls'
+  own fines.
+- **Deferred maintenance, always.** 19–22% poorer, from breakdowns and out-of-service days.
+- **The "hot loads only" settings** (the cutter bots') stay a gamble, but a dearer one. The four years below show
+  what it costs them.
+- **My reading for Jeff's call: with R18 the options can stay on screen.** "Always" now reads as what it is. The
+  writer's line on why 56 mph is the reckless setting still needs writing.
+
+**Over four years** (`apps/sim/src/p34.ts`, seeds 1–4, 1,460 days, the live profile, all fixed):
+
+| Seeds 1–4 | Liquidations (owner-operators) | Supply at the end / ceiling (seeds over) | Fines, four years | Prudent owner-operator: month one / year one (operating) | Net worth at the end, owner-operators: prudent / greedy | Fleets: prudent / greedy |
+|---|---|---|---|---|---|---|
+| Today | 389 (101) | 55.9M / 59.6M (1 of 4) | 14.2M | 37.4k / 162.7k | 39.5k / 30.7k | 115k / 359k |
+| The bump without R18, with the bug (§2f's pick) | 411 (100) | 55.3M / 58.1M (1 of 4) | 46.5M | 32.9k / 156.4k | 41.9k / 26.1k | 107k / 287k |
+| The bump without R18, fixed | 405 (96) | 57.5M / 57.7M (2 of 4) | 23.1M | 34.5k / 163.8k | 37.5k / 27.7k | 105k / 318k |
+| **The bump with R18 (and the pledge key)** | **434 (104)** | **57.1M / 59.4M (1 of 4)** | 30.3M | 34.4k / 168.5k | 38.5k / 27.7k | 119k / 285k |
+| …and R15's hold at 15% | 439 (111) | 59.1M / 57.7M (2 of 4) | 31.0M | 34.1k / 165.5k | 44.0k / 29.4k | 116k / 297k |
+
+- **The fix gives back most of stage 2's accidental sink.** Fines fall from 46.5M to 23.1M, and supply ends 2.2M higher,
+  at the path (57.5M against 57.7M). The markup at 1.2 still holds, with R18 below it.
+- **The busy owner-operator's month one costs 8% now, not 12%** (34.5k against today's 37.4k). His year is today's or
+  better: 163.8k, and 168.5k with R18.
+- **R18 adds 29 liquidations, and they are the cheaters'.** A scratch split by the bots' conduct (`conductdiag.ts`,
+  seeds 1–2, the same worlds), failures over four years:
+
+| Seeds 1–2, failures | Clean | Cutters (corners on hot loads) | Outlaws (corners always) |
+|---|---|---|---|
+| Owner-operators, without R18 | 59.5 | 40 (5 revoked) | 113.5 (57 revoked) |
+| Owner-operators, with R18 | **46.5** | **61.5 (29.5 revoked)** | 110.5 (68.5 revoked) |
+| Fleets, without R18 | 20.5 | 15 (3.5 revoked) | 13 (9 revoked) |
+| Fleets, with R18 | 20.5 | 23.5 (17.5 revoked) | 18.5 (16 revoked) |
+
+  - Clean owner-operators fail 22% less: the cheaters' trucks leave the board to them.
+  - Outlaws were failing already. R18 revokes more of them, sooner.
+  - **The cutters take the weight.** A cutter runs corners on hot loads only, and R18's audit within 14 days of an alert
+    finds those days at 0.6. Two cutter owner-operators in five are revoked within four years, against one in
+    fifteen without R18. That is the "calculated risk" getting dearer, which is R18's purpose. If Jeff wants
+    hot-loads-only to stay a gamble a careful company can win, `auditDays` 28 or `hiddenDetect` 0.45 would soften it.
+    I haven't sized either.
+  - With the cheaters gone sooner, the prudent fleets end richer (119k against 105k) and the greedy ones poorer (285k
+    against 318k). Supply ends under the path on 3 seeds of 4, as today.
+- **Against your targets:**
+  - liquidations: 434 against 403 (owner-operators 104 against 101), and the extra failures are cheaters;
+  - supply under the ceiling, as today;
+  - the prudent owner-operator beats the greedy one at four years (38.5k against 27.7k);
+  - the busy owner-operator's month one is 8% under today's. That is R12's clock, as §2f said.
+
+### 3e. The month card counts the fines
+
+Fines post to the ledger but not to `operating.costFd`. The bots read that counter, so the fines stay out of it.
+- The month record (`intel.ts`, screens only) now adds the fines outside operating costs to `spentFd`, through a
+  counter of its own, `Company.finesOffCostsFd?`. That covers `safety.ts fine` and the double-brokering fine.
+- Shoulder tickets are an operating cost already, so they aren't counted twice.
+- No rule reads it. The four-year run is unchanged, and the month card's "kept" falls by the month's fines.
+
+### 3f. Stage 3's recommendation for the bump
+
+```
+safety.enforcement.fineEarnedMult: 3                          // new key
+safety.review.auditDays: 14                                   // new key
+safety.enforcement.oosHours: { hos: 34, defect: [24, 48] }    // today { hos: 10, defect: [4, 12] }
+safety.review.hiddenDetect: 0.6                               // today 0.35
+contracts.closedToBadRating: true                             // new key
+```
+The parking fix needs no key: it is part of `hos.cycleHours`.
+
+## Stage 4: R1, R8 and contract signing
+
+Nothing here moves the bots' world. Every rule in it binds players' companies only, and the sims have none.
+- **R1.**
+  - The bid anchor is stage 2's `clearsNear` bid mode, with break-even as its floor.
+  - The join half is engineering's `guard.dispatcherDefaultOn`, false in the bump. With it off, `joinCompany` leaves
+    every dispatcher order out, for an owner-operator and a fleet start alike, so the fleet-start extension is covered.
+- **Contract signing by rule only.**
+  - The engine signs an offer in two ways only. One is the contracts order's `acceptOffers` (`weeklyContracts`). The
+    other is the player's own accept.
+  - With `dispatcherDefaultOn` off, a new company has no contracts order at all. The order comes back when he turns
+    the dispatcher on. So its default must be off too, or the dispatcher signs a 91-day contract the day he turns it
+    on, which is the diary's complaint.
+- **For engineering (`apps/web/src/game.ts`).** Engineering's working tree has `PLAYER_DISPATCHER_ORDERS`, the rules a
+  player turns on. It already carries the `clearsNear` bid at 0 and the floor at break-even. Its contracts order still
+  comes from `DEFAULT_ORDERS` with `acceptOffers: true`. It should be false there, or turning the dispatcher on signs
+  the next offer.
+- **R8, as economy-player2.md §3 sized it:** `guard.autoStaffDefault` false, `guard.hireCoverWeeks` 4,
+  `guard.hireCoverHumansOnly` true (its default).
+  - On the prudent persona the guard was neutral over a year.
+  - It holds a first-weeks hire back for four fleets in five, about 4 empty seat-days a fleet in month one.
+
+## Stage 5: Borrow and the double pledge, R15, the owner's pay, and the brokerage's launch
+
+### 5a. Borrow, and a truck pledged twice
+
+- **Borrow should stay hidden** (UX's 6dd93a7) rather than the NPC lender writing cash-out loans.
+  - A cash-out loan from the NPC lender is FD printed against a truck the borrower already owns (`faucet:npc_finance`),
+    with no purchase behind it. That is a pure faucet.
+  - Equipment Finance's pool is the honest lender, and in the bots' world it is all but idle: 34 loans a seed in four
+    years today, 9 on the bump.
+  - When the pools open, Borrow can show again with what the pool can lend.
+- **Two pure reads for the screen** (`finance.ts`; engineering wires them). They answer QA's and both diaries' wall,
+  "up to 55,661 FD" and then "The pool doesn't have the cash":
+  - `borrowLender(w)`: "pool" while the lending pools are open, "off" while they are stood down (`poolsOn`). Off,
+    Borrow isn't shown. There is no NPC state, because the NPC lender doesn't write cash-out loans.
+  - `lendNowFd(w, companyId, truck)`: what the lender will lend now. It is the truck's cap at 98%
+    (`BORROW_CAP_SHARE`, for the value the truck loses before a confirm lands), no more than the pool's cash,
+    rounded down to the 100. It is 0 while the pools are off, for a truck that isn't the company's to pledge, or with
+    nothing to lend. `borrow` takes any amount up to it.
+  - `apps/web/src/finance.ts borrowable` does the same arithmetic today, without the pool state. It can call
+    `lendNowFd` and filter on it.
+- **One thing to rule on.** With the pools stood down, the bots still deposit to and borrow from Equipment Finance
+  (`ruleBots.ts`): 9 loans a seed in four years on the bump, and the pool's cash is near 0 most days. It is harmless.
+  If "pools off" should mean Equipment Finance too, `borrow` and `deposit` can refuse behind a key. I've left them
+  alone, so the bots' world doesn't move.
+- **The double pledge** (`equipmentFinance.netOfPurchaseLoans`, new, false today):
+  - Today a rig bought on a purchase loan can be pledged to Equipment Finance at once for another 35% of its value.
+    Player2's case: a lot rig bought for 13.3k of cash pledged for 15.6k, a truck and 2.2k of cash for nothing down.
+    The bots' `borrowFor` uses it too.
+  - With the key on, a truck pledges only `0.35 × value − the purchase loan's principal`. A freshly financed rig
+    (10–20% down) pledges nothing until the loan is paid down under 35% of its value.
+  - It matters once the pool can lend. I'd turn it on now, so it is closed before then. It is in the four-year arm
+    below.
+
+### 5b. R15: hold less per load for longer
+
+The free path's deposit is `freeEntry.leases.byValue.depositShare` (25%) of the truck's value, held back from each
+settlement at `escrowShareOfPay` (30%) until it's whole. The last hold tops up only what's owed
+(`trips.ts`: `hold = min(owed, paid × share)`), so it is never more than the share.
+
+The trucker (six seeds, the bump without R18, 60 days):
+
+| | 30% a load (today) | **15% a load** |
+|---|---|---|
+| Deposit due | 15.9k | 15.9k |
+| Deposit whole by | day 21–42 | day 49, or past day 60 on 3 seeds of 6 |
+| Deposit held by day 14 / day 28, mean | 6.6k / 14.8k | 3.1k / 7.5k |
+| Cash on day 7 / day 14, mean | 5.0k / 8.7k | 6.0k / 10.2k |
+| Loads delivered by day 60 / net worth on day 60, mean | 22 / 42.1k | 25 / 44.8k |
+
+- **No easier first truck.** On the one-year world (seeds 1–2), the free path buys its first truck on day 21 at the
+  median either way, and every company in it buys one.
+- The total held is the same. The deposit counts toward the first truck as before (`depositToPurchase`).
+- **Over four years it costs owner-operators** (the bump with R18, seeds 1–4, §3d's table):
+  - owner-operator liquidations 111 against 104;
+  - supply over the path on 2 seeds of 4 against 1.
+  - The one-year check pointed the same way: 6 more owner-operator failures a year, on 2 seeds.
+- **My recommendation: keep 30% in this restart.** The diary's complaint was the hold vanishing without a word. That is
+  R15's explanation (engineering and the writer), and it needs no rule change. 15% can come back with more seeds
+  before a second restart.
+
+### 5c. The owner's pay for driving (diary 1, row 5)
+
+- `labor.owner.driverPayPerMile` (0.75) is charged on every mile the owner drives, to `sink:driver_wages`. It is paid
+  to no one.
+- On the trucker it is about 4.4k a month (8.8k over 60 days, on 11.7k of his own miles).
+- **My recommendation: keep the charge, and name it as what it is: the owner's draw.** It is the living he takes out
+  of the business, which leaves the game.
+  - It is a cost the bots' world is sized on.
+  - In the bots' world owners drive about 520 trucks (seed 1, the bump's hours), and their draw in the first month
+    was 5.1M FD. Removing it would add that to supply every month, against a four-year path that ends near 55M.
+- For the writer and engineering, the line on the month card and Money: "Your draw, 0.75 a mile: what you take home to
+  live on". It should never read as pay that will arrive.
+
+### 5d. The brokerage's launch with both premiums halved
+
+Jeff halved both premiums: the surety at 1–6% a year by credit, the credit premium's ceiling at 10%. This is the
+launch batch of economy-brokerage.md §5b, run again on the bump.
+- `brk-bump`: seeds 1–3, the live profile, the bump with R18, the brokerage on, both premiums halved, and the hold
+  on as built.
+- A quarter of the carrier bots form a brokerage once they can, from a month after the launch (`brokerage.bots.fromDay`
+  760), at the 5% default margin.
+
+| Seeds 1–3, brokerages formed after the launch | Today's rules, the hold on (`v59-ph`) | Today's rules, premiums halved (`v59-p2`) | **The bump, premiums halved, the hold on** |
+|---|---|---|---|
+| Pairs formed | 19 | 19 | 16 |
+| Year 1: operating result, median (positive) | +24.4k (85%) | +19.9k (82%) | **+23.4k (100%)** |
+| Year 1: owner's gain, median (paid back) | +10.4k (85%) | +5.5k (64%) | **+10.7k (88%)** |
+| Gain at the run's end, median (positive) | +10.0k (79%) | +4.4k (63%) | +16.1k (75%) |
+| AI brokers: operating over four years, mean | +26.6k | +44.4k | +111.8k |
+
+- **A post-launch brokerage still pays back inside its first year, on 88% of pairs.** That's the §5b test, and the
+  bump doesn't hurt it.
+- The AI brokers do much better on the bump (112k against 27–44k). The ceiling at 1.2 leaves a broker more room
+  between what the shipper pays and what the carrier clears.
+- **The world around it is the bump's** (`run.ts`, seeds 1–3, against `y4-FIX`'s seeds 1–3 from `p34.ts`):
+  - liquidations 427 against 431, and AI brokers 56 against 59;
+  - supply 58.5M against a 59.6M ceiling, over on 1 seed of 3 as without it.
+  - Owner-operator liquidations read 120 against 108. The two drivers aren't the same run, so this is a hint and not
+    a finding. The restart's own check should watch it.
+- **My word for the switch-on:** if QA finds the flagged build clean, the economy has no objection to the brokerage
+  riding this restart with both premiums halved.
+
+### 5e. Carried to Jeff: `usedMarket.npcLot.deliveryDays` 7
+
+Still at today's value (null) until he rules. The numbers (economy-player2.md §1):
+- A used-lot rig that adds to a fleet comes from the lot's stock in 7 days. A free starter's first truck keeps
+  today's queue.
+- On the diary's seed the small fleet runs five trucks from day 24 instead of three. Its cash is 120k on day 28
+  (+37k), and the sixth truck is 58k away, not 95k.
+- It doesn't move the supply path: bots buy lot rigs only to replace their lease, and a 120-day run is byte-identical.
+- The wider version, which also sped up the free path's first trucks, failed its four-year check: owner-operator
+  liquidations rose 16%.
+
+## The bump
+
+### Every key it flips
+
+These are config paths as `LIVE_LEVERS` (`packages/config/src/live.ts`) and the sim's `--set` take them, so the
+restart commit can add them there and leave the base config, and the tests written against it, on today's rules.
+
+| # | Path | Today | The bump | Why |
+|---|---|---|---|---|
+| 1 | `board.overCeilingMax` | 1.5 | **1** | R17: no bid above the ceiling (§1a) |
+| 2 | `board.refuseOverCeiling` | false | **true** | R17 (§1a) |
+| 3 | `labor.payFloorShareOfMarket` | 0 | **0.85** | R16: the pay floor (§1b) |
+| 4 | `labor.unhappyNoticeDays` | 0 | **7** | R16: unhappy drivers give notice (§1b) |
+| 5 | `labor.underpayMemory.days` | 0 | **56** | R16: drivers remember (§1b) |
+| 6 | `labor.underpayMemory.askPremium` | 0 | **0.1** | R16 (§1b) |
+| 7 | `rates.npcCeilingMarkup` | 1.15 | **1.2** | R11/R17: the ceiling where a thin market clears (§2f) |
+| 8 | `rates.exitDeadheadMaxShareOfMiles` | null | **0.5** | R11: short loads' empty-run charge (§2d) |
+| 9 | `rates.seasons.volumeGain` | 3 | **1** | R11: the season table moves rates (§2d) |
+| 10 | `hos.restHours` | 0 | **10** | R12, engineering's key |
+| 11 | `hos.breakMinutes` | 0 | **30** | R12, engineering's key |
+| 12 | `fuel.stopEveryMi` | 0 | **400** | R12, engineering's key |
+| 13 | `fuel.stopMinutes` | 0 | **15** | R12, engineering's key |
+| 14 | `hos.cycleHours` | 0 | **70** | R12's weekly clock (§2e), with its parking fix (§3a) |
+| 15 | `safety.enforcement.fineEarnedMult` | 0 | **3** | R18: fines scale with the gain (§3d) |
+| 16 | `safety.review.auditDays` | null | **14** | R18: an alert brings an audit (§3d) |
+| 17 | `safety.enforcement.oosHours.hos` | 10 | **34** | R18: out of service costs days (§3d) |
+| 18 | `safety.enforcement.oosHours.defect` | [4, 12] | **[24, 48]** | R18 (§3d) |
+| 19 | `safety.review.hiddenDetect` | 0.35 | **0.6** | R18 (§3d) |
+| 20 | `contracts.closedToBadRating` | false | **true** | R18: a bad rating closes contract offers (§3c) |
+| 21 | `guard.dispatcherDefaultOn` | true | **false** | R1's join half, engineering's key (§4) |
+| 22 | `guard.autoStaffDefault` | true | **false** | R8 (§4) |
+| 23 | `guard.hireCoverWeeks` | 0 | **4** | R8 (§4) |
+| 24 | `equipmentFinance.netOfPurchaseLoans` | false | **true** | the double pledge (§5a) |
+
+**Only if the brokerage switches on in this restart** (QA-clean on a flagged build):
+
+| # | Path | Today | The bump | Why |
+|---|---|---|---|---|
+| 25 | `brokerage.enabled` | false | **true** | the switch |
+| 26 | `permits.suretyPctPerYear` | [0.02, 0.12] | **[0.01, 0.06]** | Jeff: the surety premium halves |
+| 27 | `token.credit.premiumMax` | 0.2 | **0.1** | Jeff: the credit premium's ceiling halves |
+
+**Not config: engineering's `PLAYER_DISPATCHER_ORDERS`** (`apps/web/src/game.ts`, in their working tree), the rules a
+player turns on:
+- the bid: `price: { mode: "clearsNear", pct: 0 }` (there already);
+- contracts: `acceptOffers: false` (still true, from `DEFAULT_ORDERS`).
+
+### Held at today's values
+
+- **The levels, until Jeff rules** (your pick, today's levels for the beta):
+  - `token.circular.rateStabilizer.start` (1);
+  - `board.rolloverCeilingStep` and `bookNow.stepPerRound`;
+  - `rates.baseRatePerMile`.
+- `bookNow.towardCeilingRounds` (0): it does nothing yet.
+- `usedMarket.npcLot.inBacklog` (true): §2g.
+- `usedMarket.npcLot.deliveryDays` (null): Jeff's call, §5e.
+- `freeEntry.leases.byValue.escrowShareOfPay` (0.3): R15's 15% waits for more seeds, §5b.
+- `labor.owner.driverPayPerMile` (0.75): the owner's draw stays, §5c.
+- Already at the values the package wants, so not in the table: `hos.breakAfterHours` 8, `hos.restartHours` 34,
+  `guard.hireCoverHumansOnly` true, `labor.morale.unhappyBelow` 0.3, `rates.news`, `ui.iuliia.captionMinutes` 5.
+
+### The ruleset version
+
+**0.21.0-phase0.36.** It is a minor version because the rules change (the board, the hours, compliance), and the next
+phase. The version line, in its own form:
+
+```
+version: "0.21.0-phase0.36", // Restart (2026-11-0x): the diary 3/4 bump (studio/reviews/economy-player34.md, live.ts): a ceiling is a ceiling (R17), the pay floor and drivers who quit (R16), the board at a 1.2 ceiling with a short-load cap and the season table on rates (R11), R12's hours with the 70-hour clock and the 34-hour restart, compliance with teeth (R18), the dispatcher and auto-staff off until the player chooses (R1, R8), the double pledge closed; levels as 0.20.2
+```
+
+If the brokerage rides the same restart, the note ends "…the double pledge closed; the brokerage on, both premiums
+halved; levels as 0.20.2".
+
+### What the bump does, in one table
+
+| | Today (0.20.2) | The bump |
+|---|---|---|
+| The gamer's month: cheating against legal | +6.6k | **−31.5k** (rated by day 36 on 5 seeds of 6) |
+| The trucker's month (six seeds; the bump on R1's anchor) | 35.9k | 28.8k. That is the levels question, which is Jeff's (§2b) |
+| The honest fleet's month: kept / fines | 148.6k / 0 | 146.2k / 1.1k, all shoulder tickets (§3a) |
+| The prudent owner-operator: month one / year one, operating | 37.4k / 162.7k | 34.4k / 168.5k |
+| Owner-operators at four years: prudent / greedy | 39.5k / 30.7k | 38.5k / 27.7k |
+| Fleets at four years: prudent / greedy | 115k / 359k | 119k / 285k |
+| Liquidations in four years (owner-operators) | 389 (101) | 434 (104): the extra failures are cutters and outlaws (§3d) |
+| Supply at four years / ceiling | 55.9M / 59.6M, over on 1 seed of 4 | 57.1M / 59.4M, over on 1 seed of 4 |
+| Fines in four years | 14.2M | 30.3M |
+
+## Files (stages 3–5)
+
+Ported to the working tree on main at `7102f94`, every key at today's value. A 365-day run (seed 3) of this code with
+the defaults is byte-identical to main's.
+- `packages/config/src/economy.config.ts`, four new keys:
+  - `safety.enforcement.fineEarnedMult` (0);
+  - `safety.review.auditDays` (null);
+  - `contracts.closedToBadRating` (false);
+  - `equipmentFinance.netOfPurchaseLoans` (false).
+- `packages/engine/src/safety.ts`: fines scaled to what the breach earned (`drivingEarnedFd`, `scaledFine`), the
+  earned figure on the hidden log, the alert's audit, and the out-of-service notice reading its hours.
+- `packages/engine/src/contracts.ts`: `contractRatingBlock`, read by new offers, renewals and `acceptOffer`.
+- `packages/engine/src/finance.ts`: `borrowingCapacity` net of the purchase loan's principal, and Borrow's two reads,
+  `borrowLender` and `lendNowFd` (with `BORROW_CAP_SHARE`).
+- `packages/engine/src/sites.ts` and `trips.ts`: the restart is one stop (§3a).
+- `packages/engine/src/intel.ts`, `fraud.ts` and `safety.ts fine`: the month record's fines (§3e).
+- `packages/engine/src/types.ts`: `HiddenViolation.earnedFd?`, `Company.finesOffCostsFd?`, `monthMark.finesFd?`.
+- `packages/engine/test/r18.test.ts` (new, 10 tests), and one more test in `r11.test.ts` (the restart's stop).
+
+Typecheck is clean. These pass: `r18.test.ts` (10), `r11.test.ts` (10), `audit.test.ts` (13), `pay-floor.test.ts`,
+`hire-guard.test.ts`, `engine.test.ts` (162), and the web's `intel.test.ts` and `finance.test.ts`. No full npm test.
+
+Runs are in `runs/p34/`:
+- the gamer's month: `s3/` (before the parking fix), `s3f/` (after); the trucker on the bump: `ends2/FIN-anchor-*`;
+- the season: `pol3/` (before), `pol4/` (after);
+- four years: `y4-FINAL` (before), `y4-Q12F`, `y4-FIX`, `y4-FIXe` (after); the split by conduct: `conduct/`;
+- R15: `s5/`;
+- the brokerage: `brk-bump/`.
+
+Scratch, not in the tree: `apps/sim/src/policy.ts`, `parkdiag.ts`, `ownerdiag.ts` and `conductdiag.ts`, beside stage
+2's.

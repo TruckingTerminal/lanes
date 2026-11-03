@@ -292,6 +292,10 @@ export const economyConfig = {
     cutBelow: 0.85, // below this acceptance the shipper cuts a load a week and talks to the other shippers
     renewAbove: 0.9, // at least this to be offered a new term
     newcomerBoost: 1.3, // a local carrier holding no contract ranks this much higher for the next offer
+    // R18 (economy-player34.md stage 3): a carrier rated Conditional or Unsatisfactory gets no new offer and no
+    // renewal, and can't take an offer it holds; a contract already running runs out its term. false: a rating doesn't
+    // touch contracts, as today.
+    closedToBadRating: false,
   },
 
   // Places and commodities (DESIGN-PLACES.md): every load is a commodity between two places,
@@ -653,6 +657,10 @@ export const economyConfig = {
   equipmentFinance: {
     weeklyRate: 0.01,
     maxLoanToValue: 0.35,
+    // The pledge hole (economy-player2.md §1d; economy-player34.md stage 5): with this on, a truck still on a purchase loan
+    // pledges only its value over what it still owes, 0.35 × value − the loan's principal, so a freshly financed rig
+    // borrows nothing. false: the whole 35%, as today.
+    netOfPurchaseLoans: false,
     termWeeks: 26, // PoC assumption: loans amortize over half a season
     missedPaymentsToRepossess: 2,
     // PoC assumption: repossessed trucks list at 85% of market value, drop 10
@@ -1604,6 +1612,10 @@ export const economyConfig = {
       },
       oosRepairFd: [400, 1_500] as const,
       oosHours: { hos: 10, defect: [4, 12] as const },
+      // R18 (economy-player34.md stage 3): a fine at least this multiple of what the breach earned. A falsified log day
+      // earned its over-hours miles at the load's rate; a week of deferred maintenance the maintenance it skipped; a
+      // speeding day the time 56 mph saved. 0: the flat fines above, as today.
+      fineEarnedMult: 0,
       points: { falseLog: 10, hos: 7, speeding: 5, defect: 4, crash: { pdo: 1, injury: 2, fatal: 3 } },
     },
     score: {
@@ -1615,6 +1627,9 @@ export const economyConfig = {
       newEntrantDay: 90, // the new-entrant safety audit
       alertsToReview: 2,
       alertCooldownDays: 180,
+      // R18: any alert brings an audit within this many days. A company never rated gets one whatever the cooldown, so a
+      // company with alerts is always rated. null: two alerts and the cooldown, as today.
+      auditDays: null as number | null,
       rereviewDays: { conditional: 90, unsatisfactory: 45 },
       hiddenDetect: 0.35, // an audit finds each falsified log day or deferred-maintenance week this often
       fines: { falseLogDay: 1_000, maintenanceWeek: 300 },

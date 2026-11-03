@@ -2,6 +2,7 @@ import { dayOf } from "./clock.js";
 import { companyAccount } from "./ledger.js";
 import type { Loan, Truck } from "./types.js";
 import { truckValue } from "./dealer.js";
+import { poolsOn } from "./pools.js";
 import type { World } from "./world.js";
 
 /**
@@ -60,7 +61,35 @@ export function activeLoanOn(w: World, truckId: number): Loan | undefined {
 /** Most a truck can secure: 35% of its market value, if it isn't already pledged. */
 export function borrowingCapacity(w: World, truck: Truck): number {
   if (truck.lease !== "owned" || activeLoanOn(w, truck.id)) return 0;
-  return w.cfg.equipmentFinance.maxLoanToValue * truckValue(w, truck);
+  const k = w.cfg.equipmentFinance;
+  const cap = k.maxLoanToValue * truckValue(w, truck);
+  if (!k.netOfPurchaseLoans) return cap;
+  // A truck still on a purchase loan pledges only what isn't owed on it already.
+  let owed = 0;
+  for (const l of w.purchaseLoans) if (l.truckId === truck.id && (l.status === "active" || l.status === "defaulted")) owed += l.principalFd;
+  return Math.max(0, cap - owed);
+}
+
+/**
+ * Who writes a Borrow loan, for the screen (R7 and R19; economy-player34.md §5a): "pool" while the lending pools are
+ * open, when Equipment Finance's depositors lend; "off" while they are stood down (`pools.ts poolsOn`: Jeff's "for now,
+ * let's not use the pools"), and Borrow isn't shown. The NPC lender writes purchase loans only, never a cash-out loan
+ * against a truck already owned (that would print FD with no purchase behind it), so there is no third state.
+ */
+export const borrowLender = (w: World): "pool" | "off" => (poolsOn(w) ? "pool" : "off");
+
+/** What Borrow offers below the cap, because the truck loses value by the mile before a confirm lands. */
+export const BORROW_CAP_SHARE = 0.98;
+
+/**
+ * What the lender will lend on this truck now, for the screen's offer (R7: only what the lender gives): the truck's cap
+ * at 98%, no more than the pool's cash, rounded down to the 100. 0 while the pools are off, for a truck that isn't the
+ * company's to pledge, or with nothing to lend. Pure: `borrow` accepts any amount up to it.
+ */
+export function lendNowFd(w: World, companyId: number, truck: Truck): number {
+  if (borrowLender(w) === "off" || truck.companyId !== companyId || (truck.lessorId !== 0 && truck.lessorId !== companyId)) return 0;
+  const fd = Math.floor(Math.min(borrowingCapacity(w, truck) * BORROW_CAP_SHARE, poolCash(w)) / 100) * 100;
+  return fd >= 100 ? fd : 0;
 }
 
 export function borrow(w: World, companyId: number, truck: Truck, amountFd: number): string | null {
