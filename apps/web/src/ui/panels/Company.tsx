@@ -11,6 +11,7 @@ import { Btn, Card, Kv, Label, Num, Panel } from "../bits.js";
 import { ContractsCard } from "./Contracts.js";
 import { SCENES } from "../../assets.js";
 import { Scene } from "../Loop.js";
+import { CapsLine } from "../Caps.js";
 
 const crowdWord = (r: number): string => (r >= 1.5 ? "crowded" : r >= 1.1 ? "busy" : r >= 0.75 ? "fair share" : "wide open");
 
@@ -31,6 +32,7 @@ export function Company(): JSX.Element {
   return (
     <Panel title={c ? c.name : "The live world"}>
       <Scene name="office" still={SCENES.office} alt="The dispatch office" />
+      {c ? <CapsLine /> : null}
       {c ? (
         <Card>
           <Kv

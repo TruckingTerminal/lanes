@@ -1,14 +1,14 @@
 import { describe, expect, it } from "vitest";
 import { companyAccount } from "@lanes/engine";
 import { blockReason, boardRows } from "../src/board.js";
-import { CONFIRM, DELIVERED, MOVE, SECURITY } from "../src/copy.js";
+import { CAPS, CONFIRM, DELIVERED, MOVE, SECURITY } from "../src/copy.js";
 import { item, usedTruck } from "../src/confirmspecs.js";
 import { confirmAct, confirmSpend } from "../src/ui/Confirm.js";
 import { S } from "../src/state.js";
 import { breakdown } from "../src/explain.js";
 import { shortDate } from "../src/format.js";
 import { emptyRun, paidLine } from "../src/rolling.js";
-import { cushion, debtCountdown, gapToTruck, nextEvent, nextWeeklyCheckDay } from "../src/figures.js";
+import { cushion, debtCountdown, fleetCaps, gapToTruck, nextEvent, nextWeeklyCheckDay } from "../src/figures.js";
 import { GAME_CONFIG, TestGame } from "../src/game.js";
 import { nextAction } from "../src/nextstep.js";
 import { skippedSteps, stepKey, walkProgress, walkSteps } from "../src/walkthrough.js";
@@ -283,5 +283,15 @@ describe("the confirm card's foot (QA's R6 replay)", () => {
       S.confirm = null;
       S.game = null;
     }
+  }, 60_000);
+});
+
+describe("what limits the fleet (R19)", () => {
+  it("names the cap that binds first and counts trucks on order", async () => {
+    const { g, c } = await fresh();
+    const k = fleetCaps(g.w, c);
+    expect(k.cap).toBe(Math.min(...[k.binding, ...k.others].map((r) => r.n), g.w.cfg.company.maxTrucks));
+    expect(k.running).toBe((g.w.trucksByCompany.get(c.id) ?? []).length);
+    expect(CAPS.line(k.cap, CAPS.binding[k.binding.kind](k.binding.n), "")).toMatch(/^You may run \d+: (your yard holds|your stake allows|your operations managers cover|the company limit is) \d+\.$/);
   }, 60_000);
 });

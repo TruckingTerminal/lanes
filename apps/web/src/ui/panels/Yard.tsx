@@ -2,7 +2,10 @@ import type { JSX } from "preact";
 import { useState } from "preact/hooks";
 import type { Equipment } from "@lanes/config";
 import {
+  companyAccount,
   dealershipsOpen,
+  itemPriceFd,
+  layerOpen,
   hookedTrailer,
   ownedTrailers,
   rebuildable,
@@ -26,6 +29,8 @@ import { Btn, Card, Kv, Num } from "../bits.js";
 import { confirmAct } from "../Confirm.js";
 import { scrap as scrapLines } from "../../confirmspecs.js";
 import { CONFIRM } from "../../copy.js";
+import { DOOR } from "../../copy.js";
+import { layerDay } from "../../tabs.js";
 
 const TYPES: Equipment[] = ["van", "reefer", "flatbed"];
 const name = (e: Equipment) => TRAILER_NAME[e].toLowerCase();
@@ -125,10 +130,17 @@ export function TruckAssetActions({ t }: { t: Truck }): JSX.Element | null {
 /** Assets: the yard, its room for tractors and trailers, and the spares waiting in it. */
 export function YardCard(): JSX.Element | null {
   useData();
+  const [door, setDoor] = useState(false);
   const w = S.game!.w;
   const c = me();
   const a = w.cfg.assets;
   if (!a.enabled) return null;
+  // R7: More yard space says what opens it, and offers what can be done now (park, sell, lease out on the Truck tab).
+  const yardsOpen = !w.cfg.unlockLadder.enabled || layerOpen(w, "businesses");
+  const cat = w.cfg.token.catalogue;
+  const yardFd = itemPriceFd(w, "yardSmall");
+  const cash = w.ledger.balance(companyAccount(c.id));
+  const yardShort = c.yard === "none" && cash < yardFd + cat.items.yardSmall.bondFd;
   const spares = trailersOf(w, c.id).filter((tr) => tr.lease === "owned" && tr.status !== "hooked");
   const tractors = myTrucks().filter((t) => t.lease === "owned").length;
   const leased = myTrucks().filter((t) => t.lease !== "owned" && t.status !== "retired").length;
@@ -176,10 +188,24 @@ export function YardCard(): JSX.Element | null {
       <div class="row">
         {/* Lands on the Dealer's trailers, not its used trucks at the top (QA's R6 replay). */}
         <Btn onClick={() => (setTab("market"), setTimeout(() => document.getElementById("dealer-trailers")?.scrollIntoView({ block: "start" }), 50))}>Buy a trailer</Btn>
-        <Btn ghost onClick={() => setTab("business")}>
+        <Btn ghost onClick={() => (yardsOpen && !yardShort ? setTab("business") : setDoor(!door))}>
           More yard space
         </Btn>
       </div>
+      {door && !yardsOpen ? (
+        <div class="stack">
+          <p class="small">{DOOR.yard(layerDay(w, "businesses"))}</p>
+          <div class="row">
+            {DOOR.yardButtons.map((b) => (
+              <Btn sm key={b} onClick={() => setTab("fleet")}>
+                {b}
+              </Btn>
+            ))}
+          </div>
+        </div>
+      ) : door && yardShort ? (
+        <p class="small">{DOOR.yardShort(fdFull(yardFd), fdFull(cat.items.yardSmall.bondFd), fdFull(cash))}</p>
+      ) : null}
     </Card>
   );
 }

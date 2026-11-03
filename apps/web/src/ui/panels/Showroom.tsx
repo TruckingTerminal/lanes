@@ -38,6 +38,8 @@ import { Fig } from "../Explain.js";
 import { confirmAct } from "../Confirm.js";
 import { newTruck, trailer as trailerLines, usedTruck, type Lines } from "../../confirmspecs.js";
 import { inFirstMonth } from "../../figures.js";
+import { fleetCaps } from "../../figures.js";
+import { CAPS, DOOR } from "../../copy.js";
 
 const TIERS: TractorTier[] = ["workhorse", "highwayPro", "flagship"];
 const TYPES: Equipment[] = ["van", "reefer", "flatbed"];
@@ -69,6 +71,10 @@ export function Showroom(): JSX.Element {
   // A rig brings its own tractor, so only the company's trailer cap limits it (actions.ts buy_asset); the "no more
   // trailers than tractors" rule without a yard is for a trailer bought alone (QA's Finance replay: the first rig was blocked).
   const rigRoom = trailerCap(w, c) - ownTrailers;
+  // R7: every truck order counts the fleet's caps first; a cap that binds disables it with its words (orders included).
+  const caps = fleetCaps(w, c);
+  const capWhy = caps.running + (onLease ? 0 : 1) > caps.cap ? (caps.binding.kind === "yard" ? DOOR.yardFull(caps.cap, caps.running + 1) : DOOR.capFull(CAPS.binding[caps.binding.kind](caps.cap), caps.running + 1)) : null;
+  const roomWhy = rigRoom <= 0 ? DOOR.yardTrailer(trailerCap(w, c), ownTrailers + 1) : null;
   const lifeMi = w.cfg.assets.tractor.lifeMi;
   const life = lifeMi % 1_000_000 === 0 ? `${lifeMi === 1_000_000 ? "a million" : `${lifeMi / 1_000_000} million`} miles` : `${Math.round(lifeMi / 1000)}k miles`;
   const usedTrailers = openListings(w).filter((l) => l.trailerId > 0 && l.sellerId !== c.id).slice(0, 8);
@@ -93,7 +99,7 @@ export function Showroom(): JSX.Element {
               what={`Workhorse + ${TRAILER_NAME[tr]}`}
               price={lotPrice(w, "workhorse", tr) * npcDealerMult(w)}
               replacing={onLease}
-              block={w.usedLot.stock < 1 ? DEALER.whyLotEmpty : rigRoom <= 0 ? DEALER.whyYard : null}
+              block={w.usedLot.stock < 1 ? DEALER.whyLotEmpty : capWhy ?? roomWhy}
               action={{ type: "buy_asset", tier: "workhorse", trailer: tr, replaceNpcLease: onLease, used: true }}
               lines={usedTruck(w, c, { ...lotSpec(w, tr), tier: "workhorse", trailer: tr, lease: "owned" })}
               ok="Ordered from the used lot"
@@ -125,7 +131,7 @@ export function Showroom(): JSX.Element {
                 label={`Order the rig${onLease ? " (replaces your lease)" : ""}`}
                 price={rig.price}
                 replacing={onLease}
-                block={!rigLeft ? DEALER.whySupply : rigRoom <= 0 ? DEALER.whyYard : null}
+                block={!rigLeft ? DEALER.whySupply : capWhy ?? roomWhy}
                 action={{ type: "buy_asset", tier, trailer: tr, replaceNpcLease: onLease, dealershipId: rig.dealershipId || undefined }}
                 lines={newTruck(w, tier, tr, rig.days)}
                 ok={`Ordered. Delivery in ${plural(rig.days, "day")}`}
@@ -142,7 +148,7 @@ export function Showroom(): JSX.Element {
                   what={`${TIER_NAME[tier]} tractor alone${spares ? ` (${spares} spare${spares > 1 ? "s" : ""} in the yard)` : ""}`}
                   price={tractor.price}
                   replacing={onLease}
-                  block={tractor.dealershipId || w.supply.tractor[tier] > 0 ? null : DEALER.whySupply}
+                  block={tractor.dealershipId || w.supply.tractor[tier] > 0 ? capWhy : DEALER.whySupply}
                   action={{ type: "buy_asset", tier, trailer: tr, replaceNpcLease: onLease, tractorOnly: true, dealershipId: tractor.dealershipId || undefined }}
                   lines={newTruck(w, tier, tr, tractor.days)}
                   ok="Tractor ordered. It hooks a spare from your yard, or a rental"

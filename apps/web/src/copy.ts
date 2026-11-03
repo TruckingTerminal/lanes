@@ -87,6 +87,32 @@ export const WALL = {
   hot: "A hot load needs a team.",
 };
 
+/** What limits the fleet, the binding cap first (the writer's copy-player4.md, R19). */
+export const CAPS = {
+  line: (n: number, binding: string, others: string) => `You may run ${n}: ${binding}.${others ? ` ${others}` : ""}`,
+  binding: { yard: (n: number) => `your yard holds ${n}`, stake: (n: number) => `your stake allows ${n}`, managers: (n: number) => `your operations managers cover ${n}`, company: (n: number) => `the company limit is ${n}` },
+  yardsOpen: (date: string) => `Yards open ${date}.`,
+  stake: (n: number) => `Staking allows ${n}.`,
+};
+
+/** The staking page (R19). */
+export const STAKE = {
+  total: (fd: string) => `Staked · ${fd} FD in all`,
+  discount: (pct: string) => `Discount · ${pct} on fuel, maintenance, rebuilds, insurance and board fees`,
+  termFree: (days: number) => `Term · none: unstake any time, back in ${days} days`,
+};
+
+/** Doors that say what opens them (the writer's copy-player2.md, R7). */
+export const DOOR = {
+  yardFull: (n: number, m: number) => `Your yard holds ${n} trucks: this order makes ${m}.`,
+  /** The other caps, in the same pattern (engineering's, on the writer's form). */
+  capFull: (binding: string, m: number) => `${binding.charAt(0).toUpperCase()}${binding.slice(1)}: this order makes ${m}.`,
+  yardTrailer: (n: number, m: number) => `Your yard holds ${n} trailers: this makes ${m}.`,
+  yard: (date: string) => `Yards open ${date}. Until then, make room: park a truck, sell one, or lease one out.`,
+  yardButtons: ["Park", "Sell", "Offer for lease"] as const,
+  yardShort: (fd: string, bond: string, have: string) => `A small yard costs ${fd} FD plus a ${bond} FD bond: you have ${have}.`,
+};
+
 /** Every move shows its price before the tap (the writer's copy-player5.md, R24): fuel, the driver's pay and tolls over the empty miles. */
 export const MOVE = {
   home: (mi: string, fd: string, time: string) => `Home · ${mi} mi empty · about ${fd} FD · ${time}`,

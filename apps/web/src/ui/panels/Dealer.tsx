@@ -13,6 +13,7 @@ import { confirmAct } from "../Confirm.js";
 import { leaseDepositNow, leaseTruck, leaseWeeklyMin, newTruck, usedTruck } from "../../confirmspecs.js";
 import { ANSWER, CONFIRM } from "../../copy.js";
 import { inFirstMonth } from "../../figures.js";
+import { CapsLine } from "../Caps.js";
 
 export function Dealer(): JSX.Element {
   useData();
@@ -53,6 +54,7 @@ export function Dealer(): JSX.Element {
   return (
     <Panel title="Dealer">
       <Scene name="dealer" still={SCENES.dealer} alt="The dealership lot" />
+      <CapsLine />
       <p class="muted small">New trucks are paid now and delivered in {lead} days; the wait grows when the whole market is ordering. Used trucks deliver today.</p>
       <h3>Used trucks</h3>
       {used.length ? (

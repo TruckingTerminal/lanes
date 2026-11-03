@@ -3,13 +3,14 @@ import { cashNowOn, InvoiceRows } from "./CashNow.js";
 import { CASHNOW } from "../../copy.js";
 import { useState } from "preact/hooks";
 import { brokerBooks, companyAccount, creditBand, creditScore, nextTruckTier, operatingTrucks, purchaseTerms, stakeDiscount, truckCap, type Action, type Company, type World } from "@lanes/engine";
-import { ANSWER, FINANCE } from "../../copy.js";
+import { ANSWER, FINANCE, STAKE } from "../../copy.js";
 import { borrowable, contractOn, contractSoFar, equipmentWeekly, hasLeasedTrucks, leaseDeposit, loanRows, monthOfCosts, ownsATruck, playerPaperWaiting, rateLadder, rateToday } from "../../finance.js";
 import { cls, fdFull, hhmm, pct, shortDate } from "../../format.js";
 import { invoices } from "../../ledger.js";
 import { feed, isPhone, me, myTrucks, order, S, setTab, truckNo, useData } from "../../state.js";
 import { Bar, Btn, Card, Kv, Panel } from "../bits.js";
 import { Fig } from "../Explain.js";
+import { CapsLine } from "../Caps.js";
 
 /** A rate per load, one decimal: "5.9%". */
 const rate1 = (x: number): string => `${(x * 100).toFixed(1)}%`;
@@ -379,13 +380,16 @@ function Staking({ open, orders }: { open: (s: Sheet) => void; orders: Orders })
         <p class="small">{next ? FINANCE.stakeBelow(cap, fdFull(next.stake), next.trucks) : FINANCE.stakeMay(cap, running)}</p>
       ) : (
         <>
+          {/* R19: what's staked, its discount, its term, and what it allows (the caps line), so it moves when money does. */}
           <Kv
             rows={[
-              ["", FINANCE.stakeMay(cap, running)],
+              ["", STAKE.total(fdFull(c.stakedFd))],
+              ["", STAKE.discount(pct(stakeDiscount(w, c)))],
+              ["", STAKE.termFree(k.exitDays)],
               ...(next ? ([["", FINANCE.stakeTo(next.trucks, fdFull(next.stake))]] as [string, string][]) : []),
-              ["", FINANCE.stakeDiscount(pct(stakeDiscount(w, c)))],
             ]}
           />
+          <CapsLine />
           <div class="row">
             <input type="number" id="stake-fd" min="1" step="100" defaultValue="1000" aria-label={FINANCE.stakeField} />
             <Btn primary disabled={cash < 1} onClick={() => void orders.go("stake", { type: "stake_fd", fd: field() }, FINANCE.stake)}>

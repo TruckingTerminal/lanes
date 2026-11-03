@@ -1,4 +1,4 @@
-import { companyAccount, crewed, layerOpen, lotPrice, npcDealerMult, resting, type Company, type Truck, type World } from "@lanes/engine";
+import { companyAccount, crewed, layerOpen, locksOn, lotPrice, npcDealerMult, opsCap, ordersOf, resting, yardTrucks, type Company, type Truck, type World } from "@lanes/engine";
 import { boardRows, type BoardRow } from "./board.js";
 import { buyPlan, cheapestNewRig } from "./finance.js";
 import { invoices } from "./ledger.js";
@@ -24,6 +24,35 @@ export function nextWeeklyCheckDay(w: World): number {
  * prices wait under Money's token fold.
  */
 export const inFirstMonth = (w: World, c: Company): boolean => day(w) - c.createdDay < w.cfg.time.daysPerMonth;
+
+/**
+ * Every cap on the fleet (the director's R19), the one that binds first: the yard, the stake tiers (only while they're
+ * the rule, not under the lock discounts), the operations managers, the company limit. `running` counts trucks on order,
+ * as the engine's checks do.
+ */
+export type CapKind = "yard" | "stake" | "managers" | "company";
+export interface FleetCaps {
+  cap: number;
+  running: number;
+  binding: { kind: CapKind; n: number };
+  others: { kind: CapKind; n: number }[];
+}
+export function fleetCaps(w: World, c: Company): FleetCaps {
+  const k = w.cfg.token.staking;
+  const rows: { kind: CapKind; n: number }[] = [];
+  rows.push({ kind: "yard", n: w.cfg.token.catalogue.enabled ? yardTrucks(w, c) : w.cfg.company.maxTrucks });
+  if (k.enabled && !locksOn(w)) {
+    let n = 0;
+    for (const [trucks, stake] of k.truckTiers) if (c.stakedFd + 1e-9 >= stake) n = Math.max(n, trucks);
+    rows.push({ kind: "stake", n });
+  }
+  const ops = opsCap(w, c);
+  if (Number.isFinite(ops)) rows.push({ kind: "managers", n: ops });
+  rows.push({ kind: "company", n: w.cfg.company.maxTrucks });
+  const binding = rows.reduce((a, b) => (b.n < a.n ? b : a));
+  const running = (w.trucksByCompany.get(c.id) ?? []).filter((t) => t.status !== "retired").length + ordersOf(w, c.id).length;
+  return { cap: binding.n, running, binding, others: rows.filter((r) => r !== binding && r.kind !== "company") };
+}
 
 /** guide.cushion: weeks of the company's own spending its cash covers, from its average over guide.cushionAvgWeeks. */
 export function cushion(w: World, c: Company): { weeks: number | null; avgWeeklyFd: number; cashFd: number } {

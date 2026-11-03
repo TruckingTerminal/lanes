@@ -17,6 +17,7 @@ import { emptyRun } from "../../rolling.js";
 import { TrailerLines, TruckAssetActions, YardCard } from "./Yard.js";
 import { confirmAct } from "../Confirm.js";
 import { rebuild as rebuildLines, sell as sellLines } from "../../confirmspecs.js";
+import { CapsLine } from "../Caps.js";
 
 
 
@@ -52,6 +53,7 @@ export function Fleet(): JSX.Element {
       {trucks.map((t, idx) => (
         <TruckCard key={t.id} t={t} idx={idx} />
       ))}
+      <CapsLine />
       <YardCard />
       <DispatcherCard />
     </Panel>

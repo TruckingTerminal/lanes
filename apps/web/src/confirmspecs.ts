@@ -71,7 +71,9 @@ export function item(w: World, c: Company, m: "apu" | "aero" | "tires" | "sleepe
   const weeks = Math.max(0, (dayOf(w.t, w.cfg) - Math.max(c.createdDay, t.builtDay ?? c.createdDay)) / 7);
   const perWeekMi = weeks >= 2 ? (t.loadedMi + t.emptyMi) / weeks : 0;
   const saving = m === "aero" ? (perWeekMi / effectiveMpg(w.cfg, t)) * fuelPrice(w) * 0.05 : m === "tires" ? perWeekMi * maintenancePerMile(w.cfg, t) * 0.2 : 0;
-  const payback = saving > 0.5 ? String(Math.ceil(priceFd / saving)) : null;
+  // A payback over ten years is a record too thin to read (QA: "5555 weeks" on a truck that had barely run): unknown.
+  const weeksBack = saving > 0.5 ? Math.ceil(priceFd / saving) : Infinity;
+  const payback = weeksBack <= 520 ? String(weeksBack) : null;
   const does = m === "apu" ? CONFIRM.item.apu(n, "half") : m === "aero" ? CONFIRM.item.aero(n, "5%") : m === "tires" ? CONFIRM.item.tires(n, "20%") : CONFIRM.item.sleeper("half");
   return { does, risk: payback ? CONFIRM.itemRisk[m](payback) : CONFIRM.paybackUnknown };
 }
