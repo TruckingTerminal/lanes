@@ -7,6 +7,7 @@ export * from "./cashReserve.js";
 export * from "./buyback.js";
 export * from "./capacity.js";
 export * from "./clock.js";
+export * from "./companyNames.js";
 export * from "./contracts.js";
 export * from "./dealer.js";
 export * from "./dealerships.js";

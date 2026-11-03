@@ -1232,7 +1232,7 @@ describe("trucks and the money behind them (2026-10-31): leases by value, purcha
     expect(graduated.length).toBeGreaterThan(0);
     for (const x of graduated) expect(x.freePathLockedFd).toBe(0);
     const none = run("none");
-    const newcomers = none.companies.filter((x) => x.name.startsWith("New-"));
+    const newcomers = none.companies.filter((x) => x.strategy.startsWith("new:") || x.strategy.startsWith("farm:new-"));
     expect(newcomers.length).toBeGreaterThan(0);
     for (const x of newcomers) {
       expect(x.freePath).toBe(false);

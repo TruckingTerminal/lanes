@@ -1047,3 +1047,6 @@ export function companyById(w: World, id: number): Company {
 export function truckById(w: World, id: number): Truck {
   return w.trucks[id - 1]!;
 }
+
+/** The staff name pools, for companyNames.ts: the world's company owners come from the same towns as its drivers. */
+export { FIRST as STAFF_FIRST_NAMES, LAST as STAFF_LAST_NAMES };

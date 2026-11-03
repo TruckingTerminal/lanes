@@ -92,6 +92,7 @@ import {
   type World,
 } from "@lanes/engine";
 import { businessesOf, businessPriceFd, sitePriceFd, type BusinessKind } from "@lanes/engine";
+import { companyName } from "@lanes/engine";
 import { brokerageLog, canFormBrokerage, formationCostFd, layerBlock, markPairs, ownBand, partnerOf } from "@lanes/engine";
 import { reserveCapFd, reserveFd, reserveOn } from "@lanes/engine";
 import { financedCashNeed, openPurchaseLoans, purchaseTerms, salesTaxOn } from "@lanes/engine";
@@ -461,10 +462,11 @@ export function populate(w: World, o: PopulationOptions): void {
     // A farmer (config adversaries): drawn only when the adversaries are on, so the base world is unchanged.
     const farmer = adv.enabled && adv.farmerShare > 0 && rng.next() < adv.farmerShare;
     if (farmer) makeFarmer(profile, false);
+    const home = starterHub(w, rng);
     const c = formCompany(w, {
-      name: `OO-${i + 1}`,
+      name: companyName(w, "oo", home),
       role: "carrier",
-      homeHubId: starterHub(w, rng),
+      homeHubId: home,
       strategy: farmer ? `farm:oo-${strategy}` : `oo:${strategy}`,
       orders: carrierOrders(profile),
       freePath: true,
@@ -479,10 +481,11 @@ export function populate(w: World, o: PopulationOptions): void {
   for (let i = 0; i < o.fleets; i++) {
     const strategy = strategyOf();
     const profile = carrierProfile(strategy, rng);
+    const home = starterHub(w, rng);
     const c = formCompany(w, {
-      name: `Fleet-${i + 1}`,
+      name: companyName(w, "fleet", home),
       role: "carrier",
-      homeHubId: starterHub(w, rng),
+      homeHubId: home,
       strategy: `fleet:${strategy}`,
       orders: carrierOrders(profile),
       freePath: false,
@@ -524,10 +527,11 @@ export function populate(w: World, o: PopulationOptions): void {
 
   for (let i = 0; i < o.brokers; i++) {
     const strategy = strategyOf();
+    const home = starterHub(w, rng);
     const c = formCompany(w, {
-      name: `Broker-${i + 1}`,
+      name: companyName(w, "broker", home),
       role: "broker",
-      homeHubId: starterHub(w, rng),
+      homeHubId: home,
       strategy: `broker:${strategy}`,
       orders: brokerOrders(strategy, rng),
       freePath: false,
@@ -551,7 +555,7 @@ export function populate(w: World, o: PopulationOptions): void {
       for (let j = 0; j < adv.sybil.wallets; j++) {
         const strategy = strategyOf();
         const profile = makeFarmer(carrierProfile(strategy, rng), true);
-        const c = formCompany(w, { name: `Sybil-${k + 1}-${j + 1}`, role: "carrier", homeHubId: home, strategy: `sybil:c${k + 1}-${strategy}`, orders: carrierOrders(profile), freePath: true, ownerSkill: ownerSkill(w, rng), authorityAgeDays: rng.int(0, 400) });
+        const c = formCompany(w, { name: companyName(w, "oo", home), role: "carrier", homeHubId: home, strategy: `sybil:c${k + 1}-${strategy}`, orders: carrierOrders(profile), freePath: true, ownerSkill: ownerSkill(w, rng), authorityAgeDays: rng.int(0, 400) });
         profiles.set(c, profile);
         c.usd.wallet = 0;
         setConduct(w, c, profile);
@@ -590,10 +594,11 @@ function admitNewcomers(w: World): void {
       profile.quitDay = dayOf(w.t, w.cfg) + rng.int(adv.farmerQuitDays[0], adv.farmerQuitDays[1]);
     }
     w.token.newCompanies++;
+    const home = starterHub(w, rng);
     const c = formCompany(w, {
-      name: `New-${w.token.newCompanies}`,
+      name: companyName(w, "oo", home),
       role: "carrier",
-      homeHubId: starterHub(w, rng),
+      homeHubId: home,
       strategy: farmer ? `farm:new-${strategy}` : `new:${strategy}`,
       orders: carrierOrders(profile),
       freePath: w.cfg.freeEntry.freePath !== "none",
@@ -618,7 +623,8 @@ function admitWave(w: World, today: number): void {
     const strategy = STRATEGIES[rng.int(0, STRATEGIES.length - 1)]!;
     const profile = carrierProfile(strategy, rng);
     const n = w.companies.filter((c) => c.strategy.startsWith("wave:")).length + 1;
-    const c = formCompany(w, { name: `Wave-${n}`, role: "carrier", homeHubId: starterHub(w, rng), strategy: `wave:${strategy}`, orders: carrierOrders(profile), freePath: true, ownerSkill: ownerSkill(w, rng) });
+    const home = starterHub(w, rng);
+    const c = formCompany(w, { name: companyName(w, "oo", home), role: "carrier", homeHubId: home, strategy: `wave:${strategy}`, orders: carrierOrders(profile), freePath: true, ownerSkill: ownerSkill(w, rng) });
     profiles.set(c, profile);
     setConduct(w, c, profile);
   }
