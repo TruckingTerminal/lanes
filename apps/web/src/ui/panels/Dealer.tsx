@@ -3,11 +3,14 @@ import type { Equipment, FacilityType, TractorTier } from "@lanes/config";
 import { assetPriceUsd, availableSupply, listingBlock, companyAccount, condition, dealerPrice, deliveryDays, facilityOutlook, lessorTrucksOf, newPrice, openListings, ordersOf, tokenLive, truckValue } from "@lanes/engine";
 import { facilityUrl } from "../../art.js";
 import { SCENES } from "../../assets.js";
-import { FAC_NAME, fd, pct, signedPct, TIER_NAME, TRAILER_NAME, usd, plural } from "../../format.js";
+import { FAC_NAME, fd, pct, signedPct, TIER_NAME, TRAILER_NAME, usd, plural, fdFull } from "../../format.js";
 import { act, me, myTrucks, S, useData } from "../../state.js";
 import { Btn, Card, Num, Panel, Pixel } from "../bits.js";
 import { Rig, Scene } from "../Loop.js";
 import { Buy, Showroom } from "./Showroom.js";
+import { confirmAct } from "../Confirm.js";
+import { leaseDepositNow, leaseTruck, leaseWeeklyMin, newTruck, usedTruck } from "../../confirmspecs.js";
+import { CONFIRM } from "../../copy.js";
 
 export function Dealer(): JSX.Element {
   useData();
@@ -62,6 +65,7 @@ export function Dealer(): JSX.Element {
               replacing={onLease}
               block={listingBlock(w, c.id, l.id, Infinity)}
               action={{ type: "buy_listing", listingId: l.id }}
+              lines={usedTruck(w, c, t, t.hub)}
               ok="Bought. It's yours, idle where it stands"
             />
           </Card>
@@ -73,7 +77,7 @@ export function Dealer(): JSX.Element {
         <p class="muted small">No money down: the lessor takes 15% of each load, 250 FD a week minimum, 28-day minimum term. Needs one truck you own. Lessor has {w.lessor.fleet - w.lessor.out} free.</p>
         <div class="row">
           {trailers.map((tr) => (
-            <Btn key={tr} disabled={!(canLease && w.lessor.out < w.lessor.fleet)} onClick={() => act({ type: "lease_truck", trailer: tr }, "Leased truck ready at your home hub")}>
+            <Btn key={tr} disabled={!(canLease && w.lessor.out < w.lessor.fleet)} onClick={(ev) => confirmAct({ verb: "Lease", item: `a ${TRAILER_NAME[tr].toLowerCase()} truck`, costFd: leaseDepositNow(w, tr), ...leaseTruck(w, tr, leaseDepositNow(w, tr), leaseWeeklyMin(w, tr)), go: `Lease · ${fdFull(leaseDepositNow(w, tr))} FD`, run: () => act({ type: "lease_truck", trailer: tr }, "Leased truck ready at your home hub") }, ev)}>
               {TRAILER_NAME[tr]}
             </Btn>
           ))}
@@ -100,7 +104,7 @@ export function Dealer(): JSX.Element {
                 </div>
               </div>
               <div class="row">
-                <Btn primary disabled={!(cash >= price && left > 0)} onClick={() => act({ type: "buy_asset", tier, trailer: tr, replaceNpcLease: onLease }, `Ordered. Delivery in ${plural(lead, "day")}`)}>
+                <Btn primary disabled={!(cash >= price && left > 0)} onClick={(ev) => confirmAct({ verb: "Buy", item: `a ${TIER_NAME[tier]}`, costFd: price, ...newTruck(w, tier, tr, lead), run: () => act({ type: "buy_asset", tier, trailer: tr, replaceNpcLease: onLease }, `Ordered. Delivery in ${plural(lead, "day")}`) }, ev)}>
                   Order{onLease ? " (replaces your lease)" : ""}
                 </Btn>
               </div>
@@ -129,7 +133,7 @@ export function Dealer(): JSX.Element {
             <p class="muted small">Ships its own freight from its hub; you earn the goods margin and shipper Miles.</p>
             <div class="row">
               {best.map((b) => (
-                <Btn key={b.h.id} disabled={!(cash >= spec.priceFd && w.facilitySupply[type] > 0)} onClick={() => act({ type: "buy_facility", facility: type, hubId: b.h.id }, `${FAC_NAME[type]} open at ${b.h.name}`)}>
+                <Btn key={b.h.id} disabled={!(cash >= spec.priceFd && w.facilitySupply[type] > 0)} onClick={(ev) => confirmAct({ verb: "Open", item: `a ${FAC_NAME[type].toLowerCase()} at ${b.h.name}`, costFd: spec.priceFd, does: CONFIRM.facility(FAC_NAME[type].toLowerCase(), b.h.name), risk: CONFIRM.upkeepRisk(fd(spec.upkeepPerWeekFd)), run: () => act({ type: "buy_facility", facility: type, hubId: b.h.id }, `${FAC_NAME[type]} open at ${b.h.name}`) }, ev)}>
                   {b.h.name} · {(b.o.loadsPerRound * 2).toFixed(1)} loads/day
                 </Btn>
               ))}

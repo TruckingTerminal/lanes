@@ -5,6 +5,9 @@ import { COMMODITIES } from "@lanes/data";
 import { cls, dateLabel, fd, hhmm, pct } from "../../format.js";
 import { act, clockMin, myTrucks, S, truckNo } from "../../state.js";
 import { Btn, Card, Num } from "../bits.js";
+import { confirmAct } from "../Confirm.js";
+import { contract as contractLines } from "../../confirmspecs.js";
+import { CONFIRM } from "../../copy.js";
 
 /** Contract tenders waiting for the player's company. */
 export const myTenders = (c: Company): Load[] => [...S.game!.w.loads.values()].filter((l) => l.status === "open" && l.tenderedTo === c.id);
@@ -91,7 +94,7 @@ export function ContractsCard({ c }: { c: Company }): JSX.Element {
                 <span>
                   {lane(k)} · {k.loadsPerWeek}/wk at <Num>{k.ratePerMile.toFixed(2)}</Num>/mi · expires {dateLabel(k.offerExpiresDay)}
                 </span>
-                <Btn primary onClick={() => act({ type: "accept_contract", contractId: k.id }, "Contract signed. Tenders start this week")}>
+                <Btn primary onClick={(ev) => confirmAct({ verb: "Sign", item: "this contract", costFd: null, costLine: CONFIRM.contractCost(k.loadsPerWeek, k.ratePerMile.toFixed(2), w.cfg.contracts.termDays), ...contractLines(w.net.places[k.originPlace]!.name, w.net.places[k.destPlace]!.name, k.loadsPerWeek, k.ratePerMile, Math.round(w.cfg.contracts.termDays / 7)), go: `Sign for ${w.cfg.contracts.termDays} days`, run: () => act({ type: "accept_contract", contractId: k.id }, "Contract signed. Tenders start this week") }, ev)}>
                   Sign
                 </Btn>
                 <Btn onClick={() => act({ type: "decline_contract", contractId: k.id }, "Offer declined")}>Decline</Btn>

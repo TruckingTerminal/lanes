@@ -4,6 +4,9 @@ import { fd, usd } from "../../format.js";
 import { act, bumpData, me, myTrucks, S, truckNo, useData } from "../../state.js";
 import { Btn, Card, Kv, Num, Panel } from "../bits.js";
 import { SECURITY } from "../../copy.js";
+import { confirmAct } from "../Confirm.js";
+import { item as itemLines } from "../../confirmspecs.js";
+import { CONFIRM } from "../../copy.js";
 
 const num = (id: string): number => Number((document.getElementById(id) as HTMLInputElement | null)?.value);
 
@@ -78,7 +81,7 @@ export function Business(): JSX.Element {
         />
         {!stop && s.open ? (
           <div class="row">
-            <Btn primary disabled={atCap || cash < price + biz.kinds.truckStop.bondFd} onClick={() => act({ type: "buy_business", kind: "truckStop", siteId: s.id }, "Truck stop open: fuel, a shop and parking")}>
+            <Btn primary disabled={atCap || cash < price + biz.kinds.truckStop.bondFd} onClick={(ev) => confirmAct({ verb: "Build", item: "a truck stop", costFd: price + biz.kinds.truckStop.bondFd, does: CONFIRM.business("truck stop", siteLabel(s), fd(biz.kinds.truckStop.bondFd)), risk: CONFIRM.upkeepRisk(fd(biz.kinds.truckStop.upkeepPerWeekFd)), run: () => act({ type: "buy_business", kind: "truckStop", siteId: s.id }, "Truck stop open: fuel, a shop and parking") }, ev)}>
               Build a truck stop
             </Btn>
             {assetDollars ? (
@@ -113,12 +116,12 @@ export function Business(): JSX.Element {
           <Kv rows={[["Yard", <Num>{c.yard === "none" ? "none" : c.yard === "small" ? "small" : "large"} · holds {yardTrucks(w, c)} trucks{w.cfg.assets.enabled ? ` and ${trailerCap(w, c)} trailers` : ""}</Num>]]} />
           <div class="row">
             {c.yard === "none" ? (
-              <Btn disabled={cash < itemPriceFd(w, "yardSmall") + cat.items.yardSmall.bondFd} onClick={() => act({ type: "buy_item", item: "yardSmall", pay: "fd" }, "Yard bought")}>
+              <Btn disabled={cash < itemPriceFd(w, "yardSmall") + cat.items.yardSmall.bondFd} onClick={(ev) => confirmAct({ verb: "Buy", item: "a small yard", costFd: itemPriceFd(w, "yardSmall") + cat.items.yardSmall.bondFd, does: CONFIRM.yard(cat.items.yardSmall.trucks, fd(cat.items.yardSmall.bondFd)), risk: null, run: () => act({ type: "buy_item", item: "yardSmall", pay: "fd" }, "Yard bought") }, ev)}>
                 Small yard · {fd(itemPriceFd(w, "yardSmall"))} + {fd(cat.items.yardSmall.bondFd)} bond
               </Btn>
             ) : null}
             {c.yard !== "large" ? (
-              <Btn disabled={cash < itemPriceFd(w, "yardLarge") + cat.items.yardLarge.bondFd} onClick={() => act({ type: "buy_item", item: "yardLarge", pay: "fd" }, "Large yard bought")}>
+              <Btn disabled={cash < itemPriceFd(w, "yardLarge") + cat.items.yardLarge.bondFd} onClick={(ev) => confirmAct({ verb: "Buy", item: "a large yard", costFd: itemPriceFd(w, "yardLarge") + cat.items.yardLarge.bondFd, does: CONFIRM.yard(cat.items.yardLarge.trucks, fd(cat.items.yardLarge.bondFd)), risk: null, run: () => act({ type: "buy_item", item: "yardLarge", pay: "fd" }, "Large yard bought") }, ev)}>
                 Large yard · {fd(itemPriceFd(w, "yardLarge"))} + {fd(cat.items.yardLarge.bondFd)} bond
               </Btn>
             ) : null}
@@ -143,7 +146,7 @@ export function Business(): JSX.Element {
             <div class="row" key={t.id}>
               <span>Truck {truckNo(t.id)}</span>
               {MODS.filter(([m]) => !t.mods[m]).map(([m, name, what]) => (
-                <Btn key={m} sm title={what} disabled={cash < itemPriceFd(w, m)} onClick={() => act({ type: "buy_item", item: m, pay: "fd", truckId: t.id }, `${name} fitted to truck ${truckNo(t.id)}`)}>
+                <Btn key={m} sm title={what} disabled={cash < itemPriceFd(w, m)} onClick={(ev) => confirmAct({ verb: "Fit", item: `${name.toLowerCase()} to truck ${truckNo(t.id)}`, costFd: itemPriceFd(w, m), ...itemLines(w, c, m, t, truckNo(t.id), itemPriceFd(w, m)), run: () => act({ type: "buy_item", item: m, pay: "fd", truckId: t.id }, `${name} fitted to truck ${truckNo(t.id)}`) }, ev)}>
                   {name} · {fd(itemPriceFd(w, m))}
                 </Btn>
               ))}
@@ -170,7 +173,7 @@ export function Business(): JSX.Element {
                 </p>
                 <div class="row">
                   {room.map(({ h, i }) => (
-                    <Btn key={h.id} disabled={atCap || cash < price + spec.bondFd} onClick={() => act({ type: "buy_business", kind, hubId: h.id }, `${KIND_NAME[kind]} open at ${h.name}`)}>
+                    <Btn key={h.id} disabled={atCap || cash < price + spec.bondFd} onClick={(ev) => confirmAct({ verb: "Open", item: `a ${KIND_NAME[kind].toLowerCase()} at ${h.name}`, costFd: price + spec.bondFd, does: CONFIRM.business(KIND_NAME[kind].toLowerCase(), h.name, fd(spec.bondFd)), risk: CONFIRM.upkeepRisk(fd(spec.upkeepPerWeekFd)), run: () => act({ type: "buy_business", kind, hubId: h.id }, `${KIND_NAME[kind]} open at ${h.name}`) }, ev)}>
                       {h.id} · {businessesAt(w, i, kind).length}/{spec.perHub}
                     </Btn>
                   ))}

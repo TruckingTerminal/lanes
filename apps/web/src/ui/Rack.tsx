@@ -25,6 +25,7 @@ import { Logbook } from "./panels/Logbook.js";
 import { Money } from "./panels/Money.js";
 import { Rates } from "./panels/Rates.js";
 import { Staff } from "./panels/Staff.js";
+import { ConfirmSheet } from "./Confirm.js";
 
 /** Each tab's panel (tabs.ts holds the order, labels, icons and teasers). A Record, so a tab can't be added without one. */
 const PANELS: Record<Tab, () => JSX.Element> = {
@@ -118,6 +119,7 @@ export function RackBody(): JSX.Element {
       <TeaserRow />
       <Caption />
       <ExplainSheet />
+      <ConfirmSheet />
       <div class="panelbox">
         <ReportCard key={S.reportKind} />
         {open && !watching ? <StepMoment /> : null}

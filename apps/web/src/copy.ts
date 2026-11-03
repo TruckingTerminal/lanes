@@ -4,6 +4,60 @@ import type { EconomyConfig } from "@lanes/config";
  * pass is one file. Numbers come in as arguments from the config or the world; none is typed here.
  */
 
+/**
+ * The confirm card (the writer's copy-player2.md, R6): before anything that can't be undone, or that spends more than
+ * guard.confirmShareOfCash of cash. Its frame, then what it does and its one risk by action.
+ */
+export const CONFIRM = {
+  title: (verb: string, item: string) => `${verb} ${item}?`,
+  cost: (fd: string) => `It costs · ${fd} FD`,
+  after: (fd: string, n: string) => `Left after · ${fd} FD, ${n} weeks of cushion`,
+  /** Engineering's draft: before the first week closes there's no cushion figure to give. */
+  afterNoWeeks: (fd: string) => `Left after · ${fd} FD`,
+  does: "What it does",
+  risk: "The one risk",
+  go: (verb: string, fd: string) => `${verb} · ${fd} FD`,
+  cancel: "Not now",
+  lowCushion: (n: number) => `Under ${n} weeks of cushion after this.`,
+  usedFresh: (make: string, pct: string, n: number) => `A used ${make}: ${pct} condition, ${n} rebuilds left.`,
+  usedFreshRisk: (fd: string) => `Worn trucks break down more, usually far from home. A rebuild costs ${fd} FD.`,
+  usedLast: (make: string, pct: string) => `A used ${make}: ${pct} of its life left, no rebuilds.`,
+  usedLastRisk: (fd: string) => `It runs until it's worn out, then goes for scrap, for about ${fd} FD.`,
+  usedAway: (hub: string, mi: string) => `It's at ${hub}, ${mi} miles from home.`,
+  usedAwayRisk: "Bringing it home takes a driver and empty miles.",
+  newTruck: (make: string, date: string) => `A new ${make}, arriving ${date}.`,
+  newRisk: "It loses value from the day it arrives, and costs money every week it sits.",
+  lease: (make: string, deposit: string, min: string) => `Leases a ${make}: ${deposit} FD deposit, at least ${min} FD a week.`,
+  leaseRisk: (days: number) => `It costs the weekly minimum, earning or not, for at least ${days} days.`,
+  trailer: (type: string) => `A ${type} trailer of your own, kept in your yard.`,
+  trailerRisk: "It takes yard space and upkeep whether it's hooked or not.",
+  rebuild: "Two days in the shop; condition back to new.",
+  rebuildRisk: (n: number, of: number) => `${n} of ${of} rebuilds left after this. Past the last, it runs to scrap.`,
+  scrap: (n: number, fd: string) => `Ends truck ${n} for ${fd} FD from the scrapyard.`,
+  scrapRisk: (fd: string) => `Sold, it would fetch about ${fd} FD. Scrapping can't be undone.`,
+  /** Engineering's draft on the truck's line: the writer's table has no trailer scrap. */
+  scrapTrailer: (type: string, fd: string) => `Ends this ${type} for ${fd} FD from the scrapyard.`,
+  sell: (n: number, fd: string) => `Lists truck ${n} at ${fd} FD. The price drops each week until it sells.`,
+  sellRisk: "It earns nothing while it's listed and parked.",
+  /** UX's line 1 for a hire (player2-ux.md section 1): the wage, a week. */
+  hireCost: (fd: string) => `${fd} FD a week`,
+  hire: (name: string, fd: string) => `Hires ${name} at ${fd} FD a week.`,
+  hireRisk: (fd: string) => `That's more than your company kept last week: ${fd} FD.`,
+  /** UX's line 1 for a contract (player2-ux.md section 1). */
+  contractCost: (n: number, rate: string, days: number) => `${n} loads a week at ${rate}/mi for ${days} days`,
+  contract: (origin: string, dest: string, n: number, rate: string, weeks: number) => `${origin} to ${dest}, ${n} loads a week at ${rate}/mi, for ${weeks} weeks.`,
+  contractRisk: "Turning down a tender costs your stake and the shipper's trust.",
+  item: { apu: (n: number, cut: string) => `Cuts the fuel truck ${n} burns idling overnight by ${cut}.`, aero: (n: number, cut: string) => `Cuts truck ${n}'s fuel by ${cut}.`, tires: (n: number, cut: string) => `Cuts truck ${n}'s maintenance by ${cut}.`, sleeper: (cut: string) => `Cuts the per diem on nights away by ${cut}.` },
+  itemRisk: { apu: (n: string) => `It pays back only on nights away: about ${n} weeks at this truck's pace.`, aero: (n: string) => `It pays back in about ${n} weeks at this truck's miles.`, tires: (n: string) => `It pays back in about ${n} weeks at this truck's miles.`, sleeper: (n: string) => `It pays back only if the truck sleeps away often: about ${n} weeks.` },
+  paybackUnknown: "Payback unknown until it has run a few weeks.",
+  /** Engineering's drafts for the writer: the yard, a business or a facility (the writer's table has none). */
+  yard: (trucks: number, bond: string) => `A yard for ${trucks} trucks, with a ${bond} FD bond you get back when you sell it.`,
+  space: (n: number) => `Room for ${n} more trailers of your own in your yard.`,
+  business: (kind: string, hub: string, bond: string) => `A ${kind} at ${hub}, with a ${bond} FD bond you get back when you sell it.`,
+  facility: (kind: string, hub: string) => `A ${kind} at ${hub}: it ships its own freight, and you earn the goods margin.`,
+  upkeepRisk: (fd: string) => `It costs ${fd} FD a week in upkeep, earning or not.`,
+};
+
 /** Every button answers (the writer's copy-player4.md, R20): BID's result, and BOOK NOW's refusal on a vetted load. */
 export const ANSWER = {
   bid: (rate: string, origin: string, dest: string, hh: string) => `Bid in: ${rate}/mi on ${origin} to ${dest}. It clears at ${hh}.`,
@@ -32,21 +86,21 @@ export const LOADING = { title: "Loading your world…" };
 
 /**
  * R3: "Theft risk" becomes Security, banded from hubTheftRisk (a multiple of a quiet road). The cut-offs are the writer's
- * proposal, for the economy to confirm: under 1.2 quiet, 1.2 to 2 watch, 2 and over high.
+ * proposal, for the economy to confirm: under 1.2 quiet, 1.2 to 2 watch, 2 and over risky (the director: "high" read as well protected).
  */
 /** The Economy page's lead (the writer's copy-player1.md, R3): no other game named. */
 export const ECONOMY = {
   lead: (days: number) => `Every FD the game paid out and took back in the last ${days} days: the world's own books, published monthly. Everyone sees the same page.`,
 };
 
-export type SecurityBand = "quiet" | "watch" | "high";
+export type SecurityBand = "quiet" | "watch" | "risky";
 export const SECURITY = {
-  band: (x: number): SecurityBand => (x < 1.2 ? "quiet" : x < 2 ? "watch" : "high"),
-  name: { quiet: "Quiet", watch: "Watch", high: "High" } as Record<SecurityBand, string>,
+  band: (x: number): SecurityBand => (x < 1.2 ? "quiet" : x < 2 ? "watch" : "risky"),
+  name: { quiet: "Quiet", watch: "Watch", risky: "Risky" } as Record<SecurityBand, string>,
   card: {
     quiet: "Security: quiet",
     watch: "Security: watch. Cargo goes missing here more than on quiet roads.",
-    high: "Security: high. Cargo goes missing here often; insurers and some shippers notice.",
+    risky: "Security: risky. Cargo goes missing here often; insurers and some shippers notice.",
   } as Record<SecurityBand, string>,
   label: "Security",
   here: "Security here",

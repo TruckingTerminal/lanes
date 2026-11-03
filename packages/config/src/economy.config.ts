@@ -1510,7 +1510,7 @@ export const economyConfig = {
   // - hireCoverHumansOnly: the guard binds players' companies only. Bots always auto-staff, and on them the guard cost the
   //   greedy fleets a ninth of their year-one net worth (economy-player2.md §3), so the bots' world is left as it is.
   // - autoStaffDefault: a human company's auto-staff at formation (bots always auto-staff). true today; R8: false.
-  guard: { hireCoverWeeks: 0, hireCoverHumansOnly: true, autoStaffDefault: true },
+  guard: { hireCoverWeeks: 0, hireCoverHumansOnly: true, autoStaffDefault: true, confirmShareOfCash: 0.25 }, // confirmShareOfCash: any spend over this share of cash gets R6's confirm card (screens only)
 
   // Design proposal (Jeff, 2026-10-28): safety and compliance. Owners choose how
   // legal to run; enforcement, crashes and audits make cutting corners pay now and
@@ -1765,6 +1765,7 @@ export const economyConfig = {
     // Iuliia by tab and card (the writer's iuliia-lines.md): never two of her lines within this many real seconds, and each
     // shows this long before the walkthrough's Do line returns. Screens only: no rule reads it.
     iuliia: { quietSeconds: 60, showSeconds: 6 },
+    tapSettleMs: 400, // R6: a confirm ignores taps for this long after it opens, so the tap that opened it can't confirm it
   },
 } as const;
 

@@ -6,7 +6,7 @@ import { MOVE, TRUCK } from "../../copy.js";
 import { GAME_CONFIG } from "../../game.js";
 import { AttentionCard, CrewLine, goLoads, goStaff, idleLabel, idleWhy, openLoadsAt, StatusLine, stuckTrucks, tiredTrucks, truckName } from "../../logic.js";
 import { focusTruck } from "../../mapview.js";
-import { act, describe, feed, me, myTrucks, S, selectTruck, truckNo, useData } from "../../state.js";
+import { act, describe, feed, isPhone, me, myTrucks, S, selectTruck, truckNo, useData } from "../../state.js";
 import { Bar, Btn, Card, Num, Panel, Pixel } from "../bits.js";
 import { Rig, Scene } from "../Loop.js";
 import { Fig } from "../Explain.js";
@@ -15,6 +15,8 @@ import { DispatcherCard } from "./Dispatcher.js";
 import { DeliveredCard, RollingCards } from "./Rolling.js";
 import { emptyRun } from "../../rolling.js";
 import { TrailerLines, TruckAssetActions, YardCard } from "./Yard.js";
+import { confirmAct } from "../Confirm.js";
+import { rebuild as rebuildLines, sell as sellLines } from "../../confirmspecs.js";
 
 
 
@@ -154,6 +156,52 @@ function TruckCard({ t, idx }: { t: Truck; idx: number }): JSX.Element {
     .sort((a, b) => a.mi - b.mi)
     .slice(0, 14);
   const stop = (ev: MouseEvent) => ev.stopPropagation();
+  // Everything past the two main actions: inline on a laptop, under ⋯ on a phone.
+  const more = (
+    <>
+          {t.status === "idle" ? (
+            <>
+              <select id={`send-${t.id}`} aria-label="Destination hub">
+                {nearby.map((x) => (
+                  <option value={x.h.id} key={x.h.id}>
+                    {emptyLine(t, x.i)} · {openLoadsAt(x.i).filter((l) => l.equipment === t.trailer).length} loads
+                  </option>
+                ))}
+              </select>
+              <Btn
+                onClick={() => {
+                  const hubId = (document.getElementById(`send-${t.id}`) as HTMLSelectElement).value;
+                  act({ type: "reposition_truck", truckId: t.id, hubId }, TRUCK.sentEmpty, "truck:sendEmpty");
+                }}
+              >
+                Send empty
+              </Btn>
+            </>
+          ) : null}
+          {mine && t.status === "idle" && cond <= w.cfg.wear.rebuildMaxCondition && rebuildable(w.cfg, t) ? (
+            <Btn onClick={(ev) => confirmAct({ verb: "Rebuild", item: `truck ${idx + 1}`, costFd: rebuildCost(w.cfg, t), ...rebuildLines(w, t), run: () => act({ type: "rebuild_truck", truckId: t.id }, "Truck is in the shop for two days", "truck:rebuild") }, ev)}>Rebuild · {fd(rebuildCost(w.cfg, t))} FD</Btn>
+          ) : null}
+          {mine && t.status === "idle" ? <Btn onClick={() => act({ type: "park_truck", truckId: t.id }, "Truck parked", "truck:park")}>Park</Btn> : null}
+          {t.status === "parked" ? <Btn onClick={() => act({ type: "unpark_truck", truckId: t.id }, "Truck back on the road")}>Back on the road</Btn> : null}
+          {mine && (t.status === "idle" || t.status === "parked") && myTrucks().length > 1 ? (
+            <Btn
+              onClick={(ev) => {
+                const value = truckValue(w, t);
+                confirmAct({ verb: "Sell", item: `truck ${idx + 1}`, costFd: null, costLine: "", ...sellLines(idx + 1, value), go: `Sell · ${fdFull(value)} FD`, run: () => act({ type: "list_truck", truckId: t.id, askFd: value, floorFd: value * 0.6, stepFd: value * 0.05 }, `Listed at ${fd(value)} FD; the price drops 5% a week until it sells`) }, ev);
+              }}
+            >
+              Sell
+            </Btn>
+          ) : null}
+          {t.lease === "lessor" && t.status === "idle" ? <Btn onClick={() => act({ type: "return_lease", truckId: t.id }, "Lease returned")}>Return lease</Btn> : null}
+          <TruckAssetActions t={t} />
+          {t.defects > 0 && (t.status === "idle" || t.status === "parked") ? (
+            <Btn onClick={() => act({ type: "fix_defects", truckId: t.id }, "Defects fixed")}>
+              Fix {plural(t.defects, "defect")} · {fd(t.defects * w.cfg.safety.maintenance.fixFdPerDefect)} FD
+            </Btn>
+          ) : null}
+  </>
+  );
   return (
     <Card
       sel={t.id === S.selTruck}
@@ -186,49 +234,9 @@ function TruckCard({ t, idx }: { t: Truck; idx: number }): JSX.Element {
         <Num>{Math.round(t.odometer).toLocaleString("en-US")} mi</Num>
       </div>
       <TrailerLines t={t} />
+      {/* R6: on a phone the row keeps at most its two main actions; the rest, scrap last, go under ⋯ (player2-ux.md section 1). */}
       <div class="row" onClick={stop}>
-        {t.status === "idle" ? (
-          <>
-            <Btn onClick={() => goLoads(t.id)}>{TRUCK.bidByHand}</Btn>
-            <select id={`send-${t.id}`} aria-label="Destination hub">
-              {nearby.map((x) => (
-                <option value={x.h.id} key={x.h.id}>
-                  {emptyLine(t, x.i)} · {openLoadsAt(x.i).filter((l) => l.equipment === t.trailer).length} loads
-                </option>
-              ))}
-            </select>
-            <Btn
-              onClick={() => {
-                const hubId = (document.getElementById(`send-${t.id}`) as HTMLSelectElement).value;
-                act({ type: "reposition_truck", truckId: t.id, hubId }, TRUCK.sentEmpty, "truck:sendEmpty");
-              }}
-            >
-              Send empty
-            </Btn>
-          </>
-        ) : null}
-        {mine && t.status === "idle" && cond <= w.cfg.wear.rebuildMaxCondition && rebuildable(w.cfg, t) ? (
-          <Btn onClick={() => act({ type: "rebuild_truck", truckId: t.id }, "Truck is in the shop for two days", "truck:rebuild")}>Rebuild · {fd(rebuildCost(w.cfg, t))} FD</Btn>
-        ) : null}
-        {mine && t.status === "idle" ? <Btn onClick={() => act({ type: "park_truck", truckId: t.id }, "Truck parked", "truck:park")}>Park</Btn> : null}
-        {t.status === "parked" ? <Btn onClick={() => act({ type: "unpark_truck", truckId: t.id }, "Truck back on the road")}>Back on the road</Btn> : null}
-        {mine && (t.status === "idle" || t.status === "parked") && myTrucks().length > 1 ? (
-          <Btn
-            onClick={() => {
-              const value = truckValue(w, t);
-              act({ type: "list_truck", truckId: t.id, askFd: value, floorFd: value * 0.6, stepFd: value * 0.05 }, `Listed at ${fd(value)} FD; the price drops 5% a week until it sells`);
-            }}
-          >
-            Sell
-          </Btn>
-        ) : null}
-        {t.lease === "lessor" && t.status === "idle" ? <Btn onClick={() => act({ type: "return_lease", truckId: t.id }, "Lease returned")}>Return lease</Btn> : null}
-        <TruckAssetActions t={t} />
-        {t.defects > 0 && (t.status === "idle" || t.status === "parked") ? (
-          <Btn onClick={() => act({ type: "fix_defects", truckId: t.id }, "Defects fixed")}>
-            Fix {plural(t.defects, "defect")} · {fd(t.defects * w.cfg.safety.maintenance.fixFdPerDefect)} FD
-          </Btn>
-        ) : null}
+        {t.status === "idle" ? <Btn onClick={() => goLoads(t.id)}>{TRUCK.bidByHand}</Btn> : null}
         {!crewed(t) ? (
           <>
             <span class="bad small">{TRUCK.noDriver(idx + 1)}</span>
@@ -240,6 +248,14 @@ function TruckCard({ t, idx }: { t: Truck; idx: number }): JSX.Element {
         {t.status === "idle" && crewed(t) && !resting(w, t) && hubMiles(w, c.homeHub, t.hub) > w.cfg.map.nearbyRadiusMi ? (
           <Btn onClick={() => act({ type: "send_home", truckId: t.id }, "Heading home for days off", "truck:sendHome")}>{homeRun(t)}</Btn>
         ) : null}
+        {isPhone() ? (t.status === "idle" || t.status === "parked" || t.defects > 0 ? (
+          <details class="overflow">
+            <summary aria-label="More actions">⋯</summary>
+            <div class="row">{more}</div>
+          </details>
+        ) : null) : (
+          more
+        )}
       </div>
     </Card>
   );

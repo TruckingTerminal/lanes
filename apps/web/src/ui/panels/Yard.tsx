@@ -20,32 +20,16 @@ import {
   yardTrucks,
   type Truck,
 } from "@lanes/engine";
-import { dateLabel, fd, pct, TRAILER_NAME } from "../../format.js";
-import { act, me, myTrucks, S, setTab, useData } from "../../state.js";
+import { dateLabel, fd, pct, TRAILER_NAME, fdFull } from "../../format.js";
+import { act, me, myTrucks, S, setTab, truckNo, useData } from "../../state.js";
 import { Btn, Card, Kv, Num } from "../bits.js";
+import { confirmAct } from "../Confirm.js";
+import { scrap as scrapLines } from "../../confirmspecs.js";
+import { CONFIRM } from "../../copy.js";
 
 const TYPES: Equipment[] = ["van", "reefer", "flatbed"];
 const name = (e: Equipment) => TRAILER_NAME[e].toLowerCase();
 const num = (id: string): number => Number((document.getElementById(id) as HTMLInputElement | null)?.value);
-
-/** A button that asks once more before an action that can't be undone (the viewer refuses confirm dialogs). */
-export function ConfirmBtn({ label, confirmLabel, onConfirm, sm }: { label: string; confirmLabel?: string; onConfirm: () => void; sm?: boolean }): JSX.Element {
-  const [armed, setArmed] = useState(false);
-  return armed ? (
-    <>
-      <Btn sm={sm} danger onClick={() => (setArmed(false), onConfirm())}>
-        {confirmLabel ?? "Yes, do it"}
-      </Btn>
-      <Btn sm={sm} ghost onClick={() => setArmed(false)}>
-        Keep it
-      </Btn>
-    </>
-  ) : (
-    <Btn sm={sm} onClick={() => setArmed(true)}>
-      {label}
-    </Btn>
-  );
-}
 
 /** Assets: what a truck pulls, the tractor's life left, and a lease it runs under. */
 export function TrailerLines({ t }: { t: Truck }): JSX.Element | null {
@@ -128,7 +112,11 @@ export function TruckAssetActions({ t }: { t: Truck }): JSX.Element | null {
           <Btn onClick={() => act({ type: "offer_lease", truckId: t.id, weeklyFd: num(`lease-${t.id}`), minWeeks: 4 }, "Offered for lease: 4 weeks minimum")}>Offer for lease /wk</Btn>
         </>
       ) : null}
-      {standing && !leasedIn ? <ConfirmBtn label={`Scrap · ${fd(tractorScrapFd(w, t))} FD`} confirmLabel="Scrap the tractor" onConfirm={() => act({ type: "scrap_truck", truckId: t.id }, "Tractor scrapped; its trailer waits in the yard")} /> : null}
+      {standing && !leasedIn ? (
+        <Btn danger onClick={(ev) => confirmAct({ verb: "Scrap", item: `truck ${truckNo(t.id)}`, costFd: null, costLine: "", ...scrapLines(w, t, truckNo(t.id)), go: `Scrap · ${fdFull(tractorScrapFd(w, t))} FD`, destructive: true, run: () => act({ type: "scrap_truck", truckId: t.id }, "Tractor scrapped; its trailer waits in the yard") }, ev)}>
+          Scrap · {fd(tractorScrapFd(w, t))} FD (worth {fd(truckValue(w, t))})
+        </Btn>
+      ) : null}
       {leasedIn && t.status === "idle" ? <Btn onClick={() => act({ type: "return_lease", truckId: t.id }, "Back to its owner")}>Return to its owner</Btn> : null}
     </>
   );
@@ -177,7 +165,11 @@ export function YardCard(): JSX.Element | null {
                 Sell · {fd(value)}
               </Btn>
             ) : null}
-            {tr.status === "dropped" ? <ConfirmBtn sm label={`Scrap · ${fd(trailerScrapFd(w, tr))}`} confirmLabel="Scrap it" onConfirm={() => act({ type: "scrap_trailer", trailerId: tr.id }, "Trailer scrapped")} /> : null}
+            {tr.status === "dropped" ? (
+              <Btn sm danger onClick={(ev) => confirmAct({ verb: "Scrap", item: `this ${name(tr.type)}`, costFd: null, costLine: "", does: CONFIRM.scrapTrailer(name(tr.type), fd(trailerScrapFd(w, tr))), risk: CONFIRM.scrapRisk(fd(trailerValue(w, tr))), go: `Scrap · ${fdFull(trailerScrapFd(w, tr))} FD`, destructive: true, run: () => act({ type: "scrap_trailer", trailerId: tr.id }, "Trailer scrapped") }, ev)}>
+                Scrap · {fd(trailerScrapFd(w, tr))}
+              </Btn>
+            ) : null}
           </div>
         );
       })}

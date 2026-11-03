@@ -230,6 +230,10 @@ table.mini td:first-child { font-family: inherit; }
 .explainhead { flex: none; touch-action: none; display: flex; flex-direction: column; gap: 4px; }
 .explainhead .grab { align-self: center; width: 36px; height: 4px; border-radius: 2px; background: var(--border); margin: 4px 0 2px; }
 .explainhead > .row { flex-wrap: nowrap; align-items: flex-start; }
+/* R6: a truck card's secondary actions under ⋯ on a phone, a 44 px target. */
+.overflow > summary { list-style: none; display: inline-flex; align-items: center; justify-content: center; min-width: 44px; min-height: 44px; border: 1px solid var(--border); border-radius: 4px; cursor: pointer; }
+.overflow > summary::-webkit-details-marker { display: none; }
+.overflow[open] { flex-basis: 100%; }
 .explainhead .grow { min-width: 0; }
 .explainnow { padding: 6px 0; border-top: 1px solid var(--border); }
 .explainx { flex: none; width: 44px; height: 44px; border: 0; background: none; color: var(--text-secondary); font-size: 24px; cursor: pointer; }

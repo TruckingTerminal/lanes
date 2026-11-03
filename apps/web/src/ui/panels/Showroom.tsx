@@ -35,6 +35,8 @@ import type { Action } from "@lanes/engine";
 import { Btn, Card, Kv, Num } from "../bits.js";
 import { Rig } from "../Loop.js";
 import { Fig } from "../Explain.js";
+import { confirmAct } from "../Confirm.js";
+import { newTruck, trailer as trailerLines, usedTruck, type Lines } from "../../confirmspecs.js";
 
 const TIERS: TractorTier[] = ["workhorse", "highwayPro", "flagship"];
 const TYPES: Equipment[] = ["van", "reefer", "flatbed"];
@@ -92,6 +94,7 @@ export function Showroom(): JSX.Element {
               replacing={onLease}
               block={w.usedLot.stock < 1 ? DEALER.whyLotEmpty : rigRoom <= 0 ? DEALER.whyYard : null}
               action={{ type: "buy_asset", tier: "workhorse", trailer: tr, replaceNpcLease: onLease, used: true }}
+              lines={usedTruck(w, c, { ...lotSpec(w, tr), tier: "workhorse", trailer: tr, lease: "owned" })}
               ok="Ordered from the used lot"
             />
           ))}
@@ -123,6 +126,7 @@ export function Showroom(): JSX.Element {
                 replacing={onLease}
                 block={!rigLeft ? DEALER.whySupply : rigRoom <= 0 ? DEALER.whyYard : null}
                 action={{ type: "buy_asset", tier, trailer: tr, replaceNpcLease: onLease, dealershipId: rig.dealershipId || undefined }}
+                lines={newTruck(w, tier, tr, rig.days)}
                 ok={`Ordered. Delivery in ${plural(rig.days, "day")}`}
               />
               <div class="row">
@@ -139,6 +143,7 @@ export function Showroom(): JSX.Element {
                   replacing={onLease}
                   block={tractor.dealershipId || w.supply.tractor[tier] > 0 ? null : DEALER.whySupply}
                   action={{ type: "buy_asset", tier, trailer: tr, replaceNpcLease: onLease, tractorOnly: true, dealershipId: tractor.dealershipId || undefined }}
+                  lines={newTruck(w, tier, tr, tractor.days)}
                   ok="Tractor ordered. It hooks a spare from your yard, or a rental"
                 />
               ) : null}
@@ -155,7 +160,7 @@ export function Showroom(): JSX.Element {
           const src = bestSource(w, c.id, "trailer", "workhorse", tr);
           const left = src.dealershipId ? true : w.supply.trailer[tr] > 0;
           return (
-            <Btn key={tr} disabled={!(cash >= src.price && left && trailerRoom > 0)} onClick={() => act({ type: "buy_trailer", trailer: tr, dealershipId: src.dealershipId || undefined }, `Trailer ordered. Delivery in ${plural(src.days, "day")}`)}>
+            <Btn key={tr} disabled={!(cash >= src.price && left && trailerRoom > 0)} onClick={(ev) => confirmAct({ verb: "Buy", item: `a ${TRAILER_NAME[tr].toLowerCase()} trailer`, costFd: src.price, ...trailerLines(tr), run: () => act({ type: "buy_trailer", trailer: tr, dealershipId: src.dealershipId || undefined }, `Trailer ordered. Delivery in ${plural(src.days, "day")}`) }, ev)}>
               {TRAILER_NAME[tr]} · {fd(src.price)} · {src.days} d
             </Btn>
           );
@@ -175,7 +180,7 @@ export function Showroom(): JSX.Element {
               <span>
                 {TRAILER_NAME[tr.type]} · {pct(trailerCondition(w, tr))} · {Math.round(tr.odometer / 1000)}k mi · asking <Num>{fd(l.askFd)}</Num> (value {fd(trailerValue(w, tr))})
               </span>
-              <Btn sm disabled={cash < l.askFd || trailerRoom <= 0} onClick={() => act({ type: "buy_listing", listingId: l.id }, "Bought: it's in your yard")}>
+              <Btn sm disabled={cash < l.askFd || trailerRoom <= 0} onClick={(ev) => confirmAct({ verb: "Buy", item: `this ${TRAILER_NAME[tr.type].toLowerCase()}`, costFd: l.askFd, ...trailerLines(tr.type), run: () => act({ type: "buy_listing", listingId: l.id }, "Bought: it's in your yard") }, ev)}>
                 Buy
               </Btn>
             </div>
@@ -212,7 +217,7 @@ export function Showroom(): JSX.Element {
  * shown on a sheet before it acts; the lot, a new rig, a tractor alone or another carrier's listing. A disabled button
  * always says why, under it; a refusal from the rules shows there too, never as a toast.
  */
-export function Buy({ what, label, price, replacing, block, action, ok }: { what: string; label?: string; price: number; replacing: boolean; block: string | null; action: Extract<Action, { type: "buy_asset" }> | Extract<Action, { type: "buy_listing" }>; ok: string }): JSX.Element {
+export function Buy({ what, label, price, replacing, block, action, ok, lines }: { what: string; label?: string; price: number; replacing: boolean; block: string | null; action: Extract<Action, { type: "buy_asset" }> | Extract<Action, { type: "buy_listing" }>; ok: string; lines: Lines }): JSX.Element {
   const w = S.game!.w;
   const c = me();
   const [open, setOpen] = useState(false);
@@ -225,6 +230,9 @@ export function Buy({ what, label, price, replacing, block, action, ok }: { what
   const ef = w.cfg.equipmentFinance.purchase;
   // Iuliia's line for the purchase: the first truck of its own, or one more (iuliia-lines.md, Dealer).
   const said = myTrucks().some((t) => t.lease === "owned") || ordersOf(w, c.id).length ? "dealer:buyLater" : "dealer:buyFirst";
+  // R6: every truck bought asks first, on the card: what leaves cash now, what's left, what it is and its one risk.
+  const ask = (a: typeof action, ev: MouseEvent) =>
+    confirmAct({ verb: "Buy", item: what, costFd: a.finance ? p.loanNowFd ?? 0 : p.cashNowFd, ...lines, run: () => void go(a) }, ev);
   const go = async (a: typeof action) => {
     const r = await order(a, ok);
     if (!r.ok) return setRefused(r.reason);
@@ -236,7 +244,7 @@ export function Buy({ what, label, price, replacing, block, action, ok }: { what
   return (
     <div class="stack buy">
       <div class="row">
-        <Btn primary disabled={cashWhy !== null} onClick={() => void go(action)}>
+        <Btn primary disabled={cashWhy !== null} onClick={(ev) => ask(action, ev)}>
           {label ?? what} · {fd(price)}
         </Btn>
         {p.loan && !block ? (
@@ -275,7 +283,7 @@ export function Buy({ what, label, price, replacing, block, action, ok }: { what
           />
           <p class="warn small">{DEALER.missed(ef.missedToDefault)}</p>
           <div class="row">
-            <Btn primary disabled={loanWhy !== null} onClick={() => void go({ ...action, finance: true })}>
+            <Btn primary disabled={loanWhy !== null} onClick={(ev) => ask({ ...action, finance: true }, ev)}>
               {DEALER.buyLoan(fd(p.loanNowFd ?? 0))}
             </Btn>
             <Btn ghost onClick={() => setOpen(false)}>

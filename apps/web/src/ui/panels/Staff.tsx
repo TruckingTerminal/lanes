@@ -8,6 +8,10 @@ import { Btn, Card, Kv, Panel } from "../bits.js";
 import { SCENES, staffFace } from "../../assets.js";
 import { Portrait, Scene } from "../Loop.js";
 import { PendingCard } from "./Fleet.js";
+import { confirmAct } from "../Confirm.js";
+import { hire as hireLines, weeklyKept } from "../../confirmspecs.js";
+import { CONFIRM } from "../../copy.js";
+import { MILES_PER_MONTH } from "../../finance.js";
 
 const num = (id: string): number => Number((document.getElementById(id) as HTMLInputElement | null)?.value);
 const sel = (id: string): string | undefined => (document.getElementById(id) as HTMLSelectElement | null)?.value;
@@ -74,9 +78,15 @@ export function Staff(): JSX.Element {
     const truckId = Number(sel(`${team ? "team" : "seat"}-${s.id}`));
     act({ type: "assign_driver", staffId: s.id, truckId, team }, team ? "Co-driver seated: the truck runs as a team" : "Driver seated");
   };
-  const hire = (s: StaffT, pay: number, kind: "hire" | "poach") => {
+  const hire = (s: StaffT, pay: number, kind: "hire" | "poach", ev?: MouseEvent) => {
     const v = sel(`${kind}-${s.id}`);
-    act({ type: "offer_staff", staffId: s.id, pay, truckId: v ? Number(v) : undefined }, kind === "hire" ? "Hired" : "Offer made: their employer has two days to match", kind === "hire" ? (s.kind === "driver" ? "staff:hireDriver" : s.kind === "dispatcher" ? "staff:hireDispatcher" : "staff:hireManager") : undefined);
+    const run = () => act({ type: "offer_staff", staffId: s.id, pay, truckId: v ? Number(v) : undefined }, kind === "hire" ? "Hired" : "Offer made: their employer has two days to match", kind === "hire" ? (s.kind === "driver" ? "staff:hireDriver" : s.kind === "dispatcher" ? "staff:hireDispatcher" : "staff:hireManager") : undefined);
+    // R6: a hire asks first only when its weekly wage passes what the company kept in a week lately (a driver's per-mile
+    // pay at a month's miles).
+    const weekly = s.kind === "driver" ? (pay * MILES_PER_MONTH) / (w.cfg.time.daysPerMonth / 7) : pay;
+    const kept = weeklyKept(w, me());
+    if (kind === "hire" && weekly > kept) confirmAct({ verb: "Hire", item: s.name, costFd: null, costLine: CONFIRM.hireCost(fd(weekly)), ...hireLines(s.name, weekly, kept), go: `Hire ${s.name}`, run }, ev);
+    else run();
   };
 
   const PersonCard = ({ s }: { s: StaffT }) => {
@@ -175,7 +185,7 @@ export function Staff(): JSX.Element {
                   <TruckOptions pick={openSeat} />
                 </select>
               ) : null}
-              <Btn sm onClick={() => hire(s, ask, "hire")}>
+              <Btn sm onClick={(ev) => hire(s, ask, "hire", ev)}>
                 Hire
               </Btn>
             </div>

@@ -14,6 +14,7 @@ export function Btn({
   title,
   label,
   onClick,
+  onPointerDown,
   icon,
   type,
   children,
@@ -29,13 +30,14 @@ export function Btn({
   /** The accessible name, when the visible text alone isn't it (a ✕). */
   label?: string;
   onClick?: (ev: MouseEvent) => void;
+  onPointerDown?: (ev: PointerEvent) => void;
   icon?: string;
   type?: "button" | "submit";
   children?: ComponentChildren;
   class?: string;
 }): JSX.Element {
   return (
-    <button type={type ?? "button"} class={cls("btn", primary && "primary", danger && "danger", ghost && "ghost", sm && "sm", on && "on", extra)} disabled={disabled} title={title} aria-label={label} aria-pressed={on} onClick={onClick}>
+    <button type={type ?? "button"} class={cls("btn", primary && "primary", danger && "danger", ghost && "ghost", sm && "sm", on && "on", extra)} disabled={disabled} title={title} aria-label={label} aria-pressed={on} onClick={onClick} onPointerDown={onPointerDown}>
       {icon ? <img class="px" src={iconUrl(icon, 2)} alt="" /> : null}
       {children}
     </button>

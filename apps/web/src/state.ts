@@ -80,6 +80,8 @@ export const S = {
   /** The explain sheet while open: the figure's key, what it was computed from, its label and value (ui/Explain.tsx). */
   /** The milestone line on the caption now (caption rule 3), kept until its button or a change of tab. */
   milestone: null as null | { key: string; phase: "before" | "at"; tab: string; at: number },
+  /** The confirm card open now (R6, ui/Confirm.tsx), and when it opened (its confirm is inert for ui.tapSettleMs). */
+  confirm: null as null | import("./ui/Confirm.js").ConfirmSpec & { openedAt: number; swap: boolean; tab: string },
   /** The player's last order: on which tab, at which real time (R2: a caption line retires when the player acts on another screen). */
   lastAct: null as null | { tab: string; at: number },
   /** The next-truck gap as last shown, and what moved it since the player last opened its explanation (row 4). */

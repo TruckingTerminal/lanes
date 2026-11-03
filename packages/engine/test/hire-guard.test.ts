@@ -6,7 +6,7 @@ import { addTruck, askingPay, autoStaff, companyAccount, createWorld, formCompan
 // R8 (studio/reviews/director-player2.md; sized in studio/reviews/economy-player2.md §3): auto-staff never hires while
 // cash covers less than guard.hireCoverWeeks weeks of the new wages, and a player's auto-staff can start off.
 const net = buildNetwork(hubs, cfg);
-const r8: EconomyConfig = { ...cfg, guard: { hireCoverWeeks: 4, hireCoverHumansOnly: false, autoStaffDefault: false } };
+const r8: EconomyConfig = { ...cfg, guard: { ...cfg.guard, hireCoverWeeks: 4, hireCoverHumansOnly: false, autoStaffDefault: false } };
 const world = (c: EconomyConfig, seed = 1): World => createWorld({ cfg: c, net, feeds: neutralFeeds, seed });
 const fleet = (w: World, trucks: number, human = false) => {
   const c = formCompany(w, { name: "Fleet", role: "carrier", homeHubId: "DAL", strategy: "test", orders: [], freePath: false, human });

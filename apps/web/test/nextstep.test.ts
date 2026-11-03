@@ -1,7 +1,10 @@
 import { describe, expect, it } from "vitest";
 import { companyAccount } from "@lanes/engine";
 import { blockReason, boardRows } from "../src/board.js";
-import { DELIVERED, MOVE, SECURITY } from "../src/copy.js";
+import { CONFIRM, DELIVERED, MOVE, SECURITY } from "../src/copy.js";
+import { item, usedTruck } from "../src/confirmspecs.js";
+import { confirmSpend } from "../src/ui/Confirm.js";
+import { S } from "../src/state.js";
 import { breakdown } from "../src/explain.js";
 import { shortDate } from "../src/format.js";
 import { emptyRun, paidLine } from "../src/rolling.js";
@@ -214,6 +217,30 @@ describe("sprint 3's cheap list", () => {
     const other = w.net.hubs.findIndex((_, i) => i !== truck.hub);
     const run = emptyRun(w, truck, truck.hub, other);
     expect(MOVE.home(run.mi, run.fd, run.time)).toMatch(/^Home · [\d,]+ mi empty · about [\d,]+ FD · (\d+ h|1 day|\d+ days)$/);
-    expect([SECURITY.band(1), SECURITY.band(1.5), SECURITY.band(2.4)]).toEqual(["quiet", "watch", "high"]);
+    expect([SECURITY.band(1), SECURITY.band(1.5), SECURITY.band(2.4)]).toEqual(["quiet", "watch", "risky"]);
+  }, 60_000);
+});
+
+describe("the confirm card (R6)", () => {
+  it("asks over a quarter of cash or for anything that can't be undone, and says the writer's lines", async () => {
+    const { g, c, truck } = await fresh();
+    const w = g.w;
+    S.game = g as never;
+    const cash = w.ledger.balance(companyAccount(c.id));
+    let ran = 0;
+    const spec = (costFd: number) => ({ verb: "Buy", item: "it", costFd, does: "x", risk: null, run: () => ran++ });
+    confirmSpend(spec(cash * 0.2));
+    expect(ran).toBe(1);
+    expect(S.confirm).toBeNull();
+    confirmSpend(spec(cash * 0.3));
+    expect(ran).toBe(1);
+    expect(S.confirm?.verb).toBe("Buy");
+    S.confirm = null;
+    // The lines, from this truck's own figures.
+    const used = usedTruck(w, c, { tier: "workhorse", trailer: "van", lease: "owned", odometer: 900_000, milesSinceRebuild: 300_000, rebuilds: 2 }, w.net.hubs.findIndex((_, i) => i !== c.homeHub));
+    expect(used.does).toMatch(/^A used Workhorse with a dry van: \d+% of its life left, no rebuilds\. It's at .+, [\d,]+ miles from home\.$/);
+    expect(used.risk).toMatch(/^It runs until it's worn out, then goes for scrap, for about [\d,]+ FD\. Bringing it home takes a driver and empty miles\.$/);
+    expect(item(w, c, "aero", truck, 1, 5000).risk).toBe(CONFIRM.paybackUnknown);
+    S.game = null;
   }, 60_000);
 });
