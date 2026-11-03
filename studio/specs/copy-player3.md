@@ -40,6 +40,28 @@ The two What now? forms replace `now.idle.reason` in `guidance-strings.md` whene
 
 The two gap lines from diary 1, row 4 (the cheapest truck changed; the first week closed) stay as written in `copy-player1.md`.
 
+## Your draw, and the hold (the economy's section 5, diary 1 row 5, diary 3 row 6)
+
+**Your draw.** The owner-driver's `{labor.owner.driverPayPerMile}` FD a mile stays, named for what it is: the living the owner takes out of the business. It must never read as pay that will arrive.
+
+| Key | Where | String |
+|---|---|---|
+| `money.draw` | Money, This week's costs | Your draw · `{fd}` FD: what you take home to live on |
+| `DELIVERED.driverOwner` | the delivered card's row | Your draw · −`{fd}` FD |
+| explain `pay.ownerDraw`, what | | Your draw: the living you take out of the business for driving. |
+| explain `pay.ownerDraw`, how | | `{labor.owner.driverPayPerMile}` FD for each mile you drive, taken out of each load like a wage. |
+| explain `pay.ownerDraw`, moves | | The miles you drive yourself. It leaves the business; nothing arrives later. |
+
+A hired driver's row stays "Driver's pay · `{name}`".
+
+**The hold** stays at `{holdPct}` of each leased load (the economy keeps 30% for this restart). Every line about it says, in one breath, that it is the player's own money, counted in full, and why it is a share of each load.
+
+| Key | Where | String |
+|---|---|---|
+| Money's held line, note | first visit (`copy-player1.md`, row 2) | Your own money: `{holdPct}` of each leased load, so you never pay the deposit as a lump. It counts in full when you buy. |
+| explain `money.held`, what | | Your own money, held toward your truck: a share of each leased load, not a fee. |
+| explain `money.held`, moves | | Every leased load adds to it until the deposit is full. It counts in full when you buy. |
+
 ## R13, show now: the paperwork
 
 | Key | Where | String |

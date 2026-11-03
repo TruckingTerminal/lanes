@@ -41,7 +41,7 @@ The explain entry `market.security` is in `guidance-strings.md`.
 | Profit chip, a leased truck | +`{profit}` · `{lands}` to you · `{held}` held toward your truck |
 | Profit chip, once the deposit is full | +`{profit}` · all of it to you |
 | Money, a line under Cash (`DELIVERED.held`'s neighbour) | Held toward your truck · `{fd}` FD in all |
-| Its note, first visit | `{holdPct}` of each leased load is kept for you until you buy. It counts in full then. |
+| Its note, first visit | Your own money: `{holdPct}` of each leased load, so you never pay the deposit as a lump. It counts in full when you buy. |
 | Delivered card row (`DELIVERED.held`) | Held toward your own truck (kept) |
 | Step 4, `brief` | Delivered, and paid today. Money shows the lessor's share and the `{holdPct}` held toward your own truck. |
 | Step 4, full text, second paragraph | "The lease also holds a little back" becomes "The lease also holds `{holdPct}` of each load back" |
@@ -63,6 +63,8 @@ Engineering traced the next-truck gap's jumps to two causes. Each gets a line on
 | Its note, a leased truck only | Your leased truck is on the lessor's policy, so you pay none of it until you own a truck. | kept |
 
 ## Row 5: your pay for driving
+
+**Resolved (the economy, `reviews/economy-player34.md` section 5c):** it is the owner's draw, the living taken out of the business, paid to no one. The strings are in `copy-player3.md`, "Your draw"; the two forms below are retired.
 
 The economy says where an owner-driver's pay goes **[economy]**. Two forms, one ships:
 

@@ -257,8 +257,8 @@ UX's button and link; engineering's per-figure answers, passed. A figure with a 
 | `pay.fuelTax` | Tax on every gallon you burn, billed at the month's close. | `{fuelTaxPerGal}` FD a gallon, on the road and idling, added up over the month. | Gallons: fewer empty miles, less idling, a make with better mpg. |
 | `pay.maintenance` | Wear on the truck from these miles. | The tractor's cost per mile, times the miles. | The make, the truck's condition, a timely rebuild. |
 | `pay.insurance` | Your policy's cost for this period. | Base premium, times your record, your home hub and the market. | A clean safety record; your home hub. |
-| `pay.ownerPay` | Your wage as the driver. | Your driver's rate per mile, times the miles. | Your pay setting. (Where it goes: `copy-player1.md`, row 5, once the economy says.) |
-| `money.held` | Money kept from each leased load toward a truck of your own. | `{holdPct}` of each leased settlement, until it reaches `{depositPct}` of the truck's value. | Every leased load adds to it. It counts in full when you buy. |
+| `pay.ownerDraw` | Your draw: the living you take out of the business for driving. | `{labor.owner.driverPayPerMile}` FD for each mile you drive, taken out of each load like a wage. | The miles you drive yourself. It leaves the business; nothing arrives later. |
+| `money.held` | Your own money, held toward your truck: a share of each leased load, not a fee. | `{holdPct}` of each leased settlement, until it reaches `{depositPct}` of the truck's value. | Every leased load adds to it until the deposit is full. It counts in full when you buy. |
 
 ### Standing
 
