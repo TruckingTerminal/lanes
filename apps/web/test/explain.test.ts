@@ -2,8 +2,9 @@ import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it, vi } from "vitest";
 import { cashNowRate, companyAccount, truckValue } from "@lanes/engine";
-import { boardRows } from "../src/board.js";
-import { EXPLAIN } from "../src/copy.js";
+import { boardRows, depositWhole, leaseHold } from "../src/board.js";
+import { BOARD, EXPLAIN } from "../src/copy.js";
+import { fdFull } from "../src/format.js";
 import { breakdown, FIRST_MONTH_KEYS } from "../src/explain.js";
 import { GAME_CONFIG, TestGame } from "../src/game.js";
 import { dueMilestone, history, milestones } from "../src/milestones.js";
@@ -93,7 +94,7 @@ describe("the walkthrough's words for a fleet that owns its trucks", () => {
     for (const line of [stepText(paid, g.w, fleet).brief, ...stepText(paid, g.w, fleet).say, stepDo(paid, g.w, fleet)]) expect(line).not.toMatch(wrong);
     const g1 = await TestGame.create();
     const leased = g1.join("Lease Freight", "oo", "LAX")!;
-    expect(stepText(paid, g1.w, leased).brief).toMatch(/lessor sees/);
+    expect(stepText(paid, g1.w, leased).brief).toMatch(/lessor.s share and the 30% held/);
   }, 60_000);
 });
 
@@ -248,5 +249,42 @@ describe("cash it now's figures (explain.ts)", () => {
     } finally {
       [pay.enabled, pay.cashNow.enabled] = was as [boolean, boolean];
     }
+  }, 60_000);
+});
+
+describe("the hold toward your own truck (the director's row 2)", () => {
+  it("the chip holds back what the settlement holds, says what lands, and Money's explain totals it", async () => {
+    const g = await TestGame.create();
+    const c = g.join("Hold Freight", "oo", "LAX")!;
+    const truck = g.w.trucksByCompany.get(c.id)![0]!;
+    expect(truck.lease).toBe("npc");
+    expect(truck.depositDueFd).toBeGreaterThan(0);
+    const row = boardRows(g.w, c, truck, { dest: "any", maxDh: 300, query: "" }).find((r) => !r.block && r.profitBook > 0)!;
+    expect(row.heldBook).toBeCloseTo(Math.min(truck.depositDueFd - truck.depositFd, row.total * GAME_CONFIG.freeEntry.leases.byValue.escrowShareOfPay), 6);
+    const chip = BOARD.chipHeld(fdFull(row.profitBook), fdFull(row.profitBook - row.heldBook), fdFull(row.heldBook));
+    expect(chip).toMatch(/^\+[\d,]+ · [\d,]+ to you · [\d,]+ held toward your truck$/);
+    // Book it at book-now and deliver: the deposit grows by exactly what the chip held.
+    const before = truck.depositFd;
+    expect(g.act({ type: "book_load", truckId: truck.id, loadId: row.l.id }).ok).toBe(true);
+    for (let h = 0; h < 24 * 6 && c.delivered === 0; h++) g.stepHour();
+    expect(c.delivered).toBe(1);
+    expect(truck.depositFd - before).toBeCloseTo(row.heldBook, 2);
+    const b = breakdown(g.w, c, "truck.leaseDeposit", {})!;
+    expect(b.total.value).toBe(`${Math.round(truck.depositFd).toLocaleString("en-US")} FD`);
+    // The hold is the player's money, held: the cushion's spending leaves it out (ledger NOT_OUTFLOW "deposit:").
+    const out = g.w.ledger.outflowCents(companyAccount(c.id));
+    g.w.ledger.post(g.w.t, companyAccount(c.id), "sink:lease_deposit", 100, `deposit:${truck.id}`);
+    expect(g.w.ledger.outflowCents(companyAccount(c.id))).toBe(out);
+  }, 120_000);
+
+  it("once the deposit is whole nothing more is held, and the chip says all of it lands", async () => {
+    const g = await TestGame.create();
+    const c = g.join("Whole Freight", "oo", "LAX")!;
+    const truck = g.w.trucksByCompany.get(c.id)![0]!;
+    truck.depositFd = truck.depositDueFd;
+    expect(depositWhole(truck)).toBe(true);
+    const row = boardRows(g.w, c, truck, { dest: "any", maxDh: 300, query: "" }).find((r) => !r.block)!;
+    expect(row.heldBook).toBe(0);
+    expect(leaseHold(g.w, { ...truck, lease: "owned" }, 10_000)).toBe(0);
   }, 60_000);
 });

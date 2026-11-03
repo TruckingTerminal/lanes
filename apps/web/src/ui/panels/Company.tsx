@@ -5,6 +5,7 @@ import { cls, dateLabel, fd, pct, signedPct, TRAILER_NAME } from "../../format.j
 import { H } from "../../handlers.js";
 import { act, clockMin, openIntel, S, useData } from "../../state.js";
 import { INTEL } from "../../copy.js";
+import { weekCosts } from "../../ledger.js";
 import { Fig } from "../Explain.js";
 import { Btn, Card, Kv, Label, Num, Panel } from "../bits.js";
 import { ContractsCard } from "./Contracts.js";
@@ -233,6 +234,9 @@ function HomeAndInsurance({ c }: { c: CompanyT }): JSX.Element {
   const hub = w.net.hubs[c.homeHub]!;
   const r = homeCrowding(w)[c.homeHub]!;
   const p = c.insurance;
+  // One insurance figure everywhere (the director's row 4): the week's bill, as Money shows it, ahead of the policy's price.
+  const week = weekCosts(w, c).insurance;
+  const lessorCovers = week < 0.5 && (w.trucksByCompany.get(c.id) ?? []).some((t) => t.lease === "npc");
   return (
     <>
       <Card title={`Home market: ${hub.name}`}>
@@ -247,11 +251,12 @@ function HomeAndInsurance({ c }: { c: CompanyT }): JSX.Element {
       <Card title="Insurance">
         <Kv
           rows={[
-            ["Policy", <Fig k="pay.insurance" label="Insurance"><Num>{fd(p.annualPerTruck)} FD per truck a year ({fd(p.annualPerTruck / 52)} a week), renews {dateLabel(p.renewDay)}</Num></Fig>],
+            ["Policy", <Fig k="pay.insurance" label="Insurance"><Num>{fd(week)} FD a week now · {fd(p.annualPerTruck)} FD a year for each truck you insure, renews {dateLabel(p.renewDay)}</Num></Fig>],
             ["Priced from", `your record ×${p.risk.toFixed(2)} · ${hub.id} garaging ×${p.garaging.toFixed(2)} · market ×${p.market.toFixed(2)}`],
             ["Insurance market", `index ×${w.insuranceMarket.index.toFixed(2)} · insurers paid out ${pct(lossRatio(w))} of premiums this year`],
           ]}
         />
+        {lessorCovers ? <p class="muted small">Your leased truck is on the lessor's policy, so you pay none of it until you own a truck.</p> : null}
         <p class="muted small">The price holds for the year. A serious at-fault crash, or a review that changes your rating, gets the policy re-written on the spot.</p>
       </Card>
     </>

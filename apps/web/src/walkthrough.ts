@@ -99,10 +99,10 @@ export function walkSteps(cfg: EconomyConfig, hub = "your home hub"): WalkStep[]
       title: "Getting paid",
       tab: "money",
       mood: "point",
-      brief: "Delivered, and paid today: the lessor sees to that. Money shows its share and the hold toward your own truck.",
+      brief: `Delivered, and paid today. Money shows the lessor's share and the ${pct(cfg.freeEntry.leases.byValue.escrowShareOfPay)} held toward your own truck.`,
       say: [
         `Delivered, and paid the same day. That's the lease: the lessor holds the paper and pays you on delivery, less its share. When you haul with a truck of your own, you'll invoice the shipper yourself, and shippers pay net-30: thirty game days after the work. Quick pay brings that forward for ${pct(cfg.token.payment.quickPayPct)}; an instrument for emergencies, not a policy. Companies that live on quick pay receive a goodbye note from me. Handwritten. Fountain pen.`,
-        `What arrives is net of the lessor's ${pct(cfg.costs.npcLeaseShareOfGross)}. The lease also holds a little back from each load toward a truck of your own; you'll see it again when you buy, so don't mourn it. Money shows both. Watch the cash line at the top of the screen every day, the way my grandmother watched the samovar. Trust, and verify. Mostly verify.`,
+        `What arrives is net of the lessor's ${pct(cfg.costs.npcLeaseShareOfGross)}. The lease also holds ${pct(cfg.freeEntry.leases.byValue.escrowShareOfPay)} of each load back toward a truck of your own; you'll see it again when you buy, so don't mourn it. Money shows both. Watch the cash line at the top of the screen every day, the way my grandmother watched the samovar. Trust, and verify. Mostly verify.`,
       ],
       do: "On Money, find the lessor's share and the hold. Invoices come with a truck of your own.",
       why: "On a lease, pay lands on delivery and costs land as they come; what shrinks the pay is the lessor's share and the hold toward your own truck.",

@@ -158,6 +158,20 @@ const BREAKDOWNS: Record<string, Fn> = {
   "invoice.cashNowFee": (w, c, ctx) => cashNowParts(w, c, ctx, "fee"),
   "invoice.cashNowLands": (w, c, ctx) => cashNowParts(w, c, ctx, "lands"),
   "money.cash": (w, c) => ({ rows: [], total: { label: "Cash", value: fd(w.ledger.balance(companyAccount(c.id))) } }),
+  // The hold toward the player's own truck (the director's row 2): what each leased truck has held, against what its lease asks.
+  "truck.leaseDeposit": (w, c) => {
+    const k = w.cfg.freeEntry.leases.byValue;
+    const trucks = (w.trucksByCompany.get(c.id) ?? []).filter((t) => t.lease === "npc" && t.depositDueFd > 0.005);
+    if (!trucks.length) return null;
+    const held = trucks.reduce((s, t) => s + t.depositFd, 0);
+    return {
+      rows: [
+        { label: "Held from each leased load, until the deposit is whole", value: pct(k.escrowShareOfPay) },
+        ...trucks.map((t) => ({ label: trucks.length === 1 ? `Held so far, of ${fd(t.depositDueFd)}` : `Truck #${t.id}, of ${fd(t.depositDueFd)}`, value: fd(t.depositFd) })),
+      ],
+      total: { label: "Held toward your truck", value: fd(held) },
+    };
+  },
   "guide.cushion": (w, c) => {
     const cu = cushion(w, c);
     return {

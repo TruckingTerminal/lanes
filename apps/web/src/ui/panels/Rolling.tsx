@@ -62,7 +62,7 @@ export function DeliveredCard(): JSX.Element | null {
     ...(d.line.driver >= 0.5 ? [d.hiredDriver ? ([DELIVERED.driverHired(d.hiredDriver), minus(d.line.driver)] as [string, string]) : f("pay.ownerPay", DELIVERED.driverOwner, minus(d.line.driver))] : []),
     ...(d.line.upkeep >= 0.5 ? [f("pay.maintenance", DELIVERED.upkeep, minus(d.line.upkeep))] : []),
     ...(d.line.lessor >= 0.5 ? [f("pay.lessorShare", DELIVERED.lessor(pct(GAME_CONFIG.costs.npcLeaseShareOfGross)), minus(d.line.lessor), d.line.load)] : []),
-    ...(d.line.held >= 0.5 ? ([[DELIVERED.held, minus(d.line.held)]] as [string, string][]) : []),
+    ...(d.line.held >= 0.5 ? [f("truck.leaseDeposit", DELIVERED.held, minus(d.line.held))] : []),
   ];
   return (
     <Card class="delivered" title={DELIVERED.title(d.from, d.to)} right={<span class={cls("chip", d.lateH > 0 ? "bad" : "good")}>{d.lateH > 0 ? ROLLING.late(d.lateH) : ROLLING.onTime}</span>}>

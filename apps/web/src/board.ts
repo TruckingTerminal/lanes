@@ -18,6 +18,8 @@ export interface BoardRow {
   tolls: number;
   total: number;
   profitBook: number;
+  /** What the lease would hold back toward the player's own truck from the load at book-now (leaseHold). */
+  heldBook: number;
   suggest: number;
   profitSuggest: number;
   /** Why this company can't take it now, as the chip says it; null when it can. */
@@ -68,6 +70,20 @@ export function blockReason(w: World, c: Company, truck: Truck, l: Load): string
   return null;
 }
 
+/**
+ * What the lessor holds back toward the player's own truck from a load paying `grossFd`, as trips.ts settles it: a share
+ * of each leased load (freeEntry.leases.byValue.escrowShareOfPay) until the deposit is whole. It is the player's money,
+ * held, so the profit chip says it apart from what lands (the director's row 2).
+ */
+export function leaseHold(w: World, t: Truck, grossFd: number): number {
+  const owed = t.depositDueFd - t.depositFd;
+  if (t.lease === "owned" || owed <= 0.005 || grossFd <= 0) return 0;
+  return Math.min(owed, grossFd * w.cfg.freeEntry.leases.byValue.escrowShareOfPay);
+}
+
+/** A leased truck whose deposit is whole: nothing more is held, so the chip says all of the profit lands. */
+export const depositWhole = (t: Truck): boolean => t.lease !== "owned" && t.depositDueFd > 0.005 && t.depositDueFd - t.depositFd <= 0.005;
+
 /** Every open load this truck could haul within the filter, with its numbers. */
 export function boardRows(w: World, c: Company, truck: Truck, f: BoardFilter): BoardRow[] {
   const prof = dispatchProfile(w, c, operatingTrucks(w, c.id));
@@ -96,6 +112,7 @@ export function boardRows(w: World, c: Company, truck: Truck, f: BoardFilter): B
       tolls: tolls + l.routeTollFd,
       total: l.bookNow * l.miles,
       profitBook: (l.bookNow - be) * l.miles,
+      heldBook: leaseHold(w, truck, l.bookNow * l.miles),
       suggest,
       profitSuggest: (suggest - be) * l.miles,
       block: blockReason(w, c, truck, l),

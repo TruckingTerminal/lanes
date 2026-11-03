@@ -2,7 +2,7 @@ import type { JSX } from "preact";
 import { useEffect, useState } from "preact/hooks";
 import { MANUAL_BID_MAX_DEADHEAD_MI, VETTING_NAMES, type Truck } from "@lanes/engine";
 import { COMMODITIES } from "@lanes/data";
-import { bidRange, boardRows, clearsNear, posterOf, sortRows, type BoardRow, type BoardSort } from "../../board.js";
+import { bidRange, boardRows, clearsNear, depositWhole, posterOf, sortRows, type BoardRow, type BoardSort } from "../../board.js";
 import { BOARD, INTEL, LOAD, ROUND } from "../../copy.js";
 import { cls, fdFull, hhmm, pct, shortDate, TRAILER_NAME } from "../../format.js";
 import { nextRoundHour, nextRoundLabel, nextRoundWait, reloadLabel, roundProgress, seasonSwing } from "../../logic.js";
@@ -149,7 +149,7 @@ export function Loads(): JSX.Element {
       {sorted.length ? (
         <div class="loadcards">
           {sorted.slice(0, 60).map((r) => (
-            <LoadCard key={r.l.id} r={r} name={name} />
+            <LoadCard key={r.l.id} r={r} truck={truck} name={name} />
           ))}
         </div>
       ) : (
@@ -191,25 +191,33 @@ function openLoad(id: number | null): void {
   bumpData();
 }
 
-function Chips({ r }: { r: BoardRow }): JSX.Element {
+/** The profit at book-now as the chip says it: on a leased truck, what lands and what's held toward the player's truck (row 2). */
+function profitWords(r: BoardRow, truck: Truck): string | null {
+  if (r.profitBook < 0) return null;
+  if (r.heldBook >= 0.5) return BOARD.chipHeld(money(r.profitBook), signedMoney(r.profitBook - r.heldBook), money(r.heldBook));
+  return depositWhole(truck) ? BOARD.chipAllYours(money(r.profitBook)) : null;
+}
+const signedMoney = (x: number): string => `${x < 0 ? "−" : ""}${money(x)}`;
+
+function Chips({ r, truck }: { r: BoardRow; truck: Truck }): JSX.Element {
   if (r.block) return <span class="chip muted">{r.block}</span>;
   const up = r.profitBook >= 0;
   return (
     <>
-      <span class={cls("chip", up ? "good" : "bad")}>{BOARD.chipBook(money(r.profitBook), up)}</span>
+      <span class={cls("chip", up ? "good" : "bad")}>{profitWords(r, truck) ?? BOARD.chipBook(money(r.profitBook), up)}</span>
       {!up && r.profitSuggest > 0 ? <span class="chip muted">{BOARD.chipSuggest(money(r.profitSuggest), r.suggest.toFixed(2))}</span> : null}
     </>
   );
 }
 
-function LoadCard({ r, name }: { r: BoardRow; name: (i: number) => string }): JSX.Element {
+function LoadCard({ r, truck, name }: { r: BoardRow; truck: Truck; name: (i: number) => string }): JSX.Element {
   const { l } = r;
   return (
     <button type="button" class={cls("loadcard", r.block && "blocked")} onClick={() => openLoad(l.id)} title={`${name(l.origin)} → ${name(l.dest)}`}>
       <span class="l1">{BOARD.line1(place(l.originPlace), place(l.destPlace), Math.round(l.miles).toLocaleString("en-US"))}</span>
       <span class="l2 small">{BOARD.line2(fdFull(r.total), l.bookNow.toFixed(2), Math.round(r.dh))}</span>
       <span class="chips">
-        <Chips r={r} />
+        <Chips r={r} truck={truck} />
       </span>
     </button>
   );
@@ -360,7 +368,7 @@ function LoadSheet({ r, truck }: { r: BoardRow; truck: Truck }): JSX.Element {
           rows={[
             [LOAD.bookNow, <Fig k="board.bookNow" label={LOAD.bookNow} ctx={fx}>{`${fdFull(r.total)} FD · ${l.bookNow.toFixed(2)}/mi`}</Fig>],
             [LOAD.breakEven, <Fig k="truck.breakEven" label={LOAD.breakEven} ctx={fx}>{`${r.be.toFixed(2)}/mi`}</Fig>],
-            [LOAD.profitBook, <Fig k="board.profitChip" label={LOAD.profitBook} ctx={fx}><span class={bookUp ? "good" : "bad"}>{signed(r.profitBook)} FD</span></Fig>],
+            [LOAD.profitBook, <Fig k="board.profitChip" label={LOAD.profitBook} ctx={fx}><span class={bookUp ? "good" : "bad"}>{profitWords(r, truck) ?? `${signed(r.profitBook)} FD`}</span></Fig>],
             [LOAD.clearsNear, <Fig k="board.clearsNear" label={LOAD.clearsNear} ctx={fx}>{`${clearsNear(l).toFixed(2)}/mi`}</Fig>],
             [LOAD.ceiling, <Fig k="board.ceiling" label={LOAD.ceiling} ctx={fx}>{`${l.ceiling.toFixed(2)}/mi`}</Fig>],
           ]}

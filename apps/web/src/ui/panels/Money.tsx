@@ -1,7 +1,8 @@
 import type { JSX } from "preact";
+import { useEffect } from "preact/hooks";
 import { InvoiceRows } from "./CashNow.js";
 import { MoveMoneyLink } from "./Brokerage.js";
-import { averagePriceUsd, bridgeDelayDays, companyAccount, fdPriceUsd, lockedFd, sellableFd, tokenLive } from "@lanes/engine";
+import { averagePriceUsd, bridgeDelayDays, companyAccount, depositCredit, fdPriceUsd, lockedFd, sellableFd, tokenLive } from "@lanes/engine";
 import { cls, fd, fdFull, shortDate, usd } from "../../format.js";
 import { MONEY } from "../../copy.js";
 import { invoices, milesOf, weekCosts } from "../../ledger.js";
@@ -11,7 +12,7 @@ import { cushion, debtCountdown } from "../../figures.js";
 import { GUIDE_LABEL } from "../../copy.js";
 import { iuliiaFirst } from "../../iuliia.js";
 import { GAME_CONFIG } from "../../game.js";
-import { act, feed, me, S, useData } from "../../state.js";
+import { act, feed, me, S, setOnboard, useData } from "../../state.js";
 import { Btn, Card, Kv, Num, Panel, Sparkline } from "../bits.js";
 
 const num = (id: string): number => Number((document.getElementById(id) as HTMLInputElement | null)?.value);
@@ -31,6 +32,12 @@ export function Money(): JSX.Element {
   const week = weekCosts(w, c);
   const day = Math.floor(w.t / 1440);
   const cashHist = feed().history.map((h) => h.cash);
+  // The hold toward the player's own truck (row 2): its total under Cash, with a note on the first visit that shows it.
+  const held = depositCredit(w, c);
+  const heldNote = held >= 0.5 && !S.onboard.seen.includes("money:held");
+  useEffect(() => () => {
+    if (heldNote && !S.onboard.seen.includes("money:held")) setOnboard({ seen: [...S.onboard.seen, "money:held"] });
+  }, [heldNote]);
   let token: JSX.Element;
   if (!live) {
     const daysLeft = GAME_CONFIG.token.betaYears * 365 - day;
@@ -128,6 +135,12 @@ export function Money(): JSX.Element {
         <Fig k="money.trend" label={MONEY.cash}>
           <Sparkline values={cashHist.length ? [...cashHist, bal] : [bal, bal]} color="var(--accent)" />
         </Fig>
+        {held >= 0.5 ? (
+          <p class="small">
+            <Fig k="truck.leaseDeposit" label={MONEY.held}>{MONEY.heldValue(fdFull(held))}</Fig>
+          </p>
+        ) : null}
+        {heldNote ? <p class="muted small">{MONEY.heldNote(`${Math.round(w.cfg.freeEntry.leases.byValue.escrowShareOfPay * 100)}%`)}</p> : null}
         {/* Iuliia's figures (figures.ts): the cushion, and the countdown once cash is under the line. */}
         <p class="small">
           <Fig k="guide.cushion" label={GUIDE_LABEL.cushion}>{GUIDE_LABEL.cushionValue(cushion(w, c).weeks)}</Fig>
