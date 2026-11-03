@@ -8,7 +8,7 @@ import { Ledger, companyAccount } from "./ledger.js";
 import { truckCap } from "./staking.js";
 import { newPool } from "./pools.js";
 import { Rng } from "./rng.js";
-import type { BuybackWeek, BrokerageLog, GameEvent, TokenState, Company, Business, Facility, TruckStopSite, FinancePool, FactoringLog, PopulationState, FraudCase, LeaseKind, Listing, Load, ManagerKind, Pool, PoolLine, PurchaseLoan, Receivable, Role, SeasonCloseRecord, Staff, StandingOrder, Trailer, Truck, TruckOrder, Contract, LeaseOffer } from "./types.js";
+import type { BuybackWeek, BrokerageLog, GameEvent, TokenState, Company, Business, DriverClock, Facility, TruckStopSite, FinancePool, FactoringLog, PopulationState, FraudCase, LeaseKind, Listing, Load, ManagerKind, Pool, PoolLine, PurchaseLoan, Receivable, Role, SeasonCloseRecord, Staff, StandingOrder, Trailer, Truck, TruckOrder, Contract, LeaseOffer } from "./types.js";
 import { fitTrailer, handBack, hook, hookedTrailer, newTrailer } from "./trailers.js";
 import type { AssetSale } from "./assetSales.js";
 import { signPolicy } from "./insurance.js";
@@ -508,6 +508,23 @@ export function syncFleet(w: World, companyId: number): void {
 }
 
 /** Puts a driver on a truck (as co-driver if `team`). The caller checks the rules. */
+/** R12's keys on: the driver's clocks follow the driver, not the truck (red team pass 3). Off: they stay on the truck, as today. */
+export const clocksFollowDriver = (w: World): boolean => w.cfg.hos.restHours > 0 || w.cfg.hos.cycleHours > 0;
+
+function takeClock(truck: Truck): DriverClock {
+  return { shiftStartT: truck.shiftStartT, shiftDrivenMin: truck.shiftDrivenMin, overMin: truck.overMin, offDutySinceT: truck.offDutySinceT, breakShiftT: truck.breakShiftT, cycleMin: truck.cycleMin, cycleLastT: truck.cycleLastT };
+}
+
+function giveClock(truck: Truck, k: DriverClock): void {
+  truck.shiftStartT = k.shiftStartT;
+  truck.shiftDrivenMin = k.shiftDrivenMin;
+  truck.overMin = k.overMin;
+  truck.offDutySinceT = k.offDutySinceT;
+  truck.breakShiftT = k.breakShiftT;
+  truck.cycleMin = k.cycleMin;
+  truck.cycleLastT = k.cycleLastT;
+}
+
 export function seatDriver(w: World, s: Staff, truck: Truck, team = false): void {
   // Already in that seat: nothing to do (re-seating would knock the other driver out).
   if ((team && truck.coDriverId === s.id) || (!team && truck.driverId === s.id)) return;
@@ -517,6 +534,7 @@ export function seatDriver(w: World, s: Staff, truck: Truck, team = false): void
   else {
     if (truck.driverId) unseatDriver(w, staffById(w, truck.driverId));
     truck.driverId = s.id;
+    if (clocksFollowDriver(w) && s.clock) giveClock(truck, s.clock);
   }
   s.truckId = truck.id;
   s.unseatedWeeks = 0;
@@ -527,6 +545,7 @@ export function unseatDriver(w: World, s: Staff): void {
   if (!s.truckId) return;
   const truck = truckById(w, s.truckId);
   if (truck.driverId === s.id) {
+    if (clocksFollowDriver(w)) s.clock = takeClock(truck);
     truck.driverId = truck.coDriverId;
     truck.coDriverId = 0;
   } else if (truck.coDriverId === s.id) truck.coDriverId = 0;

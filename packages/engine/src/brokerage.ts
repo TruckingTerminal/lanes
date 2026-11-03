@@ -256,6 +256,8 @@ function trackClear(table: Record<string, [number, number]>, key: string, rate: 
 export function ownBand(w: World, load: Load): [number, number] {
   const [lo, hi] = w.cfg.brokerage.band;
   const m = laneRate(w, load);
+  // R17 (board.refuseOverCeiling): no load clears above its ceiling, the own-carrier tender included (red team pass 3).
+  if (w.cfg.board.refuseOverCeiling) return [Math.min(m * lo, load.ceiling), Math.min(m * hi, load.ceiling)];
   return [m * lo, m * hi];
 }
 

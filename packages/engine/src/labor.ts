@@ -235,6 +235,8 @@ function hire(w: World, c: Company, s: Staff, pay: number, truck: Truck | null, 
 /** Back to the pool (fired, quit, or the company folded). */
 export function releaseStaff(w: World, s: Staff): void {
   if (s.owner || s.status !== "employed") return;
+  // R16 (labor.underpayMemory): fired on an unhappy notice, they leave unhappy all the same (red team pass 3).
+  if (s.unhappyNotice && s.offer?.companyId === 0) rememberUnderpay(w, companyById(w, s.companyId));
   unseatDriver(w, s);
   const list = w.staffByCompany.get(s.companyId);
   const at = list ? list.indexOf(s) : -1;
@@ -244,6 +246,7 @@ export function releaseStaff(w: World, s: Staff): void {
   s.pay = 0;
   s.offer = null;
   if (s.unhappyNotice) s.unhappyNotice = false;
+  if (s.unhappyHeld) s.unhappyHeld = undefined;
   s.morale = w.cfg.labor.morale.start;
 }
 
@@ -262,6 +265,7 @@ export function setPay(w: World, s: Staff, pay: number): void {
     s.offer = null;
     s.unhappyNotice = false;
     s.morale = Math.max(s.morale, w.cfg.labor.morale.unhappyBelow + 0.05);
+    if (w.cfg.labor.underpayMemory.days > 0) s.unhappyHeld = { pay, day: today };
     notice(w, s.companyId, `${label(s)} is staying: you raised their pay in time.`, "good", s.truckId || undefined);
   } else if (s.offer && s.offer.companyId !== 0 && pay >= s.offer.pay) {
     const other = companyById(w, s.offer.companyId);
@@ -276,6 +280,13 @@ export function setPay(w: World, s: Staff, pay: number): void {
     s.morale = 0;
     s.offer = { companyId: 0, pay: 0, truckId: 0, day: today - w.cfg.labor.morale.noticeDays };
     notice(w, s.companyId, `${label(s)} is leaving: you cut the pay you matched to keep them.`, "bad", s.truckId || undefined);
+  } else if (s.unhappyHeld && !s.offer && pay < s.unhappyHeld.pay - 1e-9 && today - s.unhappyHeld.day < w.cfg.labor.underpayMemory.days) {
+    // R16: the raise that withdrew their notice, cut back while they still remember: the notice re-opens at once.
+    s.unhappyHeld = undefined;
+    s.morale = 0;
+    s.unhappyNotice = true;
+    s.offer = { companyId: 0, pay: 0, truckId: 0, day: today - w.cfg.labor.morale.noticeDays };
+    notice(w, s.companyId, `${label(s)} is leaving: you cut the raise that kept them.`, "bad", s.truckId || undefined);
   }
   if (s.truckId) syncTruck(w, truckById(w, s.truckId));
 }

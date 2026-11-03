@@ -1637,6 +1637,11 @@ export const economyConfig = {
       // alerts and the cooldown, and every audit reads the whole record, as today.
       auditDays: null as number | null,
       rereviewDays: { conditional: 90, unsatisfactory: 45 },
+      // R18's probation (economy-player34.md §3c): for this many days after an Unsatisfactory rating, a new alert since
+      // the last rating brings an audit within auditDays whatever the cooldown, and another Unsatisfactory revokes at
+      // once. It closes the loop the follow-up's window opens: cheat, clean up for the follow-up, pass, cheat again.
+      // null: no probation, as today.
+      probationDays: null as number | null,
       hiddenDetect: 0.35, // an audit finds each falsified log day or deferred-maintenance week this often
       fines: { falseLogDay: 1_000, maintenanceWeek: 300 },
       finesCap: 60_000,

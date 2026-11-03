@@ -562,9 +562,14 @@ are, all of them. Most of the rise, though, was a bug in my 70-hour clock, not R
   - the rating counts alerts from the inspections and violations since it (`measures(w, c, sinceDay)`);
   - the public record, which brokers and patrols read, keeps its two years.
   - So a company clean since its rating passes the follow-up, and one still cheating is revoked.
-  - It was built after the four-year runs in §3d. A company that cleans up after its rating gains from it. One still
-    cheating is judged on what it did since, which is most of what it was judged on before. So it can soften the
-    cutters' count a little and shouldn't raise it.
+  - **The window opens a loop, and the conduct re-run found it** (§3d). A bot that is rated Conditional or
+    Unsatisfactory runs straight until the follow-up (`ruleBots.ts setConduct`). It passes on the clean window, then
+    goes back to cheating, and the 180-day cooldown keeps the next audit away. A player can do the same.
+- **`safety.review.probationDays`** (new, null): R18's probation, which closes the loop. For this many days after an
+  Unsatisfactory rating:
+  - an alert since the last rating brings an audit within `auditDays`, whatever the cooldown;
+  - another Unsatisfactory rating revokes at once.
+  - A company that stays clean is never touched by it. The bump's value is 365.
 - **Doors a bad rating already closes in the engine:**
   - strict-vetting loads: Conditional, or any alert;
   - standard loads: Unsatisfactory;
@@ -649,6 +654,26 @@ for a defect, `hiddenDetect` 0.6, and contracts closed to a bad rating.
   - supply under the ceiling, as today;
   - the prudent owner-operator beats the greedy one at four years (38.5k against 27.7k);
   - the busy owner-operator's month one is 8% under today's. That is R12's clock, as §2f said.
+
+**The conduct split again, on the follow-up's window and then with probation** (`conductdiag.ts`, seeds 1–2, four
+years, the bump with R18). Failures, with revocations in brackets:
+
+| Seeds 1–2 | Clean OO | Cutter OO | Outlaw OO | Clean fleets | Cutter fleets | Outlaw fleets | All |
+|---|---|---|---|---|---|---|---|
+| Without R18 | 59.5 | 40 (5) | 113.5 (57) | 20.5 | 15 (3.5) | 13 (9) | 261.5 |
+| R18, the follow-up reads the whole record (the runs above) | 46.5 | 61.5 (29.5) | 110.5 (68.5) | 20.5 | 23.5 (17.5) | 18.5 (16) | 281 |
+| R18, the follow-up's window alone | 51.5 | 49.5 (0) | **267 (21)** | 24 | 13.5 (0) | 24 (4.5) | **429.5** |
+| **R18, the window and probation 365** | **39** | 59 (21) | 128 (66.5) | 22 | 20.5 (9.5) | 21 (15) | **289.5** |
+
+- **The window alone breaks R18.** No cutter is revoked, and outlaws go round the loop until they fail on fines and
+  crashes instead. That is 267 owner-operator bankruptcies, more than twice the runs above, and the world's
+  liquidations would rise by about 150.
+- **With probation, R18 is back where it was sized.** All failures 289.5 against 281, and revocations as before. Clean
+  owner-operators fail least of any arm, 39 against 59.5 without R18. Two cutter owner-operators in seven are revoked,
+  against two in five before. That is a little softer, and it is what the director's window gives a company that
+  cleans up for good.
+- The four-year table above stands within the seeds' spread. I'd put `probationDays` 365 in the bump with the window,
+  never the window alone.
 
 ### 3e. The month card counts the fines
 
@@ -842,14 +867,15 @@ restart commit can add them there and leave the base config, and the tests writt
 | 24 | `equipmentFinance.netOfPurchaseLoans` | false | **true** | the double pledge (§5a) |
 | 25 | `equipmentFinance.closedWithPools` | false | **true** | pools off covers Equipment Finance (§5a) |
 | 26 | `usedMarket.npcLot.deliveryDays` | null | **7** | a fleet's lot rig from stock in a week (§5e) |
+| 27 | `safety.review.probationDays` | null | **365** | R18's probation, which the follow-up's window needs (§3c, §3d) |
 
 **Only if the brokerage switches on in this restart** (QA-clean on a flagged build):
 
 | # | Path | Today | The bump | Why |
 |---|---|---|---|---|
-| 27 | `brokerage.enabled` | false | **true** | the switch |
-| 28 | `permits.suretyPctPerYear` | [0.02, 0.12] | **[0.01, 0.06]** | Jeff: the surety premium halves |
-| 29 | `token.credit.premiumMax` | 0.2 | **0.1** | Jeff: the credit premium's ceiling halves |
+| 28 | `brokerage.enabled` | false | **true** | the switch |
+| 29 | `permits.suretyPctPerYear` | [0.02, 0.12] | **[0.01, 0.06]** | Jeff: the surety premium halves |
+| 30 | `token.credit.premiumMax` | 0.2 | **0.1** | Jeff: the credit premium's ceiling halves |
 
 **Not config: engineering's `PLAYER_DISPATCHER_ORDERS`** (`apps/web/src/game.ts`, in their working tree), the rules a
 player turns on:
@@ -875,7 +901,7 @@ player turns on:
 phase. The version line, in its own form:
 
 ```
-version: "0.21.0-phase0.36", // Restart (2026-11-0x): the diary 3/4 bump (studio/reviews/economy-player34.md, live.ts): a ceiling is a ceiling (R17), the pay floor and drivers who quit (R16), the board at a 1.2 ceiling with a short-load cap and the season table on rates (R11), R12's hours with the 70-hour clock and the 34-hour restart, compliance with teeth (R18), the dispatcher and auto-staff off until the player chooses (R1, R8), the double pledge closed and Equipment Finance shut with the pools, a fleet's lot rig in a week; levels as 0.20.2
+version: "0.21.0-phase0.36", // Restart (2026-11-0x): the diary 3/4 bump (studio/reviews/economy-player34.md, live.ts): a ceiling is a ceiling (R17), the pay floor and drivers who quit (R16), the board at a 1.2 ceiling with a short-load cap and the season table on rates (R11), R12's hours with the 70-hour clock and the 34-hour restart, compliance with teeth and a year's probation (R18), the dispatcher and auto-staff off until the player chooses (R1, R8), the double pledge closed and Equipment Finance shut with the pools, a fleet's lot rig in a week; levels as 0.20.2
 ```
 
 If the brokerage rides the same restart, the note ends "…a fleet's lot rig in a week; the brokerage on, both premiums
@@ -899,15 +925,16 @@ halved; levels as 0.20.2".
 
 Ported to the working tree on main at `7102f94`, every key at today's value. A 365-day run (seed 3) of this code with
 the defaults is byte-identical to main's.
-- `packages/config/src/economy.config.ts`, five new keys:
+- `packages/config/src/economy.config.ts`, six new keys:
   - `safety.enforcement.fineEarnedMult` (0);
   - `safety.review.auditDays` (null);
   - `contracts.closedToBadRating` (false);
   - `equipmentFinance.netOfPurchaseLoans` (false);
-  - `equipmentFinance.closedWithPools` (false), added after the producer's ruling.
+  - `equipmentFinance.closedWithPools` (false), added after the producer's ruling;
+  - `safety.review.probationDays` (null), added after the conduct re-run.
 - `packages/engine/src/safety.ts`: fines scaled to what the breach earned (`drivingEarnedFd`, `scaledFine`), the
-  earned figure on the hidden log, the alert's audit, the follow-up's window (`measures` takes a `sinceDay`), and the
-  out-of-service notice reading its hours.
+  earned figure on the hidden log, the alert's audit, the follow-up's window (`measures` takes a `sinceDay`), the
+  probation (`SafetyRecord.probationUntil?`), and the out-of-service notice reading its hours.
 - `packages/engine/src/contracts.ts`: `contractRatingBlock`, read by new offers, renewals and `acceptOffer`.
 - `packages/engine/src/finance.ts`: `borrowingCapacity` net of the purchase loan's principal, Borrow's two reads
   (`borrowLender` and `lendNowFd`, with `BORROW_CAP_SHARE`), and `deposit` and `borrow` closed with the pools.
@@ -915,9 +942,23 @@ the defaults is byte-identical to main's.
 - `packages/engine/src/intel.ts`, `fraud.ts` and `safety.ts fine`: the month record's fines (§3e).
 - `packages/engine/src/types.ts`: `HiddenViolation.earnedFd?`, `Company.finesOffCostsFd?`, `monthMark.finesFd?`.
 - `packages/engine/test/r18.test.ts` (new, 14 tests), and one more test in `r11.test.ts` (the restart's stop).
+- **The red team's pass 3** (redteam-2026-11-03b.md), each behind the key that governs it. `redteam3.test.ts` is new,
+  with 9 tests, the probation's among them.
+  - R16 (`labor.underpayMemory`, `labor.ts`): firing a driver on an unhappy notice writes the memory.
+    - A withdrawn notice keeps its raise (`Staff.unhappyHeld?`).
+    - A cut below that raise within the memory's days re-opens the notice at once: "you cut the raise that kept
+      them".
+  - R12 (`hos.restHours` or `hos.cycleHours` on; `world.ts`, `actions.ts`): the day's and the week's clocks follow
+    the driver.
+    - `Staff.clock?` holds them while the driver is off a truck (`DriverClock`).
+    - `assign_driver` refuses a move between trucks at different hubs.
+  - R17 (`board.refuseOverCeiling`, `brokerage.ts ownBand`): the own-carrier tender's band is capped at the load's
+    ceiling.
 
-Typecheck is clean. These pass: `r18.test.ts` (14), `r11.test.ts` (10), `audit.test.ts` (13), `pay-floor.test.ts`,
-`hire-guard.test.ts`, `engine.test.ts` (162), and the web's `intel.test.ts` and `finance.test.ts`. No full npm test.
+Typecheck is clean. These pass: `r18.test.ts` (14), `redteam3.test.ts` (9), `r11.test.ts` (10), `audit.test.ts` (13),
+`brokerage.test.ts` (15), `pay-floor.test.ts`, `hire-guard.test.ts`, `engine.test.ts` (162), and the web's
+`intel.test.ts` and `finance.test.ts`. No full npm test. With every key at its default, a 365-day run is byte-identical
+to main's after each addition.
 
 Runs are in `runs/p34/`:
 - the gamer's month: `s3/` (before the parking fix), `s3f/` (after); the trucker on the bump: `ends2/FIN-anchor-*`;

@@ -115,6 +115,8 @@ export interface SafetyRecord {
   revokeDay: number | null;
   /** A crash or a run of alerts asked for a review now. */
   reviewWanted: boolean;
+  /** R18's probation (safety.review.probationDays): after an Unsatisfactory rating, until this day. */
+  probationUntil?: number | null;
   violations: Violation[];
   inspections: number[];
   hidden: HiddenViolation[];
@@ -452,6 +454,17 @@ export type ManagerKind = "opsManager" | "maintManager" | "ceo" | "securityManag
 export type StaffStatus = "pool" | "employed" | "jailed" | "gone";
 
 /** A driver or dispatcher (labor.ts). */
+/** R12: the hours-of-service clocks a driver carries between trucks (the truck's fields of the same names). */
+export interface DriverClock {
+  shiftStartT: number | null;
+  shiftDrivenMin: number;
+  overMin: number;
+  offDutySinceT?: number;
+  breakShiftT?: number;
+  cycleMin?: number;
+  cycleLastT?: number;
+}
+
 export interface Staff {
   id: number;
   kind: StaffKind;
@@ -492,6 +505,16 @@ export interface Staff {
   peakPay: number;
   /** R16: on notice for being unhappy (labor.unhappyNoticeDays); a raise to their ask withdraws it. */
   unhappyNotice?: boolean;
+  /**
+   * R16 (labor.underpayMemory.days on): the raise that withdrew an unhappy notice, and when. A cut below it within the
+   * memory's days re-opens the notice at once, as a matched offer's cut does (red team pass 3).
+   */
+  unhappyHeld?: { pay: number; day: number };
+  /**
+   * R12 (its hos keys on): the driver's own day and week clocks, kept while off a truck and carried to the next one,
+   * so a tired driver on a rested truck is still tired (red team pass 3). Unset until the driver first leaves a seat.
+   */
+  clock?: DriverClock;
   /** Career record any employer can see. */
   violations: number;
   crashes: number;

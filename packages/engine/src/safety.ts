@@ -584,6 +584,10 @@ export function canRefile(w: World, c: Company): string | null {
 
 // --- Weekly score and reviews ----------------------------------------------------------------
 
+/** R18's probation (safety.review.probationDays): within it since an Unsatisfactory rating. */
+const onProbation = (w: World, s: Company["safety"], day: number): boolean =>
+  w.cfg.safety.review.probationDays !== null && s.probationUntil != null && day < s.probationUntil;
+
 const timeWeight = (age: number) => (age <= 180 ? 3 : age <= 365 ? 2 : age <= 730 ? 1 : 0);
 
 /**
@@ -651,6 +655,11 @@ export function weeklySafety(w: World): void {
     const sinceReview = s.ratingDay === null ? Infinity : day - s.ratingDay;
     // R18 (safety.review.auditDays): any alert books an audit within the days; never rated, whatever the cooldown.
     if (review.auditDays !== null && s.alerts.length > 0 && s.reviewDay === null && (s.rating === "none" || sinceReview >= review.alertCooldownDays)) s.reviewDay = day + review.auditDays;
+    // R18's probation: an alert since the last rating (the follow-up's window) brings the auditor back, cooldown or not.
+    if (review.auditDays !== null && onProbation(w, s, day) && s.reviewDay === null && s.ratingDay !== null) {
+      const since = measures(w, c, s.ratingDay);
+      if ((Object.keys(since) as Basic[]).some((b) => since[b] >= score.thresholds[b])) s.reviewDay = day + review.auditDays;
+    }
     const due =
       s.reviewWanted ||
       (s.alerts.length >= review.alertsToReview && sinceReview >= review.alertCooldownDays) ||
@@ -680,6 +689,7 @@ export function complianceReview(w: World, c: Company): void {
   const day = today(w);
   const s = c.safety;
   const wasUnsat = s.rating === "unsatisfactory";
+  const probation = onProbation(w, s, day);
   const before = s.rating;
   // R18 (review.auditDays on; the director, 2026-11-03): an audit after a rating judges the window since that rating, not
   // the record before it. What the last audit didn't find stays in its window, and the rating reads only the violations
@@ -720,10 +730,11 @@ export function complianceReview(w: World, c: Company): void {
   // A hot company's review becomes an investigation (backlot.ts): the lot's books, if found, convict.
   const found = (falseLogs + maintWeeks > 0 ? ` Found ${falseLogs} falsified log day${falseLogs === 1 ? "" : "s"} and ${maintWeeks} week${maintWeeks === 1 ? "" : "s"} of skipped maintenance; ${fmt(fines)} FD in fines.` : " Records clean.") + investigate(w, c);
   if (rating === "unsatisfactory") {
-    if (wasUnsat) {
-      revoke(w, c, "Still unsatisfactory at the follow-up review.", c.authority.revocations > 0 ? bars.imminentHazard : bars.unsatisfactory);
+    if (wasUnsat || probation) {
+      revoke(w, c, wasUnsat ? "Still unsatisfactory at the follow-up review." : "Unsatisfactory again while on probation.", c.authority.revocations > 0 ? bars.imminentHazard : bars.unsatisfactory);
       return;
     }
+    if (review.probationDays !== null) s.probationUntil = day + review.probationDays;
     s.revokeDay = day + review.rereviewDays.unsatisfactory;
     s.reviewDay = s.revokeDay;
   } else {

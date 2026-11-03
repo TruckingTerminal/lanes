@@ -37,7 +37,7 @@ import { depositPool, withdrawPool } from "./pools.js";
 import { cashInvoice, contractOn, endFactoring, setContractTerms, signFactoring } from "./receivables.js";
 import type { Action, RuleScope } from "./types.js";
 import { condition, rebuildable, rebuildCost } from "./wear.js";
-import { availableSupplyFor, companyById, crewed, depositCredit, hubMiles, invalidOrders, releaseDepositFor, seatDriver, staffById, syncFleet, takeSupplyFor, truckById, unseatDriver, type World, placeMiles, placeOfHub, placeLegMiles } from "./world.js";
+import { availableSupplyFor, clocksFollowDriver, companyById, crewed, depositCredit, hubMiles, invalidOrders, releaseDepositFor, seatDriver, staffById, syncFleet, takeSupplyFor, truckById, unseatDriver, type World, placeMiles, placeOfHub, placeLegMiles } from "./world.js";
 import type { EconomyConfig } from "@lanes/config";
 
 const TIERS = new Set(["workhorse", "highwayPro", "flagship"]);
@@ -293,6 +293,8 @@ export function applyAction(w: World, companyId: number, action: Action): Action
       const truck = truckById(w, action.truckId);
       if (!truck || truck.companyId !== company.id) return { ok: false, reason: "not your truck" };
       if (!atHub(truck.status)) return { ok: false, reason: "the truck must be at a hub" };
+      // R12 (its hos keys on): a driver moves between trucks at the same hub only (red team pass 3).
+      if (clocksFollowDriver(w) && s.truckId && s.truckId !== truck.id && truckById(w, s.truckId).hub !== truck.hub) return { ok: false, reason: `their truck is at ${w.net.hubs[truckById(w, s.truckId).hub]!.id}, and that one is at ${w.net.hubs[truck.hub]!.id}` };
       if (action.team) {
         if (!crewed(truck)) return { ok: false, reason: "that truck needs a driver before a co-driver" };
         if (truck.coDriverId) return { ok: false, reason: "that truck already runs as a team" };
