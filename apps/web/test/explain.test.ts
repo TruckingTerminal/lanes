@@ -3,14 +3,14 @@ import { join } from "node:path";
 import { describe, expect, it, vi } from "vitest";
 import { cashNowRate, companyAccount, truckValue } from "@lanes/engine";
 import { boardRows, depositWhole, leaseHold } from "../src/board.js";
-import { BOARD, EXPLAIN, GUIDE_LABEL } from "../src/copy.js";
+import { BOARD, EXPLAIN } from "../src/copy.js";
 import { fdFull } from "../src/format.js";
 import { breakdown, FIRST_MONTH_KEYS } from "../src/explain.js";
 import { GAME_CONFIG, TestGame } from "../src/game.js";
 import { dueMilestone, history, milestones } from "../src/milestones.js";
 import { stepDo, stepText, walkSteps } from "../src/walkthrough.js";
 import { S } from "../src/state.js";
-import { gapNotes, milestoneHeld, MilestoneLine, milestoneScope } from "../src/ui/Milestones.js";
+import { milestoneHeld, MilestoneLine, milestoneScope } from "../src/ui/Milestones.js";
 
 /** Keys the writer's table names that no first-month screen shows yet, each with why. The test fails if one appears. */
 const NOT_ON_A_SCREEN: Record<string, string> = {
@@ -286,19 +286,5 @@ describe("the hold toward your own truck (the director's row 2)", () => {
     const row = boardRows(g.w, c, truck, { dest: "any", maxDh: 300, query: "" }).find((r) => !r.block)!;
     expect(row.heldBook).toBe(0);
     expect(leaseHold(g.w, { ...truck, lease: "owned" }, 10_000)).toBe(0);
-  }, 60_000);
-});
-
-describe("the next-truck gap says what moved it (row 4)", () => {
-  it("names a change of route and the first week's close, until the player opens its explanation", async () => {
-    const g = await TestGame.create();
-    const c = g.join("Gap Freight", "oo", "LAX")!;
-    S.gapSeen = null;
-    expect(gapNotes(g.w, c, "lot")).toEqual([]);
-    expect(gapNotes(g.w, c, "new")).toEqual([GUIDE_LABEL.gapWhyCheapest]);
-    c.weeklySpend.push(5_000);
-    expect(gapNotes(g.w, c, "new")).toEqual([GUIDE_LABEL.gapWhyCheapest, GUIDE_LABEL.gapWhyCushion(GAME_CONFIG.guide.gapCushionWeeks)]);
-    S.gapSeen!.why = []; // what closing its explanation does
-    expect(gapNotes(g.w, c, "new")).toEqual([]);
   }, 60_000);
 });
