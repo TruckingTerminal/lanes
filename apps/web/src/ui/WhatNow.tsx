@@ -1,7 +1,7 @@
 import type { JSX } from "preact";
 import type { Company, World } from "@lanes/engine";
 import { NOW } from "../copy.js";
-import { fdFull, hhmm, pct, shortDate } from "../format.js";
+import { fdFull, hhmm, pct, shortDate, plural } from "../format.js";
 import { GAME_CONFIG } from "../game.js";
 import { nextAction, type NextAction } from "../nextstep.js";
 import { act, bumpData, isPhone, me, S, selectTruck, setTab, truckNo } from "../state.js";
@@ -115,7 +115,7 @@ function same(a: NextAction, b: NextAction): boolean {
 const fd = (x: number): string => fdFull(x);
 const when = (min: number): string => {
   const h = Math.max(0, (min - S.game!.w.t) / 60);
-  return h < 24 ? `${Math.max(1, Math.round(h))} h` : `${Math.round(h / 24)} days`;
+  return h < 24 ? `${Math.max(1, Math.round(h))} h` : plural(Math.round(h / 24), "day");
 };
 export const openLoadOf = (truckId: number, loadId: number) => {
   selectTruck(truckId);

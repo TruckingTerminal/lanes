@@ -2,7 +2,7 @@ import type { JSX } from "preact";
 import { condition, crewed, hubMiles, ordersOf, rebuildable, rebuildCost, resting, truckValue, type Truck } from "@lanes/engine";
 import { SCENES } from "../../assets.js";
 import { cls, dateLabel, fd, fdFull, pct, plural, TIER_NAME, TRAILER_NAME, hhmm, realUntil } from "../../format.js";
-import { TRUCK } from "../../copy.js";
+import { MOVE, TRUCK } from "../../copy.js";
 import { GAME_CONFIG } from "../../game.js";
 import { AttentionCard, CrewLine, goLoads, goStaff, idleLabel, idleWhy, openLoadsAt, StatusLine, stuckTrucks, tiredTrucks, truckName } from "../../logic.js";
 import { focusTruck } from "../../mapview.js";
@@ -13,8 +13,22 @@ import { Fig } from "../Explain.js";
 import { TendersCard } from "./Contracts.js";
 import { DispatcherCard } from "./Dispatcher.js";
 import { DeliveredCard, RollingCards } from "./Rolling.js";
+import { emptyRun } from "../../rolling.js";
 import { TrailerLines, TruckAssetActions, YardCard } from "./Yard.js";
 
+
+
+/** Send home's price before the tap (R24). */
+function homeRun(t: Truck): string {
+  const r = emptyRun(S.game!.w, t, t.hub, me().homeHub);
+  return MOVE.home(r.mi, r.fd, r.time);
+}
+/** A send-empty destination with its price (R24). */
+function emptyLine(t: Truck, hub: number): string {
+  const w = S.game!.w;
+  const r = emptyRun(w, t, t.hub, hub);
+  return MOVE.empty(w.net.hubs[hub]!.name, r.mi, r.fd, r.time);
+}
 
 export function Fleet(): JSX.Element {
   useData();
@@ -81,7 +95,6 @@ function TiredAlerts(): JSX.Element {
     <>
       {tiredTrucks().map((t) => {
         const d = w.staff[t.driverId - 1]!;
-        const home = hubMiles(w, me().homeHub, t.hub);
         return (
           <Card key={t.id} alert need={`tired:${t.id}`} title={`${d.owner ? "You have" : `${d.name} has`} been out ${plural(d.awayDays, "day")}${d.fatigue >= f.tiredAt ? ` and ${d.owner ? "are" : "is"} tired (${pct(d.fatigue)})` : ""}`}>
             <p>
@@ -92,7 +105,7 @@ function TiredAlerts(): JSX.Element {
             ) : t.status === "idle" ? (
               <div class="row">
                 <Btn primary onClick={() => act({ type: "send_home", truckId: t.id }, "Heading home for days off", "truck:sendHome")}>
-                  {TRUCK.sendHome(home)}
+                  {homeRun(t)}
                 </Btn>
               </div>
             ) : (
@@ -180,7 +193,7 @@ function TruckCard({ t, idx }: { t: Truck; idx: number }): JSX.Element {
             <select id={`send-${t.id}`} aria-label="Destination hub">
               {nearby.map((x) => (
                 <option value={x.h.id} key={x.h.id}>
-                  {x.h.name} · {x.mi} mi · {openLoadsAt(x.i).filter((l) => l.equipment === t.trailer).length} loads
+                  {emptyLine(t, x.i)} · {openLoadsAt(x.i).filter((l) => l.equipment === t.trailer).length} loads
                 </option>
               ))}
             </select>
@@ -225,7 +238,7 @@ function TruckCard({ t, idx }: { t: Truck; idx: number }): JSX.Element {
           </>
         ) : null}
         {t.status === "idle" && crewed(t) && !resting(w, t) && hubMiles(w, c.homeHub, t.hub) > w.cfg.map.nearbyRadiusMi ? (
-          <Btn onClick={() => act({ type: "send_home", truckId: t.id }, "Heading home for days off", "truck:sendHome")}>{TRUCK.sendHome(hubMiles(w, c.homeHub, t.hub))}</Btn>
+          <Btn onClick={() => act({ type: "send_home", truckId: t.id }, "Heading home for days off", "truck:sendHome")}>{homeRun(t)}</Btn>
         ) : null}
       </div>
     </Card>

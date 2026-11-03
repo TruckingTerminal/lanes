@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 import { companyAccount } from "@lanes/engine";
-import { boardRows } from "../src/board.js";
+import { blockReason, boardRows } from "../src/board.js";
+import { DELIVERED, MOVE, SECURITY } from "../src/copy.js";
+import { breakdown } from "../src/explain.js";
+import { shortDate } from "../src/format.js";
+import { emptyRun, paidLine } from "../src/rolling.js";
 import { cushion, debtCountdown, gapToTruck, nextEvent, nextWeeklyCheckDay } from "../src/figures.js";
 import { GAME_CONFIG, TestGame } from "../src/game.js";
 import { nextAction } from "../src/nextstep.js";
@@ -181,5 +185,35 @@ describe("the walkthrough's soft ways out (the director's R2)", () => {
     c.firstHandBidDay = 0;
     c.orders = c.orders.filter((o) => o.kind !== "bid");
     expect(orders.done(g.w, c)).toBe(true);
+  }, 60_000);
+});
+
+describe("sprint 3's cheap list", () => {
+  it("pay lines from the true terms; the gap shows the hold; walls in the engine's order; prices on empty runs; Security bands", async () => {
+    const { g, c, truck } = await fresh();
+    const w = g.w;
+    // The lessor pays on delivery; quick pay, the factor and net terms each say their own.
+    expect(paidLine(w, c, truck, undefined)).toBe(DELIVERED.paidToday);
+    const owned = { ...truck, lease: "owned" as const };
+    c.payTerms = "quick";
+    expect(paidLine(w, c, owned, undefined)).toMatch(/^Paid today, less [\d.]+%\.$/);
+    const inv = { id: 1, payer: 0, faucet: "x", payeeId: c.id, amountFd: 1000, dueDay: 40, holder: c.id } as never;
+    expect(paidLine(w, c, owned, inv)).toBe(`Due ${shortDate(40)}.`);
+    expect(paidLine(w, c, owned, { ...(inv as object), holder: -2 } as never)).toMatch(/^Paid today by the factor, less [\d.]+%\.$/);
+    // The gap lists what's held toward the truck as its own row, and the rows add up to the gap.
+    truck.depositFd = 2_000;
+    const b = breakdown(w, c, "guide.gapToTruck", {})!;
+    const gap = gapToTruck(w, c);
+    if (gap.depositFd > 0.5) expect(b.rows.some((r) => r.label === "Less what's held toward your truck")).toBe(true);
+    expect(gap.grossNeedFd - gap.depositFd).toBeCloseTo(gap.needNowFd, 6);
+    // A strict load before the authority's age: both counts; the local-first wall names the next round.
+    const strict = [...w.loads.values()].find((l) => l.status === "open")!;
+    strict.vet = 2;
+    expect(blockReason(w, c, truck, strict)).toMatch(/^Strict vetting: \d+ days' authority and \d+ loads\. You have \d+ days, \d+ loads\.$/);
+    // Send home and send empty show a price and a time before the tap.
+    const other = w.net.hubs.findIndex((_, i) => i !== truck.hub);
+    const run = emptyRun(w, truck, truck.hub, other);
+    expect(MOVE.home(run.mi, run.fd, run.time)).toMatch(/^Home · [\d,]+ mi empty · about [\d,]+ FD · (\d+ h|1 day|\d+ days)$/);
+    expect([SECURITY.band(1), SECURITY.band(1.5), SECURITY.band(2.4)]).toEqual(["quiet", "watch", "high"]);
   }, 60_000);
 });

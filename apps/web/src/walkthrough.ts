@@ -167,7 +167,6 @@ export function walkSteps(cfg: EconomyConfig, hub = "your home hub"): WalkStep[]
     },
     {
       id: "law",
-      at: "fleet",
       title: "The law",
       tab: "company",
       mood: "idle",

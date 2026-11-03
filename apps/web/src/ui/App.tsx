@@ -10,6 +10,7 @@ import { LOGO_TITLE, LOGO_TITLE_H, LOGO_W } from "../assets.js";
 import { GameScreen } from "./Shell.js";
 import { fsEnabled, S, TEST_BUILD, toggleFullscreen, useData } from "../state.js";
 import { LOGIN } from "../copy.js";
+import { weekdayDate } from "../format.js";
 import { Btn } from "./bits.js";
 
 /** The whole screen: title, loading, or the game. */
@@ -124,7 +125,7 @@ function TitleAction(): JSX.Element {
       if (m.kind === "menu" && S.game?.kind === "test") break;
       return (
         <div class="row center">
-          <Btn primary onClick={H.enterWorld}>{lw?.player ? LOGIN.continueLive(lw.player.name) : LOGIN.enter}</Btn>
+          <Btn primary onClick={H.enterWorld}>{lw?.player ? LOGIN.continueLive(lw.player.name, weekdayDate(Math.floor(lw.w.t / 1440))) : LOGIN.enter}</Btn>
           <TestButton />
         </div>
       );
@@ -132,7 +133,7 @@ function TitleAction(): JSX.Element {
       break;
   }
   // The test build (and the owner's test world): Continue, and a new world that asks once before it replaces one.
-  const current = S.test?.player ? { name: S.test.player.name, day: Math.floor(S.test.w.t / 1440) + 1, go: H.backToTest } : S.savedTest ? { name: S.savedTest.name, day: S.savedTest.day + 1, go: H.continueTest } : null;
+  const current = S.test?.player ? { name: S.test.player.name, day: Math.floor(S.test.w.t / 1440), go: H.backToTest } : S.savedTest ? { name: S.savedTest.name, day: S.savedTest.day, go: H.continueTest } : null;
   if (confirm && current) {
     return (
       <div class="stack center">
@@ -148,7 +149,7 @@ function TitleAction(): JSX.Element {
     <div class="row center">
       {current ? (
         <Btn primary onClick={current.go}>
-          {LOGIN.continueTest(current.name, current.day)}
+          {LOGIN.continueTest(current.name, weekdayDate(current.day))}
         </Btn>
       ) : null}
       <Btn primary={!current} onClick={() => (current ? setConfirm(true) : H.openTest())}>

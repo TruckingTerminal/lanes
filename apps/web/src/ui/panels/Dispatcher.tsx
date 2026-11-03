@@ -10,9 +10,15 @@ import { iuliiaFirst } from "../../iuliia.js";
 const num = (id: string): number => Number((document.getElementById(id) as HTMLInputElement | null)?.value);
 const checked = (id: string): boolean => Boolean((document.getElementById(id) as HTMLInputElement | null)?.checked);
 
+/** The orders the switch turns on and off: bidding, its floor and the rest of the dispatcher's own rules. Home time stays. */
+const BIDDING = new Set<StandingOrder["kind"]>(["bid", "floor", "reposition", "bookNow", "contracts"]);
+/** The bidding rules a switch-off set aside, per company, so switching back on restores them (diary 1, row 11). */
+const setAside = new Map<number, StandingOrder[]>();
+
 /**
- * The dispatcher (specs/first-ten-minutes.md, S9): before a one-truck company's first bid by hand, only the switch,
- * off and disabled, and Iuliia's line (freeEntry.firstBidByHand: the orders wait for the owner's first call). After
+ * The dispatcher (specs/first-ten-minutes.md, S9): before a one-truck company's first bid by hand, the switch shows the
+ * saved orders and works (R1: the player's choice is never overridden; an "off" before the first load stays off, where a
+ * disabled switch let the defaults take over at the first load), and Iuliia's line (freeEntry.firstBidByHand: the orders wait for the owner's first call). After
  * it, the switch, three rows and Save, with "More rules" folding the rest. No re-post rule: what the engine runs as
  * re-brokering is fraud, and no player screen offers it (the director's brokerage brief); saving drops one held from before.
  */
@@ -48,12 +54,16 @@ export function DispatcherCard(): JSX.Element {
     return list;
   };
   const save = (bidding: boolean, said?: string) => act({ type: "set_standing_orders", orders: orders(bidding) }, DISPATCHER.saved, said);
+  // The switch keeps the rules: off sets the bidding rules aside, on brings them back (or the defaults, the first time).
+  const flip = (to: boolean) => {
+    const rest = c.orders.filter((o) => !BIDDING.has(o.kind));
+    if (!to) setAside.set(c.id, c.orders.filter((o) => BIDDING.has(o.kind)));
+    const back = setAside.get(c.id) ?? DEFAULT_ORDERS.filter((o) => BIDDING.has(o.kind));
+    act({ type: "set_standing_orders", orders: to ? [...back, ...rest] : rest }, DISPATCHER.saved, to ? "dispatcher:on" : "dispatcher:off");
+  };
   const switchRow = (
     <label class="row switchrow">
-      <input type="checkbox" role="switch" checked={on} disabled={waiting} onChange={(e) => {
-          const on = (e.currentTarget as HTMLInputElement).checked;
-          save(on, on ? "dispatcher:on" : "dispatcher:off");
-        }} />
+      <input type="checkbox" role="switch" checked={waiting ? Boolean(bid) : on} onChange={(e) => flip((e.currentTarget as HTMLInputElement).checked)} />
       <span>{DISPATCHER.switchLabel}</span>
     </label>
   );

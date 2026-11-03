@@ -200,8 +200,10 @@ const BREAKDOWNS: Record<string, Fn> = {
     const g = gapToTruck(w, c);
     return {
       rows: [
-        { label: `Cash needed now, the cheapest route (${g.route === "lot" ? "the used lot" : g.route === "listing" ? "a listing" : "new, on a loan"})`, value: fd(g.needNowFd), key: "loan.cashNow" },
-        { label: `Less cash above ${w.cfg.guide.gapCushionWeeks} weeks of costs (${fd(g.holdFd)} held back)`, value: fd(-g.spareFd) },
+        { label: `Cash needed now, the cheapest route (${g.route === "lot" ? "the used lot" : g.route === "listing" ? "a listing" : "new, on a loan"})`, value: fd(g.grossNeedFd), key: "loan.cashNow" },
+        // The hold toward the truck counts in full when you buy (QA's rows 2/4 replay: the row was missing).
+        ...(g.depositFd > 0.5 ? [{ label: "Less what's held toward your truck", value: fd(-g.depositFd), key: "truck.leaseDeposit" }] : []),
+        { label: `Less your cash above ${w.cfg.guide.gapCushionWeeks} weeks of costs (${fd(g.holdFd)} kept for running costs)`, value: fd(-g.spareFd) },
       ],
       total: { label: "Gap to the next truck", value: fd(g.gapFd) },
       notes: ctx.notes,

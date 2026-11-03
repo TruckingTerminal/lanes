@@ -4,6 +4,7 @@ import { EQUIPMENT, hubTheftRisk, planIndex } from "@lanes/engine";
 import { TRAILER_NAME } from "../../format.js";
 import { bumpData, S, useData } from "../../state.js";
 import { Btn, Card, Panel } from "../bits.js";
+import { SECURITY } from "../../copy.js";
 
 /** How a market reads for a trailer type: hot when loads outnumber trucks, loose when trucks wait. */
 function tag(ratio: number): [string, string] {
@@ -55,7 +56,7 @@ export function Rates(): JSX.Element {
         ))}
       </div>
       <p class="muted small">
-        Loads per truck at each market last round, for {TRAILER_NAME[eq].toLowerCase()}s. Hot markets pay on the way out; a loose market is where you go to reload cheaply. Out/in is how much more freight a market ships than it receives; reload is how easily a truck finds its next load there; theft risk is against a quiet road.
+        Loads per truck at each market last round, for {TRAILER_NAME[eq].toLowerCase()}s. Hot markets pay on the way out; a loose market is where you go to reload cheaply. Out/in is how much more freight a market ships than it receives; reload is how easily a truck finds its next load there; security says how often cargo goes missing on a market's roads.
       </p>
       <Card title="Markets">
         <table class="mini">
@@ -67,7 +68,7 @@ export function Rates(): JSX.Element {
               <th>Out/in</th>
               <th>Reload</th>
               <th>Posted</th>
-              <th>Theft</th>
+              <th>{SECURITY.label}</th>
             </tr>
           </thead>
           <tbody>
@@ -88,7 +89,7 @@ export function Rates(): JSX.Element {
                   <td class="num">{r.imb.toFixed(2)}</td>
                   <td class="num">{r.reload.toFixed(2)}</td>
                   <td class="num">{r.out ? `${(r.out.sum / r.out.n).toFixed(2)}/mi · ${r.out.n}` : "–"}</td>
-                  <td class="num">{r.theft > 1.05 ? `${r.theft.toFixed(1)}×` : "–"}</td>
+                  <td>{SECURITY.name[SECURITY.band(r.theft)]}</td>
                 </tr>
               );
             })}

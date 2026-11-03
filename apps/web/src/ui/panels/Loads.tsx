@@ -1,8 +1,8 @@
 import type { JSX } from "preact";
 import { useState } from "preact/hooks";
-import { canMakeHot, dispatchProfile, expectedReloadDeadheadMi, isLocal, operatingTrucks, localOnly, MANUAL_BID_MAX_DEADHEAD_MI, mayTake, placeMiles, placeToll, VETTING_NAMES, vettingBlock, type Load, type Truck } from "@lanes/engine";
+import { dispatchProfile, expectedReloadDeadheadMi, isLocal, operatingTrucks, localOnly, MANUAL_BID_MAX_DEADHEAD_MI, placeMiles, placeToll, VETTING_NAMES, type Load, type Truck } from "@lanes/engine";
 import { COMMODITIES } from "@lanes/data";
-import { bidRange, clearsNear, suggestBid } from "../../board.js";
+import { bidRange, blockReason, clearsNear, suggestBid } from "../../board.js";
 import { trueBreakEven } from "../../breakeven.js";
 import { cls, fd, fdFull, hhmm, pct, shortDate, TRAILER_CODE, TRAILER_NAME } from "../../format.js";
 import { nextRoundLabel, openLoadsAt, reloadClass, reloadLabel, SeasonNote, seasonSwing, statusText } from "../../logic.js";
@@ -137,7 +137,7 @@ export function LoadsTable(): JSX.Element {
     const tolls = placeToll(w, truck.place, l.originPlace) + l.routeTollFd;
     const be = trueBreakEven(w, truck, l, dh, placeToll(w, truck.place, l.originPlace), prof.foresightDays, prof.reloadWeight);
     const suggest = suggestBid(l, be);
-    const block = vettingBlock(w, me(), l) ?? (l.hot > 0 && !canMakeHot(me(), truck) ? "a hot load needs a team" : !mayTake(w, me(), l) ? "local carriers have first call this round" : null);
+    const block = blockReason(w, me(), truck, l); // the board's one reason (R22), the same words as the cards
     rows.push({ l, dh, be, suggest, profit: (suggest - be) * l.miles, profitBook: (l.bookNow - be) * l.miles, reloadMi, tolls, highway: lane.highwayShare, hours: l.routeHours, total: l.bookNow * l.miles, ageH: l.roundsUnfilled * 12, block });
   }
   const key = (r: Row): number => (sort === "rate" ? r.total : sort === "permi" ? r.l.bookNow : sort === "age" ? r.ageH : sort === "trip" ? r.l.miles : sort === "dh" ? r.dh : r.l.appointmentT);

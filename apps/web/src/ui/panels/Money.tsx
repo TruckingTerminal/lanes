@@ -2,8 +2,8 @@ import type { JSX } from "preact";
 import { useEffect } from "preact/hooks";
 import { InvoiceRows } from "./CashNow.js";
 import { MoveMoneyLink } from "./Brokerage.js";
-import { averagePriceUsd, bridgeDelayDays, companyAccount, depositCredit, fdPriceUsd, lockedFd, sellableFd, tokenLive } from "@lanes/engine";
-import { cls, fd, fdFull, shortDate, usd } from "../../format.js";
+import { averagePriceUsd, bridgeDelayDays, companyAccount, depositCredit, fdPriceUsd, lockedFd, sellableFd, tokenLive, type Company, type World } from "@lanes/engine";
+import { cls, fd, fdFull, shortDate, usd, plural } from "../../format.js";
 import { MONEY } from "../../copy.js";
 import { invoices, milesOf, weekCosts } from "../../ledger.js";
 import { FinanceLinks } from "./Finance.js";
@@ -14,6 +14,12 @@ import { iuliiaFirst } from "../../iuliia.js";
 import { GAME_CONFIG } from "../../game.js";
 import { act, feed, me, S, setOnboard, useData } from "../../state.js";
 import { Btn, Card, Kv, Num, Panel, Sparkline } from "../bits.js";
+
+/** On a lease with no truck of its own, the lessor pays on delivery: nothing is ever owed (R25). */
+const myTruckLeased = (w: World, c: Company): boolean => {
+  const ts = (w.trucksByCompany.get(c.id) ?? []).filter((t) => t.status !== "retired");
+  return ts.length > 0 && ts.every((t) => t.lease === "npc");
+};
 
 const num = (id: string): number => Number((document.getElementById(id) as HTMLInputElement | null)?.value);
 
@@ -107,7 +113,7 @@ export function Money(): JSX.Element {
             </p>
             {c.withdrawals.length ? (
               <div class="row">
-                <span class="small">Waiting: {c.withdrawals.map((r) => `${fd(r.fd)} FD, ${Math.max(0, r.day + bridgeDelayDays(w, r.day) - day)} days`).join(" · ")}</span>
+                <span class="small">Waiting: {c.withdrawals.map((r) => `${fd(r.fd)} FD, ${plural(Math.max(0, r.day + bridgeDelayDays(w, r.day) - day), "day")}`).join(" · ")}</span>
                 <Btn sm onClick={() => act({ type: "cancel_withdrawal" }, "Withdrawals taken back")}>
                   Take back ({Math.round(bridge.cancelBurn * 100)}% burned)
                 </Btn>
@@ -154,7 +160,7 @@ export function Money(): JSX.Element {
       </Card>
       <Card title={<Fig k="money.owed" label={MONEY.owed}>{MONEY.owed}</Fig>}>
         {/* One row per invoice: line 2 is Cash it now while its switch is on (finance.md draft 2). */}
-        {owed.length || S.cashed.length ? <InvoiceRows c={c} /> : <p class="muted">{MONEY.nothingOwed}</p>}
+        {owed.length || S.cashed.length ? <InvoiceRows c={c} /> : <p class="muted">{myTruckLeased(w, c) ? MONEY.nothingOwedLease : MONEY.nothingOwed}</p>}
         {/* How the company is paid and its loans live on Finance (specs/finance.md); Money links there. */}
         <FinanceLinks />
         <MoveMoneyLink />

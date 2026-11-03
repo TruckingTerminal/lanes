@@ -1,6 +1,8 @@
 import { canMakeHot, dayOf, dispatchProfile, expectedReloadDeadheadMi, mayTake, operatingTrucks, placeMiles, placeToll, vettingBlock, type Company, type Load, type Truck, type World } from "@lanes/engine";
 import { COMMODITIES } from "@lanes/data";
 import { trueBreakEven } from "./breakeven.js";
+import { WALL } from "./copy.js";
+import { shortDate } from "./format.js";
 
 /**
  * The board's arithmetic (specs/first-ten-minutes.md, S2–S5), apart from the screen so it can be tested: each open load
@@ -55,18 +57,27 @@ export function bidRange(_w: World, l: Load, be: number): [number, number] {
   return [Math.min(l.ceiling, Math.max(0.5, be * 1.05)), l.ceiling];
 }
 
+/** The next board round's hour, "18:00": when a round's local-first window opens to everyone. */
+function nextRoundHH(w: World): string {
+  const hour = (w.t % w.cfg.time.gameMinutesPerDay) / 60;
+  const h = w.cfg.time.boardRoundHours.find((x) => x > hour) ?? w.cfg.time.boardRoundHours[0]!;
+  return `${String(h).padStart(2, "0")}:00`;
+}
+
 /** The chip's words for a load this company can't take (copy-first-ten-minutes.md, S2 "Blocked chips"). */
 export function blockReason(w: World, c: Company, truck: Truck, l: Load): string | null {
   const v = vettingBlock(w, c, l);
   if (v) {
     const k = w.cfg.fraud.vetting;
     const age = dayOf(w.t, w.cfg) - c.authority.since;
-    if (v.startsWith("authority under") && l.vet === 1) return `Needs ${k.standard.minAuthorityDays}-day authority · day ${age + 1}`;
-    if (v.startsWith("authority under") || v.startsWith("fewer than")) return `Needs ${k.strict.minAuthorityDays}-day authority or ${k.strict.minDelivered} loads`;
+    if (v.startsWith("authority under") && l.vet === 1) return WALL.vettingStandard(k.standard.minAuthorityDays, shortDate(c.authority.since + k.standard.minAuthorityDays));
+    // Strict: only the date is short once the loads are there; else both counts, theirs and yours.
+    if (v.startsWith("authority under") && c.delivered >= k.strict.minDelivered) return WALL.vettingStrictDate(k.strict.minAuthorityDays, shortDate(c.authority.since + k.strict.minAuthorityDays));
+    if (v.startsWith("authority under") || v.startsWith("fewer than")) return WALL.vettingStrict(k.strict.minAuthorityDays, k.strict.minDelivered, age, c.delivered);
     return v.charAt(0).toUpperCase() + v.slice(1);
   }
-  if (l.hot > 0 && !canMakeHot(c, truck)) return "A hot load needs a team";
-  if (!mayTake(w, c, l)) return "Local carriers first this round";
+  if (l.hot > 0 && !canMakeHot(c, truck)) return WALL.hot;
+  if (!mayTake(w, c, l)) return WALL.localFirst(nextRoundHH(w));
   return null;
 }
 

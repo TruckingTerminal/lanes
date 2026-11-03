@@ -73,9 +73,7 @@ export function DeliveredCard(): JSX.Element | null {
           {DELIVERED.yours} {fdFull(d.line.yours)} FD
         </b>
       </p>
-      <p class="muted small">
-        {DELIVERED.paid} {d.dueDay !== null ? shortDate(d.dueDay) : DELIVERED.today}
-      </p>
+      <p class="muted small">{d.paid}</p>
       {/* R5: "Getting paid" plays on the first settlement card. */}
       <StepMoment only="paid" />
       <div class="row">

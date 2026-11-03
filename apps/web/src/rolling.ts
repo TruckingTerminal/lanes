@@ -1,4 +1,6 @@
-import { drivingLimitMin, dutyResetAt, fuelPrice, legRoute, legMile, mphFor, planNight, tripCost, type Company, type Load, type Truck, type World } from "@lanes/engine";
+import { drivingLimitMin, dutyResetAt, fuelPrice, hubMiles, hubToll, legRoute, legMile, mphFor, planNight, tripCost, type Company, type Load, type Receivable, type Truck, type World } from "@lanes/engine";
+import { DELIVERED, MOVE } from "./copy.js";
+import { shortDate } from "./format.js";
 
 /**
  * A truck on the road, as the Truck tab shows it (specs/first-ten-minutes.md, S6–S7), read without touching the
@@ -168,5 +170,33 @@ export function payLine(w: World, t: Truck, load: Load, grossFd: number, costFd:
     lessor,
     held,
     yours: grossFd - costFd - held,
+  };
+}
+
+/**
+ * How a delivered load is paid, from the settlement's true terms (diary 2, row 7): the lessor on delivery; quick pay today
+ * less its fee; the factor today less its rate; else the invoice's due day. `fresh` is the invoice this delivery raised.
+ */
+export function paidLine(w: World, c: Company, truck: Truck, fresh: Receivable | undefined): string {
+  const pct = (x: number) => `${Math.round(x * 1000) / 10}%`;
+  if (truck.lease === "npc" || (!fresh && c.payTerms !== "quick")) return DELIVERED.paidToday;
+  if (!fresh) return DELIVERED.paidQuick(pct(w.cfg.token.payment.quickPayPct));
+  if (fresh.holder !== c.id) return DELIVERED.paidFactor(pct(c.factoring?.rate ?? w.cfg.token.payment.factoring.discountNpc));
+  return DELIVERED.due(shortDate(fresh.dueDay));
+}
+
+/**
+ * An empty run's price before the tap (R24): fuel and the driver's pay over the empty miles, from the same parts as
+ * break-even (economics.ts tripCost), plus the tolls; and its time at the nominal pace and the day's driving hours.
+ */
+export function emptyRun(w: World, t: Truck, fromHub: number, toHub: number): { mi: string; fd: string; time: string } {
+  const mi = hubMiles(w, fromHub, toHub);
+  const run = tripCost(w.cfg, t, fuelPrice(w), mi, 0);
+  const hours = mi / w.cfg.hos.avgMph;
+  const days = hours / w.cfg.hos.drivingHoursPerDay;
+  return {
+    mi: Math.round(mi).toLocaleString("en-US"),
+    fd: Math.round(run.fuel + run.wages + hubToll(w, fromHub, toHub)).toLocaleString("en-US"),
+    time: MOVE.time(days < 1 ? 0 : Math.ceil(days), Math.max(1, Math.ceil(hours))),
   };
 }

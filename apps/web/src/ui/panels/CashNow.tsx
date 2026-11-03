@@ -2,7 +2,7 @@ import type { JSX } from "preact";
 import { useState } from "preact/hooks";
 import { cashNowRate, companyAccount, dayOf, type Company, type Receivable, type World } from "@lanes/engine";
 import { CASHNOW } from "../../copy.js";
-import { fdFull, shortDate } from "../../format.js";
+import { fdFull, shortDate, plural } from "../../format.js";
 import { invoices } from "../../ledger.js";
 import { bumpData, order, S, useData } from "../../state.js";
 import { Btn } from "../bits.js";
@@ -60,7 +60,7 @@ export function InvoiceRows({ c }: { c: Company }): JSX.Element | null {
         return (
           <div class="stack invoicerow" key={r.id}>
             <span class="small">
-              {lane} · {fd(r.amountFd)} FD · due {shortDate(r.dueDay)} ({Math.max(0, r.dueDay - today)} days)
+              {lane} · {fd(r.amountFd)} FD · due {shortDate(r.dueDay)} ({plural(Math.max(0, r.dueDay - today), "day")})
             </span>
             {rate === null ? null : typeof rate === "string" ? (
               <span class="muted small">{refusal(rate)}</span>

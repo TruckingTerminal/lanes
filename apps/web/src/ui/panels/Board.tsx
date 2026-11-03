@@ -3,7 +3,7 @@ import { useEffect, useState } from "preact/hooks";
 import { MANUAL_BID_MAX_DEADHEAD_MI, VETTING_NAMES, type Truck } from "@lanes/engine";
 import { COMMODITIES } from "@lanes/data";
 import { bidRange, boardRows, clearsNear, depositWhole, posterOf, sortRows, type BoardRow, type BoardSort } from "../../board.js";
-import { BOARD, INTEL, LOAD, ROUND } from "../../copy.js";
+import { ANSWER, BOARD, INTEL, LOAD, ROUND } from "../../copy.js";
 import { cls, fdFull, hhmm, pct, shortDate, TRAILER_NAME } from "../../format.js";
 import { nextRoundHour, nextRoundLabel, nextRoundWait, reloadLabel, roundProgress, seasonSwing } from "../../logic.js";
 import { bumpData, isPhone, me, myTrucks, openIntel, order, S, selectTruck, setOnboard, setTab, toast, truckNo, useData } from "../../state.js";
@@ -315,12 +315,19 @@ function LoadSheet({ r, truck }: { r: BoardRow; truck: Truck }): JSX.Element {
   const bookUp = r.profitBook >= 0;
   const signed = (x: number) => `${x >= 0 ? "+" : "−"}${money(x)}`;
   const step = (d: number) => setBid(Math.round(Math.min(hi, Math.max(lo, bid + d)) * 100) / 100);
+  // R20: a refusal in the writer's words where the engine's reason is a vetting block; otherwise the engine's own.
+  const refusal = (reason: string): string => {
+    if (!/vetting rules you out|won't load a carrier with/.test(reason) || !/authority|loads delivered/.test(reason)) return reason;
+    const k = w.cfg.fraud.vetting;
+    const age = Math.floor(w.t / w.cfg.time.gameMinutesPerDay) - me().authority.since;
+    return l.vet === 1 ? ANSWER.bookVettingStd(k.standard.minAuthorityDays, age) : ANSWER.bookVetting(k.strict.minAuthorityDays, k.strict.minDelivered, age, me().delivered);
+  };
   const sent = (at: number | null) => (at !== null ? setNote({ text: LOAD.sent(hhmm(at)), bad: false }) : undefined);
   const book = async () => {
     S.bookedLoads.add(l.id);
     S.handLoads.add(l.id);
     const res = await order({ type: "book_load", truckId: truck.id, loadId: l.id }, ROUND.toastBooked);
-    if (!res.ok) return setNote({ text: res.reason, bad: true });
+    if (!res.ok) return setNote({ text: refusal(res.reason), bad: true });
     iuliiaSay("load:book");
     sent(res.at);
     toast(res.at === null ? ROUND.toastBooked : ROUND.booked(w.net.places[l.originPlace]!.name, w.net.places[l.destPlace]!.name, fdFull(r.total)));
@@ -329,13 +336,14 @@ function LoadSheet({ r, truck }: { r: BoardRow; truck: Truck }): JSX.Element {
     setTab("fleet");
   };
   const placeBid = async () => {
-    const res = await order({ type: "place_bid", truckId: truck.id, loadId: l.id, rate: bid }, ROUND.toastBid(bid.toFixed(2), nextRoundHour()));
-    if (!res.ok) return setNote({ text: res.reason, bad: true });
+    const answer = ANSWER.bid(bid.toFixed(2), w.net.places[l.originPlace]!.name, w.net.places[l.destPlace]!.name, nextRoundHour());
+    const res = await order({ type: "place_bid", truckId: truck.id, loadId: l.id, rate: bid }, answer);
+    if (!res.ok) return setNote({ text: refusal(res.reason), bad: true });
     iuliiaSay("load:bid");
     S.handBids.set(l.id, { rate: bid, be: r.be, truckId: truck.id, from: w.net.places[l.originPlace]!.name, to: w.net.places[l.destPlace]!.name });
     S.handLoads.add(l.id);
     S.result = null;
-    toast(ROUND.toastBid(bid.toFixed(2), nextRoundHour()));
+    toast(answer);
     S.openLoad = null;
     S.sheet = "half";
     bumpData();

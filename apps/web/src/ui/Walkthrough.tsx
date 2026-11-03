@@ -7,7 +7,7 @@ import { iuliiaMuted, iuliiaNow, setIuliiaMuted } from "../iuliia.js";
 import { ASSETS, hasAsset } from "../mapart.js";
 import { drawPortrait } from "../portrait.js";
 import { bumpData, S, setOnboard, setTab, toast, useData } from "../state.js";
-import { ARRIVAL, CAPTION, DISPATCHER, INTEL } from "../copy.js";
+import { ARRIVAL, CAPTION, DISPATCHER, INTEL, NOW } from "../copy.js";
 import { pct } from "../format.js";
 import { TAB_NAME, type Tab } from "../tabs.js";
 import { Btn, Card } from "./bits.js";
@@ -177,6 +177,11 @@ export function StepMoment({ only }: { only?: string }): JSX.Element | null {
             <Btn sm primary onClick={mark}>
               {CAPTION.next}
             </Btn>
+            {step.id === "law" && S.tab !== "company" ? (
+              <Btn sm onClick={() => (mark(), setTab("company"))}>
+                {CAPTION.seeRecord}
+              </Btn>
+            ) : null}
             <Btn sm ghost onClick={() => skipStep(step.id)}>
               {CAPTION.skip}
             </Btn>
@@ -187,21 +192,37 @@ export function StepMoment({ only }: { only?: string }): JSX.Element | null {
   );
 }
 
+/**
+ * The screen where the step's moment would play now, if the player went there; null when it has none yet (the board's
+ * steps, a settlement card already closed, a truck not yet rolling). QA's R5 replay: the caption's brief with Next spent
+ * the moment while the player was elsewhere, so it never played where its event happened.
+ */
+function momentScreen(step: WalkStep): Tab | null {
+  const g = S.game!;
+  const c = g.player!;
+  if (step.id === "board" || step.id === "welcome") return null;
+  if (step.id === "law") return "company";
+  if (step.id === "haul") return (g.w.trucksByCompany.get(c.id) ?? []).some((t) => t.loadId !== null) || c.delivered > 0 ? "fleet" : null;
+  if (step.id === "paid") return S.delivered !== null ? "fleet" : null;
+  return (step.at ?? step.tab) as Tab;
+}
+
 /** Whether the step's moment plays here, now: on its event's screen, not yet said, its event come ("you won one" needs the load). */
 function momentHere(step: WalkStep): boolean {
   const g = S.game!;
   const c = g.player!;
-  if (S.onboard.seen.includes(`say:${step.id}`) || S.tab !== ((step.at ?? step.tab) as Tab) || currentStep()?.id !== step.id) return false;
+  if (S.onboard.seen.includes(`say:${step.id}`) || currentStep()?.id !== step.id) return false;
+  // The law (guidance-ux.md section 1's table): at the company's first inspection, on Truck, or on the first visit to
+  // Company, whichever comes first; never on Truck merely because the step is current.
+  if (step.id === "law") return S.tab === "company" || (S.tab === "fleet" && c.safety.inspections.length > 0);
+  if (S.tab !== ((step.at ?? step.tab) as Tab)) return false;
   if (step.id === "board" || step.id === "welcome") return false; // the arrival line and the board's own first visit say these
   if (step.id === "haul") return (g.w.trucksByCompany.get(c.id) ?? []).some((t) => t.loadId !== null) || c.delivered > 0;
   if (step.id === "paid") return S.delivered !== null;
   return true;
 }
 
-/**
- * How long an unasked line without a button may stand (the director's R2: `{iuliia.captionMinutes}`, 5 real minutes).
- * Read here until the economy's batch lands and the key can join `ui.iuliia` in the config.
- */
+/** How long an unasked line without a button may stand (R2: `{iuliia.captionMinutes}`, 5 real minutes); joins ui.iuliia in the config on the economy's next pass. */
 const CAPTION_MINUTES = 5;
 /** When each unasked line first showed in this sitting, by key. */
 const lineSince = new Map<string, number>();
@@ -306,7 +327,7 @@ export function Caption(): JSX.Element | null {
     };
     return say(
       // A small fleet starts on its own two trucks, not the lessor's (QA, carry-over row 3).
-      (g.w.trucksByCompany.get(c.id) ?? []).some((t) => t.lease === "npc") ? ARRIVAL.line(g.w.net.hubs[c.homeHub]!.name, pct(GAME_CONFIG.costs.npcLeaseShareOfGross)) : ARRIVAL.lineFleet(g.w.net.hubs[c.homeHub]!.name),
+      `${(g.w.trucksByCompany.get(c.id) ?? []).some((t) => t.lease === "npc") ? ARRIVAL.line(g.w.net.hubs[c.homeHub]!.name, pct(GAME_CONFIG.costs.npcLeaseShareOfGross)) : ARRIVAL.lineFleet(g.w.net.hubs[c.homeHub]!.name)} ${ARRIVAL.fd}`,
       <Btn sm primary onClick={showBoard}>
         {ARRIVAL.showBoard}
       </Btn>,
@@ -363,6 +384,9 @@ export function Caption(): JSX.Element | null {
   const stepLine = (step: WalkStep): JSX.Element => {
   // On the screen where its event happens the step's moment plays in the panel (R5), so the caption keeps quiet about it.
   if (!seen(`say:${step.id}`) && momentHere(step)) return her(step.mood) ?? bare(step.mood);
+  // Elsewhere, the brief points to the screen where the moment plays instead of spending it with Next.
+  const screen = !seen(`say:${step.id}`) && currentStep()?.id === step.id ? momentScreen(step) : null;
+  if (screen && S.tab !== screen) return say(step.doNow?.(g.w, c) ?? stepText(step, g.w, c).brief, <Btn sm onClick={() => setTab(screen)}>{NOW.stepButton(TAB_NAME[screen])}</Btn>, step.mood);
   if (!seen(`say:${step.id}`)) {
     // A step that reads the company's state (step 9) speaks that state, not its fixed brief (QA's step-9 replay).
     return say(

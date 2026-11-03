@@ -30,7 +30,10 @@ export function dateLabel(day: number): string {
 export const dayDate = (day: number): string => dateLabel(day).slice(4);
 /** "Tue": the weekday alone, for the top strip's clock. */
 export const weekday = (day: number): string => DAYS[day % 7]!;
+/** The game's date with its weekday: "Fri Feb 2" (the title's Continue, copy-player5.md R25). */
+export const weekdayDate = (day: number): string => `${DAYS[day % 7]} ${shortDate(day)}`;
 /** "Oct 28" from a day number, for dense tables. */
+
 export function shortDate(day: number): string {
   const doy = day % 365;
   const m = Math.min(11, Math.floor(doy / 30));

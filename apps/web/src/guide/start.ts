@@ -14,7 +14,7 @@ export function startPages(cfg: EconomyConfig): GuidePage[] {
       title: "Your first week",
       html:
         p(`LANES is one shared freight market. You run a carrier: you bid on loads, haul them, and grow from one leased truck into a fleet. Every other company is a player or an AI competing for the same freight.`) +
-        p(`You start as an owner-operator: one leased Workhorse with a dry van, ${n(cfg.company.startingGrantFd)} FD, and you behind the wheel. The lessor keeps ${pct(cfg.costs.npcLeaseShareOfGross)} of every load and maintains the truck.`) +
+        p(`You start as an owner-operator: one leased Workhorse with a dry van, ${n(cfg.company.startingGrantFd - cfg.permits.carrierAuthorityFd)} FD, and you behind the wheel. The lessor keeps ${pct(cfg.costs.npcLeaseShareOfGross)} of every load and maintains the truck.`) +
         ul([
           `<b>Day 1:</b> pick a home city, open Loads, choose a load near your truck, and bid or book it. Bids clear at ${hh(r1)} and ${hh(r2)} game time.`,
           `<b>Every day:</b> after your first load by hand, your dispatcher bids for idle trucks you don't bid on yourself. Set its rules on the Truck tab.`,
@@ -30,7 +30,8 @@ export function startPages(cfg: EconomyConfig): GuidePage[] {
       html:
         p(`<b>The live world</b> is shared by every player and runs on the real clock: a game day every ${realDay} real hours, a game year about every ${Math.round((cfg.time.daysPerSeason * realDay) / 24)} real days. It never pauses, nothing resets, and every order stands. Your orders reach everyone and take effect about half a real minute later, at the same moment on every screen.`) +
         p(`<b>A test world</b> is a private copy of the rules with only you and the AI in it. You can pause it and run it up to a game day every two seconds. On the public test site your test world is kept in your browser; starting a new one replaces it, and a test world from older rules can't be replayed.`) +
-        p(`<b>Starts:</b> the live world only offers the owner-operator start. A test world also offers a small fleet: two used trucks and ${n(cfg.company.startingGrantFd + 20_000)} FD.`),
+        p(`<b>Starts:</b> the live world only offers the owner-operator start. A test world also offers a small fleet: two used trucks and ${n(cfg.company.startingGrantFd + 20_000 - cfg.permits.carrierAuthorityFd)} FD.`) +
+        p(`Your world is rebuilt from its own orders each time it loads, so it always comes out the same.`),
     },
     {
       id: "screen",

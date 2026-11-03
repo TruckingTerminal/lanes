@@ -36,7 +36,7 @@ export function safetyPages(cfg: EconomyConfig): GuidePage[] {
           `Trucks pass weigh stations on the main interstate corridors, at about the real locations. A station is open ${pct(sf.enforcement.stationOpen)} of the time. Clean carriers are waved through most of the time; alerts, a poor rating or a brand-new authority get pulled in far more.`,
           `Police make traffic stops on the road, more often for trucks that are speeding.`,
           `An inspection checks the driver and logs, the truck, or both. Problems found mean fines, violations on your record, and sometimes an <b>out-of-service order</b> on the spot: the driver must rest, or the truck is repaired at roadside prices before it moves.`,
-          `Defects build up on every truck, slowly with full maintenance. Fix them from the Fleet tab before an inspector finds them.`,
+          `Defects build up on every truck, slowly with full maintenance. Fix them from the Truck tab before an inspector finds them.`,
         ]) +
         p(`Every inspection, clean or not, shows up in your ticker.`),
     },

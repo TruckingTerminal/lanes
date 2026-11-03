@@ -15,7 +15,8 @@ export function referencePages(cfg: EconomyConfig): GuidePage[] {
         [
           ["A game day (live)", `${cfg.time.realHoursPerGameDayLive} real hours`],
           ["Board rounds", `${String(r1).padStart(2, "0")}:00 and ${String(r2).padStart(2, "0")}:00`],
-          ["Starting cash", `${n(cfg.company.startingGrantFd)} FD`],
+          // What the player sees: the grant less the authority filing fee taken at the start (diary 1, row 28).
+          ["Starting cash", `${n(cfg.company.startingGrantFd - cfg.permits.carrierAuthorityFd)} FD (a ${n(cfg.company.startingGrantFd)} FD grant, less the ${n(cfg.permits.carrierAuthorityFd)} FD authority filing)`],
           ["NPC lease", `${pct(cfg.costs.npcLeaseShareOfGross)} of each load's pay`],
           ["Workhorse + dry van, list", `${n(cfg.dealerFd.tractor.workhorse + cfg.dealerFd.trailer.van)} FD`],
           ["Dealer lead time", `${cfg.dealerDelivery.baseDays}+ days`],

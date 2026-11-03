@@ -40,22 +40,23 @@ export function debtCountdown(w: World, c: Company): { n: number; of: number; ne
  * as the cash it needs now on a purchase loan (the Dealer's own figure: down payment, stake and tax, less the lease
  * deposit when it replaces the lessor's truck), less the cash above guide.gapCushionWeeks weeks of the company's spending.
  */
-export function gapToTruck(w: World, c: Company): { gapFd: number; route: "lot" | "listing" | "new"; needNowFd: number; spareFd: number; holdFd: number } {
+export function gapToTruck(w: World, c: Company): { gapFd: number; route: "lot" | "listing" | "new"; needNowFd: number; grossNeedFd: number; depositFd: number; spareFd: number; holdFd: number } {
   const replacing = (w.trucksByCompany.get(c.id) ?? []).some((t) => t.lease === "npc");
   const routes: { route: "lot" | "listing" | "new"; price: number }[] = [];
   if (w.cfg.usedMarket.npcLot.enabled && w.cfg.assets.enabled && w.usedLot.stock > 0) routes.push({ route: "lot", price: lotPrice(w, "workhorse", "van") * npcDealerMult(w) });
   for (const l of w.listings) if (l.status === "open" && l.truckId > 0 && l.sellerId !== c.id && l.formerOwnerId !== c.id) routes.push({ route: "listing", price: l.askFd });
   const rig = cheapestNewRig(w, c);
   if (rig) routes.push({ route: "new", price: rig.price });
-  let best = { route: "new" as "lot" | "listing" | "new", need: Infinity };
+  let best = { route: "new" as "lot" | "listing" | "new", need: Infinity, gross: Infinity, deposit: 0 };
   for (const r of routes) {
     const p = buyPlan(w, c, r.price, replacing);
     const need = p.loanNowFd ?? p.cashNowFd;
-    if (need < best.need) best = { route: r.route, need };
+    // What the route asks before the hold toward the truck is released into it (the explanation's two rows).
+    if (need < best.need) best = { route: r.route, need, gross: p.loan ? p.loan.cashNeed : p.cashNeed, deposit: Math.min(p.deposit, p.loan ? p.loan.cashNeed : p.cashNeed) };
   }
   const hold = w.cfg.guide.gapCushionWeeks * cushion(w, c).avgWeeklyFd;
   const spare = Math.max(0, cash(w, c) - hold);
-  return { gapFd: Math.max(0, best.need - spare), route: best.route, needNowFd: best.need, spareFd: spare, holdFd: hold };
+  return { gapFd: Math.max(0, best.need - spare), route: best.route, needNowFd: best.need, grossNeedFd: best.gross, depositFd: best.deposit, spareFd: spare, holdFd: hold };
 }
 
 /** The best load for an idle truck by the profit chip's one arithmetic (ruling 5): the most profit at book-now, if any pays. */

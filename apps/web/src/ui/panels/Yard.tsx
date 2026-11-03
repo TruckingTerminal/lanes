@@ -142,13 +142,15 @@ export function YardCard(): JSX.Element | null {
   const a = w.cfg.assets;
   if (!a.enabled) return null;
   const spares = trailersOf(w, c.id).filter((tr) => tr.lease === "owned" && tr.status !== "hooked");
-  const tractors = myTrucks().filter((t) => t.lease !== "npc").length;
+  const tractors = myTrucks().filter((t) => t.lease === "owned").length;
+  const leased = myTrucks().filter((t) => t.lease !== "owned" && t.status !== "retired").length;
   return (
     <Card title="The yard">
       <Kv
         rows={[
           ["Holds", <Num>{yardTrucks(w, c)} tractors · {trailerCap(w, c)} trailers</Num>],
-          ["Now", <Num>{tractors} tractors · {ownedTrailers(w, c).length} of your own trailers</Num>],
+          // What it runs, leased trucks included (copy-player5.md R25: "Now 0 tractors" read wrong with a leased truck running).
+          ["Running", <Num>{leased} leased, {tractors} owned · {ownedTrailers(w, c).length} trailers of your own</Num>],
         ]}
       />
       <p class="muted small">

@@ -25,7 +25,7 @@ import {
   yardTrailers,
   type Source,
 } from "@lanes/engine";
-import { fd, pct, TIER_NAME, TRAILER_NAME } from "../../format.js";
+import { fd, pct, TIER_NAME, TRAILER_NAME, plural } from "../../format.js";
 import { act, me, myTrucks, order, S, toast } from "../../state.js";
 import { iuliiaSay } from "../../iuliia.js";
 import { DEALER } from "../../copy.js";
@@ -123,11 +123,11 @@ export function Showroom(): JSX.Element {
                 replacing={onLease}
                 block={!rigLeft ? DEALER.whySupply : rigRoom <= 0 ? DEALER.whyYard : null}
                 action={{ type: "buy_asset", tier, trailer: tr, replaceNpcLease: onLease, dealershipId: rig.dealershipId || undefined }}
-                ok={`Ordered. Delivery in ${rig.days} days`}
+                ok={`Ordered. Delivery in ${plural(rig.days, "day")}`}
               />
               <div class="row">
                 {dollarWindow && !rig.dealershipId ? (
-                  <Btn disabled={!(c.usd.wallet >= assetPriceUsd(w, rig.price) && rigLeft && trailerRoom > 0)} onClick={() => act({ type: "buy_asset", tier, trailer: tr, replaceNpcLease: onLease, pay: "usd" }, `Ordered for dollars. Delivery in ${rig.days} days`)}>
+                  <Btn disabled={!(c.usd.wallet >= assetPriceUsd(w, rig.price) && rigLeft && trailerRoom > 0)} onClick={() => act({ type: "buy_asset", tier, trailer: tr, replaceNpcLease: onLease, pay: "usd" }, `Ordered for dollars. Delivery in ${plural(rig.days, "day")}`)}>
                     Or ${assetPriceUsd(w, rig.price).toLocaleString("en-US", { maximumFractionDigits: 0 })} (to the launch pool)
                   </Btn>
                 ) : null}
@@ -155,7 +155,7 @@ export function Showroom(): JSX.Element {
           const src = bestSource(w, c.id, "trailer", "workhorse", tr);
           const left = src.dealershipId ? true : w.supply.trailer[tr] > 0;
           return (
-            <Btn key={tr} disabled={!(cash >= src.price && left && trailerRoom > 0)} onClick={() => act({ type: "buy_trailer", trailer: tr, dealershipId: src.dealershipId || undefined }, `Trailer ordered. Delivery in ${src.days} days`)}>
+            <Btn key={tr} disabled={!(cash >= src.price && left && trailerRoom > 0)} onClick={() => act({ type: "buy_trailer", trailer: tr, dealershipId: src.dealershipId || undefined }, `Trailer ordered. Delivery in ${plural(src.days, "day")}`)}>
               {TRAILER_NAME[tr]} · {fd(src.price)} · {src.days} d
             </Btn>
           );

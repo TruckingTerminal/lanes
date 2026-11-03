@@ -235,6 +235,7 @@ export function parkForTheNight(w: World, truck: Truck, site: TruckStopSite | nu
   if (!site && cfg.businesses.enabled && truck.breakdownMin <= 1e-9 && w.rng.ops.next() < p.patrolOdds) {
     w.ledger.post(w.t, companyAccount(c.id), "sink:fines", p.shoulderFineFd, `fine:shoulder:${truck.id}`);
     c.operating.costFd += p.shoulderFineFd;
+    c.safety.finesFd += p.shoulderFineFd; // the Company page's fines row counts tickets too (diary 2, row 7); no rule reads it
     w.metrics.onTicket();
     w.listener?.({ kind: "notice", companyId: c.id, topic: "safety", text: `Truck ${truck.id}: ticketed ${p.shoulderFineFd} FD for shutting down on the shoulder — sleep at a rest area or a truck stop.`, tone: "bad", truckId: truck.id });
   }

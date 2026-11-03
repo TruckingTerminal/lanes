@@ -2,7 +2,7 @@ import { dayOf, EQUIPMENT, garagingOf, homeCrowding, hubTheftRisk, localShare, p
 import { hubs as HUBS } from "@lanes/data";
 import { starterBreakEven } from "./breakeven.js";
 import { FIRST_HUBS } from "./game.js";
-import { HUB_CARD, SEASON, STARTERS } from "./copy.js";
+import { HUB_CARD, SEASON, STARTERS, SECURITY } from "./copy.js";
 import { fd, pct } from "./format.js";
 
 /**
@@ -143,7 +143,7 @@ export function hubFacts(w: World, hub: number): HubFacts {
       HUB_CARD.reload(reload >= 1.25 ? "easy" : reload >= 0.8 ? "fair" : "hard"),
     ],
     whosHere: [HUB_CARD.carriers(crowd >= 1.25 ? "many" : crowd <= 0.8 ? "few" : "a fair share"), HUB_CARD.locals(pct(localShare(w, hub, "van")))],
-    costs: [HUB_CARD.insurance(pct(Math.abs(ins)), Math.abs(ins) < 0.02 ? null : ins > 0 ? "above" : "below"), HUB_CARD.yard(fd(yard)), ...(theft > 1.05 ? [HUB_CARD.theft(timesWord(theft))] : [])],
+    costs: [HUB_CARD.insurance(pct(Math.abs(ins)), Math.abs(ins) < 0.02 ? null : ins > 0 ? "above" : "below"), HUB_CARD.yard(fd(yard)), HUB_CARD.security(SECURITY.band(theft))],
     outbound: `Van ${outWord(h.imbalance.van)} · Reefer ${outWord(h.imbalance.reefer)} · Flatbed ${outWord(h.imbalance.flatbed)}`,
     posted,
   };

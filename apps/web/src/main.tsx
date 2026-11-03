@@ -3,14 +3,14 @@ import { companyAccount, condition, crewed, resting, staffById, type GameEvent }
 import { installTheme } from "./art.js";
 import { truckSheet, whenAssetsReady } from "./assets.js";
 import { fd, fdFull, hhmm, realUntil, shortDate } from "./format.js";
-import { FEED, ROUND } from "./copy.js";
+import { DELIVERED, FEED, LOADING, ROUND } from "./copy.js";
 import { iuliiaOnChange, iuliiaSay } from "./iuliia.js";
 import { DEFAULT_ORDERS, RULESET, TestGame, type StartKind } from "./game.js";
 import { H } from "./handlers.js";
 import { createMeta, LiveWorld, readMeta, type DbLike, type WorldMeta } from "./live.js";
 import { checkAttention, checkIdleAlerts, needs, setDefaultOrders } from "./logic.js";
 import { invoices } from "./ledger.js";
-import { nightStop, payLine, type TruckBefore } from "./rolling.js";
+import { nightStop, paidLine, payLine, type TruckBefore } from "./rolling.js";
 import { sampleStarters } from "./hubcard.js";
 import { drawMap, fitMap, flyTo, resetArt, setZoom, zoomIndex } from "./mapview.js";
 import { MemoryDb } from "./memdb.js";
@@ -109,26 +109,29 @@ function onEvent(s: Session, e: GameEvent): void {
     const [from, to] = ends(e.loadId, e.origin, e.dest);
     const booked = S.bookedLoads.delete(e.loadId);
     const load = w.loads.get(e.loadId);
-    push(s, booked ? ROUND.booked(from, to, fdFull(load ? e.rate * load.miles : 0)) : FEED.won(from, to, e.miles, e.rate.toFixed(2), e.manual), "good");
+    // A book-now (by hand, or by the dispatcher's book-now rule) clears at the load's book-now rate; a bid rarely lands on it.
+    const atBookNow = load !== undefined && Math.abs(e.rate - load.bookNow) < 0.005;
+    push(s, booked ? ROUND.booked(from, to, fdFull(load ? e.rate * load.miles : 0)) : atBookNow ? FEED.booked(from, to, e.miles, e.rate.toFixed(2)) : FEED.won(from, to, e.miles, e.rate.toFixed(2), e.manual), "good");
   }
   if (e.kind === "delivered") {
     // S7: the pay line, on the Truck tab until OK; Money gets a dot for the invoice.
     const truck = w.trucks[e.truckId - 1];
     const load = w.loads.get(e.loadId);
     const held = truck && beforeDelivery.has(truck.id) ? Math.max(0, (truck.depositFd ?? 0) - beforeDelivery.get(truck.id)!.depositFd) : 0;
-    const owedTo = w.receivables.filter((r) => r.holder === s.player!.id).reduce<{ id: number; dueDay: number } | null>((a, r) => (!a || r.id > a.id ? r : a), null);
-    const paidOn = owedTo && owedTo.dueDay > Math.floor(w.t / 1440) ? shortDate(owedTo.dueDay) : "today";
-    push(s, FEED.delivered(...ends(e.loadId, e.origin, e.dest), fdFull(e.grossFd), fdFull(e.grossFd - e.costFd - held), paidOn));
+    // The invoice this delivery raised, if any: the newest receivable, and the player's as payee (under factoring the
+    // factor holds it). Labelling "the newest the player holds" put a new lane on an older invoice (diary 2, row 7).
+    const fresh = w.receivables.find((r) => r.id === w.nextReceivableId - 1 && r.payeeId === s.player!.id);
+    const paid = truck ? paidLine(w, s.player!, truck, fresh) : DELIVERED.paidToday;
+    push(s, FEED.delivered(...ends(e.loadId, e.origin, e.dest), fdFull(e.grossFd), fdFull(e.grossFd - e.costFd - held), paid, held >= 0.5));
     const fd = feed(s).deliveries;
     fd.push({ day: Math.floor(w.t / 1440), grossFd: e.grossFd });
     if (fd.length > 60) fd.shift();
     // Not while a replay passes old deliveries (a late order makes the live world replay its history).
     if (s === S.game && !rebuilding && truck && load) {
       const line = payLine(w, truck, load, e.grossFd, e.costFd, beforeDelivery.get(truck.id) ?? { emptyMi: 0, depositFd: truck.depositFd ?? 0 });
-      const due = w.receivables.filter((r) => r.holder === s.player!.id).reduce<{ id: number; dueDay: number } | null>((a, r) => (!a || r.id > a.id ? r : a), null);
-      if (due) S.invoiceLanes.set(due.id, ends(e.loadId, e.origin, e.dest).join(" → "));
+      if (fresh) S.invoiceLanes.set(fresh.id, ends(e.loadId, e.origin, e.dest).join(" → "));
       const driver = truck.driverId ? w.staff[truck.driverId - 1] : undefined;
-      S.delivered = { from: ends(e.loadId, e.origin, e.dest)[0], to: ends(e.loadId, e.origin, e.dest)[1], lateH: Math.max(0, Math.ceil((w.t - load.dueT) / 60)), line, dueDay: due && due.dueDay > Math.floor(w.t / 1440) ? due.dueDay : null, hiredDriver: driver && !driver.owner ? driver.name : null };
+      S.delivered = { from: ends(e.loadId, e.origin, e.dest)[0], to: ends(e.loadId, e.origin, e.dest)[1], lateH: Math.max(0, Math.ceil((w.t - load.dueT) / 60)), line, paid, hiredDriver: driver && !driver.owner ? driver.name : null };
       S.moneyDot = true;
       iuliiaSay(e.onTime ? "delivered:onTime" : "delivered:late");
     }
@@ -238,7 +241,7 @@ async function continueTest(): Promise<void> {
     showTitle({ kind: "test" });
     return;
   }
-  showLoading("Loading your test world", "Replaying its history in this browser.");
+  showLoading(LOADING.title, "");
   let t: TestGame;
   try {
     if (!log.acts.every((x) => Array.isArray(x) && Number.isFinite(x[0]) && x[1] && typeof x[1] === "object")) throw new Error("bad log");

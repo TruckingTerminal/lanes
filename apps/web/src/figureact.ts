@@ -14,6 +14,12 @@ export type FigureAnswer =
   | { kind: "none"; line: string };
 
 const place = (w: World, id: number): string => w.net.places[id]!.name;
+/** The next board round's hour, "18:00". */
+function nextRoundHH(w: World): string {
+  const hour = (w.t % w.cfg.time.gameMinutesPerDay) / 60;
+  const h = w.cfg.time.boardRoundHours.find((x) => x > hour) ?? w.cfg.time.boardRoundHours[0]!;
+  return `${String(h).padStart(2, "0")}:00`;
+}
 const n = (x: number): string => Math.round(x).toLocaleString("en-US");
 
 /** The paying load with the fewest empty miles to it: the break-even's biggest lever this round. */
@@ -37,20 +43,20 @@ export function figureAct(w: World, c: Company, key: string, ctx: FigureCtx): Fi
     case "board.profitChip":
     case "board.deadhead":
       if (!truck) return { kind: "none", line: FIGURE_ACT.busy };
-      return load(nearestPaying(w, c, truck)) ?? { kind: "none", line: FIGURE_ACT.nothingPays };
+      return load(nearestPaying(w, c, truck)) ?? { kind: "none", line: FIGURE_ACT.nothingPays(nextRoundHH(w)) };
     case "guide.cushion": {
       const cu = cushion(w, c);
       if (cu.weeks === null) return { kind: "none", line: FIGURE_ACT.noSpending };
       if (cu.weeks >= w.cfg.guide.gapCushionWeeks) return { kind: "none", line: FIGURE_ACT.healthy(cu.weeks.toFixed(1)) };
       if (!truck) return { kind: "none", line: FIGURE_ACT.busy };
       const row = bestLoad(w, c, truck);
-      return row ? { ...(load(row) as Extract<FigureAnswer, { kind: "act" }>), action: FIGURE_ACT.haulForCushion } : { kind: "none", line: FIGURE_ACT.nothingPays };
+      return row ? { ...(load(row) as Extract<FigureAnswer, { kind: "act" }>), action: FIGURE_ACT.haulForCushion } : { kind: "none", line: FIGURE_ACT.nothingPays(nextRoundHH(w)) };
     }
     case "guide.gapToTruck": {
       if (gapToTruck(w, c).gapFd <= 0) return { kind: "none", line: FIGURE_ACT.gapClosed };
       if (!truck) return { kind: "none", line: FIGURE_ACT.busy };
       const row = bestLoad(w, c, truck);
-      return row ? { ...(load(row) as Extract<FigureAnswer, { kind: "act" }>), action: FIGURE_ACT.haulForTruck } : { kind: "none", line: FIGURE_ACT.nothingPays };
+      return row ? { ...(load(row) as Extract<FigureAnswer, { kind: "act" }>), action: FIGURE_ACT.haulForTruck } : { kind: "none", line: FIGURE_ACT.nothingPays(nextRoundHH(w)) };
     }
     case "truck.value":
       return { kind: "none", line: FIGURE_ACT.value };

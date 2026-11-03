@@ -12,6 +12,7 @@ import { hasTwo, kindInView, switchCompany } from "./companies.js";
 import { rankStarters } from "./hubcard.js";
 import { openLoadsAt, reloadLabel, seasonSwing } from "./logic.js";
 import { signedPct, TRAILER_NAME } from "./format.js";
+import { SECURITY } from "./copy.js";
 
 /**
  * The map window: the pixel base layer sized to the window, zoom and pan in device
@@ -369,7 +370,7 @@ function truckXY(t: Truck): [number, number] | null {
   const route = hubRoute(w, t.hub, t.targetHub);
   const total = t.legMiles > 0 ? t.legMiles : route ? route.miles : hubMiles(w, t.hub, t.targetHub);
   const { hos } = w.cfg;
-  const rolling = t.dwellMin <= 0 && t.breakdownMin <= 0 && t.shiftDrivenMin < hos.drivingHoursPerDay * 60;
+  const rolling = t.dwellMin <= 0 && t.breakdownMin <= 0 && (t.pauseMin ?? 0) <= 0 && t.shiftDrivenMin < hos.drivingHoursPerDay * 60;
   const pace = route && route.hours > 0 ? route.miles / route.hours : hos.avgMph;
   const ahead = rolling ? (Math.min(60, clockMin() - w.t) / 60) * pace : 0;
   const left = Math.max(0, t.remainingMi - ahead);
@@ -1190,7 +1191,7 @@ function showHubTip(ev: { clientX: number; clientY: number }): void {
     const s = w.sites[siteId - 1]!;
     const b = s.businessId ? w.businesses[s.businessId - 1] : undefined;
     const road = w.net.roads.edges[s.edge]?.label ?? "Interstate";
-    tip.textContent = `${road} · rest area, ${s.spaces} spaces (${s.parked} taken)${b && b.ownerId > 0 ? ` · truck stop, parking ${Math.round(b.parkingFd)} FD a night` : s.open ? " · for sale" : ""}${s.theftRisk > 1.05 ? ` · theft risk ${s.theftRisk.toFixed(1)}×` : ""}`;
+    tip.textContent = `${road} · rest area, ${s.spaces} spaces (${s.parked} taken)${b && b.ownerId > 0 ? ` · truck stop, parking ${Math.round(b.parkingFd)} FD a night` : s.open ? " · for sale" : ""}${s.theftRisk > 1.05 ? ` · ${SECURITY.tip(SECURITY.band(s.theftRisk))}` : ""}`;
     tip.hidden = false;
     const r = wrap.getBoundingClientRect();
     tip.style.left = `${Math.min(r.width - 260, Math.max(4, ev.clientX - r.left + 12))}px`;

@@ -29,7 +29,7 @@ export function operationsPages(cfg: EconomyConfig): GuidePage[] {
       section: S,
       title: "Standing orders",
       html:
-        p(`Set them at the bottom of the Fleet tab. They're the same rules the AI companies use.`) +
+        p(`Set them under Dispatcher, on the Truck tab. They're the same rules the AI companies use.`) +
         table(
           ["Rule", "What it does"],
           [
@@ -90,7 +90,7 @@ export function operationsPages(cfg: EconomyConfig): GuidePage[] {
           `<b>Rebuild</b> an idle owned truck at ${pct(wear.rebuildMaxCondition)} condition or worse: ${wear.rebuildDays} days in the shop, back to 100%. It costs ${n(wear.rebuildFd.workhorse)} FD for a Workhorse (${n(wear.rebuildFd.highwayPro)} Highway Pro, ${n(wear.rebuildFd.flagship)} Flagship), more the higher the odometer: double at ${n(wear.rebuildAgeMi)} miles.`,
           `A worn truck's break-even is higher, so it loses bids to fresher trucks. That, not a rule, is the reason to rebuild.`,
           `<b>Million-mile trucks:</b> a level every ${n(wear.milesPerLevel)} miles, up to ${wear.maxLevel}; every five levels adds ${pct(wear.fuelBonusPerFiveLevels)} fuel economy, up to ${pct(wear.maxFuelBonus)}.`,
-          `Defects (worn brakes, tires, lights) build up slowly on any truck, faster if maintenance is skipped. They raise breakdown and crash odds and get trucks put out of service at inspections. Fix them from the Fleet tab for ${n(cfg.safety.maintenance.fixFdPerDefect)} FD each.`,
+          `Defects (worn brakes, tires, lights) build up slowly on any truck, faster if maintenance is skipped. They raise breakdown and crash odds and get trucks put out of service at inspections. Fix them from the Truck tab for ${n(cfg.safety.maintenance.fixFdPerDefect)} FD each.`,
         ]),
     },
   ];

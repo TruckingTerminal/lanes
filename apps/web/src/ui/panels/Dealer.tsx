@@ -3,7 +3,7 @@ import type { Equipment, FacilityType, TractorTier } from "@lanes/config";
 import { assetPriceUsd, availableSupply, listingBlock, companyAccount, condition, dealerPrice, deliveryDays, facilityOutlook, lessorTrucksOf, newPrice, openListings, ordersOf, tokenLive, truckValue } from "@lanes/engine";
 import { facilityUrl } from "../../art.js";
 import { SCENES } from "../../assets.js";
-import { FAC_NAME, fd, pct, signedPct, TIER_NAME, TRAILER_NAME, usd } from "../../format.js";
+import { FAC_NAME, fd, pct, signedPct, TIER_NAME, TRAILER_NAME, usd, plural } from "../../format.js";
 import { act, me, myTrucks, S, useData } from "../../state.js";
 import { Btn, Card, Num, Panel, Pixel } from "../bits.js";
 import { Rig, Scene } from "../Loop.js";
@@ -100,7 +100,7 @@ export function Dealer(): JSX.Element {
                 </div>
               </div>
               <div class="row">
-                <Btn primary disabled={!(cash >= price && left > 0)} onClick={() => act({ type: "buy_asset", tier, trailer: tr, replaceNpcLease: onLease }, `Ordered. Delivery in ${lead} days`)}>
+                <Btn primary disabled={!(cash >= price && left > 0)} onClick={() => act({ type: "buy_asset", tier, trailer: tr, replaceNpcLease: onLease }, `Ordered. Delivery in ${plural(lead, "day")}`)}>
                   Order{onLease ? " (replaces your lease)" : ""}
                 </Btn>
               </div>

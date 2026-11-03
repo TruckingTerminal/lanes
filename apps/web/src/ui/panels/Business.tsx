@@ -3,6 +3,7 @@ import { assetPriceUsd, businessesAt, businessesOf, businessPriceFd, companyAcco
 import { fd, usd } from "../../format.js";
 import { act, bumpData, me, myTrucks, S, truckNo, useData } from "../../state.js";
 import { Btn, Card, Kv, Num, Panel } from "../bits.js";
+import { SECURITY } from "../../copy.js";
 
 const num = (id: string): number => Number((document.getElementById(id) as HTMLInputElement | null)?.value);
 
@@ -71,7 +72,7 @@ export function Business(): JSX.Element {
           rows={[
             ["Traffic", <Num>{Math.round(s.traffic * 100)} of 100</Num>],
             ["Rest area", <Num>{s.spaces} spaces · {s.parked} taken tonight</Num>],
-            ["Theft risk", <Num>{s.theftRisk.toFixed(1)}× a quiet road</Num>],
+            [SECURITY.label, SECURITY.name[SECURITY.band(s.theftRisk)]],
             [stop ? "Truck stop" : "For sale", stop ? <Num>{owner?.name ?? "?"} · parking {fd(stop.parkingFd)} a night</Num> : s.open ? <Num>{fd(price)} FD + {fd(biz.kinds.truckStop.bondFd)} bond</Num> : "not yet open"],
           ]}
         />
@@ -225,8 +226,8 @@ export function Business(): JSX.Element {
               rows={[
                 ["Result so far", <Num class={b.netFd >= 0 ? "good" : "bad"}>{fd(b.netFd)} FD (bought for {fd(b.purchaseFd)})</Num>],
                 ["Bond", <Num>{fd(b.bondFd)} FD</Num>],
-                ...(site ? ([["Parking", <Num>{site.parked}/{site.spaces} tonight · {fd(b.parkingFd)} a night</Num>], ["Theft risk here", <Num>{site.theftRisk.toFixed(1)}×</Num>]] as [string, JSX.Element][]) : []),
-                ...(b.hub >= 0 ? ([["Theft risk at the hub", <Num>{hubTheftRisk(w, b.hub).toFixed(1)}×</Num>]] as [string, JSX.Element][]) : []),
+                ...(site ? ([["Parking", <Num>{site.parked}/{site.spaces} tonight · {fd(b.parkingFd)} a night</Num>], [SECURITY.here, <Num>{SECURITY.name[SECURITY.band(site.theftRisk)]}</Num>]] as [string, JSX.Element][]) : []),
+                ...(b.hub >= 0 ? ([[SECURITY.atHub, <Num>{SECURITY.name[SECURITY.band(hubTheftRisk(w, b.hub))]}</Num>]] as [string, JSX.Element][]) : []),
                 ...(b.kind === "dealership"
                   ? ([
                       ["Tractors in stock", <Num>{b.stock.tractor.workhorse} Workhorse · {b.stock.tractor.highwayPro} HighwayPro · {b.stock.tractor.flagship} Flagship</Num>],

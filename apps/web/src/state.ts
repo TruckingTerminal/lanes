@@ -100,7 +100,7 @@ export const S = {
   intel: { card: null as number | null, back: null as Tab | null, q: "", myHub: false, hub: null as string | null, players: false, brokers: false, sort: "miles" as "miles" | "trucks" | "month", shown: 50 },
   homeNow: new Set<number>(),
   /** The last delivery, shown on the Truck tab until OK (S7); Money keeps a dot until it's opened. */
-  delivered: null as null | { from: string; to: string; lateH: number; line: PayLine; dueDay: number | null; hiredDriver: string | null },
+  delivered: null as null | { from: string; to: string; lateH: number; line: PayLine; paid: string; hiredDriver: string | null },
   moneyDot: false,
   /** The lane each invoice was for, by receivable id, as this page saw the deliveries (Money's "Load" column). */
   invoiceLanes: new Map<number, string>(),

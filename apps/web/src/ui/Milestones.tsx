@@ -59,15 +59,17 @@ export function MilestoneLine(): JSX.Element | null {
       <div class="stack">
         <span class="small">{v.line}</span>
         {v.reason ? <span class="small muted">{v.reason}</span> : null}
-        <Btn
-          sm
-          onClick={() => {
-            S.milestone = null;
-            v.go();
-          }}
-        >
-          {v.button}
-        </Btn>
+        {v.button && v.go ? (
+          <Btn
+            sm
+            onClick={() => {
+              S.milestone = null;
+              v.go!();
+            }}
+          >
+            {v.button}
+          </Btn>
+        ) : null}
       </div>
       <WhatNowChip />
     </div>
@@ -78,7 +80,7 @@ export function MilestoneLine(): JSX.Element | null {
 export const milestoneHeld = (): boolean => !!S.milestone && S.milestone.tab === S.tab && performance.now() - S.milestone.at < GAME_CONFIG.ui.iuliia.showSeconds * 1000;
 
 /** A milestone's line, reason and button, in the writer's strings with this company's figures. */
-function words(w: World, c: Company, m: Milestone, phase: "before" | "at"): { line: string; reason: string | null; button: string; go: () => void } {
+function words(w: World, c: Company, m: Milestone, phase: "before" | "at"): { line: string; reason: string | null; button?: string; go?: () => void } {
   const today = Math.floor(w.t / w.cfg.time.gameMinutesPerDay);
   const go = (tab: string) => () => setTab(tab as Parameters<typeof setTab>[0]);
   switch (m.key) {
@@ -115,8 +117,7 @@ function words(w: World, c: Company, m: Milestone, phase: "before" | "at"): { li
       return {
         line: c.firstMonth ? MILESTONE.monthClose.at(fdFull(c.firstMonth.revenueFd), fdFull(c.firstMonth.spentFd), fdFull(c.firstMonth.revenueFd - c.firstMonth.spentFd)) : MILESTONE.monthClose.atNoRecord,
         reason: MILESTONE.monthClose.reason,
-        button: MILESTONE.monthClose.button,
-        go: go("money"),
+        // "Read the month" returns with the month report (R10, R25); until then the line has no button.
       };
     case "day28":
       return {

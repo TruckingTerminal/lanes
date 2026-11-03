@@ -523,7 +523,7 @@ export function Carriers(): JSX.Element {
             <p class="muted small">{BROKERAGE.ownFirstRate(partner.name)}</p>
           </>
         ) : null}
-        <Btn sm primary onClick={() => void order({ type: "set_standing_orders", orders: [...c.orders.filter((x) => x.kind !== "broker"), { kind: "broker", marginPct: margin, maxOpenLoads: open, ...(ownFirst ? { ownFirst: true } : {}) }] }, BROKERAGE.saved, "brokerage")}>
+        <Btn sm primary onClick={() => void order({ type: "set_standing_orders", orders: [...c.orders.filter((x) => x.kind !== "broker"), { kind: "broker", marginPct: margin, maxOpenLoads: open, ...(ownFirst ? { ownFirst: true } : {}) }] }, BROKERAGE.saved, "brokerage").then((r) => (r.ok ? r.at === null && toast(BROKERAGE.saved) : toast(r.reason, true)))}>
           {BROKERAGE.save}
         </Btn>
       </Card>

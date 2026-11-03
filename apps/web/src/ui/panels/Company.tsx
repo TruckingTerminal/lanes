@@ -69,7 +69,7 @@ export function Company(): JSX.Element {
       </Card>
       {g.kind === "test" ? (
         <div class="row">
-          <Btn onClick={H.showTestMenu}>New test world</Btn>
+          {/* New test world lives on the title screen, not under the record (sprint 3's cheap list). */}
           {S.live ? <Btn onClick={H.backToLive}>Back to the live world</Btn> : null}
         </div>
       ) : S.platform.owner ? (
@@ -182,7 +182,7 @@ function RecordCard({ c }: { c: CompanyT }): JSX.Element {
           area("unsafe", "Unsafe driving"),
           area("maintenance", "Vehicle maintenance"),
           area("crash", "Crashes per truck"),
-          ["Fines paid", <Num>{fd(c.safety.finesFd)} FD{c.safety.outOfService ? ` · ${c.safety.outOfService} out-of-service order${c.safety.outOfService > 1 ? "s" : ""}` : ""}</Num>],
+          ["Fines and tickets paid", <Num>{fd(c.safety.finesFd)} FD{c.safety.outOfService ? ` · ${c.safety.outOfService} out-of-service order${c.safety.outOfService > 1 ? "s" : ""}` : ""}</Num>],
           ...(claims || cases ? ([["Claims", <span class="bad">{claims} on your record{cases ? ` · ${cases} under investigation` : ""}</span>]] as [string, JSX.Element][]) : []),
         ]}
       />

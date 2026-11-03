@@ -4,13 +4,63 @@ import type { EconomyConfig } from "@lanes/config";
  * pass is one file. Numbers come in as arguments from the config or the world; none is typed here.
  */
 
+/** Every button answers (the writer's copy-player4.md, R20): BID's result, and BOOK NOW's refusal on a vetted load. */
+export const ANSWER = {
+  bid: (rate: string, origin: string, dest: string, hh: string) => `Bid in: ${rate}/mi on ${origin} to ${dest}. It clears at ${hh}.`,
+  bookVetting: (days: number, loads: number, d: number, l: number) => `Strict vetting: needs ${days} days of authority and ${loads} loads delivered. You have ${d} and ${l}.`,
+  bookVettingStd: (days: number, d: number) => `Standard vetting: needs ${days} days of authority. You have ${d}.`,
+};
+
+/** One true reason, where the wall is (the writer's copy-player5.md, R22): the engine's first refusal, vetting before local-first. */
+export const WALL = {
+  vettingStandard: (days: number, date: string) => `Needs ${days}-day authority: yours reaches it ${date}.`,
+  vettingStrict: (days: number, n: number, d: number, l: number) => `Strict vetting: ${days} days' authority and ${n} loads. You have ${d} days, ${l} loads.`,
+  vettingStrictDate: (days: number, date: string) => `Strict vetting needs ${days} days' authority: yours reaches it on ${date}.`,
+  localFirst: (hh: string) => `Local carriers first this round. Open to everyone from ${hh}.`,
+  hot: "A hot load needs a team.",
+};
+
+/** Every move shows its price before the tap (the writer's copy-player5.md, R24): fuel, the driver's pay and tolls over the empty miles. */
+export const MOVE = {
+  home: (mi: string, fd: string, time: string) => `Home · ${mi} mi empty · about ${fd} FD · ${time}`,
+  empty: (hub: string, mi: string, fd: string, time: string) => `To ${hub} · ${mi} mi empty · about ${fd} FD · ${time}`,
+  time: (days: number, hours: number) => (days < 1 ? `${hours} h` : days === 1 ? "1 day" : `${days} days`),
+};
+
+/** The load screen (the writer's copy-player5.md, R25): no "replaying", which a cautious player read as "could come out different". */
+export const LOADING = { title: "Loading your world…" };
+
+/**
+ * R3: "Theft risk" becomes Security, banded from hubTheftRisk (a multiple of a quiet road). The cut-offs are the writer's
+ * proposal, for the economy to confirm: under 1.2 quiet, 1.2 to 2 watch, 2 and over high.
+ */
+/** The Economy page's lead (the writer's copy-player1.md, R3): no other game named. */
+export const ECONOMY = {
+  lead: (days: number) => `Every FD the game paid out and took back in the last ${days} days: the world's own books, published monthly. Everyone sees the same page.`,
+};
+
+export type SecurityBand = "quiet" | "watch" | "high";
+export const SECURITY = {
+  band: (x: number): SecurityBand => (x < 1.2 ? "quiet" : x < 2 ? "watch" : "high"),
+  name: { quiet: "Quiet", watch: "Watch", high: "High" } as Record<SecurityBand, string>,
+  card: {
+    quiet: "Security: quiet",
+    watch: "Security: watch. Cargo goes missing here more than on quiet roads.",
+    high: "Security: high. Cargo goes missing here often; insurers and some shippers notice.",
+  } as Record<SecurityBand, string>,
+  label: "Security",
+  here: "Security here",
+  atHub: "Security at the hub",
+  tip: (band: SecurityBand) => `Security: ${band}`,
+};
+
 export const LOGIN = {
   signIn: "Sign in",
   enter: "Enter the world",
-  continueLive: (company: string) => `Continue · ${company}`,
+  continueLive: (company: string, date: string) => `Continue · ${company} · ${date}`,
   connecting: "Connecting…",
   unreachable: "Can't reach the world · Retry",
-  continueTest: (company: string, day: number) => `Continue · ${company}, day ${day}`,
+  continueTest: (company: string, date: string) => `Continue · ${company} · ${date}`,
   newTest: "New test world",
   replaces: (company: string) => `This replaces ${company}.`,
   replace: "Replace it",
@@ -46,7 +96,8 @@ export const HUB_CARD = {
   costs: "What it costs to live here",
   insurance: (pct: string, side: "above" | "below" | null) => (side ? `Insurance: ${pct} ${side} the base rate` : "Insurance: at the base rate"),
   yard: (fd: string) => `Yard: ${fd} FD a week per truck past the first`,
-  theft: (times: string) => `Cargo theft: ${times} a quiet road's`,
+  /** R3 (the writer's copy-player1.md): Security, banded, on every card, quiet included. */
+  security: (band: SecurityBand) => SECURITY.card[band],
   outbound: "Outbound by trailer",
   seeBoard: "See the board",
   startHere: "Start here",
@@ -101,6 +152,8 @@ export const ARRIVAL = {
   /** A small fleet's arrival (test build): two used trucks of its own, no lessor (the writer, 2026-11-03). */
   lineFleet: (hub: string) => `This is ${hub}, your home. Two used trucks of your own, a van and a reefer, and no lessor's share. Let's find them loads.`,
   showBoard: "Show me the board",
+  /** Under the arrival line (the writer's copy-player1.md, row 18). */
+  fd: "FD is the game's money: you earn it hauling and spend it running trucks.",
   finding: (hub: string) => `Finding ${hub}…`,
   you: "You",
 };
@@ -191,7 +244,7 @@ export const ROLLING = {
   late: (h: number) => `Late ${h} h`,
   follow: "Follow",
   tonightSite: (truckStop: boolean, near: string) => `Tonight, as planned: ${truckStop ? "a truck stop" : "a rest area"} near ${near}`,
-  tonightShoulder: "Tonight, as planned: the shoulder. Nowhere legal to stop in reach.",
+  tonightShoulder: "No legal stop in reach: the shoulder tonight.",
   /** A load the dispatcher booked, with no legal stop in today's reach (QA, carry-over row 4; the writer's line). */
   tonightDispatcher: "Tonight: your dispatcher picks the stop on the way.",
 };
@@ -209,6 +262,11 @@ export const DELIVERED = {
   yours: "Yours",
   paid: "Paid",
   today: "today",
+  /** How this load is paid, from the settlement's true terms (the writer's copy-player2.md, row 7). */
+  paidToday: "Paid today.",
+  paidQuick: (pct: string) => `Paid today, less ${pct}.`,
+  paidFactor: (rate: string) => `Paid today by the factor, less ${rate}.`,
+  due: (date: string) => `Due ${date}.`,
   ok: "OK",
 };
 
@@ -226,6 +284,7 @@ export const MONEY = {
   colFd: "FD",
   colDue: "Due",
   nothingOwed: "Nothing owed yet. Your first invoice lands here.",
+  nothingOwedLease: "On a lease, the lessor pays on delivery. Invoices start with your own truck.",
   week: "This week's costs",
   leaseMin: "Lease minimum",
   insurance: "Insurance",
@@ -275,6 +334,8 @@ export const CAPTION = {
   more: "More",
   /** The director's R2: every step card's soft way out, and how a skipped step reads in the list ("skipped" is engineering's draft). */
   skip: "Skip this step",
+  /** UX's (guidance-ux.md section 1): The law's moment on Truck opens the safety record on Company. */
+  seeRecord: "See your record",
   skipped: "skipped",
   /** The Iuliia tab's switch: mutes her tab-and-card lines, not the walkthrough's (iuliia-lines.md; the writer's strings). */
   quiet: "Quiet",
@@ -291,7 +352,6 @@ export const TRUCK = {
   homeTime: (who: string, until: string) => `On home time: ${who} off until ${until}. Nobody bids for this truck until then.`,
   tired: "A tired driver crashes more, drives slower and loses heart.",
   noLoadsInRange: (trailer: string, maxDh: number, hub: string) => `No ${trailer} loads within ${maxDh} mi of ${hub}, as far as your dispatcher sends a truck empty.`,
-  sendHome: (mi: number) => `Send home · ${mi} mi`,
   sendEmpty: (hub: string, mi: number) => `Send empty to ${hub} · ${mi} mi`,
   bidByHand: "Bid by hand",
   noDriver: (n: number) => `Truck ${n} has no driver and earns nothing.`,
@@ -302,9 +362,12 @@ export const TRUCK = {
 
 /** The feed (the ticker on a laptop, "Today" on the Truck tab): copy-first-ten-minutes.md, S5, S7, S8. */
 export const FEED = {
+  /** A book-now, not a bid (the writer's copy-player3.md): "Won … your bid" read wrong for a load booked outright. */
+  booked: (from: string, to: string, miles: number, rate: string) => `Booked at book-now: ${from} to ${to}, ${miles.toLocaleString("en-US")} mi at ${rate}/mi.`,
   won: (from: string, to: string, miles: number, rate: string, mine: boolean) => `Won ${from} to ${to}, ${miles.toLocaleString("en-US")} mi at ${rate}/mi, ${mine ? "your bid" : "your dispatcher's bid"}.`,
   lost: (from: string, to: string, rate: string, winning: string | null) => `Lost ${from} to ${to} at ${rate}/mi: ${winning !== null ? `it went for ${winning}/mi` : "nobody took it this round"}.`,
-  delivered: (from: string, to: string, total: string, yours: string, paid: string) => `Delivered ${from} to ${to}: ${total} FD, ${yours} FD yours after fuel, tolls and the lessor's cut. Paid ${paid}.`,
+  /** QA's rows 2/4 replay: it named three of the five deductions; now it names them as a whole (engineering's words, for the writer). */
+  delivered: (from: string, to: string, total: string, yours: string, paid: string, held: boolean) => `Delivered ${from} to ${to}: ${total} FD, ${yours} FD yours after costs${held ? " and the hold" : ""}. ${paid}`,
   woundUp: "The company is wound up: the trucks are sold, and you start again on a lease.",
   firstLoad: (r1: string, r2: string) => `The first load is your call. Bids clear at ${r1} and ${r2}.`,
   watching: (r1: string, r2: string) => `Your dispatcher is watching the board. Bids clear at ${r1} and ${r2}.`,
@@ -450,7 +513,7 @@ export const FINANCE = {
   stakeDiscount: (pct: string) => `Discount now: ${pct}`,
   stakeField: "FD to stake",
   stake: "Stake",
-  unstake: (days: number) => `Unstake (back in ${days} days)`,
+  unstake: (days: number) => `Unstake (back in ${days === 1 ? "1 day" : `${days} days`})`,
   unstakeNow: (pct: string) => `Unstake now (${pct} back now, the rest burned)`,
   unstakeTitle: "Unstake now?",
   unstakeBack: "You get back",
@@ -717,25 +780,25 @@ const pctOf = (x: number) => `${Math.round(x * 100)}%`;
 const pct2 = (x: number) => `${(x * 100).toFixed(2)}%`;
 /**
  * The explain sheet's foot (guidance-ux.md section 3, ruled 2026-11-03): the question (the writer's, per UX), the figure's
- * own answer, and the link to the company's What now?. The answers are engineering's drafts on UX's examples, for the writer.
+ * own answer, and the link to the company's What now?. The writer's (guidance-strings.md section 3); value keeps engineering's line, since condition enters a truck's value.
  */
 export const FIGURE_ACT = {
   ask: "What can I do about it?",
   whole: "What now? for the whole company ›",
   showLoad: "Show me the load",
   fewerEmpty: (origin: string, mi: string) => `Fewer empty miles: the ${origin} load starts ${mi} mi from your truck.`,
-  loadReason: (origin: string, dest: string, fd: string) => `${origin} to ${dest} pays about ${fd} FD over break-even.`,
+  loadReason: (origin: string, dest: string, fd: string) => `${origin} to ${dest} pays about ${fd} FD over your break-even.`,
   haulForCushion: "Haul the best-paying load: each one adds to your cushion.",
   haulForTruck: "Keep hauling: each paying load closes the gap.",
-  busy: "Your trucks are all busy; this moves as they deliver.",
-  nothingPays: "Nothing in reach pays over break-even this round. The next round brings new loads.",
-  noSpending: "Nothing to fix yet: there's no spending to measure.",
+  busy: "Every truck is on a load; this moves as they deliver.",
+  nothingPays: (hh: string) => `Nothing in reach pays over break-even this round. New loads post at ${hh}.`,
+  noSpending: "Nothing to fix yet: your first week hasn't closed, so there's no spending to measure.",
   healthy: (weeks: string) => `Nothing to fix: ${weeks} weeks of cushion is healthy.`,
   gapClosed: "Nothing to close: you can afford your next truck now.",
   value: "A truck loses value with miles and wear. Upkeep slows that; nothing stops it.",
-  diesel: "Nobody sets the price of diesel; your mpg decides how much it hurts.",
+  diesel: "Nobody sets the price of diesel; your truck's mpg decides how much it hurts.",
   held: "It's yours, held: it counts in full when you buy your own truck.",
-  theirs: "That's theirs to move.",
+  theirs: "That's theirs to change, not yours.",
 };
 
 export const EXPLAIN_HEAD = { what: "What it is", how: "How it's computed", moves: "What moves it", none: "I can't break this one down yet." };
@@ -831,7 +894,8 @@ export const MILESTONE = {
     at: (earned: string, spent: string, kept: string) => `Your first month: earned ${earned}, spent ${spent}, kept ${kept} FD.`,
     /** The director: until the engine's first month-close record exists. */
     atNoRecord: "Your first month has closed. Money has all of it.",
-    reason: "The fuel tax and insurance land at the close. Read the month on Money.",
+    /** "Read the month on Money" goes until the month report exists (R25); it returns with it. */
+    reason: "The fuel tax and insurance land at the close.",
     beforeButton: "See the month so far",
     button: "Read the month",
   },
@@ -874,7 +938,7 @@ export const MILESTONE = {
   nextOnRoad: "Next on the road:",
   nextTruck: (fd: string) => `your next truck, ${fd} FD away`,
   nextLayer: (what: string, date: string) => `${what} open ${date}`,
-  nextMonth: (n: number) => `your first month closes in ${n} days`,
+  nextMonth: (n: number) => `your first month closes in ${n === 1 ? "1 day" : `${n} days`}`,
   noDate: "no date",
 };
 

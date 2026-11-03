@@ -3,6 +3,7 @@ import { bridgeDelayDays, ceilingFd, EXCHANGE_ACCOUNT, fdPriceUsd, outstandingFd
 import { fd, pct, usd } from "../../format.js";
 import { S, useData } from "../../state.js";
 import { Bar, Card, Kv, Num, Panel, Sparkline } from "../bits.js";
+import { ECONOMY } from "../../copy.js";
 
 const TAG_NAME: Record<string, string> = {
   npc_shipper: "NPC shippers' freight",
@@ -72,7 +73,7 @@ export function Economy(): JSX.Element {
   const nights = sum((d) => d.siteNights ?? 0) + sum((d) => d.shoulderNights ?? 0);
   return (
     <Panel title="Economy">
-      <p class="muted small">Every FD the game pays out and takes back over the last 30 days, the way EVE Online's economists publish theirs each month. Everyone sees the same page.</p>
+      <p class="muted small">{ECONOMY.lead(30)}</p>
       <Card title="Money in and out, last 30 days">
         <Kv
           rows={[
@@ -163,8 +164,7 @@ export function Economy(): JSX.Element {
             ["Player businesses", <Num>{count("shop")} shops · {count("fuelStation")} fuel stations · {count("truckStop")} truck stops</Num>],
             ["Breakdowns", <Num>{served ? `${pct(sum((d) => d.roadServiceStop ?? 0) / served)} by truck stops, ${pct(sum((d) => d.roadServiceHub ?? 0) / served)} by hub shops, the rest by NPC road service` : "none"}</Num>],
             ["Nights on the road", <Num>{nights ? `${pct(sum((d) => d.siteNights ?? 0) / nights)} at a site · ${fd(sum((d) => d.tickets ?? 0))} shoulder tickets` : "–"}</Num>],
-            ["Cargo stolen", <Num>{fd(sum((d) => d.cargoThefts ?? 0))} loads · {fd(sum((d) => d.cargoTheftFd ?? 0))} FD of goods</Num>],
-            ...(w.cfg.robbery.enabled ? ([["Channel 19", <Num>{w.robbery.stats.hires} crews hired · {w.robbery.stats.hits} hits · {w.robbery.stats.rigsTaken} rigs chopped · {fd(w.robbery.stats.bountiesPaidFd)} FD of bounties paid · {count("fence")} fences, {count("chopShop")} chop shops</Num>]] as [string, JSX.Element][]) : []),
+            // R3: the crime counters leave the player's page for the studio's dashboard until the Back Lot opens.
           ]}
         />
       </Card>
