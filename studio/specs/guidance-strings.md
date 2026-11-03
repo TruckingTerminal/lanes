@@ -17,6 +17,7 @@ Short config keys used below:
 | `{carryCap}` | `seasonClose.carryoverCapFd` |
 | `{businessDay}`, `{brokerDay}` | `unlockLadder.layers.businesses.afterDays`, `.brokerage.afterDays`, as game dates |
 | `{lessorShare}` | `costs.npcLeaseShareOfGross` |
+| `{holdPct}`, `{depositPct}` | `freeEntry.leases.byValue.escrowShareOfPay`, `.depositShare` (the economy confirms) |
 | `{fuelTaxPerGal}` | `costs.fuelTax.perGal` |
 | `{gapCushionWeeks}` | `guide.gapCushionWeeks` (new; engineering's `guide.ts` reads the same key) |
 | `{cushionAvgWeeks}` | `guide.cushionAvgWeeks` (new; the same) |
@@ -166,7 +167,21 @@ Each speaks once: a line **before** only where the date is known (the month clos
 | `milestone.day28` *light* | the businesses layer | Businesses open `{businessDay}`. Most first-month carriers should let them wait. | Businesses are open. Nobody needs a warehouse in week four; most need a second truck. | A business pays over years. Your gap to the next truck is `{gap}` FD. |
 | `milestone.slump` | the demand dial under 0.9, the first time | (none: a slump gives no notice) | Rates are falling for everyone, not just you. Slumps end. | The carrier still here when it ends is the one who didn't buy in it. Your cushion: `{n}` weeks. |
 | `milestone.debt` | the first weekly check in debt | The weekly check is `{day}`. At today's cash you'd be under the line. | You're in debt at a weekly check: 1 of `{weeksInDebt}`. Here is the way out. | `{weeksInDebt}` checks in a row under `{debtLine}` FD and the company is wound up. |
+| `milestone.firstLate` | the first late delivery | (none) | Your first late load, `{h}` hours: `{cause}`. | Late loads cost reputation. `{fix}` |
+| `milestone.firstLoss` | the first load that loses money | (none) | That load lost `{fd}` FD. You bid `{rate}`; with the hold, break-even was `{be}`. | Bid against break-even and the hold, not the ceiling. |
+| `milestone.firstBoom` | the demand dial over 1.1, the first time | (none) | Rates are up everywhere. Book what pays; don't sign what you can't haul. | Booms end too. The carrier who didn't overreach is still here after. |
 | `milestone.day91` | the brokerage layer | Brokerages open `{brokerDay}`. The bond is the hard part. | Brokerages are open. Here's what one takes, and how far you are. | Bond, licence and premium: you're `{gap}` FD short, or ready. |
+
+**`{fix}` for the first late load, by cause** (the cause list is in `copy-player1.md`, row 12):
+
+| Cause | `{fix}` |
+|---|---|
+| hours ran out | Check the driver's hours left before you book a long run. |
+| dock closed | Check the dock's hours before you book; some close at night. |
+| weather | Leave slack on mountain routes in winter. |
+| breakdown | A planned rebuild costs less than a late load. |
+| weigh station | Fix defects before an inspector finds them. |
+| traffic | Leave slack on city routes. |
 
 ## 3. Explain: the first month's figures
 
@@ -204,7 +219,8 @@ One entry per figure key. `what` and `moves` are the writer's; `how` is engineer
 | `pay.fuelTax` | Tax on every gallon you burn, billed at the month's close. | `{fuelTaxPerGal}` FD a gallon, on the road and idling, added up over the month. | Gallons: fewer empty miles, less idling, a make with better mpg. |
 | `pay.maintenance` | Wear on the truck from these miles. | The tractor's cost per mile, times the miles. | The make, the truck's condition, a timely rebuild. |
 | `pay.insurance` | Your policy's cost for this period. | Base premium, times your record, your home hub and the market. | A clean safety record; your home hub. |
-| `pay.ownerPay` | What you pay yourself for driving. | Your driver's rate per mile, times the miles. | Your pay setting. |
+| `pay.ownerPay` | Your wage as the driver. | Your driver's rate per mile, times the miles. | Your pay setting. (Where it goes: `copy-player1.md`, row 5, once the economy says.) |
+| `money.held` | Money kept from each leased load toward a truck of your own. | `{holdPct}` of each leased settlement, until it reaches `{depositPct}` of the truck's value. | Every leased load adds to it. It counts in full when you buy. |
 
 ### Standing
 
@@ -252,6 +268,8 @@ One entry per figure key. `what` and `moves` are the writer's; `how` is engineer
 | Key | What it is | How it's computed | What moves it |
 |---|---|---|---|
 | `market.loadToTruck` | Loads posted for every truck looking, at a hub. | Open loads, divided by trucks free nearby. | More freight raises it; more trucks lower it. |
-| `market.demandDial` | Freight across the whole country against its normal level. | The market's cycle: booms and slumps, over months. | Nothing you do; plan for it. |
+| `market.demandDial` | Freight across the whole country against its normal level. | The freight market's cycle: booms and slumps, over months. | Nothing you do; plan for it. |
 | `market.diesel` | Today's price of diesel at the pump. | The fuel market, moving daily. | Nothing you do; your mpg decides how much it hurts. |
+| `market.security` | How often cargo goes missing on this market's roads: quiet, watch or high. | This market's loss rate against a quiet road's. | Nothing you do changes it; it raises insurance and some shippers' vetting. |
+| `market.security.other` | The same, on a hub card you haven't chosen. | (no inputs) | It's the market's; a home with high security costs more to insure. |
 | `market.season` | Whether this hub's freight is in season or out. | This hub's freight for your trailer type against its yearly average. | The calendar. |
