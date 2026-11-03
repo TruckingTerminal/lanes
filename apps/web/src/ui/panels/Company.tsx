@@ -60,7 +60,7 @@ export function Company(): JSX.Element {
       <Card title="Market report">
         <Kv
           rows={[
-            ["Freight demand (Cass dial)", <Num class={cyc > 1.1 ? "good" : cyc < 0.9 ? "bad" : ""}>{cyc.toFixed(2)} · {cyc > 1.1 ? "boom" : cyc < 0.9 ? "slump" : "normal"}</Num>],
+            ["Freight demand, country-wide", <Num class={cyc > 1.1 ? "good" : cyc < 0.9 ? "bad" : ""}>{cyc.toFixed(2)} · {cyc > 1.1 ? "boom" : cyc < 0.9 ? "slump" : "normal"}</Num>],
             ["Average rate yesterday", <Num>{lastDay ? lastDay.avgClearedRate.toFixed(2) : "–"} FD/mi</Num>],
             ["Diesel", <Num>{fuelPrice(w).toFixed(2)} FD/gal</Num>],
             ...(c ? ([["Your hub's load-to-truck", <Num>{w.lastRatio[c.homeHub]!.toFixed(2)}</Num>]] as [string, JSX.Element][]) : []),

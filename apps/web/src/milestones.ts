@@ -1,4 +1,4 @@
-import { type Company, type World } from "@lanes/engine";
+import { marketMood, type Company, type World } from "@lanes/engine";
 import { debtCountdown, nextWeeklyCheckDay } from "./figures.js";
 
 /**
@@ -8,7 +8,7 @@ import { debtCountdown, nextWeeklyCheckDay } from "./figures.js";
  * and `ms:{key}:at`, scoped to the company in ui/Milestones.tsx) and only inside `guide.milestoneWindowDays` of the date. A milestone whose date the world doesn't
  * keep (a third truck) has `day` null: its at line shows while it holds, and the timeline lists it without a date.
  */
-export type MilestoneKey = "ownTruck" | "hiredWeek" | "dispatcher" | "monthClose" | "day28" | "slump" | "debt" | "day91";
+export type MilestoneKey = "ownTruck" | "hiredWeek" | "dispatcher" | "monthClose" | "day28" | "firstBoom" | "slump" | "debt" | "day91";
 
 export interface Milestone {
   key: MilestoneKey;
@@ -28,6 +28,25 @@ export interface Milestone {
 const today = (w: World): number => Math.floor(w.t / w.cfg.time.gameMinutesPerDay);
 /** The weekly close on or after `d` (step.ts closes a week when (day + 1) % 7 is 0). */
 const closeOnOrAfter = (d: number): number => d + ((6 - (d % 7) + 7) % 7);
+
+/**
+ * The first day since `since` that the market read "booming" (freight.ts marketMood, read as it stood at the end of each
+ * recorded day: the engine's own function over the days up to then). Scanned once per new day and kept per world.
+ */
+const boomScans = new WeakMap<World, Map<number, { scanned: number; day: number | null }>>();
+export function firstBoomDay(w: World, since: number): number | null {
+  let per = boomScans.get(w);
+  if (!per) boomScans.set(w, (per = new Map()));
+  const scan = per.get(since) ?? { scanned: 0, day: null };
+  const days = w.metrics.days;
+  for (let i = scan.scanned; i < days.length && scan.day === null; i++) {
+    if (days[i]!.day < since) continue;
+    if (marketMood({ cfg: w.cfg, metrics: { days: days.slice(0, i + 1) } } as unknown as World).state === "booming") scan.day = days[i]!.day;
+  }
+  scan.scanned = days.length;
+  per.set(since, scan);
+  return scan.day;
+}
 
 /** Every milestone to day 91 that has happened or has a known date ahead. */
 export function milestones(w: World, c: Company): Milestone[] {
@@ -53,6 +72,9 @@ export function milestones(w: World, c: Company): Milestone[] {
     out.push({ key: "day28", day: ladder.layers.businesses.afterDays, happened: now >= ladder.layers.businesses.afterDays, before: true });
     out.push({ key: "day91", day: ladder.layers.brokerage.afterDays, happened: now >= ladder.layers.brokerage.afterDays, before: true });
   }
+  // The first boom: the first day since the company began that the market read booming.
+  const boom = firstBoomDay(w, c.createdDay);
+  if (boom !== null) out.push({ key: "firstBoom", day: boom, happened: true, before: false });
   // The first slump: the first day since the company began that the demand dial read under 0.9 (it's a function of the day).
   for (let d = c.createdDay; d <= now; d++) {
     if (w.feeds.cycle(d) < 0.9) {
@@ -86,7 +108,7 @@ export function dueMilestone(w: World, c: Company, seen: (key: string) => boolea
 }
 
 /** The order milestones come in, for placing an undated one between its neighbours. */
-const ORDER: MilestoneKey[] = ["ownTruck", "hiredWeek", "dispatcher", "monthClose", "day28", "slump", "debt", "day91"];
+const ORDER: MilestoneKey[] = ["ownTruck", "hiredWeek", "dispatcher", "monthClose", "day28", "firstBoom", "slump", "debt", "day91"];
 
 /** The company's history for the timeline: what has happened, newest first; an undated one sits just after its last dated forerunner. */
 export function history(w: World, c: Company): Milestone[] {

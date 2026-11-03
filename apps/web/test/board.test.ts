@@ -1,9 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { dispatchProfile, operatingTrucks, placeMiles, placeToll } from "@lanes/engine";
-import { bidRange, boardRows, clearsNear, posterOf, sortRows, suggestBid } from "../src/board.js";
+import { clearsNear as engineClearsNear, dispatchProfile, invalidOrders, marketMood, operatingTrucks, placeMiles, placeToll } from "@lanes/engine";
+import { bidRange, boardRows, clearsNear, clearsNearSource, posterOf, sortRows, suggestBid } from "../src/board.js";
+import { breakdown } from "../src/explain.js";
+import { firstBoomDay } from "../src/milestones.js";
 import { intelRows } from "../src/intel.js";
 import { trueBreakEven } from "../src/breakeven.js";
-import { TestGame } from "../src/game.js";
+import { DEFAULT_ORDERS, PLAYER_DISPATCHER_ORDERS, TestGame } from "../src/game.js";
 
 async function world() {
   const g = await TestGame.create();
@@ -22,7 +24,7 @@ describe("the board", () => {
       const be = trueBreakEven(g.w, truck, r.l, placeMiles(g.w, truck.place, r.l.originPlace), placeToll(g.w, truck.place, r.l.originPlace), prof.foresightDays, prof.reloadWeight);
       expect(r.be).toBeCloseTo(be, 9);
       expect(r.profitBook).toBeCloseTo((r.l.bookNow - be) * r.l.miles, 6);
-      expect(r.suggest).toBe(suggestBid(r.l, be));
+      expect(r.suggest).toBe(suggestBid(g.w, r.l, be));
       const [lo, hi] = bidRange(g.w, r.l, be);
       expect(lo).toBeLessThanOrEqual(hi);
     }
@@ -32,7 +34,7 @@ describe("the board", () => {
     const { g, c, truck } = await world();
     const rows = boardRows(g.w, c, truck, { dest: "any", maxDh: 300, query: "" });
     for (const r of rows) {
-      expect(clearsNear(r.l)).toBeLessThanOrEqual(r.l.ceiling);
+      expect(clearsNear(g.w, r.l)).toBeLessThanOrEqual(r.l.ceiling);
       const [lo, hi] = bidRange(g.w, r.l, r.be);
       expect(hi).toBe(r.l.ceiling);
       expect(lo).toBeLessThanOrEqual(hi);
@@ -104,4 +106,45 @@ describe("the walkthrough's first bid", () => {
       if (row && g1.act({ type: "book_load", truckId: truck.id, loadId: row.l.id }).ok) expect(board.done(g1.w, solo)).toBe(true);
     }
   }, 120_000);
+});
+
+describe("stage 2: the board reads the engine's clearsNear (R1's anchor)", () => {
+  it("label, explain, suggestion and the players' default bid all follow clearsNear(w, load)", async () => {
+    const { g, c, truck } = await world();
+    const w = g.w;
+    const rows = boardRows(w, c, truck, { dest: "any", maxDh: 300, query: "" });
+    expect(rows.length).toBeGreaterThan(0);
+    for (const r of rows.slice(0, 10)) {
+      expect(r.clears).toBe(engineClearsNear(w, r.l));
+      expect(clearsNear(w, r.l)).toBe(r.clears);
+      // The suggestion: what it clears near, break-even the floor, over book-now, never over the ceiling.
+      expect(r.suggest).toBeCloseTo(Math.max(r.l.bookNow + 0.05, Math.min(r.l.ceiling, Math.max(r.be, r.clears))), 9);
+      const src = clearsNearSource(w, r.l);
+      expect(Math.min(src.rate, r.l.ceiling)).toBeCloseTo(r.clears, 9);
+      const b = breakdown(w, c, "board.clearsNear", { loadId: r.l.id, truckId: truck.id })!;
+      expect(b.total.value).toBe(`${r.clears.toFixed(2)}/mi`);
+    }
+    const bid = PLAYER_DISPATCHER_ORDERS.find((o) => o.kind === "bid");
+    expect(bid && bid.kind === "bid" && bid.price).toEqual({ mode: "clearsNear", pct: 0 });
+    expect(PLAYER_DISPATCHER_ORDERS.find((o) => o.kind === "floor")).toEqual({ kind: "floor", breakEvenPlusPct: 0 });
+    // Switching the dispatcher on signs no contract: that's the player's own accept, or a rule they switch on.
+    expect(PLAYER_DISPATCHER_ORDERS.find((o) => o.kind === "contracts")).toMatchObject({ acceptOffers: false });
+    expect(invalidOrders(w.cfg, PLAYER_DISPATCHER_ORDERS)).toBeNull();
+    // Joins replay DEFAULT_ORDERS: unchanged, so no world's history moves.
+    expect(DEFAULT_ORDERS.find((o) => o.kind === "bid")).toEqual({ kind: "bid", maxDeadheadMi: 150, price: { mode: "breakEvenPlus", pct: 0.25 } });
+  }, 60_000);
+
+  it("the first boom is the first day marketMood read booming since the company began", async () => {
+    const { g, c } = await world();
+    const k = g.w.cfg.rates.news;
+    const day = (d: number, rate: number) => ({ day: d, cleared: 10, avgClearedRate: rate });
+    const days = [...Array.from({ length: k.longDays }, (_, i) => day(i, 2)), ...Array.from({ length: k.shortDays }, (_, i) => day(k.longDays + i, 2.6))];
+    const fake = { cfg: g.w.cfg, metrics: { days } } as unknown as typeof g.w;
+    expect(marketMood(fake).state).toBe("booming");
+    const first = firstBoomDay(fake, 0)!;
+    expect(first).toBeGreaterThanOrEqual(k.longDays);
+    expect(marketMood({ cfg: g.w.cfg, metrics: { days: days.filter((d) => d.day < first) } } as unknown as typeof g.w).state).not.toBe("booming");
+    expect(firstBoomDay(fake, first + 1)).toBe(first + 1);
+    expect(firstBoomDay(g.w, c.createdDay)).toBeNull();
+  }, 60_000);
 });

@@ -379,7 +379,7 @@ function LoadSheet({ r, truck }: { r: BoardRow; truck: Truck }): JSX.Element {
             [LOAD.bookNow, <Fig k="board.bookNow" label={LOAD.bookNow} ctx={fx}>{`${fdFull(r.total)} FD · ${l.bookNow.toFixed(2)}/mi`}</Fig>],
             [LOAD.breakEven, <Fig k="truck.breakEven" label={LOAD.breakEven} ctx={fx}>{`${r.be.toFixed(2)}/mi`}</Fig>],
             [LOAD.profitBook, <Fig k="board.profitChip" label={LOAD.profitBook} ctx={fx}><span class={bookUp ? "good" : "bad"}>{profitWords(r, truck) ?? `${signed(r.profitBook)} FD`}</span></Fig>],
-            [LOAD.clearsNear, <Fig k="board.clearsNear" label={LOAD.clearsNear} ctx={fx}>{`${clearsNear(l).toFixed(2)}/mi`}</Fig>],
+            [LOAD.clearsNear, <Fig k="board.clearsNear" label={LOAD.clearsNear} ctx={fx}>{`${clearsNear(w, l).toFixed(2)}/mi`}</Fig>],
             [LOAD.ceiling, <Fig k="board.ceiling" label={LOAD.ceiling} ctx={fx}>{`${l.ceiling.toFixed(2)}/mi`}</Fig>],
           ]}
         />

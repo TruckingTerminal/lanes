@@ -1,4 +1,4 @@
-import { canMakeHot, dayOf, dispatchProfile, expectedReloadDeadheadMi, mayTake, operatingTrucks, placeMiles, placeToll, vettingBlock, type Company, type Load, type Truck, type World } from "@lanes/engine";
+import { canMakeHot, clearsNear as engineClearsNear, dayOf, dispatchProfile, expectedReloadDeadheadMi, mayTake, operatingTrucks, placeMiles, placeToll, vettingBlock, type Company, type Load, type Truck, type World } from "@lanes/engine";
 import { COMMODITIES } from "@lanes/data";
 import { trueBreakEven } from "./breakeven.js";
 import { WALL } from "./copy.js";
@@ -22,6 +22,8 @@ export interface BoardRow {
   profitBook: number;
   /** What the lease would hold back toward the player's own truck from the load at book-now (leaseHold). */
   heldBook: number;
+  /** What it usually clears near (clearsNear), per mile. */
+  clears: number;
   suggest: number;
   profitSuggest: number;
   /** Why this company can't take it now, as the chip says it; null when it can. */
@@ -40,14 +42,23 @@ export interface BoardFilter {
 /** The company that posted a load: its broker, else its shipper (null for an NPC shipper's load). */
 export const posterOf = (l: Load): number | null => l.brokerId ?? l.shipperId ?? null;
 
-/** The suggested bid: above book-now, toward the market and a margin over break-even, never over the ceiling. */
 /**
- * What a load "usually clears near" on the board: the lane's recent clearing rate, never above this load's own ceiling
- * (market truth, the director's gate: a rate above what the shipper will pay is not one this load clears at).
+ * What a load "usually clears near" on the board: the engine's figure (freight.ts clearsNear), the lane's trailing clears
+ * for this trailer, else its origin market's, else the load's own reference; never above this load's ceiling.
  */
-export const clearsNear = (l: Load): number => Math.min(l.refRate, l.ceiling);
+export const clearsNear = (w: World, l: Load): number => engineClearsNear(w, l);
 
-export const suggestBid = (l: Load, be: number): number => Math.max(l.bookNow + 0.05, Math.min(l.ceiling, Math.max(be * 1.15, clearsNear(l))));
+/** Where clearsNear's figure came from, for its explanation. freight.ts reads a table once it has CLEARS_MIN clears (5). */
+const CLEARS_MIN = 5;
+export function clearsNearSource(w: World, l: Load): { from: "lane" | "market" | "load"; n: number; rate: number; capped: boolean } {
+  const lane = w.clears?.lane[`${l.laneId}:${l.equipment}`];
+  const hub = w.clears?.hub[`${l.origin}:${l.equipment}`];
+  const [from, rate, n] = lane && lane[1] >= CLEARS_MIN ? (["lane", lane[0], lane[1]] as const) : hub && hub[1] >= CLEARS_MIN ? (["market", hub[0], hub[1]] as const) : (["load", l.refRate * (l.hot || 1), 0] as const);
+  return { from, n, rate, capped: rate > l.ceiling };
+}
+
+/** The suggested bid, as the players' default rule bids (R1): what it usually clears near, break-even the floor, over book-now, never over the ceiling. */
+export const suggestBid = (w: World, l: Load, be: number): number => Math.max(l.bookNow + 0.05, Math.min(l.ceiling, Math.max(be, clearsNear(w, l))));
 
 /**
  * The bid range the stepper allows: a little over break-even, up to the ceiling. The engine still takes a bid over the
@@ -114,7 +125,7 @@ export function boardRows(w: World, c: Company, truck: Truck, f: BoardFilter): B
     }
     const tolls = placeToll(w, truck.place, l.originPlace);
     const be = trueBreakEven(w, truck, l, dh, tolls, prof.foresightDays, prof.reloadWeight);
-    const suggest = suggestBid(l, be);
+    const suggest = suggestBid(w, l, be);
     rows.push({
       l,
       dh,
@@ -124,6 +135,7 @@ export function boardRows(w: World, c: Company, truck: Truck, f: BoardFilter): B
       total: l.bookNow * l.miles,
       profitBook: (l.bookNow - be) * l.miles,
       heldBook: leaseHold(w, truck, l.bookNow * l.miles),
+      clears: clearsNear(w, l),
       suggest,
       profitSuggest: (suggest - be) * l.miles,
       block: blockReason(w, c, truck, l),
@@ -138,7 +150,7 @@ export function boardRows(w: World, c: Company, truck: Truck, f: BoardFilter): B
  */
 export function sortRows(rows: BoardRow[], sort: BoardSort, firstVisit: boolean): BoardRow[] {
   const key = (r: BoardRow): number =>
-    sort === "nearest" ? r.dh : sort === "pay" ? -r.total : sort === "deliver" ? r.l.appointmentT : -(clearsNear(r.l) - r.be) * r.l.miles;
+    sort === "nearest" ? r.dh : sort === "pay" ? -r.total : sort === "deliver" ? r.l.appointmentT : -(r.clears - r.be) * r.l.miles;
   return [...rows].sort((a, b) => {
     if (!!a.block !== !!b.block) return a.block ? 1 : -1;
     if (firstVisit && a.profitBook >= 0 !== b.profitBook >= 0) return a.profitBook >= 0 ? -1 : 1;

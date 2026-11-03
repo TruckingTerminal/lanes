@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { borrowingCapacity, companyAccount, poolCash } from "@lanes/engine";
+import { borrowingCapacity, borrowLender, companyAccount, lendNowFd, poolCash } from "@lanes/engine";
 import { blockReason, boardRows } from "../src/board.js";
 import { ANSWER, CAPS, CONFIRM, DELIVERED, MOVE, SECURITY } from "../src/copy.js";
 import { poachResult } from "../src/ui/panels/Staff.js";
@@ -313,7 +313,11 @@ describe("R7: one figure from one source; only what the lender gives", () => {
     const c = g.join("Door Freight", "fleet", "LAX")!;
     const trucks = g.w.trucksByCompany.get(c.id)!;
     expect(trucks.reduce((s, t) => s + leaseMinFor(g.w, t), 0)).toBeCloseTo(weekCosts(g.w, c).leaseMinimum, 6);
-    for (const { t, cap } of borrowable(g.w, trucks)) {
+    // Borrow reads the engine (lendNowFd): its figure exactly, and no rows while the lender is off.
+    const rows = borrowable(g.w, trucks);
+    if (borrowLender(g.w) === "off") expect(rows).toEqual([]);
+    for (const { t, cap } of rows) {
+      expect(cap).toBe(lendNowFd(g.w, c.id, t));
       expect(cap).toBeLessThanOrEqual(borrowingCapacity(g.w, t));
       expect(cap).toBeLessThanOrEqual(poolCash(g.w));
     }

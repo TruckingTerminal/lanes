@@ -72,6 +72,8 @@ export const ANSWER = {
   leaseRow: (fd: string, min: string) => `Lease another truck · ${fd} FD deposit · at least ${min} FD a week`,
   poach: (name: string, day: string) => `Offer sent to ${name}: they answer by ${day}.`,
   poachRow: (day: string) => `Offer pending · answer by ${day}`,
+  /** Engineering's, for the writer: past the deadline the engine moves them only at a day's close with their truck stopped (labor.ts dailyLabor, free). */
+  poachRowLate: "Offer pending · past the deadline: they move at a day's close once their truck has stopped",
   /** UX's words (player2-ux.md section 7), for the writer: how an offer ended, on the row where it was made. */
   poachAccepted: (name: string, truck: number | null) => `${name} accepted${truck ? `: starts on Truck ${truck}` : ""}.`,
   poachStayed: (name: string, from: string) => `${name} declined: stays with ${from}.`,
@@ -232,6 +234,12 @@ export const SEASON = {
   littleThin: (month: string) => `A little thin in ${month}; the good loads go early.`,
   fine: (month: string) => `Freight is good here in ${month}.`,
   busy: (hub: string, month: string) => `Busy season out of ${hub} in ${month}.`,
+};
+
+/** The market's mood (freight.ts marketMood): the writer's copy-player1.md row 13 for the feed; the hub card's line is its first sentence (engineering's cut, for the writer). */
+export const MARKET = {
+  feed: { booming: "Freight is booming across the country. Rates are climbing; book what pays.", slumping: "Freight is slumping across the country. Expect thin boards and lower rates for a while.", steady: "Freight is back to normal across the country." },
+  card: { booming: "Freight is booming across the country.", slumping: "Freight is slumping across the country." },
 };
 
 /** The starter hubs' character lines and default company names; any other hub: no line and no default name. */
@@ -441,6 +449,8 @@ export const DISPATCHER = {
   offIdle: "The dispatcher is off, so nobody bids for this truck while you're away.",
   seeDispatcher: "See the dispatcher",
   bidAt: "Bid at break-even plus",
+  /** Engineering's, for the clearsNear rule (R1's anchor); the writer to check. */
+  bidAtClears: "Bid at what it usually clears near, plus",
   ceilingSuffix: "% of the ceiling",
   emptyUpTo: "Send the truck empty up to",
   homeAfter: "Bring me home after",
@@ -1045,6 +1055,12 @@ export const MILESTONE = {
     reason: (gap: string) => `A business pays over years. Your gap to the next truck is ${gap} FD.`,
     beforeButton: "See the Dealer",
     button: "See the Dealer",
+  },
+  firstBoom: {
+    name: "The first boom",
+    at: "Rates are up everywhere. Book what pays; don't sign or buy what a slump would make you regret.",
+    reason: "Booms end too. My grandmother bought a summer house in a good year and sold it the next.",
+    button: "Show the board",
   },
   slump: {
     name: "The first slump",

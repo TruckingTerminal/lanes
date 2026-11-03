@@ -20,9 +20,11 @@ import {
   type Company,
   type World,
 } from "@lanes/engine";
+import { clearsNear, clearsNearSource } from "./board.js";
 import { EXPLAIN } from "./copy.js";
 import { cushion, debtCountdown, gapToTruck } from "./figures.js";
 import { buyPlan } from "./finance.js";
+import { TRAILER_NAME } from "./format.js";
 
 /**
  * Help on every figure (specs/guidance.md section 2): one table keyed like copy.ts. The writer's what / how / moves are
@@ -130,6 +132,23 @@ const BREAKDOWNS: Record<string, Fn> = {
       ],
       total: { label: "Profit", value: fd((rate - b.total) * l.miles) },
     };
+  },
+  // freight.ts clearsNear: the lane's trailing clears for this trailer, else the origin market's, else the load's own
+  // reference rate; held at the load's ceiling.
+  "board.clearsNear": (w, _c, ctx) => {
+    const l = ctx.loadId !== undefined ? w.loads.get(ctx.loadId) : undefined;
+    if (!l) return null;
+    const src = clearsNearSource(w, l);
+    const trailer = TRAILER_NAME[l.equipment].toLowerCase();
+    const label =
+      src.from === "lane"
+        ? `This lane, ${trailer}: ${src.n.toLocaleString("en-US")} loads cleared, the recent ones weighing most`
+        : src.from === "market"
+          ? `Too few clears on this lane yet; ${w.net.hubs[l.origin]!.name}'s ${trailer} loads: ${src.n.toLocaleString("en-US")} cleared`
+          : "Too few clears here yet; this load's own reference rate";
+    const rows: Row[] = [{ label, value: perMi(src.rate) }];
+    if (src.capped) rows.push({ label: "Held at this load's ceiling", value: perMi(l.ceiling), key: "board.ceiling" });
+    return { rows, total: { label: "Usually clears near", value: perMi(clearsNear(w, l)) } };
   },
   // The truck's worth, as dealer.ts truckValue: the price new today, less the share of its life its miles used, less
   // its age, held at its floor, less wear; with the assets on, its trailer is valued on its own and added.

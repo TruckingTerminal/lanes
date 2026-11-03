@@ -27,7 +27,7 @@ import {
   type Truck,
   type World,
 } from "@lanes/engine";
-import { DISPATCHER_ORDERS, GAME_CONFIG } from "./game.js";
+import { DISPATCHER_ORDERS, GAME_CONFIG, PLAYER_DISPATCHER_ORDERS } from "./game.js";
 import { trueBreakEven } from "./breakeven.js";
 import { ARRIVAL, BROKERAGE, DISPATCHER, NEEDS, TRUCK } from "./copy.js";
 import { hasTwo, kindInView, switchCompany, type CompanyKind } from "./companies.js";
@@ -63,7 +63,7 @@ export const stuckTrucks = (): Truck[] => {
 /** R1's one button ("Let the dispatcher bid"): the dispatcher's default rules on, the company's other orders kept. */
 export function letDispatcherBid(): void {
   const keep = me().orders.filter((o) => !DISPATCHER_ORDERS.has(o.kind));
-  act({ type: "set_standing_orders", orders: [...DEFAULTS().filter((o) => DISPATCHER_ORDERS.has(o.kind)), ...keep] }, DISPATCHER.saved, "dispatcher:on");
+  act({ type: "set_standing_orders", orders: [...PLAYER_DISPATCHER_ORDERS, ...keep] }, DISPATCHER.saved, "dispatcher:on");
 }
 
 /** Shouts once per idle day per truck, in the ticker and as a toast. */
@@ -302,14 +302,6 @@ export function idleWhy(t: Truck): IdleWhy {
   if (payable.length === 0) return { why: `${plural(loads.length, `${trailer} load`)} in range, but none pays your floor (break-even + ${Math.round(floorPct * 100)}%) even at its ceiling.`, fixes: [board] };
   if (prof.coverage < 1) return { why: `Your dispatcher is stretched: ${prof.span} trucks' worth of attention for the ${running} you run, so this truck sits out about ${Math.round((1 - prof.coverage) * 100)}% of rounds.`, fixes: [<Btn primary onClick={goStaff}>Hire a dispatcher</Btn>, board] };
   return { why: `${plural(payable.length, `${trailer} load`)} in range pay enough, but the dispatcher's bids keep losing: other carriers bid lower or have the better record.`, fixes: [<Btn primary onClick={() => goLoads(t.id)}>Bid by hand</Btn>] };
-}
-/** Late import to avoid a cycle: the default orders live with the game config. */
-function DEFAULTS(): StandingOrder[] {
-  return DEFAULT_ORDERS_REF();
-}
-let DEFAULT_ORDERS_REF: () => StandingOrder[] = () => [];
-export function setDefaultOrders(f: () => StandingOrder[]): void {
-  DEFAULT_ORDERS_REF = f;
 }
 
 /** Plain-text status, for tooltips and the ticker. */

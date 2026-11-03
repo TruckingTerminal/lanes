@@ -259,10 +259,10 @@ function Vetting({ vet, setVet, lines }: { vet: 0 | 1 | 2; setVet: (x: 0 | 1 | 2
   );
 }
 
-/** The brokerage's margin since this month's mark (intel.ts monthMark), its operating result. */
+/** The brokerage's margin since this month's mark (intel.ts monthMark): its operating result, less fines kept outside costs, as the month record counts. */
 function marginThisMonth(c: Company): number {
   const m = c.monthMark;
-  return c.operating.revenueFd - (m?.revenueFd ?? 0) - (c.operating.costFd - (m?.costFd ?? 0));
+  return c.operating.revenueFd - (m?.revenueFd ?? 0) - (c.operating.costFd - (m?.costFd ?? 0)) - ((c.finesOffCostsFd ?? 0) - (m?.finesFd ?? 0));
 }
 
 /** Book (brokerage-ux.md section 2): its loads on the board, moving, and waiting for pay. */

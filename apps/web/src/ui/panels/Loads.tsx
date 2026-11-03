@@ -136,7 +136,7 @@ export function LoadsTable(): JSX.Element {
     const lane = w.net.lanes[l.laneId]!;
     const tolls = placeToll(w, truck.place, l.originPlace) + l.routeTollFd;
     const be = trueBreakEven(w, truck, l, dh, placeToll(w, truck.place, l.originPlace), prof.foresightDays, prof.reloadWeight);
-    const suggest = suggestBid(l, be);
+    const suggest = suggestBid(w, l, be);
     const block = blockReason(w, me(), truck, l); // the board's one reason (R22), the same words as the cards
     rows.push({ l, dh, be, suggest, profit: (suggest - be) * l.miles, profitBook: (l.bookNow - be) * l.miles, reloadMi, tolls, highway: lane.highwayShare, hours: l.routeHours, total: l.bookNow * l.miles, ageH: l.roundsUnfilled * 12, block });
   }
@@ -336,7 +336,7 @@ function LoadDetail({ r, truck, mine, pendingRate }: { r: Row; truck: Truck; min
           <h4 style={{ marginTop: "10px" }}>Market rates</h4>
           <Kv
             rows={[
-              ["Usually clears near", <Num>{clearsNear(l).toFixed(2)}/mi</Num>],
+              ["Usually clears near", <Num>{clearsNear(w, l).toFixed(2)}/mi</Num>],
               ["Ceiling", <Num>{l.ceiling.toFixed(2)}/mi</Num>],
               ["Bid range", <Num>{bidRange(w, l, r.be).map((x) => x.toFixed(2)).join(" – ")}</Num>],
               ["Profit at your bid", <Num class={r.profit > 0 ? "good" : "bad"}>{fd(r.profit)} FD</Num>],

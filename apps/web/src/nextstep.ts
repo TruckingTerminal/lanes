@@ -122,7 +122,7 @@ export function nextAction(cfg: EconomyConfig, w: World, c: Company, lost?: Lost
     if (truck && freeTrucks(w, c).includes(truck)) {
       let best: { loadId: number; profit: number; rate: number; due: number } | null = null;
       for (const r of bestRows(w, c, truck)) {
-        const rate = clearsNear(r.l);
+        const rate = clearsNear(w, r.l);
         const profit = (rate - r.be) * r.l.miles;
         if (profit <= 0 || profit < lost.profitAtWinningFd || r.l.id === lost.loadId) continue;
         if (!best || profit > best.profit || (profit === best.profit && r.l.appointmentT < best.due)) best = { loadId: r.l.id, profit, rate, due: r.l.appointmentT };

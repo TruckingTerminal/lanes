@@ -126,7 +126,7 @@ export function marketPages(cfg: EconomyConfig): GuidePage[] {
       section: S,
       title: "Booms, busts and stabilizers",
       html:
-        p(`National freight demand follows a Cass-style cycle. The Company tab shows the demand dial: above 1.1 is a boom (more freight, higher rates), below 0.9 a slump. Booms invite everyone to buy trucks; the trucks arrive after the dealer's lead time, often as the market turns.`) +
+        p(`National freight demand runs in cycles, as it does in the real freight market. The Company tab shows the demand dial: above 1.1 is a boom (more freight, higher rates), below 0.9 a slump. Booms invite everyone to buy trucks; the trucks arrive after the dealer's lead time, often as the market turns.`) +
         p(`Published stabilizers keep the money supply in check. Each month NPC freight volume moves up to ${pct(cfg.stabilizers.volumeStepPerMonth)} (within ×${cfg.stabilizers.volumeRange[0]}–${cfg.stabilizers.volumeRange[1]}) and the diesel rack spread up to ${pct(cfg.stabilizers.rackStepPerMonth)} (within ±${pct(cfg.stabilizers.rackSpreadBand)}), toward FD sinks matching faucets. After the token launches the profit tax moves first (${see("token", "The token")}).`),
     },
     {

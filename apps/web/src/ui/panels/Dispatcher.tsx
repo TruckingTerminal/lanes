@@ -1,7 +1,7 @@
 import type { JSX } from "preact";
 import { ordersWaitForHand, type StandingOrder } from "@lanes/engine";
 import { DISPATCHER } from "../../copy.js";
-import { DEFAULT_ORDERS, DISPATCHER_ORDERS } from "../../game.js";
+import { DEFAULT_ORDERS, DISPATCHER_ORDERS, PLAYER_DISPATCHER_ORDERS } from "../../game.js";
 import { act, me, S, useData } from "../../state.js";
 import { Btn, Card, Label } from "../bits.js";
 import { Iuliia } from "../Walkthrough.js";
@@ -34,12 +34,12 @@ export function DispatcherCard(): JSX.Element {
   const ct = find("contracts");
   const on = !waiting && Boolean(bid);
   const spotNow = ct ? (ct.spotAbovePct === null ? "always" : String(ct.spotAbovePct)) : "always";
-  const def = <K extends StandingOrder["kind"]>(k: K) => DEFAULT_ORDERS.find((o): o is Extract<StandingOrder, { kind: K }> => o.kind === k);
+  const def = <K extends StandingOrder["kind"]>(k: K) => [...PLAYER_DISPATCHER_ORDERS, ...DEFAULT_ORDERS].find((o): o is Extract<StandingOrder, { kind: K }> => o.kind === k);
   const orders = (bidding: boolean): StandingOrder[] => {
     const dh = Math.max(0, Math.min(150, num("o-dh") || 150));
     const list: StandingOrder[] = [];
     if (bidding) {
-      list.push({ kind: "bid", maxDeadheadMi: dh, price: { mode: bid?.price.mode ?? "breakEvenPlus", pct: Math.max(0, num("o-pct")) / 100 } });
+      list.push({ kind: "bid", maxDeadheadMi: dh, price: { mode: bid?.price.mode ?? "clearsNear", pct: Math.max(0, num("o-pct")) / 100 } });
       list.push({ kind: "floor", breakEvenPlusPct: Math.max(0, num("o-floor")) / 100 });
       if (checked("o-repo")) list.push({ kind: "reposition", afterIdleRounds: Math.max(1, num("o-repo-r")), to: { openLoadsWithinMi: 400 } });
       if (checked("o-bn")) list.push({ kind: "bookNow", breakEvenPlusPct: Math.min(5, Math.max(0, num("o-bn-pct") / 100 || 0)), maxDeadheadMi: dh });
@@ -56,7 +56,7 @@ export function DispatcherCard(): JSX.Element {
   const flip = (to: boolean) => {
     const rest = c.orders.filter((o) => !DISPATCHER_ORDERS.has(o.kind));
     if (!to) setAside.set(c.id, c.orders.filter((o) => DISPATCHER_ORDERS.has(o.kind)));
-    const back = setAside.get(c.id) ?? DEFAULT_ORDERS.filter((o) => DISPATCHER_ORDERS.has(o.kind));
+    const back = setAside.get(c.id) ?? PLAYER_DISPATCHER_ORDERS;
     act({ type: "set_standing_orders", orders: to ? [...back, ...rest] : rest }, DISPATCHER.saved, to ? "dispatcher:on" : "dispatcher:off");
   };
   const switchRow = (
@@ -80,8 +80,8 @@ export function DispatcherCard(): JSX.Element {
     <Card class="dispatcher" title={DISPATCHER.title} key={c.orders.length}>
       {switchRow}
       <div class="row">
-        <Label for="o-pct">{bid?.price.mode === "ceilingPct" ? "Bid at" : DISPATCHER.bidAt}</Label>
-        <input type="number" id="o-pct" step="1" min="0" max="120" defaultValue={String(Math.round((bid?.price.pct ?? def("bid")?.price.pct ?? 0.25) * 100))} />
+        <Label for="o-pct">{bid?.price.mode === "ceilingPct" ? "Bid at" : (bid?.price.mode ?? "clearsNear") === "clearsNear" ? DISPATCHER.bidAtClears : DISPATCHER.bidAt}</Label>
+        <input type="number" id="o-pct" step="1" min="0" max="120" defaultValue={String(Math.round((bid?.price.pct ?? def("bid")?.price.pct ?? 0) * 100))} />
         <span class="muted">{bid?.price.mode === "ceilingPct" ? DISPATCHER.ceilingSuffix : "%"}</span>
       </div>
       <div class="row">
@@ -98,7 +98,7 @@ export function DispatcherCard(): JSX.Element {
         <summary onClick={() => iuliiaFirst("dispatcher:rules")}>{DISPATCHER.moreRules}</summary>
         <div class="row">
           <Label for="o-floor">{DISPATCHER.floor}</Label>
-          <input type="number" id="o-floor" min="0" max="50" defaultValue={String(Math.round((floor?.breakEvenPlusPct ?? 0.05) * 100))} />
+          <input type="number" id="o-floor" min="0" max="50" defaultValue={String(Math.round((floor?.breakEvenPlusPct ?? 0) * 100))} />
           <span class="muted">%</span>
         </div>
         <div class="row">

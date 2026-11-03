@@ -60,6 +60,15 @@ export const DEFAULT_ORDERS: StandingOrder[] = [
   { kind: "contracts", acceptOffers: true, spotAbovePct: null, maxDeadheadMi: 150 },
 ];
 
+/**
+ * The dispatcher's rules a player turns on (Dispatcher's switch and its first defaults, letDispatcherBid): R1's anchor, bid
+ * at what the load usually clears near with break-even the floor (standingOrders.ts clearsNear mode), and no margin
+ * floor above break-even. It signs no contract offer: that's the player's own accept, or the rule they switch on. Joins keep DEFAULT_ORDERS: joinCompany is replayed, so its orders are the ruleset's.
+ */
+export const PLAYER_DISPATCHER_ORDERS: StandingOrder[] = DEFAULT_ORDERS.filter((o) => DISPATCHER_ORDERS.has(o.kind)).map((o) =>
+  o.kind === "bid" ? { ...o, price: { mode: "clearsNear", pct: 0 } } : o.kind === "floor" ? { ...o, breakEvenPlusPct: 0 } : o.kind === "contracts" ? { ...o, acceptOffers: false } : o,
+);
+
 export function newWorld(seed: number): World {
   const net = buildNetwork(hubs, GAME_CONFIG);
   const w = createWorld({ cfg: GAME_CONFIG, net, feeds: { ...neutralFeeds, cycle: syntheticCassCycle({ seed }) }, seed });

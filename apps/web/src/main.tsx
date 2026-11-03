@@ -1,14 +1,14 @@
 import { render } from "preact";
-import { companyAccount, condition, crewed, resting, staffById, type GameEvent } from "@lanes/engine";
+import { companyAccount, condition, crewed, marketMood, resting, staffById, type GameEvent } from "@lanes/engine";
 import { installTheme } from "./art.js";
 import { truckSheet, whenAssetsReady } from "./assets.js";
 import { fd, fdFull, hhmm, realUntil, shortDate } from "./format.js";
-import { DELIVERED, FEED, LOADING, ROUND } from "./copy.js";
+import { DELIVERED, FEED, LOADING, MARKET, ROUND } from "./copy.js";
 import { iuliiaOnChange, iuliiaSay } from "./iuliia.js";
-import { DEFAULT_ORDERS, RULESET, TestGame, type StartKind } from "./game.js";
+import { RULESET, TestGame, type StartKind } from "./game.js";
 import { H } from "./handlers.js";
 import { createMeta, LiveWorld, readMeta, type DbLike, type WorldMeta } from "./live.js";
-import { checkAttention, checkIdleAlerts, needs, setDefaultOrders } from "./logic.js";
+import { checkAttention, checkIdleAlerts, needs } from "./logic.js";
 import { invoices } from "./ledger.js";
 import { nightStop, paidLine, payLine, type TruckBefore } from "./rolling.js";
 import { sampleStarters } from "./hubcard.js";
@@ -169,7 +169,6 @@ async function boot(): Promise<void> {
   loadOnboard();
   whenAssetsReady(() => bumpData());
   truckSheet();
-  setDefaultOrders(() => DEFAULT_ORDERS);
   wireHandlers();
   wireKeys();
   render(<App />, document.getElementById("app")!);
@@ -499,11 +498,9 @@ function observe(s: Session): void {
     f.history.push({ day, cash: w.ledger.balance(companyAccount(s.player.id)) });
     if (f.history.length > 120) f.history.shift();
   }
-  const cyc = w.feeds.cycle(day);
-  const band = cyc > 1.12 ? "boom" : cyc < 0.88 ? "slump" : "normal";
-  if (band !== f.band && f.band !== "") {
-    push(s, band === "boom" ? `Freight is booming: the Cass dial reads ${cyc.toFixed(2)}. Rates are climbing.` : band === "slump" ? `Freight is slumping: the Cass dial reads ${cyc.toFixed(2)}. Expect thin loads and price cuts.` : "Freight demand is back to normal.", band === "boom" ? "good" : band === "slump" ? "bad" : "");
-  }
+  // The market line on the day the mood crosses (freight.ts marketMood: the last week's cleared rate against the four before).
+  const band = marketMood(w).state;
+  if (band !== f.band && f.band !== "") push(s, MARKET.feed[band], band === "booming" ? "good" : band === "slumping" ? "bad" : "");
   f.band = band;
 }
 

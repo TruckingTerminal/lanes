@@ -8,8 +8,8 @@ import {
   companyAccount,
   financedCashNeed,
   salesTaxOn,
-  borrowingCapacity,
-  poolCash,
+  borrowLender,
+  lendNowFd,
   contractOn,
   depositCredit,
   factoringLog,
@@ -115,16 +115,16 @@ export function loanRows(w: World, c: Company): LoanRow[] {
   ];
 }
 
-/** Owned trucks with room to borrow against, and how much. */
 /**
- * What each owned, unpledged truck can borrow today (R7: only what the lender gives): the engine's own limits (finance.ts
- * borrow: the loan-to-value cap and the pool's cash), less 2% because the truck loses value by the mile before the
- * confirm lands (the economy's note). Nothing when the pool can't lend.
+ * What each owned, unpledged truck can borrow today (R7: only what the lender gives): the engine's own figure (finance.ts
+ * lendNowFd: 98% of the loan-to-value cap, no more than the pool's cash, floored to the hundred). Nothing while
+ * borrowLender is off, so the rows don't show.
  */
 export function borrowable(w: World, trucks: Truck[]): { t: Truck; cap: number }[] {
+  if (borrowLender(w) === "off") return [];
   return trucks
     .filter((t) => t.lease === "owned" && !activeLoanOn(w, t.id))
-    .map((t) => ({ t, cap: Math.floor(Math.min(borrowingCapacity(w, t) * 0.98, poolCash(w)) / 100) * 100 }))
+    .map((t) => ({ t, cap: lendNowFd(w, t.companyId, t) }))
     .filter((x) => x.cap >= 100);
 }
 

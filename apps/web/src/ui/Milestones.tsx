@@ -126,6 +126,8 @@ function words(w: World, c: Company, m: Milestone, phase: "before" | "at"): { li
         button: phase === "before" ? MILESTONE.day28.beforeButton : MILESTONE.day28.button,
         go: go("market"),
       };
+    case "firstBoom":
+      return { line: MILESTONE.firstBoom.at, reason: MILESTONE.firstBoom.reason, button: MILESTONE.firstBoom.button, go: go("loads") };
     case "slump": {
       const cu = cushion(w, c);
       return { line: MILESTONE.slump.at, reason: MILESTONE.slump.reason(cu.weeks === null ? "–" : cu.weeks.toFixed(1)), button: MILESTONE.slump.button, go: go("money") };

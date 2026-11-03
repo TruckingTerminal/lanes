@@ -41,7 +41,8 @@ const snapshot = (w: World, c: Company): Visit => ({
   day: dayOf(w.t, w.cfg),
   delivered: c.delivered,
   revenueFd: c.operating.revenueFd,
-  costFd: c.operating.costFd,
+  // What went out: operating costs and the fines kept outside them (fraud.ts, safety.ts finesOffCostsFd), as the month record counts.
+  costFd: c.operating.costFd + (c.finesOffCostsFd ?? 0),
   late: c.late,
   finesFd: c.safety.finesFd,
   monthClosedDay: c.lastMonth?.closedDay ?? null,
@@ -72,7 +73,7 @@ export function returnFor(w: World, c: Company, live: boolean, nowMs = Date.now(
     live,
     delivered: Math.max(0, c.delivered - v.delivered),
     inFd: Math.max(0, c.operating.revenueFd - v.revenueFd),
-    outFd: Math.max(0, c.operating.costFd - v.costFd),
+    outFd: Math.max(0, c.operating.costFd + (c.finesOffCostsFd ?? 0) - v.costFd),
     late: Math.max(0, c.late - v.late),
     tickets: c.safety.finesFd > v.finesFd + 0.5 ? 1 : 0,
     month: closed ? { name: MONTHS[Math.min(11, Math.floor(((closed.closedDay - 1) % 365) / 30))]!, keptFd: closed.revenueFd - closed.spentFd } : null,

@@ -204,7 +204,7 @@ function ReadOnlyBoard({ hub }: { hub: number }): JSX.Element {
             {S.game!.w.net.places[l.originPlace]!.name} → {S.game!.w.net.places[l.destPlace]!.name} · {Math.round(l.miles).toLocaleString("en-US")} mi
           </div>
           <div class="small">
-            {fd(l.bookNow * l.miles)} FD · {l.bookNow.toFixed(2)}/mi · 0 mi empty · usually clears near {clearsNear(l).toFixed(2)}/mi
+            {fd(l.bookNow * l.miles)} FD · {l.bookNow.toFixed(2)}/mi · 0 mi empty · usually clears near {clearsNear(S.game!.w, l).toFixed(2)}/mi
           </div>
         </div>
       ))}

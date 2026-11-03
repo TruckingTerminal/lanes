@@ -1,8 +1,8 @@
-import { dayOf, EQUIPMENT, garagingOf, homeCrowding, hubTheftRisk, localShare, planIndex, reloadOdds, type World } from "@lanes/engine";
+import { dayOf, EQUIPMENT, marketMood, garagingOf, homeCrowding, hubTheftRisk, localShare, planIndex, reloadOdds, type World } from "@lanes/engine";
 import { hubs as HUBS } from "@lanes/data";
 import { starterBreakEven } from "./breakeven.js";
 import { FIRST_HUBS } from "./game.js";
-import { HUB_CARD, SEASON, STARTERS, SECURITY } from "./copy.js";
+import { HUB_CARD, MARKET, SEASON, STARTERS, SECURITY } from "./copy.js";
 import { fd, pct } from "./format.js";
 
 /**
@@ -109,6 +109,12 @@ export function seasonLine(w: World, hub: number): string {
   return SEASON.fine(month);
 }
 
+/** The season line, and the country's mood after it while the market is booming or slumping (marketMood; steady says nothing). */
+function seasonWithMood(w: World, hub: number): string {
+  const mood = marketMood(w).state;
+  return mood === "steady" ? seasonLine(w, hub) : `${seasonLine(w, hub)} ${MARKET.card[mood]}`;
+}
+
 const timesWord = (x: number): string => (Math.abs(x - 2) < 0.25 ? "twice" : Math.abs(x - 3) < 0.25 ? "three times" : `${x.toFixed(1)} times`);
 const outWord = (x: number): string => (x >= 1.15 ? "strong" : x <= 0.75 ? "thin" : "even");
 
@@ -135,7 +141,7 @@ export function hubFacts(w: World, hub: number): HubFacts {
   return {
     name: h.name,
     character: STARTERS[h.id]?.character ?? null,
-    season: seasonLine(w, hub),
+    season: seasonWithMood(w, hub),
     freight: [
       HUB_CARD.posted(posted, posted ? (rateSum / posted).toFixed(2) : "–"),
       HUB_CARD.perTruck(ratio.toFixed(1), ratioWord),
