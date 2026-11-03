@@ -181,14 +181,38 @@ export function CompanySoFar(): JSX.Element | null {
   );
 }
 
+/**
+ * What moved the next-truck gap since the player last opened its explanation (row 4): the cheapest route changed, or
+ * the first week closed and the gap began holding back weeks of spending. Kept in the page, per company.
+ */
+export function gapNotes(w: World, c: Company, route: string): string[] {
+  const scope = milestoneScope(w, c);
+  const weeks = c.weeklySpend.length;
+  const seen = S.gapSeen?.scope === scope ? S.gapSeen : (S.gapSeen = { scope, route, weeks, why: [] });
+  if (route !== seen.route && !seen.why.includes("cheapest")) seen.why.push("cheapest");
+  if (seen.weeks === 0 && weeks > 0 && !seen.why.includes("cushion")) seen.why.push("cushion");
+  seen.route = route;
+  seen.weeks = weeks;
+  return seen.why.map((k) => (k === "cheapest" ? GUIDE_LABEL.gapWhyCheapest : GUIDE_LABEL.gapWhyCushion(w.cfg.guide.gapCushionWeeks)));
+}
+
 /** The one figure that matters most now: the gap to the next truck, else the next layer to open, else the month's close. */
 function nextOnRoad(w: World, c: Company): JSX.Element | string {
   const gap = gapToTruck(w, c);
+  const notes = gapNotes(w, c, gap.route);
   if (gap.gapFd > 0)
     return (
-      <Fig k="guide.gapToTruck" label={GUIDE_LABEL.gap}>
-        {MILESTONE.nextTruck(fdFull(gap.gapFd))}
-      </Fig>
+      <>
+        <Fig k="guide.gapToTruck" label={GUIDE_LABEL.gap} ctx={{ notes }}>
+          {MILESTONE.nextTruck(fdFull(gap.gapFd))}
+        </Fig>
+        {notes.map((n) => (
+          <span class="muted small" key={n}>
+            {" "}
+            {n}
+          </span>
+        ))}
+      </>
     );
   const today = Math.floor(w.t / w.cfg.time.gameMinutesPerDay);
   const ahead = milestones(w, c)

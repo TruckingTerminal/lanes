@@ -80,6 +80,8 @@ export const S = {
   /** The explain sheet while open: the figure's key, what it was computed from, its label and value (ui/Explain.tsx). */
   /** The milestone line on the caption now (caption rule 3), kept until its button or a change of tab. */
   milestone: null as null | { key: string; phase: "before" | "at"; tab: string; at: number },
+  /** The next-truck gap as last shown, and what moved it since the player last opened its explanation (row 4). */
+  gapSeen: null as null | { scope: string; route: string; weeks: number; why: ("cheapest" | "cushion")[] },
   /** The invoices What now? chose to cash (rule 1's cash lever): Money opens on them. */
   cashPlan: [] as number[],
   /** Invoices cashed early in this page (Cash it now): shown greyed on their rows until the due day. */

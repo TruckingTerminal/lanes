@@ -25,6 +25,7 @@ import {
   type Staff,
   type StandingOrder,
   type Truck,
+  type World,
 } from "@lanes/engine";
 import { GAME_CONFIG } from "./game.js";
 import { trueBreakEven } from "./breakeven.js";
@@ -394,6 +395,13 @@ export function nextRoundLabel(): string {
   return `${nextRoundHour()} (in ${nextRoundWait()})`;
 }
 
+/** A brokerage's loads posted to the board: open, not held as an offer, not tendered to its own carrier (QA's S1: offers aren't posts). */
+function postedCount(w: World, id: number): number {
+  let n = 0;
+  for (const l of w.loads.values()) if (l.brokerId === id && l.status === "open" && !l.hold && !(l.ownTenderRate !== undefined && l.tenderedTo !== 0)) n++;
+  return n;
+}
+
 /**
  * The sheet's state line on a phone (copy-first-ten-minutes.md): the bids waiting on the round when there are any,
  * else the selected truck (or the first) in a few words.
@@ -403,7 +411,7 @@ export function sheetLine(): string {
   const c = g.player;
   if (!c) return g.kind === "test" || g.writer ? "Choose your home hub" : "Watching the live world";
   // With two companies the line opens with the one in view (brokerage-ux.md section 1).
-  if (hasTwo(g)) return kindInView(g) === "brokerage" ? BROKERAGE.stateLine(c.name, c.openBrokerLoads) : `${c.name} · ${carrierLine(g, c)}`;
+  if (hasTwo(g)) return kindInView(g) === "brokerage" ? BROKERAGE.stateLine(c.name, postedCount(g.w, c.id)) : `${c.name} · ${carrierLine(g, c)}`;
   return carrierLine(g, c);
 }
 

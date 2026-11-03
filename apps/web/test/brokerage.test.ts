@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { companyAccount } from "@lanes/engine";
+import { BROKERAGE, poss } from "../src/copy.js";
 import { GAME_CONFIG, TestGame } from "../src/game.js";
+import { bookStates, carrierCantTake } from "../src/ui/panels/Brokerage.js";
 
 /** Flips `brokerage.enabled` for one test (the config is read-only to the game; tests may vary it). */
 async function withBrokerage<T>(fn: () => Promise<T>): Promise<T> {
@@ -45,5 +47,36 @@ describe("a player's brokerage, from the client (game.ts)", () => {
       // A second brokerage is never offered.
       g.inView = "carrier";
       expect(g.act({ type: "form_brokerage", name: "Again", capitalFd: capital }, "carrier").ok).toBe(false);
+    }), 60_000);
+});
+
+describe("the brokerage's Book (QA's hold replay, S1–S3)", () => {
+  it("offers aren't posts, a load tendered to the own carrier is its own state, and Tender is refused with the reason", () =>
+    withBrokerage(async () => {
+      const g = await TestGame.create();
+      const c = g.join("Red River Lines", "fleet", "DAL")!;
+      if (g.w.ladder) g.w.ladder.brokerage = Math.floor(g.w.t / g.w.cfg.time.gameMinutesPerDay);
+      g.w.ledger.post(g.w.t, "faucet:test", companyAccount(c.id), 120_000, "test");
+      const capital = g.w.cfg.token.staking.roles.broker + g.w.cfg.permits.brokerLicenseRenewalFd + 5_000;
+      expect(g.act({ type: "form_brokerage", name: "Red River Logistics", capitalFd: capital }, "carrier").ok).toBe(true);
+      const b = g.brokerage!;
+      // Three open loads made the brokerage's: one held as an offer, one tendered to the carrier, one on the board.
+      const [held, tendered, posted] = [...g.w.loads.values()].filter((l) => l.status === "open" && l.shipperId === null).slice(0, 3);
+      for (const l of [held!, tendered!, posted!]) l.brokerId = b.id;
+      held!.hold = { brokerId: b.id, until: g.w.t + 600, declinable: true };
+      tendered!.tenderedTo = c.id;
+      tendered!.ownTenderRate = 2.48;
+      const s = bookStates(g.w, b);
+      expect(s.held).toEqual([held]);
+      expect(s.tendered).toEqual([tendered]);
+      expect(s.onBoard).toContain(posted);
+      expect(s.onBoard).not.toContain(held);
+      expect(s.onBoard).not.toContain(tendered);
+      // No truck of the carrier free near the pickup: the button's reason is the writer's.
+      for (const t of g.w.trucksByCompany.get(c.id) ?? []) t.status = "parked";
+      expect(carrierCantTake(g.w, c, posted!)).toBe(BROKERAGE.refuseNoTruck("Red River Lines"));
+      expect(poss("Red River Logistics")).toBe("Red River Logistics'");
+      expect(poss("Red River Lines")).toBe("Red River Lines'");
+      expect(poss("Scioto Freight")).toBe("Scioto Freight's");
     }), 60_000);
 });

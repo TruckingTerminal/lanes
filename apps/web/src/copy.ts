@@ -754,7 +754,7 @@ export const EXPLAIN = (cfg: EconomyConfig): Record<string, Ex> => ({
   "loan.rate": { what: "What the loan costs each week on what's owed.", how: `${pct2(cfg.equipmentFinance.purchase.weeklyRate[0])} to ${pct2(cfg.equipmentFinance.purchase.weeklyRate[1])} a week: the better your credit score at signing, the lower.`, moves: "A better score lowers your next loan. A running loan's rate never changes." },
   "finance.factoringRate": { what: "The factor's share of every load under contract.", how: "From your fleet size on the day you sign; fixed for the term.", moves: "More trucks at renewal lower it." },
   "finance.quickPayFee": { what: "The cost of being paid on delivery, one load at a time.", how: `${pctOf(cfg.token.payment.quickPayPct)} of the load.`, moves: "Nothing: it's fixed. Use it for emergencies." },
-  "guide.gapToTruck": { what: "How far you are from your next truck.", how: `The cheapest truck's cash needed now, less your deposit and cash above ${cfg.guide.gapCushionWeeks} weeks of costs.`, moves: "Hauling; cheaper trucks on the used lot." },
+  "guide.gapToTruck": { what: "How far you are from your next truck.", how: `The cheapest truck's cash needed now, less your deposit and cash above ${cfg.guide.gapCushionWeeks} weeks of costs.`, moves: "Hauling; the cheapest truck on offer, which changes; your spending, once your first week closes." },
   "guide.cushion": { what: "How many weeks your cash covers your own spending.", how: `Your cash, divided by your average weekly spending over the last ${cfg.guide.cushionAvgWeeks} weeks.`, moves: "Earning more, spending less, buying nothing in a slump." },
   "guide.debtCountdown": { what: "Weekly checks in a row with cash under the line.", how: `Checked weekly: under ${cfg.insolvency.debtLimitFd.toLocaleString("en-US")} FD counts one; ${cfg.insolvency.weeksInDebt} in a row winds you up.`, moves: "Cash back above the line resets it." },
 });
@@ -767,6 +767,9 @@ export const GUIDE_LABEL = {
   debtValue: (n: number, of: number) => `Weekly checks in debt: ${n} of ${of}`,
   gap: "Gap to the next truck",
   gapValue: (fd: string) => `Your next truck: ${fd} FD away`,
+  /** What moved the gap since the player last looked (the writer's copy-player1.md, row 4). */
+  gapWhyCheapest: "The cheapest truck changed: listings come and go, and the used lot sells out and restocks.",
+  gapWhyCushion: (weeks: number) => `Your first week closed, so the gap now holds back ${weeks} weeks of your spending.`,
 };
 
 /**
@@ -853,6 +856,9 @@ export const MILESTONE = {
  * A player's brokerage (the writer's brokerage-strings.md, draft 1): the company switch and the brokerage's bar. The
  * screens are shells until the brokerage build lands with the economy's sizes; only the strings they use are here.
  */
+/** A name's possessive: Logistics', Ridgeline's. */
+export const poss = (name: string): string => (name.endsWith("s") ? `${name}'` : `${name}'s`);
+
 export const BROKERAGE = {
   chipLabel: (name: string) => `Company in view: ${name}`,
   chipLaptop: (name: string) => `${name} ▾`,
@@ -917,8 +923,8 @@ export const BROKERAGE = {
   betaNote: "Beta bond: it's burned at the token's launch, like every beta stake. To broker after launch, post it again.",
   moving: (carrier: string, fd: string) => `Moving from ${carrier} · ${fd} FD`,
   feeRow: (pct: string, fd: string) => `Fee ${pct} · ${fd} FD`,
-  cashAfter: (name: string, fd: string) => `${name}'s cash after · ${fd} FD`,
-  brokerCashAfter: (name: string, fd: string, bond: string) => `${name}'s cash after · ${fd} FD, ${bond} of it the bond`,
+  cashAfter: (name: string, fd: string) => `${poss(name)} cash after · ${fd} FD`,
+  brokerCashAfter: (name: string, fd: string, bond: string) => `${poss(name)} cash after · ${fd} FD, ${bond} of it the bond`,
   capitalNote: "Your own capital, moved between your companies. It's not revenue or a cost for either.",
   noGrant: "There's no starting grant: the money comes from your carrier.",
   ownCredit: "Your brokerage starts with its own credit, not your carrier's.",
@@ -971,7 +977,7 @@ export const BROKERAGE = {
   allYouCan: "All you can",
   moveFee: (pct: string, fd: string) => `Fee ${pct} · ${fd} FD (to the reserve)`,
   arrives: (fd: string) => `Arrives · ${fd} FD`,
-  moveAfter: (name: string, fd: string) => `${name}'s cash after: ${fd} FD`,
+  moveAfter: (name: string, fd: string) => `${poss(name)} cash after: ${fd} FD`,
   moveNote1: "It counts as equity, not revenue: no profit, no Miles, no Intel figure.",
   moveNote2: "Logged in both companies' Money. Nobody else sees it.",
   moveButton: (fd: string) => `Move ${fd} FD`,
@@ -997,6 +1003,14 @@ export const BROKERAGE = {
   yourMargin: (fd: string) => `Your margin · ${fd} FD`,
   /** UX's line on a posting tendered to the owner's carrier. */
   tendered: (carrier: string) => `Tendered to ${carrier}`,
+  /** UX's line (brokerage-ux.md section 7): the own carrier let the tender lapse, and the load went to the board at the offered rate. */
+  lapsed: (carrier: string, rate: string) => `${carrier} didn't take it · posted at ${rate}/mi`,
+  refuseNoTruck: (carrier: string) => `${carrier} has no free truck in reach of the pickup.`,
+  /** Engineering's drafts, for the writer (QA's hold replay): the offer-first order would skip; its rate; Save's confirmation; the licence out of the transfer. */
+  ownFirstSkips: (carrier: string) => `${carrier} has no free truck at the pickup now, so the order would post it.`,
+  ownFirstRate: (carrier: string) => `It tenders at your posting rate, held inside the lane's band; ${carrier} still accepts or declines.`,
+  saved: "Standing order saved",
+  licenceFromIt: (licence: string) => `Licence · ${licence} FD · paid from this`,
   tenderNote1: (days: number) => `Paid at net ${days}, never factored: it's between your own companies.`,
   tenderNote2: "The load counts once for you, not twice.",
   tenderAt: (rate: string) => `Tender at ${rate}/mi`,

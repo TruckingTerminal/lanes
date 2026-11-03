@@ -40,6 +40,8 @@ export interface FigureCtx {
   replacing?: boolean;
   /** The open invoice a cash-now figure is for. */
   invoiceId?: number;
+  /** Lines on what moved the figure since the player last looked (the gap's reasons, row 4). */
+  notes?: string[];
 }
 
 export interface Row {
@@ -51,6 +53,7 @@ export interface Row {
 export interface Breakdown {
   rows: Row[];
   total: Row;
+  notes?: string[];
 }
 
 const fd = (x: number) => `${x < 0 ? "−" : ""}${Math.round(Math.abs(x)).toLocaleString("en-US")} FD`;
@@ -193,7 +196,7 @@ const BREAKDOWNS: Record<string, Fn> = {
       total: { label: "Weekly checks in debt", value: `${d.n} of ${d.of}` },
     };
   },
-  "guide.gapToTruck": (w, c) => {
+  "guide.gapToTruck": (w, c, ctx) => {
     const g = gapToTruck(w, c);
     return {
       rows: [
@@ -201,6 +204,7 @@ const BREAKDOWNS: Record<string, Fn> = {
         { label: `Less cash above ${w.cfg.guide.gapCushionWeeks} weeks of costs (${fd(g.holdFd)} held back)`, value: fd(-g.spareFd) },
       ],
       total: { label: "Gap to the next truck", value: fd(g.gapFd) },
+      notes: ctx.notes,
     };
   },
   "loan.cashNow": (w, c, ctx) => {

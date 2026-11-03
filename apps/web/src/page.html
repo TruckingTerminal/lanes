@@ -229,6 +229,9 @@ table.mini td:first-child { font-family: inherit; }
 .explainscrim { position: fixed; inset: 0; z-index: 59; background: transparent; }
 .explainhead { flex: none; touch-action: none; display: flex; flex-direction: column; gap: 4px; }
 .explainhead .grab { align-self: center; width: 36px; height: 4px; border-radius: 2px; background: var(--border); margin: 4px 0 2px; }
+.explainhead > .row { flex-wrap: nowrap; align-items: flex-start; }
+.explainhead .grow { min-width: 0; }
+.explainnow { padding: 6px 0; border-top: 1px solid var(--border); }
 .explainx { flex: none; width: 44px; height: 44px; border: 0; background: none; color: var(--text-secondary); font-size: 24px; cursor: pointer; }
 .explainbody { flex: 1 1 auto; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; gap: 6px; }
 .explainfoot { flex: none; min-height: 56px; align-items: center; border-top: 1px solid var(--border); }
@@ -296,8 +299,8 @@ table.mini td:first-child { font-family: inherit; }
 .caption .portrait.sm, .caption .portrait.placeholder.sm { width: 32px; height: 32px; flex: none; font-size: 14px; }
 .caption.iuliia { align-items: flex-start; }
 .caption.iuliia .portrait.lg { width: 96px; height: 96px; flex: none; }
-.switchrow { gap: 10px; min-height: 44px; cursor: pointer; }
-.switchrow input { width: 40px; height: 22px; accent-color: var(--accent); }
+.switchrow { gap: 10px; min-height: 44px; cursor: pointer; flex-wrap: nowrap; }
+.switchrow input { flex: none; width: 40px; height: 22px; accent-color: var(--accent); }
 .morelist { display: grid; border: 1px solid var(--border); border-radius: var(--radius); }
 .morerow { display: flex; align-items: center; gap: 10px; min-height: 48px; padding: 0 12px; border: 0; border-bottom: 1px solid var(--border); background: var(--bg-panel); text-align: left; cursor: pointer; }
 .morerow:last-child { border-bottom: 0; }
@@ -440,7 +443,7 @@ ul.timeline .linkish { background: none; border: 0; padding: 6px 0; min-height: 
   .tabs .btn.on { border-top-color: var(--accent); }
   /* The explain sheet clears the tab bar: its buttons never sit under it (the player's first month). */
   .explainscrim { bottom: calc(56px + env(safe-area-inset-bottom)); }
-  .explainsheet { bottom: calc(56px + env(safe-area-inset-bottom)); max-height: calc(100dvh - 56px - 44px - env(safe-area-inset-top) - env(safe-area-inset-bottom) - 120px); }
+  .explainsheet { bottom: calc(56px + env(safe-area-inset-bottom)); max-height: 60dvh; }
   .tabs .btn span { display: inline; font-size: 10px; letter-spacing: 0.04em; }
   .tabs .btn img.px { width: 24px; height: 24px; }
   .laptop-only, .teaserbar, .ticker { display: none !important; }

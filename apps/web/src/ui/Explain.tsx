@@ -1,13 +1,13 @@
 import type { ComponentChildren, JSX } from "preact";
 import { createPortal } from "preact/compat";
-import { useRef } from "preact/hooks";
+import { useRef, useState } from "preact/hooks";
 import { EXPLAIN, EXPLAIN_HEAD, NOW } from "../copy.js";
 import { breakdown, type FigureCtx } from "../explain.js";
 import { GAME_CONFIG } from "../game.js";
 import { bumpData, isPhone, S, useData } from "../state.js";
 import { Btn } from "./bits.js";
 import { Iuliia } from "./Walkthrough.js";
-import { askWhatNow } from "./WhatNow.js";
+import { WhatNowInline } from "./WhatNow.js";
 
 /**
  * Help on every figure (specs/guidance.md section 2, guidance-ux.md section 3). A covered figure is a `Fig`: a dotted
@@ -45,6 +45,8 @@ function closeExplain(bump = true, fromBack = false): void {
   lit = null;
   for (const b of document.querySelectorAll<HTMLElement>(".panelbox")) b.style.paddingBottom = "";
   const was = S.explain !== null;
+  // The gap's reasons are read once the player has opened its explanation (row 4).
+  if (S.explain?.key === "guide.gapToTruck" && S.gapSeen) S.gapSeen.why = [];
   S.explain = null;
   // Closed any other way: take back the history entry it pushed, so Back doesn't land on nothing.
   if (was && !fromBack && history.state?.explain) history.back();
@@ -60,6 +62,8 @@ if (typeof window !== "undefined") {
 export function ExplainSheet(): JSX.Element | null {
   useData();
   const down = useRef<number | null>(null);
+  // What now? answers inside the foot for the figure open now; a new figure starts without it.
+  const [askedFor, setAskedFor] = useState<string | null>(null);
   const e = S.explain;
   const g = S.game;
   if (!e || !g) return null;
@@ -77,7 +81,11 @@ export function ExplainSheet(): JSX.Element | null {
   // (guidance-ux.md section 3): Close in the pinned foot; the × in the header; a tap outside, on a transparent layer
   // that stops above the nav; a swipe down on the header or its grab bar; a tab change. Plus Back and Escape.
   const swipe = {
-    onPointerDown: (ev: PointerEvent) => (down.current = ev.clientY),
+    // Captured, so a mouse drag that leaves the header still ends here (QA: touch closed it, a mouse didn't).
+    onPointerDown: (ev: PointerEvent) => {
+      down.current = ev.clientY;
+      (ev.currentTarget as HTMLElement).setPointerCapture?.(ev.pointerId);
+    },
     onPointerUp: (ev: PointerEvent) => {
       if (down.current !== null && ev.clientY - down.current > 60) closeExplain();
       down.current = null;
@@ -125,6 +133,7 @@ export function ExplainSheet(): JSX.Element | null {
                 <b class="small">{b.total.label}</b>
                 <b class="num">{b.total.value}</b>
               </div>
+              {b.notes?.map((n) => <p class="muted small" key={n}>{n}</p>)}
             </div>
           ) : null}
         </>
@@ -132,8 +141,9 @@ export function ExplainSheet(): JSX.Element | null {
       <p class="label">{EXPLAIN_HEAD.moves}</p>
       <p class="small">{entry.moves}</p>
       </div>
+      {askedFor === `${e.key}|${e.value}` ? <WhatNowInline done={() => closeExplain()} /> : null}
       <div class="row explainfoot">
-        <Btn sm onClick={() => (closeExplain(), askWhatNow())}>{NOW.chip}</Btn>
+        <Btn sm onClick={() => setAskedFor(`${e.key}|${e.value}`)}>{NOW.chip}</Btn>
         <Btn sm ghost onClick={() => closeExplain()}>
           Close
         </Btn>

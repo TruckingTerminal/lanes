@@ -1,11 +1,11 @@
 import type { JSX } from "preact";
-import { useState } from "preact/hooks";
-import { apCapBlock, brokerageLog, brokerBooks, brokerLicensed, canFormBrokerage, companyAccount, creditBand, dayOf, ownBand, type Company, type Load, type World } from "@lanes/engine";
+import { useEffect, useState } from "preact/hooks";
+import { apCapBlock, brokerageLog, brokerBooks, brokerLicensed, canFormBrokerage, companyAccount, creditBand, crewed, dayOf, MANUAL_BID_MAX_DEADHEAD_MI, ownBand, placeMiles, type Company, type Load, type World } from "@lanes/engine";
 import { BROKERAGE } from "../../copy.js";
 import { hasTwo, kindInView, switchCompany } from "../../companies.js";
 import { fdFull, hhmm, pct, shortDate } from "../../format.js";
 import { nextRoundHour } from "../../logic.js";
-import { bumpData, me, openIntel, order, S, toast, useData } from "../../state.js";
+import { bumpData, isPhone, me, openIntel, order, S, toast, useData } from "../../state.js";
 import { layerDay } from "../../tabs.js";
 import { Btn, Card, Kv, Panel } from "../bits.js";
 import { InvoiceRows } from "./CashNow.js";
@@ -20,6 +20,39 @@ import { InvoiceRows } from "./CashNow.js";
 const cash = (w: World, c: Company): number => w.ledger.balance(companyAccount(c.id));
 const fd = (x: number): string => fdFull(x);
 const lane = (w: World, l: Load): string => `${w.net.places[l.originPlace]!.name} → ${w.net.places[l.destPlace]!.name}`;
+
+/**
+ * Why the owner's carrier can't take a tender now, in the writer's words, or null (brokerage-ux.md section 7): the same
+ * test as the carrier's own tender card, an idle crewed truck of the trailer within reach of the pickup.
+ */
+export function carrierCantTake(w: World, carrier: Company, load: Load): string | null {
+  if (carrier.authority.status !== "active" || carrier.liquidatingSince !== null) return BROKERAGE.refuseCarrierCant(carrier.name, "its authority isn't active");
+  const free = (w.trucksByCompany.get(carrier.id) ?? []).some((t) => t.status === "idle" && crewed(t) && t.trailer === load.equipment && placeMiles(w, t.place, load.originPlace) <= MANUAL_BID_MAX_DEADHEAD_MI);
+  return free ? null : BROKERAGE.refuseNoTruck(carrier.name);
+}
+
+/** What the standing order's "offer first" finds at the window's end (brokerage.ts holdsAtEnd): an idle crewed truck of the trailer at the pickup's hub. */
+const ownFirstFinds = (w: World, carrier: Company, load: Load): boolean =>
+  (w.trucksByCompany.get(carrier.id) ?? []).some((t) => t.status === "idle" && t.driverId !== 0 && t.trailer === load.equipment && t.hub === load.origin);
+
+/**
+ * The rate a load was offered to the own carrier at, once that tender lapsed and it went to the board (S4). The engine's
+ * marker `ownTenderLapsed` comes with the economy's patch; until then it reads undefined and the line doesn't show.
+ */
+const lapsedAt = (l: Load): number | undefined => (l as Load & { ownTenderLapsed?: number }).ownTenderLapsed;
+
+/** The brokerage's loads by state: offered (held), tendered to its own carrier, on the board, moving (S1: posted and offered are two counts). */
+export function bookStates(w: World, c: Company) {
+  const mine = [...w.loads.values()].filter((l) => l.brokerId === c.id);
+  const open = mine.filter((l) => l.status === "open");
+  return {
+    mine,
+    held: open.filter((l) => l.hold?.brokerId === c.id),
+    tendered: open.filter((l) => !l.hold && l.ownTenderRate !== undefined && l.tenderedTo !== 0),
+    onBoard: open.filter((l) => !l.hold && !(l.ownTenderRate !== undefined && l.tenderedTo !== 0)),
+    moving: mine.filter((l) => l.status === "assigned" || l.status === "inTransit"),
+  };
+}
 
 /** The game minute of the next board round. */
 function roundAt(w: World): number {
@@ -85,6 +118,13 @@ function StartBrokerage(): JSX.Element {
   const [open, setOpen] = useState<number>(k.brokerage.defaultOpenLoads);
   const [vet, setVet] = useState<0 | 1 | 2>(k.brokerage.defaultVetting as 0 | 1 | 2);
   const [note, setNote] = useState<string | null>(null);
+  // Full on a phone (brokerage-ux.md section 3): step 2's rows don't fit the lower panel.
+  useEffect(() => {
+    if (isPhone() && S.sheet !== "full") {
+      S.sheet = "full";
+      bumpData();
+    }
+  }, []);
   const blocked = canFormBrokerage(w, carrier);
   const fee = capital * feePct;
   const short = capital + fee - cash(w, carrier);
@@ -135,9 +175,10 @@ function StartBrokerage(): JSX.Element {
           {w.token.launchDay === null ? <p class="muted small">{BROKERAGE.betaNote}</p> : null}
           <label class="field">
             <span class="label">{BROKERAGE.moving(carrier.name, fd(capital))}</span>
-            <input type="number" min={0} step={100} value={capital} onInput={(e) => setCapital(Math.max(0, Number((e.currentTarget as HTMLInputElement).value) || 0))} />
+            <input type="text" inputMode="numeric" value={fd(capital)} onChange={(e) => setCapital(Math.max(0, Number((e.currentTarget as HTMLInputElement).value.replace(/[^\d]/g, "")) || 0))} />
           </label>
           <p class="small">{BROKERAGE.feeRow(pct(feePct), fd(fee))}</p>
+          <p class="small">{BROKERAGE.licenceFromIt(fd(licence))}</p>
           <p class="small">{BROKERAGE.cashAfter(carrier.name, fd(cash(w, carrier) - capital - fee))}</p>
           <p class="small">{BROKERAGE.brokerCashAfter(name, fd(capital - licence), fd(bond))}</p>
           <p class="muted small">{BROKERAGE.capitalNote}</p>
@@ -231,16 +272,13 @@ export function Book(): JSX.Element {
   const w = g.w;
   const c = me();
   const partner = hasTwo(g) ? g.carrier : null;
-  const mine = [...w.loads.values()].filter((l) => l.brokerId === c.id);
-  const held = mine.filter((l) => l.status === "open" && l.hold?.brokerId === c.id);
-  const onBoard = mine.filter((l) => l.status === "open" && !l.hold);
-  const moving = mine.filter((l) => l.status === "assigned" || l.status === "inTransit");
+  const { mine, held, tendered, onBoard, moving } = bookStates(w, c);
   const owed = w.receivables.filter((r) => r.holder === c.id && r.amountFd > 0.005);
   const hours = Math.max(1, Math.round((roundAt(w) - w.t) / 60));
   const feePct = w.cfg.board.posterFeePct;
   const [tendering, setTendering] = useState<number | null>(S.openLoad);
   return (
-    <Panel title={BROKERAGE.bookHeader(c.name, held.length + onBoard.length + moving.length, fd(marginThisMonth(c)))}>
+    <Panel title={BROKERAGE.bookHeader(c.name, tendered.length + onBoard.length + moving.length, fd(marginThisMonth(c)))}>
       {held.length ? (
         <Card title={BROKERAGE.offered}>
           {held.map((l) => (
@@ -248,24 +286,42 @@ export function Book(): JSX.Element {
           ))}
         </Card>
       ) : null}
+      {/* S3: a load tendered to the own carrier is tendered, not posted, until the carrier takes it or lets it lapse. */}
+      {tendered.length && partner ? (
+        <Card title={BROKERAGE.tendered(partner.name)}>
+          {tendered.map((l) => (
+            <div class="stack bookcard" key={l.id}>
+              <b>{lane(w, l)}</b>
+              <span class="small">
+                {BROKERAGE.tendered(partner.name)} · {l.ownTenderRate!.toFixed(2)}/mi · {hhmm(l.tenderUntil)}
+              </span>
+            </div>
+          ))}
+        </Card>
+      ) : null}
       <Card title={BROKERAGE.groups[0]}>
-        {onBoard.map((l) => (
-          <div class={`stack bookcard${l.id === S.openLoad ? " sel" : ""}`} key={l.id}>
-            <b>{lane(w, l)}</b>
-            <span class="small muted">{BROKERAGE.onBoard(l.ceiling.toFixed(2), nextRoundHour(), `${hours} h`)}</span>
-            {partner && l.tenderedTo === partner.id ? (
-              <span class="small">{BROKERAGE.tendered(partner.name)} · {hhmm(l.tenderUntil)}</span>
-            ) : partner && l.tenderedTo === 0 && l.shipperId === null && l.passedBy !== partner.id ? (
-              tendering === l.id ? (
-                <TenderSheet load={l} carrier={partner} onDone={() => setTendering(null)} />
-              ) : (
-                <Btn sm onClick={() => setTendering(l.id)}>
-                  {BROKERAGE.tenderButton(partner.name)}
-                </Btn>
-              )
-            ) : null}
-          </div>
-        ))}
+        {onBoard.map((l) => {
+          const cant = partner ? carrierCantTake(w, partner, l) : null;
+          return (
+            <div class={`stack bookcard${l.id === S.openLoad ? " sel" : ""}`} key={l.id}>
+              <b>{lane(w, l)}</b>
+              <span class="small muted">{BROKERAGE.onBoard(l.ceiling.toFixed(2), nextRoundHour(), `${hours} h`)}</span>
+              {partner && lapsedAt(l) !== undefined ? <span class="small">{BROKERAGE.lapsed(partner.name, lapsedAt(l)!.toFixed(2))}</span> : null}
+              {partner && l.tenderedTo === 0 && lapsedAt(l) === undefined && l.shipperId === null && l.passedBy !== partner.id ? (
+                tendering === l.id && !cant ? (
+                  <TenderSheet load={l} carrier={partner} onDone={() => setTendering(null)} />
+                ) : (
+                  <>
+                    <Btn sm disabled={!!cant} onClick={() => setTendering(l.id)}>
+                      {BROKERAGE.tenderButton(partner.name)}
+                    </Btn>
+                    {cant ? <span class="muted small">{cant}</span> : null}
+                  </>
+                )
+              ) : null}
+            </div>
+          );
+        })}
       </Card>
       <Card title={BROKERAGE.groups[1]}>
         {moving.map((l) => {
@@ -321,7 +377,11 @@ function OfferedCard({ load, partner }: { load: Load; partner: Company | null })
   const shipper = load.shipperRate * load.miles;
   const passed = load.passedBy !== undefined && partner !== null && load.passedBy === partner.id;
   const hours = Math.max(0, Math.round((load.hold!.until - w.t) / 60));
-  const ifNot = o && o.kind === "broker" ? (o.ownFirst && partner && !passed ? BROKERAGE.ifNotOwn(partner.name) : BROKERAGE.ifNotPost(pct(o.marginPct))) : load.hold!.declinable ? BROKERAGE.ifNotDecline : BROKERAGE.ifNotPost(pct(w.cfg.brokerage.defaultMarginPct));
+  const ownFirst = !!(o && o.kind === "broker" && o.ownFirst && partner && !passed);
+  const ifNot = o && o.kind === "broker" ? (ownFirst ? BROKERAGE.ifNotOwn(partner!.name) : BROKERAGE.ifNotPost(pct(o.marginPct))) : load.hold!.declinable ? BROKERAGE.ifNotDecline : BROKERAGE.ifNotPost(pct(w.cfg.brokerage.defaultMarginPct));
+  // S2: Tender is greyed with the reason when the carrier can't take it now; the offer-first order says when it would skip.
+  const cant = partner && !passed ? carrierCantTake(w, partner, load) : null;
+  const skips = ownFirst && !ownFirstFinds(w, partner!, load);
   const act = async (a: Parameters<typeof order>[0], ok: string) => {
     const r = await order(a, ok, "brokerage");
     if (!r.ok) setNote(r.reason);
@@ -342,7 +402,8 @@ function OfferedCard({ load, partner }: { load: Load; partner: Company | null })
       </span>
       <span class="small">{BROKERAGE.decideBy(hhmm(load.hold!.until), hours)}</span>
       <span class="muted small">{ifNot}</span>
-      {tendering && partner ? (
+      {skips ? <span class="muted small">{BROKERAGE.ownFirstSkips(partner!.name)}</span> : null}
+      {tendering && partner && !cant ? (
         <TenderSheet load={load} carrier={partner} onDone={() => setTendering(false)} />
       ) : (
         <div class="row">
@@ -354,7 +415,7 @@ function OfferedCard({ load, partner }: { load: Load; partner: Company | null })
             {BROKERAGE.postIt}
           </Btn>
           {partner && !passed ? (
-            <Btn sm onClick={() => setTendering(true)}>
+            <Btn sm disabled={!!cant} onClick={() => setTendering(true)}>
               {BROKERAGE.tenderButton(partner.name)}
             </Btn>
           ) : null}
@@ -365,6 +426,7 @@ function OfferedCard({ load, partner }: { load: Load; partner: Company | null })
           ) : null}
         </div>
       )}
+      {cant ? <p class="muted small">{cant}</p> : null}
       {note ? <p class="bad small">{note}</p> : null}
     </div>
   );
@@ -453,12 +515,15 @@ export function Carriers(): JSX.Element {
       <Card title={BROKERAGE.standingOrder}>
         <Terms margin={margin} setMargin={setMargin} open={open} setOpen={setOpen} />
         {partner ? (
-          <label class="row switchrow">
-            <input type="checkbox" role="switch" checked={ownFirst} onChange={(e) => setOwnFirst((e.currentTarget as HTMLInputElement).checked)} />
-            <span>{BROKERAGE.ownFirst(partner.name)}</span>
-          </label>
+          <>
+            <label class="row switchrow">
+              <span class="grow">{BROKERAGE.ownFirst(partner.name)}</span>
+              <input type="checkbox" role="switch" checked={ownFirst} onChange={(e) => setOwnFirst((e.currentTarget as HTMLInputElement).checked)} />
+            </label>
+            <p class="muted small">{BROKERAGE.ownFirstRate(partner.name)}</p>
+          </>
         ) : null}
-        <Btn sm primary onClick={() => void order({ type: "set_standing_orders", orders: [...c.orders.filter((x) => x.kind !== "broker"), { kind: "broker", marginPct: margin, maxOpenLoads: open, ...(ownFirst ? { ownFirst: true } : {}) }] }, BROKERAGE.save, "brokerage")}>
+        <Btn sm primary onClick={() => void order({ type: "set_standing_orders", orders: [...c.orders.filter((x) => x.kind !== "broker"), { kind: "broker", marginPct: margin, maxOpenLoads: open, ...(ownFirst ? { ownFirst: true } : {}) }] }, BROKERAGE.saved, "brokerage")}>
           {BROKERAGE.save}
         </Btn>
       </Card>

@@ -251,7 +251,7 @@ function HomeAndInsurance({ c }: { c: CompanyT }): JSX.Element {
       <Card title="Insurance">
         <Kv
           rows={[
-            ["Policy", <Fig k="pay.insurance" label="Insurance"><Num>{fd(week)} FD a week now · {fd(p.annualPerTruck)} FD a year for each truck you insure, renews {dateLabel(p.renewDay)}</Num></Fig>],
+            ["Policy", <Fig k="pay.insurance" label="Insurance"><Num>{fd(week)} FD a week · {fd(p.annualPerTruck)} FD a year per insured truck · renews {dateLabel(p.renewDay)}</Num></Fig>],
             ["Priced from", `your record ×${p.risk.toFixed(2)} · ${hub.id} garaging ×${p.garaging.toFixed(2)} · market ×${p.market.toFixed(2)}`],
             ["Insurance market", `index ×${w.insuranceMarket.index.toFixed(2)} · insurers paid out ${pct(lossRatio(w))} of premiums this year`],
           ]}
