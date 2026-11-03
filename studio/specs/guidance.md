@@ -118,6 +118,9 @@ The writer words each line. Below are the intent and the trigger.
 | The first month's close | Day 30 of the company | The month in three figures: earned, spent, kept. Monthly bills (fuel tax, insurance) land now. | Read Money's month; the cushion. |
 | Day 28: businesses | The ladder | What a business is, and who it suits. For most first-month carriers, not yet, with the gap as the reason. | The next truck first, unless the cushion says otherwise. |
 | The first slump | The demand dial under 0.9 for the first time | "Rates are falling for everyone, not just you." Slumps end, and the prudent carrier is still there when it does. | The cushion in weeks; cut idling; don't buy now. |
+| The first boom | The demand dial over 1.1 for the first time | "Rates are up everywhere." Book what pays, and don't sign or buy what a slump would make you regret. Booms end too. | The best load per idle truck; the cushion before any purchase. |
+| The first late delivery | The first load delivered after its deliver-by | Plainly, the cause: hours of service, a dock's hours, weather, or a pickup late from the dispatcher's pick. Then the fix for that cause. | Plan for hours and docks; on-time is reputation. |
+| The first losing load | The first settlement that leaves less than zero after the hold | Why it lost: the rate against break-even, the empty miles, the hold. Then the fix ("bid from 'usually clears near', not from your costs"). | The dispatcher's rules, or bid by hand. |
 | The debt countdown | The first weekly check in debt | She helps, because she can: the countdown and the exits. | Rule 1. |
 | Day 91: the brokerage | The ladder | As `specs/brokerage-rule.md`, section 7: what it takes and how far away it is. | The licence gap, or keep hauling. |
 | The stake | When the locks land | The term, the discount and the slash, plainly. No joke. Never framed as an investment. | Only if a discount covers costs the company already pays. |
@@ -144,6 +147,8 @@ One module, `guide.ts`, reads the world and saves nothing. Each figure below is 
 | **The countdown in debt** | Weekly checks in debt, n of {4}, and the next check's day | Rule 1 |
 | **Days to the next event** | The month close, the season close, the next ladder layer, the licence renewal, the factoring contract's end, the next round | Rule 6, the milestones |
 | **The best load per idle truck** | By the profit chip's one arithmetic (ruling 5) | Rule 3 |
+| **Why a load was late** | The largest of the delay's parts on that trip: hours-of-service rest beyond the plan, waiting for a dock's hours, weather, or a late start from the pickup. Read from the trip, not guessed. | The first late delivery, the delivered card |
+| **Why a load lost** | The settlement's parts against break-even: the rate's gap, the empty miles, the hold | The first losing load |
 | **Burn exposure** | Cash above the carryover cap before the season close | The season close |
 | **The licence gap** | 75,000 + 300 + the premium, less what's available | Day 91 |
 | **The next action** | `nextAction(world, company)`: the first matching rule, its action and its figures | What now? |
