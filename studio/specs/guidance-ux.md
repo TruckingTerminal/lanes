@@ -129,9 +129,23 @@ the writer's): "Tap any number with a dotted line and I'll show you where it com
   show; the rest fold into "Everything else 0.11/mi" with **Show all 9**. A row whose input has its own key is a
   link: it opens that figure's sheet in place, with a back arrow; at most three deep.
 - **What moves it:** up to three levers, each a row with "›" to where it's done ("Rebuild the truck › Truck").
-- **Foot, pinned:** **What now?** (its answer shows in the foot; the sheet stays) and **Close**, in a 56 px foot
-  that never scrolls. Only the middle (what it is, how, what moves it) scrolls, between the header and the foot.
-  At any height and any content length, Close is on screen.
+- **Foot, pinned:** **What can I do about it?** (the writer's words) and **Close**, in a 56 px foot that never
+  scrolls. Only the middle (what it is, how, what moves it) scrolls, between the header and the foot. At any height
+  and any content length, Close is on screen.
+- **The foot's question is about the tapped figure, not the company** (ruled 2026-11-03, after QA's card-trap
+  replay expected exactly that; draft 2 said "the same answer What now? gives", and the build answered with the
+  walkthrough's step under a break-even card, which reads as a non-answer). A tap answers inside the foot, which
+  grows upward over the middle; the sheet stays open, the figure stays clear.
+  - **The figure's own next action:** one action, one reason with this figure's numbers, one button, from the
+    explain entry's optional `act(world, company)`: the single lever among its "What moves it" that does most for
+    this company now, by FD a week where the engine can say. Example, break-even 2.36/mi: "Fewer empty miles: the
+    Columbus load starts where your truck is, 0 empty." **Show me the load**.
+  - **No action of its own** (no `act`, or it returns none): one line, the writer's per key, saying why, and
+    nothing to press but the link below. Diesel: "Nobody sets the price of diesel; your mpg decides how much it
+    hurts." Another company's band: "That's theirs to move." A figure that's fine: "Nothing to fix: 6.2 weeks of
+    cushion is healthy."
+  - **The company's What now? is one tap away** under every answer: a link "What now? for the whole company ›".
+    It closes the sheet and answers in the caption, as the chip does.
 - **Closing it, on a phone, five ways, all of which must work** (QA tests each):
   1. **Close** in the foot;
   2. an **×** in the header's top-right corner, 44 px;
@@ -200,7 +214,7 @@ day, the first payday). Engineering lists any milestone whose date can't be deri
 - **One line per screen:** the caption is the only place she speaks unasked. The explain sheet and the What now?
   answer are asked, so they're outside the count, but they share the caption's place (What now?) or sit beside the
   figure (explain); never two of her voices on screen at once. Opening an explain sheet while a What now? answer
-  shows keeps the answer; the sheet's own What now? foot shows the same answer.
+  shows keeps the answer in the caption; the sheet's foot answers about its own figure (section 3).
 - **Never over a figure:** the caption is in the flow; the explain sheet scrolls clear of its figure; the laptop
   popover anchors beside it. QA's check: no Iuliia text box intersects a covered figure's box.
 
