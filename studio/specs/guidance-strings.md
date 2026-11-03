@@ -167,21 +167,34 @@ Each speaks once: a line **before** only where the date is known (the month clos
 | `milestone.day28` *light* | the businesses layer | Businesses open `{businessDay}`. Most first-month carriers should let them wait. | Businesses are open. Nobody needs a warehouse in week four; most need a second truck. | A business pays over years. Your gap to the next truck is `{gap}` FD. |
 | `milestone.slump` | the demand dial under 0.9, the first time | (none: a slump gives no notice) | Rates are falling for everyone, not just you. Slumps end. | The carrier still here when it ends is the one who didn't buy in it. Your cushion: `{n}` weeks. |
 | `milestone.debt` | the first weekly check in debt | The weekly check is `{day}`. At today's cash you'd be under the line. | You're in debt at a weekly check: 1 of `{weeksInDebt}`. Here is the way out. | `{weeksInDebt}` checks in a row under `{debtLine}` FD and the company is wound up. |
-| `milestone.firstLate` | the first late delivery | (none) | Your first late load, `{h}` hours: `{cause}`. | Late loads cost reputation. `{fix}` |
-| `milestone.firstLoss` | the first load that loses money | (none) | That load lost `{fd}` FD. You bid `{rate}`; with the hold, break-even was `{be}`. | Bid against break-even and the hold, not the ceiling. |
-| `milestone.firstBoom` | the demand dial over 1.1, the first time | (none) | Rates are up everywhere. Book what pays; don't sign what you can't haul. | Booms end too. The carrier who didn't overreach is still here after. |
 | `milestone.day91` | the brokerage layer | Brokerages open `{brokerDay}`. The bond is the hard part. | Brokerages are open. Here's what one takes, and how far you are. | Bond, licence and premium: you're `{gap}` FD short, or ready. |
 
-**`{fix}` for the first late load, by cause** (the cause list is in `copy-player1.md`, row 12):
+### The director's three milestones on news she can help with (`guidance.md` section 3)
 
-| Cause | `{fix}` |
+No before line: none of the three can be seen coming. The cause and the loss's parts are computed by engineering (`guidance.md` section 4: why a load was late, why a load lost).
+
+| Key | Name | Trigger | At | Reason | Button |
+|---|---|---|---|---|---|
+| `milestone.firstBoom` *voice* | The first boom | the demand dial over 1.1, the first time | Rates are up everywhere. Book what pays; don't sign or buy what a slump would make you regret. | Booms end too. My grandmother bought a summer house in a good year and sold it the next. | Show the board |
+| `milestone.firstLate` | The first late load | the first load delivered after its deliver-by | Your first late load: `{h}` hours, because `{lateCause}`. | `{lateFix}` On-time is your reputation, and brokers read it. | See the truck |
+| `milestone.firstLoss` | The first losing load | the first settlement under zero after the hold | That load left you `{fd}` FD short. `{lossCause}` | Bid from "usually clears near", not from your costs. | Show the board |
+
+**`{lateCause}` and `{lateFix}`**, by the largest part of the delay:
+
+| Part | `{lateCause}` | `{lateFix}` |
+|---|---|---|
+| hours of service | the driver's hours ran out on the way | Check the hours left before you book a long run. |
+| a dock's hours | the dock was closed when the truck arrived | Check the dock's hours before you book; some close at night. |
+| weather | weather slowed the route | Leave slack on mountain and northern routes in winter. |
+| a late pickup | the truck reached the pickup late | Book loads near the truck, or lower the dispatcher's empty-mile limit. |
+
+**`{lossCause}`**, by the largest part of the loss:
+
+| Part | `{lossCause}` |
 |---|---|
-| hours ran out | Check the driver's hours left before you book a long run. |
-| dock closed | Check the dock's hours before you book; some close at night. |
-| weather | Leave slack on mountain routes in winter. |
-| breakdown | A planned rebuild costs less than a late load. |
-| weigh station | Fix defects before an inspector finds them. |
-| traffic | Leave slack on city routes. |
+| the rate | You took `{rate}`/mi against a break-even of `{be}`/mi. |
+| the empty miles | `{mi}` empty miles to the pickup cost `{fd}` FD. |
+| the hold | `{fd}` FD went to the hold toward your truck; you get that back when you buy. |
 
 ## 3. Explain: the first month's figures
 
@@ -272,4 +285,6 @@ One entry per figure key. `what` and `moves` are the writer's; `how` is engineer
 | `market.diesel` | Today's price of diesel at the pump. | The fuel market, moving daily. | Nothing you do; your mpg decides how much it hurts. |
 | `market.security` | How often cargo goes missing on this market's roads: quiet, watch or high. | This market's loss rate against a quiet road's. | Nothing you do changes it; it raises insurance and some shippers' vetting. |
 | `market.security.other` | The same, on a hub card you haven't chosen. | (no inputs) | It's the market's; a home with high security costs more to insure. |
+| `trip.lateCause` | Why this load arrived late. | The largest part of the delay: rest beyond the plan, a closed dock, weather, or a late pickup. | Hours left, dock hours, and booking near the truck. |
+| `settlement.lossCause` | Why this load lost money. | The largest of the rate's gap below break-even, the empty miles, and the hold. | Bidding from "usually clears near"; fewer empty miles. |
 | `market.season` | Whether this hub's freight is in season or out. | This hub's freight for your trailer type against its yearly average. | The calendar. |

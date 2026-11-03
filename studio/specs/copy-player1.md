@@ -60,7 +60,7 @@ The economy says where an owner-driver's pay goes **[economy]**. Two forms, one 
 | Where | New |
 |---|---|
 | Delivered card, late chip's line | Late `{h}` h: `{cause}`. |
-| `{cause}` | the driver's hours ran out · the dock was closed until `{day hh:mm}` · weather on `{road}` · a breakdown · a pull-in at a weigh station · traffic on `{road}` |
+| `{cause}` | the driver's hours ran out · the dock was closed until `{day hh:mm}` · weather on the route · a late pickup (the director's four, `guidance.md` section 4) |
 | Truck card, waiting at a closed dock | The dock opens `{Monday 06:00}`. |
 
 ## Row 13: the market story when rates jump
