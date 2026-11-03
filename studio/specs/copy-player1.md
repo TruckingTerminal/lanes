@@ -6,19 +6,19 @@ The strings for R3 and every finding row the director gave the writer. Each name
 
 "Theft risk" becomes **Security**, banded, on every screen. It is a cost the player bears, said plainly, with no crime spectacle.
 
-**The bands**, from `hubTheftRisk` (a multiple of a quiet road). The cut-offs are the economy's to confirm **[size]**; proposed: under 1.2 Quiet, 1.2 to 2 Watch, 2 and over High.
+**The bands**, from `hubTheftRisk` (a multiple of a quiet road). The cut-offs are the economy's to confirm **[size]**; proposed: under 1.2 Quiet, 1.2 to 2 Watch, 2 and over Risky (the director, 2026-11-03).
 
 | Band | Card line |
 |---|---|
 | Quiet | Security: quiet |
 | Watch | Security: watch. Cargo goes missing here more than on quiet roads. |
-| High | Security: high. Cargo goes missing here often; insurers and some shippers notice. |
+| Risky | Security: risky. Cargo goes missing here often; insurers and some shippers notice. |
 
 | Where | Now | New |
 |---|---|---|
-| Hub card, `HUB_CARD.theft` | Cargo theft: `{times}` a quiet road's | Security: `{quiet / watch / high}` (shown on every card, quiet included) |
+| Hub card, `HUB_CARD.theft` | Cargo theft: `{times}` a quiet road's | Security: `{quiet / watch / risky}` (shown on every card, quiet included) |
 | Rates table, column header (`Rates.tsx:70`) | Theft | Security |
-| Rates table, cell | `{x}`× / – | Quiet · Watch · High |
+| Rates table, cell | `{x}`× / – | Quiet · Watch · Risky |
 | Business, site row (`Business.tsx:74`) | Theft risk · `{x}`× a quiet road | Security · `{band}` |
 | Business, a business's rows (`:228`, `:229`) | Theft risk here · Theft risk at the hub | Security here · Security at the hub |
 | Map tooltip, where it names theft | | Security: `{band}` |

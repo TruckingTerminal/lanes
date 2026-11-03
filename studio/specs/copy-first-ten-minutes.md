@@ -60,7 +60,7 @@ Nothing to read: the title loop and one button. Connection states live on the bu
 | The hub | `{hub name}` · the character line (below) · the season line (below) |
 | Freight now | Freight now · `{n}` loads posted last round · `{rate}`/mi average · `{x}` loads per truck · `{hot / busy / even / slow}` · Ships `{more than / about what / less than}` it receives · Reload: `{easy / fair / hard}` |
 | Who's here | Who's here · Carriers based here: `{few / a fair share / many}` (`crowdWord`) · Shippers hold `{pct}` of van loads for locals first |
-| What it costs to live here | What it costs to live here · Insurance: `{pct}` `{above / below}` the base rate, or "at the base rate" · Yard: `{fd}` FD a week per truck past the first · Security: `{quiet / watch / high}` (see `copy-player1.md`, R3) |
+| What it costs to live here | What it costs to live here · Insurance: `{pct}` `{above / below}` the base rate, or "at the base rate" · Yard: `{fd}` FD a week per truck past the first · Security: `{quiet / watch / risky}` (see `copy-player1.md`, R3) |
 | Outbound by trailer | Outbound by trailer · Van `{strong / even / thin}` · Reefer `{…}` · Flatbed `{…}` |
 | Buttons | **See the board** · **Start here** |
 | Not a starter hub (`NAMING.notStarter`, where Start here would be) | `{hub}` is a fine place to deliver to, not yet a place to live. The ringed cities are. |

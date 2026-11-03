@@ -308,9 +308,9 @@ UX's button and link; engineering's per-figure answers, passed. A figure with a 
 | `market.loadToTruck` | Loads posted for every truck looking, at a hub. | Open loads, divided by trucks free nearby. | More freight raises it; more trucks lower it. |
 | `market.demandDial` | Freight across the whole country against its normal level. | The freight market's cycle: booms and slumps, over months. | Nothing you do; plan for it. |
 | `market.diesel` | Today's price of diesel at the pump. | The fuel market, moving daily. | Nothing you do; your mpg decides how much it hurts. |
-| `market.security` | How often cargo goes missing on this market's roads: Quiet, Watch or High. | This market's losses against a quiet road's: Watch from `{security.watchAt}` times, High from `{security.highAt}`. [economy confirms 1.2 and 2] | Nothing you do changes it. It raises insurance and some shippers' vetting. |
+| `market.security` | How often cargo goes missing on this market's roads: Quiet, Watch or Risky. | This market's losses against a quiet road's: Watch from `{security.watchAt}` times, Risky from `{security.riskyAt}`. [economy confirms 1.2 and 2] | Nothing you do changes it. It raises insurance and some shippers' vetting. |
 | `move.cost` | What this empty run should cost before the next load. | Break-even's per-mile parts (fuel, the driver's pay, tolls) times the empty miles, over the days it takes. | The distance, the price of diesel, and the truck's mpg. |
-| `market.security.other` | The same, on a hub card you haven't chosen. | (no inputs) | It's the market's. A home rated High costs more to insure. |
+| `market.security.other` | The same, on a hub card you haven't chosen. | (no inputs) | It's the market's. A home rated Risky costs more to insure. |
 | `trip.lateCause` | Why this load arrived late. | The largest part of the delay: rest beyond the plan, a closed dock, weather, or a late pickup. | Hours left, dock hours, and booking near the truck. |
 | `settlement.lossCause` | Why this load lost money. | The largest of the rate's gap below break-even, the empty miles, and the hold. | Bidding from "usually clears near"; fewer empty miles. |
 | `market.season` | Whether this hub's freight is in season or out. | This hub's freight for your trailer type against its yearly average. | The calendar. |
