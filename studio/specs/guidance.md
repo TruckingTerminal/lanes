@@ -77,7 +77,10 @@ Ties go to the earlier pickup. If no load passes, the lost bid drops out of rule
 - **How it's computed.** This company's actual inputs, from the engine. For example, a break-even of 2.36/mi: fuel 0.62, maintenance 0.18, insurance 0.21, the lessor's 15%, and so on.
 - **What moves it.** The levers the player holds, each a link where one exists.
 
-It ends with **What now?**.
+**The foot** answers about the tapped figure, not the company. This is UX's ruling of 2026-11-03 (`guidance-ux.md`, section 3), and the director agrees: a company-wide answer under a break-even card reads as a non-answer.
+- **The figure's own next action:** the one lever among its "What moves it" that does most for this company now.
+- **If it has none,** the writer's line for that figure says why.
+- **The company's What now? is one tap under it,** as a link.
 
 **No humor in it.** Every figure is about money or risk, so the writer's no-joke rule applies to the whole sheet.
 
