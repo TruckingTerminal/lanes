@@ -71,6 +71,7 @@ One verb throughout: **start**. UX's draft says "Form"; the director's says "Sta
 | Bond note, the beta (director's brief) | Beta bond: it's burned at the token's launch, like every beta stake. To broker after launch, post it again. |
 | Funding row | Moving from `{carrier name}` · `{fd}` FD (prefilled) |
 | Funding row | Fee `{transferFee}` · `{fd}` FD |
+| Funding row, `licenceFromIt` | Licence · `{licence}` FD · paid out of the amount you move |
 | Funding rows | `{carrier name}`'s cash after · `{fd}` FD · `{brokerage}`'s cash after · `{fd}` FD, `{bond}` of it the bond |
 | Capital note | Your own capital, moved between your companies. It's not revenue or a cost for either. |
 | Note | There's no starting grant: the money comes from your carrier. |
@@ -142,6 +143,9 @@ One verb throughout: **start**. UX's draft says "Form"; the director's says "Sta
 | `ifNotDecline` | If you don't decide: it goes to another broker or the open board. | changed: UX's rule names both |
 | `fromChip` | Passed by `{carrier}` | changed: "From" could read as the shipper |
 | `ownFirst` | Offer to `{carrier}` first | kept (the order card's switch) |
+| `ownFirstRate` | It goes to `{carrier}` at your posting rate, within the lane's band. `{carrier}` may still decline. | changed: shorter, and "decline" matches the carrier's button |
+| `ownFirstSkips` | `{carrier}` has no free `{trailer}` within `{mi}` mi of the pickup, so your standing order would post it. | changed: names the trailer and the distance the rule checks |
+| `saved` | Standing order saved. | kept, with a full stop (the carrier's is "Dispatcher saved.") |
 
 **Feed lines** (the trail, one line per stage):
 
