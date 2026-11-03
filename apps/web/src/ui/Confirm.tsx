@@ -5,7 +5,7 @@ import { CONFIRM } from "../copy.js";
 import { cushion } from "../figures.js";
 import { fdFull } from "../format.js";
 import { GAME_CONFIG } from "../game.js";
-import { bumpData, me, S, useData } from "../state.js";
+import { bumpData, isPhone, me, S, useData } from "../state.js";
 import { Btn } from "./bits.js";
 
 /**
@@ -34,9 +34,20 @@ export interface ConfirmSpec {
 
 /** Opens the card for an act that always asks (the list in player2-ux.md section 1). `ev` is the opening tap. */
 export function confirmAct(spec: ConfirmSpec, ev?: MouseEvent): void {
-  // Never under the first tap: when it landed where the foot will be, Not now takes that side (the foot's last 80 px).
-  const y = ev?.clientY ?? 0;
-  S.confirm = { ...spec, openedAt: performance.now(), swap: typeof window !== "undefined" && y > window.innerHeight - 140, tab: S.tab };
+  // Never under the first tap (QA's R6 replay): the confirm sits at the foot's right, Not now at its left. When the tap
+  // landed in the foot's band on the right half, they swap, so Not now takes the spot the thumb is on.
+  const inFoot = typeof window !== "undefined" && ev !== undefined && ev.clientY > window.innerHeight - 140;
+  const swap = inFoot && ev!.clientX > window.innerWidth / 2;
+  S.confirm = { ...spec, openedAt: performance.now(), swap, tab: S.tab };
+  // The item stays in sight above the card (player2-ux.md section 1): pad the page's foot by the card's height, open the
+  // phone's rack full, and bring the tapped control to the top, as the explain sheet does.
+  const el = ev?.currentTarget as HTMLElement | undefined;
+  if (el) {
+    const box = el.closest(".panelbox") as HTMLElement | null;
+    if (box) box.style.paddingBottom = "62vh";
+    if (isPhone() && S.sheet !== "full") S.sheet = "full";
+    requestAnimationFrame(() => el.scrollIntoView({ block: "start" }));
+  }
   bumpData();
 }
 
@@ -50,6 +61,7 @@ export function confirmSpend(spec: ConfirmSpec, ev?: MouseEvent): void {
 
 function close(): void {
   S.confirm = null;
+  for (const b of document.querySelectorAll<HTMLElement>(".panelbox")) b.style.paddingBottom = "";
   bumpData();
 }
 
@@ -70,16 +82,18 @@ export function ConfirmSheet(): JSX.Element | null {
   const after = cash - (s.costFd ?? 0);
   const avg = cushion(w, c).avgWeeklyFd;
   const weeks = avg > 0.5 ? Math.max(0, after) / avg : null;
-  const tone = weeks === null ? "" : weeks < 1 ? "bad" : weeks < 2 ? "warn" : "";
+  const tone = after < 0 || (weeks !== null && weeks < 1) ? "bad" : weeks !== null && weeks < 2 ? "warn" : "";
+  // Nothing offers what it won't give (R7): a spend cash can't cover says so, and its confirm is off.
+  const short = s.costFd !== null && after < 0 ? -after : 0;
   const settle = GAME_CONFIG.ui.tapSettleMs;
   const confirm = () => {
     // Inert for the settle time, and for a touch that began before the card opened.
-    if (performance.now() - s.openedAt < settle || down.current < s.openedAt) return;
+    if (short > 0 || performance.now() - s.openedAt < settle || down.current < s.openedAt) return;
     close();
     s.run();
   };
   const go = (
-    <Btn sm primary={!s.destructive} danger={s.destructive} onPointerDown={() => (down.current = performance.now())} onClick={confirm}>
+    <Btn sm primary={!s.destructive} danger={s.destructive} disabled={short > 0} onPointerDown={() => (down.current = performance.now())} onClick={confirm}>
       {s.go ?? CONFIRM.go(s.verb, fdFull(s.costFd ?? 0))}
     </Btn>
   );
@@ -98,8 +112,12 @@ export function ConfirmSheet(): JSX.Element | null {
         </header>
         <div class="explainbody">
           {s.costLine === "" ? null : <p class="small">{s.costLine ?? CONFIRM.cost(fdFull(s.costFd ?? 0))}</p>}
-          <p class={`small ${tone}`}>{weeks === null ? CONFIRM.afterNoWeeks(fdFull(after)) : CONFIRM.after(fdFull(after), weeks.toFixed(1))}</p>
-          {weeks !== null && weeks < w.cfg.guide.gapCushionWeeks ? <p class="small bad">{CONFIRM.lowCushion(w.cfg.guide.gapCushionWeeks)}</p> : null}
+          {s.costFd !== null ? <p class={`small ${tone}`}>{weeks === null ? CONFIRM.afterNoWeeks(fdFull(after)) : CONFIRM.after(fdFull(after), weeks.toFixed(1))}</p> : null}
+          {short > 0 ? (
+            <p class="small bad">{CONFIRM.cantPay(fdFull(short))}</p>
+          ) : weeks !== null && weeks < w.cfg.guide.gapCushionWeeks && s.costFd !== null ? (
+            <p class="small bad">{CONFIRM.lowCushion(w.cfg.guide.gapCushionWeeks)}</p>
+          ) : null}
           <p class="label">{CONFIRM.does}</p>
           <p class="small">{s.does}</p>
           {s.risk ? (

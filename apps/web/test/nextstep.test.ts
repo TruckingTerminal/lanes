@@ -3,7 +3,7 @@ import { companyAccount } from "@lanes/engine";
 import { blockReason, boardRows } from "../src/board.js";
 import { CONFIRM, DELIVERED, MOVE, SECURITY } from "../src/copy.js";
 import { item, usedTruck } from "../src/confirmspecs.js";
-import { confirmSpend } from "../src/ui/Confirm.js";
+import { confirmAct, confirmSpend } from "../src/ui/Confirm.js";
 import { S } from "../src/state.js";
 import { breakdown } from "../src/explain.js";
 import { shortDate } from "../src/format.js";
@@ -260,6 +260,28 @@ describe("R1: the dispatcher waits for the player's choice (guard.dispatcherDefa
       expect(b.orders.some((o) => o.kind === "homeTime")).toBe(true);
     } finally {
       k.dispatcherDefaultOn = true;
+    }
+  }, 60_000);
+});
+
+describe("the confirm card's foot (QA's R6 replay)", () => {
+  it("swaps only for a low tap on the right half, so Not now takes the thumb's spot; a short buy can't be confirmed", async () => {
+    const { g } = await fresh();
+    S.game = g as never;
+    const spec = { verb: "Buy", item: "it", costFd: 1e9, does: "x", risk: null, run: () => undefined };
+    const at = (x: number, y: number) => ({ clientX: x, clientY: y }) as MouseEvent;
+    (globalThis as { window?: unknown }).window = { innerHeight: 812, innerWidth: 375 };
+    try {
+      confirmAct(spec, at(99, 736));
+      expect(S.confirm?.swap).toBe(false); // left half: Not now is already on the left
+      confirmAct(spec, at(300, 736));
+      expect(S.confirm?.swap).toBe(true); // right half: Not now moves right, under the thumb
+      confirmAct(spec, at(300, 300));
+      expect(S.confirm?.swap).toBe(false); // not in the foot's band
+    } finally {
+      delete (globalThis as { window?: unknown }).window;
+      S.confirm = null;
+      S.game = null;
     }
   }, 60_000);
 });

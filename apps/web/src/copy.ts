@@ -12,14 +12,15 @@ export const CONFIRM = {
   title: (verb: string, item: string) => `${verb} ${item}?`,
   cost: (fd: string) => `It costs · ${fd} FD`,
   after: (fd: string, n: string) => `Left after · ${fd} FD, ${n} weeks of cushion`,
-  /** Engineering's draft: before the first week closes there's no cushion figure to give. */
-  afterNoWeeks: (fd: string) => `Left after · ${fd} FD`,
+  /** Engineering's drafts (QA's R6 replay): before the first week closes there's no cushion figure, and a spend cash can't cover. */
+  afterNoWeeks: (fd: string) => `Left after · ${fd} FD, cushion not yet measured`,
+  cantPay: (fd: string) => `${fd} FD short: this can't be paid today.`,
   does: "What it does",
   risk: "The one risk",
   go: (verb: string, fd: string) => `${verb} · ${fd} FD`,
   cancel: "Not now",
   lowCushion: (n: number) => `Under ${n} weeks of cushion after this.`,
-  usedFresh: (make: string, pct: string, n: number) => `A used ${make}: ${pct} condition, ${n} rebuilds left.`,
+  usedFresh: (make: string, pct: string, n: number) => `A used ${make}: ${pct} condition, ${n === 1 ? "1 rebuild" : `${n} rebuilds`} left.`,
   usedFreshRisk: (fd: string) => `Worn trucks break down more, usually far from home. A rebuild costs ${fd} FD.`,
   usedLast: (make: string, pct: string) => `A used ${make}: ${pct} of its life left, no rebuilds.`,
   usedLastRisk: (fd: string) => `It runs until it's worn out, then goes for scrap, for about ${fd} FD.`,

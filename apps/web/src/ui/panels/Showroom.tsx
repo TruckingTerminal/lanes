@@ -30,7 +30,7 @@ import { act, me, myTrucks, order, S, toast } from "../../state.js";
 import { iuliiaSay } from "../../iuliia.js";
 import { DEALER } from "../../copy.js";
 import { buyPlan } from "../../finance.js";
-import { useState } from "preact/hooks";
+import { useEffect, useRef, useState } from "preact/hooks";
 import type { Action } from "@lanes/engine";
 import { Btn, Card, Kv, Num } from "../bits.js";
 import { Rig } from "../Loop.js";
@@ -152,7 +152,7 @@ export function Showroom(): JSX.Element {
           );
         }),
       )}
-      <h3>Trailers alone</h3>
+      <h3 id="dealer-trailers">Trailers alone</h3>
       <p class="muted small">
         Room for {Math.max(0, trailerRoom)} more of your own. {c.yard === "none" ? "Without a yard, only as many trailers as tractors." : "Spares wait in the yard; swap at your home hub."}
       </p>
@@ -223,6 +223,11 @@ export function Buy({ what, label, price, replacing, block, action, ok, lines }:
   const c = me();
   const [open, setOpen] = useState(false);
   const [refused, setRefused] = useState<string | null>(null);
+  // The loan sheet opens below the row: on a phone that's below the fold, so bring it into view (QA's R6 replay).
+  const sheet = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (open) sheet.current?.scrollIntoView({ block: "nearest" });
+  }, [open]);
   const p = buyPlan(w, c, price, replacing);
   // The reasons use the sheet's net figures (QA's Dealer re-check): what's needed after the lease deposit, against cash alone.
   const cash = p.have - p.deposit;
@@ -269,6 +274,7 @@ export function Buy({ what, label, price, replacing, block, action, ok, lines }:
       {cashWhy ? <p class="muted small">{cashWhy}</p> : null}
       {refused ? <p class="bad small">{refused}</p> : null}
       {open && p.loan ? (
+        <div ref={sheet}>
         <Card title={DEALER.loanTitle(what)}>
           <Kv
             rows={[
@@ -293,6 +299,7 @@ export function Buy({ what, label, price, replacing, block, action, ok, lines }:
           </div>
           {loanWhy ? <p class="muted small">{loanWhy}</p> : null}
         </Card>
+        </div>
       ) : null}
     </div>
   );

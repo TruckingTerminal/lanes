@@ -174,7 +174,8 @@ export function YardCard(): JSX.Element | null {
         );
       })}
       <div class="row">
-        <Btn onClick={() => setTab("market")}>Buy a trailer</Btn>
+        {/* Lands on the Dealer's trailers, not its used trucks at the top (QA's R6 replay). */}
+        <Btn onClick={() => (setTab("market"), setTimeout(() => document.getElementById("dealer-trailers")?.scrollIntoView({ block: "start" }), 50))}>Buy a trailer</Btn>
         <Btn ghost onClick={() => setTab("business")}>
           More yard space
         </Btn>
