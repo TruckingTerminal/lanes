@@ -27,7 +27,7 @@ import {
   type Truck,
   type World,
 } from "@lanes/engine";
-import { GAME_CONFIG } from "./game.js";
+import { DISPATCHER_ORDERS, GAME_CONFIG } from "./game.js";
 import { trueBreakEven } from "./breakeven.js";
 import { ARRIVAL, BROKERAGE, DISPATCHER, NEEDS, TRUCK } from "./copy.js";
 import { hasTwo, kindInView, switchCompany, type CompanyKind } from "./companies.js";
@@ -53,7 +53,18 @@ export const idleDays = (t: Truck): number => Math.floor(idleHours(t) / 24);
 export const idleLabel = (t: Truck): string => hoursLabel(idleHours(t));
 
 /** The player's trucks idle a day or more. */
-export const stuckTrucks = (): Truck[] => myTrucks().filter((t) => t.status === "idle" && idleHours(t) >= IDLE_ALERT_HOURS && !resting(S.game!.w, t));
+/** R1: with the dispatcher off, the idle card offers it after one idle round, not two. */
+const roundHours = (): number => 24 / S.game!.w.cfg.time.boardRoundHours.length;
+export const stuckTrucks = (): Truck[] => {
+  const off = !me().orders.some((o) => o.kind === "bid");
+  return myTrucks().filter((t) => t.status === "idle" && idleHours(t) >= (off ? roundHours() : IDLE_ALERT_HOURS) && !resting(S.game!.w, t));
+};
+
+/** R1's one button ("Let the dispatcher bid"): the dispatcher's default rules on, the company's other orders kept. */
+export function letDispatcherBid(): void {
+  const keep = me().orders.filter((o) => !DISPATCHER_ORDERS.has(o.kind));
+  act({ type: "set_standing_orders", orders: [...DEFAULTS().filter((o) => DISPATCHER_ORDERS.has(o.kind)), ...keep] }, DISPATCHER.saved, "dispatcher:on");
+}
 
 /** Shouts once per idle day per truck, in the ticker and as a toast. */
 const idleAlerted = new Map<string, number>();
@@ -263,7 +274,7 @@ export function idleWhy(t: Truck): IdleWhy {
   // The first bid by hand (S9): the dispatcher waits for the owner's first call, so the fix is the board, not the orders.
   if (ordersWaitForHand(w, c)) return { why: DISPATCHER.waitingCard(hubName), fixes: [<Btn primary onClick={() => goLoads(t.id)}>{ARRIVAL.showBoard}</Btn>] };
   const order = c.orders.find((o): o is Extract<StandingOrder, { kind: "bid" }> => o.kind === "bid");
-  if (!order) return { why: "Your dispatcher has no bid order, so nobody bids for this truck.", fixes: [<Btn primary onClick={() => act({ type: "set_standing_orders", orders: DEFAULTS() }, "Dispatcher back to defaults")}>Restore the default dispatcher</Btn>, board] };
+  if (!order) return { why: DISPATCHER.offIdle, fixes: [<Btn primary onClick={letDispatcherBid}>{DISPATCHER.letBid}</Btn>, board] };
   const floor = c.orders.find((o): o is Extract<StandingOrder, { kind: "floor" }> => o.kind === "floor");
   const maxDh = order.maxDeadheadMi;
   const loads = [...w.loads.values()].filter((l) => l.status === "open" && l.equipment === t.trailer && l.brokerId !== c.id && placeMiles(w, t.place, l.originPlace) <= maxDh);

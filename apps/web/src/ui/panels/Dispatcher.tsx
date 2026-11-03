@@ -1,7 +1,7 @@
 import type { JSX } from "preact";
 import { ordersWaitForHand, type StandingOrder } from "@lanes/engine";
 import { DISPATCHER } from "../../copy.js";
-import { DEFAULT_ORDERS } from "../../game.js";
+import { DEFAULT_ORDERS, DISPATCHER_ORDERS } from "../../game.js";
 import { act, me, S, useData } from "../../state.js";
 import { Btn, Card, Label } from "../bits.js";
 import { Iuliia } from "../Walkthrough.js";
@@ -10,8 +10,6 @@ import { iuliiaFirst } from "../../iuliia.js";
 const num = (id: string): number => Number((document.getElementById(id) as HTMLInputElement | null)?.value);
 const checked = (id: string): boolean => Boolean((document.getElementById(id) as HTMLInputElement | null)?.checked);
 
-/** The orders the switch turns on and off: bidding, its floor and the rest of the dispatcher's own rules. Home time stays. */
-const BIDDING = new Set<StandingOrder["kind"]>(["bid", "floor", "reposition", "bookNow", "contracts"]);
 /** The bidding rules a switch-off set aside, per company, so switching back on restores them (diary 1, row 11). */
 const setAside = new Map<number, StandingOrder[]>();
 
@@ -56,9 +54,9 @@ export function DispatcherCard(): JSX.Element {
   const save = (bidding: boolean, said?: string) => act({ type: "set_standing_orders", orders: orders(bidding) }, DISPATCHER.saved, said);
   // The switch keeps the rules: off sets the bidding rules aside, on brings them back (or the defaults, the first time).
   const flip = (to: boolean) => {
-    const rest = c.orders.filter((o) => !BIDDING.has(o.kind));
-    if (!to) setAside.set(c.id, c.orders.filter((o) => BIDDING.has(o.kind)));
-    const back = setAside.get(c.id) ?? DEFAULT_ORDERS.filter((o) => BIDDING.has(o.kind));
+    const rest = c.orders.filter((o) => !DISPATCHER_ORDERS.has(o.kind));
+    if (!to) setAside.set(c.id, c.orders.filter((o) => DISPATCHER_ORDERS.has(o.kind)));
+    const back = setAside.get(c.id) ?? DEFAULT_ORDERS.filter((o) => DISPATCHER_ORDERS.has(o.kind));
     act({ type: "set_standing_orders", orders: to ? [...back, ...rest] : rest }, DISPATCHER.saved, to ? "dispatcher:on" : "dispatcher:off");
   };
   const switchRow = (

@@ -365,6 +365,13 @@ export const DISPATCHER = {
   switchLabel: "Bid for me while I'm away",
   waiting: "Your first load is your call. After that, your dispatcher can bid while you're away.",
   afterFirst: "From now on your dispatcher bids when you don't. Check the rules before you go.",
+  /** R1 (the director, director-player1.md and -player2.md): the choice is the player's; one button turns the dispatcher on. */
+  letBid: "Let the dispatcher bid",
+  offerFleet: "Two trucks: bid one yourself, or let the dispatcher run both.",
+  /** Engineering's draft for the writer: the first time the player runs faster than Day a minute with the dispatcher off. */
+  offerSpeed: "At this speed rounds pass while you look away. The dispatcher can bid for you.",
+  /** The idle card's reason with no bid order (R1: the card is the prompt). */
+  offIdle: "The dispatcher is off, so nobody bids for this truck while you're away.",
   seeDispatcher: "See the dispatcher",
   bidAt: "Bid at break-even plus",
   ceilingSuffix: "% of the ceiling",

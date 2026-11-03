@@ -12,6 +12,7 @@ import { pct } from "../format.js";
 import { TAB_NAME, type Tab } from "../tabs.js";
 import { Btn, Card } from "./bits.js";
 import { financeLine } from "./panels/Finance.js";
+import { letDispatcherBid } from "../logic.js";
 import { Loop } from "./Loop.js";
 import { CompanySoFar, milestoneHeld, MilestoneLine, milestoneScope } from "./Milestones.js";
 import { WhatNowAnswer, WhatNowChip } from "./WhatNow.js";
@@ -322,6 +323,28 @@ export function Caption(): JSX.Element | null {
   // retires once a load is the truck's, by the player's bid or booking or the dispatcher's (Jeff, 2026-11-02: it
   // still said "Let's find one" with the truck loaded and rolling).
   const hasLoad = c.firstHandBidDay !== null || (g.w.trucksByCompany.get(c.id) ?? []).some((t) => t.loadId !== null) || c.delivered > 0;
+  // R1: with the dispatcher off, a fleet start's first line offers the choice, with its one button.
+  const dispatcherOff = !c.orders.some((o) => o.kind === "bid");
+  const fleetStart = !(g.w.trucksByCompany.get(c.id) ?? []).some((t) => t.lease === "npc");
+  if (step?.id === "board" && !seen("arrival") && !hasLoad && dispatcherOff && fleetStart) {
+    return say(
+      DISPATCHER.offerFleet,
+      <Btn sm primary onClick={() => (mark("arrival"), letDispatcherBid())}>
+        {DISPATCHER.letBid}
+      </Btn>,
+      "wave",
+    );
+  }
+  // R1: the first time the player runs faster than Day a minute with the dispatcher off, she offers it (a line with a
+  // button: it holds until answered, or until the dispatcher is on and it's false).
+  if (dispatcherOff && S.speed > 2 && !seen("offer:speed") && hasLoad) {
+    return say(
+      DISPATCHER.offerSpeed,
+      <Btn sm primary onClick={() => (mark("offer:speed"), letDispatcherBid())}>
+        {DISPATCHER.letBid}
+      </Btn>,
+    );
+  }
   if (step?.id === "board" && !seen("arrival") && !hasLoad) {
     const showBoard = () => {
       mark("arrival");

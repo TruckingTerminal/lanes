@@ -48,6 +48,9 @@ export const POPULATION = { freeOwnerOperators: 400, fleets: 120, brokers: 60 };
 export const PLAYER_WALLET_USD = 100;
 export const FLEET_START_EXTRA_FD = 20_000;
 
+/** The orders the dispatcher switch turns on and off (Dispatcher.tsx): bidding, its floor and the rest of its rules. */
+export const DISPATCHER_ORDERS = new Set<StandingOrder["kind"]>(["bid", "floor", "reposition", "bookNow", "contracts"]);
+
 export const DEFAULT_ORDERS: StandingOrder[] = [
   { kind: "bid", maxDeadheadMi: 150, price: { mode: "breakEvenPlus", pct: 0.25 } },
   { kind: "floor", breakEvenPlusPct: 0.05 },
@@ -75,7 +78,9 @@ export function joinCompany(w: World, key: string, name: string, hub: string, st
     homeHubId: hub,
     strategy: `player:${key}`,
     human: true,
-    orders: DEFAULT_ORDERS,
+    // R1: with guard.dispatcherDefaultOn off, a player's company joins with no bid order, so nothing bids before the
+    // player chooses (Iuliia's "Let the dispatcher bid", the idle card, or the switch). Home time stays. Bots keep theirs.
+    orders: w.cfg.guard.dispatcherDefaultOn ? DEFAULT_ORDERS : DEFAULT_ORDERS.filter((o) => !DISPATCHER_ORDERS.has(o.kind)),
     freePath: start === "oo",
   });
   if (start === "fleet") {

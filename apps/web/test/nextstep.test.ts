@@ -245,3 +245,21 @@ describe("the confirm card (R6)", () => {
     S.game = null;
   }, 60_000);
 });
+
+describe("R1: the dispatcher waits for the player's choice (guard.dispatcherDefaultOn)", () => {
+  it("on, a player's company joins bidding as today; off, it joins with no bid order and keeps its home time", async () => {
+    const on = await TestGame.create();
+    const a = on.join("On Freight", "oo", "LAX")!;
+    expect(a.orders.some((o) => o.kind === "bid")).toBe(true);
+    const k = GAME_CONFIG.guard as { dispatcherDefaultOn: boolean };
+    k.dispatcherDefaultOn = false;
+    try {
+      const off = await TestGame.create();
+      const b = off.join("Off Freight", "fleet", "LAX")!;
+      expect(b.orders.some((o) => o.kind === "bid")).toBe(false);
+      expect(b.orders.some((o) => o.kind === "homeTime")).toBe(true);
+    } finally {
+      k.dispatcherDefaultOn = true;
+    }
+  }, 60_000);
+});
