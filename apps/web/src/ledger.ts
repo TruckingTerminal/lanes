@@ -1,4 +1,4 @@
-import { insuredValue, leaseValueFd, stakeDiscount, yardPerTruck, type Company, type World } from "@lanes/engine";
+import { insuredValue, leaseValueFd, stakeDiscount, yardPerTruck, type Company, type Truck, type World } from "@lanes/engine";
 
 /**
  * Money as a ledger (specs/first-ten-minutes.md, S8): what is owed to the company and when, what this week will cost
@@ -29,16 +29,24 @@ export interface WeekCosts {
   perDiemPerDay: number;
 }
 
+/**
+ * A leased truck's weekly minimum, as capacity.ts chargeMinimumRent bills it: the larger of the flat minimum (an extra
+ * lease) and the by-value share. The one figure the truck card, Finance, What now? and the Dealer all show (QA's R20
+ * replay: the card said 250 where the lease row said 910). 0 for a truck that isn't leased.
+ */
+export function leaseMinFor(w: World, t: Truck): number {
+  const rules = w.cfg.freeEntry.leases;
+  const leased = t.lease === "lessor" || (rules.byValue.enabled && t.lease === "npc");
+  if (!leased) return 0;
+  const byValue = rules.byValue.enabled ? rules.byValue.weeklyShareOfValue * leaseValueFd(w.cfg, t) : 0;
+  return Math.max(t.lease === "lessor" ? rules.minWeeklyFd : 0, byValue);
+}
+
 export function weekCosts(w: World, c: Company): WeekCosts {
   const rules = w.cfg.freeEntry.leases;
   const trucks = (w.trucksByCompany.get(c.id) ?? []).filter((t) => t.status !== "retired");
   let leaseMinimum = 0;
-  for (const t of trucks) {
-    const leased = t.lease === "lessor" || (rules.byValue.enabled && t.lease === "npc");
-    if (!leased) continue;
-    const byValue = rules.byValue.enabled ? rules.byValue.weeklyShareOfValue * leaseValueFd(w.cfg, t) : 0;
-    leaseMinimum += Math.max(t.lease === "lessor" ? rules.minWeeklyFd : 0, byValue);
-  }
+  for (const t of trucks) leaseMinimum += leaseMinFor(w, t);
   // The lessor's policy covers its own trucks; the company's covers the rest that are on the road.
   const insured = trucks.filter((t) => t.lease !== "npc" && t.status !== "parked" && t.status !== "listed").length;
   const pd = insured && w.cfg.assets.enabled ? (w.cfg.assets.physicalDamage.annualShareOfValue * insuredValue(w, c)) / 52 : 0;

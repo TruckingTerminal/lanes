@@ -10,6 +10,7 @@ import { skippedSteps, stepDo, stepText, walkSteps } from "../walkthrough.js";
 import { Btn } from "./bits.js";
 import { Iuliia } from "./Walkthrough.js";
 import { kindInView } from "../companies.js";
+import { leaseMinFor } from "../ledger.js";
 
 /**
  * What now? (specs/guidance.md section 1, guidance-ux.md section 1): a chip in Iuliia's caption, in its own button row, on
@@ -158,7 +159,7 @@ function words(a: NextAction): { action: string; reason: string; button: string;
           button: NOW.collectButton,
           go: () => setTab("finance"),
         };
-      if (l?.kind === "lease") return { red: true, action: NOW.leaseAction(truckNo(l.truckId)), reason: `${reason} ${NOW.leaseReason2(fd(w.cfg.freeEntry.leases.minWeeklyFd))}`, button: NOW.leaseButton, go: () => act({ type: "return_lease", truckId: l.truckId }, NOW.leaseButton) };
+      if (l?.kind === "lease") return { red: true, action: NOW.leaseAction(truckNo(l.truckId)), reason: `${reason} ${NOW.leaseReason2(fd(leaseMinFor(w, w.trucks[l.truckId - 1]!)))}`, button: NOW.leaseButton, go: () => act({ type: "return_lease", truckId: l.truckId }, NOW.leaseButton) };
       if (l?.kind === "sell") return { red: true, action: NOW.sellAction(truckNo(l.truckId)), reason: `${reason} ${NOW.sellReason2(fd(l.valueFd), fd(a.debt.shortFd))}`, button: NOW.sellButton, go: () => setTab("fleet") };
       return { red: true, action: NOW.noneAction, reason, button: NOW.noneButton, go: () => setTab("guide") };
     }

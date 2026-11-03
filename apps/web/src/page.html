@@ -468,6 +468,9 @@ ul.timeline .linkish { background: none; border: 0; padding: 6px 0; min-height: 
   .walkbody { flex-direction: column; }
   .walkbody .portrait { align-self: flex-start; }
   table { display: block; width: 100%; overflow-x: auto; }
+  /* A wide table in a card keeps its columns and scrolls inside the card, not the page (QA's R20 replay). */
+  .tablewrap { overflow-x: auto; max-width: 100%; }
+  .tablewrap table { display: table; min-width: 520px; }
   .row { gap: 6px; }
 }
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }

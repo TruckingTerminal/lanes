@@ -72,6 +72,9 @@ export const ANSWER = {
   leaseRow: (fd: string, min: string) => `Lease another truck · ${fd} FD deposit · at least ${min} FD a week`,
   poach: (name: string, day: string) => `Offer sent to ${name}: they answer by ${day}.`,
   poachRow: (day: string) => `Offer pending · answer by ${day}`,
+  /** UX's words (player2-ux.md section 7), for the writer: how an offer ended, on the row where it was made. */
+  poachAccepted: (name: string, truck: number | null) => `${name} accepted${truck ? `: starts on Truck ${truck}` : ""}.`,
+  poachStayed: (name: string, from: string) => `${name} declined: stays with ${from}.`,
   poachLow: (name: string, fd: string) => `${name} earns ${fd}/mi now: an offer must beat it.`,
   unstakeDone: (fd: string, date: string) => `Unstaking ${fd} FD: back in your cash on ${date}.`,
   unstakeNowDone: (back: string, burned: string) => `${back} FD back now. ${burned} FD burned.`,
@@ -504,6 +507,8 @@ export const FINANCE = {
   // Money's two link rows.
   linkPaid: (state: string) => `Getting paid: ${state} ›`,
   linkLoans: (owed: string, weekly: string) => `Loans: ${owed} FD owed · ${weekly} FD a week ›`,
+  /** The writer's (copy-player2.md R7, money.loansOnOrder). */
+  linkLoansOnOrder: (owed: string, n: number, weekly: string) => `Loans: ${owed} FD owed, for ${n} truck${n === 1 ? "" : "s"} on order · ${weekly} FD a week ›`,
   linkNoLoans: "Loans: none ›",
   stateNet: (days: number) => `Net ${days}`,
   stateQuick: "Quick pay",
@@ -588,12 +593,16 @@ export const FINANCE = {
   creditAgeValue: (days: number, years: number) => `${days} days of ${years} years`,
   creditClaims: "Claims on record",
   loanRow: (n: number, kind: string, owed: string, weekly: string, weeks: number) => `Truck ${n} · ${kind} · ${owed} FD owed · ${weekly} FD a week · ${weeks} weeks left`,
+  /** Engineering's draft for the writer: a purchase loan on a truck not yet delivered. */
+  loanRowOnOrder: (kind: string, owed: string, weekly: string, weeks: number) => `On order · ${kind} · ${owed} FD owed · ${weekly} FD a week · ${weeks} weeks left`,
   loanPurchase: "purchase loan",
   loanEquipment: "loan",
   missed: (n: number, all: number) => `${n} payment missed. ${all} in all and the lender takes the truck.`,
   payOff: (fd: string) => `Pay off · ${fd} FD`,
   youHave: (fd: string) => `You have ${fd} FD`,
   borrowRow: (n: number, fd: string, rate: string, weeks: number) => `Truck ${n} · up to ${fd} FD at ${rate} a week over ${weeks} weeks`,
+  /** The writer's (copy-player2.md R7): a truck already pledged says so, with no button. */
+  borrowNone: (n: number) => `Truck ${n} can't carry a loan: it's already borrowed against.`,
   borrow: "Borrow",
   borrowTitle: (n: number) => `Borrow against truck ${n}`,
   borrowGet: "You get",
@@ -706,6 +715,10 @@ export const INTEL = {
 
 /** The Dealer's buy controls (QA's Finance replay): a disabled button always says why; a loan shows its numbers first (the writer's strings). */
 export const DEALER = {
+  /** The writer's (copy-player2.md R7): each offer says when it delivers. newLead's cause is for the economy to confirm. */
+  deliversToday: "Delivers today",
+  arrives: (date: string) => `Ordered: arrives ${date}`,
+  newLead: (n: number) => `New trucks arrive in ${n} days: the factory is behind on orders.`,
   onLoan: "Buy on a loan ›",
   loanTitle: (what: string) => `Buy ${what} on a purchase loan`,
   price: "Price",

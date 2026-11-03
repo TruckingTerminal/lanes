@@ -31,6 +31,10 @@ function TruckOptions({ pick }: { pick: (t: Truck) => boolean }): JSX.Element {
   );
 }
 
+/** Our offers seen pending (staff id → the employer's name), and how each ended, for the page's sitting. */
+const watchedOffers = new Map<number, string>();
+const offerOutcomes = new Map<number, string>();
+
 export function Staff(): JSX.Element {
   useData();
   const w = S.game!.w;
@@ -87,8 +91,16 @@ export function Staff(): JSX.Element {
     const by = shortDate(Math.floor(w.t / w.cfg.time.gameMinutesPerDay) + w.cfg.labor.morale.noticeDays);
     setPoachAnswer(r.ok ? { text: r.at === null ? ANSWER.poach(s.name, by) : `Sent · in effect ${hhmm(r.at)}`, bad: false } : { text: /would move for/.test(r.reason) ? ANSWER.poachLow(s.name, s.pay.toFixed(2)) : r.reason, bad: true });
   };
-  // Offers of ours waiting on the other employer: a pending line each until they match or let them go.
+  // Offers of ours waiting on the other employer: a pending line each until they match or let them go; then the outcome
+  // lands here, where the offer was made (QA's R20 replay: the chip just went).
   const pending = w.staff.filter((s) => s.offer && s.offer.companyId === c.id && s.companyId !== c.id);
+  for (const s of pending) watchedOffers.set(s.id, w.companies[s.companyId - 1]!.name);
+  for (const [id, from] of watchedOffers) {
+    if (pending.some((s) => s.id === id)) continue;
+    const s = w.staff[id - 1]!;
+    offerOutcomes.set(id, s.companyId === c.id ? ANSWER.poachAccepted(s.name, s.truckId ? truckNo(s.truckId) : null) : ANSWER.poachStayed(s.name, from));
+    watchedOffers.delete(id);
+  }
   const hire = (s: StaffT, pay: number, kind: "hire" | "poach", ev?: MouseEvent) => {
     if (kind === "poach") return void poach(s, pay);
     const v = sel(`${kind}-${s.id}`);
@@ -343,6 +355,8 @@ export function Staff(): JSX.Element {
       ) : null}
       <Card title="Hire away from other companies">
         <p class="muted small">Their employer gets {w.cfg.labor.morale.noticeDays} days to match. Unhappy people come cheaper.</p>
+        {/* Scrolls inside the card on a phone, never the page (QA: Offer was cut to "OFFEI" at 375 px). */}
+        <div class="tablewrap">
         <table>
           <thead>
             <tr>
@@ -359,9 +373,15 @@ export function Staff(): JSX.Element {
             ))}
           </tbody>
         </table>
+        </div>
         {pending.map((s) => (
           <p class="small" key={`offer-${s.id}`}>
             {s.name} · {ANSWER.poachRow(shortDate(s.offer!.day + w.cfg.labor.morale.noticeDays))}
+          </p>
+        ))}
+        {[...offerOutcomes.values()].map((t) => (
+          <p class="small" key={t}>
+            {t}
           </p>
         ))}
         {poachAnswer ? <p class={poachAnswer.bad ? "bad small" : "small"}>{poachAnswer.text}</p> : null}

@@ -18,6 +18,7 @@ import { TrailerLines, TruckAssetActions, YardCard } from "./Yard.js";
 import { confirmAct } from "../Confirm.js";
 import { rebuild as rebuildLines, sell as sellLines } from "../../confirmspecs.js";
 import { CapsLine } from "../Caps.js";
+import { leaseMinFor } from "../../ledger.js";
 
 
 
@@ -151,7 +152,7 @@ function TruckCard({ t, idx }: { t: Truck; idx: number }): JSX.Element {
   const mine = t.lease === "owned" && !leasedIn;
   const cond = condition(w.cfg, t);
   const share = pct(w.cfg.costs.npcLeaseShareOfGross);
-  const kind = t.lease === "npc" ? TRUCK.leased(share) : t.lease === "lessor" ? TRUCK.secondLease(share, fdFull(w.cfg.freeEntry.leases.minWeeklyFd)) : leasedIn ? `Leased from another carrier` : <Fig k="truck.value" label="Worth" ctx={{ truckId: t.id }}>{TRUCK.owned(fdFull(truckValue(w, t)))}</Fig>;
+  const kind = t.lease === "npc" ? TRUCK.leased(share) : t.lease === "lessor" ? TRUCK.secondLease(share, fdFull(leaseMinFor(w, t))) : leasedIn ? `Leased from another carrier` : <Fig k="truck.value" label="Worth" ctx={{ truckId: t.id }}>{TRUCK.owned(fdFull(truckValue(w, t)))}</Fig>;
   const nearby = w.net.hubs
     .map((h, i) => ({ h, i, mi: hubMiles(w, t.hub, i) }))
     .filter((x) => x.i !== t.hub)

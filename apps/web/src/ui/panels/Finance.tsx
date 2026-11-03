@@ -2,11 +2,11 @@ import type { JSX } from "preact";
 import { cashNowOn, InvoiceRows } from "./CashNow.js";
 import { CASHNOW } from "../../copy.js";
 import { useState } from "preact/hooks";
-import { brokerBooks, companyAccount, creditBand, creditScore, nextTruckTier, operatingTrucks, purchaseTerms, stakeDiscount, truckCap, type Action, type Company, type World } from "@lanes/engine";
+import { activeLoanOn, brokerBooks, companyAccount, creditBand, creditScore, nextTruckTier, operatingTrucks, purchaseTerms, stakeDiscount, truckCap, type Action, type Company, type World } from "@lanes/engine";
 import { ANSWER, FINANCE, STAKE } from "../../copy.js";
 import { borrowable, contractOn, contractSoFar, equipmentWeekly, hasLeasedTrucks, leaseDeposit, loanRows, monthOfCosts, ownsATruck, playerPaperWaiting, rateLadder, rateToday } from "../../finance.js";
 import { cls, fdFull, hhmm, pct, shortDate } from "../../format.js";
-import { invoices } from "../../ledger.js";
+import { invoices, leaseMinFor } from "../../ledger.js";
 import { feed, isPhone, me, myTrucks, order, S, setTab, truckNo, useData } from "../../state.js";
 import { Bar, Btn, Card, Kv, Panel } from "../bits.js";
 import { Fig } from "../Explain.js";
@@ -319,7 +319,7 @@ function Credit({ stateA, open, orders }: { stateA: boolean; open: (s: Sheet) =>
         {loans.length ? (
           loans.map((l) => (
             <div key={`${l.kind}-${l.id}`} class="stack">
-              <p class="small">{FINANCE.loanRow(truckNo(l.truckId), l.kind === "purchase" ? FINANCE.loanPurchase : FINANCE.loanEquipment, fdFull(l.owedFd), fdFull(l.weeklyFd), l.weeksLeft)}</p>
+              <p class="small">{l.truckId === 0 ? FINANCE.loanRowOnOrder(FINANCE.loanPurchase, fdFull(l.owedFd), fdFull(l.weeklyFd), l.weeksLeft) : FINANCE.loanRow(truckNo(l.truckId), l.kind === "purchase" ? FINANCE.loanPurchase : FINANCE.loanEquipment, fdFull(l.owedFd), fdFull(l.weeklyFd), l.weeksLeft)}</p>
               {l.missed ? <p class="bad small">{FINANCE.missed(l.missed, l.kind === "purchase" ? ef.purchase.missedToDefault : ef.missedPaymentsToRepossess)}</p> : null}
               {/* The engine pays off an equipment loan early (repay_loan); a purchase loan runs its term. */}
               {l.kind === "equipment" ? (
@@ -336,6 +336,13 @@ function Credit({ stateA, open, orders }: { stateA: boolean; open: (s: Sheet) =>
         ) : (
           <p class="muted small">{FINANCE.noLoans}</p>
         )}
+        {myTrucks()
+          .filter((t) => t.lease === "owned" && t.status !== "retired" && activeLoanOn(w, t.id))
+          .map((t) => (
+            <p class="muted small" key={`pledged-${t.id}`}>
+              {FINANCE.borrowNone(truckNo(t.id))}
+            </p>
+          ))}
         {room.map(({ t, cap }) => (
           <div class="row" key={t.id}>
             <span class="small">{FINANCE.borrowRow(truckNo(t.id), fdFull(cap), pct(ef.weeklyRate), ef.termWeeks)}</span>
@@ -347,7 +354,7 @@ function Credit({ stateA, open, orders }: { stateA: boolean; open: (s: Sheet) =>
         {leases.length ? (
           leases.map((t) => (
             <p key={t.id} class="small">
-              {FINANCE.leaseRow(truckNo(t.id), pct(w.cfg.costs.npcLeaseShareOfGross), fdFull(leaseMin), fdFull(t.depositFd ?? 0))}
+              {FINANCE.leaseRow(truckNo(t.id), pct(w.cfg.costs.npcLeaseShareOfGross), fdFull(leaseMinFor(w, t)), fdFull(t.depositFd ?? 0))}
             </p>
           ))
         ) : (
@@ -499,6 +506,7 @@ export function FinanceLinks(): JSX.Element | null {
   const loans = loanRows(w, c);
   const owed = loans.reduce((s, l) => s + l.owedFd, 0);
   const weekly = loans.reduce((s, l) => s + l.weeklyFd, 0);
+  const onOrder = loans.filter((l) => l.kind === "purchase" && l.truckId === 0).length;
   const go = (id: string) => {
     if (isPhone() && S.sheet === "strip") S.sheet = "half";
     setTab("finance");
@@ -512,7 +520,8 @@ export function FinanceLinks(): JSX.Element | null {
         </button>
       ) : null}
       <button type="button" class="morerow" onClick={() => go("fin-loans")}>
-        <span>{loans.length ? FINANCE.linkLoans(fdFull(owed), fdFull(weekly)) : FINANCE.linkNoLoans}</span>
+        {/* R7: a purchase loan on a truck still on order says so (diary 2: "loans owed" for trucks not yet delivered). */}
+        <span>{!loans.length ? FINANCE.linkNoLoans : onOrder ? FINANCE.linkLoansOnOrder(fdFull(owed), onOrder, fdFull(weekly)) : FINANCE.linkLoans(fdFull(owed), fdFull(weekly))}</span>
       </button>
     </nav>
   );

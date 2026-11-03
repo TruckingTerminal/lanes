@@ -1,7 +1,7 @@
 import type { JSX } from "preact";
 import { useState } from "preact/hooks";
 import type { Equipment, FacilityType, TractorTier } from "@lanes/config";
-import { assetPriceUsd, availableSupply, listingBlock, companyAccount, condition, dealerPrice, deliveryDays, facilityOutlook, lessorTrucksOf, newPrice, openListings, ordersOf, tokenLive, truckCap, truckValue } from "@lanes/engine";
+import { assetPriceUsd, availableSupply, listingBlock, companyAccount, condition, dealerPrice, deliveryDays, dealerBacklog, facilityOutlook, lessorTrucksOf, newPrice, openListings, ordersOf, tokenLive, truckCap, truckValue } from "@lanes/engine";
 import { facilityUrl } from "../../art.js";
 import { SCENES } from "../../assets.js";
 import { FAC_NAME, fd, hhmm, pct, signedPct, TIER_NAME, TRAILER_NAME, usd, plural, fdFull } from "../../format.js";
@@ -11,7 +11,7 @@ import { Rig, Scene } from "../Loop.js";
 import { Buy, Showroom } from "./Showroom.js";
 import { confirmAct } from "../Confirm.js";
 import { leaseDepositNow, leaseTruck, leaseWeeklyMin, newTruck, usedTruck } from "../../confirmspecs.js";
-import { ANSWER, CONFIRM } from "../../copy.js";
+import { ANSWER, CONFIRM, DEALER } from "../../copy.js";
 import { inFirstMonth } from "../../figures.js";
 import { CapsLine } from "../Caps.js";
 
@@ -55,7 +55,8 @@ export function Dealer(): JSX.Element {
     <Panel title="Dealer">
       <Scene name="dealer" still={SCENES.dealer} alt="The dealership lot" />
       <CapsLine />
-      <p class="muted small">New trucks are paid now and delivered in {lead} days; the wait grows when the whole market is ordering. Used trucks deliver today.</p>
+      {/* R7: the page's one line goes; each offer says when it delivers, and the wait says its cause when there's one. */}
+      {dealerBacklog(w).counted > 0 ? <p class="muted small">{DEALER.newLead(lead)}</p> : null}
       <h3>Used trucks</h3>
       {used.length ? (
         used.map(({ l, t }) => (
@@ -83,6 +84,7 @@ export function Dealer(): JSX.Element {
               replacing={onLease}
               block={listingBlock(w, c.id, l.id, Infinity)}
               action={{ type: "buy_listing", listingId: l.id }}
+              when={DEALER.deliversToday}
               lines={usedTruck(w, c, t, t.hub)}
               ok="Bought. It's yours, idle where it stands"
             />

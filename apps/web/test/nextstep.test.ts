@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { companyAccount } from "@lanes/engine";
+import { borrowingCapacity, companyAccount, poolCash } from "@lanes/engine";
 import { blockReason, boardRows } from "../src/board.js";
 import { CAPS, CONFIRM, DELIVERED, MOVE, SECURITY } from "../src/copy.js";
 import { item, usedTruck } from "../src/confirmspecs.js";
@@ -11,6 +11,8 @@ import { emptyRun, paidLine } from "../src/rolling.js";
 import { cushion, debtCountdown, fleetCaps, gapToTruck, nextEvent, nextWeeklyCheckDay } from "../src/figures.js";
 import { GAME_CONFIG, TestGame } from "../src/game.js";
 import { nextAction } from "../src/nextstep.js";
+import { leaseMinFor, weekCosts } from "../src/ledger.js";
+import { borrowable } from "../src/finance.js";
 import { skippedSteps, stepKey, walkProgress, walkSteps } from "../src/walkthrough.js";
 
 async function fresh() {
@@ -293,5 +295,18 @@ describe("what limits the fleet (R19)", () => {
     expect(k.cap).toBe(Math.min(...[k.binding, ...k.others].map((r) => r.n), g.w.cfg.company.maxTrucks));
     expect(k.running).toBe((g.w.trucksByCompany.get(c.id) ?? []).length);
     expect(CAPS.line(k.cap, CAPS.binding[k.binding.kind](k.binding.n), "")).toMatch(/^You may run \d+: (your yard holds|your stake allows|your operations managers cover|the company limit is) \d+\.$/);
+  }, 60_000);
+});
+
+describe("R7: one figure from one source; only what the lender gives", () => {
+  it("the lease minimum is the week's bill per truck, and Borrow offers no more than the engine's limits", async () => {
+    const g = await TestGame.create();
+    const c = g.join("Door Freight", "fleet", "LAX")!;
+    const trucks = g.w.trucksByCompany.get(c.id)!;
+    expect(trucks.reduce((s, t) => s + leaseMinFor(g.w, t), 0)).toBeCloseTo(weekCosts(g.w, c).leaseMinimum, 6);
+    for (const { t, cap } of borrowable(g.w, trucks)) {
+      expect(cap).toBeLessThanOrEqual(borrowingCapacity(g.w, t));
+      expect(cap).toBeLessThanOrEqual(poolCash(g.w));
+    }
   }, 60_000);
 });

@@ -24,8 +24,9 @@ import {
   truckValue,
   yardTrailers,
   type Source,
+  deliveryDays,
 } from "@lanes/engine";
-import { fd, pct, TIER_NAME, TRAILER_NAME, plural } from "../../format.js";
+import { fd, pct, shortDate, TIER_NAME, TRAILER_NAME, plural } from "../../format.js";
 import { act, me, myTrucks, order, S, toast } from "../../state.js";
 import { iuliiaSay } from "../../iuliia.js";
 import { DEALER } from "../../copy.js";
@@ -71,6 +72,7 @@ export function Showroom(): JSX.Element {
   // A rig brings its own tractor, so only the company's trailer cap limits it (actions.ts buy_asset); the "no more
   // trailers than tractors" rule without a yard is for a trailer bought alone (QA's Finance replay: the first rig was blocked).
   const rigRoom = trailerCap(w, c) - ownTrailers;
+  const today = Math.floor(w.t / w.cfg.time.gameMinutesPerDay);
   // R7: every truck order counts the fleet's caps first; a cap that binds disables it with its words (orders included).
   const caps = fleetCaps(w, c);
   const capWhy = caps.running + (onLease ? 0 : 1) > caps.cap ? (caps.binding.kind === "yard" ? DOOR.yardFull(caps.cap, caps.running + 1) : DOOR.capFull(CAPS.binding[caps.binding.kind](caps.cap), caps.running + 1)) : null;
@@ -101,6 +103,7 @@ export function Showroom(): JSX.Element {
               replacing={onLease}
               block={w.usedLot.stock < 1 ? DEALER.whyLotEmpty : capWhy ?? roomWhy}
               action={{ type: "buy_asset", tier: "workhorse", trailer: tr, replaceNpcLease: onLease, used: true }}
+              when={DEALER.arrives(shortDate(today + deliveryDays(w)))}
               lines={usedTruck(w, c, { ...lotSpec(w, tr), tier: "workhorse", trailer: tr, lease: "owned" })}
               ok="Ordered from the used lot"
             />
@@ -133,6 +136,7 @@ export function Showroom(): JSX.Element {
                 replacing={onLease}
                 block={!rigLeft ? DEALER.whySupply : capWhy ?? roomWhy}
                 action={{ type: "buy_asset", tier, trailer: tr, replaceNpcLease: onLease, dealershipId: rig.dealershipId || undefined }}
+                when={DEALER.arrives(shortDate(today + rig.days))}
                 lines={newTruck(w, tier, tr, rig.days)}
                 ok={`Ordered. Delivery in ${plural(rig.days, "day")}`}
               />
@@ -150,6 +154,7 @@ export function Showroom(): JSX.Element {
                   replacing={onLease}
                   block={tractor.dealershipId || w.supply.tractor[tier] > 0 ? capWhy : DEALER.whySupply}
                   action={{ type: "buy_asset", tier, trailer: tr, replaceNpcLease: onLease, tractorOnly: true, dealershipId: tractor.dealershipId || undefined }}
+                  when={DEALER.arrives(shortDate(today + tractor.days))}
                   lines={newTruck(w, tier, tr, tractor.days)}
                   ok="Tractor ordered. It hooks a spare from your yard, or a rental"
                 />
@@ -224,7 +229,7 @@ export function Showroom(): JSX.Element {
  * shown on a sheet before it acts; the lot, a new rig, a tractor alone or another carrier's listing. A disabled button
  * always says why, under it; a refusal from the rules shows there too, never as a toast.
  */
-export function Buy({ what, label, price, replacing, block, action, ok, lines }: { what: string; label?: string; price: number; replacing: boolean; block: string | null; action: Extract<Action, { type: "buy_asset" }> | Extract<Action, { type: "buy_listing" }>; ok: string; lines: Lines }): JSX.Element {
+export function Buy({ what, label, price, replacing, block, action, ok, lines, when }: { what: string; label?: string; price: number; replacing: boolean; block: string | null; action: Extract<Action, { type: "buy_asset" }> | Extract<Action, { type: "buy_listing" }>; ok: string; lines: Lines; when?: string }): JSX.Element {
   const w = S.game!.w;
   const c = me();
   const [open, setOpen] = useState(false);
@@ -265,6 +270,7 @@ export function Buy({ what, label, price, replacing, block, action, ok, lines }:
           </Btn>
         ) : null}
       </div>
+      {when ? <p class="small">{when}</p> : null}
       {/* The row's figures, tappable without opening the loan sheet (QA's guidance replay). */}
       <p class="small">
         {DEALER.price} <Fig k="dealer.price" label={DEALER.price}>{`${fd(price)} FD`}</Fig>
