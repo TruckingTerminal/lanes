@@ -1,4 +1,4 @@
-# Decisions with information (UX spec, draft 1, 2026-11-03; owner: UX)
+# Decisions with information (UX spec, draft 2, 2026-11-03; owner: UX; diary 3 added)
 
 From the second player diary (`playtests/play-2026-11-02-impatient-fleet-owner.md`, 19 screenshots) and the
 director's triage (`reviews/director-player2.md`, R6–R10, findings 8–11). The director owns the rules; this spec
@@ -167,7 +167,72 @@ move, resize or disappear:
   was and shows its refusal in place ("That load went at 18:00 to 2.24/mi"); it doesn't vanish;
 - **Finance's option rows** have fixed heights; marking the current one changes colour, never size.
 
-## 6. For the director
+## 6. The trucker's paperwork: R13 and R14 (diary 3)
+
+From the third diary (`playtests/play-2026-11-02-working-trucker.md`, laptop 1440 × 900) and the director's
+`reviews/director-player3.md`, R13, R14 and rows 7 and 9. **Kept as they are, on the trucker's word:** the laptop
+layout, the five visible speed buttons (Pause/Play plus four), and the board's **Table** toggle.
+
+### R14: the profit chip, one arithmetic everywhere
+
+**The chip** (ruling 5's one figure, `profitBook`, and the hold it implies):
+
+| Where | Leased truck (a hold applies) | Owned truck (no hold) |
+|---|---|---|
+| Laptop: card and Table column | "+607 · cash −103 · held 710" | "+607" |
+| Phone (< 900 px): card | "+607 · cash −103" | "+607" |
+
+- **Colour by profit:** green chip when the profit is positive, red when negative.
+- **The cash segment** is amber text when negative (it says the cash dips, not that the load loses); plain chip
+  text when positive. Contrast at least 4.5:1 against the chip; if amber on the green fill can't reach it, the chip
+  becomes outlined green (green border and profit text) so the amber segment sits on the card's background.
+- **Never wraps,** at any width down to 375 px: the chip is one line (`white-space: nowrap`). Above 9,999 the
+  figures shorten ("+12.4k · cash −1.1k"). If the card's line can't hold the chip and the grey bid chip together,
+  the bid chip moves to the next line; the profit chip never breaks.
+- **The held figure on a phone** is on the load sheet, one tap away, with the hold's explain key.
+- **The chip is an explain key** on the sheet, not on the card (the card is itself a tap target, `guidance-ux.md` §3).
+
+**The same pair on every surface that quotes what a load pays:**
+- **Book now on the card** may read "Book now · +607" only when the chip with cash sits on the same card; otherwise
+  "Book now · 4.76/mi".
+- **The load sheet, "The money" group,** three rows in place of today's one, each an explain key: "Profit at
+  book-now +607" · "Cash now −103" (amber when negative) · "Held toward your truck 710". Owned truck: the first row
+  only. The sheet's Book now button: "Book now · 4.76/mi · +607".
+- **What now?'s reason,** whenever the hold makes cash differ: "607 over break-even: 103 out of cash now, 710 toward
+  your truck." (the director's words; the writer owns them).
+- **The bid control's live line** ("Bid · +338 FD") follows the same rule: "Bid · +338 · cash −40" on a leased
+  truck.
+
+### R13: what a trucker reads next
+
+**On the load card (phone),** three lines and the chip:
+1. "Louisville, KY → Laredo, TX · 1,479 mi" (towns always with their state);
+2. "4,754 FD · 3.21/mi · 28 mi empty · 42,000 lb";
+3. "Deliver by Thu Jan 10 · 10:00";
+4. the chip.
+
+**On the laptop Table:** the same facts as columns: Age, Rate, Trip, Lane (towns with states), **Empty** (one
+figure), **Deliver by** (rounded), **Weight**, **Profit** (the three-part chip), Company, Score. Nothing else moves.
+
+**On the load sheet, Route group:** "Pick up" Louisville, KY · now · "Deliver by" Thu Jan 10, by 10:00 · Laredo,
+TX · "Miles" 1,479 loaded · 28 empty from Columbus · **"Weight" 42,000 lb · general merchandise** · "Driving" ·
+"Reload at Laredo".
+
+**The rules behind them:**
+- **Towns with states, everywhere,** in every list, header and feed line: "Rome, GA", never "Rome". **One name per
+  place:** a place inside a hub's metro shows its own name with the hub after it, once: "Newburg, KY · Louisville
+  area". The board's header uses the same ("Loads from Newburg, KY · Louisville area"), so header and cards never
+  disagree (diary 3: "Loads from Newburg" over cards that all said Louisville).
+- **Deliver-by rounded down to the hour:** 12:11 shows "12:00", 03:02 shows "03:00". Down, never up, so the shown
+  time is never later than the real one. With the docks switch on (`docks.enabled`, off today), the shown time is
+  the last whole hour the receiver's dock is open before the deadline, and an appointment shows "appt 14:00".
+- **One deadhead figure everywhere,** from one engine read (the same `placeMiles` route the profit uses), and the
+  figure always names where it's measured from: "28 mi empty from Columbus" on the player's board, "from Dallas"
+  on a hub card's read-only board before a truck exists. Two different numbers for one load can then only appear
+  with two different "from"s.
+- **Weight:** see question 4; until it's answered, no weight figure ships.
+
+## 7. For the director
 
 - **"SMALL YARD · $900"** on Business is a dollar price on the first month's path (diary 18). Jeff let token
   surfaces stay, off the first ten minutes' path; this one is on a growth button. I'd move it under Money's "The
@@ -178,4 +243,10 @@ move, resize or disappear:
 1. **Engineering:** "the most this truck can borrow today" as one engine read, so Borrow's figure and its check are
    the same code; the standing `wantsHome` intent for Send home when idle; FD-at-risk per day per badge item.
 2. **Config:** `{guard.confirmShareOfCash}` 0.25, `{guard.newsFd}` 500, `{ui.tapSettleMs}` 400 ms proposed.
-3. **Writer:** the one-risk line per action kind; the refusal strings; the month report's row names.
+3. **Writer:** the one-risk line per action kind; the refusal strings; the month report's row names; the chip's
+   "cash" and "held" words.
+4. **Engineering and the director (R13's weight):** the engine has no per-load weight. Fuel prices loaded against
+   empty (`trips.ts`, `loadedClimbMult`), not pounds. A weight figure needs a weight per load (from the commodity's
+   typical range, a data addition) and either an engine use for it or a plain statement that it's informational. A
+   figure the rules don't use reads as one they do, which pillar 1 forbids ("nothing false"). Until one of the two
+   is decided, the weight line and column don't ship.
