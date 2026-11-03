@@ -29,6 +29,12 @@ export const economyConfig = {
     // "Automatic reset": the duty day opens when a truck first rolls and resets
     // 24 in-game hours later. No 14-hour window or 70-hour rule (spec: no other rules).
     dutyDayHours: 24,
+    // R12 (the director, diary 3): the 11 hours reset only after restHours off duty, a break of breakMinutes after
+    // breakAfterHours of driving, both on duty and not driving. 0 keeps today's rule (the 24-hour reset, no break);
+    // the economy sets 10, 30 and 8 in the bump with the ruleset change.
+    restHours: 0,
+    breakMinutes: 0,
+    breakAfterHours: 8,
   },
 
   // PoC assumption (from Jeff): dock time at each end, on duty but not driving
@@ -365,6 +371,10 @@ export const economyConfig = {
     clamp: [0.75, 1.25] as const,
     surchargePassThrough: 0.8,
     surchargeMpg: 6.5,
+    // R12: a fuel stop every stopEveryMi driven, stopMinutes on duty, not driving. 0 keeps today's (no stops); the
+    // economy sets 400 and 15 in the bump.
+    stopEveryMi: 0,
+    stopMinutes: 0,
   },
 
   // §Rates — worked example

@@ -98,13 +98,27 @@ export function dockWaitTheft(w: World, truck: Truck, load: Load, minutes: numbe
  */
 export function drivingMinutesLeft(w: World, truck: Truck, now: number): number {
   const { hos } = w.cfg;
-  if (truck.shiftStartT === null || now >= truck.shiftStartT + hos.dutyDayHours * MINUTES_PER_HOUR) {
+  const resetAt = dutyResetAt(w, truck);
+  if (resetAt === null || now >= resetAt) {
     closeDutyDay(w, truck);
     truck.shiftStartT = now;
     truck.shiftDrivenMin = 0;
+    if (hos.restHours > 0) truck.offDutySinceT = now;
   }
   const limit = truck.companyId ? drivingLimitMin(w, truck, companyById(w, truck.companyId)) : hos.drivingHoursPerDay * MINUTES_PER_HOUR;
   return limit - truck.shiftDrivenMin;
+}
+
+/**
+ * When the truck's driving hours come back (R12): with `hos.restHours` on, after that many hours off duty since it last
+ * drove (never mid-drive, so no shift runs past its hours across a reset); at 0, 24 hours after the duty day opened, as
+ * before. Null before the first duty day. Pure, so the screen reads the same arithmetic.
+ */
+export function dutyResetAt(w: World, truck: Truck): number | null {
+  if (truck.shiftStartT === null) return null;
+  const { hos } = w.cfg;
+  if (hos.restHours > 0) return Math.max(truck.offDutySinceT ?? truck.shiftStartT, truck.shiftStartT) + hos.restHours * MINUTES_PER_HOUR;
+  return truck.shiftStartT + hos.dutyDayHours * MINUTES_PER_HOUR;
 }
 
 /** Identifies a leg (from, to, loaded or not), so a truck knows when it starts a new one and which weigh stations are ahead. */
@@ -166,6 +180,13 @@ export function moveTrucks(w: World): void {
         budget -= d;
         continue;
       }
+      // R12: a break or a fuel stop, on duty and not driving.
+      if ((truck.pauseMin ?? 0) > 1e-9) {
+        const d = Math.min(budget, truck.pauseMin!);
+        truck.pauseMin! -= d;
+        budget -= d;
+        continue;
+      }
       if (truck.remainingMi <= 1e-6) {
         arrive(w, truck, now);
         continue;
@@ -174,7 +195,7 @@ export function moveTrucks(w: World): void {
       const hosLeft = drivingMinutesLeft(w, truck, now);
       if (hosLeft <= 1e-9) {
         // Off duty until the duty day resets; if that's within this hour, roll on from there.
-        const resetAt = truck.shiftStartT! + cfg.hos.dutyDayHours * MINUTES_PER_HOUR;
+        const resetAt = dutyResetAt(w, truck)!;
         const hourEnd = w.t + MINUTES_PER_HOUR;
         if (resetAt >= hourEnd) {
           // The night: at the site the truck stands at (a rest area or a truck stop), else on the shoulder (sites.ts).
@@ -200,6 +221,11 @@ export function moveTrucks(w: World): void {
       const grades = tr.enabled && truck.legMiles > 0 && truck.legMountainMi > 0 ? truck.legMiles / (truck.legMiles + truck.legMountainMi * (roadMph / tr.mountainMph - 1)) : 1;
       const mph = (truck.companyId ? mphFor(w, truck, companyById(w, truck.companyId), roadMph) : roadMph) * grades;
       let minutes = Math.min(budget, hosLeft, (truck.remainingMi / mph) * MINUTES_PER_HOUR);
+      // R12: the break comes due after breakAfterHours of driving in the shift, a fuel stop every stopEveryMi; drive to it.
+      const breakAfter = cfg.hos.breakAfterHours * MINUTES_PER_HOUR;
+      const breakDue = cfg.hos.breakMinutes > 0 && truck.breakShiftT !== truck.shiftStartT && truck.shiftDrivenMin < breakAfter;
+      if (breakDue) minutes = Math.min(minutes, breakAfter - truck.shiftDrivenMin);
+      if (cfg.fuel.stopEveryMi > 0) minutes = Math.min(minutes, (Math.max(0, cfg.fuel.stopEveryMi - (truck.fuelMi ?? 0)) / mph) * MINUTES_PER_HOUR);
       let miles = Math.min(truck.remainingMi, (mph * minutes) / MINUTES_PER_HOUR);
       // The night ahead (sites.ts planNight): stop at the last site with room the hours still reach, early
       // if the next one is beyond them, and call the day done there.
@@ -213,6 +239,18 @@ export function moveTrucks(w: World): void {
       const limit = truck.shiftDrivenMin + hosLeft;
       truck.remainingMi -= miles;
       truck.shiftDrivenMin += minutes;
+      if (cfg.hos.restHours > 0 && minutes > 0) truck.offDutySinceT = now + minutes;
+      if (cfg.hos.breakMinutes > 0 && truck.breakShiftT !== truck.shiftStartT && truck.shiftDrivenMin >= breakAfter - 1e-6 && !dayDone && truck.remainingMi > 1e-6) {
+        truck.breakShiftT = truck.shiftStartT!;
+        truck.pauseMin = (truck.pauseMin ?? 0) + cfg.hos.breakMinutes;
+      }
+      if (cfg.fuel.stopEveryMi > 0) {
+        truck.fuelMi = (truck.fuelMi ?? 0) + miles;
+        if (truck.fuelMi >= cfg.fuel.stopEveryMi - 1e-6) {
+          truck.fuelMi = 0;
+          truck.pauseMin = (truck.pauseMin ?? 0) + cfg.fuel.stopMinutes;
+        }
+      }
       if (dayDone) truck.shiftDrivenMin = limit; // the hours are spent: the next pass through the loop parks
       creditDriving(w, truck, minutes);
       truck.overMin = Math.max(0, truck.shiftDrivenMin - legalDrivingMin(w, truck));

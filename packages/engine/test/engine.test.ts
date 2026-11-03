@@ -263,8 +263,8 @@ describe("spec formulas", () => {
 
 describe("hours of service and dock time", () => {
   /** One truck, one long haul it is sure to win; returns what happened hour by hour. */
-  function longHaul(seed: number) {
-    const w = createWorld({ cfg: calm, net, feeds: neutralFeeds, seed });
+  function longHaul(seed: number, c: EconomyConfig = calm, onHour?: (t: Truck, offBefore: number | undefined, shiftBefore: number | null) => void) {
+    const w = createWorld({ cfg: c, net, feeds: neutralFeeds, seed });
     const co = formCompany(w, {
       name: "Solo",
       role: "carrier",
@@ -287,7 +287,10 @@ describe("hours of service and dock time", () => {
     let driven = 0;
     for (let h = 0; h < 24 * 6 && truck.loadId === loadId; h++) {
       const before = truck.emptyMi + truck.loadedMi;
+      const offBefore = truck.offDutySinceT;
+      const shiftBefore = truck.shiftStartT;
       runDays(w, 1 / 24);
+      onHour?.(truck, offBefore, shiftBefore);
       statuses.add(truck.status);
       // On delivery the truck may win its next load within the same hour; stop at ours.
       const delivered = truck.loadId !== loadId;
@@ -307,6 +310,28 @@ describe("hours of service and dock time", () => {
     // 11 hours at the fastest road (an interstate) is the most a day can hold; a full day is at least 11 hours at the slowest.
     for (const m of milesByDutyDay) expect(m).toBeLessThanOrEqual(cfg.hos.drivingHoursPerDay * cfg.roads.routing.mph[0] + 1e-6);
     for (const m of milesByDutyDay.slice(0, -1)) expect(m).toBeGreaterThanOrEqual(cfg.hos.drivingHoursPerDay * cfg.roads.routing.mph[1] * 0.9);
+  });
+
+  it("R12 at its defaults leaves today's rule untouched: no field set, the 24-hour reset", () => {
+    const { truck, milesByDutyDay } = longHaul(11);
+    expect([truck.offDutySinceT, truck.breakShiftT, truck.pauseMin, truck.fuelMi]).toEqual([undefined, undefined, undefined, undefined]);
+    expect(milesByDutyDay.length).toBeGreaterThan(1);
+  });
+
+  it("R12 at its values: the hours come back only after 10 hours off, with a break and fuel stops on the way", () => {
+    const r12: EconomyConfig = { ...calm, hos: { ...calm.hos, restHours: 10, breakMinutes: 30 }, fuel: { ...calm.fuel, stopEveryMi: 400, stopMinutes: 15 } };
+    const gaps: number[] = [];
+    const { truck, milesByDutyDay, lane } = longHaul(11, r12, (t, offBefore, shiftBefore) => {
+      // A new duty day opened this hour: it is at least 10 hours after the truck last drove.
+      if (shiftBefore !== null && t.shiftStartT !== shiftBefore && offBefore !== undefined) gaps.push(t.shiftStartT! - offBefore);
+      expect(t.shiftDrivenMin).toBeLessThanOrEqual(r12.hos.drivingHoursPerDay * 60 + 1e-6);
+    });
+    expect(lane.miles).toBeGreaterThan(1100);
+    expect(milesByDutyDay.length).toBeGreaterThan(1);
+    expect(gaps.length).toBeGreaterThan(0);
+    for (const g of gaps) expect(g).toBeGreaterThanOrEqual(10 * 60 - 1e-6);
+    expect(truck.breakShiftT).toBeDefined();
+    expect(truck.fuelMi).toBeDefined();
   });
 
   it("adds 1–2 hours loading and 1–2 hours unloading to the trip", () => {

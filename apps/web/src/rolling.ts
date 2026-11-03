@@ -1,4 +1,4 @@
-import { drivingLimitMin, fuelPrice, legRoute, legMile, mphFor, planNight, tripCost, type Company, type Load, type Truck, type World } from "@lanes/engine";
+import { drivingLimitMin, dutyResetAt, fuelPrice, legRoute, legMile, mphFor, planNight, tripCost, type Company, type Load, type Truck, type World } from "@lanes/engine";
 
 /**
  * A truck on the road, as the Truck tab shows it (specs/first-ten-minutes.md, S6–S7), read without touching the
@@ -13,7 +13,8 @@ const MIN_PER_HOUR = 60;
  */
 export function drivingLeftMin(w: World, t: Truck, c: Company): number {
   const limit = drivingLimitMin(w, t, c);
-  const expired = t.shiftStartT === null || w.t >= t.shiftStartT + w.cfg.hos.dutyDayHours * MIN_PER_HOUR;
+  const reset = dutyResetAt(w, t);
+  const expired = reset === null || w.t >= reset;
   return Math.max(0, expired ? limit : limit - t.shiftDrivenMin);
 }
 
@@ -30,19 +31,27 @@ function legMph(w: World, t: Truck, c: Company): number {
 export function etaMin(w: World, t: Truck, c: Company): number {
   const mph = legMph(w, t, c);
   if (mph <= 0) return w.t;
-  return drive(w, t, c, w.t, drivingLeftMin(w, t, c), (t.remainingMi / mph) * MIN_PER_HOUR)[0];
+  return drive(w, t, c, w.t + (t.pauseMin ?? 0), drivingLeftMin(w, t, c), (t.remainingMi / mph) * MIN_PER_HOUR, mph)[0];
 }
 
-/** From `at`, with `today` driving minutes left in the duty day, `left` minutes of driving: when it ends, and what's left of that day. */
-function drive(w: World, t: Truck, c: Company, at: number, today: number, left: number): [number, number] {
+/**
+ * From `at`, with `today` driving minutes left in the duty day, `left` minutes of driving at `mph`: when it ends, and
+ * what's left of that day. R12's stops count, as the engine runs them: the rest between days (hos.restHours, or the rest
+ * of the 24 hours), a break in each long day, and a fuel stop every fuel.stopEveryMi.
+ */
+function drive(w: World, t: Truck, c: Company, at: number, today: number, left: number, mph = w.cfg.hos.avgMph): [number, number] {
+  const { hos, fuel } = w.cfg;
   const full = drivingLimitMin(w, t, c);
-  const off = (24 - w.cfg.hos.drivingHoursPerDay) * MIN_PER_HOUR;
+  const off = hos.restHours > 0 ? hos.restHours * MIN_PER_HOUR : (24 - hos.drivingHoursPerDay) * MIN_PER_HOUR;
+  const breakAfter = hos.breakAfterHours * MIN_PER_HOUR;
+  const pauses = (drivenToday: number, driven: number) =>
+    (hos.breakMinutes > 0 && drivenToday > breakAfter ? hos.breakMinutes : 0) + (fuel.stopEveryMi > 0 ? Math.floor(((driven / MIN_PER_HOUR) * mph) / fuel.stopEveryMi) * fuel.stopMinutes : 0);
   while (left > today + 1e-6) {
-    at += today + off;
+    at += today + pauses(today, today) + off;
     left -= today;
     today = full;
   }
-  return [at + left, today - left];
+  return [at + left + pauses(full - today + left, left), today - left];
 }
 
 /**

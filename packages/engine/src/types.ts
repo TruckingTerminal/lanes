@@ -604,6 +604,15 @@ export interface Truck {
   /** Start of the current 24-hour duty day, or null before the first one. */
   shiftStartT: number | null;
   shiftDrivenMin: number;
+  /**
+   * R12, set only while its keys are on (a run at the defaults leaves them unset): when the truck last stopped driving
+   * (the 11 hours reset after hos.restHours off), the shift whose break it took, minutes left of a break or a fuel stop,
+   * and miles since its last fuel stop.
+   */
+  offDutySinceT?: number;
+  breakShiftT?: number;
+  pauseMin?: number;
+  fuelMi?: number;
   /** Minutes left loading or unloading. */
   dwellMin: number;
   /** Minutes left stopped after a breakdown (tow and repair). */
