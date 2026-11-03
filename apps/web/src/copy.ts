@@ -117,6 +117,10 @@ export const CAPS = {
   binding: { yard: (n: number) => `your yard holds ${n}`, stake: (n: number) => `your stake allows ${n}`, managers: (n: number) => `your operations managers cover ${n}`, company: (n: number) => `the company limit is ${n}` },
   yardsOpen: (date: string) => `Yards open ${date}.`,
   stake: (n: number) => `Staking allows ${n}.`,
+  /** The caps above the binding one, in the same form (engineering's, from Staff's rule and caps.binding.company). */
+  managersNone: (n: number) => `Past ${n} trucks you need an operations manager.`,
+  managers: (n: number) => `Your operations managers cover ${n}.`,
+  company: (n: number) => `The company limit is ${n}.`,
 };
 
 /** The staking page (R19). */

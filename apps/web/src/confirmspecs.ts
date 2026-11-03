@@ -1,6 +1,7 @@
 import { condition, dayOf, leaseValueFd, effectiveMpg, fuelPrice, hubMiles, maintenancePerMile, rebuildable, rebuildCost, tractorLifeUsed, tractorScrapFd, truckValue, type Company, type Truck, type TruckSpec, type World } from "@lanes/engine";
 import type { Equipment, TractorTier } from "@lanes/config";
 import { CONFIRM } from "./copy.js";
+import { MILES_PER_MONTH } from "./finance.js";
 import { fdFull, pct, shortDate, TIER_NAME, TRAILER_NAME } from "./format.js";
 
 /**
@@ -66,14 +67,33 @@ export function weeklyKept(w: World, c: Company): number {
   return (c.operating.revenueFd - c.operating.costFd) / weeks;
 }
 
-/** A fitted item: what it cuts on this truck, and its payback from this truck's own miles, when it has a record. */
-export function item(w: World, c: Company, m: "apu" | "aero" | "tires" | "sleeper", t: Truck, n: number, priceFd: number): Lines {
+/**
+ * A fitted item's weekly saving, from the engine's own effects (economics.ts tripCost, step.ts, labor.ts): an aero kit
+ * 5% of the fuel per mile, premium tires 20% of the maintenance per mile, an APU half the idle fuel
+ * (costs.idleFuelGalPerDay) and a sleeper half the per diem (labor.driver.perDiemFd) on each night the truck sits. Miles
+ * a week are this truck's own once it has run two weeks, else a typical month's (MILES_PER_MONTH); the nights it sits
+ * are the week's days its miles leave undriven at hos.avgMph for hos.drivingHoursPerDay.
+ */
+export function itemSaving(w: World, c: Company, m: "apu" | "aero" | "tires" | "sleeper", t: Truck): { perWeekFd: number; perWeekMi: number; ownRecord: boolean } {
   const weeks = Math.max(0, (dayOf(w.t, w.cfg) - Math.max(c.createdDay, t.builtDay ?? c.createdDay)) / 7);
-  const perWeekMi = weeks >= 2 ? (t.loadedMi + t.emptyMi) / weeks : 0;
-  const saving = m === "aero" ? (perWeekMi / effectiveMpg(w.cfg, t)) * fuelPrice(w) * 0.05 : m === "tires" ? perWeekMi * maintenancePerMile(w.cfg, t) * 0.2 : 0;
-  // A payback over ten years is a record too thin to read (QA: "5555 weeks" on a truck that had barely run): unknown.
-  const weeksBack = saving > 0.5 ? Math.ceil(priceFd / saving) : Infinity;
-  const payback = weeksBack <= 520 ? String(weeksBack) : null;
+  const ownRecord = weeks >= 2 && t.loadedMi + t.emptyMi > 0;
+  const perWeekMi = ownRecord ? (t.loadedMi + t.emptyMi) / weeks : (MILES_PER_MONTH * 7) / w.cfg.time.daysPerMonth;
+  const nights = Math.max(0, 7 - perWeekMi / (w.cfg.hos.avgMph * w.cfg.hos.drivingHoursPerDay));
+  const perWeekFd =
+    m === "aero"
+      ? (perWeekMi / effectiveMpg(w.cfg, t)) * fuelPrice(w) * 0.05
+      : m === "tires"
+        ? perWeekMi * maintenancePerMile(w.cfg, t) * 0.2
+        : m === "apu"
+          ? nights * w.cfg.costs.idleFuelGalPerDay * fuelPrice(w) * 0.5
+          : nights * w.cfg.labor.driver.perDiemFd * 0.5;
+  return { perWeekFd, perWeekMi, ownRecord };
+}
+
+/** A fitted item: what it cuts on this truck, and its payback in weeks at that saving. */
+export function item(w: World, c: Company, m: "apu" | "aero" | "tires" | "sleeper", t: Truck, n: number, priceFd: number): Lines {
+  const saving = itemSaving(w, c, m, t).perWeekFd;
+  const payback = saving > 0.5 ? Math.ceil(priceFd / saving).toLocaleString("en-US") : null;
   const does = m === "apu" ? CONFIRM.item.apu(n, "half") : m === "aero" ? CONFIRM.item.aero(n, "5%") : m === "tires" ? CONFIRM.item.tires(n, "20%") : CONFIRM.item.sleeper("half");
   return { does, risk: payback ? CONFIRM.itemRisk[m](payback) : CONFIRM.paybackUnknown };
 }

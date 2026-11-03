@@ -1,8 +1,9 @@
 import { describe, expect, it } from "vitest";
 import { borrowingCapacity, companyAccount, poolCash } from "@lanes/engine";
 import { blockReason, boardRows } from "../src/board.js";
-import { CAPS, CONFIRM, DELIVERED, MOVE, SECURITY } from "../src/copy.js";
-import { item, usedTruck } from "../src/confirmspecs.js";
+import { ANSWER, CAPS, CONFIRM, DELIVERED, MOVE, SECURITY } from "../src/copy.js";
+import { poachResult } from "../src/ui/panels/Staff.js";
+import { item, itemSaving, usedTruck } from "../src/confirmspecs.js";
 import { confirmAct, confirmSpend } from "../src/ui/Confirm.js";
 import { S } from "../src/state.js";
 import { breakdown } from "../src/explain.js";
@@ -244,7 +245,12 @@ describe("the confirm card (R6)", () => {
     const used = usedTruck(w, c, { tier: "workhorse", trailer: "van", lease: "owned", odometer: 900_000, milesSinceRebuild: 300_000, rebuilds: 2 }, w.net.hubs.findIndex((_, i) => i !== c.homeHub));
     expect(used.does).toMatch(/^A used Workhorse with a dry van: \d+% of its life left, no rebuilds\. It's at .+, [\d,]+ miles from home\.$/);
     expect(used.risk).toMatch(/^It runs until it's worn out, then goes for scrap, for about [\d,]+ FD\. Bringing it home takes a driver and empty miles\.$/);
-    expect(item(w, c, "aero", truck, 1, 5000).risk).toBe(CONFIRM.paybackUnknown);
+    // A new truck has no record: the payback reads a typical month's miles and the engine's own cuts, never "unknown".
+    for (const m of ["apu", "aero", "tires", "sleeper"] as const) expect(item(w, c, m, truck, 1, 5000).risk).toMatch(/about [\d,]+ weeks/);
+    const aero = itemSaving(w, c, "aero", truck);
+    expect(aero.ownRecord).toBe(false);
+    expect(aero.perWeekMi).toBeCloseTo((12_000 * 7) / w.cfg.time.daysPerMonth);
+    expect(itemSaving(w, c, "tires", truck).perWeekFd).toBeGreaterThan(0);
     S.game = null;
   }, 60_000);
 });
@@ -295,6 +301,8 @@ describe("what limits the fleet (R19)", () => {
     const k = fleetCaps(g.w, c);
     expect(k.cap).toBe(Math.min(...[k.binding, ...k.others].map((r) => r.n), g.w.cfg.company.maxTrucks));
     expect(k.running).toBe((g.w.trucksByCompany.get(c.id) ?? []).length);
+    // The company limit is always among the caps, so the line can name it when it isn't the one that binds.
+    expect([k.binding, ...k.others].some((r) => r.kind === "company")).toBe(true);
     expect(CAPS.line(k.cap, CAPS.binding[k.binding.kind](k.binding.n), "")).toMatch(/^You may run \d+: (your yard holds|your stake allows|your operations managers cover|the company limit is) \d+\.$/);
   }, 60_000);
 });
@@ -333,5 +341,26 @@ describe("the return card (R21)", () => {
     } finally {
       delete (globalThis as { localStorage?: unknown }).localStorage;
     }
+  }, 60_000);
+});
+
+describe("R7: a hire-away offer's answer lands on Staff from the engine's notice", () => {
+  it("turns 'stayed' and 'joined' notices into the writer's lines", async () => {
+    const g = await TestGame.create();
+    const c = g.join("Poach Freight", "fleet", "LAX")!;
+    const w = g.w;
+    S.game = g as never;
+    S.poachResults = [];
+    const other = w.staff.find((s) => s.status === "employed" && s.companyId && s.companyId !== c.id && !s.owner)!;
+    const employer = w.companies[other.companyId - 1]!.name;
+    poachResult(w, c, `${other.name} stayed: their employer matched your offer.`);
+    expect(S.poachResults[0]?.text).toBe(ANSWER.poachStayed(other.name, employer));
+    const ours = w.staff.find((s) => s.companyId === c.id && s.kind === "driver" && !s.owner) ?? w.staff.find((s) => s.companyId === c.id)!;
+    poachResult(w, c, `Driver ${ours.name} (★★★☆☆★) joined you from ${employer}.`);
+    expect(S.poachResults[0]?.text.startsWith(`${ours.name} accepted`)).toBe(true);
+    poachResult(w, c, "Driver Somebody quit.");
+    expect(S.poachResults).toHaveLength(2);
+    S.poachResults = [];
+    S.game = null;
   }, 60_000);
 });

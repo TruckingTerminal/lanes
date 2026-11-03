@@ -86,6 +86,8 @@ export const S = {
   lastAct: null as null | { tab: string; at: number },
   /** R21: what changed while the player was away, shown as the return card until answered (returncard.ts). */
   returnCard: null as null | import("./returncard.js").Away,
+  /** Our hire-away offers answered, newest first, in the writer's words: from the engine's own notice at the deadline (QA's R7 replay). */
+  poachResults: [] as { staffId: number; text: string }[],
   /** The next-truck gap as last shown, and what moved it since the player last opened its explanation (row 4). */
   gapSeen: null as null | { scope: string; route: string; weeks: number; why: ("cheapest" | "cushion")[] },
   /** The invoices What now? chose to cash (rule 1's cash lever): Money opens on them. */

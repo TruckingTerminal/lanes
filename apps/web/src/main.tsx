@@ -17,6 +17,7 @@ import { MemoryDb } from "./memdb.js";
 import { bumpData, bumpTick, feed, loadOnboard, setOnboard, loadTheme, markPersisted, persistTest, push, readTest, S, setLayout, setTab, SPEEDS, TEST_BUILD, toast, toggleFullscreen, truckNo, type Session, type TitleMenu } from "./state.js";
 import { App } from "./ui/App.js";
 import { askWhatNow } from "./ui/WhatNow.js";
+import { poachResult } from "./ui/panels/Staff.js";
 import { returnFor, saveVisit } from "./returncard.js";
 
 /**
@@ -155,6 +156,7 @@ function onEvent(s: Session, e: GameEvent): void {
     const text = s === S.game ? e.text.replace(/\bTruck (\d+)\b/g, (m, id: string) => (truckNo(Number(id)) ? `Truck ${truckNo(Number(id))}` : m)) : e.text;
     push(s, text, e.tone === "good" ? "good" : e.tone === "bad" ? "bad" : "");
     if (s === S.game && (e.topic === "crash" || e.topic === "authority")) toast(text, e.tone === "bad");
+    if (s === S.game && e.topic === "staff") poachResult(w, s.player!, e.text);
   }
   if (s === S.game) bumpData();
 }

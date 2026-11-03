@@ -1,6 +1,6 @@
 import type { JSX } from "preact";
 import { useState } from "preact/hooks";
-import { askingPay, crewed, dispatchProfile, poolOf, spanOf, type Staff as StaffT, type Truck } from "@lanes/engine";
+import { askingPay, crewed, dispatchProfile, poolOf, spanOf, type Company, type Staff as StaffT, type Truck, type World } from "@lanes/engine";
 import { fd, hhmm, pct, shortDate, TRAILER_NAME } from "../../format.js";
 import { GAME_CONFIG } from "../../game.js";
 import { atHub, marketPayOf, moraleClass, moraleWord, staffPay, Stars } from "../../logic.js";
@@ -31,9 +31,22 @@ function TruckOptions({ pick }: { pick: (t: Truck) => boolean }): JSX.Element {
   );
 }
 
-/** Our offers seen pending (staff id → the employer's name), and how each ended, for the page's sitting. */
-const watchedOffers = new Map<number, string>();
-const offerOutcomes = new Map<number, string>();
+/**
+ * A hire-away offer's answer, from the engine's own staff notice to the offering company (labor.ts: "{name} stayed: their
+ * employer matched your offer." when they match, "{label} joined you from {from}." at the deadline), in the writer's words.
+ * Read from the event, not from watching the row, so it lands whether or not Staff was open (QA's R7 part-two replay).
+ */
+export function poachResult(w: World, c: Company, text: string): void {
+  const stayed = /^(.+) stayed: their employer matched your offer\.$/.exec(text);
+  const s = stayed
+    ? w.staff.find((x) => x.name === stayed[1] && x.companyId !== c.id && x.status === "employed")
+    : / joined you from .+\.$/.test(text)
+      ? w.staff.find((x) => x.companyId === c.id && text.includes(` ${x.name} (`))
+      : undefined;
+  if (!s) return;
+  const line = stayed ? ANSWER.poachStayed(s.name, w.companies[s.companyId - 1]!.name) : ANSWER.poachAccepted(s.name, s.truckId ? truckNo(s.truckId) : null);
+  S.poachResults = [{ staffId: s.id, text: line }, ...S.poachResults.filter((r) => r.staffId !== s.id)].slice(0, 5);
+}
 
 export function Staff(): JSX.Element {
   useData();
@@ -91,16 +104,9 @@ export function Staff(): JSX.Element {
     const by = shortDate(Math.floor(w.t / w.cfg.time.gameMinutesPerDay) + w.cfg.labor.morale.noticeDays);
     setPoachAnswer(r.ok ? { text: r.at === null ? ANSWER.poach(s.name, by) : `Sent · in effect ${hhmm(r.at)}`, bad: false } : { text: /would move for/.test(r.reason) ? ANSWER.poachLow(s.name, s.pay.toFixed(2)) : r.reason, bad: true });
   };
-  // Offers of ours waiting on the other employer: a pending line each until they match or let them go; then the outcome
-  // lands here, where the offer was made (QA's R20 replay: the chip just went).
+  // Offers of ours waiting on the other employer: a pending line each until they match or let them go; then the answer
+  // (poachResult, from the engine's notice) lands here, where the offer was made.
   const pending = w.staff.filter((s) => s.offer && s.offer.companyId === c.id && s.companyId !== c.id);
-  for (const s of pending) watchedOffers.set(s.id, w.companies[s.companyId - 1]!.name);
-  for (const [id, from] of watchedOffers) {
-    if (pending.some((s) => s.id === id)) continue;
-    const s = w.staff[id - 1]!;
-    offerOutcomes.set(id, s.companyId === c.id ? ANSWER.poachAccepted(s.name, s.truckId ? truckNo(s.truckId) : null) : ANSWER.poachStayed(s.name, from));
-    watchedOffers.delete(id);
-  }
   const hire = (s: StaffT, pay: number, kind: "hire" | "poach", ev?: MouseEvent) => {
     if (kind === "poach") return void poach(s, pay);
     const v = sel(`${kind}-${s.id}`);
@@ -220,6 +226,7 @@ export function Staff(): JSX.Element {
       </tr>
     );
   };
+  // A card per person, not a table row: two lines that fit 375 px without scrolling (QA: the table ran 520 px wide).
   const PoachRow = ({ s }: { s: StaffT }) => {
     const lo = w.cfg.labor.morale.loyalty[0];
     const hi = w.cfg.labor.morale.loyalty[1];
@@ -227,20 +234,20 @@ export function Staff(): JSX.Element {
     const driver = s.kind === "driver";
     const can = !driver || seatsOpen;
     return (
-      <tr key={s.id}>
-        <td>
-          {s.name}
-          <br />
-          <span class="muted">{w.companies[s.companyId - 1]!.name}</span>
-        </td>
-        <td>
+      <div class="stack poachrow">
+        <span class="row">
+          <span>
+            {s.name} <span class="muted">· {w.companies[s.companyId - 1]!.name}</span>
+          </span>
+          <span class="grow" />
           <Stars skill={s.skill} />
-        </td>
-        <td class="num">{staffPay(s, s.pay)}</td>
-        <td class={moraleClass(s.morale)}>{moraleWord(s.morale)}</td>
-        <td>
+        </span>
+        <span class="row small">
+          <span>{staffPay(s, s.pay)}</span>
+          <span class={moraleClass(s.morale)}>{moraleWord(s.morale)}</span>
+          <span class="grow" />
           {can ? (
-            <div class="row">
+            <>
               {driver ? (
                 <select id={`poach-${s.id}`} aria-label="Truck">
                   <TruckOptions pick={openSeat} />
@@ -249,12 +256,12 @@ export function Staff(): JSX.Element {
               <Btn sm onClick={() => hire(s, needed, "poach")}>
                 Offer {staffPay(s, needed)}
               </Btn>
-            </div>
+            </>
           ) : (
             <span class="muted">no open seat</span>
           )}
-        </td>
-      </tr>
+        </span>
+      </div>
     );
   };
 
@@ -355,33 +362,19 @@ export function Staff(): JSX.Element {
       ) : null}
       <Card title="Hire away from other companies">
         <p class="muted small">Their employer gets {w.cfg.labor.morale.noticeDays} days to match. Unhappy people come cheaper.</p>
-        {/* Scrolls inside the card on a phone, never the page (QA: Offer was cut to "OFFEI" at 375 px). */}
-        <div class="tablewrap">
-        <table>
-          <thead>
-            <tr>
-              <th>Name</th>
-              <th>Skill</th>
-              <th>Paid</th>
-              <th>Mood</th>
-              <th></th>
-            </tr>
-          </thead>
-          <tbody>
-            {poachable.map((s) => (
-              <PoachRow s={s} key={s.id} />
-            ))}
-          </tbody>
-        </table>
+        <div class="stack poachrows">
+          {poachable.map((s) => (
+            <PoachRow s={s} key={s.id} />
+          ))}
         </div>
         {pending.map((s) => (
           <p class="small" key={`offer-${s.id}`}>
             {s.name} · {ANSWER.poachRow(shortDate(s.offer!.day + w.cfg.labor.morale.noticeDays))}
           </p>
         ))}
-        {[...offerOutcomes.values()].map((t) => (
-          <p class="small" key={t}>
-            {t}
+        {S.poachResults.map((r) => (
+          <p class="small" key={`result-${r.staffId}`}>
+            {r.text}
           </p>
         ))}
         {poachAnswer ? <p class={poachAnswer.bad ? "bad small" : "small"}>{poachAnswer.text}</p> : null}

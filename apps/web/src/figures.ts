@@ -51,7 +51,7 @@ export function fleetCaps(w: World, c: Company): FleetCaps {
   rows.push({ kind: "company", n: w.cfg.company.maxTrucks });
   const binding = rows.reduce((a, b) => (b.n < a.n ? b : a));
   const running = (w.trucksByCompany.get(c.id) ?? []).filter((t) => t.status !== "retired").length + ordersOf(w, c.id).length;
-  return { cap: binding.n, running, binding, others: rows.filter((r) => r !== binding && r.kind !== "company") };
+  return { cap: binding.n, running, binding, others: rows.filter((r) => r !== binding) };
 }
 
 /** guide.cushion: weeks of the company's own spending its cash covers, from its average over guide.cushionAvgWeeks. */
