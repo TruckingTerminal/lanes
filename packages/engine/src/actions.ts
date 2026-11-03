@@ -14,7 +14,7 @@ import { dayOf } from "./clock.js";
 import { dealerPrice, lotPrice, lotSpec, ordersOf, placeOrder, tractorOrdersOf, tractorPrice, trailerOrdersOf, trailerPrice } from "./dealer.js";
 import { fitTrailer, hook, hookedTrailer, ownedTrailers, rentTrailer, scrapTrailer, syncTrailer, trailerById, trailerCap, trailerCondition, trailerRefurbishable, unhook } from "./trailers.js";
 import { scrapOwnedTractor } from "./assets.js";
-import { dealershipPrice, npcDealerDays, npcDealerMult, sellFromStock, tradeIn } from "./dealerships.js";
+import { dealershipPrice, lotDeliveryDays, npcDealerDays, npcDealerMult, sellFromStock, tradeIn } from "./dealerships.js";
 import { cancelPurchaseLoan, financeBlock, financedCashNeed, financePurchase, purchaseTerms } from "./purchaseLoans.js";
 import { endPlayerLease, leasedOut, offerLease, takeLease, withdrawLeaseOffer } from "./playerLeases.js";
 import { buyAssetSale, listAssetSale, withdrawAssetSale } from "./assetSales.js";
@@ -533,7 +533,7 @@ export function applyAction(w: World, companyId: number, action: Action): Action
         chargeSalesTax(w, company.id, price, ref);
         w.usedLot.stock--;
         w.usedLot.sold++;
-        const order = placeOrder(w, company, action.tier, action.trailer, replacing, kind, npcDealerDays(w));
+        const order = placeOrder(w, company, action.tier, action.trailer, replacing, kind, lotDeliveryDays(w, replacing));
         order.used = lotSpec(w, action.trailer);
         order.lockedPaidFd = lockedPaid;
         if (loan) loan.orderId = order.id;

@@ -117,7 +117,18 @@ export function monthlyDealerPrices(w: World): void {
  */
 export function deliveryDays(w: World): number {
   const d = w.cfg.dealerDelivery;
-  return Math.min(d.maxDays, Math.round(d.baseDays + d.daysPerPendingOrder * w.orders.length));
+  return Math.min(d.maxDays, Math.round(d.baseDays + d.daysPerPendingOrder * dealerBacklog(w).counted));
+}
+
+/**
+ * What sets the wait, for the Dealer's explain line: every order nationally, of which `usedLot` are the NPC used lot's
+ * rigs; `counted` is what the wait counts (all of them, unless usedMarket.npcLot.inBacklog is false).
+ */
+export function dealerBacklog(w: World): { orders: number; usedLot: number; counted: number } {
+  let usedLot = 0;
+  for (const o of w.orders) if (o.used) usedLot++;
+  const orders = w.orders.length;
+  return { orders, usedLot, counted: w.cfg.usedMarket.npcLot.inBacklog ? orders : orders - usedLot };
 }
 
 export function ordersOf(w: World, companyId: number): TruckOrder[] {

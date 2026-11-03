@@ -416,6 +416,27 @@ export function dailyDrivers(w: World): void {
 export function autoStaff(w: World, c: Company, minDriverSkill = 0, minDispatcherSkill = 0): void {
   if (c.authority.status === "revoked" || c.liquidatingSince !== null) return;
   autoManagers(w, c);
+  // R8 (guard.hireCoverWeeks; 0 is no guard): no hire while cash covers less than that many weeks of the new wages
+  // of this pass. The first hire held back is left on the company for the Needs-you line.
+  const g = w.cfg.guard;
+  const cover = c.human || !g.hireCoverHumansOnly ? g.hireCoverWeeks : 0;
+  let added = 0;
+  if (c.hireBlock) c.hireBlock = null; // only touched once the guard has held something, so a world without it is unchanged
+  const affordable = (s: Staff): boolean => {
+    if (cover <= 0) return true;
+    const weekly = weeklyWage(w, s, askingPay(w, s));
+    const needFd = cover * (added + weekly);
+    if (w.ledger.balance(companyAccount(c.id)) + 1e-9 >= needFd) {
+      added += weekly;
+      return true;
+    }
+    // The pass's first hold is the one the player sees (a seat before the dispatcher).
+    if (!c.hireBlock) {
+      c.hireBlockedDays = (c.hireBlockedDays ?? 0) + 1;
+      c.hireBlock = { staffId: s.id, kind: s.kind, weeklyFd: weekly, needFd, day: dayOf(w.t, w.cfg) };
+    }
+    return false;
+  };
   const fleet = w.trucksByCompany.get(c.id)!;
   // The owner drives for free: if they have no truck, they take over from a hire at a hub.
   const owner = fleet.length ? w.staffByCompany.get(c.id)!.find((s) => s.owner && s.status === "employed" && s.truckId === 0) : undefined;
@@ -442,7 +463,7 @@ export function autoStaff(w: World, c: Company, minDriverSkill = 0, minDispatche
         .sort((a, b) => value(a) - value(b) || a.id - b.id);
       for (const t of needed) {
         const s = pool.shift();
-        if (!s) break;
+        if (!s || !affordable(s)) break;
         hire(w, c, s, askingPay(w, s), t);
       }
     }
@@ -453,7 +474,7 @@ export function autoStaff(w: World, c: Company, minDriverSkill = 0, minDispatche
     const pool = poolOf(w, "dispatcher")
       .filter((s) => s.skill >= minDispatcherSkill)
       .sort((a, b) => askingPay(w, a) / spanOf(w, a) - askingPay(w, b) / spanOf(w, b) || a.id - b.id);
-    if (pool[0]) hire(w, c, pool[0], askingPay(w, pool[0]), null);
+    if (pool[0] && affordable(pool[0])) hire(w, c, pool[0], askingPay(w, pool[0]), null);
     return;
   }
   // A dispatcher the fleet no longer needs (it shrank) is let go: the least skilled one whose span isn't needed.
@@ -465,6 +486,9 @@ export function autoStaff(w: World, c: Company, minDriverSkill = 0, minDispatche
     }
   }
 }
+
+/** A week of a hire's wage at this pay: a driver's at labor.hiring.milesPerWeek (the sign-on and severance week), anyone else's the quoted weekly pay. */
+export const weeklyWage = (w: World, s: Staff, pay: number): number => (s.kind === "driver" ? pay * w.cfg.labor.hiring.milesPerWeek : pay);
 
 /** Fraction of a year someone has worked here. */
 const tenureYears = (w: World, s: Staff) => (dayOf(w.t, w.cfg) - s.hiredDay) / w.cfg.time.daysPerSeason;

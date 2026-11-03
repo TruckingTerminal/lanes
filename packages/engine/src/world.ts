@@ -639,7 +639,7 @@ export function formCompany(w: World, c: NewCompany): Company {
       record: [],
     },
     vetting: 0,
-    autoStaff: true,
+    autoStaff: c.human ? w.cfg.guard.autoStaffDefault : true, // R8: a player's starts off when guard.autoStaffDefault is false; bots always auto-staff
     claims: [],
     localBanUntilDay: 0,
     tenderAcceptance: 1,

@@ -607,7 +607,13 @@ export const economyConfig = {
     // A free starter's way in when new trucks cost what real ones do. Off until tested.
     // `daily` (studio/reviews/economy-reserve.md, the lot's cadence): the week's `perWeek` rigs arrive a seventh a day
     // instead of all at the week's end, so the lot isn't emptied on restock day and bare for the six after.
-    npcLot: { enabled: false, ageYears: 4, odometer: 450_000, milesSinceRebuild: 120_000, rebuilds: 1, perWeek: 15, stock: 30, daily: false },
+    // `deliveryDays` and `inBacklog` (studio/reviews/economy-player2.md §2, waiting for Jeff): today (null, true) a lot rig
+    // waits in the new-truck queue and every one on order adds to that queue (dealerDelivery.daysPerPendingOrder), so the
+    // free path's first-month rush on the lot is what took the new-truck wait from 30 days to 61 by day 11 and to 128 by
+    // day 42. A number delivers a lot rig that adds to a fleet from the lot's stock in that many days (a free starter's
+    // first truck, replacing the lessor's, keeps the queue: step 9's pace); `inBacklog: false` leaves lot rigs out of the
+    // count that sets the new-truck wait (and the dealer's price index, dealer.ts monthlyDealerPrices).
+    npcLot: { enabled: false, ageYears: 4, odometer: 450_000, milesSinceRebuild: 120_000, rebuilds: 1, perWeek: 15, stock: 30, daily: false, deliveryDays: null as number | null, inBacklog: true },
   },
 
   // §DeFi buildings — Equipment Finance, in FD for Season 1. Depositors fund the
@@ -1484,6 +1490,17 @@ export const economyConfig = {
     // a matched offer that's cut back within the hold period sends the person packing.
     hiring: { signOnWeeks: 2, severanceWeeks: 2, severanceWithinDays: 28, matchedPayHoldDays: 56, milesPerWeek: 1_000 },
   },
+
+  // The guards (the director's triage of the player's second diary, studio/reviews/director-player2.md): limits on what
+  // the engine spends for a player unasked. Engineering's UI keys (confirmShareOfCash, newsFd) belong in this block too.
+  // R8, sized in studio/reviews/economy-player2.md §3 and waiting for Jeff with R1's ruleset bump; today's values here:
+  // - hireCoverWeeks: auto-staff never hires while cash covers less than this many weeks of the new wage (a driver's
+  //   week is labor.hiring.milesPerWeek at their asking rate, a dispatcher's the quoted weekly pay), summed over the
+  //   hires of one pass. 0: no guard (today); R8: 4.
+  // - hireCoverHumansOnly: the guard binds players' companies only. Bots always auto-staff, and on them the guard cost the
+  //   greedy fleets a ninth of their year-one net worth (economy-player2.md §3), so the bots' world is left as it is.
+  // - autoStaffDefault: a human company's auto-staff at formation (bots always auto-staff). true today; R8: false.
+  guard: { hireCoverWeeks: 0, hireCoverHumansOnly: true, autoStaffDefault: true },
 
   // Design proposal (Jeff, 2026-10-28): safety and compliance. Owners choose how
   // legal to run; enforcement, crashes and audits make cutting corners pay now and

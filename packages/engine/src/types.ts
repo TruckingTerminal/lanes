@@ -312,6 +312,10 @@ export interface Company {
   vetting: VettingTier;
   /** The engine keeps seats filled: hires drivers for empty trucks and dispatchers past the owner's span. */
   autoStaff: boolean;
+  /** R8 (guard.hireCoverWeeks): the hire auto-staff held back on its last pass, for want of cash cover; null when none. */
+  hireBlock?: { staffId: number; kind: Staff["kind"]; weeklyFd: number; needFd: number; day: number } | null;
+  /** Passes on which auto-staff held a hire back (R8's sizing). */
+  hireBlockedDays?: number;
   /** Local shippers pass this carrier over until this day (turned-down contract tenders). */
   localBanUntilDay: number;
   /** Moving average of contract tenders accepted, across contracts (offers go to the reliable). */

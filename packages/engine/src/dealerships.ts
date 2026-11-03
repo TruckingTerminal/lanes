@@ -34,6 +34,15 @@ export function npcBackstop(w: World): boolean {
 
 export const npcDealerMult = (w: World): number => (npcBackstop(w) ? w.cfg.assets.factory.npcPremium : 1);
 export const npcDealerDays = (w: World): number => deliveryDays(w) + (npcBackstop(w) ? w.cfg.assets.factory.npcExtraDays : 0);
+/**
+ * The NPC used lot's wait. A rig that adds to a fleet comes from the lot's stock in usedMarket.npcLot.deliveryDays when
+ * that is set. A free starter's first truck, which replaces the lessor's, keeps the NPC dealer's queue so step 9 keeps its
+ * pace (economy-player2.md §1c: delivering those sooner raised owner-operator liquidations). Unset, every rig queues, as today.
+ */
+export const lotDeliveryDays = (w: World, replacesLease = false): number => {
+  const own = w.cfg.usedMarket.npcLot.deliveryDays;
+  return own !== null && !replacesLease ? own : npcDealerDays(w);
+};
 
 /** List price today (list × the dealer index) of a rig, a tractor alone or a trailer alone. */
 export function listPrice(w: World, kind: TruckOrder["kind"], tier: TractorTier, type: Equipment): number {
