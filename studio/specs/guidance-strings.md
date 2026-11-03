@@ -202,6 +202,29 @@ No before line: none of the three can be seen coming. The cause and the loss's p
 
 One entry per figure key. `what` and `moves` are the writer's; `how` is engineering's breakdown function, described here so the two match. Plain throughout.
 
+### The sheet's foot: what you can do about this figure (`FIGURE_ACT`)
+
+UX's button and link; engineering's per-figure answers, passed. A figure with a load to act on shows the line and **Show me the load**; a figure with nothing to press shows one line of reason.
+
+| Key | Figures | String | Kept or changed |
+|---|---|---|---|
+| `ask` | every sheet | What can I do about it? | kept (UX's) |
+| `whole` | every sheet | What now? for the whole company › | kept (UX's) |
+| `showLoad` | with a load | Show me the load | kept |
+| `fewerEmpty` | `truck.breakEven`, `board.profitChip`, `board.deadhead` | Fewer empty miles: the `{origin}` load starts `{mi}` mi from your truck. | kept |
+| `loadReason` | the same, its reason | `{origin}` to `{dest}` pays about `{fd}` FD over your break-even. | changed: "your" break-even |
+| `haulForCushion` | `guide.cushion`, short | Haul the best-paying load: each one adds to your cushion. | kept |
+| `haulForTruck` | `guide.gapToTruck` | Keep hauling: each paying load closes the gap. | kept |
+| `busy` | any, every truck on a load | Every truck is on a load; this moves as they deliver. | changed: plainer |
+| `nothingPays` | any, nothing in reach pays | Nothing in reach pays over break-even this round. New loads post at `{hh:00}`. | changed: names the next round |
+| `noSpending` | `guide.cushion`, before the first week closes | Nothing to fix yet: your first week hasn't closed, so there's no spending to measure. | changed: says why |
+| `healthy` | `guide.cushion`, enough | Nothing to fix: `{weeks}` weeks of cushion is healthy. | kept |
+| `gapClosed` | `guide.gapToTruck`, closed | Nothing to close: you can afford your next truck now. | kept |
+| `value` | `truck.value` | A truck loses value with age and miles. Nothing you do stops that. | changed: the draft's "upkeep slows that" isn't how value is computed |
+| `diesel` | `pay.fuel` | Nobody sets the price of diesel; your truck's mpg decides how much it hurts. | kept, "your truck's" |
+| `held` | `truck.leaseDeposit`, `money.held` | It's yours, held: it counts in full when you buy your own truck. | kept |
+| `theirs` | any `.other` | That's theirs to change, not yours. | changed: plainer |
+
 ### Cash
 
 | Key | What it is | How it's computed | What moves it |
