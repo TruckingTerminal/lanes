@@ -69,6 +69,21 @@ The gamer ran 15-hour days, 56 mph always and deferred maintenance for the whole
 
 Either way, the writer says why 56 mph is the reckless setting. A non-trucker reads 70 on the highway; the game's legal truck speed is 50.
 
+**R18, ruled on the economy's sizing (2026-11-03, `economy-player34.md` §3d): keep it as sized.**
+
+The values: fines at three times the breach's gain, an audit within 14 days of an alert, out-of-service orders of 34 hours (hours) and one to two days (defects), hidden-log detection at 0.6, and contracts closed to a bad rating.
+
+**I don't soften the odds,** neither `auditDays` 28 nor `hiddenDetect` 0.45:
+- **Prudence wins at these values.** Clean owner-operators fail 22% less, and prudent fleets end richer. That is Jeff's rule ("prudent businessmen must win"), working as he asked.
+- **The cutter is the one R18 exists for.** Two in five revoked over four years is what a falsified log on a hot load should cost. A softer audit would reopen the very gamble diary 4 found, and reward the wrong player.
+
+**What I require instead is information and a way back.** Pillar 3 asks for risk the player can see, not softer odds:
+1. **The road to revocation is shown at every step.** An alert, the audit's date, and the rating each become a Needs-you item, with Iuliia's plain line and the way out. A revocation is never the first the player hears of it.
+2. **A company that runs clean after an Unsatisfactory rating is not revoked by the follow-up.** The economy confirms the engine works that way. If it doesn't, that is the change for this bump, not softer detection.
+3. **Each compliance option, when switched on, gets R6's confirm card with its season cost in plain words.** For example, for 15-hour days: "Companies running this end the season far poorer, and most lose their authority within the year."
+
+The writer's line on why 56 mph is the reckless setting is still owed.
+
 **R19. Caps and stakes say what binds.**
 
 The staking page said "To run 10: stake 20,000 FD". He staked 40,000 and could still "run 5", with no total shown and no answer from UNSTAKE. The real cap was the yard, explained only on the Business page, locked until Jan 29.
