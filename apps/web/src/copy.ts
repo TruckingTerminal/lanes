@@ -221,13 +221,14 @@ export const FIRST_ENTRY = {
   welcomeTitle: "Welcome to LANES",
   /**
    * Her intro, one beat per Next, before the hub pick (Jeff, 2026-11-03: the first screen is Iuliia introducing the game,
-   * not "pick a home city"). Her register: under 20 words a line, no joke in the first, Russian things and never a Russian word.
+   * not "pick a home city"; and, 2026-11-03 again: dry humor, not a dry personality). Her register, on a card rather than a caption:
+   * at most 28 words a beat, the joke by understatement, Russian things and never a Russian word.
    */
   intro: [
-    "Welcome. I'm Iuliia. I'll be beside you from your first load to your first fleet.",
-    "This is America's freight market, live. Every truck you see is real and moving, and nobody waits for us.",
-    "The work is simple to say: find a load, haul it, get paid, keep the truck alive. Then grow.",
-    "You start the way most do: one leased truck, a little money, and you driving. First, a home city.",
+    "Welcome. I'm Iuliia. I've helped start more carriers than I've had birthdays, and I'm not saying how many of either.",
+    "This is America's freight market, live. Every truck out there is real, and not one of them is waiting for us. Rude, but honest.",
+    "Find a load, haul it, get paid, keep the truck alive. Then do it again, which is the part nobody puts on the poster.",
+    "You start the way most do: one leased truck, a little money, and you driving. Small, but so was every fleet once. First, a home city.",
   ],
   next: "Next",
   home: "The rings mark where a new carrier finds freight right now. You may start at any starter city; any city shows its freight.",

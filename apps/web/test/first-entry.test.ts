@@ -3,11 +3,11 @@ import { FIRST_ENTRY } from "../src/copy.js";
 
 /** Iuliia's intro on the first screen (Jeff, 2026-11-03): a few beats in her register before the hub pick. */
 describe("Iuliia's intro", () => {
-  it("is brief: three to five beats, each under 20 words, the last pointing at a home", () => {
+  it("is brief: three to five beats, each at most 28 words (a card, not a caption), the last pointing at a home", () => {
     const beats = FIRST_ENTRY.intro;
     expect(beats.length).toBeGreaterThanOrEqual(3);
     expect(beats.length).toBeLessThanOrEqual(5);
-    for (const b of beats) expect(b.split(/\s+/).length, b).toBeLessThan(20);
+    for (const b of beats) expect(b.split(/\s+/).length, b).toBeLessThanOrEqual(28);
     expect(beats[beats.length - 1]).toMatch(/home/i);
   });
 
