@@ -152,3 +152,13 @@
   only if the same bump gives them R18's teeth (fines that scale with the gain, out-of-service days, audits and
   a rating); otherwise they come off the screen until it does. The producer decided all six on Jeff's word; any
   can be reversed before the restart.
+- 2026-11-03 — the producer, on Jeff's "do which you think is best", from the economy's package
+  (studio/reviews/economy-player34.md): (1) the hold stays at 30% of each leased load in this restart (15% for
+  longer costs seven more owner-operator liquidations over four years and runs supply over the path); the
+  diary's complaint is answered by the hold's explanation text. (2) The owner-driver's 0.75 FD a mile stays and is
+  labelled "Your draw"; removing it would add about 5.1M FD a month of bot supply. (3) A lot rig bought to grow a
+  fleet arrives from stock in seven days (usedMarket.npcLot.deliveryDays 7); a starter's first truck keeps the
+  queue; the bots are byte-identical. (4) "Pools off" covers Equipment Finance too, behind a key flipped in the
+  bump, so nothing lends while the pools are off. (5) The NPC lender never writes cash-out loans. (6) R18 goes in
+  at the economy's values; whether to soften the cutters' revocation rate is the director's design call. All
+  reversible before the restart. Open for Jeff: the levels (today's hot rates or a true band).
