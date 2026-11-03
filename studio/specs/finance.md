@@ -161,7 +161,8 @@ button opens this sheet (Jeff: her collect advice offers it first).
   38,400 FD**, disabled with "You have 21,400 FD" under it when cash is short.
 - **Borrow against a truck** (moved from Money): per owned truck with room, "Truck 2 · up to 12,000 FD at 1% a
   week over 26 weeks" and **Borrow**, which opens a confirm sheet with the weekly payment and the repossession
-  rule before it acts.
+  rule before it acts. It shows only an amount the lender will lend now, and **not at all while the pools are off**
+  unless the economy has the NPC lender write it (`player2-ux.md`, R7 and R19).
 - **Leases**, one row each: "Truck 3 · leased · 15% of every load, at least 250 FD a week · 4,500 FD deposit
   held". The lease itself is taken at the Dealer.
 - **State A:** the deposit row again, "Your lease deposit 9,800 FD counts toward your first truck", and the loan
