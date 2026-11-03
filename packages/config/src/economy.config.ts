@@ -35,6 +35,11 @@ export const economyConfig = {
     restHours: 0,
     breakMinutes: 0,
     breakAfterHours: 8,
+    // R12's weekly clock (economy-player34.md stage 2): a driver may drive cycleHours since their last restart of restartHours
+    // off duty in a row (a team truck twice that), the 70-hour rule with its 34-hour restart, counted in driving hours. On
+    // falsified logs a company drives through it, and each day past it goes on the hidden log. 0: no weekly clock (today).
+    cycleHours: 0,
+    restartHours: 34,
   },
 
   // PoC assumption (from Jeff): dock time at each end, on duty but not driving
@@ -232,6 +237,10 @@ export const economyConfig = {
       [2, 1.1],
     ] as const,
     stepPerRound: 0.12, // unfilled: the poster raises it 12% a round (the ceiling moves 10%)
+    // R11 (economy-player34.md stage 2): with a number here, an unfilled load's book-now walks from where it opened to the
+    // ceiling over this many rounds instead of the 12% step, so it reaches the ceiling only on a load that has waited.
+    // 0: the step, as today.
+    towardCeilingRounds: 0,
     autoEveryHours: 2, // dispatchers look for book-now loads this often
     desperation: {
       idleHours: 24, // idle this long and a dispatcher takes anything that covers costs (Jeff, 2026-10-29: never let a truck sit past a day)
@@ -345,6 +354,14 @@ export const economyConfig = {
     // Freight into a market trucks can't reload in pays part of the empty run out of it, per loaded mile
     // (Jeff, 2026-10-29: loads into Florida must pay much more, the exit deadhead included).
     exitDeadheadShare: 0.6,
+    // R11, short loads (economy-player34.md stage 2): the exit charge counts at most this share of the loaded miles in empty
+    // miles, so a 70-mile hop doesn't bill a 200-mile run out of its town. null: uncapped, as today. With the short-haul
+    // bonus as the minimum charge, a short load is a minimum charge plus a mile rate.
+    exitDeadheadMaxShareOfMiles: null as number | null,
+    // R11, booms and slumps announced (economy-player34.md stage 2): the market reads "booming" when the last shortDays' cleared
+    // rate runs boomAt over the longDays' before it, "slumping" at slumpAt under (freight.ts marketMood). For the ticker,
+    // the milestone and the hub cards' words; no rule reads it.
+    news: { shortDays: 7, longDays: 28, boomAt: 0.15, slumpAt: -0.15 },
     deadheadFdPerMile: 1.2,
     // Regional seasons (packages/data/src/seasons.ts): each hub's weekly $/mi swing ÷ a typical
     // rate is its relative swing, which moves both freight volume and the posted rate. More
@@ -981,7 +998,9 @@ export const economyConfig = {
       // economy pays out what it takes in; what a player earns then comes from other players and
       // from running a better company, not from the reserve.
       // windowDays: the dial reads the ratio over this many days, so a noisy month doesn't flip it.
-      rateStabilizer: { enabled: false, stepPerMonth: 0.03, range: [0.5, 1.2] as const, windowDays: 30 },
+      // `start` (R11, economy-player34.md stage 2): where the dial stands on day 0. Today 1, so the beta opens at the base
+      // rates and the dial spends its first year walking them down to where the sinks balance.
+      rateStabilizer: { enabled: false, stepPerMonth: 0.03, range: [0.5, 1.2] as const, windowDays: 30, start: 1 },
     },
     launch: {
       // Beta FD is play money: above working capital it's burned at launch, and the

@@ -98,6 +98,8 @@ export function dockWaitTheft(w: World, truck: Truck, load: Load, minutes: numbe
  */
 export function drivingMinutesLeft(w: World, truck: Truck, now: number): number {
   const { hos } = w.cfg;
+  // R12's weekly clock: a restart (restartHours off duty in a row) gives the cycle back.
+  if (hos.cycleHours > 0 && truck.cycleLastT !== undefined && now - truck.cycleLastT >= hos.restartHours * MINUTES_PER_HOUR) truck.cycleMin = 0;
   const resetAt = dutyResetAt(w, truck);
   if (resetAt === null || now >= resetAt) {
     closeDutyDay(w, truck);
@@ -106,8 +108,14 @@ export function drivingMinutesLeft(w: World, truck: Truck, now: number): number 
     if (hos.restHours > 0) truck.offDutySinceT = now;
   }
   const limit = truck.companyId ? drivingLimitMin(w, truck, companyById(w, truck.companyId)) : hos.drivingHoursPerDay * MINUTES_PER_HOUR;
-  return limit - truck.shiftDrivenMin;
+  const left = limit - truck.shiftDrivenMin;
+  // The weekly clock binds a legal log; a falsified one drives through it (and the day goes on the hidden log, below).
+  if (hos.cycleHours > 0 && truck.companyId && limit <= legalDrivingMin(w, truck)) return Math.min(left, cycleLimitMin(w, truck) - (truck.cycleMin ?? 0));
+  return left;
 }
+
+/** R12: the weekly clock's driving minutes, 70 hours a driver (a team truck has two). */
+export const cycleLimitMin = (w: World, t: Truck): number => w.cfg.hos.cycleHours * MINUTES_PER_HOUR * (t.coDriverId ? 2 : 1);
 
 /**
  * When the truck's driving hours come back (R12): with `hos.restHours` on, after that many hours off duty since it last
@@ -254,6 +262,11 @@ export function moveTrucks(w: World): void {
       if (dayDone) truck.shiftDrivenMin = limit; // the hours are spent: the next pass through the loop parks
       creditDriving(w, truck, minutes);
       truck.overMin = Math.max(0, truck.shiftDrivenMin - legalDrivingMin(w, truck));
+      if (cfg.hos.cycleHours > 0 && minutes > 0) {
+        truck.cycleMin = (truck.cycleMin ?? 0) + minutes;
+        truck.cycleLastT = now + minutes;
+        if (truck.cycleMin > cycleLimitMin(w, truck)) truck.overMin = Math.max(truck.overMin, minutes); // past the weekly clock: a falsified log day
+      }
       budget -= minutes;
       if (truck.status === "loaded") truck.loadedMi += miles;
       else truck.emptyMi += miles;

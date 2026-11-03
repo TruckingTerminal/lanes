@@ -16,6 +16,54 @@ import { apCapBlock, brokerBooks, contractOn, factoringLog, type BrokerBook } fr
  * genesis level, so FD hoarded away from the reserve lowers rates and FD spent back into it raises
  * them. 1 in the open mode.
  */
+/**
+ * R11's market line (rates.news): the national cleared rate over the last `shortDays` against the `longDays` before them,
+ * weighted by loads cleared. "booming" past boomAt, "slumping" under slumpAt, else "steady". Screens only.
+ */
+export function marketMood(w: World): { state: "booming" | "slumping" | "steady"; change: number } {
+  const k = w.cfg.rates.news;
+  const days = w.metrics.days;
+  const avg = (xs: typeof days) => {
+    const n = xs.reduce((s, d) => s + d.cleared, 0);
+    return n > 0 ? xs.reduce((s, d) => s + d.avgClearedRate * d.cleared, 0) / n : 0;
+  };
+  const recent = avg(days.slice(-k.shortDays));
+  const before = avg(days.slice(-(k.shortDays + k.longDays), -k.shortDays));
+  if (!(recent > 0 && before > 0)) return { state: "steady", change: 0 };
+  const change = recent / before - 1;
+  return { state: change >= k.boomAt ? "booming" : change <= k.slumpAt ? "slumping" : "steady", change };
+}
+
+const CLEARS_MIN = 5;
+const CLEARS_ALPHA = 1 / 40;
+function trackClears(table: Record<string, [number, number]>, key: string, rate: number): void {
+  const x = table[key];
+  if (!x) table[key] = [rate, 1];
+  else {
+    x[0] += (x[1] < 1 / CLEARS_ALPHA ? 1 / (x[1] + 1) : CLEARS_ALPHA) * (rate - x[0]); // a plain mean for 40 clears, then trailing
+    x[1]++;
+  }
+}
+
+/** Every cleared spot load (board.ts assign; not contract tenders): the lane's and the origin market's trailing clearing rate. */
+export function noteClear(w: World, load: Load, rate: number): void {
+  if (load.contractId) return;
+  const c = (w.clears ??= { lane: {}, hub: {} });
+  trackClears(c.lane, `${load.laneId}:${load.equipment}`, rate);
+  trackClears(c.hub, `${load.origin}:${load.equipment}`, rate);
+}
+
+/**
+ * "Usually clears near" (R11, R1's bid anchor): the lane's trailing clearing rate for this trailer, else its origin market's,
+ * else the load's own reference; never above the load's ceiling.
+ */
+export function clearsNear(w: World, load: Load): number {
+  const lane = w.clears?.lane[`${load.laneId}:${load.equipment}`];
+  const hub = w.clears?.hub[`${load.origin}:${load.equipment}`];
+  const r = lane && lane[1] >= CLEARS_MIN ? lane[0] : hub && hub[1] >= CLEARS_MIN ? hub[0] : load.refRate * (load.hot || 1);
+  return Math.min(r, load.ceiling);
+}
+
 export function reserveFactor(w: World): number {
   const k = w.cfg.token.circular;
   if (!k.enabled) return 1;
@@ -145,7 +193,11 @@ export function generateRoundFreight(w: World): RoundFreight {
   // Cargo-theft risk on the lane (risk.ts), in the rate: a hotspot lane pays more.
   const theftPerMile = (lane: Lane, eq: Equipment) => theftRatePerMile(w, lane.origin, lane.dest, eq);
   // Freight into a market trucks can't reload in carries part of the empty run out, per loaded mile.
-  const exitPerMile = (lane: Lane, eq: Equipment) => (cfg.rates.exitDeadheadShare * cfg.rates.deadheadFdPerMile * expectedReloadDeadheadMi(w, lane.dest, eq)) / lane.miles;
+  const exitCap = cfg.rates.exitDeadheadMaxShareOfMiles;
+  const exitPerMile = (lane: Lane, eq: Equipment) => {
+    const dh = expectedReloadDeadheadMi(w, lane.dest, eq);
+    return (cfg.rates.exitDeadheadShare * cfg.rates.deadheadFdPerMile * (exitCap === null ? dh : Math.min(dh, exitCap * lane.miles))) / lane.miles;
+  };
   const rf = reserveFactor(w) * w.stab.rateMult; // the reserve, and the balance dial (step.ts monthlyStabilizers)
   const refRate = (lane: Lane, eq: Equipment) =>
     lane.baseRate *

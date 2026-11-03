@@ -4,7 +4,7 @@ import { fmtInt, fuelPrice } from "./economics.js";
 import { seasonality, EQUIPMENT } from "./demand.js";
 import { dayOf } from "./clock.js";
 import { creditScore } from "./credit.js";
-import { generateRoundFreight, bestExitHub } from "./freight.js";
+import { generateRoundFreight, bestExitHub, noteClear } from "./freight.js";
 import { rebrokerLoad, vettingBlock } from "./fraud.js";
 import { homeEdge, updateHomeCrowding } from "./home.js";
 import { creditDispatch, dispatchProfile, startHomeTime } from "./labor.js";
@@ -178,6 +178,7 @@ function assign(w: World, load: Load, truck: Truck, bid: Bid): void {
   load.carrierId = bid.companyId;
   load.truckId = truck.id;
   load.clearedRate = bid.rate;
+  noteClear(w, load, bid.rate); // what loads really clear at (freight.ts clearsNear)
   if (cfg.brokerage.enabled) onAssign(w, load, bid.companyId, bid.rate); // player brokerages: the rate flag, a passed load covered
   // Due = the HOS schedule (11 driving hours, then off until the 24-hour duty day
   // resets) + worst-case loading and unloading + slack. A long breakdown makes it late.
@@ -206,7 +207,7 @@ function assign(w: World, load: Load, truck: Truck, bid: Bid): void {
   }
 }
 
-function rollover(w: World, load: Load): void {
+export function rollover(w: World, load: Load): void {
   const raised = load.ceiling * (1 + w.cfg.board.rolloverCeilingStep);
   if (load.brokerId === null) {
     load.ceiling = raised;
@@ -218,8 +219,13 @@ function rollover(w: World, load: Load): void {
     const most = Math.max(load.shipperRate * (1 + w.cfg.brokerRisk.fallOffShare), load.spotShipperRate);
     load.ceiling = Math.max(load.ceiling, Math.min(raised, most));
   }
-  // Nobody took it at the book-now: the poster raises it toward the ceiling.
-  load.bookNow = Math.min(load.ceiling, load.bookNow * (1 + w.cfg.bookNow.stepPerRound));
+  // Nobody took it at the book-now: the poster raises it toward the ceiling. R11 (bookNow.towardCeilingRounds): from where it
+  // opened to the ceiling over that many rounds, so only a waited load books at the ceiling.
+  const toward = w.cfg.bookNow.towardCeilingRounds;
+  if (toward > 0) {
+    const open = (load.bookNowOpen ??= load.bookNow);
+    load.bookNow = Math.min(load.ceiling, open + (load.ceiling - open) * Math.min(1, (load.roundsUnfilled) / toward));
+  } else load.bookNow = Math.min(load.ceiling, load.bookNow * (1 + w.cfg.bookNow.stepPerRound));
   // The shipper still wants it moved, just later: the appointment slides back a round.
   load.appointmentT += w.cfg.time.gameMinutesPerDay / w.cfg.time.boardRoundHours.length;
 }

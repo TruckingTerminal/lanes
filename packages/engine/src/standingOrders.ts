@@ -5,7 +5,7 @@ import { mayTake } from "./contracts.js";
 import { dayOf, MINUTES_PER_HOUR } from "./clock.js";
 import { creditScore, loadCreditPremium } from "./credit.js";
 import { breakEvenPerMile, fuelPrice } from "./economics.js";
-import { expectedReloadDeadheadMi } from "./freight.js";
+import { clearsNear, expectedReloadDeadheadMi } from "./freight.js";
 import { vettingBlock } from "./fraud.js";
 import { homeEdge } from "./home.js";
 import { dispatchProfile, type DispatchProfile } from "./labor.js";
@@ -254,7 +254,12 @@ function priceLoad(
     // A counter: above the book-now (else the dispatcher just books), up to the ceiling,
     // or past it when the market is that hot — taken only if nobody offers within.
     // Weak broker paper costs more to haul for (credit.ts): the ask carries the premium.
-    const ask = (o.price.mode === "ceilingPct" ? load.ceiling * o.price.pct : breakEven * (1 + o.price.pct)) * (1 + loadCreditPremium(w, load.brokerId));
+    const ask =
+      (o.price.mode === "ceilingPct"
+        ? load.ceiling * o.price.pct
+        : o.price.mode === "clearsNear"
+          ? Math.max(breakEven, clearsNear(w, load) * (1 + o.price.pct)) // R1's anchor, break-even the floor
+          : breakEven * (1 + o.price.pct)) * (1 + loadCreditPremium(w, load.brokerId));
     // A desperate truck asks less: down toward what it will accept.
     const rate = Math.max(least, Math.min(ask * (1 - desperate * 0.5) + least * desperate * 0.5, hardCap(w, load)));
     if (!(rate > 0)) continue; // nobody hauls for nothing

@@ -15,7 +15,9 @@ export type StandingOrder =
       /** Only consider loads whose ceiling pays at least this per mile. */
       minCeilingPerMile?: number;
       maxDeadheadMi: number;
-      price: { mode: "ceilingPct"; pct: number } | { mode: "breakEvenPlus"; pct: number };
+      // "clearsNear" (R1's bid anchor): bid at what the load usually clears near (freight.ts clearsNear: the lane's trailing clears) plus pct,
+      // with break-even as the floor.
+      price: { mode: "ceilingPct"; pct: number } | { mode: "breakEvenPlus"; pct: number } | { mode: "clearsNear"; pct: number };
     }
   | {
       /** Never bid below lane break-even × (1 + pct). */
@@ -615,6 +617,9 @@ export interface Truck {
    */
   offDutySinceT?: number;
   breakShiftT?: number;
+  /** R12's weekly clock (hos.cycleHours), set only while it's on: driving minutes since the last restart, and when it last drove. */
+  cycleMin?: number;
+  cycleLastT?: number;
   pauseMin?: number;
   fuelMi?: number;
   /** Minutes left loading or unloading. */
@@ -792,6 +797,8 @@ export interface Load {
   ceiling: number;
   /** Take-it-now price per mile the poster set (board.ts bookLoad); a sealed bid never pays more. */
   bookNow: number;
+  /** R11 (bookNow.towardCeilingRounds): the book-now it opened at, kept at its first rollover. */
+  bookNowOpen?: number;
   postedRound: number;
   roundsUnfilled: number;
   status: LoadStatus;

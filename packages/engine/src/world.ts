@@ -136,6 +136,8 @@ export interface World {
   factoringLog?: FactoringLog;
   /** Player brokerages (brokerage.ts), made on first use. */
   brokerageLog?: BrokerageLog;
+  /** R11 and R1 (economy-player34.md stage 2): what loads really clear at, trailing, by lane and trailer and by origin market. */
+  clears?: { lane: Record<string, [number, number]>; hub: Record<string, [number, number]> };
   /** The Reserve (cashReserve.ts), made on first use: holding cost and season burns taken from it, deposits and withdrawals. */
   reserveStats?: { holdingFd: number; burnedFd: number; depositFd: number; withdrawFd: number };
   /** The population dial (population.ts), made on first use while it is on. */
@@ -235,7 +237,8 @@ export function createWorld(o: WorldOptions): World {
       peakOutstandingFd: 0,
       loansMade: 0,
     },
-    stab: { volumeMult: 1, rackSpread: 1, rateMult: 1 },
+    // The balance dial's day 0 (token.circular.rateStabilizer.start; 1 today): R11 can open the beta nearer its resting level.
+    stab: { volumeMult: 1, rackSpread: 1, rateMult: cfg.token.circular.enabled && cfg.token.circular.rateStabilizer.enabled ? cfg.token.circular.rateStabilizer.start : 1 },
     lastRatio: new Float64Array(o.net.hubs.length).fill(1),
     fillRate: { van: 0.7, reefer: 0.7, flatbed: 0.7 },
     contractIndex: new Float64Array(o.net.hubs.length * 3).fill(NaN),
@@ -410,7 +413,7 @@ export function invalidOrders(cfg: EconomyConfig, orders: unknown): string | nul
       case "bid":
         if (!finite(o.maxDeadheadMi, 0, 2_000)) return "bad max empty miles";
         if (o.minCeilingPerMile !== undefined && !finite(o.minCeilingPerMile, 0, 100)) return "bad minimum ceiling";
-        if (!o.price || (o.price.mode !== "ceilingPct" && o.price.mode !== "breakEvenPlus") || !finite(o.price.pct, 0, 5)) return "bad bid price";
+        if (!o.price || (o.price.mode !== "ceilingPct" && o.price.mode !== "breakEvenPlus" && o.price.mode !== "clearsNear") || !finite(o.price.pct, o.price.mode === "clearsNear" ? -0.5 : 0, 5)) return "bad bid price";
         if (o.equipment !== undefined && (!Array.isArray(o.equipment) || !o.equipment.every((e) => e === "van" || e === "reefer" || e === "flatbed"))) return "bad equipment list";
         if (o.originHubs !== undefined && (!Array.isArray(o.originHubs) || !o.originHubs.every((h) => typeof h === "string"))) return "bad origin list";
         break;
