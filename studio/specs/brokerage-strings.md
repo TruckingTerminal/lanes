@@ -144,7 +144,7 @@ One verb throughout: **start**. UX's draft says "Form"; the director's says "Sta
 | `fromChip` | Passed by `{carrier}` | changed: "From" could read as the shipper |
 | `ownFirst` | Offer to `{carrier}` first | kept (the order card's switch) |
 | `ownFirstRate` | It goes to `{carrier}` at your posting rate, within the lane's band. `{carrier}` may still decline. | changed: shorter, and "decline" matches the carrier's button |
-| `ownFirstSkips` | `{carrier}` has no free `{trailer}` within `{mi}` mi of the pickup, so your standing order would post it. | changed: names the trailer and the distance the rule checks |
+| `ownFirstSkips` | `{carrier}` has no free `{trailer}` at `{hub}`, so your standing order would post it. | changed: names the trailer and the hub, the case the rule checks (a truck standing at the pickup's own hub) |
 | `saved` | Standing order saved. | kept, with a full stop (the carrier's is "Dispatcher saved.") |
 
 **Feed lines** (the trail, one line per stage):

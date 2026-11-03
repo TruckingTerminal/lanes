@@ -152,6 +152,8 @@ The caption stays silent, unasked. Asked, What now? answers with these.
 | `now.stepPrefix` | before rule 4's action | Step `{n}` of `{total}` · |
 | `now.waitingMore` | after rule 2's reason | `{n}` of `{m}` waiting › |
 | `now.stale` | the answer, when the world moved | That's changed. Ask me again. |
+| `CAPTION.skip` | every step card (the director's R2) | Skip this step |
+| `CAPTION.skipped` | a skipped step in the list under More › Iuliia | · skipped (kept; it reads as a state beside the step's title, not a done tick) |
 | `explain.heading.what` · `.how` · `.moves` | the sheet's three headings | What it is · How it's computed · What moves it |
 
 ## 2. Milestones to day 91
