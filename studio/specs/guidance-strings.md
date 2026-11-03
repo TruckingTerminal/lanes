@@ -267,7 +267,7 @@ One entry per figure key. `what` and `moves` are the writer's; `how` is engineer
 | `finance.quickPayFee` | The cost of being paid on delivery, one load at a time. | `{quickPayPct}` of the load. | Nothing: it's fixed. Use it for emergencies. |
 | `invoice.cashNowFee` [switch cashNow] | The fee to cash an open invoice today instead of on its due day. | (engineering: the contract or spot rate, plus aging for each day since it was raised) | A contract's rate instead of spot; cashing an invoice while it's fresh. |
 | `invoice.cashNowLands` [switch cashNow] | What reaches your cash today if you cash this invoice now. | (engineering: the invoice, less the fee) | The fee: a contract's rate instead of spot, and the invoice's age. |
-| `guide.gapToTruck` | How far you are from your next truck. | The cheapest truck's cash needed now, less your deposit and cash above `{gapCushionWeeks}` weeks of costs. | Hauling; cheaper trucks on the used lot. |
+| `guide.gapToTruck` | How far you are from your next truck. | The cheapest truck's cash needed now, less your deposit and cash above `{gapCushionWeeks}` weeks of costs. | Hauling; the cheapest truck on offer, which changes; your spending, once your first week closes. |
 
 ### Danger
 

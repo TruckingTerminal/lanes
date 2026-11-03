@@ -46,6 +46,22 @@ The explain entry `market.security` is in `guidance-strings.md`.
 | Step 4, `brief` | Delivered, and paid today. Money shows the lessor's share and the `{holdPct}` held toward your own truck. |
 | Step 4, full text, second paragraph | "The lease also holds a little back" becomes "The lease also holds `{holdPct}` of each load back" |
 
+## Row 4: figures that move, and one insurance figure
+
+Engineering traced the next-truck gap's jumps to two causes. Each gets a line on the gap's explanation (`guide.gapToTruck`), shown when that cause moved it since the player last looked.
+
+| Key | Where | String |
+|---|---|---|
+| `gap.whyCheapest` | under the gap, the cheapest truck changed | The cheapest truck changed: listings come and go, and the used lot sells out and restocks. |
+| `gap.whyCushion` | under the gap, the first week closed | Your first week closed, so the gap now holds back `{gapCushionWeeks}` weeks of your spending. |
+
+**Insurance on Company** (engineering's drafts):
+
+| Where | Draft | New |
+|---|---|---|
+| The Policy row | `{fd}` FD a week now · `{fd}` FD a year for each truck you insure, renews `{date}` | `{fd}` FD a week · `{fd}` FD a year per insured truck · renews `{date}` |
+| Its note, a leased truck only | Your leased truck is on the lessor's policy, so you pay none of it until you own a truck. | kept |
+
 ## Row 5: your pay for driving
 
 The economy says where an owner-driver's pay goes **[economy]**. Two forms, one ships:
