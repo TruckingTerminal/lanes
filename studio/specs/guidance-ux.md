@@ -57,6 +57,17 @@ opens that step's full card in the sheet over the current tab (full height on a 
 the Why, the step's **Go to …** button, and **Back**/**Read ahead** between steps. Closing it returns to the tab.
 More › Iuliia keeps the whole list, the timeline and Help, as the archive, not the way in.
 
+**Where a step's moment plays** (the director's R5: on the screen and at the moment its event happens). Steps whose
+event engineering has attached play there. The ones that need a ruling:
+
+| Step | Plays | Screen | If its event never comes |
+|---|---|---|---|
+| **The law** | the company's **first inspection** of its own truck: the first `"safety"` notice for the company (`safety.ts`, "clean level 1 inspection at …" or one with findings). A bypass at a weigh station isn't an inspection and doesn't count. | Truck, as the inspection's line reaches the state line (`player5-ux.md` §5); the caption carries her line with **See your record** (opens More › Company at the safety record) | it plays on the **first visit to More › Company** (where the rating is), whichever comes first; never as a free-floating line on Truck when the step merely becomes current, which is how it read as a random tip on the return in diary 5 |
+
+A clean inspection plays her line as written; one with findings plays it too (it's the help she can give), but
+never in the same caption moment as an out-of-service order: then it waits for the truck to roll (the silence
+rule, section 6).
+
 **Laptop.** The caption under the five-tab control, as built, with the chip at the right of its button row. The
 key **?** opens What now? from anywhere outside a text field.
 
