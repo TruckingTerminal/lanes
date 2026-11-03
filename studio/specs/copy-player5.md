@@ -55,11 +55,12 @@ The cost is fuel, the driver's pay and tolls over the empty miles, from the same
 | Key | Button | String |
 |---|---|---|
 | `move.home` | Send home | Home · `{mi}` mi empty · about `{fd}` FD · `{days}` days |
-| `move.empty` | Send empty | To `{hub}` · `{mi}` mi empty · about `{fd}` FD · `{days}` days |
+| `move.emptyOption` | Send empty's destination list, one option per hub | `{hub}` · `{mi}` mi empty · about `{fd}` FD · `{days}` days · `{n}` loads there |
+| `move.empty` | Send empty, the button | Send empty |
 | `move.reposition` | Reposition | Reposition to `{hub}` · `{mi}` mi empty · about `{fd}` FD · `{days}` days |
 | `move.time` | the time part | 1 day · `{n}` days · under a day: `{h}` h |
 
-Explain entry `move.cost`: **what** "What this empty run should cost before the next load." · **how** "Fuel, your driver's pay and tolls over the empty miles, at today's prices." · **moves** "The distance, the price of diesel, and the truck's mpg."
+Explain entry `move.cost` (now in `guidance-strings.md` section 3): **what** "What this empty run should cost before the next load." · **how** "Fuel, your driver's pay and tolls over the empty miles, at today's prices." · **moves** "The distance, the price of diesel, and the truck's mpg."
 
 ## R25: the record lives in the world
 
