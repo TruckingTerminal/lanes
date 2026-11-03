@@ -1194,7 +1194,7 @@ export const economyConfig = {
       // owner's two companies can't be cashed (receivables.ts cashInvoice).
       // `botsNetOnly` is a batch scenario, not a rule: owner-operator bots on their first trucks keep net terms (no
       // contract, no quick pay), as a player who declined them would, so the invoice gap is theirs to bridge.
-      cashNow: { enabled: false, spotPct: 0.08, agingPerDay: 0.001, agingCap: 0.03, botsNetOnly: false },
+      cashNow: { enabled: true, spotPct: 0.08, agingPerDay: 0.001, agingCap: 0.03, botsNetOnly: false },
       factoring: {
         discountNpc: 0.04, // an NPC shipper's paper, per 30-day invoice (× the pool's markup, or × pools.factoring.backstopMarkup at the NPC factor)
         discountPlayer: 0.06, // a player broker's or shipper's paper
@@ -1649,6 +1649,17 @@ export const economyConfig = {
     minCarrierAgeDays: 0,
     transferFeePct: 0.03,
     band: [0.85, 1.15] as const,
+    // A new brokerage's first standing order and its float (studio/reviews/economy-brokerage.md §5c): formBrokerage gives it
+    // the broker order at `defaultMarginPct` with `defaultOpenLoads`, vetting at `defaultVetting` (standard), and the
+    // forming sheet's capital is its bond, its licence and `startCashFd` of working cash. A shipper's tender to it is held
+    // off the board for contracts.tenderHours: the owner posts it, tenders it to the own carrier or declines it; at the
+    // window's end the standing order posts it (or tenders it to the own carrier first, `ownFirst`), and with no order a
+    // tender is declined and goes on as NPC freight. A passed load can't be declined: at the end of the carrier's window
+    // the order posts it, or `defaultMarginPct` does.
+    defaultMarginPct: 0.05,
+    defaultOpenLoads: 20,
+    defaultVetting: 1,
+    startCashFd: 15_000,
     // Double brokering closed to player carriers in the rules, not only on the screens.
     closeDoubleBrokering: true,
     // Batch scenario (ruleBots.ts), not a rule: the share of carrier bots that form a brokerage when they can, and

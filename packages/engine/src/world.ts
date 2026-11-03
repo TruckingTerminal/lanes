@@ -422,7 +422,7 @@ export function invalidOrders(cfg: EconomyConfig, orders: unknown): string | nul
         if (o.to !== "nearestStarterHub" && !(o.to && typeof o.to === "object" && (("openLoadsWithinMi" in o.to && finite(o.to.openLoadsWithinMi, 0, 5_000)) || ("hubId" in o.to && typeof o.to.hubId === "string")))) return "bad destination";
         break;
       case "broker":
-        if (!finite(o.marginPct, 0, 0.9) || !finite(o.maxOpenLoads, 0, 10_000)) return "bad broker order";
+        if (!finite(o.marginPct, 0, 0.9) || !finite(o.maxOpenLoads, 0, 10_000) || (o.ownFirst !== undefined && typeof o.ownFirst !== "boolean")) return "bad broker order";
         break;
       case "rebroker":
         if (!finite(o.share, 0, 1) || !finite(o.keepPct, 0, 0.9) || typeof o.pays !== "boolean") return "bad rebroker order";

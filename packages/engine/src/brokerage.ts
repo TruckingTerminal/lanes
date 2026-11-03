@@ -114,6 +114,7 @@ export function brokerageLog(w: World): BrokerageLog {
     countedOnce: 0,
     laneRates: {},
     hubRates: {},
+    holds: { held: 0, postedByOrder: 0, postedByHand: 0, declined: 0, toOwn: 0, passedPosted: 0 },
     launchHeldFd: 0,
     launchDrawnFd: 0,
     launchLateBurnFd: 0,
@@ -163,6 +164,9 @@ export function formBrokerage(w: World, carrier: Company, name: string, capitalF
   const b = formCompany(w, { name, role: "broker", homeHubId: w.net.hubs[carrier.homeHub]!.id, strategy: `brokerage:${carrier.strategy}`, orders: [], freePath: false, human: carrier.human, grant: false });
   b.partnerId = carrier.id;
   carrier.partnerId = b.id;
+  // Its first standing order (§5c): shippers tender only to a broker that has one.
+  b.orders = [{ kind: "broker", marginPct: w.cfg.brokerage.defaultMarginPct, maxOpenLoads: w.cfg.brokerage.defaultOpenLoads }];
+  b.vetting = w.cfg.brokerage.defaultVetting as Company["vetting"];
   brokerageLog(w).formed.push({ day: dayOf(w.t, w.cfg), carrierId: carrier.id, brokerId: b.id, capitalFd, toBrokerFd: 0, toCarrierFd: 0, feeFd: 0 });
   const moved = transferCapital(w, carrier, b, capitalFd, true);
   if (moved) throw new Error(`brokerage capital: ${moved}`); // checked above
@@ -278,11 +282,15 @@ export function passTender(w: World, carrier: Company, load: Load, atWindowEnd =
   load.bookNow = Math.min(load.bookNow, ceiling);
   load.vet = Math.max(load.vet, b.vetting) as Load["vet"];
   load.passedBy = carrier.id;
+  // Held for the rest of the carrier's window, then posted (it can't be declined): holdAtEnd.
+  load.hold = { brokerId: b.id, until: Math.max(w.t, load.tenderUntil), declinable: false };
   load.tenderedTo = 0;
   load.tenderUntil = 0;
   load.localUntilRound = 0;
   b.openBrokerLoads++;
-  brokerageLog(w).passes++;
+  const log = brokerageLog(w);
+  log.passes++;
+  log.holds.held++;
   return null;
 }
 
@@ -295,16 +303,96 @@ export function tenderOwn(w: World, broker: Company, load: Load, rate: number): 
   const c = partnerOf(w, broker);
   if (!c || broker.role !== "broker") return refuse(w, "the brokerage has no carrier");
   if (load.brokerId !== broker.id || load.status !== "open" || load.tenderedTo !== 0 || load.doubleBroker || load.shipperId !== null) return refuse(w, "only an open load of the brokerage's own");
+  if (load.hold && load.hold.brokerId !== broker.id) return refuse(w, "only an open load of the brokerage's own");
   if (load.passedBy === c.id) return refuse(w, "a passed load never goes back to the carrier that passed it");
   if (c.authority.status !== "active" || c.liquidatingSince !== null) return refuse(w, "the carrier isn't trading");
   const [lo, hi] = ownBand(w, load);
   if (!(rate >= lo - 1e-9 && rate <= hi + 1e-9)) return refuse(w, "the pay is outside the lane's band");
+  if (load.hold) {
+    load.hold = undefined; // out of the hold: to the own carrier, then the board if it lapses
+    load.postedRound = w.round;
+    load.roundsUnfilled = 0;
+    brokerageLog(w).holds.toOwn++;
+  }
   load.tenderedTo = c.id;
   load.tenderUntil = w.t + w.cfg.contracts.tenderHours * 60;
   load.ownTenderRate = rate;
   load.localUntilRound = 0;
   brokerageLog(w).ownTenders++;
   return null;
+}
+
+/**
+ * The hold (the director's brief §3a, answer 1): a shipper's tender to a player's brokerage stays off the board for
+ * contracts.tenderHours, an "offered to you" moment in which the owner posts it, tenders it to the own carrier or
+ * declines it. AI brokers post at once, as before (freight.ts tenderToBroker).
+ */
+export function startHold(w: World, load: Load, broker: Company): void {
+  if (!w.cfg.brokerage.enabled || broker.partnerId === undefined) return;
+  load.hold = { brokerId: broker.id, until: w.t + w.cfg.contracts.tenderHours * 60, declinable: true };
+  brokerageLog(w).holds.held++;
+}
+
+const brokerOrderOf = (b: Company) => b.orders.find((o): o is Extract<Company["orders"][number], { kind: "broker" }> => o.kind === "broker");
+
+/** Posts a held load to the board at this margin of the shipper's rate: priced and posted from this round. */
+export function postHeld(w: World, broker: Company, load: Load, marginPct?: number, byHand = true): string | null {
+  if (!load.hold || load.hold.brokerId !== broker.id || load.status !== "open") return "that tender isn't held for you";
+  const m = Math.min(0.9, Math.max(0, marginPct ?? brokerOrderOf(broker)?.marginPct ?? w.cfg.brokerage.defaultMarginPct));
+  load.ceiling = load.shipperRate * (1 - m);
+  load.bookNow = Math.min(load.bookNow, load.ceiling);
+  load.hold = undefined;
+  load.postedRound = w.round;
+  load.roundsUnfilled = 0;
+  const h = brokerageLog(w).holds;
+  if (byHand) h.postedByHand++;
+  else h.postedByOrder++;
+  return null;
+}
+
+/** Declines a held tender: it goes on as the shipper's own spot freight on the open board, as when no broker takes one. */
+export function declineHeld(w: World, broker: Company, load: Load): string | null {
+  if (!load.hold || load.hold.brokerId !== broker.id || load.status !== "open") return "that tender isn't held for you";
+  if (!load.hold.declinable) return "a load your carrier passed you can't be declined";
+  load.brokerId = null;
+  load.shipperRate = load.spotShipperRate;
+  load.ceiling = load.spotShipperRate;
+  load.bookNow = Math.min(load.bookNow, load.ceiling);
+  load.hold = undefined;
+  load.postedRound = w.round;
+  load.roundsUnfilled = 0;
+  broker.openBrokerLoads--;
+  brokerageLog(w).holds.declined++;
+  return null;
+}
+
+/**
+ * Each round (board.ts, after the tenders): holds whose window has ended. The standing order acts: tender to the own
+ * carrier first when it says so and a truck of that trailer stands idle and crewed at the pickup's hub, inside the band;
+ * else post at its margin. With no order a tender is declined; a passed load is posted at the default margin.
+ */
+export function holdsAtEnd(w: World): void {
+  if (!w.cfg.brokerage.enabled) return;
+  for (const load of w.loads.values()) {
+    const h = load.hold;
+    if (!h || load.status !== "open" || w.t < h.until) continue;
+    const b = w.companies[h.brokerId - 1]!;
+    const order = b.liquidatingSince === null ? brokerOrderOf(b) : undefined;
+    if (order?.ownFirst) {
+      const c = partnerOf(w, b);
+      const truck = c && load.passedBy !== c.id ? (w.trucksByCompany.get(c.id) ?? []).find((t) => t.status === "idle" && t.driverId !== 0 && t.trailer === load.equipment && t.hub === load.origin) : undefined;
+      if (truck) {
+        const [lo, hi] = ownBand(w, load);
+        if (tenderOwn(w, b, load, Math.min(hi, Math.max(lo, load.shipperRate * (1 - order.marginPct)))) === null) continue;
+      }
+    }
+    if (order) postHeld(w, b, load, order.marginPct, false);
+    else if (h.declinable) declineHeld(w, b, load);
+    else {
+      postHeld(w, b, load, w.cfg.brokerage.defaultMarginPct, false);
+      brokerageLog(w).holds.passedPosted++;
+    }
+  }
 }
 
 /**

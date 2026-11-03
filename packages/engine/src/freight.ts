@@ -23,6 +23,7 @@ export function reserveFactor(w: World): number {
   return clamp(dpow(Math.max(0, w.ledger.reserve()) / genesis, k.reserveFactor.exponent), k.reserveFactor.clamp[0], k.reserveFactor.clamp[1]);
 }
 import type { Load } from "./types.js";
+import { startHold } from "./brokerage.js";
 import type { World } from "./world.js";
 
 /** Destination weights per origin hub and equipment; static, so cached per network. */
@@ -405,6 +406,7 @@ function tenderToBroker(w: World, load: Load, brokers: Company[], contractShippe
   load.ceiling = contractShipperRate * (1 - margin);
   load.bookNow = Math.min(load.bookNow, load.ceiling);
   broker.openBrokerLoads++;
+  startHold(w, load, broker); // a player's brokerage holds it off the board first (brokerage.ts)
   if (books) {
     let b = books.get(broker.id);
     if (!b) books.set(broker.id, (b = { apFd: 0, postedFd: 0 }));

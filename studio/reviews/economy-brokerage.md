@@ -331,6 +331,60 @@ the launch (37 a seed), and supply ends 9% higher. It also cuts what player ship
 **My recommendation for Jeff:** P2. Set the surety at 1–6% a year by credit, and the credit premium's maximum at 10%.
 Keep the board fee, the bond and the margins as they are.
 
+## 5c. The hold, and a brokerage's first orders
+
+Engineering built the screens on the patch and found two gaps. Both are now in the engine, behind `brokerage.enabled`.
+
+**The hold** (the director's brief §3a, answer 1):
+- **For player brokerages only.** A shipper's tender to one is held off the board for `contracts.tenderHours` (12 game
+  hours, about one board round): `Load.hold`, `startHold` in `freight.ts`, `mayTake` refuses a held load to every
+  carrier. AI brokers post at once, as today.
+- **During the hold** the owner may:
+  - post it at a margin of its choosing (`post_tender`, `postHeld`);
+  - tender it to the own carrier inside the band (`tender_own` takes it straight from the hold);
+  - decline it (`decline_tender`): it goes on as the shipper's own spot freight on the open board, as when no broker
+    takes one.
+- **At the window's end** (`holdsAtEnd`, each round after the tenders) the standing order acts. With
+  `ownFirst: true` on the broker order, it tenders the load to the own carrier first, when a crewed truck of that
+  trailer stands idle at the pickup's hub, at the order's margin held inside the band; otherwise it posts at the
+  order's margin. With no order, a tender is declined.
+- **A passed load** (Rule A) can't be declined and is never dropped. Its hold is the rest of the carrier's window, and
+  then the order posts it, or `brokerage.defaultMarginPct` does.
+- Hand calls share the hold. A held load neither rolls over nor falls off while it waits.
+- Counted in `report.brokerage.holds`: held, posted by hand, posted by the order, declined, sent to the own carrier,
+  passed loads posted at the default.
+
+**The first orders: `formBrokerage` should set them itself, and now does.** A brokerage with no broker order gets no
+tenders, so without one it is dead on arrival. The defaults:
+
+| Key | Size | Why |
+|---|---|---|
+| `brokerage.defaultMarginPct` | **5%** | the post-launch sizing (§5b): at 5% a new brokerage wins more tenders (shippers weight brokers by 1 ÷ margin²) and loses fewer to fall-offs; year 1 positive for 83%, 58% paid back. Engineering's 10% wins few tenders; the AI's 7–12% did worse (P0) |
+| `brokerage.defaultOpenLoads` | **20** | the AP cap binds first: a 75k bond carries about 25 posted loads at a typical 3k (about 650 miles at a 4.3 ceiling), so 40 is never reached; 20 leaves room for what's booked |
+| `brokerage.defaultVetting` | 1 (standard) | 30 days of authority. It keeps the newest carriers, and the AI's fresh double brokers, off its paper without shrinking the field much |
+| `brokerage.startCashFd` | **15,000** | the working cash on the forming sheet: the first year's surety (about 5k at a new brokerage's credit), the licence, and about a month of fall-off charges and shipper defaults. Engineering's prefill (the bond, the licence and the first year's premium) leaves no float. Shipper and carrier paper are both net 30, so no other float is needed. The batch's pairs started this way |
+
+So the forming sheet's capital is the bond (75,000), the licence (300) and the start cash (15,000): 90,300 FD, and
+93,009 with the 3% transfer fee. Engineering's first `set_standing_orders` and `set_vetting` can go; the owner
+changes them later.
+
+**A check with the hold on** (`runs/v59-ph`, seeds 1–3, post-launch formation, the bots at the 5% default and 20
+loads): against P3 (the same 5% margin, 40 loads, no hold):
+
+| Seeds 1–3 | P3: 5%, 40 loads, no hold | **Hold on, 5%, 20 loads** |
+|---|---|---|
+| Year 1: operating result, median (positive) | +7.7k (83%) | **+24.4k (85%)** |
+| Year 1: owner's gain, median (paid back) | +1.8k (58%) | **+10.4k (85%)** |
+| Gain at the run's end, median (positive) | +2.9k (67%) | +10.0k (79%) |
+| Holds a seed: held / posted by the order / declined / to the own carrier | – | 2,040 / 2,033 / 3 / 4 |
+| Board cleared rate | 3.946 | 3.957 |
+| Liquidations, all / sinks ÷ faucets | 382 / 90.6% | 365 / 90.5% |
+
+With the defaults, a post-launch brokerage pays back its licence, surety and fees within its first year on 85% of
+pairs. The 20-load default keeps it inside what its bond carries, so it takes fewer loads it can't place. The hold
+costs nothing: the bots' orders post 99.7% of held tenders at the window's end. A human owner's hand calls replace
+that.
+
 ## 6. For Jeff and the producer
 
 - **To switch it on:** `brokerage.enabled` with the ruleset bump and a restart with no players. Engineering builds the

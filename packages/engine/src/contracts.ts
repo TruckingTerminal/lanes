@@ -45,6 +45,7 @@ export function isLocal(w: World, c: Company, hub: number): boolean {
 /** Whether this company may take a load at all: the local-first window and tenders to someone else keep others off. */
 export function mayTake(w: World, c: Company, load: Load): boolean {
   if (load.tenderedTo !== 0 && load.tenderedTo !== c.id) return false;
+  if (load.hold) return false; // held for a player's brokerage, not on the board yet (brokerage.ts)
   if (localOnly(w, load) && !isLocal(w, c, load.origin)) return false;
   return true;
 }

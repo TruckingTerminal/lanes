@@ -11,14 +11,17 @@ import {
   createWorld,
   dailyReceivables,
   formCompany,
+  holdsAtEnd,
   laneRate,
   launchHold,
+  mayTake,
   ownBand,
   partnerOf,
   rebrokerLoad,
   releaseLaunchHolds,
   runDays,
   samePerson,
+  startHold,
   stakeAccount,
   type Company,
   type Load,
@@ -210,6 +213,60 @@ describe("player brokerages (brokerage.enabled)", () => {
     // Outside the window, refused.
     const late = testLoad(w, lane, { contractId: contract.id, tenderedTo: c.id, tenderUntil: w.t - 1 });
     expect(applyAction(w, c.id, { type: "pass_tender", loadId: late.id })).toEqual({ ok: false, reason: "the tender's window has closed" });
+  });
+
+  it("starts a brokerage with the default standing order and vetting, so shippers tender to it from its first round", () => {
+    const { b } = pair(11);
+    expect(b.orders).toEqual([{ kind: "broker", marginPct: on.brokerage.defaultMarginPct, maxOpenLoads: on.brokerage.defaultOpenLoads }]);
+    expect(b.vetting).toBe(on.brokerage.defaultVetting);
+    expect(on.brokerage.startCashFd).toBe(15_000);
+  });
+
+  it("holds a shipper's tender off the board for the brokerage: posted at a margin, declined to the open board, or, at the window's end, as the standing order says", () => {
+    const { w, c, b } = pair(12);
+    const lane = net.lanes.find((l) => l.miles > 300 && l.miles < 600)!;
+    const stranger = carrier(w, "Stranger");
+    const held = () => {
+      const load = testLoad(w, lane, { brokerId: b.id, shipperRate: 3, spotShipperRate: 3.2, ceiling: 2.85 });
+      b.openBrokerLoads++;
+      startHold(w, load, b);
+      return load;
+    };
+    // Held: no carrier may take it, not even the owner's.
+    const a = held();
+    expect(a.hold).toMatchObject({ brokerId: b.id, declinable: true });
+    expect(mayTake(w, stranger, a)).toBe(false);
+    expect(mayTake(w, c, a)).toBe(false);
+    // Posted by hand at 8%: on the board at 92% of the shipper's rate.
+    expect(applyAction(w, b.id, { type: "post_tender", loadId: a.id, marginPct: 0.08 })).toEqual({ ok: true });
+    expect(a.hold).toBeUndefined();
+    expect(a.ceiling).toBeCloseTo(3 * 0.92, 9);
+    expect(mayTake(w, stranger, a)).toBe(true);
+    // Declined: it goes on as the shipper's own spot freight.
+    const d = held();
+    expect(applyAction(w, b.id, { type: "decline_tender", loadId: d.id })).toEqual({ ok: true });
+    expect(d.brokerId).toBeNull();
+    expect(d.ceiling).toBeCloseTo(3.2, 9);
+    // At the window's end the standing order posts it at its margin; with no order it is declined.
+    const e = held();
+    w.t = e.hold!.until;
+    holdsAtEnd(w);
+    expect(e.hold).toBeUndefined();
+    expect(e.ceiling).toBeCloseTo(3 * (1 - on.brokerage.defaultMarginPct), 9);
+    b.orders = [];
+    const f = held();
+    w.t = f.hold!.until;
+    holdsAtEnd(w);
+    expect(f.brokerId).toBeNull();
+    // A passed load can't be declined, and with no order it is posted at the default margin.
+    const g = held();
+    g.hold!.declinable = false;
+    expect(applyAction(w, b.id, { type: "decline_tender", loadId: g.id })).toEqual({ ok: false, reason: "a load your carrier passed you can't be declined" });
+    w.t = g.hold!.until;
+    holdsAtEnd(w);
+    expect(g.brokerId).toBe(b.id);
+    expect(g.ceiling).toBeCloseTo(3 * (1 - on.brokerage.defaultMarginPct), 9);
+    expect(brokerageLog(w).holds).toMatchObject({ held: 5, postedByHand: 1, declined: 2, postedByOrder: 2, passedPosted: 1 });
   });
 
   it("closes double brokering to a carrier with a brokerage, as an action and as a standing order", () => {

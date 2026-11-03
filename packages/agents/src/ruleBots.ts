@@ -1886,7 +1886,6 @@ export const ruleBotHook: DailyAgentHook = (w) => {
  * - an owner closes a brokerage that lost money over its last eight weeks once it has run a quarter: no new freight,
  *   no more rescues, the bond unstaked once its paper is paid and its cash brought home.
  */
-const BROKERAGE_FLOAT_FD = 15_000;
 const pairState = new WeakMap<Company, { formedDay: number; marks: { day: number; net: number }[]; closed: boolean; unstaked: boolean }>();
 const chosenForBrokerage = (w: World, c: Company) => ((Math.imul(c.id, 2654435761) >>> 0) / 4294967296) < w.cfg.brokerage.bots.share;
 
@@ -1896,8 +1895,8 @@ function runBrokerages(w: World, today: number): void {
   if (layerBlock(w, "brokerage")) return;
   const log = brokerageLog(w);
   const controlled = new Set(log.controls.map((x) => x.carrierId));
-  const need = formationCostFd(w, BROKERAGE_FLOAT_FD);
-  const capital = cfg.token.staking.roles.broker + cfg.permits.brokerLicenseRenewalFd + BROKERAGE_FLOAT_FD;
+  const need = formationCostFd(w, cfg.brokerage.startCashFd);
+  const capital = cfg.token.staking.roles.broker + cfg.permits.brokerLicenseRenewalFd + cfg.brokerage.startCashFd;
   // Rule B's candidates, in one pass: each player brokerage's open shipper loads.
   const open = new Map<number, Load[]>();
   for (const load of w.loads.values()) {
@@ -1927,7 +1926,7 @@ function runBrokerages(w: World, today: number): void {
       const rng = w.rng.agents.fork(`brokerage:${broker.id}`);
       profiles.set(broker, brokerProfile(persona, rng));
       const m = cfg.brokerage.bots.marginPct;
-      applyAction(w, broker.id, { type: "set_standing_orders", orders: m === null ? brokerOrders(persona, rng) : [{ kind: "broker", marginPct: m, maxOpenLoads: 40 }] });
+      applyAction(w, broker.id, { type: "set_standing_orders", orders: m === null ? brokerOrders(persona, rng) : [{ kind: "broker", marginPct: m, maxOpenLoads: cfg.brokerage.defaultOpenLoads }] });
       broker.vetting = c.vetting;
       c.passTenders = true;
       if (cfg.brokerage.closeDoubleBrokering) {
@@ -1959,7 +1958,7 @@ function runBrokerages(w: World, today: number): void {
     const cash = (x: Company) => w.ledger.balance(companyAccount(x.id));
     const fee = 1 + cfg.brokerage.transferFeePct;
     const bp = profiles.get(b);
-    const brokerKeep = Math.max(BROKERAGE_FLOAT_FD, bp ? reserve(w, b, bp) : 0);
+    const brokerKeep = Math.max(cfg.brokerage.startCashFd, bp ? reserve(w, b, bp) : 0);
     // A brokerage that lost money over its last eight weeks, once it has run a quarter, is closed by its owner.
     if (st && !st.closed) {
       const net = b.operating.revenueFd - b.operating.costFd;
@@ -1982,7 +1981,7 @@ function runBrokerages(w: World, today: number): void {
       const give = Math.min(cash(b) - brokerKeep, -cash(c) + reserve(w, c, p) * 0.5) / fee;
       if (give > 500) applyAction(w, b.id, { type: "transfer_capital", fd: give });
     } else if (cash(b) < 0 || b.weeksInDebt > 0) {
-      const give = Math.min(cash(c) - reserve(w, c, p), -cash(b) + BROKERAGE_FLOAT_FD) / fee;
+      const give = Math.min(cash(c) - reserve(w, c, p), -cash(b) + cfg.brokerage.startCashFd) / fee;
       if (give > 500) applyAction(w, c.id, { type: "transfer_capital", fd: give });
     } else if (today % cfg.time.daysPerMonth < 7 && cash(b) - brokerKeep * 2 > 10_000) {
       applyAction(w, b.id, { type: "transfer_capital", fd: (cash(b) - brokerKeep * 2) / fee });

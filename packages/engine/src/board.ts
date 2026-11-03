@@ -1,5 +1,5 @@
 import { acceptTender, autoTenders, expireTenders, mayTake, settleTender } from "./contracts.js";
-import { onAssign, onFallOff } from "./brokerage.js";
+import { holdsAtEnd, onAssign, onFallOff } from "./brokerage.js";
 import { fmtInt, fuelPrice } from "./economics.js";
 import { seasonality, EQUIPMENT } from "./demand.js";
 import { dayOf } from "./clock.js";
@@ -38,6 +38,7 @@ export function runBoardRound(w: World): RoundResult {
   w.round++;
   updateHomeCrowding(w);
   expireTenders(w);
+  holdsAtEnd(w); // tenders held for player brokerages whose window has ended (brokerage.ts)
   const idx = indexOpenLoads(w);
   const openByEq = { van: 0, reefer: 0, flatbed: 0 };
   for (const load of w.loads.values()) if (load.status === "open") openByEq[load.equipment]++;
@@ -109,7 +110,7 @@ export function runBoardRound(w: World): RoundResult {
   let rolled = 0;
   let expired = 0;
   for (const load of [...w.loads.values()]) {
-    if (load.status !== "open" || load.postedRound >= w.round) continue;
+    if (load.status !== "open" || load.postedRound >= w.round || load.hold) continue;
     load.roundsUnfilled++;
     if (load.roundsUnfilled >= w.cfg.board.giveUpAfterRounds + (load.localUntilRound > 0 ? w.cfg.leverage.localRounds : 0)) {
       giveUp(w, load);

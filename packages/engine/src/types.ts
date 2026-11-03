@@ -55,6 +55,8 @@ export type StandingOrder =
       kind: "broker";
       marginPct: number;
       maxOpenLoads: number;
+      /** A player's brokerage (brokerage.ts): at a held tender's end, tender it to the own carrier first, inside the band. */
+      ownFirst?: boolean;
     }
   | {
       /**
@@ -741,6 +743,8 @@ export interface BrokerageLog {
   laneRates: Record<string, [number, number]>;
   hubRates: Record<string, [number, number]>;
   /** The launch reset (brokerage.ts launchHold): beta bond kept behind open paper, what that paper drew from it, what burned once it was paid, and the days it took. */
+  /** Tenders held for player brokerages: how many, and how each hold ended. */
+  holds: { held: number; postedByOrder: number; postedByHand: number; declined: number; toOwn: number; passedPosted: number };
   launchHeldFd: number;
   launchDrawnFd: number;
   launchLateBurnFd: number;
@@ -805,6 +809,8 @@ export interface Load {
   passedBy?: number;
   /** Rule B: a tender from the broker to its own carrier at this pay per mile, inside the lane's band. */
   ownTenderRate?: number;
+  /** A shipper's tender held off the board for a player's brokerage until `until` (brokerage.ts): it posts, tenders to its own carrier or (unless passed) declines. */
+  hold?: { brokerId: number; until: number; declinable: boolean };
 }
 
 /** A contract lane a local shipper gives a carrier: a weekly volume at a fixed rate for a term (contracts.ts). */
@@ -1077,6 +1083,8 @@ export type Action =
   | { type: "form_brokerage"; name: string; capitalFd: number }
   /** The owner's capital moved to its other company (equity, never revenue), less the transfer fee. */
   | { type: "transfer_capital"; fd: number }
+  /** A player's brokerage posts a held shipper tender to the board, at this margin (its standing order's when left out). */
+  | { type: "post_tender"; loadId: number; marginPct?: number }
   /** Rule A: a carrier passes a direct contract tender to its brokerage. */
   | { type: "pass_tender"; loadId: number }
   /** Rule B: a brokerage tenders one of its shipper loads to its own carrier at this pay per mile. */

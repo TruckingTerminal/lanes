@@ -22,7 +22,7 @@ import { facilitiesOf, facilityEquipment } from "./demand.js";
 import { borrow, deposit, repayLoan, withdraw } from "./finance.js";
 import { companyAccount } from "./ledger.js";
 import { rebrokerLoad, stealLoad, vettingBlock } from "./fraud.js";
-import { formBrokerage, partnerOf, passTender, tenderOwn, transferCapital } from "./brokerage.js";
+import { declineHeld, formBrokerage, partnerOf, passTender, postHeld, tenderOwn, transferCapital } from "./brokerage.js";
 import { depositReserve, withdrawReserve } from "./cashReserve.js";
 import { finiteIn } from "./economics.js";
 import { offerStaff, releaseStaff, setPay, severance, startHomeTime } from "./labor.js";
@@ -108,6 +108,8 @@ export function badInput(cfg: EconomyConfig, a: Action): string | null {
       return isFd(a.fd) && a.fd > 0 ? null : "bad amount";
     case "pass_tender":
       return isId(a.loadId) ? null : "bad load";
+    case "post_tender":
+      return isId(a.loadId) && (a.marginPct === undefined || finiteIn(a.marginPct, 0, 0.9)) ? null : "bad posting";
     case "tender_own":
       return isId(a.loadId) && finiteIn(a.rate, 0.01, 100) ? null : "bad tender";
     case "rebuild_truck":
@@ -427,6 +429,12 @@ export function applyAction(w: World, companyId: number, action: Action): Action
       return result(transferCapital(w, company, other, action.fd));
     }
 
+    case "post_tender": {
+      const load = w.loads.get(action.loadId);
+      if (!load) return { ok: false, reason: "that tender is gone" };
+      return result(postHeld(w, company, load, action.marginPct));
+    }
+
     case "pass_tender": {
       const load = w.loads.get(action.loadId);
       if (!load) return { ok: false, reason: "that tender is gone" };
@@ -441,6 +449,7 @@ export function applyAction(w: World, companyId: number, action: Action): Action
 
     case "decline_tender": {
       const load = w.loads.get(action.loadId);
+      if (load?.hold && load.hold.brokerId === company.id) return result(declineHeld(w, company, load)); // a player brokerage's held tender (brokerage.ts)
       if (!load || load.status !== "open" || load.tenderedTo !== company.id) return { ok: false, reason: "that tender isn't open to you" };
       rejectTender(w, load);
       return { ok: true };
