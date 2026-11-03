@@ -7,6 +7,11 @@ as esbuild loads them, and writes the page to a directory of your own. Nothing h
 Never edit the shared config to flip a switch, not even for a minute: on 2026-11-02 another role's commit took the
 whole file while a temporary `cashNow: true` sat in it (fixed in 4127dd1).
 
+**Build a commit, not the shared tree, when you're checking a commit.** The script bundles whatever sits in the checkout,
+other roles' uncommitted edits included (`node_modules/@lanes/*` link into the shared `packages/`). To check exactly a
+commit, `git archive <commit> | tar -x -C "$SCRATCH/tree"`, run `npm ci` there (or link its `node_modules/@lanes/*` to its
+own `packages/`), and run steps 1 to 3 from that copy (QA, 2026-11-03).
+
 ## 1. Make the check script (once per session; it follows the current build.mjs)
 
 From the repo root (`lanes/`), in your own scratchpad (`$SCRATCH` below is any directory of yours outside the repo):
