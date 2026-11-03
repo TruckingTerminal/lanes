@@ -15,16 +15,17 @@ This covers rulings R1–R25 and the open rows of the five player triages (`dire
 
 ## (a) Before the next live restart and republish
 
-**Rules: these ride the restart.**
-1. **The brokerage switch-on** (`brokerage.enabled`):
-   - the economy's sizes, with the halved surety and credit premium if Jeff takes them;
-   - double brokering closed to player carriers (Jeff);
+**Rules: these ride the restart.** Order per Jeff, 2026-11-03 (`DECISIONS.md`): the market fix goes ahead of the brokerage.
+
+1. **The economy's bump (list b), with the market fix first.**
+2. **R12's engine half:** no shift past the company's own 11 hours. The 687-mile shift is a bug that changes results, so it rides the bump.
+3. **The brokerage switch-on** (`brokerage.enabled`) **rides this restart only if QA has found it clean on a flagged build by then.** Otherwise it takes the next free restart before live day 91. It carries:
+   - both premiums halved (Jeff);
+   - double brokering closed to player carriers;
    - the bond's launch-reset rule;
    - cashing invoices with the aging surcharge.
 
-   QA replays it on a flagged build first.
-2. **The minimum of the economy's bump:** R16's pay floor, R17's ceiling, R1 (off until switched on, fleet starts included, bids anchored to the clearing rate), R8 (auto-staff off), and contract signing off. Each is a default or a clamp: small in the sim, and each closes an exploit or a loss of choice a first player meets in his first hour. List (b) has the rest; it rides along if it is ready.
-3. **R12's engine half:** no shift past the company's own 11 hours. The 687-mile shift is a bug that changes results, so it rides the bump.
+   The market fix does not wait for the brokerage.
 
 **Chrome a first live player meets: this goes in with the republish, Jeff's word.**
 
@@ -38,22 +39,30 @@ This covers rulings R1–R25 and the open rows of the five player triages (`dire
 | **R22** one true reason at the wall; **R24** the price on SEND HOME | Night two, stranded (diary 5) | Both are cheap, and together they turn the stuck evening into a decision |
 | **R9** a badge that counts only actionable items; **R10** a line with a button stays | Day 1 and the first month's close | The badge is his to-do list, so it must be true |
 | **R3** the crime words | Rates, Business, Economy | A studio rule, on a public page |
-| **R4** the dollar buttons, **if Jeff says yes** | Business and Money, week 4 | "The game wants my card" is a reason not to come back |
+| **R4** the dollar buttons (Jeff: yes) | Business and Money, week 4 | "The game wants my card" is a reason not to come back |
 | **R14** the chip reads "+607 · cash −103 · held 710" | Every load | One arithmetic, true to the cash |
 
-## (b) What the economy's one bump carries (to Jeff: the economy is frozen)
+## (b) What the economy's one bump carries (Jeff ruled it, 2026-11-03)
 
-**In this order inside the bump:** the exploits first, because they decide whether the game can be beaten in a sitting. Then the two that move the same revenue line, sized together.
+**In this order inside the bump.** The market first, then the exploits, then the defaults.
 
-1. **R16** the pay floor, unhappy drivers who quit, a reputation among drivers.
-2. **R17** no bid above the ceiling.
-3. **R18** compliance teeth (fines scaled to the gain, out-of-service orders that cost days, audits that rate), with Jeff's call on the 15-hour and 56 mph options. My position: they stay only with these teeth.
-4. **R1** off until switched on (fleet starts too), and bids anchored to "usually clears near". **R8** auto-staff off, never hiring below 4 weeks of the wage. **Contract signing** by rule only, default off.
-5. **R11** the market's shape (book-now below the ceiling, levels a trucker recognises, paced and announced cycles, a minimum charge on short loads, the season table) **with R12's clocks** (the 70-hour week, the 34-hour restart). Truer rates and truer hours move the same line, so they are sized together.
+1. **R11, the market's shape:** book-now below the ceiling, levels a trucker recognises, paced and announced cycles, a minimum charge on short loads, the season table. **R12's clocks** (the 70-hour week, the 34-hour restart) are sized with it, because truer rates and truer hours move the same revenue line.
+2. **R17:** no bid above the ceiling.
+3. **R16:** the pay floor, unhappy drivers who quit, a reputation among drivers.
+4. **R18:** compliance teeth (fines scaled to the gain, out-of-service orders that cost days, audits that rate). Jeff: the 15-hour and 56 mph options stay **only** with these teeth in this same bump. If R18 isn't ready, the options come off the screen for this restart.
+5. **R1** with the fleet-start extension and the bid anchor ("usually clears near", break-even as the floor). **R8** for players only, as the economy sized it. **Contract signing** by rule only, default off.
 6. **Borrow:** the NPC lender writes cash-out loans, or the offer stays hidden.
 7. **R15:** could the same path to a truck hold less per load for longer? Plus diary 1, row 5: where the owner's pay for driving goes.
 
-**If the bump can't be sized in time,** items 1, 2 and 4 are the minimum in (a). Items 3, 5, 6 and 7 can take a second restart, which stays free only while the world has no players. The economy's test for the whole bump: the gamer's 271k and the trucker's 30k should come together, and the guide bot (sprint 4) should not lose to the prudent bot.
+**If time is short,** items 1, 2, 3 and 5 are the minimum, with item 4 or the options off the screen. Items 6 and 7 can take a second restart, which stays free only while the world has no players.
+
+**The test of the bump is a replay, not a number.** On the fixed build, the player replays two of his earlier sittings:
+- **The trucker:** does bidding pay often enough to matter, and does a trucker's gut work on the board?
+- **The gamer:** can the game still be solved in one sitting?
+
+Behind those, the economy's own checks:
+- the gamer's 271k and the trucker's 30k should come together;
+- the guide bot (sprint 4) should not lose to the prudent bot.
 
 ## (c) After
 
