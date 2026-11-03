@@ -303,10 +303,19 @@ export function coverPassed(w: World, load: Load, covered: boolean): void {
 
 export function rejectTender(w: World, load: Load): void {
   if (load.ownTenderRate !== undefined) {
-    // Rule B: the own carrier let its brokerage's tender lapse; the load is the brokerage's on the board again.
+    // Rule B: the own carrier let its brokerage's tender lapse (or left it); the load is the brokerage's on the board
+    // again, at the rate the carrier was offered (QA's S4): posted this round, and the card says so.
+    const rate = load.ownTenderRate;
     load.ownTenderRate = undefined;
     load.tenderedTo = 0;
     load.tenderUntil = 0;
+    if (w.cfg.brokerage.enabled) {
+      load.ceiling = rate;
+      load.bookNow = Math.min(load.bookNow, rate);
+      load.postedRound = w.round;
+      load.roundsUnfilled = 0;
+      load.ownTenderLapsed = rate;
+    }
     return;
   }
   const c = w.contracts.find((k) => k.id === load.contractId);

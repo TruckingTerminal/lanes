@@ -236,7 +236,7 @@ function hire(w: World, c: Company, s: Staff, pay: number, truck: Truck | null, 
 export function releaseStaff(w: World, s: Staff): void {
   if (s.owner || s.status !== "employed") return;
   // R16 (labor.underpayMemory): fired on an unhappy notice, they leave unhappy all the same (red team pass 3).
-  if (s.unhappyNotice && s.offer?.companyId === 0) rememberUnderpay(w, companyById(w, s.companyId));
+  if (s.unhappyNotice) rememberUnderpay(w, companyById(w, s.companyId)); // a rival's bid during the notice changes nothing
   unseatDriver(w, s);
   const list = w.staffByCompany.get(s.companyId);
   const at = list ? list.indexOf(s) : -1;
@@ -247,6 +247,8 @@ export function releaseStaff(w: World, s: Staff): void {
   s.offer = null;
   if (s.unhappyNotice) s.unhappyNotice = false;
   if (s.unhappyHeld) s.unhappyHeld = undefined;
+  if (s.underFloor) s.underFloor = undefined;
+  if (s.lastHub !== undefined) s.lastHub = undefined; // in the pool, a driver is no longer anywhere in particular
   s.morale = w.cfg.labor.morale.start;
 }
 
@@ -260,10 +262,11 @@ export function setPay(w: World, s: Staff, pay: number): void {
   const change = clamp(pay / ref - 1, -0.5, 0.25);
   s.morale = clamp(s.morale + change * w.cfg.labor.morale.payWeight * 0.5, 0, 1);
   s.peakPay = Math.max(s.peakPay, pay);
-  if (s.unhappyNotice && s.offer?.companyId === 0 && pay >= askingPay(w, s) - 1e-9) {
-    // R16: raised in time; they stay, no longer unhappy.
+  if (s.unhappyNotice && s.offer?.companyId === 0 && (pay >= askingPay(w, s) - 1e-9 || (s.underFloor === true && pay >= payFloor(w, s) - 1e-9))) {
+    // R16: raised in time (to their ask, or to the floor when the notice was the floor's); they stay, no longer unhappy.
     s.offer = null;
     s.unhappyNotice = false;
+    s.underFloor = undefined;
     s.morale = Math.max(s.morale, w.cfg.labor.morale.unhappyBelow + 0.05);
     if (w.cfg.labor.underpayMemory.days > 0) s.unhappyHeld = { pay, day: today };
     notice(w, s.companyId, `${label(s)} is staying: you raised their pay in time.`, "good", s.truckId || undefined);
@@ -315,6 +318,44 @@ const free = (w: World, s: Staff) => {
 
 // --- Daily, weekly, monthly ---------------------------------------------------------------
 
+/** An offer whose notice has run out, with the driver's truck stopped at a hub: it settles now. */
+const offerDue = (w: World, s: Staff, today: number): boolean =>
+  s.status === "employed" && s.offer !== null && today - s.offer.day >= w.cfg.labor.morale.noticeDays && free(w, s);
+
+/** The offer settles: they quit, or they move to the rival's seat if it's still open. */
+function settleOffer(w: World, s: Staff): void {
+  const { companyId, pay, truckId } = s.offer!;
+  const from = companyById(w, s.companyId);
+  if (s.unhappyNotice) rememberUnderpay(w, from); // leaving unhappy, for a rival or for good
+  if (companyId === 0) {
+    notice(w, from.id, `${label(s)} quit${s.unhappyNotice ? ", unhappy with pay or how they're treated" : ""}.`, "bad", s.truckId || undefined);
+    releaseStaff(w, s);
+    return;
+  }
+  const to = companyById(w, companyId);
+  const truck = truckId ? truckById(w, truckId) : null;
+  // The new seat has to still be open and the new employer still running.
+  if ((truck && (truck.companyId !== to.id || crewed(truck))) || to.authority.status === "revoked" || to.liquidatingSince !== null) {
+    s.offer = null;
+    return;
+  }
+  notice(w, from.id, `${label(s)} left for ${to.name}.`, "bad", s.truckId || undefined);
+  releaseStaff(w, s);
+  hire(w, to, s, pay, truck, true);
+  notice(w, to.id, `${label(s)} joined you from ${from.name}.`, "good", truck?.id);
+}
+
+/**
+ * Hourly (labor.hiring.settleAtStop; QA's poach row): an offer past its notice settles the hour the driver's truck
+ * next stops at a hub. At the day's close alone, a driver who is always rolling at midnight never moves, and the
+ * offer, the notice and the seat wait forever. Off: the day's close only, as today.
+ */
+export function hourlyLabor(w: World): void {
+  if (!w.cfg.labor.hiring.settleAtStop) return;
+  const today = dayOf(w.t, w.cfg);
+  for (const s of w.staff) if (s.offer && offerDue(w, s, today)) settleOffer(w, s);
+}
+
 /** Daily: offers whose notice ran out move people; quitters leave once their truck is parked. */
 export function dailyLabor(w: World): void {
   const today = dayOf(w.t, w.cfg);
@@ -333,26 +374,17 @@ export function dailyLabor(w: World): void {
       notice(w, s.companyId, `${label(s)} has given notice: unhappy with pay or how they're treated. They leave in ${k.unhappyNoticeDays} days unless their pay goes to ${fmtPay(s, askingPay(w, s))}.`, "bad", s.truckId || undefined);
       continue;
     }
-    if (s.status !== "employed" || !s.offer || today - s.offer.day < k.morale.noticeDays || !free(w, s)) continue;
-    const { companyId, pay, truckId } = s.offer;
-    const from = companyById(w, s.companyId);
-    if (s.unhappyNotice) rememberUnderpay(w, from); // leaving unhappy, for a rival or for good
-    if (companyId === 0) {
-      notice(w, from.id, `${label(s)} quit${s.unhappyNotice ? ", unhappy with pay or how they're treated" : ""}.`, "bad", s.truckId || undefined);
-      releaseStaff(w, s);
+    // R16 (labor.payFloorShareOfMarket, with the notice on): pay the market has left under the floor is underpay all
+    // the same (red team pass 3). The notice runs and names the floor; a raise to it in time withdraws it, and a
+    // driver who leaves on it leaves unhappy (the memory).
+    if (k.payFloorShareOfMarket > 0 && k.unhappyNoticeDays > 0 && s.status === "employed" && !s.owner && s.kind === "driver" && !s.offer && s.pay < payFloor(w, s) - 1e-9) {
+      s.offer = { companyId: 0, pay: 0, truckId: 0, day: today + k.unhappyNoticeDays - k.morale.noticeDays };
+      s.unhappyNotice = true;
+      s.underFloor = true;
+      notice(w, s.companyId, `${label(s)} has given notice: the market has moved and their pay is under the floor. They leave in ${k.unhappyNoticeDays} days unless their pay goes to ${fmtPay(s, payFloor(w, s))}.`, "bad", s.truckId || undefined);
       continue;
     }
-    const to = companyById(w, companyId);
-    const truck = truckId ? truckById(w, truckId) : null;
-    // The new seat has to still be open and the new employer still running.
-    if ((truck && (truck.companyId !== to.id || crewed(truck))) || to.authority.status === "revoked" || to.liquidatingSince !== null) {
-      s.offer = null;
-      continue;
-    }
-    notice(w, from.id, `${label(s)} left for ${to.name}.`, "bad", s.truckId || undefined);
-    releaseStaff(w, s);
-    hire(w, to, s, pay, truck, true);
-    notice(w, to.id, `${label(s)} joined you from ${from.name}.`, "good", truck?.id);
+    if (offerDue(w, s, today)) settleOffer(w, s);
   }
   for (const c of w.companies) if (c.autoStaff && c.role === "carrier") autoStaff(w, c);
   dailyDrivers(w);

@@ -217,7 +217,11 @@ export function rollover(w: World, load: Load): void {
     // or up to the fall-off charge over what the contract brings in, whichever is more: past
     // that, losing the load is the cheaper way out.
     const most = Math.max(load.shipperRate * (1 + w.cfg.brokerRisk.fallOffShare), load.spotShipperRate);
-    load.ceiling = Math.max(load.ceiling, Math.min(raised, most));
+    // A player's brokerage (QA's S4): the round never re-prices its load over what the shipper pays it. The owner sets
+    // the pay; the AI brokers go on eating the raise.
+    const broker = w.companies[load.brokerId - 1];
+    const own = w.cfg.brokerage.enabled && broker !== undefined && broker.partnerId !== undefined;
+    load.ceiling = Math.max(load.ceiling, Math.min(raised, own ? Math.max(load.ceiling, load.shipperRate) : most));
   }
   // Nobody took it at the book-now: the poster raises it toward the ceiling. R11 (bookNow.towardCeilingRounds): from where it
   // opened to the ceiling over that many rounds, so only a waited load books at the ceiling.

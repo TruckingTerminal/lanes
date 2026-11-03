@@ -584,7 +584,7 @@ export function canRefile(w: World, c: Company): string | null {
 
 // --- Weekly score and reviews ----------------------------------------------------------------
 
-/** R18's probation (safety.review.probationDays): within it since an Unsatisfactory rating. */
+/** R18's probation (safety.review.probationDays): within it since an Unsatisfactory or a Conditional rating. */
 const onProbation = (w: World, s: Company["safety"], day: number): boolean =>
   w.cfg.safety.review.probationDays !== null && s.probationUntil != null && day < s.probationUntil;
 
@@ -689,7 +689,7 @@ export function complianceReview(w: World, c: Company): void {
   const day = today(w);
   const s = c.safety;
   const wasUnsat = s.rating === "unsatisfactory";
-  const probation = onProbation(w, s, day);
+  const probation = onProbation(w, s, day) && s.probationRevokes === true;
   const before = s.rating;
   // R18 (review.auditDays on; the director, 2026-11-03): an audit after a rating judges the window since that rating, not
   // the record before it. What the last audit didn't find stays in its window, and the rating reads only the violations
@@ -734,12 +734,21 @@ export function complianceReview(w: World, c: Company): void {
       revoke(w, c, wasUnsat ? "Still unsatisfactory at the follow-up review." : "Unsatisfactory again while on probation.", c.authority.revocations > 0 ? bars.imminentHazard : bars.unsatisfactory);
       return;
     }
-    if (review.probationDays !== null) s.probationUntil = day + review.probationDays;
+    if (review.probationDays !== null) {
+      s.probationUntil = day + review.probationDays;
+      s.probationRevokes = true;
+    }
     s.revokeDay = day + review.rereviewDays.unsatisfactory;
     s.reviewDay = s.revokeDay;
   } else {
     s.revokeDay = null;
     s.reviewDay = rating === "conditional" ? day + review.rereviewDays.conditional : null;
+    // R18's probation after a Conditional rating: the auditor comes back on any new alert, cooldown or not, but a later
+    // Unsatisfactory takes its 45 days as usual (red team re-read). A stricter probation already running isn't eased.
+    if (rating === "conditional" && review.probationDays !== null && !probation) {
+      s.probationUntil = Math.max(s.probationUntil ?? 0, day + review.probationDays);
+      s.probationRevokes = false;
+    }
   }
   record(w, c, `Compliance review: ${rating}.${found}`);
   // A new rating re-prices the policy: down after a new authority's first clean audit, up after a bad one.

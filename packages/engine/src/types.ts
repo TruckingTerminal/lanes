@@ -115,8 +115,12 @@ export interface SafetyRecord {
   revokeDay: number | null;
   /** A crash or a run of alerts asked for a review now. */
   reviewWanted: boolean;
-  /** R18's probation (safety.review.probationDays): after an Unsatisfactory rating, until this day. */
+  /**
+   * R18's probation (safety.review.probationDays): after an Unsatisfactory or a Conditional rating, until this day. Any
+   * new alert brings an audit within auditDays. After an Unsatisfactory (`probationRevokes`), another revokes at once.
+   */
   probationUntil?: number | null;
+  probationRevokes?: boolean;
   violations: Violation[];
   inspections: number[];
   hidden: HiddenViolation[];
@@ -511,10 +515,17 @@ export interface Staff {
    */
   unhappyHeld?: { pay: number; day: number };
   /**
+   * R16 (labor.payFloorShareOfMarket): the notice is for pay the market has left under the floor, so a raise to the
+   * floor withdraws it (red team pass 3).
+   */
+  underFloor?: boolean;
+  /**
    * R12 (its hos keys on): the driver's own day and week clocks, kept while off a truck and carried to the next one,
    * so a tired driver on a rested truck is still tired (red team pass 3). Unset until the driver first leaves a seat.
    */
   clock?: DriverClock;
+  /** R12 (its hos keys on): the hub where the driver last left a truck; they're seated only on a truck there. */
+  lastHub?: number;
   /** Career record any employer can see. */
   violations: number;
   crashes: number;
@@ -865,6 +876,8 @@ export interface Load {
   passedBy?: number;
   /** Rule B: a tender from the broker to its own carrier at this pay per mile, inside the lane's band. */
   ownTenderRate?: number;
+  /** QA's S4: the own carrier let that tender lapse, and the load went to the board at this rate (the card's line). */
+  ownTenderLapsed?: number;
   /** A shipper's tender held off the board for a player's brokerage until `until` (brokerage.ts): it posts, tenders to its own carrier or (unless passed) declines. */
   hold?: { brokerId: number; until: number; declinable: boolean };
 }

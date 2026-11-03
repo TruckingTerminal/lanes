@@ -1544,7 +1544,9 @@ export const economyConfig = {
     underpayMemory: { days: 0, askPremium: 0 },
     // Hiring away costs a sign-on bonus up front; letting someone go soon after hiring costs severance;
     // a matched offer that's cut back within the hold period sends the person packing.
-    hiring: { signOnWeeks: 2, severanceWeeks: 2, severanceWithinDays: 28, matchedPayHoldDays: 56, milesPerWeek: 1_000 },
+    // settleAtStop (QA's poach row, economy-player34.md §1b): an offer past its notice settles the hour the driver's
+    // truck next stops at a hub. false: only at the day's close, and only if the truck is stopped then, as today.
+    hiring: { signOnWeeks: 2, severanceWeeks: 2, severanceWithinDays: 28, matchedPayHoldDays: 56, milesPerWeek: 1_000, settleAtStop: false },
   },
 
   // The guards (the director's triage of the player's second diary, studio/reviews/director-player2.md): limits on what
@@ -1637,10 +1639,10 @@ export const economyConfig = {
       // alerts and the cooldown, and every audit reads the whole record, as today.
       auditDays: null as number | null,
       rereviewDays: { conditional: 90, unsatisfactory: 45 },
-      // R18's probation (economy-player34.md §3c): for this many days after an Unsatisfactory rating, a new alert since
-      // the last rating brings an audit within auditDays whatever the cooldown, and another Unsatisfactory revokes at
-      // once. It closes the loop the follow-up's window opens: cheat, clean up for the follow-up, pass, cheat again.
-      // null: no probation, as today.
+      // R18's probation (economy-player34.md §3c): for this many days after an Unsatisfactory or a Conditional rating, a
+      // new alert since the last rating brings an audit within auditDays whatever the cooldown; after an Unsatisfactory,
+      // another revokes at once. It closes the loop the follow-up's window opens: cheat, clean up for the follow-up,
+      // pass, cheat again. null: no probation, as today.
       probationDays: null as number | null,
       hiddenDetect: 0.35, // an audit finds each falsified log day or deferred-maintenance week this often
       fines: { falseLogDay: 1_000, maintenanceWeek: 300 },

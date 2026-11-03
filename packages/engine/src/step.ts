@@ -24,7 +24,7 @@ import { monthlyDealerPrices } from "./dealer.js";
 import { monthlyFuelTax } from "./fuelTax.js";
 import { weeklyBusinesses } from "./businesses.js";
 import { monthlySites } from "./sites.js";
-import { dailyLabor, monthlyLabor, payDispatchers, weeklyLabor } from "./labor.js";
+import { dailyLabor, hourlyLabor, monthlyLabor, payDispatchers, weeklyLabor } from "./labor.js";
 import { dailyStaking, lockCost, stakeDiscount } from "./staking.js";
 import { dailyPools, poolAccount, poolMarkup, poolsOn } from "./pools.js";
 import { dailyReceivables } from "./receivables.js";
@@ -51,6 +51,7 @@ export type DailyAgentHook = (w: World, day: number) => void;
  */
 export function stepHour(w: World, agents?: DailyAgentHook): void {
   moveTrucks(w);
+  hourlyLabor(w); // offers settle at the truck's next stop (labor.hiring.settleAtStop)
   w.t += MINUTES_PER_HOUR;
   if (isRoundBoundary(w.t, w.cfg)) runBoardRound(w);
   // Between rounds, dispatchers take book-now loads (board.ts autoBook).

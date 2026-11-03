@@ -71,6 +71,33 @@ and report, with every win tallied against the load's ceiling at the moment it c
   loyalty premium. The bots' poaching takes them before anyone else.
 - **`labor.underpayMemory`** (new, `{ days: 0, askPremium: 0 }` today): once a driver leaves a company unhappy, every
   driver asks that company `askPremium` more for `days`.
+- **An offer settles at the truck's next stop** (QA's poach row, which failed three times; engineering found the
+  cause). `labor.hiring.settleAtStop` is new and false today.
+  - Today an offer past its notice settles only at the day's close, and only if the driver's truck is stopped then.
+    An NPC fleet's driver is nearly always rolling, loading or resting at midnight. The offer waited forever, no
+    notice fired, and the seat stayed empty.
+  - With the key on, the offer settles the hour the truck next stops at a hub, which is soon after its deadline.
+  - **I chose the next stop** over "leave at the deadline, wherever the truck is". A driver doesn't walk off a loaded
+    truck mid-route, and the stop comes within hours.
+  - It changes the bots' labor market (poaching that today never completes will), so the key is at today's value. It
+    isn't four-year sized. I'd turn it on with the bump, because the poach is a button a player can press today and
+    it never pays off.
+- **Pay the market leaves under the floor** (the red team's pass 3, added behind `payFloorShareOfMarket`). The floor
+  binds when pay is set. A driver's market rate moves, though, and pay set at the floor can end up under it.
+  - **The rule I chose:** the floor is re-checked at the daily labor pass, and a drift under it counts as underpay.
+    R16's notice runs: "{driver} has given notice: the market has moved and their pay is under the floor. They leave
+    in 7 days unless their pay goes to {floor}."
+    - A raise to the floor in time withdraws it. The company did nothing wrong, so the floor is enough and the ask
+      isn't needed.
+    - Ignored, the driver leaves at the end of the notice, and the underpay memory is written.
+  - **Why this one and not a separate Needs-you item.**
+    - The notice already carries both halves of the other option. It is the Needs-you line engineering reads from
+      `Staff.unhappyNotice`, and it gives the company the notice days and the figure to raise to.
+    - It runs through the same withdrawal, memory and rival-first rules as every other R16 notice, so there is one
+      rule to explain, not two.
+    - A warning with no consequence would leave the floor binding only at the moment pay is set.
+  - It reaches the bots too, for drivers whose pay the greedy ones never raise as the wage index climbs. It isn't
+    four-year sized.
 
 **The values.** At a pay of x times market, a driver's morale drifts to 0.6 + 2(x − 1), less the penalty for being
 pushed to break rules. At x = 0.85 that is 0.3, exactly the "unhappy" line, so a driver held at the floor of a legal
@@ -570,6 +597,14 @@ are, all of them. Most of the rise, though, was a bug in my 70-hour clock, not R
   - an alert since the last rating brings an audit within `auditDays`, whatever the cooldown;
   - another Unsatisfactory rating revokes at once.
   - A company that stays clean is never touched by it. The bump's value is 365.
+- **After a Conditional rating too** (the red team's re-read). A Conditional company that passed its follow-up still had
+  the 180-day cooldown, so it could run the cheat-again loop once more before probation bit. **My call: a Conditional
+  rating starts the same probation, with the alert-brings-an-audit half only.**
+  - A later Unsatisfactory takes its 45 days to clean up as usual. It doesn't revoke at once, because Conditional is
+    the lesser finding.
+  - I chose it over a follow-up that skips the cooldown once. The loop isn't a single pass: each clean-up and relapse
+    is another, and only a probation covers them all for the year.
+  - A probation already running after an Unsatisfactory isn't eased by a Conditional within it.
 - **Doors a bad rating already closes in the engine:**
   - strict-vetting loads: Conditional, or any alert;
   - standard loads: Unsatisfactory;
@@ -820,6 +855,16 @@ launch batch of economy-brokerage.md §5b, run again on the bump.
     a finding. The restart's own check should watch it.
 - **My word for the switch-on:** if QA finds the flagged build clean, the economy has no objection to the brokerage
   riding this restart with both premiums halved.
+- **QA's S4, the engine half** (the package brief's item 10; built after this batch, behind `brokerage.enabled`):
+  - **When the own carrier lets the tender lapse** (or leaves it), the load goes to the board at the rate it was
+    offered. Its ceiling is that rate, its book-now no higher, and it counts as posted this round.
+    `Load.ownTenderLapsed` keeps the rate for the card's "{carrier} didn't take it · posted at {rate}/mi"; the web
+    already reads it.
+  - **The round never re-prices a player's brokerage load over what the shipper pays it** (QA's Perry → Glenview,
+    moved at −273 FD). The AI brokers still eat the raise as before.
+    - A player's load the board won't take at that pay falls off. That is the owner's call to re-price, which the
+      spec leaves open (item 2).
+    - The bots' brokerages in the batches above are player brokerages too, so `brk-bump` predates this.
 
 ### 5e. `usedMarket.npcLot.deliveryDays` 7 (ruled into the bump)
 
@@ -868,14 +913,15 @@ restart commit can add them there and leave the base config, and the tests writt
 | 25 | `equipmentFinance.closedWithPools` | false | **true** | pools off covers Equipment Finance (§5a) |
 | 26 | `usedMarket.npcLot.deliveryDays` | null | **7** | a fleet's lot rig from stock in a week (§5e) |
 | 27 | `safety.review.probationDays` | null | **365** | R18's probation, which the follow-up's window needs (§3c, §3d) |
+| 28 | `labor.hiring.settleAtStop` | false | **true** | an offer settles at the truck's next stop (§1b) |
 
 **Only if the brokerage switches on in this restart** (QA-clean on a flagged build):
 
 | # | Path | Today | The bump | Why |
 |---|---|---|---|---|
-| 28 | `brokerage.enabled` | false | **true** | the switch |
-| 29 | `permits.suretyPctPerYear` | [0.02, 0.12] | **[0.01, 0.06]** | Jeff: the surety premium halves |
-| 30 | `token.credit.premiumMax` | 0.2 | **0.1** | Jeff: the credit premium's ceiling halves |
+| 29 | `brokerage.enabled` | false | **true** | the switch, which also turns on QA's S4 fixes (§5d) |
+| 30 | `permits.suretyPctPerYear` | [0.02, 0.12] | **[0.01, 0.06]** | Jeff: the surety premium halves |
+| 31 | `token.credit.premiumMax` | 0.2 | **0.1** | Jeff: the credit premium's ceiling halves |
 
 **Not config: engineering's `PLAYER_DISPATCHER_ORDERS`** (`apps/web/src/game.ts`, in their working tree), the rules a
 player turns on:
@@ -925,13 +971,14 @@ halved; levels as 0.20.2".
 
 Ported to the working tree on main at `7102f94`, every key at today's value. A 365-day run (seed 3) of this code with
 the defaults is byte-identical to main's.
-- `packages/config/src/economy.config.ts`, six new keys:
+- `packages/config/src/economy.config.ts`, seven new keys:
   - `safety.enforcement.fineEarnedMult` (0);
   - `safety.review.auditDays` (null);
   - `contracts.closedToBadRating` (false);
   - `equipmentFinance.netOfPurchaseLoans` (false);
   - `equipmentFinance.closedWithPools` (false), added after the producer's ruling;
-  - `safety.review.probationDays` (null), added after the conduct re-run.
+  - `safety.review.probationDays` (null), added after the conduct re-run;
+  - `labor.hiring.settleAtStop` (false), for QA's poach row.
 - `packages/engine/src/safety.ts`: fines scaled to what the breach earned (`drivingEarnedFd`, `scaledFine`), the
   earned figure on the hidden log, the alert's audit, the follow-up's window (`measures` takes a `sinceDay`), the
   probation (`SafetyRecord.probationUntil?`), and the out-of-service notice reading its hours.
@@ -943,7 +990,7 @@ the defaults is byte-identical to main's.
 - `packages/engine/src/types.ts`: `HiddenViolation.earnedFd?`, `Company.finesOffCostsFd?`, `monthMark.finesFd?`.
 - `packages/engine/test/r18.test.ts` (new, 14 tests), and one more test in `r11.test.ts` (the restart's stop).
 - **The red team's pass 3** (redteam-2026-11-03b.md), each behind the key that governs it. `redteam3.test.ts` is new,
-  with 9 tests, the probation's among them.
+  with 20 tests: the red team's, the probation's, the floor drift's, S4's and the poach row's.
   - R16 (`labor.underpayMemory`, `labor.ts`): firing a driver on an unhappy notice writes the memory.
     - A withdrawn notice keeps its raise (`Staff.unhappyHeld?`).
     - A cut below that raise within the memory's days re-opens the notice at once: "you cut the raise that kept
@@ -954,8 +1001,15 @@ the defaults is byte-identical to main's.
     - `assign_driver` refuses a move between trucks at different hubs.
   - R17 (`board.refuseOverCeiling`, `brokerage.ts ownBand`): the own-carrier tender's band is capped at the load's
     ceiling.
+  - R16's floor drift (`labor.payFloorShareOfMarket`, `labor.ts dailyLabor`, `Staff.underFloor?`): §1b.
+- **The red team's re-read**, folded into the floor-drift commit:
+  - firing on notice writes the memory whatever offer stands (`labor.ts releaseStaff`);
+  - a driver off a truck stands at its hub (`Staff.lastHub?`, `world.ts unseatDriver`, `actions.ts assign_driver`);
+  - a Conditional rating starts the alert half of probation (`SafetyRecord.probationRevokes?`, `safety.ts`): §3c.
+- **QA's S4** (`brokerage.enabled`; `contracts.ts rejectTender`, `board.ts rollover`, `Load.ownTenderLapsed?`): §5d.
+- **QA's poach row** (`labor.hiring.settleAtStop`; `labor.ts settleOffer` and `hourlyLabor`, `step.ts`): §1b.
 
-Typecheck is clean. These pass: `r18.test.ts` (14), `redteam3.test.ts` (9), `r11.test.ts` (10), `audit.test.ts` (13),
+Typecheck is clean. These pass: `r18.test.ts` (14), `redteam3.test.ts` (20), `r11.test.ts` (10), `audit.test.ts` (13),
 `brokerage.test.ts` (15), `pay-floor.test.ts`, `hire-guard.test.ts`, `engine.test.ts` (162), and the web's
 `intel.test.ts` and `finance.test.ts`. No full npm test. With every key at its default, a 365-day run is byte-identical
 to main's after each addition.

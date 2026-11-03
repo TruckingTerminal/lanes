@@ -294,7 +294,9 @@ export function applyAction(w: World, companyId: number, action: Action): Action
       if (!truck || truck.companyId !== company.id) return { ok: false, reason: "not your truck" };
       if (!atHub(truck.status)) return { ok: false, reason: "the truck must be at a hub" };
       // R12 (its hos keys on): a driver moves between trucks at the same hub only (red team pass 3).
+      // Off a truck, they stand where they left it (red team re-read).
       if (clocksFollowDriver(w) && s.truckId && s.truckId !== truck.id && truckById(w, s.truckId).hub !== truck.hub) return { ok: false, reason: `their truck is at ${w.net.hubs[truckById(w, s.truckId).hub]!.id}, and that one is at ${w.net.hubs[truck.hub]!.id}` };
+      if (clocksFollowDriver(w) && !s.truckId && s.lastHub !== undefined && s.lastHub !== truck.hub) return { ok: false, reason: `they're at ${w.net.hubs[s.lastHub]!.id}, and that truck is at ${w.net.hubs[truck.hub]!.id}` };
       if (action.team) {
         if (!crewed(truck)) return { ok: false, reason: "that truck needs a driver before a co-driver" };
         if (truck.coDriverId) return { ok: false, reason: "that truck already runs as a team" };
