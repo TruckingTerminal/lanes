@@ -137,3 +137,18 @@
   size both behind a switch; the fee to the reserve. Iuliia's collect advice offers it first when it exists. The
   economy sizes it, the red team probes it, UX puts "Cash it now" on the invoice rows, the writer rewrites the
   collect lines, engineering builds it with the brokerage bump.
+- 2026-11-02 — Jeff ("Let's do which you think is best", after the players' market finding): (1) the market fix
+  goes ahead of the brokerage: the next restart carries the market rules (R17 a ceiling is a ceiling; R11
+  book-now between the clearing rate and the ceiling, rate levels in a band a trucker recognises, booms and
+  slumps paced and announced, a minimum charge on short loads; R16 the pay floor; R12's hours values) and the
+  before-restart chrome; the brokerage switches on in the same restart only if its build is QA-clean by then,
+  otherwise in the next free restart before live day 91. (2) Both premiums halve: the surety premium for brokers
+  to 1–6%, the credit premium's ceiling to 10%. (3) R1 and its fleet-start extension: the dispatcher stays off
+  after the first hand-booked load until the player switches it on, a fleet start meets the same first decision,
+  and the default bid anchors to "usually clears near" with break-even as the floor. (4) R4: no lit dollar button
+  on the first month's screens; FD is the button and the dollar price is text; the $900 yard moves under the
+  token fold. (5) R8 for players only, as the economy sized it: auto-staff starts off, and on it never hires
+  without four weeks of the wage in cash. (6) The compliance page's 15-hour day and 56 mph "always" options stay
+  only if the same bump gives them R18's teeth (fines that scale with the gain, out-of-service days, audits and
+  a rating); otherwise they come off the screen until it does. The producer decided all six on Jeff's word; any
+  can be reversed before the restart.
