@@ -1,16 +1,17 @@
 import type { JSX } from "preact";
+import { useState } from "preact/hooks";
 import type { Equipment, FacilityType, TractorTier } from "@lanes/config";
-import { assetPriceUsd, availableSupply, listingBlock, companyAccount, condition, dealerPrice, deliveryDays, facilityOutlook, lessorTrucksOf, newPrice, openListings, ordersOf, tokenLive, truckValue } from "@lanes/engine";
+import { assetPriceUsd, availableSupply, listingBlock, companyAccount, condition, dealerPrice, deliveryDays, facilityOutlook, lessorTrucksOf, newPrice, openListings, ordersOf, tokenLive, truckCap, truckValue } from "@lanes/engine";
 import { facilityUrl } from "../../art.js";
 import { SCENES } from "../../assets.js";
-import { FAC_NAME, fd, pct, signedPct, TIER_NAME, TRAILER_NAME, usd, plural, fdFull } from "../../format.js";
-import { act, me, myTrucks, S, useData } from "../../state.js";
+import { FAC_NAME, fd, hhmm, pct, signedPct, TIER_NAME, TRAILER_NAME, usd, plural, fdFull } from "../../format.js";
+import { act, me, myTrucks, order, S, useData } from "../../state.js";
 import { Btn, Card, Num, Panel, Pixel } from "../bits.js";
 import { Rig, Scene } from "../Loop.js";
 import { Buy, Showroom } from "./Showroom.js";
 import { confirmAct } from "../Confirm.js";
 import { leaseDepositNow, leaseTruck, leaseWeeklyMin, newTruck, usedTruck } from "../../confirmspecs.js";
-import { CONFIRM } from "../../copy.js";
+import { ANSWER, CONFIRM } from "../../copy.js";
 import { inFirstMonth } from "../../figures.js";
 
 export function Dealer(): JSX.Element {
@@ -34,6 +35,20 @@ export function Dealer(): JSX.Element {
     .sort((a, b) => a.l.askFd / Math.max(1, truckValue(w, a.t)) - b.l.askFd / Math.max(1, truckValue(w, b.t)))
     .slice(0, 8);
   const canLease = fleet.some((t) => t.lease === "owned") && lessorTrucksOf(w, c.id).length < w.cfg.freeEntry.leases.maxPerCompany;
+  // R7: what stops a lease, in the writer's words, before the press (the binding one first).
+  const leaseWhy = (tr: Equipment): string | null => {
+    const cap = truckCap(w, c);
+    const running = fleet.length + ordersOf(w, c.id).length;
+    if (lessorTrucksOf(w, c.id).length >= w.cfg.freeEntry.leases.maxPerCompany) return ANSWER.leaseMax(w.cfg.freeEntry.leases.maxPerCompany);
+    if (running >= cap) return ANSWER.leaseYard(cap, running + 1);
+    const deposit = leaseDepositNow(w, tr);
+    return deposit > cash + 0.005 ? ANSWER.leaseDeposit(fdFull(deposit), fdFull(cash)) : null;
+  };
+  const [leaseAnswer, setLeaseAnswer] = useState<{ text: string; bad: boolean } | null>(null);
+  const lease = async (tr: Equipment) => {
+    const r = await order({ type: "lease_truck", trailer: tr }, "Leased truck ready at your home hub");
+    setLeaseAnswer(r.ok ? { text: r.at === null ? ANSWER.lease(`Workhorse with a ${TRAILER_NAME[tr].toLowerCase()}`, w.net.hubs[c.homeHub]!.name, fdFull(leaseDepositNow(w, tr))) : `Sent · in effect ${hhmm(r.at)}`, bad: false } : { text: r.reason, bad: true });
+  };
   const facTypes: FacilityType[] = ["warehouse", "coldStorage", "factory"];
   return (
     <Panel title="Dealer">
@@ -75,14 +90,19 @@ export function Dealer(): JSX.Element {
         <p class="muted">Nothing listed right now.</p>
       )}
       <Card title="Lease another truck">
-        <p class="muted small">No money down: the lessor takes 15% of each load, 250 FD a week minimum, 28-day minimum term. Needs one truck you own. Lessor has {w.lessor.fleet - w.lessor.out} free.</p>
+        {/* R7 and R20: the row says what a lease takes; a lease the rules won't give is off, with the binding reason; the
+            answer lands under the row. */}
+        <p class="muted small">{ANSWER.leaseRow(fdFull(leaseDepositNow(w, "van")), fdFull(leaseWeeklyMin(w, "van")))}. Needs one truck you own. Lessor has {w.lessor.fleet - w.lessor.out} free.</p>
         <div class="row">
           {trailers.map((tr) => (
-            <Btn key={tr} disabled={!(canLease && w.lessor.out < w.lessor.fleet)} onClick={(ev) => confirmAct({ verb: "Lease", item: `a ${TRAILER_NAME[tr].toLowerCase()} truck`, costFd: leaseDepositNow(w, tr), ...leaseTruck(w, tr, leaseDepositNow(w, tr), leaseWeeklyMin(w, tr)), go: `Lease · ${fdFull(leaseDepositNow(w, tr))} FD`, run: () => act({ type: "lease_truck", trailer: tr }, "Leased truck ready at your home hub") }, ev)}>
+            <Btn key={tr} disabled={!(canLease && w.lessor.out < w.lessor.fleet) || leaseWhy(tr) !== null} onClick={(ev) => confirmAct({ verb: "Lease", item: `a ${TRAILER_NAME[tr].toLowerCase()} truck`, costFd: leaseDepositNow(w, tr), ...leaseTruck(w, tr, leaseDepositNow(w, tr), leaseWeeklyMin(w, tr)), go: `Lease · ${fdFull(leaseDepositNow(w, tr))} FD`, run: () => void lease(tr) }, ev)}>
               {TRAILER_NAME[tr]}
             </Btn>
           ))}
         </div>
+        {leaseWhy("van") ? <p class="muted small">{leaseWhy("van")}</p> : null}
+        {leaseAnswer ? <p class={leaseAnswer.bad ? "bad small" : "small"}>{leaseAnswer.text}</p> : null}
+      
       </Card>
       {w.cfg.assets.enabled ? <Showroom /> : null}
       {w.cfg.assets.enabled ? null : <h3>New from the dealer</h3>}

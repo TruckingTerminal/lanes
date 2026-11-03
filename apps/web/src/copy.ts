@@ -12,9 +12,9 @@ export const CONFIRM = {
   title: (verb: string, item: string) => `${verb} ${item}?`,
   cost: (fd: string) => `It costs · ${fd} FD`,
   after: (fd: string, n: string) => `Left after · ${fd} FD, ${n} weeks of cushion`,
-  /** Engineering's drafts (QA's R6 replay): before the first week closes there's no cushion figure, and a spend cash can't cover. */
-  afterNoWeeks: (fd: string) => `Left after · ${fd} FD, cushion not yet measured`,
-  cantPay: (fd: string) => `${fd} FD short: this can't be paid today.`,
+  /** The writer's (QA's R6 replay): before the first week closes there's no cushion figure, and a spend cash can't cover. */
+  afterNoWeeks: (fd: string) => `Left after · ${fd} FD · no cushion yet: your first week hasn't closed`,
+  short: (cost: string, have: string) => `It costs ${cost} FD: you have ${have}.`,
   does: "What it does",
   risk: "The one risk",
   go: (verb: string, fd: string) => `${verb} · ${fd} FD`,
@@ -64,6 +64,18 @@ export const ANSWER = {
   bid: (rate: string, origin: string, dest: string, hh: string) => `Bid in: ${rate}/mi on ${origin} to ${dest}. It clears at ${hh}.`,
   bookVetting: (days: number, loads: number, d: number, l: number) => `Strict vetting: needs ${days} days of authority and ${loads} loads delivered. You have ${d} and ${l}.`,
   bookVettingStd: (days: number, d: number) => `Standard vetting: needs ${days} days of authority. You have ${d}.`,
+  ceiling: (ceiling: string) => `Above the ceiling: this shipper pays at most ${ceiling}/mi.`,
+  lease: (make: string, hub: string, deposit: string) => `Leased: a ${make} at ${hub}, ${deposit} FD deposit paid. It's on the Truck tab.`,
+  leaseDeposit: (fd: string, have: string) => `Deposit ${fd} FD: you have ${have}.`,
+  leaseYard: (n: number, m: number) => `Your yard holds ${n} trucks: this lease makes ${m}.`,
+  leaseMax: (n: number) => `You may lease at most ${n} trucks.`,
+  leaseRow: (fd: string, min: string) => `Lease another truck · ${fd} FD deposit · at least ${min} FD a week`,
+  poach: (name: string, day: string) => `Offer sent to ${name}: they answer by ${day}.`,
+  poachRow: (day: string) => `Offer pending · answer by ${day}`,
+  poachLow: (name: string, fd: string) => `${name} earns ${fd}/mi now: an offer must beat it.`,
+  unstakeDone: (fd: string, date: string) => `Unstaking ${fd} FD: back in your cash on ${date}.`,
+  unstakeNowDone: (back: string, burned: string) => `${back} FD back now. ${burned} FD burned.`,
+  unstakeNone: "Nothing staked to unstake.",
 };
 
 /** One true reason, where the wall is (the writer's copy-player5.md, R22): the engine's first refusal, vetting before local-first. */

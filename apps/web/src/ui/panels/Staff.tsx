@@ -1,16 +1,17 @@
 import type { JSX } from "preact";
+import { useState } from "preact/hooks";
 import { askingPay, crewed, dispatchProfile, poolOf, spanOf, type Staff as StaffT, type Truck } from "@lanes/engine";
-import { fd, pct, TRAILER_NAME } from "../../format.js";
+import { fd, hhmm, pct, shortDate, TRAILER_NAME } from "../../format.js";
 import { GAME_CONFIG } from "../../game.js";
 import { atHub, marketPayOf, moraleClass, moraleWord, staffPay, Stars } from "../../logic.js";
-import { act, me, myTrucks, S, truckNo, useData } from "../../state.js";
+import { act, me, myTrucks, order, S, truckNo, useData } from "../../state.js";
 import { Btn, Card, Kv, Panel } from "../bits.js";
 import { SCENES, staffFace } from "../../assets.js";
 import { Portrait, Scene } from "../Loop.js";
 import { PendingCard } from "./Fleet.js";
 import { confirmAct } from "../Confirm.js";
 import { hire as hireLines, weeklyKept } from "../../confirmspecs.js";
-import { CONFIRM } from "../../copy.js";
+import { ANSWER, CONFIRM } from "../../copy.js";
 import { MILES_PER_MONTH } from "../../finance.js";
 
 const num = (id: string): number => Number((document.getElementById(id) as HTMLInputElement | null)?.value);
@@ -78,7 +79,18 @@ export function Staff(): JSX.Element {
     const truckId = Number(sel(`${team ? "team" : "seat"}-${s.id}`));
     act({ type: "assign_driver", staffId: s.id, truckId, team }, team ? "Co-driver seated: the truck runs as a team" : "Driver seated");
   };
+  // R20: a poach answers under its card: the offer sent and when it's answered, or the engine's reason in the writer's words.
+  const [poachAnswer, setPoachAnswer] = useState<{ text: string; bad: boolean } | null>(null);
+  const poach = async (s: StaffT, pay: number) => {
+    const v = sel(`poach-${s.id}`);
+    const r = await order({ type: "offer_staff", staffId: s.id, pay, truckId: v ? Number(v) : undefined }, "Offer made");
+    const by = shortDate(Math.floor(w.t / w.cfg.time.gameMinutesPerDay) + w.cfg.labor.morale.noticeDays);
+    setPoachAnswer(r.ok ? { text: r.at === null ? ANSWER.poach(s.name, by) : `Sent · in effect ${hhmm(r.at)}`, bad: false } : { text: /would move for/.test(r.reason) ? ANSWER.poachLow(s.name, s.pay.toFixed(2)) : r.reason, bad: true });
+  };
+  // Offers of ours waiting on the other employer: a pending line each until they match or let them go.
+  const pending = w.staff.filter((s) => s.offer && s.offer.companyId === c.id && s.companyId !== c.id);
   const hire = (s: StaffT, pay: number, kind: "hire" | "poach", ev?: MouseEvent) => {
+    if (kind === "poach") return void poach(s, pay);
     const v = sel(`${kind}-${s.id}`);
     const run = () => act({ type: "offer_staff", staffId: s.id, pay, truckId: v ? Number(v) : undefined }, kind === "hire" ? "Hired" : "Offer made: their employer has two days to match", kind === "hire" ? (s.kind === "driver" ? "staff:hireDriver" : s.kind === "dispatcher" ? "staff:hireDispatcher" : "staff:hireManager") : undefined);
     // R6: a hire asks first only when its weekly wage passes what the company kept in a week lately (a driver's per-mile
@@ -347,6 +359,12 @@ export function Staff(): JSX.Element {
             ))}
           </tbody>
         </table>
+        {pending.map((s) => (
+          <p class="small" key={`offer-${s.id}`}>
+            {s.name} · {ANSWER.poachRow(shortDate(s.offer!.day + w.cfg.labor.morale.noticeDays))}
+          </p>
+        ))}
+        {poachAnswer ? <p class={poachAnswer.bad ? "bad small" : "small"}>{poachAnswer.text}</p> : null}
       </Card>
     </Panel>
   );

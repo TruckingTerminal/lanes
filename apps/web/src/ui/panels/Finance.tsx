@@ -3,7 +3,7 @@ import { cashNowOn, InvoiceRows } from "./CashNow.js";
 import { CASHNOW } from "../../copy.js";
 import { useState } from "preact/hooks";
 import { brokerBooks, companyAccount, creditBand, creditScore, nextTruckTier, operatingTrucks, purchaseTerms, stakeDiscount, truckCap, type Action, type Company, type World } from "@lanes/engine";
-import { FINANCE } from "../../copy.js";
+import { ANSWER, FINANCE } from "../../copy.js";
 import { borrowable, contractOn, contractSoFar, equipmentWeekly, hasLeasedTrucks, leaseDeposit, loanRows, monthOfCosts, ownsATruck, playerPaperWaiting, rateLadder, rateToday } from "../../finance.js";
 import { cls, fdFull, hhmm, pct, shortDate } from "../../format.js";
 import { invoices } from "../../ledger.js";
@@ -22,17 +22,27 @@ type Sheet = { kind: "factor" } | { kind: "borrow"; truckId: number; fd: number 
  * Orders sent from Finance: a refusal shows its reason in red under the button that sent it, never a toast; in the
  * live world the button reads "Sent · in effect hh:mm" until the world applies it (specs/finance.md, States).
  */
+/** A press's answer (R20): its result line, and the writer's words for a refusal where they differ from the engine's. */
+type Answer = { done: string; refuse?: (reason: string) => string };
+
+/** UNSTAKE's refusals in the writer's words (copy-player4.md R19); the bond's reason stays the engine's. */
+const unstakeRefusal = (reason: string): string => (/not that much staked|nothing left to unstake/.test(reason) ? ANSWER.unstakeNone : reason);
+
 function useOrders() {
   const [sent, setSent] = useState<Record<string, string>>({});
   const [refused, setRefused] = useState<Record<string, string>>({});
-  const go = async (key: string, a: Action, ok: string): Promise<boolean> => {
+  const [result, setResult] = useState<Record<string, string>>({});
+  // R20: every press answers under its control: the result line (in the test world at once), the engine's reason in red,
+  // or "Sent · in effect" on the live world until it applies. `answer` names the result and maps a refusal's words.
+  const go = async (key: string, a: Action, ok: string, answer?: Answer): Promise<boolean> => {
     const r = await order(a, ok);
-    setRefused((x) => ({ ...x, [key]: r.ok ? "" : r.reason.replace(/([^.])$/, "$1.") }));
+    setRefused((x) => ({ ...x, [key]: r.ok ? "" : (answer?.refuse?.(r.reason) ?? r.reason).replace(/([^.])$/, "$1.") }));
+    setResult((x) => ({ ...x, [key]: r.ok && r.at === null && answer ? answer.done : "" }));
     if (r.ok && r.at !== null) setSent((x) => ({ ...x, [key]: hhmm(r.at!) }));
     return r.ok;
   };
   const label = (key: string, text: string) => (sent[key] ? FINANCE.sent(sent[key]!) : text);
-  const note = (key: string) => (refused[key] ? <p class="bad small">{refused[key]}</p> : null);
+  const note = (key: string) => (refused[key] ? <p class="bad small">{refused[key]}</p> : result[key] ? <p class="small">{result[key]}</p> : null);
   return { go, label, note };
 }
 
@@ -381,7 +391,7 @@ function Staking({ open, orders }: { open: (s: Sheet) => void; orders: Orders })
             <Btn primary disabled={cash < 1} onClick={() => void orders.go("stake", { type: "stake_fd", fd: field() }, FINANCE.stake)}>
               {orders.label("stake", FINANCE.stake)}
             </Btn>
-            <Btn disabled={c.stakedFd < 1} onClick={() => void orders.go("unstake", { type: "unstake_fd", fd: field(), instant: false }, FINANCE.unstake(k.exitDays))}>
+            <Btn disabled={c.stakedFd < 1} onClick={() => void orders.go("unstake", { type: "unstake_fd", fd: field(), instant: false }, FINANCE.unstake(k.exitDays), { done: ANSWER.unstakeDone(fdFull(Math.min(c.stakedFd, field())), shortDate(today(w) + k.exitDays)), refuse: unstakeRefusal })}>
               {orders.label("unstake", FINANCE.unstake(k.exitDays))}
             </Btn>
             <Btn danger disabled={c.stakedFd < 1} onClick={() => open({ kind: "unstake", fd: Math.min(c.stakedFd, field()) })}>
@@ -390,6 +400,7 @@ function Staking({ open, orders }: { open: (s: Sheet) => void; orders: Orders })
           </div>
           {orders.note("stake")}
           {orders.note("unstake")}
+          {orders.note("unstake-now")}
         </>
       )}
       <p class="small">
@@ -404,13 +415,13 @@ function ConfirmSheet({ sheet, close, orders }: { sheet: NonNullable<Sheet>; clo
   const w = S.game!.w;
   const c = me();
   const k = w.cfg.token.payment;
-  const done = async (key: string, a: Action, ok: string) => {
-    if (await orders.go(key, a, ok)) close();
+  const done = async (key: string, a: Action, ok: string, answer?: Answer) => {
+    if (await orders.go(key, a, ok, answer)) close();
   };
-  const actions = (key: string, primary: string, a: Action, danger = false) => (
+  const actions = (key: string, primary: string, a: Action, danger = false, answer?: Answer) => (
     <>
       <div class="row">
-        <Btn primary={!danger} danger={danger} onClick={() => void done(key, a, primary)}>
+        <Btn primary={!danger} danger={danger} onClick={() => void done(key, a, primary, answer)}>
           {orders.label(key, primary)}
         </Btn>
         <Btn ghost onClick={close}>
@@ -466,7 +477,7 @@ function ConfirmSheet({ sheet, close, orders }: { sheet: NonNullable<Sheet>; clo
           [FINANCE.unstakeBurned, `${fdFull(sheet.fd * haircut)} FD`],
         ]}
       />
-      {actions("unstake-now", FINANCE.unstakeGo, { type: "unstake_fd", fd: sheet.fd, instant: true }, true)}
+      {actions("unstake-now", FINANCE.unstakeGo, { type: "unstake_fd", fd: sheet.fd, instant: true }, true, { done: ANSWER.unstakeNowDone(fdFull(sheet.fd * (1 - haircut)), fdFull(sheet.fd * haircut)), refuse: unstakeRefusal })}
     </Card>
   );
 }

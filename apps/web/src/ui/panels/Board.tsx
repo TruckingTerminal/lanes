@@ -317,6 +317,8 @@ function LoadSheet({ r, truck }: { r: BoardRow; truck: Truck }): JSX.Element {
   const step = (d: number) => setBid(Math.round(Math.min(hi, Math.max(lo, bid + d)) * 100) / 100);
   // R20: a refusal in the writer's words where the engine's reason is a vetting block; otherwise the engine's own.
   const refusal = (reason: string): string => {
+    // board.refuseOverCeiling: the engine's "above the ceiling, {rate}/mi", in the writer's words (R20).
+    if (/above the ceiling/i.test(reason)) return ANSWER.ceiling(l.ceiling.toFixed(2));
     if (!/vetting rules you out|won't load a carrier with/.test(reason) || !/authority|loads delivered/.test(reason)) return reason;
     const k = w.cfg.fraud.vetting;
     const age = Math.floor(w.t / w.cfg.time.gameMinutesPerDay) - me().authority.since;

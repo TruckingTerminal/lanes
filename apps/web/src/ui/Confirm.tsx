@@ -114,7 +114,7 @@ export function ConfirmSheet(): JSX.Element | null {
           {s.costLine === "" ? null : <p class="small">{s.costLine ?? CONFIRM.cost(fdFull(s.costFd ?? 0))}</p>}
           {s.costFd !== null ? <p class={`small ${tone}`}>{weeks === null ? CONFIRM.afterNoWeeks(fdFull(after)) : CONFIRM.after(fdFull(after), weeks.toFixed(1))}</p> : null}
           {short > 0 ? (
-            <p class="small bad">{CONFIRM.cantPay(fdFull(short))}</p>
+            <p class="small bad">{CONFIRM.short(fdFull(s.costFd ?? 0), fdFull(cash))}</p>
           ) : weeks !== null && weeks < w.cfg.guide.gapCushionWeeks && s.costFd !== null ? (
             <p class="small bad">{CONFIRM.lowCushion(w.cfg.guide.gapCushionWeeks)}</p>
           ) : null}
