@@ -3,7 +3,8 @@ import { join } from "node:path";
 import { describe, expect, it, vi } from "vitest";
 import { cashNowRate, companyAccount, truckValue } from "@lanes/engine";
 import { boardRows, depositWhole, leaseHold } from "../src/board.js";
-import { BOARD, EXPLAIN, GUIDE_LABEL } from "../src/copy.js";
+import { BOARD, EXPLAIN, FIGURE_ACT, GUIDE_LABEL } from "../src/copy.js";
+import { figureAct } from "../src/figureact.js";
 import { fdFull } from "../src/format.js";
 import { breakdown, FIRST_MONTH_KEYS } from "../src/explain.js";
 import { GAME_CONFIG, TestGame } from "../src/game.js";
@@ -300,5 +301,25 @@ describe("the next-truck gap says what moved it (row 4)", () => {
     expect(gapNotes(g.w, c, "new")).toEqual([GUIDE_LABEL.gapWhyCheapest, GUIDE_LABEL.gapWhyCushion(GAME_CONFIG.guide.gapCushionWeeks)]);
     S.gapSeen!.why = []; // what closing its explanation does
     expect(gapNotes(g.w, c, "new")).toEqual([]);
+  }, 60_000);
+});
+
+describe("the explain foot answers about its own figure (guidance-ux.md section 3)", () => {
+  it("break-even names the nearest paying load; a healthy cushion and a truck's worth say why there's nothing to press", async () => {
+    const g = await TestGame.create();
+    const c = g.join("Foot Freight", "oo", "LAX")!;
+    const truck = g.w.trucksByCompany.get(c.id)![0]!;
+    const be = figureAct(g.w, c, "truck.breakEven", { truckId: truck.id });
+    expect(be?.kind).toBe("act");
+    if (be?.kind !== "act") throw new Error("no act");
+    const nearest = boardRows(g.w, c, truck, { dest: "any", maxDh: 300, query: "" }).filter((r) => !r.block && r.profitBook > 0).sort((a, b) => a.dh - b.dh || b.profitBook - a.profitBook)[0]!;
+    expect(be.loadId).toBe(nearest.l.id);
+    expect(be.button).toBe(FIGURE_ACT.showLoad);
+    expect(figureAct(g.w, c, "guide.cushion", {})).toEqual({ kind: "none", line: FIGURE_ACT.noSpending });
+    c.weeklySpend.push(100);
+    expect(figureAct(g.w, c, "guide.cushion", {})).toMatchObject({ kind: "none", line: expect.stringMatching(/^Nothing to fix: [\d.]+ weeks of cushion is healthy\.$/) });
+    expect(figureAct(g.w, c, "truck.value", {})).toEqual({ kind: "none", line: FIGURE_ACT.value });
+    expect(figureAct(g.w, c, "intel.creditBand.other", {})).toEqual({ kind: "none", line: FIGURE_ACT.theirs });
+    expect(figureAct(g.w, c, "standing.miles", {})).toBeNull(); // no line of its own: the entry's "what moves it" stands
   }, 60_000);
 });

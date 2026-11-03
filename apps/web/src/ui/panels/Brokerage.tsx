@@ -3,7 +3,7 @@ import { useEffect, useState } from "preact/hooks";
 import { apCapBlock, brokerageLog, brokerBooks, brokerLicensed, canFormBrokerage, companyAccount, creditBand, crewed, dayOf, MANUAL_BID_MAX_DEADHEAD_MI, ownBand, placeMiles, type Company, type Load, type World } from "@lanes/engine";
 import { BROKERAGE } from "../../copy.js";
 import { hasTwo, kindInView, switchCompany } from "../../companies.js";
-import { fdFull, hhmm, pct, shortDate } from "../../format.js";
+import { fdFull, hhmm, pct, shortDate, TRAILER_NAME } from "../../format.js";
 import { nextRoundHour } from "../../logic.js";
 import { bumpData, isPhone, me, openIntel, order, S, toast, useData } from "../../state.js";
 import { layerDay } from "../../tabs.js";
@@ -402,7 +402,7 @@ function OfferedCard({ load, partner }: { load: Load; partner: Company | null })
       </span>
       <span class="small">{BROKERAGE.decideBy(hhmm(load.hold!.until), hours)}</span>
       <span class="muted small">{ifNot}</span>
-      {skips ? <span class="muted small">{BROKERAGE.ownFirstSkips(partner!.name)}</span> : null}
+      {skips ? <span class="muted small">{BROKERAGE.ownFirstSkips(partner!.name, TRAILER_NAME[load.equipment].toLowerCase(), w.net.hubs[load.origin]!.name)}</span> : null}
       {tendering && partner && !cant ? (
         <TenderSheet load={load} carrier={partner} onDone={() => setTendering(false)} />
       ) : (

@@ -715,6 +715,29 @@ export const NOW = {
 type Ex = { what: string; how: string; moves: string };
 const pctOf = (x: number) => `${Math.round(x * 100)}%`;
 const pct2 = (x: number) => `${(x * 100).toFixed(2)}%`;
+/**
+ * The explain sheet's foot (guidance-ux.md section 3, ruled 2026-11-03): the question (the writer's, per UX), the figure's
+ * own answer, and the link to the company's What now?. The answers are engineering's drafts on UX's examples, for the writer.
+ */
+export const FIGURE_ACT = {
+  ask: "What can I do about it?",
+  whole: "What now? for the whole company ›",
+  showLoad: "Show me the load",
+  fewerEmpty: (origin: string, mi: string) => `Fewer empty miles: the ${origin} load starts ${mi} mi from your truck.`,
+  loadReason: (origin: string, dest: string, fd: string) => `${origin} to ${dest} pays about ${fd} FD over break-even.`,
+  haulForCushion: "Haul the best-paying load: each one adds to your cushion.",
+  haulForTruck: "Keep hauling: each paying load closes the gap.",
+  busy: "Your trucks are all busy; this moves as they deliver.",
+  nothingPays: "Nothing in reach pays over break-even this round. The next round brings new loads.",
+  noSpending: "Nothing to fix yet: there's no spending to measure.",
+  healthy: (weeks: string) => `Nothing to fix: ${weeks} weeks of cushion is healthy.`,
+  gapClosed: "Nothing to close: you can afford your next truck now.",
+  value: "A truck loses value with miles and wear. Upkeep slows that; nothing stops it.",
+  diesel: "Nobody sets the price of diesel; your mpg decides how much it hurts.",
+  held: "It's yours, held: it counts in full when you buy your own truck.",
+  theirs: "That's theirs to move.",
+};
+
 export const EXPLAIN_HEAD = { what: "What it is", how: "How it's computed", moves: "What moves it", none: "I can't break this one down yet." };
 export const EXPLAIN = (cfg: EconomyConfig): Record<string, Ex> => ({
   "money.cash": { what: "The FD in your company's account right now.", how: "Every payment in, less every cost out, as they land.", moves: "Loads paid; fuel, wages, leases and loans going out." },
@@ -1009,8 +1032,8 @@ export const BROKERAGE = {
   /** UX's line (brokerage-ux.md section 7): the own carrier let the tender lapse, and the load went to the board at the offered rate. */
   lapsed: (carrier: string, rate: string) => `${carrier} didn't take it · posted at ${rate}/mi`,
   refuseNoTruck: (carrier: string) => `${carrier} has no free truck in reach of the pickup.`,
-  /** The writer's (brokerage-strings.md), after QA's hold replay. ownFirstSkips is still engineering's draft: the writer's form names a distance, and the order's rule has none (a truck at the pickup's hub). */
-  ownFirstSkips: (carrier: string) => `${carrier} has no free truck at the pickup now, so the order would post it.`,
+  /** The writer's (brokerage-strings.md), after QA's hold replay; ownFirstSkips names what the order's rule checks, a truck at the pickup's hub. */
+  ownFirstSkips: (carrier: string, trailer: string, hub: string) => `${carrier} has no free ${trailer} at ${hub}, so your standing order would post it.`,
   ownFirstRate: (carrier: string) => `It goes to ${carrier} at your posting rate, within the lane's band. ${carrier} may still decline.`,
   saved: "Standing order saved.",
   licenceFromIt: (licence: string) => `Licence · ${licence} FD · paid out of the amount you move`,

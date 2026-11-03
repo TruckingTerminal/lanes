@@ -104,35 +104,6 @@ export function WhatNowAnswer(): JSX.Element | null {
   );
 }
 
-/**
- * What now? in the explain sheet's foot (guidance-ux.md section 3): the same answer as the caption's, shown in place
- * while the sheet stays open; its button acts and then closes the sheet (`done`).
- */
-export function WhatNowInline({ done }: { done: () => void }): JSX.Element | null {
-  const g = S.game;
-  const c = g?.player;
-  if (!g || !c || kindInView(g) === "brokerage") return null;
-  const view = words(currentAction(g.w, c));
-  return (
-    <div class="stack explainnow">
-      <b class={view.red ? "bad" : ""}>{view.action}</b>
-      <span class="small">{view.reason}</span>
-      <div class="row">
-        <Btn
-          sm
-          primary
-          onClick={() => {
-            view.go();
-            done();
-          }}
-        >
-          {view.button}
-        </Btn>
-      </div>
-    </div>
-  );
-}
-
 /** The same answer, still the one to give: the same rule and kind, about the same truck or load. */
 function same(a: NextAction, b: NextAction): boolean {
   if (a.kind !== b.kind) return false;
@@ -146,7 +117,7 @@ const when = (min: number): string => {
   const h = Math.max(0, (min - S.game!.w.t) / 60);
   return h < 24 ? `${Math.max(1, Math.round(h))} h` : `${Math.round(h / 24)} days`;
 };
-const openLoadOf = (truckId: number, loadId: number) => {
+export const openLoadOf = (truckId: number, loadId: number) => {
   selectTruck(truckId);
   S.openLoad = loadId;
   if (isPhone()) S.sheet = "full";

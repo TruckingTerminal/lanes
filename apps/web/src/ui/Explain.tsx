@@ -1,13 +1,14 @@
 import type { ComponentChildren, JSX } from "preact";
 import { createPortal } from "preact/compat";
 import { useRef, useState } from "preact/hooks";
-import { EXPLAIN, EXPLAIN_HEAD, NOW } from "../copy.js";
+import { EXPLAIN, EXPLAIN_HEAD, FIGURE_ACT } from "../copy.js";
 import { breakdown, type FigureCtx } from "../explain.js";
 import { GAME_CONFIG } from "../game.js";
 import { bumpData, isPhone, S, useData } from "../state.js";
 import { Btn } from "./bits.js";
 import { Iuliia } from "./Walkthrough.js";
-import { WhatNowInline } from "./WhatNow.js";
+import { askWhatNow, openLoadOf } from "./WhatNow.js";
+import { figureAct } from "../figureact.js";
 
 /**
  * Help on every figure (specs/guidance.md section 2, guidance-ux.md section 3). A covered figure is a `Fig`: a dotted
@@ -56,6 +57,35 @@ function closeExplain(bump = true, fromBack = false): void {
 if (typeof window !== "undefined") {
   window.addEventListener("popstate", () => S.explain && closeExplain(true, true));
   window.addEventListener("keydown", (ev) => ev.key === "Escape" && S.explain && closeExplain());
+}
+
+/**
+ * The foot's answer (guidance-ux.md section 3): the figure's own next action with one button, or one line on why it has
+ * none (its "what moves it" when no line is written for it), and the company's What now? one tap under it.
+ */
+function FootAnswer({ k, entryMoves }: { k: string; entryMoves: string }): JSX.Element {
+  const g = S.game!;
+  const a = figureAct(g.w, g.player!, k, S.explain?.ctx ?? {});
+  return (
+    <div class="stack explainnow">
+      {a?.kind === "act" ? (
+        <>
+          <b>{a.action}</b>
+          <span class="small">{a.reason}</span>
+          <div class="row">
+            <Btn sm primary onClick={() => (closeExplain(), openLoadOf(a.truckId, a.loadId))}>
+              {a.button}
+            </Btn>
+          </div>
+        </>
+      ) : (
+        <span class="small">{a?.line ?? entryMoves}</span>
+      )}
+      <button type="button" class="linkish small" onClick={() => (closeExplain(), askWhatNow())}>
+        {FIGURE_ACT.whole}
+      </button>
+    </div>
+  );
 }
 
 /** The explain sheet: the figure, what it is, how it's computed with this company's inputs, what moves it, and What now?. */
@@ -141,9 +171,9 @@ export function ExplainSheet(): JSX.Element | null {
       <p class="label">{EXPLAIN_HEAD.moves}</p>
       <p class="small">{entry.moves}</p>
       </div>
-      {askedFor === `${e.key}|${e.value}` ? <WhatNowInline done={() => closeExplain()} /> : null}
+      {askedFor === `${e.key}|${e.value}` && c ? <FootAnswer k={e.key} entryMoves={entry.moves} /> : null}
       <div class="row explainfoot">
-        <Btn sm onClick={() => setAskedFor(`${e.key}|${e.value}`)}>{NOW.chip}</Btn>
+        <Btn sm onClick={() => setAskedFor(`${e.key}|${e.value}`)}>{FIGURE_ACT.ask}</Btn>
         <Btn sm ghost onClick={() => closeExplain()}>
           Close
         </Btn>
