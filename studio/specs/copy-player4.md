@@ -85,10 +85,12 @@ The director's point for the speed line: a stranger reads 70 on the highway, but
 | `news.fineHours` | Hours fine, truck `{n}`: −`{fd}` FD for falsified logs. | Your policy runs `{overH}` hours a day; the inspector read the logs. |
 | `news.fineSpeed` | Speeding ticket, truck `{n}`: −`{fd}` FD at `{mph}` mph. | Your policy runs `{fast}` mph. |
 | `news.outOfService` | Out of service, truck `{n}`: parked at `{place}` for `{days}` days, −`{fd}` FD. | `{defect / hours}` found at inspection. It runs again once fixed. |
-| `news.auditDue` | An auditor reviews your record on `{date}`. | `{n}` safety alerts in the last `{days}` days. |
+| `news.alert` (Needs-you item, `SAFETY_NEWS.alert`) | Safety alert: `{areas}`. An auditor will review your record within `{safety.review.auditDays}` days. · without the key: …will review your record. · **Your safety record** | (the areas are the alerts' names: hours of service, unsafe driving, vehicle maintenance, crashes) |
+| `news.auditDue` | An auditor reviews your record on `{date}`. (kept) | `{n}` safety alerts on your record. (engineering's: the record's current alerts; it replaces my "in the last {days} days", which had no window behind it) |
 | `news.auditResult` | Audit: `{Satisfactory / Conditional / Unsatisfactory}`. | `{consequence}` |
 | `news.consequence.conditional` | | Strict-vetting brokers won't load you, and your insurance rises. |
 | `news.consequence.unsatisfactory` | | Most brokers won't load you. A second Unsatisfactory revokes your authority. |
+| `news.revokes` (`SAFETY_NEWS.revokes`, under Unsatisfactory) | Your authority is revoked on `{date}` unless the follow-up audit clears you. | |
 | `safety.ratedNow` | the Safety band, once there are alerts | (never "Not yet rated" with alerts: the band shows the rating the audit set, or "Under review") |
 
 ## R16: the driver's notice (drafted now; it lands with the economy's bump)
