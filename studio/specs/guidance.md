@@ -40,6 +40,7 @@ Three layers deliver it:
 | 1 | The company is in danger: cash under the debt line at a weekly check, or the next check would make it so | The way out, with the countdown: "{n} of 4 weekly checks in debt; next {day}". Then the best single lever: book the idle truck, collect or factor what's owed, return a lease, sell a truck. Rule 1 always names a real, possible action. |
 | 2 | Something is waiting on the player | The most urgent item first: a tender expiring, a contract offer, a lost bid with a better load beside it, a driver gone. This is the "Needs you" list, ordered by deadline. |
 | 3 | A truck is idle with loads in reach that pay | "Bid on {lane}", the best load by the profit chip. Owner-operators first, then the dispatcher's misses. |
+| 3b | **Stuck:** a truck is idle, and nothing in reach clears break-even (R23, `reviews/director-player5.md`) | The cheapest way out, with every way priced and the wall named (R22). See "Stuck: the ways out" below. |
 | 4 | A walkthrough step is current | That step's Do line. |
 | 5 | A milestone is near and needs preparing | The gap or the countdown: the next truck, the cushion, the licence, the season close (section 3). |
 | 6 | Nothing needs the player | "Nothing needs you. The next thing that will: {event} in {days}." Calm is an answer, and it should be honest. |
@@ -53,6 +54,21 @@ Both are behind the economy's switch and land with the brokerage bump. The lever
 - **Switch on.** Collect offers **cashing first**. Its reason names three figures: what lands, the fee, and that it lands before the deciding check ("{fd} FD lands today, {fee} FD in fees, before the check on {day}"). It names the invoices to cash. Under a factoring contract, it offers the **freshest invoices that clear the line**: the aging surcharge (the contract rate plus 0.1% a day of age, up to 3%; `studio/reviews/economy-brokerage.md`) makes the freshest the cheapest to cash. At the spot rate, with no contract, it offers the fewest invoices that clear the line. The spot rate carries the same aging (8% plus 0.1% a day of the invoice's age, up to 3%), so among equal choices the fresher invoice still costs less.
 - **Cashing wouldn't cover the line, or the switch is off.** Collect falls back to waiting for the dated invoices, and names those that are due before the check. If waiting won't clear the line either, rule 1 moves on to the next lever (return a lease, then sell). It never offers a lever that can't work.
 - **No joke here, and no word against the fee.** Iuliia states what it costs. The player decides whether now is worth it.
+
+**Stuck: the ways out** (rule 3b). For each stuck truck, `guide.ts` prices four ways out. Each price is in FD over the next `{guide.stuckHorizonDays}` (3) game days, and each says where it leaves the truck:
+
+| Way out | Its price |
+|---|---|
+| **The best losing load** in reach | What it loses: its profit chip, negative, by the one arithmetic of ruling 5. Plus where it ends: that hub's best load at "usually clears near", counted only if it clears break-even. |
+| **The run home** | The empty miles at the per-mile parts of break-even (fuel, the driver's pay, tolls), plus the days it takes. At home: home time, and the home board's best load. |
+| **A repositioning run** to the nearest hub whose board has a load the truck may take that clears break-even | The empty miles' cost, against that load's profit chip. Only within `{guide.repositionMaxMi}` (600) miles. |
+| **Waiting a round, or a day** | What the truck costs while it sits: the lease's weekly minimum or ownership costs, plus the per diem away from home. Against what the next rounds are likely to bring, from the hub's recent boards. If a time-gated wall lifts inside the horizon (R22: "vetting opens here on {date}"), waiting names that date. |
+
+**Which it offers:** the way out with the best net result over the horizon, as the action, with its button. The reason names the wall and the runner-up, in one line: "Going home costs about 1,425; the best load here loses 1,142 and leaves you in Des Moines." The other ways are one tap under it, each with its figure, so the player makes the call with the numbers in front of him.
+
+**Where results are close:** if the best two are within `{guide.stuckTieFd}` (200 FD), it prefers the one that ends nearest home. That is the cautious choice, and a close call should not push a new player across the country.
+
+**What it never does:** offer a load the truck can't take, or a run the hours won't allow before the next rest without saying so.
 
 **"A better load beside a lost bid"** (rule 2) is an open load the same truck may take now, and it must pass four tests:
 - **The truck can take it.** The trailer matches. The vetting and local-first checks pass (`vettingBlock` and `mayTake` clear). It isn't a hot load without a team.
