@@ -12,6 +12,7 @@ import { bumpData, openIntel, S, TEST_BUILD, useData, type EntryStage } from "..
 import { Btn, Card } from "./bits.js";
 import { Iuliia, IuliiaLine } from "./Walkthrough.js";
 import { Portrait } from "./Loop.js";
+import type { PortraitMood } from "../portrait.js";
 
 /**
  * The first entry (specs/first-ten-minutes.md, S1, draft 4): the world before a home. No company exists yet, so
@@ -48,13 +49,25 @@ export function openHubCard(hub: number): void {
   go("card", hub);
 }
 
+/** Her look through the intro's beats: a wave hello, a hand at the map, a plain word on the work, a hand at the rings. */
+const INTRO_MOODS: PortraitMood[] = ["wave", "point", "idle", "point"];
+
+/** The next beat of the intro, or the hub pick after the last. */
+function nextBeat(): void {
+  const beat = S.entry.beat + 1;
+  if (beat >= FIRST_ENTRY.intro.length) return go("home");
+  S.entry = { ...S.entry, beat };
+  bumpData();
+}
+
 export function ChooseHub(): JSX.Element {
   useData();
   const { stage, hub } = S.entry;
   if (stage === "welcome") {
+    const beat = Math.min(S.entry.beat, FIRST_ENTRY.intro.length - 1);
     return (
-      <Say line={FIRST_ENTRY.welcome}>
-        <Btn primary onClick={() => go("home")}>
+      <Say line={FIRST_ENTRY.intro[beat]!} mood={INTRO_MOODS[beat] ?? "idle"}>
+        <Btn primary onClick={nextBeat}>
           {FIRST_ENTRY.next}
         </Btn>
       </Say>
@@ -70,11 +83,11 @@ export function ChooseHub(): JSX.Element {
 }
 
 /** Iuliia at 96 px with one line, and what to do about it. */
-function Say({ line, children }: { line: string; children?: JSX.Element | JSX.Element[] | null }): JSX.Element {
+function Say({ line, mood = "wave", children }: { line: string; mood?: PortraitMood; children?: JSX.Element | JSX.Element[] | null }): JSX.Element {
   return (
     <div class="stack">
       <div class="iuliiasay">
-        <Iuliia mood="wave" size={96} />
+        <Iuliia mood={mood} size={96} />
         <p>{line}</p>
       </div>
       {children}

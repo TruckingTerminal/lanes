@@ -217,7 +217,18 @@ export const LOGIN = {
 
 export const FIRST_ENTRY = {
   nextRound: (hhmm: string) => `Next round ${hhmm}`,
-  welcome: "I'm Iuliia, your guide. This is America's freight market, live: every truck you see is real and moving. First, pick a home city.",
+  /** The sheet's title while she gives the intro (then "Choose your home hub"). */
+  welcomeTitle: "Welcome to LANES",
+  /**
+   * Her intro, one beat per Next, before the hub pick (Jeff, 2026-11-03: the first screen is Iuliia introducing the game,
+   * not "pick a home city"). Her register: under 20 words a line, no joke in the first, Russian things and never a Russian word.
+   */
+  intro: [
+    "Welcome. I'm Iuliia. I ran four hundred trucks in Moscow once; now I help new carriers find their feet.",
+    "This is America's freight market, live. Every truck you see is real and moving, and nobody waits for us.",
+    "The work is simple to say: find a load, haul it, get paid, keep the truck alive. Then grow.",
+    "You start the way most do: one leased truck, a little money, and you driving. First, a home city.",
+  ],
   next: "Next",
   home: "The rings mark where a new carrier finds freight right now. You may start at any starter city; any city shows its freight.",
   allHubs: "All hubs",

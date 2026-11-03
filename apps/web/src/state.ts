@@ -26,7 +26,7 @@ export type { Tab } from "./tabs.js";
 export type Layout = "split" | "panel" | "map";
 /** The phone's sheet over the map (specs/first-ten-minutes.md, Layout): a strip with the state line, half, or full. */
 export type SheetStop = "strip" | "half" | "full";
-/** The first entry, before a company (specs/first-ten-minutes.md, S1): where the hub-choosing sheet stands. */
+/** The first entry, before a company (specs/first-ten-minutes.md, S1): where the hub-choosing sheet stands; `beat` is how far through Iuliia's intro the welcome stage is. */
 export type EntryStage = "welcome" | "home" | "all" | "card" | "board" | "name";
 export type Platform = { db: DbLike | null; uid: string | null; owner: boolean; local: boolean };
 export type TitleMenu =
@@ -53,7 +53,7 @@ export const S = {
   layout: "split" as Layout,
   sheet: "half" as SheetStop,
   /** The first entry's sheet, and the three ringed hubs, ranked once when it opens so they never shuffle under a thumb. */
-  entry: { stage: "welcome" as EntryStage, hub: null as number | null, rings: null as number[] | null },
+  entry: { stage: "welcome" as EntryStage, beat: 0, hub: null as number | null, rings: null as number[] | null },
   selTruck: null as number | null,
   selHub: null as number | null,
   /** The hub whose city pane is open over the map (opened by clicking the city or a town of its market), if any. */

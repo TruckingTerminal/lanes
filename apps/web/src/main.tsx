@@ -69,7 +69,7 @@ function showGame(s: Session): void {
   setTab("fleet");
   S.sheet = "half";
   // Before a company, the first entry starts at Iuliia's welcome; a returning player opens on their truck, no flight.
-  if (!s.player) S.entry = { stage: "welcome", hub: null, rings: null };
+  if (!s.player) S.entry = { stage: "welcome", beat: 0, hub: null, rings: null };
   else if (truck) flyTo(truck.hub, true);
   // R21: a return after RETURN_HOURS away opens on the return card; this visit is then kept for the next one.
   if (s.player) {

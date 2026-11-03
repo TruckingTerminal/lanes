@@ -29,7 +29,7 @@ import {
 } from "@lanes/engine";
 import { DISPATCHER_ORDERS, GAME_CONFIG, PLAYER_DISPATCHER_ORDERS } from "./game.js";
 import { trueBreakEven } from "./breakeven.js";
-import { ARRIVAL, BROKERAGE, DISPATCHER, NEEDS, SAFETY_NEWS, TRUCK } from "./copy.js";
+import { ARRIVAL, BROKERAGE, DISPATCHER, FIRST_ENTRY, NEEDS, SAFETY_NEWS, TRUCK } from "./copy.js";
 import { hasTwo, kindInView, switchCompany, type CompanyKind } from "./companies.js";
 import { act, bumpData, clockMin, isPhone, me, myTrucks, push, S, setTab, selectTruck, toast, truckNo } from "./state.js";
 import { tabDef, tabOpen, teaserTabs, type Tab } from "./tabs.js";
@@ -436,7 +436,7 @@ function postedCount(w: World, id: number): number {
 export function sheetLine(): string {
   const g = S.game!;
   const c = g.player;
-  if (!c) return g.kind === "test" || g.writer ? "Choose your home hub" : "Watching the live world";
+  if (!c) return g.kind === "test" || g.writer ? (S.entry.stage === "welcome" ? FIRST_ENTRY.welcomeTitle : "Choose your home hub") : "Watching the live world";
   // With two companies the line opens with the one in view (brokerage-ux.md section 1).
   if (hasTwo(g)) return kindInView(g) === "brokerage" ? BROKERAGE.stateLine(c.name, postedCount(g.w, c.id)) : `${c.name} · ${carrierLine(g, c)}`;
   return carrierLine(g, c);
