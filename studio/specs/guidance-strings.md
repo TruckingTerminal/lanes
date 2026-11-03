@@ -220,7 +220,7 @@ UX's button and link; engineering's per-figure answers, passed. A figure with a 
 | `noSpending` | `guide.cushion`, before the first week closes | Nothing to fix yet: your first week hasn't closed, so there's no spending to measure. | changed: says why |
 | `healthy` | `guide.cushion`, enough | Nothing to fix: `{weeks}` weeks of cushion is healthy. | kept |
 | `gapClosed` | `guide.gapToTruck`, closed | Nothing to close: you can afford your next truck now. | kept |
-| `value` | `truck.value` | A truck loses value with age and miles. Nothing you do stops that. | changed: the draft's "upkeep slows that" isn't how value is computed |
+| `value` | `truck.value` | A truck loses value with miles and wear. Upkeep slows that; nothing stops it. | kept: condition enters the value, so upkeep holds it up (engineering, 2026-11-03) |
 | `diesel` | `pay.fuel` | Nobody sets the price of diesel; your truck's mpg decides how much it hurts. | kept, "your truck's" |
 | `held` | `truck.leaseDeposit`, `money.held` | It's yours, held: it counts in full when you buy your own truck. | kept |
 | `theirs` | any `.other` | That's theirs to change, not yours. | changed: plainer |
@@ -284,7 +284,7 @@ UX's button and link; engineering's per-figure answers, passed. A figure with a 
 | Key | What it is | How it's computed | What moves it |
 |---|---|---|---|
 | `truck.leaseDeposit` | Money held back from your lease loads, toward your own truck. | A share of each leased load, counted in full when you buy. | Every leased load adds to it. |
-| `truck.value` | What your owned truck would fetch today. | Its list price, less depreciation by age and miles. | Time, miles, condition and the make. |
+| `truck.value` | What your owned truck would fetch today. | Its list price, less depreciation by age and miles, then lowered by wear. | Time, miles, condition and the make; upkeep holds it up. |
 | `loan.downPayment` | The share of the price you pay yourself on a purchase loan. | `{downLow}` to `{downHigh}` of the price: the better your credit score, the lower. | A better credit score, before you sign. |
 | `loan.cashNow` | The cash a purchase loan needs at signing. | Down payment, a `{loanStake}` loan stake and sales tax. Your lease deposit comes off when this truck replaces the lessor's. | Your credit score, and the price you choose. |
 | `loan.rate` | What the loan costs each week on what's owed. | `{rateLow}` to `{rateHigh}` a week: the better your credit score at signing, the lower. | A better score lowers your next loan. A running loan's rate never changes. |
