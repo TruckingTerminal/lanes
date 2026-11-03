@@ -19,6 +19,12 @@ export function nextWeeklyCheckDay(w: World): number {
   return d;
 }
 
+/**
+ * A company in its first month (R4, Jeff's yes): no lit dollar button on its screens; FD is the button, and the dollar
+ * prices wait under Money's token fold.
+ */
+export const inFirstMonth = (w: World, c: Company): boolean => day(w) - c.createdDay < w.cfg.time.daysPerMonth;
+
 /** guide.cushion: weeks of the company's own spending its cash covers, from its average over guide.cushionAvgWeeks. */
 export function cushion(w: World, c: Company): { weeks: number | null; avgWeeklyFd: number; cashFd: number } {
   const n = w.cfg.guide.cushionAvgWeeks;

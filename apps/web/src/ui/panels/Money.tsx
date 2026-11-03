@@ -2,7 +2,7 @@ import type { JSX } from "preact";
 import { useEffect } from "preact/hooks";
 import { InvoiceRows } from "./CashNow.js";
 import { MoveMoneyLink } from "./Brokerage.js";
-import { averagePriceUsd, bridgeDelayDays, companyAccount, depositCredit, fdPriceUsd, lockedFd, sellableFd, tokenLive, type Company, type World } from "@lanes/engine";
+import { averagePriceUsd, bridgeDelayDays, companyAccount, depositCredit, fdPriceUsd, itemPriceUsd, lockedFd, sellableFd, tokenLive, type Company, type World } from "@lanes/engine";
 import { cls, fd, fdFull, shortDate, usd, plural } from "../../format.js";
 import { MONEY } from "../../copy.js";
 import { invoices, milesOf, weekCosts } from "../../ledger.js";
@@ -67,6 +67,14 @@ export function Money(): JSX.Element {
             ...(au.enabled ? ([["Opening auction", <Num>{fd(au.trancheFd)} FD at one clearing price · ${allBids.toLocaleString("en-US")} bid so far · yours ${myBids.toLocaleString("en-US")} of ${au.capUsd.toLocaleString("en-US")}</Num>]] as [string, JSX.Element][]) : []),
           ]}
         />
+        {/* R4: the small yard's dollar price, moved off Business (the first month's path) into this fold. */}
+        {uw.enabled && c.yard === "none" ? (
+          <div class="row">
+            <Btn onClick={() => act({ type: "buy_item", item: "yardSmall", pay: "usd" }, "Yard bought with dollars")}>
+              Small yard · {usd(itemPriceUsd(w, "yardSmall"))}
+            </Btn>
+          </div>
+        ) : null}
         {au.enabled ? (
           <div class="row">
             <input type="number" id="bid-usd" min="1" step="10" defaultValue="100" aria-label="Dollars to bid" />

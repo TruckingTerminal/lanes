@@ -288,7 +288,19 @@ export function stepText(step: WalkStep, w: World, c: Company): { brief: string;
   return own ? step.owned! : step;
 }
 
-/** The step ids this browser has skipped (onboard `skip:{id}`). */
-export const skippedSteps = (seen: readonly string[]): string[] => seen.filter((k) => k.startsWith("skip:")).map((k) => k.slice(5));
+/**
+ * The company a browser's walkthrough marks belong to (said, hidden, skipped, the arrival): its world, id and start
+ * day, as the milestones keep theirs. Kept per browser alone, one world's marks silenced the next world's lines (QA's
+ * cheap-batch replay: "The truck rolls" never played in a second world).
+ */
+export const stepScope = (w: World, c: Company): string => `${w.seed}:${c.id}:${c.createdDay}`;
+/** A walkthrough mark's key for this company: `{scope}|say:{id}`, `{scope}|arrival`. */
+export const stepKey = (w: World, c: Company, k: string): string => `${stepScope(w, c)}|${k}`;
+
+/** The step ids this company has skipped in this browser (onboard `{scope}|skip:{id}`). */
+export const skippedSteps = (seen: readonly string[], w: World, c: Company): string[] => {
+  const p = stepKey(w, c, "skip:");
+  return seen.filter((k) => k.startsWith(p)).map((k) => k.slice(p.length));
+};
 
 export const stepDo = (step: WalkStep, w: World, c: Company): string => step.doNow?.(w, c) ?? stepText(step, w, c).do;

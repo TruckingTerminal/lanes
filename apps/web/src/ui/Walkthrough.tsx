@@ -2,7 +2,7 @@ import type { JSX } from "preact";
 import { useEffect, useRef, useState } from "preact/hooks";
 import { dayOf } from "@lanes/engine";
 import { GAME_CONFIG } from "../game.js";
-import { skippedSteps, stepDo, stepText, walkProgress, walkSteps, type Mood, type WalkStep } from "../walkthrough.js";
+import { skippedSteps, stepDo, stepKey, stepText, walkProgress, walkSteps, type Mood, type WalkStep } from "../walkthrough.js";
 import { iuliiaMuted, iuliiaNow, setIuliiaMuted } from "../iuliia.js";
 import { ASSETS, hasAsset } from "../mapart.js";
 import { drawPortrait } from "../portrait.js";
@@ -64,7 +64,7 @@ export function Walkthrough(): JSX.Element | null {
   const c = g?.player;
   if (!g || !c) return null;
   const steps = walkSteps(GAME_CONFIG, g.w.net.hubs[c.homeHub]?.name);
-  const skipped = skippedSteps(S.onboard.seen);
+  const skipped = skippedSteps(S.onboard.seen, g.w, c);
   const { index, done, total } = walkProgress(GAME_CONFIG, g.w, c, skipped);
   // "The truck rolls" waits for the load itself, as the caption does (QA's Iuliia replay): until then the board step stays current.
   const loaded = (g.w.trucksByCompany.get(c.id) ?? []).some((t) => t.loadId !== null) || c.delivered > 0;
@@ -131,7 +131,9 @@ export function Walkthrough(): JSX.Element | null {
 
 /** Skips a step (R2): it stays in the list as skipped, not done, and What now? passes over it. */
 function skipStep(id: string): void {
-  if (!S.onboard.seen.includes(`skip:${id}`)) setOnboard({ seen: [...S.onboard.seen, `skip:${id}`] });
+  const g = S.game!;
+  const k = stepKey(g.w, g.player!, `skip:${id}`);
+  if (!S.onboard.seen.includes(k)) setOnboard({ seen: [...S.onboard.seen, k] });
   S.walkView = null;
   bumpData();
 }
@@ -141,7 +143,7 @@ function currentStep(): WalkStep | null {
   const g = S.game!;
   const c = g.player!;
   const steps = walkSteps(GAME_CONFIG, g.w.net.hubs[c.homeHub]?.name);
-  const p = walkProgress(GAME_CONFIG, g.w, c, skippedSteps(S.onboard.seen));
+  const p = walkProgress(GAME_CONFIG, g.w, c, skippedSteps(S.onboard.seen, g.w, c));
   return p.index >= 0 && !p.skipped ? steps[p.index]! : null;
 }
 
@@ -159,7 +161,7 @@ export function StepMoment({ only }: { only?: string }): JSX.Element | null {
   const step = currentStep();
   if (!step || !momentHere(step) || (only ? step.id !== only : step.id === "paid")) return null;
   const mark = () => {
-    setOnboard({ seen: [...S.onboard.seen, `say:${step.id}`] });
+    setOnboard({ seen: [...S.onboard.seen, stepKey(g.w, c, `say:${step.id}`)] });
     bumpData();
   };
   const t = stepText(step, g.w, c);
@@ -211,7 +213,7 @@ function momentScreen(step: WalkStep): Tab | null {
 function momentHere(step: WalkStep): boolean {
   const g = S.game!;
   const c = g.player!;
-  if (S.onboard.seen.includes(`say:${step.id}`) || currentStep()?.id !== step.id) return false;
+  if (S.onboard.seen.includes(stepKey(g.w, c, `say:${step.id}`)) || currentStep()?.id !== step.id) return false;
   // The law (guidance-ux.md section 1's table): at the company's first inspection, on Truck, or on the first visit to
   // Company, whichever comes first; never on Truck merely because the step is current.
   if (step.id === "law") return S.tab === "company" || (S.tab === "fleet" && c.safety.inspections.length > 0);
@@ -278,12 +280,13 @@ export function Caption(): JSX.Element | null {
     if (ms) return ms;
   }
   const steps = walkSteps(GAME_CONFIG, g.w.net.hubs[c.homeHub]?.name);
-  const progress = walkProgress(GAME_CONFIG, g.w, c, skippedSteps(S.onboard.seen));
+  const progress = walkProgress(GAME_CONFIG, g.w, c, skippedSteps(S.onboard.seen, g.w, c));
   const index = progress.index;
   // A skipped step is silent (R2): her other lines and milestones may speak, it doesn't.
   const step = index >= 0 && !progress.skipped ? steps[index]! : null;
-  const seen = (k: string) => S.onboard.seen.includes(k);
-  const mark = (k: string) => setOnboard({ seen: [...S.onboard.seen, k] });
+  // This company's marks (stepKey): a new world in the same browser starts its walkthrough fresh.
+  const seen = (k: string) => S.onboard.seen.includes(stepKey(g.w, c, k));
+  const mark = (k: string) => setOnboard({ seen: [...S.onboard.seen, stepKey(g.w, c, k)] });
   // Every line has its seconds (QA's guidance replays). Steps queue: each step's line holds ui.iuliia.showSeconds, and
   // steps that tick within moments of each other are shown in order, each for its seconds, until the caption catches up
   // with the current one. Once a standing step's line has had its seconds, a milestone line that is due takes its turn,
@@ -296,7 +299,7 @@ export function Caption(): JSX.Element | null {
   const behind = shownIdx >= 0 && shownIdx < (index >= 0 ? index : steps.length);
   const holding = behind && now - stepShown!.at < showMs;
   // Skipped steps never take a turn in the queue (R2).
-  const skips = skippedSteps(S.onboard.seen);
+  const skips = skippedSteps(S.onboard.seen, g.w, c);
   const end = index >= 0 ? index : steps.length;
   const nextInQueue = steps.slice(shownIdx + 1, end).find((x) => !skips.includes(x.id)) ?? (index >= 0 && !progress.skipped ? steps[index] : undefined);
   const queued = behind ? (holding ? steps[shownIdx] : nextInQueue) : undefined;

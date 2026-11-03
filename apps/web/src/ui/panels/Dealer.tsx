@@ -11,6 +11,7 @@ import { Buy, Showroom } from "./Showroom.js";
 import { confirmAct } from "../Confirm.js";
 import { leaseDepositNow, leaseTruck, leaseWeeklyMin, newTruck, usedTruck } from "../../confirmspecs.js";
 import { CONFIRM } from "../../copy.js";
+import { inFirstMonth } from "../../figures.js";
 
 export function Dealer(): JSX.Element {
   useData();
@@ -19,7 +20,7 @@ export function Dealer(): JSX.Element {
   const cash = w.ledger.balance(companyAccount(c.id));
   // The farming season's dollar window for facilities (Jeff, 2026-11-01): every dollar held for the launch pool.
   const uw = w.cfg.token.catalogue.usdWindow;
-  const dollarWindow = !tokenLive(w) && w.cfg.token.enabled && uw.enabled && uw.assets.enabled;
+  const dollarWindow = !tokenLive(w) && w.cfg.token.enabled && uw.enabled && uw.assets.enabled && !inFirstMonth(w, c);
   const fleet = myTrucks();
   const onLease = fleet.some((t) => t.lease === "npc");
   const firstTruck = !fleet.some((t) => t.lease === "owned") && ordersOf(w, c.id).length === 0;

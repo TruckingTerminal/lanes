@@ -7,6 +7,7 @@ import { SECURITY } from "../../copy.js";
 import { confirmAct } from "../Confirm.js";
 import { item as itemLines } from "../../confirmspecs.js";
 import { CONFIRM } from "../../copy.js";
+import { inFirstMonth } from "../../figures.js";
 
 const num = (id: string): number => Number((document.getElementById(id) as HTMLInputElement | null)?.value);
 
@@ -52,7 +53,8 @@ export function Business(): JSX.Element {
   const cat = w.cfg.token.catalogue;
   const biz = w.cfg.businesses;
   const live = tokenLive(w);
-  const usdWindow = !live && cat.usdWindow.enabled;
+  // R4: no dollar buttons in the first month; the small yard's dollar price lives under Money's token fold.
+  const usdWindow = !live && cat.usdWindow.enabled && !inFirstMonth(w, c);
   // The farming season's dollar window for businesses (Jeff, 2026-11-01): the price in dollars, every one held for
   // the launch pool; the bond stays FD.
   const assetDollars = usdWindow && cat.usdWindow.assets.enabled;
@@ -135,11 +137,6 @@ export function Business(): JSX.Element {
                 <input type="number" id="yard-ask" step="1000" min="1" defaultValue={String(Math.round(itemPriceFd(w, c.yard === "large" ? "yardLarge" : "yardSmall") * 0.8))} aria-label="Asking price for the yard" />
                 <Btn onClick={() => act({ type: "list_asset_sale", kind: "yard", refId: c.id, askFd: num("yard-ask") }, "Yard up for sale to carriers at your home hub")}>Sell the yard</Btn>
               </>
-            ) : null}
-            {usdWindow && c.yard === "none" ? (
-              <Btn onClick={() => act({ type: "buy_item", item: "yardSmall", pay: "usd" }, "Yard bought with dollars")}>
-                Small yard · {usd(itemPriceUsd(w, "yardSmall"))}
-              </Btn>
             ) : null}
           </div>
           {owned.map((t) => (

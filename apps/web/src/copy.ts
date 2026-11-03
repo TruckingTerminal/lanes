@@ -354,7 +354,8 @@ export const MONEY = {
   loanOwed: (n: number, fd: string) => `Loan on truck ${n}: ${fd} FD owed`,
   missed: (n: number) => `${n} missed`,
   repay: "Repay",
-  token: "The token",
+  /** R4 (the director, director-player1.md): the fold starts closed and says the token is later. */
+  token: "The token (later)",
   red: (weeks: number, limit: string) => `You're in the red. ${weeks} weekly checks in a row more than ${limit} FD under and the company is wound up.`,
 };
 

@@ -37,6 +37,7 @@ import { Rig } from "../Loop.js";
 import { Fig } from "../Explain.js";
 import { confirmAct } from "../Confirm.js";
 import { newTruck, trailer as trailerLines, usedTruck, type Lines } from "../../confirmspecs.js";
+import { inFirstMonth } from "../../figures.js";
 
 const TIERS: TractorTier[] = ["workhorse", "highwayPro", "flagship"];
 const TYPES: Equipment[] = ["van", "reefer", "flatbed"];
@@ -74,7 +75,7 @@ export function Showroom(): JSX.Element {
   const offers = openLeaseOffers(w).filter((o) => o.lessorId !== c.id).sort((a, b) => a.weeklyFd - b.weeklyFd).slice(0, 8);
   const open = dealershipsOpen(w);
   const uw = w.cfg.token.catalogue.usdWindow;
-  const dollarWindow = !tokenLive(w) && w.cfg.token.enabled && uw.enabled && uw.assets.enabled;
+  const dollarWindow = !tokenLive(w) && w.cfg.token.enabled && uw.enabled && uw.assets.enabled && !inFirstMonth(w, c);
   return (
     <>
       <p class="muted small">

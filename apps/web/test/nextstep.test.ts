@@ -11,7 +11,7 @@ import { emptyRun, paidLine } from "../src/rolling.js";
 import { cushion, debtCountdown, gapToTruck, nextEvent, nextWeeklyCheckDay } from "../src/figures.js";
 import { GAME_CONFIG, TestGame } from "../src/game.js";
 import { nextAction } from "../src/nextstep.js";
-import { skippedSteps, walkProgress, walkSteps } from "../src/walkthrough.js";
+import { skippedSteps, stepKey, walkProgress, walkSteps } from "../src/walkthrough.js";
 
 async function fresh() {
   const g = await TestGame.create();
@@ -178,7 +178,8 @@ describe("the walkthrough's soft ways out (the director's R2)", () => {
     expect(after.skipped).toBe(true);
     expect(after.done).toBe(before.done); // skipped isn't done
     expect(nextAction(GAME_CONFIG, g.w, c, null, [id])).not.toMatchObject({ rule: 4, index: before.index });
-    expect(skippedSteps(["say:paid", `skip:${id}`])).toEqual([id]);
+    // Marks are this company's: another world's skip in the same browser doesn't count.
+    expect(skippedSteps([stepKey(g.w, c, "say:paid"), stepKey(g.w, c, `skip:${id}`), `other:1:0|skip:paid`], g.w, c)).toEqual([id]);
   }, 60_000);
 
   it("Standing orders is done for a player who bids by hand and switched the dispatcher off", async () => {

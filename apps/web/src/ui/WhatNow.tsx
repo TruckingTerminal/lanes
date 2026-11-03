@@ -22,7 +22,7 @@ import { kindInView } from "../companies.js";
 /** The answer now, fed the last hand bid that lost (rule 2's "a better load beside it"), while its result is up. */
 function currentAction(w: World, c: Company): NextAction {
   const r = S.result;
-  return nextAction(GAME_CONFIG, w, c, r && !r.won ? (r.lost ?? null) : null, skippedSteps(S.onboard.seen));
+  return nextAction(GAME_CONFIG, w, c, r && !r.won ? (r.lost ?? null) : null, skippedSteps(S.onboard.seen, w, c));
 }
 
 /** Ask What now? (the chip, the "?" key, the explain sheet's foot, the debt milestone). */
