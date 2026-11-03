@@ -28,6 +28,9 @@ describe("a player's brokerage, from the client (game.ts)", () => {
       const b = g.brokerage!;
       expect(b.name).toBe("Red River Logistics");
       expect(b.partnerId).toBe(c.id);
+      // formBrokerage sets its first order and vetting from config; the client sends terms only when they change.
+      expect(b.orders).toEqual([{ kind: "broker", marginPct: g.w.cfg.brokerage.defaultMarginPct, maxOpenLoads: g.w.cfg.brokerage.defaultOpenLoads }]);
+      expect(b.vetting).toBe(g.w.cfg.brokerage.defaultVetting);
       // The brokerage's terms, sent as it.
       expect(g.act({ type: "set_standing_orders", orders: [{ kind: "broker", marginPct: 0.1, maxOpenLoads: 40 }] }, "brokerage").ok).toBe(true);
       expect(b.orders).toEqual([{ kind: "broker", marginPct: 0.1, maxOpenLoads: 40 }]);

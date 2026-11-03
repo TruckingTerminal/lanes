@@ -645,8 +645,8 @@ export const NOW = {
   collectReason2: (fd: string, day: string) => `${fd} FD is due to you by ${day}, in time for the check that counts.`,
   collectQuick: (pct: string) => `Quick pay would pay each new load on delivery, less ${pct}. Open invoices keep their dates.`,
   collectButton: "Getting paid",
-  /** Engineering's draft for the writer: back above the line with checks counted; the count resets at the next check. */
-  holdAction: (day: string) => `Stay above the line until ${day}. The count resets at that check.`,
+  /** Back above the line with checks counted: the count resets at the next check if cash holds. */
+  holdAction: (debtLine: string, day: string) => `Keep your cash above ${debtLine} FD through the ${day} check. That check resets the count.`,
   holdButton: "Money",
   // With cash now on: cashing offered first (the director's rule 1).
   cashAction: (day: string) => `Cash the invoices due by ${day}.`,
@@ -857,6 +857,20 @@ export const BROKERAGE = {
   stateLine: (name: string, n: number) => `${name} · ${n} loads posted`,
   bookHeader: (name: string, n: number, fd: string) => `${name} · ${n} loads · ${fd} FD margin this month`,
   groups: ["On the board", "Moving", "Waiting for pay"] as const,
+  // Offered to you: the held tenders (the writer's card and actions; the deadline, the default line, the chip and the
+  // order's switch are UX's, brokerage-ux.md draft 2, for the writer).
+  offered: "Offered to you",
+  shipperPays: (fd: string) => `Shipper pays ${fd} FD`,
+  wouldPost: (fd: string, pct: string) => `You'd post at ${fd} (your ${pct} margin)`,
+  boardFee: (fd: string) => `Board fee ${fd}`,
+  postIt: "Post it",
+  decline: "Decline",
+  decideBy: (hh: string, h: number) => `Decide by ${hh} · ${h} h left`,
+  ifNotPost: (pct: string) => `If you don't decide: your standing order posts it at ${pct}`,
+  ifNotOwn: (carrier: string) => `If you don't decide: your standing order offers it to ${carrier} first`,
+  ifNotDecline: "If you don't decide: it goes to another broker",
+  fromChip: (carrier: string) => `From ${carrier}`,
+  ownFirst: (carrier: string) => `Offer to ${carrier} first`,
   posted: (rate: string, hh: string, wait: string) => `Posted at ${rate}/mi · clears ${hh} · in ${wait}`,
   bookEmpty: (hh: string) => `No loads yet. Shippers offer loads to brokers every round; yours start at ${hh}.`,
   whoMayHaul: "Who may haul your loads",

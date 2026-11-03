@@ -88,7 +88,7 @@ export const S = {
   brokerSwitch: false,
   /** Who last drove each of the player's trucks, as this page saw it (What now?'s "has gone" needs one who did). */
   lastDriver: new Map<number, string>(),
-  explain: null as null | { key: string; ctx: import("./explain.js").FigureCtx; label: string; value: string; side?: "left" | "right" },
+  explain: null as null | { key: string; ctx: import("./explain.js").FigureCtx; label: string; value: string; side?: "left" | "right"; tab?: string },
   /** What now?'s answer while it shows, and the tab it was asked on (ui/WhatNow.tsx). */
   whatNow: null as null | { a: import("./nextstep.js").NextAction; tab: Tab },
   /** Iuliia's tab-and-card line waiting for, or in, the caption strip (iuliia.ts). */

@@ -38,9 +38,6 @@ function newSurety(w: World): { fd: number; band: string } {
   return { fd: w.cfg.permits.brokerBondFd * (worst - (worst - best) * (score / 100)), band: creditBand(score) };
 }
 
-/** Engineering's defaults for a new brokerage's standing order, for the economy to size: the bots' cap, UX's margin. */
-const DEFAULT_MARGIN = 0.1;
-const DEFAULT_OPEN = 40;
 
 /** The tab More opens: "Start a brokerage" from its layer, or, once started, the switch to it. */
 export function BrokerageTab(): JSX.Element {
@@ -81,11 +78,12 @@ function StartBrokerage(): JSX.Element {
   const feePct = k.brokerage.transferFeePct;
   const [step, setStep] = useState(1);
   const [name, setName] = useState(BROKERAGE.defaultName(carrier.name).slice(0, 32));
-  // Prefilled with the bond, the licence and the first year's premium (the economy may size a working-cash figure too).
-  const [capital, setCapital] = useState(Math.ceil(bond + licence + surety.fd));
-  const [margin, setMargin] = useState(DEFAULT_MARGIN);
-  const [open, setOpen] = useState(DEFAULT_OPEN);
-  const [vet, setVet] = useState<0 | 1 | 2>(0);
+  // Prefilled with the engine's figure: the bond, the licence and brokerage.startCashFd of working cash (formationCostFd
+  // adds the fee on top). Step 3 starts from the first order formBrokerage sets, and only a change is sent.
+  const [capital, setCapital] = useState(bond + licence + k.brokerage.startCashFd);
+  const [margin, setMargin] = useState<number>(k.brokerage.defaultMarginPct);
+  const [open, setOpen] = useState<number>(k.brokerage.defaultOpenLoads);
+  const [vet, setVet] = useState<0 | 1 | 2>(k.brokerage.defaultVetting as 0 | 1 | 2);
   const [note, setNote] = useState<string | null>(null);
   const blocked = canFormBrokerage(w, carrier);
   const fee = capital * feePct;
@@ -102,9 +100,9 @@ function StartBrokerage(): JSX.Element {
     setNote(null);
     const r = await order({ type: "form_brokerage", name: name.trim() || BROKERAGE.defaultName(carrier.name), capitalFd: capital }, BROKERAGE.switched(name), "carrier");
     if (!r.ok) return setNote(startRefusal(w, r.reason.charAt(0).toLowerCase() + r.reason.slice(1)));
-    // The brokerage's own first orders: its terms, sent as it, after the start in the same minute.
-    await order({ type: "set_standing_orders", orders: [{ kind: "broker", marginPct: margin, maxOpenLoads: open }] }, BROKERAGE.save, "brokerage");
-    await order({ type: "set_vetting", tier: vet }, BROKERAGE.save, "brokerage");
+    // formBrokerage sets its first order and vetting from config; the terms are sent, as the brokerage, only if changed.
+    if (margin !== k.brokerage.defaultMarginPct || open !== k.brokerage.defaultOpenLoads) await order({ type: "set_standing_orders", orders: [{ kind: "broker", marginPct: margin, maxOpenLoads: open }] }, BROKERAGE.save, "brokerage");
+    if (vet !== k.brokerage.defaultVetting) await order({ type: "set_vetting", tier: vet }, BROKERAGE.save, "brokerage");
     if (r.at === null) {
       switchCompany("brokerage");
       toast(BROKERAGE.switched(g.brokerage?.name ?? name));
@@ -234,14 +232,22 @@ export function Book(): JSX.Element {
   const c = me();
   const partner = hasTwo(g) ? g.carrier : null;
   const mine = [...w.loads.values()].filter((l) => l.brokerId === c.id);
-  const onBoard = mine.filter((l) => l.status === "open");
+  const held = mine.filter((l) => l.status === "open" && l.hold?.brokerId === c.id);
+  const onBoard = mine.filter((l) => l.status === "open" && !l.hold);
   const moving = mine.filter((l) => l.status === "assigned" || l.status === "inTransit");
   const owed = w.receivables.filter((r) => r.holder === c.id && r.amountFd > 0.005);
   const hours = Math.max(1, Math.round((roundAt(w) - w.t) / 60));
   const feePct = w.cfg.board.posterFeePct;
   const [tendering, setTendering] = useState<number | null>(S.openLoad);
   return (
-    <Panel title={BROKERAGE.bookHeader(c.name, onBoard.length + moving.length, fd(marginThisMonth(c)))}>
+    <Panel title={BROKERAGE.bookHeader(c.name, held.length + onBoard.length + moving.length, fd(marginThisMonth(c)))}>
+      {held.length ? (
+        <Card title={BROKERAGE.offered}>
+          {held.map((l) => (
+            <OfferedCard key={l.id} load={l} partner={partner} />
+          ))}
+        </Card>
+      ) : null}
       <Card title={BROKERAGE.groups[0]}>
         {onBoard.map((l) => (
           <div class={`stack bookcard${l.id === S.openLoad ? " sel" : ""}`} key={l.id}>
@@ -297,6 +303,70 @@ export function Book(): JSX.Element {
       </Card>
       {mine.length || owed.length ? null : <p class="muted">{BROKERAGE.bookEmpty(nextRoundHour())}</p>}
     </Panel>
+  );
+}
+
+/**
+ * A held tender (brokerage.ts startHold): what the shipper pays, what you'd post at, the board fee, the window's end and
+ * what the standing order does then; Post it at a margin, Tender to the carrier, or Decline. A load the carrier passed
+ * shows its chip and Post only (it can't be declined, nor go back).
+ */
+function OfferedCard({ load, partner }: { load: Load; partner: Company | null }): JSX.Element {
+  const w = S.game!.w;
+  const c = me();
+  const o = c.orders.find((x) => x.kind === "broker");
+  const [margin, setMargin] = useState<number>(o && o.kind === "broker" ? o.marginPct : w.cfg.brokerage.defaultMarginPct);
+  const [tendering, setTendering] = useState(false);
+  const [note, setNote] = useState<string | null>(null);
+  const shipper = load.shipperRate * load.miles;
+  const passed = load.passedBy !== undefined && partner !== null && load.passedBy === partner.id;
+  const hours = Math.max(0, Math.round((load.hold!.until - w.t) / 60));
+  const ifNot = o && o.kind === "broker" ? (o.ownFirst && partner && !passed ? BROKERAGE.ifNotOwn(partner.name) : BROKERAGE.ifNotPost(pct(o.marginPct))) : load.hold!.declinable ? BROKERAGE.ifNotDecline : BROKERAGE.ifNotPost(pct(w.cfg.brokerage.defaultMarginPct));
+  const act = async (a: Parameters<typeof order>[0], ok: string) => {
+    const r = await order(a, ok, "brokerage");
+    if (!r.ok) setNote(r.reason);
+  };
+  return (
+    <div class="stack bookcard">
+      <b>
+        {lane(w, load)} · {load.equipment}
+        {passed ? (
+          <>
+            {" "}
+            <span class="badge">{BROKERAGE.fromChip(partner!.name)}</span>
+          </>
+        ) : null}
+      </b>
+      <span class="small">
+        {BROKERAGE.shipperPays(fd(shipper))} · {BROKERAGE.wouldPost(fd(shipper * (1 - margin)), pct(margin))} · {BROKERAGE.boardFee(fd(shipper * w.cfg.board.posterFeePct))}
+      </span>
+      <span class="small">{BROKERAGE.decideBy(hhmm(load.hold!.until), hours)}</span>
+      <span class="muted small">{ifNot}</span>
+      {tendering && partner ? (
+        <TenderSheet load={load} carrier={partner} onDone={() => setTendering(false)} />
+      ) : (
+        <div class="row">
+          <label class="field">
+            <span class="label">{BROKERAGE.marginField}</span>
+            <input type="number" min={0} max={90} step={1} value={Math.round(margin * 100)} onInput={(e) => setMargin(Math.max(0, Math.min(90, Number((e.currentTarget as HTMLInputElement).value) || 0)) / 100)} />
+          </label>
+          <Btn sm primary onClick={() => void act({ type: "post_tender", loadId: load.id, marginPct: margin }, BROKERAGE.postIt)}>
+            {BROKERAGE.postIt}
+          </Btn>
+          {partner && !passed ? (
+            <Btn sm onClick={() => setTendering(true)}>
+              {BROKERAGE.tenderButton(partner.name)}
+            </Btn>
+          ) : null}
+          {load.hold!.declinable ? (
+            <Btn sm ghost onClick={() => void act({ type: "decline_tender", loadId: load.id }, BROKERAGE.decline)}>
+              {BROKERAGE.decline}
+            </Btn>
+          ) : null}
+        </div>
+      )}
+      {note ? <p class="bad small">{note}</p> : null}
+    </div>
   );
 }
 
@@ -360,8 +430,9 @@ export function Carriers(): JSX.Element {
   const k = w.cfg.fraud.vetting;
   const lines = BROKERAGE.vettingLines(k.standard.minAuthorityDays, k.strict.minAuthorityDays, k.strict.minDelivered);
   const o = c.orders.find((x) => x.kind === "broker");
-  const [margin, setMargin] = useState(o && o.kind === "broker" ? o.marginPct : DEFAULT_MARGIN);
-  const [open, setOpen] = useState(o && o.kind === "broker" ? o.maxOpenLoads : DEFAULT_OPEN);
+  const [margin, setMargin] = useState<number>(o && o.kind === "broker" ? o.marginPct : w.cfg.brokerage.defaultMarginPct);
+  const [open, setOpen] = useState<number>(o && o.kind === "broker" ? o.maxOpenLoads : w.cfg.brokerage.defaultOpenLoads);
+  const [ownFirst, setOwnFirst] = useState<boolean>(!!(o && o.kind === "broker" && o.ownFirst));
   const partner = hasTwo(g) ? g.carrier : null;
   const counts = new Map<number, number>();
   for (const l of w.loads.values()) if (l.brokerId === c.id && l.carrierId) counts.set(l.carrierId, (counts.get(l.carrierId) ?? 0) + 1);
@@ -381,7 +452,13 @@ export function Carriers(): JSX.Element {
       </Card>
       <Card title={BROKERAGE.standingOrder}>
         <Terms margin={margin} setMargin={setMargin} open={open} setOpen={setOpen} />
-        <Btn sm primary onClick={() => void order({ type: "set_standing_orders", orders: [...c.orders.filter((x) => x.kind !== "broker"), { kind: "broker", marginPct: margin, maxOpenLoads: open }] }, BROKERAGE.save, "brokerage")}>
+        {partner ? (
+          <label class="row switchrow">
+            <input type="checkbox" role="switch" checked={ownFirst} onChange={(e) => setOwnFirst((e.currentTarget as HTMLInputElement).checked)} />
+            <span>{BROKERAGE.ownFirst(partner.name)}</span>
+          </label>
+        ) : null}
+        <Btn sm primary onClick={() => void order({ type: "set_standing_orders", orders: [...c.orders.filter((x) => x.kind !== "broker"), { kind: "broker", marginPct: margin, maxOpenLoads: open, ...(ownFirst ? { ownFirst: true } : {}) }] }, BROKERAGE.save, "brokerage")}>
           {BROKERAGE.save}
         </Btn>
       </Card>
