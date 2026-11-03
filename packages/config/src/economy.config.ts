@@ -1194,7 +1194,7 @@ export const economyConfig = {
       // owner's two companies can't be cashed (receivables.ts cashInvoice).
       // `botsNetOnly` is a batch scenario, not a rule: owner-operator bots on their first trucks keep net terms (no
       // contract, no quick pay), as a player who declined them would, so the invoice gap is theirs to bridge.
-      cashNow: { enabled: true, spotPct: 0.08, agingPerDay: 0.001, agingCap: 0.03, botsNetOnly: false },
+      cashNow: { enabled: false, spotPct: 0.08, agingPerDay: 0.001, agingCap: 0.03, botsNetOnly: false },
       factoring: {
         discountNpc: 0.04, // an NPC shipper's paper, per 30-day invoice (× the pool's markup, or × pools.factoring.backstopMarkup at the NPC factor)
         discountPlayer: 0.06, // a player broker's or shipper's paper
