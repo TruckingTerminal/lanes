@@ -369,7 +369,7 @@ export function Staff(): JSX.Element {
         </div>
         {pending.map((s) => (
           <p class="small" key={`offer-${s.id}`}>
-            {s.name} · {Math.floor(w.t / w.cfg.time.gameMinutesPerDay) - s.offer!.day > w.cfg.labor.morale.noticeDays ? ANSWER.poachRowLate : ANSWER.poachRow(shortDate(s.offer!.day + w.cfg.labor.morale.noticeDays))}
+            {s.name} · {!w.cfg.labor.hiring.settleAtStop && Math.floor(w.t / w.cfg.time.gameMinutesPerDay) - s.offer!.day > w.cfg.labor.morale.noticeDays ? ANSWER.poachRowLate : ANSWER.poachRow(shortDate(s.offer!.day + w.cfg.labor.morale.noticeDays))}
           </p>
         ))}
         {S.poachResults.map((r) => (

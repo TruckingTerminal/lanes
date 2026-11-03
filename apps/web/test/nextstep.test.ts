@@ -1,13 +1,14 @@
 import { describe, expect, it } from "vitest";
 import { borrowingCapacity, borrowLender, companyAccount, lendNowFd, poolCash } from "@lanes/engine";
 import { blockReason, boardRows } from "../src/board.js";
-import { ANSWER, CAPS, CONFIRM, DELIVERED, MOVE, SECURITY } from "../src/copy.js";
+import { ANSWER, CAPS, CONFIRM, DELIVERED, MOVE, SAFETY_NEWS, SECURITY } from "../src/copy.js";
+import { safetyNeeds } from "../src/logic.js";
 import { poachResult } from "../src/ui/panels/Staff.js";
 import { item, itemSaving, usedTruck } from "../src/confirmspecs.js";
 import { confirmAct, confirmSpend } from "../src/ui/Confirm.js";
 import { S } from "../src/state.js";
 import { breakdown } from "../src/explain.js";
-import { shortDate } from "../src/format.js";
+import { dateLabel, shortDate } from "../src/format.js";
 import { emptyRun, paidLine } from "../src/rolling.js";
 import { cushion, debtCountdown, fleetCaps, gapToTruck, nextEvent, nextWeeklyCheckDay } from "../src/figures.js";
 import { GAME_CONFIG, TestGame } from "../src/game.js";
@@ -366,5 +367,25 @@ describe("R7: a hire-away offer's answer lands on Staff from the engine's notice
     expect(S.poachResults).toHaveLength(2);
     S.poachResults = [];
     S.game = null;
+  }, 60_000);
+});
+
+describe("R18: the road to revocation is a Needs-you item at every step", () => {
+  it("an alert, the audit's date and a bad rating each become an item that opens the safety card", async () => {
+    const g = await TestGame.create(undefined, undefined, 4242);
+    const c = g.join("Rated Freight", "oo", "LAX")!;
+    const w = g.w;
+    const today = Math.floor(w.t / w.cfg.time.gameMinutesPerDay);
+    expect(safetyNeeds(w, c)).toEqual([]);
+    c.safety.alerts = ["hos"];
+    expect(safetyNeeds(w, c).map((n) => n.text)).toEqual([SAFETY_NEWS.alert("hours of service", w.cfg.safety.review.auditDays)]);
+    c.safety.reviewDay = today + 10;
+    expect(safetyNeeds(w, c).map((n) => n.text)).toEqual([`${SAFETY_NEWS.auditDue(dateLabel(today + 10))} ${SAFETY_NEWS.auditWhy(1)}`]);
+    c.safety.rating = "unsatisfactory";
+    c.safety.ratingDay = today;
+    c.safety.revokeDay = today + 45;
+    const items = safetyNeeds(w, c);
+    expect(items[0]!.text).toBe(`${SAFETY_NEWS.auditResult("Unsatisfactory")} ${SAFETY_NEWS.consequence.unsatisfactory} ${SAFETY_NEWS.revokes(dateLabel(today + 45))}`);
+    expect(items.every((n) => n.tab === "company" && n.target === '[data-need="safety"]')).toBe(true);
   }, 60_000);
 });

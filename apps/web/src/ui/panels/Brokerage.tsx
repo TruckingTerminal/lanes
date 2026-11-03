@@ -35,11 +35,8 @@ export function carrierCantTake(w: World, carrier: Company, load: Load): string 
 const ownFirstFinds = (w: World, carrier: Company, load: Load): boolean =>
   (w.trucksByCompany.get(carrier.id) ?? []).some((t) => t.status === "idle" && t.driverId !== 0 && t.trailer === load.equipment && t.hub === load.origin);
 
-/**
- * The rate a load was offered to the own carrier at, once that tender lapsed and it went to the board (S4). The engine's
- * marker `ownTenderLapsed` comes with the economy's patch; until then it reads undefined and the line doesn't show.
- */
-const lapsedAt = (l: Load): number | undefined => (l as Load & { ownTenderLapsed?: number }).ownTenderLapsed;
+/** The rate a load was offered to the own carrier at, once that tender lapsed and it went to the board (S4; the engine's Load.ownTenderLapsed). */
+const lapsedAt = (l: Load): number | undefined => l.ownTenderLapsed;
 
 /** The brokerage's loads by state: offered (held), tendered to its own carrier, on the board, moving (S1: posted and offered are two counts). */
 export function bookStates(w: World, c: Company) {

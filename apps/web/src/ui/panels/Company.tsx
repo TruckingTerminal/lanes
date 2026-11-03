@@ -4,7 +4,8 @@ import { companyAccount, fuelPrice, homeCrowding, homeEdge, lossRatio, operating
 import { cls, dateLabel, fd, pct, signedPct, TRAILER_NAME } from "../../format.js";
 import { H } from "../../handlers.js";
 import { act, clockMin, openIntel, S, useData } from "../../state.js";
-import { INTEL } from "../../copy.js";
+import { INTEL, POLICY } from "../../copy.js";
+import { confirmAct } from "../Confirm.js";
 import { weekCosts } from "../../ledger.js";
 import { Fig } from "../Explain.js";
 import { Btn, Card, Kv, Label, Num, Panel } from "../bits.js";
@@ -170,12 +171,23 @@ function RecordCard({ c }: { c: CompanyT }): JSX.Element {
   const legalH = cfg.hos.drivingHoursPerDay;
   const overH = legalH + cfg.safety.hos.overHours;
   const fast = cfg.safety.speed.fastMph;
-  const setPolicy = () => {
+  // R18 (the director's ruling 3): an option switched on gets R6's confirm card with its season cost in the writer's
+  // words; going back to Legal sets at once.
+  const setPolicy = (ev?: MouseEvent) => {
     const v = (id: string) => (document.getElementById(id) as HTMLSelectElement).value;
-    act({ type: "set_compliance", policy: { hos: v("pol-hos") as CompliancePolicy["hos"], speed: v("pol-speed") as CompliancePolicy["speed"], maintenance: v("pol-maint") as CompliancePolicy["maintenance"] } }, "Policy set");
+    const next: CompliancePolicy = { hos: v("pol-hos") as CompliancePolicy["hos"], speed: v("pol-speed") as CompliancePolicy["speed"], maintenance: v("pol-maint") as CompliancePolicy["maintenance"] };
+    const run = () => act({ type: "set_compliance", policy: next }, "Policy set");
+    const on: { name: string; risk: string }[] = [];
+    if (next.hos !== "legal" && next.hos !== p.hos) on.push(next.hos === "always" ? { name: `${overH} h every day`, risk: POLICY.confirm.hosAlways } : { name: `${overH} h on hot loads`, risk: POLICY.confirm.hosHot });
+    if (next.speed !== "legal" && next.speed !== p.speed) on.push(next.speed === "always" ? { name: `${fast} mph always`, risk: POLICY.confirm.speedAlways } : { name: `${fast} mph on hot loads`, risk: POLICY.confirm.speedHot });
+    if (next.maintenance === "deferred" && p.maintenance !== "deferred") on.push({ name: "deferred maintenance", risk: POLICY.confirm.maintDeferred });
+    if (!on.length) return run();
+    confirmAct({ verb: "Set", item: "this policy", costFd: null, costLine: "", does: POLICY.does(on.map((o) => o.name)), risk: on.map((o) => o.risk).join(" "), go: "Set policy", destructive: true, run }, ev);
   };
+  const lineUnder = (k: "hos" | "speed" | "maintenance") =>
+    k === "hos" ? POLICY.hos[p.hos] : k === "speed" ? (p.speed === "legal" ? POLICY.speed.legal(cfg.hos.avgMph) : p.speed === "hot" ? POLICY.speed.hot : POLICY.speed.always(cfg.hos.avgMph, fast)) : p.maintenance === "deferred" ? POLICY.maintDeferred : null;
   return (
-    <Card title="Safety and authority">
+    <Card title="Safety and authority" need="safety">
       <Kv
         rows={[
           ["Authority", authority],
@@ -198,6 +210,7 @@ function RecordCard({ c }: { c: CompanyT }): JSX.Element {
         </ul>
       ) : null}
       <h3>Policy</h3>
+      <p class="muted small">{POLICY.lead}</p>
       <div class="row">
         <Label for="pol-hos">Driving hours</Label>
         <select id="pol-hos" defaultValue={p.hos}>
@@ -206,6 +219,7 @@ function RecordCard({ c }: { c: CompanyT }): JSX.Element {
           <option value="always">{overH} h every day</option>
         </select>
       </div>
+      <p class="muted small">{lineUnder("hos")}</p>
       <div class="row">
         <Label for="pol-speed">Speed</Label>
         <select id="pol-speed" defaultValue={p.speed}>
@@ -214,6 +228,7 @@ function RecordCard({ c }: { c: CompanyT }): JSX.Element {
           <option value="always">{fast} mph always</option>
         </select>
       </div>
+      <p class="muted small">{lineUnder("speed")}</p>
       <div class="row">
         <Label for="pol-maint">Maintenance</Label>
         <select id="pol-maint" defaultValue={p.maintenance}>
@@ -221,8 +236,9 @@ function RecordCard({ c }: { c: CompanyT }): JSX.Element {
           <option value="deferred">Deferred: {pct(1 - cfg.safety.maintenance.deferredCostMult)} cheaper, defects build up</option>
         </select>
       </div>
+      {lineUnder("maintenance") ? <p class="muted small">{lineUnder("maintenance")}</p> : null}
       <div class="row">
-        <Btn primary onClick={setPolicy}>
+        <Btn primary onClick={(ev) => setPolicy(ev)}>
           Set policy
         </Btn>
       </div>

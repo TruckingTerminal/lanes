@@ -30,23 +30,25 @@ const today = (w: World): number => Math.floor(w.t / w.cfg.time.gameMinutesPerDa
 const closeOnOrAfter = (d: number): number => d + ((6 - (d % 7) + 7) % 7);
 
 /**
- * The first day since `since` that the market read "booming" (freight.ts marketMood, read as it stood at the end of each
+ * The first day since `since` that the market read `state` (freight.ts marketMood, read as it stood at the end of each
  * recorded day: the engine's own function over the days up to then). Scanned once per new day and kept per world.
  */
-const boomScans = new WeakMap<World, Map<number, { scanned: number; day: number | null }>>();
-export function firstBoomDay(w: World, since: number): number | null {
-  let per = boomScans.get(w);
-  if (!per) boomScans.set(w, (per = new Map()));
-  const scan = per.get(since) ?? { scanned: 0, day: null };
+const moodScans = new WeakMap<World, Map<string, { scanned: number; day: number | null }>>();
+export function firstMoodDay(w: World, since: number, state: "booming" | "slumping"): number | null {
+  let per = moodScans.get(w);
+  if (!per) moodScans.set(w, (per = new Map()));
+  const key = `${state}:${since}`;
+  const scan = per.get(key) ?? { scanned: 0, day: null };
   const days = w.metrics.days;
   for (let i = scan.scanned; i < days.length && scan.day === null; i++) {
     if (days[i]!.day < since) continue;
-    if (marketMood({ cfg: w.cfg, metrics: { days: days.slice(0, i + 1) } } as unknown as World).state === "booming") scan.day = days[i]!.day;
+    if (marketMood({ cfg: w.cfg, metrics: { days: days.slice(0, i + 1) } } as unknown as World).state === state) scan.day = days[i]!.day;
   }
   scan.scanned = days.length;
-  per.set(since, scan);
+  per.set(key, scan);
   return scan.day;
 }
+export const firstBoomDay = (w: World, since: number): number | null => firstMoodDay(w, since, "booming");
 
 /** Every milestone to day 91 that has happened or has a known date ahead. */
 export function milestones(w: World, c: Company): Milestone[] {
@@ -73,15 +75,12 @@ export function milestones(w: World, c: Company): Milestone[] {
     out.push({ key: "day91", day: ladder.layers.brokerage.afterDays, happened: now >= ladder.layers.brokerage.afterDays, before: true });
   }
   // The first boom: the first day since the company began that the market read booming.
-  const boom = firstBoomDay(w, c.createdDay);
+  const boom = firstMoodDay(w, c.createdDay, "booming");
   if (boom !== null) out.push({ key: "firstBoom", day: boom, happened: true, before: false });
-  // The first slump: the first day since the company began that the demand dial read under 0.9 (it's a function of the day).
-  for (let d = c.createdDay; d <= now; d++) {
-    if (w.feeds.cycle(d) < 0.9) {
-      out.push({ key: "slump", day: d, happened: true, before: false });
-      break;
-    }
-  }
+  // The first slump: the first day since the company began that the market read slumping (one source with the boom,
+  // the ticker and the hub cards; the producer, 2026-11-03).
+  const slump = firstMoodDay(w, c.createdDay, "slumping");
+  if (slump !== null) out.push({ key: "slump", day: slump, happened: true, before: false });
   // In debt at a weekly check: the check that began the current run under the line; before it, the next check's day
   // while cash is under the line now.
   if (c.weeksInDebt > 0) {

@@ -72,8 +72,8 @@ export const ANSWER = {
   leaseRow: (fd: string, min: string) => `Lease another truck · ${fd} FD deposit · at least ${min} FD a week`,
   poach: (name: string, day: string) => `Offer sent to ${name}: they answer by ${day}.`,
   poachRow: (day: string) => `Offer pending · answer by ${day}`,
-  /** Engineering's, for the writer: past the deadline the engine moves them only at a day's close with their truck stopped (labor.ts dailyLabor, free). */
-  poachRowLate: "Offer pending · past the deadline: they move at a day's close once their truck has stopped",
+  /** Past the deadline the engine settles it only at a day's close with their truck stopped (labor.ts dailyLabor, free); the writer's. Not shown with labor.hiring.settleAtStop on, which settles it the hour the truck stops. */
+  poachRowLate: "Offer pending · past its deadline: they answer at the day's close, once their truck stops.",
   /** UX's words (player2-ux.md section 7), for the writer: how an offer ended, on the row where it was made. */
   poachAccepted: (name: string, truck: number | null) => `${name} accepted${truck ? `: starts on Truck ${truck}` : ""}.`,
   poachStayed: (name: string, from: string) => `${name} declined: stays with ${from}.`,
@@ -236,10 +236,10 @@ export const SEASON = {
   busy: (hub: string, month: string) => `Busy season out of ${hub} in ${month}.`,
 };
 
-/** The market's mood (freight.ts marketMood): the writer's copy-player1.md row 13 for the feed; the hub card's line is its first sentence (engineering's cut, for the writer). */
+/** The market's mood (freight.ts marketMood): the writer's copy-player1.md row 13, on the feed and, unchanged, on the hub cards (none there when normal). */
 export const MARKET = {
   feed: { booming: "Freight is booming across the country. Rates are climbing; book what pays.", slumping: "Freight is slumping across the country. Expect thin boards and lower rates for a while.", steady: "Freight is back to normal across the country." },
-  card: { booming: "Freight is booming across the country.", slumping: "Freight is slumping across the country." },
+  card: { booming: "Freight is booming across the country. Rates are climbing; book what pays.", slumping: "Freight is slumping across the country. Expect thin boards and lower rates for a while." },
 };
 
 /** The starter hubs' character lines and default company names; any other hub: no line and no default name. */
@@ -449,8 +449,8 @@ export const DISPATCHER = {
   offIdle: "The dispatcher is off, so nobody bids for this truck while you're away.",
   seeDispatcher: "See the dispatcher",
   bidAt: "Bid at break-even plus",
-  /** Engineering's, for the clearsNear rule (R1's anchor); the writer to check. */
-  bidAtClears: "Bid at what it usually clears near, plus",
+  /** The clearsNear rule (R1's anchor), the writer's; the input and its % follow. */
+  bidAtClears: "Bid at what loads usually clear near, plus",
   ceilingSuffix: "% of the ceiling",
   emptyUpTo: "Send the truck empty up to",
   homeAfter: "Bring me home after",
@@ -522,6 +522,45 @@ export const NEEDS = {
   tender: (from: string, to: string) => `Contract tender: ${from} → ${to}`,
   result: (won: boolean) => (won ? "Your bid won: the result" : "Your bid's result is in"),
   opened: (tab: string) => `${tab} just opened`,
+};
+
+/**
+ * R18 (the writer's copy-player4.md): the compliance page's lines, R6's season risk for each option, and the safety
+ * record's steps as Needs-you items (the director: a revocation is never the first news).
+ */
+export const POLICY = {
+  lead: "Every setting except Legal breaks the law. Inspections and audits catch up with the record.",
+  hos: {
+    legal: "The legal limit. Nothing here for an inspector to fine.",
+    hot: "Falsified logs on rush loads. Fines when inspected; tired drivers crash more.",
+    always: "Falsified logs on every trip. Fines, out-of-service orders, an audit, and tired drivers who crash.",
+  },
+  speed: {
+    legal: (avg: number) => `A legal truck averages about ${avg} mph over a trip, towns and grades included.`,
+    hot: "Speeding on rush loads: tickets, and crashes are deadlier.",
+    always: (avg: number, fast: number) => `A legal trip averages ${avg}. Averaging ${fast} means running well over the limit on every open road.`,
+  },
+  maintDeferred: "Defects build up: inspectors park the truck, and it breaks down more.",
+  confirm: {
+    hosAlways: "Over a season, an owner-operator running this loses more than an honest twin earns; a fleet, three quarters. Nearly every one loses its authority.",
+    hosHot: "A gamble on every rush load: any inspection can find the falsified logs.",
+    speedAlways: "Over a season: about a seventh poorer for an owner-operator, a third for a fleet, mostly from crashes.",
+    speedHot: "Every rush load risks a ticket, and any crash is deadlier.",
+    maintDeferred: "Over a season: about a fifth poorer, from breakdowns and days out of service.",
+  },
+  /** Engineering's, for the confirm card's "does": the options being switched on, in the page's own option names. */
+  does: (parts: string[]) => `Sets ${parts.join(", ")}.`,
+};
+export const SAFETY_NEWS = {
+  auditDue: (date: string) => `An auditor reviews your record on ${date}.`,
+  /** The writer's why reads "in the last {days} days"; alerts here are the record's current ones (engineering's cut, for the writer). */
+  auditWhy: (n: number) => `${n} safety alert${n === 1 ? "" : "s"} on your record.`,
+  auditResult: (rating: string) => `Audit: ${rating}.`,
+  consequence: { conditional: "Strict-vetting brokers won't load you, and your insurance rises.", unsatisfactory: "Most brokers won't load you. A second Unsatisfactory revokes your authority." },
+  /** Engineering's, for an alert before its audit has a date. */
+  alert: (areas: string, days: number | null) => `Safety alert on your record: ${areas}. An audit follows${days ? ` within ${days} days` : ""}.`,
+  /** Engineering's, under Unsatisfactory while the revocation date stands. */
+  revokes: (date: string) => `Authority revoked ${date} unless the follow-up clears it.`,
 };
 
 /** Step 9 when the used lot can't serve it (Jeff, 2026-11-02: the step reads the gap). The producer's draft; the writer will word it. */
@@ -958,7 +997,7 @@ export const EXPLAIN = (cfg: EconomyConfig): Record<string, Ex> => ({
   "board.profitChip": { what: "What this load leaves you after your costs, at that price.", how: "Rate times miles, less break-even times all the miles you'd drive.", moves: "The rate, the empty miles, and your own costs per mile." },
   "truck.breakEven": { what: "The rate per mile that just covers this truck's costs on this load.", how: "Fuel, maintenance, insurance, tolls and pay per mile, empty miles included, plus the lessor's share.", moves: "Fewer empty miles, cheaper fuel, a better-kept truck, owning instead of leasing." },
   "board.ceiling": { what: "The most this shipper will pay per mile.", how: "Set by the shipper from the lane's market when the load is posted.", moves: "The lane, the season, and how long the load has waited." },
-  "board.clearsNear": { what: "Where loads like this one usually go.", how: "The recent winning rates on this lane and trailer.", moves: "The market: more trucks push it down, more freight pushes it up." },
+  "board.clearsNear": { what: "Where loads like this one usually go.", how: "Recent winning rates on this lane and trailer. With too few, this market's loads of that trailer, then the load's reference rate.", moves: "The market: more trucks push it down, more freight pushes it up." },
   "board.bookNow": { what: "The price that takes the load at once, with no round.", how: "The shipper's posted offer, below its ceiling.", moves: "It rises the longer the load sits unbooked." },
   "board.bid": { what: "Your offer per mile, decided at the next round.", how: "The best bid under the ceiling wins, weighing price, record and empty miles.", moves: "Your price, your on-time record, how near your truck is." },
   "board.deadhead": { what: "Miles your truck drives empty to reach the pickup.", how: "Road miles from where your truck is to the load's origin.", moves: "Where your truck waits; nearer loads." },

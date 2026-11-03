@@ -145,7 +145,7 @@ const BREAKDOWNS: Record<string, Fn> = {
         ? `This lane, ${trailer}: ${src.n.toLocaleString("en-US")} loads cleared, the recent ones weighing most`
         : src.from === "market"
           ? `Too few clears on this lane yet; ${w.net.hubs[l.origin]!.name}'s ${trailer} loads: ${src.n.toLocaleString("en-US")} cleared`
-          : "Too few clears here yet; this load's own reference rate";
+          : "Too few clears yet; this load's reference rate";
     const rows: Row[] = [{ label, value: perMi(src.rate) }];
     if (src.capped) rows.push({ label: "Held at this load's ceiling", value: perMi(l.ceiling), key: "board.ceiling" });
     return { rows, total: { label: "Usually clears near", value: perMi(clearsNear(w, l)) } };

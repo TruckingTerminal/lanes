@@ -29,7 +29,7 @@ import {
 } from "@lanes/engine";
 import { DISPATCHER_ORDERS, GAME_CONFIG, PLAYER_DISPATCHER_ORDERS } from "./game.js";
 import { trueBreakEven } from "./breakeven.js";
-import { ARRIVAL, BROKERAGE, DISPATCHER, NEEDS, TRUCK } from "./copy.js";
+import { ARRIVAL, BROKERAGE, DISPATCHER, NEEDS, SAFETY_NEWS, TRUCK } from "./copy.js";
 import { hasTwo, kindInView, switchCompany, type CompanyKind } from "./companies.js";
 import { act, bumpData, clockMin, isPhone, me, myTrucks, push, S, setTab, selectTruck, toast, truckNo } from "./state.js";
 import { tabDef, tabOpen, teaserTabs, type Tab } from "./tabs.js";
@@ -186,7 +186,7 @@ function needsInView(fleet: boolean): Need[] {
   const g = S.game!;
   const c = g.player!;
   const w = g.w;
-  const out: Need[] = [];
+  const out: Need[] = fleet ? safetyNeeds(w, c) : [];
   for (const a of attentionItems()) {
     const money = a.key === "debt" || a.key === "cash";
     if (!fleet && !money) continue;
@@ -202,6 +202,28 @@ function needsInView(fleet: boolean): Need[] {
   if (page) for (const t of teaserTabs()) if (tabOpen(t.id, w, c) && !S.onboard.visited.includes(t.id)) out.push({ key: `opened:${t.id}`, text: NEEDS.opened(tabDef(t.id).label), tab: "more", target: `[data-need="opened:${t.id}"]` });
   return out;
 }
+const BASIC_NAME: Record<string, string> = { hos: "hours of service", unsafe: "unsafe driving", maintenance: "vehicle maintenance", crash: "crashes" };
+/**
+ * R18 (the director's ruling: the road to revocation is shown at every step): the rating an audit set, while its
+ * probation or a revocation date stands; the audit's date once set; an alert before its audit has a date. First in the
+ * list, since the authority is what's at stake. Each opens Company's safety card, where the record and the policy are.
+ */
+export function safetyNeeds(w: World, c: Company): Need[] {
+  const s = c.safety;
+  const today = Math.floor(w.t / w.cfg.time.gameMinutesPerDay);
+  const out: Need[] = [];
+  const at = { tab: "company" as const, target: '[data-need="safety"]' };
+  const bad = s.rating === "conditional" || s.rating === "unsatisfactory";
+  if (bad && (s.revokeDay !== null || (s.probationUntil ?? -1) >= today || (s.ratingDay !== null && today - s.ratingDay <= 7))) {
+    const name = s.rating === "conditional" ? "Conditional" : "Unsatisfactory";
+    const revoke = s.rating === "unsatisfactory" && s.revokeDay !== null ? ` ${SAFETY_NEWS.revokes(dateLabel(s.revokeDay))}` : "";
+    out.push({ key: `safety:rating:${s.ratingDay}`, text: `${SAFETY_NEWS.auditResult(name)} ${SAFETY_NEWS.consequence[s.rating as "conditional" | "unsatisfactory"]}${revoke}`, ...at });
+  }
+  if (s.reviewDay !== null && s.reviewDay >= today) out.push({ key: `safety:audit:${s.reviewDay}`, text: `${SAFETY_NEWS.auditDue(dateLabel(s.reviewDay))}${s.alerts.length ? ` ${SAFETY_NEWS.auditWhy(s.alerts.length)}` : ""}`, ...at });
+  else if (s.alerts.length) out.push({ key: `safety:alert:${s.alerts.join(",")}`, text: SAFETY_NEWS.alert(s.alerts.map((a) => BASIC_NAME[a] ?? a).join(", "), w.cfg.safety.review.auditDays), ...at });
+  return out;
+}
+
 /** Opens a waiting thing's tab (the sheet at half on a phone) and scrolls its card into view, flashing it once. */
 export function openNeed(n: Need): void {
   if (n.company && S.game && kindInView(S.game) !== n.company) switchCompany(n.company);

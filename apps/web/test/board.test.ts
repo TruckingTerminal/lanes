@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { clearsNear as engineClearsNear, dispatchProfile, invalidOrders, marketMood, operatingTrucks, placeMiles, placeToll } from "@lanes/engine";
 import { bidRange, boardRows, clearsNear, clearsNearSource, posterOf, sortRows, suggestBid } from "../src/board.js";
 import { breakdown } from "../src/explain.js";
-import { firstBoomDay } from "../src/milestones.js";
+import { firstBoomDay, firstMoodDay } from "../src/milestones.js";
 import { intelRows } from "../src/intel.js";
 import { trueBreakEven } from "../src/breakeven.js";
 import { DEFAULT_ORDERS, PLAYER_DISPATCHER_ORDERS, TestGame } from "../src/game.js";
@@ -134,7 +134,7 @@ describe("stage 2: the board reads the engine's clearsNear (R1's anchor)", () =>
     expect(DEFAULT_ORDERS.find((o) => o.kind === "bid")).toEqual({ kind: "bid", maxDeadheadMi: 150, price: { mode: "breakEvenPlus", pct: 0.25 } });
   }, 60_000);
 
-  it("the first boom is the first day marketMood read booming since the company began", async () => {
+  it("the first boom and the first slump are the first days marketMood read so since the company began", async () => {
     const { g, c } = await world();
     const k = g.w.cfg.rates.news;
     const day = (d: number, rate: number) => ({ day: d, cleared: 10, avgClearedRate: rate });
@@ -146,5 +146,11 @@ describe("stage 2: the board reads the engine's clearsNear (R1's anchor)", () =>
     expect(marketMood({ cfg: g.w.cfg, metrics: { days: days.filter((d) => d.day < first) } } as unknown as typeof g.w).state).not.toBe("booming");
     expect(firstBoomDay(fake, first + 1)).toBe(first + 1);
     expect(firstBoomDay(g.w, c.createdDay)).toBeNull();
+    // The slump milestone reads the same source (the producer, 2026-11-03).
+    const down = [...days.slice(0, k.longDays), ...Array.from({ length: k.shortDays }, (_, i) => day(k.longDays + i, 1.5))];
+    const slumped = { cfg: g.w.cfg, metrics: { days: down } } as unknown as typeof g.w;
+    expect(marketMood(slumped).state).toBe("slumping");
+    expect(firstMoodDay(slumped, 0, "slumping")).toBeGreaterThanOrEqual(k.longDays);
+    expect(firstMoodDay(slumped, 0, "booming")).toBeNull();
   }, 60_000);
 });
