@@ -103,6 +103,27 @@ export function leaseHold(w: World, t: Truck, grossFd: number): number {
   return Math.min(owed, grossFd * w.cfg.freeEntry.leases.byValue.escrowShareOfPay);
 }
 
+/**
+ * R14's one arithmetic: what a load leaves (profit), what of it reaches cash now, and what the lease holds toward the
+ * player's truck. The chip, Book now, Bid and What now? all read it.
+ */
+export interface ChipPair {
+  profit: number;
+  cash: number;
+  held: number;
+}
+export function chipPair(w: World, t: Truck, profitFd: number, grossFd: number): ChipPair {
+  const held = leaseHold(w, t, grossFd);
+  return { profit: profitFd, cash: profitFd - held, held };
+}
+/** A chip figure: whole FD up to 9,999, then thousands to one place ("12.4k"); no sign. */
+export function chipFd(x: number): string {
+  const a = Math.abs(x);
+  return a < 9_999.5 ? Math.round(a).toLocaleString("en-US") : `${(Math.round(a / 100) / 10).toFixed(1)}k`;
+}
+/** The cash segment's figure: its sign kept ("−103", "504"). */
+export const chipCash = (x: number): string => `${x < -0.5 ? "−" : ""}${chipFd(x)}`;
+
 /** A leased truck whose deposit is whole: nothing more is held, so the chip says all of the profit lands. */
 export const depositWhole = (t: Truck): boolean => t.lease !== "owned" && t.depositDueFd > 0.005 && t.depositDueFd - t.depositFd <= 0.005;
 

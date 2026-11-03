@@ -150,6 +150,23 @@ export const MOVE = {
   time: (days: number, hours: number) => (days < 1 ? `${hours} h` : days === 1 ? "1 day" : `${days} days`),
 };
 
+/**
+ * R14 (the writer's copy-player3.md): the profit chip, one pair everywhere. The hold is the player's own money, so the
+ * chip never says "to you". Figures arrive formatted; `cash` carries its own sign.
+ */
+export const CHIP = {
+  profit: (profit: string, up: boolean) => `${up ? "+" : "−"}${profit}`,
+  cash: (cash: string) => `cash ${cash}`,
+  held: (held: string) => `held ${held}`,
+  a11y: (profit: string, cash: string, held: string) => `Profit ${profit} FD. Cash ${cash} FD now. ${held} FD held toward your truck.`,
+  a11yNoHold: (profit: string) => `Profit ${profit} FD.`,
+  book: (rate: string, profit: string) => `Book now · ${rate}/mi · ${profit}`,
+  bid: (profit: string) => `Bid · ${profit}`,
+  bidAlone: (profit: string, cash: string) => `Bid · ${profit}, cash ${cash}`,
+  cashRow: "Cash now",
+  heldRow: "Held toward your truck",
+};
+
 /** The load screen (the writer's copy-player5.md, R25): no "replaying", which a cautious player read as "could come out different". */
 export const LOADING = { title: "Loading your world…" };
 
@@ -297,11 +314,7 @@ export const BOARD = {
   truck: (n: number, trailer: string) => `Truck ${n} · ${trailer}`,
   line1: (from: string, to: string, miles: string) => `${from} → ${to} · ${miles} mi`,
   line2: (total: string, rate: string, dh: number) => `${total} FD · ${rate}/mi · ${dh} mi empty`,
-  chipBook: (profit: string, positive: boolean) => (positive ? `+${profit} FD at book-now` : `−${profit} FD at book-now`),
   chipSuggest: (profit: string, rate: string) => `+${profit} FD at ${rate}`,
-  /** A leased truck (the writer's copy-player1.md, row 2): what lands and what the lease holds toward your truck. */
-  chipHeld: (profit: string, lands: string, held: string) => `+${profit} · ${lands} to you · ${held} held toward your truck`,
-  chipAllYours: (profit: string) => `+${profit} · all of it to you`,
   sorts: { nearest: "Nearest", pay: "Best pay", deliver: "Deliver by" },
   filter: "Filter",
   destination: "Destination",
@@ -553,14 +566,16 @@ export const POLICY = {
 };
 export const SAFETY_NEWS = {
   auditDue: (date: string) => `An auditor reviews your record on ${date}.`,
-  /** The writer's why reads "in the last {days} days"; alerts here are the record's current ones (engineering's cut, for the writer). */
+  /** The audit's why (the writer's: alerts are the record's current ones). */
   auditWhy: (n: number) => `${n} safety alert${n === 1 ? "" : "s"} on your record.`,
   auditResult: (rating: string) => `Audit: ${rating}.`,
   consequence: { conditional: "Strict-vetting brokers won't load you, and your insurance rises.", unsatisfactory: "Most brokers won't load you. A second Unsatisfactory revokes your authority." },
-  /** Engineering's, for an alert before its audit has a date. */
-  alert: (areas: string, days: number | null) => `Safety alert on your record: ${areas}. An audit follows${days ? ` within ${days} days` : ""}.`,
-  /** Engineering's, under Unsatisfactory while the revocation date stands. */
-  revokes: (date: string) => `Authority revoked ${date} unless the follow-up clears it.`,
+  /** An alert before its audit has a date (the writer's). */
+  alert: (areas: string, days: number | null) => `Safety alert: ${areas}. An auditor will review your record${days ? ` within ${days} days` : ""}.`,
+  /** The items' button (the writer's): each opens the safety card. */
+  button: "Your safety record",
+  /** Under Unsatisfactory while the revocation date stands (the writer's). */
+  revokes: (date: string) => `Your authority is revoked on ${date} unless the follow-up audit clears you.`,
 };
 
 /** Step 9 when the used lot can't serve it (Jeff, 2026-11-02: the step reads the gap). The producer's draft; the writer will word it. */
@@ -930,6 +945,9 @@ export const NOW = {
   driverButton: "Hire a driver",
   idleAction: (origin: string, dest: string) => `Bid on ${origin} to ${dest}.`,
   idleReason: (n: number, hub: string, fd: string) => `Truck ${n} is idle at ${hub}. This load pays about ${fd} FD over break-even.`,
+  /** R14 (the writer's): whenever the hold makes cash differ from the profit. */
+  idleReasonHeld: (profit: string, cash: string, held: string) => `${profit} over break-even: ${cash} out of cash now, ${held} toward your truck.`,
+  idleReasonHeldPlus: (profit: string, cash: string, held: string) => `${profit} over break-even: ${cash} to cash now, ${held} toward your truck.`,
   idleButton: "Show the load",
   stepButton: (tab: string) => `Go to ${tab}`,
   gapAction: "Keep hauling toward your own truck.",
@@ -1019,6 +1037,11 @@ export const EXPLAIN = (cfg: EconomyConfig): Record<string, Ex> => ({
   "intel.creditBand.other": { what: "A company's credit, A best to E worst.", how: "", moves: "Paying from cash in hand, its authority's age, claims, and cover for what it owes." },
   "intel.safetyBand.other": { what: "A company's safety rating from inspections and reviews.", how: "", moves: "Violations found at inspections and audits, and crashes, recent ones counting most." },
   "intel.insuranceBand.other": { what: "How much a company's record adds to its premium.", how: "", moves: "Its crashes and claims; the surcharge eases with time." },
+  "money.held": {
+    what: "Your own money, held toward your truck: a share of each leased load, not a fee.",
+    how: `${Math.round(cfg.freeEntry.leases.byValue.escrowShareOfPay * 100)}% of each leased settlement, until it reaches ${Math.round(cfg.freeEntry.leases.byValue.depositShare * 100)}% of the truck's value.`,
+    moves: "Every leased load adds to it until the deposit is full. It counts in full when you buy.",
+  },
   "truck.leaseDeposit": { what: "Money held back from your lease loads, toward your own truck.", how: "A share of each leased load, counted in full when you buy.", moves: "Every leased load adds to it." },
   // Cash it now: the writer's what and moves; the how is the rate's parts.
   "invoice.cashNowFee": { what: "The fee to cash an open invoice today instead of on its due day.", how: "The invoice times the rate: your contract's rate or the spot rate, plus a little for each day since it was raised.", moves: "A contract's rate instead of spot; cashing an invoice while it's fresh." },

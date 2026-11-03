@@ -8,6 +8,7 @@ import { act, bumpData, isPhone, me, S, selectTruck, setTab, truckNo } from "../
 import { TAB_NAME } from "../tabs.js";
 import { skippedSteps, stepDo, stepText, walkSteps } from "../walkthrough.js";
 import { Btn } from "./bits.js";
+import { chipPair } from "../board.js";
 import { Iuliia } from "./Walkthrough.js";
 import { kindInView } from "../companies.js";
 import { leaseMinFor } from "../ledger.js";
@@ -189,7 +190,7 @@ function words(a: NextAction): { action: string; reason: string; button: string;
       const t = w.trucks[a.truckId - 1]!;
       return {
         action: NOW.idleAction(l ? place(l.originPlace) : "", l ? place(l.destPlace) : ""),
-        reason: NOW.idleReason(truckNo(a.truckId), w.net.hubs[t.hub]!.name, fd(a.profitFd)),
+        reason: idleReason(w, a.truckId, a.profitFd, l ? l.bookNow * l.miles : 0),
         button: NOW.idleButton,
         go: () => openLoadOf(a.truckId, a.loadId),
       };
@@ -212,4 +213,12 @@ function words(a: NextAction): { action: string; reason: string; button: string;
     default:
       return { action: NOW.noneAction, reason: NOW.noneReason, button: NOW.noneButton, go: () => setTab("guide") };
   }
+}
+
+/** Rule 3's reason (R14): the chip's pair whenever the lease holds part of the load, else the plain line. */
+function idleReason(w: World, truckId: number, profitFd: number, grossFd: number): string {
+  const t = w.trucks[truckId - 1]!;
+  const p = chipPair(w, t, profitFd, grossFd);
+  if (p.held < 0.5) return NOW.idleReason(truckNo(truckId), w.net.hubs[t.hub]!.name, fdFull(profitFd));
+  return (p.cash < 0 ? NOW.idleReasonHeld : NOW.idleReasonHeldPlus)(fdFull(p.profit), fdFull(Math.abs(p.cash)), fdFull(p.held));
 }

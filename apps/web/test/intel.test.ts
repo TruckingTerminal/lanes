@@ -1,13 +1,17 @@
 import { describe, expect, it } from "vitest";
-import { TestGame } from "../src/game.js";
+import { PLAYER_DISPATCHER_ORDERS, TestGame } from "../src/game.js";
 import { intelRows, ranked } from "../src/intel.js";
 
 describe("Intel", () => {
   it("closes each month with last month's revenue, loads and on-time counts, read from the counters the rules keep", async () => {
-    // A fixed seed (TestGame.create picks a random one): this world takes a fine in the measured month, so the fines
-    // term below is exercised every run, not one run in twelve (the flake QA's suite runs hit, 2026-11-03).
+    // A fixed seed (TestGame.create picks a random one), so every run plays the same world (the flake QA's suite runs
+    // hit, 2026-11-03). With the bump the dispatcher waits for the player: switch it on, as "Let the dispatcher bid" does.
     const g = await TestGame.create(undefined, undefined, 55_433);
     const c = g.join("Intel Freight", "fleet", "DAL")!;
+    if (!c.orders.some((o) => o.kind === "bid")) expect(g.act({ type: "set_standing_orders", orders: [...PLAYER_DISPATCHER_ORDERS, ...c.orders] }).ok).toBe(true);
+    // A fine kept outside operating costs inside the measured month (fraud.ts and safety.ts add to finesOffCostsFd; a
+    // legal fleet under the bump draws none), so the fines term below is exercised every run.
+    const FINE = 250;
     const perMonth = g.w.cfg.time.daysPerMonth;
     // Run to the second month close after joining, so one whole month sits between two marks.
     const closes: number[] = [];
@@ -21,6 +25,7 @@ describe("Intel", () => {
         if (closes.length === 1) {
           markAtFirst = { ...c.monthMark! };
           firstRecord = { ...c.lastMonth };
+          c.finesOffCostsFd = (c.finesOffCostsFd ?? 0) + FINE;
         }
       }
     }
@@ -35,7 +40,7 @@ describe("Intel", () => {
     // What the month spent: operating costs, fleet overhead and fines kept outside costs between the marks. The first
     // record is kept whole.
     const fines = (c.monthMark!.finesFd ?? 0) - (markAtFirst.finesFd ?? 0);
-    expect(fines).toBeGreaterThan(0);
+    expect(fines).toBeCloseTo(FINE, 6);
     expect(lm.spentFd).toBeCloseTo(c.monthMark!.costFd - markAtFirst.costFd + (c.monthMark!.overheadFd - markAtFirst.overheadFd) + fines, 6);
     expect(c.firstMonth).toEqual(firstRecord);
     // Every company has its record, and the list ranks them all.

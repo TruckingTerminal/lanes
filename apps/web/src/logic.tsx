@@ -158,6 +158,8 @@ export interface Need {
   target: string;
   /** With two companies, whose it is (the list names it and switches to it before opening). */
   company?: CompanyKind;
+  /** The row's action, in the writer's words (R9: every badge item has one). */
+  button?: string;
 }
 /**
  * What needs the player. With two companies (brokerage-ux.md section 1) it counts both: each is read in view in turn,
@@ -212,7 +214,7 @@ export function safetyNeeds(w: World, c: Company): Need[] {
   const s = c.safety;
   const today = Math.floor(w.t / w.cfg.time.gameMinutesPerDay);
   const out: Need[] = [];
-  const at = { tab: "company" as const, target: '[data-need="safety"]' };
+  const at = { tab: "company" as const, target: '[data-need="safety"]', button: SAFETY_NEWS.button };
   const bad = s.rating === "conditional" || s.rating === "unsatisfactory";
   if (bad && (s.revokeDay !== null || (s.probationUntil ?? -1) >= today || (s.ratingDay !== null && today - s.ratingDay <= 7))) {
     const name = s.rating === "conditional" ? "Conditional" : "Unsatisfactory";

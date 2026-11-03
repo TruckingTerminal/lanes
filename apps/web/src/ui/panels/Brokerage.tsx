@@ -1,6 +1,6 @@
 import type { JSX } from "preact";
 import { useEffect, useState } from "preact/hooks";
-import { apCapBlock, brokerageLog, brokerBooks, brokerLicensed, canFormBrokerage, companyAccount, creditBand, crewed, dayOf, MANUAL_BID_MAX_DEADHEAD_MI, ownBand, placeMiles, type Company, type Load, type World } from "@lanes/engine";
+import { apCapBlock, brokerageLog, brokerBooks, brokerLicensed, canFormBrokerage, companyAccount, creditBand, crewed, dayOf, laneRate, MANUAL_BID_MAX_DEADHEAD_MI, ownBand, placeMiles, type Company, type Load, type World } from "@lanes/engine";
 import { BROKERAGE } from "../../copy.js";
 import { hasTwo, kindInView, switchCompany } from "../../companies.js";
 import { fdFull, hhmm, pct, shortDate, TRAILER_NAME } from "../../format.js";
@@ -433,17 +433,22 @@ function OfferedCard({ load, partner }: { load: Load; partner: Company | null })
 function TenderSheet({ load, carrier, onDone }: { load: Load; carrier: Company; onDone: () => void }): JSX.Element {
   const w = S.game!.w;
   const [lo, hi] = ownBand(w, load);
-  const [rate, setRate] = useState(Math.min(hi, Math.max(lo, load.ceiling)));
+  // Whole cents inside the engine's band (QA's brokerage gate: the form opened at 2.7715 of a 2.7781 top and sent 2.78,
+  // which the band check refused). It opens at the lane's market rate (brokerage.ts laneRate, the band's own centre)
+  // and sends exactly what it shows. A band narrower than a cent offers its floor.
+  const cLo = Math.min(Math.ceil(lo * 100 - 1e-6) / 100, hi);
+  const cHi = Math.max(Math.floor(hi * 100 + 1e-6) / 100, cLo);
+  const [rate, setRate] = useState(Math.min(cHi, Math.max(cLo, Math.round(laneRate(w, load) * 100) / 100)));
   const [note, setNote] = useState<string | null>(null);
   const shipper = load.shipperRate * load.miles;
   const [r1, r2] = BROKERAGE.tenderRows(fd(shipper), carrier.name);
   const send = async () => {
-    const r = await order({ type: "tender_own", loadId: load.id, rate: Math.round(rate * 100) / 100 }, BROKERAGE.tenderAt(rate.toFixed(2)), "brokerage");
+    const r = await order({ type: "tender_own", loadId: load.id, rate }, BROKERAGE.tenderAt(rate.toFixed(2)), "brokerage");
     if (r.ok) return onDone();
     const why = r.reason.toLowerCase();
     setNote(
       why.includes("outside the lane's band")
-        ? BROKERAGE.refuseBand(lo.toFixed(2), hi.toFixed(2))
+        ? BROKERAGE.refuseBand(cLo.toFixed(2), cHi.toFixed(2))
         : why.includes("never goes back")
           ? BROKERAGE.refusePassedBack(carrier.name)
           : why.includes("isn't trading")
@@ -461,9 +466,9 @@ function TenderSheet({ load, carrier, onDone }: { load: Load; carrier: Company; 
         <span class="small">
           {r2} · <b>{rate.toFixed(2)}</b>/mi
         </span>
-        <input type="range" min={lo} max={hi} step={0.01} value={rate} onInput={(e) => setRate(Number((e.currentTarget as HTMLInputElement).value))} />
+        <input type="range" min={cLo} max={cHi} step={0.01} value={rate} onInput={(e) => setRate(Math.min(cHi, Math.max(cLo, Math.round(Number((e.currentTarget as HTMLInputElement).value) * 100) / 100)))} />
       </label>
-      <p class="small">{BROKERAGE.allowed(lo.toFixed(2), hi.toFixed(2))}</p>
+      <p class="small">{BROKERAGE.allowed(cLo.toFixed(2), cHi.toFixed(2))}</p>
       <p class="small">{BROKERAGE.yourMargin(fd(shipper - rate * load.miles - shipper * w.cfg.board.posterFeePct))}</p>
       <p class="muted small">{BROKERAGE.tenderNote1(w.cfg.token.payment.termsDays)}</p>
       <p class="muted small">{BROKERAGE.tenderNote2}</p>

@@ -352,6 +352,8 @@ table.mini td:first-child { font-family: inherit; }
 .chips { display: flex; flex-wrap: wrap; gap: 6px; }
 .chip { display: inline-block; padding: 1px 8px; border-radius: 10px; border: 1px solid currentColor; font-family: var(--font-mono); font-size: 11px; }
 .chip.muted { color: var(--text-secondary); }
+/* R14: the profit chip is one line at any width; a bid chip beside it moves to the next line instead. */
+.chip.profitchip { white-space: nowrap; }
 .pinned-bid { border-color: var(--accent); }
 .pinned-bid .loadcard { min-height: 0; }
 .ring { width: 22px; height: 22px; border-radius: 50%; flex: none; -webkit-mask: radial-gradient(circle, transparent 6px, #000 7px); mask: radial-gradient(circle, transparent 6px, #000 7px); }

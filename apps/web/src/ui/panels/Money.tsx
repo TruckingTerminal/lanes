@@ -168,7 +168,7 @@ export function Money(): JSX.Element {
       </Card>
       <Card title={<Fig k="money.owed" label={MONEY.owed}>{MONEY.owed}</Fig>}>
         {/* One row per invoice: line 2 is Cash it now while its switch is on (finance.md draft 2). */}
-        {owed.length || S.cashed.length ? <InvoiceRows c={c} /> : <p class="muted">{myTruckLeased(w, c) ? MONEY.nothingOwedLease : MONEY.nothingOwed}</p>}
+        {owed.length || S.cashed.some((x) => x.companyId === c.id) ? <InvoiceRows c={c} /> : <p class="muted">{myTruckLeased(w, c) ? MONEY.nothingOwedLease : MONEY.nothingOwed}</p>}
         {/* How the company is paid and its loans live on Finance (specs/finance.md); Money links there. */}
         <FinanceLinks />
         <MoveMoneyLink />

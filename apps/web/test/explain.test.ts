@@ -2,12 +2,11 @@ import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it, vi } from "vitest";
 import { cashNowRate, companyAccount, truckValue } from "@lanes/engine";
-import { boardRows, depositWhole, leaseHold } from "../src/board.js";
-import { BOARD, EXPLAIN, FIGURE_ACT, GUIDE_LABEL } from "../src/copy.js";
+import { boardRows, chipCash, chipFd, chipPair, depositWhole, leaseHold } from "../src/board.js";
+import { CHIP, EXPLAIN, FIGURE_ACT, GUIDE_LABEL } from "../src/copy.js";
 import { figureAct } from "../src/figureact.js";
-import { fdFull } from "../src/format.js";
 import { breakdown, FIRST_MONTH_KEYS } from "../src/explain.js";
-import { GAME_CONFIG, TestGame } from "../src/game.js";
+import { GAME_CONFIG, PLAYER_DISPATCHER_ORDERS, TestGame } from "../src/game.js";
 import { dueMilestone, history, milestones } from "../src/milestones.js";
 import { stepDo, stepText, walkSteps } from "../src/walkthrough.js";
 import { S } from "../src/state.js";
@@ -77,6 +76,9 @@ describe("the walkthrough's board step", () => {
   it("ticks for a fleet whose dispatcher books from the start, once a truck has a load (QA's guidance replay)", async () => {
     const g = await TestGame.create();
     const c = g.join("Fleet Freight", "fleet", "LAX")!;
+    // With the bump the dispatcher waits for the player (guard.dispatcherDefaultOn off): switch it on as "Let the
+    // dispatcher bid" does, the player's rules plus the company's others, before any hand bid.
+    if (!c.orders.some((o) => o.kind === "bid")) expect(g.act({ type: "set_standing_orders", orders: [...PLAYER_DISPATCHER_ORDERS, ...c.orders] }).ok).toBe(true);
     const board = walkSteps(GAME_CONFIG).find((s) => s.id === "board")!;
     expect(board.done(g.w, c)).toBe(false);
     for (let h = 0; h < 48 && !board.done(g.w, c); h++) g.stepHour();
@@ -262,8 +264,10 @@ describe("the hold toward your own truck (the director's row 2)", () => {
     expect(truck.depositDueFd).toBeGreaterThan(0);
     const row = boardRows(g.w, c, truck, { dest: "any", maxDh: 300, query: "" }).find((r) => !r.block && r.profitBook > 0)!;
     expect(row.heldBook).toBeCloseTo(Math.min(truck.depositDueFd - truck.depositFd, row.total * GAME_CONFIG.freeEntry.leases.byValue.escrowShareOfPay), 6);
-    const chip = BOARD.chipHeld(fdFull(row.profitBook), fdFull(row.profitBook - row.heldBook), fdFull(row.heldBook));
-    expect(chip).toMatch(/^\+[\d,]+ · [−-]?[\d,]+ to you · [\d,]+ held toward your truck$/);
+    // R14's one arithmetic: the pair the chip, Book now and What now? read.
+    const pair = chipPair(g.w, truck, row.profitBook, row.total);
+    expect(pair).toEqual({ profit: row.profitBook, cash: row.profitBook - row.heldBook, held: row.heldBook });
+    expect(`${CHIP.profit(chipFd(pair.profit), true)} · ${CHIP.cash(chipCash(pair.cash))} · ${CHIP.held(chipFd(pair.held))}`).toMatch(/^\+[\d,.]+k? · cash [−]?[\d,.]+k? · held [\d,.]+k?$/);
     // Book it at book-now and deliver: the deposit grows by exactly what the chip held.
     const before = truck.depositFd;
     expect(g.act({ type: "book_load", truckId: truck.id, loadId: row.l.id }).ok).toBe(true);

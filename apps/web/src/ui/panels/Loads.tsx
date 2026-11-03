@@ -2,7 +2,8 @@ import type { JSX } from "preact";
 import { useState } from "preact/hooks";
 import { dispatchProfile, expectedReloadDeadheadMi, isLocal, operatingTrucks, localOnly, MANUAL_BID_MAX_DEADHEAD_MI, placeMiles, placeToll, VETTING_NAMES, type Load, type Truck } from "@lanes/engine";
 import { COMMODITIES } from "@lanes/data";
-import { bidRange, blockReason, clearsNear, suggestBid } from "../../board.js";
+import { bidRange, blockReason, chipPair, clearsNear, suggestBid } from "../../board.js";
+import { ProfitChip } from "../ProfitChip.js";
 import { trueBreakEven } from "../../breakeven.js";
 import { cls, fd, fdFull, hhmm, pct, shortDate, TRAILER_CODE, TRAILER_NAME } from "../../format.js";
 import { nextRoundLabel, openLoadsAt, reloadClass, reloadLabel, SeasonNote, seasonSwing, statusText } from "../../logic.js";
@@ -172,6 +173,7 @@ export function LoadsTable(): JSX.Element {
               {th("pickup", "Deliver by")}
               <th>Eq</th>
               <th>Load</th>
+              <th>Profit</th>
               <th>Company</th>
               <th>Score</th>
             </tr>
@@ -239,6 +241,7 @@ function LoadRow({ r, truck, mine, pendingRate }: { r: Row; truck: Truck; mine: 
           {localOnly(w, l) ? <div class={cls("small", isLocal(w, me(), l.origin) ? "good" : "warn")}>local shippers first this round</div> : null}
           {l.tenderedTo === me().id ? <div class="small good">your contract tender · {(w.contracts.find((x) => x.id === l.contractId)?.ratePerMile ?? 0).toFixed(2)}/mi · accept by {hhmm(l.tenderUntil)}</div> : null}
         </td>
+        <td>{r.block ? <span class="chip muted">{r.block}</span> : <ProfitChip p={chipPair(w, truck, r.profitBook, r.total)} />}</td>
         <td>
           <div class="row" style={{ flexWrap: "nowrap" }}>
             <Portrait who={l.brokerId !== null ? "broker" : "dockworker"} sm />
@@ -257,7 +260,7 @@ function LoadRow({ r, truck, mine, pendingRate }: { r: Row; truck: Truck; mine: 
       </tr>
       {open ? (
         <tr class="open">
-          <td colSpan={10}>
+          <td colSpan={11}>
             <LoadDetail r={r} truck={truck} mine={mine} pendingRate={pendingRate} />
           </td>
         </tr>

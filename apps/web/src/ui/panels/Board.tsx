@@ -2,8 +2,9 @@ import type { JSX } from "preact";
 import { useEffect, useState } from "preact/hooks";
 import { MANUAL_BID_MAX_DEADHEAD_MI, VETTING_NAMES, type Truck } from "@lanes/engine";
 import { COMMODITIES } from "@lanes/data";
-import { bidRange, boardRows, clearsNear, depositWhole, posterOf, sortRows, type BoardRow, type BoardSort } from "../../board.js";
-import { ANSWER, BOARD, INTEL, LOAD, ROUND } from "../../copy.js";
+import { bidRange, boardRows, chipCash, chipPair, clearsNear, posterOf, sortRows, type BoardRow, type BoardSort, type ChipPair } from "../../board.js";
+import { ProfitChip } from "../ProfitChip.js";
+import { ANSWER, BOARD, CHIP, INTEL, LOAD, ROUND } from "../../copy.js";
 import { cls, fdFull, hhmm, pct, shortDate, TRAILER_NAME } from "../../format.js";
 import { nextRoundHour, nextRoundLabel, nextRoundWait, reloadLabel, roundProgress, seasonSwing } from "../../logic.js";
 import { bumpData, isPhone, me, myTrucks, openIntel, order, S, selectTruck, setOnboard, setTab, toast, truckNo, useData } from "../../state.js";
@@ -191,20 +192,15 @@ function openLoad(id: number | null): void {
   bumpData();
 }
 
-/** The profit at book-now as the chip says it: on a leased truck, what lands and what's held toward the player's truck (row 2). */
-function profitWords(r: BoardRow, truck: Truck): string | null {
-  if (r.profitBook < 0) return null;
-  if (r.heldBook >= 0.5) return BOARD.chipHeld(money(r.profitBook), signedMoney(r.profitBook - r.heldBook), money(r.heldBook));
-  return depositWhole(truck) ? BOARD.chipAllYours(money(r.profitBook)) : null;
-}
-const signedMoney = (x: number): string => `${x < 0 ? "−" : ""}${money(x)}`;
+/** The pair at book-now for a board row (the row's own profit and hold). */
+export const bookPair = (r: BoardRow): ChipPair => ({ profit: r.profitBook, cash: r.profitBook - r.heldBook, held: r.heldBook });
 
-function Chips({ r, truck }: { r: BoardRow; truck: Truck }): JSX.Element {
+function Chips({ r }: { r: BoardRow; truck: Truck }): JSX.Element {
   if (r.block) return <span class="chip muted">{r.block}</span>;
   const up = r.profitBook >= 0;
   return (
     <>
-      <span class={cls("chip", up ? "good" : "bad")}>{profitWords(r, truck) ?? BOARD.chipBook(money(r.profitBook), up)}</span>
+      <ProfitChip p={bookPair(r)} />
       {!up && r.profitSuggest > 0 ? <span class="chip muted">{BOARD.chipSuggest(money(r.profitSuggest), r.suggest.toFixed(2))}</span> : null}
     </>
   );
@@ -312,6 +308,8 @@ function LoadSheet({ r, truck }: { r: BoardRow; truck: Truck }): JSX.Element {
   const k = COMMODITIES[l.commodity]!;
   const poster = l.brokerId !== null ? w.companies[l.brokerId - 1] : l.shipperId !== null ? w.companies[l.shipperId - 1] : null;
   const bidProfit = (bid - r.be) * l.miles;
+  // The bid's own pair (R14): the sheet's money rows are at book-now, so the button carries its cash itself.
+  const bidHeld = chipPair(w, truck, bidProfit, bid * l.miles).held;
   const bookUp = r.profitBook >= 0;
   const signed = (x: number) => `${x >= 0 ? "+" : "−"}${money(x)}`;
   const step = (d: number) => setBid(Math.round(Math.min(hi, Math.max(lo, bid + d)) * 100) / 100);
@@ -378,7 +376,14 @@ function LoadSheet({ r, truck }: { r: BoardRow; truck: Truck }): JSX.Element {
           rows={[
             [LOAD.bookNow, <Fig k="board.bookNow" label={LOAD.bookNow} ctx={fx}>{`${fdFull(r.total)} FD · ${l.bookNow.toFixed(2)}/mi`}</Fig>],
             [LOAD.breakEven, <Fig k="truck.breakEven" label={LOAD.breakEven} ctx={fx}>{`${r.be.toFixed(2)}/mi`}</Fig>],
-            [LOAD.profitBook, <Fig k="board.profitChip" label={LOAD.profitBook} ctx={fx}><span class={bookUp ? "good" : "bad"}>{profitWords(r, truck) ?? `${signed(r.profitBook)} FD`}</span></Fig>],
+            [LOAD.profitBook, <Fig k="board.profitChip" label={LOAD.profitBook} ctx={fx}><span class={bookUp ? "good" : "bad"}>{`${signed(r.profitBook)} FD`}</span></Fig>],
+            // R14: the pair, on the sheet, when the lease holds: cash now (amber when negative) and what's held.
+            ...(r.heldBook >= 0.5
+              ? ([
+                  [CHIP.cashRow, <span class={r.profitBook - r.heldBook < -0.5 ? "warn" : undefined}>{`${chipCash(r.profitBook - r.heldBook)} FD`}</span>],
+                  [CHIP.heldRow, <Fig k="money.held" label={CHIP.heldRow} ctx={fx}>{`${fdFull(r.heldBook)} FD`}</Fig>],
+                ] as [string, JSX.Element][])
+              : []),
             [LOAD.clearsNear, <Fig k="board.clearsNear" label={LOAD.clearsNear} ctx={fx}>{`${clearsNear(w, l).toFixed(2)}/mi`}</Fig>],
             [LOAD.ceiling, <Fig k="board.ceiling" label={LOAD.ceiling} ctx={fx}>{`${l.ceiling.toFixed(2)}/mi`}</Fig>],
           ]}
@@ -413,7 +418,7 @@ function LoadSheet({ r, truck }: { r: BoardRow; truck: Truck }): JSX.Element {
       <div class="actions pinned">
         {r.block ? <p class="bad small">{LOAD.blocked(r.block)}</p> : null}
         <Btn primary={bookUp} disabled={!!r.block} onClick={() => void book()}>
-          {LOAD.bookButton(l.bookNow.toFixed(2), signed(r.profitBook))}
+          {CHIP.book(l.bookNow.toFixed(2), signed(r.profitBook))}
         </Btn>
         <div class="row stepper">
           <Btn sm disabled={!!r.block || bid <= lo} onClick={() => step(-0.05)} title="Bid 0.05 lower">
@@ -427,7 +432,7 @@ function LoadSheet({ r, truck }: { r: BoardRow; truck: Truck }): JSX.Element {
         </div>
         <div class="row">
           <Btn primary={!bookUp} disabled={!!r.block} onClick={() => void placeBid()}>
-            {bidHere ? LOAD.changeBid : LOAD.bidButton(signed(bidProfit))}
+            {bidHere ? LOAD.changeBid : bidHeld >= 0.5 ? CHIP.bidAlone(signed(bidProfit), chipCash(bidProfit - bidHeld)) : CHIP.bid(signed(bidProfit))}
           </Btn>
           {bidHere ? (
             <Btn ghost onClick={() => void withdraw(truck)}>

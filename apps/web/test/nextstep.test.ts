@@ -258,18 +258,21 @@ describe("the confirm card (R6)", () => {
 
 describe("R1: the dispatcher waits for the player's choice (guard.dispatcherDefaultOn)", () => {
   it("on, a player's company joins bidding as today; off, it joins with no bid order and keeps its home time", async () => {
-    const on = await TestGame.create();
-    const a = on.join("On Freight", "oo", "LAX")!;
-    expect(a.orders.some((o) => o.kind === "bid")).toBe(true);
+    // Both ways, whatever the live levers set (the bump turns it off, adf635c); the key is put back as it was.
     const k = GAME_CONFIG.guard as { dispatcherDefaultOn: boolean };
-    k.dispatcherDefaultOn = false;
+    const was = k.dispatcherDefaultOn;
     try {
+      k.dispatcherDefaultOn = true;
+      const on = await TestGame.create();
+      const a = on.join("On Freight", "oo", "LAX")!;
+      expect(a.orders.some((o) => o.kind === "bid")).toBe(true);
+      k.dispatcherDefaultOn = false;
       const off = await TestGame.create();
       const b = off.join("Off Freight", "fleet", "LAX")!;
       expect(b.orders.some((o) => o.kind === "bid")).toBe(false);
       expect(b.orders.some((o) => o.kind === "homeTime")).toBe(true);
     } finally {
-      k.dispatcherDefaultOn = true;
+      k.dispatcherDefaultOn = was;
     }
   }, 60_000);
 });

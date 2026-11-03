@@ -32,6 +32,8 @@ function refusal(why: string): string {
 /** A cashed invoice stays on its row, greyed, until its due day (UX); the world keeps no record of it, so the page does. */
 export interface Cashed {
   id: number;
+  /** The company that cashed it: Money shows each company only its own (QA's brokerage gate). */
+  companyId: number;
   day: number;
   landsFd: number;
   dueDay: number;
@@ -44,7 +46,7 @@ export function InvoiceRows({ c }: { c: Company }): JSX.Element | null {
   const w = S.game!.w;
   const today = dayOf(w.t, w.cfg);
   const open = invoices(w, c);
-  const cashed = S.cashed.filter((x) => x.dueDay > today && open.every((r) => r.id !== x.id));
+  const cashed = S.cashed.filter((x) => x.companyId === c.id && x.dueDay > today && open.every((r) => r.id !== x.id));
   const plan = S.cashPlan.filter((id) => open.some((r) => r.id === id));
   // What now? chose these (rule 1): one opens its sheet; several get one button for them all.
   const [sheet, setSheet] = useState<number | null>(plan.length === 1 ? plan[0]! : null);
@@ -111,7 +113,7 @@ function CashSeveral({ c, ids }: { c: Company; ids: number[] }): JSX.Element {
       const rate = cashNowRate(w, c, r);
       if (typeof rate !== "number") continue;
       const res = await order({ type: "cash_invoice", receivableId: r.id }, CASHNOW.rowButton);
-      if (res.ok) S.cashed = [...S.cashed, { id: r.id, day: today, landsFd: r.amountFd * (1 - rate), dueDay: r.dueDay, lane: S.invoiceLanes.get(r.id) ?? `#${r.id}` }];
+      if (res.ok) S.cashed = [...S.cashed, { id: r.id, companyId: c.id, day: today, landsFd: r.amountFd * (1 - rate), dueDay: r.dueDay, lane: S.invoiceLanes.get(r.id) ?? `#${r.id}` }];
     }
     S.cashPlan = [];
     bumpData();
@@ -137,7 +139,7 @@ function CashSheet({ c, r, rate, lane, onDone }: { c: Company; r: Receivable; ra
   const send = async () => {
     const res = await order({ type: "cash_invoice", receivableId: r.id }, CASHNOW.button(fd(lands)));
     if (!res.ok) return setNote(refusal(res.reason.charAt(0).toLowerCase() + res.reason.slice(1)));
-    S.cashed = [...S.cashed, { id: r.id, day: today, landsFd: lands, dueDay: r.dueDay, lane }];
+    S.cashed = [...S.cashed, { id: r.id, companyId: c.id, day: today, landsFd: lands, dueDay: r.dueDay, lane }];
     S.cashPlan = S.cashPlan.filter((id) => id !== r.id);
     bumpData();
     onDone();

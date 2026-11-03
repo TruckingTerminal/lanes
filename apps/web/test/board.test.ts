@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { clearsNear as engineClearsNear, dispatchProfile, invalidOrders, marketMood, operatingTrucks, placeMiles, placeToll } from "@lanes/engine";
-import { bidRange, boardRows, clearsNear, clearsNearSource, posterOf, sortRows, suggestBid } from "../src/board.js";
+import { bidRange, boardRows, chipCash, chipFd, clearsNear, clearsNearSource, posterOf, sortRows, suggestBid } from "../src/board.js";
 import { breakdown } from "../src/explain.js";
 import { firstBoomDay, firstMoodDay } from "../src/milestones.js";
 import { intelRows } from "../src/intel.js";
@@ -153,4 +153,16 @@ describe("stage 2: the board reads the engine's clearsNear (R1's anchor)", () =>
     expect(firstMoodDay(slumped, 0, "slumping")).toBeGreaterThanOrEqual(k.longDays);
     expect(firstMoodDay(slumped, 0, "booming")).toBeNull();
   }, 60_000);
+});
+
+describe("R14: the chip's figures", () => {
+  it("whole FD to 9,999, then thousands to one place; the cash keeps its sign", () => {
+    expect(chipFd(607)).toBe("607");
+    expect(chipFd(9_999)).toBe("9,999");
+    expect(chipFd(12_400)).toBe("12.4k");
+    expect(chipCash(-103)).toBe("−103");
+    expect(chipCash(-1_100)).toBe("−1,100");
+    expect(chipCash(-11_000)).toBe("−11.0k");
+    expect(chipCash(504)).toBe("504");
+  });
 });
