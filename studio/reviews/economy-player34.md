@@ -923,6 +923,33 @@ restart commit can add them there and leave the base config, and the tests writt
 | 30 | `permits.suretyPctPerYear` | [0.02, 0.12] | **[0.01, 0.06]** | Jeff: the surety premium halves |
 | 31 | `token.credit.premiumMax` | 0.2 | **0.1** | Jeff: the credit premium's ceiling halves |
 
+**With them, the Reserve and cash now.** The red team probed these with the brokerage as one switch-on ("the three
+switches", pass 3), and the sprint order puts cashing invoices with the brokerage. The engine doesn't tie them to it,
+so they can also go on alone. Only the two switches flip. Every size is already the value Jeff approved
+(economy-reserve.md §2, §3a), so the restart sets nothing else:
+
+| # | Path | Today | The bump | Why |
+|---|---|---|---|---|
+| 32 | `cashReserve.enabled` | false | **true** | the Reserve (Jeff, 2026-11-02) |
+| – | `cashReserve.capWeeks` | 13 | 13 | sheltered up to thirteen weeks of the company's own spending |
+| – | `cashReserve.settleDays` | 1 | 1 | a withdrawal lands in cash the next day |
+| 33 | `token.payment.cashNow.enabled` | false | **true** | cash now: any open invoice, cashed today (Jeff, 2026-11-02) |
+| – | `token.payment.cashNow.spotPct` | 0.08 | 0.08 | without a factoring contract, 8% spot |
+| – | `token.payment.cashNow.agingPerDay` | 0.001 | 0.001 | plus 0.1% a day since the invoice was raised… |
+| – | `token.payment.cashNow.agingCap` | 0.03 | 0.03 | …up to 3% |
+| – | `token.payment.cashNow.botsNetOnly` | false | false | a batch scenario, never a rule: stays false |
+
+- **Rules in the code, with no key to set:**
+  - the Reserve has no fee and no yield, counts toward credit as capital (`credit.ts`), and can't be pledged, staked
+    or posted as a bond (`cashReserve.ts`);
+  - cash now's fee is `sink:factoring_fee`, which the circular economy returns to the reserve, as Jeff asked;
+  - under a factoring contract cash now charges the contract's rate plus the same aging.
+- **The red team's pass-3 profile had exactly these on.** `bumpConfig` (`apps/sim/src/redteam/harness.ts`) is the
+  live profile, plus `THREE_SWITCHES` (the three `enabled` flags only, every size at its default, which is the size
+  above), plus `BUMP_LEVERS`, the table as of 26a8b8e.
+  - That profile predates rows 27 and 28 (`probationDays`, `settleAtStop`), which came after it, and the S4 fixes.
+    The red team's re-read covered the code, not a fuzz run with them on.
+
 **Not config: engineering's `PLAYER_DISPATCHER_ORDERS`** (`apps/web/src/game.ts`, in their working tree), the rules a
 player turns on:
 - the bid: `price: { mode: "clearsNear", pct: 0 }` (there already);
@@ -950,22 +977,56 @@ phase. The version line, in its own form:
 version: "0.21.0-phase0.36", // Restart (2026-11-0x): the diary 3/4 bump (studio/reviews/economy-player34.md, live.ts): a ceiling is a ceiling (R17), the pay floor and drivers who quit (R16), the board at a 1.2 ceiling with a short-load cap and the season table on rates (R11), R12's hours with the 70-hour clock and the 34-hour restart, compliance with teeth and a year's probation (R18), the dispatcher and auto-staff off until the player chooses (R1, R8), the double pledge closed and Equipment Finance shut with the pools, a fleet's lot rig in a week; levels as 0.20.2
 ```
 
-If the brokerage rides the same restart, the note ends "…a fleet's lot rig in a week; the brokerage on, both premiums
-halved; levels as 0.20.2".
+If the brokerage rides the same restart with the Reserve and cash now, the note ends "…a fleet's lot rig in a week;
+the brokerage on, both premiums halved, the Reserve at thirteen weeks, cash now at 8% plus 0.1% a day to 3%; levels as
+0.20.2". If the Reserve and cash now go on without the brokerage, drop the brokerage's clause.
+
+### The restart profile over four years
+
+None of the bump's four-year runs had the Reserve or cash now on, so I ran the one check they needed: `y4-REST`,
+seeds 1–4.
+- It has every row of the table but the brokerage's three, rows 27 and 28 included, plus the Reserve and cash now at
+  their sizes.
+- The brokerage is left out because it rides only if QA clears it; `brk-bump` (§5d) is its check.
+
+| Seeds 1–4 | Today | The bump with R18 (`y4-FIX`) | **The restart profile (`y4-REST`)** |
+|---|---|---|---|
+| Liquidations (owner-operators) | 389 (101) | 434 (104) | **415 (98)** |
+| Supply at the end / ceiling (seeds over) | 55.9M / 59.6M (1 of 4) | 57.1M / 59.4M (1 of 4) | **57.7M / 59.8M (1 of 4)** |
+| Prudent owner-operator: month one / year one (operating) | 37.4k / 162.7k | 34.4k / 168.5k | 33.9k / 171.3k |
+| Prudent owner-operator's net worth at one year | 36.3k | 31.2k | **64.5k** |
+| Owner-operators at four years: prudent / greedy | 39.5k / 30.7k | 38.5k / 27.7k | 47.5k / 31.3k |
+| Fleets at four years: prudent / greedy | 115k / 359k | 119k / 285k | 110k / 325k |
+| Fines in four years | 14.2M | 30.3M | 28.8M |
+
+- **Every target holds.**
+  - Liquidations come closer to today's: 415, owner-operators 98 against 101.
+  - Supply stays under the ceiling, as today.
+  - The prudent owner-operator beats the greedy one by more than today.
+- **The Reserve is the prudent owner-operator's.** His first-year net worth doubles (64.5k against 31.2k): his
+  cushion sits out of the season close's burn.
+  - 3.3M is held in Reserves at the end.
+  - 0.33M of holding cost and 0.36M of burns came from above the caps, as in economy-reserve.md §2.
+- **Cash now barely moves under the live factoring contract**: fees of 69.35M against 69.25M, as economy-reserve.md
+  §3a found. It is the declined-contract carrier's door, not the contract signer's.
+- The other rows that differ from `y4-FIX` (the late rows 25–28, the players-only guards) aren't separated here. Each
+  was checked on its own above.
 
 ### What the bump does, in one table
+
+The four-year rows are the restart profile's (`y4-REST`, without the brokerage).
 
 | | Today (0.20.2) | The bump |
 |---|---|---|
 | The gamer's month: cheating against legal | +6.6k | **−31.5k** (rated by day 36 on 5 seeds of 6) |
 | The trucker's month (six seeds; the bump on R1's anchor) | 35.9k | 28.8k. That is the levels question, which is Jeff's (§2b) |
 | The honest fleet's month: kept / fines | 148.6k / 0 | 146.2k / 1.1k, all shoulder tickets (§3a) |
-| The prudent owner-operator: month one / year one, operating | 37.4k / 162.7k | 34.4k / 168.5k |
-| Owner-operators at four years: prudent / greedy | 39.5k / 30.7k | 38.5k / 27.7k |
-| Fleets at four years: prudent / greedy | 115k / 359k | 119k / 285k |
-| Liquidations in four years (owner-operators) | 389 (101) | 434 (104): the extra failures are cutters and outlaws (§3d) |
-| Supply at four years / ceiling | 55.9M / 59.6M, over on 1 seed of 4 | 57.1M / 59.4M, over on 1 seed of 4 |
-| Fines in four years | 14.2M | 30.3M |
+| The prudent owner-operator: month one / year one, operating | 37.4k / 162.7k | 33.9k / 171.3k |
+| Owner-operators at four years: prudent / greedy | 39.5k / 30.7k | 47.5k / 31.3k |
+| Fleets at four years: prudent / greedy | 115k / 359k | 110k / 325k |
+| Liquidations in four years (owner-operators) | 389 (101) | 415 (98): the extra failures are cutters and outlaws (§3d) |
+| Supply at four years / ceiling | 55.9M / 59.6M, over on 1 seed of 4 | 57.7M / 59.8M, over on 1 seed of 4 |
+| Fines in four years | 14.2M | 28.8M |
 
 ## Files (stages 3–5)
 
@@ -1017,7 +1078,8 @@ to main's after each addition.
 Runs are in `runs/p34/`:
 - the gamer's month: `s3/` (before the parking fix), `s3f/` (after); the trucker on the bump: `ends2/FIN-anchor-*`;
 - the season: `pol3/` (before), `pol4/` (after);
-- four years: `y4-FINAL` (before), `y4-Q12F`, `y4-FIX`, `y4-FIXe` (after); the split by conduct: `conduct/`;
+- four years: `y4-FINAL` (before), `y4-Q12F`, `y4-FIX`, `y4-FIXe` (after), the restart profile `y4-REST`; the split
+  by conduct: `conduct/`;
 - R15: `s5/`;
 - the brokerage: `brk-bump/`.
 
