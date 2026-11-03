@@ -105,6 +105,14 @@ export function WhatNowAnswer(): JSX.Element | null {
   );
 }
 
+/** What now?'s top answer now, for the return card's last row (R21). */
+export function whatNowWords(): { action: string; reason: string; button: string; go: () => void; red?: boolean } | null {
+  const g = S.game;
+  const c = g?.player;
+  if (!g || !c || kindInView(g) === "brokerage") return null;
+  return words(currentAction(g.w, c));
+}
+
 /** The same answer, still the one to give: the same rule and kind, about the same truck or load. */
 function same(a: NextAction, b: NextAction): boolean {
   if (a.kind !== b.kind) return false;

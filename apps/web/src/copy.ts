@@ -90,6 +90,27 @@ export const WALL = {
   hot: "A hot load needs a team.",
 };
 
+/** The return card (the writer's copy-player5.md, R21): built from the world after a long absence. */
+export const RETURN = {
+  hello: "Welcome back.",
+  whereIdle: (place: string, mi: string) => `Your truck is idle at ${place}, ${mi} miles from home.`,
+  whereHome: (hub: string) => `Your truck is at home in ${hub}.`,
+  whereMoving: (mi: string, dest: string, eta: string) => `Your truck is ${mi} miles from ${dest}, arriving ${eta}.`,
+  whereFleet: (n: number, moving: number, idle: number, home: number) => `${n} trucks: ${moving} on the road, ${idle} idle, ${home} at home.`,
+  whyIdle: (reason: string) => `Nothing here is yours to take: ${reason.replace(/\.$/, "")}.`,
+  whyIdlePays: (n: number) => `${n} loads in reach pay over break-even.`,
+  doingLoading: (place: string, hh: string) => `It's loading at ${place}, done around ${hh}.`,
+  doingResting: (place: string, hh: string) => `It's resting near ${place} and rolls again at ${hh}.`,
+  awayLive: (n: number, fdIn: string, fdOut: string) => `While you were away: ${n} loads delivered, ${fdIn} FD in, ${fdOut} FD out.`,
+  awayTrouble: (list: string) => `Also ${list}.`,
+  awayQuiet: "Nothing happened while you were away.",
+  awayTest: "Nothing moved while you were away: the test world waits for you.",
+  month: (month: string, fd: string) => `${month} closed while you were away: you kept ${fd} FD.`,
+  ok: "OK",
+  late: (n: number) => (n === 1 ? "a late load" : `${n} late loads`),
+  ticket: (n: number) => (n === 1 ? "a ticket" : `${n} tickets`),
+};
+
 /** What limits the fleet, the binding cap first (the writer's copy-player4.md, R19). */
 export const CAPS = {
   line: (n: number, binding: string, others: string) => `You may run ${n}: ${binding}.${others ? ` ${others}` : ""}`,

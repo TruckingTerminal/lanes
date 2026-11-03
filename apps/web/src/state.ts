@@ -84,6 +84,8 @@ export const S = {
   confirm: null as null | import("./ui/Confirm.js").ConfirmSpec & { openedAt: number; swap: boolean; tab: string },
   /** The player's last order: on which tab, at which real time (R2: a caption line retires when the player acts on another screen). */
   lastAct: null as null | { tab: string; at: number },
+  /** R21: what changed while the player was away, shown as the return card until answered (returncard.ts). */
+  returnCard: null as null | import("./returncard.js").Away,
   /** The next-truck gap as last shown, and what moved it since the player last opened its explanation (row 4). */
   gapSeen: null as null | { scope: string; route: string; weeks: number; why: ("cheapest" | "cushion")[] },
   /** The invoices What now? chose to cash (rule 1's cash lever): Money opens on them. */

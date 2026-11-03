@@ -303,6 +303,9 @@ table.mini td:first-child { font-family: inherit; }
 .caption .portrait.sm, .caption .portrait.placeholder.sm { width: 32px; height: 32px; flex: none; font-size: 14px; }
 .caption.iuliia { align-items: flex-start; }
 .caption.iuliia .portrait.lg { width: 96px; height: 96px; flex: none; }
+/* R21: the return card's rows take the width beside her portrait, not a word-wide column. */
+.returncard > .stack { flex: 1 1 200px; min-width: 0; gap: 4px; }
+.returncard > .stack > .small { flex: none; }
 .switchrow { gap: 10px; min-height: 44px; cursor: pointer; flex-wrap: nowrap; }
 .switchrow input { flex: none; width: 40px; height: 22px; accent-color: var(--accent); }
 .morelist { display: grid; border: 1px solid var(--border); border-radius: var(--radius); }

@@ -11,6 +11,7 @@ import { emptyRun, paidLine } from "../src/rolling.js";
 import { cushion, debtCountdown, fleetCaps, gapToTruck, nextEvent, nextWeeklyCheckDay } from "../src/figures.js";
 import { GAME_CONFIG, TestGame } from "../src/game.js";
 import { nextAction } from "../src/nextstep.js";
+import { RETURN_HOURS, returnFor, saveVisit } from "../src/returncard.js";
 import { leaseMinFor, weekCosts } from "../src/ledger.js";
 import { borrowable } from "../src/finance.js";
 import { skippedSteps, stepKey, walkProgress, walkSteps } from "../src/walkthrough.js";
@@ -307,6 +308,30 @@ describe("R7: one figure from one source; only what the lender gives", () => {
     for (const { t, cap } of borrowable(g.w, trucks)) {
       expect(cap).toBeLessThanOrEqual(borrowingCapacity(g.w, t));
       expect(cap).toBeLessThanOrEqual(poolCash(g.w));
+    }
+  }, 60_000);
+});
+
+describe("the return card (R21)", () => {
+  it("shows after RETURN_HOURS away, for the same company, with what changed; not before, not for another", async () => {
+    const { g, c } = await fresh();
+    const store = new Map<string, string>();
+    (globalThis as { localStorage?: unknown }).localStorage = { getItem: (k: string) => store.get(k) ?? null, setItem: (k: string, v: string) => store.set(k, v) };
+    try {
+      saveVisit(g.w, c);
+      const saved = JSON.parse(store.get("lanes.lastVisit")!) as { realMs: number };
+      expect(returnFor(g.w, c, true, saved.realMs + 3_600_000)).toBeNull(); // an hour: no card
+      c.delivered += 2;
+      c.operating.revenueFd += 4_000;
+      c.late += 1;
+      const back = returnFor(g.w, c, true, saved.realMs + RETURN_HOURS * 3_600_000)!;
+      expect(back).toMatchObject({ live: true, delivered: 2, late: 1 });
+      expect(back.inFd).toBeCloseTo(4_000, 6);
+      const other = (await fresh()).c;
+      other.id = c.id + 1;
+      expect(returnFor(g.w, other, true, saved.realMs + RETURN_HOURS * 3_600_000)).toBeNull(); // another company
+    } finally {
+      delete (globalThis as { localStorage?: unknown }).localStorage;
     }
   }, 60_000);
 });

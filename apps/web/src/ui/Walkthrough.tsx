@@ -16,6 +16,7 @@ import { letDispatcherBid } from "../logic.js";
 import { Loop } from "./Loop.js";
 import { CompanySoFar, milestoneHeld, MilestoneLine, milestoneScope } from "./Milestones.js";
 import { WhatNowAnswer, WhatNowChip } from "./WhatNow.js";
+import { ReturnCard } from "./ReturnCard.js";
 import { kindInView } from "../companies.js";
 
 let poster: HTMLImageElement | null = null;
@@ -225,19 +226,17 @@ function momentHere(step: WalkStep): boolean {
   return true;
 }
 
-/** How long an unasked line without a button may stand (R2: `{iuliia.captionMinutes}`, 5 real minutes); joins ui.iuliia in the config on the economy's next pass. */
-const CAPTION_MINUTES = 5;
 /** When each unasked line first showed in this sitting, by key. */
 const lineSince = new Map<string, number>();
 /**
- * R2: an unasked line without a button retires after CAPTION_MINUTES real minutes, or once the player acts on another
+ * R2: an unasked line without a button retires after `ui.iuliia.captionMinutes` real minutes, or once the player acts on another
  * screen than its own. A line with a button holds until it's answered, or until it's false (R10). Returns whether it stands.
  */
 function lineStands(key: string, screen: string, retire: () => void): boolean {
   const now = performance.now();
   const since = lineSince.get(key) ?? (lineSince.set(key, now), now);
   const acted = S.lastAct !== null && S.lastAct.at > since && S.lastAct.tab !== screen;
-  const left = CAPTION_MINUTES * 60_000 - (now - since);
+  const left = GAME_CONFIG.ui.iuliia.captionMinutes * 60_000 - (now - since);
   if (acted || left <= 0) {
     queueMicrotask(() => {
       retire();
@@ -263,6 +262,9 @@ export function Caption(): JSX.Element | null {
   // A What now? answer takes the caption's place: one caption, one portrait (guidance-ux.md section 1).
   const answer = WhatNowAnswer();
   if (answer) return answer;
+  // R21: after a long absence the return card is the caption's first line, below an asked answer.
+  const back = ReturnCard();
+  if (back) return back;
   // Only her face and the chip, when she has nothing to say: being wound up (U3), or no line now.
   const bare = (mood: Mood = "idle") => (
     <div class="caption">

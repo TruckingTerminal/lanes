@@ -17,6 +17,7 @@ import { MemoryDb } from "./memdb.js";
 import { bumpData, bumpTick, feed, loadOnboard, setOnboard, loadTheme, markPersisted, persistTest, push, readTest, S, setLayout, setTab, SPEEDS, TEST_BUILD, toast, toggleFullscreen, truckNo, type Session, type TitleMenu } from "./state.js";
 import { App } from "./ui/App.js";
 import { askWhatNow } from "./ui/WhatNow.js";
+import { returnFor, saveVisit } from "./returncard.js";
 
 /**
  * Boot, sessions and the game loop. The screen itself is the Preact app in ui/;
@@ -69,6 +70,11 @@ function showGame(s: Session): void {
   // Before a company, the first entry starts at Iuliia's welcome; a returning player opens on their truck, no flight.
   if (!s.player) S.entry = { stage: "welcome", hub: null, rings: null };
   else if (truck) flyTo(truck.hub, true);
+  // R21: a return after RETURN_HOURS away opens on the return card; this visit is then kept for the next one.
+  if (s.player) {
+    S.returnCard = returnFor(s.w, s.player, s.kind === "live");
+    saveVisit(s.w, s.player);
+  }
   S.screen = { kind: "game" };
   bumpData();
   if (!looping) {
@@ -555,3 +561,10 @@ function loop(now: number): void {
 const hot = (window as any).claude?.hot;
 if (hot?.ready) hot.ready(() => void boot());
 else void boot();
+
+// R21: the visit is kept every minute and when the page hides, so the next return knows what this one saw.
+if (typeof window !== "undefined") {
+  const keep = () => S.game?.player && saveVisit(S.game.w, S.game.player);
+  setInterval(keep, 60_000);
+  window.addEventListener("pagehide", keep);
+}
