@@ -316,6 +316,8 @@ export interface Company {
   hireBlock?: { staffId: number; kind: Staff["kind"]; weeklyFd: number; needFd: number; day: number } | null;
   /** Passes on which auto-staff held a hire back (R8's sizing). */
   hireBlockedDays?: number;
+  /** R16 (labor.underpayMemory): drivers ask more of this company until this day, after one left it unhappy. */
+  underpaidUntilDay?: number;
   /** Local shippers pass this carrier over until this day (turned-down contract tenders). */
   localBanUntilDay: number;
   /** Moving average of contract tenders accepted, across contracts (offers go to the reliable). */
@@ -479,6 +481,8 @@ export interface Staff {
   matchedDay: number;
   /** The most they've been paid lately: a raise only lifts morale above it, so a cut-and-restore isn't a raise. */
   peakPay: number;
+  /** R16: on notice for being unhappy (labor.unhappyNoticeDays); a raise to their ask withdraws it. */
+  unhappyNotice?: boolean;
   /** Career record any employer can see. */
   violations: number;
   crashes: number;

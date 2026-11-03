@@ -27,6 +27,22 @@ const lerp = (range: readonly [number, number], x: number) => range[0] + (range[
 /** The raise it takes to poach someone this happy. */
 export const lerpLoyalty = (w: World, morale: number) => lerp(w.cfg.labor.morale.loyalty, morale);
 
+/** R16 (labor.payFloorShareOfMarket): the least a driver may be paid or offered, a share of their market rate; 0 with no floor. */
+export const payFloor = (w: World, s: Staff): number => (s.kind === "driver" ? w.cfg.labor.payFloorShareOfMarket * marketPay(w, s.kind, s.skill) : 0);
+
+/** What a driver asks of this company: their ask, more while it is remembered for underpaying (labor.underpayMemory). */
+export function askOf(w: World, c: Company, s: Staff): number {
+  const ask = askingPay(w, s);
+  if (s.kind !== "driver" || (c.underpaidUntilDay ?? -1) < dayOf(w.t, w.cfg)) return ask;
+  return ask * (1 + w.cfg.labor.underpayMemory.askPremium);
+}
+
+/** R16: a driver leaving unhappy is remembered against the company (labor.underpayMemory). */
+function rememberUnderpay(w: World, c: Company): void {
+  const m = w.cfg.labor.underpayMemory;
+  if (m.days > 0) c.underpaidUntilDay = dayOf(w.t, w.cfg) + m.days;
+}
+
 export function spanOf(w: World, s: Staff): number {
   return Math.round(lerp(w.cfg.labor.dispatcher.span, s.skill));
 }
@@ -156,17 +172,21 @@ export function offerStaff(w: World, c: Company, s: Staff, pay: number, truckId:
     if (crewed(truck)) return "that truck already has a driver";
     if (truck.status === "retired" || truck.status === "listed" || truck.status === "parked") return "that truck isn't on the road";
   }
-  const ask = askingPay(w, s);
+  const ask = askOf(w, c, s);
+  const floor = payFloor(w, s);
+  if (pay < floor - 1e-9) return `below the pay floor: ${fmtPay(s, floor)}`;
   if (pay < ask) return `${s.name} asks at least ${fmtPay(s, ask)}`;
   if (s.status === "pool") {
     hire(w, c, s, pay, truck);
     return null;
   }
-  // A poach: it has to beat what they make by their loyalty premium, and it costs a sign-on bonus up front.
-  if (s.offer && s.offer.companyId === 0) return `${s.name} has already given notice`;
+  // A poach: it has to beat what they make by their loyalty premium, and it costs a sign-on bonus up front. An unhappy
+  // driver on notice (R16) moves for their ask: rivals hire them first.
+  const unhappy = s.unhappyNotice === true && s.offer?.companyId === 0;
+  if (s.offer && s.offer.companyId === 0 && !unhappy) return `${s.name} has already given notice`;
   const bonus = signOnBonus(w, s, pay);
   if (w.ledger.balance(companyAccount(c.id)) < bonus) return `a sign-on bonus of ${fmtInt(bonus)} FD is due up front`;
-  const needed = s.pay * (1 + lerp(morale.loyalty, s.morale));
+  const needed = unhappy ? ask : s.pay * (1 + lerp(morale.loyalty, s.morale));
   if (pay < needed) return `${s.name} would move for ${fmtPay(s, needed)} or more`;
   if (s.offer && s.offer.companyId !== 0 && s.offer.pay >= pay) return `${s.name} already has a better offer`;
   s.offer = { companyId: c.id, pay, truckId: truck?.id ?? 0, day: dayOf(w.t, w.cfg) };
@@ -223,6 +243,7 @@ export function releaseStaff(w: World, s: Staff): void {
   s.companyId = 0;
   s.pay = 0;
   s.offer = null;
+  if (s.unhappyNotice) s.unhappyNotice = false;
   s.morale = w.cfg.labor.morale.start;
 }
 
@@ -236,11 +257,18 @@ export function setPay(w: World, s: Staff, pay: number): void {
   const change = clamp(pay / ref - 1, -0.5, 0.25);
   s.morale = clamp(s.morale + change * w.cfg.labor.morale.payWeight * 0.5, 0, 1);
   s.peakPay = Math.max(s.peakPay, pay);
-  if (s.offer && s.offer.companyId !== 0 && pay >= s.offer.pay) {
+  if (s.unhappyNotice && s.offer?.companyId === 0 && pay >= askingPay(w, s) - 1e-9) {
+    // R16: raised in time; they stay, no longer unhappy.
+    s.offer = null;
+    s.unhappyNotice = false;
+    s.morale = Math.max(s.morale, w.cfg.labor.morale.unhappyBelow + 0.05);
+    notice(w, s.companyId, `${label(s)} is staying: you raised their pay in time.`, "good", s.truckId || undefined);
+  } else if (s.offer && s.offer.companyId !== 0 && pay >= s.offer.pay) {
     const other = companyById(w, s.offer.companyId);
     notice(w, other.id, `${s.name} stayed: their employer matched your offer.`, "bad");
     notice(w, s.companyId, `You kept ${s.name}.`, "good", s.truckId || undefined);
     s.offer = null;
+    if (s.unhappyNotice) s.unhappyNotice = false;
     s.matchedPay = pay;
     s.matchedDay = today;
   } else if (s.matchedPay > 0 && pay < s.matchedPay && today - s.matchedDay < w.cfg.labor.hiring.matchedPayHoldDays && !s.offer) {
@@ -286,11 +314,20 @@ export function dailyLabor(w: World): void {
       s.companyId = 0;
       continue;
     }
-    if (s.status !== "employed" || !s.offer || today - s.offer.day < w.cfg.labor.morale.noticeDays || !free(w, s)) continue;
+    const k = w.cfg.labor;
+    // R16 (labor.unhappyNoticeDays): an unhappy driver gives notice, with the days and the pay that would keep them.
+    if (k.unhappyNoticeDays > 0 && s.status === "employed" && !s.owner && s.kind === "driver" && !s.offer && s.morale < k.morale.unhappyBelow) {
+      s.offer = { companyId: 0, pay: 0, truckId: 0, day: today + k.unhappyNoticeDays - k.morale.noticeDays };
+      s.unhappyNotice = true;
+      notice(w, s.companyId, `${label(s)} has given notice: unhappy with pay or how they're treated. They leave in ${k.unhappyNoticeDays} days unless their pay goes to ${fmtPay(s, askingPay(w, s))}.`, "bad", s.truckId || undefined);
+      continue;
+    }
+    if (s.status !== "employed" || !s.offer || today - s.offer.day < k.morale.noticeDays || !free(w, s)) continue;
     const { companyId, pay, truckId } = s.offer;
     const from = companyById(w, s.companyId);
+    if (s.unhappyNotice) rememberUnderpay(w, from); // leaving unhappy, for a rival or for good
     if (companyId === 0) {
-      notice(w, from.id, `${label(s)} quit.`, "bad", s.truckId || undefined);
+      notice(w, from.id, `${label(s)} quit${s.unhappyNotice ? ", unhappy with pay or how they're treated" : ""}.`, "bad", s.truckId || undefined);
       releaseStaff(w, s);
       continue;
     }
@@ -424,7 +461,7 @@ export function autoStaff(w: World, c: Company, minDriverSkill = 0, minDispatche
   if (c.hireBlock) c.hireBlock = null; // only touched once the guard has held something, so a world without it is unchanged
   const affordable = (s: Staff): boolean => {
     if (cover <= 0) return true;
-    const weekly = weeklyWage(w, s, askingPay(w, s));
+    const weekly = weeklyWage(w, s, askOf(w, c, s));
     const needFd = cover * (added + weekly);
     if (w.ledger.balance(companyAccount(c.id)) + 1e-9 >= needFd) {
       added += weekly;
@@ -464,7 +501,7 @@ export function autoStaff(w: World, c: Company, minDriverSkill = 0, minDispatche
       for (const t of needed) {
         const s = pool.shift();
         if (!s || !affordable(s)) break;
-        hire(w, c, s, askingPay(w, s), t);
+        hire(w, c, s, askOf(w, c, s), t);
       }
     }
   }
@@ -548,6 +585,7 @@ export function weeklyLabor(w: World): void {
       if (free(w, s)) removeStaff(w, s);
       else s.offer = { companyId: 0, pay: 0, truckId: 0, day: dayOf(w.t, w.cfg) - morale.noticeDays };
     } else if (quits) {
+      if (s.morale < morale.unhappyBelow) rememberUnderpay(w, c);
       if (free(w, s)) {
         notice(w, c.id, `${label(s)} quit${s.unseatedWeeks >= morale.unseatedWeeks ? ": no truck to drive" : s.morale < 0.3 ? " — unhappy with pay or how they're treated" : ""}.`, "bad", s.truckId || undefined);
         releaseStaff(w, s);

@@ -207,6 +207,10 @@ export const economyConfig = {
     // Design decision (Jeff, 2026-10-28): a counter above the poster's ceiling is still taken, up to
     // ceiling × this, but only when nobody offers within the ceiling — so a hot market still covers.
     overCeilingMax: 1.5,
+    // R17 (the director's triage of diary 4; economy-player34.md stage 1): a ceiling is a ceiling. With this on, the engine refuses
+    // a bid above the load's ceiling ("above the ceiling, {rate}") instead of letting it win when nobody bids under. The R17
+    // package is this on and overCeilingMax at 1 (the dispatcher then bids at the ceiling when its margin would go over).
+    refuseOverCeiling: false,
     maxBidsPerTruckPerRound: 12, // PoC assumption: performance bound
     freeStandingOrders: 5,
     // PoC assumption: board fee paid by players who post freight (brokers and player
@@ -1495,7 +1499,18 @@ export const economyConfig = {
       loyalty: [0.04, 0.2] as const, // the raise it takes to poach, from morale 0 to 1
       noticeDays: 2, // the employer has this long to match an offer
       unseatedWeeks: 2, // a driver left without a truck this long walks
+      unhappyBelow: 0.3, // "unhappy" (the Staff page's word): the morale under which R16's notice runs
     },
+    // R16 (the director's triage of diary 4; economy-player34.md stage 1): driver pay has a floor and a consequence. Today's values
+    // turn it all off.
+    // - payFloorShareOfMarket: no driver's pay may be set or offered below this share of their market rate (0: no floor).
+    // - unhappyNoticeDays: an unhappy driver (morale under morale.unhappyBelow) gives notice and leaves this many days later
+    //   unless their pay goes back to what they'd ask elsewhere; a rival can hire them away meanwhile at that ask (0: off,
+    //   only the weekly quit odds, as today).
+    // - underpayMemory: a company a driver left unhappy finds drivers asking askPremium more for `days` (0: none).
+    payFloorShareOfMarket: 0,
+    unhappyNoticeDays: 0,
+    underpayMemory: { days: 0, askPremium: 0 },
     // Hiring away costs a sign-on bonus up front; letting someone go soon after hiring costs severance;
     // a matched offer that's cut back within the hold period sends the person packing.
     hiring: { signOnWeeks: 2, severanceWeeks: 2, severanceWithinDays: 28, matchedPayHoldDays: 56, milesPerWeek: 1_000 },
@@ -1764,7 +1779,8 @@ export const economyConfig = {
     season: { margin: 0.25, thinUnder: 0.15, fineFrom: 1.5, busyFrom: 4.5 },
     // Iuliia by tab and card (the writer's iuliia-lines.md): never two of her lines within this many real seconds, and each
     // shows this long before the walkthrough's Do line returns. Screens only: no rule reads it.
-    iuliia: { quietSeconds: 60, showSeconds: 6 },
+    // captionMinutes: a caption retires after this many real minutes (the producer's ask, R2's replay). Screens only.
+    iuliia: { quietSeconds: 60, showSeconds: 6, captionMinutes: 5 },
     tapSettleMs: 400, // R6: a confirm ignores taps for this long after it opens, so the tap that opened it can't confirm it
   },
 } as const;

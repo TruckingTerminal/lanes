@@ -25,7 +25,7 @@ import { rebrokerLoad, stealLoad, vettingBlock } from "./fraud.js";
 import { declineHeld, formBrokerage, partnerOf, passTender, postHeld, tenderOwn, transferCapital } from "./brokerage.js";
 import { depositReserve, withdrawReserve } from "./cashReserve.js";
 import { finiteIn } from "./economics.js";
-import { offerStaff, releaseStaff, setPay, severance, startHomeTime } from "./labor.js";
+import { offerStaff, payFloor, releaseStaff, setPay, severance, startHomeTime } from "./labor.js";
 import { buyListing, listingBlock, listTrailer, listTruck, withdrawListing } from "./market.js";
 import { canRefile, notice } from "./safety.js";
 import { canMakeHot } from "./standingOrders.js";
@@ -276,6 +276,8 @@ export function applyAction(w: World, companyId: number, action: Action): Action
       if (!s || s.companyId !== company.id || s.status !== "employed") return { ok: false, reason: "they don't work for you" };
       if (s.owner) return { ok: false, reason: "the owner's draw is fixed" };
       if (!finiteIn(action.pay, 0.01, s.kind === "driver" ? 20 : 50_000)) return { ok: false, reason: "pay above zero" };
+      const floor = payFloor(w, s); // R16 (labor.payFloorShareOfMarket)
+      if (action.pay < floor - 1e-9) return { ok: false, reason: `below the pay floor: ${floor.toFixed(2)} FD/mi, ${Math.round(cfg.labor.payFloorShareOfMarket * 100)}% of their market rate` };
       setPay(w, s, action.pay);
       return { ok: true };
     }
@@ -848,6 +850,7 @@ export function applyAction(w: World, companyId: number, action: Action): Action
       if (!mayTake(w, company, load)) return { ok: false, reason: load.tenderedTo ? "that load is tendered to another carrier" : "the shipper is giving local carriers first call this round" };
       if (hubMiles(w, truck.hub, load.origin) > MANUAL_BID_MAX_DEADHEAD_MI) return { ok: false, reason: `more than ${MANUAL_BID_MAX_DEADHEAD_MI} miles empty to the pickup` };
       if (!(action.rate > 0)) return { ok: false, reason: "bid a rate per mile above zero" };
+      if (cfg.board.refuseOverCeiling && action.rate > load.ceiling + 1e-9) return { ok: false, reason: `above the ceiling, ${load.ceiling.toFixed(2)}/mi` }; // R17
       w.manualBids.set(truck.id, { loadId: load.id, rate: action.rate });
       company.firstHandBidDay ??= dayOf(w.t, cfg); // the owner's first call on the board (freeEntry.firstBidByHand)
       return { ok: true };

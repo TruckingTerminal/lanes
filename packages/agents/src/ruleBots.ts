@@ -703,11 +703,13 @@ function manageStaff(w: World, c: Company, p: BotProfile, rng: Rng, today: numbe
   const empty = fleet.find((t) => !crewed(t) && t.status === "idle");
   if (!empty || rng.next() > 0.3) return;
   // Poach the least happy driver elsewhere, for just over what it would take.
-  let best: { id: number; pay: number } | null = null;
+  let best: { id: number; pay: number; onNotice: boolean } | null = null;
   for (const s of w.staff) {
-    if (s.kind !== "driver" || s.status !== "employed" || s.owner || s.companyId === c.id || s.offer) continue;
-    const pay = Math.max(askingPay(w, s), s.pay * (1 + lerpLoyalty(w, s.morale))) + 0.005;
-    if (!best || pay < best.pay) best = { id: s.id, pay };
+    // R16 (labor.unhappyNoticeDays): a driver on an unhappy notice moves for their ask, and comes first.
+    const onNotice = s.unhappyNotice === true && s.offer?.companyId === 0;
+    if (s.kind !== "driver" || s.status !== "employed" || s.owner || s.companyId === c.id || (s.offer && !onNotice)) continue;
+    const pay = (onNotice ? askingPay(w, s) : Math.max(askingPay(w, s), s.pay * (1 + lerpLoyalty(w, s.morale)))) + 0.005;
+    if (!best || (onNotice && !best.onNotice) || (onNotice === best.onNotice && pay < best.pay)) best = { id: s.id, pay, onNotice };
   }
   if (best && best.pay <= askingPay(w, staffById(w, best.id)) * 1.25) applyAction(w, c.id, { type: "offer_staff", staffId: best.id, pay: best.pay, truckId: empty.id });
 }

@@ -259,6 +259,7 @@ function priceLoad(
     const rate = Math.max(least, Math.min(ask * (1 - desperate * 0.5) + least * desperate * 0.5, hardCap(w, load)));
     if (!(rate > 0)) continue; // nobody hauls for nothing
     if (rate < least) continue;
+    if (w.cfg.board.refuseOverCeiling && rate > load.ceiling + 1e-9) continue; // R17: a floor above the ceiling means no bid
     return { rate, breakEven };
   }
   return null;
