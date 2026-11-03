@@ -65,8 +65,18 @@ The director's point for the speed line: a stranger reads 70 on the highway, but
 | `policy.hos.always` | `{overH}` h every day | Falsified logs on every trip. Fines, out-of-service orders, an audit, and tired drivers who crash. |
 | `policy.speed.legal` | Legal pace | A legal truck averages about `{time.avgMph}` mph over a trip, towns and grades included. |
 | `policy.speed.hot` | `{fast}` mph on hot loads | Speeding on rush loads: tickets, and crashes are deadlier. |
-| `policy.speed.always` | `{fast}` mph always | Averaging `{fast}` means speeding on every open road. Tickets, deadlier crashes, and an audit. |
+| `policy.speed.always` | `{fast}` mph always | A legal trip averages `{time.avgMph}`. Averaging `{fast}` means running well over the limit on every open road. |
 | `policy.maint.deferred` | Deferred | Defects build up: inspectors park the truck, and it breaks down more. |
+
+**R6's confirm card for each option: the one risk, over a season** (from the economy's figures with R18, `reviews/economy-player34.md` section 3, against an honest twin; the economy re-checks the words if the figures move):
+
+| Key | Option chosen | The one risk |
+|---|---|---|
+| `confirm.policy.hosAlways` | `{overH}` h every day | Over a season, an owner-operator running this loses more than an honest twin earns; a fleet, three quarters. Nearly every one loses its authority. |
+| `confirm.policy.hosHot` | `{overH}` h on hot loads | A gamble on every rush load: any inspection can find the falsified logs. |
+| `confirm.policy.speedAlways` | `{fast}` mph always | Over a season: about a seventh poorer for an owner-operator, a third for a fleet, mostly from crashes. |
+| `confirm.policy.speedHot` | `{fast}` mph on hot loads | Every rush load risks a ticket, and any crash is deadlier. |
+| `confirm.policy.maintDeferred` | Deferred maintenance | Over a season: about a fifth poorer, from breakdowns and days out of service. |
 
 **Money-style lines when R18 lands** (R9's form, each with its one-line why):
 
