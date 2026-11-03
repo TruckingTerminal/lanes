@@ -161,6 +161,41 @@ export const LIVE_LEVERS: Record<string, unknown> = {
   "token.treasury.vest.linear": true,
   "token.treasury.vest.cliffWeeks": 26,
   "token.treasury.vest.perWeekShare": 1 / 208,
+
+  // ---- The diary 3/4 bump, switched on 2026-11-03 (ruleset 0.21.0-phase0.36; studio/reviews/economy-player34.md, "The bump"). ----
+  "board.overCeilingMax": 1, // row 1
+  "board.refuseOverCeiling": true, // row 2
+  "labor.payFloorShareOfMarket": 0.85, // row 3
+  "labor.unhappyNoticeDays": 7, // row 4
+  "labor.underpayMemory.days": 56, // row 5
+  "labor.underpayMemory.askPremium": 0.1, // row 6
+  "rates.npcCeilingMarkup": 1.2, // row 7
+  "rates.exitDeadheadMaxShareOfMiles": 0.5, // row 8
+  "rates.seasons.volumeGain": 1, // row 9
+  "hos.restHours": 10, // row 10
+  "hos.breakMinutes": 30, // row 11
+  "fuel.stopEveryMi": 400, // row 12
+  "fuel.stopMinutes": 15, // row 13
+  "hos.cycleHours": 70, // row 14
+  "safety.enforcement.fineEarnedMult": 3, // row 15
+  "safety.review.auditDays": 14, // row 16
+  "safety.enforcement.oosHours.hos": 34, // row 17
+  "safety.enforcement.oosHours.defect": [24, 48], // row 18
+  "safety.review.hiddenDetect": 0.6, // row 19
+  "contracts.closedToBadRating": true, // row 20
+  "guard.dispatcherDefaultOn": false, // row 21
+  "guard.autoStaffDefault": false, // row 22
+  "guard.hireCoverWeeks": 4, // row 23
+  "equipmentFinance.netOfPurchaseLoans": true, // row 24
+  "equipmentFinance.closedWithPools": true, // row 25
+  "usedMarket.npcLot.deliveryDays": 7, // row 26
+  "safety.review.probationDays": 365, // row 27
+  "labor.hiring.settleAtStop": true, // row 28
+  "brokerage.enabled": true, // row 29
+  "permits.suretyPctPerYear": [0.01, 0.06], // row 30
+  "token.credit.premiumMax": 0.1, // row 31
+  "cashReserve.enabled": true, // row 32
+  "token.payment.cashNow.enabled": true, // row 33
 };
 
 /** A config with the levers applied by path; throws on a path the config doesn't have. */
