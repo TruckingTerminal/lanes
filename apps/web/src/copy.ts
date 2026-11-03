@@ -224,7 +224,7 @@ export const FIRST_ENTRY = {
    * not "pick a home city"). Her register: under 20 words a line, no joke in the first, Russian things and never a Russian word.
    */
   intro: [
-    "Welcome. I'm Iuliia. I ran four hundred trucks in Moscow once; now I help new carriers find their feet.",
+    "Welcome. I'm Iuliia. I'll be beside you from your first load to your first fleet.",
     "This is America's freight market, live. Every truck you see is real and moving, and nobody waits for us.",
     "The work is simple to say: find a load, haul it, get paid, keep the truck alive. Then grow.",
     "You start the way most do: one leased truck, a little money, and you driving. First, a home city.",

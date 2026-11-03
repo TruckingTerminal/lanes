@@ -50,7 +50,7 @@ Nothing to read: the title loop and one button. Connection states live on the bu
 |---|---|
 | Strip, before a company | `{Wed Jan 3}` · `{08:14}` · Next round `{hh:00}` · ≡ |
 | Sheet title, before a company | Welcome to LANES (while she gives the intro) · Choose your home hub (from the rings on) |
-| Iuliia, 1 (four beats, one **Next** each; producer, 2026-11-03, on Jeff's note that the old single line read dry and too direct; writer to review after the reset) | Welcome. I'm Iuliia. I ran four hundred trucks in Moscow once; now I help new carriers find their feet. · This is America's freight market, live. Every truck you see is real and moving, and nobody waits for us. · The work is simple to say: find a load, haul it, get paid, keep the truck alive. Then grow. · You start the way most do: one leased truck, a little money, and you driving. First, a home city. |
+| Iuliia, 1 (four beats, one **Next** each; producer, 2026-11-03, on Jeff's note that the old single line read dry and too direct; writer to review after the reset) | Welcome. I'm Iuliia. I'll be beside you from your first load to your first fleet. · This is America's freight market, live. Every truck you see is real and moving, and nobody waits for us. · The work is simple to say: find a load, haul it, get paid, keep the truck alive. Then grow. · You start the way most do: one leased truck, a little money, and you driving. First, a home city. |
 | Iuliia, 2 | The rings mark where a new carrier finds freight right now. You may start at any starter city; any city shows its freight. |
 | Under her line | the three starter cards · **All hubs** (list header: All hubs · busiest first) |
 
