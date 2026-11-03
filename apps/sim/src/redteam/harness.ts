@@ -246,3 +246,44 @@ export function checkThree(w: World, label = ""): string[] {
   for (const r of w.receivables) if (r.amountFd < -EPS) out.push(`${pre}receivable ${r.id} is negative (${r.amountFd.toFixed(2)})`);
   return out;
 }
+
+// ---- Pass 3 (2026-11-03): the economy's bump (studio/reviews/economy-player34.md, "The bump") ----------------------
+
+/**
+ * The bump's values, as the restart would set them in LIVE_LEVERS: the table's 29 rows (economy-player34.md "The bump",
+ * as of 26a8b8e), the three brokerage rows included. Applied to a copy of the live profile here; the shared config is never edited.
+ */
+export const BUMP_LEVERS: Record<string, unknown> = {
+  "board.overCeilingMax": 1,
+  "board.refuseOverCeiling": true,
+  "labor.payFloorShareOfMarket": 0.85,
+  "labor.unhappyNoticeDays": 7,
+  "labor.underpayMemory.days": 56,
+  "labor.underpayMemory.askPremium": 0.1,
+  "rates.npcCeilingMarkup": 1.2,
+  "rates.exitDeadheadMaxShareOfMiles": 0.5,
+  "rates.seasons.volumeGain": 1,
+  "hos.restHours": 10,
+  "hos.breakMinutes": 30,
+  "fuel.stopEveryMi": 400,
+  "fuel.stopMinutes": 15,
+  "hos.cycleHours": 70,
+  "safety.enforcement.fineEarnedMult": 3,
+  "safety.review.auditDays": 14,
+  "safety.enforcement.oosHours.hos": 34,
+  "safety.enforcement.oosHours.defect": [24, 48],
+  "safety.review.hiddenDetect": 0.6,
+  "contracts.closedToBadRating": true,
+  "guard.dispatcherDefaultOn": false,
+  "guard.autoStaffDefault": false,
+  "guard.hireCoverWeeks": 4,
+  "equipmentFinance.netOfPurchaseLoans": true,
+  "brokerage.enabled": true,
+  "permits.suretyPctPerYear": [0.01, 0.06],
+  "token.credit.premiumMax": 0.1,
+  "equipmentFinance.closedWithPools": true,
+  "usedMarket.npcLot.deliveryDays": 7,
+};
+
+/** The live profile with the three switches and the bump on, and any overrides on top. */
+export const bumpConfig = (overrides: Record<string, unknown> = {}): EconomyConfig => liveConfig({ ...THREE_SWITCHES, ...BUMP_LEVERS, ...overrides });

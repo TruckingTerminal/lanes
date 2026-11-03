@@ -35,7 +35,7 @@ import {
 } from "@lanes/engine";
 import { hubs } from "@lanes/data";
 import { ruleBotHook } from "@lanes/agents";
-import { addAttacker, checkInvariants, checkThree, ledgerHash, liveConfig, makeWorld, snap, THREE_SWITCHES, type MakeOpts } from "./harness.js";
+import { addAttacker, bumpConfig, checkInvariants, checkThree, ledgerHash, liveConfig, makeWorld, snap, THREE_SWITCHES, type MakeOpts } from "./harness.js";
 
 // A small deterministic RNG, independent of the engine's, so the fuzz stream replays from its own seed.
 function mulberry32(seed: number): () => number {
@@ -406,6 +406,7 @@ function main(): void {
       seasons: { type: "string", default: "on" },
       trace: { type: "boolean", default: false }, // keep ledger entries and dump the first violation's accounts
       three: { type: "boolean", default: false }, // pass 2026-11-03b: the brokerage, the Reserve and cash now on, with their actions
+      bump: { type: "boolean", default: false }, // pass 3: the economy's bump on (harness.ts BUMP_LEVERS), with the three switches
     },
   });
   const seeds = values.seeds!.split(",").map(Number);
@@ -413,14 +414,14 @@ function main(): void {
   const actionsPerDay = Number(values.actions);
   const overrides: Record<string, unknown> = {};
   if (values.launch) overrides["token.betaYears"] = 0; // launch almost at once, so the market rules run
-  const cfg = values.profile === "base" ? undefined : liveConfig(overrides);
-  const mk: MakeOpts = { cfg: values.profile === "base" ? (Object.keys(overrides).length ? liveConfig(overrides) : undefined) : cfg, seasons: values.seasons !== "off" };
+  const cfg = values.bump ? bumpConfig(overrides) : values.profile === "base" ? undefined : liveConfig(overrides);
+  const mk: MakeOpts = { cfg: values.bump ? cfg : values.profile === "base" ? (Object.keys(overrides).length ? liveConfig(overrides) : undefined) : cfg, seasons: values.seasons !== "off" };
 
-  console.log(`FUZZ · profile ${values.profile} · ${days} days · ${actionsPerDay} actions/day · launch ${values.launch} · three ${values.three} · seeds ${seeds.join(",")}`);
+  console.log(`FUZZ · profile ${values.profile} · ${days} days · ${actionsPerDay} actions/day · launch ${values.launch} · three ${values.three} · bump ${values.bump} · seeds ${seeds.join(",")}`);
   let anyBad = false;
   for (const seed of seeds) {
     const t0 = performance.now();
-    const res = fuzzSeed(seed, days, mk, actionsPerDay, values.trace, { three: values.three });
+    const res = fuzzSeed(seed, days, mk, actionsPerDay, values.trace, { three: values.three || values.bump });
     const secs = ((performance.now() - t0) / 1000).toFixed(1);
     const bad = res.violations.length > 0 || !res.replayMatch;
     anyBad ||= bad;
