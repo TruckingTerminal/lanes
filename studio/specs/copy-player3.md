@@ -116,3 +116,14 @@ Replaces `standing.miles` in `guidance-strings.md`.
 | `load.waiting` | "Raised · 1 round running" | On the board `{n}` rounds · book-now rises each round it waits |
 | `feed.booked` | "Won … your bid" for a book-now | Booked at book-now: `{origin}` to `{dest}`, `{miles}` mi at `{rate}`/mi. |
 | step 5, `say[0]` opening | "Your truck is at the far end of the country" | Your truck is `{mi}` miles from home with an empty trailer. |
+
+## The board batch (engineering, after R11's anchor and R16)
+
+| Key | Where | String | Kept or changed |
+|---|---|---|---|
+| `bidAtClears` | the Dispatcher's bid rule | Bid at what loads usually clear near, plus `[ ]` % | changed: "loads", so it matches the board's "usually clears near" |
+| `poachLate` | the hiring row, an offer past its deadline | Offer pending · past its deadline: they answer at the day's close, once their truck stops. | changed: "answer", since "move" read as a relocation |
+| `hub.marketBoom` | the hub card, after the season line, while a boom runs | Freight is booming across the country. | the row 13 feed line, unchanged |
+| `hub.marketSlump` | the same, a slump | Freight is slumping across the country. | the same |
+| (normal) | the same, no boom or slump | (no line) | |
+
