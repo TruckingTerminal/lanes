@@ -132,6 +132,17 @@ One verb throughout: **start**. UX's draft says "Form"; the director's says "Sta
 | Fall-off | Nobody took it: you paid the shipper `{fallOff}` of the contract, `{fd}` FD. |
 | Empty | No loads yet. Shippers offer loads to brokers every round; yours start at `{hh:00}`. |
 
+**Offered to you** (engineering's keys in `copy.ts`; from UX's `brokerage-ux.md` draft 2):
+
+| Key | String | Kept or changed |
+|---|---|---|
+| `decideBy` | Decide by `{hh:mm}` · `{n}` h left | kept |
+| `ifNotPost` | If you don't decide: your standing order posts it at a `{pct}` margin. | changed: says what the percentage is |
+| `ifNotOwn` | If you don't decide: your standing order offers it to `{carrier}` first. | kept, with a full stop |
+| `ifNotDecline` | If you don't decide: it goes to another broker or the open board. | changed: UX's rule names both |
+| `fromChip` | Passed by `{carrier}` | changed: "From" could read as the shipper |
+| `ownFirst` | Offer to `{carrier}` first | kept (the order card's switch) |
+
 **Feed lines** (the trail, one line per stage):
 
 | Stage | String |
