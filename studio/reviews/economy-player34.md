@@ -554,6 +554,17 @@ are, all of them. Most of the rise, though, was a bug in my 70-hour clock, not R
 - **`contracts.closedToBadRating`** (new, false): a carrier rated Conditional or Unsatisfactory gets no contract
   offer and no renewal, and can't take an offer it holds: "shippers don't sign contracts with a conditional safety
   rating". A contract already running runs out its term.
+- **The follow-up judges the window since the rating** (with `auditDays` on; the director's requirement). Today a
+  follow-up audit reads the whole record. It still finds the falsified days the first audit missed, and the first
+  audit's own findings keep the alerts on for months. So a company that ran clean after an Unsatisfactory rating could
+  still be revoked at its follow-up; `r18.test.ts` shows it on today's rules. With R18:
+  - an audit after a rating looks only at hidden days after that rating;
+  - the rating counts alerts from the inspections and violations since it (`measures(w, c, sinceDay)`);
+  - the public record, which brokers and patrols read, keeps its two years.
+  - So a company clean since its rating passes the follow-up, and one still cheating is revoked.
+  - It was built after the four-year runs in §3d. A company that cleans up after its rating gains from it. One still
+    cheating is judged on what it did since, which is most of what it was judged on before. So it can soften the
+    cutters' count a little and shouldn't raise it.
 - **Doors a bad rating already closes in the engine:**
   - strict-vetting loads: Conditional, or any alert;
   - standard loads: Unsatisfactory;
@@ -700,10 +711,13 @@ Nothing here moves the bots' world. Every rule in it binds players' companies on
     nothing to lend. `borrow` takes any amount up to it.
   - `apps/web/src/finance.ts borrowable` does the same arithmetic today, without the pool state. It can call
     `lendNowFd` and filter on it.
-- **One thing to rule on.** With the pools stood down, the bots still deposit to and borrow from Equipment Finance
-  (`ruleBots.ts`): 9 loans a seed in four years on the bump, and the pool's cash is near 0 most days. It is harmless.
-  If "pools off" should mean Equipment Finance too, `borrow` and `deposit` can refuse behind a key. I've left them
-  alone, so the bots' world doesn't move.
+- **Pools off covers Equipment Finance too** (ruled, DECISIONS.md 2026-11-03): `equipmentFinance.closedWithPools`
+  (new, false today, true in the bump).
+  - With it on, while the pools are stood down Equipment Finance takes no deposit and writes no loan, for players and
+    bots alike: "the lending pools are closed". Withdrawals and repayments go on.
+  - Today the bots still deposit and borrow with the pools off: 9 loans a seed in four years on the bump, with the
+    pool's cash near 0 most days. The key ends that small corner of the bots' world. It is the one bump key not run
+    over four years, and the effect it can have is that small.
 - **The double pledge** (`equipmentFinance.netOfPurchaseLoans`, new, false today):
   - Today a rig bought on a purchase loan can be pledged to Equipment Finance at once for another 35% of its value.
     Player2's case: a lot rig bought for 13.3k of cash pledged for 15.6k, a truck and 2.2k of cash for nothing down.
@@ -782,9 +796,9 @@ launch batch of economy-brokerage.md §5b, run again on the bump.
 - **My word for the switch-on:** if QA finds the flagged build clean, the economy has no objection to the brokerage
   riding this restart with both premiums halved.
 
-### 5e. Carried to Jeff: `usedMarket.npcLot.deliveryDays` 7
+### 5e. `usedMarket.npcLot.deliveryDays` 7 (ruled into the bump)
 
-Still at today's value (null) until he rules. The numbers (economy-player2.md §1):
+The producer ruled it in (DECISIONS.md, 2026-11-03). The numbers (economy-player2.md §1):
 - A used-lot rig that adds to a fleet comes from the lot's stock in 7 days. A free starter's first truck keeps
   today's queue.
 - On the diary's seed the small fleet runs five trucks from day 24 instead of three. Its cash is 120k on day 28
@@ -826,14 +840,16 @@ restart commit can add them there and leave the base config, and the tests writt
 | 22 | `guard.autoStaffDefault` | true | **false** | R8 (§4) |
 | 23 | `guard.hireCoverWeeks` | 0 | **4** | R8 (§4) |
 | 24 | `equipmentFinance.netOfPurchaseLoans` | false | **true** | the double pledge (§5a) |
+| 25 | `equipmentFinance.closedWithPools` | false | **true** | pools off covers Equipment Finance (§5a) |
+| 26 | `usedMarket.npcLot.deliveryDays` | null | **7** | a fleet's lot rig from stock in a week (§5e) |
 
 **Only if the brokerage switches on in this restart** (QA-clean on a flagged build):
 
 | # | Path | Today | The bump | Why |
 |---|---|---|---|---|
-| 25 | `brokerage.enabled` | false | **true** | the switch |
-| 26 | `permits.suretyPctPerYear` | [0.02, 0.12] | **[0.01, 0.06]** | Jeff: the surety premium halves |
-| 27 | `token.credit.premiumMax` | 0.2 | **0.1** | Jeff: the credit premium's ceiling halves |
+| 27 | `brokerage.enabled` | false | **true** | the switch |
+| 28 | `permits.suretyPctPerYear` | [0.02, 0.12] | **[0.01, 0.06]** | Jeff: the surety premium halves |
+| 29 | `token.credit.premiumMax` | 0.2 | **0.1** | Jeff: the credit premium's ceiling halves |
 
 **Not config: engineering's `PLAYER_DISPATCHER_ORDERS`** (`apps/web/src/game.ts`, in their working tree), the rules a
 player turns on:
@@ -842,15 +858,14 @@ player turns on:
 
 ### Held at today's values
 
-- **The levels, until Jeff rules** (your pick, today's levels for the beta):
+- **The levels, until Jeff rules** (the producer's pick, today's levels for the beta):
   - `token.circular.rateStabilizer.start` (1);
   - `board.rolloverCeilingStep` and `bookNow.stepPerRound`;
   - `rates.baseRatePerMile`.
 - `bookNow.towardCeilingRounds` (0): it does nothing yet.
 - `usedMarket.npcLot.inBacklog` (true): §2g.
-- `usedMarket.npcLot.deliveryDays` (null): Jeff's call, §5e.
-- `freeEntry.leases.byValue.escrowShareOfPay` (0.3): R15's 15% waits for more seeds, §5b.
-- `labor.owner.driverPayPerMile` (0.75): the owner's draw stays, §5c.
+- `freeEntry.leases.byValue.escrowShareOfPay` (0.3): ruled, the hold stays at 30% (§5b).
+- `labor.owner.driverPayPerMile` (0.75): ruled, the owner's draw stays as "Your draw" (§5c).
 - Already at the values the package wants, so not in the table: `hos.breakAfterHours` 8, `hos.restartHours` 34,
   `guard.hireCoverHumansOnly` true, `labor.morale.unhappyBelow` 0.3, `rates.news`, `ui.iuliia.captionMinutes` 5.
 
@@ -860,10 +875,10 @@ player turns on:
 phase. The version line, in its own form:
 
 ```
-version: "0.21.0-phase0.36", // Restart (2026-11-0x): the diary 3/4 bump (studio/reviews/economy-player34.md, live.ts): a ceiling is a ceiling (R17), the pay floor and drivers who quit (R16), the board at a 1.2 ceiling with a short-load cap and the season table on rates (R11), R12's hours with the 70-hour clock and the 34-hour restart, compliance with teeth (R18), the dispatcher and auto-staff off until the player chooses (R1, R8), the double pledge closed; levels as 0.20.2
+version: "0.21.0-phase0.36", // Restart (2026-11-0x): the diary 3/4 bump (studio/reviews/economy-player34.md, live.ts): a ceiling is a ceiling (R17), the pay floor and drivers who quit (R16), the board at a 1.2 ceiling with a short-load cap and the season table on rates (R11), R12's hours with the 70-hour clock and the 34-hour restart, compliance with teeth (R18), the dispatcher and auto-staff off until the player chooses (R1, R8), the double pledge closed and Equipment Finance shut with the pools, a fleet's lot rig in a week; levels as 0.20.2
 ```
 
-If the brokerage rides the same restart, the note ends "…the double pledge closed; the brokerage on, both premiums
+If the brokerage rides the same restart, the note ends "…a fleet's lot rig in a week; the brokerage on, both premiums
 halved; levels as 0.20.2".
 
 ### What the bump does, in one table
@@ -884,22 +899,24 @@ halved; levels as 0.20.2".
 
 Ported to the working tree on main at `7102f94`, every key at today's value. A 365-day run (seed 3) of this code with
 the defaults is byte-identical to main's.
-- `packages/config/src/economy.config.ts`, four new keys:
+- `packages/config/src/economy.config.ts`, five new keys:
   - `safety.enforcement.fineEarnedMult` (0);
   - `safety.review.auditDays` (null);
   - `contracts.closedToBadRating` (false);
-  - `equipmentFinance.netOfPurchaseLoans` (false).
+  - `equipmentFinance.netOfPurchaseLoans` (false);
+  - `equipmentFinance.closedWithPools` (false), added after the producer's ruling.
 - `packages/engine/src/safety.ts`: fines scaled to what the breach earned (`drivingEarnedFd`, `scaledFine`), the
-  earned figure on the hidden log, the alert's audit, and the out-of-service notice reading its hours.
+  earned figure on the hidden log, the alert's audit, the follow-up's window (`measures` takes a `sinceDay`), and the
+  out-of-service notice reading its hours.
 - `packages/engine/src/contracts.ts`: `contractRatingBlock`, read by new offers, renewals and `acceptOffer`.
-- `packages/engine/src/finance.ts`: `borrowingCapacity` net of the purchase loan's principal, and Borrow's two reads,
-  `borrowLender` and `lendNowFd` (with `BORROW_CAP_SHARE`).
+- `packages/engine/src/finance.ts`: `borrowingCapacity` net of the purchase loan's principal, Borrow's two reads
+  (`borrowLender` and `lendNowFd`, with `BORROW_CAP_SHARE`), and `deposit` and `borrow` closed with the pools.
 - `packages/engine/src/sites.ts` and `trips.ts`: the restart is one stop (§3a).
 - `packages/engine/src/intel.ts`, `fraud.ts` and `safety.ts fine`: the month record's fines (§3e).
 - `packages/engine/src/types.ts`: `HiddenViolation.earnedFd?`, `Company.finesOffCostsFd?`, `monthMark.finesFd?`.
-- `packages/engine/test/r18.test.ts` (new, 10 tests), and one more test in `r11.test.ts` (the restart's stop).
+- `packages/engine/test/r18.test.ts` (new, 14 tests), and one more test in `r11.test.ts` (the restart's stop).
 
-Typecheck is clean. These pass: `r18.test.ts` (10), `r11.test.ts` (10), `audit.test.ts` (13), `pay-floor.test.ts`,
+Typecheck is clean. These pass: `r18.test.ts` (14), `r11.test.ts` (10), `audit.test.ts` (13), `pay-floor.test.ts`,
 `hire-guard.test.ts`, `engine.test.ts` (162), and the web's `intel.test.ts` and `finance.test.ts`. No full npm test.
 
 Runs are in `runs/p34/`:

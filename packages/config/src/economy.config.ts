@@ -661,6 +661,10 @@ export const economyConfig = {
     // pledges only its value over what it still owes, 0.35 × value − the loan's principal, so a freshly financed rig
     // borrows nothing. false: the whole 35%, as today.
     netOfPurchaseLoans: false,
+    // Pools off covers Equipment Finance too (DECISIONS.md, 2026-11-03; economy-player34.md §5a): with this on, while the
+    // lending pools are stood down (pools.ts poolsOn) Equipment Finance takes no deposit and writes no loan, for players
+    // and bots alike. Withdrawals and repayments go on. false: it lends and takes deposits whatever the pools, as today.
+    closedWithPools: false,
     termWeeks: 26, // PoC assumption: loans amortize over half a season
     missedPaymentsToRepossess: 2,
     // PoC assumption: repossessed trucks list at 85% of market value, drop 10
@@ -1628,7 +1632,9 @@ export const economyConfig = {
       alertsToReview: 2,
       alertCooldownDays: 180,
       // R18: any alert brings an audit within this many days. A company never rated gets one whatever the cooldown, so a
-      // company with alerts is always rated. null: two alerts and the cooldown, as today.
+      // company with alerts is always rated. With it on, an audit after a rating judges only the window since that rating
+      // (safety.ts complianceReview), so a company clean since an Unsatisfactory rating passes its follow-up. null: two
+      // alerts and the cooldown, and every audit reads the whole record, as today.
       auditDays: null as number | null,
       rereviewDays: { conditional: 90, unsatisfactory: 45 },
       hiddenDetect: 0.35, // an audit finds each falsified log day or deferred-maintenance week this often

@@ -29,7 +29,11 @@ export function depositorValue(w: World, companyId: number): number {
   return (w.finance.shares.get(companyId) ?? 0) * sharePrice(w);
 }
 
+/** `equipmentFinance.closedWithPools`: Equipment Finance stands down with the lending pools (deposits and new loans). */
+const closed = (w: World): boolean => w.cfg.equipmentFinance.closedWithPools && !poolsOn(w);
+
 export function deposit(w: World, companyId: number, amountFd: number): string | null {
+  if (closed(w)) return "the lending pools are closed";
   if (!(amountFd > 0) || w.ledger.balance(companyAccount(companyId)) < amountFd) return "insufficient FD";
   // A pool wiped out by write-offs starts over: the old shares are worth nothing.
   if (w.finance.totalShares > 0 && poolValue(w) <= 0.01) {
@@ -73,8 +77,9 @@ export function borrowingCapacity(w: World, truck: Truck): number {
 /**
  * Who writes a Borrow loan, for the screen (R7 and R19; economy-player34.md §5a): "pool" while the lending pools are
  * open, when Equipment Finance's depositors lend; "off" while they are stood down (`pools.ts poolsOn`: Jeff's "for now,
- * let's not use the pools"), and Borrow isn't shown. The NPC lender writes purchase loans only, never a cash-out loan
- * against a truck already owned (that would print FD with no purchase behind it), so there is no third state.
+ * let's not use the pools"), and Borrow isn't shown; with `equipmentFinance.closedWithPools` on, `borrow` refuses then
+ * too. The NPC lender writes purchase loans only, never a cash-out loan against a truck already owned (that would print
+ * FD with no purchase behind it; DECISIONS.md, 2026-11-03), so there is no third state.
  */
 export const borrowLender = (w: World): "pool" | "off" => (poolsOn(w) ? "pool" : "off");
 
@@ -93,6 +98,7 @@ export function lendNowFd(w: World, companyId: number, truck: Truck): number {
 }
 
 export function borrow(w: World, companyId: number, truck: Truck, amountFd: number): string | null {
+  if (closed(w)) return "the lending pools are closed";
   if (truck.companyId !== companyId) return "not your truck";
   if (truck.lessorId !== 0 && truck.lessorId !== companyId) return "a leased truck is its owner's to pledge";
   if (amountFd <= 0 || amountFd > borrowingCapacity(w, truck) + 0.01) return "over the loan-to-value limit";

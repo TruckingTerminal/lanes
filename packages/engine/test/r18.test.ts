@@ -1,10 +1,11 @@
 import { describe, expect, it } from "vitest";
 import { economyConfig as cfg, type EconomyConfig } from "@lanes/config";
 import { buildNetwork, hubs, neutralFeeds } from "@lanes/data";
-import { acceptOffer, addTruck, borrow, borrowingCapacity, borrowLender, closeDutyDay, companyAccount, complianceReview, contractRatingBlock, createWorld, fine, formCompany, lendNowFd, monthlyIntel, POOL_ACCOUNT, truckValue, weeklySafety, type World } from "@lanes/engine";
+import { acceptOffer, addTruck, borrow, borrowingCapacity, borrowLender, closeDutyDay, companyAccount, complianceReview, contractRatingBlock, createWorld, deposit, fine, formCompany, lendNowFd, monthlyIntel, POOL_ACCOUNT, truckValue, weeklySafety, withdraw, type World } from "@lanes/engine";
 
-// Stage 3 of economy-player34.md: R18's fines scaled to what the breach earned, an alert's audit, a bad rating closing
-// contracts, the month record's fines, the Equipment Finance pledge hole, and Borrow's two reads for the screen (§5a).
+// Stage 3 of economy-player34.md: R18's fines scaled to what the breach earned, an alert's audit, the follow-up's window,
+// a bad rating closing contracts, the month record's fines, the Equipment Finance pledge hole and its closing with the
+// pools, and Borrow's two reads for the screen (§5a).
 const net = buildNetwork(hubs, cfg);
 const world = (c: EconomyConfig): World => createWorld({ cfg: c, net, feeds: neutralFeeds, seed: 9 });
 const r18: EconomyConfig = {
@@ -52,6 +53,38 @@ describe("R18: fines that scale with what the breach earned", () => {
     weeklySafety(w);
     expect(co.safety.alerts.length).toBeGreaterThan(0);
     expect(co.safety.reviewDay).toBe(Math.floor(w.t / w.cfg.time.gameMinutesPerDay) + 14);
+  });
+});
+
+describe("R18: the follow-up audit judges the window since the rating", () => {
+  // Rated Unsatisfactory on day 50 after a run of falsified days; the follow-up comes on day 95.
+  function unsat(c: EconomyConfig, cheatSince: boolean) {
+    const { w, co } = cheat({ ...c, safety: { ...c.safety, review: { ...c.safety.review, hiddenDetect: 1 } } });
+    w.t = 95 * w.cfg.time.gameMinutesPerDay;
+    const s = co.safety;
+    s.rating = "unsatisfactory";
+    s.ratingDay = 50;
+    s.revokeDay = 95;
+    s.reviewDay = 95;
+    // What the first audit missed, and the points it booked: all before the rating.
+    for (let d = 20; d < 40; d++) s.hidden.push({ day: d, kind: "falseLog", truckId: 1 });
+    for (let d = 30; d < 50; d++) s.violations.push({ day: d, basic: "hos", points: 10, what: "false log" } as never);
+    for (let d = 20; d < 50; d += 5) s.inspections.push(d);
+    if (cheatSince) for (let d = 60; d < 80; d++) s.hidden.push({ day: d, kind: "falseLog", truckId: 1 });
+    complianceReview(w, co);
+    return co;
+  }
+  it("today: the record before the rating still counts, so a company clean since is revoked", () => {
+    expect(unsat(cfg, false).authority.status).toBe("revoked");
+  });
+  it("on: clean since the rating passes the follow-up, and the public alerts keep their two years", () => {
+    const co = unsat(r18, false);
+    expect(co.authority.status).toBe("active");
+    expect(co.safety.rating).toBe("satisfactory");
+    expect(co.safety.alerts).toContain("hos");
+  });
+  it("on: still cheating since the rating is revoked", () => {
+    expect(unsat(r18, true).authority.status).toBe("revoked");
   });
 });
 
@@ -132,5 +165,17 @@ describe("Borrow's reads for the screen: who lends, and what it lends now", () =
     expect(now).toBe(Math.floor((borrowingCapacity(w, t) * 0.98) / 100) * 100);
     expect(lendNowFd(w, co.id + 1, t)).toBe(0); // not the company's truck
     expect(borrow(w, co.id, t, now)).toBeNull();
+  });
+  it("pools off covers Equipment Finance with closedWithPools on: no deposit, no loan; withdrawals go on", () => {
+    const off: EconomyConfig = { ...cfg, token: { ...cfg.token, pools: { ...cfg.token.pools, enabled: false } } };
+    const today = cheat(off);
+    fund(today.w, 1_000_000);
+    expect(deposit(today.w, today.co.id, 10_000)).toBeNull(); // today: it takes deposits and lends whatever the pools
+    expect(borrow(today.w, today.co.id, today.t, 1_000)).toBeNull();
+    const { w, co, t } = cheat({ ...off, equipmentFinance: { ...off.equipmentFinance, closedWithPools: true } });
+    fund(w, 1_000_000);
+    expect(deposit(w, co.id, 10_000)).toBe("the lending pools are closed");
+    expect(borrow(w, co.id, t, 1_000)).toBe("the lending pools are closed");
+    expect(withdraw(w, co.id, 10_000)).toBe("nothing to withdraw"); // its own refusal, not the closed pools'
   });
 });

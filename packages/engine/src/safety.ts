@@ -586,14 +586,18 @@ export function canRefile(w: World, c: Company): string | null {
 
 const timeWeight = (age: number) => (age <= 180 ? 3 : age <= 365 ? 2 : age <= 730 ? 1 : 0);
 
-/** CSA-style measures: time-weighted violation points per time-weighted inspection; crashes per truck. */
-export function measures(w: World, c: Company): Record<Basic, number> {
+/**
+ * CSA-style measures: time-weighted violation points per time-weighted inspection; crashes per truck. With `sinceDay`,
+ * only the inspections and violations after it (R18: a follow-up audit's window, `complianceReview`).
+ */
+export function measures(w: World, c: Company, sinceDay: number | null = null): Record<Basic, number> {
   const day = today(w);
   const s = c.safety;
+  const inWindow = (d: number) => sinceDay === null || d > sinceDay;
   let inspW = w.cfg.safety.score.inspectionPrior;
-  for (const d of s.inspections) inspW += timeWeight(day - d);
+  for (const d of s.inspections) if (inWindow(d)) inspW += timeWeight(day - d);
   const sum: Record<Basic, number> = { hos: 0, unsafe: 0, maintenance: 0, crash: 0 };
-  for (const v of s.violations) sum[v.basic] += v.points * timeWeight(day - v.day);
+  for (const v of s.violations) if (inWindow(v.day)) sum[v.basic] += v.points * timeWeight(day - v.day);
   // Crashes per truck, with a prior of two trucks so one fender-bender doesn't flag an owner-operator.
   const trucks = w.trucksByCompany.get(c.id)!.length + 2;
   return { hos: sum.hos / inspW, unsafe: sum.unsafe / inspW, maintenance: sum.maintenance / inspW, crash: sum.crash / trucks };
@@ -677,6 +681,11 @@ export function complianceReview(w: World, c: Company): void {
   const s = c.safety;
   const wasUnsat = s.rating === "unsatisfactory";
   const before = s.rating;
+  // R18 (review.auditDays on; the director, 2026-11-03): an audit after a rating judges the window since that rating, not
+  // the record before it. What the last audit didn't find stays in its window, and the rating reads only the violations
+  // since, so a company that runs clean after an Unsatisfactory rating passes its follow-up. Off: the whole record.
+  const since = review.auditDays !== null && s.ratingDay !== null ? s.ratingDay : null;
+  if (since !== null) s.hidden = s.hidden.filter((h) => h.day > since);
   let falseLogs = 0;
   let maintWeeks = 0;
   let scaled = 0;
@@ -699,7 +708,10 @@ export function complianceReview(w: World, c: Company): void {
   for (let i = 0; i < maintWeeks; i++) violate(w, c, "maintenance", pts.defect, "deferred maintenance (audit)");
   s.measures = measures(w, c);
   s.alerts = (Object.keys(s.measures) as Basic[]).filter((b) => s.measures[b] >= w.cfg.safety.score.thresholds[b]);
-  const count = falseLogs + maintWeeks + 2 * s.alerts.length;
+  // The public record (s.alerts, which brokers and patrols read) keeps its two years; the rating reads the window.
+  const windowed = since === null ? null : measures(w, c, since);
+  const ratedAlerts = windowed === null ? s.alerts.length : (Object.keys(windowed) as Basic[]).filter((b) => windowed[b] >= w.cfg.safety.score.thresholds[b]).length;
+  const count = falseLogs + maintWeeks + 2 * ratedAlerts;
   const rating = count >= review.unsatisfactoryAt ? "unsatisfactory" : count >= review.conditionalAt ? "conditional" : "satisfactory";
   s.rating = rating;
   s.ratingDay = day;
