@@ -88,6 +88,53 @@ describe("What now? (nextAction), rule by rule", () => {
     expect(late.kind === "danger" && late.lever?.kind).toBe("sell");
   }, 60_000);
 
+  it("rule 1 with cash now on: the freshest invoices under a contract, the fewest at spot, enough to clear the line", async () => {
+    const pay = GAME_CONFIG.token.payment as { enabled: boolean; cashNow: { enabled: boolean } };
+    const was = [pay.enabled, pay.cashNow.enabled];
+    pay.enabled = true;
+    pay.cashNow.enabled = true;
+    try {
+      const g = await TestGame.create();
+      const c = g.join("Cash Freight", "fleet", "LAX")!;
+      for (const t of g.w.trucksByCompany.get(c.id)!) g.w.manualBids.set(t.id, { loadId: 0, rate: 0 });
+      const acct = companyAccount(c.id);
+      g.w.ledger.post(g.w.t, acct, "sink:test", g.w.ledger.balance(acct) + g.w.cfg.insolvency.debtLimitFd + 3_000, "test");
+      const today = Math.floor(g.w.t / g.w.cfg.time.gameMinutesPerDay);
+      const inv = (id: number, fd: number, due: number) => g.w.receivables.push({ id, payer: 0, faucet: "faucet:test", payeeId: c.id, amountFd: fd, dueDay: today + due, holder: c.id });
+      inv(999_201, 2_000, 10); // older (raised earlier), small
+      inv(999_202, 6_000, 20); // middle
+      inv(999_203, 4_000, 29); // freshest
+      // At spot: the fewest that clear the 3,000 shortfall: the 6,000 alone.
+      const spot = nextAction(GAME_CONFIG, g.w, c);
+      if (spot.kind !== "danger" || spot.lever?.kind !== "cash") throw new Error(spot.kind);
+      expect(spot.lever.invoiceIds).toEqual([999_202]);
+      expect(spot.lever.contract).toBe(false);
+      // Under a contract: the freshest first, the 4,000 clears it.
+      c.factoring = { until: today + 90, stakeFd: 0, rate: 0.059, trucks: 2, renew: false, log: 0 };
+      const contract = nextAction(GAME_CONFIG, g.w, c);
+      if (contract.kind !== "danger" || contract.lever?.kind !== "cash") throw new Error(contract.kind);
+      expect(contract.lever.invoiceIds).toEqual([999_203]);
+      expect(contract.lever.landsFd + contract.lever.feeFd).toBeCloseTo(4_000, 6);
+      // Switch off: back to waiting for the dated invoices.
+      pay.cashNow.enabled = false;
+      const off = nextAction(GAME_CONFIG, g.w, c);
+      expect(off.kind === "danger" && off.lever?.kind).not.toBe("cash");
+    } finally {
+      [pay.enabled, pay.cashNow.enabled] = was as [boolean, boolean];
+    }
+  }, 60_000);
+
+  it("rule 1 back above the line with checks counted: hold until the check, never sell", async () => {
+    const g = await TestGame.create();
+    const c = g.join("Hold Freight", "fleet", "LAX")!;
+    for (const t of g.w.trucksByCompany.get(c.id)!) g.w.manualBids.set(t.id, { loadId: 0, rate: 0 });
+    c.weeksInDebt = 3;
+    const a = nextAction(GAME_CONFIG, g.w, c);
+    if (a.kind !== "danger") throw new Error(a.kind);
+    expect(a.debt.under).toBe(false);
+    expect(a.lever).toEqual({ kind: "hold", day: a.debt.nextDay });
+  }, 60_000);
+
   it("rule 0: being wound up answers with the restart's day", async () => {
     const { g, c } = await fresh();
     c.liquidatingSince = 10;

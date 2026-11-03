@@ -1,5 +1,5 @@
 import type { EconomyConfig } from "@lanes/config";
-import { companyAccount, crewed, MANUAL_BID_MAX_DEADHEAD_MI, truckValue, type Company, type Truck, type World } from "@lanes/engine";
+import { cashNowRate, companyAccount, crewed, MANUAL_BID_MAX_DEADHEAD_MI, truckValue, type Company, type Truck, type World } from "@lanes/engine";
 import { boardRows, clearsNear } from "./board.js";
 import { bestLoad, cushion, debtCountdown, freeTrucks, gapToTruck, nextEvent, owed, type NextEvent } from "./figures.js";
 import { invoices } from "./ledger.js";
@@ -31,7 +31,9 @@ export type NextAction =
  */
 export type Lever =
   | { kind: "book"; truckId: number; loadId: number; profitFd: number }
+  | { kind: "cash"; invoiceIds: number[]; landsFd: number; feeFd: number; byDay: number; contract: boolean }
   | { kind: "collect"; owedFd: number; byDay: number; quickPayOpen: boolean }
+  | { kind: "hold"; day: number }
   | { kind: "lease"; truckId: number }
   | { kind: "sell"; truckId: number; valueFd: number };
 
@@ -61,6 +63,27 @@ export function nextAction(cfg: EconomyConfig, w: World, c: Company, lost?: Lost
     // Invoices already dated: what lands before the check that would wind the company up (QA's guidance replay: it
     // advised selling a 153k truck over a 14k dip with 25k due within two weeks). Quick pay and factoring don't advance
     // invoices already open, so the lever is to wait for them, keeping the trucks loaded; quick pay speeds the next ones.
+    // With cash now on (the director's rule 1), collect offers cashing first: under a factoring contract the freshest
+    // invoices that clear the line (the aging surcharge makes them the cheapest), at the spot rate the fewest.
+    if (!lever && w.cfg.token.payment.enabled && w.cfg.token.payment.cashNow.enabled) {
+      const line = -w.cfg.insolvency.debtLimitFd;
+      let cash = w.ledger.balance(companyAccount(c.id));
+      const open = invoices(w, c)
+        .map((i) => ({ i, rate: cashNowRate(w, c, w.receivables.find((r) => r.id === i.id)!) }))
+        .filter((x): x is { i: (typeof x)["i"]; rate: number } => typeof x.rate === "number");
+      open.sort((a, b) => (c.factoring ? b.i.dueDay - a.i.dueDay : b.i.amountFd - a.i.amountFd) || a.i.id - b.i.id);
+      const picked: typeof open = [];
+      for (const x of open) {
+        if (cash >= line) break;
+        picked.push(x);
+        cash += x.i.amountFd * (1 - x.rate);
+      }
+      if (picked.length && cash >= line) {
+        const fee = picked.reduce((s, x) => s + x.i.amountFd * x.rate, 0);
+        const face = picked.reduce((s, x) => s + x.i.amountFd, 0);
+        lever = { kind: "cash", invoiceIds: picked.map((x) => x.i.id), landsFd: face - fee, feeFd: fee, byDay: Math.max(...picked.map((x) => x.i.dueDay)), contract: !!c.factoring };
+      }
+    }
     if (!lever) {
       const deciding = debt.nextDay + 7 * Math.max(0, debt.of - debt.n - 1);
       const line = -w.cfg.insolvency.debtLimitFd;
@@ -73,6 +96,9 @@ export function nextAction(cfg: EconomyConfig, w: World, c: Company, lost?: Lost
         if (cash >= line) lever = { kind: "collect", owedFd, byDay: i.dueDay, quickPayOpen: owed(w, c).quickPayOpen };
       }
     }
+    // Back above the line with checks still counted: the count resets at the next check if cash holds (solvency.ts), so
+    // nothing needs selling; hold it there (QA: it advised selling a truck at +10,684 FD, "0 FD under the line").
+    if (!lever && !debt.under) lever = { kind: "hold", day: debt.nextDay };
     if (!lever) {
       const lease = fleet.find((t) => t.lease === "lessor" && t.status === "idle");
       if (lease) lever = { kind: "lease", truckId: lease.id };

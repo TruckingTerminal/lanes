@@ -645,6 +645,14 @@ export const NOW = {
   collectReason2: (fd: string, day: string) => `${fd} FD is due to you by ${day}, in time for the check that counts.`,
   collectQuick: (pct: string) => `Quick pay would pay each new load on delivery, less ${pct}. Open invoices keep their dates.`,
   collectButton: "Getting paid",
+  /** Engineering's draft for the writer: back above the line with checks counted; the count resets at the next check. */
+  holdAction: (day: string) => `Stay above the line until ${day}. The count resets at that check.`,
+  holdButton: "Money",
+  // With cash now on: cashing offered first (the director's rule 1).
+  cashAction: (day: string) => `Cash the invoices due by ${day}.`,
+  cashReason2: (lands: string, fee: string) => `${lands} FD lands today, less ${fee} FD in fees: your contract rate plus aging.`,
+  cashReason2Spot: (lands: string, fee: string) => `${lands} FD lands today, less ${fee} FD in fees: the spot rate plus aging.`,
+  cashButton: "Cash them now",
   sellAction: (n: number) => `Sell Truck ${n}.`,
   sellReason2: (fd: string, short: string) => `It should fetch about ${fd} FD. You're ${short} FD under the line.`,
   sellButton: "Sell it",
@@ -728,9 +736,9 @@ export const EXPLAIN = (cfg: EconomyConfig): Record<string, Ex> => ({
   "intel.safetyBand.other": { what: "A company's safety rating from inspections and reviews.", how: "", moves: "Violations found at inspections and audits, and crashes, recent ones counting most." },
   "intel.insuranceBand.other": { what: "How much a company's record adds to its premium.", how: "", moves: "Its crashes and claims; the surcharge eases with time." },
   "truck.leaseDeposit": { what: "Money held back from your lease loads, toward your own truck.", how: "A share of each leased load, counted in full when you buy.", moves: "Every leased load adds to it." },
-  // Cash it now: engineering's drafts until the writer's what and moves arrive; the how is the rate's parts.
-  "invoice.cashNowFee": { what: "What cashing this invoice today costs.", how: "The invoice times the rate: your contract's rate or the spot rate, plus a little for each day since it was raised.", moves: "A factoring contract's rate; cashing an invoice while it's fresh." },
-  "invoice.cashNowLands": { what: "What reaches your cash today if you cash this invoice.", how: "The invoice, less the fee.", moves: "The fee: your contract's rate, or the spot rate, and how old the invoice is." },
+  // Cash it now: the writer's what and moves; the how is the rate's parts.
+  "invoice.cashNowFee": { what: "The fee to cash an open invoice today instead of on its due day.", how: "The invoice times the rate: your contract's rate or the spot rate, plus a little for each day since it was raised.", moves: "A contract's rate instead of spot; cashing an invoice while it's fresh." },
+  "invoice.cashNowLands": { what: "What reaches your cash today if you cash this invoice now.", how: "The invoice, less the fee.", moves: "The fee: a contract's rate instead of spot, and the invoice's age." },
   // QA's guidance replay: the Dealer's rows carried no figure to tap.
   "dealer.price": { what: "What this rig costs here today, before tax.", how: "The make's list price, times the dealer's monthly index, which follows the order backlog and stock.", moves: "The month's backlog and stock; another seller; a used rig instead." },
   "truck.value": { what: "What your owned truck would fetch today.", how: "Its list price, less depreciation by age and miles.", moves: "Time, miles, condition and the make." },
@@ -986,14 +994,14 @@ export const BROKERAGE = {
 export const CASHNOW = {
   rowButton: "Cash it now",
   rowLine: (lands: string, fee: string) => [`Cash now: ${lands} lands`, `· fee ${fee}`] as const,
-  /** The two figures' names on their explain sheets (engineering's, for the writer). */
-  landsLabel: "Lands today",
+  /** The two figures' names on their explain sheets. */
+  landsLabel: "You get today",
   feeLabel: "Fee",
   several: (n: number, fd: string) => `Cash ${n} invoices · ${fd} FD today`,
   sheetTitle: "Cash this invoice now",
   invoiceRow: (o: string, d: string, fd: string, date: string) => `Invoice · ${o} to ${d} · ${fd} FD, due ${date}`,
-  feeContract: (rate: string, aging: string, n: number, fd: string) => `Fee · ${rate} contract + ${aging} for ${n} days early · ${fd} FD`,
-  feeSpot: (spot: string, fd: string) => `Fee · ${spot} spot rate · ${fd} FD`,
+  feeContract: (rate: string, aging: string, n: number, fd: string) => `Fee · ${rate} contract + ${aging} at ${n} days old · ${fd} FD`,
+  feeSpot: (spot: string, aging: string, n: number, fd: string) => `Fee · ${spot} spot + ${aging} at ${n} days old · ${fd} FD`,
   youGet: (fd: string) => `You get today · ${fd} FD`,
   note: (date: string) => `The shipper pays the factor on ${date}. The fee goes to the reserve.`,
   /** A brokerage's sheet only (brokerage-strings.md). */

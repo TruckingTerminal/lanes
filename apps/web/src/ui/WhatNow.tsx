@@ -138,6 +138,18 @@ function words(a: NextAction): { action: string; reason: string; button: string;
       const reason = a.debt.n > 0 ? NOW.dangerReason(a.debt.n, a.debt.of, shortDate(a.debt.nextDay)) : NOW.dangerWarn(shortDate(a.debt.nextDay), fd(a.debt.shortFd));
       const l = a.lever;
       if (l?.kind === "book") return { red: true, action: NOW.bookAction(truckNo(l.truckId)), reason, button: NOW.bookButton, go: () => openLoadOf(l.truckId, l.loadId) };
+      if (l?.kind === "hold") return { red: true, action: NOW.holdAction(shortDate(l.day)), reason, button: NOW.holdButton, go: () => setTab("money") };
+      if (l?.kind === "cash")
+        return {
+          red: true,
+          action: NOW.cashAction(shortDate(l.byDay)),
+          reason: `${reason} ${l.contract ? NOW.cashReason2(fd(l.landsFd), fd(l.feeFd)) : NOW.cashReason2Spot(fd(l.landsFd), fd(l.feeFd))}`,
+          button: NOW.cashButton,
+          go: () => {
+            S.cashPlan = l.invoiceIds;
+            setTab("money");
+          },
+        };
       if (l?.kind === "collect")
         return {
           red: true,

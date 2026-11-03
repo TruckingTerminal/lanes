@@ -45,11 +45,14 @@ export function InvoiceRows({ c }: { c: Company }): JSX.Element | null {
   const today = dayOf(w.t, w.cfg);
   const open = invoices(w, c);
   const cashed = S.cashed.filter((x) => x.dueDay > today && open.every((r) => r.id !== x.id));
-  const [sheet, setSheet] = useState<number | null>(null);
+  const plan = S.cashPlan.filter((id) => open.some((r) => r.id === id));
+  // What now? chose these (rule 1): one opens its sheet; several get one button for them all.
+  const [sheet, setSheet] = useState<number | null>(plan.length === 1 ? plan[0]! : null);
   if (!open.length && !cashed.length) return null;
   const on = cashNowOn(w);
   return (
     <div class="stack invoicerows">
+      {on && plan.length > 1 ? <CashSeveral c={c} ids={plan} /> : null}
       {open.map((inv) => {
         const r = w.receivables.find((x) => x.id === inv.id)!;
         const lane = S.invoiceLanes.get(r.id) ?? `#${r.id}`;
@@ -94,6 +97,32 @@ export function InvoiceRows({ c }: { c: Company }): JSX.Element | null {
   );
 }
 
+/** Several invoices What now? chose, cashed together: the writer's "Cash {n} invoices · {fd} FD today". */
+function CashSeveral({ c, ids }: { c: Company; ids: number[] }): JSX.Element {
+  const w = S.game!.w;
+  const today = dayOf(w.t, w.cfg);
+  const rows = ids.map((id) => w.receivables.find((r) => r.id === id)!).filter(Boolean);
+  const lands = rows.reduce((s, r) => {
+    const rate = cashNowRate(w, c, r);
+    return s + (typeof rate === "number" ? r.amountFd * (1 - rate) : 0);
+  }, 0);
+  const go = async () => {
+    for (const r of rows) {
+      const rate = cashNowRate(w, c, r);
+      if (typeof rate !== "number") continue;
+      const res = await order({ type: "cash_invoice", receivableId: r.id }, CASHNOW.rowButton);
+      if (res.ok) S.cashed = [...S.cashed, { id: r.id, day: today, landsFd: r.amountFd * (1 - rate), dueDay: r.dueDay, lane: S.invoiceLanes.get(r.id) ?? `#${r.id}` }];
+    }
+    S.cashPlan = [];
+    bumpData();
+  };
+  return (
+    <Btn primary onClick={() => void go()}>
+      {CASHNOW.several(rows.length, fd(lands))}
+    </Btn>
+  );
+}
+
 /** The confirm sheet: the invoice, the fee with its parts, what you get today, cash after, and the one button. */
 function CashSheet({ c, r, rate, lane, onDone }: { c: Company; r: Receivable; rate: number; lane: string; onDone: () => void }): JSX.Element {
   const w = S.game!.w;
@@ -109,6 +138,7 @@ function CashSheet({ c, r, rate, lane, onDone }: { c: Company; r: Receivable; ra
     const res = await order({ type: "cash_invoice", receivableId: r.id }, CASHNOW.button(fd(lands)));
     if (!res.ok) return setNote(refusal(res.reason.charAt(0).toLowerCase() + res.reason.slice(1)));
     S.cashed = [...S.cashed, { id: r.id, day: today, landsFd: lands, dueDay: r.dueDay, lane }];
+    S.cashPlan = S.cashPlan.filter((id) => id !== r.id);
     bumpData();
     onDone();
   };
@@ -116,7 +146,7 @@ function CashSheet({ c, r, rate, lane, onDone }: { c: Company; r: Receivable; ra
     <div class="stack sheetcard">
       <b>{CASHNOW.sheetTitle}</b>
       <p class="small">{CASHNOW.invoiceRow(o!, d ?? "", fd(r.amountFd), shortDate(r.dueDay))}</p>
-      <p class="small">{c.factoring ? CASHNOW.feeContract(pct1(base), pct1(rate - base), age, fd(fee)) : CASHNOW.feeSpot(pct1(rate), fd(fee))}</p>
+      <p class="small">{c.factoring ? CASHNOW.feeContract(pct1(base), pct1(rate - base), age, fd(fee)) : CASHNOW.feeSpot(pct1(base), pct1(rate - base), age, fd(fee))}</p>
       <p class="small">
         <b>{CASHNOW.youGet(fd(lands))}</b>
       </p>
