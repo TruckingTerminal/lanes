@@ -145,6 +145,16 @@ a player who hoards. At the end of these runs, every company's cap together came
 
 I didn't run the 26-week probe. Since the bots fill a seventh of 13 weeks, it would change nothing for them.
 
+**The red team's E3-CAPINFLATE (fixed).** A refundable NPC lease deposit counted as spending: it was paid into a sink
+(`sink:lease_deposit`, ref `deposit:`). So it raised the weeks of spending that set working capital and the
+Reserve's cap, with FD that comes back. 182k of deposits gave 1.10M of shelter.
+
+The fix: `ledger.ts` leaves `deposit:` out of the outflows that make `weeklySpend` (`NOT_OUTFLOW`).
+- The lock rules don't change: a deposit still spends locked FD first.
+- It applies with or without the Reserve. The working-capital half of the hole was there before the Reserve, so it is
+  a base change for the ruleset bump.
+- A lessee's protected working capital no longer counts the deposit weeks.
+
 ## 3. One hoarding rule: the holding cost in place of the year-end burn
 
 **The rule** (no new code beyond a switch): `seasonClose.burn` (new, default true). False keeps the close's purchase

@@ -25,6 +25,12 @@ export interface LedgerEntry {
  * "spending" and shelter any amount from the season burn.
  */
 const NOT_SPENDING = ["season:", "launch:", "holding:", "swap:", "buyback:"];
+/**
+ * And not spending either, though paid as ordinary spending (locked FD first): an NPC lease's deposit, refunded when the
+ * truck goes back (the red team's E3-CAPINFLATE: counted, it inflated working capital and the Reserve's cap with FD that
+ * comes back).
+ */
+const NOT_OUTFLOW = [...NOT_SPENDING, "deposit:"];
 
 /**
  * Spend-only FD (Jeff, 2026-11-01: the airdrop paid at the TGE "unlocked inside the game", the launch carryover,
@@ -66,7 +72,7 @@ export class Ledger {
   readonly totals = new Map<string, number>();
   faucetCents = 0;
   sinkCents = 0;
-  /** Per company account: FD paid out, except what NOT_SPENDING lists. */
+  /** Per company account: FD paid out, except what NOT_OUTFLOW lists. */
   private outflows = new Map<string, number>();
   /** Circular mode: FD minted at genesis, in cents (0 in the open mode, where faucets mint). */
   private mintedCents = 0;
@@ -124,7 +130,7 @@ export class Ledger {
       this.sinkCents += cents;
       this.totals.set(to, (this.totals.get(to) ?? 0) + cents);
     }
-    if (from.startsWith("co:") && kind === "sink" && !NOT_SPENDING.some((p) => ref.startsWith(p))) this.outflows.set(from, (this.outflows.get(from) ?? 0) + cents);
+    if (from.startsWith("co:") && kind === "sink" && !NOT_OUTFLOW.some((p) => ref.startsWith(p))) this.outflows.set(from, (this.outflows.get(from) ?? 0) + cents);
     if (this.keepEntries) this.entries.push({ t, from, to, amount: cents / 100, kind, ref });
     // A freeOnly payment may overdraw the free part by its cent of rounding: that cent of locked FD was spent.
     if (carriesLock(from)) {

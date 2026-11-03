@@ -70,6 +70,16 @@ describe("the Reserve (cashReserve.enabled)", () => {
     w.ledger.assertBalanced();
   });
 
+  it("red team E3-CAPINFLATE: a refundable lease deposit isn't spending, so it raises neither working capital nor the cap", () => {
+    const { w, c } = company(7);
+    const acct = companyAccount(c.id);
+    const before = w.ledger.outflowCents(acct);
+    w.ledger.post(w.t, acct, "sink:lease_deposit", 45_000, `deposit:${c.id}`);
+    expect(w.ledger.outflowCents(acct)).toBe(before);
+    w.ledger.post(w.t, acct, "sink:fuel", 1_000, "fuel:test");
+    expect(w.ledger.outflowCents(acct)).toBe(before + 100_000);
+  });
+
   it("settles a withdrawal into cash the next day, free", () => {
     const { w, c } = company(3);
     expect(applyAction(w, c.id, { type: "reserve_deposit", fd: 50_000 })).toEqual({ ok: true });

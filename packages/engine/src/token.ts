@@ -555,8 +555,10 @@ export function launchToken(w: World): void {
   // weights; a company shut down or being wound up at launch forfeits its share (Jeff, 2026-10-29).
   const eligible = w.companies.map((c) => c.liquidatingSince === null && c.authority.status !== "revoked");
   const miles = w.companies.map((c, i) => (eligible[i] ? lifetimeMiles(c) : 0));
-  const profits = w.companies.map((c, i) => (eligible[i] ? Math.max(0, operatingResult(w, c)) : 0));
-  onePersonOneShare(w, miles, profits);
+  // Merged per person first, then losses count zero (the red team's E3-SPLIT: clamped first, a brokerage's loss was dropped).
+  const profits = w.companies.map((c, i) => (eligible[i] ? operatingResult(w, c) : 0));
+  onePersonOneShare(w, miles, profits, eligible);
+  for (let i = 0; i < profits.length; i++) profits[i] = Math.max(0, profits[i]!);
   const totalMiles = miles.reduce((a, b) => a + b, 0);
   const totalProfit = profits.reduce((a, b) => a + b, 0);
   const cap = tc.airdrop.fd * tc.airdrop.capShare;
@@ -643,8 +645,9 @@ export function seasonAirdrop(w: World): void {
   const pot = pot0 * Math.min(1, avg / ref);
   const eligible = w.companies.map((c) => c.liquidatingSince === null && c.authority.status !== "revoked");
   const miles = w.companies.map((c, i) => (eligible[i] ? Math.max(0, lifetimeMiles(c) - c.seasonBase.miles) : 0));
-  const profits = w.companies.map((c, i) => (eligible[i] ? Math.max(0, operatingResult(w, c) - c.seasonBase.profit) : 0));
-  onePersonOneShare(w, miles, profits);
+  const profits = w.companies.map((c, i) => (eligible[i] ? operatingResult(w, c) - c.seasonBase.profit : 0));
+  onePersonOneShare(w, miles, profits, eligible);
+  for (let i = 0; i < profits.length; i++) profits[i] = Math.max(0, profits[i]!);
   const totalMiles = miles.reduce((a, b) => a + b, 0);
   const totalProfit = profits.reduce((a, b) => a + b, 0);
   const cap = pot * tc.airdrop.capShare;
@@ -833,14 +836,17 @@ function operatingResult(w: World, c: Company): number {
  * Player brokerages (brokerage.ts): the airdrop is the person's, so a brokerage's Miles and profit score for its
  * carrier and the per-company cap applies once to the two together.
  */
-function onePersonOneShare(w: World, miles: number[], profits: number[]): void {
+export function onePersonOneShare(w: World, miles: number[], profits: number[], eligible: boolean[]): void {
   if (!w.cfg.brokerage.enabled) return;
   w.companies.forEach((c, i) => {
     const carrier = c.role === "broker" ? partnerOf(w, c) : null;
     if (!carrier) return;
     const j = carrier.id - 1;
-    miles[j]! += miles[i]!;
-    profits[j]! += profits[i]!;
+    // Raw results, so the brokerage's loss nets against the carrier's profit; a carrier that forfeits its share forfeits the pair's.
+    if (eligible[j]) {
+      miles[j]! += miles[i]!;
+      profits[j]! += profits[i]!;
+    }
     miles[i] = 0;
     profits[i] = 0;
   });

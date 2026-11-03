@@ -47,7 +47,8 @@ export function samePerson(w: World, a: number, b: number): boolean {
  */
 export function launchHold(w: World, c: Company): number {
   if (!w.cfg.brokerage.enabled || c.role !== "broker" || c.partnerId === undefined) return 0;
-  const paper = w.receivables.filter((r) => r.payer === c.id && r.amountFd > 0.005);
+  // Arm's-length paper only: the owner's own carrier is never paid from the beta bond across the reset (the red team's E3-LAUNCHHOLD).
+  const paper = w.receivables.filter((r) => r.payer === c.id && r.amountFd > 0.005 && !r.shipperPaper && !samePerson(w, c.id, r.payeeId));
   const owed = paper.reduce((x, r) => x + r.amountFd, 0);
   const held = Math.min(owed, c.stakedFd, Math.max(0, w.ledger.balance(`co:stake:${c.id}`)));
   if (held <= 0.005) return 0;
@@ -139,6 +140,10 @@ export function canFormBrokerage(w: World, carrier: Company): string | null {
   const today = dayOf(w.t, w.cfg);
   if (carrier.authority.status !== "active" || (carrier.authority.barredUntil ?? 0) > today) return "the carrier's authority isn't active";
   if (carrier.liquidatingSince !== null) return "the carrier is being wound up";
+  // The starting capital is a transfer out of the carrier: refused where transferCapital would refuse it (the red team's
+  // E2-FORM, where a refusal after the brokerage was formed left a half-formed pair).
+  if (carrier.weeksInDebt > 0) return "the carrier has paper overdue";
+  if (carrier.tierGraceDay !== null) return "the carrier is under its stake";
   if (today - carrier.createdDay < k.minCarrierAgeDays) return `the carrier must be ${k.minCarrierAgeDays} days old`;
   return null;
 }
@@ -159,8 +164,10 @@ export function formBrokerage(w: World, carrier: Company, name: string, capitalF
   if (why) return refuse(w, why);
   const bond = w.cfg.token.staking.roles.broker;
   const fee = capitalFd * w.cfg.brokerage.transferFeePct;
-  if (capitalFd - w.cfg.permits.brokerLicenseRenewalFd < bond) return refuse(w, `the capital must cover the ${bond} FD bond and the licence`);
+  if (!(capitalFd > 0) || capitalFd - w.cfg.permits.brokerLicenseRenewalFd < bond) return refuse(w, `the capital must cover the ${bond} FD bond and the licence`);
   if (w.ledger.balance(companyAccount(carrier.id)) < capitalFd + fee) return refuse(w, "the carrier hasn't that much FD");
+  // Everything the transfer and the stake below check has been checked by now: nothing is created unless the whole form
+  // goes through (canFormBrokerage covers the transfer's guards on the carrier, the lines above its amount).
   const b = formCompany(w, { name, role: "broker", homeHubId: w.net.hubs[carrier.homeHub]!.id, strategy: `brokerage:${carrier.strategy}`, orders: [], freePath: false, human: carrier.human, grant: false });
   b.partnerId = carrier.id;
   carrier.partnerId = b.id;

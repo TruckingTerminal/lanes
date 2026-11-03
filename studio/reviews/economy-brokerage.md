@@ -420,6 +420,43 @@ that.
    Waiving it would make hauling in-house three points better than brokering to a stranger, on a business whose
    whole margin is a few points (§3). The writer's [size] mark: yes, 3%.
 
+## 8. The red team's second pass: fixes (redteam-2026-11-03b.md)
+
+- **E2-FORM (fixed).**
+  - `canFormBrokerage` now refuses a carrier in a debt week ("the carrier has paper overdue") or under its stake
+    ("the carrier is under its stake"), the two guards the capital transfer had and the form didn't.
+  - `formBrokerage` checks everything the transfer and the bond's stake need before it creates anything, so a
+    refusal leaves no company, no link and no log entry.
+  - The bots call `canFormBrokerage` first, so their path can't throw either.
+- **E3-FACBOND (fixed).** A player shipper's paper (`Bill.shipperPaper`, set by `trips.ts` on facility freight) is
+  never bonded broker paper, whoever the shipper is:
+  - not bought on delivery under a contract;
+  - not cashable;
+  - not paid from a broker's bond or called on it.
+
+  A brokerage that owns facilities settles that paper from cash at due, like any player shipper. The NPC factor is no
+  longer exposed to it.
+- **E3-SPLIT (fixed).** The airdrop now merges each pair's raw results first and only then counts losses as zero, at
+  the launch and at each later season (`token.ts` `onePersonOneShare`). A carrier that forfeits its share forfeits the
+  pair's.
+- **E3-LAUNCHHOLD (closed).** `launchHold` keeps no beta bond behind paper owed to the owner's own carrier. That paper
+  is also never paid from a kept beta bond.
+- **E3-CAPINFLATE** is in `economy-reserve.md` §2.
+
+**The red team's probes, re-run after the fixes** (`runs/redteam-three/fix-*.log`):
+
+| Probe | Before | After |
+|---|---|---|
+| E2-FORM: `fuzz.ts --seeds 2 --days 100 --actions 50 --three` | threw on day 93, a half-formed pair | 4,800 steps, 0 threw, 0 violations, the replay matches |
+| E3-FACBOND, seed 1 | NPC factor left 185,117 FD unpaid | **0** (control 0); the factor was made whole |
+| E3-CAPINFLATE, seed 1 | 6.1 FD of shelter per FD of deposit | **2.0**, all from the leased trucks' real running costs (rent 64k, fuel, overhead); the deposits count for nothing; "the cap holds" |
+| E3-LAUNCHHOLD, seed 1 | own carriers paid 0 (latent) | own carriers paid 0; arm's-length 72,219 FD; late burn 0 |
+| E3-SPLIT, seeds 1/2/3 | engine allocated pairs 4.01M / 4.00M / 3.83M | **3.893M / 3.918M / 3.893M, against one result per person 3.913M / 3.919M / 3.913M** |
+
+On E3-SPLIT the probe still prints "HOLE". Its verdict scores its own replica of the old rule (as built: 4.01M),
+not the engine's allocation, which now matches one result per person to within 0.5%. The probe's line should
+compare the engine's figure.
+
 ## Files
 
 - `packages/engine/src/brokerage.ts` (new); `types.ts`, `world.ts` (the partner link, the log, the actions);

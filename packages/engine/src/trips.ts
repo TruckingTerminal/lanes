@@ -396,7 +396,7 @@ function collectUpstream(w: World, load: Load, payee: Company, gross: number, fa
     const shipperAcct = companyAccount(shipper.id);
     const fee = lockCost(w, shipper, cfg.board.posterFeePct * load.saleValue, () => cfg.board.posterFeePct * load.saleValue * (1 - stakeDiscount(w, shipper)));
     bill(w, { payer: 0, faucet: "faucet:npc_market", payee: shipper, amountFd: load.saleValue, ref });
-    if (shipper.id !== payee.id) bill(w, { payer: shipper.id, payee, amountFd: gross, ref, leased, truckId });
+    if (shipper.id !== payee.id) bill(w, { payer: shipper.id, payee, amountFd: gross, ref, leased, truckId, shipperPaper: true });
     w.ledger.post(w.t, shipperAcct, "sink:board_fee", fee, ref);
     const facility = w.facilities[load.facilityId! - 1];
     // Self-hauled freight's carrier side is the owner's own cost, so only the goods margin counts here.

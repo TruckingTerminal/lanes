@@ -42,6 +42,11 @@ export interface Bill {
   leased?: boolean;
   /** The truck that hauled it, for a contract that isn't whole-fleet. */
   truckId?: number;
+  /**
+   * A player shipper's paper (its facility freight), even when the shipper is a broker company: no bond stands behind
+   * it, so it is never bought on delivery, cashed now or paid from a broker's bond (the red team's E3-FACBOND).
+   */
+  shipperPaper?: boolean;
 }
 
 /** The factoring contract (token.payment.factoring.contract) is the rule: payment terms on and the switch on. */
@@ -208,7 +213,8 @@ function settleBrokerPaper(w: World, payer: Company, r: Receivable): void {
   // Player brokerages (brokerage.ts): its own carrier's paper stands last in the bond's queue, and stays out of credit.
   const own = samePerson(w, payer.id, r.payeeId);
   if (rest > 0.005) {
-    const room = Math.max(0, payer.stakedFd - (npcHolder ? 0 : own ? paperAheadOfOwn(w, payer.id, r.id) : npcPaperOf(w, payer.id, r.id)));
+    // Own paper is paid last from the bond, and never from a beta bond kept across the launch (brokerage.ts launchHold).
+    const room = own && payer.launchBond ? 0 : Math.max(0, payer.stakedFd - (npcHolder ? 0 : own ? paperAheadOfOwn(w, payer.id, r.id) : npcPaperOf(w, payer.id, r.id)));
     const drawn = drawBond(w, payer, Math.min(rest, room), to, ref, npcHolder);
     if (payer.launchBond) launchDraw(payer, r.id, drawn, w); // the beta bond kept behind this paper (brokerage.ts)
     rest -= drawn;
@@ -233,7 +239,7 @@ export function callBond(w: World, c: Company): void {
   if (!contractOn(w) || c.role !== "broker") return;
   // The NPC holders first, the owner's own carrier (player brokerages) last.
   const own = (r: Receivable) => Number(samePerson(w, c.id, r.payeeId));
-  const mine = w.receivables.filter((r) => r.payer === c.id).sort((a, b) => own(a) - own(b) || Number(b.holder === HOLDER_NPC_FACTOR) - Number(a.holder === HOLDER_NPC_FACTOR) || a.dueDay - b.dueDay);
+  const mine = w.receivables.filter((r) => r.payer === c.id && !r.shipperPaper).sort((a, b) => own(a) - own(b) || Number(b.holder === HOLDER_NPC_FACTOR) - Number(a.holder === HOLDER_NPC_FACTOR) || a.dueDay - b.dueDay);
   for (const r of mine) {
     const paid = drawBond(w, c, r.amountFd, holderAccount(r), `receivable:${r.id}`, r.holder === HOLDER_NPC_FACTOR);
     if (paid > 0.005 && !own(r)) recordPayment(c, paid, true);
@@ -340,27 +346,27 @@ export function bill(w: World, b: Bill): void {
   const dueDay = dayOf(w.t, w.cfg) + k.termsDays;
   // Player brokerages (brokerage.ts): paper between an owner's own two companies waits net, never factored or quick-paid.
   if (b.payer !== 0 && samePerson(w, b.payer, payee.id)) {
-    w.receivables.push({ id: w.nextReceivableId++, payer: b.payer, faucet: b.faucet, payeeId: payee.id, amountFd: b.amountFd, dueDay, holder: payee.id });
+    w.receivables.push({ ...(b.shipperPaper ? { shipperPaper: true } : {}), id: w.nextReceivableId++, payer: b.payer, faucet: b.faucet, payeeId: payee.id, amountFd: b.amountFd, dueDay, holder: payee.id });
     return;
   }
   if (k.lessorPaysOnDelivery && b.leased) {
     // The lessor's share already covers same-day pay: it pays now and collects the paper itself.
     w.ledger.post(w.t, "faucet:npc_lessor", companyAccount(payee.id), b.amountFd, b.ref);
-    w.receivables.push({ id: w.nextReceivableId++, payer: b.payer, faucet: b.faucet, payeeId: payee.id, amountFd: b.amountFd, dueDay, holder: HOLDER_NPC_FACTOR });
+    w.receivables.push({ ...(b.shipperPaper ? { shipperPaper: true } : {}), id: w.nextReceivableId++, payer: b.payer, faucet: b.faucet, payeeId: payee.id, amountFd: b.amountFd, dueDay, holder: HOLDER_NPC_FACTOR });
     return;
   }
   const f = payee.factoring;
   if (contractOn(w) && f && f.rate !== undefined) {
     // The contract: the NPC factor buys NPC shippers' paper (always paid) and a bonded broker's, on delivery, at the
     // term's discount. A player shipper's paper has no bond behind it yet, and waits for its due day.
-    const bought = b.payer === 0 || companyById(w, b.payer).role === "broker";
+    const bought = b.payer === 0 || (!b.shipperPaper && companyById(w, b.payer).role === "broker");
     const covered = !f.truckIds || b.truckId === undefined || f.truckIds.includes(b.truckId);
     if (bought && covered) {
       const fee = b.amountFd * f.rate;
       w.ledger.post(w.t, "faucet:npc_factor", companyAccount(payee.id), b.amountFd, b.ref);
       // The discount is a sink that refills the reserve, as the lessor's share does (never a burn).
       w.ledger.post(w.t, companyAccount(payee.id), "sink:factoring_fee", fee, b.ref);
-      w.receivables.push({ id: w.nextReceivableId++, payer: b.payer, faucet: b.faucet, payeeId: payee.id, amountFd: b.amountFd, dueDay, holder: HOLDER_NPC_FACTOR });
+      w.receivables.push({ ...(b.shipperPaper ? { shipperPaper: true } : {}), id: w.nextReceivableId++, payer: b.payer, faucet: b.faucet, payeeId: payee.id, amountFd: b.amountFd, dueDay, holder: HOLDER_NPC_FACTOR });
       payee.operating.costFd += fee;
       const entry = f.log !== undefined ? factoringLog(w).contracts[f.log] : undefined;
       if (entry) {
@@ -369,7 +375,7 @@ export function bill(w: World, b: Bill): void {
       }
       return;
     }
-    w.receivables.push({ id: w.nextReceivableId++, payer: b.payer, faucet: b.faucet, payeeId: payee.id, amountFd: b.amountFd, dueDay, holder: payee.id });
+    w.receivables.push({ ...(b.shipperPaper ? { shipperPaper: true } : {}), id: w.nextReceivableId++, payer: b.payer, faucet: b.faucet, payeeId: payee.id, amountFd: b.amountFd, dueDay, holder: payee.id });
     return;
   }
   const terms = payee.factoring ? "factor" : payee.payTerms === "factor" ? "net" : payee.payTerms;
@@ -393,15 +399,15 @@ export function bill(w: World, b: Bill): void {
       w.ledger.post(w.t, poolAccount("factoring"), companyAccount(payee.id), advance, b.ref);
       w.pools.factoring.premiumsFd += discount;
       w.pools.factoring.exposureFd += b.amountFd;
-      w.receivables.push({ id: w.nextReceivableId++, payer: b.payer, faucet: b.faucet, payeeId: payee.id, amountFd: b.amountFd, dueDay, holder: HOLDER_POOL });
+      w.receivables.push({ ...(b.shipperPaper ? { shipperPaper: true } : {}), id: w.nextReceivableId++, payer: b.payer, faucet: b.faucet, payeeId: payee.id, amountFd: b.amountFd, dueDay, holder: HOLDER_POOL });
     } else {
       w.ledger.post(w.t, "faucet:npc_factor", companyAccount(payee.id), advance, b.ref);
-      w.receivables.push({ id: w.nextReceivableId++, payer: b.payer, faucet: b.faucet, payeeId: payee.id, amountFd: b.amountFd, dueDay, holder: HOLDER_NPC_FACTOR });
+      w.receivables.push({ ...(b.shipperPaper ? { shipperPaper: true } : {}), id: w.nextReceivableId++, payer: b.payer, faucet: b.faucet, payeeId: payee.id, amountFd: b.amountFd, dueDay, holder: HOLDER_NPC_FACTOR });
     }
     payee.operating.costFd += discount;
     return;
   }
-  w.receivables.push({ id: w.nextReceivableId++, payer: b.payer, faucet: b.faucet, payeeId: payee.id, amountFd: b.amountFd, dueDay, holder: payee.id });
+  w.receivables.push({ ...(b.shipperPaper ? { shipperPaper: true } : {}), id: w.nextReceivableId++, payer: b.payer, faucet: b.faucet, payeeId: payee.id, amountFd: b.amountFd, dueDay, holder: payee.id });
 }
 
 /**
@@ -418,7 +424,7 @@ export function cashNowRate(w: World, c: Company, r: Receivable): number | strin
   if (r.dueDay <= today) return "it falls due today";
   // Paper that always pays: an NPC shipper's; or that a bond backs: a broker's, under the AP cap. Not a player
   // shipper's (no bond behind it), and never paper between one owner's two companies (brokerage.ts).
-  if (r.payer !== 0 && companyById(w, r.payer).role !== "broker") return "a player shipper's paper has no bond behind it";
+  if (r.payer !== 0 && (r.shipperPaper || companyById(w, r.payer).role !== "broker")) return "a player shipper's paper has no bond behind it";
   if (r.payer !== 0 && samePerson(w, r.payer, c.id)) return "paper between your own companies isn't factored";
   const age = Math.max(0, today - (r.dueDay - k.termsDays));
   const base = c.factoring && c.factoring.rate !== undefined ? c.factoring.rate : k.cashNow.spotPct;
@@ -509,7 +515,7 @@ export function dailyReceivables(w: World): void {
       continue;
     }
     const payer = companyById(w, r.payer);
-    if (contractOn(w) && payer.role === "broker") {
+    if (contractOn(w) && payer.role === "broker" && !r.shipperPaper) {
       // The contract: a broker's paper is paid from its cash, then its bond (the NPC factor's first).
       settleBrokerPaper(w, payer, r);
       continue;

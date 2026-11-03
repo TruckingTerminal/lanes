@@ -15,6 +15,7 @@ import {
   laneRate,
   launchHold,
   mayTake,
+  onePersonOneShare,
   ownBand,
   partnerOf,
   rebrokerLoad,
@@ -267,6 +268,77 @@ describe("player brokerages (brokerage.enabled)", () => {
     expect(g.brokerId).toBe(b.id);
     expect(g.ceiling).toBeCloseTo(3 * (1 - on.brokerage.defaultMarginPct), 9);
     expect(brokerageLog(w).holds).toMatchObject({ held: 5, postedByHand: 1, declined: 2, postedByOrder: 2, passedPosted: 1 });
+  });
+
+  it("red team E2-FORM: refuses to form a brokerage from a carrier in a debt week or under its stake, and creates nothing", () => {
+    for (const set of [(c: Company) => (c.weeksInDebt = 1), (c: Company) => (c.tierGraceDay = 99)]) {
+      const w = createWorld({ cfg: on, net, feeds: neutralFeeds, seed: 20, keepLedgerEntries: true });
+      const c = carrier(w);
+      fund(w, c.id, 200_000);
+      set(c);
+      const companies = w.companies.length;
+      const r = applyAction(w, c.id, { type: "form_brokerage", name: "Half", capitalFd: bond + licence + 15_000 });
+      expect(r.ok).toBe(false);
+      expect(["the carrier has paper overdue", "the carrier is under its stake"]).toContain((r as { reason: string }).reason);
+      expect(w.companies.length).toBe(companies);
+      expect(c.partnerId).toBeUndefined();
+      expect(brokerageLog(w).formed).toHaveLength(0);
+      w.ledger.assertBalanced();
+    }
+  });
+
+  it("red team E3-FACBOND: a brokerage's facility (shipper) paper is never bought on delivery, cashed now or paid from its bond", () => {
+    const k2 = on.token.payment;
+    const cfg2: EconomyConfig = { ...on, token: { ...on.token, payment: { ...k2, cashNow: { ...k2.cashNow, enabled: true } } } };
+    const { w, b } = pair(21, cfg2);
+    const hauler = carrier(w, "Hauler");
+    fund(w, hauler.id, 200_000);
+    addTruck(w, hauler, "owned", "workhorse", "van");
+    expect(applyAction(w, hauler.id, { type: "set_pay_terms", terms: "factor" })).toEqual({ ok: true });
+    // The brokerage's own freight as a shipper: held by the hauler at net, not the factor's.
+    bill(w, { payer: b.id, payee: hauler, amountFd: 20_000, ref: "load:facility", shipperPaper: true });
+    const r = w.receivables.find((x) => x.payer === b.id && x.payeeId === hauler.id)!;
+    expect(r.holder).toBe(hauler.id);
+    expect(r.shipperPaper).toBe(true);
+    expect(applyAction(w, hauler.id, { type: "cash_invoice", receivableId: r.id })).toEqual({ ok: false, reason: "a player shipper's paper has no bond behind it" });
+    // At due, broke: its bond isn't drawn for it (the hauler's payment comes from an overdraft, as any player shipper's).
+    w.ledger.post(w.t, companyAccount(b.id), "sink:fuel", Math.max(0, cash(w, b)), "test");
+    const stake = b.stakedFd;
+    r.dueDay = 0;
+    dailyReceivables(w);
+    expect(b.stakedFd).toBe(stake);
+    expect(cash(w, b)).toBeLessThan(0);
+    // Its broker freight is still bonded paper, bought on delivery.
+    bill(w, { payer: b.id, payee: hauler, amountFd: 5_000, ref: "load:brokered" });
+    expect(w.receivables.at(-1)!.holder).toBe(HOLDER_NPC_FACTOR);
+    w.ledger.assertBalanced();
+  });
+
+  it("red team E3-SPLIT: a pair's airdrop profit is merged before losses count zero", () => {
+    const { w, c, b } = pair(22);
+    const miles = w.companies.map(() => 0);
+    const profits = w.companies.map(() => 0);
+    profits[c.id - 1] = 80_000;
+    profits[b.id - 1] = -50_000;
+    onePersonOneShare(w, miles, profits, w.companies.map(() => true));
+    expect(profits[c.id - 1]).toBe(30_000);
+    expect(profits[b.id - 1]).toBe(0);
+    // A carrier that forfeits its share forfeits the pair's.
+    const p2 = w.companies.map(() => 0);
+    p2[b.id - 1] = 40_000;
+    onePersonOneShare(w, w.companies.map(() => 0), p2, w.companies.map((x) => x.id !== c.id));
+    expect(p2[c.id - 1]).toBe(0);
+    expect(p2[b.id - 1]).toBe(0);
+  });
+
+  it("red team E3-LAUNCHHOLD: keeps no beta bond behind paper owed to the owner's own carrier", () => {
+    const { w, c, b } = pair(23);
+    w.receivables.push({ id: w.nextReceivableId++, payer: b.id, payeeId: c.id, amountFd: 40_000, dueDay: 30, holder: c.id });
+    expect(launchHold(w, b)).toBe(0);
+    expect(b.launchBond).toBeUndefined();
+    const s = carrier(w, "Stranger");
+    w.receivables.push({ id: w.nextReceivableId++, payer: b.id, payeeId: s.id, amountFd: 10_000, dueDay: 30, holder: s.id });
+    expect(launchHold(w, b)).toBeCloseTo(10_000, 6);
   });
 
   it("closes double brokering to a carrier with a brokerage, as an action and as a standing order", () => {

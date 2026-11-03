@@ -403,6 +403,8 @@ export interface Receivable {
   dueDay: number;
   /** The payee's id, or HOLDER_POOL (factored to the pool) or HOLDER_NPC_FACTOR. */
   holder: number;
+  /** A player shipper's paper for its facility freight (receivables.ts Bill.shipperPaper): never treated as bonded. */
+  shipperPaper?: boolean;
 }
 export interface Pool {
   shares: Map<number, number>;
