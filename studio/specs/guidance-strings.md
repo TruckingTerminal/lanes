@@ -167,7 +167,7 @@ Each speaks once: a line **before** only where the date is known (the month clos
 | `milestone.dispatcher` *light* | a dispatcher hired, or the third truck | (none) | Your dispatcher starts today. It follows your rules exactly, including the foolish ones. | Check the rules against the lanes that actually paid. |
 | `milestone.monthClose` | day 30 of the company | Your first month closes in `{n}` days. Monthly bills land with it. | Your first month: earned `{fd}`, spent `{fd}`, kept `{fd}` FD. | The fuel tax and insurance land at the close. Read the month on Money. |
 | `milestone.day28` *light* | the businesses layer | Businesses open `{businessDay}`. Most first-month carriers should let them wait. | Businesses are open. Nobody needs a warehouse in week four; most need a second truck. | A business pays over years. Your gap to the next truck is `{gap}` FD. |
-| `milestone.slump` | the demand dial under 0.9, the first time | (none: a slump gives no notice) | Rates are falling for everyone, not just you. Slumps end. | The carrier still here when it ends is the one who didn't buy in it. Your cushion: `{n}` weeks. |
+| `milestone.slump` | `marketMood` slumping (±15%, the last 7 days against the 28 before), the first time | (none: a slump gives no notice) | Rates are falling for everyone, not just you. Slumps end. | The carrier still here when it ends is the one who didn't buy in it. Your cushion: `{n}` weeks. |
 | `milestone.debt` | the first weekly check in debt | The weekly check is `{day}`. At today's cash you'd be under the line. | You're in debt at a weekly check: 1 of `{weeksInDebt}`. Here is the way out. | `{weeksInDebt}` checks in a row under `{debtLine}` FD and the company is wound up. |
 | `milestone.day91` | the brokerage layer | Brokerages open `{brokerDay}`. The bond is the hard part. | Brokerages are open. Here's what one takes, and how far you are. | Bond, licence and premium: you're `{gap}` FD short, or ready. |
 
@@ -177,7 +177,7 @@ No before line: none of the three can be seen coming. The cause and the loss's p
 
 | Key | Name | Trigger | At | Reason | Button |
 |---|---|---|---|---|---|
-| `milestone.firstBoom` *voice* | The first boom | the demand dial over 1.1, the first time | Rates are up everywhere. Book what pays; don't sign or buy what a slump would make you regret. | Booms end too. My grandmother bought a summer house in a good year and sold it the next. | Show the board |
+| `milestone.firstBoom` *voice* | The first boom | `marketMood` booming, the first time | Rates are up everywhere. Book what pays; don't sign or buy what a slump would make you regret. | Booms end too. My grandmother bought a summer house in a good year and sold it the next. | Show the board |
 | `milestone.firstLate` | The first late load | the first load delivered after its deliver-by | Your first late load: `{h}` hours, because `{lateCause}`. | `{lateFix}` On-time is your reputation, and brokers read it. | See the truck |
 | `milestone.firstLoss` | The first losing load | the first settlement under zero after the hold | That load left you `{fd}` FD short. `{lossCause}` | Bid from "usually clears near", not from your costs. | Show the board |
 
