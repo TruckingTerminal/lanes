@@ -22,6 +22,8 @@ Any action that can't be undone, or that spends more than `{guard.confirmShareOf
 | `confirm.go` | `{Verb}` · `{fd}` FD | the same |
 | `confirm.cancel` | Not now | the same |
 | `confirm.lowCushion` | Under `{n}` weeks of cushion after this. (red, when the cushion falls below 4 weeks) | the same |
+| `confirm.afterNoCushion` | Left after · `{fd}` FD · no cushion yet: your first week hasn't closed | Leaves `{fd}` FD · no cushion yet: your first week hasn't closed |
+| `confirm.short` | It costs `{fd}` FD: you have `{fd}`. (red; the confirm button disabled. R7's refusal form, so every refusal reads alike) | the same |
 
 ### What it does, and the one risk, by action
 
