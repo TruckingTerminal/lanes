@@ -6,7 +6,7 @@ import { GAME_CONFIG } from "../game.js";
 import { nextAction, type NextAction } from "../nextstep.js";
 import { act, bumpData, isPhone, me, S, selectTruck, setTab, truckNo } from "../state.js";
 import { TAB_NAME } from "../tabs.js";
-import { stepDo, stepText, walkSteps } from "../walkthrough.js";
+import { skippedSteps, stepDo, stepText, walkSteps } from "../walkthrough.js";
 import { Btn } from "./bits.js";
 import { Iuliia } from "./Walkthrough.js";
 import { kindInView } from "../companies.js";
@@ -22,7 +22,7 @@ import { kindInView } from "../companies.js";
 /** The answer now, fed the last hand bid that lost (rule 2's "a better load beside it"), while its result is up. */
 function currentAction(w: World, c: Company): NextAction {
   const r = S.result;
-  return nextAction(GAME_CONFIG, w, c, r && !r.won ? (r.lost ?? null) : null);
+  return nextAction(GAME_CONFIG, w, c, r && !r.won ? (r.lost ?? null) : null, skippedSteps(S.onboard.seen));
 }
 
 /** Ask What now? (the chip, the "?" key, the explain sheet's foot, the debt milestone). */

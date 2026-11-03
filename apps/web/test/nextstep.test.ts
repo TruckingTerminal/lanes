@@ -4,6 +4,7 @@ import { boardRows } from "../src/board.js";
 import { cushion, debtCountdown, gapToTruck, nextEvent, nextWeeklyCheckDay } from "../src/figures.js";
 import { GAME_CONFIG, TestGame } from "../src/game.js";
 import { nextAction } from "../src/nextstep.js";
+import { skippedSteps, walkProgress, walkSteps } from "../src/walkthrough.js";
 
 async function fresh() {
   const g = await TestGame.create();
@@ -153,5 +154,32 @@ describe("What now? (nextAction), rule by rule", () => {
     expect(debtCountdown(g.w, c)).toMatchObject({ n: 0, of: g.w.cfg.insolvency.weeksInDebt, under: false });
     const e = nextEvent(g.w, c);
     expect(e.atMin).toBeGreaterThan(g.w.t);
+  }, 60_000);
+});
+
+describe("the walkthrough's soft ways out (the director's R2)", () => {
+  it("a skipped step stays current but silent, not done, and What now? passes over it; the next waits for the world", async () => {
+    const { g, c, truck } = await fresh();
+    const row = boardRows(g.w, c, truck, { dest: "any", maxDh: 300, query: "" }).find((r) => !r.block)!;
+    expect(g.act({ type: "book_load", truckId: truck.id, loadId: row.l.id }).ok).toBe(true);
+    const before = walkProgress(GAME_CONFIG, g.w, c);
+    const a = nextAction(GAME_CONFIG, g.w, c);
+    expect(a).toMatchObject({ rule: 4, index: before.index });
+    const id = walkSteps(GAME_CONFIG)[before.index]!.id;
+    const after = walkProgress(GAME_CONFIG, g.w, c, [id]);
+    expect(after.index).toBe(before.index); // the next step doesn't run ahead of its event
+    expect(after.skipped).toBe(true);
+    expect(after.done).toBe(before.done); // skipped isn't done
+    expect(nextAction(GAME_CONFIG, g.w, c, null, [id])).not.toMatchObject({ rule: 4, index: before.index });
+    expect(skippedSteps(["say:paid", `skip:${id}`])).toEqual([id]);
+  }, 60_000);
+
+  it("Standing orders is done for a player who bids by hand and switched the dispatcher off", async () => {
+    const { g, c } = await fresh();
+    const orders = walkSteps(GAME_CONFIG).find((s) => s.id === "orders")!;
+    expect(orders.done(g.w, c)).toBe(false);
+    c.firstHandBidDay = 0;
+    c.orders = c.orders.filter((o) => o.kind !== "bid");
+    expect(orders.done(g.w, c)).toBe(true);
   }, 60_000);
 });

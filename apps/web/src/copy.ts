@@ -273,6 +273,9 @@ export const CAPTION = {
   next: "Next",
   hide: "Hide",
   more: "More",
+  /** The director's R2: every step card's soft way out, and how a skipped step reads in the list ("skipped" is engineering's draft). */
+  skip: "Skip this step",
+  skipped: "skipped",
   /** The Iuliia tab's switch: mutes her tab-and-card lines, not the walkthrough's (iuliia-lines.md; the writer's strings). */
   quiet: "Quiet",
   quietNote: "Mutes Iuliia's remarks on tabs and cards, in this browser. Her walkthrough steps and What now? stay.",
@@ -1006,11 +1009,11 @@ export const BROKERAGE = {
   /** UX's line (brokerage-ux.md section 7): the own carrier let the tender lapse, and the load went to the board at the offered rate. */
   lapsed: (carrier: string, rate: string) => `${carrier} didn't take it · posted at ${rate}/mi`,
   refuseNoTruck: (carrier: string) => `${carrier} has no free truck in reach of the pickup.`,
-  /** Engineering's drafts, for the writer (QA's hold replay): the offer-first order would skip; its rate; Save's confirmation; the licence out of the transfer. */
+  /** The writer's (brokerage-strings.md), after QA's hold replay. ownFirstSkips is still engineering's draft: the writer's form names a distance, and the order's rule has none (a truck at the pickup's hub). */
   ownFirstSkips: (carrier: string) => `${carrier} has no free truck at the pickup now, so the order would post it.`,
-  ownFirstRate: (carrier: string) => `It tenders at your posting rate, held inside the lane's band; ${carrier} still accepts or declines.`,
-  saved: "Standing order saved",
-  licenceFromIt: (licence: string) => `Licence · ${licence} FD · paid from this`,
+  ownFirstRate: (carrier: string) => `It goes to ${carrier} at your posting rate, within the lane's band. ${carrier} may still decline.`,
+  saved: "Standing order saved.",
+  licenceFromIt: (licence: string) => `Licence · ${licence} FD · paid out of the amount you move`,
   tenderNote1: (days: number) => `Paid at net ${days}, never factored: it's between your own companies.`,
   tenderNote2: "The load counts once for you, not twice.",
   tenderAt: (rate: string) => `Tender at ${rate}/mi`,

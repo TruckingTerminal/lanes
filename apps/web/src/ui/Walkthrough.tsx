@@ -2,14 +2,14 @@ import type { JSX } from "preact";
 import { useEffect, useRef, useState } from "preact/hooks";
 import { dayOf } from "@lanes/engine";
 import { GAME_CONFIG } from "../game.js";
-import { stepDo, stepText, walkProgress, walkSteps, type Mood, type WalkStep } from "../walkthrough.js";
+import { skippedSteps, stepDo, stepText, walkProgress, walkSteps, type Mood, type WalkStep } from "../walkthrough.js";
 import { iuliiaMuted, iuliiaNow, setIuliiaMuted } from "../iuliia.js";
 import { ASSETS, hasAsset } from "../mapart.js";
 import { drawPortrait } from "../portrait.js";
 import { bumpData, S, setOnboard, setTab, toast, useData } from "../state.js";
 import { ARRIVAL, CAPTION, DISPATCHER, INTEL } from "../copy.js";
 import { pct } from "../format.js";
-import { TAB_NAME } from "../tabs.js";
+import { TAB_NAME, type Tab } from "../tabs.js";
 import { Btn, Card } from "./bits.js";
 import { financeLine } from "./panels/Finance.js";
 import { Loop } from "./Loop.js";
@@ -64,7 +64,8 @@ export function Walkthrough(): JSX.Element | null {
   const c = g?.player;
   if (!g || !c) return null;
   const steps = walkSteps(GAME_CONFIG, g.w.net.hubs[c.homeHub]?.name);
-  const { index, done, total } = walkProgress(GAME_CONFIG, g.w, c);
+  const skipped = skippedSteps(S.onboard.seen);
+  const { index, done, total } = walkProgress(GAME_CONFIG, g.w, c, skipped);
   // "The truck rolls" waits for the load itself, as the caption does (QA's Iuliia replay): until then the board step stays current.
   const loaded = (g.w.trucksByCompany.get(c.id) ?? []).some((t) => t.loadId !== null) || c.delivered > 0;
   const current = index < 0 ? total : steps[index]!.id === "haul" && !loaded && index > 0 ? index - 1 : index;
@@ -90,10 +91,11 @@ export function Walkthrough(): JSX.Element | null {
   }
   const step = steps[view]!;
   const isDone = step.done(g.w, c);
+  const isSkipped = !isDone && skipped.includes(step.id);
   // The welcome strip (scenes/welcome, from the Graphics session): her office, on the first step, when it's drawn.
   const strip = step.id === "welcome" && hasAsset("scenes/welcome.png");
   return (
-    <Card class="walk" title={`${view + 1} of ${total}: ${step.title}${isDone ? " ✓" : ""}`}>
+    <Card class="walk" title={`${view + 1} of ${total}: ${step.title}${isDone ? " ✓" : isSkipped ? ` · ${CAPTION.skipped}` : ""}`}>
       {strip ? <Loop name="scenes/welcome" still={`${ASSETS}scenes/welcome.png`} w={256} h={128} scale={Math.max(1, Math.min(2, Math.floor(((window.innerWidth - 64) / 256) * 10) / 10))} class="welcome" alt="Iuliia's office" /> : null}
       <div class="walkbody">
         <Iuliia mood={step.mood} />
@@ -118,6 +120,7 @@ export function Walkthrough(): JSX.Element | null {
             {view > 0 ? <Btn sm ghost onClick={() => browse(view - 1)}>Back</Btn> : null}
             <Btn sm ghost onClick={() => browse(view + 1)}>{view + 1 < total ? "Read ahead" : "The end"}</Btn>
             {S.walkView !== null ? <Btn sm ghost onClick={() => browse(current)}>Now</Btn> : null}
+            {!isDone && !isSkipped ? <Btn sm ghost onClick={() => skipStep(step.id)}>{CAPTION.skip}</Btn> : null}
             <span class="muted small">{done} of {total} done</span>
           </div>
         </div>
@@ -126,6 +129,101 @@ export function Walkthrough(): JSX.Element | null {
   );
 }
 
+/** Skips a step (R2): it stays in the list as skipped, not done, and What now? passes over it. */
+function skipStep(id: string): void {
+  if (!S.onboard.seen.includes(`skip:${id}`)) setOnboard({ seen: [...S.onboard.seen, `skip:${id}`] });
+  S.walkView = null;
+  bumpData();
+}
+
+/** The current step for the caption and the screens: the first neither done nor skipped, "the truck rolls" waiting for its load. */
+function currentStep(): WalkStep | null {
+  const g = S.game!;
+  const c = g.player!;
+  const steps = walkSteps(GAME_CONFIG, g.w.net.hubs[c.homeHub]?.name);
+  const p = walkProgress(GAME_CONFIG, g.w, c, skippedSteps(S.onboard.seen));
+  return p.index >= 0 && !p.skipped ? steps[p.index]! : null;
+}
+
+/**
+ * A step's full line on the screen where its event happens (the director's R5): "Getting paid" on the first settlement
+ * card, "The law" on the Truck tab where the inspection shows, the rest on their own screens. It plays once, at the
+ * moment the step becomes current, with Next and Skip; the caption keeps quiet about it meanwhile, and the list under
+ * More › Iuliia stays for rereading. `only` places one step's moment inside its card (the settlement card).
+ */
+export function StepMoment({ only }: { only?: string }): JSX.Element | null {
+  useData();
+  const g = S.game;
+  const c = g?.player;
+  if (!g || !c || kindInView(g) === "brokerage" || c.liquidatingSince !== null) return null;
+  const step = currentStep();
+  if (!step || !momentHere(step) || (only ? step.id !== only : step.id === "paid")) return null;
+  const mark = () => {
+    setOnboard({ seen: [...S.onboard.seen, `say:${step.id}`] });
+    bumpData();
+  };
+  const t = stepText(step, g.w, c);
+  return (
+    <Card class="walk moment" title={step.title}>
+      <div class="walkbody">
+        <Iuliia mood={step.mood} size={96} />
+        <div class="walktext">
+          {t.say.map((line, i) => (
+            <p class="small" key={i}>
+              {line}
+            </p>
+          ))}
+          <div class="row">
+            <Btn sm primary onClick={mark}>
+              {CAPTION.next}
+            </Btn>
+            <Btn sm ghost onClick={() => skipStep(step.id)}>
+              {CAPTION.skip}
+            </Btn>
+          </div>
+        </div>
+      </div>
+    </Card>
+  );
+}
+
+/** Whether the step's moment plays here, now: on its event's screen, not yet said, its event come ("you won one" needs the load). */
+function momentHere(step: WalkStep): boolean {
+  const g = S.game!;
+  const c = g.player!;
+  if (S.onboard.seen.includes(`say:${step.id}`) || S.tab !== ((step.at ?? step.tab) as Tab) || currentStep()?.id !== step.id) return false;
+  if (step.id === "board" || step.id === "welcome") return false; // the arrival line and the board's own first visit say these
+  if (step.id === "haul") return (g.w.trucksByCompany.get(c.id) ?? []).some((t) => t.loadId !== null) || c.delivered > 0;
+  if (step.id === "paid") return S.delivered !== null;
+  return true;
+}
+
+/**
+ * How long an unasked line without a button may stand (the director's R2: `{iuliia.captionMinutes}`, 5 real minutes).
+ * Read here until the economy's batch lands and the key can join `ui.iuliia` in the config.
+ */
+const CAPTION_MINUTES = 5;
+/** When each unasked line first showed in this sitting, by key. */
+const lineSince = new Map<string, number>();
+/**
+ * R2: an unasked line without a button retires after CAPTION_MINUTES real minutes, or once the player acts on another
+ * screen than its own. A line with a button holds until it's answered, or until it's false (R10). Returns whether it stands.
+ */
+function lineStands(key: string, screen: string, retire: () => void): boolean {
+  const now = performance.now();
+  const since = lineSince.get(key) ?? (lineSince.set(key, now), now);
+  const acted = S.lastAct !== null && S.lastAct.at > since && S.lastAct.tab !== screen;
+  const left = CAPTION_MINUTES * 60_000 - (now - since);
+  if (acted || left <= 0) {
+    queueMicrotask(() => {
+      retire();
+      bumpData();
+    });
+    return false;
+  }
+  setTimeout(bumpData, left + 50);
+  return true;
+}
 
 /**
  * Iuliia's caption (specs/first-ten-minutes.md): her portrait at 32 px, the current step's Do line, and More, which
@@ -150,14 +248,19 @@ export function Caption(): JSX.Element | null {
     </div>
   );
   if (c.liquidatingSince !== null) return bare();
+  // A step's moment playing on this screen (R5) is her voice here; the caption stands back to her face and the chip.
+  const playing = currentStep();
+  if (playing && momentHere(playing)) return bare(playing.mood);
   // A milestone line once shown keeps the caption for its full seconds, even when a new step begins meanwhile (QA).
   if (milestoneHeld()) {
     const ms = MilestoneLine();
     if (ms) return ms;
   }
   const steps = walkSteps(GAME_CONFIG, g.w.net.hubs[c.homeHub]?.name);
-  const { index } = walkProgress(GAME_CONFIG, g.w, c);
-  const step = index >= 0 ? steps[index]! : null;
+  const progress = walkProgress(GAME_CONFIG, g.w, c, skippedSteps(S.onboard.seen));
+  const index = progress.index;
+  // A skipped step is silent (R2): her other lines and milestones may speak, it doesn't.
+  const step = index >= 0 && !progress.skipped ? steps[index]! : null;
   const seen = (k: string) => S.onboard.seen.includes(k);
   const mark = (k: string) => setOnboard({ seen: [...S.onboard.seen, k] });
   // Every line has its seconds (QA's guidance replays). Steps queue: each step's line holds ui.iuliia.showSeconds, and
@@ -171,7 +274,11 @@ export function Caption(): JSX.Element | null {
   const shownIdx = stepShown ? steps.findIndex((x) => x.id === stepShown!.id) : -1;
   const behind = shownIdx >= 0 && shownIdx < (index >= 0 ? index : steps.length);
   const holding = behind && now - stepShown!.at < showMs;
-  const queued = behind ? (holding ? steps[shownIdx] : steps[shownIdx + 1]) : undefined;
+  // Skipped steps never take a turn in the queue (R2).
+  const skips = skippedSteps(S.onboard.seen);
+  const end = index >= 0 ? index : steps.length;
+  const nextInQueue = steps.slice(shownIdx + 1, end).find((x) => !skips.includes(x.id)) ?? (index >= 0 && !progress.skipped ? steps[index] : undefined);
+  const queued = behind ? (holding ? steps[shownIdx] : nextInQueue) : undefined;
   if (!behind && step && stepShown?.id === step.id && now - stepShown.at >= showMs) {
     const ms = MilestoneLine();
     if (ms) return ms;
@@ -207,7 +314,9 @@ export function Caption(): JSX.Element | null {
     );
   }
   // After the first bid by hand (S9): once, the dispatcher is now on, and where its rules are.
-  if (c.firstHandBidDay !== null && g.w.cfg.freeEntry.firstBidByHand && !seen("dispatcher")) {
+  // Re-checked against the world (R2): with the dispatcher switched off the line is false, and it retires for good.
+  if (c.firstHandBidDay !== null && g.w.cfg.freeEntry.firstBidByHand && !seen("dispatcher") && !c.orders.some((o) => o.kind === "bid")) queueMicrotask(() => (mark("dispatcher"), bumpData()));
+  else if (c.firstHandBidDay !== null && g.w.cfg.freeEntry.firstBidByHand && !seen("dispatcher")) {
     return say(
       DISPATCHER.afterFirst,
       <Btn
@@ -252,6 +361,8 @@ export function Caption(): JSX.Element | null {
   } else if (holding) setTimeout(bumpData, showMs - (now - stepShown.at) + 50);
   // A step speaks once (its Say, then Next), then shows its Do until hidden; More opens her tab for the rest.
   const stepLine = (step: WalkStep): JSX.Element => {
+  // On the screen where its event happens the step's moment plays in the panel (R5), so the caption keeps quiet about it.
+  if (!seen(`say:${step.id}`) && momentHere(step)) return her(step.mood) ?? bare(step.mood);
   if (!seen(`say:${step.id}`)) {
     // A step that reads the company's state (step 9) speaks that state, not its fixed brief (QA's step-9 replay).
     return say(
@@ -265,6 +376,8 @@ export function Caption(): JSX.Element | null {
   if (seen(`hide:${step.id}`)) return her(step.mood) ?? bare(step.mood);
   const hers = her(step.mood);
   if (hers) return hers;
+  // The Do line is unasked and has no answer to wait for: it retires as R2 says, as if hidden.
+  if (!lineStands(`do:${step.id}`, step.tab, () => mark(`hide:${step.id}`))) return bare(step.mood);
   return (
     <div class="caption">
       <Iuliia mood={step.mood} size={64} />

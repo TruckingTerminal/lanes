@@ -11,7 +11,7 @@ import { Book, BrokerageTab, BrokerMoney, Carriers } from "./panels/Brokerage.js
 import { Btn, Card } from "./bits.js";
 import { ChooseHub, choosing } from "./ChooseHub.js";
 import { isNew, More, TabIcon, TeaserCard, TeaserRow } from "./More.js";
-import { Caption, IuliiaPanel, ReportCard } from "./Walkthrough.js";
+import { Caption, IuliiaPanel, ReportCard, StepMoment } from "./Walkthrough.js";
 import { Business } from "./panels/Business.js";
 import { Company } from "./panels/Company.js";
 import { Dealer } from "./panels/Dealer.js";
@@ -120,6 +120,7 @@ export function RackBody(): JSX.Element {
       <ExplainSheet />
       <div class="panelbox">
         <ReportCard key={S.reportKind} />
+        {open && !watching ? <StepMoment /> : null}
         {under ? (
           <div class="row">
             <Btn sm ghost onClick={() => setTab("more")}>

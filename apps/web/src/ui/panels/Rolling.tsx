@@ -7,6 +7,7 @@ import { etaMin, nearestPlace, nightStop } from "../../rolling.js";
 import { bumpData, me, myTrucks, S, truckNo, useData } from "../../state.js";
 import { Bar, Btn, Card, Kv } from "../bits.js";
 import { Fig } from "../Explain.js";
+import { StepMoment } from "../Walkthrough.js";
 
 const when = (min: number): string => `${shortDate(Math.floor(min / 1440))} ${hhmm(min)}`;
 
@@ -75,6 +76,8 @@ export function DeliveredCard(): JSX.Element | null {
       <p class="muted small">
         {DELIVERED.paid} {d.dueDay !== null ? shortDate(d.dueDay) : DELIVERED.today}
       </p>
+      {/* R5: "Getting paid" plays on the first settlement card. */}
+      <StepMoment only="paid" />
       <div class="row">
         <Btn
           primary

@@ -80,6 +80,8 @@ export const S = {
   /** The explain sheet while open: the figure's key, what it was computed from, its label and value (ui/Explain.tsx). */
   /** The milestone line on the caption now (caption rule 3), kept until its button or a change of tab. */
   milestone: null as null | { key: string; phase: "before" | "at"; tab: string; at: number },
+  /** The player's last order: on which tab, at which real time (R2: a caption line retires when the player acts on another screen). */
+  lastAct: null as null | { tab: string; at: number },
   /** The next-truck gap as last shown, and what moved it since the player last opened its explanation (row 4). */
   gapSeen: null as null | { scope: string; route: string; weeks: number; why: ("cheapest" | "cushion")[] },
   /** The invoices What now? chose to cash (rule 1's cash lever): Money opens on them. */
@@ -451,6 +453,7 @@ export function setSaidHook(f: (key: string) => void): void {
 /** Gives an order with a toast; `said` is Iuliia's line for it, spoken only when it goes through (never on a refusal). */
 export function act(a: Action, ok: string, said?: string, as?: "brokerage" | "carrier"): void {
   const g = S.game!;
+  S.lastAct = { tab: S.tab, at: performance.now() };
   if (g.kind === "test") {
     const r = g.act(a, as);
     persistTest(true);
@@ -486,6 +489,7 @@ export type OrderResult = { ok: true; at: number | null } | { ok: false; reason:
 /** An order for the company in view, or for `as` (the brokerage's first orders, sent as it's formed). */
 export async function order(a: Action, ok: string, as?: "brokerage" | "carrier"): Promise<OrderResult> {
   const g = S.game!;
+  S.lastAct = { tab: S.tab, at: performance.now() };
   const sentence = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
   if (g.kind === "test") {
     const r = g.act(a, as);

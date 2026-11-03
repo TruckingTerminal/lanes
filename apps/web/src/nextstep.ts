@@ -45,7 +45,7 @@ export interface LostBid {
   profitAtWinningFd: number;
 }
 
-export function nextAction(cfg: EconomyConfig, w: World, c: Company, lost?: LostBid | null): NextAction {
+export function nextAction(cfg: EconomyConfig, w: World, c: Company, lost?: LostBid | null, skipped: readonly string[] = []): NextAction {
   const perDay = w.cfg.time.gameMinutesPerDay;
   const today = Math.floor(w.t / perDay);
   // Being wound up: what's happening and when the restart comes (W3). Silence unasked; asked, this.
@@ -140,8 +140,8 @@ export function nextAction(cfg: EconomyConfig, w: World, c: Company, lost?: Lost
   if (idle) return { rule: 3, kind: "idle", ...idle };
 
   // 4. A walkthrough step is current.
-  const p = walkProgress(cfg, w, c);
-  if (p.index >= 0) return { rule: 4, kind: "step", index: p.index, total: p.total };
+  const p = walkProgress(cfg, w, c, skipped);
+  if (p.index >= 0 && !p.skipped) return { rule: 4, kind: "step", index: p.index, total: p.total };
 
   // 5. A milestone near: the factoring contract's last week, a thin cushion, the gap to the next truck.
   if (c.factoring && !c.factoring.renew && c.factoring.until - today <= 7) return { rule: 5, kind: "factoringEnds", untilDay: c.factoring.until, days: Math.max(0, c.factoring.until - today) };

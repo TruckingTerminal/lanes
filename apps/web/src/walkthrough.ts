@@ -18,6 +18,8 @@ export interface WalkStep {
   id: string;
   title: string;
   tab: Tab;
+  /** The screen where the step's event happens, where its full line plays (the director's R5); `tab` when it's the same. */
+  at?: Tab;
   mood: Mood;
   /** What Iuliia says in the sheet, in 25 words or fewer (copy-first-ten-minutes.md). */
   brief: string;
@@ -82,6 +84,7 @@ export function walkSteps(cfg: EconomyConfig, hub = "your home hub"): WalkStep[]
     },
     {
       id: "haul",
+      at: "fleet",
       title: "The truck rolls",
       tab: "fleet",
       mood: "idle",
@@ -96,6 +99,7 @@ export function walkSteps(cfg: EconomyConfig, hub = "your home hub"): WalkStep[]
     },
     {
       id: "paid",
+      at: "fleet",
       title: "Getting paid",
       tab: "money",
       mood: "point",
@@ -120,6 +124,7 @@ export function walkSteps(cfg: EconomyConfig, hub = "your home hub"): WalkStep[]
     },
     {
       id: "reload",
+      at: "fleet",
       title: "The reload",
       tab: "fleet",
       mood: "idle",
@@ -162,6 +167,7 @@ export function walkSteps(cfg: EconomyConfig, hub = "your home hub"): WalkStep[]
     },
     {
       id: "law",
+      at: "fleet",
       title: "The law",
       tab: "company",
       mood: "idle",
@@ -227,7 +233,9 @@ export function walkSteps(cfg: EconomyConfig, hub = "your home hub"): WalkStep[]
       ],
       do: "Set the bidding and home-time rules, then watch a round clear.",
       why: "Orders turn a company that needs you every six hours into one that runs while you're away.",
-      done: (w, c) => trucksOf(w, c).length >= 3 || staffOf(w, c, "dispatcher") >= 1,
+      // Any state that satisfies it (R2): the orders took over the fleet, or the player chose to bid by hand and switched
+      // the dispatcher off after its first load.
+      done: (w, c) => trucksOf(w, c).length >= 3 || staffOf(w, c, "dispatcher") >= 1 || (c.firstHandBidDay !== null && !c.orders.some((o) => o.kind === "bid")),
     },
     {
       id: "yard",
@@ -261,11 +269,17 @@ export function walkSteps(cfg: EconomyConfig, hub = "your home hub"): WalkStep[]
 }
 
 /** The first step not yet done, and how many are done. */
-export function walkProgress(cfg: EconomyConfig, w: World, c: Company): { step: WalkStep | null; index: number; done: number; total: number } {
+/**
+ * The current step: the first not done, as the world says. "Skip this step" (R2) silences it: it stays in the list as
+ * skipped, not done, What now? never offers it, and she says nothing of it; the next step still waits for the world, so
+ * no line runs ahead of its event. `skipped` is the player's, kept by the page; the bots skip nothing.
+ */
+export function walkProgress(cfg: EconomyConfig, w: World, c: Company, skipped: readonly string[] = []): { step: WalkStep | null; index: number; done: number; total: number; skipped: boolean } {
   const steps = walkSteps(cfg);
   const done = steps.filter((s) => s.done(w, c)).length;
   const index = steps.findIndex((s) => !s.done(w, c));
-  return { step: index >= 0 ? steps[index]! : null, index, done, total: steps.length };
+  const step = index >= 0 ? steps[index]! : null;
+  return { step, index, done, total: steps.length, skipped: step !== null && skipped.includes(step.id) };
 }
 
 /** A step's "Do" line for the world as it is. */
@@ -274,5 +288,8 @@ export function stepText(step: WalkStep, w: World, c: Company): { brief: string;
   const own = step.owned && !(w.trucksByCompany.get(c.id) ?? []).some((t) => t.lease === "npc");
   return own ? step.owned! : step;
 }
+
+/** The step ids this browser has skipped (onboard `skip:{id}`). */
+export const skippedSteps = (seen: readonly string[]): string[] => seen.filter((k) => k.startsWith("skip:")).map((k) => k.slice(5));
 
 export const stepDo = (step: WalkStep, w: World, c: Company): string => step.doNow?.(w, c) ?? stepText(step, w, c).do;
