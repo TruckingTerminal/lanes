@@ -44,7 +44,7 @@ Owners: engineering, UX.
 The studio rule exists so the game never teaches players to commit crimes, and never makes crime a spectacle for a stranger. It is not meant to hide a cost the player pays: pillar 1 says the market is real, and a hidden cost breaks it.
 
 **Rulings:**
-- **"Theft risk" and the THEFT column** on Rates and Business become **"Security"**, banded Quiet, Watch or High. The explain sheet says plainly what it measures: how often cargo goes missing on this market's roads, and that it raises insurance and some shippers' vetting. Writer and UX.
+- **"Theft risk" and the THEFT column** on Rates and Business become **"Security"**, banded **Quiet, Watch or Risky**. *(Amended 2026-11-03, the writer's catch: "Security: High" reads as well protected, the opposite of what it means. "Risky" can't be misread, and it keeps the column name.)* The explain sheet says plainly what it measures: how often cargo goes missing on this market's roads, and that it raises insurance and some shippers' vetting. Writer and UX.
 - **"Cargo stolen 28 loads"** and every other crime counter leave the player's Economy page. They move to the studio's dashboard until the Back Lot opens. Writer and engineering.
 - **"EVE Online" goes.** Naming another game breaks the fiction, means nothing to a trucker, and is a name we don't own. Writer.
 - **The compliance page** offers running 15 hours a day and 56 mph "always". Those are rule-breaking choices the player makes, and they predate the studio rule. I leave them, because each one is costed on the page, and flag them to Jeff as the one place a stranger can choose to break the law.
