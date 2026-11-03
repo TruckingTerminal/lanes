@@ -7,15 +7,35 @@
  *   - replays identical from the same seed and action log;
  *   - every refusal reason is reported with the state it was given.
  *
- * Run:  npx tsx apps/sim/src/redteam/fuzz.ts --seeds 1,2,3,4,5 --days 400 [--launch] [--profile live|base]
+ * Run:  npx tsx apps/sim/src/redteam/fuzz.ts --seeds 1,2,3,4,5 --days 400 [--launch] [--profile live|base] [--three]
  * It is read-only on the engine: it only drives companies through the public applyAction and reads the ledger.
+ *
+ * `--three` (pass 2026-11-03b): the three rules of the next restart on (the player brokerage, the Reserve, cash now);
+ * the attackers form brokerages and drive them, the menu adds the new actions, every new action's answer is checked
+ * against the state it was given (an ok the state forbade, or a refusal whose reason the state contradicts), the
+ * stricter invariants run (`checkThree`), and the replay is compared account by account (`ledgerHash`).
  */
 import { parseArgs } from "node:util";
 import { pathToFileURL } from "node:url";
-import { applyAction, companyAccount, dayOf, stepHour, type Action, type Company, type World } from "@lanes/engine";
+import {
+  applyAction,
+  canFormBrokerage,
+  companyAccount,
+  dayOf,
+  ownBand,
+  partnerOf,
+  reserveAccount,
+  samePerson,
+  stepHour,
+  HOLDER_NPC_FACTOR,
+  type Action,
+  type ActionResult,
+  type Company,
+  type World,
+} from "@lanes/engine";
 import { hubs } from "@lanes/data";
 import { ruleBotHook } from "@lanes/agents";
-import { addAttacker, checkInvariants, liveConfig, makeWorld, snap, type MakeOpts } from "./harness.js";
+import { addAttacker, checkInvariants, checkThree, ledgerHash, liveConfig, makeWorld, snap, THREE_SWITCHES, type MakeOpts } from "./harness.js";
 
 // A small deterministic RNG, independent of the engine's, so the fuzz stream replays from its own seed.
 function mulberry32(seed: number): () => number {
@@ -73,6 +93,114 @@ function randomAction(w: World, c: Company, r: Rand): Action {
   return { type: "borrow", truckId: myTruck ? myTruck.id : 1, amountFd: 1 + r() * 50_000 };
 }
 
+/**
+ * The three rules' actions (pass 2026-11-03b), built from real ids: forming, the owner's capital both ways, Rule A
+ * passes and the tenders behind them, Rule B own tenders inside and outside the band, cash now on own and others'
+ * paper, the Reserve in and out, and a brokerage's broker order so it has loads to tender. Null when nothing fits.
+ */
+function threeAction(w: World, c: Company, r: Rand): Action | null {
+  const partner = partnerOf(w, c);
+  const cash = w.ledger.balance(companyAccount(c.id));
+  const roll = r();
+  if (c.role === "carrier" && !partner && roll < 0.12) return { type: "form_brokerage", name: `fuzz brokerage ${c.id}`, capitalFd: 90_000 + r() * 300_000 };
+  if (partner && roll < 0.2) return { type: "transfer_capital", fd: 1 + r() * Math.max(2_000, cash * 1.2) };
+  if (roll < 0.34) {
+    const mine = w.receivables.filter((x) => x.holder === c.id);
+    const pool = chance(r, 0.75) && mine.length ? mine : w.receivables;
+    return pool.length ? { type: "cash_invoice", receivableId: pick(r, pool).id } : null;
+  }
+  if (roll < 0.46) return { type: "reserve_deposit", fd: 1 + r() * Math.max(2_000, cash * 1.2) };
+  if (roll < 0.56) return { type: "reserve_withdraw", fd: 1 + r() * Math.max(2_000, w.ledger.balance(reserveAccount(c.id)) * 1.2) };
+  if (c.role === "carrier") {
+    const tendered = [...w.loads.values()].filter((l) => l.status === "open" && l.tenderedTo === c.id);
+    const fleet = w.trucksByCompany.get(c.id) ?? [];
+    if (roll < 0.7 && tendered.length) return { type: "pass_tender", loadId: pick(r, tendered).id };
+    if (roll < 0.84 && tendered.length && fleet.length) return { type: "accept_tender", truckId: pick(r, fleet).id, loadId: pick(r, tendered).id };
+    const open = [...w.loads.values()].filter((l) => l.status === "open");
+    if (roll < 0.9 && open.length) return { type: "pass_tender", loadId: pick(r, open).id };
+    return null;
+  }
+  if (c.role === "broker") {
+    if (roll < 0.62 || !c.orders.some((o) => o.kind === "broker")) return { type: "set_standing_orders", orders: [{ kind: "broker", marginPct: r() * 0.2, maxOpenLoads: 5 + Math.floor(r() * 30) }] };
+    const mine = [...w.loads.values()].filter((l) => l.brokerId === c.id && l.status === "open");
+    const pool = mine.length && chance(r, 0.85) ? mine : [...w.loads.values()].filter((l) => l.status === "open");
+    if (!pool.length) return null;
+    const load = pick(r, pool);
+    const [lo, hi] = ownBand(w, load);
+    return { type: "tender_own", loadId: load.id, rate: Math.min(99, Math.max(0.01, ((lo + hi) / 2) * (0.7 + r() * 0.6))) };
+  }
+  return null;
+}
+
+/** What the state said before a new-rule action, for checking its answer. */
+interface Pre {
+  cash: number;
+  reserve: number;
+  band?: [number, number];
+  inv?: { holder: number; payee: number; payer: number; payerBroker: boolean; own: boolean; dueDay: number; today: number };
+  liquidating: boolean;
+  weeksInDebt: number;
+}
+
+function preState(w: World, c: Company, a: Action): Pre {
+  const pre: Pre = { cash: w.ledger.balance(companyAccount(c.id)), reserve: w.ledger.balance(reserveAccount(c.id)), liquidating: c.liquidatingSince !== null, weeksInDebt: c.weeksInDebt };
+  if (a.type === "tender_own") {
+    const load = w.loads.get(a.loadId);
+    if (load) pre.band = ownBand(w, load);
+  }
+  if (a.type === "cash_invoice") {
+    const r = w.receivables.find((x) => x.id === a.receivableId);
+    if (r) pre.inv = { holder: r.holder, payee: r.payeeId, payer: r.payer, payerBroker: r.payer !== 0 && w.companies[r.payer - 1]!.role === "broker", own: r.payer !== 0 && samePerson(w, r.payer, c.id), dueDay: r.dueDay, today: dayOf(w.t, w.cfg) };
+  }
+  return pre;
+}
+
+/** An answer the state contradicts: an ok the rule forbids, or a refusal whose stated reason isn't true. Null when true. */
+function refusalTruth(w: World, c: Company, a: Action, res: ActionResult, pre: Pre): string | null {
+  const fee = 1 + w.cfg.brokerage.transferFeePct;
+  switch (a.type) {
+    case "tender_own":
+      if (!pre.band) return null;
+      if (res.ok && !(a.rate >= pre.band[0] - 1e-9 && a.rate <= pre.band[1] + 1e-9)) return `tender_own ok at ${a.rate.toFixed(3)} outside the band [${pre.band[0].toFixed(3)}, ${pre.band[1].toFixed(3)}]`;
+      if (!res.ok && res.reason === "the pay is outside the lane's band" && a.rate >= pre.band[0] && a.rate <= pre.band[1]) return `tender_own refused as outside the band at ${a.rate.toFixed(3)} inside [${pre.band[0].toFixed(3)}, ${pre.band[1].toFixed(3)}]`;
+      return null;
+    case "cash_invoice": {
+      const i = pre.inv;
+      if (!res.ok || !i) return null;
+      if (i.holder !== c.id || i.payee !== c.id) return "cash_invoice ok on paper the company didn't hold";
+      if (i.own) return "cash_invoice ok on paper between one owner's two companies";
+      if (i.payer !== 0 && !i.payerBroker) return "cash_invoice ok on a player shipper's paper";
+      if (i.dueDay <= i.today) return "cash_invoice ok on paper due today";
+      const r = w.receivables.find((x) => x.id === a.receivableId);
+      if (r && r.holder !== HOLDER_NPC_FACTOR) return "cash_invoice ok but the factor doesn't hold the paper";
+      return null;
+    }
+    case "reserve_deposit":
+      if (res.ok && pre.cash < a.fd - 0.01) return `reserve_deposit ok of ${a.fd.toFixed(2)} from ${pre.cash.toFixed(2)} cash`;
+      if (!res.ok && res.reason === "insufficient FD" && pre.cash >= a.fd) return `reserve_deposit refused as insufficient with ${pre.cash.toFixed(2)} cash for ${a.fd.toFixed(2)}`;
+      return null;
+    case "reserve_withdraw":
+      if (res.ok && pre.reserve < a.fd - 0.01) return `reserve_withdraw ok of ${a.fd.toFixed(2)} from ${pre.reserve.toFixed(2)} held`;
+      if (!res.ok && res.reason === "the Reserve hasn't that much" && pre.reserve >= a.fd) return `reserve_withdraw refused with ${pre.reserve.toFixed(2)} held for ${a.fd.toFixed(2)}`;
+      return null;
+    case "transfer_capital":
+      if (res.ok && (pre.liquidating || pre.weeksInDebt > 0)) return "transfer_capital ok out of a company wound up or in debt";
+      if (res.ok && pre.cash < a.fd * fee - 0.01) return `transfer_capital ok of ${a.fd.toFixed(2)} and its fee from ${pre.cash.toFixed(2)}`;
+      if (!res.ok && res.reason === "that would leave the company negative" && pre.cash >= a.fd * fee + 0.01) return `transfer_capital refused as negative with ${pre.cash.toFixed(2)} for ${(a.fd * fee).toFixed(2)}`;
+      return null;
+    case "form_brokerage":
+      if (res.ok && pre.cash < a.capitalFd * fee - 0.01) return `form_brokerage ok with ${pre.cash.toFixed(2)} for ${(a.capitalFd * fee).toFixed(2)}`;
+      return null;
+    default:
+      return null;
+  }
+}
+
+/** Options for a fuzz seed: `three` turns the three rules on and adds their actions (pass 2026-11-03b). */
+export interface FuzzOpts {
+  three?: boolean;
+}
+
 export interface FuzzResult {
   seed: number;
   steps: number;
@@ -82,22 +210,48 @@ export interface FuzzResult {
   violations: { day: number; at: number; companyId: number; action: string; messages: string[] }[];
   replayMatch: boolean;
   firstViolation: { seed: number; steps: FuzzStep[] } | null;
+  /** Three mode: the new actions tried and accepted, by type, and the final ledger hash (and the replay's). */
+  three?: { tried: Record<string, number>; ok: Record<string, number>; reasons: Record<string, number>; hash: string; replayHash: string };
 }
 
-/** Runs one fuzz seed. Records the step log so a violation can be replayed to the shortest prefix. */
-export function fuzzSeed(seed: number, days: number, mk: MakeOpts, actionsPerDay: number, trace = false): FuzzResult {
-  const r = mulberry32(seed * 2654435761);
-  const w = makeWorld({ ...mk, seed, keepEntries: trace });
-  // A handful of attacker companies the fuzz drives: carriers and a broker, free path and established.
+/** The attacker companies a fuzz world starts with (the same in the run and its replay). */
+function fuzzAttackers(w: World, three: boolean): Company[] {
   const attackers: Company[] = [
     addAttacker(w, "fuzz-oo", { role: "carrier", freePath: true }),
     addAttacker(w, "fuzz-fleet", { role: "carrier", freePath: false }),
     addAttacker(w, "fuzz-broker", { role: "broker", freePath: false }),
   ];
-  // Seed each with FD so they can act (a grant is given at formation; top up the broker's licence stake room).
-  for (const c of attackers) w.ledger.post(w.t, "faucet:starting_grant", companyAccount(c.id), 200_000, `redteam-seed:${c.id}`);
+  // Three mode: the free owner is a human player, so the rules that bind players (double brokering closed) bind it,
+  // and the attackers are funded enough to form a brokerage even after random spending (so pass/tender get exercised).
+  if (three) attackers[0]!.human = true;
+  const grant = three ? 2_000_000 : 200_000;
+  for (const c of attackers) w.ledger.post(w.t, "faucet:starting_grant", companyAccount(c.id), grant, `redteam-seed:${c.id}`);
+  return attackers;
+}
+
+const threeMk = (mk: MakeOpts, three: boolean): MakeOpts => (three && mk.cfg ? { ...mk, cfg: (() => {
+  const cfg = structuredClone(mk.cfg);
+  for (const [path, v] of Object.entries(THREE_SWITCHES)) {
+    const keys = path.split(".");
+    let node = cfg as unknown as Record<string, unknown>;
+    for (const k of keys.slice(0, -1)) node = node[k] as Record<string, unknown>;
+    node[keys.at(-1)!] = v;
+  }
+  return cfg;
+})() } : mk);
+
+/** Runs one fuzz seed. Records the step log so a violation can be replayed to the shortest prefix. */
+export function fuzzSeed(seed: number, days: number, mk0: MakeOpts, actionsPerDay: number, trace = false, opts: FuzzOpts = {}): FuzzResult {
+  const three = opts.three === true;
+  const mk = threeMk(mk0, three);
+  const r = mulberry32(seed * 2654435761);
+  const w = makeWorld({ ...mk, seed, keepEntries: trace });
+  // A handful of attacker companies the fuzz drives: carriers and a broker, free path and established, each seeded
+  // with FD so it can act; in three mode a brokerage a carrier forms joins them.
+  const attackers = fuzzAttackers(w, three);
 
   const res: FuzzResult = { seed, steps: 0, okActions: 0, refusedActions: 0, threw: 0, violations: [], replayMatch: true, firstViolation: null };
+  const tally = { tried: {} as Record<string, number>, ok: {} as Record<string, number>, reasons: {} as Record<string, number> };
   const log: FuzzStep[] = [];
   const hoursTotal = (days * w.cfg.time.gameMinutesPerDay) / 60;
   const perHour = Math.max(1, Math.round((actionsPerDay * 60) / w.cfg.time.gameMinutesPerDay));
@@ -105,24 +259,70 @@ export function fuzzSeed(seed: number, days: number, mk: MakeOpts, actionsPerDay
   for (let h = 0; h < hoursTotal; h++) {
     stepHour(w, ruleBotHook);
     const day = dayOf(w.t, w.cfg);
+    // Three mode: a carrier attacker forms its brokerage the first hour it can (the layer open, the carrier trading,
+    // the capital in hand), before random play drains it, so the pair's actions get exercised. Logged like any step.
+    if (three) {
+      for (const c of [...attackers]) {
+        if (c.role !== "carrier" || c.partnerId !== undefined || canFormBrokerage(w, c) !== null) continue;
+        if (w.ledger.balance(companyAccount(c.id)) < 200_000) continue;
+        const a: Action = { type: "form_brokerage", name: `fuzz brokerage ${c.id}`, capitalFd: 150_000 };
+        log.push({ at: w.t, companyId: c.id, a });
+        res.steps++;
+        tally.tried[a.type] = (tally.tried[a.type] ?? 0) + 1;
+        const guard = `weeksInDebt ${c.weeksInDebt}, tierGraceDay ${c.tierGraceDay}, cash ${w.ledger.balance(companyAccount(c.id)).toFixed(0)}`;
+        let out: ActionResult;
+        try {
+          out = applyAction(w, c.id, a);
+        } catch (e) {
+          // The action threw on well-formed input: record it with the state it left (a broker company formed and linked?).
+          res.threw++;
+          const b = c.partnerId !== undefined ? w.companies[c.partnerId - 1] : undefined;
+          const left = b ? `left a half-formed brokerage co:${b.id} linked to co:${c.id} (cash ${w.ledger.balance(companyAccount(b.id)).toFixed(0)}, staked ${b.stakedFd.toFixed(0)})` : "left no brokerage";
+          res.violations.push({ day, at: w.t, companyId: c.id, action: a.type, messages: [`form_brokerage threw: ${(e as Error).message} (${guard}); ${left}`] });
+          if (b && !attackers.includes(b)) attackers.push(b);
+          continue;
+        }
+        if (out.ok) {
+          res.okActions++;
+          tally.ok[a.type] = (tally.ok[a.type] ?? 0) + 1;
+          const b = partnerOf(w, c);
+          if (b && !attackers.includes(b)) attackers.push(b);
+        } else res.refusedActions++;
+      }
+    }
     // Inject a few fuzz actions this hour.
     for (let i = 0; i < perHour; i++) {
       const c = pick(r, attackers);
-      const a = randomAction(w, c, r);
+      const a = (three && chance(r, 0.45) ? threeAction(w, c, r) : null) ?? randomAction(w, c, r);
+      const pre = three ? preState(w, c, a) : null;
       const step: FuzzStep = { at: w.t, companyId: c.id, a };
       log.push(step);
       res.steps++;
       let threw = false;
+      const lies: string[] = [];
       try {
         const out = applyAction(w, c.id, a);
         if (out.ok) res.okActions++;
         else res.refusedActions++;
+        if (three) {
+          tally.tried[a.type] = (tally.tried[a.type] ?? 0) + 1;
+          if (out.ok) tally.ok[a.type] = (tally.ok[a.type] ?? 0) + 1;
+          else if (["form_brokerage", "transfer_capital", "pass_tender", "tender_own", "cash_invoice", "reserve_deposit", "reserve_withdraw", "rebroker_load"].includes(a.type)) tally.reasons[`${a.type}: ${out.reason}`] = (tally.reasons[`${a.type}: ${out.reason}`] ?? 0) + 1;
+          if (out.ok && a.type === "form_brokerage") {
+            const b = partnerOf(w, c);
+            if (b && !attackers.includes(b)) attackers.push(b);
+          }
+          const lie = pre ? refusalTruth(w, c, a, out, pre) : null;
+          if (lie) lies.push(`untrue answer: ${lie}`);
+          // Double brokering, closed to player carriers (brokerage.closeDoubleBrokering): a human carrier or one with a brokerage.
+          if (out.ok && a.type === "rebroker_load" && c.role === "carrier" && (c.human || c.partnerId !== undefined)) lies.push("rebroker_load ok for a player carrier");
+        }
       } catch (e) {
         threw = true;
         res.threw++;
         res.violations.push({ day, at: w.t, companyId: c.id, action: a.type, messages: [`applyAction threw: ${(e as Error).message}`] });
       }
-      const v = checkInvariants(w, `d${day}`);
+      const v = [...checkInvariants(w, `d${day}`), ...(three ? checkThree(w, `d${day}`) : []), ...lies];
       if (v.length || threw) {
         if (v.length) res.violations.push({ day, at: w.t, companyId: c.id, action: a.type, messages: v });
         if (!res.firstViolation) {
@@ -133,20 +333,30 @@ export function fuzzSeed(seed: number, days: number, mk: MakeOpts, actionsPerDay
       }
     }
   }
-  // Replay: rebuild the world from the same seed and the recorded log; compare the final cap snapshot.
-  res.replayMatch = replayMatches(seed, days, mk, log, w);
+  // Replay: rebuild the world from the same seed and the recorded log; compare the final cap snapshot (and, in three
+  // mode, every account's balance and spend-only part).
+  const replay = replayWorld(seed, days, mk, log, three);
+  res.replayMatch = snapMatches(w, replay);
+  if (three) {
+    const hash = ledgerHash(w);
+    const replayHash = ledgerHash(replay);
+    res.three = { ...tally, hash, replayHash };
+    res.replayMatch &&= hash === replayHash;
+  }
   return res;
 }
 
-/** Rebuilds the world and applies the recorded fuzz steps at their minutes, then compares the final snapshot. */
-function replayMatches(seed: number, days: number, mk: MakeOpts, log: FuzzStep[], original: World): boolean {
+function snapMatches(original: World, w: World): boolean {
+  const a = snap(original);
+  const b = snap(w);
+  const close = (x: number, y: number) => Math.abs(x - y) < 0.5;
+  return close(a.supply, b.supply) && close(a.reserve, b.reserve) && close(a.burned, b.burned) && close(a.allocated, b.allocated);
+}
+
+/** Rebuilds the world and applies the recorded fuzz steps at their minutes. */
+function replayWorld(seed: number, days: number, mk: MakeOpts, log: FuzzStep[], three: boolean): World {
   const w = makeWorld({ ...mk, seed });
-  const attackers = [
-    addAttacker(w, "fuzz-oo", { role: "carrier", freePath: true }),
-    addAttacker(w, "fuzz-fleet", { role: "carrier", freePath: false }),
-    addAttacker(w, "fuzz-broker", { role: "broker", freePath: false }),
-  ];
-  for (const c of attackers) w.ledger.post(w.t, "faucet:starting_grant", companyAccount(c.id), 200_000, `redteam-seed:${c.id}`);
+  fuzzAttackers(w, three);
   const hoursTotal = (days * w.cfg.time.gameMinutesPerDay) / 60;
   let li = 0;
   for (let h = 0; h < hoursTotal; h++) {
@@ -160,10 +370,7 @@ function replayMatches(seed: number, days: number, mk: MakeOpts, log: FuzzStep[]
       li++;
     }
   }
-  const a = snap(original);
-  const b = snap(w);
-  const close = (x: number, y: number) => Math.abs(x - y) < 0.5;
-  return close(a.supply, b.supply) && close(a.reserve, b.reserve) && close(a.burned, b.burned) && close(a.allocated, b.allocated);
+  return w;
 }
 
 /** On the first violation, dump the offending co: accounts and their recent ledger entries. */
@@ -192,6 +399,7 @@ function main(): void {
       launch: { type: "boolean", default: false }, // bring the token launch forward so the exchange/bridge are exercised
       seasons: { type: "string", default: "on" },
       trace: { type: "boolean", default: false }, // keep ledger entries and dump the first violation's accounts
+      three: { type: "boolean", default: false }, // pass 2026-11-03b: the brokerage, the Reserve and cash now on, with their actions
     },
   });
   const seeds = values.seeds!.split(",").map(Number);
@@ -202,11 +410,11 @@ function main(): void {
   const cfg = values.profile === "base" ? undefined : liveConfig(overrides);
   const mk: MakeOpts = { cfg: values.profile === "base" ? (Object.keys(overrides).length ? liveConfig(overrides) : undefined) : cfg, seasons: values.seasons !== "off" };
 
-  console.log(`FUZZ · profile ${values.profile} · ${days} days · ${actionsPerDay} actions/day · launch ${values.launch} · seeds ${seeds.join(",")}`);
+  console.log(`FUZZ · profile ${values.profile} · ${days} days · ${actionsPerDay} actions/day · launch ${values.launch} · three ${values.three} · seeds ${seeds.join(",")}`);
   let anyBad = false;
   for (const seed of seeds) {
     const t0 = performance.now();
-    const res = fuzzSeed(seed, days, mk, actionsPerDay, values.trace);
+    const res = fuzzSeed(seed, days, mk, actionsPerDay, values.trace, { three: values.three });
     const secs = ((performance.now() - t0) / 1000).toFixed(1);
     const bad = res.violations.length > 0 || !res.replayMatch;
     anyBad ||= bad;
@@ -214,6 +422,13 @@ function main(): void {
       `  seed ${seed}: ${res.steps} steps (${res.okActions} ok, ${res.refusedActions} refused, ${res.threw} threw) · replay ${res.replayMatch ? "match" : "MISMATCH"} · ${res.violations.length} violations · ${secs}s`,
     );
     for (const v of res.violations.slice(0, 8)) console.log(`    ! day ${v.day} t${v.at} co${v.companyId} ${v.action}: ${v.messages.join("; ")}`);
+    if (res.three) {
+      const t = res.three;
+      console.log(`    hash ${t.hash} · replay ${t.replayHash}`);
+      console.log(`    new actions ok/tried: ${Object.keys(t.tried).filter((k) => ["form_brokerage", "transfer_capital", "pass_tender", "accept_tender", "tender_own", "cash_invoice", "reserve_deposit", "reserve_withdraw", "rebroker_load"].includes(k)).map((k) => `${k} ${t.ok[k] ?? 0}/${t.tried[k]}`).join(", ")}`);
+      const top = Object.entries(t.reasons).sort((a, b) => b[1] - a[1]).slice(0, 14);
+      for (const [k, n] of top) console.log(`      refused ${n}× ${k}`);
+    }
   }
   console.log(anyBad ? "\nFUZZ FOUND VIOLATIONS" : "\nFuzz clean: every invariant held and replays matched.");
 }

@@ -15,6 +15,7 @@ import {
   createWorld,
   dayOf,
   formCompany,
+  reserveOutAccount,
   stepHour,
   CIRCULAR_BURNS,
   type Action,
@@ -158,3 +159,90 @@ export function checkInvariants(w: World, label = ""): string[] {
 }
 
 export const burnTags = [...CIRCULAR_BURNS];
+
+
+// ---- Pass 2026-11-03b: the three rules of the next restart (studio/reviews/redteam-2026-11-03b.md) ----------------
+
+/** The three switches that go live together at the next restart: the player brokerage, the Reserve, cash now. */
+export const THREE_SWITCHES: Record<string, unknown> = {
+  "brokerage.enabled": true,
+  "cashReserve.enabled": true,
+  "token.payment.cashNow.enabled": true,
+};
+
+/** The live profile with the three switches on, and any overrides on top. */
+export const threeConfig = (overrides: Record<string, unknown> = {}): EconomyConfig => liveConfig({ ...THREE_SWITCHES, ...overrides });
+
+/** Every account's balance and spend-only part, hashed with the clock: two worlds that replay bit for bit hash alike. */
+export function ledgerHash(w: World): string {
+  const rows = [...w.ledger.accounts()].sort((a, b) => (a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : 0));
+  let h = 0x811c9dc5;
+  const mix = (str: string) => {
+    for (let i = 0; i < str.length; i++) {
+      h ^= str.charCodeAt(i);
+      h = Math.imul(h, 0x01000193) >>> 0;
+    }
+  };
+  for (const [acct, cents] of rows) mix(`${acct}=${cents}/${Math.round(w.ledger.locked(acct) * 100)};`);
+  mix(`t=${w.t};n=${w.companies.length};r=${w.receivables.length};l=${w.loads.size}`);
+  return `${h.toString(16).padStart(8, "0")}:${rows.length}`;
+}
+
+/** A read-only tap on a world's ledger: every posting `key` names is summed under that key (the probes' accounting). */
+export type TapKey = (from: string, to: string, ref: string) => string | null;
+export function tapLedger(w: World, key: TapKey): Map<string, number> {
+  const sums = new Map<string, number>();
+  const ledger = w.ledger;
+  const post = ledger.post.bind(ledger);
+  ledger.post = ((t: number, from: string, to: string, amount: number, ref: string, mode?: Parameters<typeof post>[5]) => {
+    const moved = post(t, from, to, amount, ref, mode);
+    const k = key(from, to, ref);
+    if (k !== null) sums.set(k, (sums.get(k) ?? 0) + Math.round(amount * 100) / 100);
+    return moved;
+  }) as typeof ledger.post;
+  return sums;
+}
+
+/** The company a `co:` account belongs to (`co:<id>`, `co:stake:<id>`, `co:cashreserve:<id>`...), or null (pools, loan stakes). */
+export function companyOfAccount(acct: string): number | null {
+  if (acct.startsWith("co:loanstake:") || acct.startsWith("co:pool:")) return null;
+  const m = /^co:(?:[a-z-]+:)?(\d+)$/.exec(acct);
+  return m ? Number(m[1]) : null;
+}
+
+/** What the NPC factor is still owed and hasn't recovered, and the overdraft paper has pushed through (the FD a bond cap must stop). */
+export function factorLeak(w: World): { uncovered: number; overdraft: number } {
+  const log = w.factoringLog;
+  return { uncovered: log?.uncoveredFd ?? 0, overdraft: log?.overdraftFd ?? 0 };
+}
+
+/**
+ * The invariants the three rules add, beyond `checkInvariants`: the pair link is two-way and one of each role, a stake
+ * never stands above the FD its account holds, a launch hold never pays out more than it kept, the Reserve's settling
+ * entries agree with its account, and no receivable is negative. (Money conservation and the cap identity are
+ * `checkInvariants`; a broker's bond cover is measured by the factor-leak probe, since the engine counts a broker's
+ * own shipper paper in its AP too.)
+ */
+export function checkThree(w: World, label = ""): string[] {
+  const out: string[] = [];
+  const pre = label ? `${label}: ` : "";
+  for (const c of w.companies) {
+    if (w.cfg.brokerage.enabled && c.partnerId !== undefined) {
+      const p = w.companies[c.partnerId - 1];
+      if (!p || p.partnerId !== c.id) out.push(`${pre}${c.name}: the pair link isn't two-way (${c.id} -> ${c.partnerId})`);
+      else if (p.role === c.role) out.push(`${pre}${c.name}: a pair of two ${c.role}s`);
+    }
+    const stake = w.ledger.balance(`co:stake:${c.id}`);
+    if (c.stakedFd > stake + EPS) out.push(`${pre}${c.name}: stakedFd ${c.stakedFd.toFixed(2)} over its stake account ${stake.toFixed(2)}`);
+    const h = c.launchBond;
+    if (h && h.drawnFd > h.heldFd + EPS) out.push(`${pre}${c.name}: the launch hold paid ${h.drawnFd.toFixed(2)} of ${h.heldFd.toFixed(2)} kept`);
+    if (w.cfg.cashReserve.enabled) {
+      if ((c.reserveLowFd ?? 0) < -EPS) out.push(`${pre}${c.name}: the Reserve's week low is negative`);
+      const settling = (c.reserveOut ?? []).reduce((acc, x) => acc + x.fd, 0);
+      const acctFd = w.ledger.balance(reserveOutAccount(c.id));
+      if (Math.abs(settling - acctFd) > 1) out.push(`${pre}${c.name}: the Reserve's settling entries ${settling.toFixed(2)} != its account ${acctFd.toFixed(2)}`);
+    }
+  }
+  for (const r of w.receivables) if (r.amountFd < -EPS) out.push(`${pre}receivable ${r.id} is negative (${r.amountFd.toFixed(2)})`);
+  return out;
+}
