@@ -1,4 +1,4 @@
-# Decisions with information (UX spec, draft 2, 2026-11-03; owner: UX; diary 3 added)
+# Decisions with information (UX spec, draft 3, 2026-11-03; owner: UX; diaries 2–4)
 
 From the second player diary (`playtests/play-2026-11-02-impatient-fleet-owner.md`, 19 screenshots) and the
 director's triage (`reviews/director-player2.md`, R6–R10, findings 8–11). The director owns the rules; this spec
@@ -232,7 +232,77 @@ TX · "Miles" 1,479 loaded · 28 empty from Columbus · **"Weight" 42,000 lb · 
   with two different "from"s.
 - **Weight:** see question 4; until it's answered, no weight figure ships.
 
-## 7. For the director
+## 7. What binds, and buttons that answer: R19 and R20 (diary 4)
+
+From the gamer's diary (`playtests/play-2026-11-02-gamer.md`, laptop, 24 screenshots) and the director's
+`reviews/director-player4.md`, R19, R20 and rows 5–7.
+
+### R19: every cap in one place, the binding one first
+
+**The card "What limits your fleet"**, one component, shown in two places a fleet owner looks before buying: at the
+top of the **Dealer** (above the listings) and on **Company** (under the stats). It lists every cap the engine
+applies (`truckCap`'s three parts and the managers' `opsCap`), each a row with its figure and what raises it, and
+puts the one that binds first at the top, in bold:
+
+> **You may run 5: your yard holds 5.** Yards open Jan 29.
+> Staking allows 10 · your stake 40,000 FD
+> Operations managers cover 7 · you have none
+> The company limit is 30
+
+- **Header:** "You may run {n} · you run {m}". When n = m, the header is amber and the binding row says what
+  raises it: "Yards open Jan 29" (before the layer), "A small yard: 109,700 FD + a 30,000 FD bond" (after), "Stake
+  20,000 more" (tiers), "Hire an operations manager" (managers).
+- **While the stake tiers are off** (Jeff: truck prices are the entry fee; `lockDiscounts` on), the staking row
+  doesn't appear, and nothing anywhere says a stake allows trucks.
+- **R6's card before a stake** says when it buys nothing today: line 3, "Staking allows 10 trucks, but your yard
+  holds 5 until Jan 29: today this stake only earns its discount." Line 4, the risk: "Leaving early costs a
+  quarter, burned, or 28 days in the queue."
+- Buy, Order and Lease buttons check the same caps first (R7) and, when one binds, show its row's words in place of
+  "Company truck cap": "Your yard holds 5: this makes 6. Yards open Jan 29."
+
+**The staking card (Finance › Staking)**, rewritten so it never stays the same after money moves:
+- **"Your stake: 40,000 FD"**, large, with "· 20,000 leaving, back Feb 28" while any is in the queue.
+- **"Its discount: 5% off fuel, maintenance, rebuilds, insurance and board fees"** (the tier's, or the lock's rate).
+- **"Its term:"** "none: unstake any time (28 days in the queue, or now for 75%)" under the tiers; the lock's dates
+  under the locks (`finance.md`, Card 4, Later).
+- **"What it allows:"** the staking row of the caps card ("Staking allows 10 · your yard binds at 5"), tiers only.
+- **Unstake answers** (R20's pattern): "Leaving: 20,000 FD · in your cash Feb 28" or "15,000 FD back now · 5,000
+  burned", under the button, and the stake figure changes at once.
+
+**Borrow while the pools are off.** The diary's 55,661 FD offer answered "The pool doesn't have the cash": a loan
+only a pool can fund. Until the economy says whether the NPC lender writes it, **Borrow against a truck doesn't
+show** while `poolsOn` is false (Finance's Credit card, `finance.md`); if the lender writes it, R7's rule holds
+(only what it will lend).
+
+### R20: every button answers, one pattern
+
+**The pattern, for every control that sends an order:**
+1. **At the press,** the control shows its state in place: in the test world the result at once; in the live
+   world "Sent · in effect 06:02" until the world applies it.
+2. **The answer lands under the control that sent it,** one line, in the row or card where the press was: plain
+   for a result, red for a refusal with the engine's reason and its numbers. It stays until that control is used
+   again or the screen is left. **Not a toast:** a toast is gone before a reader reads it and sits away from the
+   press (diary 4 missed every one). Toasts stay only for the connection.
+3. **An answer that comes later** (a live-world order applied after the player left, an offer someone answers) is
+   a **pending chip on the row** ("Offer sent · answer by Feb 3") until it lands. Then it becomes the row's
+   result line, a feed line, and, **if it needs the player,** a Needs-you item with its button.
+4. **A press the engine will refuse is caught before it** (R7): the control is disabled with the reason beside it,
+   and step 2 never has to say it.
+
+**The five the gamer found, by that pattern:**
+
+| Control | Before the press (R7) | Result line | Refusal line |
+|---|---|---|---|
+| **Bid** (any rate) | the bid's live line shows the profit and, above the ceiling, "Above the ceiling 7.64: it wins only if nobody bids under it" (R17 may change the rule; the line follows the rule) | "Bid in: 30.00/mi · clears 18:00 · in 5 h", and the card pins (S4) | the engine's reason, with its figure |
+| **Book now, vetting-blocked** | disabled; beside it "Strict vetting: needs 90 days' authority (you have 34) and 25 loads delivered (you have 12)" | – | – |
+| **Lease past the cap** | disabled; the binding cap's words (R19) | "Leased: Truck 6 arrives at Columbus today · deposit 4,800 FD" | – |
+| **Unstake** | R6's card when over 25% of cash or instant (a burn) | "Leaving: 20,000 FD · in your cash Feb 28" / "15,000 back now · 5,000 burned" | the engine's reason ("your bond backs what you owe carriers") |
+| **Poach: Offer** | the offer's wage and the R6 line if it passes a week's net | pending chip "Offer sent to Donna Reyes · 0.92/mi · answer by Feb 3" | when answered: "Donna Reyes accepted: starts on Truck 3" or "declined: stays with Prairie Haul", with a feed line |
+
+**Engineering's check:** a test that presses every action-sending control in a world built to refuse it and to
+accept it, and fails if either leaves no result line, pending chip or disabled reason on screen.
+
+## 8. For the director
 
 - **"SMALL YARD · $900"** on Business is a dollar price on the first month's path (diary 18). Jeff let token
   surfaces stay, off the first ten minutes' path; this one is on a growth button. I'd move it under Money's "The
