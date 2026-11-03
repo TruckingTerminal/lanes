@@ -44,6 +44,19 @@ One row in the page's flow, never an overlay, so nothing she says can sit on a f
   portrait under the first, repeating the caption's line word for word (rule 4). The change: the chip goes in the
   caption's own button row, and the answer replaces the caption's content, one portrait (sections 2 and 5).
 
+**Her first words are always in view** (the player's diary, finding 4: the first in-game screen opened scrolled
+past her). The sheet's content scrolls to the top on every tab change and on the first entry after **Start here**,
+so the caption is the first thing in it. When a new line arrives (caption rules 1–3) while the player has
+scrolled down past the caption, the sheet doesn't jump: the grab-handle row shows her 24 px face with a dot, and a
+tap there scrolls to her. Decorative paintings (the yard, the truck stop) sit below the caption and the first card,
+never above them.
+
+**Where the walkthrough lives: in the caption, not in a drawer** (finding 4: the thirteen steps were found by
+accident under More). While a step is current, the caption's line starts with a link, **"Step 4 of 13 ›"**. A tap
+opens that step's full card in the sheet over the current tab (full height on a phone): her paragraphs, the Do,
+the Why, the step's **Go to …** button, and **Back**/**Read ahead** between steps. Closing it returns to the tab.
+More › Iuliia keeps the whole list, the timeline and Help, as the archive, not the way in.
+
 **Laptop.** The caption under the five-tab control, as built, with the chip at the right of its button row. The
 key **?** opens What now? from anywhere outside a text field.
 
@@ -99,7 +112,10 @@ finds it.
 the writer's): "Tap any number with a dotted line and I'll show you where it comes from."
 
 ### The explain sheet, phone
-- **Where:** a bottom sheet, rising over the nav to **at most 60% of the screen height**. Before it rises, the page
+- **Where:** a bottom sheet **standing on the nav, never under or over it**: its bottom edge is the nav's top
+  edge (56 px plus the phone's safe area), and it rises to **at most 60% of the screen height**. (Draft 2 said
+  "over the nav"; built that way, the nav covered the sheet's foot and trapped the player, the player's diary of
+  2026-11-02, finding 1.) Before it rises, the page
   scrolls so the tapped figure sits at least 16 px above the sheet's top edge, and the figure gets a 2 px outline
   in the accent colour while the sheet is open. **The figure is never covered.** A figure in the top strip (cash,
   the clock) needs no scroll; the strip stays visible.
@@ -113,8 +129,20 @@ the writer's): "Tap any number with a dotted line and I'll show you where it com
   show; the rest fold into "Everything else 0.11/mi" with **Show all 9**. A row whose input has its own key is a
   link: it opens that figure's sheet in place, with a back arrow; at most three deep.
 - **What moves it:** up to three levers, each a row with "›" to where it's done ("Rebuild the truck › Truck").
-- **Foot:** **What now?** (its answer shows in the sheet's foot; the sheet stays) and **Close**. Drag down or tap
-  outside to close.
+- **Foot, pinned:** **What now?** (its answer shows in the foot; the sheet stays) and **Close**, in a 56 px foot
+  that never scrolls. Only the middle (what it is, how, what moves it) scrolls, between the header and the foot.
+  At any height and any content length, Close is on screen.
+- **Closing it, on a phone, five ways, all of which must work** (QA tests each):
+  1. **Close** in the foot;
+  2. an **×** in the header's top-right corner, 44 px;
+  3. **a tap anywhere outside the sheet**: a transparent layer over the rest of the screen catches it (no dimming,
+     so the outlined figure stays readable); the tap closes the sheet and does nothing else;
+  4. **a swipe down** on the header or its grab bar (a 36 × 4 px bar at the top centre);
+  5. **a tab change** in the bottom nav (the nav sits outside the sheet and stays tappable): the sheet closes, and
+     the new tab opens without it. **A sheet never follows the player to another tab.**
+  Plus the phone's Back gesture (the sheet pushes one history entry) and Escape on a keyboard.
+- **The same rules hold for every sheet on a phone** (the confirm sheets in Finance, the brokerage, Move money):
+  standing on the nav, a pinned foot, the five ways out.
 - **A band** (credit C) shows its score, its inputs, and the cut-offs in one line: "C is 50–64. You're at 62."
 - **Another company's figure** (Intel): what it is and what moves it, in general. **Never the other company's
   inputs**: the breakdown is private, and Intel's row 1 holds.

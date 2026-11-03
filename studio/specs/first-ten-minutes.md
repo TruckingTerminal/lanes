@@ -40,7 +40,16 @@ is your call". After that bid, `DEFAULT_ORDERS` apply (S9).
 
 **Phone (< 900 px).**
 - **Top strip, one row, 44 px, fixed:** clock ("Tue 06:00"), cash ("4,700 FD"), an alert dot with a count (taps
-  to Truck's "Needs you"), "≡". Test build adds one speed button cycling "Paused · 1× · 10× · 30×".
+  to Truck's "Needs you"), "≡". Test build adds **the speed control: two buttons, never one that cycles** (the
+  player's diary, 2026-11-02: a cycle reaches Paused only through the fastest speed, and three game days went by
+  while they tried to stop):
+  - **Pause/Play**, 44 × 44 px, an icon (❚❚ while running, ▶ while paused). One tap always stops or starts.
+    Play resumes at the last speed chosen.
+  - **The speed**, a button showing the current speed in short form ("Live", "1 d/min", "1 d/6 s", "1 d/2 s";
+    the writer's words, at most 72 px). A tap opens a small menu of the four speeds, one 44 px row each, the
+    current one marked; picking one sets the speed and closes the menu. While paused, picking a speed sets it and
+    stays paused; Play starts it. No overshoot is possible: any speed is one pick away.
+  - The welcome-back line on a phone says "Tap ▶ to run the clock", not "press 1–4".
 - **"≡" menu:** "Title screen", "Full screen", "Report a bug or an idea".
 - **Bottom nav, 56 px, fixed, four items, icon over label:** **Truck · Board · Money · More**. "Truck" reads
   "Trucks" from the second truck. A dot when something waits: Board, a bid result; Money, an invoice; Truck, an
@@ -49,7 +58,8 @@ is your call". After that bid, `DEFAULT_ORDERS` apply (S9).
   Dallas · round 18:00"), half (50 %), full (to the top strip). Drag handle; a nav tap opens half, Board opens
   full; tapping the map drops it to strip.
 
-**Laptop (≥ 900 px).** One 44 px top row (the strip's items, the four test-speed buttons). Map left; a 440 px
+**Laptop (≥ 900 px).** One 44 px top row (the strip's items; the test build's four speed buttons plus a
+Pause/Play button, with Space for Pause/Play and 1–4 for the speeds). Map left; a 440 px
 panel right. Its tab row: Truck, Board, Money, More (100 px each, never truncated); under it a 36 px "Soon" row
 of the teaser tabs as 28 px icons with their name on hover and on focus. The footer ticker stays, laptop only.
 
@@ -78,7 +88,10 @@ Report. Miles and "Beta · launch in 730d" move to Money's token group (S8).
 
 **Iuliia** (both layouts): portrait 96 px (the `iuliia` loop at 0.75), one or two sentences at a time (the
 writer cuts lines to 25 words), "Next", then the step's Do, "Hide". Top of the sheet on a phone; at strip height
-her line is the strip. Never between a list's header and its first row.
+her line is the strip. Never between a list's header and its first row. **The first in-game screen opens with
+the sheet's content scrolled to the top**, so her first line after **Start here** is the first thing the player
+sees; the yard painting comes after her and the truck card. Her walkthrough opens from the caption's
+"Step n of 13 ›" link, not from More (`specs/guidance-ux.md`, section 1).
 
 ### S0 Login (0:00–0:15)
 The title loop and its two shots, full screen, and nothing a stranger has to read. Under the logo, one action:
