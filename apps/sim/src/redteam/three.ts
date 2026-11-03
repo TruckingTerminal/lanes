@@ -13,6 +13,7 @@ import {
   companyAccount,
   dayOf,
   facilitiesOf,
+  ownBand,
   partnerOf,
   reserveCapFd,
   reserveFd,
@@ -293,7 +294,9 @@ function capInflate(seed: number): void {
   const capGain = capPeak - capBefore;
   const wcGain = wcPeak - wcBefore;
   const shelter = capGain + wcGain; // what the close would not burn, at the peak
-  const worked = leased.length > 0 && shelter > 2 * Math.max(1, deposit);
+  // Counted as spending, the deposit lands one for one in the working-capital sum (and 13/4 of it in the cap); what
+  // the leased trucks spend while running is real cost and counts either way.
+  const worked = leased.length > 0 && wcGain >= 0.9 * deposit;
   report({
     id: "E3-CAPINFLATE",
     title: "the Reserve's cap inflated by spending that comes back",
@@ -303,16 +306,16 @@ function capInflate(seed: number): void {
       `${c.name}: ${leased.length} extra NPC leases, ${returned} handed back once idle after the ${w.cfg.freeEntry.leases.minTermDays}d term: deposits counted as spending ${money(deposit)}, refunded ${money(refund)} (${money(held)} still held, refundable); ` +
       `rent ${money(rent)} + overhead ${money(overhead)} paid while they ran. The Reserve cap ${money(capBefore)} -> ${money(capPeak)} and working capital ${money(wcBefore)} -> ${money(wcPeak)}: ` +
       `${money(shelter)} more shelter from the season close at the peak, ${(shelter / Math.max(1, deposit)).toFixed(1)} FD per FD of deposit put up (and the deposit comes back). ` +
-      `${worked ? "The deposit is refundable but counts as spending (ledger.ts NOT_SPENDING lacks \"deposit:\")" : "the cap holds"}.`,
+      `${worked ? "The deposit is refundable but counts as spending (ledger.ts NOT_SPENDING lacks \"deposit:\")" : `the deposit doesn't count: working capital rose ${money(wcGain)}, under the ${money(deposit)} a counted deposit would add, the rise being the leased trucks' own running costs`}.`,
   });
 }
 
-// --- E3-SPLIT: the airdrop's profit score split across the pair -----------------------------------
-// At the launch each company's beta operating profit is clamped at zero (token.ts launchToken) before
-// onePersonOneShare adds the brokerage's to its carrier's. So a brokerage's loss is dropped, not netted: the person
-// scores max(0, carrier) + max(0, brokerage) instead of max(0, carrier + brokerage). Rule B at the band's ceiling moves
-// profit from the brokerage to the carrier at will. This replicates the allocation from the state the day before the
-// launch both ways and reports the FD of airdrop share the split hands the pairs.
+// --- E3-SPLIT: the airdrop's profit score across the pair ----------------------------------------
+// One person, one result: the pair's airdrop should score max(0, carrier + brokerage), not the two clamped apart. This
+// reads the engine's own allocation at the launch day and judges it against that rule, recomputed from the same state
+// (the engine's miles and eligibility, only the profit rule spelled out); the old rule (each clamped, then added) is
+// printed for reference. A brokerage being wound up at the launch still counts against its carrier here: its losses
+// are the person's.
 function airdropSplit(seed: number): void {
   const w = makeWorld({
     seed,
@@ -322,24 +325,28 @@ function airdropSplit(seed: number): void {
     brokers: 20,
   });
   const launchAt = Math.round(w.cfg.token.betaYears * w.cfg.time.daysPerSeason);
-  run(w, launchAt - 1); // the state just before the launch day's jobs
+  run(w, launchAt); // through the launch day: the engine has allocated, nothing has moved the results since
   const tc = w.cfg.token;
   const op = (c: Company) => c.operating.revenueFd - c.operating.costFd + facilitiesOf(w, c.id).reduce((x, f) => x + f.netFd, 0);
   const life = (c: Company) => c.milesHistory.reduce((a, b) => a + b, 0) + c.milesTotal;
   const ok = (c: Company) => c.liquidatingSince === null && c.authority.status !== "revoked";
-  const shares = (fair: boolean): Map<number, number> => {
+  type Rule = "person" | "old";
+  const shares = (rule: Rule): Map<number, number> => {
     const miles = w.companies.map((c) => (ok(c) ? life(c) : 0));
-    const profits = w.companies.map((c) => (ok(c) ? Math.max(0, op(c)) : 0));
+    const profits = w.companies.map((c) => (ok(c) ? (rule === "old" ? Math.max(0, op(c)) : op(c)) : 0));
     w.companies.forEach((c, i) => {
       const carrier = c.role === "broker" ? partnerOf(w, c) : null;
       if (!carrier) return;
       const j = carrier.id - 1;
-      miles[j]! += miles[i]!;
-      // As built: the clamped parts add. Fair: one person, one result, clamped once.
-      profits[j] = fair ? (ok(carrier) ? Math.max(0, op(carrier) + (ok(c) ? op(c) : 0)) : 0) : profits[j]! + profits[i]!;
+      if (ok(carrier)) {
+        miles[j]! += miles[i]!;
+        // One person: the brokerage's result counts against its carrier even if the brokerage itself is being wound up.
+        profits[j] = rule === "old" ? profits[j]! + profits[i]! : profits[j]! + op(c);
+      }
       miles[i] = 0;
       profits[i] = 0;
     });
+    if (rule === "person") for (let i = 0; i < profits.length; i++) profits[i] = Math.max(0, profits[i]!);
     const tm = miles.reduce((a, b) => a + b, 0);
     const tp = profits.reduce((a, b) => a + b, 0);
     const cap = tc.airdrop.fd * tc.airdrop.capShare;
@@ -350,35 +357,81 @@ function airdropSplit(seed: number): void {
     });
     return out;
   };
-  const built = shares(false);
-  const fair = shares(true);
+  const person = shares("person");
+  const old = shares("old");
   const carriers = w.companies.filter((c) => c.role === "carrier" && c.partnerId !== undefined);
-  let extra = 0;
-  let pairsHelped = 0;
-  let brokerLoss = 0;
-  let biggest = 0;
-  for (const c of carriers) {
-    const d = (built.get(c.id) ?? 0) - (fair.get(c.id) ?? 0);
-    extra += d;
-    if (d > 1) pairsHelped++;
-    biggest = Math.max(biggest, d);
-    const b = partnerOf(w, c);
-    if (b && op(b) < 0) brokerLoss += -op(b);
-  }
-  run(w, 2); // through the launch: the engine's own allocation, to check the replica
-  const actual = carriers.reduce((x, c) => x + (c.airdrop?.totalFd ?? 0), 0);
-  const replica = carriers.reduce((x, c) => x + (built.get(c.id) ?? 0), 0);
+  const engine = carriers.reduce((x, c) => x + (c.airdrop?.totalFd ?? 0), 0);
+  const fair = carriers.reduce((x, c) => x + (person.get(c.id) ?? 0), 0);
+  const oldRule = carriers.reduce((x, c) => x + (old.get(c.id) ?? 0), 0);
+  const woundUp = carriers.filter((c) => { const b = partnerOf(w, c); return b !== null && !ok(b) && ok(c); }).length;
+  const gap = engine - fair;
+  const rel = fair > 0 ? gap / fair : 0;
   const inv = checkInvariants(w, "split").concat(checkThree(w, "split"));
   report({
     id: "E3-SPLIT",
-    title: "the airdrop's profit score split across the pair",
-    worked: extra > 1_000,
-    fdPerDay: extra / launchAt / Math.max(1, carriers.length),
+    title: "the airdrop's profit score across the pair (the engine against one result per person)",
+    worked: Math.abs(rel) > 0.005 || inv.length > 0,
+    fdPerDay: Math.max(0, gap) / launchAt / Math.max(1, carriers.length),
     detail:
-      `${carriers.length} pairs at the launch (day ${w.token.launchDay}): brokerages' beta losses ${money(brokerLoss)} dropped from the profit score, not netted; ` +
-      `the pairs' airdrop as built ${money(replica)} (the engine allocated ${money(actual)}) against ${money(replica - extra)} with one result per person: ` +
-      `${money(extra)} more for ${pairsHelped} pairs (largest ${money(biggest)}). ` +
-      `${inv.length ? inv.slice(0, 2).join("; ") : "money conserved; the excess comes out of the other companies' shares of the pot"}.`,
+      `${carriers.length} pairs at the launch (day ${w.token.launchDay}): the engine allocated the pairs ${money(engine)}; one result per person gives ${money(fair)} ` +
+      `(${gap >= 0 ? "+" : ""}${money(gap)}, ${(rel * 100).toFixed(2)}%); the old rule would have given ${money(oldRule)}. ` +
+      `${woundUp} pairs had their brokerage wound up at the launch. ${inv.length ? inv.slice(0, 2).join("; ") : "money conserved"}.`,
+  });
+}
+
+// --- E2-FORM: form_brokerage from a carrier in a debt week or under its stake ------------------------
+// The fix (01eb1c2) has canFormBrokerage refuse what transferCapital would. Two carriers reach the guarded states through
+// play, are given the capital, and try to form: each must get a clean refusal with nothing created (no broker company,
+// no partner link, no licence charged), and the action must not throw.
+function formGuards(seed: number): void {
+  const w = makeWorld({ seed, cfg: threeConfig(), oo: 100, fleets: 30, brokers: 15 });
+  run(w, 95); // the brokerage layer opens on day 91
+  const results: string[] = [];
+  let bad = 0;
+  const tryForm = (c: Company, label: string, want: string) => {
+    w.ledger.post(w.t, "faucet:starting_grant", companyAccount(c.id), 400_000, `redteam:${c.id}`); // the capital, whatever play left it
+    const n = w.companies.length;
+    let res: ReturnType<typeof applyAction> | null = null;
+    let threw = "";
+    try {
+      res = applyAction(w, c.id, { type: "form_brokerage", name: `${label} brokerage`, capitalFd: 150_000 });
+    } catch (e) {
+      threw = (e as Error).message;
+    }
+    const created = w.companies.length - n;
+    const clean = !threw && res !== null && !res.ok && res.reason === want && created === 0 && c.partnerId === undefined;
+    if (!clean) bad++;
+    results.push(`${label} (${c.name}, weeksInDebt ${c.weeksInDebt}, tierGraceDay ${c.tierGraceDay}): ${threw ? `THREW ${threw}` : res!.ok ? "FORMED" : `refused "${res!.reason}"`}, companies created ${created}, partner ${c.partnerId ?? "none"}`);
+  };
+  // A carrier a week in debt: run on until play puts one there.
+  let debtor: Company | undefined;
+  for (let d = 0; d < 120 && !debtor; d++) {
+    debtor = w.companies.find((c) => c.role === "carrier" && c.partnerId === undefined && c.liquidatingSince === null && c.weeksInDebt > 0 && c.authority.status === "active");
+    if (!debtor) run(w, 1);
+  }
+  if (debtor) tryForm(debtor, "debt week", "the carrier has paper overdue");
+  else results.push("debt week: no carrier went into debt in 120 days");
+  // A carrier under its stake: one running more than five trucks on a 20k stake unstakes, and the day's staking step puts
+  // it in grace.
+  const fleet = (c: Company) => (w.trucksByCompany.get(c.id) ?? []).filter((t) => t.status !== "parked" && t.status !== "retired" && t.status !== "listed").length;
+  let staker: Company | undefined;
+  for (let d = 0; d < 200 && !staker; d++) {
+    staker = w.companies.find((c) => c.role === "carrier" && c.partnerId === undefined && c.liquidatingSince === null && c.weeksInDebt === 0 && c.tierGraceDay === null && fleet(c) > 5 && c.stakedFd >= 20_000);
+    if (!staker) run(w, 1);
+  }
+  if (staker) {
+    act(w, staker, { type: "unstake_fd", fd: staker.stakedFd, instant: true, breakLocks: true });
+    run(w, 1);
+    if (staker.tierGraceDay !== null && staker.weeksInDebt === 0) tryForm(staker, "under its stake", "the carrier is under its stake");
+    else results.push(`under its stake: ${staker.name} unstaked but grace ${staker.tierGraceDay}, weeksInDebt ${staker.weeksInDebt}`);
+  } else results.push("under its stake: no carrier ran more than five trucks on a stake in 200 days");
+  const inv = checkInvariants(w, "form").concat(checkThree(w, "form"));
+  report({
+    id: "E2-FORM",
+    title: "form_brokerage from a carrier in a debt week or under its stake",
+    worked: bad > 0 || inv.length > 0,
+    fdPerDay: 0,
+    detail: `${results.join("; ")}. ${inv.length ? inv.slice(0, 2).join("; ") : bad ? "" : "both refused whole, nothing created, no throw; money conserved"}.`,
   });
 }
 
@@ -392,7 +445,7 @@ function launchHoldCarry(seed: number): void {
   // at the ceiling; the mechanism doesn't depend on when the launch falls.
   const w = makeWorld({
     seed,
-    cfg: threeConfig({ "token.betaYears": 1, "brokerage.bots.share": 0.6, "brokerage.bots.ownTenderAt": 1, "brokerage.bots.fromDay": 0 }),
+    cfg: threeConfig({ "token.betaYears": 1, "brokerage.bots.share": 0.6, "brokerage.bots.ownTenderAt": 1, "brokerage.bots.fromDay": 300 }), // formed late, still trading at the reset (a bot closes a losing brokerage after a quarter)
     oo: 120,
     fleets: 40,
     brokers: 20,
@@ -409,21 +462,56 @@ function launchHoldCarry(seed: number): void {
     if (!broker || broker.role !== "broker" || w.token.launchDay === null) return null;
     return broker.partnerId === cid ? "own" : "arm";
   });
-  run(w, 365 + 40); // to just past the launch and through the net-30 hold window
+  // The state at the reset: own-carrier paper open (the hold must keep no bond behind it), and what each hold kept.
+  let ownOpenFd = 0;
+  let ownOpenN = 0;
+  let ownInHold = 0;
+  let scanned = false;
+  let ownBooked = 0;
+  run(w, 365, (day) => {
+    // The attack, the last four weeks of the beta: each brokerage tenders its open loads to its own carrier at the band's
+    // ceiling and the carrier takes them, so its paper is owed to its own carrier (net 30) when the reset comes.
+    if (w.token.launchDay === null && day >= 365 - 28) {
+      for (const b of w.companies) {
+        const c = b.role === "broker" ? partnerOf(w, b) : null;
+        if (!c || b.liquidatingSince !== null || c.liquidatingSince !== null) continue;
+        for (const load of [...w.loads.values()]) {
+          if (load.brokerId !== b.id || load.status !== "open" || load.tenderedTo !== 0 || load.passedBy === c.id) continue;
+          const truck = (w.trucksByCompany.get(c.id) ?? []).find((t) => t.status === "idle" && t.driverId && t.trailer === load.equipment);
+          if (!truck) break;
+          const [, hi] = ownBand(w, load);
+          if (!applyAction(w, b.id, { type: "tender_own", loadId: load.id, rate: hi }).ok) continue;
+          if (applyAction(w, c.id, { type: "accept_tender", truckId: truck.id, loadId: load.id }).ok) ownBooked++;
+        }
+      }
+    }
+    if (w.token.launchDay === null || scanned) return; // the first day closed after the reset
+    scanned = true;
+    for (const r of w.receivables) {
+      const b = w.companies[r.payer - 1];
+      if (r.payer === 0 || !b || b.role !== "broker" || b.partnerId !== r.payeeId) continue;
+      ownOpenFd += r.amountFd;
+      ownOpenN++;
+      if (b.launchBond?.paper.includes(r.id)) ownInHold++;
+    }
+  });
+  run(w, 40); // through the net-30 hold window
   const inv = checkInvariants(w, "launchhold").concat(checkThree(w, "launchhold"));
   const ownCarry = taps.get("own") ?? 0;
   const armCarry = taps.get("arm") ?? 0;
   const resetBurn = tag(w, "sink:launch_reset");
   const lateBurn = w.brokerageLog?.launchLateBurnFd ?? 0;
   const pairs = w.brokerageLog?.formed.length ?? 0;
-  const worked = inv.length > 0; // money is conserved either way; the question is whether the carry is a net gain vs an honest burn
+  const worked = inv.length > 0 || ownCarry > 1 || ownInHold > 0;
   report({
     id: "E3-LAUNCHHOLD",
     title: "carry beta stake across the reset to the own carrier",
     worked,
     fdPerDay: 0,
     detail:
-      `${pairs} pairs, launch at day ${w.token.launchDay}: launch holds paid own carriers ${money(ownCarry)} and arm's-length carriers ${money(armCarry)} in post-reset FD; ` +
+      `${pairs} pairs, launch at day ${w.token.launchDay}; the last four weeks, ${ownBooked} loads tendered to and booked by the own carrier at the band's ceiling: ` +
+      `own-carrier paper open at the reset ${ownOpenN} invoices, ${money(ownOpenFd)}; of it in a hold ${ownInHold}. ` +
+      `Launch holds paid own carriers ${money(ownCarry)} and arm's-length carriers ${money(armCarry)} in post-reset FD; ` +
       `brokerage stake burned at the reset total ${money(resetBurn)} (late burn ${money(lateBurn)}). ` +
       `${inv.length ? inv.slice(0, 3).join("; ") : `money conserved; the hold pays open paper (NPC first, the own carrier last) and burns the rest. ${ownCarry > 1000 ? "A pair that owes its own carrier at the reset recovers that much bond value as post-reset FD instead of burning it — see the review." : "Own carriers were paid little across this reset."}`}.`,
   });
@@ -442,6 +530,7 @@ function main(): void {
   run1("launchhold", () => launchHoldCarry(seed));
   run1("capinflate", () => capInflate(seed));
   run1("split", () => airdropSplit(seed));
+  run1("form", () => formGuards(seed));
   run1("wash", () => washAndLogbook(seed, years));
   const holes = findings.filter((f) => f.worked);
   console.log(`\n${holes.length} of ${findings.length} probes found a hole.`);

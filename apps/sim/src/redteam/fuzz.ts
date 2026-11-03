@@ -19,8 +19,8 @@ import { parseArgs } from "node:util";
 import { pathToFileURL } from "node:url";
 import {
   applyAction,
-  canFormBrokerage,
   companyAccount,
+  layerBlock,
   dayOf,
   ownBand,
   partnerOf,
@@ -259,17 +259,19 @@ export function fuzzSeed(seed: number, days: number, mk0: MakeOpts, actionsPerDa
   for (let h = 0; h < hoursTotal; h++) {
     stepHour(w, ruleBotHook);
     const day = dayOf(w.t, w.cfg);
-    // Three mode: a carrier attacker forms its brokerage the first hour it can (the layer open, the carrier trading,
-    // the capital in hand), before random play drains it, so the pair's actions get exercised. Logged like any step.
-    if (three) {
+    // Three mode: once a day, each carrier attacker without a brokerage tries to form one as soon as the layer is open,
+    // whatever state play has left it in (a debt week, its stake grace), with the capital in hand. A refusal must leave
+    // nothing behind (the red team's E2-FORM). Logged like any step.
+    if (three && w.t % w.cfg.time.gameMinutesPerDay === 60 && layerBlock(w, "brokerage") === null) {
       for (const c of [...attackers]) {
-        if (c.role !== "carrier" || c.partnerId !== undefined || canFormBrokerage(w, c) !== null) continue;
+        if (c.role !== "carrier" || c.partnerId !== undefined || c.liquidatingSince !== null) continue;
         if (w.ledger.balance(companyAccount(c.id)) < 200_000) continue;
         const a: Action = { type: "form_brokerage", name: `fuzz brokerage ${c.id}`, capitalFd: 150_000 };
         log.push({ at: w.t, companyId: c.id, a });
         res.steps++;
         tally.tried[a.type] = (tally.tried[a.type] ?? 0) + 1;
         const guard = `weeksInDebt ${c.weeksInDebt}, tierGraceDay ${c.tierGraceDay}, cash ${w.ledger.balance(companyAccount(c.id)).toFixed(0)}`;
+        const companiesBefore = w.companies.length;
         let out: ActionResult;
         try {
           out = applyAction(w, c.id, a);
@@ -287,7 +289,11 @@ export function fuzzSeed(seed: number, days: number, mk0: MakeOpts, actionsPerDa
           tally.ok[a.type] = (tally.ok[a.type] ?? 0) + 1;
           const b = partnerOf(w, c);
           if (b && !attackers.includes(b)) attackers.push(b);
-        } else res.refusedActions++;
+        } else {
+          res.refusedActions++;
+          tally.reasons[`form_brokerage (scripted): ${out.reason}`] = (tally.reasons[`form_brokerage (scripted): ${out.reason}`] ?? 0) + 1;
+          if (c.partnerId !== undefined || w.companies.length !== companiesBefore) res.violations.push({ day, at: w.t, companyId: c.id, action: a.type, messages: [`form_brokerage refused ("${out.reason}") but left a company or a partner link (${guard})`] });
+        }
       }
     }
     // Inject a few fuzz actions this hour.
