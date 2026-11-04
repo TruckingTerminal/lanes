@@ -85,7 +85,7 @@ export interface World {
   usedLot: { stock: number; sold: number; due?: number };
   purchaseLending: { madeFd: number; interestFd: number; defaults: number; seized: number; writtenOffFd: number; stakeSlashedFd: number };
   /** Published stabilizers (§Circular economy — targets and stabilizers). */
-  stab: { volumeMult: number; rackSpread: number; rateMult: number };
+  stab: { volumeMult: number; rackSpread: number; rateMult: number; emissionMult: number };
   /** Last round's load-to-truck ratio per hub, for repositioning. */
   lastRatio: Float64Array;
   /** Smoothed share of open loads that clear each round, by equipment (public board data). */
@@ -238,7 +238,7 @@ export function createWorld(o: WorldOptions): World {
       loansMade: 0,
     },
     // The balance dial's day 0 (token.circular.rateStabilizer.start; 1 today): R11 can open the beta nearer its resting level.
-    stab: { volumeMult: 1, rackSpread: 1, rateMult: cfg.token.circular.enabled && cfg.token.circular.rateStabilizer.enabled ? cfg.token.circular.rateStabilizer.start : 1 },
+    stab: { volumeMult: 1, rackSpread: 1, rateMult: cfg.token.circular.enabled && cfg.token.circular.rateStabilizer.enabled ? cfg.token.circular.rateStabilizer.start : 1, emissionMult: 1 },
     lastRatio: new Float64Array(o.net.hubs.length).fill(1),
     fillRate: { van: 0.7, reefer: 0.7, flatbed: 0.7 },
     contractIndex: new Float64Array(o.net.hubs.length * 3).fill(NaN),

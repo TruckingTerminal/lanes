@@ -198,7 +198,7 @@ export function generateRoundFreight(w: World): RoundFreight {
     const dh = expectedReloadDeadheadMi(w, lane.dest, eq);
     return (cfg.rates.exitDeadheadShare * cfg.rates.deadheadFdPerMile * (exitCap === null ? dh : Math.min(dh, exitCap * lane.miles))) / lane.miles;
   };
-  const rf = reserveFactor(w) * w.stab.rateMult; // the reserve, and the balance dial (step.ts monthlyStabilizers)
+  const rf = reserveFactor(w) * w.stab.rateMult * (w.stab.emissionMult ?? 1); // the emission cap (emission.ts), the reserve, and the balance dial (step.ts monthlyStabilizers)
   const refRate = (lane: Lane, eq: Equipment) =>
     lane.baseRate *
       rf *

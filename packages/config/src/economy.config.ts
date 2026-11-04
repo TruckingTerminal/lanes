@@ -1023,6 +1023,15 @@ export const economyConfig = {
       // rates and the dial spends its first year walking them down to where the sinks balance.
       rateStabilizer: { enabled: false, stepPerMonth: 0.03, range: [0.5, 1.2] as const, windowDays: 30, start: 1 },
     },
+    // The emission cap (2026-11-04, Jeff: "a capped FD supply from now"; economy-emission.md, emission.ts): NPC freight
+    // stops being an elastic faucet. Every FD an NPC shipper or the NPC factor pays a carrier draws on a fixed monthly
+    // budget, first × r^month with r = 1 − first ÷ (cap − genesis), so the schedule sums to the cap less genesis: the
+    // token's max supply (circular.capFd) less what genesis holds outside the reserve (the 40% of allocations), i.e.
+    // the 600M reserve is all NPC freight will ever pay out, net of what the months leave unspent. Daily, NPC pay per
+    // mile is scaled by clamp(remaining ÷ expected remaining spend, multRange); expected = the month's budget × days
+    // left ÷ days in month; a month's overspend comes out of the next. firstMonthFd: ~80% of the beta's opening
+    // NPC pay (runs/em-before: 30–40M a month), so r = 0.95 and the budget halves every ~14 months.
+    emission: { enabled: false, capFd: 1_000_000_000, genesisFd: 400_000_000, firstMonthFd: 30_000_000, multRange: [0.5, 1] as const },
     launch: {
       // Beta FD is play money: above working capital it's burned at launch, and the
       // working capital kept is locked — it can be spent in the game, not sold.

@@ -8,6 +8,7 @@ import { runBoardRound, autoBook } from "./board.js";
 import { clearBuyback } from "./buyback.js";
 import { chargeMinimumRent, monthlyCapacity } from "./capacity.js";
 import { ceilingOn, weeklyCeiling } from "./ceiling.js";
+import { dailyEmission } from "./emission.js";
 import { dayOf, isRoundBoundary, MINUTES_PER_HOUR, seasonOf } from "./clock.js";
 import { clamp, fuelPrice } from "./economics.js";
 import { companyAccount } from "./ledger.js";
@@ -89,6 +90,7 @@ function endOfDay(w: World, day: number, agents?: DailyAgentHook): void {
   dailyReceivables(w);
   releaseLaunchHolds(w); // a player brokerage's beta bond behind paper open at the launch burns once that paper is paid (brokerage.ts)
   dailyReserve(w); // the Reserve's withdrawals land in cash (cashReserve.ts)
+  dailyEmission(w, day); // the emission cap's multiplier for the day to come (emission.ts)
 
   // Idle fee on owned assets unused for 7+ in-game days, parked and listed ones included (§Owned vs. leased).
   // And a sitting truck burns diesel from its first day: a crewed truck idle at day's end idles for the

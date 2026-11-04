@@ -72,6 +72,8 @@ export class Ledger {
   readonly totals = new Map<string, number>();
   faucetCents = 0;
   sinkCents = 0;
+  /** FD NPC shippers and the NPC factor paid companies, in cents (the emission cap's draw, emission.ts). */
+  npcPaidCents = 0;
   /** Per company account: FD paid out, except what NOT_OUTFLOW lists. */
   private outflows = new Map<string, number>();
   /** Circular mode: FD minted at genesis, in cents (0 in the open mode, where faucets mint). */
@@ -126,6 +128,7 @@ export class Ledger {
     if (kind === "faucet") {
       this.faucetCents += cents;
       this.totals.set(from, (this.totals.get(from) ?? 0) + cents);
+      if ((from === "faucet:npc_shipper" || from === "faucet:npc_factor") && to.startsWith("co:")) this.npcPaidCents += cents;
     } else if (kind === "sink") {
       this.sinkCents += cents;
       this.totals.set(to, (this.totals.get(to) ?? 0) + cents);
@@ -231,6 +234,10 @@ export class Ledger {
   }
 
   /** Circular mode: what the reserve holds (every NPC counterparty's wallet); 0 in the open mode. */
+  npcPaidFd(): number {
+    return this.npcPaidCents / 100;
+  }
+
   reserve(): number {
     return (this.balances.get(RESERVE_ACCOUNT) ?? 0) / 100;
   }

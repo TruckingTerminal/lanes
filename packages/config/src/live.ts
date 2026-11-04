@@ -44,6 +44,12 @@ export const LIVE_LEVERS: Record<string, unknown> = {
   "token.exchange.sellFeePct": 0.07,
   // The balance dial: NPC rates toward the sink-to-faucet target, read over a season's quarter.
   "token.circular.rateStabilizer.enabled": true,
+  // The emission cap (2026-11-04, studio/reviews/economy-emission.md): built, OFF until its retune. The first sizing
+  // (30M a month, 0.95 decline, rate multiplier floored at 0.5) pinned rates at the floor for the last third of every
+  // month, so prudent bots parked and lost most (seed 2 conservative −59%); month 1 overspent 22%; the lessor faucet
+  // (32%) is outside it. Retune: draw down posted volume before rates, floor the multiplier near break-even (~0.8),
+  // count npc_lessor. No ruleset bump while off.
+  "token.emission.enabled": false, // the emission cap (economy-emission.md)
   "token.circular.rateStabilizer.stepPerMonth": 0.05,
   "token.circular.rateStabilizer.windowDays": 90,
   // The sinks: fuel tax, sales tax, businesses on hubs and interstates, managers.

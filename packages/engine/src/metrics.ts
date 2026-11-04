@@ -140,6 +140,7 @@ export interface DayMetrics {
   outstandingFd: number;
   ceilingFd: number;
   rateMult: number;
+  emissionMult: number;
   queuedAirdropFd: number;
   /** NPC leases priced by value (freeEntry.leases.byValue): the deposits the lessor holds. */
   leaseDepositsFd: number;
@@ -503,6 +504,7 @@ export class MetricsRecorder {
       outstandingFd: outstandingFd(w),
       ceilingFd: ceilingFd(w),
       rateMult: w.stab.rateMult,
+      emissionMult: w.stab.emissionMult,
       queuedAirdropFd: queuedAirdropFd(w),
       leaseDepositsFd: w.trucks.reduce((s, t) => s + (t.companyId !== 0 ? t.depositFd : 0), 0),
       purchaseLoansFd: w.purchaseLoans.reduce((s, l) => s + (l.status === "active" || l.status === "defaulted" ? l.principalFd : 0), 0),

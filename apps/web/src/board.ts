@@ -73,7 +73,8 @@ export function destMatch(w: World, l: Load, text: string): boolean {
   const cityOf = (term: string): boolean => term.length >= 3 && (p.name.toLowerCase().startsWith(term) || h.name.toLowerCase().startsWith(term) || h.id.toLowerCase() === term);
   if (stateOf(q)) return true;
   const m = /^(.+?)[,\s]+([a-z]{2}|z\d)$/.exec(q);
-  if (m) return stateOf(m[2]!) && cityOf(m[1]!);
+  // "Tampa, FL" needs both; a city that merely ends in two letters ("Santa Fe") falls through to the terms below.
+  if (m && stateOf(m[2]!)) return cityOf(m[1]!);
   return q.split(/[,\s]+/).some((t) => stateOf(t) || cityOf(t));
 }
 
