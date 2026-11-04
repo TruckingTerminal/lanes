@@ -4,7 +4,7 @@ import { dispatchProfile, expectedReloadDeadheadMi, isLocal, operatingTrucks, lo
 import { COMMODITIES } from "@lanes/data";
 import { allInRate, bidRange, blockReason, chipPair, clearsNear, suggestBid } from "../../board.js";
 import { BOARD } from "../../copy.js";
-import { ProfitChip } from "../ProfitChip.js";
+import { DockWarning, ProfitChip } from "../ProfitChip.js";
 import { trueBreakEven } from "../../breakeven.js";
 import { cls, fd, fdFull, hhmm, pct, shortDate, TRAILER_CODE, TRAILER_NAME } from "../../format.js";
 import { nextRoundLabel, openLoadsAt, reloadClass, reloadLabel, SeasonNote, seasonSwing, statusText } from "../../logic.js";
@@ -284,9 +284,13 @@ function LoadDetail({ r, truck, mine, pendingRate }: { r: Row; truck: Truck; min
   const placeBid = () => {
     const rate = Number((document.getElementById(bidId) as HTMLInputElement).value);
     act({ type: "place_bid", truckId: truck.id, loadId: l.id, rate }, `Bid in at ${rate.toFixed(2)}/mi. It clears at ${nextRoundLabel()}`);
+    // A hand bid from the table is a hand bid too: the round's result card (main.tsx, the lostBid and won events and the
+    // load leaving the board) reads this record (the trucker's laptop bid lost with no word).
+    S.handBids.set(l.id, { rate, be: r.be, truckId: truck.id, from: op.name, to: dp.name });
   };
   return (
     <div class="stack">
+      {off ? null : <DockWarning w={w} t={truck} l={l} dh={r.dh} />}
       <div class="results-head">
         <b>
           {op.name}, {op.state} <span class="accent">→</span> {dp.name}, {dp.state}

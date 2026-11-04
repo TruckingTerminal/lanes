@@ -1,6 +1,6 @@
 import type { JSX } from "preact";
 import { useState } from "preact/hooks";
-import { askingPay, crewed, dispatchProfile, poolOf, spanOf, type Company, type Staff as StaffT, type Truck, type World } from "@lanes/engine";
+import { askingPay, askOf, crewed, payFloor, dispatchProfile, poolOf, spanOf, type Company, type Staff as StaffT, type Truck, type World } from "@lanes/engine";
 import { fd, hhmm, pct, shortDate, TRAILER_NAME } from "../../format.js";
 import { GAME_CONFIG } from "../../game.js";
 import { atHub, marketPayOf, moraleClass, moraleWord, staffPay, Stars } from "../../logic.js";
@@ -136,7 +136,7 @@ export function Staff(): JSX.Element {
     const canSeat = s.kind === "driver" && trucks.some(openSeat);
     const canTeam = s.kind === "driver" && trucks.some((t) => teamSeat(t) && t.driverId !== s.id);
     return (
-      <Card key={s.id}>
+      <Card key={s.id} need={s.unhappyNotice ? `notice:${s.id}` : undefined}>
         <div class="row">
           <Portrait file={staffFace(s)} />
           <b>{s.name}</b>
@@ -190,8 +190,13 @@ export function Staff(): JSX.Element {
     );
   };
 
+  // What this company is asked (labor.ts askOf: the ask, plus the premium after a driver left it unhappy), never under
+  // the pay floor. The player may offer more, up to the clamp (the gamer's soft lock: Hire offered the bare ask, which
+  // the engine refused after a quit).
   const PoolRow = ({ s }: { s: StaffT }) => {
-    const ask = askingPay(w, s);
+    const ask = Math.max(askOf(w, c, s), payFloor(w, s));
+    const cap = s.kind === "driver" ? 20 : 50_000;
+    const offer = () => Math.min(cap, Math.max(ask, num(`offer-${s.id}`) || ask));
     const driver = s.kind === "driver";
     const can = !driver || seatsOpen;
     return (
@@ -215,7 +220,8 @@ export function Staff(): JSX.Element {
                   <TruckOptions pick={openSeat} />
                 </select>
               ) : null}
-              <Btn sm onClick={(ev) => hire(s, ask, "hire", ev)}>
+              <input type="number" class="payin" id={`offer-${s.id}`} inputMode="decimal" step={driver ? "0.01" : "10"} min={driver ? ask.toFixed(2) : String(Math.ceil(ask))} max={String(cap)} defaultValue={driver ? (Math.ceil(ask * 100) / 100).toFixed(2) : String(Math.ceil(ask))} aria-label="Pay offered" />
+              <Btn sm onClick={(ev) => hire(s, offer(), "hire", ev)}>
                 Hire
               </Btn>
             </div>
@@ -298,7 +304,7 @@ export function Staff(): JSX.Element {
       {hired.length ? hired.map((s) => <PersonCard s={s} key={s.id} />) : <p class="muted">Nobody on the payroll yet. You drive your own truck and dispatch it yourself.</p>}
       <Card title="Hire a driver">
         <p class="muted small">Market pay rises with skill (wage index {w.labor.wageIndex.toFixed(2)}). Drivers improve with every mile, and expect a raise as they do.</p>
-        <table>
+        <table class="pooltable">
           <thead>
             <tr>
               <th>Name</th>
@@ -317,7 +323,7 @@ export function Staff(): JSX.Element {
       </Card>
       <Card title="Hire a dispatcher">
         <p class="muted small">Pay is quoted for a full span and billed for the trucks they run past your own {w.cfg.labor.owner.span}, with a quarter as a retainer.</p>
-        <table>
+        <table class="pooltable">
           <thead>
             <tr>
               <th>Name</th>
@@ -339,7 +345,7 @@ export function Staff(): JSX.Element {
           <p class="muted small">
             Past {w.cfg.labor.managers.ops.requiredAbove} trucks you need an operations manager, one for every {w.cfg.labor.managers.ops.span} beyond, or the extra trucks park after {w.cfg.token.staking.graceDays} days. A maintenance manager past {w.cfg.labor.managers.maint.requiredAbove}. Their skill sets the edge; pay is a full week's.
           </p>
-          <table>
+          <table class="pooltable">
             <thead>
               <tr>
                 <th>Name</th>

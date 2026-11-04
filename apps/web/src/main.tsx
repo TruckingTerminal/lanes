@@ -8,7 +8,7 @@ import { iuliiaOnChange, iuliiaSay } from "./iuliia.js";
 import { RULESET, TestGame, type StartKind } from "./game.js";
 import { H } from "./handlers.js";
 import { createMeta, LiveWorld, readMeta, type DbLike, type WorldMeta } from "./live.js";
-import { checkAttention, checkIdleAlerts, needs } from "./logic.js";
+import { checkAttention, checkIdleAlerts, needs, settleHandBids } from "./logic.js";
 import { invoices } from "./ledger.js";
 import { nightStop, paidLine, payLine, type TruckBefore } from "./rolling.js";
 import { sampleStarters } from "./hubcard.js";
@@ -138,7 +138,7 @@ function onEvent(s: Session, e: GameEvent): void {
       const line = payLine(w, truck, load, e.grossFd, e.costFd, beforeDelivery.get(truck.id) ?? { emptyMi: 0, depositFd: truck.depositFd ?? 0 });
       if (fresh) S.invoiceLanes.set(fresh.id, ends(e.loadId, e.origin, e.dest).join(" → "));
       const driver = truck.driverId ? w.staff[truck.driverId - 1] : undefined;
-      S.delivered = { from: ends(e.loadId, e.origin, e.dest)[0], to: ends(e.loadId, e.origin, e.dest)[1], lateH: Math.max(0, Math.ceil((w.t - load.dueT) / 60)), line, paid, hiredDriver: driver && !driver.owner ? driver.name : null };
+      S.delivered = { from: ends(e.loadId, e.origin, e.dest)[0], to: ends(e.loadId, e.origin, e.dest)[1], lateH: e.onTime ? 0 : Math.max(0, Math.ceil(((w.cfg.docks.lateFromArrival && load.arrivedT !== undefined ? load.arrivedT : w.t) - load.dueT) / 60)), line, paid, hiredDriver: driver && !driver.owner ? driver.name : null };
       S.moneyDot = true;
       iuliiaSay(e.onTime ? "delivered:onTime" : "delivered:late");
     }
@@ -450,19 +450,7 @@ function observe(s: Session): void {
     }
   }
   if (w.t === f.lastT) return;
-  // A hand bid whose load left the board before the round (booked by another carrier) is dropped by the engine without
-  // an event, and the dispatcher bids for the truck as usual (QA's Intel replay: no result, no "Lost to"). Say so here.
-  if (s === S.game && s.player) {
-    for (const [loadId, hb] of S.handBids) {
-      const load = w.loads.get(loadId);
-      if (load && load.status === "open") continue;
-      S.handBids.delete(loadId);
-      if (load && load.carrierId === s.player.id) continue; // ours after all: the won event has said so
-      iuliiaSay(load ? "result:lost" : "result:nobody");
-      S.result = { won: false, from: hb.from ?? "", to: hb.to ?? "", rate: hb.rate, winning: load ? load.clearedRate : null, be: hb.be, total: 0, seen: false, winnerId: load?.carrierId ?? undefined, lost: load && hb.truckId !== undefined ? { loadId, truckId: hb.truckId, profitAtWinningFd: (load.clearedRate - hb.be) * load.miles } : undefined };
-      bumpData();
-    }
-  }
+  if (s === S.game) settleHandBids(s);
   // Iuliia on named changes (iuliia-lines.md): a truck rolling or waiting for its first load, wear past the rebuild line,
   // a shoulder night on a load of the player's own, the first thing waiting, cash below zero, the first invoice on an owned
   // truck, the safety rating moving, the policy renewing, a driver turning restless. The first look only sets a baseline.

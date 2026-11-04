@@ -865,6 +865,10 @@ export interface Load {
   appointmentT: number;
   /** An appointment load's delivery slot, set at booking (docks.ts); 0 for first come, first served. */
   slotT: number;
+  /** Detention (cfg.detention) owed with this load: the hours past the free time at each closed dock, and what they pay. */
+  detention?: { pickupH: number; deliveryH: number; fd: number };
+  /** When the truck reached the receiver (docks.lateFromArrival counts lateness from it). */
+  arrivedT?: number;
   /** The road route between the places: driving hours and tolls. */
   routeHours: number;
   routeTollFd: number;

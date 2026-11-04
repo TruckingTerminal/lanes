@@ -1,6 +1,7 @@
 import type { JSX } from "preact";
 import { useEffect, useRef, useState } from "preact/hooks";
 import { dayOf } from "@lanes/engine";
+import { useSettled } from "../settle.js";
 import { GAME_CONFIG } from "../game.js";
 import { skippedSteps, stepDo, stepKey, stepText, walkProgress, walkSteps, type Mood, type WalkStep } from "../walkthrough.js";
 import { iuliiaMuted, iuliiaNow, setIuliiaMuted } from "../iuliia.js";
@@ -154,7 +155,8 @@ function tutorialBeat(): { screen: "truck" | "loads"; beats: string[]; i: number
 export function FirstLoad(): JSX.Element | null {
   useData();
   const b = tutorialBeat();
-  if (!b) return null;
+  const ready = useSettled(b ? `tut:${b.screen}:${b.i}` : null);
+  if (!b || !ready) return null;
   const g = S.game!;
   const c = g.player!;
   const last = b.i === b.beats.length - 1;
@@ -229,6 +231,9 @@ export function StepMoment({ only }: { only?: string }): JSX.Element | null {
   useData();
   const g = S.game;
   const c = g?.player;
+  const pending = g && c ? currentStep() : null;
+  const ready = useSettled(pending ? `say:${pending.id}` : null);
+  if (!ready) return null;
   if (!g || !c || kindInView(g) === "brokerage" || c.liquidatingSince !== null) return null;
   const step = currentStep();
   if (!step || !momentHere(step) || (only ? step.id !== only : step.id === "paid")) return null;

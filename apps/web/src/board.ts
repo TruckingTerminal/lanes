@@ -1,4 +1,4 @@
-import { canMakeHot, clearsNear as engineClearsNear, dayOf, dispatchProfile, EQUIPMENT, expectedReloadDeadheadMi, mayTake, operatingTrucks, ownerDrawFd, placeMiles, placeToll, planIndex, vettingBlock, type Company, type Load, type Truck, type World } from "@lanes/engine";
+import { canMakeHot, clearsNear as engineClearsNear, dayOf, dockHoursAt, dutyResetAt, nextOpen, dispatchProfile, EQUIPMENT, expectedReloadDeadheadMi, mayTake, operatingTrucks, ownerDrawFd, placeMiles, placeToll, planIndex, vettingBlock, type Company, type Load, type Truck, type World } from "@lanes/engine";
 import { COMMODITIES } from "@lanes/data";
 import { trueBreakEven } from "./breakeven.js";
 import { WALL } from "./copy.js";
@@ -162,6 +162,35 @@ export function chipFd(x: number): string {
 }
 /** The cash segment's figure: its sign kept ("−103", "504"). */
 export const chipCash = (x: number): string => `${x < -0.5 ? "−" : ""}${chipFd(x)}`;
+
+/**
+ * The dock warning at booking (the trucker booked Friday night and sat all weekend): when this truck would reach the
+ * pickup and the receiver, at the nominal pace with a rest when the day's hours run out, and how long each closed dock
+ * would hold it (docks.ts dockHoursAt and nextOpen, which draw nothing). An appointment dock sets its own slot, so it
+ * has none.
+ */
+export function dockWaits(w: World, t: Truck, l: Load, dhMi: number): { pickup: { openT: number; waitMin: number } | null; delivery: { openT: number; waitMin: number } | null } {
+  const k = w.cfg.hos;
+  const rest = (k.restHours > 0 ? k.restHours : 24 - k.drivingHoursPerDay) * 60;
+  const drive = (mi: number, leftMin: number) => {
+    const min = (mi / k.avgMph) * 60;
+    return min <= leftMin ? min : min + Math.ceil((min - leftMin) / (k.drivingHoursPerDay * 60)) * rest;
+  };
+  const at = (end: "pickup" | "delivery", arrive: number) => {
+    const h = dockHoursAt(w, l, end);
+    if (!h) return null;
+    const open = nextOpen(w, arrive, h);
+    return open - arrive >= 30 ? { openT: open, waitMin: open - arrive } : null;
+  };
+  // The day's hours left, read without opening a new duty day (trips.ts drivingMinutesLeft writes to the truck).
+  const reset = dutyResetAt(w, t);
+  const left = reset === null || w.t >= reset ? k.drivingHoursPerDay * 60 : Math.max(0, k.drivingHoursPerDay * 60 - t.shiftDrivenMin);
+  const toPickup = w.t + drive(dhMi, left);
+  const pickup = at("pickup", toPickup);
+  const rolling = (pickup ? pickup.openT : toPickup) + ((w.cfg.dwell.loadMinutes[0] + w.cfg.dwell.loadMinutes[1]) / 2);
+  const delivery = at("delivery", rolling + drive(l.miles, k.drivingHoursPerDay * 60));
+  return { pickup, delivery };
+}
 
 /** A leased truck whose deposit is whole: nothing more is held, so the chip says all of the profit lands. */
 export const depositWhole = (t: Truck): boolean => t.lease !== "owned" && t.depositDueFd > 0.005 && t.depositDueFd - t.depositFd <= 0.005;

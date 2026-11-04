@@ -244,7 +244,7 @@ function Naming({ hub }: { hub: number }): JSX.Element {
     H.choose((name.trim() || defaultName(h.id) || `${h.name} Freight`).slice(0, 32), h.id, TEST_BUILD ? start : "oo", look ?? "m");
   };
   return (
-    <form class="stack" onSubmit={submit}>
+    <form class="stack namingform" onSubmit={submit}>
       <div class="iuliiasay">
         <Iuliia mood="point" size={96} />
         <p>{NAMING.line(h.name)}</p>

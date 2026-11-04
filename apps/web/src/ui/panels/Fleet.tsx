@@ -1,8 +1,8 @@
 import type { JSX } from "preact";
-import { condition, crewed, hubMiles, ordersOf, rebuildable, rebuildCost, resting, truckValue, type Truck } from "@lanes/engine";
+import { condition, crewed, dutyResetAt, hubMiles, ordersOf, rebuildable, rebuildCost, resting, truckValue, type Truck } from "@lanes/engine";
 import { SCENES } from "../../assets.js";
 import { cls, dateLabel, fd, fdFull, pct, plural, TIER_NAME, TRAILER_NAME, hhmm, realUntil } from "../../format.js";
-import { MOVE, TRUCK } from "../../copy.js";
+import { HOURS, MOVE, TRUCK } from "../../copy.js";
 import { GAME_CONFIG } from "../../game.js";
 import { AttentionCard, CrewLine, goLoads, goStaff, idleLabel, idleWhy, openLoadsAt, StatusLine, stuckTrucks, tiredTrucks, truckName } from "../../logic.js";
 import { focusTruck } from "../../mapview.js";
@@ -143,6 +143,47 @@ function IdleAlerts(): JSX.Element {
   );
 }
 
+/**
+ * R12's clocks on a truck on the road (the trucker: fuel stops, breaks and the 70-hour week happened unseen): today's
+ * driving against the day's hours and the week's against the cycle, then what it's doing now: resting until its hours
+ * return, on a break or at a fuel stop with the minutes left, or the miles to the next fuel stop. All from the engine's
+ * own fields (trips.ts); nothing shows for a clock whose key is off.
+ */
+function HoursLines({ t }: { t: Truck }): JSX.Element | null {
+  const w = S.game!.w;
+  const k = w.cfg;
+  if (t.status === "idle" || t.status === "parked" || t.status === "listed" || t.status === "retired" || !crewed(t)) return null;
+  const h = (min: number) => (Math.round((min / 60) * 10) / 10).toFixed(1);
+  const day = HOURS.day(h(t.shiftDrivenMin), k.hos.drivingHoursPerDay);
+  const week = k.hos.cycleHours > 0 && t.cycleMin !== undefined ? ` · ${HOURS.week(h(t.cycleMin), k.hos.cycleHours)}` : "";
+  // Off duty for the night: the day's hours spent, or parked at a rest site, until the hours come back (trips.ts dutyResetAt).
+  const resetAt = dutyResetAt(w, t);
+  const reset = resetAt !== null && resetAt > w.t && (t.restSite ? true : t.shiftDrivenMin >= k.hos.drivingHoursPerDay * 60 - 1e-6) ? resetAt : null;
+  const pause = t.pauseMin ?? 0;
+  const now =
+    reset !== null
+      ? HOURS.resting(hhmm(reset))
+      : pause > 0.5
+        ? k.fuel.stopEveryMi > 0 && (t.fuelMi ?? 0) < 1 && pause <= k.fuel.stopMinutes + 1e-6
+          ? HOURS.fueling(Math.ceil(pause))
+          : HOURS.onBreak(k.hos.breakMinutes, Math.ceil(pause))
+        : k.fuel.stopEveryMi > 0
+          ? HOURS.fuelIn(Math.max(0, Math.round((k.fuel.stopEveryMi - (t.fuelMi ?? 0)) / 10) * 10))
+          : null;
+  return (
+    <p class="muted small">
+      {day}
+      {week}
+      {now ? (
+        <>
+          <br />
+          {now}
+        </>
+      ) : null}
+    </p>
+  );
+}
+
 function TruckCard({ t, idx }: { t: Truck; idx: number }): JSX.Element {
   const w = S.game!.w;
   const c = me();
@@ -226,6 +267,7 @@ function TruckCard({ t, idx }: { t: Truck; idx: number }): JSX.Element {
         <StatusLine t={t} />
         {t.breakdownMin > 0 && t.status !== "loaded" ? <span class="bad"> · stopped</span> : null}
       </p>
+      <HoursLines t={t} />
       <p>
         <CrewLine t={t} />
       </p>

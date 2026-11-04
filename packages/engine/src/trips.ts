@@ -24,6 +24,34 @@ import type { Company, Load, Truck } from "./types.js";
 import { breakdownsPer1000Mi } from "./wear.js";
 import { companyById, hubRoute, type World, placeRoute } from "./world.js";
 
+/** Detention (cfg.detention): the hours of a closed-dock wait past the free time, capped per stop, priced. */
+function addDetention(w: World, load: Load, stop: "pickupH" | "deliveryH", waitMin: number): void {
+  const k = w.cfg.detention;
+  if (!k.enabled) return;
+  const h = Math.min(k.maxHours, Math.max(0, Math.floor(waitMin / MINUTES_PER_HOUR - k.freeHours)));
+  if (h <= 0) return;
+  const d = (load.detention ??= { pickupH: 0, deliveryH: 0, fd: 0 });
+  d[stop] += h;
+  d.fd += h * k.fdPerHour;
+}
+
+/**
+ * The poster pays the hauler its detention with the load (cfg.detention): an NPC shipper or an NPC broker from the
+ * freight faucet its pay comes from, a player's brokerage or shipper from its own account.
+ */
+function payDetention(w: World, load: Load, carrier: Company): number {
+  const fd = load.detention?.fd ?? 0;
+  if (!w.cfg.detention.enabled || fd <= 0) return 0;
+  const poster = load.brokerId !== null ? companyById(w, load.brokerId) : load.shipperId !== null ? companyById(w, load.shipperId) : null;
+  if (poster && poster.id === carrier.id) return 0;
+  const to = companyAccount(carrier.id);
+  if (poster && poster.human) {
+    w.ledger.post(w.t, companyAccount(poster.id), to, fd, `detention:${load.id}`);
+    poster.operating.costFd += fd;
+  } else w.ledger.post(w.t, "faucet:npc_shipper", to, fd, `detention:${load.id}`);
+  return fd;
+}
+
 /** Truck is at the shipper: load for 1–2 hours (plus securing a flatbed, plus waiting for a closed dock to open), then roll. */
 export function startLoading(w: World, truck: Truck, load: Load, now: number = w.t): void {
   const [lo, hi] = w.cfg.dwell.loadMinutes;
@@ -42,6 +70,7 @@ export function startLoading(w: World, truck: Truck, load: Load, now: number = w
     dwell += wait;
     load.dueT += wait;
     w.metrics.onDockWait(wait);
+    addDetention(w, load, "pickupH", wait);
   }
   truck.dwellMin = dwell;
   load.status = "inTransit";
@@ -55,7 +84,9 @@ function startUnloading(w: World, truck: Truck, now: number): void {
   const ops = w.cfg.equipmentOps;
   if (load && ops.enabled && load.equipment === "flatbed") dwell += w.rng.ops.int(ops.flatbedUntarpMinutes[0], ops.flatbedUntarpMinutes[1]);
   if (load) {
+    load.arrivedT = now;
     const d = deliveryWait(w, load, now);
+    if (d.receiversHours) addDetention(w, load, "deliveryH", d.minutes);
     if (d.minutes > 0) {
       dwell += d.minutes;
       if (d.receiversHours) load.dueT += d.minutes; // the receiver's hours aren't the carrier's fault; a missed slot is
@@ -485,6 +516,9 @@ function deliver(w: World, truck: Truck, now: number): void {
   if (!spoiled) collectUpstream(w, load, db ?? carrier, upstream, factor, ref, !db && truck.lease === "npc");
   const own = load.shipperId === carrier.id;
   const paid = own || spoiled ? 0 : db ? settleDoubleBroker(w, load, carrier, gross, upstream) : gross;
+  // Detention, its own line in the settlement (cfg.detention), to the carrier that waited.
+  const detained = spoiled || own ? 0 : payDetention(w, load, carrier);
+  carrier.operating.revenueFd += detained;
 
   let costs = payTripCosts(w, truck, ref);
   // An open deck in the weather (equipmentOps): a damage claim at the receiver.
@@ -516,13 +550,15 @@ function deliver(w: World, truck: Truck, now: number): void {
   }
   carrier.operating.costFd += costs;
 
-  // On-time and reputation.
+  // On-time and reputation. docks.lateFromArrival: from the truck's arrival at the receiver, so a wait for its dock
+  // isn't the carrier's lateness.
+  const at = cfg.docks.lateFromArrival && load.arrivedT !== undefined ? load.arrivedT : now;
   let onTime: number = cfg.miles.onTime.onTime;
-  if (now <= load.dueT - cfg.freight.earlyThresholdMinutes) onTime = cfg.miles.onTime.early;
-  else if (now > load.dueT) onTime = cfg.miles.onTime.late;
+  if (at <= load.dueT - cfg.freight.earlyThresholdMinutes) onTime = cfg.miles.onTime.early;
+  else if (at > load.dueT) onTime = cfg.miles.onTime.late;
   carrier.delivered++;
   carrier.loadsThisWeek++;
-  if (now <= load.dueT) carrier.onTime++;
+  if (at <= load.dueT) carrier.onTime++;
   else carrier.late++;
   // Smoothed on-time rate: a company's record, not its size, sets its reputation.
   const prior = cfg.reputation.priorLoads;
@@ -541,7 +577,7 @@ function deliver(w: World, truck: Truck, now: number): void {
   awardMiles(w, carrier, amount, load.laneId);
 
   w.metrics.onDelivery(w, carrier, load, earned, costs, onTime);
-  w.listener?.({ kind: "delivered", companyId: carrier.id, truckId: truck.id, loadId: load.id, origin: load.origin, dest: load.dest, grossFd: paid, costFd: costs, onTime: now <= load.dueT });
+  w.listener?.({ kind: "delivered", companyId: carrier.id, truckId: truck.id, loadId: load.id, origin: load.origin, dest: load.dest, grossFd: paid, costFd: costs, onTime: at <= load.dueT });
   load.status = "delivered";
   w.loads.delete(load.id);
   setIdle(w, truck);

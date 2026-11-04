@@ -141,6 +141,9 @@ export interface PayLine {
   held: number;
   /** The owner's draw the company kept on this load (Jeff, 2026-11-04), inside `yours`. */
   draw: number;
+  /** Detention the poster paid with the load (cfg.detention), and its hours at each stop; inside `yours`. */
+  detention: number;
+  detentionAt: { pickupH: number; deliveryH: number };
   yours: number;
 }
 
@@ -174,7 +177,9 @@ export function payLine(w: World, t: Truck, load: Load, grossFd: number, costFd:
     lessor,
     held,
     draw,
-    yours: grossFd - costFd - held,
+    detention: load.detention?.fd ?? 0,
+    detentionAt: { pickupH: load.detention?.pickupH ?? 0, deliveryH: load.detention?.deliveryH ?? 0 },
+    yours: grossFd - costFd - held + (load.detention?.fd ?? 0),
   };
 }
 

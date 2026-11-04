@@ -9,7 +9,7 @@ export type TractorTier = "workhorse" | "highwayPro" | "flagship";
 export type FacilityType = "warehouse" | "coldStorage" | "factory";
 
 export const economyConfig = {
-  version: "0.22.0-phase0.37", // 2026-11-04 (Jeff: "pay it to myself"): the owner's draw stays with the company (labor.owner.drawStays, on in live.ts); the live world keeps 0.21.0 until its next restart. 0.21.0-phase0.36, Restart (2026-11-03): the diary 3/4 bump (studio/reviews/economy-player34.md, live.ts): a ceiling is a ceiling (R17), the pay floor and drivers who quit (R16), the board at a 1.2 ceiling with a short-load cap and the season table on rates (R11), R12's hours with the 70-hour clock and the 34-hour restart, compliance with teeth and a year's probation (R18), the dispatcher and auto-staff off until the player chooses (R1, R8), the double pledge closed and Equipment Finance shut with the pools, a fleet's lot rig in a week; the brokerage on, both premiums halved, the Reserve at thirteen weeks, cash now at 8% plus 0.1% a day to 3%; levels as 0.20.2
+  version: "0.23.0-phase0.38", // 2026-11-04 (Jeff: "fix them all now"): the five diaries' batch: the reserve's lift on NPC rates capped at 0.8 (the week-one boom, studio/reviews/economy-boom.md), detention at a closed dock past 2 free hours (60 FD/h, 8 h a stop), lateness from arrival at the receiver (docks.lateFromArrival); the owner's draw stays (0.22.0); the live world restarts on it. 0.22.0-phase0.37 // 2026-11-04 (Jeff: "pay it to myself"): the owner's draw stays with the company (labor.owner.drawStays, on in live.ts); the live world keeps 0.21.0 until its next restart. 0.21.0-phase0.36, Restart (2026-11-03): the diary 3/4 bump (studio/reviews/economy-player34.md, live.ts): a ceiling is a ceiling (R17), the pay floor and drivers who quit (R16), the board at a 1.2 ceiling with a short-load cap and the season table on rates (R11), R12's hours with the 70-hour clock and the 34-hour restart, compliance with teeth and a year's probation (R18), the dispatcher and auto-staff off until the player chooses (R1, R8), the double pledge closed and Equipment Finance shut with the pools, a fleet's lot rig in a week; the brokerage on, both premiums halved, the Reserve at thirteen weeks, cash now at 8% plus 0.1% a day to 3%; levels as 0.20.2
 
   // §World, map and time
   time: {
@@ -91,7 +91,16 @@ export const economyConfig = {
       daylight: { open: 6, close: 18, days: [0, 1, 2, 3, 4, 5] as number[] },
     },
     fcfsAroundTheClockShare: 0.5,
+    // The trucker's diary (2026-11-04): a truck that reached the receiver before its appointment and was held by a
+    // closed dock is on time. true: lateness counts from the truck's arrival at the receiver; false: from the end of
+    // its unloading, dock wait included, as before.
+    lateFromArrival: false,
   },
+  // Detention (the trucker's diary, 2026-11-04): past `freeHours` waiting at a closed dock (docks.ts pickupWait, and the
+  // receiver's own hours in deliveryWait; never an early arrival or a missed slot, which are the carrier's), the poster
+  // pays the carrier `fdPerHour` an hour, at most `maxHours` a stop, settled with the load. An NPC shipper's or broker's
+  // comes from where its freight pay does; a player's brokerage or shipper pays it. Sizes for the economy to set.
+  detention: { enabled: false, freeHours: 2, fdPerHour: 60, maxHours: 8 },
 
   // Cargo theft (Jeff, 2026-10-30; the EVE plan's risk for reward). A loaded truck asleep is the target:
   // the night's odds, times where it sleeps (`parking`: the shoulder worst, a public rest area, a truck

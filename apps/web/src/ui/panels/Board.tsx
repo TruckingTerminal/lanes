@@ -3,7 +3,7 @@ import { useEffect, useState } from "preact/hooks";
 import { MANUAL_BID_MAX_DEADHEAD_MI, VETTING_NAMES, type Truck } from "@lanes/engine";
 import { COMMODITIES } from "@lanes/data";
 import { allInRate, bidRange, boardRows, chipCash, chipPair, clearsNear, posterOf, sortRows, type BoardRow, type BoardSort, type ChipPair } from "../../board.js";
-import { ProfitChip } from "../ProfitChip.js";
+import { DockWarning, ProfitChip } from "../ProfitChip.js";
 import { ANSWER, BOARD, CHIP, INTEL, LOAD, ROUND } from "../../copy.js";
 import { cls, fdFull, hhmm, pct, shortDate, TRAILER_NAME } from "../../format.js";
 import { nextRoundHour, nextRoundLabel, nextRoundWait, reloadLabel, roundProgress, seasonSwing } from "../../logic.js";
@@ -326,6 +326,8 @@ function LoadSheet({ r, truck }: { r: BoardRow; truck: Truck }): JSX.Element {
   const bookUp = r.profitBook >= 0;
   const signed = (x: number) => `${x >= 0 ? "+" : "−"}${money(x)}`;
   const step = (d: number) => setBid(Math.round(Math.min(hi, Math.max(lo, bid + d)) * 100) / 100);
+  // The bid figure while it's being typed; null when it shows the bid.
+  const [bidText, setBidText] = useState<string | null>(null);
   // R20: a refusal in the writer's words where the engine's reason is a vetting block; otherwise the engine's own.
   const refusal = (reason: string): string => {
     // board.refuseOverCeiling: the engine's "above the ceiling, {rate}/mi", in the writer's words (R20).
@@ -429,7 +431,7 @@ function LoadSheet({ r, truck }: { r: BoardRow; truck: Truck }): JSX.Element {
         />
       </details>
       <div class="actions pinned">
-        {r.block ? <p class="bad small">{LOAD.blocked(r.block)}</p> : null}
+        {r.block ? <p class="bad small">{LOAD.blocked(r.block)}</p> : <DockWarning w={w} t={truck} l={l} dh={r.dh} />}
         <Btn primary={bookUp} disabled={!!r.block} onClick={() => void book()}>
           {CHIP.book(l.bookNow.toFixed(2), signed(r.profitBook))}
         </Btn>
@@ -437,11 +439,28 @@ function LoadSheet({ r, truck }: { r: BoardRow; truck: Truck }): JSX.Element {
           <Btn sm disabled={!!r.block || bid <= lo} onClick={() => step(-0.05)} title="Bid 0.05 lower">
             −
           </Btn>
-          <Fig k="board.bid" label={LOAD.bidButton("")} ctx={{ ...fx, fd: bid }}><span class="num bidval">{bid.toFixed(2)}</span></Fig>
+          {/* The figure is typed (the gamer: fifteen taps of ±); held to the range when it's left. */}
+          <input
+            type="text"
+            inputMode="decimal"
+            class="num bidval bidinput"
+            aria-label={LOAD.bidButton("")}
+            disabled={!!r.block}
+            value={bidText ?? bid.toFixed(2)}
+            onInput={(e) => setBidText((e.currentTarget as HTMLInputElement).value)}
+            onBlur={() => {
+              const v = Number((bidText ?? "").replace(",", "."));
+              if (bidText !== null && Number.isFinite(v) && v > 0) setBid(Math.round(Math.min(hi, Math.max(lo, v)) * 100) / 100);
+              setBidText(null);
+            }}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") (e.currentTarget as HTMLInputElement).blur();
+            }}
+          />
           <Btn sm disabled={!!r.block || bid >= hi} onClick={() => step(0.05)} title="Bid 0.05 higher">
             +
           </Btn>
-          <span class="muted small">{LOAD.range(lo.toFixed(2), hi.toFixed(2))}</span>
+          <Fig k="board.bid" label={LOAD.bidButton("")} ctx={{ ...fx, fd: bid }}><span class="muted small">{LOAD.range(lo.toFixed(2), hi.toFixed(2))}</span></Fig>
         </div>
         <div class="row">
           <Btn primary={!bookUp} disabled={!!r.block} onClick={() => void placeBid()}>

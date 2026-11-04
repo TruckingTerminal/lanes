@@ -167,6 +167,22 @@ export const CHIP = {
   heldRow: "Held toward your truck",
 };
 
+/** The dock warning at booking (the producer's lines, for the writer). */
+export const DOCK = {
+  pickup: (opens: string, h: number) => `Dock opens ${opens} · about ${h} h waiting at pickup`,
+  delivery: (opens: string, h: number) => `Receiver opens ${opens} · about ${h} h waiting at delivery`,
+};
+
+/** R12's clocks on a moving truck's card (the producer's lines, for the writer): read from the engine, no rule of their own. */
+export const HOURS = {
+  day: (h: string, of: number) => `Driving ${h} h of ${of} today`,
+  week: (h: string, of: number) => `${h} h of ${of} this week`,
+  fuelIn: (mi: number) => `Fuel stop in about ${mi} mi`,
+  fueling: (min: number) => `At a fuel stop · ${min} min left`,
+  onBreak: (len: number, min: number) => `On a ${len}-min break · ${min} min left`,
+  resting: (at: string) => `Resting until ${at}`,
+};
+
 /** The load screen (the writer's copy-player5.md, R25): no "replaying", which a cautious player read as "could come out different". */
 export const LOADING = { title: "Loading your world…" };
 
@@ -429,6 +445,8 @@ export const DELIVERED = {
   lessor: (share: string) => `The lessor's ${share}`,
   held: "Held toward your own truck (kept)",
   yours: "Yours",
+  /** Detention (cfg.detention; the producer's line, for the writer): hours past the free time at a closed dock. */
+  detention: (h: number, at: "pickup" | "receiver" | "both") => `Detention · ${h} h ${at === "pickup" ? "at the pickup" : at === "receiver" ? "at the receiver" : "at both docks"}`,
   paid: "Paid",
   today: "today",
   /** How this load is paid, from the settlement's true terms (the writer's copy-player2.md, row 7). */
@@ -472,6 +490,12 @@ export const MONEY = {
   /** R4 (the director, director-player1.md): the fold starts closed and says the token is later. */
   token: "The token (later)",
   red: (weeks: number, limit: string) => `You're in the red. ${weeks} weekly checks in a row more than ${limit} FD under and the company is wound up.`,
+};
+
+/** The debt line on the badge and Money (engineering's, for the writer): the engine's own figures (figures.ts debtCountdown). */
+export const DEBT = {
+  line: (cash: string, limit: string, n: number, of: number, day: string) => `You're ${cash} FD in the red, past the ${limit} FD line. ${n} of ${of} weekly checks in debt; the next is ${day}. Get loads moving, sell or park a truck, or put money in.`,
+  count: (n: number, of: number, day: string) => `${n} of ${of} weekly checks in debt; the next is ${day}.`,
 };
 
 /** The dispatcher and its two states (copy-first-ten-minutes.md, S9). */
@@ -597,6 +621,9 @@ export const NEEDS = {
   tender: (from: string, to: string) => `Contract tender: ${from} → ${to}`,
   result: (won: boolean) => (won ? "Your bid won: the result" : "Your bid's result is in"),
   opened: (tab: string) => `${tab} just opened`,
+  /** R16 (the writer's copy-player4.md needs.notice): an unhappy driver on notice. */
+  notice: (name: string, date: string) => `${name} leaves ${date} unless you raise pay.`,
+  noticeButton: "Raise pay",
 };
 
 /**
@@ -769,6 +796,8 @@ export const FINANCE = {
   // Card 4: staking (the tier rows go with the lever, when the lock discounts switch on).
   stakeTitle: "Staking",
   stakeBelow: (n: number, fd: string, to: number) => `Staking: needed past ${n} trucks (${fd} FD to run up to ${to}).`,
+  /** When the yard binds before the stake's count (the gamer: 20,000 FD "to run up to 10" while the yard held 5): no count the yard won't allow. */
+  stakeBelowYard: (n: number, fd: string, yard: number) => `Staking: needed past ${n} trucks (${fd} FD for the next tier), but your yard caps you at ${yard} until you buy more space.`,
   stakeMay: (n: number, run: number) => `You may run ${n} trucks · you run ${run}`,
   stakeTo: (n: number, fd: string) => `To run ${n}: stake ${fd} FD`,
   stakeDiscount: (pct: string) => `Discount now: ${pct}`,

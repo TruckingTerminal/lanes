@@ -1,7 +1,8 @@
 import type { JSX } from "preact";
-import { chipCash, chipFd, type ChipPair } from "../board.js";
-import { CHIP } from "../copy.js";
-import { cls } from "../format.js";
+import type { Load, Truck, World } from "@lanes/engine";
+import { chipCash, chipFd, dockWaits, type ChipPair } from "../board.js";
+import { CHIP, DOCK } from "../copy.js";
+import { cls, hhmm, weekdayDate } from "../format.js";
 
 /**
  * R14's chip: "+607 · cash −103 · held 710" while the lease holds (the held part on a laptop only; on a phone it's on the
@@ -25,5 +26,19 @@ export function ProfitChip({ p }: { p: ChipPair }): JSX.Element {
         </>
       ) : null}
     </span>
+  );
+}
+
+/** The dock warning at booking (board.ts dockWaits): a closed dock at the pickup or the receiver, when it opens, and the wait. */
+export function DockWarning({ w, t, l, dh }: { w: World; t: Truck; l: Load; dh: number }): JSX.Element | null {
+  const d = dockWaits(w, t, l, dh);
+  if (!d.pickup && !d.delivery) return null;
+  const when = (at: number) => `${weekdayDate(Math.floor(at / w.cfg.time.gameMinutesPerDay))} ${hhmm(at)}`;
+  return (
+    <p class="warn small">
+      {d.pickup ? DOCK.pickup(when(d.pickup.openT), Math.round(d.pickup.waitMin / 60)) : null}
+      {d.pickup && d.delivery ? <br /> : null}
+      {d.delivery ? DOCK.delivery(when(d.delivery.openT), Math.round(d.delivery.waitMin / 60)) : null}
+    </p>
   );
 }

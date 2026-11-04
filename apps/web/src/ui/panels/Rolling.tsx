@@ -56,8 +56,10 @@ export function DeliveredCard(): JSX.Element | null {
   const minus = (x: number) => `−${fdFull(x)}`;
   // Each pay row explains itself (explain.ts); the lessor's share from what the load paid.
   const f = (k: string, label: string, v: string, fdIn?: number): [string, JSX.Element] => [label, <Fig k={k} label={label} ctx={{ fd: fdIn }}>{v}</Fig>];
+  const det = d.line.detentionAt;
   const rows: [string, string | JSX.Element][] = [
     [DELIVERED.load, fdFull(d.line.load)],
+    ...(d.line.detention >= 0.5 ? ([[DELIVERED.detention(det.pickupH + det.deliveryH, det.pickupH && det.deliveryH ? "both" : det.pickupH ? "pickup" : "receiver"), `+${fdFull(d.line.detention)}`]] as [string, string][]) : []),
     f("pay.fuel", DELIVERED.fuel, minus(d.line.fuel)),
     f("pay.tolls", DELIVERED.tolls, minus(d.line.tolls)),
     ...(d.line.driver >= 0.5 ? [d.hiredDriver ? ([DELIVERED.driverHired(d.hiredDriver), minus(d.line.driver)] as [string, string]) : f("pay.ownerPay", DELIVERED.driverOwner, minus(d.line.driver))] : []),

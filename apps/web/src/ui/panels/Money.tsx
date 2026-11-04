@@ -3,8 +3,8 @@ import { useEffect } from "preact/hooks";
 import { InvoiceRows } from "./CashNow.js";
 import { MoveMoneyLink } from "./Brokerage.js";
 import { averagePriceUsd, bridgeDelayDays, companyAccount, depositCredit, fdPriceUsd, itemPriceUsd, lockedFd, sellableFd, tokenLive, type Company, type World } from "@lanes/engine";
-import { cls, fd, fdFull, shortDate, usd, plural } from "../../format.js";
-import { MONEY } from "../../copy.js";
+import { cls, dateLabel, fd, fdFull, shortDate, usd, plural } from "../../format.js";
+import { DEBT, MONEY } from "../../copy.js";
 import { invoices, milesOf, weekCosts } from "../../ledger.js";
 import { FinanceLinks } from "./Finance.js";
 import { Fig } from "../Explain.js";
@@ -164,7 +164,11 @@ export function Money(): JSX.Element {
             <Fig k="guide.debtCountdown" label={GUIDE_LABEL.debt}>{GUIDE_LABEL.debtValue(c.weeksInDebt, w.cfg.insolvency.weeksInDebt)}</Fig>
           </p>
         ) : null}
-        {bal < 0 ? <p class="bad">{MONEY.red(w.cfg.insolvency.weeksInDebt, fdFull(w.cfg.insolvency.debtLimitFd))}</p> : null}
+        {bal < 0 ? (
+          <p class="bad">
+            {MONEY.red(w.cfg.insolvency.weeksInDebt, fdFull(w.cfg.insolvency.debtLimitFd))} {DEBT.count(debtCountdown(w, c).n, w.cfg.insolvency.weeksInDebt, dateLabel(debtCountdown(w, c).nextDay))}
+          </p>
+        ) : null}
       </Card>
       <Card title={<Fig k="money.owed" label={MONEY.owed}>{MONEY.owed}</Fig>}>
         {/* One row per invoice: line 2 is Cash it now while its switch is on (finance.md draft 2). */}

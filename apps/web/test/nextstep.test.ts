@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { borrowingCapacity, borrowLender, companyAccount, lendNowFd, poolCash } from "@lanes/engine";
+import { borrowingCapacity, borrowLender, companyAccount, lendNowFd, askOf, payFloor, poolCash, poolOf } from "@lanes/engine";
 import { blockReason, boardRows } from "../src/board.js";
-import { ANSWER, CAPS, CONFIRM, DELIVERED, MOVE, SAFETY_NEWS, SECURITY } from "../src/copy.js";
-import { safetyNeeds } from "../src/logic.js";
+import { ANSWER, CAPS, CONFIRM, DELIVERED, MOVE, NEEDS, SAFETY_NEWS, SECURITY } from "../src/copy.js";
+import { needs, safetyNeeds } from "../src/logic.js";
 import { poachResult } from "../src/ui/panels/Staff.js";
 import { item, itemSaving, usedTruck } from "../src/confirmspecs.js";
 import { confirmAct, confirmSpend } from "../src/ui/Confirm.js";
@@ -390,5 +390,33 @@ describe("R18: the road to revocation is a Needs-you item at every step", () => 
     const items = safetyNeeds(w, c);
     expect(items[0]!.text).toBe(`${SAFETY_NEWS.auditResult("Unsatisfactory")} ${SAFETY_NEWS.consequence.unsatisfactory} ${SAFETY_NEWS.revokes(dateLabel(today + 45))}`);
     expect(items.every((n) => n.tab === "company" && n.target === '[data-need="safety"]')).toBe(true);
+  }, 60_000);
+});
+
+describe("the five diaries: a driver's notice and the debt line read the engine", () => {
+  it("a driver on notice is a Needs-you item with Raise pay; the debt line quotes the weekly check's own count", async () => {
+    const g = await TestGame.create(undefined, undefined, 1104);
+    const c = g.join("Notice Freight", "fleet", "LAX")!;
+    const w = g.w;
+    S.game = g as never;
+    try {
+      // A hired driver (Hire offers the engine's own ask, askOf), then on notice for pay.
+      const truck = w.trucksByCompany.get(c.id)!.find((t) => !t.driverId)!;
+      const s = poolOf(w, "driver")[0]!;
+      expect(g.act({ type: "offer_staff", staffId: s.id, pay: Math.max(askOf(w, c, s), payFloor(w, s)), truckId: truck.id }).ok).toBe(true);
+      s.unhappyNotice = true;
+      s.offer = { companyId: 0, pay: 0, truckId: 0, day: Math.floor(w.t / 1440) };
+      const item = needs().find((n) => n.key === `notice:${s.id}`)!;
+      expect(item.text).toBe(NEEDS.notice(s.name, dateLabel(s.offer.day + w.cfg.labor.morale.noticeDays)));
+      expect(item.button).toBe(NEEDS.noticeButton);
+      expect(item.tab).toBe("staff");
+      // Under the line: the badge's line quotes debtCountdown, the figure checkSolvency reads.
+      w.ledger.post(w.t, companyAccount(c.id), "sink:test", w.ledger.balance(companyAccount(c.id)) + 30_000, "test");
+      const debt = needs().find((n) => n.key.startsWith("debt:"))!;
+      expect(debt.text).toContain(`${c.weeksInDebt} of ${w.cfg.insolvency.weeksInDebt} weekly checks in debt`);
+      expect(debt.text).toContain(`You're 30,000 FD in the red`);
+    } finally {
+      S.game = null;
+    }
   }, 60_000);
 });

@@ -11,6 +11,7 @@ import { feed, isPhone, me, myTrucks, order, S, setTab, truckNo, useData } from 
 import { Bar, Btn, Card, Kv, Panel } from "../bits.js";
 import { Fig } from "../Explain.js";
 import { CapsLine } from "../Caps.js";
+import { fleetCaps } from "../../figures.js";
 
 /** A rate per load, one decimal: "5.9%". */
 const rate1 = (x: number): string => `${(x * 100).toFixed(1)}%`;
@@ -378,13 +379,16 @@ function Staking({ open, orders }: { open: (s: Sheet) => void; orders: Orders })
   const cap = truckCap(w, c);
   const running = operatingTrucks(w, c.id);
   const next = nextTruckTier(w, c);
+  // The yard's own cap (figures.ts fleetCaps), which a stake can't lift.
+  const caps = fleetCaps(w, c);
+  const yard = [caps.binding, ...caps.others].find((r) => r.kind === "yard")?.n ?? Infinity;
   const cash = w.ledger.balance(companyAccount(c.id));
   const field = () => Number((document.getElementById("stake-fd") as HTMLInputElement | null)?.value) || 0;
   const quiet = running < cap - 1 && c.stakedFd < 1;
   return (
     <Card title={FINANCE.stakeTitle}>
       {quiet ? (
-        <p class="small">{next ? FINANCE.stakeBelow(cap, fdFull(next.stake), next.trucks) : FINANCE.stakeMay(cap, running)}</p>
+        <p class="small">{next ? (yard < next.trucks ? FINANCE.stakeBelowYard(cap, fdFull(next.stake), yard) : FINANCE.stakeBelow(cap, fdFull(next.stake), next.trucks)) : FINANCE.stakeMay(cap, running)}</p>
       ) : (
         <>
           {/* R19: what's staked, its discount, its term, and what it allows (the caps line), so it moves when money does. */}

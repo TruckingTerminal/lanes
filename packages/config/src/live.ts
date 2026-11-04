@@ -28,6 +28,10 @@ export const LIVE_LEVERS: Record<string, unknown> = {
   "token.circular.enabled": true,
   "token.circular.taxBurnShare": 1,
   "token.circular.reserveFactor.exponent": 2,
+  // The week-one boom (2026-11-04, studio/reviews/economy-boom.md; Jeff: "fix them all now"): the reserve's lift on NPC
+  // rates tops out at 0.8 instead of 2, so the beta doesn't open at genesis rates. It binds only while the reserve is
+  // within ~11% of genesis (the first 60–90 days); what it holds back stays in the reserve and pays later.
+  "token.circular.reserveFactor.clamp": [0.5, 0.8],
   "token.circular.volumeStabilizer": true,
   "token.staking.enabled": true,
   "token.pools.enabled": true,
@@ -198,6 +202,10 @@ export const LIVE_LEVERS: Record<string, unknown> = {
   "token.credit.premiumMax": 0.1, // row 31
   "cashReserve.enabled": true, // row 32
   "token.payment.cashNow.enabled": true, // row 33
+  // The five diaries (Jeff, 2026-11-04: "fix them all now"): lateness from the truck's arrival at the receiver, and
+  // detention at a closed dock (sizes the economy sets later).
+  "docks.lateFromArrival": true,
+  "detention.enabled": true,
 };
 
 /** A config with the levers applied by path; throws on a path the config doesn't have. */

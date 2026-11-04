@@ -29,12 +29,14 @@ import {
 } from "@lanes/engine";
 import { DISPATCHER_ORDERS, GAME_CONFIG, PLAYER_DISPATCHER_ORDERS } from "./game.js";
 import { trueBreakEven } from "./breakeven.js";
-import { ARRIVAL, BROKERAGE, DISPATCHER, FIRST_ENTRY, NEEDS, SAFETY_NEWS, TRUCK } from "./copy.js";
+import { ARRIVAL, BROKERAGE, DEBT, DISPATCHER, FIRST_ENTRY, NEEDS, SAFETY_NEWS, TRUCK } from "./copy.js";
+import { debtCountdown } from "./figures.js";
 import { hasTwo, kindInView, switchCompany, type CompanyKind } from "./companies.js";
-import { act, bumpData, clockMin, isPhone, me, myTrucks, push, S, setTab, selectTruck, toast, truckNo } from "./state.js";
+import { act, bumpData, clockMin, isPhone, me, myTrucks, push, S, setTab, selectTruck, toast, truckNo, type Session } from "./state.js";
+import { iuliiaSay } from "./iuliia.js";
 import { tabDef, tabOpen, teaserTabs, type Tab } from "./tabs.js";
 import { myTenders } from "./ui/panels/Contracts.js";
-import { dateLabel, fd, hoursLabel, pct, plural, realUntil, signedPct, TRAILER_NAME } from "./format.js";
+import { dateLabel, fd, fdFull, hoursLabel, pct, plural, realUntil, signedPct, TRAILER_NAME } from "./format.js";
 import { Btn } from "./ui/bits.js";
 
 /** Game reasoning the panels share: idle diagnoses, status lines, crew lines, reload and season reads. */
@@ -115,8 +117,11 @@ export function attentionItems(): Attention[] {
   const weeklyFixed = running.length * (c.insurance.annualPerTruck / 52) + fleetOverheadPerWeek(w.cfg, running.length) + lessorTrucksOf(w, c.id).length * 250 + yardPerTruck(w, c) * Math.max(0, trucks.length - 1);
   const money = <Btn onClick={() => setTab("money")}>Money</Btn>;
   if (bal < -w.cfg.insolvency.debtLimitFd) {
-    const left = w.cfg.insolvency.weeksInDebt - c.weeksInDebt;
-    out.push({ key: "debt", text: `You're ${fd(-bal)} FD in the red. ${left <= 1 ? "The next weekly check winds the company up" : `${left} more weeks in debt and the company is wound up`}: get loads moving, sell or park a truck, or put money in.`, tone: "bad", fix: money });
+    // The figures the engine's weekly check reads (solvency.ts checkSolvency: this ledger balance against the line, at
+    // the week's close), from figures.ts debtCountdown, the same as What now? and Money. The key carries the count, so
+    // the toast and the ticker say it again when a check moves it rather than keeping the first line's figure.
+    const d = debtCountdown(w, c);
+    out.push({ key: `debt:${d.n}`, text: DEBT.line(fdFull(-bal), fdFull(w.cfg.insolvency.debtLimitFd), d.n, d.of, dateLabel(d.nextDay)), tone: "bad", fix: money });
   } else if (weeklyFixed > 0 && bal < 2 * weeklyFixed) {
     out.push({ key: "cash", text: `Cash is low: ${fd(bal)} FD against about ${fd(weeklyFixed)} FD a week of insurance, overhead, leases and yard before a wheel turns.`, tone: "warn", fix: money });
   }
@@ -190,10 +195,14 @@ function needsInView(fleet: boolean): Need[] {
   const w = g.w;
   const out: Need[] = fleet ? safetyNeeds(w, c) : [];
   for (const a of attentionItems()) {
-    const money = a.key === "debt" || a.key === "cash";
+    const money = a.key.startsWith("debt") || a.key === "cash";
     if (!fleet && !money) continue;
     out.push({ key: a.key, text: a.text, tab: money ? "money" : "fleet", target: money ? ".cashcard" : `[data-need="${a.key}"]` });
   }
+  // R16: a driver on notice for pay (Staff.unhappyNotice; labor.ts dailyLabor lets them go at offer.day + noticeDays).
+  for (const s of fleet ? w.staffByCompany.get(c.id) ?? [] : [])
+    if (s.unhappyNotice && s.status === "employed" && s.offer?.companyId === 0)
+      out.push({ key: `notice:${s.id}`, text: NEEDS.notice(s.name, dateLabel(s.offer.day + w.cfg.labor.morale.noticeDays)), tab: "staff", target: `[data-need="notice:${s.id}"]`, button: NEEDS.noticeButton });
   for (const l of myTenders(c)) out.push({ key: `tender:${l.id}`, text: NEEDS.tender(w.net.places[l.originPlace]!.name, w.net.places[l.destPlace]!.name), tab: "fleet", target: `[data-need="tender:${l.id}"]` });
   for (const t of fleet ? tiredTrucks() : []) {
     const d = w.staff[t.driverId - 1]!;
@@ -224,6 +233,25 @@ export function safetyNeeds(w: World, c: Company): Need[] {
   if (s.reviewDay !== null && s.reviewDay >= today) out.push({ key: `safety:audit:${s.reviewDay}`, text: `${SAFETY_NEWS.auditDue(dateLabel(s.reviewDay))}${s.alerts.length ? ` ${SAFETY_NEWS.auditWhy(s.alerts.length)}` : ""}`, ...at });
   else if (s.alerts.length) out.push({ key: `safety:alert:${s.alerts.join(",")}`, text: SAFETY_NEWS.alert(s.alerts.map((a) => BASIC_NAME[a] ?? a).join(", "), w.cfg.safety.review.auditDays), ...at });
   return out;
+}
+
+/**
+ * A hand bid whose load left the board before the round (booked outright by another carrier) is dropped by the engine
+ * without an event, and the dispatcher bids for the truck as usual (QA's Intel replay; the trucker's lost bid): the
+ * result card says so, and the Loads item lights (needs' "result").
+ */
+export function settleHandBids(s: Session): void {
+  if (!s.player) return;
+  const w = s.w;
+  for (const [loadId, hb] of S.handBids) {
+    const load = w.loads.get(loadId);
+    if (load && load.status === "open") continue;
+    S.handBids.delete(loadId);
+    if (load && load.carrierId === s.player.id) continue; // ours after all: the won event has said so
+    iuliiaSay(load ? "result:lost" : "result:nobody");
+    S.result = { won: false, from: hb.from ?? "", to: hb.to ?? "", rate: hb.rate, winning: load ? load.clearedRate : null, be: hb.be, total: 0, seen: false, winnerId: load?.carrierId ?? undefined, lost: load && hb.truckId !== undefined ? { loadId, truckId: hb.truckId, profitAtWinningFd: (load.clearedRate - hb.be) * load.miles } : undefined };
+    bumpData();
+  }
 }
 
 /** Opens a waiting thing's tab (the sheet at half on a phone) and scrolls its card into view, flashing it once. */

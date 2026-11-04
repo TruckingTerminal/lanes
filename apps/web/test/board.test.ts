@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 import { clearsNear as engineClearsNear, dispatchProfile, invalidOrders, marketMood, operatingTrucks, placeMiles, placeToll } from "@lanes/engine";
 import { bidRange, boardRows, chipCash, chipFd, clearsNear, clearsNearSource, posterOf, sortRows, suggestBid, destMatch } from "../src/board.js";
 import { breakdown } from "../src/explain.js";
+import { needs, settleHandBids } from "../src/logic.js";
+import { S } from "../src/state.js";
 import { firstBoomDay, firstMoodDay } from "../src/milestones.js";
 import { intelRows } from "../src/intel.js";
 import { trueBreakEven } from "../src/breakeven.js";
@@ -208,3 +210,51 @@ describe("The destination filter and the owner's draw (Jeff, 2026-11-04)", () =>
   }, 60_000);
 });
 const bookPairCash = (r: { profitBook: number; heldBook: number; draw: number }): number => r.profitBook - r.heldBook + r.draw;
+
+describe("a hand bid that loses is reported (the trucker's lost bid)", () => {
+  it("a hand bid whose load another carrier takes sets the result card, and the Loads item lights", async () => {
+    const g = await TestGame.create(undefined, undefined, 31_337);
+    const c = g.join("Lost Freight", "oo", "LAX")!;
+    const truck = g.w.trucksByCompany.get(c.id)![0]!;
+    S.game = g as never;
+    S.result = null;
+    S.handBids.clear();
+    try {
+      const row = boardRows(g.w, c, truck, { dest: "any", maxDh: 300, query: "" }).filter((r) => !r.block)[0]!;
+      expect(g.act({ type: "place_bid", truckId: truck.id, loadId: row.l.id, rate: row.l.ceiling }).ok).toBe(true);
+      // Both bid paths record the hand bid (the load sheet, and now the laptop table).
+      S.handBids.set(row.l.id, { rate: row.l.ceiling, be: row.be, truckId: truck.id, from: "A", to: "B" });
+      // Another carrier books it outright before the round: the engine drops the hand bid with no event.
+      const other = g.w.companies.find((x) => x.id !== c.id && x.role === "carrier")!;
+      row.l.status = "inTransit";
+      row.l.carrierId = other.id;
+      row.l.clearedRate = row.l.bookNow;
+      settleHandBids(g as never);
+      const result = S.result as { won: boolean; winning: number | null } | null; // set by settleHandBids
+      expect(result?.won).toBe(false);
+      expect(result?.winning).toBeCloseTo(row.l.bookNow, 6);
+      expect(needs().some((n) => n.key === "result" && n.tab === "loads")).toBe(true);
+    } finally {
+      S.result = null;
+      S.handBids.clear();
+      S.game = null;
+    }
+  }, 120_000);
+});
+
+describe("detention and lateness at a closed dock (the trucker's weekend)", () => {
+  it("a closed-dock wait past the free time pays its hours, capped per stop; lateness counts from arrival", async () => {
+    const g = await TestGame.create(undefined, undefined, 20_261_104);
+    const k = g.w.cfg.detention;
+    expect(k.enabled && g.w.cfg.docks.lateFromArrival).toBe(true);
+    for (let h = 0; h < 24 * 5; h++) g.stepHour();
+    const held = [...g.w.loads.values()].filter((l) => l.detention && l.detention.fd > 0);
+    expect(held.length).toBeGreaterThan(0);
+    for (const l of held) {
+      const d = l.detention!;
+      expect(d.fd).toBe((d.pickupH + d.deliveryH) * k.fdPerHour);
+      expect(d.pickupH).toBeLessThanOrEqual(k.maxHours);
+      expect(d.deliveryH).toBeLessThanOrEqual(k.maxHours);
+    }
+  }, 180_000);
+});

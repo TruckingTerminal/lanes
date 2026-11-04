@@ -354,6 +354,7 @@ table.mini td:first-child { font-family: inherit; }
 .chip.muted { color: var(--text-secondary); }
 /* R14: the profit chip is one line at any width; a bid chip beside it moves to the next line instead. */
 .chip.profitchip { white-space: nowrap; }
+.bidinput { width: 5.5em; text-align: center; }
 .pinned-bid { border-color: var(--accent); }
 .pinned-bid .loadcard { min-height: 0; }
 .ring { width: 22px; height: 22px; border-radius: 50%; flex: none; -webkit-mask: radial-gradient(circle, transparent 6px, #000 7px); mask: radial-gradient(circle, transparent 6px, #000 7px); }
@@ -413,6 +414,14 @@ ul.timeline .linkish { background: none; border: 0; padding: 6px 0; min-height: 
 /* Phones (Jeff, 2026-11-01: "not optimized for mobile at all"): one column, the panel first and the map one tap away,
    bigger type and targets, the page scrolling instead of boxes inside it, tab labels back. */
 @media (max-width: 899px) {
+  /* Staff's hire tables at phone width: each person a wrapping row, so Hire and its pay stay on screen (the gamer's diary). */
+  .pooltable thead { display: none; }
+  .pooltable tr { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; padding: 6px 0; border-bottom: 1px solid var(--border); }
+  .pooltable td { border: 0; padding: 0; }
+  .pooltable td:last-child { flex: 1 1 100%; }
+  .payin { width: 72px; }
+  /* Naming's pinned Start row never covers the last field (the gamer: START sat over "How you start"): room under it to scroll past. */
+  .namingform { padding-bottom: 72px; }
   html { -webkit-text-size-adjust: 100%; }
   body { font-size: 15px; line-height: 1.5; }
   h2 { font-size: 20px; }
