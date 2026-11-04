@@ -2,7 +2,7 @@ import type { JSX } from "preact";
 import { useEffect, useState } from "preact/hooks";
 import { MANUAL_BID_MAX_DEADHEAD_MI, VETTING_NAMES, type Truck } from "@lanes/engine";
 import { COMMODITIES } from "@lanes/data";
-import { bidRange, boardRows, chipCash, chipPair, clearsNear, posterOf, sortRows, type BoardRow, type BoardSort, type ChipPair } from "../../board.js";
+import { allInRate, bidRange, boardRows, chipCash, chipPair, clearsNear, posterOf, sortRows, type BoardRow, type BoardSort, type ChipPair } from "../../board.js";
 import { ProfitChip } from "../ProfitChip.js";
 import { ANSWER, BOARD, CHIP, INTEL, LOAD, ROUND } from "../../copy.js";
 import { cls, fdFull, hhmm, pct, shortDate, TRAILER_NAME } from "../../format.js";
@@ -212,7 +212,7 @@ function LoadCard({ r, truck, name }: { r: BoardRow; truck: Truck; name: (i: num
   return (
     <button type="button" class={cls("loadcard", r.block && "blocked")} onClick={() => openLoad(l.id)} title={`${name(l.origin)} → ${name(l.dest)}`}>
       <span class="l1">{BOARD.line1(place(l.originPlace), place(l.destPlace), Math.round(l.miles).toLocaleString("en-US"))}</span>
-      <span class="l2 small">{BOARD.line2(fdFull(r.total), l.bookNow.toFixed(2), Math.round(r.dh))}</span>
+      <span class="l2 small">{BOARD.line2(fdFull(r.total), l.bookNow.toFixed(2), allInRate(r.total, l.miles, r.dh), Math.round(r.dh))}</span>
       <span class="chips">
         <Chips r={r} truck={truck} />
         {r.heat >= 1.5 ? <span class="chip good">{BOARD.hotTo(name(l.dest))}</span> : r.heat >= 1.1 ? <span class="chip">{BOARD.tightTo(name(l.dest))}</span> : null}
@@ -376,7 +376,7 @@ function LoadSheet({ r, truck }: { r: BoardRow; truck: Truck }): JSX.Element {
       <Card title={LOAD.money}>
         <Kv
           rows={[
-            [LOAD.bookNow, <Fig k="board.bookNow" label={LOAD.bookNow} ctx={fx}>{`${fdFull(r.total)} FD · ${l.bookNow.toFixed(2)}/mi`}</Fig>],
+            [LOAD.bookNow, <Fig k="board.bookNow" label={LOAD.bookNow} ctx={fx}>{`${fdFull(r.total)} FD · ${BOARD.rpms(l.bookNow.toFixed(2), allInRate(r.total, l.miles, r.dh))}`}</Fig>],
             [LOAD.breakEven, <Fig k="truck.breakEven" label={LOAD.breakEven} ctx={fx}>{`${r.be.toFixed(2)}/mi`}</Fig>],
             [LOAD.profitBook, <Fig k="board.profitChip" label={LOAD.profitBook} ctx={fx}><span class={bookUp ? "good" : "bad"}>{`${signed(r.profitBook)} FD`}</span></Fig>],
             // R14: the pair, on the sheet, when the lease holds: cash now (amber when negative) and what's held.

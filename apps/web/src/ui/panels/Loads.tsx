@@ -2,7 +2,8 @@ import type { JSX } from "preact";
 import { useState } from "preact/hooks";
 import { dispatchProfile, expectedReloadDeadheadMi, isLocal, operatingTrucks, localOnly, MANUAL_BID_MAX_DEADHEAD_MI, placeMiles, placeToll, VETTING_NAMES, type Load, type Truck } from "@lanes/engine";
 import { COMMODITIES } from "@lanes/data";
-import { bidRange, blockReason, chipPair, clearsNear, suggestBid } from "../../board.js";
+import { allInRate, bidRange, blockReason, chipPair, clearsNear, suggestBid } from "../../board.js";
+import { BOARD } from "../../copy.js";
 import { ProfitChip } from "../ProfitChip.js";
 import { trueBreakEven } from "../../breakeven.js";
 import { cls, fd, fdFull, hhmm, pct, shortDate, TRAILER_CODE, TRAILER_NAME } from "../../format.js";
@@ -219,7 +220,7 @@ function LoadRow({ r, truck, mine, pendingRate }: { r: Row; truck: Truck; mine: 
         <td class="num">{r.ageH === 0 ? "new" : `${r.ageH}h`}</td>
         <td>
           <div class="rate-big">{fdFull(r.total)} FD</div>
-          <div class="num muted">{l.bookNow.toFixed(2)}/mi</div>
+          <div class="num muted">{BOARD.rpms(l.bookNow.toFixed(2), allInRate(r.total, l.miles, r.dh))}</div>
         </td>
         <td class="num">{l.miles}</td>
         <td>

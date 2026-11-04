@@ -316,8 +316,12 @@ export const ARRIVAL = {
   you: "You",
 };
 
+/** Two rates per mile (Jeff, 2026-11-04): loaded, and total over the loaded and empty miles, since an empty mile burns the same fuel; one rate when there are no empty miles. */
+const rpms = (rate: string, allIn: string | null): string => (allIn ? `${rate}/mi loaded · ${allIn}/mi total` : `${rate}/mi`);
+
 /** The board, the load and the round (copy-first-ten-minutes.md, S2–S5). */
 export const BOARD = {
+  rpms,
   /** The board filtered to one poster (Intel's "Their loads on the board"): the chip, its ✕'s accessible name, and none in reach (the writer's strings). */
   fromPoster: (name: string) => `Posted by ${name}`,
   showEvery: "Show every load",
@@ -325,7 +329,7 @@ export const BOARD = {
   header: (hub: string, n: number, next: string) => `Loads from ${hub} · ${n} · next round ${next}`,
   truck: (n: number, trailer: string) => `Truck ${n} · ${trailer}`,
   line1: (from: string, to: string, miles: string) => `${from} → ${to} · ${miles} mi`,
-  line2: (total: string, rate: string, dh: number) => `${total} FD · ${rate}/mi · ${dh} mi empty`,
+  line2: (total: string, rate: string, allIn: string | null, dh: number) => `${total} FD · ${rpms(rate, allIn)} · ${dh} mi empty`,
   chipSuggest: (profit: string, rate: string) => `+${profit} FD at ${rate}`,
   /** Jeff, 2026-11-04: "Deliver by" (the delivery appointment, soonest first) is gone; Hot markets puts loads bound for markets where loads outnumber trucks first. */
   sorts: { nearest: "Nearest", pay: "Best pay", hot: "Hot markets" },

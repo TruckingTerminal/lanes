@@ -119,7 +119,7 @@ Each character line is true to today's hub table; if the economy's figures move,
 |---|---|
 | Header | Loads from `{hub}` · `{n}` · next round `{hh:00}` (in `{wait}`) |
 | Truck selector | Truck `{n}` · `{trailer}` |
-| Card line 1 / 2 | `{Dallas, TX}` → `{Charlotte, NC}` · `{miles}` mi / `{total}` FD · `{rate}`/mi · `{dh}` mi empty |
+| Card line 1 / 2 | `{Dallas, TX}` → `{Charlotte, NC}` · `{miles}` mi / `{total}` FD · `{rate}`/mi loaded · `{total ÷ (loaded + empty)}`/mi total · `{dh}` mi empty (2026-11-04: the total rate counts the empty miles; one rate when there are none) |
 | Chips | +`{profit}` FD at book-now · −`{loss}` FD at book-now · +`{profit}` FD at `{suggest}` |
 | Blocked chips | Needs `{vetting.standard.minAuthorityDays}`-day authority · day `{d}` · Needs `{vetting.strict.minAuthorityDays}`-day authority or `{strict.minDelivered}` loads · Local carriers first this round · A hot load needs a team |
 | Sort | Nearest · Best pay · Hot markets (Jeff, 2026-11-04: Deliver by, which sorted by the delivery appointment, is cut; Hot markets puts loads bound for markets where loads outnumber trucks first, each card naming a hot or tight destination) |

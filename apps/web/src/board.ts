@@ -45,6 +45,9 @@ export interface BoardFilter {
   poster?: number | null;
 }
 
+/** The rate over the loaded and empty miles together (Jeff, 2026-11-04: the empty miles cost what loaded ones do); null with no empty miles. */
+export const allInRate = (total: number, loadedMi: number, dh: number): string | null => (dh >= 1 ? (total / (loadedMi + dh)).toFixed(2) : null);
+
 /** The company that posted a load: its broker, else its shipper (null for an NPC shipper's load). */
 export const posterOf = (l: Load): number | null => l.brokerId ?? l.shipperId ?? null;
 
