@@ -13,7 +13,7 @@ import { payLegFuel, roadService, serviceBill } from "./businesses.js";
 import { leaveParking, legMile, parkForTheNight, planNight, siteHere } from "./sites.js";
 import { managerBreakdownMult, managerMaintenanceMult } from "./labor.js";
 import { dayOf, MINUTES_PER_HOUR } from "./clock.js";
-import { clamp, fuelPrice, tripCost } from "./economics.js";
+import { clamp, fuelPrice, tripCost, ownerDrawFd } from "./economics.js";
 import { settleDoubleBroker } from "./fraud.js";
 import { bill, factoringLog } from "./receivables.js";
 import { lockCost, stakeDiscount } from "./staking.js";
@@ -378,11 +378,14 @@ export function payTripCosts(w: World, truck: Truck, ref: string): number {
   // A big fleet buys fuel at a fleet discount (scale.ts).
   const fuel = lockCost(w, company, (c.fuel + climbGal * price) * (1 - scaleDiscount(w, company)), () => (c.fuel + climbGal * price) * keep * (1 - scaleDiscount(w, company)));
   payLegFuel(w, company, truck, fuel, driven, ref); // the block rule: the origin, then the truck stops the leg passes
-  w.ledger.post(w.t, acct, "sink:driver_wages", c.wages, ref);
+  // The owner's draw (economics.ts ownerDrawFd; Jeff, 2026-11-04): the owner's own pay stays with the company, a hired driver's goes out.
+  const draw = Math.min(c.wages, ownerDrawFd(w, truck, driven));
+  if (c.wages - draw > 1e-9) w.ledger.post(w.t, acct, "sink:driver_wages", c.wages - draw, ref);
+  company.ownerDrawFd += draw;
   const maintenance = serviceBill(w, company, truck.hub, lockCost(w, company, c.maintenance * managerMaintenanceMult(w, company), () => c.maintenance * keep * managerMaintenanceMult(w, company)), "maintenance", ref);
   w.ledger.post(w.t, acct, "sink:tolls", tolls, ref);
   // Insurance isn't per trip: the yearly policy is billed weekly (insurance.ts).
-  return fuel + maintenance + c.wages + tolls;
+  return fuel + maintenance + c.wages - draw + tolls;
 }
 
 function arriveEmpty(w: World, truck: Truck): void {

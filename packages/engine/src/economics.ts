@@ -37,7 +37,7 @@ export function tripCost(cfg: EconomyConfig, truck: TruckSpec & { mods?: { aero?
   return {
     gallons,
     fuel: gallons * fuel,
-    wages: driven * (truck.wagePerMile ?? cfg.costs.driverWagePerMile) * (ops.enabled ? ops.driverPayMult[truck.trailer] : 1),
+    wages: wagesFor(cfg, truck, driven),
     maintenance: driven * maintenancePerMile(cfg, truck) * (truck.mods?.tires ? 0.8 : 1),
     // Billed weekly per truck on a yearly policy (insurance.ts); here, its share per loaded mile.
     insurance: ((loaded * cfg.insurance.baseAnnualPerTruck) / cfg.insurance.loadedMilesPerYear) * (truck.insuranceMult ?? 1),
@@ -70,4 +70,21 @@ export const finiteIn = (x: unknown, lo: number, hi: number): x is number => typ
 
 export function clamp(x: number, lo: number, hi: number): number {
   return x < lo ? lo : x > hi ? hi : x;
+}
+
+/** A leg's driver pay: the truck's wage per mile (its driver's), more on reefer and flatbed freight (equipmentOps). */
+export function wagesFor(cfg: EconomyConfig, truck: { wagePerMile?: number; trailer: Equipment }, driven: number): number {
+  const ops = cfg.equipmentOps;
+  return driven * (truck.wagePerMile ?? cfg.costs.driverWagePerMile) * (ops.enabled ? ops.driverPayMult[truck.trailer] : 1);
+}
+
+/**
+ * The owner's draw on a leg (Jeff, 2026-11-04: "pay it to myself"): when the owner drives and `labor.owner.drawStays`,
+ * the driver's pay stays with the company, since it is the owner's own; it is still priced into break-even (tripCost's
+ * wages), so one-truck carriers don't bid their labor away. 0 for a hired driver or with the switch off.
+ */
+export function ownerDrawFd(w: { cfg: EconomyConfig; staff: readonly { owner: boolean }[] }, truck: { driverId: number; wagePerMile?: number; trailer: Equipment }, driven: number): number {
+  if (!w.cfg.labor.owner.drawStays || !truck.driverId) return 0;
+  const d = w.staff[truck.driverId - 1];
+  return d?.owner ? wagesFor(w.cfg, truck, driven) : 0;
 }

@@ -123,7 +123,7 @@ Each character line is true to today's hub table; if the economy's figures move,
 | Chips | +`{profit}` FD at book-now · −`{loss}` FD at book-now · +`{profit}` FD at `{suggest}` |
 | Blocked chips | Needs `{vetting.standard.minAuthorityDays}`-day authority · day `{d}` · Needs `{vetting.strict.minAuthorityDays}`-day authority or `{strict.minDelivered}` loads · Local carriers first this round · A hot load needs a team |
 | Sort | Nearest · Best pay · Hot markets (Jeff, 2026-11-04: Deliver by, which sorted by the delivery appointment, is cut; Hot markets puts loads bound for markets where loads outnumber trucks first, each card naming a hot or tight destination) |
-| Filter | Filter · Destination · Anywhere · Empty miles, max · Commodity or place (placeholder "produce, Tulsa") · Rates by hub · Table (laptop) |
+| Filter (2026-11-04: Destination is a text field, a city, a state, a market or a DAT zone, Tampa, FL · Florida · FL · Z3 · Dallas; plus "Rate per mile, min" and "Trip miles, max") | Filter · Destination · Anywhere · Empty miles, max · Commodity or place (placeholder "produce, Tulsa") · Rates by hub · Table (laptop) |
 | Truck busy | Your truck is on the road · loads show when it's free · ETA `{date}` |
 | Nothing in range | Nothing for a `{dry van}` within `{maxDh}` mi of `{hub}` this round · next round `{hh:00}` · **Widen the search** |
 

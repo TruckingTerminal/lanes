@@ -70,7 +70,7 @@ export function DeliveredCard(): JSX.Element | null {
       <Kv rows={rows} />
       <p class="payyours">
         <b>
-          {DELIVERED.yours} {fdFull(d.line.yours)} FD
+          {DELIVERED.yours} {fdFull(d.line.yours)} FD{d.line.draw >= 0.5 ? <span class="muted small"> · {DELIVERED.drawNote(fdFull(d.line.draw))}</span> : null}
         </b>
       </p>
       <p class="muted small">{d.paid}</p>

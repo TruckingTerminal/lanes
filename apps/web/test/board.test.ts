@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { clearsNear as engineClearsNear, dispatchProfile, invalidOrders, marketMood, operatingTrucks, placeMiles, placeToll } from "@lanes/engine";
-import { bidRange, boardRows, chipCash, chipFd, clearsNear, clearsNearSource, posterOf, sortRows, suggestBid } from "../src/board.js";
+import { bidRange, boardRows, chipCash, chipFd, clearsNear, clearsNearSource, posterOf, sortRows, suggestBid, destMatch } from "../src/board.js";
 import { breakdown } from "../src/explain.js";
 import { firstBoomDay, firstMoodDay } from "../src/milestones.js";
 import { intelRows } from "../src/intel.js";
@@ -179,3 +179,32 @@ describe("Hot markets and the first load's lock (Jeff, 2026-11-04)", () => {
     expect(firstLoadLocked(g.w, c)).toBe(false);
   }, 60_000);
 });
+
+describe("The destination filter and the owner's draw (Jeff, 2026-11-04)", () => {
+  it("matches a city, a state by code or name, a market and a DAT zone; the rate and miles filters cut; the draw stays when the owner drives", async () => {
+    const { g, c, truck } = await world();
+    const w = g.w;
+    const rows = boardRows(w, c, truck, { dest: "", maxDh: 300, query: "" });
+    expect(rows.length).toBeGreaterThan(0);
+    const l = rows[0]!.l;
+    const p = w.net.places[l.destPlace]!;
+    const h = w.net.hubs[l.dest]!;
+    expect(destMatch(w, l, "")).toBe(true);
+    expect(destMatch(w, l, p.state)).toBe(true);
+    expect(destMatch(w, l, p.name)).toBe(true);
+    expect(destMatch(w, l, `${p.name}, ${p.state}`)).toBe(true);
+    expect(destMatch(w, l, h.id)).toBe(true);
+    expect(destMatch(w, l, "Z3")).toBe(["AL", "FL", "GA", "MS", "TN"].includes(p.state.toUpperCase()));
+    expect(destMatch(w, l, "Florida")).toBe(p.state.toUpperCase() === "FL");
+    expect(destMatch(w, l, "Nowhere, ZZ")).toBe(false);
+    const dear = boardRows(w, c, truck, { dest: "", maxDh: 300, query: "", minRpm: 99 });
+    expect(dear.length).toBe(0);
+    const short = boardRows(w, c, truck, { dest: "", maxDh: 300, query: "", maxMiles: 10 });
+    expect(short.every((r) => r.l.miles <= 10)).toBe(true);
+    if (w.cfg.labor.owner.drawStays) {
+      expect(rows.every((r) => r.draw > 0)).toBe(true);
+      expect(Math.abs(bookPairCash(rows[0]!) - (rows[0]!.profitBook - rows[0]!.heldBook + rows[0]!.draw))).toBeLessThan(1e-9);
+    }
+  }, 60_000);
+});
+const bookPairCash = (r: { profitBook: number; heldBook: number; draw: number }): number => r.profitBook - r.heldBook + r.draw;

@@ -9,7 +9,7 @@ export type TractorTier = "workhorse" | "highwayPro" | "flagship";
 export type FacilityType = "warehouse" | "coldStorage" | "factory";
 
 export const economyConfig = {
-  version: "0.21.0-phase0.36", // Restart (2026-11-03): the diary 3/4 bump (studio/reviews/economy-player34.md, live.ts): a ceiling is a ceiling (R17), the pay floor and drivers who quit (R16), the board at a 1.2 ceiling with a short-load cap and the season table on rates (R11), R12's hours with the 70-hour clock and the 34-hour restart, compliance with teeth and a year's probation (R18), the dispatcher and auto-staff off until the player chooses (R1, R8), the double pledge closed and Equipment Finance shut with the pools, a fleet's lot rig in a week; the brokerage on, both premiums halved, the Reserve at thirteen weeks, cash now at 8% plus 0.1% a day to 3%; levels as 0.20.2
+  version: "0.22.0-phase0.37", // 2026-11-04 (Jeff: "pay it to myself"): the owner's draw stays with the company (labor.owner.drawStays, on in live.ts); the live world keeps 0.21.0 until its next restart. 0.21.0-phase0.36, Restart (2026-11-03): the diary 3/4 bump (studio/reviews/economy-player34.md, live.ts): a ceiling is a ceiling (R17), the pay floor and drivers who quit (R16), the board at a 1.2 ceiling with a short-load cap and the season table on rates (R11), R12's hours with the 70-hour clock and the 34-hour restart, compliance with teeth and a year's probation (R18), the dispatcher and auto-staff off until the player chooses (R1, R8), the double pledge closed and Equipment Finance shut with the pools, a fleet's lot rig in a week; the brokerage on, both premiums halved, the Reserve at thirteen weeks, cash now at 8% plus 0.1% a day to 3%; levels as 0.20.2
 
   // §World, map and time
   time: {
@@ -1458,6 +1458,10 @@ export const economyConfig = {
     owner: {
       span: 3, // the first three trucks: the same three that pay no fleet overhead
       driverPayPerMile: 0.75, // the owner's draw when driving their own truck: fixed, never quits or gets poached
+      // Jeff, 2026-11-04 ("pay it to myself"): true, and the draw stays with the company when the owner drives (it is the
+      // owner's own pay), still priced into every break-even so one-truck carriers don't bid their labor away; false, and
+      // it leaves the books like a hired driver's wage.
+      drawStays: false,
       botSkill: [0.3, 0.7] as const, // AI owners average a typical driver
       humanSkill: 0.3,
       potential: 0.9,

@@ -340,6 +340,10 @@ export const BOARD = {
   filter: "Filter",
   destination: "Destination",
   anywhere: "Anywhere",
+  /** The destination filter (Jeff, 2026-11-04, as on DAT): a city, a state, a market or a zone. */
+  destPlaceholder: "Tampa, FL · Florida · FL · Z3 · Dallas",
+  minRpm: "Rate per mile, min",
+  maxMiles: "Trip miles, max",
   maxEmpty: "Empty miles, max",
   query: "Commodity or place",
   queryPlaceholder: "produce, Tulsa",
@@ -418,6 +422,8 @@ export const DELIVERED = {
   fuel: "Fuel",
   tolls: "Tolls",
   driverOwner: "Your pay for driving",
+  /** Under "yours" when the owner drove (Jeff, 2026-11-04): the draw stayed with the company. */
+  drawNote: (fd: string) => `includes your ${fd} FD draw as the driver, which stays with you`,
   driverHired: (name: string) => `Driver's pay · ${name}`,
   upkeep: "Truck upkeep",
   lessor: (share: string) => `The lessor's ${share}`,

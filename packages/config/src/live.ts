@@ -21,6 +21,8 @@
 import { economyConfig, type EconomyConfig } from "./economy.config.js";
 
 export const LIVE_LEVERS: Record<string, unknown> = {
+  // The owner's draw stays with the company (2026-11-04, ruleset 0.22.0-phase0.37; Jeff: "pay it to myself").
+  "labor.owner.drawStays": true,
   // The token and the circular economy (reserve, staking, pools, payment terms, the catalogue).
   "token.enabled": true,
   "token.circular.enabled": true,

@@ -1,5 +1,6 @@
 import {
   cashNowRate,
+  ownerDrawFd,
   companyAccount,
   condition,
   creditBand,
@@ -84,7 +85,7 @@ function breakEvenParts(w: World, c: Company, ctx: FigureCtx): { parts: [string,
   const tolls = placeToll(w, t.place, l.originPlace) + l.routeTollFd + climb;
   const parts: [string, number][] = [
     ["Fuel", per(cost.fuel)],
-    ["Driver's pay", per(cost.wages)],
+    [ownerDrawFd(w, t, driven) > 0 ? "Your draw as the driver (stays with you)" : "Driver's pay", per(cost.wages)],
     ["Maintenance", per(cost.maintenance)],
     ["Insurance", per(cost.insurance)],
     ["Expected repairs", per(expectedRepairPerMile(w.cfg, t) * driven)],

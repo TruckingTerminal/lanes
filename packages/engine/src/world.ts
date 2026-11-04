@@ -606,6 +606,7 @@ export function formCompany(w: World, c: NewCompany): Company {
     firstOwnedTruckDay: null,
     firstAffordDay: null,
     firstHandBidDay: null,
+    ownerDrawFd: 0,
     createdDay: day,
     openBrokerLoads: 0,
     bidStats: { truckRounds: 0, wins: 0 },

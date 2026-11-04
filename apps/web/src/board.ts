@@ -1,4 +1,4 @@
-import { canMakeHot, clearsNear as engineClearsNear, dayOf, dispatchProfile, EQUIPMENT, expectedReloadDeadheadMi, mayTake, operatingTrucks, placeMiles, placeToll, planIndex, vettingBlock, type Company, type Load, type Truck, type World } from "@lanes/engine";
+import { canMakeHot, clearsNear as engineClearsNear, dayOf, dispatchProfile, EQUIPMENT, expectedReloadDeadheadMi, mayTake, operatingTrucks, ownerDrawFd, placeMiles, placeToll, planIndex, vettingBlock, type Company, type Load, type Truck, type World } from "@lanes/engine";
 import { COMMODITIES } from "@lanes/data";
 import { trueBreakEven } from "./breakeven.js";
 import { WALL } from "./copy.js";
@@ -28,6 +28,8 @@ export interface BoardRow {
   profitSuggest: number;
   /** The destination market's loads per truck for this trailer last round (the Rates table's figure): hot at 1.5, tight at 1.1. */
   heat: number;
+  /** The owner's draw over the loaded and empty miles when it stays with the company (ownerDrawFd): the cash segment counts it. */
+  draw: number;
   /** Why this company can't take it now, as the chip says it; null when it can. */
   block: string | null;
 }
@@ -38,7 +40,11 @@ export type BoardSort = "nearest" | "pay" | "hot" | "clears";
 /** A market's loads per truck for a trailer last round, as the Rates table reads it. */
 export const marketHeat = (w: World, hub: number, eq: Load["equipment"]): number => w.lastRatioEq[planIndex(hub, EQUIPMENT.indexOf(eq))] ?? 1;
 export interface BoardFilter {
+  /** Where it delivers (destMatch): a city, a state, a market or a DAT zone; "" or "any" for anywhere. */
   dest: string;
+  /** The loaded rate per mile at least, and the trip at most this long (0: no limit). */
+  minRpm?: number;
+  maxMiles?: number;
   maxDh: number;
   query: string;
   /** Only the loads this company posted, as broker or shipper (Intel's "Their loads on the board"). */
@@ -47,6 +53,29 @@ export interface BoardFilter {
 
 /** The rate over the loaded and empty miles together (Jeff, 2026-11-04: the empty miles cost what loaded ones do); null with no empty miles. */
 export const allInRate = (total: number, loadedMi: number, dh: number): string | null => (dh >= 1 ? (total / (loadedMi + dh)).toFixed(2) : null);
+
+const STATE_NAMES: Record<string, string> = { AL: "alabama", AK: "alaska", AZ: "arizona", AR: "arkansas", CA: "california", CO: "colorado", CT: "connecticut", DE: "delaware", DC: "district of columbia", FL: "florida", GA: "georgia", HI: "hawaii", ID: "idaho", IL: "illinois", IN: "indiana", IA: "iowa", KS: "kansas", KY: "kentucky", LA: "louisiana", ME: "maine", MD: "maryland", MA: "massachusetts", MI: "michigan", MN: "minnesota", MS: "mississippi", MO: "missouri", MT: "montana", NE: "nebraska", NV: "nevada", NH: "new hampshire", NJ: "new jersey", NM: "new mexico", NY: "new york", NC: "north carolina", ND: "north dakota", OH: "ohio", OK: "oklahoma", OR: "oregon", PA: "pennsylvania", RI: "rhode island", SC: "south carolina", SD: "south dakota", TN: "tennessee", TX: "texas", UT: "utah", VT: "vermont", VA: "virginia", WA: "washington", WV: "west virginia", WI: "wisconsin", WY: "wyoming" };
+/** DAT's zones, the ZIP code's first digit: Z0 New England to Z9 the Pacific. */
+export const ZONES: Record<string, readonly string[]> = { Z0: ["CT", "MA", "ME", "NH", "NJ", "RI", "VT"], Z1: ["DE", "NY", "PA"], Z2: ["DC", "MD", "NC", "SC", "VA", "WV"], Z3: ["AL", "FL", "GA", "MS", "TN"], Z4: ["IN", "KY", "MI", "OH"], Z5: ["IA", "MN", "MT", "ND", "SD", "WI"], Z6: ["IL", "KS", "MO", "NE"], Z7: ["AR", "LA", "OK", "TX"], Z8: ["AZ", "CO", "ID", "NM", "NV", "UT", "WY"], Z9: ["AK", "CA", "HI", "OR", "WA"] };
+
+/**
+ * Whether a load delivers where the destination filter says (Jeff, 2026-11-04, as on DAT): a city ("Tampa", "Tampa, FL",
+ * "Dallas TX"), a state ("FL", "Florida"), a market ("DAL") or a zone ("Z3"); several, separated by commas or spaces,
+ * match any; empty matches every load.
+ */
+export function destMatch(w: World, l: Load, text: string): boolean {
+  const q = text.trim().toLowerCase().replace(/\s+/g, " ");
+  if (!q || q === "any" || q === "anywhere") return true;
+  const p = w.net.places[l.destPlace]!;
+  const h = w.net.hubs[l.dest]!;
+  const st = p.state.toUpperCase();
+  const stateOf = (term: string): boolean => term === st.toLowerCase() || STATE_NAMES[st] === term || (/^z\d$/.test(term) && (ZONES[term.toUpperCase()] ?? []).includes(st));
+  const cityOf = (term: string): boolean => term.length >= 3 && (p.name.toLowerCase().startsWith(term) || h.name.toLowerCase().startsWith(term) || h.id.toLowerCase() === term);
+  if (stateOf(q)) return true;
+  const m = /^(.+?)[,\s]+([a-z]{2}|z\d)$/.exec(q);
+  if (m) return stateOf(m[2]!) && cityOf(m[1]!);
+  return q.split(/[,\s]+/).some((t) => stateOf(t) || cityOf(t));
+}
 
 /** The company that posted a load: its broker, else its shipper (null for an NPC shipper's load). */
 export const posterOf = (l: Load): number | null => l.brokerId ?? l.shipperId ?? null;
@@ -121,9 +150,10 @@ export interface ChipPair {
   cash: number;
   held: number;
 }
-export function chipPair(w: World, t: Truck, profitFd: number, grossFd: number): ChipPair {
+/** `drawFd`: the owner's draw the company keeps on this load (ownerDrawFd), which lands as cash though break-even counts it as the driver's pay. */
+export function chipPair(w: World, t: Truck, profitFd: number, grossFd: number, drawFd = 0): ChipPair {
   const held = leaseHold(w, t, grossFd);
-  return { profit: profitFd, cash: profitFd - held, held };
+  return { profit: profitFd, cash: profitFd - held + drawFd, held };
 }
 /** A chip figure: whole FD up to 9,999, then thousands to one place ("12.4k"); no sign. */
 export function chipFd(x: number): string {
@@ -146,7 +176,9 @@ export function boardRows(w: World, c: Company, truck: Truck, f: BoardFilter): B
     if (l.tenderedTo !== 0 && l.tenderedTo !== c.id) continue; // someone else's contract tender
     const dh = placeMiles(w, truck.place, l.originPlace);
     if (dh > f.maxDh) continue;
-    if (f.dest !== "any" && w.net.hubs[l.dest]!.id !== f.dest) continue;
+    if (!destMatch(w, l, f.dest)) continue;
+    if (f.minRpm && l.bookNow < f.minRpm - 1e-9) continue;
+    if (f.maxMiles && l.miles > f.maxMiles) continue;
     if (f.poster && posterOf(l) !== f.poster) continue;
     if (q) {
       const op = w.net.places[l.originPlace]!;
@@ -169,6 +201,7 @@ export function boardRows(w: World, c: Company, truck: Truck, f: BoardFilter): B
       suggest,
       profitSuggest: (suggest - be) * l.miles,
       heat: marketHeat(w, l.dest, l.equipment),
+      draw: ownerDrawFd(w, truck, l.miles + dh),
       block: blockReason(w, c, truck, l),
     });
   }

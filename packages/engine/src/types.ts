@@ -190,6 +190,8 @@ export interface Company {
   firstAffordDay: number | null;
   /** Day of the first bid or booking the owner placed by hand; freeEntry.firstBidByHand holds a one-truck company's standing orders until then. */
   firstHandBidDay: number | null;
+  /** The owner's draw kept by the company so far (labor.owner.drawStays): the owner's own driving, paid to themself. */
+  ownerDrawFd: number;
   createdDay: number;
   /** Broker-only loads currently held. */
   openBrokerLoads: number;

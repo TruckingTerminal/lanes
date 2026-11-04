@@ -1,4 +1,4 @@
-import { drivingLimitMin, dutyResetAt, fuelPrice, hubMiles, hubToll, legRoute, legMile, mphFor, planNight, tripCost, type Company, type Load, type Receivable, type Truck, type World } from "@lanes/engine";
+import { drivingLimitMin, dutyResetAt, fuelPrice, hubMiles, hubToll, legRoute, legMile, mphFor, planNight, tripCost, type Company, type Load, type Receivable, type Truck, type World, ownerDrawFd } from "@lanes/engine";
 import { DELIVERED, MOVE } from "./copy.js";
 import { shortDate } from "./format.js";
 
@@ -139,6 +139,8 @@ export interface PayLine {
   upkeep: number;
   lessor: number;
   held: number;
+  /** The owner's draw the company kept on this load (Jeff, 2026-11-04), inside `yours`. */
+  draw: number;
   yours: number;
 }
 
@@ -158,7 +160,9 @@ export function payLine(w: World, t: Truck, load: Load, grossFd: number, costFd:
   const tr = w.cfg.roads.terrain;
   const lane = w.net.lanes[load.laneId];
   const climb = tr.enabled && lane ? tr.fuelGalPerClimbM * lane.climbM * fuel : 0;
-  const parts = { fuel: c.fuel + climb, tolls: load.routeTollFd, driver: c.wages, upkeep: c.maintenance };
+  // The owner's draw stays with the company (ownerDrawFd): the engine's cost leaves it out, so the split does too, and "yours" carries it.
+  const draw = Math.min(c.wages, ownerDrawFd(w, t, before.emptyMi + load.miles));
+  const parts = { fuel: c.fuel + climb, tolls: load.routeTollFd, driver: c.wages - draw, upkeep: c.maintenance };
   const sum = parts.fuel + parts.tolls + parts.driver + parts.upkeep;
   const k = sum > 0 ? trip / sum : 0;
   return {
@@ -169,6 +173,7 @@ export function payLine(w: World, t: Truck, load: Load, grossFd: number, costFd:
     upkeep: parts.upkeep * k,
     lessor,
     held,
+    draw,
     yours: grossFd - costFd - held,
   };
 }

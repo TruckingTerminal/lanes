@@ -26,7 +26,9 @@ export function Loads(): JSX.Element {
   const [table, setTable] = useState(false);
   const [sort, setSort] = useState<BoardSort>("nearest");
   const [filterOpen, setFilterOpen] = useState(false);
-  const [dest, setDest] = useState("any");
+  const [dest, setDest] = useState("");
+  const [minRpm, setMinRpm] = useState(0);
+  const [maxMiles, setMaxMiles] = useState(0);
   const [maxDh, setMaxDh] = useState(Math.min(300, MANUAL_BID_MAX_DEADHEAD_MI));
   const [query, setQuery] = useState("");
   // The first visit sorts loads that pay at book-now first; leaving the board ends the first visit.
@@ -66,7 +68,7 @@ export function Loads(): JSX.Element {
       </div>
     );
   }
-  const rows = boardRows(w, c, truck, { dest, maxDh, query, poster: S.boardPoster });
+  const rows = boardRows(w, c, truck, { dest, maxDh, query, minRpm, maxMiles, poster: S.boardPoster });
   // After the render, not in it: her line bumps the data, and the board has early returns before any hook could go here.
   const empty = rows.length === 0;
   queueMicrotask(() => iuliiaOnChange(`board:${truck.id}`, empty, empty ? "board:empty" : null));
@@ -117,14 +119,21 @@ export function Loads(): JSX.Element {
             <label class="label" for="bdest">
               {BOARD.destination}
             </label>
-            <select id="bdest" value={dest} onChange={(ev) => setDest((ev.currentTarget as HTMLSelectElement).value)}>
-              <option value="any">{BOARD.anywhere}</option>
-              {w.net.hubs.map((h) => (
-                <option value={h.id} key={h.id}>
-                  {h.name}
-                </option>
-              ))}
-            </select>
+            <input id="bdest" type="text" placeholder={BOARD.destPlaceholder} value={dest} onInput={(ev) => setDest((ev.currentTarget as HTMLInputElement).value)} />
+          </div>
+          <div class="row">
+            <div class="field grow">
+              <label class="label" for="brpm">
+                {BOARD.minRpm}
+              </label>
+              <input id="brpm" type="number" min="0" step="0.05" placeholder="any" value={minRpm || ""} onInput={(ev) => setMinRpm(Number((ev.currentTarget as HTMLInputElement).value) || 0)} />
+            </div>
+            <div class="field grow">
+              <label class="label" for="bmiles">
+                {BOARD.maxMiles}
+              </label>
+              <input id="bmiles" type="number" min="0" step="50" placeholder="any" value={maxMiles || ""} onInput={(ev) => setMaxMiles(Number((ev.currentTarget as HTMLInputElement).value) || 0)} />
+            </div>
           </div>
           <div class="field">
             <label class="label" for="bdh">
@@ -160,8 +169,10 @@ export function Loads(): JSX.Element {
           <div class="row">
             <Btn
               onClick={() => {
-                setDest("any");
+                setDest("");
                 setQuery("");
+                setMinRpm(0);
+                setMaxMiles(0);
               }}
             >
               {BOARD.widen}
@@ -194,7 +205,7 @@ function openLoad(id: number | null): void {
 }
 
 /** The pair at book-now for a board row (the row's own profit and hold). */
-export const bookPair = (r: BoardRow): ChipPair => ({ profit: r.profitBook, cash: r.profitBook - r.heldBook, held: r.heldBook });
+export const bookPair = (r: BoardRow): ChipPair => ({ profit: r.profitBook, cash: r.profitBook - r.heldBook + r.draw, held: r.heldBook });
 
 function Chips({ r }: { r: BoardRow; truck: Truck }): JSX.Element {
   if (r.block) return <span class="chip muted">{r.block}</span>;
@@ -311,7 +322,7 @@ function LoadSheet({ r, truck }: { r: BoardRow; truck: Truck }): JSX.Element {
   const poster = l.brokerId !== null ? w.companies[l.brokerId - 1] : l.shipperId !== null ? w.companies[l.shipperId - 1] : null;
   const bidProfit = (bid - r.be) * l.miles;
   // The bid's own pair (R14): the sheet's money rows are at book-now, so the button carries its cash itself.
-  const bidHeld = chipPair(w, truck, bidProfit, bid * l.miles).held;
+  const bidHeld = chipPair(w, truck, bidProfit, bid * l.miles, r.draw).held;
   const bookUp = r.profitBook >= 0;
   const signed = (x: number) => `${x >= 0 ? "+" : "−"}${money(x)}`;
   const step = (d: number) => setBid(Math.round(Math.min(hi, Math.max(lo, bid + d)) * 100) / 100);
