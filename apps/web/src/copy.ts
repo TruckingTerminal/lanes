@@ -327,7 +327,12 @@ export const BOARD = {
   line1: (from: string, to: string, miles: string) => `${from} → ${to} · ${miles} mi`,
   line2: (total: string, rate: string, dh: number) => `${total} FD · ${rate}/mi · ${dh} mi empty`,
   chipSuggest: (profit: string, rate: string) => `+${profit} FD at ${rate}`,
-  sorts: { nearest: "Nearest", pay: "Best pay", deliver: "Deliver by" },
+  /** Jeff, 2026-11-04: "Deliver by" (the delivery appointment, soonest first) is gone; Hot markets puts loads bound for markets where loads outnumber trucks first. */
+  sorts: { nearest: "Nearest", pay: "Best pay", hot: "Hot markets" },
+  /** The destination's reading on a card, from the Rates table's loads per truck: hot at 1.5, tight at 1.1. */
+  hotTo: (city: string) => `${city} hot`,
+  tightTo: (city: string) => `${city} tight`,
+  noHot: "Nothing in reach is bound for a hot market this round. These go to the tightest first.",
   filter: "Filter",
   destination: "Destination",
   anywhere: "Anywhere",
@@ -492,6 +497,41 @@ export const DISPATCHER = {
 };
 
 /** Iuliia's caption (specs/first-ten-minutes.md, Layout): her line, then the step's Do. */
+/**
+ * The first load's tutorial (Jeff, 2026-11-04: a real tutorial, no other menu until the first load is booked, and her
+ * instructions in depth). Her beats on Truck, then on Loads, one Next each, in cards over the screen they describe; the
+ * line when a locked tab is tapped; her line once the lock lifts. Her register, on a card: at most 60 words a beat.
+ */
+export const TUTORIAL = {
+  truckTitle: "Your truck",
+  loadsTitle: "The board",
+  /** On Truck: the home, the truck card, the dispatcher. `fleet`: a small fleet's two owned trucks (test build). */
+  truck: (hub: string, share: string, fleet: boolean): string[] => [
+    fleet
+      ? `This is ${hub}, and this is home. Two used trucks of your own, a van and a reefer, and no lessor taking a share. Twice the earning, twice the fuel, twice the things that can break. A fleet, technically. I've seen smaller.`
+      : `This is ${hub}, and this is home. The clipboard says one leased Workhorse with a dry van, and you driving it. The lessor holds the paper, does the maintenance and keeps ${share} of every load; the rest is yours. A company of one. Lean. I approve.`,
+    `${fleet ? "The cards below are the trucks" : "The card below is the truck"}: where it stands, what it pulls, its condition and fuel, and the driver's hours, which are yours. "Waiting at ${hub}" means no load. A waiting truck earns nothing and costs money anyway, so it won't wait long.`,
+    fleet
+      ? `Under them sits your dispatcher: the rules the company bids by when you're away. Off until you say so. Bid one load yourself, to learn what a good one looks like, or let the dispatcher run both from the start. The board is under Loads.`
+      : `Under it sits your dispatcher: the rules the company bids by when you're away. Off, for now. Your first load is your call, so you learn what a good one looks like before a rule does it for you. The board is under Loads. Let's go.`,
+  ],
+  showBoard: "Show me the board",
+  /** On Loads: the cards, the chip, Book now and Bid, the sorts, and what a first load looks like. */
+  loads: (trailer: string, r1: string, r2: string): string[] => [
+    `The board: every open ${trailer} load within reach of your truck, nearest first. Each card is one load. The top line is where it loads, where it delivers and the loaded miles; the second is what it pays in all, the rate per mile, and the empty miles to reach it.`,
+    `The chip on the right is the number that matters: your profit at the posted rate, after fuel, tolls, the lessor's share if you have one, and those empty miles. Green pays. Red loses money however handsome the rate looks. A grey chip names why you can't take that load yet.`,
+    `Two ways to take one. Book now pays the posted rate and the load is yours this minute. Bid asks for more and waits for the round, ${r1} or ${r2}; the shipper takes the best bid under its ceiling, so bid too high and you watch someone else haul it.`,
+    `Nearest and Best pay sort the cards. Hot markets puts first the loads bound for cities where loads outnumber trucks, which is where the next load finds you instead of the other way round. Filter narrows by destination, empty miles or commodity.`,
+    `For a first load: a green chip, few empty miles, and a destination that reloads easily, which the load's page tells you. Tap a card, read the money, then Book now or Bid. I'll be right here. The rest of the game waits behind this one load, so take your time, but not all of it.`,
+  ],
+  gotIt: "Got it",
+  /** A locked tab tapped, and its title while locked. */
+  locked: "First, a load. Money, More and the rest open the moment one is yours.",
+  lockedTitle: "Opens with your first load",
+  /** Once the first load is booked or bid: the caption, once. */
+  unlocked: "Yours. Money and More are open now: Money is what you earn and what it costs, and More has me, the Help and your Company. Watch the truck on the map; I'll say when it's paid.",
+};
+
 export const CAPTION = {
   next: "Next",
   hide: "Hide",

@@ -9,6 +9,8 @@ import { VETTING_NAMES } from "@lanes/engine";
 import type { Tab } from "./tabs.js";
 import { freshOnboard, ONBOARD_KEY, parseOnboard, type Onboard } from "./onboard.js";
 import type { PayLine } from "./rolling.js";
+import { FIRST_LOAD_TABS, firstLoadLocked } from "./tutorial.js";
+import { TUTORIAL } from "./copy.js";
 
 /**
  * The screen's shared state: which world is on screen, what is selected, and the
@@ -253,6 +255,9 @@ export function openIntel(at: { card?: number; hub?: string; brokers?: boolean; 
   setTab("intel");
 }
 export function setTab(tab: Tab): void {
+  // The first load's lock (tutorial.ts; Jeff, 2026-11-04): until it, only Truck and Loads open; a locked tab says so and stays put.
+  const g = S.game;
+  if (g?.player && !FIRST_LOAD_TABS.includes(tab) && firstLoadLocked(g.w, g.player)) return toast(TUTORIAL.locked);
   S.tab = tab;
   if (tab === "money") S.moneyDot = false;
   // The first visit clears an opened teaser's "New" under More.

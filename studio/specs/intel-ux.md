@@ -23,7 +23,7 @@ can be derived** (no cash, net worth, FD balance, stake amount, loan or debt).
 | More › Intel | the list, sorted by Miles, no filter |
 | A company's name on a load card or the load sheet's Shipper group (S2, S3) | that company's card |
 | A result card: "Lost to Red River Lines at 2.24/mi" (S5; the winner's name is new, a link) | the winner's card |
-| The hub card's Who's here group: a new last line, "See who's here ›" | the list filtered to that hub |
+| The hub card's Who's here group: a new last line, "See who's here ›" (cut 2026-11-04: the first entry is locked to the hub choice, Jeff) | the list filtered to that hub |
 | The brokerage teaser's action "See what brokers earned last month" | the list filtered to brokers, sorted by last month's revenue |
 | A truck on the map, when the map can open one | its company's card |
 

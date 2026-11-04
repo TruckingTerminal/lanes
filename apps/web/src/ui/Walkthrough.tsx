@@ -6,9 +6,10 @@ import { skippedSteps, stepDo, stepKey, stepText, walkProgress, walkSteps, type 
 import { iuliiaMuted, iuliiaNow, setIuliiaMuted } from "../iuliia.js";
 import { ASSETS, hasAsset } from "../mapart.js";
 import { drawPortrait } from "../portrait.js";
-import { bumpData, S, setOnboard, setTab, toast, useData } from "../state.js";
-import { ARRIVAL, CAPTION, DISPATCHER, INTEL, NOW } from "../copy.js";
-import { pct } from "../format.js";
+import { bumpData, myTrucks, S, setOnboard, setTab, toast, useData } from "../state.js";
+import { ARRIVAL, CAPTION, DISPATCHER, INTEL, NOW, TUTORIAL } from "../copy.js";
+import { firstLoadLocked } from "../tutorial.js";
+import { pct, TRAILER_NAME } from "../format.js";
 import { TAB_NAME, type Tab } from "../tabs.js";
 import { Btn, Card } from "./bits.js";
 import { financeLine } from "./panels/Finance.js";
@@ -124,6 +125,75 @@ export function Walkthrough(): JSX.Element | null {
             {S.walkView !== null ? <Btn sm ghost onClick={() => browse(current)}>Now</Btn> : null}
             {!isDone && !isSkipped ? <Btn sm ghost onClick={() => skipStep(step.id)}>{CAPTION.skip}</Btn> : null}
             <span class="muted small">{done} of {total} done</span>
+          </div>
+        </div>
+      </div>
+    </Card>
+  );
+}
+
+/**
+ * The first load's tutorial beat on this screen now (tutorial.ts, Jeff 2026-11-04): on Truck, then on Loads, while the
+ * lock holds and a beat there is unseen. Marked per beat in this company's onboard scope, like the steps' lines.
+ */
+function tutorialBeat(): { screen: "truck" | "loads"; beats: string[]; i: number; fleet: boolean } | null {
+  const g = S.game;
+  const c = g?.player;
+  if (!g || !c || !firstLoadLocked(g.w, c)) return null;
+  const screen = S.tab === "fleet" ? "truck" : S.tab === "loads" ? "loads" : null;
+  if (!screen) return null;
+  const fleet = !(g.w.trucksByCompany.get(c.id) ?? []).some((t) => t.lease === "npc");
+  const [r1, r2] = g.w.cfg.time.boardRoundHours.map((h) => `${String(h).padStart(2, "0")}:00`);
+  const hub = g.w.net.hubs[c.homeHub]!.name;
+  const beats = screen === "truck" ? TUTORIAL.truck(hub, pct(GAME_CONFIG.costs.npcLeaseShareOfGross), fleet) : TUTORIAL.loads(TRAILER_NAME[myTrucks()[0]?.trailer ?? "van"].toLowerCase(), r1!, r2!);
+  const i = beats.findIndex((_, j) => !S.onboard.seen.includes(stepKey(g.w, c, `tut:${screen}:${j}`)));
+  return i < 0 ? null : { screen, beats, i, fleet };
+}
+
+/** Her beats over the Truck and Loads screens until the first load (TUTORIAL): one card, Next, the last one's way on. */
+export function FirstLoad(): JSX.Element | null {
+  useData();
+  const b = tutorialBeat();
+  if (!b) return null;
+  const g = S.game!;
+  const c = g.player!;
+  const last = b.i === b.beats.length - 1;
+  const mark = (more: string[] = []) => setOnboard({ seen: [...S.onboard.seen, stepKey(g.w, c, `tut:${b.screen}:${b.i}`), ...more.map((k) => stepKey(g.w, c, k))] });
+  // Her Truck beats carry the arrival line's matter, and her last Loads beat the board step's, so neither speaks again.
+  const toBoard = () => {
+    mark(["arrival"]);
+    S.sheet = "full";
+    setTab("loads");
+  };
+  const moods: Mood[] = b.screen === "truck" ? ["wave", "point", "idle"] : ["point", "point", "idle", "point", "wave"];
+  return (
+    <Card class="walk moment" title={b.screen === "truck" ? TUTORIAL.truckTitle : TUTORIAL.loadsTitle}>
+      <div class="walkbody">
+        <Iuliia mood={moods[b.i] ?? "point"} size={96} />
+        <div class="walktext">
+          <p class="small">{b.beats[b.i]}</p>
+          <div class="row">
+            {!last ? (
+              <Btn sm primary onClick={() => mark()}>
+                {CAPTION.next}
+              </Btn>
+            ) : b.screen === "truck" ? (
+              <Btn sm primary onClick={toBoard}>
+                {TUTORIAL.showBoard}
+              </Btn>
+            ) : (
+              <Btn sm primary onClick={() => mark(["arrival", "say:board"])}>
+                {TUTORIAL.gotIt}
+              </Btn>
+            )}
+            {last && b.screen === "truck" && b.fleet ? (
+              <Btn sm onClick={() => (mark(["arrival"]), letDispatcherBid())}>
+                {DISPATCHER.letBid}
+              </Btn>
+            ) : null}
+            <span class="muted small">
+              {b.i + 1} of {b.beats.length}
+            </span>
           </div>
         </div>
       </div>
@@ -277,6 +347,8 @@ export function Caption(): JSX.Element | null {
   // A step's moment playing on this screen (R5) is her voice here; the caption stands back to her face and the chip.
   const playing = currentStep();
   if (playing && momentHere(playing)) return bare(playing.mood);
+  // A first-load beat on this screen (FirstLoad) is her voice here too.
+  if (tutorialBeat()) return bare("point");
   // A milestone line once shown keeps the caption for its full seconds, even when a new step begins meanwhile (QA).
   if (milestoneHeld()) {
     const ms = MilestoneLine();
@@ -362,6 +434,16 @@ export function Caption(): JSX.Element | null {
       "wave",
     );
   }
+  // The lock's lifting (tutorial.ts): once, for a player who was in her beats, before the dispatcher's line.
+  if (!firstLoadLocked(g.w, c) && seen("tut:truck:0") && !seen("tut:open")) {
+    return say(
+      TUTORIAL.unlocked,
+      <Btn sm primary onClick={() => mark("tut:open")}>
+        {CAPTION.next}
+      </Btn>,
+      "wave",
+    );
+  }
   // After the first bid by hand (S9): once, the dispatcher is now on, and where its rules are.
   // Re-checked against the world (R2): with the dispatcher switched off the line is false, and it retires for good.
   if (c.firstHandBidDay !== null && g.w.cfg.freeEntry.firstBidByHand && !seen("dispatcher") && !c.orders.some((o) => o.kind === "bid")) queueMicrotask(() => (mark("dispatcher"), bumpData()));
@@ -437,7 +519,7 @@ export function Caption(): JSX.Element | null {
       <Btn sm ghost onClick={() => mark(`hide:${step.id}`)}>
         {CAPTION.hide}
       </Btn>
-      {S.tab !== "iuliia" ? (
+      {S.tab !== "iuliia" && !firstLoadLocked(g.w, c) ? (
         <Btn sm ghost onClick={() => setTab("iuliia")}>
           {CAPTION.more}
         </Btn>

@@ -57,7 +57,7 @@ export function walkSteps(cfg: EconomyConfig, hub = "your home hub"): WalkStep[]
       mood: "wave",
       brief: "The rings mark where a new carrier finds freight right now. You may start at any starter city; any city shows its freight.",
       say: [
-        `Good morning. Iuliia, with two i's; my mother was thorough. I ran operations for a fleet of four hundred trucks in Moscow before I was thirty, and now I run you, which the clipboard says is one leased Workhorse with a dry van. The lessor keeps ${pct(cfg.costs.npcLeaseShareOfGross)} of every load and does the maintenance; the rest is yours, and so is the driving, since the driver is you. A company of one. Lean. I approve.`,
+        `Good morning. Iuliia, with two i's; my mother was thorough. I've run operations for fleets a few hundred trucks bigger than this one, and now I run you, which the clipboard says is one leased Workhorse with a dry van. The lessor keeps ${pct(cfg.costs.npcLeaseShareOfGross)} of every load and does the maintenance; the rest is yours, and so is the driving, since the driver is you. A company of one. Lean. I approve.`,
         `The clock is real: one game day every ${cfg.time.realHoursPerGameDayLive} hours of your life, and the market does not sleep. Neither did I, in the nineties; it was that kind of decade. The map is everyone's trucks; the ringed cities are good homes. My grandmother said a person who doesn't know where home is will drive past it twice. She meant my uncle. It applies to fleets.`,
       ],
       do: "Choose your home: tap a ringed hub, then Start here.",
@@ -70,12 +70,12 @@ export function walkSteps(cfg: EconomyConfig, hub = "your home hub"): WalkStep[]
       title: "Reading the board",
       tab: "loads",
       mood: "point",
-      brief: "Each line is a lane, the miles and a rate. Pick one near your truck, bid above break-even, and let the round clear.",
+      brief: "Each card is a load; its chip is your profit. Open a green one near your truck, then Book now or Bid.",
       say: [
         `The Loads tab is the whole game in one list, so sit up straight. Each line is a lane, the miles, and a rate per mile. The shipper has a ceiling it won't pay above; your truck has a break-even it can't run below; the board shows you both, because I prefer my students to lose for interesting reasons. Loads near your truck first: an empty mile pays nothing and burns fuel. One doesn't drive to Vladivostok to say hello.`,
         `Bids clear twice a day, at ${round(r1)} and ${round(r2)} game time. The lowest rate that still covers the shipper wins, so bidding high is a way to watch other people haul. Bid once and let it clear. If you bid nothing, your dispatcher bids for you, and for now your dispatcher is you, standing beside me, holding nothing. Go on.`,
       ],
-      do: `Bid on a load leaving ${hub}.`,
+      do: `Open a load near ${hub}, read the money, then Book now or Bid.`,
       why: "Rates move with the market: a strong hub pays to leave, a weak one pays to arrive, and the board's recent rates tell you which is which.",
       // Ticks on the player's own first bid or booking (draft 4), which the engine records. A fleet whose dispatcher
       // books from the start (no first bid by hand to wait for) ticks it on its first load instead (QA's guidance

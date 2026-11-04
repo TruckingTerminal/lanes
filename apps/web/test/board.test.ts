@@ -5,6 +5,7 @@ import { breakdown } from "../src/explain.js";
 import { firstBoomDay, firstMoodDay } from "../src/milestones.js";
 import { intelRows } from "../src/intel.js";
 import { trueBreakEven } from "../src/breakeven.js";
+import { firstLoadLocked } from "../src/tutorial.js";
 import { DEFAULT_ORDERS, PLAYER_DISPATCHER_ORDERS, TestGame } from "../src/game.js";
 
 async function world() {
@@ -165,4 +166,16 @@ describe("R14: the chip's figures", () => {
     expect(chipCash(-11_000)).toBe("−11.0k");
     expect(chipCash(504)).toBe("504");
   });
+});
+
+describe("Hot markets and the first load's lock (Jeff, 2026-11-04)", () => {
+  it("sorts by the destination market's loads per truck, hottest first, and locks the shell until the first bid or booking", async () => {
+    const { g, c, truck } = await world();
+    const rows = boardRows(g.w, c, truck, { dest: "any", maxDh: 300, query: "" });
+    const hot = sortRows(rows, "hot", false).filter((r) => !r.block);
+    for (let i = 1; i < hot.length; i++) expect(hot[i]!.heat).toBeLessThanOrEqual(hot[i - 1]!.heat);
+    expect(firstLoadLocked(g.w, c)).toBe(true);
+    c.firstHandBidDay = 3;
+    expect(firstLoadLocked(g.w, c)).toBe(false);
+  }, 60_000);
 });

@@ -158,7 +158,7 @@ Header: "Loads from Dallas · 14 · next round 18:00 (in 5 h)". A truck selector
 - chip: green "+180 FD at book-now", or red "−245 FD at book-now" followed by grey "+338 FD at 2.39"
   (profit at the suggested bid, `suggest` in `Loads.tsx`).
 
-Sort control, three segments: "Nearest" (default) · "Best pay" · "Deliver by". First visit only: loads with
+Sort control, three segments: "Nearest" (default) · "Best pay" · "Hot markets" (the destination market's loads per truck, hottest first; "Deliver by" was cut 2026-11-04). First visit only: loads with
 profit at book-now ≥ 0 first (the economy designer makes sure one exists most rounds). Loads the company can't
 take go last, dimmed, one chip with the reason from `vettingBlock` ("Needs `{vetting.strict.minAuthorityDays}`-day
 authority · day 1").
@@ -226,6 +226,14 @@ you go." and **See the dispatcher** → Truck › Dispatcher: a switch "Bid for 
 rows: "Bid at break-even plus" [25] %, "Send the truck empty up to" [150] mi, "Bring me home after" [21] days,
 **Save**. "More rules" folds the rest (floor, book-now, move idle trucks, contracts). The re-post row is hidden
 until brokerage opens.
+
+### The first load's lock (Jeff, 2026-11-04)
+A real tutorial: before a company the sheet is the hub choice whatever is tapped (the hub card no longer opens
+Intel), and from the company's creation until its first bid or booking by hand (or a load on a truck) only Truck
+and Loads open. Money, More and the teaser row dim; a tap says "First, a load…". Iuliia's beats play in cards
+over the screen they describe: three on Truck (home, the truck card, the dispatcher; "Show me the board"), five on
+Loads (the cards, the chip, Book now and Bid, the sorts, a first load; "Got it"), then the board step's Do line.
+Once the lock lifts she says what opened (`TUTORIAL.unlocked`). The rule is `apps/web/src/tutorial.ts`.
 
 ### Map, Truck, walkthrough
 - **Map:** a hub tap opens a hub card in the sheet or panel (its loads, then its market), never a modal or a tab

@@ -26,6 +26,9 @@ import { Money } from "./panels/Money.js";
 import { Rates } from "./panels/Rates.js";
 import { Staff } from "./panels/Staff.js";
 import { ConfirmSheet } from "./Confirm.js";
+import { FIRST_LOAD_TABS, firstLoadLocked } from "../tutorial.js";
+import { TUTORIAL } from "../copy.js";
+import { FirstLoad } from "./Walkthrough.js";
 
 /** Each tab's panel (tabs.ts holds the order, labels, icons and teasers). A Record, so a tab can't be added without one. */
 const PANELS: Record<Tab, () => JSX.Element> = {
@@ -66,6 +69,8 @@ export function Nav(): JSX.Element | null {
   // No nav before a company (S1): the world is to look at, and the sheet is the hub choice.
   if (choosing()) return null;
   const on = navOf(S.tab);
+  // The first load's lock (tutorial.ts): Money and More dim until it; a tap on one says why (setTab).
+  const locked = (id: Tab) => !!g.player && !FIRST_LOAD_TABS.includes(id) && firstLoadLocked(g.w, g.player);
   const moreNew = !!g.player && teaserTabs().some((t) => tabOpen(t.id, g.w, g.player) && isNew(t.id));
   // On a phone a nav tap raises the sheet: half for most, full for Loads (specs/first-ten-minutes.md).
   const go = (id: Tab) => {
@@ -75,7 +80,7 @@ export function Nav(): JSX.Element | null {
   return (
     <nav class="tabs" aria-label="Tabs">
       {navFor(g).map((id) => (
-        <Btn key={id} on={id === on} title={tabLabel(id, g.w, g.player)} onClick={() => go(id)}>
+        <Btn key={id} on={id === on} class={locked(id) ? "locked" : undefined} title={locked(id) ? TUTORIAL.lockedTitle : tabLabel(id, g.w, g.player)} onClick={() => go(id)}>
           <TabIcon id={id} size={24} />
           <span>{tabLabel(id, g.w, g.player)}</span>
           {id === "more" && moreNew ? <span class="navdot" aria-label="something new" /> : null}
@@ -104,9 +109,11 @@ export function RackBody(): JSX.Element {
   useData();
   switchWhenFormed();
   const g = S.game!;
-  const tab = S.tab;
+  // Before a company the sheet is the hub choice whatever the tab (Jeff, 2026-11-04: a tap elsewhere lost it); locked, a tab outside the lock reads as Truck.
+  const picking = choosing();
+  const tab: Tab = g.player && !FIRST_LOAD_TABS.includes(S.tab) && firstLoadLocked(g.w, g.player) ? "fleet" : S.tab;
   const watching = !g.player && !WATCHABLE.includes(tab);
-  const under = navOf(tab) === "more" && tab !== "more";
+  const under = !picking && navOf(tab) === "more" && tab !== "more";
   const open = tabOpen(tab, g.w, g.player);
   // Iuliia on a screen's first visit in a sitting (iuliia-lines.md): its own line, or the closed-teaser line.
   useEffect(() => {
@@ -122,7 +129,7 @@ export function RackBody(): JSX.Element {
       <ConfirmSheet />
       <div class="panelbox">
         <ReportCard key={S.reportKind} />
-        {open && !watching ? <StepMoment /> : null}
+        {open && !watching ? <><StepMoment /><FirstLoad /></> : null}
         {under ? (
           <div class="row">
             <Btn sm ghost onClick={() => setTab("more")}>
@@ -130,7 +137,7 @@ export function RackBody(): JSX.Element {
             </Btn>
           </div>
         ) : null}
-        {watching ? choosing() ? <ChooseHub /> : <WatchPanel /> : open ? PANELS[tab]() : <TeaserCard id={tab} />}
+        {picking ? <ChooseHub /> : watching ? <WatchPanel /> : open ? PANELS[tab]() : <TeaserCard id={tab} />}
       </div>
     </>
   );

@@ -1,4 +1,5 @@
 import type { JSX } from "preact";
+import { firstLoadLocked } from "../tutorial.js";
 import { iconUrl } from "../art.js";
 import { ASSETS, hasAsset } from "../mapart.js";
 import { bumpData, openIntel, S, setTab, useData } from "../state.js";
@@ -97,7 +98,7 @@ export function TeaserCard({ id }: { id: Tab }): JSX.Element {
 export function TeaserRow(): JSX.Element | null {
   useData();
   const g = S.game!;
-  if (!g.player) return null;
+  if (!g.player || firstLoadLocked(g.w, g.player)) return null;
   const coming = teaserTabs().filter((t) => !tabOpen(t.id, g.w, g.player));
   if (!coming.length) return null;
   return (

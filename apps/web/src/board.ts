@@ -1,4 +1,4 @@
-import { canMakeHot, clearsNear as engineClearsNear, dayOf, dispatchProfile, expectedReloadDeadheadMi, mayTake, operatingTrucks, placeMiles, placeToll, vettingBlock, type Company, type Load, type Truck, type World } from "@lanes/engine";
+import { canMakeHot, clearsNear as engineClearsNear, dayOf, dispatchProfile, EQUIPMENT, expectedReloadDeadheadMi, mayTake, operatingTrucks, placeMiles, placeToll, planIndex, vettingBlock, type Company, type Load, type Truck, type World } from "@lanes/engine";
 import { COMMODITIES } from "@lanes/data";
 import { trueBreakEven } from "./breakeven.js";
 import { WALL } from "./copy.js";
@@ -26,11 +26,17 @@ export interface BoardRow {
   clears: number;
   suggest: number;
   profitSuggest: number;
+  /** The destination market's loads per truck for this trailer last round (the Rates table's figure): hot at 1.5, tight at 1.1. */
+  heat: number;
   /** Why this company can't take it now, as the chip says it; null when it can. */
   block: string | null;
 }
 
-export type BoardSort = "nearest" | "pay" | "deliver" | "clears";
+/** "hot" (Jeff, 2026-11-04, in place of "deliver"): loads bound for the hottest markets first. */
+export type BoardSort = "nearest" | "pay" | "hot" | "clears";
+
+/** A market's loads per truck for a trailer last round, as the Rates table reads it. */
+export const marketHeat = (w: World, hub: number, eq: Load["equipment"]): number => w.lastRatioEq[planIndex(hub, EQUIPMENT.indexOf(eq))] ?? 1;
 export interface BoardFilter {
   dest: string;
   maxDh: number;
@@ -159,6 +165,7 @@ export function boardRows(w: World, c: Company, truck: Truck, f: BoardFilter): B
       clears: clearsNear(w, l),
       suggest,
       profitSuggest: (suggest - be) * l.miles,
+      heat: marketHeat(w, l.dest, l.equipment),
       block: blockReason(w, c, truck, l),
     });
   }
@@ -171,10 +178,10 @@ export function boardRows(w: World, c: Company, truck: Truck, f: BoardFilter): B
  */
 export function sortRows(rows: BoardRow[], sort: BoardSort, firstVisit: boolean): BoardRow[] {
   const key = (r: BoardRow): number =>
-    sort === "nearest" ? r.dh : sort === "pay" ? -r.total : sort === "deliver" ? r.l.appointmentT : -(r.clears - r.be) * r.l.miles;
+    sort === "nearest" ? r.dh : sort === "pay" ? -r.total : sort === "hot" ? -r.heat : -(r.clears - r.be) * r.l.miles;
   return [...rows].sort((a, b) => {
     if (!!a.block !== !!b.block) return a.block ? 1 : -1;
     if (firstVisit && a.profitBook >= 0 !== b.profitBook >= 0) return a.profitBook >= 0 ? -1 : 1;
-    return key(a) - key(b) || a.l.id - b.l.id;
+    return key(a) - key(b) || (sort === "hot" ? b.profitBook - a.profitBook : 0) || a.l.id - b.l.id;
   });
 }

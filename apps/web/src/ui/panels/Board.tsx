@@ -98,7 +98,7 @@ export function Loads(): JSX.Element {
       {posterName !== null && !rows.length ? <p class="muted small">{BOARD.noneFromPoster(posterName)}</p> : null}
       <div class="row">
         <div class="seg" role="group" aria-label="Sort">
-          {(["nearest", "pay", "deliver"] as const).map((k) => (
+          {(["nearest", "pay", "hot"] as const).map((k) => (
             <Btn key={k} sm on={sort === k} onClick={() => setSort(k)}>
               {BOARD.sorts[k]}
             </Btn>
@@ -147,6 +147,7 @@ export function Loads(): JSX.Element {
           ) : null}
         </Card>
       ) : null}
+      {sort === "hot" && sorted.length && !sorted.some((r) => r.heat >= 1.5) ? <p class="muted small">{BOARD.noHot}</p> : null}
       {sorted.length ? (
         <div class="loadcards">
           {sorted.slice(0, 60).map((r) => (
@@ -214,6 +215,7 @@ function LoadCard({ r, truck, name }: { r: BoardRow; truck: Truck; name: (i: num
       <span class="l2 small">{BOARD.line2(fdFull(r.total), l.bookNow.toFixed(2), Math.round(r.dh))}</span>
       <span class="chips">
         <Chips r={r} truck={truck} />
+        {r.heat >= 1.5 ? <span class="chip good">{BOARD.hotTo(name(l.dest))}</span> : r.heat >= 1.1 ? <span class="chip">{BOARD.tightTo(name(l.dest))}</span> : null}
       </span>
     </button>
   );
