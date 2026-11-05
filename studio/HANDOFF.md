@@ -1,45 +1,104 @@
-# Handoff: continuing the LANES studio on another machine (2026-11-04)
+# HANDOFF: you are the new LANES producer on the Mac Studio. Do all of this yourself.
 
-What a new producer session needs to pick the studio up from here. The repo holds the code, the specs, the reviews,
-the backlog (`studio/BACKLOG.md`, "Itinerary from the 2026-11-07 reset") and the role briefs (`studio/roles/*.md`).
+Jeff moved the studio from a 16 GB laptop to this Mac Studio on 2026-11-04. The whole studio lives in this repo and in
+Jeff's Claude account; nothing else has to be carried over. Read this file top to bottom, then do every step in order,
+asking Jeff only where a step says so. Report once at the end, in one message: what you verified, what you found
+different, what you could not do. Be lean with tokens: the account's weekly limit resets Saturday 2026-11-07 at about
+20:00 EST, and the roles should be started after that reset, not before.
 
-## Where things are
-- **Code:** github.com/TruckingTerminal/lanes (private), branch `main`. Node 24. `npm install`, `npm run typecheck`,
-  `TZ=UTC npx vitest run apps/web` (web), `npx vitest run packages/engine packages/agents packages/config` (engine, minutes).
-- **Public test page:** https://truckingterminal.github.io/lanes-play/ — CI "Test and deploy" on every push to `main`,
-  13–21 min; a newer push cancels the older run. Never push while a deploy somebody waits on is in flight.
-- **Live page (the shared world):** https://claude.ai/artifact/SRYhczap5Lpcr8AucRf9wy — v49 at 77b8186, ruleset
-  `lanes-live-1/0.23.0-phase0.38`. Its database holds `world/meta` (seed, epochMs, msPerGameHour 900000, ruleset)
-  and the `players` collection. The live world, its page and its store are the producer's alone.
-- **Studio board:** https://claude.ai/artifact/2kmePVzETFib467bWP2J34.
-- **Not in git, copy by hand:** `../lanes-hybrid/` (the art and PixelLab project; its `.pixellab.token` stays out of
-  chat and git), `.claude/launch.json` (dev-server entries; recreate), any `.env.local` (never committed).
+## 0. Who you are
+The producer (orchestrator) of LANES, a freight-trucking MMO with the FD token. You run on Fable; every role runs on
+Opus 5.5 at medium effort. You are Jeff's one contact. Roles never commit; you commit under the role's name. The live
+world, its page and its store are yours alone. Nothing goes live and no real money ever without Jeff.
 
-## Recipes
-- **Republish the live page (client-only change, same ruleset):** `git worktree add <dir> <sha>` (or
-  `git checkout --detach <sha>` in an existing worktree), `node apps/web/build.mjs` there →
-  `apps/web/dist/lanes.html`, then publish it to the artifact URL above with a label "Ruleset x.y.z (<sha>)".
-  The artifact keeps its painted assets; nothing else to upload.
-- **Restart the live world (a rules change):** only with no companies in `players`. Publish the page first, then
-  write `world/meta` = `{v: 1, seed: <new>, epochMs: <publish time − 12 h, ms>, msPerGameHour: 900000,
-  ruleset: "lanes-live-1/<economyConfig.version>"}` pinned to the document's current version. A client whose
-  RULESET differs from the meta's shows "update" and refuses to run, so page and meta move together.
-- **Commits:** the producer commits under the role's name, by explicit paths, never `git add -A`; role commits end
-  "Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>", the producer's "Co-Authored-By: Claude Fable 5.1
-  <noreply@anthropic.com>". New rules go behind config switches defaulting off, on in `packages/config/src/live.ts`,
-  with a ruleset bump in `economy.config.ts` `version`.
-- **Sims:** `npm run sim -- --seeds 1,2 --days 120 --out runs/<name> --quiet`; never beside a vitest run; cap the
-  parallel sims to what the machine's memory allows (the 16 GB laptop took 4 at most).
+## 1. The machine and the tools
+1. `node -v` must be 24 or newer; `git --version`; `gh auth status` must be signed in to GitHub (the repo is
+   private, github.com/TruckingTerminal/lanes). If any is missing, tell Jeff the one-line install (Homebrew:
+   `brew install node gh`, then `gh auth login`) and wait; do not install system software without his yes.
+2. Read the machine: `sysctl -n hw.memsize` and `sysctl -n hw.ncpu`. Rewrite the memory note
+   `lanes-machine-limits.md` (step 3) for this machine: sims in parallel may rise with the memory (the laptop's rule
+   was 4, never beside a vitest run; keep "never beside a vitest run").
 
-## The roles
-Each is its own Claude Code session on Opus 5.5 at medium effort, started by the producer in the shared checkout
-with its brief from `studio/roles/`: director, ux, qa, writer, engineering, economy, player, art (Graphics),
-redteam. Roles never commit; they stage and report. The producer is Jeff's one contact. The producer's running
-log and rules live in its auto-memory (`~/.claude/projects/<project-path-hash>/memory/`); copy that directory's
-files into the new machine's matching memory directory after the first session there.
+## 2. The repo
+1. If this folder is not already the clone, clone it here: `git clone https://github.com/TruckingTerminal/lanes.git`
+   and work in `lanes/`. Branch `main`.
+2. `npm install`, `npm run typecheck`, then `TZ=UTC npx vitest run apps/web` (about a minute; 87 tests). The engine
+   suite is `npx vitest run packages/engine packages/agents packages/config` (several minutes; 311 tests); run it once
+   in the background to confirm the machine, not more.
+3. `.claude/` is gitignored, so create `.claude/launch.json` yourself with exactly this (a static server over the
+   built site; `npm run build:site` writes the test site to `apps/web/dist/site/index.html`):
+   `{"version": "0.0.1", "configurations": [{"name": "lanes-art", "runtimeExecutable": "python3", "runtimeArgs": ["-m", "http.server", "5183", "--directory", "apps/web/dist"], "port": 5183}]}`
 
-## Standing rules (short)
-One shared permanent world, no saves or pauses or undo outside the owner's test world; restarts only with no
-players. Nothing goes live without Jeff; never real money without Jeff. Crime stays out of the chrome. HERE maps
-never inside the simulation. Fraud stays out of the player guide. A legal opinion before launch (Keystone, Meridian,
-Ironwood need a trademark search). The PixelLab token stays out of chat and git.
+## 3. Your memory
+Your system prompt names your auto-memory directory (`~/.claude/projects/<this project's path hash>/memory/`). The old
+producer's memory is in `studio/memory/`: copy every `lanes-*.md` file into your memory directory (keep any file you
+already have), and append the lines of `studio/memory/MEMORY.md` to your own `MEMORY.md` index. Then read
+`lanes-phase0-state.md` from its end backwards (it is the running log, newest last) until you reach 2026-11-03. Paths
+inside those notes that start with `/Users/jeffreyaranguren/Library/Application Support/Claude/scratch-workspaces/…`
+or `/private/tmp/claude-501/…` are the old laptop's; the repo is wherever you cloned it, and there is no worktree yet.
+Append a dated line to the state log saying the studio now runs on the Mac Studio (use `date`, mark it REAL CLOCK).
+
+## 4. Verify the world (read-only; change nothing)
+1. The public test page: `curl -s https://truckingterminal.github.io/lanes-play/ | grep -c "0.23.0-phase0.38"` should
+   print 1 (the build that CI deployed from `main`). `gh run list --limit 3` shows the deploys.
+2. The live page is the artifact https://claude.ai/artifact/SRYhczap5Lpcr8AucRf9wy (v49 at 77b8186, ruleset
+   lanes-live-1/0.23.0-phase0.38). With the ArtifactData tool, `get` collection `world` doc `meta`: it should read
+   `{v 1, seed 318745026, epochMs 1793770250000, msPerGameHour 900000, ruleset "lanes-live-1/0.23.0-phase0.38"}` at
+   version 28. `list` the `players` collection; it was empty on 2026-11-04. Do not write either.
+3. The studio board is https://claude.ai/artifact/2kmePVzETFib467bWP2J34.
+4. Build the live page once to prove the recipe, without publishing: `git worktree add ../lanes-live 77b8186`, then in
+   it `node apps/web/build.mjs` → `apps/web/dist/lanes.html` (about 4.3 MB). Publishing is only ever by Jeff's word.
+
+## 5. Things that could not travel in git
+- The PixelLab token (the old `lanes-hybrid/.pixellab.token`) and the PixelLab MCP server: needed only when the
+  Graphics role resumes. When that day comes, ask Jeff to add the PixelLab connector on this machine with his token.
+  Never ask for the token in chat and never write it to a file in the repo.
+- `.env.local` files: none are needed for LANES.
+
+## 6. The roles, after the Saturday reset
+Start each as its own session with `start_session` (initiation "user_asked", context "fresh", `use_worktree: false`
+so it shares this checkout, model Opus 5.5, then `set_session_effort` medium), in the sidebar group "LANES studio".
+Roles and their briefs: director, ux, qa, writer, engineering, economy, player, art (Graphics), redteam, each in
+`studio/roles/<role>.md`. The brief you send:
+
+> You are the {role} for LANES. Read studio/roles/{role}.md, studio/STUDIO.md, studio/BIBLE.md,
+> studio/DECISIONS.md, and the itinerary in studio/BACKLOG.md. You run on Opus 5.5 at medium effort in the shared
+> checkout at {path}; stage files explicitly, never `git add -A`, never commit, never push; report to the producer in
+> one message when a batch is green. Machine limits: {from lanes-machine-limits.md}. Shared files never keep
+> temporary flag edits. Then wait for the producer's first task.
+
+Start only the roles the first itinerary items need: economy and engineering first; the writer, QA and the player when
+items 7–9 come up. Record each session's id in the state log.
+
+## 7. The first job
+Item 1 of the itinerary in `studio/BACKLOG.md` ("Itinerary from the 2026-11-07 reset"): the emission cap's retune.
+The cap is built and switched off (`token.emission` in `packages/config/src/economy.config.ts`,
+`packages/engine/src/emission.ts`, the write-up and the failed first sizing in `studio/reviews/economy-emission.md`).
+Give the economy role that file and the retune in the backlog, with the sim limits for this machine. Then items 2 and
+3 (option B; the ten-seed four-year gate), then the ruleset bump and the live restart, which needs Jeff's word.
+
+## 8. Recipes you will need
+- **Republish the live page (client-only, same ruleset):** build in the worktree at the commit, publish
+  `apps/web/dist/lanes.html` to the artifact URL with `url` + `file_path` + a label "Ruleset x.y.z (<sha>)". The
+  artifact keeps its painted assets. The auto-mode classifier refused one publish on 2026-11-04 as a "production
+  deploy"; if that happens, stop and tell Jeff (he can allow the Artifact tool), never work around it.
+- **Restart the live world (a rules change):** only with `players` empty or Jeff's explicit word. Publish the page
+  first, then `set` `world/meta` pinned to its current version: `{v: 1, seed: <new 9 digits>, epochMs: <publish time
+  in ms − 43,200,000>, msPerGameHour: 900000, ruleset: "lanes-live-1/<economyConfig.version>"}`. Page and meta move
+  together: a client whose RULESET differs from the meta's refuses to run.
+- **Commits:** by explicit paths, `git diff --cached --name-only` first, never `git add -A`. Role commits end
+  `Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>`; yours `Co-Authored-By: Claude Fable 5.1
+  <noreply@anthropic.com>`. Never push while a deploy somebody waits on is in flight (CI cancels the older run).
+- **Rules:** new rules behind config switches defaulting off, on in `packages/config/src/live.ts` LIVE_LEVERS, with a
+  bump of `version` in `economy.config.ts`; a bump makes saved test worlds stale and needs a live restart.
+- **Sims:** `npm run sim -- --seeds 1,2 --days 120 --out runs/<name> --quiet`; four years is `--days 1095`. Never
+  beside a vitest run.
+
+## 9. Standing rules (never drop these)
+One shared permanent world; no saves, pauses, restarts or undo outside the owner's test world; restarts only with no
+players. Nothing goes live without Jeff; never real money or a launch without Jeff. Crime stays out of the chrome.
+HERE maps never inside the simulation. Fraud stays out of the player guide. A legal opinion before launch; Keystone,
+Meridian and Ironwood need a trademark search; the NPC name lists avoid national carriers and brokers. The PixelLab
+token stays out of chat and git. Only the producer runs on Fable; every role and agent on Opus 5.5 at medium. The
+player role never signs in to anything and never enters personal data. Jeff is often on Remote Control: every closing
+message carries the full answer and any question.

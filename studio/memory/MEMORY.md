@@ -1,0 +1,17 @@
+- [LANES spec doc](lanes-spec-doc.md) — Claude Docs link and how to extract its text
+- [LANES Phase 0 state](lanes-phase0-state.md) — running log (newest at the end): live world, batch findings, open decisions for Jeff
+- [LANES MMO rules](lanes-mmo-rules.md) — one shared permanent world, central store, no saves/pauses/undo
+- [LANES GitHub + deploy](lanes-github-deploy.md) — private code repo, public lanes-play Pages site, CI deploy key
+- [LANES next features](lanes-next-features.md) — staff skills, labor market, tutorial/wiki, safety and fraud decisions
+- [LANES roads](lanes-roads.md) — real road network: source data, scratchpad build tool, routing and tolls rules
+- [LANES art hold](lanes-art-hold.md) — art waits for the parent and needs Jeff's OK; Iuliia, PixelLab lessons, the title passes (fixed rig in pass 4), the map surround
+- [LANES bad-actor spec](lanes-bad-actor-spec.md) — DESIGN-BAD-ACTORS.md draft 3, behind main; five Back Lot v1 holes, live since the eb2cd38 switch-on
+- [LANES studio role](lanes-studio-role.md) — this session is the art director; the producer (parent) is Jeff's one contact and commits studio files
+- [LANES supply dial](lanes-supply-dial.md) — the live dial is frozen after launch; v52-a ran 6% over the path; Jeff's stimulus question
+- [LANES sprint 2 art](lanes-sprint2-art.md) — drivers 52ca12b, makes 82d1b8d, staff + reefer diamond a5d1c04, sprint-3 prep ef9cb7c: methods and failures
+- [LANES machine limits](lanes-machine-limits.md) — 16 GB / 8 cores; the 2026-11-02 OOM restart; cap sims at 4, never beside a vitest run
+- [LANES art test rule](lanes-art-test-rule.md) — before an art push: typecheck + one web test run; hold the push while a CI deploy runs
+- [LANES test page save slot](lanes-test-page-save-slot.md) — one world per browser profile; QA owns the shared one during replays; use a private window
+- [LANES push rule](lanes-push-rule.md) — never push while a deploy QA waits on is in flight; CI concurrency cancels it
+- [LANES shared-file flags](lanes-shared-file-flags.md) — never leave temporary flag edits in shared files; cd7e9d4 swept in cashNow: true
+- [LANES engineering queue](lanes-engineering-queue.md) — paused 2026-11-03 for the usage reset; R9 next, then R10, R22, R24, Your draw, R21
