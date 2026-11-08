@@ -1,5 +1,13 @@
 # Decisions (the producer's log for Jeff; newest first)
 
+- 2026-11-08 — the director's calls on item 4, delivery windows (engineering's proposal; the note
+  director-item4-calls-2026-11-08.md in the shared folder), on Jeff's standing word that the director decides design:
+  (1) past the latest delivery time, a late claim plus the reputation hit, never a refusal (refusal stays where it is:
+  perishables that spoil); the claim's size is the economy's, as one flat share a player can read in advance. (3) The
+  urgency walk is today's +10% step, applied only in the last two rounds and never over the walked ceiling. (4) Hot
+  loads keep their draw for this item; deriving hotness from the window comes later as its own proposal. (5) Bots book
+  ahead under the same canMake, the same two-deep limit and the same claims. Question (2), the claim sizes, waits for
+  the economy after the gate. Three new What-now states for the guidance spec when batch 4 is scheduled.
 - 2026-11-08 — Jeff, on the economy's item 1 (the emission cap retune, studio/reviews/economy-emission.md "Retune"):
   (1) The first truck is hard to get, as in the real world, and the economy is never tuned to it ("the days to acquire
   it should not really have an effect on the economy… Make the first truck hard to acquire just like in the real
