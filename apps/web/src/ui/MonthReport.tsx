@@ -15,6 +15,7 @@ import { Fig } from "./Explain.js";
 const LINE_KEY: Record<string, string> = {
   loads: "month.loads",
   detention: "month.detention",
+  goods: "month.goods",
   fees: "month.fees",
   otherIn: "month.otherIn",
   fuel: "month.fuel",

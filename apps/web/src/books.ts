@@ -16,7 +16,7 @@ import { companyAccount, condition, rebuildable, type Company, type Truck, type 
  */
 
 /** Earned: what the month's work brought in. */
-export const EARNED = ["loads", "detention", "fees", "otherIn"] as const;
+export const EARNED = ["loads", "detention", "goods", "fees", "otherIn"] as const;
 /** Spent: what the month's work cost. */
 export const SPENT = ["fuel", "fuelTax", "wages", "lessor", "maintenance", "insurance", "tolls", "yard", "fines", "claims", "interest", "overhead", "idle", "carrierPay", "taxes", "otherOut"] as const;
 /** Cash that moved for other reasons: why cash moved differently from what was kept. */
@@ -40,6 +40,8 @@ interface Open {
   fromDay: number;
   cashStart: number;
   owedStart: number;
+  /** Of owedStart, a player shipper's goods sold to the NPC market and not yet paid (the Goods sold row's share). */
+  goodsOwedStart: number;
   payStart: number;
   /** Signed FD by line: + into the company's cash, − out of it. */
   flows: Partial<Record<BookLine, number>>;
@@ -52,6 +54,7 @@ export interface MonthBooks extends Open {
   closedDay: number;
   cashEnd: number;
   owedEnd: number;
+  goodsOwedEnd: number;
   payEnd: number;
   loads: number;
   onTime: number;
@@ -72,10 +75,18 @@ const BOOKS = new WeakMap<World, WorldBooks>();
 
 /** Invoices the company holds, not yet paid: what it is owed. */
 export const owedTo = (w: World, c: Company): number => w.receivables.reduce((s, r) => (r.payeeId === c.id && r.holder === c.id ? s + r.amountFd : s), 0);
+/** Of what the company is owed, its goods sold to the NPC market (trips.ts: the market buys a player shipper's goods). */
+export const goodsOwed = (w: World, c: Company): number => w.receivables.reduce((s, r) => (r.payeeId === c.id && r.holder === c.id && r.faucet === "faucet:npc_market" ? s + r.amountFd : s), 0);
 /** Paper the company owes others (a brokerage's carrier pay, a shipper's freight bills). */
 export const owedBy = (w: World, c: Company): number => w.receivables.reduce((s, r) => (r.payer === c.id ? s + r.amountFd : s), 0);
 
 const tagOf = (acct: string) => acct.slice(acct.indexOf(":") + 1);
+
+/** A delivery's pay that is the company's own goods sold to the NPC market: it shipped the load (trips.ts). */
+const ownGoods = (w: World, c: Company, ref: string): boolean => {
+  const m = /^load:(\d+)$/.exec(ref);
+  return m !== null && w.loads.get(Number(m[1]))?.shipperId === c.id;
+};
 
 /** The line a posting to or from a company's cash belongs to, from the account on the other side and the ref. */
 export function lineOf(w: World, c: Company, other: string, ref: string, inflow: boolean): BookLine {
@@ -83,7 +94,11 @@ export function lineOf(w: World, c: Company, other: string, ref: string, inflow:
     switch (tagOf(other)) {
       case "npc_shipper":
         return ref.startsWith("detention:") ? "detention" : "loads";
+      case "npc_market":
+        return inflow ? "goods" : "otherOut";
       case "npc_factor":
+        // The factor's advance on the market's paper for a shipper's goods is the goods' sale, paid early.
+        if (inflow && ownGoods(w, c, ref)) return "goods";
         // In, the factor's pay for a load; out (sink:npc_factor), the payer settling freight it owed on paper the NPC factor
         // or lessor holds (receivables.ts holderAccount): a broker repaying the advance to its carrier, a shipper the same.
         return inflow ? "loads" : "carrierPay";
@@ -120,6 +135,8 @@ export function lineOf(w: World, c: Company, other: string, ref: string, inflow:
         return "maintenance";
       case "insurance":
       case "liability":
+      // In: the cargo insurance pays a shipper for goods lost (safety.ts).
+      case "cargo_insurance":
         return "insurance";
       case "tolls":
         return "tolls";
@@ -127,6 +144,8 @@ export function lineOf(w: World, c: Company, other: string, ref: string, inflow:
       case "yard_security":
         return "yard";
       case "fines":
+      // Cash taken by the authorities (safety.ts owe/collect).
+      case "seized":
         return "fines";
       case "cargo_claims":
       case "cargo_claim":
@@ -176,10 +195,15 @@ export function lineOf(w: World, c: Company, other: string, ref: string, inflow:
       case "season_close":
       case "launch_reset":
       case "exchange_fee":
+      // The weekly buyback auction (buyback.ts): FD sold to the treasury for dollars, burned.
+      case "buyback":
         return "token";
       case "insurance_pd":
         return "otherIn";
       default:
+        // Jeff's standing rule: crime stays out of the chrome. The robbery and fence accounts (sink:crew_fee, sink:wash,
+        // faucet:fence, faucet:fence_resale, faucet:chop_parts) are unnamed on purpose and fall here, to Other income and
+        // Other costs. Don't give them rows.
         return inflow ? "otherIn" : "otherOut";
     }
   }
@@ -190,6 +214,9 @@ export function lineOf(w: World, c: Company, other: string, ref: string, inflow:
   const settled = ref.startsWith("receivable:");
   if (id === undefined) {
     if (settled) return inflow ? "loads" : "carrierPay";
+    // The factoring pool's advance on a delivery, and a surety claim paying a carrier's invoice: freight pay reaching it.
+    if (inflow && other === "co:pool:factoring" && ref.startsWith("load:")) return ownGoods(w, c, ref) ? "goods" : "loads";
+    if (inflow && other === "co:pool:surety" && ref.startsWith("surety:")) return "loads";
     // Escrows, stakes, the Reserve, bonds, the pools, the bridge: cash set aside (and back), not earned or spent.
     if (other.startsWith("co:pool:") && ref.startsWith("loan:")) return "loansIn";
     if (other.startsWith("co:pool:") && (ref.startsWith("payment:") || ref.startsWith("repay:"))) return "principal";
@@ -226,7 +253,7 @@ function booksOf(w: World, c: Company, cashBefore: number): CompanyBooks {
   const wb = BOOKS.get(w)!;
   let b = wb.byCompany.get(c.id);
   if (!b) {
-    b = { open: { fromDay: dayOfT(w, w.t), cashStart: cashBefore, owedStart: owedTo(w, c), payStart: owedBy(w, c), flows: {}, loadedMi: 0, emptyMi: 0, drawStart: c.ownerDrawFd }, closed: [], mark: c.lastMonth?.closedDay ?? null, events: [], odo: new Map() };
+    b = { open: { fromDay: dayOfT(w, w.t), cashStart: cashBefore, owedStart: owedTo(w, c), goodsOwedStart: goodsOwed(w, c), payStart: owedBy(w, c), flows: {}, loadedMi: 0, emptyMi: 0, drawStart: c.ownerDrawFd }, closed: [], mark: c.lastMonth?.closedDay ?? null, events: [], odo: new Map() };
     wb.byCompany.set(c.id, b);
   }
   return b;
@@ -305,10 +332,11 @@ export function booksAfterHour(w: World): void {
       b.mark = closed;
       const cashEnd = w.ledger.balance(companyAccount(c.id));
       const owedEnd = owedTo(w, c);
+      const goodsOwedEnd = goodsOwed(w, c);
       const payEnd = owedBy(w, c);
-      b.closed.push({ ...b.open, closedDay: closed, cashEnd, owedEnd, payEnd, loads: c.lastMonth!.loads, onTime: c.lastMonth!.onTime, drawEnd: c.ownerDrawFd });
+      b.closed.push({ ...b.open, closedDay: closed, cashEnd, owedEnd, goodsOwedEnd, payEnd, loads: c.lastMonth!.loads, onTime: c.lastMonth!.onTime, drawEnd: c.ownerDrawFd });
       if (b.closed.length > 24) b.closed.shift();
-      b.open = { fromDay: closed, cashStart: cashEnd, owedStart: owedEnd, payStart: payEnd, flows: {}, loadedMi: 0, emptyMi: 0, drawStart: c.ownerDrawFd };
+      b.open = { fromDay: closed, cashStart: cashEnd, owedStart: owedEnd, goodsOwedStart: goodsOwedEnd, payStart: payEnd, flows: {}, loadedMi: 0, emptyMi: 0, drawStart: c.ownerDrawFd };
     }
   } catch (e) {
     console.error(e);
@@ -376,7 +404,10 @@ export function monthReport(m: MonthBooks): MonthReport {
   const f = (k: BookLine) => m.flows[k] ?? 0;
   const owedChange = m.owedEnd - m.owedStart;
   const payChange = m.payEnd - m.payStart;
-  const earned = EARNED.map((line) => ({ line, fd: line === "loads" ? f(line) + owedChange : f(line) }));
+  // What's owed splits as the rows do: the market's unpaid paper for goods to Goods sold, the rest to Loads delivered.
+  const goodsChange = m.goodsOwedEnd - m.goodsOwedStart;
+  const owedRow = (line: BookLine) => (line === "loads" ? owedChange - goodsChange : line === "goods" ? goodsChange : 0);
+  const earned = EARNED.map((line) => ({ line, fd: f(line) + owedRow(line) }));
   const spent = SPENT.map((line) => ({ line, fd: line === "carrierPay" ? -f(line) + payChange : -f(line) }));
   const earnedFd = earned.reduce((s, r) => s + r.fd, 0);
   const spentFd = spent.reduce((s, r) => s + r.fd, 0);

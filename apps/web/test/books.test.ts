@@ -1,8 +1,8 @@
 import "./seed.js";
 import { describe, expect, it } from "vitest";
-import { companyAccount } from "@lanes/engine";
+import { companyAccount, type Load } from "@lanes/engine";
 import { boardRows } from "../src/board.js";
-import { closedMonths, EARNED, monthReport, MOVED, openMonth, SPENT } from "../src/books.js";
+import { closedMonths, EARNED, goodsOwed, monthReport, MOVED, openMonth, SPENT, type MonthBooks } from "../src/books.js";
 import { GAME_CONFIG, joinCompany, PLAYER_DISPATCHER_ORDERS, TestGame } from "../src/game.js";
 
 /**
@@ -177,5 +177,74 @@ describe("The month's books", () => {
     expect(delta(cBefore, cAfter, "setAside")).toBeCloseTo(0, 2);
     catchAllFlat(cBefore, cAfter);
     catchAllFlat(pBefore, pAfter);
+  });
+
+  /** A fresh player company an hour in, its open month's flows read before and after a posting. */
+  const fresh = async () => {
+    const g = await TestGame.create();
+    const c = g.join("Sweep Lines", "oo", "DAL")!;
+    g.stepHour();
+    const flows = () => ({ ...(openMonth(g.w, c)?.flows ?? {}) });
+    const addsUp = () => {
+      const o = openMonth(g.w, c)!;
+      expect(o.cashStart + Object.values(o.flows).reduce<number>((s, v) => s + (v ?? 0), 0)).toBeCloseTo(g.w.ledger.balance(companyAccount(c.id)), 1);
+    };
+    return { g, c, flows, addsUp };
+  };
+
+  it("counts the factoring pool's advance and a surety claim paid to a carrier as Loads delivered", async () => {
+    const { g, c, flows, addsUp } = await fresh();
+    const a = flows();
+    g.w.ledger.post(g.w.t, "co:pool:factoring", companyAccount(c.id), 1500, "load:999990");
+    g.w.ledger.post(g.w.t, "co:pool:surety", companyAccount(c.id), 700, "surety:999989");
+    const z = flows();
+    expect(delta(a, z, "loads")).toBeCloseTo(2200, 2);
+    expect(delta(a, z, "setAside")).toBeCloseTo(0, 2);
+    catchAllFlat(a, z);
+    addsUp();
+  });
+
+  it("puts cargo insurance's payout under Insurance, seized cash under Fines and the buyback under the token", async () => {
+    const { g, c, flows, addsUp } = await fresh();
+    const a = flows();
+    g.w.ledger.post(g.w.t, "faucet:cargo_insurance", companyAccount(c.id), 1200, "cargo:999988");
+    g.w.ledger.post(g.w.t, companyAccount(c.id), "sink:seized", 400, "seized:999987");
+    g.w.ledger.post(g.w.t, companyAccount(c.id), "sink:buyback", 600, `buyback:${c.id}`);
+    const z = flows();
+    expect(delta(a, z, "insurance")).toBeCloseTo(1200, 2);
+    expect(delta(a, z, "fines")).toBeCloseTo(-400, 2);
+    expect(delta(a, z, "token")).toBeCloseTo(-600, 2);
+    catchAllFlat(a, z);
+    addsUp();
+  });
+
+  it("counts a player shipper's goods sold to the market as Goods sold: direct, through the factor or the pool, and owed", async () => {
+    const { g, c, flows, addsUp } = await fresh();
+    // A load the company shipped (trips.ts: the market buys a player shipper's goods), from a copy of a load on the board.
+    const any = [...g.w.loads.values()][0]!;
+    const id = 999_000_000;
+    g.w.loads.set(id, { ...any, id, shipperId: c.id } as Load);
+    const a = flows();
+    g.w.ledger.post(g.w.t, "faucet:npc_market", companyAccount(c.id), 5000, `load:${id}`);
+    g.w.ledger.post(g.w.t, "faucet:npc_factor", companyAccount(c.id), 3000, `load:${id}`);
+    g.w.ledger.post(g.w.t, "co:pool:factoring", companyAccount(c.id), 2000, `load:${id}`);
+    // The same factor's pay on a load someone else shipped stays freight pay.
+    g.w.ledger.post(g.w.t, "faucet:npc_factor", companyAccount(c.id), 900, "load:999991");
+    const z = flows();
+    expect(delta(a, z, "goods")).toBeCloseTo(10_000, 2);
+    expect(delta(a, z, "loads")).toBeCloseTo(900, 2);
+    catchAllFlat(a, z);
+    addsUp();
+    // The market's unpaid paper for goods is the Goods sold row's share of what's owed.
+    g.w.receivables.push({ id: g.w.nextReceivableId++, payer: 0, faucet: "faucet:npc_market", payeeId: c.id, amountFd: 800, dueDay: 9999, holder: c.id });
+    expect(goodsOwed(g.w, c)).toBeCloseTo(800, 2);
+    g.w.receivables.pop();
+    g.w.loads.delete(id);
+    // In the report the owed change splits as the rows do, and the month still adds up.
+    const m: MonthBooks = { fromDay: 0, closedDay: 30, cashStart: 0, cashEnd: 150, owedStart: 0, owedEnd: 1000, goodsOwedStart: 0, goodsOwedEnd: 800, payStart: 0, payEnd: 0, flows: { goods: 100, loads: 50 }, loadedMi: 0, emptyMi: 0, drawStart: 0, drawEnd: 0, loads: 1, onTime: 1 };
+    const r = monthReport(m);
+    expect(r.earned.find((x) => x.line === "goods")?.fd).toBeCloseTo(900, 2);
+    expect(r.earned.find((x) => x.line === "loads")?.fd).toBeCloseTo(250, 2);
+    expect(r.cashStart + r.keptFd - r.owedChange + r.payChange + r.moved.reduce((s, x) => s + x.fd, 0)).toBeCloseTo(r.cashEnd, 2);
   });
 });

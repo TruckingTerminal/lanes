@@ -1167,6 +1167,7 @@ export const MONTH = {
   row: {
     loads: "Loads delivered",
     detention: "Detention",
+    goods: "Goods sold to the market",
     fees: "Factoring and cash-now fees",
     otherIn: "Other income",
     fuel: "Fuel",
@@ -1193,7 +1194,7 @@ export const MONTH = {
     setAside: "Set aside: stakes, the Reserve, bonds",
     between: "Moved between your companies",
     capital: "Starting money",
-    token: "The token: airdrops and the exchange",
+    token: "The token: airdrops, the exchange and the buyback",
   } as Record<string, string>,
   /** Where the sign turns a row around: money back rather than money out. */
   rowBack: {
@@ -1317,17 +1318,18 @@ export const EXPLAIN = (cfg: EconomyConfig): Record<string, Ex> => ({
   // R10's month report: each earned and spent row (engineering's drafts for the writer).
   "month.loads": { what: "Pay for the loads you delivered this month, paid or still owed.", how: "Pay received for loads, plus invoices still owed at the close, less those of earlier months paid in it. Quick pay's fee is already off.", moves: "Loads and their rates; the empty miles between them." },
   "month.detention": { what: "Pay for waiting at a closed dock past the free hours.", how: "Paid by the hour past the free hours, up to a cap a stop.", moves: "Dock hours, and arriving when the dock is open." },
+  "month.goods": { what: "What the market paid for your goods: the freight your company shipped.", how: "The market's price for each load of goods delivered, paid or still owed at the close, less earlier months' paid in it.", moves: "What your facilities make, and getting it delivered." },
   "month.fees": { what: "What getting paid early cost you.", how: "The factor's discount on each invoice it bought, and cash now's fee.", moves: "Waiting for net terms; your contract's rate." },
-  "month.otherIn": { what: "Money in that isn't freight pay, such as an insurance payout.", how: "Each payment in that no other row names.", moves: "Claims paid to you." },
+  "month.otherIn": { what: "Money in that no other row names.", how: "Each payment in that no other row names.", moves: "What it was for." },
   "month.fuel": { what: "Diesel for every mile, loaded and empty, and for idling.", how: "Gallons at each fill's price, the climb on grades included.", moves: "Empty miles, the truck's economy, the price of diesel." },
   "month.fuelTax": { what: "The month's fuel tax on the gallons you burned.", how: "Billed at the month's close on the month's gallons.", moves: "Gallons: miles and economy." },
   "month.wages": { what: "Pay for drivers and staff, and per diem away from home.", how: "Drivers by the mile, staff by the week, per diem for idle days away.", moves: "Hires, pay rates, home time." },
   "month.lessor": { what: "The lessor's cut of each leased load, and trailer rent.", how: `${pctOf(cfg.costs.npcLeaseShareOfGross)} of each load on a leased truck.`, moves: "Owning the truck ends it." },
   "month.maintenance": { what: "Upkeep by the mile, breakdowns and rebuilds.", how: "A cost a mile for wear, each breakdown's tow and repair, and each rebuild.", moves: "Condition, rebuilds, the truck's age." },
-  "month.insurance": { what: "Your policy, billed weekly.", how: "Each insured truck's yearly premium, by the week.", moves: "Your safety record and the trucks you insure." },
+  "month.insurance": { what: "Your policy, billed weekly, less what cargo insurance paid you for goods lost.", how: "Each insured truck's yearly premium, by the week; a payout comes off it.", moves: "Your safety record and the trucks you insure." },
   "month.tolls": { what: "Toll roads on your routes.", how: "Each leg's tolls, as its miles are driven.", moves: "Routes." },
   "month.yard": { what: "Yard rent past your first truck, its security, and paid parking at night.", how: "Weekly yard rent a truck, and each night's paid stop.", moves: "Fleet size, and where trucks stop." },
-  "month.fines": { what: "Tickets and fines paid.", how: "Each fine as it was paid.", moves: "Legal settings, and stops in reach before the hours run out." },
+  "month.fines": { what: "Tickets and fines paid, and cash the authorities seized.", how: "Each fine or seizure as it was paid.", moves: "Legal settings, and stops in reach before the hours run out." },
   "month.claims": { what: "What you paid receivers for spoiled or damaged freight.", how: "Each claim as it was paid.", moves: "Perishables on time; fewer crashes." },
   "month.interest": { what: "Interest on your loans this month.", how: "Each payment's interest part; the principal is under why your cash moved.", moves: "Paying loans down." },
   "month.overhead": { what: "The fleet's office overhead, permits and bonds.", how: "Billed weekly or yearly, as the rules set.", moves: "Fleet size." },
