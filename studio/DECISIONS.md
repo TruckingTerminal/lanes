@@ -1,5 +1,23 @@
 # Decisions (the producer's log for Jeff; newest first)
 
+- 2026-11-08 — Jeff, on the economy's item 1 (the emission cap retune, studio/reviews/economy-emission.md "Retune"):
+  (1) The first truck is hard to get, as in the real world, and the economy is never tuned to it ("the days to acquire
+  it should not really have an effect on the economy… Make the first truck hard to acquire just like in the real
+  world"); buying FD is what gets a truck faster. The bible's week-one line no longer promises an owned truck inside
+  the first game month (edited by the producer on Jeff's word; the writer polishes it in item 7), and the first-truck
+  pacing guard leaves the gate, reported only. (2) The gate's band is the corrected ratio (the NPC advance and its
+  repayment out of both sides), read over the trailing four quarters, in [0.85, 1.00] from the third year, as the
+  check on the rules; the check on the cap is a set of floors read at the ends of years 3 and 4 against a cap-off twin
+  of the same seed on the same code (carriers in service and cleared loads a day at or above 75% of the twin's;
+  companies' debt in FD within a multiple the economy sets from the twins), plus a cold-start line (month 1 commits
+  at most 110% of its budget); supply, spread and free path as before; ten seeds, cap and twin, twenty sims in two
+  waves. (3) The schedule is the refill design: the budget re-emits the trailing sinks net of the other faucets plus a
+  published subsidy (3M a month decaying 5% a month, 60M in all, after a 36M opening month); a fixed decay is not a
+  mechanism, since at the lever floors it starves the world; the 1B cap is structural; the reserve's remainder is a
+  cushion that only a future decision touches. Jeff: "I approve of all 3 of your calls. Think about them one more time
+  before committing and if you still feel it's the best way to go, do it. I trust you." The producer re-thought them
+  and confirmed all three. Open before the gate runs: the economy's two-seed re-run of the recommended levers on the
+  corrected refill base, which prices the 60M subsidy in liveness.
 - 2026-11-02 — Jeff's answers to the bible's questions: (1) the pitch and the feeling stand for now, the feeling
   stated as "real accomplishment from your decisions and grinding"; (2) the token surfaces may stay on the beta
   screens for now, since nobody plays until the Mac mini server; (3) YES to the dispatcher idle for a one-truck

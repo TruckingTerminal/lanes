@@ -32,9 +32,11 @@ What serves none of these is cut.
   the dispatcher for the hours you'll be away. Bids clear every three real hours; worth a glance that often.
 - **A day: four game days.** One or two deliveries. Pay lands. A pull-in, a breakdown or a
   dead market says no. The number is always loaded miles against total miles.
-- **A week: a game month.** Own the first truck and end the lessor's cut. Buy the second, hire a driver, take on
-  the dispatcher at the third. Each step costs more than the last and a lost contract, a season or a review can
-  take it back.
+- **A week: a game month.** Run the leased truck well: loaded miles, paid on time, the hold building toward a
+  truck of your own. Owning one is hard, as it is in the real world, and no rule makes it easier; it comes when
+  you've earned it, or sooner if you buy FD, and then the lessor's cut ends. Buy the second, hire a driver, take
+  on the dispatcher at the third. Each step costs more than the last and a lost contract, a season or a review
+  can take it back.
 
 Today the dispatcher plays the sitting from minute one and the walkthrough ticks its own boxes: four strangers,
 no load won by hand. A game that plays itself is slop.
