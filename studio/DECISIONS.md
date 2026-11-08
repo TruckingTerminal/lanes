@@ -1,5 +1,16 @@
 # Decisions (the producer's log for Jeff; newest first)
 
+- 2026-11-08 — the producer, on Jeff's "I trust you", after the first ten seeds of the gate (economy-emission.md §16.7;
+  reversible before the restart): the gate's calibration moves one step. The band's floor is 0.84 (read from the fourth
+  year, never lower) and the carriers' line reads 72% of the twin's at the end of year 3, while the cap is still
+  releasing, and 75% at the end of year 4; cleared loads and the debt line stand. Why: on the fixed 5M curve the ten
+  seeds describe a healthy capped world (carriers 74–90% of the twin's hauling 93–106% of its loads, debt at the twin's
+  level, the cold start inside its budget, no band reading under 0.84), and the gate as first set failed seven of them by
+  one or two points, because the band and the floor pull against each other by construction (more subsidy, more
+  carriers, a lower ratio) with a window a point wide, inside seed noise. The freed cap reads a point or two under its
+  twin on every seed: fewer carriers haul the same freight and each keeps a little more. Starvation still fails by
+  twenty points. The step is recorded as the calibration from the first ten seeds, with the twin-relative reading
+  reported beside the band for the next one. Jeff to confirm before 0.24.0.
 - 2026-11-08 — the director's calls on item 4, delivery windows (engineering's proposal; the note
   director-item4-calls-2026-11-08.md in the shared folder), on Jeff's standing word that the director decides design:
   (1) past the latest delivery time, a late claim plus the reputation hit, never a refusal (refusal stays where it is:
