@@ -5,9 +5,15 @@ retuned cap (economy-emission.md "Retune (2026-11-07)", §1–§15; emission.ts,
 freight.ts) on main at af61e8b, config 0.23.0-phase0.38, the live profile with the cap switched on by override. The subsidy's
 size is undecided, so the attacks ran on the structure with the provisional configuration the producer named: R net, the balance
 dial one-way, the volume dial held, pacing 14 / 0.03 / 5 opening at 0.5, `subsidy.firstMonthFd` 4,000,000 and `totalFd`
-2,000,000,000 (flat 4M a month to within 0.2%). The last section says which findings move with the subsidy. These runs are the
-"before": the economy's working tree already carries fixes for 1 (the sale drawn on the budget), 2 and 7; a run on it once it has
-committed is the "after".
+2,000,000,000 (flat 4M a month to within 0.2%). The last section says which findings move with the subsidy.
+
+**Which engine the runs measured.** The code was read on main at af61e8b (the contract index without rf, the market's sale
+outside the budget, the carry crossing the launch), but the fourteen runs below ran at 03:32–03:48 on the shared checkout's
+working tree, which by then already carried the economy's fixes for those three (the multiplier on brokered and contract pay,
+the market's purchase drawn on the budget, the carry zeroed at launch), committed since as 6312f60; their `emission.pay`
+carries the `market` kind that exists only with the fix. So every measured figure in §0–§4 is the fixed engine's, the "after";
+the old engine's "before" was run afterwards in a worktree at 51bd524 and sits in the addendum at the end. The code-reading
+findings describe the old engine and are unchanged.
 
 Method. `apps/sim/src/redteam/emission.ts` (new, mine) builds the gate's world (the sim's full population, 400 owner-operators /
 120 fleets / 60 brokers, seeds 1 and 2) and adds one player: a 30-truck van fleet at Chicago, granted the stake, a large yard's
@@ -20,25 +26,29 @@ the cost is the world's figures against the control's. 364 days (the season clos
 day 364, so the window stops before it), where flat 4M binds, both seeds, plus the control with the cap off. The engine was not
 changed; the ledger is read through a tap. Runs under `runs/redteam-emission/` (gitignored); a run takes about 65 s.
 
-**Headline.** No attack takes NPC money out of the capped economy faster than honest hauling does, in year one at flat 4M. The
-player brokerage is the only one that gains at all: +0.3–0.5k FD a day on a 30-truck fleet (+0.2–1.0k with the margin bait), while
-doubling its gross draw on the budget to 4.2–4.5% of all NPC pay and passing the rest through at 1%. The facility ring loses
+**Headline.** On the fixed engine no attack takes NPC money out of the capped economy faster than honest hauling does, in year
+one at flat 4M. The player brokerage is the only one that gains at all: +0.3–0.5k FD a day on a 30-truck fleet (+0.2–1.0k with
+the margin bait), while doubling its gross draw on the budget to 4.2–4.5% of all NPC pay and passing the rest through at 1%. On
+the old engine the same pair gained **+3.8k / +4.1k a day, about 1.5M FD a year** (the addendum): the one hole that paid, and
+6312f60 closes it. The facility ring loses
 5.8–10.3k a day against the control and is sold off mid-year in both seeds, because the market clears at the ceiling (1.2 × ref)
 and a sale pays 1.18 × ref; grabbing volume while rates are whole loses margin (seed 1 collapses). What the code reading found
-stands as structure, and two of it matter for the gate's reading rather than for an attacker: the rate lever never reaches
-brokered or contract pay (brokered pay rose from 81–85% of direct to 84–91% under the cap), and the bots' own facilities put
-21M (6.4% of NPC pay, seed 1) outside the budget in year one while the economy's `npc_market` tripwire reads 0 because the
-factoring contract advances the sale as `faucet:npc_factor`. The cap itself costs the honest 30-truck fleet 7.5–8k a day (its NPC
-income −35% / −42%), the same proportion as everyone's.
+stands as structure, and two of it matter for the gate's reading rather than for an attacker: on the old engine the rate lever
+never reached brokered or contract pay (fixed in 6312f60; even with the fix brokered pay keeps 84–91% of direct's under the cap
+against 81–85% off, the residual lift coming through the ratio), and the bots' own facilities sell 21M of goods (6.4% of NPC pay,
+seed 1) in year one, outside the budget on the old engine and drawn on it since the fix, while the economy's `npc_market`
+tripwire reads 0 because the factoring contract advances the sale as `faucet:npc_factor`. The cap itself costs the honest 30-truck
+fleet 7.5–8k a day (its NPC income −35% / −42%), the same proportion as everyone's. The addendum puts the old engine beside the
+fixed one for the pair and the control.
 
 ## Ranking (by what an attacker gains; the structure in the second column)
 
 | # | Finding | Gain to the attacker (vs control, FD a day, s1 / s2) | Cost to everyone else | Status in 0.24.0 | Fix | Subsidy? |
 |---|---|---|---|---|---|---|
-| 1 | The player brokerage farms the uncut brokered channel: a 1% advertised margin wins ~64× a bot's tenders; own carrier at the band's top | **+0.5k / +0.3k** (gross draw 4.2% / 4.1% of NPC pay against 2.3% / 2.0%; own tenders 606 / 636) | none measurable; the pair is a conduit (7.0–7.3M paid on to other carriers) | live from day 91 | the rate lever reaches `contractRef` and `contractRate()` (economy's tree); the shippers' choice reads the posted margin | no |
+| 1 | The player brokerage farms the uncut brokered channel: a 1% advertised margin wins ~64× a bot's tenders; own carrier at the band's top | **old engine +3.8k / +4.1k** (≈1.5M a year; addendum); fixed engine +0.5k / +0.3k (gross draw 4.2% / 4.1% of NPC pay against 2.3% / 2.0%; own tenders 606 / 636) | none measurable; the pair is a conduit (7.0–7.3M paid on to other carriers) | live from day 91; the lever's reach fixed in 6312f60 | the rate lever reaches `contractRef` and `contractRate()` (done, 6312f60); the shippers' choice reads the posted margin (1b) | no |
 | 1b | …and posts the tenders its trucks can't take at 15% (`post_tender` takes any margin; the shippers chose it on the 1%) | +0.2k / +1.0k (4,927 / 4,498 bait posts; the brokerage's bond erodes 37–91k instead of 117–229k) | the shippers' broker choice is gamed | live from day 91 | `post_tender` capped at the standing order's margin, or the weight reads the posted margin | no |
-| 2 | The rate lever never reaches brokered or contract freight (the contract index has no rf) | carried by 1; for a plain carrier it is the market's: brokered pay 84% / 91% of direct under the cap against 81% / 85% off | the rate cut lands on direct spot, the newcomers' board; the budget is drawn at the uncut rate | structural, live | as 1 | no |
-| 3 | The facility ring: NPC money for the goods outside the budget, on freight the volume lever never cuts | **−10.3k / −5.8k** (sales 2.70M / 3.11M on 693 / 699 own loads; sold off mid-year) | nil from the attacker; the bots' facilities put 21.4M / 5.9M (6.4% / 1.8% of NPC pay) outside the budget, 0 with the cap off | structural, live from day 28; no gain while the market clears at the ceiling | draw the sale on the budget (economy's tree); scale facility output and the hub-share cap by v (the facilities ruleset); the tripwire reads the draw's kind | yes: the ring pays only once v thins the board under truck capacity |
+| 2 | The rate lever never reaches brokered or contract freight (the contract index has no rf; old engine) | carried by 1; for a plain carrier it is the market's: brokered pay 84% / 91% of direct under the cap against 81% / 85% off on the fixed engine (the old engine: addendum) | the rate cut lands on direct spot, the newcomers' board; the budget is drawn at the uncut rate | fixed in 6312f60 | as 1 | no |
+| 3 | The facility ring: NPC money for the goods outside the budget, on freight the volume lever never cuts | **−10.3k / −5.8k** (sales 2.70M / 3.11M on 693 / 699 own loads; sold off mid-year) | nil from the attacker; the bots' facilities sell 21.4M / 5.9M of goods (6.4% / 1.8% of NPC pay) with the cap on, 0 off: outside the budget on the old engine, drawn on it since 6312f60 | the budget draw fixed in 6312f60; live from day 28; no gain while the market clears at the ceiling | draw the sale on the budget (economy's tree); scale facility output and the hub-share cap by v (the facilities ruleset); the tripwire reads the draw's kind | yes: the ring pays only once v thins the board under truck capacity |
 | 4 | Timing the slow lever: grab volume while rates are whole | **−15.3k / −1.5k** (seed 1 liquidated after 119 grab days) | nil; the cut episodes' overshoot (months at 106–132% of budget) is the carry everyone repays | design window | none cheap; price the overshoot into the subsidy | yes |
 | 5 | NPC detention inside the cap | +0 (a cost: 3.4–4.0% of NPC pay under the cap, 2.5–2.9% off; the fleet's own 437–505k a year) | nil | live | none (a dock cost, not a hole) | no |
 | 6 | A parking cartel lifting the hub's ratio | ≤ +18% rate on half the fleet for half the volume: a loss | nil | no gain | none | no |
@@ -67,7 +77,8 @@ income −35% / −42%), the same proportion as everyone's.
 | detention, share of NPC pay | 2.5% | 3.4% | 2.9% | 4.0% |
 | FD held by companies at day 364 | 99M | 51M | 81M | 43M |
 
-The cap takes 28% of NPC pay out of year one and the honest fleet loses the same share as everyone (its share of NPC pay moves
+(The fixed engine; the market's purchases, 21.5M / 6.2M, are inside "NPC pay committed" here.) The cap takes 28% of NPC pay out
+of year one and the honest fleet loses the same share as everyone (its share of NPC pay moves
 2.5% → 2.1–2.3%); the bots' greedy personas lose most (medians −66% to −72%), the conservative least (−18% to −24%), and the
 dial winds down 77–90 bot carriers. The fleet's bid margin sits at its 0.9 cap most of the year in both worlds: the board carries
 more freight than trucks even at the volume floor, so a truck gets the ceiling for most loads. That one fact decides findings 3
@@ -111,9 +122,10 @@ The reference rate carries `rf = reserveFactor × rateMult × emissionMult` (fre
 dial and the reserve factor act there. The contract index does not: `spot = dpow(ratio) × weather × season` (freight.ts:199–203),
 no rf. NPC brokers' tenders are priced `baseRate × contractIndex × premium × reload + fsc + tolls…` (freight.ts:372) and direct
 contracts by `contractRate()` the same way (contracts.ts:62). So with the lever at 0.8 a direct spot load's ceiling drops 20% and
-a brokered load's does not, except through the ratio the volume lever moves. Measured: under the cap direct pay fell 14–15% a
-mile (4.67 → 4.02, 4.42 → 3.74) and brokered 9–11% (3.79 → 3.39, 3.75 → 3.40); the brokered share of NPC pay committed rose from
-8.0–8.5% to 9.2–16.5% (`emission.pay`). The whole rate cut lands on direct spot freight, the newcomer's board; under a binding
+a brokered load's does not, except through the ratio the volume lever moves. Measured on the fixed engine (the multiplier
+already on contract pay): under the cap direct pay fell 14–15% a mile (4.67 → 4.02, 4.42 → 3.74) and brokered 9–11% (3.79 →
+3.39, 3.75 → 3.40); the brokered share of NPC pay committed rose from 8.0–8.5% to 9.2–16.5% (`emission.pay`); the old engine's
+figures are in the addendum. On the old engine the whole rate cut lands on direct spot freight, the newcomer's board; under a binding
 cap this is a transfer from the smallest carriers to the channel the established ones work, on top of the volume cut they share.
 The economy's four-year runs show the drift compounding (brokered share 37% / 46% under the cap against 34% / 41%, §15).
 
@@ -148,8 +160,9 @@ in every run of the economy's (owners' net −6.5k to −27k a facility-week). T
 loads clear well under the ceiling: that is the market the volume lever is meant to make and has not made in year one.
 
 What matters anyway. (a) The leak is real at the world's scale: the bots buy facilities only when the cap bites (0 with it off,
-9 / 5 in year one with it on) and their sales put 21.4M / 5.9M of NPC money (6.4% / 1.8% of NPC pay) into the world outside the
-budget. (b) The tripwire cannot see it: under the factoring contract the NPC factor advances a facility's sale on delivery and
+9 / 5 in year one with it on) and their sales put 21.4M / 5.9M of NPC money (6.4% / 1.8% of NPC pay) into the world: outside the
+budget on the old engine, drawn on it as the `market` kind since 6312f60 (21.5M of the 341M committed in the fixed run). (b) The
+tripwire cannot see it: under the factoring contract the NPC factor advances a facility's sale on delivery and
 `bill()` posts that advance from `faucet:npc_factor` (receivables.ts:382), the same tag as freight pay; `faucet:npc_market` shows
 only for a payee on net terms. So factored sales sit in the cap's cash column (`ledger.npcPaidFd`), inside `FREIGHT_FAUCETS`
 (never subtracted from R's base) and outside the economy's `npc_market` share, whose "0% in every year" (§13–§15) is partly the
@@ -232,8 +245,6 @@ subsidy (`refill` 1.15) hunts least and gives 4 the least; flat 4M binds in year
 
 ## Open
 
-- The "after" run on the economy's tree once it has committed the fixes for 1, 2, 8 (the same fourteen, or the pair and the
-  control alone), with a slot asked for then.
 - The ring under a truck-rich market: run the same scenario at the 60M subsidy's floors (years 2–3) or with a smaller volume
   floor, where loads clear under 1.18 × ref; not run here.
 - `runs/redteam-emission-v1/` is the first pass with an under-specified attacker (static +30% bids, the season close inside the
@@ -256,3 +267,45 @@ Mine, to stage: `apps/sim/src/redteam/emission.ts` (new), `apps/sim/src/redteam/
 now add `faucet:npc_advance`), `apps/sim/src/redteam/three.ts` (lines 112 and 143, the same), `studio/reviews/redteam-emission.md`.
 Nothing in `packages/`; the fixes above are proposals, routed by the producer to the economy (1, 2, 3's budget draw and tripwire,
 8) and to the rulesets that open facilities (3's scaling by v) and the Back Lot (9).
+
+## Addendum (2026-11-08, after 6312f60): the old engine beside the fixed one
+
+The pair and the control, seeds 1–2, 364 days, the same levers: the old engine in a worktree at 51bd524 (the engine of af61e8b:
+the contract index without the multiplier, the market's sale outside the budget) and the fixed engine on main at 6312f60 (which
+reproduces the fourteen runs above to the FD). `runs/redteam-emission-before/` and `runs/redteam-emission-after/`.
+
+| 364 days, cap on, flat 4M | old s1 control | old s1 pair | fixed s1 control | fixed s1 pair | old s2 control | old s2 pair | fixed s2 control | fixed s2 pair |
+|---|---|---|---|---|---|---|---|---|
+| attacker wealth a day | −0.83k | **+3.0k** | −0.66k | −0.17k | −4.0k | **+0.15k** | −4.0k | −3.7k |
+| the pair's gain over the control | – | **+3.8k** | – | +0.5k | – | **+4.1k** | – | +0.3k |
+| operating result | 2.44M | 2.99M | 2.61M | 2.11M | 1.03M | 1.78M | 1.07M | 0.42M |
+| NPC pay to the pair, gross (share of all) | 7.32M (2.07%) | 15.01M (4.17%) | 7.60M (2.27%) | 14.11M (4.21%) | 6.00M (1.87%) | 14.09M (4.40%) | 6.51M (2.05%) | 13.08M (4.12%) |
+| own tenders · brokerage cash · bond (1.3M capital, 1M posted) | – | 517 · 374k · 1.07M | – | 606 · 0 · 771k | – | 647 · 516k · 1.07M | – | 636 · 7k · 883k |
+| brokered / direct pay, FD a mile | 3.76 / 4.05 (93%) | 3.80 / 4.08 (93%) | 3.39 / 4.02 (84%) | 3.41 / 4.03 (85%) | 3.62 / 3.69 (98%) | 3.63 / 3.69 (98%) | 3.40 / 3.74 (91%) | 3.39 / 3.77 (90%) |
+| brokered share of NPC pay committed · loads | 16.8% · 18.6k | 18.1% · 20.0k | 8.6% · 10.9k | 11.3% · 14.1k | 25.4% · 26.8k | 28.4% · 29.5k | 16.2% · 18.8k | 17.1% · 19.9k |
+| market purchases: drawn on the budget | no (18.6M beside it) | no (20.8M) | 21.5M (6.3% of committed) | 19.6M | no (4.3M) | no (6.9M) | 6.2M (1.9%) | 7.3M |
+| world: NPC pay · committed ÷ budget · carry | 354M · 93% · +25.8M | 360M · 93% · +27.5M | 336M · 94% · +20.6M | 335M · 95% · +19.6M | 320M · 93% · +23.8M | 320M · 92% · +26.4M | 318M · 93% · +26.0M | 317M · 93% · +25.6M |
+| days at the volume / rate floor | 219 / 119 | 215 / 118 | 270 / 222 | 280 / 225 | 237 / 169 | 230 / 154 | 218 / 145 | 214 / 145 |
+| liquidations · in debt at the end | 105 · 68 | 94 · 60 | 99 · 95 | 100 · 88 | 76 · 51 | 91 · 62 | 75 · 73 | 82 · 83 |
+| bot median cash, OO greedy / conservative · fleet greedy / conservative | 46k / 103k · 129k / 211k | 44k / 102k · 148k / 200k | 32k / 99k · 109k / 204k | 35k / 93k · 110k / 185k | 24k / 77k · 89k / 160k | 27k / 79k · 83k / 171k | 22k / 80k · 107k / 173k | 24k / 82k · 105k / 186k |
+
+- **The hole on the old engine was material and the fix closes it.** With the contract index out of the lever's reach the cap
+  lifted brokered freight from 81–85% of direct's pay (cap off, §0) to 93% / 98%, and its share of NPC pay from 8.0–8.5% to
+  16.8% / 25.4%; a pair with a 1% advertised margin and a 1M bond turned a year that costs the honest fleet 0.8k / 4.0k a day
+  into +3.0k / +0.15k, a gain of **+3.8k / +4.1k a day, about 1.5M FD a year**, its brokerage ending with 374k / 516k of cash and
+  its bond whole. With the multiplier on brokered and contract pay (6312f60) the lift falls to 84% / 91% and 8.6% / 16.2%, the
+  pair's gain to +0.5k / +0.3k a day, and the brokerage loses 0.4–0.5M of its capital carrying freight at 1%. Finding 1 (and 2)
+  closed to the extent the runs can see; 1b (the posted margin) is untouched by this fix.
+- **The market's purchases are inside the budget now**: 21.5M / 6.2M of the control's 341M / 323M committed carry the `market`
+  kind; on the old engine the same 18.6M / 4.3M paid beside it. Finding 3's budget half closed; the tripwire's reading is the
+  economy's (the draw's kind), and the scaling by v stays with the facilities ruleset.
+- **A side effect for the economy's sizing.** The same budget now covers the market's purchases too, so freight is cut harder
+  in year one: NPC pay 354M → 336M in seed 1, days at the rate floor 119 → 222 (169 → 145 in seed 2), companies in debt at the
+  end 68 → 95 and 51 → 73, the greedy bots' medians −20 to −30% (46k → 32k, 129k → 109k in seed 1); liquidations within noise.
+  The honest fleet itself is unmoved (−0.83k → −0.66k, −4.0k → −4.0k). At flat 4M the market's draw is 2–6% of the budget; where
+  bots buy facilities most (seed 1) it is the difference between a cap that releases in months 5–7 and one that does not.
+- **The carry's reset at launch** cannot be seen in a 364-day run (the launch is day 730); the code does it (`launchToken`,
+  `w.emission.carryFd = 0`).
+
+Files for this addendum: `studio/reviews/redteam-emission.md` alone (`apps/sim/src/redteam/emission.ts` is as committed in
+51bd524). The worktree was removed after the runs.
