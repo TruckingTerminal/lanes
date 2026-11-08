@@ -160,7 +160,7 @@ export function Staff(): JSX.Element {
           {s.violations || s.crashes ? (
             <span class="warn">
               {" "}
-              · {s.violations} violations, {s.crashes} crashes on record
+              · {driverRecord(s.violations, s.crashes)} on record
             </span>
           ) : null}
         </p>
@@ -393,7 +393,7 @@ export function Staff(): JSX.Element {
 /** A driver's record in the hire list, in words (the writer may reword it in item 7). */
 function driverRecord(violations: number, crashes: number): string {
   if (violations === 0 && crashes === 0) return "Clean record";
-  const v = violations === 1 ? "1 violation" : `${violations} violations`;
-  const k = crashes === 1 ? "1 crash" : `${crashes} crashes`;
-  return `${v} · ${k}`;
+  const v = violations === 0 ? null : violations === 1 ? "1 violation" : `${violations} violations`;
+  const k = crashes === 0 ? null : crashes === 1 ? "1 crash" : `${crashes} crashes`;
+  return [v, k].filter(Boolean).join(", ");
 }

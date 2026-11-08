@@ -550,7 +550,7 @@ export const DISPATCHER = {
   bidAtClears: "Bid at what loads usually clear near, plus",
   ceilingSuffix: "% of the ceiling",
   emptyUpTo: "Send the truck empty up to",
-  homeAfter: "Bring me home after",
+  homeAfter: "Head for home after",
   save: "Save",
   moreRules: "More rules",
   floor: "Never below break-even plus",

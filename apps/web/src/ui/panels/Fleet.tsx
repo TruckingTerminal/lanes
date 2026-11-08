@@ -215,9 +215,9 @@ function TiredAlerts(): JSX.Element {
  * needsHome, board.ts maybeReposition).
  */
 const HOME_RULE = {
-  soon: (days: number) => `Send it home when it's next idle. At ${days} days out the home-time rule starts it home: only loads that head that way, then empty once it's close.`,
-  on: (days: number) => `It's past the home-time rule's ${days} days, so it's on its way home: only loads that head that way, then empty once it's close.`,
-  none: "Send it home when it's next idle.",
+  soon: (days: number) => `Send it home when it's next idle. At ${days} days out the home-time rule turns it for home: homeward loads only, then empty once it's close or none come.`,
+  on: (days: number) => `It's past the home-time rule's ${days} days, so it's working its way home: homeward loads only, then empty once it's close or none come.`,
+  none: "No home-time rule is set: send it home when it's next idle.",
 };
 
 /** What the home-time rule does for a driver out on a moving truck (QA item 8: the card promised it brought them home at n days). */

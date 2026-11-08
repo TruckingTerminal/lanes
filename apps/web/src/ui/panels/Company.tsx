@@ -273,7 +273,7 @@ function HomeAndInsurance({ c }: { c: CompanyT }): JSX.Element {
         <Kv
           rows={[
             // QA item 8: the week's figure is the policy and, on what you own, physical-damage cover; say both, so it adds up.
-            ["Policy", <Fig k="pay.insurance" label="Insurance"><Num>{fd(week)} FD a week · {fd(wc.insuranceLiability)} for the policy ({fd(p.annualPerTruck)} FD a year per insured truck){wc.insuranceDamage >= 0.5 ? ` and ${fd(wc.insuranceDamage)} for damage cover on what you own` : ""} · renews {dateLabel(p.renewDay)}</Num></Fig>],
+            ["Policy", <Fig k="pay.insurance" label="Insurance"><Num>{wc.insuranceDamage >= 0.5 ? `${fd(week)} FD a week: ${fd(wc.insuranceLiability)} liability (${fd(p.annualPerTruck)} FD a year per insured truck) + ${fd(wc.insuranceDamage)} physical damage on what you own` : `${fd(week)} FD a week of liability (${fd(p.annualPerTruck)} FD a year per insured truck)`} · renews {dateLabel(p.renewDay)}</Num></Fig>],
             ["Priced from", `your record ×${p.risk.toFixed(2)} · ${hub.id} garaging ×${p.garaging.toFixed(2)} · market ×${p.market.toFixed(2)}`],
             ["Insurance market", `index ×${w.insuranceMarket.index.toFixed(2)} · insurers paid out ${pct(lossRatio(w))} of premiums this year`],
           ]}
