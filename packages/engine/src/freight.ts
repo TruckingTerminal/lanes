@@ -36,21 +36,39 @@ export function marketMood(w: World): { state: "booming" | "slumping" | "steady"
 
 const CLEARS_MIN = 5;
 const CLEARS_ALPHA = 1 / 40;
-function trackClears(table: Record<string, [number, number]>, key: string, rate: number): void {
+/**
+ * The trailing clearing rate under a key. `halfLifeMin` 0 (freight.clearsNear.halfLifeDays off): a plain mean for 40
+ * clears, then a trailing mean by count, exactly as before. On: a mean weighted by time, each clear's weight halving every
+ * half-life, so a lane's first days fade with the days rather than holding the mean for its first 40 clears (item 5: the
+ * week-one lag). Its weight and last minute sit beside the entry under `${key}|decay`, read by nothing else.
+ */
+function trackClears(table: Record<string, [number, number]>, key: string, rate: number, t: number, halfLifeMin: number): void {
   const x = table[key];
-  if (!x) table[key] = [rate, 1];
-  else {
-    x[0] += (x[1] < 1 / CLEARS_ALPHA ? 1 / (x[1] + 1) : CLEARS_ALPHA) * (rate - x[0]); // a plain mean for 40 clears, then trailing
-    x[1]++;
+  if (!x) {
+    table[key] = [rate, 1];
+    if (halfLifeMin > 0) table[`${key}|decay`] = [1, t];
+    return;
   }
+  if (halfLifeMin > 0) {
+    // Switched on in a running world: the clears so far weigh what the trailing mean gave them.
+    const d = table[`${key}|decay`] ?? [Math.min(x[1], 1 / CLEARS_ALPHA), t];
+    const weight = d[0] * dpow(0.5, Math.max(0, t - d[1]) / halfLifeMin);
+    x[0] += (rate - x[0]) / (weight + 1);
+    table[`${key}|decay`] = [weight + 1, t];
+  } else x[0] += (x[1] < 1 / CLEARS_ALPHA ? 1 / (x[1] + 1) : CLEARS_ALPHA) * (rate - x[0]); // a plain mean for 40 clears, then trailing
+  x[1]++;
 }
+
+/** freight.clearsNear.halfLifeDays in game minutes; 0 (off) keeps the trailing mean by count. */
+const clearsHalfLifeMin = (w: World): number => w.cfg.freight.clearsNear.halfLifeDays * w.cfg.time.gameMinutesPerDay;
 
 /** Every cleared spot load (board.ts assign; not contract tenders): the lane's and the origin market's trailing clearing rate. */
 export function noteClear(w: World, load: Load, rate: number): void {
   if (load.contractId) return;
   const c = (w.clears ??= { lane: {}, hub: {} });
-  trackClears(c.lane, `${load.laneId}:${load.equipment}`, rate);
-  trackClears(c.hub, `${load.origin}:${load.equipment}`, rate);
+  const half = clearsHalfLifeMin(w);
+  trackClears(c.lane, `${load.laneId}:${load.equipment}`, rate, w.t, half);
+  trackClears(c.hub, `${load.origin}:${load.equipment}`, rate, w.t, half);
 }
 
 /**

@@ -351,6 +351,11 @@ export const economyConfig = {
     inboundPull: 0.5, // PoC assumption: how strongly weak-outbound hubs attract inbound freight
     deliverySlackMinutes: 720, // PoC assumption: due = HOS transit + dock time + 12h
     earlyThresholdMinutes: 720, // §Points — early by half a day or more
+    // "Usually clears near" (freight.ts clearsNear; item 5 of the 2026-11-07 itinerary): halfLifeDays 0 keeps a lane's
+    // trailing clearing rate as a plain mean of its first 40 clears, then trailing by count, which lags a rising board in
+    // the first weeks. > 0: a mean weighted by time, each clear's weight halving every halfLifeDays. Only players'
+    // dispatchers (the clearsNear price mode) and the board's figure read it; no bot does.
+    clearsNear: { halfLifeDays: 0 },
   },
 
   // §Rates, demand and the scaled fuel engine
