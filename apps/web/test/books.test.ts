@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import { companyAccount } from "@lanes/engine";
 import { boardRows } from "../src/board.js";
 import { closedMonths, EARNED, monthReport, MOVED, openMonth, SPENT } from "../src/books.js";
-import { GAME_CONFIG, PLAYER_DISPATCHER_ORDERS, TestGame } from "../src/game.js";
+import { GAME_CONFIG, joinCompany, PLAYER_DISPATCHER_ORDERS, TestGame } from "../src/game.js";
 
 /**
  * R10's month report (player2-ux.md section 4): "Why your cash moved differently" must add up to the figure. Two starts
@@ -97,6 +97,9 @@ describe("The month's books", () => {
       g.w.ledger.post(g.w.t, "faucet:npc_advance", companyAccount(c.id), 1800, "load:999998");
       g.w.ledger.post(g.w.t, companyAccount(b.id), "sink:npc_factor", 1800, "receivable:999998");
       const cAfter = flows(c.id);
+      // form_brokerage's sink:capital_transfer_fee (the reserve's 3%) is a fee, not the catch-all.
+      expect(cAfter.fees ?? 0).toBeLessThan(0);
+      expect(cAfter.otherOut ?? 0).toBeCloseTo(0, 2);
       const bAfter = flows(b.id);
       const d = (a: Record<string, number | undefined>, z: Record<string, number | undefined>, k: string) => (z[k] ?? 0) - (a[k] ?? 0);
       expect(d(cBefore, cAfter, "loads")).toBeCloseTo(1800, 2);
@@ -118,5 +121,61 @@ describe("The month's books", () => {
     } finally {
       k.enabled = was;
     }
+  });
+
+  /** Both companies' catch-all rows, unmoved by the postings, and under 2% of the open month's flows. */
+  const catchAllFlat = (a: Record<string, number | undefined>, z: Record<string, number | undefined>) => {
+    expect((z.otherIn ?? 0) - (a.otherIn ?? 0)).toBeCloseTo(0, 2);
+    expect((z.otherOut ?? 0) - (a.otherOut ?? 0)).toBeCloseTo(0, 2);
+    const other = Math.abs(z.otherIn ?? 0) + Math.abs(z.otherOut ?? 0);
+    const total = Object.values(z).reduce<number>((s, x) => s + Math.abs(x ?? 0), 0);
+    expect(other).toBeLessThanOrEqual(0.02 * total + 1);
+  };
+  const delta = (a: Record<string, number | undefined>, z: Record<string, number | undefined>, k: string) => (z[k] ?? 0) - (a[k] ?? 0);
+
+  it("counts paper settled company to company (ref receivable:) as carrier pay out and loads in", async () => {
+    const g = await TestGame.create();
+    const c = g.join("Payee Lines", "oo", "DAL")!;
+    const p = joinCompany(g.w, "payer", "Payer Lines", "DAL", "oo")!;
+    g.stepHour();
+    const flows = (id: number) => ({ ...(openMonth(g.w, g.w.companies[id - 1]!)?.flows ?? {}) });
+    const cBefore = flows(c.id);
+    const pBefore = flows(p.id);
+    // The payer settles an invoice the payee holds (receivables.ts collect: holder = payee).
+    g.w.ledger.post(g.w.t, companyAccount(p.id), companyAccount(c.id), 2000, "receivable:999997");
+    const cAfter = flows(c.id);
+    const pAfter = flows(p.id);
+    expect(delta(cBefore, cAfter, "loads")).toBeCloseTo(2000, 2);
+    expect(delta(pBefore, pAfter, "carrierPay")).toBeCloseTo(-2000, 2);
+    expect(delta(pBefore, pAfter, "bought")).toBeCloseTo(0, 2);
+    expect(delta(cBefore, cAfter, "sold")).toBeCloseTo(0, 2);
+    catchAllFlat(cBefore, cAfter);
+    catchAllFlat(pBefore, pAfter);
+    for (const x of [c, p]) {
+      const o = openMonth(g.w, x)!;
+      expect(o.cashStart + Object.values(o.flows).reduce((s, v) => s + (v ?? 0), 0)).toBeCloseTo(g.w.ledger.balance(companyAccount(x.id)), 1);
+    }
+  });
+
+  it("counts paper settled to the pool as carrier pay, and an invoice collected from a broker's bond as loads", async () => {
+    const g = await TestGame.create();
+    const c = g.join("Bond Payee Lines", "oo", "DAL")!;
+    const p = joinCompany(g.w, "payer", "Pool Payer Lines", "DAL", "oo")!;
+    g.stepHour();
+    const flows = (id: number) => ({ ...(openMonth(g.w, g.w.companies[id - 1]!)?.flows ?? {}) });
+    const cBefore = flows(c.id);
+    const pBefore = flows(p.id);
+    // The payer settles paper the factoring pool holds; the payee's own paper is paid from the payer's bond (drawBond).
+    g.w.ledger.post(g.w.t, companyAccount(p.id), "co:pool:factoring", 1500, "receivable:999996");
+    g.w.ledger.post(g.w.t, "faucet:test", `co:stake:${p.id}`, 900, "test");
+    g.w.ledger.post(g.w.t, `co:stake:${p.id}`, companyAccount(c.id), 900, "receivable:999995");
+    const cAfter = flows(c.id);
+    const pAfter = flows(p.id);
+    expect(delta(pBefore, pAfter, "carrierPay")).toBeCloseTo(-1500, 2);
+    expect(delta(pBefore, pAfter, "setAside")).toBeCloseTo(0, 2);
+    expect(delta(cBefore, cAfter, "loads")).toBeCloseTo(900, 2);
+    expect(delta(cBefore, cAfter, "setAside")).toBeCloseTo(0, 2);
+    catchAllFlat(cBefore, cAfter);
+    catchAllFlat(pBefore, pAfter);
   });
 });

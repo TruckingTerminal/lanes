@@ -93,6 +93,8 @@ export function lineOf(w: World, c: Company, other: string, ref: string, inflow:
         return "loads";
       case "factoring_fee":
       case "board_fee":
+      // The reserve's 3% on capital moved between one owner's companies (form_brokerage and the rest).
+      case "capital_transfer_fee":
         return "fees";
       case "fuel":
       case "idle_fuel":
@@ -183,7 +185,11 @@ export function lineOf(w: World, c: Company, other: string, ref: string, inflow:
   }
   if (other.startsWith("alloc:") || other === "reserve") return inflow ? "token" : "bought";
   const id = /^co:(\d+)$/.exec(other)?.[1];
+  // Paper settled at its due day (receivables.ts): paid out, freight the company owed, whoever holds it (a company, the
+  // pool, a broker's bond); paid in, its own invoice collected (a company holds only paper it is the payee of).
+  const settled = ref.startsWith("receivable:");
   if (id === undefined) {
+    if (settled) return inflow ? "loads" : "carrierPay";
     // Escrows, stakes, the Reserve, bonds, the pools, the bridge: cash set aside (and back), not earned or spent.
     if (other.startsWith("co:pool:") && ref.startsWith("loan:")) return "loansIn";
     if (other.startsWith("co:pool:") && (ref.startsWith("payment:") || ref.startsWith("repay:"))) return "principal";
@@ -192,6 +198,7 @@ export function lineOf(w: World, c: Company, other: string, ref: string, inflow:
   }
   const them = Number(id);
   if (c.partnerId === them || w.companies[them - 1]?.partnerId === c.id) return "between";
+  if (settled) return inflow ? "loads" : "carrierPay";
   // Another company: freight pay between a carrier and its broker, a shop's or a stop's bill, or a trade.
   if (ref.startsWith("load:") || ref.startsWith("rebroker:") || ref.startsWith("detention:")) {
     if (inflow) return ref.startsWith("detention:") ? "detention" : "loads";
