@@ -109,7 +109,8 @@ function cashNowFaucet(seed: number): void {
   const w = makeWorld({ seed, cfg: threeConfig(), oo: 100, fleets: 30, brokers: 20 });
   const days = 220;
   const feeBefore = tag(w, "sink:factoring_fee");
-  const advanceBefore = tag(w, "faucet:npc_factor");
+  const advanced = () => tag(w, "faucet:npc_factor") + tag(w, "faucet:npc_advance"); // the NPC factor's advances on shippers' paper and (since the retune, tagged apart) on companies' paper
+  const advanceBefore = advanced();
   run(w, 95);
 
   // A pair cashing its own paper, and a company cashing every invoice it holds, every day it can.
@@ -140,7 +141,7 @@ function cashNowFaucet(seed: number): void {
     worked,
     fdPerDay: leak.uncovered / days,
     detail:
-      `${days}d, everyone cashing every invoice they hold daily: factor advanced ${money(tag(w, "faucet:npc_factor") - advanceBefore)}, fees to the sink ${money(tag(w, "sink:factoring_fee") - feeBefore)}; ` +
+      `${days}d, everyone cashing every invoice they hold daily: factor advanced ${money(advanced() - advanceBefore)}, fees to the sink ${money(tag(w, "sink:factoring_fee") - feeBefore)}; ` +
       `a second cash of the same invoice refused ${secondCash === 0 ? "every time" : `${secondCash}× ACCEPTED`}; own/player-shipper paper refused ${ownRefused}×. ` +
       `NPC paper left unpaid ${money(leak.uncovered)}. ${inv.length ? inv.slice(0, 3).join("; ") : "the advance is the shipper's mint brought forward, the fee a sink; no loop mints, cap identity held"}.`,
   });
