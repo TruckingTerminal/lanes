@@ -62,7 +62,7 @@ export function DeliveredCard(): JSX.Element | null {
     ...(d.line.detention >= 0.5 ? ([[DELIVERED.detention(det.pickupH + det.deliveryH, det.pickupH && det.deliveryH ? "both" : det.pickupH ? "pickup" : "receiver"), `+${fdFull(d.line.detention)}`]] as [string, string][]) : []),
     f("pay.fuel", DELIVERED.fuel, minus(d.line.fuel)),
     f("pay.tolls", DELIVERED.tolls, minus(d.line.tolls)),
-    ...(d.line.driver >= 0.5 ? [d.hiredDriver ? ([DELIVERED.driverHired(d.hiredDriver), minus(d.line.driver)] as [string, string]) : f("pay.ownerPay", DELIVERED.driverOwner, minus(d.line.driver))] : []),
+    ...(d.line.driver >= 0.5 ? [d.hiredDriver ? ([DELIVERED.driverHired(d.hiredDriver), minus(d.line.driver)] as [string, string]) : f("pay.ownerDraw", DELIVERED.driverOwner, minus(d.line.driver))] : []),
     ...(d.line.upkeep >= 0.5 ? [f("pay.maintenance", DELIVERED.upkeep, minus(d.line.upkeep))] : []),
     ...(d.line.lessor >= 0.5 ? [f("pay.lessorShare", DELIVERED.lessor(pct(GAME_CONFIG.costs.npcLeaseShareOfGross)), minus(d.line.lessor), d.line.load)] : []),
     ...(d.line.held >= 0.5 ? [f("truck.leaseDeposit", DELIVERED.held, minus(d.line.held))] : []),

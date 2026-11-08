@@ -40,6 +40,10 @@ describe("The month's books", () => {
         expect(r.allMi).toBeGreaterThan(0);
         expect(r.loadedMi).toBeLessThanOrEqual(r.allMi);
       }
+      // The owner's draw kept by the company (labor.owner.drawStays) is the month's own share of Company.ownerDrawFd.
+      const drawn = months.reduce((s, m) => s + monthReport(m).drawFd, 0);
+      expect(drawn).toBeLessThanOrEqual(c.ownerDrawFd + 0.01);
+      if (g.w.cfg.labor.owner.drawStays && start === "oo") expect(monthReport(months[0]!).drawFd).toBeGreaterThan(0);
       // The close is the engine's (intel.ts), its cash the company's as the month closed, and the next month starts there.
       const newest = months[0]!;
       expect(newest.closedDay).toBe(c.lastMonth!.closedDay);

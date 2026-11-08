@@ -466,7 +466,8 @@ export const DELIVERED = {
   load: "The load",
   fuel: "Fuel",
   tolls: "Tolls",
-  driverOwner: "Your pay for driving",
+  /** The writer's DELIVERED.driverOwner (copy-player3.md): the row shows only while the draw leaves the books (drawStays off). */
+  driverOwner: "Your draw",
   /** Under "yours" when the owner drove (Jeff, 2026-11-04): the draw stayed with the company. */
   drawNote: (fd: string) => `includes your ${fd} FD draw as the driver, which stays with you`,
   driverHired: (name: string) => `Driver's pay · ${name}`,
@@ -494,7 +495,8 @@ export const MONEY = {
   /** The hold toward your own truck (the writer's copy-player1.md, row 2): a line under Cash, and its note on the first visit. */
   held: "Held toward your truck",
   heldValue: (fd: string) => `Held toward your truck · ${fd} FD in all`,
-  heldNote: (holdPct: string) => `${holdPct} of each leased load is kept for you until you buy. It counts in full then.`,
+  /** The writer's copy-player3.md: the hold is the player's own money, counted in full, and why it's a share of each load. */
+  heldNote: (holdPct: string) => `Your own money: ${holdPct} of each leased load, so you never pay the deposit as a lump. It counts in full when you buy.`,
   owed: "Owed to you",
   colLoad: "Load",
   colFd: "FD",
@@ -1158,6 +1160,8 @@ export const MONTH = {
   payDown: "Earlier bills paid this month",
   lines: (loads: number, onTime: string, loaded: string, all: string, share: string) => `${loads} loads delivered · ${onTime} on time · ${loaded} of ${all} miles loaded (${share})`,
   noLoads: "No loads delivered.",
+  /** labor.owner.drawStays: break-even prices the owner's driving, but the draw stays in cash (engineering's, for the writer). */
+  draw: (fd: string) => `Kept includes your draw as the driver, ${fd} FD: it stayed with the company.`,
   none: "Your first month's report comes at its close.",
   /** The report's rows: earned, spent, and the other ways cash moved (a negative label where the sign flips its sense). */
   row: {
@@ -1185,7 +1189,7 @@ export const MONTH = {
     sold: "Trucks and items sold",
     loansIn: "Loans taken",
     principal: "Loan principal repaid",
-    held: "Held back by the lessor",
+    held: "Held toward your truck: your own money",
     setAside: "Set aside: stakes, the Reserve, bonds",
     between: "Moved between your companies",
     capital: "Starting money",
@@ -1278,7 +1282,8 @@ export const EXPLAIN = (cfg: EconomyConfig): Record<string, Ex> => ({
   "pay.fuelTax": { what: "Tax on every gallon you burn, billed at the month's close.", how: `${cfg.costs.fuelTax.perGal} FD a gallon, on the road and idling, added up over the month.`, moves: "Gallons: fewer empty miles, less idling, a make with better mpg." },
   "pay.maintenance": { what: "Wear on the truck from these miles.", how: "The tractor's cost per mile, times the miles.", moves: "The make, the truck's condition, a timely rebuild." },
   "pay.insurance": { what: "Your policy's cost for this period.", how: "Base premium, times your record, your home hub and the market.", moves: "A clean safety record; your home hub." },
-  "pay.ownerPay": { what: "What you pay yourself for driving.", how: "Your driver's rate per mile, times the miles.", moves: "Your pay setting." },
+  // The writer's copy-player3.md "Your draw": shown only while the draw leaves the books (labor.owner.drawStays off).
+  "pay.ownerDraw": { what: "Your draw: the living you take out of the business for driving.", how: `${cfg.labor.owner.driverPayPerMile} FD for each mile you drive, taken out of each load like a wage.`, moves: "The miles you drive yourself. It leaves the business; nothing arrives later." },
   "standing.miles": { what: "Your standing in the beta: loaded miles hauled this season.", how: "Every loaded mile delivered. Empty miles don't count.", moves: "Hauling, and hauling loaded." },
   "standing.reputation": { what: "How shippers and brokers rate you.", how: `Your lifetime on-time share, smoothed by ${cfg.reputation.priorLoads} loads at the starting value so one load can't swing it.`, moves: "Delivering on time. Nothing else moves it." },
   "standing.onTime": { what: "The share of your loads delivered by the appointment.", how: "Loads on time, divided by loads delivered.", moves: "Plan for hours, docks and weather." },
@@ -1293,7 +1298,7 @@ export const EXPLAIN = (cfg: EconomyConfig): Record<string, Ex> => ({
     how: `${Math.round(cfg.freeEntry.leases.byValue.escrowShareOfPay * 100)}% of each leased settlement, until it reaches ${Math.round(cfg.freeEntry.leases.byValue.depositShare * 100)}% of the truck's value.`,
     moves: "Every leased load adds to it until the deposit is full. It counts in full when you buy.",
   },
-  "truck.leaseDeposit": { what: "Money held back from your lease loads, toward your own truck.", how: "A share of each leased load, counted in full when you buy.", moves: "Every leased load adds to it." },
+  "truck.leaseDeposit": { what: "Your own money, held toward your truck: a share of each leased load, not a fee.", how: `${Math.round(cfg.freeEntry.leases.byValue.escrowShareOfPay * 100)}% of each leased settlement, until it reaches ${Math.round(cfg.freeEntry.leases.byValue.depositShare * 100)}% of the truck's value.`, moves: "Every leased load adds to it until the deposit is full. It counts in full when you buy." },
   // Cash it now: the writer's what and moves; the how is the rate's parts.
   "invoice.cashNowFee": { what: "The fee to cash an open invoice today instead of on its due day.", how: "The invoice times the rate: your contract's rate or the spot rate, plus a little for each day since it was raised.", moves: "A contract's rate instead of spot; cashing an invoice while it's fresh." },
   "invoice.cashNowLands": { what: "What reaches your cash today if you cash this invoice now.", how: "The invoice, less the fee.", moves: "The fee: a contract's rate instead of spot, and the invoice's age." },

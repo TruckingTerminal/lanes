@@ -45,6 +45,8 @@ interface Open {
   flows: Partial<Record<BookLine, number>>;
   loadedMi: number;
   emptyMi: number;
+  /** The owner's draw kept by the company so far (Company.ownerDrawFd, labor.owner.drawStays) as the month began. */
+  drawStart: number;
 }
 export interface MonthBooks extends Open {
   closedDay: number;
@@ -53,6 +55,7 @@ export interface MonthBooks extends Open {
   payEnd: number;
   loads: number;
   onTime: number;
+  drawEnd: number;
 }
 
 interface CompanyBooks {
@@ -211,7 +214,7 @@ function booksOf(w: World, c: Company, cashBefore: number): CompanyBooks {
   const wb = BOOKS.get(w)!;
   let b = wb.byCompany.get(c.id);
   if (!b) {
-    b = { open: { fromDay: dayOfT(w, w.t), cashStart: cashBefore, owedStart: owedTo(w, c), payStart: owedBy(w, c), flows: {}, loadedMi: 0, emptyMi: 0 }, closed: [], mark: c.lastMonth?.closedDay ?? null, events: [], odo: new Map() };
+    b = { open: { fromDay: dayOfT(w, w.t), cashStart: cashBefore, owedStart: owedTo(w, c), payStart: owedBy(w, c), flows: {}, loadedMi: 0, emptyMi: 0, drawStart: c.ownerDrawFd }, closed: [], mark: c.lastMonth?.closedDay ?? null, events: [], odo: new Map() };
     wb.byCompany.set(c.id, b);
   }
   return b;
@@ -291,9 +294,9 @@ export function booksAfterHour(w: World): void {
       const cashEnd = w.ledger.balance(companyAccount(c.id));
       const owedEnd = owedTo(w, c);
       const payEnd = owedBy(w, c);
-      b.closed.push({ ...b.open, closedDay: closed, cashEnd, owedEnd, payEnd, loads: c.lastMonth!.loads, onTime: c.lastMonth!.onTime });
+      b.closed.push({ ...b.open, closedDay: closed, cashEnd, owedEnd, payEnd, loads: c.lastMonth!.loads, onTime: c.lastMonth!.onTime, drawEnd: c.ownerDrawFd });
       if (b.closed.length > 24) b.closed.shift();
-      b.open = { fromDay: closed, cashStart: cashEnd, owedStart: owedEnd, payStart: payEnd, flows: {}, loadedMi: 0, emptyMi: 0 };
+      b.open = { fromDay: closed, cashStart: cashEnd, owedStart: owedEnd, payStart: payEnd, flows: {}, loadedMi: 0, emptyMi: 0, drawStart: c.ownerDrawFd };
     }
   } catch (e) {
     console.error(e);
@@ -347,6 +350,8 @@ export interface MonthReport {
   onTimePct: number | null;
   loadedMi: number;
   allMi: number;
+  /** labor.owner.drawStays: the owner's draw as the driver this month, priced in break-even but kept in cash (so in kept). */
+  drawFd: number;
 }
 
 /**
@@ -381,5 +386,6 @@ export function monthReport(m: MonthBooks): MonthReport {
     onTimePct: m.loads > 0 ? m.onTime / m.loads : null,
     loadedMi: m.loadedMi,
     allMi: m.loadedMi + m.emptyMi,
+    drawFd: Math.max(0, m.drawEnd - m.drawStart),
   };
 }

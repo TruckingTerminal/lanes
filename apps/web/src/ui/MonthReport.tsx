@@ -74,6 +74,13 @@ export function MonthCard({ r, title, first }: { r: MonthReport; title?: string;
             <Row key={x.line} label={MONTH.row[x.line]!} value={amount(x.fd)} k={LINE_KEY[x.line]} />
           ))}
           <Row label={MONTH.kept} value={amount(r.keptFd)} strong bad={r.keptFd < 0} />
+          {r.drawFd >= 0.5 ? (
+            <tr>
+              <td colSpan={2} class="small muted">
+                {MONTH.draw(fdFull(r.drawFd))}
+              </td>
+            </tr>
+          ) : null}
           <tr class="head">
             <td colSpan={2}>{MONTH.why}</td>
           </tr>
