@@ -1,5 +1,6 @@
 import "./seed.js";
 import { describe, expect, it } from "vitest";
+import { boardRows } from "../src/board.js";
 import { TestGame } from "../src/game.js";
 import { needs, rankNeeds, truckDayCostFd, type Need } from "../src/logic.js";
 import { S } from "../src/state.js";
@@ -12,7 +13,13 @@ describe("the badge means needs you (R9)", () => {
     S.game = g;
     try {
       const trucks = g.w.trucksByCompany.get(c.id)!;
-      // A fleet start's second truck has no driver: Hire, with what the empty seat costs a day.
+      // A fleet start's second truck has no driver. Before the first load Staff is locked (tutorial.ts), so the seat
+      // isn't an item yet (QA item 8: Hire only toasted "First, a load"); the first load is booked by hand, then it is.
+      expect(needs().some((n) => n.key.startsWith("driver:"))).toBe(false);
+      const first = trucks.find((t) => t.driverId > 0)!;
+      const row = boardRows(g.w, c, first, { dest: "any", maxDh: 300, query: "" }).find((r) => !r.block)!;
+      expect(g.act({ type: "book_load", truckId: first.id, loadId: row.l.id }).ok).toBe(true);
+      // Hire, with what the empty seat costs a day.
       const seat = needs().find((n) => n.key.startsWith("driver:"));
       expect(seat).toBeDefined();
       expect(seat!.button).toBe("Hire");

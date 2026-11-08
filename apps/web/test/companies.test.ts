@@ -61,6 +61,8 @@ describe("two companies under one login (companies.ts)", () => {
   it("counts both companies' needs and says whose each is; the map's own trucks stay the carrier's", async () => {
     const g = await TestGame.create();
     const c = g.join("Pair Freight", "fleet", "LAX")!;
+    // Past the first load (tutorial.ts's lock): before it, the empty seat isn't an item yet (QA item 8).
+    c.firstHandBidDay = Math.floor(g.w.t / g.w.cfg.time.gameMinutesPerDay);
     g.brokerage = g.w.companies.find((x) => x.role === "broker")!;
     S.game = g;
     withBrokerage(true, () => {

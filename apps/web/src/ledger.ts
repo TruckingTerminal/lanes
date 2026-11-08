@@ -24,6 +24,9 @@ export interface WeekCosts {
   /** Leased trucks whose share of the week's loads falls short of the rent pay the difference: the most this can be. */
   leaseMinimum: number;
   insurance: number;
+  /** Of `insurance`: the liability policy (per insured truck) and physical-damage cover on what the company owns (assets). */
+  insuranceLiability: number;
+  insuranceDamage: number;
   yard: number;
   /** Per diem a day for each driver idle away from home a day or more, now. */
   perDiemPerDay: number;
@@ -50,7 +53,10 @@ export function weekCosts(w: World, c: Company): WeekCosts {
   // The lessor's policy covers its own trucks; the company's covers the rest that are on the road.
   const insured = trucks.filter((t) => t.lease !== "npc" && t.status !== "parked" && t.status !== "listed").length;
   const pd = insured && w.cfg.assets.enabled ? (w.cfg.assets.physicalDamage.annualShareOfValue * insuredValue(w, c)) / 52 : 0;
-  const insurance = insured ? ((insured * c.insurance.annualPerTruck) / 52 + pd) * (1 - stakeDiscount(w, c)) : 0;
+  const disc = insured ? 1 - stakeDiscount(w, c) : 0;
+  const insuranceLiability = ((insured * c.insurance.annualPerTruck) / 52) * disc;
+  const insuranceDamage = pd * disc;
+  const insurance = insuranceLiability + insuranceDamage;
   const yard = Math.max(0, trucks.length - 1) * yardPerTruck(w, c);
   const day = w.cfg.time.gameMinutesPerDay;
   let perDiemPerDay = 0;
@@ -58,7 +64,7 @@ export function weekCosts(w: World, c: Company): WeekCosts {
     if (t.status !== "idle" || t.hub === c.homeHub || w.t - t.idleSinceT < day) continue;
     perDiemPerDay += w.cfg.labor.driver.perDiemFd * (t.mods.sleeper ? 0.5 : 1);
   }
-  return { leaseMinimum, insurance, yard, perDiemPerDay };
+  return { leaseMinimum, insurance, insuranceLiability, insuranceDamage, yard, perDiemPerDay };
 }
 
 /** Miles: the company's standing in the beta. */

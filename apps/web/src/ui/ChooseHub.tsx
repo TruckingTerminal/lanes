@@ -267,16 +267,17 @@ function Naming({ hub }: { hub: number }): JSX.Element {
         </div>
       </div>
       {TEST_BUILD ? (
-        <div class="field">
+        // QA item 8: the radios were announced by their value, "on"; each carries its name, and the pair its group's.
+        <div class="field" role="radiogroup" aria-label={NAMING.howYouStart}>
           <span class="label">{NAMING.howYouStart}</span>
           <label class={cls("choice", start === "oo" && "on")}>
-            <input type="radio" name="start" checked={start === "oo"} onChange={() => setStart("oo")} />
+            <input type="radio" name="start" value="oo" aria-label={NAMING.ownerOperator} checked={start === "oo"} onChange={() => setStart("oo")} />
             <span>
               <b>{NAMING.ownerOperator}</b> {NAMING.ownerOperatorNote}
             </span>
           </label>
           <label class={cls("choice", start === "fleet" && "on")}>
-            <input type="radio" name="start" checked={start === "fleet"} onChange={() => setStart("fleet")} />
+            <input type="radio" name="start" value="fleet" aria-label={NAMING.smallFleet} checked={start === "fleet"} onChange={() => setStart("fleet")} />
             <span>
               <b>{NAMING.smallFleet}</b> {NAMING.smallFleetNote(fd(GAME_CONFIG.company.startingGrantFd + FLEET_START_EXTRA_FD))}
             </span>

@@ -114,7 +114,8 @@ export const S = {
   homeNow: new Set<number>(),
   /** The last delivery, shown on the Truck tab until OK (S7); Money keeps a dot until it's opened. */
   delivered: null as null | { from: string; to: string; lateH: number; line: PayLine; paid: string; hiredDriver: string | null },
-  moneyDot: false,
+  /** Money's dot: what's new there since the last visit, a delivery's invoice or pay that landed (QA item 8: a lease has no invoices). */
+  moneyDot: false as false | "invoice" | "paid",
   /** The lane each invoice was for, by receivable id, as this page saw the deliveries (Money's "Load" column). */
   invoiceLanes: new Map<number, string>(),
   /** The map follows your moving truck until you pan it (S6); "Follow" turns it back on. */

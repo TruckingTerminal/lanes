@@ -42,6 +42,23 @@ const trucksOf = (w: World, c: Company) => (w.trucksByCompany.get(c.id) ?? []).f
 export const layerDay = (w: World, layer: "businesses" | "brokerage"): string => dayDate((w.token.launchDay ?? 0) + w.cfg.unlockLadder.layers[layer].afterDays);
 /** The walkthrough step the Dealer and Finance wait for ("when Iuliia says so": buying your first truck). */
 const OWN_STEP = walkSteps(GAME_CONFIG).findIndex((s) => s.id === "own");
+/**
+ * "When Iuliia says so": the Dealer and Finance open at the first-truck step, or on day 28 when her line ("most need a
+ * second truck · See the Dealer") reaches this company, whichever is first, so she never points at a locked tab (QA
+ * item 8: day 28's line pointed at the teaser while the walkthrough was still on "the law"). A company that began after
+ * the line's window (milestones.ts) never hears it, so it waits for the step. The line before day 28 carries its button
+ * only once the Dealer is open (ui/Milestones.tsx).
+ */
+export function firstTruckOpen(w: World, c: Company): boolean {
+  if (trucksOf(w, c).length >= 2) return true;
+  const { index } = walkProgress(GAME_CONFIG, w, c);
+  if (index < 0 || index >= OWN_STEP) return true;
+  const ladder = w.cfg.unlockLadder;
+  if (!ladder.enabled && !ladder.beta.enabled) return false;
+  const d28 = ladder.layers.businesses.afterDays;
+  const win = w.cfg.guide.milestoneWindowDays;
+  return c.createdDay <= d28 + win && Math.floor(w.t / w.cfg.time.gameMinutesPerDay) >= d28;
+}
 
 export const TABS: readonly TabDef[] = [
   { id: "fleet", label: "Truck", icon: "truck" },
@@ -71,12 +88,7 @@ export const TABS: readonly TabDef[] = [
       what: "New, used and leased rigs, and trailers of your own.",
       iuliia: "I'll say when it's time to buy. The first one is arithmetic.",
       opens: () => "when Iuliia says so",
-      open: (w, c) => {
-        if (!c) return false;
-        if (trucksOf(w, c).length >= 2) return true;
-        const { index } = walkProgress(GAME_CONFIG, w, c);
-        return index < 0 || index >= OWN_STEP;
-      },
+      open: (w, c) => !!c && firstTruckOpen(w, c),
     },
   },
   {
@@ -111,12 +123,7 @@ export const TABS: readonly TabDef[] = [
       // The director, 2026-11-02 (2b32a9d): Finance opens with the first-truck step, beside the Dealer, so Iuliia never
       // points at a locked tab.
       opens: () => "when Iuliia says it's time to buy, with the Dealer",
-      open: (w, c) => {
-        if (!c) return false;
-        if (trucksOf(w, c).length >= 2) return true;
-        const { index } = walkProgress(GAME_CONFIG, w, c);
-        return index < 0 || index >= OWN_STEP;
-      },
+      open: (w, c) => !!c && firstTruckOpen(w, c),
     },
   },
   {

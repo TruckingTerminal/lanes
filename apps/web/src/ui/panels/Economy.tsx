@@ -11,6 +11,7 @@ const TAG_NAME: Record<string, string> = {
   npc_market: "Goods sold to the NPC market",
   npc_factor: "The NPC factor",
   npc_advance: "Advances on brokers' paper (the NPC factor and lessor)",
+  capital_transfer_fee: "The Reserve's fee on transfers between one owner's companies",
   bankruptcy_writeoff: "Debts written off",
   driver_wages: "Driver wages",
   fuel: "Fuel",

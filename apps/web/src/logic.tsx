@@ -35,7 +35,7 @@ import {
 import { DISPATCHER_ORDERS, GAME_CONFIG, PLAYER_DISPATCHER_ORDERS } from "./game.js";
 import { trueBreakEven } from "./breakeven.js";
 import { boardRows } from "./board.js";
-import { ARRIVAL, BROKERAGE, DEBT, DISPATCHER, FIRST_ENTRY, NEEDS, SAFETY_NEWS, TRUCK } from "./copy.js";
+import { ARRIVAL, BROKERAGE, DEBT, DISPATCHER, FIRST_ENTRY, MOVE, NEEDS, SAFETY_NEWS, TRUCK } from "./copy.js";
 import { debtCountdown } from "./figures.js";
 import { hasTwo, kindInView, switchCompany, type CompanyKind } from "./companies.js";
 import { act, bumpData, clockMin, isPhone, me, myTrucks, push, S, setTab, selectTruck, toast, truckNo, type Session } from "./state.js";
@@ -43,7 +43,9 @@ import { iuliiaSay } from "./iuliia.js";
 import { tabOpen, teaserTabs, type Tab } from "./tabs.js";
 import { leaseMinFor } from "./ledger.js";
 import { rebuild as rebuildLines } from "./confirmspecs.js";
-import { confirmAct } from "./ui/Confirm.js";
+import { confirmAct, confirmSpend } from "./ui/Confirm.js";
+import { emptyRun } from "./rolling.js";
+import { firstLoadLocked } from "./tutorial.js";
 import { askWhatNow } from "./ui/WhatNow.js";
 import { myTenders } from "./ui/panels/Contracts.js";
 import { dateLabel, fd, fdFull, hhmm, hoursLabel, pct, plural, realUntil, signedPct, TRAILER_NAME, weekday } from "./format.js";
@@ -122,13 +124,21 @@ export function waysOut(t: Truck): void {
   goLoads(t.id);
 }
 
+/**
+ * Where a truck is, named as the strip, the wall line, the map and the return card name it: its town (QA item 8: the
+ * strip said "Idle at Saint Johns" while What now? said Albuquerque, the hub the town belongs to).
+ */
+export const truckWhere = (t: Truck): string => S.game!.w.net.places[t.place]!.name;
+
 /** The player's trucks idle a day or more. */
 /** R1: with the dispatcher off, the idle card offers it after one idle round, not two. */
 const roundHours = (): number => 24 / S.game!.w.cfg.time.boardRoundHours.length;
 export const stuckTrucks = (): Truck[] => {
   const off = !me().orders.some((o) => o.kind === "bid");
   const walls = new Set(wallTrucks().map((t) => t.id));
-  return myTrucks().filter((t) => t.status === "idle" && idleHours(t) >= (off ? roundHours() : IDLE_ALERT_HOURS) && !resting(S.game!.w, t) && !walls.has(t.id));
+  // A truck with no driver isn't stuck for want of bids: its item is the empty seat (QA item 8: "Let the dispatcher bid"
+  // sat beside "Truck 2 has no driver").
+  return myTrucks().filter((t) => t.status === "idle" && crewed(t) && idleHours(t) >= (off ? roundHours() : IDLE_ALERT_HOURS) && !resting(S.game!.w, t) && !walls.has(t.id));
 };
 
 /** R1's one button ("Let the dispatcher bid"): the dispatcher's default rules on, the company's other orders kept. */
@@ -151,7 +161,7 @@ export function checkIdleAlerts(): void {
     const days = idleDays(t);
     if (idleHours(t) < IDLE_ALERT_HOURS || idleAlerted.get(key) === days || resting(g.w, t)) continue;
     idleAlerted.set(key, days);
-    const text = `Truck ${truckNo(t.id)} has been idle ${idleLabel(t)} at ${g.w.net.hubs[t.hub]!.name}: ${idleWhy(t).why}`;
+    const text = `Truck ${truckNo(t.id)} has been idle ${idleLabel(t)} at ${truckWhere(t)}: ${idleWhy(t).why}`;
     // R22: the idle card and the badge carry it from the moment the truck is idle; it no longer arrives as a toast.
     push(g, text, "bad");
     bumpData();
@@ -177,8 +187,10 @@ export function attentionItems(): Attention[] {
   const c = g.player;
   const out: Attention[] = [];
   const trucks = myTrucks();
+  // R9: before the first load, Staff is locked (tutorial.ts), so the empty seat waits; the first load is the next step.
+  const locked = firstLoadLocked(w, c);
   for (const t of trucks) {
-    if (crewed(t) || t.status === "listed") continue;
+    if (crewed(t) || t.status === "listed" || locked) continue;
     out.push({ key: `driver:${t.id}`, text: `Truck ${truckNo(t.id)} has no driver and earns nothing.`, tone: "bad", fix: <Btn primary onClick={goStaff}>Hire a driver</Btn> });
   }
   const bal = w.ledger.balance(companyAccount(c.id));
@@ -198,7 +210,7 @@ export function attentionItems(): Attention[] {
   if (prof.coverage < 0.8) out.push({ key: "dispatch", text: `Your dispatch team covers ${prof.span} trucks and you run ${running.length}: about ${Math.round((1 - prof.coverage) * 100)}% of idle trucks sit out each round.`, tone: "warn", fix: <Btn primary onClick={goStaff}>Hire a dispatcher</Btn> });
   for (const t of trucks) {
     if (t.defects >= 3 && (t.status === "idle" || t.status === "parked"))
-      out.push({ key: `defects:${t.id}`, text: `Truck ${truckNo(t.id)} is carrying ${t.defects} defects: an inspection finds them, and they raise crash odds.`, tone: "warn", fix: <Btn onClick={() => act({ type: "fix_defects", truckId: t.id }, "Defects fixed")}>Fix · {fd(t.defects * w.cfg.safety.maintenance.fixFdPerDefect)} FD</Btn> });
+      out.push({ key: `defects:${t.id}`, text: NEEDS.defects(truckNo(t.id), t.defects), tone: "warn", fix: <Btn onClick={() => act({ type: "fix_defects", truckId: t.id }, "Defects fixed")}>{NEEDS.fix(fd(t.defects * w.cfg.safety.maintenance.fixFdPerDefect))}</Btn> });
   }
   return out;
 }
@@ -324,10 +336,17 @@ function needsInView(fleet: boolean): Need[] {
     if (!fleet) continue;
     if (a.key === "dispatch") out.push({ key: a.key, text: a.text, tab: "fleet", target: `[data-need="${a.key}"]`, button: NEEDS.hireDispatcher, run: goStaff, icon: "staff" });
   }
+  const locked = firstLoadLocked(w, c);
+  // Rebuilds come after everything else the player can do (QA item 8: two rebuilds ranked above a tired driver's Send
+  // home while the company was in debt), and only when one is due and affordable now.
+  const rebuilds: Need[] = [];
   for (const t of trucks) {
     const n = truckNo(t.id);
     const at = { tab: "fleet" as const, icon: "fleet" };
-    if (!crewed(t) && t.status !== "listed")
+    // R9: before the first load Staff is locked (tutorial.ts), so the empty seat isn't something to act on yet.
+    if (!crewed(t) && t.status !== "listed" && locked) {
+      /* the first load is the next step; the seat's item comes with it */
+    } else if (!crewed(t) && t.status !== "listed")
       out.push({ key: `driver:${t.id}`, text: NEEDS.noDriver(n, fd(truckDayCostFd(w, c, t))), ...at, target: `[data-need="driver:${t.id}"]`, button: NEEDS.hire, run: goStaff, icon: "staff", riskFdPerDay: truckDayCostFd(w, c, t) });
     else if (t.breakdownMin > 0)
       out.push({ key: `down:${t.id}`, text: NEEDS.truckDown(n, here(t.place), `${weekday(Math.floor((w.t + t.breakdownMin) / w.cfg.time.gameMinutesPerDay))} ${hhmm(w.t + t.breakdownMin)}`), ...at, target: `[data-need="truck:${t.id}"]`, button: NEEDS.seeTruck, run: () => seeTruck(t.id), riskFdPerDay: truckDayCostFd(w, c, t), dueMin: w.t + t.breakdownMin });
@@ -335,11 +354,13 @@ function needsInView(fleet: boolean): Need[] {
       const cost = t.defects * w.cfg.safety.maintenance.fixFdPerDefect;
       out.push({ key: `defects:${t.id}`, text: NEEDS.defects(n, t.defects), ...at, target: `[data-need="defects:${t.id}"]`, button: NEEDS.fix(fd(cost)), run: () => act({ type: "fix_defects", truckId: t.id }, "Defects fixed") });
     }
-    // A rebuild due: an owned truck at or under the rebuild line, idle so the shop can take it (R6's card first).
+    // A rebuild due: an owned truck worn to REBUILD_DUE or under (the shop takes it from rebuildMaxCondition, but that's when
+    // it may, not when it's due), idle so the shop can take it, and one the cash covers now (R9: what the player can act
+    // on; R6's card would only say "you have …"). R6's card first.
     const cond = condition(w.cfg, t);
-    if (t.lease === "owned" && t.status === "idle" && cond <= w.cfg.wear.rebuildMaxCondition && rebuildable(w.cfg, t)) {
+    if (t.lease === "owned" && t.status === "idle" && cond <= REBUILD_DUE && rebuildable(w.cfg, t) && rebuildCost(w.cfg, t) <= bal) {
       const cost = rebuildCost(w.cfg, t);
-      out.push({ key: `rebuild:${t.id}`, text: NEEDS.rebuildDue(n, pct(cond)), ...at, target: `[data-need="truck:${t.id}"]`, button: NEEDS.rebuild(fd(cost)), run: (ev) => confirmAct({ verb: "Rebuild", item: `truck ${n}`, costFd: cost, ...rebuildLines(w, t), run: () => act({ type: "rebuild_truck", truckId: t.id }, "Truck is in the shop for two days", "truck:rebuild") }, ev) });
+      rebuilds.push({ key: `rebuild:${t.id}`, text: NEEDS.rebuildDue(n, pct(cond)), ...at, target: `[data-need="truck:${t.id}"]`, button: NEEDS.rebuild(fd(cost)), run: (ev) => confirmAct({ verb: "Rebuild", item: `truck ${n}`, costFd: cost, ...rebuildLines(w, t), run: () => act({ type: "rebuild_truck", truckId: t.id }, "Truck is in the shop for two days", "truck:rebuild") }, ev) });
     }
   }
   // R16: a driver on notice for pay (Staff.unhappyNotice; labor.ts dailyLabor lets them go at offer.day + noticeDays).
@@ -374,17 +395,35 @@ function needsInView(fleet: boolean): Need[] {
     if (d.wantsHome) continue;
     const idle = t.status === "idle";
     if (!idle && !sendHomeWhileMoving(w)) continue;
-    out.push({ key: `tired:${t.id}`, text: NEEDS.tired(d.owner ? "You" : d.name, d.awayDays), tab: "fleet", target: `[data-need="tired:${t.id}"]`, button: idle ? NEEDS.sendHome : NEEDS.sendHomeWhenIdle, run: () => act({ type: "send_home", truckId: t.id }, idle ? "Heading home for days off" : TRUCK.goingHomeToast, "truck:sendHome"), icon: "staff" });
+    // Send home on an idle truck is an empty run: priced, and R6's card past guard.confirmShareOfCash, as on the Truck card (QA item 8).
+    out.push({ key: `tired:${t.id}`, text: NEEDS.tired(d.owner ? "You" : d.name, d.awayDays), tab: "fleet", target: `[data-need="tired:${t.id}"]`, button: idle ? NEEDS.sendHome : NEEDS.sendHomeWhenIdle, run: (ev) => (idle ? sendHomePriced(t, ev) : act({ type: "send_home", truckId: t.id }, TRUCK.goingHomeToast, "truck:sendHome")), icon: "staff" });
   }
   for (const t of fleet ? wallTrucks() : [])
     out.push({ key: `wall:${t.id}`, text: wallLine(t), tab: "fleet", target: `[data-need="wall:${t.id}"]`, button: NEEDS.waysOut, run: () => waysOut(t), icon: "fleet", riskFdPerDay: truckDayCostFd(w, c, t) });
   const stuck = fleet ? stuckTrucks() : [];
   for (const t of trucks.filter((x) => stuck.includes(x))) {
     const fix = idleFix(t);
-    out.push({ key: `idle:${t.id}`, text: NEEDS.idle(truckName(t), w.net.hubs[t.hub]!.name, idleLabel(t)), tab: "fleet", target: `[data-need="idle:${t.id}"]`, button: fix.button, run: fix.run, icon: "fleet", riskFdPerDay: truckDayCostFd(w, c, t) });
+    out.push({ key: `idle:${t.id}`, text: NEEDS.idle(truckName(t), truckWhere(t), idleLabel(t)), tab: "fleet", target: `[data-need="idle:${t.id}"]`, button: fix.button, run: fix.run, icon: "fleet", riskFdPerDay: truckDayCostFd(w, c, t) });
   }
   if (page && S.result && !S.result.seen) out.push({ key: "result", text: NEEDS.result(S.result.won), tab: "loads", target: ".resultcard", button: NEEDS.seeResult, icon: "loads" });
-  return out;
+  return [...out, ...rebuilds];
+}
+
+/**
+ * When a rebuild is due, as against allowed (wear.rebuildMaxCondition, 85%): the config's own cheapest point to rebuild,
+ * "near condition 0.6" (economy.config.ts wear's comment on the cost curves). QA item 8: "due a rebuild" fired at 81%
+ * with both rebuilds left. A client figure until the key joins the config's guide block.
+ */
+export const REBUILD_DUE = 0.6;
+
+/**
+ * Send home, priced as the Truck card prices it (R24's empty run) and through R6's card past guard.confirmShareOfCash
+ * (QA item 8: the badge's Send home sent a truck 356 miles empty with no card, at −13,525 FD).
+ */
+export function sendHomePriced(t: Truck, ev?: MouseEvent): void {
+  const w = S.game!.w;
+  const r = emptyRun(w, t, t.hub, me().homeHub);
+  confirmSpend({ verb: MOVE.sendHome, item: `truck ${truckNo(t.id)}`, costFd: r.costFd, does: MOVE.confirmHome, risk: MOVE.confirmRisk, run: () => act({ type: "send_home", truckId: t.id }, "Heading home for days off", "truck:sendHome") }, ev);
 }
 
 /** labor.sendHomeWhileMoving: send_home on a moving truck sets the standing intent (off until the bump). */

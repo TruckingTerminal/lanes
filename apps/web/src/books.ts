@@ -400,6 +400,44 @@ export interface MonthReport {
  * with what it owes. Kept = earned − spent; cash at the start + kept − the owed change + the payable change + every
  * other movement = cash at the close, to the cent.
  */
+/** Whole numbers summing to `total`, each the floor of its value or one more (largest remainder). */
+function apportion(xs: number[], total: number): number[] {
+  const out = xs.map(Math.floor);
+  let left = total - out.reduce((a, b) => a + b, 0);
+  // By the remainder each gave up, largest first to add, smallest first to take back.
+  const byRem = xs.map((x, i) => ({ i, r: x - Math.floor(x) })).sort((a, b) => b.r - a.r || a.i - b.i);
+  for (let k = 0; left > 0 && byRem.length; k++, left--) out[byRem[k % byRem.length]!.i]!++;
+  for (let k = byRem.length - 1; left < 0 && byRem.length; k--, left++) out[byRem[((k % byRem.length) + byRem.length) % byRem.length]!.i]!--;
+  return out;
+}
+
+/**
+ * A month as the screen shows it, in whole FD that add up as shown (QA item 8: the rows came to 1 FD short of Kept, each
+ * row rounded alone). Earned and spent are their totals rounded; Kept is earned less spent; the rows of each part share
+ * its total by largest remainder; the cash path's rows share what's left between cash at the start and at the close.
+ * Every screen that quotes the month (the report, the month-close line, the return card) reads these.
+ */
+export function shownReport(r: MonthReport): MonthReport {
+  const earnedFd = Math.round(r.earnedFd);
+  const spentFd = Math.round(r.spentFd);
+  const keptFd = earnedFd - spentFd;
+  const part = <T extends { fd: number }>(rows: T[], total: number): T[] => {
+    const ints = apportion(
+      rows.map((x) => x.fd),
+      total,
+    );
+    return rows.map((x, i) => ({ ...x, fd: ints[i]! })).filter((x) => x.fd !== 0);
+  };
+  const earned = part(r.earned, earnedFd);
+  const spent = part(r.spent, spentFd);
+  const cashStart = Math.round(r.cashStart);
+  const cashEnd = Math.round(r.cashEnd);
+  // The cash path: −owed change, + payable change, + every other movement, to land on cash at the close.
+  const path = apportion([-r.owedChange, r.payChange, ...r.moved.map((x) => x.fd)], cashEnd - cashStart - keptFd);
+  const moved = r.moved.map((x, i) => ({ ...x, fd: path[i + 2]! })).filter((x) => x.fd !== 0);
+  return { ...r, earned, spent, earnedFd, spentFd, keptFd, cashStart, cashEnd, owedChange: -path[0]!, payChange: path[1]!, moved, drawFd: Math.round(r.drawFd) };
+}
+
 export function monthReport(m: MonthBooks): MonthReport {
   const f = (k: BookLine) => m.flows[k] ?? 0;
   const owedChange = m.owedEnd - m.owedStart;

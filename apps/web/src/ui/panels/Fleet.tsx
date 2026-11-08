@@ -1,11 +1,11 @@
 import type { JSX } from "preact";
 import { useState } from "preact/hooks";
-import { condition, crewed, dutyResetAt, hubMiles, ordersOf, rebuildable, rebuildCost, resting, truckValue, type Truck } from "@lanes/engine";
+import { condition, crewed, dutyResetAt, hubMiles, ordersOf, rebuildable, rebuildCost, resting, truckValue, type Company, type Staff, type StandingOrder, type Truck } from "@lanes/engine";
 import { SCENES } from "../../assets.js";
 import { cls, dateLabel, fd, fdFull, pct, plural, TIER_NAME, TRAILER_NAME, hhmm, realUntil } from "../../format.js";
 import { HOURS, MOVE, NEEDS, TRUCK } from "../../copy.js";
 import { GAME_CONFIG } from "../../game.js";
-import { AttentionCard, CrewLine, goLoads, goStaff, idleLabel, idleWhy, openLoadsAt, StatusLine, stuckTrucks, tiredTrucks, truckName, wallLine, wallTrucks, waysOut } from "../../logic.js";
+import { AttentionCard, CrewLine, goLoads, goStaff, idleLabel, idleWhy, openLoadsAt, StatusLine, stuckTrucks, tiredTrucks, truckName, truckWhere, wallLine, wallTrucks, waysOut } from "../../logic.js";
 import { focusTruck } from "../../mapview.js";
 import { act, describe, feed, isPhone, me, myTrucks, S, selectTruck, truckNo, useData } from "../../state.js";
 import { Bar, Btn, Card, Num, Panel, Pixel } from "../bits.js";
@@ -199,13 +199,32 @@ function TiredAlerts(): JSX.Element {
                 </Btn>
               </div>
             ) : (
-              <p class="muted">Send it home when it's next idle, or let the dispatcher's home-time rule do it.</p>
+              <p class="muted">{homeRuleLine(me(), d)}</p>
             )}
           </Card>
         );
       })}
     </>
   );
+}
+
+/**
+ * PLACEHOLDER copy (QA item 8): engineering's facts, for the writer to word as TRUCK.homeRuleSoon, TRUCK.homeRuleOn and
+ * TRUCK.homeRuleNone in copy.ts, which then replace these. The home-time rule doesn't bring a driver home at n days: from
+ * then the truck takes only loads that head home, and runs home empty once it's near or none come (standingOrders.ts
+ * needsHome, board.ts maybeReposition).
+ */
+const HOME_RULE = {
+  soon: (days: number) => `Send it home when it's next idle. At ${days} days out the home-time rule starts it home: only loads that head that way, then empty once it's close.`,
+  on: (days: number) => `It's past the home-time rule's ${days} days, so it's on its way home: only loads that head that way, then empty once it's close.`,
+  none: "Send it home when it's next idle.",
+};
+
+/** What the home-time rule does for a driver out on a moving truck (QA item 8: the card promised it brought them home at n days). */
+function homeRuleLine(c: Company, d: Staff): string {
+  const hm = c.orders.find((o): o is Extract<StandingOrder, { kind: "homeTime" }> => o.kind === "homeTime");
+  if (!hm) return HOME_RULE.none;
+  return d.awayDays >= hm.afterDays ? HOME_RULE.on(hm.afterDays) : HOME_RULE.soon(hm.afterDays);
 }
 
 function IdleAlerts(): JSX.Element {
@@ -225,7 +244,7 @@ function IdleAlerts(): JSX.Element {
       {stuckTrucks().map((t) => {
         const d = idleWhy(t);
         return (
-          <Card key={t.id} alert need={`idle:${t.id}`} title={`${truckName(t)} has been idle ${idleLabel(t)} at ${w.net.hubs[t.hub]!.name}`}>
+          <Card key={t.id} alert need={`idle:${t.id}`} title={`${truckName(t)} has been idle ${idleLabel(t)} at ${truckWhere(t)}`}>
             <p>
               {d.why} It has sat out {plural(t.idleRounds, "bidding round")}
               {t.lease === "owned" ? ` and pays ${w.cfg.costs.idleFeePerDay} FD a day idle after ${w.cfg.costs.idleFeeAfterDays}` : ""}.
@@ -298,7 +317,8 @@ function TruckCard({ t, idx }: { t: Truck; idx: number }): JSX.Element {
   // Everything past the two main actions: inline on a laptop, under ⋯ on a phone.
   const more = (
     <>
-          {t.status === "idle" ? <SendEmpty t={t} nearby={nearby} /> : null}
+          {/* Home time is the drivers' days off: no move is offered until they're over (QA item 8: Send to did nothing). */}
+          {t.status === "idle" && !resting(w, t) ? <SendEmpty t={t} nearby={nearby} /> : null}
           {mine && t.status === "idle" && cond <= w.cfg.wear.rebuildMaxCondition && rebuildable(w.cfg, t) ? (
             <Btn onClick={(ev) => confirmAct({ verb: "Rebuild", item: `truck ${idx + 1}`, costFd: rebuildCost(w.cfg, t), ...rebuildLines(w, t), run: () => act({ type: "rebuild_truck", truckId: t.id }, "Truck is in the shop for two days", "truck:rebuild") }, ev)}>Rebuild · {fd(rebuildCost(w.cfg, t))} FD</Btn>
           ) : null}

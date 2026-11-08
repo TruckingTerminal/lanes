@@ -306,6 +306,9 @@ table.mini td:first-child { font-family: inherit; }
 .caption.iuliia { align-items: flex-start; }
 .caption.heldline { position: relative; padding-right: 44px; }
 .caption .capx { position: absolute; top: 0; right: 0; min-width: 44px; min-height: 44px; font-size: 18px; line-height: 1; }
+/* QA item 8: a held line's stack is a column, so the row rule's flex-basis made each line 200 px tall (584 px on a phone). */
+.caption > .stack { flex: 1 1 200px; min-width: 0; gap: 4px; }
+.caption > .stack > .small { flex: none; }
 .books { width: 100%; border-collapse: collapse; font-size: 13px; }
 .books td { padding: 3px 0; vertical-align: top; }
 .books td.num { text-align: right; white-space: nowrap; padding-left: 12px; }
@@ -320,6 +323,10 @@ table.mini td:first-child { font-family: inherit; }
 .movebtn .price { display: block; color: var(--text-secondary); font-size: 12px; white-space: nowrap; }
 .moneyevents { list-style: none; margin: 0 0 6px; padding: 0; }
 .moneyevents li { padding: 2px 0; }
+/* QA item 8: a Fig is an inline flex box, so a money event's three parts became three columns on a narrow card. One line
+   of text that wraps, the whole line the tap target, and the figure never split. */
+.moneyevents .fig { display: block; width: 100%; min-height: 44px; margin: 0; padding: 4px 0; text-align: left; }
+.moneyevents .fig .num { white-space: nowrap; }
 .caption.iuliia .portrait.lg { width: 96px; height: 96px; flex: none; }
 /* R21: the return card's rows take the width beside her portrait, not a word-wide column. */
 .returncard > .stack { flex: 1 1 200px; min-width: 0; gap: 4px; }
@@ -448,6 +455,8 @@ ul.timeline .linkish { background: none; border: 0; padding: 6px 0; min-height: 
   .label { font-size: 11px; }
   .btn { min-height: 42px; padding: 8px 12px; font-size: 12px; }
   .btn.sm { min-height: 36px; padding: 6px 10px; font-size: 11px; }
+  /* QA item 8: the phone's small-button height came after these and won; Needs you's buttons and a held line's × keep 44 px. */
+  .needrow .needact, .caption .capx { min-height: 44px; }
   input, select, textarea { font-size: 16px; min-height: 40px; }
   .board { grid-template-columns: minmax(0, 1fr); padding: 6px 8px; gap: 8px; }
   .board.split .mapwrap { height: auto; aspect-ratio: 4 / 3; }

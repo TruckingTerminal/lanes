@@ -4,6 +4,7 @@ import { boardRows, clearsNear } from "./board.js";
 import { bestLoad, cushion, debtCountdown, freeTrucks, gapToTruck, nextEvent, owed, type NextEvent } from "./figures.js";
 import { invoices } from "./ledger.js";
 import { walkProgress } from "./walkthrough.js";
+import { firstLoadLocked } from "./tutorial.js";
 
 /**
  * What now? (specs/guidance.md, section 1): an ordered list of rules over the world and the company, first match wins,
@@ -113,7 +114,8 @@ export function nextAction(cfg: EconomyConfig, w: World, c: Company, lost?: Lost
   // 2. Something waiting on the player, by deadline: a tender lapsing, a truck without a driver, a lost bid with a better load beside it.
   const tenders = [...w.loads.values()].filter((l) => l.status === "open" && l.tenderedTo === c.id).sort((a, b) => a.tenderUntil - b.tenderUntil);
   if (tenders[0]) return { rule: 2, kind: "tender", loadId: tenders[0].id, untilMin: tenders[0].tenderUntil, shipperId: tenders[0].brokerId ?? tenders[0].shipperId };
-  const driverless = (w.trucksByCompany.get(c.id) ?? []).find((t) => !crewed(t) && t.status !== "listed" && t.status !== "parked" && t.status !== "retired");
+  // Before the first load Staff is locked (tutorial.ts): the empty seat waits, and the first load is the step (QA item 8).
+  const driverless = firstLoadLocked(w, c) ? undefined : (w.trucksByCompany.get(c.id) ?? []).find((t) => !crewed(t) && t.status !== "listed" && t.status !== "parked" && t.status !== "retired");
   if (driverless) return { rule: 2, kind: "driver", truckId: driverless.id };
   if (lost) {
     // The director's definition: an open load the same truck may take now, within the reach the bid used, whose profit at

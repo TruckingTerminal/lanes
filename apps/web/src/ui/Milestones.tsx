@@ -4,13 +4,15 @@ import { staffById, type Company, type World } from "@lanes/engine";
 import { FIGURE_ACT, GUIDE_LABEL, MILESTONE, RETURN } from "../copy.js";
 import { cushion, gapToTruck } from "../figures.js";
 import { cls, fdFull, shortDate, weekdayDate } from "../format.js";
-import { closedMonths, monthReport } from "../books.js";
+import { closedMonths, monthReport, shownReport } from "../books.js";
 import { hasMonthReport, openMonthReport } from "./MonthReport.js";
 import { reopenReturn } from "./ReturnCard.js";
+import { awayIsHere } from "../returncard.js";
 import { iuliiaMayStart, iuliiaMuted, iuliiaStarted } from "../iuliia.js";
 import { dueMilestone, history, milestones, type Milestone } from "../milestones.js";
 import { bumpData, S, setOnboard, setTab, useData } from "../state.js";
 import { GAME_CONFIG } from "../game.js";
+import { tabOpen } from "../tabs.js";
 import { Btn, Card } from "./bits.js";
 import { Fig } from "./Explain.js";
 import { Iuliia } from "./Walkthrough.js";
@@ -55,7 +57,18 @@ export function MilestoneLine(): JSX.Element | null {
     queueMicrotask(() => setOnboard({ seen: [...S.onboard.seen, k] }));
   }
   const m = milestones(g.w, c).find((x) => x.key === cur!.key);
-  if (!m) return null;
+  // Gone from the world (cash back over the line, say): the line goes too, so it holds nothing (a step's moment waits on it).
+  if (!m) {
+    S.milestone = null;
+    return null;
+  }
+  // A line before its date never outlives the date: a held "before" line whose event has come retires, and the "at"
+  // line follows (QA item 8: "The weekly check is Jan 28…" still showed on Jan 29, after the check had counted).
+  if (cur.phase === "before" && (m.happened || (m.day !== null && m.day <= Math.floor(g.w.t / g.w.cfg.time.gameMinutesPerDay)))) {
+    S.milestone = null;
+    queueMicrotask(bumpData);
+    return null;
+  }
   const v = words(g.w, c, m, cur.phase);
   cur.held = !!(v.button && v.go);
   return (
@@ -134,7 +147,7 @@ function words(w: World, c: Company, m: Milestone, phase: "before" | "at"): { li
       // The first month's books (books.ts, the month report's own figures, so the line and the report agree), else the
       // engine's first month-close record (intel.ts). "Read the month" (R10) opens the report; with none, no button.
       const r = c.firstMonth ? closedMonths(w, c).find((x) => x.closedDay === c.firstMonth!.closedDay) : undefined;
-      const rep = r ? monthReport(r) : null;
+      const rep = r ? shownReport(monthReport(r)) : null;
       return {
         line: rep ? MILESTONE.monthClose.at(fdFull(rep.earnedFd), fdFull(rep.spentFd), fdFull(rep.keptFd)) : c.firstMonth ? MILESTONE.monthClose.at(fdFull(c.firstMonth.revenueFd), fdFull(c.firstMonth.spentFd), fdFull(c.firstMonth.revenueFd - c.firstMonth.spentFd)) : MILESTONE.monthClose.atNoRecord,
         reason: MILESTONE.monthClose.reason,
@@ -145,8 +158,9 @@ function words(w: World, c: Company, m: Milestone, phase: "before" | "at"): { li
       return {
         line: phase === "before" ? MILESTONE.day28.before(shortDate(m.day!)) : MILESTONE.day28.at,
         reason: MILESTONE.day28.reason(fdFull(gapToTruck(w, c).gapFd)),
-        button: phase === "before" ? MILESTONE.day28.beforeButton : MILESTONE.day28.button,
-        go: go("market"),
+        // Never a button to a locked tab (the director): the Dealer opens on day 28 (tabs.ts firstTruckOpen), so the line
+        // before it points there only if the walkthrough has opened it already.
+        ...(tabOpen("market", w, c) ? { button: phase === "before" ? MILESTONE.day28.beforeButton : MILESTONE.day28.button, go: go("market") } : {}),
       };
     case "firstBoom":
       return { line: MILESTONE.firstBoom.at, reason: MILESTONE.firstBoom.reason, button: MILESTONE.firstBoom.button, go: go("loads") };
@@ -182,11 +196,11 @@ export function CompanySoFar(): JSX.Element | null {
         <b>{MILESTONE.nextOnRoad}</b> {nextOnRoad(g.w, c)}
       </p>
       {/* R21: the last return card, as "Back {date}"; a tap reopens it as it was. */}
-      {S.lastReturn ? (
+      {awayIsHere(S.lastReturn, g.w, c) ? (
         <ul class="timeline">
           <li>
             <button type="button" class="linkish" onClick={reopenReturn}>
-              {RETURN.timeline(weekdayDate(Math.floor(S.lastReturn.backT / g.w.cfg.time.gameMinutesPerDay)))}
+              {RETURN.timeline(weekdayDate(Math.floor(S.lastReturn!.backT / g.w.cfg.time.gameMinutesPerDay)))}
             </button>
           </li>
         </ul>

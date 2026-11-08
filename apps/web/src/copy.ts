@@ -42,7 +42,7 @@ export const CONFIRM = {
   sellRisk: "It earns nothing while it's listed and parked.",
   /** UX's line 1 for a hire (player2-ux.md section 1): the wage, a week. */
   hireCost: (fd: string) => `${fd} FD a week`,
-  hire: (name: string, fd: string) => `Hires ${name} at ${fd} FD a week.`,
+  hire: (name: string, fd: string) => `Hires ${name}: paid by the mile, about ${fd} FD a week.`,
   hireRisk: (fd: string) => `That's more than your company kept last week: ${fd} FD.`,
   /** UX's line 1 for a contract (player2-ux.md section 1). */
   contractCost: (n: number, rate: string, days: number) => `${n} loads a week at ${rate}/mi for ${days} days`,
@@ -681,13 +681,13 @@ export const NEEDS = {
   truckDown: (n: number, place: string, when: string) => `Truck ${n} is broken down at ${place}: back on the road ${when}.`,
   seeTruck: "See the truck",
   /** The writer's needs.rebuildDue. */
-  rebuildDue: (n: number, pct: string) => `Truck ${n} is due a rebuild: ${pct} condition.`,
+  rebuildDue: (n: number, pct: string) => `Truck ${n} is worn to ${pct} condition: a rebuild would reset it.`,
   rebuild: (fd: string) => `Rebuild · ${fd} FD`,
   defects: (n: number, defects: number) => `Truck ${n} is carrying ${defects === 1 ? "a defect" : `${defects} defects`}: ${defects === 1 ? "it raises" : "they raise"} the odds of a crash and a breakdown, and an inspection will find ${defects === 1 ? "it" : "them"}.`,
   fix: (fd: string) => `Fix · ${fd} FD`,
   whatNow: "What now?",
   /** R22 (the writer's copy-player5.md needs.stuck, needs.stuckPays): the moment a truck is idle with nothing to take. */
-  stuck: (n: number, place: string, reason: string) => `Truck ${n} is idle at ${place}: ${reason.charAt(0).toLowerCase()}${reason.slice(1).replace(/\.$/, "")}.`,
+  stuck: (n: number, place: string, reason: string) => `Truck ${n} is idle at ${place}. ${reason.replace(/\.?$/, ".")}`,
   stuckPays: (n: number, place: string) => `Truck ${n} is idle at ${place}: nothing in reach pays.`,
   waysOut: "See the ways out",
 };
@@ -1083,8 +1083,8 @@ export const NOW = {
   holdButton: "Money",
   // With cash now on: cashing offered first (the director's rule 1).
   cashAction: (day: string) => `Cash the invoices due by ${day}.`,
-  cashReason2: (lands: string, fee: string) => `${lands} FD lands today, less ${fee} FD in fees: your contract rate plus aging.`,
-  cashReason2Spot: (lands: string, fee: string) => `${lands} FD lands today, less ${fee} FD in fees: the spot rate plus aging.`,
+  cashReason2: (lands: string, fee: string) => `${lands} FD lands today, after ${fee} FD in fees: your contract rate plus aging.`,
+  cashReason2Spot: (lands: string, fee: string) => `${lands} FD lands today, after ${fee} FD in fees: the spot rate plus aging.`,
   cashButton: "Cash them now",
   sellAction: (n: number) => `Sell Truck ${n}.`,
   sellReason2: (fd: string, short: string) => `It should fetch about ${fd} FD. You're ${short} FD under the line.`,
@@ -1172,7 +1172,7 @@ export const MONTH = {
     otherIn: "Other income",
     fuel: "Fuel",
     fuelTax: "Fuel tax",
-    wages: "Wages",
+    wages: "Wages and per diem",
     lessor: "The lessor's share",
     maintenance: "Maintenance and repairs",
     insurance: "Insurance",
@@ -1393,7 +1393,7 @@ export const MILESTONE = {
     /** The director: until the engine's first month-close record exists. */
     atNoRecord: "Your first month has closed. Money has all of it.",
     /** "Read the month" opens Money's month report (R10). */
-    reason: "The fuel tax and insurance land at the close.",
+    reason: "The month's fuel tax is billed at the close.",
     beforeButton: "See the month so far",
     button: "Read the month",
   },

@@ -85,7 +85,7 @@ export function Nav(): JSX.Element | null {
           <span>{tabLabel(id, g.w, g.player)}</span>
           {id === "more" && moreNew ? <span class="navdot" aria-label="something new" /> : null}
           {id === "loads" && S.result && !S.result.seen ? <span class="navdot" aria-label="a bid result" /> : null}
-          {id === "money" && S.moneyDot ? <span class="navdot" aria-label="a new invoice" /> : null}
+          {id === "money" && S.moneyDot ? <span class="navdot" aria-label={S.moneyDot === "invoice" ? "a new invoice" : "new pay"} /> : null}
         </Btn>
       ))}
     </nav>

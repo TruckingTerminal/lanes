@@ -211,7 +211,8 @@ export function Staff(): JSX.Element {
           <Stars skill={s.skill} />
         </td>
         <td class="num">{staffPay(s, ask)}</td>
-        <td>{driver ? `${s.violations}/${s.crashes}` : s.kind === "dispatcher" ? `${spanOf(w, s)} trucks` : s.kind === "opsManager" ? `${w.cfg.labor.managers.ops.span} trucks` : "the shop"}</td>
+        {/* QA item 8: "0/0" said nothing on a phone, where the header doesn't show; the record in words. */}
+        <td>{driver ? driverRecord(s.violations, s.crashes) : s.kind === "dispatcher" ? `${spanOf(w, s)} trucks` : s.kind === "opsManager" ? `${w.cfg.labor.managers.ops.span} trucks` : "the shop"}</td>
         <td>
           {can ? (
             <div class="row">
@@ -387,4 +388,12 @@ export function Staff(): JSX.Element {
       </Card>
     </Panel>
   );
+}
+
+/** A driver's record in the hire list, in words (the writer may reword it in item 7). */
+function driverRecord(violations: number, crashes: number): string {
+  if (violations === 0 && crashes === 0) return "Clean record";
+  const v = violations === 1 ? "1 violation" : `${violations} violations`;
+  const k = crashes === 1 ? "1 crash" : `${crashes} crashes`;
+  return `${v} · ${k}`;
 }

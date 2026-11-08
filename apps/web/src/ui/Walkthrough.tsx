@@ -237,6 +237,9 @@ export function StepMoment({ only }: { only?: string }): JSX.Element | null {
   if (!g || !c || kindInView(g) === "brokerage" || c.liquidatingSince !== null) return null;
   const step = currentStep();
   if (!step || !momentHere(step) || (only ? step.id !== only : step.id === "paid")) return null;
+  // A milestone holding the caption (Caption's precedence, QA item 8) is her voice now; the moment waits, unmarked, and
+  // plays again once the line is answered or dismissed.
+  if (milestoneHeld()) return null;
   const mark = () => {
     setOnboard({ seen: [...S.onboard.seen, stepKey(g.w, c, `say:${step.id}`)] });
     bumpData();
@@ -349,16 +352,26 @@ export function Caption(): JSX.Element | null {
     </div>
   );
   if (c.liquidatingSince !== null) return bare();
-  // A step's moment playing on this screen (R5) is her voice here; the caption stands back to her face and the chip.
-  const playing = currentStep();
-  if (playing && momentHere(playing)) return bare(playing.mood);
-  // A first-load beat on this screen (FirstLoad) is her voice here too.
-  if (tutorialBeat()) return bare("point");
-  // A milestone line once shown keeps the caption for its full seconds, even when a new step begins meanwhile (QA).
+  const showMs = GAME_CONFIG.ui.iuliia.showSeconds * 1000;
+  const now = performance.now();
+  const scope = milestoneScope(g.w, c);
+  // Precedence (QA item 8; the director: the player is never without the next step). A standing line, one that waits on
+  // the player's Next (the lock's lifting, the dispatcher's line, a screen's first line, the arrival, a step's moment),
+  // has the caption for ui.iuliia.showSeconds; then a milestone that is due takes its turn and holds as R10 says, and the
+  // standing line comes back after it, unmarked, so neither is lost. Before, an unanswered Next held every milestone off:
+  // the first month's close never showed for a player who didn't tap through.
+  const standing = (key: string, el: JSX.Element): JSX.Element => standingLine(scope, key, el);
+  // A milestone line once shown keeps the caption for its full seconds, even when a new step begins meanwhile (QA), and
+  // while its button waits (R10); a step's moment waits behind it (StepMoment).
   if (milestoneHeld()) {
     const ms = MilestoneLine();
     if (ms) return ms;
   }
+  // A step's moment playing on this screen (R5) is her voice here; the caption stands back to her face and the chip.
+  const playing = currentStep();
+  if (playing && momentHere(playing)) return standing(`moment:${playing.id}`, bare(playing.mood));
+  // A first-load beat on this screen (FirstLoad) is her voice here too.
+  if (tutorialBeat()) return bare("point");
   const steps = walkSteps(GAME_CONFIG, g.w.net.hubs[c.homeHub]?.name);
   const progress = walkProgress(GAME_CONFIG, g.w, c, skippedSteps(S.onboard.seen, g.w, c));
   const index = progress.index;
@@ -371,12 +384,13 @@ export function Caption(): JSX.Element | null {
   // steps that tick within moments of each other are shown in order, each for its seconds, until the caption catches up
   // with the current one. Once a standing step's line has had its seconds, a milestone line that is due takes its turn,
   // then the step's line returns. Nothing starves.
-  const showMs = GAME_CONFIG.ui.iuliia.showSeconds * 1000;
-  const now = performance.now();
-  const scope = milestoneScope(g.w, c);
   if (stepShown && stepShown.scope !== scope) stepShown = null;
   const shownIdx = stepShown ? steps.findIndex((x) => x.id === stepShown!.id) : -1;
-  const behind = shownIdx >= 0 && shownIdx < (index >= 0 ? index : steps.length);
+  // The queue is for steps that tick within moments of each other. One whose line last showed over a game day ago is
+  // stale: the caption goes to the current step, as it does after a reload (QA item 8: a line held for weeks, then five
+  // old steps replayed one by one, and the caption's step differed before and after a reload).
+  const stale = stepShown !== null && g.w.t - stepShown.wt > g.w.cfg.time.gameMinutesPerDay;
+  const behind = !stale && shownIdx >= 0 && shownIdx < (index >= 0 ? index : steps.length);
   const holding = behind && now - stepShown!.at < showMs;
   // Skipped steps never take a turn in the queue (R2).
   const skips = skippedSteps(S.onboard.seen, g.w, c);
@@ -397,7 +411,7 @@ export function Caption(): JSX.Element | null {
   );
   // On Finance and Intel, the screen's own line first (one line at most, in the caption strip), once each.
   const fin = S.tab === "finance" ? financeLine() : S.tab === "intel" && !seen("intel:first") ? { key: "intel:first", line: INTEL.iuliia } : null;
-  if (fin) return say(fin.line, <Btn sm onClick={() => mark(fin.key)}>{CAPTION.next}</Btn>);
+  if (fin) return standing(fin.key, say(fin.line, <Btn sm onClick={() => mark(fin.key)}>{CAPTION.next}</Btn>));
   // The arrival (S1): once, after the company is created, her line about the lease and one button to the board. It
   // retires once a load is the truck's, by the player's bid or booking or the dispatcher's (Jeff, 2026-11-02: it
   // still said "Let's find one" with the truck loaded and rolling).
@@ -406,22 +420,28 @@ export function Caption(): JSX.Element | null {
   const dispatcherOff = !c.orders.some((o) => o.kind === "bid");
   const fleetStart = !(g.w.trucksByCompany.get(c.id) ?? []).some((t) => t.lease === "npc");
   if (step?.id === "board" && !seen("arrival") && !hasLoad && dispatcherOff && fleetStart) {
-    return say(
-      DISPATCHER.offerFleet,
-      <Btn sm primary onClick={() => (mark("arrival"), letDispatcherBid())}>
-        {DISPATCHER.letBid}
-      </Btn>,
-      "wave",
+    return standing(
+      "arrival",
+      say(
+        DISPATCHER.offerFleet,
+        <Btn sm primary onClick={() => (mark("arrival"), letDispatcherBid())}>
+          {DISPATCHER.letBid}
+        </Btn>,
+        "wave",
+      ),
     );
   }
   // R1: the first time the player runs faster than Day a minute with the dispatcher off, she offers it (a line with a
   // button: it holds until answered, or until the dispatcher is on and it's false).
   if (dispatcherOff && S.speed > 2 && !seen("offer:speed") && hasLoad) {
-    return say(
-      DISPATCHER.offerSpeed,
-      <Btn sm primary onClick={() => (mark("offer:speed"), letDispatcherBid())}>
-        {DISPATCHER.letBid}
-      </Btn>,
+    return standing(
+      "offer:speed",
+      say(
+        DISPATCHER.offerSpeed,
+        <Btn sm primary onClick={() => (mark("offer:speed"), letDispatcherBid())}>
+          {DISPATCHER.letBid}
+        </Btn>,
+      ),
     );
   }
   if (step?.id === "board" && !seen("arrival") && !hasLoad) {
@@ -430,30 +450,40 @@ export function Caption(): JSX.Element | null {
       S.sheet = "full";
       setTab("loads");
     };
-    return say(
-      // A small fleet starts on its own two trucks, not the lessor's (QA, carry-over row 3).
-      `${(g.w.trucksByCompany.get(c.id) ?? []).some((t) => t.lease === "npc") ? ARRIVAL.line(g.w.net.hubs[c.homeHub]!.name, pct(GAME_CONFIG.costs.npcLeaseShareOfGross)) : ARRIVAL.lineFleet(g.w.net.hubs[c.homeHub]!.name)} ${ARRIVAL.fd}`,
-      <Btn sm primary onClick={showBoard}>
-        {ARRIVAL.showBoard}
-      </Btn>,
-      "wave",
+    return standing(
+      "arrival",
+      say(
+        // A small fleet starts on its own two trucks, not the lessor's (QA, carry-over row 3).
+        `${(g.w.trucksByCompany.get(c.id) ?? []).some((t) => t.lease === "npc") ? ARRIVAL.line(g.w.net.hubs[c.homeHub]!.name, pct(GAME_CONFIG.costs.npcLeaseShareOfGross)) : ARRIVAL.lineFleet(g.w.net.hubs[c.homeHub]!.name)} ${ARRIVAL.fd}`,
+        <Btn sm primary onClick={showBoard}>
+          {ARRIVAL.showBoard}
+        </Btn>,
+        "wave",
+      ),
     );
   }
   // The lock's lifting (tutorial.ts): once, for a player who was in her beats, before the dispatcher's line.
   if (!firstLoadLocked(g.w, c) && seen("tut:truck:0") && !seen("tut:open")) {
-    return say(
-      TUTORIAL.unlocked,
-      <Btn sm primary onClick={() => mark("tut:open")}>
-        {CAPTION.next}
-      </Btn>,
-      "wave",
-    );
+    // "I'll say when it's paid": the promise is kept when the pay lands, so the line retires itself then and the paid
+    // step says it (QA item 8: it stood four weeks after the pay, holding every milestone off).
+    if (c.delivered > 0) queueMicrotask(() => mark("tut:open"));
+    else
+      return standing(
+        "tut:open",
+        say(
+          TUTORIAL.unlocked,
+          <Btn sm primary onClick={() => mark("tut:open")}>
+            {CAPTION.next}
+          </Btn>,
+          "wave",
+        ),
+      );
   }
   // After the first bid by hand (S9): once, the dispatcher is now on, and where its rules are.
   // Re-checked against the world (R2): with the dispatcher switched off the line is false, and it retires for good.
   if (c.firstHandBidDay !== null && g.w.cfg.freeEntry.firstBidByHand && !seen("dispatcher") && !c.orders.some((o) => o.kind === "bid")) queueMicrotask(() => (mark("dispatcher"), bumpData()));
   else if (c.firstHandBidDay !== null && g.w.cfg.freeEntry.firstBidByHand && !seen("dispatcher")) {
-    return say(
+    return standing("dispatcher", say(
       DISPATCHER.afterFirst,
       <Btn
         sm
@@ -467,7 +497,7 @@ export function Caption(): JSX.Element | null {
       >
         {DISPATCHER.seeDispatcher}
       </Btn>,
-    );
+    ));
   }
   // Her tab-and-card line (iuliia.ts) takes the Do line's place for a few seconds, only where the walkthrough's own line
   // isn't speaking; called only when it would show, so its seconds start when it does.
@@ -491,8 +521,8 @@ export function Caption(): JSX.Element | null {
   if (!queued && step!.id === "haul" && !loaded) return her() ?? bare(step!.mood);
   // The line on show: the next step in the queue, else the current one; its seconds start when it shows.
   const st = (queued ?? step)!;
-  if (stepShown?.id !== st.id) {
-    stepShown = { id: st.id, at: now, scope };
+  if (stepShown?.id !== st.id || stale) {
+    stepShown = { id: st.id, at: now, scope, wt: g.w.t };
     setTimeout(bumpData, showMs + 50);
   } else if (holding) setTimeout(bumpData, showMs - (now - stepShown.at) + 50);
   // A step speaks once (its Say, then Next), then shows its Do until hidden; More opens her tab for the rest.
@@ -536,8 +566,27 @@ export function Caption(): JSX.Element | null {
   return stepLine(st);
 }
 
-/** The step whose line last reached the caption, when (its seconds run from then), and whose company it was. */
-let stepShown: { id: string; at: number; scope: string } | null = null;
+/** The step whose line last reached the caption, when (its seconds run from then, and the game minute), and whose company it was. */
+let stepShown: { id: string; at: number; scope: string; wt: number } | null = null;
+/** When each standing line first took the caption in this sitting, by `{scope}|{key}` (Caption's precedence). */
+const standSince = new Map<string, number>();
+
+/**
+ * Caption's precedence for one standing line (a line that waits on the player's Next): it has the caption for
+ * ui.iuliia.showSeconds from when it first showed; after that a milestone that is due takes the caption (MilestoneLine,
+ * which then holds as R10 says), and the line comes back once none is. `scope` is the company's (milestoneScope).
+ */
+export function standingLine(scope: string, key: string, el: JSX.Element): JSX.Element {
+  const showMs = GAME_CONFIG.ui.iuliia.showSeconds * 1000;
+  const now = performance.now();
+  const k = `${scope}|${key}`;
+  const since = standSince.get(k) ?? (standSince.set(k, now), now);
+  if (now - since >= showMs) {
+    const ms = MilestoneLine();
+    if (ms) return ms;
+  } else setTimeout(bumpData, showMs - (now - since) + 50);
+  return el;
+}
 
 /** Her tab-and-card line where the caption strip isn't (the hub screens, before a company exists). */
 export function IuliiaLine(): JSX.Element | null {

@@ -219,6 +219,6 @@ function words(a: NextAction): { action: string; reason: string; button: string;
 function idleReason(w: World, truckId: number, profitFd: number, grossFd: number): string {
   const t = w.trucks[truckId - 1]!;
   const p = chipPair(w, t, profitFd, grossFd);
-  if (p.held < 0.5) return NOW.idleReason(truckNo(truckId), w.net.hubs[t.hub]!.name, fdFull(profitFd));
+  if (p.held < 0.5) return NOW.idleReason(truckNo(truckId), w.net.places[t.place]!.name, fdFull(profitFd)); // the truck's town, as the strip says it (logic.ts truckWhere)
   return (p.cash < 0 ? NOW.idleReasonHeld : NOW.idleReasonHeldPlus)(fdFull(p.profit), fdFull(Math.abs(p.cash)), fdFull(p.held));
 }

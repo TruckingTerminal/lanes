@@ -156,9 +156,9 @@ export function walkSteps(cfg: EconomyConfig, hub = "your home hub"): WalkStep[]
       title: "Keeping it on the road",
       tab: "fleet",
       mood: "point",
-      brief: "Condition falls with the miles, and a worn truck breaks down, usually in the rain. Repairs at home are cheaper than away.",
+      brief: "Condition falls with the miles, and a worn truck breaks down more. Repairs at home are cheaper than away.",
       say: [
-        `Condition falls with the miles, and a worn truck breaks down more, usually in the rain. Defects accumulate if nobody attends to them, and an inspector will notice before you do. A rebuild resets the clock and costs real money, more the higher the odometer, because a shop can read an odometer too.`,
+        `Condition falls with the miles, and a worn truck breaks down more. Defects accumulate if nobody attends to them, and an inspector will notice before you do. A rebuild resets the clock and costs real money, more the higher the odometer, because a shop can read an odometer too.`,
         `A breakdown on the road calls out road service, the dearest mechanic in the game, unless a truck stop with a shop is near. Repairs at home are cheaper than repairs away. A truck gets two rebuilds in a life, or about a million miles, then runs until it's worn out and goes for scrap. My grandfather's Volga got none and ran thirty years, on pride and good manners.`,
       ],
       do: "Check the condition bar; plan the rebuild before it's urgent.",

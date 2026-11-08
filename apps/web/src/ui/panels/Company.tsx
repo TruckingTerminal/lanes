@@ -1,6 +1,6 @@
 import type { JSX } from "preact";
 import type { Equipment } from "@lanes/config";
-import { companyAccount, fuelPrice, homeCrowding, homeEdge, lossRatio, operatingTrucks, PERMANENT_BAR, ratingLabel, seasonality, truckValue, yardPerTruck, type Basic, type Company as CompanyT, type CompliancePolicy } from "@lanes/engine";
+import { companyAccount, depositCredit, fuelPrice, homeCrowding, homeEdge, lossRatio, operatingTrucks, PERMANENT_BAR, ratingLabel, seasonality, truckValue, yardPerTruck, type Basic, type Company as CompanyT, type CompliancePolicy } from "@lanes/engine";
 import { cls, dateLabel, fd, pct, signedPct, TRAILER_NAME } from "../../format.js";
 import { H } from "../../handlers.js";
 import { act, clockMin, openIntel, S, useData } from "../../state.js";
@@ -25,7 +25,9 @@ export function Company(): JSX.Element {
   const lastDay = w.metrics.days.at(-1);
   const cyc = w.feeds.cycle(day);
   const miles = (x: CompanyT) => x.milesHistory.reduce((a, b) => a + b, 0) + x.milesTotal;
-  const worth = (x: CompanyT) => w.ledger.balance(companyAccount(x.id)) + w.trucksByCompany.get(x.id)!.reduce((s, t) => s + truckValue(w, t), 0);
+  // Cash, the trucks at their value, and the FD held toward a truck of your own (depositCredit): Money calls the hold
+  // "your own money", so it counts here too (QA item 8: net worth left it out).
+  const worth = (x: CompanyT) => w.ledger.balance(companyAccount(x.id)) + w.trucksByCompany.get(x.id)!.reduce((s, t) => s + truckValue(w, t), 0) + depositCredit(w, x);
   const carriers = w.companies.filter((x) => x.role === "carrier");
   // Your own worth is yours to see, on your own card; nobody else's is on any screen (the director's Intel page, row 1).
   const level = c ? Math.min(w.cfg.reputation.maxLevel, Math.floor(Math.sqrt(c.delivered / w.cfg.reputation.loadsPerLevelSq))) : 0;
@@ -253,7 +255,8 @@ function HomeAndInsurance({ c }: { c: CompanyT }): JSX.Element {
   const r = homeCrowding(w)[c.homeHub]!;
   const p = c.insurance;
   // One insurance figure everywhere (the director's row 4): the week's bill, as Money shows it, ahead of the policy's price.
-  const week = weekCosts(w, c).insurance;
+  const wc = weekCosts(w, c);
+  const week = wc.insurance;
   const lessorCovers = week < 0.5 && (w.trucksByCompany.get(c.id) ?? []).some((t) => t.lease === "npc");
   return (
     <>
@@ -269,7 +272,8 @@ function HomeAndInsurance({ c }: { c: CompanyT }): JSX.Element {
       <Card title="Insurance">
         <Kv
           rows={[
-            ["Policy", <Fig k="pay.insurance" label="Insurance"><Num>{fd(week)} FD a week · {fd(p.annualPerTruck)} FD a year per insured truck · renews {dateLabel(p.renewDay)}</Num></Fig>],
+            // QA item 8: the week's figure is the policy and, on what you own, physical-damage cover; say both, so it adds up.
+            ["Policy", <Fig k="pay.insurance" label="Insurance"><Num>{fd(week)} FD a week · {fd(wc.insuranceLiability)} for the policy ({fd(p.annualPerTruck)} FD a year per insured truck){wc.insuranceDamage >= 0.5 ? ` and ${fd(wc.insuranceDamage)} for damage cover on what you own` : ""} · renews {dateLabel(p.renewDay)}</Num></Fig>],
             ["Priced from", `your record ×${p.risk.toFixed(2)} · ${hub.id} garaging ×${p.garaging.toFixed(2)} · market ×${p.market.toFixed(2)}`],
             ["Insurance market", `index ×${w.insuranceMarket.index.toFixed(2)} · insurers paid out ${pct(lossRatio(w))} of premiums this year`],
           ]}

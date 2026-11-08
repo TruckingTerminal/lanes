@@ -47,6 +47,12 @@ describe("What now? (nextAction), rule by rule", () => {
   it("rule 2: a truck without a driver, and a tender before it", async () => {
     const { g, c, truck } = await fresh();
     truck.driverId = 0;
+    // Before the first load Staff is locked (tutorial.ts): the empty seat waits, and the first load is the step (QA item 8).
+    const locked = c.firstHandBidDay === null && c.delivered === 0;
+    if (locked) {
+      expect(nextAction(GAME_CONFIG, g.w, c)).not.toMatchObject({ kind: "driver" });
+      c.firstHandBidDay = Math.floor(g.w.t / g.w.cfg.time.gameMinutesPerDay);
+    }
     expect(nextAction(GAME_CONFIG, g.w, c)).toMatchObject({ rule: 2, kind: "driver", truckId: truck.id });
     const load = [...g.w.loads.values()].find((l) => l.status === "open")!;
     load.tenderedTo = c.id;

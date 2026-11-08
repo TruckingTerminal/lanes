@@ -9,6 +9,7 @@ import { Btn } from "./bits.js";
 import { Iuliia } from "./Walkthrough.js";
 import { WhatNowChip, whatNowWords } from "./WhatNow.js";
 import { hasMonthReport, openMonthReport } from "./MonthReport.js";
+import { awayIsHere } from "../returncard.js";
 
 /**
  * The return card (the director's R21, player5-ux.md section 2; the writer's copy-player5.md): after a long absence,
@@ -79,6 +80,12 @@ export function ReturnCard(): JSX.Element | null {
   const away = S.returnCard;
   if (!g || !c || !away) return null;
   const w = g.w;
+  // Another world's or company's card never shows here; it goes, and so does its timeline row.
+  if (!awayIsHere(away, w, c)) {
+    S.returnCard = null;
+    if (S.lastReturn && !awayIsHere(S.lastReturn, w, c)) S.lastReturn = null;
+    return null;
+  }
   const close = () => {
     S.returnCard = null;
     bumpData();
@@ -155,7 +162,8 @@ export function ReturnCard(): JSX.Element | null {
 
 /** More › Iuliia's timeline: the last return's card, reopened as it was (the UX spec). */
 export function reopenReturn(): void {
-  if (!S.lastReturn) return;
+  const g = S.game;
+  if (!S.lastReturn || !g?.player || !awayIsHere(S.lastReturn, g.w, g.player)) return;
   S.returnCard = S.lastReturn;
   setTab("fleet");
   bumpData();

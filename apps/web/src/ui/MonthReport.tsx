@@ -1,5 +1,5 @@
 import type { JSX } from "preact";
-import { closedMonths, monthReport, moneyEvents, type MoneyEvent, type MonthReport } from "../books.js";
+import { closedMonths, monthReport, moneyEvents, shownReport, type MoneyEvent, type MonthReport } from "../books.js";
 import { MONTH, NEWS } from "../copy.js";
 import { cls, fdFull, monthName, pct } from "../format.js";
 import { isPhone, me, S, setTab, truckNo } from "../state.js";
@@ -104,11 +104,13 @@ export function MonthCard({ r, title, first }: { r: MonthReport; title?: string;
 export function MonthReports({ part }: { part: "top" | "past" }): JSX.Element | null {
   const w = S.game!.w;
   const c = me();
-  const months = closedMonths(w, c).map(monthReport);
+  const months = closedMonths(w, c).map((m) => shownReport(monthReport(m)));
   if (!months.length) return null;
   const today = Math.floor(w.t / w.cfg.time.gameMinutesPerDay);
   const newest = months[0]!;
-  const top = today - newest.closedDay < MONTH_TOP_DAYS;
+  // closedDay is the month's last day (intel.ts monthlyIntel, the day's last job); the card shows from the next morning
+  // for MONTH_TOP_DAYS days (QA item 8: it folded after six).
+  const top = today - newest.closedDay <= MONTH_TOP_DAYS;
   const past = top ? months.slice(1) : months;
   const first = (r: MonthReport) => r.fromDay === c.createdDay;
   if (part === "top") return top ? <MonthCard r={newest} title={MONTH.lastMonth} first={first(newest)} /> : null;

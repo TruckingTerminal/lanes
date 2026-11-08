@@ -1,5 +1,5 @@
 import { dayOf, type Company, type World } from "@lanes/engine";
-import { closedMonths, moneyEvents, monthReport } from "./books.js";
+import { closedMonths, moneyEvents, monthReport, shownReport } from "./books.js";
 import { stepScope } from "./walkthrough.js";
 
 /**
@@ -26,6 +26,8 @@ interface Visit {
 
 /** What changed while the player was away, for the card; null when it's not a return. */
 export interface Away {
+  /** Whose return it is: the world (seed), the company and its start day (walkthrough.ts stepScope). */
+  scope: string;
   live: boolean;
   delivered: number;
   inFd: number;
@@ -53,6 +55,9 @@ const snapshot = (w: World, c: Company): Visit => ({
   monthClosedDay: c.lastMonth?.closedDay ?? null,
 });
 
+/** Whether a return card is this company's in this world (QA item 8: a new test world showed the last world's card). */
+export const awayIsHere = (a: Away | null, w: World, c: Company): a is Away => !!a && a.scope === stepScope(w, c);
+
 /** Keeps this visit (called on a timer and when the page hides). */
 export function saveVisit(w: World, c: Company): void {
   try {
@@ -67,7 +72,7 @@ const MONTHS = ["January", "February", "March", "April", "May", "June", "July", 
 /** The month report's kept for a closed month (books.ts), so the return card and Money say one figure (R10). */
 const keptOf = (w: World, c: Company, closedDay: number): number | null => {
   const m = closedMonths(w, c).find((x) => x.closedDay === closedDay);
-  return m ? monthReport(m).keptFd : null;
+  return m ? shownReport(monthReport(m)).keptFd : null;
 };
 
 /** At the world's opening: what changed since the last visit, if it was RETURN_HOURS or more ago and the same company. */
@@ -81,6 +86,7 @@ export function returnFor(w: World, c: Company, live: boolean, nowMs = Date.now(
   if (!v || v.scope !== stepScope(w, c) || nowMs - v.realMs < RETURN_HOURS * 3_600_000) return null;
   const closed = c.lastMonth && c.lastMonth.closedDay !== v.monthClosedDay ? c.lastMonth : null;
   return {
+    scope: v.scope,
     live,
     delivered: Math.max(0, c.delivered - v.delivered),
     inFd: Math.max(0, c.operating.revenueFd - v.revenueFd),

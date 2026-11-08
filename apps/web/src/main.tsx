@@ -61,7 +61,12 @@ function showLoading(title: string, note: string): void {
   bumpData();
 }
 function showGame(s: Session): void {
-  if (S.game !== s) resetArt();
+  if (S.game !== s) {
+    resetArt();
+    // A world's return card is its own (QA item 8): a new world starts with none until its own return.
+    S.returnCard = null;
+    S.lastReturn = null;
+  }
   S.game = s;
   feed(s).lastT = s.w.t;
   const truck = s.player ? s.w.trucksByCompany.get(s.player.id)?.find((t) => t.status !== "retired") : undefined;
@@ -139,7 +144,7 @@ function onEvent(s: Session, e: GameEvent): void {
       if (fresh) S.invoiceLanes.set(fresh.id, ends(e.loadId, e.origin, e.dest).join(" → "));
       const driver = truck.driverId ? w.staff[truck.driverId - 1] : undefined;
       S.delivered = { from: ends(e.loadId, e.origin, e.dest)[0], to: ends(e.loadId, e.origin, e.dest)[1], lateH: e.onTime ? 0 : Math.max(0, Math.ceil(((w.cfg.docks.lateFromArrival && load.arrivedT !== undefined ? load.arrivedT : w.t) - load.dueT) / 60)), line, paid, hiredDriver: driver && !driver.owner ? driver.name : null };
-      S.moneyDot = true;
+      S.moneyDot = fresh ? "invoice" : "paid";
       iuliiaSay(e.onTime ? "delivered:onTime" : "delivered:late");
     }
   }

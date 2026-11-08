@@ -42,7 +42,9 @@ describe("the return sitting (R21, R22, R24)", () => {
       expect(stuckTrucks().some((x) => x.id === t.id)).toBe(false);
       const item = needs().find((n) => n.key === `wall:${t.id}`)!;
       expect(item.button).toBe(NEEDS.waysOut);
-      expect(item.text).toContain(wall.reason!.charAt(0).toLowerCase() + wall.reason!.slice(1).replace(/\.$/, ""));
+      // The writer's two sentences (item 7, NEEDS.stuck: `Truck ${n} is idle at ${place}. ${reason}`): "Truck 1 is idle at
+      // Dallas. A hot load needs a team." The reason as the board gives it, its capital and its stop kept.
+      expect(item.text).toContain(`. ${wall.reason!}`);
       expect(needs().some((n) => n.key === `idle:${t.id}`)).toBe(false);
       // Until R23, the ways out are the board for this truck, sorted by pay.
       waysOut(t);
