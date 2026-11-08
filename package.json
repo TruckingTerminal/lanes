@@ -11,6 +11,7 @@
     "test:web": "vitest run apps/web",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "sim": "tsx apps/sim/src/run.ts",
+    "gate": "tsx apps/sim/src/gate.ts",
     "build": "node apps/web/build.mjs",
     "build:site": "node apps/web/build.mjs --site"
   },

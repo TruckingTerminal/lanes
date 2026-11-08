@@ -525,6 +525,9 @@ export function launchToken(w: World): void {
     w.ledger.lock(acct, Math.max(0, keep));
     lockedFd += w.ledger.locked(acct);
   }
+  // The emission cap's carry (emission.ts) is beta bookkeeping like the wallets: what the beta's budget overspent is not
+  // repaid by cuts in real FD, and what it left unspent is not spent as real FD (red team, 2026-11-08).
+  w.emission.carryFd = 0;
   // The lean launch (Jeff, 2026-10-29): stakes, exit queues and contract stakes are beta FD too, and
   // are burned like wallets, so every position after launch is backed by real FD and nobody carries
   // play money through by parking it in a stake. Tiers and licences get their grace period to be

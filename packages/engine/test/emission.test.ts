@@ -6,13 +6,17 @@ import {
   bill,
   budgetFd,
   companyAccount,
+  contractRate,
   createWorld,
   cumulativeBudgetFd,
   dailyEmission,
   dailyReceivables,
   emissionRatio,
+  emissionSlack,
   EQUIPMENT,
   formCompany,
+  generateRoundFreight,
+  launchToken,
   leverFloor,
   leverSplit,
   monthlyStabilizers,
@@ -25,6 +29,7 @@ import {
   stepLever,
   subsidyFd,
   subsidyRatio,
+  volumeDialMayMoveTo,
   type DayMetrics,
   type World,
 } from "@lanes/engine";
@@ -116,7 +121,7 @@ describe("the emission cap: the lever and the pacing", () => {
 describe("the emission cap in the world", () => {
   const payCfg = (over: Partial<Emission>) => withEmission(over, (c) => ({ ...c, token: { ...c.token, payment: { ...c.token.payment, enabled: true } } }));
 
-  it("draws the budget at the invoice on every route (the lessor, net paper) and counts the cash as it lands; a player payer and the NPC market draw nothing", () => {
+  it("draws the budget at the invoice on every route (the lessor, net paper) and counts the cash as it lands; a player payer draws nothing, the NPC market draws as its own kind", () => {
     const w = createWorld({ cfg: payCfg({}), net, feeds: neutralFeeds, seed: 3 });
     const a = carrier(w, "Leased");
     const b = carrier(w, "Net terms");
@@ -137,22 +142,24 @@ describe("the emission cap in the world", () => {
     dailyReceivables(w);
     expect(w.ledger.npcPaidFd()).toBe(1500);
     expect(w.emission.committedFd).toBe(1500); // the cash landing draws nothing again
-    // A broker paying its carrier is a transfer; the NPC market buying a facility's goods is outside the budget (for now).
+    // A broker paying its carrier is a transfer; the NPC market buying a facility's goods draws on the budget as its own
+    // kind (red team, 2026-11-08), its cash landing with the paper like the shipper's.
     bill(w, { payer: broker.id, payee: a, amountFd: 700, ref: "t:3" });
     bill(w, { payer: 0, faucet: "faucet:npc_market", payee: a, amountFd: 900, ref: "t:4" });
-    expect(w.emission.committedFd).toBe(1500);
+    expect(w.emission.committedFd).toBe(2400);
+    expect(w.emission.pay.market).toEqual({ loads: 1, fd: 900 });
     expect(w.ledger.npcPaidFd()).toBe(1500);
     // The lessor advancing a broker's paper to a leased truck: an NPC advance (faucet:npc_advance), not NPC freight pay —
     // the budget and the cash column leave it out — and the broker repays it into sink:npc_factor at the due day.
     bill(w, { payer: broker.id, payee: a, amountFd: 600, ref: "t:5", leased: true });
     expect(w.ledger.totals.get("faucet:npc_advance")).toBe(60_000);
     expect(w.ledger.totals.get("faucet:npc_lessor")).toBe(100_000);
-    expect(w.emission.committedFd).toBe(1500);
+    expect(w.emission.committedFd).toBe(2400);
     expect(w.ledger.npcPaidFd()).toBe(1500);
     w.t += w.cfg.token.payment.termsDays * w.cfg.time.gameMinutesPerDay;
     dailyReceivables(w);
     expect(w.ledger.totals.get("sink:npc_factor")).toBe(60_000);
-    expect(w.ledger.npcPaidFd()).toBe(1500);
+    expect(w.ledger.npcPaidFd()).toBe(2400); // the market's paper paid at its due day counts as NPC pay in cash
     // With the cap off the count runs but the levers don't move.
     expect(w.stab.emissionVolMult).toBe(1);
     expect(w.stab.emissionMult).toBe(1);
@@ -257,7 +264,7 @@ describe("the emission cap in the world", () => {
     expect(w.emission.subsidyFd).toBeCloseTo(2.85e6, 4);
   });
 
-  it("the cap wins: while it is on the volume dial holds and the balance dial holds (or, one-way, may only lower rates); off, both move", () => {
+  it("precedence under the cap: the balance dial holds (or, one-way, may only lower rates); the volume dial holds while the cap binds and follows the rules while it is slack; off, both move both ways", () => {
     const dials = (enabled: boolean, dialOneWay = false, volumeDialOneWay = false) =>
       withEmission({ enabled, dialOneWay, volumeDialOneWay }, (c) => ({
         ...c,
@@ -267,10 +274,12 @@ describe("the emission cap in the world", () => {
       for (let day = 0; day < 30; day++) w.metrics.days.push(fakeDay(day, 100, sinkFd)); // 50: far under any target; 150: far over
       monthlyStabilizers(w);
     };
-    const on = createWorld({ cfg: dials(true), net, feeds: neutralFeeds, seed: 1 });
-    month(on, 50);
-    expect(on.stab.rateMult).toBe(1);
-    expect(on.stab.volumeMult).toBe(1);
+    const slack = (w: World) => {
+      w.emission.product = 1;
+      w.emission.daysAtOne = k.pacing.lagDays + k.pacing.holdAfterLagDays;
+      expect(emissionSlack(w)).toBe(true);
+    };
+    // Off: both dials move both ways, as the rules say.
     const off = createWorld({ cfg: dials(false), net, feeds: neutralFeeds, seed: 1 });
     month(off, 50);
     expect(off.stab.rateMult).toBeLessThan(1);
@@ -278,7 +287,14 @@ describe("the emission cap in the world", () => {
     const offOver = createWorld({ cfg: dials(false), net, feeds: neutralFeeds, seed: 1 });
     month(offOver, 150);
     expect(offOver.stab.rateMult).toBeGreaterThan(1); // off, the dial raises rates when sinks outrun faucets
-    // One-way under the cap: the balance dial may still lower rates when sinks fall short and never raise them when they run over; the volume dial holds unless its own switch is on.
+    expect(offOver.stab.volumeMult).toBeGreaterThan(1); // and the volume dial adds freight
+    // On and binding (the warm start opens at 0.5): both dials hold.
+    const on = createWorld({ cfg: dials(true), net, feeds: neutralFeeds, seed: 1 });
+    expect(emissionSlack(on)).toBe(false);
+    month(on, 50);
+    expect(on.stab.rateMult).toBe(1);
+    expect(on.stab.volumeMult).toBe(1);
+    // One-way: the balance dial may still lower rates when sinks fall short and never raise them; the volume dial still holds while the cap binds.
     const oneWayUnder = createWorld({ cfg: dials(true, true), net, feeds: neutralFeeds, seed: 1 });
     month(oneWayUnder, 50);
     expect(oneWayUnder.stab.rateMult).toBeLessThan(1);
@@ -287,14 +303,138 @@ describe("the emission cap in the world", () => {
     month(oneWayOver, 150);
     expect(oneWayOver.stab.rateMult).toBe(1);
     expect(oneWayOver.stab.volumeMult).toBe(1);
-    expect(offOver.stab.volumeMult).toBeGreaterThan(1); // off, the volume dial adds freight when sinks outrun faucets
-    // The volume dial's own switch (tried and rejected, §14): it may cut when sinks fall short, never add when they run over.
+    // On and slack (the clause of 2026-11-08): the volume dial follows the rules both ways, by the rules' own step; the balance dial keeps its rule.
+    const slackUnder = createWorld({ cfg: dials(true, true), net, feeds: neutralFeeds, seed: 1 });
+    slack(slackUnder);
+    month(slackUnder, 50);
+    expect(slackUnder.stab.volumeMult).toBeCloseTo(off.stab.volumeMult, 12);
+    expect(slackUnder.stab.rateMult).toBeLessThan(1);
+    const slackOver = createWorld({ cfg: dials(true, true), net, feeds: neutralFeeds, seed: 1 });
+    slack(slackOver);
+    month(slackOver, 150);
+    expect(slackOver.stab.volumeMult).toBeCloseTo(offOver.stab.volumeMult, 12);
+    expect(slackOver.stab.rateMult).toBe(1); // one-way: never raised
+    // A re-bind holds the dial where it stands, no reset: slack cut it; binding, it stays there through a month that would add it back.
+    slackUnder.emission.product = 0.9;
+    slackUnder.emission.daysAtOne = 0;
+    expect(emissionSlack(slackUnder)).toBe(false);
+    const held = slackUnder.stab.volumeMult;
+    month(slackUnder, 150);
+    expect(slackUnder.stab.volumeMult).toBe(held);
+    // The volume dial's own switch applies while slack: down when sinks fall short, never up when they run over.
     const volUnder = createWorld({ cfg: dials(true, true, true), net, feeds: neutralFeeds, seed: 1 });
+    slack(volUnder);
     month(volUnder, 50);
     expect(volUnder.stab.volumeMult).toBeLessThan(1);
     const volOver = createWorld({ cfg: dials(true, true, true), net, feeds: neutralFeeds, seed: 1 });
+    slack(volOver);
     month(volOver, 150);
     expect(volOver.stab.volumeMult).toBe(1);
+    // No ratchet: under a binding cap the volume dial never cuts, whatever the rules want and whatever the switch says.
+    for (const volumeDialOneWay of [false, true]) {
+      const binding = createWorld({ cfg: dials(true, true, volumeDialOneWay), net, feeds: neutralFeeds, seed: 1 });
+      for (const product of [0.99, 0.8, 0.4]) {
+        binding.emission.product = product;
+        binding.emission.daysAtOne = 0;
+        expect(volumeDialMayMoveTo(binding, 1, 0.9)).toBe(1);
+        expect(volumeDialMayMoveTo(binding, 0.8, 0.7)).toBe(0.8);
+        expect(volumeDialMayMoveTo(binding, 0.8, 0.9)).toBe(0.8);
+      }
+    }
+    expect(volumeDialMayMoveTo(off, 1, 0.9)).toBe(0.9); // off: anywhere the rules say
+  });
+
+  it("slack has hysteresis: lagDays + holdAfterLagDays closed days with the product at 1 make the cap slack, and the day it drops under 1 it binds again", () => {
+    const w = createWorld({ cfg: withEmission({ enabled: true }), net, feeds: neutralFeeds, seed: 1 });
+    const s = w.emission;
+    const need = k.pacing.lagDays + k.pacing.holdAfterLagDays;
+    for (let i = 0; i < need; i++) {
+      s.daily.push(0); // closed days with nothing committed: past the warm start's hold, and the target reads 1
+      s.levers.push(1);
+    }
+    s.product = 1;
+    let day = 0;
+    for (let i = 0; i < need - 1; i++) dailyEmission(w, day++);
+    expect(s.product).toBe(1);
+    expect(s.daysAtOne).toBe(need - 1);
+    expect(emissionSlack(w)).toBe(false);
+    dailyEmission(w, day++);
+    expect(s.daysAtOne).toBe(need);
+    expect(emissionSlack(w)).toBe(true);
+    // A day under 1 binds at once and restarts the count.
+    s.product = 0.9;
+    dailyEmission(w, day++);
+    expect(s.product).toBeLessThan(1);
+    expect(s.daysAtOne).toBe(0);
+    expect(emissionSlack(w)).toBe(false);
+    // Back at 1 by the lever's own steps, the count runs its full course again before the cap reads slack.
+    while (s.product < 1) dailyEmission(w, day++);
+    expect(s.daysAtOne).toBe(1);
+    expect(emissionSlack(w)).toBe(false);
+    for (let i = 1; i < need; i++) dailyEmission(w, day++);
+    expect(emissionSlack(w)).toBe(true);
+    // Off, the cap is never slack and never binding: the dials are the rules'.
+    const off = createWorld({ cfg: withEmission({ enabled: false }), net, feeds: neutralFeeds, seed: 1 });
+    expect(emissionSlack(off)).toBe(false);
+    expect(volumeDialMayMoveTo(off, 0.8, 1.1)).toBe(1.1);
+  });
+
+  it("the NPC market's purchase of a facility's goods draws on the budget at the sale, as its own kind (red team, 2026-11-08)", () => {
+    const w = createWorld({ cfg: withEmission({ enabled: true }), net, feeds: neutralFeeds, seed: 4 });
+    const owner = carrier(w, "Mill");
+    const before = w.emission.committedMonthFd;
+    bill(w, { payer: 0, faucet: "faucet:npc_market", payee: owner, amountFd: 1_000, ref: "sale:1", npcKind: "market" });
+    bill(w, { payer: 0, faucet: "faucet:npc_market", payee: owner, amountFd: 500, ref: "sale:2" }); // the kind defaults to market for this faucet
+    expect(w.emission.committedMonthFd - before).toBeCloseTo(1_500, 6);
+    expect(w.emission.pay.market).toEqual({ loads: 2, fd: 1_500 });
+    expect(w.emission.pay.spot.loads).toBe(0);
+    expect(w.ledger.npcPaidFd()).toBeCloseTo(1_500, 6); // counted as NPC pay in cash, like the shipper's
+  });
+
+  it("the launch resets the emission carry with the wallets: a beta overspend is not repaid in real FD, beta slack is not spent as it (red team, 2026-11-08)", () => {
+    const w = createWorld({ cfg: withEmission({ enabled: true }), net, feeds: neutralFeeds, seed: 4 });
+    carrier(w, "Hauls");
+    w.emission.carryFd = -23e6;
+    const budget = w.emission.monthBudgetFd;
+    launchToken(w);
+    expect(w.emission.carryFd).toBe(0);
+    expect(w.emission.monthBudgetFd).toBe(budget); // the month in progress keeps its budget; only the carry is beta bookkeeping
+    w.emission.carryFd = 9e6;
+    launchToken(w);
+    expect(w.emission.carryFd).toBe(0);
+  });
+
+  it("the rate lever reaches an NPC shipper's contract pay as it reaches spot: the haul's pay scaled, the cost pass-throughs not (red team, 2026-11-08)", () => {
+    const w = createWorld({ cfg: withEmission({ enabled: true }), net, feeds: neutralFeeds, seed: 4 });
+    const lane = net.lanesFrom[0]![0]!;
+    w.stab.emissionMult = 1;
+    const full = contractRate(w, lane.origin, lane.dest, "van");
+    w.stab.emissionMult = 0.8;
+    const cut = contractRate(w, lane.origin, lane.dest, "van");
+    expect(full).toBeGreaterThan(0);
+    expect(cut).toBeLessThan(full);
+    expect(cut).toBeGreaterThanOrEqual(0.8 * full - 1e-9); // only the haul's pay is scaled
+    const off = createWorld({ cfg: withEmission({ enabled: false }), net, feeds: neutralFeeds, seed: 4 });
+    expect(contractRate(off, lane.origin, lane.dest, "van")).toBeCloseTo(full, 9); // off, the lever is 1 and nothing changes
+  });
+
+  it("the rate lever reaches an NPC shipper's tender to a broker as it reaches spot (red team, 2026-11-08)", () => {
+    // Every NPC load tendered, one broker to take them; the same seed, so the same loads are tendered either way.
+    const tendered = (mult: number) => {
+      const w = createWorld({ cfg: withEmission({ enabled: true }, (c) => ({ ...c, freight: { ...c.freight, npcBrokerOnlyShare: 1 } })), net, feeds: neutralFeeds, seed: 4 });
+      const b = formCompany(w, { name: "Broker", role: "broker", homeHubId: "DAL", strategy: "test", orders: [{ kind: "broker", marginPct: 0.1, maxOpenLoads: 10_000 }], freePath: false });
+      w.stab.emissionMult = mult;
+      generateRoundFreight(w);
+      return [...w.loads.values()].filter((l) => l.brokerId === b.id).map((l) => l.shipperRate);
+    };
+    const full = tendered(1);
+    const cut = tendered(0.8);
+    expect(full.length).toBeGreaterThan(10);
+    expect(cut.length).toBe(full.length);
+    for (let i = 0; i < full.length; i++) {
+      expect(cut[i]!).toBeLessThan(full[i]!);
+      expect(cut[i]!).toBeGreaterThanOrEqual(0.8 * full[i]! - 1e-9); // the haul's pay scaled, the cost pass-throughs not
+    }
   });
 
   it("the ratio's accounting: the NPC advance-and-repayment wash comes out of both sides of the corrected ratio, the raw one keeps it", () => {

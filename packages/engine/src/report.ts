@@ -64,7 +64,7 @@ export function ratioOf(slice: readonly DayMetrics[]): RatioReading {
 }
 
 /** The faucet tags that are NPC freight pay (the emission cap's draw; emission.ts FREIGHT_FAUCETS), by their metrics key. */
-const FREIGHT_TAGS = new Set(["npc_shipper", "npc_factor", "npc_lessor"]);
+const FREIGHT_TAGS = new Set(["npc_shipper", "npc_factor", "npc_lessor", "npc_market"]);
 
 /**
  * Three readings of "FD supply never doubles in a year". From a 5,000-FD-per-
@@ -166,7 +166,7 @@ export interface RunReport {
     firstMonthFd: number;
     months: { month: number; days: number; budgetFd: number; committedFd: number; paidFd: number; subsidyFd: number; carryFd: number; volMult: number; rateMult: number; product: number; daysAtVolFloor: number; daysAtRateFloor: number }[];
     totals: { budgetedFd: number; committedFd: number; paidFd: number; subsidyFd: number; carryFd: number; daysAtVolFloor: number; daysAtRateFloor: number };
-    pay: Record<"spot" | "brokered" | "contract", { loads: number; fd: number }>;
+    pay: Record<"spot" | "brokered" | "contract" | "market", { loads: number; fd: number }>;
     openByKind: { spot: number; contract: number };
     starterHubs: Record<string, { week: number; expectedPerDay: number; openPerDay: number; idlePerDay: number }[]>;
     reserve: { genesisReserveFd: number; endFd: number; netEmittedFd: number; supplyEndFd: number; capFd: number; genesisFd: number };
@@ -278,7 +278,9 @@ export interface RunReport {
     /** Carriers that lost a truck to the repo man and have no truck left. */
     wipedOut: number;
     inDebtAtEnd: number;
+    /** Every company's negative cash, summed (negative); and the part of it on companies the population dial retired (positive), which the gate's debt line leaves out. */
     debtFd: number;
+    debtRetiredFd: number;
     writtenOffFd: number;
     /** Liquidations, companies that went through one, and debt written off at restart (a faucet). */
     bankruptcies: number;
@@ -783,7 +785,7 @@ export function buildReport(w: World): RunReport {
       firstMonthFd: k.firstMonthFd,
       months,
       totals,
-      pay: { spot: { ...s.pay.spot }, brokered: { ...s.pay.brokered }, contract: { ...s.pay.contract } },
+      pay: { spot: { ...s.pay.spot }, brokered: { ...s.pay.brokered }, contract: { ...s.pay.contract }, market: { ...s.pay.market } },
       openByKind: { spot: mean(s.hubDays.map((d) => d.openSpot)), contract: mean(s.hubDays.map((d) => d.openContract)) },
       starterHubs,
       reserve: { genesisReserveFd, endFd: w.ledger.reserve(), netEmittedFd: genesisReserveFd - w.ledger.reserve(), supplyEndFd: w.ledger.supply(), capFd: k.capFd, genesisFd: k.genesisFd },
@@ -878,6 +880,8 @@ export function buildReport(w: World): RunReport {
   const wipedOut = repossessed.filter((c) => c.role === "carrier" && w.trucksByCompany.get(c.id)!.length === 0 && ordersOf(w, c.id).length === 0).length;
   const balances = w.companies.map((c) => w.ledger.balance(companyAccount(c.id)));
   const debts = balances.filter((b) => b < 0);
+  // What the companies the population dial retired still owe (inside `debts`): reported apart, as the daily metrics do.
+  const retiredDebtFd = -sum(w.companies.filter((c) => c.retiredDay !== undefined).map((c) => Math.min(0, w.ledger.balance(companyAccount(c.id)))));
 
   // The cycle, quarter by quarter.
   const cycleQuarters: RunReport["cycleQuarters"] = [];
@@ -1063,6 +1067,7 @@ export function buildReport(w: World): RunReport {
       wipedOut,
       inDebtAtEnd: debts.length,
       debtFd: sum(debts),
+      debtRetiredFd: retiredDebtFd,
       writtenOffFd: w.finance.writtenOffFd,
       bankruptcies: sum(days.map((d) => d.bankruptcies)),
       companiesBankrupt: w.companies.filter((c) => c.bankruptcies > 0).length,

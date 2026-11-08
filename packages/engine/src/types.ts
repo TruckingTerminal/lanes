@@ -438,6 +438,11 @@ export interface EmissionState {
   rateMult: number;
   daysAtVolFloor: number;
   daysAtRateFloor: number;
+  /**
+   * Closed days in a row with the lever product at 1: the cap is slack once they reach pacing.lagDays + holdAfterLagDays
+   * and binding the day the product drops under 1 (emission.ts emissionSlack; the volume dial's precedence).
+   */
+  daysAtOne: number;
   /** Lifetime budget issued and the subsidy's part of it (R); the ledger's NPC cash pay when the month opened. */
   budgetedFd: number;
   subsidyFd: number;
@@ -446,8 +451,8 @@ export interface EmissionState {
   months: { month: number; budgetFd: number; committedFd: number; paidFd: number; subsidyFd: number; carryFd: number }[];
   /** The last pacing reading, for the metrics: yesterday's commitments, the horizon's budget, the spend per unit of lever, the target. */
   lastDay: { committedFd: number; availableFd: number; spendPerLeverFd: number; target: number };
-  /** NPC pay by kind at the invoice: spot board loads, loads tendered to brokers, contract tenders. */
-  pay: Record<"spot" | "brokered" | "contract", { loads: number; fd: number }>;
+  /** NPC pay by kind at the invoice: spot board loads, loads tendered to brokers, contract tenders, the NPC market's purchases of facilities' goods. */
+  pay: Record<"spot" | "brokered" | "contract" | "market", { loads: number; fd: number }>;
   /** The newcomer check: per hub, the NPC loads planFreight asked for today; a row a day with the open NPC loads and idle trucks per hub at day end. */
   hubExpectedToday: Float64Array;
   hubDays: { expected: number[]; open: number[]; idle: number[]; openSpot: number; openContract: number }[];

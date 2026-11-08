@@ -485,7 +485,7 @@ function collectUpstream(w: World, load: Load, payee: Company, gross: number, fa
     const shipper = companyById(w, load.shipperId);
     const shipperAcct = companyAccount(shipper.id);
     const fee = lockCost(w, shipper, cfg.board.posterFeePct * load.saleValue, () => cfg.board.posterFeePct * load.saleValue * (1 - stakeDiscount(w, shipper)));
-    bill(w, { payer: 0, faucet: "faucet:npc_market", payee: shipper, amountFd: load.saleValue, ref });
+    bill(w, { payer: 0, faucet: "faucet:npc_market", payee: shipper, amountFd: load.saleValue, ref, npcKind: "market" }); // drawn on the emission budget (receivables.ts bill)
     if (shipper.id !== payee.id) bill(w, { payer: shipper.id, payee, amountFd: gross, ref, leased, truckId, shipperPaper: true });
     w.ledger.post(w.t, shipperAcct, "sink:board_fee", fee, ref);
     const facility = w.facilities[load.facilityId! - 1];

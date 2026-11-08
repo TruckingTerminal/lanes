@@ -369,7 +369,8 @@ export function generateRoundFreight(w: World): RoundFreight {
         // Shipper leverage: where trucks pile up, most loads go to local carriers first.
         if (rng.next() < localShare(w, i, eq)) load.localUntilRound = w.round + cfg.leverage.localRounds;
         if (rng.next() < cfg.freight.npcBrokerOnlyShare) {
-          const contractRef = lane.baseRate * w.contractIndex[planIndex(i, e)]! * cfg.rates.equipmentPremium[eq] * reloadFactor(w, lane.dest, eq) + fsc + tollPerMile(lane) + terrainPerMile(lane) + theftPerMile(lane, eq) + exitPerMile(lane, eq);
+          // The emission cap's rate lever reaches the NPC shipper's tender as it reaches spot (rf above): the haul's pay, not the cost pass-throughs. The contract index itself stays the market's own (red team, 2026-11-08).
+          const contractRef = lane.baseRate * (w.stab.emissionMult ?? 1) * w.contractIndex[planIndex(i, e)]! * cfg.rates.equipmentPremium[eq] * reloadFactor(w, lane.dest, eq) + fsc + tollPerMile(lane) + terrainPerMile(lane) + theftPerMile(lane, eq) + exitPerMile(lane, eq);
           tenderToBroker(w, load, brokers, contractRef * remoteMult(load) * cfg.rates.npcCeilingMarkup * (load.hot || 1), books);
         }
         finish(load, load.brokerId !== null ? w.companies[load.brokerId - 1]!.vetting : 0);

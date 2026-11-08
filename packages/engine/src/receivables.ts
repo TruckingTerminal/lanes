@@ -350,8 +350,10 @@ export function releaseContractStakes(w: World, c: Company): void {
 export function bill(w: World, b: Bill): void {
   const k = w.cfg.token.payment;
   if (b.amountFd <= 0) return;
-  // The emission cap (emission.ts): an NPC shipper's invoice draws on the budget here, whichever route below pays it.
+  // The emission cap (emission.ts): an NPC shipper's invoice draws on the budget here, whichever route below pays it; so
+  // does the NPC market's purchase of a facility's goods (trips.ts; red team, 2026-11-08), which paid outside it before.
   if (b.payer === 0 && b.faucet === "faucet:npc_shipper") noteEmissionCommitment(w, b.amountFd, b.npcKind ?? "spot");
+  else if (b.payer === 0 && b.faucet === "faucet:npc_market") noteEmissionCommitment(w, b.amountFd, b.npcKind ?? "market");
   if (!k.enabled) {
     payNow(w, b, b.amountFd);
     return;

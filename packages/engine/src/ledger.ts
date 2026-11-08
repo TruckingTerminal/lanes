@@ -132,7 +132,7 @@ export class Ledger {
     if (kind === "faucet") {
       this.faucetCents += cents;
       this.totals.set(from, (this.totals.get(from) ?? 0) + cents);
-      if ((from === "faucet:npc_shipper" || from === "faucet:npc_factor" || from === "faucet:npc_lessor") && to.startsWith("co:")) this.npcPaidCents += cents;
+      if ((from === "faucet:npc_shipper" || from === "faucet:npc_factor" || from === "faucet:npc_lessor" || from === "faucet:npc_market") && to.startsWith("co:")) this.npcPaidCents += cents;
     } else if (kind === "sink") {
       this.sinkCents += cents;
       this.totals.set(to, (this.totals.get(to) ?? 0) + cents);

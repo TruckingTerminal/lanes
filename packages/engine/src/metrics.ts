@@ -1,6 +1,7 @@
 import type { RoundResult } from "./board.js";
 import { ceilingFd, outstandingFd, queuedAirdropFd } from "./ceiling.js";
 import { seasonOf } from "./clock.js";
+import { companyAccount } from "./ledger.js";
 import type { Company, Load } from "./types.js";
 import { condition } from "./wear.js";
 import type { World } from "./world.js";
@@ -50,6 +51,15 @@ export interface DayMetrics {
   trucksInService: number;
   /** Carriers trading (not being wound up, not retired by the population dial). */
   activeCarriers: number;
+  /**
+   * Companies in the market (trading or liquidating; not retired by the population dial) whose cash stands below zero at
+   * the day's end, and what they owe in all (positive FD): the launch gate's debt line reads these at the ends of years 3
+   * and 4 (apps/sim/src/gate.ts; killCriteria.gate). What retired companies still owe is reported apart: they have left
+   * the market, and their residue is not the living world's debt.
+   */
+  inDebt: number;
+  debtFd: number;
+  retiredDebtFd: number;
   facilityPosted: number;
   facilities: number;
   businesses: number;
@@ -416,6 +426,18 @@ export class MetricsRecorder {
     let crewless = 0;
     for (const t of w.trucks) if (t.companyId !== 0 && t.driverId === 0 && t.status !== "parked" && t.status !== "listed" && t.status !== "retired") crewless++;
     const carriers = w.companies.filter((c) => c.role === "carrier");
+    let inDebt = 0;
+    let debtFd = 0;
+    let retiredDebtFd = 0;
+    for (const c of w.companies) {
+      const balance = w.ledger.balance(companyAccount(c.id));
+      if (balance >= 0) continue;
+      if (c.retiredDay !== undefined) retiredDebtFd -= balance;
+      else {
+        inDebt++;
+        debtFd -= balance;
+      }
+    }
     const a = this.acc;
     const m: DayMetrics = {
       day,
@@ -445,6 +467,9 @@ export class MetricsRecorder {
       ownedTrucks: owned,
       trucksInService: inService,
       activeCarriers: w.companies.filter((c) => c.role === "carrier" && c.liquidatingSince === null && c.retiredDay === undefined).length,
+      inDebt,
+      debtFd,
+      retiredDebtFd,
       facilityPosted: a.facilityPosted,
       facilities: w.facilities.length,
       businesses: w.businesses.filter((b) => b.ownerId > 0).length,

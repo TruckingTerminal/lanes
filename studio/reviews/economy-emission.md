@@ -786,10 +786,324 @@ earlier proxy. The misses sit at the floor's edge either way.)
   economy part ways in year 4–5 unless the retention rate itself falls — which is the rules' doing (fees, taxes, the
   profit-tax burn), not the cap's.
 
-**Recommendation.** §14's gate configuration is withdrawn: measured on the base it was meant for, it is the starved
-economy. The mechanism stands (the draw at the invoice, the horizon, volume before rates, the one-way balance dial, the
+**Recommendation before the clause** (as put after this batch; 16.5 carries the one that stands). §14's gate
+configuration is withdrawn: measured on the base it was meant for, it is the starved economy. The mechanism stands (the draw at the invoice, the horizon, volume before rates, the one-way balance dial, the
 corrected base); the subsidy is the supply schedule and its size is Jeff's decision, informed by the pair above (six
 sims, 1460 days, seeds 1–2) before the ten seeds. The cap stays off in `economy.config.ts` and `live.ts` meanwhile.
+
+## 16. The gate as approved, the clause, and the subsidy schedules (2026-11-08)
+
+### 16.1 The gate's definition
+
+Jeff approved the three calls put to him — the band, the floors with the cold start's line, and the first truck —
+("I approve of all 3 of your calls… I trust you", 2026-11-08; studio/DECISIONS.md) and ruled the first truck hard by
+design, as in the real world (buying FD is the fast way): its pacing is reported, never tuned to or gated. The gate, read
+over a cap run and its cap-off twin of the same seed on the same code (`npm run gate -- --twin runs/<cap-off> --cap
+runs/<cap>`; `apps/sim/src/gate.ts`; its definition `killCriteria.gate` in the config, its own key — the per-quarter band
+`killCriteria.sinkFaucetPerQuarter` and the stabilizers' target keep their readings):
+
+- **(a) the band, the rules' check:** the corrected sinks ÷ faucets (the NPC advance-and-repayment wash out of both
+  sides, §14) over the trailing four quarters, in [0.85, 1.00] at every quarter end from the third year — moved to the
+  fourth year on 2026-11-08 by the producer's rule, because the third year's readings lean on the launch quarter (16.4,
+  16.5). 0.85 held is the prior; 0.84 the one step if a healthy slack cap on the retention-rate subsidy still misses by
+  thousandths, never lower.
+- **(b) the floors, the cap's check,** against the twin at the ends of years 3 and 4: carriers in service and cleared
+  loads a day (a 30-day mean to the year's last day) at or above 75% of the twin's; the companies' debt in FD at or under
+  7.5% of the FD held. The debt line's history: a multiple of the twin's fails a healthy run when the twin's debt is near
+  zero (§13's R rate: 1.1M against 0.25M), a bare figure ignores the world's size; the producer set the scale-free line
+  at 3% on the readings then in hand (healthy at or under 1.2%, starved from 9.7%), the subsidy batch (16.3) read 2.1–6.0%
+  on the schedules that free the economy, and the line moved to 7.5%, the absolute figure, the twin-relative figure and
+  the in-debt count reported beside it. The daily figures `DayMetrics.inDebt` and `debtFd` (closeDay counts companies
+  below zero as the report's failures do) let the line read the ends of years 3 and 4 on runs made from this commit on;
+  older reports read the end of the run.
+- **(c) the cold start's own line:** month 1 committed at or under 110% of its budget; Q1 corrected reported.
+- **(d) supply growth, strategy spread and the free path** as `report.pass` defines them.
+- **Reported, never gated:** the prudent owner-operator's first truck, npc_market against its 5% tripwire, net emitted
+  against the planned curve (the opening month plus the subsidy), the first sizing's headroom for the record.
+
+The ten seeds run in two waves of ten (each cap run with its twin), each wave launched in a clear `pgrep -f vitest` gap,
+on the schedule Jeff picks; failing his answer, on flat 5M, the producer's recommendation to him.
+
+### 16.2 The clause: the volume dial under the cap
+
+The subsidy batch (16.3) showed the band and the cap's held volume dial at odds: the band's 0.85 was calibrated on the
+baseline, whose volume dial trims NPC freight to its 0.75 floor from year 2, while under the cap §13's precedence held the
+dial at 1.00, so a cap that lets go posted 12–33% more NPC freight than the twin and lived at 0.83–0.87 corrected. The
+producer approved one clause as a design change inside the cap: **the published volume dial follows the rules' dial while
+the cap is slack and holds where it stands while the cap binds; it never cuts on the cap's behalf.** Precisely
+(`emission.ts emissionSlack`, `volumeDialMayMoveTo`; `step.ts monthlyStabilizers`): the cap is *slack* once the lever
+product has sat at 1 for `pacing.lagDays + holdAfterLagDays` closed days (`EmissionState.daysAtOne` counts them) and
+*binding* from the day the product drops under 1, when the count restarts — so the reading cannot flap day to day; while
+slack the dial moves as the rules say, both ways (or down only with `volumeDialOneWay`); while binding it holds, and keeps
+its position across a re-bind rather than resetting. `dialOneWay`'s meaning for the balance dial is unchanged (hold, or
+lower only), and `ceiling.ts` keeps it too. With the cap off nothing changes: the replay tests run cap-off and are
+byte-identical. Tests (`emission.test.ts`): precedence in every state — off both ways, binding held, slack by the rules'
+own step, the re-bind holding where the dial stands, the switch down-only while slack — the hysteresis day by day, and no
+path on which the dial cuts under a binding cap, whatever the rules want and whatever the switch says. Why no ratchet:
+§14's spiral needed a dial that cut while the cap bound; a dial that only moves while the cap is slack cannot start one.
+
+**The red team's three holes** (its first pass, from the code, 2026-11-08), folded into the same commit so the re-run
+measures the corrected cap once:
+
+1. *Brokered and contract freight never saw the rate lever.* The cap's ρ (`w.stab.emissionMult`), the balance dial and the
+   reserve factor sat in `rf`, which priced spot alone (freight.ts refRate); an NPC shipper's tender to a broker and an
+   NPC contract were priced off the contract index — dpow(ratio) × weather × season, smoothed — with no lever on them, so
+   the budget was drawn at the uncut rate on 35–45% of NPC pay, carriers chased the whole brokered pay, and the volume
+   lever did the rate lever's work (the brokered share rose to 37–46% under the cap against 34–41% at baseline, §15).
+   Now the cap's lever multiplies the haul's pay in both — `lane.baseRate × emissionMult × contractIndex × …` in the
+   tender's reference (freight.ts) and in `contractRate` (contracts.ts) — and not the cost pass-throughs (fuel, tolls,
+   terrain, theft, deadhead), as `rf` does for spot. The contract index stays the market's own, and the balance dial and
+   the reserve factor keep their reach (spot only): that they never reached contracts is the contract market's design,
+   a ruleset question outside the cap. With the cap off the multiplier is 1 and nothing changes.
+2. *The carry crossed the launch unchanged* (R net on seed 2: −23M at day 730, a beta overspend repaid by cuts in real FD,
+   or beta slack spent as real FD). `launchToken` now zeroes `carryFd` beside the wallets' reset; the month in progress
+   keeps its budget and its commitments.
+3. *Facility sales paid the owner from `npc_market` outside the budget* (saleValue 1.18–1.20 × ref × miles, already cut by
+   ρ through ref, but never drawn), and a company hauling its own goods pays itself nothing, so a player with facilities and
+   trucks kept the whole sale while NPC spot was cut. `bill()` now draws an `npc_market` purchase on the budget at the
+   sale, as its own kind (`market`, beside spot, brokered and contract in `emission.pay`); `npc_market` joins the freight
+   faucets (R net's base does not subtract it; the ledger's NPC cash pay and the report's freight tags count it). The
+   facilities' output and the 60% hub-share cap scaled by v are the facilities layer's ruleset, recorded there by the
+   producer. Noted for later rulesets, no action: the fence's pay (`faucet:fence`) sits outside the budget when the Back
+   Lot switches on under the cap.
+
+Tests (`emission.test.ts`): the contract rate and every tendered load's shipper rate fall by the lever's share and no
+more; the market's purchase draws on the budget as its own kind and lands in the cash column; the launch zeroes the carry
+either way and leaves the month's budget. The ablation before these fixes (the clause alone: `em2-y4t-f5`, `-f4`,
+`-p120`) is kept beside the re-run in 16.4.
+
+### 16.3 The subsidy batch before the clause (`em2-y4s-f4`, `-f5`, `-r99`, `-p115`; the producer's go)
+
+Four schedules for R net with the balance dial one-way and the volume dial held (§13's precedence, before the clause),
+seeds 1–2, 1460 days, against the §14 twin: flat 4M a month, flat 5M, 3M × 0.99^m (300M in all), and the proportional
+allowance (`refill` 1.15, no subsidy: the budget is 15% over what comes back). The gate's verdicts here read the debt line
+at 3%, as it stood.
+
+| (s1 / s2; Y1–Y4 where four figures) | twin (base) | flat 4M (48M a year) | flat 5M (60M a year) | 3M × 0.99^m (300M) | refill 1.15, no subsidy |
+|---|---|---|---|---|---|
+| gate: band · floors · cold start · (d) | – | ✗✓✓✓ / ✓✗✓✓ | ✗✓✓✓ / ✗✗✓✓ | ✓✗✓✓ / ✓✗✓✓ | ✓✗✓✓ / ✓✗✓✓ |
+| band: corrected trailing four, Y3–4 | .85–.92 / .86–.92, 8/8 both | .848–.861 (7/8) / .853–.873 (8/8) | .827–.873 (3/8) / .848–.863 (7/8) | .868–.903 / .883–.899, 8/8 | .866–.890 / .860–.881, 8/8 |
+| floors: carriers, % of twin, Y3 · Y4 | – | 90 · 91 / 70✗ · 79 | 108 · 109 / 84 · 89 | 67✗ · 65✗ / 58✗ · 62✗ | 72✗ · 69✗ / 62✗ · 63✗ |
+| floors: cleared a day, % of twin, Y3 · Y4 | – | 93 · 91 / 98 · 100 | 103 · 105 / 111 · 107 | 66✗ · 66✗ / 76 · 72✗ | 86 · 75 / 88 · 77 |
+| floors: debt ÷ FD held at the end (line 3%) | 0.2% / 0.9% | 2.1% / 6.0%✗ | 4.2%✗ / 4.8%✗ | 18.2%✗ / 28.9%✗ | 5.6%✗ / 11.2%✗ |
+| debt in FD (twin 0.3M / 1.0M) | – | 2.2M / 5.8M | 4.2M / 5.2M | 13.2M / 19.5M | 5.1M / 9.7M |
+| cold start: month 1 committed ÷ budget | – | 102% / 84% | 105% / 84% | 103% / 84% | 103% / 84% |
+| levers vol·rate by year | 1·1 | .56·.92 .58·.94 .80·1 .63·.94 / .51·.89 .70·1 .68·.92 .81·1 | .59·.94 .83·1 .95·1 1·1 / .56·.92 .80·1 .76·.99 .97·1 | .53·.88 .54·.89 .51·.85 .50·.80 / .51·.86 .52·.87 .50·.83 .50·.80 | .54·.88 .55·.91 .62·.98 .54·.88 / .51·.84 .61·.88 .58·.89 .56·.89 |
+| days at the volume floor by year | – | 188 183 18 150 / 282 8 162 24 | 156 0 0 0 / 173 0 83 0 | 251 247 290 365 / 338 294 349 365 | 252 221 71 246 / 348 230 204 232 |
+| levers released for good from | – | never / month 43 (Y4) | month 36 (Y3) / month 41 (Y4) | never / never | never / never |
+| committed ÷ budget, Y1–Y4 | off | 100 99 101 98 / 100 101 99 96 | 100 100 99 94 / 100 101 99 95 | 100 100 101 100 / 101 100 100 102 | 100 100 100 98 / 101 101 99 98 |
+| carry at day 1460 | – | +5.8M / +11.2M | +23.0M / +18.6M | −4.1M / −7.5M | +5.1M / +3.5M |
+| realized supply: reserve drawdown at year ends | 145 151 190 250 / 129 133 168 219 | 76 83 132 182 / 61 63 116 162 | 85 89 151 199 / 65 77 135 190 | 66 64 101 130 / 56 45 83 117 | 69 73 116 155 / 57 51 97 139 |
+| Σ(F − S) at day 1460 vs the planned curve | – | 224 vs 228M / 193 vs 228 | 252 vs 276 / 230 vs 276 | 159 vs 150 / 140 vs 150 | 186 / 165 (the plan is the opening alone) |
+| carriers · trucks in service, Y4 | 683·790 / 679·787 | 622·779 / 537·821 | 743·849 / 601·857 | 446·601 / 423·607 | 469·653 / 426·664 |
+| population dial retired / wound down / entered | 0/0/0 / 0/15/0 | 28/55/0 / 50/162/55 | 29/25/125 / 26/75/15 | 64/188/0 / 49/216/0 | 63/162/0 / 52/218/0 |
+| posted a day, Y4 | 603 / 656 | 488 / 703 | 799 / 849 | 405 / 444 | 431 / 488 |
+| FD held, Y4 | 115M / 107M | 104M / 97M | 100M / 108M | 73M / 68M | 91M / 87M |
+| companies in debt at the end | 280 / 281 | 245 / 322 | 262 / 247 | 329 / 363 | 302 / 334 |
+| prudent OO first truck, median day | d49 / d79 | d118 / d181 | d112 / d170 | d114 / d192 | d116 / d192 |
+| npc_market share of faucets, Y4 | 0% | 0% / 0% | 0% / 0% | 0% / 1% | 0% / 0% |
+| price launch → end | $.0012 → .00042 / $.0016 → .00056 | $.0016 → .00037 / $.0034 → .00061 | $.0017 → .00032 / $.0029 → .00048 | $.0018 → .00048 / $.0052 → .00090 | $.0021 → .00055 / $.0040 → .00071 |
+
+**The planned curves from the config** (the opening 36M plus the subsidy; the launch reset's return counted as measured,
+36–56M, a bigger world returning more): flat 4M reaches 80 128 176 224M by year 4 and 512M by year 10, the 600M
+exhausted about year 13; flat 5M 91 151 211 271M and 631M, exhausted in year 10 (month 114); 3M × 0.99^m 67 97 124
+148M and 243M, never (it converges to 333M); the proportional allowance has no fixed curve — 15% of the base, 37M a year
+at the realized size, the 600M about year 16 at that size and sooner as activity grows.
+
+- **No schedule passes the gate as approved, for two opposite reasons.** The schedules that free the economy fail the band;
+  the ones that hold the band starve. Flat 4M is the rules' retention rate (35–60M a year at the twin's size) and sits
+  on both edges at once: the levers bind one year in two (seed 1 never released for good; seed 2 wound down 162 bots in
+  year 3 and re-entered 55 in year 4), seed 1 misses the band once at 0.848, seed 2 misses the floors at the end of year
+  3 (413 carriers of 591, 69.9%) and the debt line (6.0% of FD held). Flat 5M frees the economy for good from month 36 /
+  41 — carriers 84–109% and cleared loads 103–111% of the twin's — and fails the band on five of eight readings on seed 1
+  (0.827–0.843) and one on seed 2 (0.848), and the debt line on both (4.2% / 4.8%). 3M × 0.99^m decays under the
+  retention and starves from the first year (carriers 57–67%, the levers never released, debt 18–29% of FD held). The
+  proportional allowance follows the shrunken base (247M a year against 300–330M at the twin's size), half-binds — 1.15
+  sits in the middle of the realized retention, freight pay ÷ base 1.12–1.19 — and settles at 62–72% of the carriers
+  with 75–88% of the cleared loads: a consolidation, fewer carriers hauling about as much. The cold start holds under
+  every schedule (month 1 at 84–105% of its budget; Q1 corrected 0.81–0.85 against the twin's 0.73–0.75).
+- **The debt line at 3%** passed the twins (0.2% / 0.9%) and §13's healthy cap (1.1% / 0.6%), failed every starved run
+  (9.7–29%), and failed three of the four flat-schedule readings (4.2 / 4.8 / 6.0%, passing 2.1%): a world whose cap
+  binds in some years carries 2–6% of its FD held as debt against the twin's 0.2–0.9%, fewer companies in debt than the
+  twin (245–262 against 280) but deeper. The gap between those and the starved runs put the separating line at 7.5%,
+  where the producer moved it (16.1); the margin is re-read on the clause in 16.4.
+- **Why the band and the floors leave no window.** The band's 0.85 was calibrated on the baseline, whose volume dial trims
+  NPC freight to its 0.75 floor from year 2; under the cap the volume dial is held at 1.00 (§13's precedence), so a cap
+  that lets go posts 12–33% more NPC freight than the twin (flat 5M: 699–849 a day against 603–656), carriers keep more
+  of it, and the corrected ratio lives at 0.83–0.87 — while a cap that bites starves. §13's healthy R rate read
+  0.843–0.848 for the same reason, with the old base's over-emission on top. On these seeds the window between "slack"
+  and "starved" is a hair wide, and the subsidy's size cannot open it.
+
+**Recommendation.** One clause in the precedence rule: the volume dial follows the rules' dial while the cap is slack and
+holds while it binds — it never cuts on the cap's behalf, so §14's ratchet cannot form, and the cap still wins the moment
+it binds (a few lines in `dialMayMoveTo` with a test). Then flat 4M and flat 5M again on the same two seeds, and the ten
+seeds on the one that passes. The expectation: a released cap behaves as the baseline (0.88–0.91 corrected, carriers near
+100%), the band has room, and flat 5M — 60M a year, the 600M spent by year 10, the reserve's remainder the cushion — is
+the likely schedule. The band's edge is the producer's call on the evidence: 0.85 held is the prior, 0.84 the one step
+if a healthy slack cap on the retention-rate subsidy still misses by thousandths, never lower; flat 5M's seed 1 misses
+by two points, so the step would not carry it and the dial clause is the fix. If precedence is not to be touched, flat
+4M with the band at 0.84 is the nearest fixed schedule, and it still fails one seed's floors by five points at one
+year-end.
+
+**The trade-off for Jeff, plainly** (as put after this batch; the figures are updated in 16.5). A fixed schedule bounds
+the world's size at the rules' retention rate: this economy
+keeps 10–16% of what NPCs pay as new supply whatever its size, so 48M a year is a world of about 680 carriers, and a
+world of twice the players wants twice that — when they arrive the levers bind and the brake falls on the newcomers, as
+it did on seed 2 of flat 4M in year 3. Its virtue is the published curve: 60M a year spends the 600M in year 10 and no
+faster, and the realized curve tracks the plan while the cap binds. The proportional allowance lets supply follow
+activity — the budget stays 15–20% over what comes back — so it can neither starve a growing world nor brake it, and the
+realized curve is whatever the players do; it is a schedule only by the physical cap, about year 16 at today's size and
+sooner as the world grows. Under either, while the cap is slack the realized emission is the economy's own (the twin's
+219–250M over four years) and the plan is an upper bound rather than a path.
+
+### 16.4 The clause alone, and the corrected cap (`em2-y4t-f5`, `-f4`, `-p120`; `em2-y4u-f5`, `-f4`, `-p120`)
+
+Two re-runs of the three schedules Jeff is choosing among — flat 5M a month, flat 4M, and the proportional allowance at
+`refill` 1.2 (the realized retention; 1.15 half-bound in 16.3) — seeds 1–2, 1460 days, against the §14 twin: first with
+the clause alone (16.2; the sims were in flight when the red team's holes came in, kept as the clause's own evidence),
+then with the three fixes as well, the corrected cap. The gate's verdicts read the debt line at 7.5% of FD held; the band
+is given both ways, as approved (the eight quarter-ends from year 3) and read from the fourth year only (four quarter-ends,
+no window holding the launch quarter), the twins beside them. The clause does what it was built for: the volume dial sits
+at 1.00 through the binding first year and trims to the rules' 0.75 once the cap is slack (year 2 or 3), the posted loads
+return to the twin's (596–656 a day against 598–656), and no ratchet forms.
+
+| clause alone (s1 / s2) | twin | flat 5M | flat 4M | refill 1.2 |
+|---|---|---|---|---|
+| gate: band · floors · cold start · (d) | – | ✗✓✓✓ / ✗✓✓✓ | ✗✓✓✓ / ✓✗✓✓ | **✓✓✓✓** / ✓✗✓✓ |
+| band as approved, of 8 (readings) | 8 (85.3–92.2) / 8 (86.3–92.1) | 4 (83.3–86.8) / 6 (84.8–86.6) | 7 (84.8–86.1) / 8 (85.5–87.0) | 8 (85.5–88.2) / 8 (85.2–86.3) |
+| band from year 4, of 4 (readings) | 4 (85.3–86.8) / 4 (86.3–88.1) | 3 (84.5–86.8) / 4 (85.2–85.8) | 4 (85.1–86.1) / 4 (85.5–86.2) | 4 (85.5–88.2) / 4 (85.2–86.3) |
+| carriers, % of twin, Y3 · Y4 | – | 99.8 · 101.8 / 80.7 · 82.0 | 89.7 · 91.1 / 70.9✗ · 70.0✗ | 91.3 · 94.7 / 74.6✗ · 77.9 |
+| cleared a day, % of twin, Y3 · Y4 | – | 89.9 · 96.3 / 103.6 · 96.0 | 92.9 · 91.3 / 99.5 · 87.0 | 94.5 · 99.7 / 99.8 · 97.4 |
+| debt ÷ FD held at the end (line 7.5%) | 0.2% / 0.9% | 4.1% / 5.3% | 2.1% / 6.2% | 3.4% / 2.5% |
+| levers released for good from | – | month 22 / 32 | never / month 43 | month 27 / 33 |
+| days at the volume floor by year | – | 156 0 0 0 / 173 0 0 0 | 188 183 18 150 / 282 8 7 0 | 144 82 0 0 / 297 0 0 0 |
+| carry at day 1460 | – | +32.2M / +23.4M | +5.8M / +14.3M | +27.2M / +18.7M |
+| volume dial at year ends | .75 ×4 | 1 .75 .75 .75 / 1 .81 .75 .75 | 1 1 1 1 / 1 .81 .75 .75 | 1 1 .75 .75 / 1 .75 .75 .75 |
+| realized supply: reserve drawdown at year ends | 145 151 190 250 / 129 133 168 219 | 85 90 145 193 / 65 77 134 187 | 76 83 132 182 / 61 62 115 161 | 82 89 137 183 / 60 66 129 181 |
+| posted / cleared a day, Y4 | 603/323 / 656/307 | 601/294 / 656/293 | 488/271 / 551/266 | 603/305 / 656/294 |
+| carriers · trucks in service, Y4 | 683·790 / 679·787 | 695·813 / 557·791 | 622·779 / 475·715 | 647·826 / 529·813 |
+| population dial retired / wound down / entered | 0/0/0 / 0/15/0 | 29/25/65 / 30/95/0 | 28/55/0 / 52/175/0 | 26/30/0 / 38/124/0 |
+| FD held, Y4 | 115M / 107M | 101M / 109M | 104M / 95M | 102M / 112M |
+| companies in debt at the end (FD) | 280 (0.3M) / 281 (1.0M) | 243 (4.1M) / 269 (5.8M) | 245 (2.2M) / 317 (5.8M) | 250 (3.5M) / 297 (2.8M) |
+| liquidations, four years | 271 / 262 | 290 / 186 | 241 / 166 | 262 / 172 |
+| prudent OO first truck | d49 / d79 | d113 / d171 | d117 / d182 | d116 / d196 |
+| brokered share of NPC pay | 41% / 34% | 24% / 30% | 31% / 31% | 26% / 31% |
+| starter hubs' lowest week, Y4 | 41·109·24 / 68·111·29 | 47·109·25 / 57·112·32 | 38·89·22 / 37·78·18 | 47·104·25 / 70·113·31 |
+
+| the corrected cap (s1 / s2; `em2-y4v-*` re-reads the same world with the debt split) | twin | flat 5M | flat 4M | refill 1.2 |
+|---|---|---|---|---|
+| gate as approved: band · floors · cold start · (d) | – | ✗✓✓✓ / **✓✓✓✓** | ✓✗✓✗ / ✓✓✓✗ | ✗✓✓✓ / **✓✓✓✓** |
+| gate with the band from year 4 | – | **✓✓✓✓ / ✓✓✓✓** | ✓✗✓✗ / ✓✓✓✗ | ✗✓✓✓ / ✓✓✓✓ |
+| band as approved, of 8 (readings) | 8 / 8 | 6 (83.9 84.5 85.2 85.7 85.6 86.1 87.5 87.1) / 8 (85.7–87.3) | 8 (85.6–88.1) / 8 (86.6–88.3) | 5 (86.6 86.4 87.2 86.2 84.5 84.6 84.5 85.0) / 8 (86.1–87.9) |
+| band from year 4, of 4 (readings) | 4 / 4 | 4 (85.6 86.1 87.5 87.1) / 4 (86.6–87.3) | 4 (85.6–86.6) / 4 (86.6–86.8) | 1 (84.5 84.6 84.5 85.0) / 4 (86.1–87.8) |
+| carriers, % of twin, Y3 · Y4 | – | 81.5 · 83.0 / 82.6 · 83.7 | 73.8✗ · 77.0 / 76.5 · 75.6 | 78.7 · 82.4 / 75.8 · 78.4 |
+| cleared a day, % of twin, Y3 · Y4 | – | 96.9 · 94.9 / 96.4 · 93.8 | 93.7 · 95.3 / 103.8 · 94.0 | 97.1 · 96.6 / 99.4 · 94.1 |
+| debt ÷ FD held at the end (line 7.5%), the market's | 0.2% / 0.9% | 0.3% / 0.3% (0.3M / 0.2M) | 0.2% / 0.2% (0.2M / 0.2M) | 0.1% / 0.2% (0.2M / 0.2M) |
+| retired companies' residue (reported, not gated) | 0 / 0 | 9.9M / 18.3M | 14.8M / 7.7M | 7.8M / 23.7M |
+| (d): strategy spread | ✓ / ✓ | ✓ / ✓ | **✗ / ✗** (new:conservative 9.9×, new:random 7.9×, at 0.1 mi/h) | ✓ / ✓ |
+| cold start: month 1 committed ÷ budget | – | 104% / 84% | 103% / 84% | 103% / 84% |
+| levers released for good from | – | month 27 / 32 | month 46 / 43 | never / month 32 |
+| days at the volume floor by year | – | 223 16 0 0 / 186 0 0 0 | 277 66 0 31 / 221 22 71 14 | 260 35 0 0 / 236 0 0 0 |
+| committed ÷ budget, Y1–Y4 | off | 100 99 97 94 / 100 99 96 92 | 100 100 99 97 / 101 100 99 95 | 100 100 99 98 / 100 99 97 92 |
+| carry at day 1460 | – | +30.3M / +36.6M | +8.7M / +15.1M | +7.9M / +33.5M |
+| volume dial at year ends | .75 ×4 | 1 .81 .75 .75 / 1 .75 .75 .75 | 1 .90 .90 .75 / 1 .90 .81 .75 | 1 .81 .75 .75 / 1 .75 .75 .75 |
+| realized supply: reserve drawdown at year ends | 145 151 190 250 / 129 133 168 219 | 67 75 133 180 / 59 69 120 166 | 60 70 117 166 / 55 61 110 155 | 63 76 133 189 / 56 62 114 157 |
+| Σ(F − S) at day 1460 vs the planned curve | – | 224 vs 276 / 205 vs 276 | 197 vs 228 / 183 vs 228 | 225 / 192 (the plan is the opening alone) |
+| posted / cleared a day, Y4 | 603/323 / 656/307 | 602/298 / 657/292 | 535/290 / 564/289 | 526/296 / 656/293 |
+| carriers · trucks in service, Y4 | 683·790 / 679·787 | 567·791 / 568·783 | 526·808 / 513·771 | 563·813 / 532·786 |
+| population dial retired / wound down / entered | 0/0/0 / 0/15/0 | 40/65/0 / 35/80/0 | 55/102/0 / 36/143/0 | 43/79/0 / 35/118/0 |
+| FD held, Y4 | 115M / 107M | 98M / 84M | 97M / 93M | 118M / 70M |
+| companies in debt at the end, every one (FD, retired included) | 280 (0.3M) / 281 (1.0M) | 283 (10.2M) / 284 (18.5M) | 289 (15.0M) / 322 (7.9M) | 285 (8.0M) / 299 (23.8M) |
+| liquidations, four years | 271 / 262 | 251 / 186 | 209 / 178 | 248 / 174 |
+| prudent OO first truck | d49 / d79 | d117 / d180 | d116 / d188 | d121 / d185 |
+| brokered share of NPC pay | 41% / 34% | 21% / 22% | 22% / 22% | 29% / 22% |
+| NPC market purchases drawn on the budget, four years | – | 28.6M / 18.0M | 27.4M / 6.7M | 25.0M / 22.3M |
+| starter hubs' lowest week, Y4 | 41·109·24 / 68·111·29 | 54·107·27 / 62·109·22 | 55·96·24 / 38·90·23 | 49·95·22 / 69·110·33 |
+
+The planned curves from the config, the launch reset's return counted as measured (40–51M): flat 5M 271M by year 4 and
+631M by year 10, the 600M exhausted in year 10 (month 114); flat 4M 224M and 512M, exhausted about year 13; refill 1.2 at
+the realized base (291M a year) adds 58M a year, 264M by year 4 and 613M by year 10, exhausted about year 11 at that size
+and sooner as activity grows.
+
+- **The band, two ways.** Under the clause alone the freed flat 5M read 0.833–0.868 on seed 1 against the twin's
+  0.853–0.922 — the twin's year-3 readings lean on its launch quarter at 100–103% corrected, which the reset makes and no
+  capped world shows (85–96%) — so the band as approved was measuring the reset. The corrected cap lifts every reading:
+  flat 5M seed 1 now misses only the first two quarter-ends of year 3 (0.839, 0.845: 1.1 and 0.5 points) and passes from
+  the fourth year (0.856–0.875); seed 2 passes both ways (0.857–0.873). Flat 4M passes both ways on both seeds
+  (0.856–0.883). Refill 1.2 passes on seed 2 (0.861–0.879) and misses on seed 1 in the fourth year itself (0.845, 0.846,
+  0.845, 0.850: misses of thousandths, which the one step to 0.84 would carry). The twins pass both ways (0.853–0.922;
+  0.853–0.881 from year 4). By the producer's rule — a corrected, freed cap that misses year 3 by a point or more while
+  passing from year 4 moves the band to the fourth year, as a correction of the measurement — the band reads from the
+  fourth year; the floors keep both year-ends.
+- **The floors.** Carriers in service run 74–84% of the twin's under the corrected cap (81–84% for flat 5M) against
+  81–102% under the clause alone: the fixes bite harder in the binding years (all NPC pay cut, the market's purchases on
+  the budget, the carry's slack gone at launch), the dial winds down 65–143 bot carriers and re-enters none, and the world
+  settles a sixth smaller with the same throughput (cleared loads 94–104% of the twin's, trucks in service 98–103%).
+  Flat 4M misses the 75% line once (73.8% at the end of year 3, seed 1); flat 5M and refill 1.2 clear it on every reading.
+- **(d) as it stands** fails flat 4M on both seeds through the strategy spread: the "new" segment's median Miles per hour
+  is 0.1 under a cap that binds for four years (most newcomers never buy a truck), so any newcomer with a truck reads 5–10×
+  its segment's median. A fragility of the criterion's denominator, not a cap outcome; G's run in §13 showed the same
+  (2.48×, new:greedy). Reported, not changed.
+- **The cold start** holds everywhere: month 1 at 103–105% / 84% of its budget; Q1 corrected 0.81–0.84 against the
+  twin's 0.73–0.75.
+- **The debt line was reading dead companies.** Read over every company, the corrected cap owed 8–24M at the end (7–34% of
+  FD held) against 3–6M under the clause alone and 0.3–1.0M at the twins, and five of six runs failed the 7.5% line. A
+  replay of the worst case (flat 5M, seed 2, 18.5M; `runs/_debtors.ts`) put 18.3M of it — 99% — on 104 carriers the
+  population dial had **retired**, two retired fleets owing 10.6M and 5.4M between them; the 157 companies still in the
+  market owed 0.11M, less than the twin's. Both fleets were retired with no trucks (days 142 and 196, at −2k and +391k)
+  and then bled 4–8k a day, linearly, for three years. The ledger's postings over their last month name the drain: each
+  still owns a **facility**. The NPC market keeps buying its goods (`faucet:npc_market` 156k and 69k a month), and the
+  dead owner keeps paying the carriers that haul them (a dozen payments of 9–12k a month to living carriers), the
+  facility's and its business's upkeep (30–38k), the factor's repayments on the haulers' paper (10–20k) and the board's
+  fee, out of an overdraft nothing bounds; the airdrop still unlocks to them (11k a month each). The facility runs at a
+  loss no bot manages, and the loss is paid to living carriers from an account that can never repay it: **uncounted
+  emission**, 4–15% of the realized net on these runs (7.7–23.7M against 155–189M), invisible to the budget (company to
+  company) and to the ratio (not a faucet), and absent at the twins only because the dial retires nobody there. Two
+  things follow. The gate's debt line now reads the companies in the market — trading or liquidating, not retired —
+  (`DayMetrics.inDebt` / `debtFd`; `failures.debtFd` less `debtRetiredFd` on older reports) and reports the retired residue
+  beside it (`retiredDebtFd`): re-read on the split (`em2-y4v-*`, the world byte-identical), the market's debt is 0.1–0.3%
+  of FD held on every run against the twins' 0.2–0.9%, and the residue 7.7–23.7M. And the hole itself is the population
+  dial's, for engineering under the 0.24.0 bump: `retireCompany` should dispose of a retired bot's facilities and
+  businesses (to the NPC market, as the launch does with bonds), end its airdrop, and liquidate it if its cash is below
+  zero so the residue is written off through `faucet:bankruptcy_writeoff` and counted; until then the retired residue is
+  a reported figure the ten seeds should carry as emission the cap did not see.
+
+### 16.5 Recommendation, and the trade-off for Jeff
+
+**The gate as it reads now.** As approved, with three measurement corrections made on the evidence of this section: the
+corrected ratio's band read from the **fourth** year (the third year's trailing readings lean on the launch quarter —
+S3Q1 at 100–103% corrected at the baseline, which the reset makes and no capped world shows — so the corrected, freed cap
+missed year 3 by 1.1 points on one seed and passed from year 4, and by the producer's rule of 2026-11-08 the band moves;
+`killCriteria.gate.band.fromYear` 4, the floors still at both year-ends); the debt line over the companies in the market
+with the retired residue reported; the band also reported from one year later, for the record. Everything else stands:
+carriers and cleared loads at or above 75% of the twin's at the ends of years 3 and 4, debt at or under 7.5% of FD held,
+month 1 at or under 110% of its budget, supply, spread and the free path as they are, the first truck reported.
+
+**Recommendation: flat 5M a month on the corrected cap.** It passes the gate on both seeds — the band from year 4 at
+0.856–0.875 and 0.866–0.873 (as approved, seed 2 passes outright and seed 1 misses only the first two year-3 readings),
+carriers 81–84% and cleared loads 94–97% of the twin's, the market's debt 0.3% of FD held, month 1 at 104% / 84% —
+with the levers released for good from month 27 / 32 and the volume dial trimming to the rules' 0.75 from year 2 or 3.
+Realized supply 180M / 166M of the 600M at four years against the twin's 250M / 219M; the planned curve 271M by year 4
+and the 600M spent in year 10 (month 114), the reserve's remainder the cushion. FD held 98M / 84M against 115M / 107M,
+the prudent owner-operator's first truck on day 117 / 180 against 49 / 79 (hard by design, reported). The proportional
+allowance at `refill` 1.2 sits beside it as Jeff's other option: it passes seed 2 as approved (0.861–0.879) and misses
+seed 1's fourth-year readings by 0.5 points at most (0.845–0.850, which the one step to 0.84 would carry), carriers
+76–82%, cleared 94–99%, realized supply 189M / 157M, the 600M about year 11 at today's size and sooner as the world grows.
+Flat 4M is not viable on these seeds (carriers 73.8% at the end of year 3 on seed 1, and the spread criterion's
+newcomer artifact on both). The ten seeds run on Jeff's pick — failing his answer, on flat 5M, the producer's
+recommendation to him — twenty sims in two waves of ten, each in a clear `pgrep -f vitest` gap, with the retired
+residue carried as a reported figure until the dial's hole is closed.
+
+**The trade-off for Jeff, plainly.** A fixed schedule bounds the world's size at the rules' retention rate: this
+economy keeps 10–16% of what NPCs pay as new supply whatever its size, so 60M a year is a world of 560–570 carriers
+where the uncapped one has 680, and a world of twice the players wants twice that — when they arrive the levers bind
+again and the brake falls on the newcomers, as it did on flat 4M in year 3. Its virtue is the published curve: 60M a
+year spends the 600M in year 10 and no faster, and the realized curve tracks the plan while the cap binds. The
+proportional allowance lets supply follow activity — the budget stays 20% over what comes back — so it can neither
+starve a growing world nor brake it, and the realized curve is whatever the players do; it is a schedule only by the
+physical cap, about year 11 at today's size and sooner as the world grows. Under either, while the cap is slack the
+realized emission is the economy's own (the twin's 219–250M over four years) and the plan is an upper bound rather
+than a path.
 
 ## 12. Recommendation
 
@@ -811,7 +1125,12 @@ sims, 1460 days, seeds 1–2) before the ten seeds. The cap stays off in `econom
   instrument, not a four-year supply schedule, and neither schedule can be one inside the floors without starving the
   world. The band [0.90, 1.00] every quarter fails the baseline itself on these seeds (§13); §14 gives the counts for
   each alternative and recommends the corrected ratio over the trailing four quarters at 0.85 from the third year, with
-  §15 showing that a binding cap passes that band while starving, so liveness floors must sit beside it.
+  §15 showing that a binding cap passes that band while starving, so liveness floors must sit beside it. **§16 is the
+  gate as Jeff approved it and the schedules measured against it:** the clause (the volume dial follows the rules while
+  the cap is slack, holds while it binds), the red team's three holes closed, the debt line read on the companies in the
+  market, and the band read from the fourth year because the baseline's year-3 readings lean on the launch quarter. On
+  that gate the corrected cap at **flat 5M a month passes both seeds** (16.5); the proportional refill 1.2 passes one and
+  misses the other's fourth year by thousandths; flat 4M fails the carriers' floor and the spread criterion.
 - **The pacing to switch on is 14 / 0.03 / 5** (§4b: the hunting halves, nothing else moves beyond noise), with the hold
   tied to the delivery lag instead of the window before the gate (a one-line change with a test).
 - **The guards, as they stand:** the band at 0.72–0.76 in Q1 (0.9 needs Q2); prudent ≥ greedy holds on cash everywhere

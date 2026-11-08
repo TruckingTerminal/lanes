@@ -1045,9 +1045,10 @@ export const economyConfig = {
     // planFreight, down to volRange[0]), then the NPC reference rate (freight.ts, floored at multRange[0], about break-even
     // for a leased owner-operator), so the product never goes under volRange[0] × multRange[0]. While the cap is on, the
     // balance dial (step.ts monthlyStabilizers, ceiling.ts) holds both ways (dialOneWay false) or may lower NPC rates and
-    // never raise them (true), and the published volume dial holds (volumeDialOneWay false) or may cut NPC volume and
-    // never add it (true; tried at four years under R and rejected: with a budget that re-emits what comes back, a dial
-    // that only cuts is a ratchet, economy-emission.md §14). Nothing moves NPC freight up against the cap. R's base is
+    // never raise them (true); the published volume dial follows the rules' dial while the cap is slack (the lever product
+    // at 1 for pacing.lagDays + holdAfterLagDays closed days) and holds where it stands while it binds (the clause of
+    // 2026-11-08, economy-emission.md §16: a dial held while the cap binds cannot ratchet, §14), both ways (volumeDialOneWay
+    // false) or down only (true). Nothing moves NPC freight up against a binding cap. R's base is
     // the trailing sinks (refillNet false) or the trailing sinks less the trailing
     // faucets other than NPC freight pay — loans, deposits, payouts, what the freight faucet need not balance (true).
     // Sized 2026-11-07 (economy-emission.md "Retune"): the pacing 14 / 0.03 / 5 and the opening at 0.5 are the gate's.
@@ -1475,6 +1476,25 @@ export const economyConfig = {
     maxSupplyGrowthPerYear: 2.0,
     maxStrategyVsMedian: 3.0,
     freePathMaxDays: 84,
+    // The launch gate (Jeff, 2026-11-08; studio/reviews/economy-emission.md, the gate's section): apps/sim/src/gate.ts reads
+    // it over a cap run and its cap-off twin of the same seed on the same code. Its own key — the per-quarter band above and
+    // the stabilizers' target keep their readings.
+    gate: {
+      // (a) the rules' check: the corrected sinks ÷ faucets (the NPC advance wash out of both sides) over the trailing
+      //     four quarters, inside the band at every quarter end from the fourth year — approved from the third and moved
+      //     on 2026-11-08 by the producer's rule (economy-emission.md §16.4–16.5): the third year's readings lean on the
+      //     launch quarter, S3Q1 at 100–103% corrected at the baseline, which the reset makes and no capped world shows
+      band: { lo: 0.85, hi: 1.0, trailingQuarters: 4, fromYear: 4 },
+      // (b) the cap's check, against the twin at the ends of these years: carriers in service and cleared loads a day (a
+      //     mean over the window) at or above this share of the twin's; the companies' debt at or under this share of the
+      //     FD held (scale-free: healthy runs read under 6%, starved ones from 9.7%; the absolute figure, the twin-relative
+      //     figure and the in-debt count are reported, never gated)
+      floors: { years: [3, 4] as const, share: 0.75, windowDays: 30, debtShareOfHeld: 0.075 },
+      // (c) the cold start's own line: month 1 committed at or under this share of its budget; Q1 corrected reported
+      coldStart: { maxCommittedShare: 1.1 },
+      // reported, never gated: npc_market's share of the faucets over the last year
+      marketTripwire: 0.05,
+    },
   },
 
   // NPC capacity that keeps thin hubs trading (§World — NPC freight and trucks)

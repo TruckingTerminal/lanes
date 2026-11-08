@@ -59,7 +59,8 @@ export function contractRate(w: World, origin: number, dest: number, eq: Equipme
   const level = idx === undefined || Number.isNaN(idx) ? 1 : idx;
   const fsc = fscPerMile(cfg, fuelPrice(w));
   const toll = cfg.roads.tollsInRates ? lane.tollFd / lane.miles : 0;
-  return lane.baseRate * level * cfg.rates.equipmentPremium[eq] * reloadFactor(w, dest, eq) * cfg.contracts.rateVsIndex + fsc + toll;
+  // The emission cap's rate lever (emission.ts; 1 with the cap off) reaches the NPC shipper's contract pay as it reaches spot: the haul's pay, not the cost pass-throughs.
+  return lane.baseRate * (w.stab.emissionMult ?? 1) * level * cfg.rates.equipmentPremium[eq] * reloadFactor(w, dest, eq) * cfg.contracts.rateVsIndex + fsc + toll;
 }
 
 const contractOrder = (c: Company) => c.orders.find((o): o is Extract<StandingOrder, { kind: "contracts" }> => o.kind === "contracts");

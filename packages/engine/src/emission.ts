@@ -27,23 +27,45 @@ import type { World } from "./world.js";
  * The lever (leverSplit). NPC posted volume first (demand.ts planFreight, w.stab.emissionVolMult, down to volRange[0]),
  * then the NPC reference rate (freight.ts, w.stab.emissionMult, floored at multRange[0], about break-even for a leased
  * owner-operator); the product never goes under volRange[0] × multRange[0]. While the cap is on it is the balance control:
- * the published volume dial and the balance dial (step.ts monthlyStabilizers, ceiling.ts weeklyCeiling) hold both ways
- * or, with dialOneWay, may cut NPC volume and lower NPC rates and never add or raise (dialMayMoveTo).
+ * the balance dial (step.ts monthlyStabilizers, ceiling.ts weeklyCeiling) holds both ways or, with dialOneWay, may lower
+ * NPC rates and never raise them (dialMayMoveTo); the published volume dial follows the rules' dial while the cap is slack
+ * and holds where it stands while it binds (emissionSlack, volumeDialMayMoveTo; the clause of 2026-11-08, review §16).
  */
 export type EmissionConfig = EconomyConfig["token"]["emission"];
 
 export const emissionOn = (w: World): boolean => w.cfg.token.emission.enabled;
 
 /**
- * Where a published dial (the balance dial w.stab.rateMult; the volume dial w.stab.volumeMult with its own switch) may go
- * from `from` when it wants `to`: anywhere with the cap off; nowhere with the cap on and the switch off (the cap's ρ and v
- * are the only live controls on NPC rates and volume); down but never up with the switch on, so the economy keeps walking
- * toward balance when the cap is not binding while nothing can push NPC freight up against it. The volume dial's switch
- * (volumeDialOneWay) stays off: under a budget that re-emits what comes back, a dial that only cuts is a ratchet (§14).
+ * Where the balance dial (w.stab.rateMult; step.ts monthlyStabilizers, ceiling.ts weeklyCeiling) may go from `from` when
+ * it wants `to`: anywhere with the cap off; nowhere with the cap on and dialOneWay off (the cap's ρ is the live control on
+ * NPC rates); down but never up with dialOneWay on, so the economy keeps walking toward balance when the cap is not
+ * binding while nothing can push NPC rates up against it.
  */
 export function dialMayMoveTo(w: World, from: number, to: number, oneWay: boolean = w.cfg.token.emission.dialOneWay): number {
   if (!emissionOn(w)) return to;
   return oneWay ? Math.min(from, to) : from;
+}
+
+/**
+ * The cap is slack once the lever product has sat at 1 for pacing.lagDays + holdAfterLagDays closed days, and binding
+ * from the day the product drops under 1 (the count restarts), so the reading cannot flap day to day. Off, it is neither.
+ */
+export function emissionSlack(w: World): boolean {
+  const k = w.cfg.token.emission;
+  return emissionOn(w) && w.emission.daysAtOne >= k.pacing.lagDays + k.pacing.holdAfterLagDays;
+}
+
+/**
+ * Where the published volume dial (w.stab.volumeMult; step.ts monthlyStabilizers) may go from `from` when the rules want
+ * `to` (the clause of 2026-11-08, review §16): anywhere with the cap off; while the cap is slack it follows the rules'
+ * dial both ways — or, with volumeDialOneWay, down only — and while the cap binds it holds where it stands and keeps that
+ * position across a re-bind. It never cuts on the cap's behalf: a dial that only cut under a budget that re-emits what
+ * comes back was §14's ratchet, and a dial held while the cap binds cannot form one.
+ */
+export function volumeDialMayMoveTo(w: World, from: number, to: number): number {
+  if (!emissionOn(w)) return to;
+  if (!emissionSlack(w)) return from;
+  return w.cfg.token.emission.volumeDialOneWay ? Math.min(from, to) : to;
 }
 
 /** G's ratio: 1 − first ÷ (cap − genesis), so the geometric schedule sums to the cap less genesis. */
@@ -123,8 +145,8 @@ export function stepLever(prev: number, target: number, step: number, floor: num
   return clamp(Math.round((prev + clamp(target - prev, -step, step)) * 1e9) / 1e9, floor, 1);
 }
 
-/** Who posted an NPC-paid load: a contract tender, a load tendered to a broker, or the spot board. */
-export type NpcPayKind = "spot" | "brokered" | "contract";
+/** Who posted an NPC-paid load: a contract tender, a load tendered to a broker, or the spot board; or the NPC market buying a facility's goods. */
+export type NpcPayKind = "spot" | "brokered" | "contract" | "market";
 export const npcPayKind = (load: Load): NpcPayKind => (load.contractId ? "contract" : load.brokerId !== null ? "brokered" : "spot");
 
 /** The state a world starts with: month 0's budget, and the levers the cap opens at (pacing.warmStart; 1 with the cap off). */
@@ -147,12 +169,13 @@ export function newEmissionState(cfg: EconomyConfig, hubs: number): EmissionStat
     rateMult: split.rateMult,
     daysAtVolFloor: 0,
     daysAtRateFloor: 0,
+    daysAtOne: 0,
     budgetedFd: budget,
     subsidyFd: 0,
     paidAtMonthStartFd: 0,
     months: [],
     lastDay: { committedFd: 0, availableFd: budget, spendPerLeverFd: 0, target: 1 },
-    pay: { spot: { loads: 0, fd: 0 }, brokered: { loads: 0, fd: 0 }, contract: { loads: 0, fd: 0 } },
+    pay: { spot: { loads: 0, fd: 0 }, brokered: { loads: 0, fd: 0 }, contract: { loads: 0, fd: 0 }, market: { loads: 0, fd: 0 } },
     hubExpectedToday: new Float64Array(hubs),
     hubDays: [],
   };
@@ -178,8 +201,8 @@ export function trailingSinksPerMonthFd(w: World, windowDays: number): number {
   return (s * w.cfg.time.daysPerMonth) / days.length;
 }
 
-/** The faucet tags that are NPC freight pay (the budget's own draw); every other faucet is what the freight faucet need not balance. */
-export const FREIGHT_FAUCETS = ["npc_shipper", "npc_factor", "npc_lessor"];
+/** The faucet tags that are NPC freight pay (the budget's own draw, the NPC market's purchases included); every other faucet is what the freight faucet need not balance. */
+export const FREIGHT_FAUCETS = ["npc_shipper", "npc_factor", "npc_lessor", "npc_market"];
 
 /** The trailing window's faucets other than NPC freight pay (loans, deposits, payouts…), scaled to a month; 0 before the first closed day. */
 export function trailingOtherFaucetsPerMonthFd(w: World, windowDays: number): number {
@@ -228,6 +251,8 @@ export function dailyEmission(w: World, day: number): void {
   // land. The product may still fall.
   if (s.daily.length < k.pacing.lagDays + k.pacing.holdAfterLagDays) target = Math.min(target, k.pacing.warmStart);
   s.product = stepLever(s.product, target, k.pacing.stepPerDay, leverFloor(k));
+  // Slack and binding (emissionSlack): closed days in a row with the product at 1; any day under it restarts the count.
+  s.daysAtOne = s.product >= 1 - 1e-9 ? s.daysAtOne + 1 : 0;
   const split = leverSplit(k, s.product);
   s.volMult = w.stab.emissionVolMult = split.volMult;
   s.rateMult = w.stab.emissionMult = split.rateMult;
