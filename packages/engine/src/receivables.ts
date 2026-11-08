@@ -18,6 +18,7 @@
 import { launchDraw, samePerson } from "./brokerage.js";
 import { dayOf } from "./clock.js";
 import { loadCreditPremium, recordPayment } from "./credit.js";
+import { noteEmissionCommitment, type NpcPayKind } from "./emission.js";
 import { companyAccount } from "./ledger.js";
 import { payClaim, poolAccount, poolLineCash, poolMarkup, poolsOn } from "./pools.js";
 import { stakeAccount } from "./staking.js";
@@ -27,6 +28,15 @@ import { companyById, operatingTrucks, type World } from "./world.js";
 /** Who holds the receivable: the payee, the factoring pool, or an NPC (the factor or the lessor: nothing moves in the game when it collects). */
 export const HOLDER_POOL = -1;
 export const HOLDER_NPC_FACTOR = -2;
+
+/**
+ * An NPC's advance (the factor's or the lessor's) on a company's paper — a broker's, as a rule: the payee is paid now and
+ * the payer repays the NPC at the due day into sink:npc_factor. The same FD is a faucet and then a sink, so the ratio
+ * of sinks to faucets reads it on both sides (report.ts ratios takes it out); it is not NPC freight pay (the shipper's
+ * money reached the broker through faucet:npc_shipper), so the cap's cash column (ledger.npcPaidFd) leaves it out.
+ * Advances on NPC shippers' paper keep their tags (faucet:npc_factor, faucet:npc_lessor): the NPC shipper's money, once.
+ */
+export const NPC_ADVANCE = "faucet:npc_advance";
 
 /** Stakes behind a company's contracts (factoring, the insurance deductible): returned at term, the pool's recourse before that. */
 export const contractAccount = (companyId: number) => `co:contract:${companyId}`;
@@ -47,6 +57,8 @@ export interface Bill {
    * it, so it is never bought on delivery, cashed now or paid from a broker's bond (the red team's E3-FACBOND).
    */
   shipperPaper?: boolean;
+  /** An NPC shipper's bill: who posted the load, for the emission cap's tally (emission.ts npcPayKind); spot when unsaid. */
+  npcKind?: NpcPayKind;
 }
 
 /** The factoring contract (token.payment.factoring.contract) is the rule: payment terms on and the switch on. */
@@ -338,6 +350,8 @@ export function releaseContractStakes(w: World, c: Company): void {
 export function bill(w: World, b: Bill): void {
   const k = w.cfg.token.payment;
   if (b.amountFd <= 0) return;
+  // The emission cap (emission.ts): an NPC shipper's invoice draws on the budget here, whichever route below pays it.
+  if (b.payer === 0 && b.faucet === "faucet:npc_shipper") noteEmissionCommitment(w, b.amountFd, b.npcKind ?? "spot");
   if (!k.enabled) {
     payNow(w, b, b.amountFd);
     return;
@@ -350,8 +364,10 @@ export function bill(w: World, b: Bill): void {
     return;
   }
   if (k.lessorPaysOnDelivery && b.leased) {
-    // The lessor's share already covers same-day pay: it pays now and collects the paper itself.
-    w.ledger.post(w.t, "faucet:npc_lessor", companyAccount(payee.id), b.amountFd, b.ref);
+    // The lessor's share already covers same-day pay: it pays now and collects the paper itself. On a company's paper (a
+    // broker's) that is an advance the payer repays into sink:npc_factor, tagged apart (NPC_ADVANCE) so the ratio can be read
+    // without the wash and the cap's cash column counts NPC shippers' money once.
+    w.ledger.post(w.t, b.payer === 0 ? "faucet:npc_lessor" : NPC_ADVANCE, companyAccount(payee.id), b.amountFd, b.ref);
     w.receivables.push({ ...(b.shipperPaper ? { shipperPaper: true } : {}), id: w.nextReceivableId++, payer: b.payer, faucet: b.faucet, payeeId: payee.id, amountFd: b.amountFd, dueDay, holder: HOLDER_NPC_FACTOR });
     return;
   }
@@ -363,7 +379,7 @@ export function bill(w: World, b: Bill): void {
     const covered = !f.truckIds || b.truckId === undefined || f.truckIds.includes(b.truckId);
     if (bought && covered) {
       const fee = b.amountFd * f.rate;
-      w.ledger.post(w.t, "faucet:npc_factor", companyAccount(payee.id), b.amountFd, b.ref);
+      w.ledger.post(w.t, b.payer === 0 ? "faucet:npc_factor" : NPC_ADVANCE, companyAccount(payee.id), b.amountFd, b.ref);
       // The discount is a sink that refills the reserve, as the lessor's share does (never a burn).
       w.ledger.post(w.t, companyAccount(payee.id), "sink:factoring_fee", fee, b.ref);
       w.receivables.push({ ...(b.shipperPaper ? { shipperPaper: true } : {}), id: w.nextReceivableId++, payer: b.payer, faucet: b.faucet, payeeId: payee.id, amountFd: b.amountFd, dueDay, holder: HOLDER_NPC_FACTOR });
@@ -401,7 +417,7 @@ export function bill(w: World, b: Bill): void {
       w.pools.factoring.exposureFd += b.amountFd;
       w.receivables.push({ ...(b.shipperPaper ? { shipperPaper: true } : {}), id: w.nextReceivableId++, payer: b.payer, faucet: b.faucet, payeeId: payee.id, amountFd: b.amountFd, dueDay, holder: HOLDER_POOL });
     } else {
-      w.ledger.post(w.t, "faucet:npc_factor", companyAccount(payee.id), advance, b.ref);
+      w.ledger.post(w.t, b.payer === 0 ? "faucet:npc_factor" : NPC_ADVANCE, companyAccount(payee.id), advance, b.ref);
       w.receivables.push({ ...(b.shipperPaper ? { shipperPaper: true } : {}), id: w.nextReceivableId++, payer: b.payer, faucet: b.faucet, payeeId: payee.id, amountFd: b.amountFd, dueDay, holder: HOLDER_NPC_FACTOR });
     }
     payee.operating.costFd += discount;
@@ -439,7 +455,7 @@ export function cashInvoice(w: World, c: Company, receivableId: number): string 
   if (typeof rate === "string") return rate;
   const ref = `cashnow:${r.id}`;
   const fee = r.amountFd * rate;
-  w.ledger.post(w.t, "faucet:npc_factor", companyAccount(c.id), r.amountFd, ref);
+  w.ledger.post(w.t, r.payer === 0 ? "faucet:npc_factor" : NPC_ADVANCE, companyAccount(c.id), r.amountFd, ref);
   w.ledger.post(w.t, companyAccount(c.id), "sink:factoring_fee", fee, ref);
   c.operating.costFd += fee;
   r.holder = HOLDER_NPC_FACTOR;

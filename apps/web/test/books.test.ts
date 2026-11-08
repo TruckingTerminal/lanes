@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import { companyAccount } from "@lanes/engine";
 import { boardRows } from "../src/board.js";
 import { closedMonths, EARNED, monthReport, MOVED, openMonth, SPENT } from "../src/books.js";
-import { PLAYER_DISPATCHER_ORDERS, TestGame } from "../src/game.js";
+import { GAME_CONFIG, PLAYER_DISPATCHER_ORDERS, TestGame } from "../src/game.js";
 
 /**
  * R10's month report (player2-ux.md section 4): "Why your cash moved differently" must add up to the figure. Two starts
@@ -55,4 +55,68 @@ describe("The month's books", () => {
       const sum = o.cashStart + Object.values(o.flows).reduce((s, x) => s + (x ?? 0), 0);
       expect(sum).toBeCloseTo(g.w.ledger.balance(companyAccount(c.id)), 1);
     }, 300_000);
+
+  it("counts an NPC's advance on a broker's paper (faucet:npc_advance) as loads delivered", async () => {
+    const g = await TestGame.create();
+    const c = g.join("Advance Freight", "oo", "DAL")!;
+    g.stepHour();
+    const o = openMonth(g.w, c);
+    const loadsBefore = o?.flows.loads ?? 0;
+    const otherBefore = Math.abs(o?.flows.otherIn ?? 0) + Math.abs(o?.flows.otherOut ?? 0);
+    // The factor's cash now (or the lessor's pay on delivery) for a load a broker posted: receivables.ts NPC_ADVANCE.
+    g.w.ledger.post(g.w.t, "faucet:npc_advance", companyAccount(c.id), 2400, "load:999999");
+    const after = openMonth(g.w, c)!;
+    expect((after.flows.loads ?? 0) - loadsBefore).toBeCloseTo(2400, 2);
+    const other = Math.abs(after.flows.otherIn ?? 0) + Math.abs(after.flows.otherOut ?? 0);
+    expect(other - otherBefore).toBeCloseTo(0, 2);
+    const total = Object.values(after.flows).reduce((s, x) => s + Math.abs(x ?? 0), 0);
+    expect(other).toBeLessThanOrEqual(0.02 * total + 1);
+    // The open month still adds up to cash now.
+    const sum = after.cashStart + Object.values(after.flows).reduce((s, x) => s + (x ?? 0), 0);
+    expect(sum).toBeCloseTo(g.w.ledger.balance(companyAccount(c.id)), 1);
+  });
+
+  it("counts a broker's repayment of the factor's advance (sink:npc_factor) as carrier pay, not negative loads", async () => {
+    // brokerage.enabled flipped for this test only (the config is read-only to the game; tests may vary it).
+    const k = GAME_CONFIG.brokerage as { enabled: boolean };
+    const was = k.enabled;
+    k.enabled = true;
+    try {
+      const g = await TestGame.create();
+      const c = g.join("Repay Lines", "fleet", "DAL")!;
+      if (g.w.ladder) g.w.ladder.brokerage = Math.floor(g.w.t / g.w.cfg.time.gameMinutesPerDay);
+      g.w.ledger.post(g.w.t, "faucet:test", companyAccount(c.id), 120_000, "test");
+      const capital = g.w.cfg.token.staking.roles.broker + g.w.cfg.permits.brokerLicenseRenewalFd + 5_000;
+      expect(g.act({ type: "form_brokerage", name: "Repay Logistics", capitalFd: capital }, "carrier")).toEqual({ ok: true });
+      const b = g.brokerage!;
+      g.stepHour();
+      const flows = (id: number) => ({ ...(openMonth(g.w, g.w.companies[id - 1]!)?.flows ?? {}) });
+      const cBefore = flows(c.id);
+      const bBefore = flows(b.id);
+      // The factor's advance to the carrier on the broker's paper, then the broker's repayment at the due day.
+      g.w.ledger.post(g.w.t, "faucet:npc_advance", companyAccount(c.id), 1800, "load:999998");
+      g.w.ledger.post(g.w.t, companyAccount(b.id), "sink:npc_factor", 1800, "receivable:999998");
+      const cAfter = flows(c.id);
+      const bAfter = flows(b.id);
+      const d = (a: Record<string, number | undefined>, z: Record<string, number | undefined>, k: string) => (z[k] ?? 0) - (a[k] ?? 0);
+      expect(d(cBefore, cAfter, "loads")).toBeCloseTo(1800, 2);
+      expect(d(bBefore, bAfter, "carrierPay")).toBeCloseTo(-1800, 2);
+      expect(d(bBefore, bAfter, "loads")).toBeCloseTo(0, 2);
+      // Neither side's catch-all moves; the broker's whole month stays under 2% of its flows. (The carrier's month holds this
+      // test's seed grant and the brokerage's sink:capital_transfer_fee, neither of them freight.)
+      for (const [a, z] of [[cBefore, cAfter], [bBefore, bAfter]] as const) {
+        expect(d(a, z, "otherIn")).toBeCloseTo(0, 2);
+        expect(d(a, z, "otherOut")).toBeCloseTo(0, 2);
+      }
+      const other = Math.abs(bAfter.otherIn ?? 0) + Math.abs(bAfter.otherOut ?? 0);
+      const total = Object.values(bAfter).reduce((s, x) => s + Math.abs(x ?? 0), 0);
+      expect(other).toBeLessThanOrEqual(0.02 * total + 1);
+      // The broker's open month still adds up to its cash.
+      const o = openMonth(g.w, b)!;
+      const sum = o.cashStart + Object.values(o.flows).reduce((s, x) => s + (x ?? 0), 0);
+      expect(sum).toBeCloseTo(g.w.ledger.balance(companyAccount(b.id)), 1);
+    } finally {
+      k.enabled = was;
+    }
+  });
 });

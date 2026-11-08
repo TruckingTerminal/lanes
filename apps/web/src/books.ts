@@ -84,7 +84,12 @@ export function lineOf(w: World, c: Company, other: string, ref: string, inflow:
       case "npc_shipper":
         return ref.startsWith("detention:") ? "detention" : "loads";
       case "npc_factor":
+        // In, the factor's pay for a load; out (sink:npc_factor), the payer settling freight it owed on paper the NPC factor
+        // or lessor holds (receivables.ts holderAccount): a broker repaying the advance to its carrier, a shipper the same.
+        return inflow ? "loads" : "carrierPay";
       case "npc_lessor":
+      // An NPC's advance on a company's paper (engine receivables.ts NPC_ADVANCE): a carrier's pay for a load, paid early.
+      case "npc_advance":
         return "loads";
       case "factoring_fee":
       case "board_fee":

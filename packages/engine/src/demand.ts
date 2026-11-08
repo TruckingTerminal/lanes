@@ -139,6 +139,9 @@ export function planFreight(w: World, day: number): FreightPlan {
   });
   const npcExpected = new Float64Array(n * EQUIPMENT.length);
   const scale = new Float64Array(n * EQUIPMENT.length).fill(1);
+  // The emission cap's volume lever (emission.ts): NPC shippers post less while the budget runs ahead; facilities post what they make.
+  const vol = w.stab.emissionVolMult;
+  const hubExpected = w.emission.hubExpectedToday;
   for (let i = 0; i < n; i++) {
     for (let e = 0; e < EQUIPMENT.length; e++) {
       const k = planIndex(i, e);
@@ -146,7 +149,8 @@ export function planFreight(w: World, day: number): FreightPlan {
       const cap = w.cfg.facilities.maxPlayerShareOfHub * demand;
       const player = Math.min(facilityTotal[k]!, cap);
       if (facilityTotal[k]! > cap) scale[k] = cap / facilityTotal[k]!;
-      npcExpected[k] = demand - player;
+      npcExpected[k] = (demand - player) * vol;
+      hubExpected[i]! += npcExpected[k]!;
     }
   }
   const facilityExpected = new Float64Array(w.facilities.length);

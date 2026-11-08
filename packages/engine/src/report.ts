@@ -7,6 +7,7 @@ import type { BrokerageLog, LaunchRecord } from "./types.js";
 import { creditScore } from "./credit.js";
 import { riskStats } from "./purchaseLoans.js";
 import { reserveCapFd, reserveFd, reserveHeldFd } from "./cashReserve.js";
+import { subsidyFd } from "./emission.js";
 import { contractAccount } from "./receivables.js";
 import { exitAccount, stakeAccount } from "./staking.js";
 import { loanStakeAccount, operatingTrucks, type World } from "./world.js";
@@ -34,6 +35,36 @@ export interface SeasonReport {
   supplyAfterCloseFd: number | null;
   companiesAtCarryoverCap: number | null;
 }
+
+/** Sinks over faucets for a run of days, raw (the gate's) and with the NPC advance-and-repayment wash taken out of both sides. */
+export interface RatioReading {
+  raw: number;
+  corrected: number;
+  faucetFd: number;
+  sinkFd: number;
+  /** The NPC factor's and lessor's advances on companies' paper (faucet:npc_advance) and their repayments (sink:npc_factor). */
+  advanceFd: number;
+  repaidFd: number;
+}
+
+export function ratioOf(slice: readonly DayMetrics[]): RatioReading {
+  let faucetFd = 0;
+  let sinkFd = 0;
+  let advanceFd = 0;
+  let repaidFd = 0;
+  for (const d of slice) {
+    faucetFd += d.faucetFd;
+    sinkFd += d.sinkFd;
+    advanceFd += d.faucetByTag?.npc_advance ?? 0;
+    repaidFd += d.sinkByTag?.npc_factor ?? 0;
+  }
+  const raw = faucetFd > 0 ? sinkFd / faucetFd : 0;
+  const corrected = faucetFd - advanceFd > 0 ? (sinkFd - repaidFd) / (faucetFd - advanceFd) : 0;
+  return { raw, corrected, faucetFd, sinkFd, advanceFd, repaidFd };
+}
+
+/** The faucet tags that are NPC freight pay (the emission cap's draw; emission.ts FREIGHT_FAUCETS), by their metrics key. */
+const FREIGHT_TAGS = new Set(["npc_shipper", "npc_factor", "npc_lessor"]);
 
 /**
  * Three readings of "FD supply never doubles in a year". From a 5,000-FD-per-
@@ -120,7 +151,37 @@ export interface RunReport {
    * mean operating result; and (from v59) liquidations per company, median wealth, mean and median net worth (wealth
    * with locked FD and businesses, less debt), trucks running, and the dollars put in and cashed out per company.
    */
-  byStrategy?: Record<string, Record<string, { companies: number; wealthFd: number; liquidatedShare: number; operatingFd: number; bankruptcies?: number; medianWealthFd?: number; netWorthFd?: number; medianNetWorthFd?: number; trucks?: number; usdIn?: number; usdOut?: number }>>;
+  byStrategy?: Record<string, Record<string, { companies: number; wealthFd: number; liquidatedShare: number; operatingFd: number; bankruptcies?: number; medianWealthFd?: number; netWorthFd?: number; medianNetWorthFd?: number; trucks?: number; usdIn?: number; usdOut?: number; /** Liquid FD (cash and the Reserve), median; and the first owned truck: how many bought one, the median day from the company's start. */ medianCashFd?: number; firstTruck?: { bought: number; medianDay: number | null } }>>;
+  /**
+   * The emission cap (emission.ts), on or off (off: what it would have capped). By month: the budget, NPC freight pay
+   * committed at the invoice and paid in cash against it, R's subsidy, the carry after the month; the levers' means and
+   * the days each sat at its floor (from the daily metrics; the open month included when it has days). Totals; NPC pay
+   * by kind (spot, brokered, contract) and the open NPC board by kind (mean a day); the three starter hubs by week (the NPC
+   * loads planFreight asked them to post a day, open NPC loads and idle trucks there at day end); the reserve against its
+   * genesis level and the supply at the end, for the net emission.
+   */
+  emission?: {
+    enabled: boolean;
+    refill: number;
+    firstMonthFd: number;
+    months: { month: number; days: number; budgetFd: number; committedFd: number; paidFd: number; subsidyFd: number; carryFd: number; volMult: number; rateMult: number; product: number; daysAtVolFloor: number; daysAtRateFloor: number }[];
+    totals: { budgetedFd: number; committedFd: number; paidFd: number; subsidyFd: number; carryFd: number; daysAtVolFloor: number; daysAtRateFloor: number };
+    pay: Record<"spot" | "brokered" | "contract", { loads: number; fd: number }>;
+    openByKind: { spot: number; contract: number };
+    starterHubs: Record<string, { week: number; expectedPerDay: number; openPerDay: number; idlePerDay: number }[]>;
+    reserve: { genesisReserveFd: number; endFd: number; netEmittedFd: number; supplyEndFd: number; capFd: number; genesisFd: number };
+  };
+  /**
+   * The ratio's accounting, measured beside the gate's raw ratio (the gate's definition is unchanged; economy-emission.md
+   * §14). An NPC's advance on a company's paper (receivables.ts NPC_ADVANCE) is a faucet and its repayment (sink:npc_factor)
+   * a sink of the same FD, so `corrected` takes both out. By year, the operating faucets other than NPC freight pay and the
+   * advance, by tag, and the corrected ratio with each of them taken out of the faucets alone: where the ratio lives with
+   * and without each.
+   */
+  ratios?: {
+    quarters: ({ label: string } & RatioReading)[];
+    years: ({ year: number; freightFd: number; otherFaucetsByTag: Record<string, number>; withoutByTag: Record<string, number> } & RatioReading)[];
+  };
   /**
    * Player brokerages (brokerage.ts), when on: each pair (its carrier's and brokerage's net worth at the end, what the
    * brokerage made for its owner, the capital each way and its fees), the control carriers that could have formed one,
@@ -456,6 +517,37 @@ export function buildReport(w: World): RunReport {
     });
   }
 
+  // The ratio's accounting beside the gate's (ratios): the same complete quarters, and the years, raw and corrected.
+  const ratioQuarters: NonNullable<RunReport["ratios"]>["quarters"] = [];
+  for (let s = 0; s < seasonCount; s++) {
+    for (let q = 0; q < 4; q++) {
+      const slice = days.filter((d) => d.season === s && d.day - s * perSeason >= q * quarterLen && d.day - s * perSeason < (q + 1) * quarterLen);
+      if (slice.length < quarterLen - 1) continue;
+      ratioQuarters.push({ label: `S${s + 1}Q${q + 1}`, ...ratioOf(slice) });
+    }
+  }
+  const ratioYears: NonNullable<RunReport["ratios"]>["years"] = [];
+  for (let y = 0; y * perSeason < days.length; y++) {
+    const slice = days.filter((d) => Math.floor(d.day / perSeason) === y);
+    if (slice.length < perSeason) break;
+    const reading = ratioOf(slice);
+    let freightFd = 0;
+    const otherFaucetsByTag: Record<string, number> = {};
+    for (const d of slice) {
+      for (const [tag, v] of Object.entries(d.faucetByTag ?? {})) {
+        if (FREIGHT_TAGS.has(tag)) freightFd += v;
+        else if (tag !== "npc_advance") otherFaucetsByTag[tag] = (otherFaucetsByTag[tag] ?? 0) + v;
+      }
+    }
+    const withoutByTag: Record<string, number> = {};
+    for (const [tag, v] of Object.entries(otherFaucetsByTag)) {
+      const f = reading.faucetFd - reading.advanceFd - v;
+      withoutByTag[tag] = f > 0 ? (reading.sinkFd - reading.repaidFd) / f : 0;
+    }
+    ratioYears.push({ year: y + 1, freightFd, otherFaucetsByTag, withoutByTag, ...reading });
+  }
+  const ratios: RunReport["ratios"] = { quarters: ratioQuarters, years: ratioYears };
+
   const supply = supplyReport(days, perSeason, warmup, k.maxSupplyGrowthPerYear);
 
   // Miles per in-game hour across all seasons, grouped by strategy within the
@@ -611,12 +703,12 @@ export function buildReport(w: World): RunReport {
   };
   type Prudence = Required<NonNullable<RunReport["byStrategy"]>[string][string]>;
   const acc: Record<string, Record<string, Prudence>> = {};
-  const spreads: Record<string, { wealth: number[]; netWorth: number[] }> = {};
+  const spreads: Record<string, { wealth: number[]; netWorth: number[]; cash: number[]; firstTruck: number[] }> = {};
   counted.forEach((c, i) => {
     if (c.role !== "carrier") return;
     const [seg, strat] = c.strategy.split(":") as [string, string | undefined];
     if (!strat || (seg !== "oo" && seg !== "fleet" && seg !== "wave")) return;
-    const b = ((acc[seg] ??= {})[strat] ??= { companies: 0, wealthFd: 0, liquidatedShare: 0, operatingFd: 0, bankruptcies: 0, medianWealthFd: 0, netWorthFd: 0, medianNetWorthFd: 0, trucks: 0, usdIn: 0, usdOut: 0 });
+    const b = ((acc[seg] ??= {})[strat] ??= { companies: 0, wealthFd: 0, liquidatedShare: 0, operatingFd: 0, bankruptcies: 0, medianWealthFd: 0, netWorthFd: 0, medianNetWorthFd: 0, trucks: 0, usdIn: 0, usdOut: 0, medianCashFd: 0, firstTruck: { bought: 0, medianDay: null } });
     const nw = netWorthOf(c, wealthAll[i]!);
     b.companies++;
     b.wealthFd += wealthAll[i]!;
@@ -627,17 +719,76 @@ export function buildReport(w: World): RunReport {
     b.trucks += operatingTrucks(w, c.id);
     b.usdIn += c.usd.in;
     b.usdOut += c.usd.out;
-    const sp = (spreads[`${seg}:${strat}`] ??= { wealth: [], netWorth: [] });
+    const sp = (spreads[`${seg}:${strat}`] ??= { wealth: [], netWorth: [], cash: [], firstTruck: [] });
     sp.wealth.push(wealthAll[i]!);
     sp.netWorth.push(nw);
+    // Liquid FD: cash in hand and the Reserve (cashReserve.ts), the emission retune's guard figure (economy-emission.md).
+    sp.cash.push(w.ledger.balance(companyAccount(c.id)) + (cfg.cashReserve.enabled ? reserveHeldFd(w, c.id) : 0));
+    if (c.firstOwnedTruckDay !== null) sp.firstTruck.push(c.firstOwnedTruckDay - c.createdDay);
   });
   for (const [seg, bySeg] of Object.entries(acc)) for (const [strat, b] of Object.entries(bySeg)) {
     for (const k of ["wealthFd", "netWorthFd", "liquidatedShare", "operatingFd", "bankruptcies", "trucks", "usdIn", "usdOut"] as const) b[k] /= b.companies;
     const sp = spreads[`${seg}:${strat}`]!;
     b.medianWealthFd = median(sp.wealth);
     b.medianNetWorthFd = median(sp.netWorth);
+    b.medianCashFd = median(sp.cash);
+    b.firstTruck = { bought: sp.firstTruck.length, medianDay: sp.firstTruck.length ? median(sp.firstTruck) : null };
   }
   const byStrategy: NonNullable<RunReport["byStrategy"]> = acc;
+  // The emission cap (emission.ts): by month, by kind, the starter hubs, the reserve.
+  const emission: RunReport["emission"] = (() => {
+    const k = cfg.token.emission;
+    const s = w.emission;
+    const D = cfg.time.daysPerMonth;
+    const mean = (xs: number[]) => (xs.length ? sum(xs) / xs.length : 0);
+    const monthRow = (m: { month: number; budgetFd: number; committedFd: number; paidFd: number; subsidyFd: number; carryFd: number }) => {
+      const ds = days.filter((d) => Math.floor(d.day / D) === m.month);
+      return {
+        ...m,
+        days: ds.length,
+        volMult: mean(ds.map((d) => d.emissionVolMult)),
+        rateMult: mean(ds.map((d) => d.emissionMult)),
+        product: mean(ds.map((d) => d.emissionVolMult * d.emissionMult)),
+        daysAtVolFloor: ds.filter((d) => d.emissionVolMult <= k.volRange[0] + 1e-9).length,
+        daysAtRateFloor: ds.filter((d) => d.emissionMult <= k.multRange[0] + 1e-9).length,
+      };
+    };
+    const open = monthRow({ month: s.month, budgetFd: s.monthBudgetFd, committedFd: s.committedMonthFd, paidFd: w.ledger.npcPaidFd() - s.paidAtMonthStartFd, subsidyFd: k.refill > 0 && s.month > 0 ? subsidyFd(k, s.month) : 0, carryFd: s.carryFd + s.monthBudgetFd - s.committedMonthFd });
+    const months = [...s.months.map(monthRow), ...(open.days > 0 ? [open] : [])];
+    const totals = {
+      budgetedFd: sum(months.map((m) => m.budgetFd)),
+      committedFd: s.committedFd,
+      paidFd: w.ledger.npcPaidFd(),
+      subsidyFd: sum(months.map((m) => m.subsidyFd)),
+      carryFd: months.at(-1)?.carryFd ?? 0,
+      daysAtVolFloor: sum(months.map((m) => m.daysAtVolFloor)),
+      daysAtRateFloor: sum(months.map((m) => m.daysAtRateFloor)),
+    };
+    const starterHubs: NonNullable<RunReport["emission"]>["starterHubs"] = {};
+    // The director's fallback starter hubs (DECISIONS.md 2026-11-02): where a newcomer's first board must never be empty.
+    for (const id of ["DAL", "LAX", "PHX"]) {
+      const h = w.net.hubs.findIndex((x) => x.id === id);
+      if (h < 0) continue;
+      const rows: { week: number; expectedPerDay: number; openPerDay: number; idlePerDay: number }[] = [];
+      for (let wk = 0; wk * 7 < s.hubDays.length; wk++) {
+        const slice = s.hubDays.slice(wk * 7, wk * 7 + 7);
+        rows.push({ week: wk + 1, expectedPerDay: mean(slice.map((d) => d.expected[h]!)), openPerDay: mean(slice.map((d) => d.open[h]!)), idlePerDay: mean(slice.map((d) => d.idle[h]!)) });
+      }
+      starterHubs[id] = rows;
+    }
+    const genesisReserveFd = cfg.token.circular.enabled ? cfg.token.circular.capFd * cfg.token.circular.shares.reserve : 0;
+    return {
+      enabled: k.enabled,
+      refill: k.refill,
+      firstMonthFd: k.firstMonthFd,
+      months,
+      totals,
+      pay: { spot: { ...s.pay.spot }, brokered: { ...s.pay.brokered }, contract: { ...s.pay.contract } },
+      openByKind: { spot: mean(s.hubDays.map((d) => d.openSpot)), contract: mean(s.hubDays.map((d) => d.openContract)) },
+      starterHubs,
+      reserve: { genesisReserveFd, endFd: w.ledger.reserve(), netEmittedFd: genesisReserveFd - w.ledger.reserve(), supplyEndFd: w.ledger.supply(), capFd: k.capFd, genesisFd: k.genesisFd },
+    };
+  })();
   // The Reserve (cashReserve.ts), when on: what is held at the end by persona, what it shelters, and what it paid.
   const cashReserve: RunReport["cashReserve"] = (() => {
     if (!cfg.cashReserve.enabled) return undefined;
@@ -809,6 +960,8 @@ export function buildReport(w: World): RunReport {
     factoring: factoringReport(w),
     population,
     byStrategy,
+    emission,
+    ratios,
     brokerage,
     cashReserve,
     wave,

@@ -140,7 +140,11 @@ export interface DayMetrics {
   outstandingFd: number;
   ceilingFd: number;
   rateMult: number;
+  /** The emission cap's levers in force today (emission.ts): the NPC rate and the NPC posted volume; what NPC shippers committed today at the invoice; the horizon's budget that set today's levers. */
   emissionMult: number;
+  emissionVolMult: number;
+  emissionCommittedFd: number;
+  emissionAvailableFd: number;
   queuedAirdropFd: number;
   /** NPC leases priced by value (freeEntry.leases.byValue): the deposits the lessor holds. */
   leaseDepositsFd: number;
@@ -505,6 +509,9 @@ export class MetricsRecorder {
       ceilingFd: ceilingFd(w),
       rateMult: w.stab.rateMult,
       emissionMult: w.stab.emissionMult,
+      emissionVolMult: w.stab.emissionVolMult,
+      emissionCommittedFd: w.emission.todayFd,
+      emissionAvailableFd: w.emission.lastDay.availableFd,
       queuedAirdropFd: queuedAirdropFd(w),
       leaseDepositsFd: w.trucks.reduce((s, t) => s + (t.companyId !== 0 ? t.depositFd : 0), 0),
       purchaseLoansFd: w.purchaseLoans.reduce((s, l) => s + (l.status === "active" || l.status === "defaulted" ? l.principalFd : 0), 0),

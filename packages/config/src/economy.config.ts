@@ -1028,15 +1028,45 @@ export const economyConfig = {
       // rates and the dial spends its first year walking them down to where the sinks balance.
       rateStabilizer: { enabled: false, stepPerMonth: 0.03, range: [0.5, 1.2] as const, windowDays: 30, start: 1 },
     },
-    // The emission cap (2026-11-04, Jeff: "a capped FD supply from now"; economy-emission.md, emission.ts): NPC freight
-    // stops being an elastic faucet. Every FD an NPC shipper or the NPC factor pays a carrier draws on a fixed monthly
-    // budget, first × r^month with r = 1 − first ÷ (cap − genesis), so the schedule sums to the cap less genesis: the
-    // token's max supply (circular.capFd) less what genesis holds outside the reserve (the 40% of allocations), i.e.
-    // the 600M reserve is all NPC freight will ever pay out, net of what the months leave unspent. Daily, NPC pay per
-    // mile is scaled by clamp(remaining ÷ expected remaining spend, multRange); expected = the month's budget × days
-    // left ÷ days in month; a month's overspend comes out of the next. firstMonthFd: ~80% of the beta's opening
-    // NPC pay (runs/em-before: 30–40M a month), so r = 0.95 and the budget halves every ~14 months.
-    emission: { enabled: false, capFd: 1_000_000_000, genesisFd: 400_000_000, firstMonthFd: 30_000_000, multRange: [0.5, 1] as const },
+    // The emission cap (2026-11-04, Jeff: "a capped FD supply from now"; retuned 2026-11-07; studio/reviews/economy-emission.md,
+    // emission.ts): NPC freight stops being an elastic faucet. Every FD an NPC shipper commits to a company for freight draws
+    // on a monthly budget at the invoice, whichever route pays it (net 30, the factor, the lessor, NPC detention), so the
+    // lessor's pay is in and the payment terms' timing is out of the pacing. Two schedules behind `refill`. 0 (G): first ×
+    // r^month with r = 1 − first ÷ (cap − genesis), summing to the cap less genesis (circular.capFd less what genesis holds
+    // outside the reserve: the 600M reserve is all NPC freight would ever pay out gross). Above 0 (R): month 0 is
+    // `firstMonthFd`; each month after re-emits `refill` of what the sinks returned over the last `refillWindowDays` (scaled
+    // to a month) plus a published subsidy, subsidy.firstMonthFd × rs^month with rs = 1 − first ÷ total, so faucets ≈ sinks
+    // + the subsidy by construction and the net emission is finite. Pacing, daily (dailyEmission): the budget left for a
+    // rolling `horizonDays` horizon (this month's remainder, overspend carried, plus the next month's share) against the
+    // recent spend per unit of lever (the last `windowDays`, each day read against the lever in force `lagDays` earlier, the
+    // delivery lag) gives the lever product that lands the horizon on budget; it moves at most `stepPerDay` a day and
+    // opens at `warmStart`, held there until the window holds lagDays + holdAfterLagDays closed days (before that nothing
+    // has been delivered and the spend per lever would read near zero). The lever: NPC posted volume first (demand.ts
+    // planFreight, down to volRange[0]), then the NPC reference rate (freight.ts, floored at multRange[0], about break-even
+    // for a leased owner-operator), so the product never goes under volRange[0] × multRange[0]. While the cap is on, the
+    // balance dial (step.ts monthlyStabilizers, ceiling.ts) holds both ways (dialOneWay false) or may lower NPC rates and
+    // never raise them (true), and the published volume dial holds (volumeDialOneWay false) or may cut NPC volume and
+    // never add it (true; tried at four years under R and rejected: with a budget that re-emits what comes back, a dial
+    // that only cuts is a ratchet, economy-emission.md §14). Nothing moves NPC freight up against the cap. R's base is
+    // the trailing sinks (refillNet false) or the trailing sinks less the trailing
+    // faucets other than NPC freight pay — loans, deposits, payouts, what the freight faucet need not balance (true).
+    // Sized 2026-11-07 (economy-emission.md "Retune"): the pacing 14 / 0.03 / 5 and the opening at 0.5 are the gate's.
+    // Switched on only in LIVE_LEVERS at the bump.
+    emission: {
+      enabled: false,
+      capFd: 1_000_000_000,
+      genesisFd: 400_000_000,
+      firstMonthFd: 36_000_000,
+      multRange: [0.8, 1] as const,
+      volRange: [0.5, 1] as const,
+      pacing: { horizonDays: 30, windowDays: 14, lagDays: 5, stepPerDay: 0.03, warmStart: 0.5, holdAfterLagDays: 2 },
+      refill: 0,
+      refillNet: false,
+      refillWindowDays: 90,
+      subsidy: { firstMonthFd: 3_000_000, totalFd: 60_000_000 },
+      dialOneWay: false,
+      volumeDialOneWay: false,
+    },
     launch: {
       // Beta FD is play money: above working capital it's burned at launch, and the
       // working capital kept is locked — it can be spent in the game, not sold.

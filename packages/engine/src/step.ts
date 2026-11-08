@@ -8,7 +8,7 @@ import { runBoardRound, autoBook } from "./board.js";
 import { clearBuyback } from "./buyback.js";
 import { chargeMinimumRent, monthlyCapacity } from "./capacity.js";
 import { ceilingOn, weeklyCeiling } from "./ceiling.js";
-import { dailyEmission } from "./emission.js";
+import { dailyEmission, dialMayMoveTo } from "./emission.js";
 import { dayOf, isRoundBoundary, MINUTES_PER_HOUR, seasonOf } from "./clock.js";
 import { clamp, fuelPrice } from "./economics.js";
 import { companyAccount } from "./ledger.js";
@@ -90,7 +90,6 @@ function endOfDay(w: World, day: number, agents?: DailyAgentHook): void {
   dailyReceivables(w);
   releaseLaunchHolds(w); // a player brokerage's beta bond behind paper open at the launch burns once that paper is paid (brokerage.ts)
   dailyReserve(w); // the Reserve's withdrawals land in cash (cashReserve.ts)
-  dailyEmission(w, day); // the emission cap's multiplier for the day to come (emission.ts)
 
   // Idle fee on owned assets unused for 7+ in-game days, parked and listed ones included (§Owned vs. leased).
   // And a sitting truck burns diesel from its first day: a crewed truck idle at day's end idles for the
@@ -213,6 +212,7 @@ function endOfDay(w: World, day: number, agents?: DailyAgentHook): void {
     if (tokenLive(w) && !launchedToday) seasonAirdrop(w);
   }
   w.metrics.closeDay(w, day, fuelPrice(w));
+  dailyEmission(w, day); // the emission cap: the day's commitments close against today's levers, and the levers for the day to come (emission.ts)
   dailyPopulationDial(w, day); // the population dial reads the day just closed (population.ts)
   if ((day + 1) % cfg.time.daysPerMonth === 0) {
     monthlyStabilizers(w);
@@ -232,8 +232,12 @@ function endOfDay(w: World, day: number, agents?: DailyAgentHook): void {
 /**
  * Published stabilizers (§Circular economy): NPC volume moves up to ±10% per
  * month, and the rack spread within ±5%, both toward the sink/faucet target.
+ * While the emission cap is on (emission.ts) it is the balance control: the volume dial (volumeMult) holds where it
+ * stands (token.emission.volumeDialOneWay would let it cut; off, §14), and the balance dial (rateMult) holds both ways
+ * or, with token.emission.dialOneWay, may still lower NPC rates and never raise them (emission.ts dialMayMoveTo), so
+ * nothing can push NPC freight up against the cap. The rack spread and the profit-tax stabilizer still move.
  */
-function monthlyStabilizers(w: World): void {
+export function monthlyStabilizers(w: World): void {
   const { stabilizers } = w.cfg;
   const month = w.metrics.days.slice(-w.cfg.time.daysPerMonth);
   const faucets = month.reduce((s, d) => s + d.faucetFd, 0);
@@ -256,7 +260,7 @@ function monthlyStabilizers(w: World): void {
     const f = window.reduce((s, d) => s + d.faucetFd, 0);
     const r = f > 0 ? window.reduce((s, d) => s + d.sinkFd, 0) / f : ratio;
     const p = clamp((r - mid) / ((hi - lo) / 2), -1, 1);
-    w.stab.rateMult = clamp(w.stab.rateMult * (1 + p * rs.stepPerMonth), rs.range[0], rs.range[1]);
+    w.stab.rateMult = dialMayMoveTo(w, w.stab.rateMult, clamp(w.stab.rateMult * (1 + p * rs.stepPerMonth), rs.range[0], rs.range[1]));
   }
   // After launch the profit-tax rate moves first; freight volume only once the rate is at a limit.
   const ts = w.cfg.token.taxStabilizer;
@@ -267,6 +271,7 @@ function monthlyStabilizers(w: World): void {
   }
   const [vMin, vMax] = tokenLive(w) ? w.cfg.token.volumeRangeLive : stabilizers.volumeRange;
   // The circular economy prices freight off the reserve instead (freight.ts reserveFactor); the volume dial stays at 1.
-  if (!w.cfg.token.circular.enabled || w.cfg.token.circular.volumeStabilizer) w.stab.volumeMult = clamp(w.stab.volumeMult * (1 + pressure * stabilizers.volumeStepPerMonth), vMin, vMax);
+  // Under the cap the volume dial holds (its own switch, volumeDialOneWay, would let it cut; emission.ts dialMayMoveTo).
+  if (!w.cfg.token.circular.enabled || w.cfg.token.circular.volumeStabilizer) w.stab.volumeMult = dialMayMoveTo(w, w.stab.volumeMult, clamp(w.stab.volumeMult * (1 + pressure * stabilizers.volumeStepPerMonth), vMin, vMax), w.cfg.token.emission.volumeDialOneWay);
   w.stab.rackSpread = clamp(w.stab.rackSpread - pressure * stabilizers.rackStepPerMonth, 1 - stabilizers.rackSpreadBand, 1 + stabilizers.rackSpreadBand);
 }

@@ -18,6 +18,7 @@
  */
 import { dayOf } from "./clock.js";
 import { clamp } from "./economics.js";
+import { dialMayMoveTo } from "./emission.js";
 import type { World } from "./world.js";
 
 /** On once the token has launched with the ceiling switched on (circular economy only). */
@@ -69,7 +70,8 @@ export function weeklyCeiling(w: World): void {
   // A full step when the supply sits a whole headroom past the target; less the closer it is.
   const gap = clamp((out - target) / Math.max(1, path * k.headroom), -1, 1);
   const floor = st.launchMult * k.rateFloor;
-  w.stab.rateMult = clamp(w.stab.rateMult * (1 - gap * k.stepPerWeek), floor, st.launchMult);
+  // The emission cap (emission.ts) is the rate control while it is on: the ceiling's dial holds (or may only lower rates, dialOneWay) and the path's holding rule stands.
+  w.stab.rateMult = dialMayMoveTo(w, w.stab.rateMult, clamp(w.stab.rateMult * (1 - gap * k.stepPerWeek), floor, st.launchMult));
   const atFloor = w.stab.rateMult <= floor + 1e-9;
   if (atFloor) st.weeksAtFloor++;
   st.holding = out >= path || (atFloor && out >= target);

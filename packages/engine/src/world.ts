@@ -8,7 +8,8 @@ import { Ledger, companyAccount } from "./ledger.js";
 import { truckCap } from "./staking.js";
 import { newPool } from "./pools.js";
 import { Rng } from "./rng.js";
-import type { BuybackWeek, BrokerageLog, GameEvent, TokenState, Company, Business, DriverClock, Facility, TruckStopSite, FinancePool, FactoringLog, PopulationState, FraudCase, LeaseKind, Listing, Load, ManagerKind, Pool, PoolLine, PurchaseLoan, Receivable, Role, SeasonCloseRecord, Staff, StandingOrder, Trailer, Truck, TruckOrder, Contract, LeaseOffer } from "./types.js";
+import type { BuybackWeek, BrokerageLog, GameEvent, TokenState, Company, Business, DriverClock, EmissionState, Facility, TruckStopSite, FinancePool, FactoringLog, PopulationState, FraudCase, LeaseKind, Listing, Load, ManagerKind, Pool, PoolLine, PurchaseLoan, Receivable, Role, SeasonCloseRecord, Staff, StandingOrder, Trailer, Truck, TruckOrder, Contract, LeaseOffer } from "./types.js";
+import { newEmissionState } from "./emission.js";
 import { fitTrailer, handBack, hook, hookedTrailer, newTrailer } from "./trailers.js";
 import type { AssetSale } from "./assetSales.js";
 import { signPolicy } from "./insurance.js";
@@ -84,8 +85,8 @@ export interface World {
   /** The NPC used lot (usedMarket.npcLot): rigs on the lot, and rigs sold. */
   usedLot: { stock: number; sold: number; due?: number };
   purchaseLending: { madeFd: number; interestFd: number; defaults: number; seized: number; writtenOffFd: number; stakeSlashedFd: number };
-  /** Published stabilizers (§Circular economy — targets and stabilizers). */
-  stab: { volumeMult: number; rackSpread: number; rateMult: number; emissionMult: number };
+  /** Published stabilizers (§Circular economy — targets and stabilizers), and the emission cap's two levers (emission.ts): the NPC rate and the NPC posted volume. */
+  stab: { volumeMult: number; rackSpread: number; rateMult: number; emissionMult: number; emissionVolMult: number };
   /** Last round's load-to-truck ratio per hub, for repositioning. */
   lastRatio: Float64Array;
   /** Smoothed share of open loads that clear each round, by equipment (public board data). */
@@ -142,6 +143,8 @@ export interface World {
   reserveStats?: { holdingFd: number; burnedFd: number; depositFd: number; withdrawFd: number };
   /** The population dial (population.ts), made on first use while it is on. */
   population?: PopulationState;
+  /** The emission cap (emission.ts): its budget, pacing and levers; kept with the cap off too, so a baseline reports what it would have capped. */
+  emission: EmissionState;
   /** Staking locks' tally (staking.ts lockStats), made on first use while they are on. */
   lockStats?: { made: Record<string, { locks: number; fd: number }>; rolled: number; matured: number; broken: number; discountsFd: number; slashedFd: number; brokenDiscountsFd: number };
   nextReceivableId: number;
@@ -157,6 +160,7 @@ export interface World {
 export function createWorld(o: WorldOptions): World {
   const root = new Rng(o.seed);
   const { cfg } = o;
+  const emission = newEmissionState(cfg, o.net.hubs.length);
   const w: World = {
     cfg,
     net: o.net,
@@ -238,7 +242,8 @@ export function createWorld(o: WorldOptions): World {
       loansMade: 0,
     },
     // The balance dial's day 0 (token.circular.rateStabilizer.start; 1 today): R11 can open the beta nearer its resting level.
-    stab: { volumeMult: 1, rackSpread: 1, rateMult: cfg.token.circular.enabled && cfg.token.circular.rateStabilizer.enabled ? cfg.token.circular.rateStabilizer.start : 1, emissionMult: 1 },
+    stab: { volumeMult: 1, rackSpread: 1, rateMult: cfg.token.circular.enabled && cfg.token.circular.rateStabilizer.enabled ? cfg.token.circular.rateStabilizer.start : 1, emissionMult: emission.rateMult, emissionVolMult: emission.volMult },
+    emission,
     lastRatio: new Float64Array(o.net.hubs.length).fill(1),
     fillRate: { van: 0.7, reefer: 0.7, flatbed: 0.7 },
     contractIndex: new Float64Array(o.net.hubs.length * 3).fill(NaN),

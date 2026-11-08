@@ -72,7 +72,11 @@ export class Ledger {
   readonly totals = new Map<string, number>();
   faucetCents = 0;
   sinkCents = 0;
-  /** FD NPC shippers and the NPC factor paid companies, in cents (the emission cap's draw, emission.ts). */
+  /**
+   * FD NPC shippers, the NPC factor and the NPC lessor paid companies for NPC freight, in cents: the emission cap's cash
+   * column (emission.ts; the budget itself is drawn at the invoice). An NPC's advance on a company's paper
+   * (receivables.ts NPC_ADVANCE) is not in it: that money is the payer's, repaid into sink:npc_factor.
+   */
   npcPaidCents = 0;
   /** Per company account: FD paid out, except what NOT_OUTFLOW lists. */
   private outflows = new Map<string, number>();
@@ -128,7 +132,7 @@ export class Ledger {
     if (kind === "faucet") {
       this.faucetCents += cents;
       this.totals.set(from, (this.totals.get(from) ?? 0) + cents);
-      if ((from === "faucet:npc_shipper" || from === "faucet:npc_factor") && to.startsWith("co:")) this.npcPaidCents += cents;
+      if ((from === "faucet:npc_shipper" || from === "faucet:npc_factor" || from === "faucet:npc_lessor") && to.startsWith("co:")) this.npcPaidCents += cents;
     } else if (kind === "sink") {
       this.sinkCents += cents;
       this.totals.set(to, (this.totals.get(to) ?? 0) + cents);

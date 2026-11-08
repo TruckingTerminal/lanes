@@ -416,6 +416,43 @@ export interface PopulationState {
   daysOver: number;
 }
 
+/**
+ * The emission cap's state (emission.ts): the budget, the pacing window and the levers. Kept whether or not the cap is
+ * on, so a baseline reports what it would have capped; only the levers wait for the switch.
+ */
+export interface EmissionState {
+  /** The month the current budget is for, its budget, and what earlier months left unspent (+) or overspent (−). */
+  month: number;
+  monthBudgetFd: number;
+  carryFd: number;
+  /** NPC freight pay committed at the invoice (receivables.ts bill, trips.ts detention): lifetime, this month, today. */
+  committedFd: number;
+  committedMonthFd: number;
+  todayFd: number;
+  /** The pacing window: each closed day's commitments, and the lever product that priced that day's freight. */
+  daily: number[];
+  levers: number[];
+  /** The lever product now and its split (also in w.stab), and the days each lever has sat at its floor. */
+  product: number;
+  volMult: number;
+  rateMult: number;
+  daysAtVolFloor: number;
+  daysAtRateFloor: number;
+  /** Lifetime budget issued and the subsidy's part of it (R); the ledger's NPC cash pay when the month opened. */
+  budgetedFd: number;
+  subsidyFd: number;
+  paidAtMonthStartFd: number;
+  /** Closed months: the budget, what was committed and paid in cash against it, R's subsidy, the carry after it. */
+  months: { month: number; budgetFd: number; committedFd: number; paidFd: number; subsidyFd: number; carryFd: number }[];
+  /** The last pacing reading, for the metrics: yesterday's commitments, the horizon's budget, the spend per unit of lever, the target. */
+  lastDay: { committedFd: number; availableFd: number; spendPerLeverFd: number; target: number };
+  /** NPC pay by kind at the invoice: spot board loads, loads tendered to brokers, contract tenders. */
+  pay: Record<"spot" | "brokered" | "contract", { loads: number; fd: number }>;
+  /** The newcomer check: per hub, the NPC loads planFreight asked for today; a row a day with the open NPC loads and idle trucks per hub at day end. */
+  hubExpectedToday: Float64Array;
+  hubDays: { expected: number[]; open: number[]; idle: number[]; openSpot: number; openContract: number }[];
+}
+
 export interface Receivable {
   id: number;
   /** Company id, or 0 for an NPC payer drawing on `faucet`. */

@@ -14,6 +14,7 @@ import { leaveParking, legMile, parkForTheNight, planNight, siteHere } from "./s
 import { managerBreakdownMult, managerMaintenanceMult } from "./labor.js";
 import { dayOf, MINUTES_PER_HOUR } from "./clock.js";
 import { clamp, fuelPrice, tripCost, ownerDrawFd } from "./economics.js";
+import { noteEmissionCommitment, npcPayKind } from "./emission.js";
 import { settleDoubleBroker } from "./fraud.js";
 import { bill, factoringLog } from "./receivables.js";
 import { lockCost, stakeDiscount } from "./staking.js";
@@ -48,7 +49,10 @@ function payDetention(w: World, load: Load, carrier: Company): number {
   if (poster && poster.human) {
     w.ledger.post(w.t, companyAccount(poster.id), to, fd, `detention:${load.id}`);
     poster.operating.costFd += fd;
-  } else w.ledger.post(w.t, "faucet:npc_shipper", to, fd, `detention:${load.id}`);
+  } else {
+    w.ledger.post(w.t, "faucet:npc_shipper", to, fd, `detention:${load.id}`);
+    noteEmissionCommitment(w, fd, npcPayKind(load)); // the emission cap's draw (emission.ts)
+  }
   return fd;
 }
 
@@ -462,7 +466,7 @@ function collectUpstream(w: World, load: Load, payee: Company, gross: number, fa
     // Player brokerages (brokerage.ts): a load its owner's own carrier hauled counts once per person, for the carrier.
     const ownHaul = samePerson(w, broker.id, payee.id);
     if (!defaulted) {
-      bill(w, { payer: 0, faucet: "faucet:npc_shipper", payee: broker, amountFd: billed, ref });
+      bill(w, { payer: 0, faucet: "faucet:npc_shipper", payee: broker, amountFd: billed, ref, npcKind: npcPayKind(load) });
       w.ledger.post(w.t, brokerAcct, "sink:board_fee", lockCost(w, broker, cfg.board.posterFeePct * billed, () => cfg.board.posterFeePct * billed * (1 - stakeDiscount(w, broker))), ref);
       if (!ownHaul) awardMiles(w, broker, cfg.miles.brokerPerMile * load.miles, load.laneId);
       broker.operating.revenueFd += billed;
@@ -492,7 +496,7 @@ function collectUpstream(w: World, load: Load, payee: Company, gross: number, fa
       shipper.loadsThisWeek++;
     }
   } else {
-    bill(w, { payer: 0, faucet: "faucet:npc_shipper", payee, amountFd: gross, ref, leased, truckId });
+    bill(w, { payer: 0, faucet: "faucet:npc_shipper", payee, amountFd: gross, ref, leased, truckId, npcKind: npcPayKind(load) });
   }
 }
 
