@@ -11,6 +11,7 @@ import { Bar, Btn, Card, Num, Panel, Pixel } from "../bits.js";
 import { Rig, Scene } from "../Loop.js";
 import { Fig } from "../Explain.js";
 import { TendersCard } from "./Contracts.js";
+import { MoneyEventRows } from "../MonthReport.js";
 import { DispatcherCard } from "./Dispatcher.js";
 import { DeliveredCard, RollingCards } from "./Rolling.js";
 import { emptyRun } from "../../rolling.js";
@@ -23,6 +24,12 @@ import { leaseMinFor } from "../../ledger.js";
 
 
 /** Send home's price before the tap (R24). */
+/** Where a truck will stand when its job is done: the load's receiver, the empty run's end, or where it is. */
+function endHub(t: Truck): number {
+  const w = S.game!.w;
+  const load = t.loadId !== null ? w.loads.get(t.loadId) : undefined;
+  return load && (t.status === "loaded" || t.status === "toPickup" || t.status === "loading" || t.status === "unloading") ? load.dest : t.status === "repositioning" ? t.targetHub : t.hub;
+}
 function homeRun(t: Truck): string {
   const r = emptyRun(S.game!.w, t, t.hub, me().homeHub);
   return MOVE.home(r.mi, r.fd, r.time);
@@ -63,10 +70,16 @@ export function Fleet(): JSX.Element {
 
 /** Today (S6): the last eight lines of the feed, which a phone has no ticker for. */
 function TodayCard(): JSX.Element | null {
-  const lines = feed().ticker.slice(0, 8);
-  if (!lines.length) return null;
+  // R9: the day's breakdowns, fines and claims over guard.newsFd come first, in the money style; their ticker lines give way.
+  const w = S.game!.w;
+  const money = <MoneyEventRows sinceT={w.t - w.cfg.time.gameMinutesPerDay} />;
+  const lines = feed()
+    .ticker.filter((l) => !l.cls.split(" ").includes("money"))
+    .slice(0, 8);
+  if (!lines.length && !MoneyEventRows({ sinceT: w.t - w.cfg.time.gameMinutesPerDay })) return null;
   return (
     <Card title={TRUCK.today}>
+      {money}
       {lines.map((l, i) => (
         <p key={i} class={cls("small", l.cls)}>
           {l.text}
@@ -106,11 +119,18 @@ function TiredAlerts(): JSX.Element {
               {TRUCK.tired} {f.resetDays} days off at home reset it; every day sitting idle away from home costs {GAME_CONFIG.labor.driver.perDiemFd} FD per diem.
             </p>
             {d.wantsHome ? (
-              <p class="muted">Heading home for days off.</p>
+              <p class="muted">{t.status === "idle" || t.status === "repositioning" ? "Heading home for days off." : TRUCK.goingHome(hubMiles(w, endHub(t), me().homeHub))}</p>
             ) : t.status === "idle" ? (
               <div class="row">
                 <Btn primary onClick={() => act({ type: "send_home", truckId: t.id }, "Heading home for days off", "truck:sendHome")}>
                   {homeRun(t)}
+                </Btn>
+              </div>
+            ) : w.cfg.labor.sendHomeWhileMoving ? (
+              // R9: the standing intent (labor.sendHomeWhileMoving): the truck heads home once this load is done.
+              <div class="row">
+                <Btn primary onClick={() => act({ type: "send_home", truckId: t.id }, TRUCK.goingHomeToast, "truck:sendHome")}>
+                  {TRUCK.sendHomeWhenIdle}
                 </Btn>
               </div>
             ) : (
@@ -249,6 +269,7 @@ function TruckCard({ t, idx }: { t: Truck; idx: number }): JSX.Element {
   return (
     <Card
       sel={t.id === S.selTruck}
+      need={`truck:${t.id}`}
       onClick={() => {
         selectTruck(t.id);
         focusTruck(t);

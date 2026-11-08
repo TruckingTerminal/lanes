@@ -1,3 +1,4 @@
+import "./seed.js";
 import { describe, expect, it, vi } from "vitest";
 import { IULIIA_SAY } from "../src/copy.js";
 import { GAME_CONFIG } from "../src/game.js";

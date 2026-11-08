@@ -1,6 +1,7 @@
 import { economyConfig, withLiveLevers, type EconomyConfig } from "@lanes/config";
 import { buildNetwork, hubs, neutralFeeds, syntheticCassCycle } from "@lanes/data";
 import { populate, ruleBotHook } from "@lanes/agents";
+import { booksAfterHour, watchBooks } from "./books.js";
 import {
   addTruck,
   applyAction,
@@ -73,6 +74,8 @@ export function newWorld(seed: number): World {
   const net = buildNetwork(hubs, GAME_CONFIG);
   const w = createWorld({ cfg: GAME_CONFIG, net, feeds: { ...neutralFeeds, cycle: syntheticCassCycle({ seed }) }, seed });
   populate(w, POPULATION);
+  // The month's books read every posting from here on (books.ts); they only read, so the replay is untouched.
+  watchBooks(w);
   return w;
 }
 
@@ -257,6 +260,7 @@ export class TestGame {
 
   stepHour(): void {
     stepHour(this.w, ruleBotHook);
+    booksAfterHour(this.w);
     this.log.t = this.w.t;
   }
 }

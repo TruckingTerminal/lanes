@@ -1,3 +1,4 @@
+import "./seed.js";
 import { describe, expect, it } from "vitest";
 import type { Company, World } from "@lanes/engine";
 import { freshOnboard, parseOnboard } from "../src/onboard.js";

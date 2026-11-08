@@ -1,3 +1,4 @@
+import "./seed.js";
 import { describe, expect, it } from "vitest";
 import { borrowingCapacity, borrowLender, companyAccount, lendNowFd, askOf, payFloor, poolCash, poolOf } from "@lanes/engine";
 import { blockReason, boardRows } from "../src/board.js";

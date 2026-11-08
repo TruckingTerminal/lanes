@@ -14,6 +14,7 @@ import { iuliiaFirst } from "../../iuliia.js";
 import { GAME_CONFIG } from "../../game.js";
 import { act, feed, me, S, setOnboard, useData } from "../../state.js";
 import { Btn, Card, Kv, Num, Panel, Sparkline } from "../bits.js";
+import { MonthReports, ThisWeekCard } from "../MonthReport.js";
 
 /** On a lease with no truck of its own, the lessor pays on delivery: nothing is ever owed (R25). */
 const myTruckLeased = (w: World, c: Company): boolean => {
@@ -140,6 +141,8 @@ export function Money(): JSX.Element {
   }
   return (
     <Panel title={MONEY.title}>
+      {/* R10: the last month's report, on top for a week after its close. */}
+      <MonthReports part="top" />
       <Card class="cashcard" title={MONEY.cash}>
         <p class={cls("bigcash", bal < 0 && "bad")}>
           <Fig k="money.cash" label={MONEY.cash}>{fdFull(bal)} FD</Fig>
@@ -187,9 +190,12 @@ export function Money(): JSX.Element {
           ]}
         />
       </Card>
+      {/* R9: the week's breakdowns, fines and claims over guard.newsFd, in the money style. */}
+      <ThisWeekCard />
       <Card title={MONEY.standing}>
         <p>{MONEY.miles(fdFull(milesOf(c)))}</p>
       </Card>
+      <MonthReports part="past" />
       <details class="fold">
         <summary onClick={() => iuliiaFirst("money:token")}>{MONEY.token}</summary>
         {token}

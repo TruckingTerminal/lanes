@@ -3,7 +3,12 @@ import type { Equipment } from "@lanes/config";
 import {
   canMakeHot,
   companyAccount,
+  condition,
   crewed,
+  MANUAL_BID_MAX_DEADHEAD_MI,
+  offeredContracts,
+  rebuildable,
+  rebuildCost,
   dispatchProfile,
   fleetOverheadPerWeek,
   lessorTrucksOf,
@@ -34,9 +39,13 @@ import { debtCountdown } from "./figures.js";
 import { hasTwo, kindInView, switchCompany, type CompanyKind } from "./companies.js";
 import { act, bumpData, clockMin, isPhone, me, myTrucks, push, S, setTab, selectTruck, toast, truckNo, type Session } from "./state.js";
 import { iuliiaSay } from "./iuliia.js";
-import { tabDef, tabOpen, teaserTabs, type Tab } from "./tabs.js";
+import { tabOpen, teaserTabs, type Tab } from "./tabs.js";
+import { leaseMinFor } from "./ledger.js";
+import { rebuild as rebuildLines } from "./confirmspecs.js";
+import { confirmAct } from "./ui/Confirm.js";
+import { askWhatNow } from "./ui/WhatNow.js";
 import { myTenders } from "./ui/panels/Contracts.js";
-import { dateLabel, fd, fdFull, hoursLabel, pct, plural, realUntil, signedPct, TRAILER_NAME } from "./format.js";
+import { dateLabel, fd, fdFull, hhmm, hoursLabel, pct, plural, realUntil, signedPct, TRAILER_NAME, weekday } from "./format.js";
 import { Btn } from "./ui/bits.js";
 
 /** Game reasoning the panels share: idle diagnoses, status lines, crew lines, reload and season reads. */
@@ -152,8 +161,13 @@ export function AttentionCard(): ComponentChildren {
 
 /**
  * Everything waiting on the player (the top strip's red count): where its card is, so a tap on the count opens that tab
- * and brings the card, with its fix, into view (Jeff, 2026-11-02). The money alarms open Money, a bid's result Loads,
- * a teaser that just opened More; the rest are cards on the Truck tab.
+ * and brings the card, with its fix, into view (Jeff, 2026-11-02). The money alarms open Money, a bid's result Loads;
+ * the rest are cards on their tabs.
+ *
+ * R9 (player2-ux.md section 3): the count is only what the player can act on now, each row with its action button, and
+ * ranked by what's at stake: the authority and the company itself first, then FD at risk a day where the engine's
+ * figures give it, then the deadline. A tab just opened is the dot on More, never the count; an item engineering can't
+ * give a button isn't an item.
  */
 export interface Need {
   key: string;
@@ -164,8 +178,40 @@ export interface Need {
   /** With two companies, whose it is (the list names it and switches to it before opening). */
   company?: CompanyKind;
   /** The row's action, in the writer's words (R9: every badge item has one). */
-  button?: string;
+  button: string;
+  /** What the button does; without it, the button opens the item's card, where its fix is. */
+  run?: (ev?: MouseEvent) => void;
+  /** The row's icon (assets/icons). */
+  icon: string;
+  /** The authority or the company's survival is at stake: these rank first. */
+  first?: boolean;
+  /** FD a day this costs while it waits, where the engine's figures give it. */
+  riskFdPerDay?: number;
+  /** When it lapses or lands, as a game minute. */
+  dueMin?: number;
 }
+
+/** R9's order: what's at stake first, then FD at risk a day, then the soonest deadline; ties keep the list's order. */
+export function rankNeeds(list: Need[]): Need[] {
+  return list
+    .map((n, i) => ({ n, i }))
+    .sort((a, b) => Number(!!b.n.first) - Number(!!a.n.first) || (b.n.riskFdPerDay ?? 0) - (a.n.riskFdPerDay ?? 0) || (a.n.dueMin ?? Infinity) - (b.n.dueMin ?? Infinity) || a.i - b.i)
+    .map((x) => x.n);
+}
+
+/**
+ * What a truck costs a day while it earns nothing: its insurance, a lease's weekly minimum and its yard space, by the
+ * week as the engine bills them, and the idle fee once an owned truck has sat past costs.idleFeeAfterDays.
+ */
+export function truckDayCostFd(w: World, c: Company, t: Truck): number {
+  const fleet = (w.trucksByCompany.get(c.id) ?? []).filter((x) => x.status !== "retired");
+  const insured = t.lease !== "npc" && t.status !== "parked" && t.status !== "listed";
+  const week = (insured ? c.insurance.annualPerTruck / 52 : 0) + leaseMinFor(w, t) + (fleet.length > 1 ? yardPerTruck(w, c) : 0);
+  const today = Math.floor(w.t / w.cfg.time.gameMinutesPerDay);
+  const idleFee = t.lease === "owned" && t.status === "idle" && today - t.idleSinceDay >= w.cfg.costs.idleFeeAfterDays ? w.cfg.costs.idleFeePerDay : 0;
+  return week / 7 + idleFee;
+}
+
 /**
  * What needs the player. With two companies (brokerage-ux.md section 1) it counts both: each is read in view in turn,
  * and every row says whose it is.
@@ -173,20 +219,30 @@ export interface Need {
 export function needs(): Need[] {
   const g = S.game;
   if (!g?.player) return [];
-  if (!hasTwo(g)) return needsInView(true);
+  if (!hasTwo(g)) return rankNeeds(needsInView(true));
   const here = kindInView(g);
   const there: CompanyKind = here === "carrier" ? "brokerage" : "carrier";
   const mine = needsInView(here === "carrier").map((n) => ({ ...n, company: here }));
   g.inView = there;
   try {
-    return [...mine, ...needsInView(there === "carrier").map((n) => ({ ...n, key: `${there}:${n.key}`, company: there }))];
+    return rankNeeds([...mine, ...needsInView(there === "carrier").map((n) => ({ ...n, key: `${there}:${n.key}`, company: there }))]);
   } finally {
     g.inView = here;
   }
 }
+
+/** The tabs just opened and not yet visited: More's dot (R9), never the red count. */
+export function newTabs(): Tab[] {
+  const g = S.game;
+  if (!g?.player) return [];
+  return teaserTabs()
+    .filter((t) => tabOpen(t.id, g.w, g.player) && !S.onboard.visited.includes(t.id))
+    .map((t) => t.id);
+}
+
 /**
- * The company in view's needs. The carrier's (`fleet`) are everything, with the page's own (a bid's result, a tab just
- * opened); a brokerage runs no trucks, so it has only its own money's (the trucks' needs read the carrier's trucks).
+ * The company in view's needs. The carrier's (`fleet`) are everything, with the page's own (a bid's result); a brokerage
+ * runs no trucks, so it has only its own money's (the trucks' needs read the carrier's trucks).
  */
 function needsInView(fleet: boolean): Need[] {
   const page = fleet;
@@ -194,25 +250,98 @@ function needsInView(fleet: boolean): Need[] {
   const c = g.player!;
   const w = g.w;
   const out: Need[] = fleet ? safetyNeeds(w, c) : [];
+  const here = (place: number) => w.net.places[place]!.name;
+  const trucks = fleet ? myTrucks() : [];
+  const bal = w.ledger.balance(companyAccount(c.id));
+  // The money alarms: the debt countdown (the engine's weekly check, figures.ts debtCountdown) and low cash. What now?
+  // is their button: it names the one move that helps most (nextstep.ts).
+  if (bal < -w.cfg.insolvency.debtLimitFd) {
+    const d = debtCountdown(w, c);
+    out.push({ key: `debt:${d.n}`, text: DEBT.badge(fdFull(-bal), d.n, d.of, dateLabel(d.nextDay)), tab: "money", target: ".cashcard", button: NEEDS.whatNow, run: askWhatNow, icon: "money", first: true, dueMin: d.nextDay * w.cfg.time.gameMinutesPerDay });
+  }
   for (const a of attentionItems()) {
-    const money = a.key.startsWith("debt") || a.key === "cash";
-    if (!fleet && !money) continue;
-    out.push({ key: a.key, text: a.text, tab: money ? "money" : "fleet", target: money ? ".cashcard" : `[data-need="${a.key}"]` });
+    if (a.key === "cash") out.push({ key: a.key, text: a.text, tab: "money", target: ".cashcard", button: NEEDS.whatNow, run: askWhatNow, icon: "money" });
+    if (!fleet) continue;
+    if (a.key === "dispatch") out.push({ key: a.key, text: a.text, tab: "fleet", target: `[data-need="${a.key}"]`, button: NEEDS.hireDispatcher, run: goStaff, icon: "staff" });
+  }
+  for (const t of trucks) {
+    const n = truckNo(t.id);
+    const at = { tab: "fleet" as const, icon: "fleet" };
+    if (!crewed(t) && t.status !== "listed")
+      out.push({ key: `driver:${t.id}`, text: NEEDS.noDriver(n, fd(truckDayCostFd(w, c, t))), ...at, target: `[data-need="driver:${t.id}"]`, button: NEEDS.hire, run: goStaff, icon: "staff", riskFdPerDay: truckDayCostFd(w, c, t) });
+    else if (t.breakdownMin > 0)
+      out.push({ key: `down:${t.id}`, text: NEEDS.truckDown(n, here(t.place), `${weekday(Math.floor((w.t + t.breakdownMin) / w.cfg.time.gameMinutesPerDay))} ${hhmm(w.t + t.breakdownMin)}`), ...at, target: `[data-need="truck:${t.id}"]`, button: NEEDS.seeTruck, run: () => seeTruck(t.id), riskFdPerDay: truckDayCostFd(w, c, t), dueMin: w.t + t.breakdownMin });
+    if (t.defects >= 3 && (t.status === "idle" || t.status === "parked")) {
+      const cost = t.defects * w.cfg.safety.maintenance.fixFdPerDefect;
+      out.push({ key: `defects:${t.id}`, text: NEEDS.defects(n, t.defects), ...at, target: `[data-need="defects:${t.id}"]`, button: NEEDS.fix(fd(cost)), run: () => act({ type: "fix_defects", truckId: t.id }, "Defects fixed") });
+    }
+    // A rebuild due: an owned truck at or under the rebuild line, idle so the shop can take it (R6's card first).
+    const cond = condition(w.cfg, t);
+    if (t.lease === "owned" && t.status === "idle" && cond <= w.cfg.wear.rebuildMaxCondition && rebuildable(w.cfg, t)) {
+      const cost = rebuildCost(w.cfg, t);
+      out.push({ key: `rebuild:${t.id}`, text: NEEDS.rebuildDue(n, pct(cond)), ...at, target: `[data-need="truck:${t.id}"]`, button: NEEDS.rebuild(fd(cost)), run: (ev) => confirmAct({ verb: "Rebuild", item: `truck ${n}`, costFd: cost, ...rebuildLines(w, t), run: () => act({ type: "rebuild_truck", truckId: t.id }, "Truck is in the shop for two days", "truck:rebuild") }, ev) });
+    }
   }
   // R16: a driver on notice for pay (Staff.unhappyNotice; labor.ts dailyLabor lets them go at offer.day + noticeDays).
   for (const s of fleet ? w.staffByCompany.get(c.id) ?? [] : [])
-    if (s.unhappyNotice && s.status === "employed" && s.offer?.companyId === 0)
-      out.push({ key: `notice:${s.id}`, text: NEEDS.notice(s.name, dateLabel(s.offer.day + w.cfg.labor.morale.noticeDays)), tab: "staff", target: `[data-need="notice:${s.id}"]`, button: NEEDS.noticeButton });
-  for (const l of myTenders(c)) out.push({ key: `tender:${l.id}`, text: NEEDS.tender(w.net.places[l.originPlace]!.name, w.net.places[l.destPlace]!.name), tab: "fleet", target: `[data-need="tender:${l.id}"]` });
+    if (s.unhappyNotice && s.status === "employed" && s.offer?.companyId === 0) {
+      const leaves = s.offer.day + w.cfg.labor.morale.noticeDays;
+      const truck = trucks.find((t) => t.driverId === s.id || t.coDriverId === s.id);
+      out.push({ key: `notice:${s.id}`, text: NEEDS.notice(s.name, dateLabel(leaves)), tab: "staff", target: `[data-need="notice:${s.id}"]`, button: NEEDS.noticeButton, icon: "staff", riskFdPerDay: truck ? truckDayCostFd(w, c, truck) : undefined, dueMin: leaves * w.cfg.time.gameMinutesPerDay });
+    }
+  // A contract tender: Accept puts the nearest idle truck that can take it on it; with none, the button opens the card.
+  for (const l of myTenders(c)) {
+    const truck = trucks
+      .filter((t) => t.status === "idle" && crewed(t) && t.trailer === l.equipment && placeMiles(w, t.place, l.originPlace) <= MANUAL_BID_MAX_DEADHEAD_MI)
+      .sort((a, b) => placeMiles(w, a.place, l.originPlace) - placeMiles(w, b.place, l.originPlace))[0];
+    const rate = l.ownTenderRate ?? w.contracts.find((x) => x.id === l.contractId)?.ratePerMile ?? 0;
+    out.push({
+      key: `tender:${l.id}`,
+      text: NEEDS.tender(here(l.originPlace), here(l.destPlace), hhmm(l.tenderUntil)),
+      tab: "fleet",
+      target: `[data-need="tender:${l.id}"]`,
+      icon: "loads",
+      ...(truck ? { button: NEEDS.accept, run: () => act({ type: "accept_tender", loadId: l.id, truckId: truck.id }, "Tender accepted at your contract rate") } : { button: NEEDS.seeTender }),
+      riskFdPerDay: rate * l.miles,
+      dueMin: l.tenderUntil,
+    });
+  }
+  for (const k of fleet ? offeredContracts(w, c.id) : [])
+    out.push({ key: `offer:${k.id}`, text: NEEDS.offer(here(k.originPlace), here(k.destPlace), k.loadsPerWeek), tab: "company", target: `[data-need="offer:${k.id}"]`, button: NEEDS.seeOffer, icon: "company", dueMin: (k.offerExpiresDay + 1) * w.cfg.time.gameMinutesPerDay });
+  // A tired driver: Send home (idle), or Send home when idle (moving, labor.sendHomeWhileMoving); once asked, it's done.
   for (const t of fleet ? tiredTrucks() : []) {
     const d = w.staff[t.driverId - 1]!;
-    out.push({ key: `tired:${t.id}`, text: NEEDS.tired(d.owner ? "You" : d.name), tab: "fleet", target: `[data-need="tired:${t.id}"]` });
+    if (d.wantsHome) continue;
+    const idle = t.status === "idle";
+    if (!idle && !sendHomeWhileMoving(w)) continue;
+    out.push({ key: `tired:${t.id}`, text: NEEDS.tired(d.owner ? "You" : d.name, d.awayDays), tab: "fleet", target: `[data-need="tired:${t.id}"]`, button: idle ? NEEDS.sendHome : NEEDS.sendHomeWhenIdle, run: () => act({ type: "send_home", truckId: t.id }, idle ? "Heading home for days off" : TRUCK.goingHomeToast, "truck:sendHome"), icon: "staff" });
   }
-  for (const t of fleet ? stuckTrucks() : []) out.push({ key: `idle:${t.id}`, text: NEEDS.idle(truckName(t), w.net.hubs[t.hub]!.name, idleLabel(t)), tab: "fleet", target: `[data-need="idle:${t.id}"]` });
-  if (page && S.result && !S.result.seen) out.push({ key: "result", text: NEEDS.result(S.result.won), tab: "loads", target: ".resultcard" });
-  if (page) for (const t of teaserTabs()) if (tabOpen(t.id, w, c) && !S.onboard.visited.includes(t.id)) out.push({ key: `opened:${t.id}`, text: NEEDS.opened(tabDef(t.id).label), tab: "more", target: `[data-need="opened:${t.id}"]` });
+  for (const t of trucks.filter((x) => stuckTrucks().includes(x))) {
+    const fix = idleFix(t);
+    out.push({ key: `idle:${t.id}`, text: NEEDS.idle(truckName(t), w.net.hubs[t.hub]!.name, idleLabel(t)), tab: "fleet", target: `[data-need="idle:${t.id}"]`, button: fix.button, run: fix.run, icon: "fleet", riskFdPerDay: truckDayCostFd(w, c, t) });
+  }
+  if (page && S.result && !S.result.seen) out.push({ key: "result", text: NEEDS.result(S.result.won), tab: "loads", target: ".resultcard", button: NEEDS.seeResult, icon: "loads" });
   return out;
 }
+
+/** labor.sendHomeWhileMoving: send_home on a moving truck sets the standing intent (off until the bump). */
+const sendHomeWhileMoving = (w: World): boolean => w.cfg.labor.sendHomeWhileMoving;
+
+/** The one move for a truck stuck idle, as a button: the first fix its idle diagnosis gives. */
+function idleFix(t: Truck): { button: string; run: () => void } {
+  const w = S.game!.w;
+  const c = me();
+  if (ordersWaitForHand(w, c)) return { button: ARRIVAL.showBoard, run: () => goLoads(t.id) };
+  if (!c.orders.some((o) => o.kind === "bid")) return { button: DISPATCHER.letBid, run: letDispatcherBid };
+  return { button: TRUCK.bidByHand, run: () => goLoads(t.id) };
+}
+
+/** Opens the Truck tab on this truck's card. */
+function seeTruck(id: number): void {
+  selectTruck(id);
+  openNeed({ key: `truck:${id}`, text: "", tab: "fleet", target: `[data-need="truck:${id}"]`, button: "", icon: "fleet" });
+}
+
 const BASIC_NAME: Record<string, string> = { hos: "hours of service", unsafe: "unsafe driving", maintenance: "vehicle maintenance", crash: "crashes" };
 /**
  * R18 (the director's ruling: the road to revocation is shown at every step): the rating an audit set, while its
@@ -223,7 +352,7 @@ export function safetyNeeds(w: World, c: Company): Need[] {
   const s = c.safety;
   const today = Math.floor(w.t / w.cfg.time.gameMinutesPerDay);
   const out: Need[] = [];
-  const at = { tab: "company" as const, target: '[data-need="safety"]', button: SAFETY_NEWS.button };
+  const at = { tab: "company" as const, target: '[data-need="safety"]', button: SAFETY_NEWS.button, icon: "company", first: true };
   const bad = s.rating === "conditional" || s.rating === "unsatisfactory";
   if (bad && (s.revokeDay !== null || (s.probationUntil ?? -1) >= today || (s.ratingDay !== null && today - s.ratingDay <= 7))) {
     const name = s.rating === "conditional" ? "Conditional" : "Unsatisfactory";

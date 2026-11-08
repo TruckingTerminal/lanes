@@ -496,6 +496,8 @@ export const MONEY = {
 export const DEBT = {
   line: (cash: string, limit: string, n: number, of: number, day: string) => `You're ${cash} FD in the red, past the ${limit} FD line. ${n} of ${of} weekly checks in debt; the next is ${day}. Get loads moving, sell or park a truck, or put money in.`,
   count: (n: number, of: number, day: string) => `${n} of ${of} weekly checks in debt; the next is ${day}.`,
+  /** R9's badge row (engineering's, for the writer): the figure and the count; its What now? button gives the move. */
+  badge: (cash: string, n: number, of: number, day: string) => `You're ${cash} FD in the red: ${n} of ${of} weekly checks in debt; the next is ${day}.`,
 };
 
 /** The dispatcher and its two states (copy-first-ten-minutes.md, S9). */
@@ -596,6 +598,10 @@ export const TRUCK = {
   hireDriver: "Hire a driver",
   sentEmpty: "The truck is heading out empty.",
   today: "Today",
+  /** R9: a tired driver's card once Send home when idle is tapped (the UX spec's line). */
+  goingHome: (mi: number) => `Going home when idle · ${mi.toLocaleString("en-US")} mi`,
+  goingHomeToast: "Heads home after this load",
+  sendHomeWhenIdle: "Send home when idle",
 };
 
 /** The feed (the ticker on a laptop, "Today" on the Truck tab): copy-first-ten-minutes.md, S5, S7, S8. */
@@ -612,18 +618,43 @@ export const FEED = {
   off: (r1: string, r2: string) => `Your dispatcher is off. Bids clear at ${r1} and ${r2}.`,
 };
 
-/** The top strip's red count, a button (Jeff, 2026-11-02): one tap opens what's waiting, or a short list of it. */
+/**
+ * The top strip's red count, a button (Jeff, 2026-11-02): one tap opens what's waiting, or a short list of it. R9 (the
+ * writer's copy-player2.md and the UX spec's lines; engineering's where neither had one, for the writer's review): every
+ * row is a line and its action.
+ */
 export const NEEDS = {
   title: "Needs you",
   badge: (n: number) => `Needs you: ${n}. Open it`,
   idle: (truck: string, hub: string, idle: string) => `${truck} idle ${idle} at ${hub}`,
-  tired: (who: string) => `${who} needs days off`,
-  tender: (from: string, to: string) => `Contract tender: ${from} → ${to}`,
+  /** The writer's needs.tired. */
+  tired: (who: string, days: number) => `${who} ${who === "You" ? "have" : "has"} been out ${days} days and ${who === "You" ? "are" : "is"} tired.`,
+  sendHome: "Send home",
+  sendHomeWhenIdle: "Send home when idle",
+  /** The UX spec's line. */
+  tender: (from: string, to: string, lapses: string) => `Tender ${from} → ${to} · lapses ${lapses}`,
+  accept: "Accept",
+  seeTender: "See the tender",
+  offer: (from: string, to: string, perWeek: number) => `Offer: ${from} → ${to}, ${perWeek} a week`,
+  seeOffer: "See the offer",
   result: (won: boolean) => (won ? "Your bid won: the result" : "Your bid's result is in"),
-  opened: (tab: string) => `${tab} just opened`,
+  seeResult: "See the result",
   /** R16 (the writer's copy-player4.md needs.notice): an unhappy driver on notice. */
   notice: (name: string, date: string) => `${name} leaves ${date} unless you raise pay.`,
   noticeButton: "Raise pay",
+  /** The UX spec's line: what an empty seat costs while it waits. */
+  noDriver: (n: number, fd: string) => `Truck ${n} has no driver · idle costs ${fd} FD a day`,
+  hire: "Hire",
+  hireDispatcher: "Hire a dispatcher",
+  /** The writer's needs.truckDown. */
+  truckDown: (n: number, place: string, when: string) => `Truck ${n} is broken down at ${place}: back on the road ${when}.`,
+  seeTruck: "See the truck",
+  /** The writer's needs.rebuildDue. */
+  rebuildDue: (n: number, pct: string) => `Truck ${n} is due a rebuild: ${pct} condition.`,
+  rebuild: (fd: string) => `Rebuild · ${fd} FD`,
+  defects: (n: number, defects: number) => `Truck ${n} is carrying ${defects} defects: an inspection finds them, and they raise crash odds.`,
+  fix: (fd: string) => `Fix · ${fd} FD`,
+  whatNow: "What now?",
 };
 
 /**
@@ -1072,6 +1103,102 @@ export const NOW = {
  * writer's sentence; explain.ts adds this company's inputs under it) and what moves it. Plain throughout: no joke.
  * Functions take the config values the writer named as `{key}`.
  */
+/**
+ * R10: the month report on Money (the writer's copy-player2.md month.*, and the UX spec's rows; the row names and the
+ * lines of "Why your cash moved differently" are engineering's drafts for the writer's review). One line per kind, in
+ * the order the report shows them; each earned and spent row is an explain key (`month.<line>`).
+ */
+export const MONTH = {
+  lastMonth: "Last month",
+  pastMonths: "Past months",
+  header: (month: string, kept: string) => `${month} · kept ${kept} FD`,
+  earned: "Earned",
+  spent: "Spent",
+  kept: "Kept",
+  why: "Why your cash moved differently",
+  cashStart: "Cash on the 1st",
+  cashStartFirst: "Cash when the company began",
+  cashEnd: "Cash at the close",
+  owedUp: "Invoices not yet paid",
+  owedDown: "Earlier invoices paid this month",
+  payUp: "Bills you still owe",
+  payDown: "Earlier bills paid this month",
+  lines: (loads: number, onTime: string, loaded: string, all: string, share: string) => `${loads} loads delivered · ${onTime} on time · ${loaded} of ${all} miles loaded (${share})`,
+  noLoads: "No loads delivered.",
+  none: "Your first month's report comes at its close.",
+  /** The report's rows: earned, spent, and the other ways cash moved (a negative label where the sign flips its sense). */
+  row: {
+    loads: "Loads delivered",
+    detention: "Detention",
+    fees: "Factoring and cash-now fees",
+    otherIn: "Other income",
+    fuel: "Fuel",
+    fuelTax: "Fuel tax",
+    wages: "Wages",
+    lessor: "The lessor's share",
+    maintenance: "Maintenance and repairs",
+    insurance: "Insurance",
+    tolls: "Tolls",
+    yard: "Yard and parking",
+    fines: "Fines and tickets",
+    claims: "Cargo claims",
+    interest: "Loan interest",
+    overhead: "Office, permits and bonds",
+    idle: "Idle fees",
+    carrierPay: "Carrier pay",
+    taxes: "Taxes",
+    otherOut: "Other costs",
+    bought: "Trucks and items bought",
+    sold: "Trucks and items sold",
+    loansIn: "Loans taken",
+    principal: "Loan principal repaid",
+    held: "Held back by the lessor",
+    setAside: "Set aside: stakes, the Reserve, bonds",
+    between: "Moved between your companies",
+    capital: "Starting money",
+    token: "The token: airdrops and the exchange",
+  } as Record<string, string>,
+  /** Where the sign turns a row around: money back rather than money out. */
+  rowBack: {
+    held: "Deposits returned",
+    setAside: "Back from stakes, the Reserve, bonds",
+    bought: "Trucks and items bought",
+  } as Record<string, string>,
+};
+
+/**
+ * R9: money events over guard.newsFd, in the money style (the writer's copy-player2.md news.* and copy-player4.md's R18
+ * lines). Each is an explain key; its sheet says what made it likely, from the figures read when it was paid.
+ */
+export const NEWS = {
+  thisWeek: "This week",
+  none: "No breakdowns, fines or claims this week.",
+  breakdown: (n: number, fd: string) => `Breakdown, truck ${n}: −${fd} FD for the tow and repair.`,
+  crash: (n: number, fd: string) => `Crash, truck ${n}: −${fd} FD for the repair.`,
+  claim: (fd: string) => `Cargo claim: −${fd} FD to the receiver.`,
+  fine: {
+    shoulder: (n: number, fd: string) => `Ticket, truck ${n}: −${fd} FD for stopping on the shoulder.`,
+    hos: (n: number, fd: string) => `Hours fine, truck ${n}: −${fd} FD at inspection.`,
+    falselog: (n: number, fd: string) => `Hours fine, truck ${n}: −${fd} FD for falsified logs.`,
+    speeding: (n: number, fd: string) => `Speeding ticket, truck ${n}: −${fd} FD.`,
+    other: (n: number, fd: string) => `Fine, truck ${n}: −${fd} FD.`,
+  } as Record<string, (n: number, fd: string) => string>,
+  /** The writer's news.breakdownWhy.*: the one that weighed most when it broke (engineering picks it from the odds' terms). */
+  why: {
+    worn: (pct: string) => `Worn: ${pct} condition. A rebuild would have reset it.`,
+    pastRebuild: "Past its last rebuild: it only wears from here.",
+    age: (mi: string) => `Old: ${mi} miles on it. A rebuild resets wear, not age.`,
+    defects: (n: number) => `Carrying ${n} defects: each one raises the odds.`,
+    grades: (pct: string) => `On mountain grades: ${pct} of the leg climbed.`,
+    luck: "Bad luck: even a sound truck breaks down sometimes.",
+    shoulder: "Your dispatcher chose the stop; no legal one was in reach before the hours ran out.",
+    hos: "Your policy runs past the legal hours; the inspector read the logs.",
+    speeding: "Your policy runs over the legal pace.",
+  },
+  factors: { condition: "Condition", age: "Miles on the truck", defects: "Defects", grades: "Mountain grades on the leg", paid: "Paid" },
+};
+
+
 type Ex = { what: string; how: string; moves: string };
 const pctOf = (x: number) => `${Math.round(x * 100)}%`;
 const pct2 = (x: number) => `${(x * 100).toFixed(2)}%`;
@@ -1148,6 +1275,32 @@ export const EXPLAIN = (cfg: EconomyConfig): Record<string, Ex> => ({
   "guide.gapToTruck": { what: "How far you are from your next truck.", how: `The cheapest truck's cash needed now, less your deposit and cash above ${cfg.guide.gapCushionWeeks} weeks of costs.`, moves: "Hauling; the cheapest truck on offer, which changes; your spending, once your first week closes." },
   "guide.cushion": { what: "How many weeks your cash covers your own spending.", how: `Your cash, divided by your average weekly spending over the last ${cfg.guide.cushionAvgWeeks} weeks.`, moves: "Earning more, spending less, buying nothing in a slump." },
   "guide.debtCountdown": { what: "Weekly checks in a row with cash under the line.", how: `Checked weekly: under ${cfg.insolvency.debtLimitFd.toLocaleString("en-US")} FD counts one; ${cfg.insolvency.weeksInDebt} in a row winds you up.`, moves: "Cash back above the line resets it." },
+  // R10's month report: each earned and spent row (engineering's drafts for the writer).
+  "month.loads": { what: "Pay for the loads you delivered this month, paid or still owed.", how: "Pay received for loads, plus invoices still owed at the close, less those of earlier months paid in it. Quick pay's fee is already off.", moves: "Loads and their rates; the empty miles between them." },
+  "month.detention": { what: "Pay for waiting at a closed dock past the free hours.", how: "Paid by the hour past the free hours, up to a cap a stop.", moves: "Dock hours, and arriving when the dock is open." },
+  "month.fees": { what: "What getting paid early cost you.", how: "The factor's discount on each invoice it bought, and cash now's fee.", moves: "Waiting for net terms; your contract's rate." },
+  "month.otherIn": { what: "Money in that isn't freight pay, such as an insurance payout.", how: "Each payment in that no other row names.", moves: "Claims paid to you." },
+  "month.fuel": { what: "Diesel for every mile, loaded and empty, and for idling.", how: "Gallons at each fill's price, the climb on grades included.", moves: "Empty miles, the truck's economy, the price of diesel." },
+  "month.fuelTax": { what: "The month's fuel tax on the gallons you burned.", how: "Billed at the month's close on the month's gallons.", moves: "Gallons: miles and economy." },
+  "month.wages": { what: "Pay for drivers and staff, and per diem away from home.", how: "Drivers by the mile, staff by the week, per diem for idle days away.", moves: "Hires, pay rates, home time." },
+  "month.lessor": { what: "The lessor's cut of each leased load, and trailer rent.", how: `${pctOf(cfg.costs.npcLeaseShareOfGross)} of each load on a leased truck.`, moves: "Owning the truck ends it." },
+  "month.maintenance": { what: "Upkeep by the mile, breakdowns and rebuilds.", how: "A cost a mile for wear, each breakdown's tow and repair, and each rebuild.", moves: "Condition, rebuilds, the truck's age." },
+  "month.insurance": { what: "Your policy, billed weekly.", how: "Each insured truck's yearly premium, by the week.", moves: "Your safety record and the trucks you insure." },
+  "month.tolls": { what: "Toll roads on your routes.", how: "Each leg's tolls, as its miles are driven.", moves: "Routes." },
+  "month.yard": { what: "Yard rent past your first truck, its security, and paid parking at night.", how: "Weekly yard rent a truck, and each night's paid stop.", moves: "Fleet size, and where trucks stop." },
+  "month.fines": { what: "Tickets and fines paid.", how: "Each fine as it was paid.", moves: "Legal settings, and stops in reach before the hours run out." },
+  "month.claims": { what: "What you paid receivers for spoiled or damaged freight.", how: "Each claim as it was paid.", moves: "Perishables on time; fewer crashes." },
+  "month.interest": { what: "Interest on your loans this month.", how: "Each payment's interest part; the principal is under why your cash moved.", moves: "Paying loans down." },
+  "month.overhead": { what: "The fleet's office overhead, permits and bonds.", how: "Billed weekly or yearly, as the rules set.", moves: "Fleet size." },
+  "month.idle": { what: "The fee on an owned truck unused for a week or more.", how: `${cfg.costs.idleFeePerDay} FD a day once it has sat ${cfg.costs.idleFeeAfterDays} days.`, moves: "Running the truck, or selling it." },
+  "month.carrierPay": { what: "What your brokerage pays the carriers that haul its loads.", how: "Pay sent, plus bills still owed at the close, less earlier ones paid in it.", moves: "The rates you tender at." },
+  "month.taxes": { what: "Sales tax on what you buy, and taxes on cash and profit.", how: "Each as it was charged.", moves: "Spending, and cash held above the Reserve." },
+  "month.otherOut": { what: "Costs no other row names.", how: "Each payment out that no other row names.", moves: "What they were for." },
+  // R9's money events (the writer's news.*): the sheet's rows are what made it likely, read when it was paid.
+  "news.breakdown": { what: "A breakdown on the road: the tow and the repair.", how: "The odds rise with wear (squared), the truck's miles, its defects and mountain grades.", moves: "A rebuild resets wear; fixing defects; flatter routes." },
+  "news.crash": { what: "A crash's repair bill.", how: "Crash odds rise with a tired driver, speed and defects.", moves: "Rested drivers, a legal pace, defects fixed." },
+  "news.fine": { what: "A fine or ticket paid to the state.", how: "Set by the offence; hours and speeding fines scale with what the run earned.", moves: "Legal settings on Company, and stops in reach before the hours run out." },
+  "news.claim": { what: "A cargo claim: the receiver's loss, paid by the carrier.", how: "A share of a spoiled load's value, or the deductible for damage.", moves: "Perishables on time; fewer crashes; an open deck in the weather." },
 });
 
 /** Labels for Iuliia's figures where they show on Money (figures.ts). Drafts for the writer. */
@@ -1169,6 +1322,8 @@ export const GUIDE_LABEL = {
  * drafts, flagged for the writer.
  */
 export const MILESTONE = {
+  /** R10: the × on a caption line that carries a button (its accessible name). */
+  dismiss: "Dismiss",
   ownTruck: {
     name: "Your own truck",
     at: "Your own truck. No lessor's share now, and no lessor to fix it.",
@@ -1196,7 +1351,7 @@ export const MILESTONE = {
     at: (earned: string, spent: string, kept: string) => `Your first month: earned ${earned}, spent ${spent}, kept ${kept} FD.`,
     /** The director: until the engine's first month-close record exists. */
     atNoRecord: "Your first month has closed. Money has all of it.",
-    /** "Read the month on Money" goes until the month report exists (R25); it returns with it. */
+    /** "Read the month" opens Money's month report (R10). */
     reason: "The fuel tax and insurance land at the close.",
     beforeButton: "See the month so far",
     button: "Read the month",

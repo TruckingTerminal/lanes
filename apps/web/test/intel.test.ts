@@ -1,3 +1,4 @@
+import "./seed.js";
 import { describe, expect, it } from "vitest";
 import { PLAYER_DISPATCHER_ORDERS, TestGame } from "../src/game.js";
 import { intelRows, ranked } from "../src/intel.js";

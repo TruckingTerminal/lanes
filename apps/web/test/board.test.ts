@@ -1,3 +1,4 @@
+import "./seed.js";
 import { describe, expect, it } from "vitest";
 import { clearsNear as engineClearsNear, dispatchProfile, invalidOrders, marketMood, operatingTrucks, placeMiles, placeToll } from "@lanes/engine";
 import { bidRange, boardRows, chipCash, chipFd, clearsNear, clearsNearSource, posterOf, sortRows, suggestBid, destMatch } from "../src/board.js";

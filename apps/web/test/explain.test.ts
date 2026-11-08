@@ -1,3 +1,4 @@
+import "./seed.js";
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it, vi } from "vitest";
@@ -10,7 +11,7 @@ import { GAME_CONFIG, PLAYER_DISPATCHER_ORDERS, TestGame } from "../src/game.js"
 import { dueMilestone, history, milestones } from "../src/milestones.js";
 import { stepDo, stepText, walkSteps } from "../src/walkthrough.js";
 import { S } from "../src/state.js";
-import { gapNotes, milestoneHeld, MilestoneLine, milestoneScope } from "../src/ui/Milestones.js";
+import { gapNotes, milestoneHeld, MilestoneLine, milestoneScope, dismissMilestone } from "../src/ui/Milestones.js";
 
 /** Keys the writer's table names that no first-month screen shows yet, each with why. The test fails if one appears. */
 const NOT_ON_A_SCREEN: Record<string, string> = {
@@ -125,8 +126,12 @@ describe("milestone lines queue", () => {
       await Promise.resolve();
       expect(S.onboard.seen).toContain(`${sc}|ms:ownTruck:at`);
       expect(S.onboard.seen).not.toContain(`${sc}|ms:hiredWeek:before`);
-      // Its seconds pass: the next due follows at once, without waiting out the quiet time.
+      // Its seconds pass. It carries a button, so it stays (R10: a line with a button holds until it's answered, dismissed
+      // or its tab is left); dismissed, the next due follows at once, without waiting out the quiet time.
       now += GAME_CONFIG.ui.iuliia.showSeconds * 1000 + 1;
+      expect(MilestoneLine()).not.toBeNull();
+      expect(S.milestone).toMatchObject({ key: "ownTruck", phase: "at", held: true });
+      dismissMilestone();
       expect(MilestoneLine()).not.toBeNull();
       expect(S.milestone).toMatchObject({ key: "hiredWeek", phase: "before" });
       await Promise.resolve();
@@ -157,6 +162,12 @@ describe("a milestone line's hold", () => {
     expect(milestoneHeld()).toBe(false);
     S.milestone = { key: "ownTruck", phase: "at", tab: "money", at: performance.now() };
     expect(milestoneHeld()).toBe(false);
+    // R10: a line with a button holds past its seconds, until answered, dismissed or its tab is left.
+    S.milestone = { key: "ownTruck", phase: "at", tab: "fleet", at: performance.now() - GAME_CONFIG.ui.iuliia.showSeconds * 1000 - 1, held: true };
+    expect(milestoneHeld()).toBe(true);
+    S.tab = "money";
+    expect(milestoneHeld()).toBe(false);
+    S.tab = "fleet";
     S.milestone = null;
   });
 });

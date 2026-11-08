@@ -3,7 +3,9 @@ import { useState } from "preact/hooks";
 import { staffById, type Company, type World } from "@lanes/engine";
 import { FIGURE_ACT, GUIDE_LABEL, MILESTONE } from "../copy.js";
 import { cushion, gapToTruck } from "../figures.js";
-import { fdFull, shortDate } from "../format.js";
+import { cls, fdFull, shortDate } from "../format.js";
+import { closedMonths, monthReport } from "../books.js";
+import { hasMonthReport, openMonthReport } from "./MonthReport.js";
 import { iuliiaMayStart, iuliiaMuted, iuliiaStarted } from "../iuliia.js";
 import { dueMilestone, history, milestones, type Milestone } from "../milestones.js";
 import { bumpData, S, setOnboard, setTab, useData } from "../state.js";
@@ -34,8 +36,9 @@ export function MilestoneLine(): JSX.Element | null {
   const seen = (k: string) => S.onboard.seen.includes(`${scope}|${k}`);
   let cur = S.milestone;
   if (cur && cur.tab !== S.tab) cur = S.milestone = null;
-  // A line has its seconds, then gives way; the next one due may follow straight on, for a moment.
-  if (cur && performance.now() - cur.at > GAME_CONFIG.ui.iuliia.showSeconds * 1000) {
+  // A line has its seconds, then gives way; the next one due may follow straight on, for a moment. R10: a line with a
+  // button keeps the caption until it's tapped, dismissed (its ×) or its tab is left; no timer retires it.
+  if (cur && !cur.held && performance.now() - cur.at > GAME_CONFIG.ui.iuliia.showSeconds * 1000) {
     cur = S.milestone = null;
     chainUntil = performance.now() + 2000;
   }
@@ -53,8 +56,14 @@ export function MilestoneLine(): JSX.Element | null {
   const m = milestones(g.w, c).find((x) => x.key === cur!.key);
   if (!m) return null;
   const v = words(g.w, c, m, cur.phase);
+  cur.held = !!(v.button && v.go);
   return (
-    <div class="caption iuliia">
+    <div class={cls("caption iuliia", cur.held && "heldline")}>
+      {cur.held ? (
+        <Btn sm ghost class="capx" label={MILESTONE.dismiss} onClick={dismissMilestone}>
+          ×
+        </Btn>
+      ) : null}
       <Iuliia mood="point" size={64} />
       <div class="stack">
         <span class="small">{v.line}</span>
@@ -76,8 +85,15 @@ export function MilestoneLine(): JSX.Element | null {
   );
 }
 
-/** Whether a milestone line started under ui.iuliia.showSeconds ago on this tab: it keeps the caption until then. */
-export const milestoneHeld = (): boolean => !!S.milestone && S.milestone.tab === S.tab && performance.now() - S.milestone.at < GAME_CONFIG.ui.iuliia.showSeconds * 1000;
+/** R10: the × on a held line. It goes, and the next one due may follow at once, as when a line's seconds end. */
+export function dismissMilestone(): void {
+  S.milestone = null;
+  chainUntil = performance.now() + 2000;
+  bumpData();
+}
+
+/** Whether a milestone line started under ui.iuliia.showSeconds ago on this tab, or carries a button (R10): it keeps the caption until then. */
+export const milestoneHeld = (): boolean => !!S.milestone && S.milestone.tab === S.tab && (!!S.milestone.held || performance.now() - S.milestone.at < GAME_CONFIG.ui.iuliia.showSeconds * 1000);
 
 /** A milestone's line, reason and button, in the writer's strings with this company's figures. */
 function words(w: World, c: Company, m: Milestone, phase: "before" | "at"): { line: string; reason: string | null; button?: string; go?: () => void } {
@@ -113,12 +129,17 @@ function words(w: World, c: Company, m: Milestone, phase: "before" | "at"): { li
       };
     case "monthClose":
       if (phase === "before") return { line: MILESTONE.monthClose.before(Math.max(0, m.day! - today)), reason: MILESTONE.monthClose.reason, button: MILESTONE.monthClose.beforeButton, go: go("money") };
-      // The engine's first month-close record (intel.ts): earned, spent (operating costs and overhead), kept.
+    {
+      // The first month's books (books.ts, the month report's own figures, so the line and the report agree), else the
+      // engine's first month-close record (intel.ts). "Read the month" (R10) opens the report; with none, no button.
+      const r = c.firstMonth ? closedMonths(w, c).find((x) => x.closedDay === c.firstMonth!.closedDay) : undefined;
+      const rep = r ? monthReport(r) : null;
       return {
-        line: c.firstMonth ? MILESTONE.monthClose.at(fdFull(c.firstMonth.revenueFd), fdFull(c.firstMonth.spentFd), fdFull(c.firstMonth.revenueFd - c.firstMonth.spentFd)) : MILESTONE.monthClose.atNoRecord,
+        line: rep ? MILESTONE.monthClose.at(fdFull(rep.earnedFd), fdFull(rep.spentFd), fdFull(rep.keptFd)) : c.firstMonth ? MILESTONE.monthClose.at(fdFull(c.firstMonth.revenueFd), fdFull(c.firstMonth.spentFd), fdFull(c.firstMonth.revenueFd - c.firstMonth.spentFd)) : MILESTONE.monthClose.atNoRecord,
         reason: MILESTONE.monthClose.reason,
-        // "Read the month" returns with the month report (R10, R25); until then the line has no button.
+        ...(hasMonthReport() ? { button: MILESTONE.monthClose.button, go: openMonthReport } : {}),
       };
+    }
     case "day28":
       return {
         line: phase === "before" ? MILESTONE.day28.before(shortDate(m.day!)) : MILESTONE.day28.at,

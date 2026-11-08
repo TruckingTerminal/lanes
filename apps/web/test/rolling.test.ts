@@ -1,3 +1,4 @@
+import "./seed.js";
 import { describe, expect, it } from "vitest";
 import type { GameEvent } from "@lanes/engine";
 import { boardRows } from "../src/board.js";

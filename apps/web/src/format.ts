@@ -32,6 +32,9 @@ export const dayDate = (day: number): string => dateLabel(day).slice(4);
 export const weekday = (day: number): string => DAYS[day % 7]!;
 /** The game's date with its weekday: "Fri Feb 2" (the title's Continue, copy-player5.md R25). */
 export const weekdayDate = (day: number): string => `${DAYS[day % 7]} ${shortDate(day)}`;
+/** "January": the game month a day falls in (30-day months, the last running to the year's end). */
+export const monthName = (day: number): string => MONTH_NAMES[Math.min(11, Math.floor((day % 365) / 30))]!;
+const MONTH_NAMES = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
 /** "Oct 28" from a day number, for dense tables. */
 
 export function shortDate(day: number): string {

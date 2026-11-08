@@ -1,6 +1,7 @@
 import { ruleBotHook } from "@lanes/agents";
 import { applyAction, stepHour, type Action, type ActionResult, type Company, type GameEvent, type World } from "@lanes/engine";
 import { joinCompany, newWorld, RULESET } from "./game.js";
+import { booksAfterHour } from "./books.js";
 
 /**
  * The live world: one shared, permanent world that every player's page computes.
@@ -269,6 +270,7 @@ export class LiveWorld {
         return true;
       }
       // The screen's read of the hour, apart from the engine's try: a page's own error never marks the world broken.
+      booksAfterHour(this.w);
       try {
         this.onHour?.(this.w);
       } catch (e) {

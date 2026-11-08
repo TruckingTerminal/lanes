@@ -1,3 +1,4 @@
+import "./seed.js";
 import { describe, expect, it } from "vitest";
 import { hubs } from "@lanes/data";
 import { hubMiles, type Action, type World } from "@lanes/engine";

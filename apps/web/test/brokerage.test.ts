@@ -1,3 +1,4 @@
+import "./seed.js";
 import { describe, expect, it } from "vitest";
 import { companyAccount } from "@lanes/engine";
 import { BROKERAGE, poss } from "../src/copy.js";

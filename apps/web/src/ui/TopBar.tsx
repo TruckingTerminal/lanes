@@ -128,21 +128,36 @@ function NeedsButton(): JSX.Element {
         {list.length}
       </button>
       {open && list.length > 1 ? (
-        <div class="needslist" role="menu" aria-label={NEEDS.title}>
+        <div class="needslist" role="group" aria-label={NEEDS.title}>
           {list.map((n) => (
-            <button
-              type="button"
-              role="menuitem"
-              key={n.key}
-              onClick={() => {
-                setOpen(false);
-                openNeed(n);
-              }}
-            >
-              {n.company ? <img class="px" src={`${ASSETS}icons/${n.company === "carrier" ? "fleet" : "book"}.png`} width={16} height={16} alt={n.company === "carrier" ? BROKERAGE.kindCarrier : BROKERAGE.kindBrokerage} /> : null}
-              {n.text}
-              <span class="chev" aria-hidden="true">›</span>
-            </button>
+            <div class="needrow" key={n.key} data-key={n.key}>
+              <img class="px" src={`${ASSETS}icons/${n.company === "brokerage" ? "book" : n.icon}.png`} width={16} height={16} alt="" />
+              <button
+                type="button"
+                class="needline"
+                onClick={() => {
+                  setOpen(false);
+                  openNeed(n);
+                }}
+              >
+                {n.company ? <span class="muted small">{n.company === "carrier" ? BROKERAGE.kindCarrier : BROKERAGE.kindBrokerage} · </span> : null}
+                {n.text}
+              </button>
+              {/* R9: every row carries its action; it acts where it can, else it opens the card with the fix. */}
+              <Btn
+                sm
+                primary
+                class="needact"
+                onClick={(ev: MouseEvent) => {
+                  setOpen(false);
+                  if (n.company && S.game && kindInView(S.game) !== n.company) switchCompany(n.company);
+                  if (n.run) n.run(ev);
+                  else openNeed(n);
+                }}
+              >
+                {n.button}
+              </Btn>
+            </div>
           ))}
         </div>
       ) : null}

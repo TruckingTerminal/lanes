@@ -1569,6 +1569,10 @@ export const economyConfig = {
     // settleAtStop (QA's poach row, economy-player34.md §1b): an offer past its notice settles the hour the driver's
     // truck next stops at a hub. false: only at the day's close, and only if the truck is stopped then, as today.
     hiring: { signOnWeeks: 2, severanceWeeks: 2, severanceWithinDays: 28, matchedPayHoldDays: 56, milesPerWeek: 1_000, settleAtStop: false },
+    // R9's Send home when idle (player2-ux.md section 3): send_home on a moving truck sets its drivers' standing intent
+    // (Staff.wantsHome) and leaves the truck on its job; the home-time rules take it home once it's idle. false: send_home
+    // waits until the truck is idle, as today.
+    sendHomeWhileMoving: false,
   },
 
   // The guards (the director's triage of the player's second diary, studio/reviews/director-player2.md): limits on what
@@ -1580,7 +1584,7 @@ export const economyConfig = {
   // - hireCoverHumansOnly: the guard binds players' companies only. Bots always auto-staff, and on them the guard cost the
   //   greedy fleets a ninth of their year-one net worth (economy-player2.md §3), so the bots' world is left as it is.
   // - autoStaffDefault: a human company's auto-staff at formation (bots always auto-staff). true today; R8: false.
-  guard: { hireCoverWeeks: 0, hireCoverHumansOnly: true, autoStaffDefault: true, confirmShareOfCash: 0.25, dispatcherDefaultOn: true }, // dispatcherDefaultOn: a human company joins with the dispatcher on (false in the bump: R1, it waits for the player's choice); confirmShareOfCash: any spend over this share of cash gets R6's confirm card (screens only)
+  guard: { hireCoverWeeks: 0, hireCoverHumansOnly: true, autoStaffDefault: true, confirmShareOfCash: 0.25, dispatcherDefaultOn: true, newsFd: 500 }, // dispatcherDefaultOn: a human company joins with the dispatcher on (false in the bump: R1, it waits for the player's choice); confirmShareOfCash: any spend over this share of cash gets R6's confirm card (screens only); newsFd: a breakdown, fine or claim at or over this is a money event in the money style, not the grey log (R9; screens only)
 
   // Design proposal (Jeff, 2026-10-28): safety and compliance. Owners choose how
   // legal to run; enforcement, crashes and audits make cutting corners pay now and

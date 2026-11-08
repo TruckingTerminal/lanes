@@ -256,9 +256,11 @@ table.mini td:first-child { font-family: inherit; }
 .co-brokerage { --co: var(--accent-warn); }
 .topbar.co-carrier, .topbar.co-brokerage { border-bottom: 3px solid var(--co); }
 .needslist { position: fixed; top: 50px; left: 16px; z-index: 40; display: flex; flex-direction: column; width: min(360px, calc(100vw - 32px)); background: var(--bg-secondary); border: 1px solid var(--border); border-radius: 8px; box-shadow: 0 8px 24px rgba(0,0,0,.45); overflow: hidden; }
-.needslist button { display: flex; align-items: center; gap: 8px; min-height: 44px; padding: 8px 12px; border: 0; border-bottom: 1px solid var(--border); background: none; color: var(--text-primary); font: inherit; font-size: 13px; text-align: left; cursor: pointer; }
-.needslist button:last-child { border-bottom: 0; }
-.needslist button .chev { margin-left: auto; color: var(--text-secondary); }
+.needslist { max-height: 70vh; overflow-y: auto; }
+.needrow { display: flex; align-items: center; gap: 8px; padding: 4px 8px 4px 12px; border-bottom: 1px solid var(--border); }
+.needrow:last-child { border-bottom: 0; }
+.needrow .needline { flex: 1; min-width: 0; min-height: 44px; padding: 4px 0; border: 0; background: none; color: var(--text-primary); font: inherit; font-size: 13px; text-align: left; cursor: pointer; }
+.needrow .needact { flex: none; min-height: 44px; white-space: nowrap; }
 .flash { animation: needflash 1.2s ease-out 1; }
 @keyframes needflash { 0%, 30% { box-shadow: 0 0 0 3px var(--accent-danger); } 100% { box-shadow: 0 0 0 0 transparent; } }
 @media (prefers-reduced-motion: reduce) { .flash { animation: none; outline: 2px solid var(--accent-danger); } }
@@ -302,6 +304,15 @@ table.mini td:first-child { font-family: inherit; }
 .caption .small { flex: 1 1 200px; min-width: 0; }
 .caption .portrait.sm, .caption .portrait.placeholder.sm { width: 32px; height: 32px; flex: none; font-size: 14px; }
 .caption.iuliia { align-items: flex-start; }
+.caption.heldline { position: relative; padding-right: 44px; }
+.caption .capx { position: absolute; top: 0; right: 0; min-width: 44px; min-height: 44px; font-size: 18px; line-height: 1; }
+.books { width: 100%; border-collapse: collapse; font-size: 13px; }
+.books td { padding: 3px 0; vertical-align: top; }
+.books td.num { text-align: right; white-space: nowrap; padding-left: 12px; }
+.books tr.head td { padding-top: 10px; font-family: var(--font-mono); font-size: 10px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--text-secondary); }
+.books tr.strong td { font-weight: 700; border-top: 1px solid var(--border); }
+.moneyevents { list-style: none; margin: 0 0 6px; padding: 0; }
+.moneyevents li { padding: 2px 0; }
 .caption.iuliia .portrait.lg { width: 96px; height: 96px; flex: none; }
 /* R21: the return card's rows take the width beside her portrait, not a word-wide column. */
 .returncard > .stack { flex: 1 1 200px; min-width: 0; gap: 4px; }

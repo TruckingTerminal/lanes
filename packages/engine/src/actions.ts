@@ -465,7 +465,16 @@ export function applyAction(w: World, companyId: number, action: Action): Action
       const truck = truckById(w, action.truckId);
       if (!truck || truck.companyId !== company.id) return { ok: false, reason: "not your truck" };
       if (!crewed(truck)) return { ok: false, reason: "nobody is driving it" };
-      if (truck.status !== "idle") return { ok: false, reason: "wait until the truck is idle" };
+      if (truck.status !== "idle") {
+        // R9's Send home when idle (labor.sendHomeWhileMoving): on a truck at work, its drivers' standing intent. The
+        // home-time rules take it home once it's idle (labor.ts homeArrival, board.ts maybeReposition via needsHome).
+        const working = truck.status === "toPickup" || truck.status === "loading" || truck.status === "loaded" || truck.status === "unloading" || truck.status === "repositioning";
+        if (!cfg.labor.sendHomeWhileMoving || !working) return { ok: false, reason: "wait until the truck is idle" };
+        const crew = [truck.driverId, truck.coDriverId].filter((id) => id > 0).map((id) => w.staff[id - 1]!);
+        if (crew.every((d) => d.wantsHome)) return { ok: false, reason: "already heading home after this job" };
+        for (const d of crew) d.wantsHome = true;
+        return { ok: true };
+      }
       w.manualBids.delete(truck.id);
       for (const id of [truck.driverId, truck.coDriverId]) if (id) w.staff[id - 1]!.wantsHome = true;
       // Sent by hand, the truck runs straight home; the dispatcher's rule would wait for a load that way.

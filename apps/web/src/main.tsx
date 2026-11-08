@@ -144,7 +144,8 @@ function onEvent(s: Session, e: GameEvent): void {
     }
   }
   if (e.kind === "lostBid") push(s, FEED.lost(...ends(e.loadId, e.origin, e.dest), e.rate.toFixed(2), e.winningRate !== null ? e.winningRate.toFixed(2) : null), "warn");
-  if (e.kind === "breakdown") push(s, `Breakdown on truck ${truckNo(e.truckId)}${e.repairFd ? `: ${fd(e.repairFd)} FD repair bill` : " (lessor pays)"}`, "bad");
+  // R9: one at or over guard.newsFd is a money event (books.ts), in the money style on Today; the ticker keeps its line.
+  if (e.kind === "breakdown") push(s, `Breakdown on truck ${truckNo(e.truckId)}${e.repairFd ? `: ${fd(e.repairFd)} FD repair bill` : " (lessor pays)"}`, e.repairFd >= s.w.cfg.guard.newsFd ? "bad money" : "bad");
   if (e.kind === "truckDelivered") {
     const t = w.trucks[e.truckId - 1];
     const needs = t && !crewed(t);

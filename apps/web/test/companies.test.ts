@@ -1,3 +1,4 @@
+import "./seed.js";
 import { describe, expect, it } from "vitest";
 import { hasTwo, kindInView, navFor, switchCompany } from "../src/companies.js";
 import { GAME_CONFIG, TestGame } from "../src/game.js";

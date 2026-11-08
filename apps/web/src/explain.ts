@@ -22,7 +22,8 @@ import {
   type World,
 } from "@lanes/engine";
 import { clearsNear, clearsNearSource } from "./board.js";
-import { EXPLAIN } from "./copy.js";
+import { EXPLAIN, NEWS } from "./copy.js";
+import { moneyEvents, type MoneyEvent } from "./books.js";
 import { cushion, debtCountdown, gapToTruck } from "./figures.js";
 import { buyPlan } from "./finance.js";
 import { TRAILER_NAME } from "./format.js";
@@ -45,6 +46,8 @@ export interface FigureCtx {
   invoiceId?: number;
   /** Lines on what moved the figure since the player last looked (the gap's reasons, row 4). */
   notes?: string[];
+  /** R9: the money event a news figure is (books.ts: its ref and minute). */
+  news?: { ref: string; t: number };
 }
 
 export interface Row {
@@ -112,7 +115,53 @@ function cashNowParts(w: World, c: Company, ctx: FigureCtx, total: "fee" | "land
   return total === "fee" ? { rows: rows.slice(0, 3), total: { label: "Fee", value: fd(fee) } } : { rows, total: { label: "Lands today", value: fd(r.amountFd - fee) } };
 }
 
+/** The money event a news figure names, as books.ts kept it. */
+const eventOf = (w: World, c: Company, ctx: FigureCtx): MoneyEvent | undefined => (ctx.news ? moneyEvents(w, c, ctx.news.t, 0).find((x) => x.ref === ctx.news!.ref && x.t === ctx.news!.t) : undefined);
+
 const BREAKDOWNS: Record<string, Fn> = {
+  // R9's money events. A breakdown: the terms of its odds as they stood when it was paid (wear.ts breakdownsPer1000Mi,
+  // the grades of trips.ts), and the one that weighed most; under 1.25× all round, it was the base rate: bad luck.
+  "news.breakdown": (w, c, ctx) => {
+    const e = eventOf(w, c, ctx);
+    if (!e?.why) return null;
+    const k = e.why;
+    const cfg = w.cfg;
+    const wear = 1 - k.condition;
+    const terms: { key: "worn" | "age" | "defects" | "grades"; label: string; mult: number }[] = [
+      { key: "worn", label: `${NEWS.factors.condition}: ${pct(k.condition)}`, mult: 1 + cfg.breakdowns.wornMultiplier * wear * wear },
+      { key: "age", label: `${NEWS.factors.age}: ${Math.round(k.odometer).toLocaleString("en-US")}`, mult: 1 + k.odometer / k.ageMi },
+      { key: "defects", label: `${NEWS.factors.defects}: ${k.defects}`, mult: 1 + cfg.safety.maintenance.breakdownPerDefect * k.defects },
+      ...(cfg.roads.terrain.enabled ? [{ key: "grades" as const, label: `${NEWS.factors.grades}: ${pct(k.mountainShare)}`, mult: 1 + cfg.roads.terrain.breakdownPerMountainShare * k.mountainShare }] : []),
+    ];
+    const top = [...terms].sort((a, b) => b.mult - a.mult)[0]!;
+    const why =
+      top.mult < 1.25
+        ? NEWS.why.luck
+        : top.key === "worn"
+          ? k.canRebuild
+            ? NEWS.why.worn(pct(k.condition))
+            : NEWS.why.pastRebuild
+          : top.key === "age"
+            ? NEWS.why.age(Math.round(k.odometer).toLocaleString("en-US"))
+            : top.key === "defects"
+              ? NEWS.why.defects(k.defects)
+              : NEWS.why.grades(pct(k.mountainShare));
+    return { rows: terms.map((x) => ({ label: x.label, value: `×${x.mult.toFixed(2)}` })), total: { label: NEWS.factors.paid, value: fd(-e.fd) }, notes: [why] };
+  },
+  "news.fine": (w, c, ctx) => {
+    const e = eventOf(w, c, ctx);
+    if (!e) return null;
+    const why = e.sub === "shoulder" ? NEWS.why.shoulder : e.sub === "hos" || e.sub === "falselog" ? NEWS.why.hos : e.sub === "speeding" ? NEWS.why.speeding : undefined;
+    return { rows: [], total: { label: NEWS.factors.paid, value: fd(-e.fd) }, notes: why ? [why] : undefined };
+  },
+  "news.crash": (w, c, ctx) => {
+    const e = eventOf(w, c, ctx);
+    return e ? { rows: [], total: { label: NEWS.factors.paid, value: fd(-e.fd) } } : null;
+  },
+  "news.claim": (w, c, ctx) => {
+    const e = eventOf(w, c, ctx);
+    return e ? { rows: [], total: { label: NEWS.factors.paid, value: fd(-e.fd) } } : null;
+  },
   "truck.breakEven": (w, c, ctx) => {
     const b = breakEvenParts(w, c, ctx);
     if (!b) return null;

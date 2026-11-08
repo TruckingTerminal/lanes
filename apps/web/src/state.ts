@@ -81,7 +81,8 @@ export const S = {
   boardPoster: null as number | null,
   /** The explain sheet while open: the figure's key, what it was computed from, its label and value (ui/Explain.tsx). */
   /** The milestone line on the caption now (caption rule 3), kept until its button or a change of tab. */
-  milestone: null as null | { key: string; phase: "before" | "at"; tab: string; at: number },
+  /** The milestone line in the caption; `held` when it carries a button (R10: it stays until answered, dismissed or left). */
+  milestone: null as null | { key: string; phase: "before" | "at"; tab: string; at: number; held?: boolean },
   /** The confirm card open now (R6, ui/Confirm.tsx), and when it opened (its confirm is inert for ui.tapSettleMs). */
   confirm: null as null | import("./ui/Confirm.js").ConfirmSpec & { openedAt: number; swap: boolean; tab: string },
   /** The player's last order: on which tab, at which real time (R2: a caption line retires when the player acts on another screen). */

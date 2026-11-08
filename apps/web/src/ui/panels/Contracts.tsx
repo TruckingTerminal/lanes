@@ -90,7 +90,7 @@ export function ContractsCard({ c }: { c: Company }): JSX.Element {
           <>
             <h3>Offers</h3>
             {offers.map((k) => (
-              <div class="row" key={k.id}>
+              <div class="row" key={k.id} data-need={`offer:${k.id}`}>
                 <span>
                   {lane(k)} · {k.loadsPerWeek}/wk at <Num>{k.ratePerMile.toFixed(2)}</Num>/mi · expires {dateLabel(k.offerExpiresDay)}
                 </span>

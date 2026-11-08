@@ -1,3 +1,4 @@
+import "./seed.js";
 import { describe, expect, it } from "vitest";
 import { companyAccount, financedCashNeed, listTruck } from "@lanes/engine";
 import { buyPlan, cheapestNewRig, firstTruckRoute } from "../src/finance.js";

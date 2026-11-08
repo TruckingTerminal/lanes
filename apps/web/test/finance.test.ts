@@ -1,3 +1,4 @@
+import "./seed.js";
 import { describe, expect, it } from "vitest";
 import { factoringRate } from "@lanes/engine";
 import { TestGame } from "../src/game.js";

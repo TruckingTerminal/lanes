@@ -1,3 +1,4 @@
+import "./seed.js";
 import { describe, expect, it } from "vitest";
 import { FIRST_ENTRY, TUTORIAL } from "../src/copy.js";
 

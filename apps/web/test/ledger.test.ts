@@ -1,3 +1,4 @@
+import "./seed.js";
 import { describe, expect, it } from "vitest";
 import { boardRows } from "../src/board.js";
 import { TestGame } from "../src/game.js";

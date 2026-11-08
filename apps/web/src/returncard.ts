@@ -1,4 +1,5 @@
 import { dayOf, type Company, type World } from "@lanes/engine";
+import { closedMonths, monthReport } from "./books.js";
 import { stepScope } from "./walkthrough.js";
 
 /**
@@ -59,6 +60,12 @@ export function saveVisit(w: World, c: Company): void {
 
 const MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
 
+/** The month report's kept for a closed month (books.ts), so the return card and Money say one figure (R10). */
+const keptOf = (w: World, c: Company, closedDay: number): number | null => {
+  const m = closedMonths(w, c).find((x) => x.closedDay === closedDay);
+  return m ? monthReport(m).keptFd : null;
+};
+
 /** At the world's opening: what changed since the last visit, if it was RETURN_HOURS or more ago and the same company. */
 export function returnFor(w: World, c: Company, live: boolean, nowMs = Date.now()): Away | null {
   let v: Visit | null = null;
@@ -76,6 +83,6 @@ export function returnFor(w: World, c: Company, live: boolean, nowMs = Date.now(
     outFd: Math.max(0, c.operating.costFd + (c.finesOffCostsFd ?? 0) - v.costFd),
     late: Math.max(0, c.late - v.late),
     tickets: c.safety.finesFd > v.finesFd + 0.5 ? 1 : 0,
-    month: closed ? { name: MONTHS[Math.min(11, Math.floor(((closed.closedDay - 1) % 365) / 30))]!, keptFd: closed.revenueFd - closed.spentFd } : null,
+    month: closed ? { name: MONTHS[Math.min(11, Math.floor(((closed.closedDay - 1) % 365) / 30))]!, keptFd: keptOf(w, c, closed.closedDay) ?? closed.revenueFd - closed.spentFd } : null,
   };
 }
