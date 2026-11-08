@@ -4,7 +4,7 @@ import { MANUAL_BID_MAX_DEADHEAD_MI, VETTING_NAMES, type Truck } from "@lanes/en
 import { COMMODITIES } from "@lanes/data";
 import { allInRate, bidRange, boardRows, chipCash, chipPair, clearsNear, posterOf, sortRows, type BoardRow, type BoardSort, type ChipPair } from "../../board.js";
 import { DockWarning, ProfitChip } from "../ProfitChip.js";
-import { ANSWER, BOARD, CHIP, INTEL, LOAD, ROUND } from "../../copy.js";
+import { ANSWER, BOARD, CHIP, INTEL, LOAD, ROUND, WALL } from "../../copy.js";
 import { cls, fdFull, hhmm, pct, shortDate, TRAILER_NAME } from "../../format.js";
 import { nextRoundHour, nextRoundLabel, nextRoundWait, reloadLabel, roundProgress, seasonSwing } from "../../logic.js";
 import { bumpData, isPhone, me, myTrucks, openIntel, order, S, selectTruck, setOnboard, setTab, toast, truckNo, useData } from "../../state.js";
@@ -21,10 +21,22 @@ import { Fig } from "../Explain.js";
  * at the top with a ring to the round, and the round's result takes its place until OK. The numbers come from
  * board.ts, on the one break-even (breakeven.ts). The laptop keeps the DAT table behind "Table".
  */
+/** R22: the board's one line when every load in view is closed to the truck for the same reason. */
+function wallLineOf(rows: BoardRow[]): JSX.Element | null {
+  if (!rows.length || !rows.every((r) => r.block)) return null;
+  const reason = rows[0]!.block!;
+  return rows.every((r) => r.block === reason) ? <p class="small warn wallline">{WALL.everyLoad(reason)}</p> : null;
+}
+
 export function Loads(): JSX.Element {
   useData();
   const [table, setTable] = useState(false);
-  const [sort, setSort] = useState<BoardSort>("nearest");
+  // R22's "See the ways out" (until R23) opens the board once on its sort.
+  const [sort, setSort] = useState<BoardSort>(() => {
+    const once = S.boardSortOnce;
+    S.boardSortOnce = null;
+    return once ?? "nearest";
+  });
   const [filterOpen, setFilterOpen] = useState(false);
   const [dest, setDest] = useState("");
   const [minRpm, setMinRpm] = useState(0);
@@ -96,6 +108,8 @@ export function Loads(): JSX.Element {
           </select>
         ) : null}
       </div>
+      {/* R22: when every load in reach fails the same wall, one line says it above the cards. */}
+      {wallLineOf(rows)}
       {posterName !== null ? <PosterChip name={posterName} /> : null}
       {posterName !== null && !rows.length ? <p class="muted small">{BOARD.noneFromPoster(posterName)}</p> : null}
       <div class="row">

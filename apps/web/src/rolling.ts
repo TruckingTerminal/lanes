@@ -199,14 +199,18 @@ export function paidLine(w: World, c: Company, truck: Truck, fresh: Receivable |
  * An empty run's price before the tap (R24): fuel and the driver's pay over the empty miles, from the same parts as
  * break-even (economics.ts tripCost), plus the tolls; and its time at the nominal pace and the day's driving hours.
  */
-export function emptyRun(w: World, t: Truck, fromHub: number, toHub: number): { mi: string; fd: string; time: string } {
+export function emptyRun(w: World, t: Truck, fromHub: number, toHub: number): { mi: string; fd: string; time: string; costFd: number; parts: { fuel: number; wages: number; tolls: number } } {
   const mi = hubMiles(w, fromHub, toHub);
   const run = tripCost(w.cfg, t, fuelPrice(w), mi, 0);
   const hours = mi / w.cfg.hos.avgMph;
   const days = hours / w.cfg.hos.drivingHoursPerDay;
+  const parts = { fuel: run.fuel, wages: run.wages, tolls: hubToll(w, fromHub, toHub) };
+  const costFd = parts.fuel + parts.wages + parts.tolls;
   return {
+    costFd,
+    parts,
     mi: Math.round(mi).toLocaleString("en-US"),
-    fd: Math.round(run.fuel + run.wages + hubToll(w, fromHub, toHub)).toLocaleString("en-US"),
+    fd: Math.round(costFd).toLocaleString("en-US"),
     time: MOVE.time(days < 1 ? 0 : Math.ceil(days), Math.max(1, Math.ceil(hours))),
   };
 }

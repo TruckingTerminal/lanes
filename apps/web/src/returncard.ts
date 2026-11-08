@@ -1,5 +1,5 @@
 import { dayOf, type Company, type World } from "@lanes/engine";
-import { closedMonths, monthReport } from "./books.js";
+import { closedMonths, moneyEvents, monthReport } from "./books.js";
 import { stepScope } from "./walkthrough.js";
 
 /**
@@ -34,6 +34,10 @@ export interface Away {
   tickets: number;
   /** The month that closed while away and what it kept. */
   month: { name: string; keptFd: number } | null;
+  /** Breakdowns paid while away (books.ts money events since the last visit's day). */
+  breakdowns: number;
+  /** When the player came back: the game minute, for the header and the timeline's row. */
+  backT: number;
 }
 
 const snapshot = (w: World, c: Company): Visit => ({
@@ -83,6 +87,8 @@ export function returnFor(w: World, c: Company, live: boolean, nowMs = Date.now(
     outFd: Math.max(0, c.operating.costFd + (c.finesOffCostsFd ?? 0) - v.costFd),
     late: Math.max(0, c.late - v.late),
     tickets: c.safety.finesFd > v.finesFd + 0.5 ? 1 : 0,
+    breakdowns: moneyEvents(w, c, v.day * w.cfg.time.gameMinutesPerDay, 0).filter((e) => e.kind === "breakdown").length,
+    backT: w.t,
     month: closed ? { name: MONTHS[Math.min(11, Math.floor(((closed.closedDay - 1) % 365) / 30))]!, keptFd: keptOf(w, c, closed.closedDay) ?? closed.revenueFd - closed.spentFd } : null,
   };
 }

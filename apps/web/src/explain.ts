@@ -24,6 +24,7 @@ import {
 import { clearsNear, clearsNearSource } from "./board.js";
 import { EXPLAIN, NEWS } from "./copy.js";
 import { moneyEvents, type MoneyEvent } from "./books.js";
+import { emptyRun } from "./rolling.js";
 import { cushion, debtCountdown, gapToTruck } from "./figures.js";
 import { buyPlan } from "./finance.js";
 import { TRAILER_NAME } from "./format.js";
@@ -48,6 +49,8 @@ export interface FigureCtx {
   notes?: string[];
   /** R9: the money event a news figure is (books.ts: its ref and minute). */
   news?: { ref: string; t: number };
+  /** R24: where an empty run goes (a hub's index). */
+  toHub?: number;
 }
 
 export interface Row {
@@ -147,6 +150,20 @@ const BREAKDOWNS: Record<string, Fn> = {
               ? NEWS.why.defects(k.defects)
               : NEWS.why.grades(pct(k.mountainShare));
     return { rows: terms.map((x) => ({ label: x.label, value: `×${x.mult.toFixed(2)}` })), total: { label: NEWS.factors.paid, value: fd(-e.fd) }, notes: [why] };
+  },
+  // R24: an empty run's price, by the per-mile parts of break-even (rolling.ts emptyRun): fuel, the driver's pay, tolls.
+  "move.cost": (w, _c, ctx) => {
+    const t = ctx.truckId !== undefined ? w.trucks.find((x) => x.id === ctx.truckId) : undefined;
+    if (!t || ctx.toHub === undefined) return null;
+    const r = emptyRun(w, t, t.hub, ctx.toHub);
+    return {
+      rows: [
+        { label: `Fuel, ${r.mi} mi empty`, value: fd(r.parts.fuel) },
+        { label: "The driver's pay", value: fd(r.parts.wages) },
+        { label: "Tolls", value: fd(r.parts.tolls) },
+      ],
+      total: { label: `About, ${r.time}`, value: fd(r.costFd) },
+    };
   },
   "news.fine": (w, c, ctx) => {
     const e = eventOf(w, c, ctx);

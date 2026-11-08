@@ -90,19 +90,36 @@ export const WALL = {
   vettingStrictDate: (days: number, date: string) => `Strict vetting needs ${days} days' authority: yours reaches it on ${date}.`,
   localFirst: (hh: string) => `Local carriers first this round. Open to everyone from ${hh}.`,
   hot: "A hot load needs a team.",
+  /** R22: one line under the board's header when every load in reach fails the same wall (engineering's, for the writer). */
+  everyLoad: (reason: string) => `Nothing here is yours to take. ${reason}`,
 };
 
 /** The return card (the writer's copy-player5.md, R21): built from the world after a long absence. */
 export const RETURN = {
   hello: "Welcome back.",
-  whereIdle: (place: string, mi: string) => `Your truck is idle at ${place}, ${mi} miles from home.`,
-  whereHome: (hub: string) => `Your truck is at home in ${hub}.`,
-  whereMoving: (mi: string, dest: string, eta: string) => `Your truck is ${mi} miles from ${dest}, arriving ${eta}.`,
+  /** The UX spec's header: the game's date and time (engineering's form, for the writer). */
+  helloAt: (when: string) => `Welcome back. ${when}.`,
+  /** `who` is "Your truck" for one truck, "Truck 2" in a fleet (engineering's, for the writer). */
+  whereIdle: (place: string, mi: string, who = "Your truck") => `${who} is idle at ${place}, ${mi} miles from home.`,
+  whereHome: (hub: string, who = "Your truck") => `${who} is at home in ${hub}.`,
+  whereMoving: (mi: string, dest: string, eta: string, who = "Your truck") => `${who} is ${mi} miles from ${dest}, arriving ${eta}.`,
   whereFleet: (n: number, moving: number, idle: number, home: number) => `${n} trucks: ${moving} on the road, ${idle} idle, ${home} at home.`,
   whyIdle: (reason: string) => `Nothing here is yours to take: ${reason.replace(/\.$/, "")}.`,
   whyIdlePays: (n: number) => `${n} loads in reach pay over break-even.`,
   doingLoading: (place: string, hh: string) => `It's loading at ${place}, done around ${hh}.`,
   doingResting: (place: string, hh: string) => `It's resting near ${place} and rolls again at ${hh}.`,
+  /** The writer's return.doingDock. */
+  doingDock: (place: string, when: string) => `It's waiting at ${place}: the dock opens ${when}.`,
+  /** The UX spec: past three trucks (engineering's, for the writer). */
+  more: (n: number) => `And ${n} more on Truck.`,
+  /** At strip height (the UX spec): one line, a tap raises the sheet. */
+  stripIdle: (n: number, place: string) => `Back · Truck ${n} idle at ${place}`,
+  stripMoving: (n: number, dest: string) => `Back · Truck ${n} on its way to ${dest}`,
+  stripHome: (n: number) => `Back · Truck ${n} at home`,
+  readMonth: "Read the month",
+  seeToday: "See Today",
+  /** The timeline's row (the UX spec): a tap reopens the card as it was. */
+  timeline: (date: string) => `Back ${date}`,
   awayLive: (n: number, fdIn: string, fdOut: string) => `While you were away: ${n} loads delivered, ${fdIn} FD in, ${fdOut} FD out.`,
   awayTrouble: (list: string) => `Also ${list}.`,
   awayQuiet: "Nothing happened while you were away.",
@@ -111,6 +128,8 @@ export const RETURN = {
   ok: "OK",
   late: (n: number) => (n === 1 ? "a late load" : `${n} late loads`),
   ticket: (n: number) => (n === 1 ? "a ticket" : `${n} tickets`),
+  /** The writer's awayTrouble items: a breakdown (from the month's books, R9). */
+  breakdown: (n: number) => (n === 1 ? "a breakdown" : `${n} breakdowns`),
 };
 
 /** What limits the fleet, the binding cap first (the writer's copy-player4.md, R19). */
@@ -147,6 +166,16 @@ export const DOOR = {
 export const MOVE = {
   home: (mi: string, fd: string, time: string) => `Home · ${mi} mi empty · about ${fd} FD · ${time}`,
   empty: (hub: string, mi: string, fd: string, time: string) => `To ${hub} · ${mi} mi empty · about ${fd} FD · ${time}`,
+  /** R24 on a phone (player5-ux.md section 3): the button's label, and the price on one line under it. */
+  sendHome: "Send home",
+  sendTo: (hub: string) => `Send to ${hub}`,
+  price: (mi: string, fd: string, time: string) => `${mi} mi empty · about ${fd} FD · ${time}`,
+  /** The writer's move.emptyOption: one option a hub in Send empty's list. */
+  emptyOption: (hub: string, mi: string, fd: string, time: string, n: number) => `${hub} · ${mi} mi empty · about ${fd} FD · ${time} · ${n} loads there`,
+  /** R6's card when a move passes guard.confirmShareOfCash of cash (engineering's, for the writer). */
+  confirmHome: "Runs the truck home empty for its driver's days off.",
+  confirmEmpty: (hub: string) => `Runs the truck empty to ${hub}, to look for a load there.`,
+  confirmRisk: "Empty miles earn nothing: a load that way might pay for the trip.",
   time: (days: number, hours: number) => (days < 1 ? `${hours} h` : days === 1 ? "1 day" : `${days} days`),
 };
 
@@ -655,6 +684,10 @@ export const NEEDS = {
   defects: (n: number, defects: number) => `Truck ${n} is carrying ${defects} defects: an inspection finds them, and they raise crash odds.`,
   fix: (fd: string) => `Fix · ${fd} FD`,
   whatNow: "What now?",
+  /** R22 (the writer's copy-player5.md needs.stuck, needs.stuckPays): the moment a truck is idle with nothing to take. */
+  stuck: (n: number, place: string, reason: string) => `Truck ${n} is idle at ${place}: ${reason.charAt(0).toLowerCase()}${reason.slice(1).replace(/\.$/, "")}.`,
+  stuckPays: (n: number, place: string) => `Truck ${n} is idle at ${place}: nothing in reach pays.`,
+  waysOut: "See the ways out",
 };
 
 /**
@@ -1274,6 +1307,7 @@ export const EXPLAIN = (cfg: EconomyConfig): Record<string, Ex> => ({
   "finance.quickPayFee": { what: "The cost of being paid on delivery, one load at a time.", how: `${pctOf(cfg.token.payment.quickPayPct)} of the load.`, moves: "Nothing: it's fixed. Use it for emergencies." },
   "guide.gapToTruck": { what: "How far you are from your next truck.", how: `The cheapest truck's cash needed now, less your deposit and cash above ${cfg.guide.gapCushionWeeks} weeks of costs.`, moves: "Hauling; the cheapest truck on offer, which changes; your spending, once your first week closes." },
   "guide.cushion": { what: "How many weeks your cash covers your own spending.", how: `Your cash, divided by your average weekly spending over the last ${cfg.guide.cushionAvgWeeks} weeks.`, moves: "Earning more, spending less, buying nothing in a slump." },
+  "move.cost": { what: "What this empty run should cost before the next load.", how: "Fuel, your driver's pay and tolls over the empty miles, at today's prices.", moves: "The distance, the price of diesel, and the truck's mpg." },
   "guide.debtCountdown": { what: "Weekly checks in a row with cash under the line.", how: `Checked weekly: under ${cfg.insolvency.debtLimitFd.toLocaleString("en-US")} FD counts one; ${cfg.insolvency.weeksInDebt} in a row winds you up.`, moves: "Cash back above the line resets it." },
   // R10's month report: each earned and spent row (engineering's drafts for the writer).
   "month.loads": { what: "Pay for the loads you delivered this month, paid or still owed.", how: "Pay received for loads, plus invoices still owed at the close, less those of earlier months paid in it. Quick pay's fee is already off.", moves: "Loads and their rates; the empty miles between them." },

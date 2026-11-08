@@ -34,6 +34,7 @@ import {
 } from "@lanes/engine";
 import { DISPATCHER_ORDERS, GAME_CONFIG, PLAYER_DISPATCHER_ORDERS } from "./game.js";
 import { trueBreakEven } from "./breakeven.js";
+import { boardRows } from "./board.js";
 import { ARRIVAL, BROKERAGE, DEBT, DISPATCHER, FIRST_ENTRY, NEEDS, SAFETY_NEWS, TRUCK } from "./copy.js";
 import { debtCountdown } from "./figures.js";
 import { hasTwo, kindInView, switchCompany, type CompanyKind } from "./companies.js";
@@ -63,12 +64,71 @@ export const idleHours = (t: Truck): number => Math.max(0, (clockMin() - Math.ma
 export const idleDays = (t: Truck): number => Math.floor(idleHours(t) / 24);
 export const idleLabel = (t: Truck): string => hoursLabel(idleHours(t));
 
+/**
+ * R22 (player5-ux.md section 4): where a truck stands with nothing in reach it may take, or nothing that pays. The one
+ * reason is the board's own chip (board.ts blockReason, the engine's order), the one most of the loads in reach share.
+ * Read the moment the truck is idle, not a day later; memoized for the game minute, since the badge reads it each draw.
+ */
+export interface Wall {
+  /** Every load in reach is closed to the truck, for this reason; null when some are open. */
+  reason: string | null;
+  /** Whether every load in reach shares that one reason (the board's line under its header). */
+  same: boolean;
+  /** Loads in reach the truck may take that clear break-even. */
+  pays: number;
+  rows: number;
+}
+let wallMemo: { t: number; at: Map<string, Wall> } = { t: -1, at: new Map() };
+export function wallAt(t: Truck): Wall {
+  const w = S.game!.w;
+  const c = me();
+  if (wallMemo.t !== w.t) wallMemo = { t: w.t, at: new Map() };
+  const key = `${c.id}:${t.id}:${t.place}`;
+  const hit = wallMemo.at.get(key);
+  if (hit) return hit;
+  const rows = boardRows(w, c, t, { dest: "any", maxDh: 300, query: "" });
+  const pays = rows.filter((r) => !r.block && r.profitBook > 0).length;
+  let reason: string | null = null;
+  let same = false;
+  if (rows.length && rows.every((r) => r.block)) {
+    const n = new Map<string, number>();
+    for (const r of rows) n.set(r.block!, (n.get(r.block!) ?? 0) + 1);
+    reason = [...n.entries()].sort((a, b) => b[1] - a[1])[0]![0];
+    same = n.size === 1;
+  }
+  const out = { reason, same, pays, rows: rows.length };
+  wallMemo.at.set(key, out);
+  return out;
+}
+/** R22: the player's idle trucks with nothing in reach they may take that pays, from the moment they're idle. */
+export const wallTrucks = (): Truck[] => {
+  const w = S.game!.w;
+  if (me().authority.status !== "active") return [];
+  return myTrucks().filter((t) => t.status === "idle" && crewed(t) && !resting(w, t) && t.breakdownMin <= 0 && !w.manualBids.has(t.id) && wallAt(t).pays === 0);
+};
+/** R22's line for a stuck truck: the wall's reason, or that nothing in reach pays. */
+export function wallLine(t: Truck): string {
+  const w = S.game!.w;
+  const wall = wallAt(t);
+  const place = w.net.places[t.place]!.name;
+  return wall.reason ? NEEDS.stuck(truckNo(t.id), place, wall.reason) : NEEDS.stuckPays(truckNo(t.id), place);
+}
+/**
+ * "See the ways out": What now?'s rule 3b once R23 is built (guidance.md, "Stuck: the ways out"); until then, as the
+ * writer's copy-player5.md says, the board for this truck sorted by pay.
+ */
+export function waysOut(t: Truck): void {
+  S.boardSortOnce = "pay";
+  goLoads(t.id);
+}
+
 /** The player's trucks idle a day or more. */
 /** R1: with the dispatcher off, the idle card offers it after one idle round, not two. */
 const roundHours = (): number => 24 / S.game!.w.cfg.time.boardRoundHours.length;
 export const stuckTrucks = (): Truck[] => {
   const off = !me().orders.some((o) => o.kind === "bid");
-  return myTrucks().filter((t) => t.status === "idle" && idleHours(t) >= (off ? roundHours() : IDLE_ALERT_HOURS) && !resting(S.game!.w, t));
+  const walls = new Set(wallTrucks().map((t) => t.id));
+  return myTrucks().filter((t) => t.status === "idle" && idleHours(t) >= (off ? roundHours() : IDLE_ALERT_HOURS) && !resting(S.game!.w, t) && !walls.has(t.id));
 };
 
 /** R1's one button ("Let the dispatcher bid"): the dispatcher's default rules on, the company's other orders kept. */
@@ -92,8 +152,8 @@ export function checkIdleAlerts(): void {
     if (idleHours(t) < IDLE_ALERT_HOURS || idleAlerted.get(key) === days || resting(g.w, t)) continue;
     idleAlerted.set(key, days);
     const text = `Truck ${truckNo(t.id)} has been idle ${idleLabel(t)} at ${g.w.net.hubs[t.hub]!.name}: ${idleWhy(t).why}`;
+    // R22: the idle card and the badge carry it from the moment the truck is idle; it no longer arrives as a toast.
     push(g, text, "bad");
-    toast(text, true);
     bumpData();
   }
 }
@@ -316,7 +376,10 @@ function needsInView(fleet: boolean): Need[] {
     if (!idle && !sendHomeWhileMoving(w)) continue;
     out.push({ key: `tired:${t.id}`, text: NEEDS.tired(d.owner ? "You" : d.name, d.awayDays), tab: "fleet", target: `[data-need="tired:${t.id}"]`, button: idle ? NEEDS.sendHome : NEEDS.sendHomeWhenIdle, run: () => act({ type: "send_home", truckId: t.id }, idle ? "Heading home for days off" : TRUCK.goingHomeToast, "truck:sendHome"), icon: "staff" });
   }
-  for (const t of trucks.filter((x) => stuckTrucks().includes(x))) {
+  for (const t of fleet ? wallTrucks() : [])
+    out.push({ key: `wall:${t.id}`, text: wallLine(t), tab: "fleet", target: `[data-need="wall:${t.id}"]`, button: NEEDS.waysOut, run: () => waysOut(t), icon: "fleet", riskFdPerDay: truckDayCostFd(w, c, t) });
+  const stuck = fleet ? stuckTrucks() : [];
+  for (const t of trucks.filter((x) => stuck.includes(x))) {
     const fix = idleFix(t);
     out.push({ key: `idle:${t.id}`, text: NEEDS.idle(truckName(t), w.net.hubs[t.hub]!.name, idleLabel(t)), tab: "fleet", target: `[data-need="idle:${t.id}"]`, button: fix.button, run: fix.run, icon: "fleet", riskFdPerDay: truckDayCostFd(w, c, t) });
   }

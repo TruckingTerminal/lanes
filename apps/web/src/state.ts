@@ -82,6 +82,8 @@ export const S = {
   /** The explain sheet while open: the figure's key, what it was computed from, its label and value (ui/Explain.tsx). */
   /** The milestone line on the caption now (caption rule 3), kept until its button or a change of tab. */
   /** The milestone line in the caption; `held` when it carries a button (R10: it stays until answered, dismissed or left). */
+  /** R22's "See the ways out" until R23: the board opens once on this sort. */
+  boardSortOnce: null as null | import("./board.js").BoardSort,
   milestone: null as null | { key: string; phase: "before" | "at"; tab: string; at: number; held?: boolean },
   /** The confirm card open now (R6, ui/Confirm.tsx), and when it opened (its confirm is inert for ui.tapSettleMs). */
   confirm: null as null | import("./ui/Confirm.js").ConfirmSpec & { openedAt: number; swap: boolean; tab: string },
@@ -89,6 +91,8 @@ export const S = {
   lastAct: null as null | { tab: string; at: number },
   /** R21: what changed while the player was away, shown as the return card until answered (returncard.ts). */
   returnCard: null as null | import("./returncard.js").Away,
+  /** The last return card shown in this sitting: the timeline's "Back {date}" reopens it (R21). */
+  lastReturn: null as null | import("./returncard.js").Away,
   /** Our hire-away offers answered, newest first, in the writer's words: from the engine's own notice at the deadline (QA's R7 replay). */
   poachResults: [] as { staffId: number; text: string }[],
   /** The next-truck gap as last shown, and what moved it since the player last opened its explanation (row 4). */

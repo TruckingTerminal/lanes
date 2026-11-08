@@ -311,6 +311,13 @@ table.mini td:first-child { font-family: inherit; }
 .books td.num { text-align: right; white-space: nowrap; padding-left: 12px; }
 .books tr.head td { padding-top: 10px; font-family: var(--font-mono); font-size: 10px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--text-secondary); }
 .books tr.strong td { font-weight: 700; border-top: 1px solid var(--border); }
+.returncard .linkish { background: none; border: 0; padding: 0 2px; min-height: 32px; color: var(--accent); font: inherit; cursor: pointer; text-decoration: underline; }
+.returncard .stripline { display: none; }
+.sheet.strip .returncard .stripline { display: inline-flex; align-items: center; }
+.sheet.strip .returncard .full, .sheet.strip .returncard .portrait { display: none; }
+.movebtn { display: inline-flex; flex-direction: column; align-items: flex-start; gap: 2px; max-width: 100%; }
+.movebtn .fig { max-width: 100%; }
+.movebtn .price { display: block; color: var(--text-secondary); font-size: 12px; white-space: nowrap; }
 .moneyevents { list-style: none; margin: 0 0 6px; padding: 0; }
 .moneyevents li { padding: 2px 0; }
 .caption.iuliia .portrait.lg { width: 96px; height: 96px; flex: none; }

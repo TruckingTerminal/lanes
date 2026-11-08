@@ -1,11 +1,12 @@
 import type { JSX } from "preact";
 import { useState } from "preact/hooks";
 import { staffById, type Company, type World } from "@lanes/engine";
-import { FIGURE_ACT, GUIDE_LABEL, MILESTONE } from "../copy.js";
+import { FIGURE_ACT, GUIDE_LABEL, MILESTONE, RETURN } from "../copy.js";
 import { cushion, gapToTruck } from "../figures.js";
-import { cls, fdFull, shortDate } from "../format.js";
+import { cls, fdFull, shortDate, weekdayDate } from "../format.js";
 import { closedMonths, monthReport } from "../books.js";
 import { hasMonthReport, openMonthReport } from "./MonthReport.js";
+import { reopenReturn } from "./ReturnCard.js";
 import { iuliiaMayStart, iuliiaMuted, iuliiaStarted } from "../iuliia.js";
 import { dueMilestone, history, milestones, type Milestone } from "../milestones.js";
 import { bumpData, S, setOnboard, setTab, useData } from "../state.js";
@@ -180,6 +181,16 @@ export function CompanySoFar(): JSX.Element | null {
       <p class="small">
         <b>{MILESTONE.nextOnRoad}</b> {nextOnRoad(g.w, c)}
       </p>
+      {/* R21: the last return card, as "Back {date}"; a tap reopens it as it was. */}
+      {S.lastReturn ? (
+        <ul class="timeline">
+          <li>
+            <button type="button" class="linkish" onClick={reopenReturn}>
+              {RETURN.timeline(weekdayDate(Math.floor(S.lastReturn.backT / g.w.cfg.time.gameMinutesPerDay)))}
+            </button>
+          </li>
+        </ul>
+      ) : null}
       {done.length ? (
         <ul class="timeline">
           {done.map((m) => {

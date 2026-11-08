@@ -1,10 +1,11 @@
 import type { JSX } from "preact";
+import { useState } from "preact/hooks";
 import { condition, crewed, dutyResetAt, hubMiles, ordersOf, rebuildable, rebuildCost, resting, truckValue, type Truck } from "@lanes/engine";
 import { SCENES } from "../../assets.js";
 import { cls, dateLabel, fd, fdFull, pct, plural, TIER_NAME, TRAILER_NAME, hhmm, realUntil } from "../../format.js";
-import { HOURS, MOVE, TRUCK } from "../../copy.js";
+import { HOURS, MOVE, NEEDS, TRUCK } from "../../copy.js";
 import { GAME_CONFIG } from "../../game.js";
-import { AttentionCard, CrewLine, goLoads, goStaff, idleLabel, idleWhy, openLoadsAt, StatusLine, stuckTrucks, tiredTrucks, truckName } from "../../logic.js";
+import { AttentionCard, CrewLine, goLoads, goStaff, idleLabel, idleWhy, openLoadsAt, StatusLine, stuckTrucks, tiredTrucks, truckName, wallLine, wallTrucks, waysOut } from "../../logic.js";
 import { focusTruck } from "../../mapview.js";
 import { act, describe, feed, isPhone, me, myTrucks, S, selectTruck, truckNo, useData } from "../../state.js";
 import { Bar, Btn, Card, Num, Panel, Pixel } from "../bits.js";
@@ -16,7 +17,7 @@ import { DispatcherCard } from "./Dispatcher.js";
 import { DeliveredCard, RollingCards } from "./Rolling.js";
 import { emptyRun } from "../../rolling.js";
 import { TrailerLines, TruckAssetActions, YardCard } from "./Yard.js";
-import { confirmAct } from "../Confirm.js";
+import { confirmAct, confirmSpend } from "../Confirm.js";
 import { rebuild as rebuildLines, sell as sellLines } from "../../confirmspecs.js";
 import { CapsLine } from "../Caps.js";
 import { leaseMinFor } from "../../ledger.js";
@@ -39,6 +40,72 @@ function emptyLine(t: Truck, hub: number): string {
   const w = S.game!.w;
   const r = emptyRun(w, t, t.hub, hub);
   return MOVE.empty(w.net.hubs[hub]!.name, r.mi, r.fd, r.time);
+}
+
+/**
+ * R24 (player5-ux.md section 3): a move's button with its price before the tap. On a phone the label sits on the
+ * button and the price on one line under it, an explain key (move.cost); on a laptop the whole line is the button.
+ * Above guard.confirmShareOfCash of cash, R6's card follows the press; below it, the price is the guardrail.
+ */
+function MoveBtn({ t, toHub, label, full, does, primary, run }: { t: Truck; toHub: number; label: string; full: string; does: string; primary?: boolean; run: () => void }): JSX.Element {
+  const w = S.game!.w;
+  const r = emptyRun(w, t, t.hub, toHub);
+  const press = (ev: MouseEvent) => confirmSpend({ verb: label, item: `truck ${truckNo(t.id)}`, costFd: r.costFd, does, risk: MOVE.confirmRisk, run }, ev);
+  if (!isPhone())
+    return (
+      <Btn primary={primary} onClick={press}>
+        {full}
+      </Btn>
+    );
+  return (
+    <span class="movebtn">
+      <Btn primary={primary} onClick={press}>
+        {label}
+      </Btn>
+      <Fig k="move.cost" label={label} ctx={{ truckId: t.id, toHub }}>
+        <span class="price">{fitPrice(MOVE.price(r.mi, r.fd, r.time))}</span>
+      </Fig>
+    </span>
+  );
+}
+
+/** The phone's price line, one line at a 343 px button's width: "empty" goes first, then "about"; the FD and the days stay. */
+const PRICE_CHARS = 40;
+function fitPrice(line: string): string {
+  let out = line;
+  if (out.length > PRICE_CHARS) out = out.replace(" mi empty", " mi");
+  if (out.length > PRICE_CHARS) out = out.replace("about ", "");
+  return out;
+}
+
+/** Send home, priced (R24). */
+function SendHome({ t, primary }: { t: Truck; primary?: boolean }): JSX.Element {
+  return <MoveBtn t={t} toHub={me().homeHub} label={MOVE.sendHome} full={homeRun(t)} does={MOVE.confirmHome} primary={primary} run={() => act({ type: "send_home", truckId: t.id }, "Heading home for days off", "truck:sendHome")} />;
+}
+
+/** Send empty: the hub list with each run's price and its loads, and the button priced for the hub picked, before the press (R24). */
+function SendEmpty({ t, nearby }: { t: Truck; nearby: { i: number }[] }): JSX.Element | null {
+  const w = S.game!.w;
+  const [pick, setPick] = useState<number | null>(null);
+  if (!nearby.length) return null;
+  const hub = pick !== null && nearby.some((x) => x.i === pick) ? pick : nearby[0]!.i;
+  const name = w.net.hubs[hub]!.name;
+  const r = emptyRun(w, t, t.hub, hub);
+  return (
+    <>
+      <select id={`send-${t.id}`} aria-label="Destination hub" value={String(hub)} onChange={(ev) => setPick(Number((ev.currentTarget as HTMLSelectElement).value))}>
+        {nearby.map((x) => {
+          const o = emptyRun(w, t, t.hub, x.i);
+          return (
+            <option value={String(x.i)} key={x.i}>
+              {MOVE.emptyOption(w.net.hubs[x.i]!.name, o.mi, o.fd, o.time, openLoadsAt(x.i).filter((l) => l.equipment === t.trailer).length)}
+            </option>
+          );
+        })}
+      </select>
+      <MoveBtn t={t} toHub={hub} label={MOVE.sendTo(name)} full={`${MOVE.sendTo(name)} · ${MOVE.price(r.mi, r.fd, r.time)}`} does={MOVE.confirmEmpty(name)} run={() => act({ type: "reposition_truck", truckId: t.id, hubId: w.net.hubs[hub]!.id }, TRUCK.sentEmpty, "truck:sendEmpty")} />
+    </>
+  );
 }
 
 export function Fleet(): JSX.Element {
@@ -78,7 +145,7 @@ function TodayCard(): JSX.Element | null {
     .slice(0, 8);
   if (!lines.length && !MoneyEventRows({ sinceT: w.t - w.cfg.time.gameMinutesPerDay })) return null;
   return (
-    <Card title={TRUCK.today}>
+    <Card class="todaycard" title={TRUCK.today}>
       {money}
       {lines.map((l, i) => (
         <p key={i} class={cls("small", l.cls)}>
@@ -122,9 +189,7 @@ function TiredAlerts(): JSX.Element {
               <p class="muted">{t.status === "idle" || t.status === "repositioning" ? "Heading home for days off." : TRUCK.goingHome(hubMiles(w, endHub(t), me().homeHub))}</p>
             ) : t.status === "idle" ? (
               <div class="row">
-                <Btn primary onClick={() => act({ type: "send_home", truckId: t.id }, "Heading home for days off", "truck:sendHome")}>
-                  {homeRun(t)}
-                </Btn>
+                <SendHome t={t} primary />
               </div>
             ) : w.cfg.labor.sendHomeWhileMoving ? (
               // R9: the standing intent (labor.sendHomeWhileMoving): the truck heads home once this load is done.
@@ -147,6 +212,16 @@ function IdleAlerts(): JSX.Element {
   const w = S.game!.w;
   return (
     <>
+      {/* R22: a truck at a wall, from the moment it's idle: the one reason, and its ways out. */}
+      {wallTrucks().map((t) => (
+        <Card key={`wall-${t.id}`} alert need={`wall:${t.id}`} title={wallLine(t)}>
+          <div class="row">
+            <Btn primary onClick={() => waysOut(t)}>
+              {NEEDS.waysOut}
+            </Btn>
+          </div>
+        </Card>
+      ))}
       {stuckTrucks().map((t) => {
         const d = idleWhy(t);
         return (
@@ -223,25 +298,7 @@ function TruckCard({ t, idx }: { t: Truck; idx: number }): JSX.Element {
   // Everything past the two main actions: inline on a laptop, under ⋯ on a phone.
   const more = (
     <>
-          {t.status === "idle" ? (
-            <>
-              <select id={`send-${t.id}`} aria-label="Destination hub">
-                {nearby.map((x) => (
-                  <option value={x.h.id} key={x.h.id}>
-                    {emptyLine(t, x.i)} · {openLoadsAt(x.i).filter((l) => l.equipment === t.trailer).length} loads
-                  </option>
-                ))}
-              </select>
-              <Btn
-                onClick={() => {
-                  const hubId = (document.getElementById(`send-${t.id}`) as HTMLSelectElement).value;
-                  act({ type: "reposition_truck", truckId: t.id, hubId }, TRUCK.sentEmpty, "truck:sendEmpty");
-                }}
-              >
-                Send empty
-              </Btn>
-            </>
-          ) : null}
+          {t.status === "idle" ? <SendEmpty t={t} nearby={nearby} /> : null}
           {mine && t.status === "idle" && cond <= w.cfg.wear.rebuildMaxCondition && rebuildable(w.cfg, t) ? (
             <Btn onClick={(ev) => confirmAct({ verb: "Rebuild", item: `truck ${idx + 1}`, costFd: rebuildCost(w.cfg, t), ...rebuildLines(w, t), run: () => act({ type: "rebuild_truck", truckId: t.id }, "Truck is in the shop for two days", "truck:rebuild") }, ev)}>Rebuild · {fd(rebuildCost(w.cfg, t))} FD</Btn>
           ) : null}
@@ -312,7 +369,7 @@ function TruckCard({ t, idx }: { t: Truck; idx: number }): JSX.Element {
           </>
         ) : null}
         {t.status === "idle" && crewed(t) && !resting(w, t) && hubMiles(w, c.homeHub, t.hub) > w.cfg.map.nearbyRadiusMi ? (
-          <Btn onClick={() => act({ type: "send_home", truckId: t.id }, "Heading home for days off", "truck:sendHome")}>{homeRun(t)}</Btn>
+          <SendHome t={t} />
         ) : null}
         {isPhone() ? (t.status === "idle" || t.status === "parked" || t.defects > 0 ? (
           <details class="overflow">
