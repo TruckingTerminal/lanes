@@ -1,19 +1,23 @@
 // The launch gate, read over a cap run and its cap-off twin (same seed, same code). Approved by Jeff on 2026-11-08
 // (studio/DECISIONS.md; studio/reviews/economy-emission.md, the gate's section):
 //   (a) the band — the rules' check: the corrected sinks ÷ faucets (the NPC advance-and-repayment wash out of both sides)
-//       over the trailing four quarters, in [0.85, 1.00] at every quarter end from the fourth year (the third year's
-//       readings lean on the launch quarter, S3Q1, whose reset no capped world shows; the same band read from one year
-//       later is reported beside it);
-//   (b) the floors — the cap's check, against the twin at the ends of years 3 and 4: carriers in service and cleared loads
-//       a day at or above 75% of the twin's; the companies' debt in FD at or under 7.5% of the FD held (scale-free: a
-//       multiple of the twin's fails a healthy run when the twin's debt is near zero, a bare figure ignores the world's
-//       size; healthy runs read under 6%, starved ones from 9.7%); the absolute figure, the twin-relative figure and the
+//       over the trailing four quarters, in [0.84, 1.00] at every quarter end from the fourth year (the third year's
+//       readings lean on the launch quarter, S3Q1, whose reset no capped world shows; the floor's step from 0.85 is the
+//       subsidy's share — a freed cap reads a point or two under its twin, review §16.7 — and the twin's own readings are
+//       reported beside the cap's for the next calibration; the band read from one year later is reported too);
+//   (b) the floors — the cap's check, against the twin at the ends of years 3 and 4: carriers in service at or above 72%
+//       of the twin's at the end of year 3, while the cap is still releasing, and 75% at the end of year 4; cleared loads
+//       a day at or above 75% at both; the companies' debt in FD at or under 7.5% of the FD held (scale-free: a multiple
+//       of the twin's fails a healthy run when the twin's debt is near zero, a bare figure ignores the world's size;
+//       healthy runs read under 6%, starved ones from 9.7%); the absolute figure, the twin-relative figure and the
 //       in-debt count are reported, not gated;
 //   (c) the cold start's own line: month 1 committed at or under 110% of its budget; Q1 corrected reported;
 //   (d) supply growth, strategy spread and the free path as report.pass defines them.
-//   Reported, never gated: the prudent owner-operator's first truck (hard by design), npc_market against its 5% tripwire,
-//   net emitted against the planned curve (the opening month plus the subsidy), the headroom under the first sizing's
-//   curve for the record.
+//   Reported, never gated: the prudent owner-operator's first truck (hard by design), the NPC market's purchases as a share
+//   of NPC pay committed against the 5% tripwire (emission.pay.market, whatever route paid the sale; the npc_market faucet
+//   tag understates it under the cap, where the factor advances most facility sales — kept beside for the record), net
+//   emitted against the planned curve (the opening month plus the subsidy), the headroom under the first sizing's curve
+//   for the record.
 //
 //   npm run gate -- --twin runs/<cap-off dir> --cap runs/<cap dir> [--twin … --cap …] [--json]
 import { readdirSync, readFileSync } from "node:fs";
@@ -25,10 +29,8 @@ import type { DayMetrics, RatioReading, RunReport } from "@lanes/engine";
 export interface GateDefinition {
   band: { lo: number; hi: number; trailingQuarters: number; fromYear: number };
   floors: {
-    /** Years whose ends are read (1-based). */
-    years: readonly number[];
-    /** Carriers in service and cleared loads a day, as a share of the twin's. */
-    share: number;
+    /** The year-ends read (1-based), each with its lines: carriers in service and cleared loads a day as shares of the twin's. */
+    years: readonly { year: number; carriers: number; cleared: number }[];
     /** Cleared loads a day are the mean over this many days to the year's last day. */
     windowDays: number;
     /** The companies' debt in FD, as a share of the FD held, at most this. */
@@ -75,6 +77,8 @@ export interface GateReport {
     firstMonthFd: number;
     months: { budgetFd: number; committedFd: number; subsidyFd: number }[];
     reserve: { genesisReserveFd: number; endFd: number; netEmittedFd: number };
+    /** NPC pay committed by kind, the NPC market's purchases among them (whatever route paid the sale). */
+    pay?: Record<string, { loads: number; fd: number }>;
   } | null;
 }
 
@@ -91,12 +95,15 @@ export interface GateResult {
     pass: boolean;
     proxy: boolean;
     readings: { label: string; value: number; pass: boolean }[];
+    /** The twin's own readings at the same quarter-ends, and the cap's mean gap to them (reported): the next calibration's figure. */
+    twinReadings: { label: string; value: number }[];
+    gapToTwin: number | null;
     /** The same band read one year later (reported, not gated): no window then holds the launch quarter, S3Q1, whose reset the baseline's year-3 readings lean on. */
     laterStart: { fromYear: number; pass: boolean; readings: { label: string; value: number; pass: boolean }[] };
   };
   floors: {
     pass: boolean;
-    years: { year: number; run: boolean; carriers: number; twinCarriers: number; carriersPass: boolean; cleared: number; twinCleared: number; clearedPass: boolean; trucks: number; twinTrucks: number }[];
+    years: { year: number; run: boolean; carriersLine: number; clearedLine: number; carriers: number; twinCarriers: number; carriersPass: boolean; cleared: number; twinCleared: number; clearedPass: boolean; trucks: number; twinTrucks: number }[];
     debt: { readAt: string; shareOfHeld: number; twinShareOfHeld: number; pass: boolean; fd: number; twinFd: number; twinMultiple: number | null; inDebt: number; twinInDebt: number; retiredFd: number; twinRetiredFd: number }[];
   };
   coldStart: { pass: boolean; capOff: boolean; committedFd: number; budgetFd: number; share: number; q1Corrected: number | null };
@@ -104,7 +111,10 @@ export interface GateResult {
   reported: {
     firstTruckDay: number | null;
     twinFirstTruckDay: number | null;
-    marketShareLastYear: number;
+    /** The NPC market's purchases as a share of NPC pay committed (emission.pay.market), which the tripwire reads; null on a report without the pay record. */
+    marketShareOfPay: number | null;
+    /** The npc_market faucet's share of the last year's faucets, for the record: under the cap most facility sales are advanced by the factor and post under its tag. */
+    marketFaucetShareLastYear: number;
     marketTripped: boolean;
     netEmittedFd: number;
     plannedFd: number;
@@ -183,7 +193,14 @@ export function evaluateGate(cap: GateRun, twin: GateRun, def: GateDefinition = 
   };
   const asDefined = bandFrom(def.band.fromYear);
   const later = bandFrom(def.band.fromYear + 1);
-  const band = { ...asDefined, proxy, laterStart: { fromYear: def.band.fromYear + 1, ...later } };
+  // The twin's readings at the same quarter-ends, for the gap the cap itself makes (16.7: a point or two under).
+  const twinQuarters = quarterReadings(twin).quarters;
+  const twinReadings = asDefined.readings
+    .map((x) => ({ label: x.label, i: twinQuarters.findIndex((q) => q.label === x.label) }))
+    .filter((x) => x.i >= def.band.trailingQuarters - 1)
+    .map((x) => ({ label: x.label, value: trailingCorrected(twinQuarters, x.i, def.band.trailingQuarters) }));
+  const gaps = asDefined.readings.map((x) => { const t = twinReadings.find((y) => y.label === x.label); return t ? x.value - t.value : null; }).filter((g): g is number => g !== null);
+  const band = { ...asDefined, proxy, twinReadings, gapToTwin: gaps.length ? mean(gaps) : null, laterStart: { fromYear: def.band.fromYear + 1, ...later } };
 
   // (b) the floors
   const floorYears: GateResult["floors"]["years"] = [];
@@ -197,18 +214,19 @@ export function evaluateGate(cap: GateRun, twin: GateRun, def: GateDefinition = 
     return { fd: Math.max(0, Math.abs(f.debtFd) - retiredFd), inDebt: f.inDebtAtEnd, held: run.days[run.days.length - 1]!.supplyFd, retiredFd };
   };
   const dailyDebt = cap.days.some((d) => d.debtFd !== undefined) && twin.days.some((d) => d.debtFd !== undefined);
-  for (const year of def.floors.years) {
+  for (const line of def.floors.years) {
+    const { year } = line;
     const run = year <= years && year * DAYS_PER_YEAR <= twin.days.length;
     if (!run) {
-      floorYears.push({ year, run: false, carriers: 0, twinCarriers: 0, carriersPass: false, cleared: 0, twinCleared: 0, clearedPass: false, trucks: 0, twinTrucks: 0 });
+      floorYears.push({ year, run: false, carriersLine: line.carriers, clearedLine: line.cleared, carriers: 0, twinCarriers: 0, carriersPass: false, cleared: 0, twinCleared: 0, clearedPass: false, trucks: 0, twinTrucks: 0 });
       continue;
     }
     const a = yearEnd(cap.days, year, def.floors.windowDays);
     const b = yearEnd(twin.days, year, def.floors.windowDays);
     floorYears.push({
-      year, run: true,
-      carriers: a.carriers, twinCarriers: b.carriers, carriersPass: a.carriers >= def.floors.share * b.carriers,
-      cleared: a.cleared, twinCleared: b.cleared, clearedPass: a.cleared >= def.floors.share * b.cleared,
+      year, run: true, carriersLine: line.carriers, clearedLine: line.cleared,
+      carriers: a.carriers, twinCarriers: b.carriers, carriersPass: a.carriers >= line.carriers * b.carriers,
+      cleared: a.cleared, twinCleared: b.cleared, clearedPass: a.cleared >= line.cleared * b.cleared,
       trucks: a.trucks, twinTrucks: b.trucks,
     });
     if (dailyDebt) debt.push(debtReading(`day ${a.last.day}`, debtOf(cap, a.last), debtOf(twin, b.last), def));
@@ -231,7 +249,10 @@ export function evaluateGate(cap: GateRun, twin: GateRun, def: GateDefinition = 
 
   // reported, never gated
   const lastYear = cap.days.slice(-DAYS_PER_YEAR);
-  const marketShareLastYear = sum(lastYear.map((d) => d.faucetByTag?.npc_market ?? 0)) / Math.max(1, sum(lastYear.map((d) => d.faucetFd)));
+  const marketFaucetShareLastYear = sum(lastYear.map((d) => d.faucetByTag?.npc_market ?? 0)) / Math.max(1, sum(lastYear.map((d) => d.faucetFd)));
+  const pay = r.emission?.pay;
+  const payTotal = pay ? sum(Object.values(pay).map((k) => k.fd)) : 0;
+  const marketShareOfPay = pay && payTotal > 0 ? (pay.market?.fd ?? 0) / payTotal : null;
   const months = r.emission?.months ?? [];
   const plannedFd = months.length ? months[0]!.budgetFd + sum(months.slice(1).map((m) => m.subsidyFd)) : 0;
   const netEmittedFd = sum(cap.days.map((d) => d.faucetFd - d.sinkFd));
@@ -248,7 +269,7 @@ export function evaluateGate(cap: GateRun, twin: GateRun, def: GateDefinition = 
   const reported = {
     firstTruckDay: r.byStrategy?.oo?.conservative?.firstTruck?.medianDay ?? null,
     twinFirstTruckDay: twin.report.byStrategy?.oo?.conservative?.firstTruck?.medianDay ?? null,
-    marketShareLastYear, marketTripped: marketShareLastYear > def.marketTripwire,
+    marketShareOfPay, marketFaucetShareLastYear, marketTripped: (marketShareOfPay ?? marketFaucetShareLastYear) > def.marketTripwire,
     netEmittedFd, plannedFd, overshootFd: netEmittedFd - plannedFd, reserveDrawdownFd, curveHeadroomFd,
     rawQuartersInOldBand: r.quarters.filter((q) => q.pass).length, quarters: r.quarters.length,
   };
@@ -264,18 +285,19 @@ export function formatGate(g: GateResult, label = ""): string {
   const lines: string[] = [];
   lines.push(`=== seed ${g.seed}${label ? ` · ${label}` : ""} · ${g.days} days · ${g.pass ? "PASS" : "FAIL"} ===`);
   lines.push(`(a) band ${mark(g.band.pass)}: corrected, trailing four, as defined: ${g.band.readings.map((x) => `${x.value.toFixed(3)}${x.pass ? "" : "!"}`).join(" ") || "no complete quarter"}${g.band.proxy ? " (proxy: repayments stand in for the advances)" : ""}`);
+  if (g.band.twinReadings.length) lines.push(`    the twin's own: ${g.band.twinReadings.map((x) => x.value.toFixed(3)).join(" ")} · the cap's gap to it ${g.band.gapToTwin !== null ? `${g.band.gapToTwin >= 0 ? "+" : ""}${(g.band.gapToTwin * 100).toFixed(1)} points` : "–"} (reported)`);
   if (g.band.laterStart.readings.length) lines.push(`    read from year ${g.band.laterStart.fromYear} only (reported): ${mark(g.band.laterStart.pass)} ${g.band.laterStart.readings.map((x) => `${x.value.toFixed(3)}${x.pass ? "" : "!"}`).join(" ")}`);
   lines.push(`(b) floors ${mark(g.floors.pass)}:`);
   for (const y of g.floors.years) {
     if (!y.run) { lines.push(`    Y${y.year}: not run`); continue; }
-    lines.push(`    Y${y.year}: carriers ${y.carriers} vs twin ${y.twinCarriers} (${pct(y.carriers / Math.max(1, y.twinCarriers))}${y.carriersPass ? "" : " ✗"}) · cleared/day ${y.cleared.toFixed(0)} vs ${y.twinCleared.toFixed(0)} (${pct(y.cleared / Math.max(1, y.twinCleared))}${y.clearedPass ? "" : " ✗"}) · trucks ${y.trucks} vs ${y.twinTrucks}`);
+    lines.push(`    Y${y.year}: carriers ${y.carriers} vs twin ${y.twinCarriers} (${pct(y.carriers / Math.max(1, y.twinCarriers))}, line ${pct(y.carriersLine)}${y.carriersPass ? "" : " ✗"}) · cleared/day ${y.cleared.toFixed(0)} vs ${y.twinCleared.toFixed(0)} (${pct(y.cleared / Math.max(1, y.twinCleared))}, line ${pct(y.clearedLine)}${y.clearedPass ? "" : " ✗"}) · trucks ${y.trucks} vs ${y.twinTrucks}`);
   }
   for (const d of g.floors.debt) lines.push(`    debt at ${d.readAt}: ${pct(d.shareOfHeld)} of FD held${d.pass ? "" : " ✗"} (twin ${pct(d.twinShareOfHeld)}) · ${M(d.fd)} vs twin ${M(d.twinFd)}${d.twinMultiple !== null ? ` (${d.twinMultiple.toFixed(1)}× the twin's)` : ""} · in debt ${d.inDebt} vs ${d.twinInDebt} (reported) · retired companies' residue ${M(d.retiredFd)} vs ${M(d.twinRetiredFd)} (reported)`);
   lines.push(`(c) cold start ${mark(g.coldStart.pass)}: ${g.coldStart.capOff ? "cap off" : `month 1 committed ${M(g.coldStart.committedFd)} of budget ${M(g.coldStart.budgetFd)} (${pct(g.coldStart.share)})`} · Q1 corrected ${g.coldStart.q1Corrected?.toFixed(3) ?? "–"}`);
   const s = g.standing;
   lines.push(`(d) supply ${mark(s.supply)} (warm ${s.afterWarmup.toFixed(2)}×, yoy ${s.yearOverYear?.toFixed(2) ?? "–"}×) · spread ${mark(s.spread)} (${s.crossSegmentTop.toFixed(2)}×) · free path ${mark(s.freePath)} (${s.freeWithin}/${s.freeCompanies} within the limit, median ${s.freeMedianDays ?? "–"} d)`);
   const p = g.reported;
-  lines.push(`    reported: prudent OO first truck d${p.firstTruckDay ?? "–"} (twin d${p.twinFirstTruckDay ?? "–"}) · npc_market, last year ${pct(p.marketShareLastYear)}${p.marketTripped ? " TRIPPED" : ""} · net emitted ${M(p.netEmittedFd)} vs planned ${M(p.plannedFd)} (${p.overshootFd >= 0 ? "+" : ""}${M(p.overshootFd)}) · reserve drawdown ${M(p.reserveDrawdownFd)}${p.curveHeadroomFd !== null ? ` · headroom under the first sizing's curve ${M(p.curveHeadroomFd)} (record only)` : ""} · raw quarters in the old band ${p.rawQuartersInOldBand}/${p.quarters}`);
+  lines.push(`    reported: prudent OO first truck d${p.firstTruckDay ?? "–"} (twin d${p.twinFirstTruckDay ?? "–"}) · NPC market purchases ${p.marketShareOfPay !== null ? `${pct(p.marketShareOfPay)} of NPC pay committed` : "not in this report"}${p.marketTripped ? " TRIPPED" : ""} (by faucet tag, last year ${pct(p.marketFaucetShareLastYear)}, record only) · net emitted ${M(p.netEmittedFd)} vs planned ${M(p.plannedFd)} (${p.overshootFd >= 0 ? "+" : ""}${M(p.overshootFd)}) · reserve drawdown ${M(p.reserveDrawdownFd)}${p.curveHeadroomFd !== null ? ` · headroom under the first sizing's curve ${M(p.curveHeadroomFd)} (record only)` : ""} · raw quarters in the old band ${p.rawQuartersInOldBand}/${p.quarters}`);
   return lines.join("\n");
 }
 

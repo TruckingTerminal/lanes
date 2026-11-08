@@ -103,7 +103,7 @@ const fmt = fmtInt;
 /** Daily: policies whose term is up renew at today's price. */
 export function dailyInsurance(w: World): void {
   const day = today(w);
-  for (const c of w.companies) if (day >= c.insurance.renewDay) signPolicy(w, c, "renewal");
+  for (const c of w.companies) if (c.retiredDay === undefined && day >= c.insurance.renewDay) signPolicy(w, c, "renewal");
 }
 
 /** Weekly: each company pays a week of its policy for every truck on the road. */
@@ -112,6 +112,7 @@ export function billInsurance(w: World): void {
   const pool = w.pools.insurance;
   let exposure = 0;
   for (const c of w.companies) {
+    if (c.retiredDay !== undefined) continue; // a bot that left the market insures nothing
     // The NPC lessor's policy covers its leased trucks (it maintains them too), so a free-path start pays nothing here.
     let trucks = 0;
     for (const t of w.trucksByCompany.get(c.id) ?? []) if (t.lease !== "npc" && t.status !== "parked" && t.status !== "listed" && t.status !== "retired") trucks++;

@@ -1064,7 +1064,9 @@ export const economyConfig = {
       refill: 0,
       refillNet: false,
       refillWindowDays: 90,
-      subsidy: { firstMonthFd: 3_000_000, totalFd: 60_000_000 },
+      // R's subsidy: firstMonthFd × (1 − firstMonthFd ÷ totalFd)^month, summing to totalFd; or, flat, firstMonthFd every
+      // month until the reserve is spent (the schedule the gate ran its ten seeds on, 5M a month: economy-emission.md §16.7).
+      subsidy: { firstMonthFd: 3_000_000, totalFd: 60_000_000, flat: false },
       dialOneWay: false,
       volumeDialOneWay: false,
     },
@@ -1481,15 +1483,18 @@ export const economyConfig = {
     // the stabilizers' target keep their readings.
     gate: {
       // (a) the rules' check: the corrected sinks ÷ faucets (the NPC advance wash out of both sides) over the trailing
-      //     four quarters, inside the band at every quarter end from the fourth year — approved from the third and moved
-      //     on 2026-11-08 by the producer's rule (economy-emission.md §16.4–16.5): the third year's readings lean on the
-      //     launch quarter, S3Q1 at 100–103% corrected at the baseline, which the reset makes and no capped world shows
-      band: { lo: 0.85, hi: 1.0, trailingQuarters: 4, fromYear: 4 },
-      // (b) the cap's check, against the twin at the ends of these years: carriers in service and cleared loads a day (a
-      //     mean over the window) at or above this share of the twin's; the companies' debt at or under this share of the
-      //     FD held (scale-free: healthy runs read under 6%, starved ones from 9.7%; the absolute figure, the twin-relative
-      //     figure and the in-debt count are reported, never gated)
-      floors: { years: [3, 4] as const, share: 0.75, windowDays: 30, debtShareOfHeld: 0.075 },
+      //     four quarters, inside the band at every quarter end from the fourth year — approved from the third at 0.85 and
+      //     calibrated on 2026-11-08 from the first ten seeds (economy-emission.md §16.4–16.7): the third year's readings
+      //     lean on the launch quarter (S3Q1 at 100–103% corrected at the baseline, which the reset makes and no capped
+      //     world shows), and a freed cap reads a point or two under its own twin because its fewer carriers each keep a
+      //     little more — the floor's step to 0.84 is the subsidy's share, and it goes no lower
+      band: { lo: 0.84, hi: 1.0, trailingQuarters: 4, fromYear: 4 },
+      // (b) the cap's check, against the twin at the ends of these years: carriers in service at or above this share of the
+      //     twin's (72% at the end of year 3, while the cap is still releasing; 75% at the end of year 4) and cleared loads a
+      //     day (a mean over the window) at or above theirs; the companies' debt at or under this share of the FD held
+      //     (scale-free: healthy runs read under 6%, starved ones from 9.7%; the absolute figure, the twin-relative figure
+      //     and the in-debt count are reported, never gated)
+      floors: { years: [{ year: 3, carriers: 0.72, cleared: 0.75 }, { year: 4, carriers: 0.75, cleared: 0.75 }] as const, windowDays: 30, debtShareOfHeld: 0.075 },
       // (c) the cold start's own line: month 1 committed at or under this share of its budget; Q1 corrected reported
       coldStart: { maxCommittedShare: 1.1 },
       // reported, never gated: npc_market's share of the faucets over the last year

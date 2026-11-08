@@ -74,6 +74,21 @@ describe("the emission cap: schedules", () => {
   });
 });
 
+describe("the emission cap: the flat subsidy", () => {
+  it("flat, the subsidy is the first month's every month until the reserve is spent, and the budget carries it", () => {
+    const flat: Emission = { ...k, refill: 1, refillNet: true, subsidy: { firstMonthFd: 5_000_000, totalFd: 60_000_000, flat: true } };
+    expect(subsidyRatio(flat)).toBe(1);
+    expect(subsidyFd(flat, 1)).toBe(5_000_000);
+    expect(subsidyFd(flat, 119)).toBe(5_000_000);
+    expect(budgetFd(flat, 7, 30_000_000, 2_000_000)).toBeCloseTo(28_000_000 + 5_000_000, 6);
+    let planned = flat.firstMonthFd;
+    for (let m = 1; m < 120; m++) planned += subsidyFd(flat, m);
+    expect(planned).toBe(36_000_000 + 119 * 5_000_000); // 631M by year 10: the reserve's 600M spent in month 114
+    const decaying: Emission = { ...flat, subsidy: { ...flat.subsidy, flat: false } };
+    expect(subsidyRatio(decaying)).toBeCloseTo(1 - 5 / 60, 12); // the shape it had: summing to the total
+  });
+});
+
 describe("the emission cap: the lever and the pacing", () => {
   it("volume takes the cut down to its floor before rates move; rates floor at 0.8; the product never goes under 0.4", () => {
     expect(leverFloor(k)).toBeCloseTo(0.4, 10);

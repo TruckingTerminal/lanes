@@ -19,6 +19,7 @@ function makeRun(o: {
   subsidy?: number;
   capOff?: boolean;
   market?: number;
+  marketPayShare?: number;
 } = {}): GateRun {
   const n = o.days ?? 1460;
   const advance = o.advance ?? 0;
@@ -59,6 +60,7 @@ function makeRun(o: {
             firstMonthFd: o.budget0 ?? 36e6,
             months: Array.from({ length: Math.floor(n / 30) }, (_, m) => ({ budgetFd: m === 0 ? (o.budget0 ?? 36e6) : 1e6, committedFd: m === 0 ? (o.committed0 ?? 36e6) : 1e6, subsidyFd: m === 0 ? 0 : (o.subsidy ?? 2.85e6) })),
             reserve: { genesisReserveFd: 600e6, endFd: reserve, netEmittedFd: 600e6 - reserve },
+            pay: { spot: { loads: 1000, fd: 60e6 }, brokered: { loads: 500, fd: 30e6 }, contract: { loads: 100, fd: 10e6 - (o.marketPayShare ?? 0) * 100e6 }, market: { loads: 50, fd: (o.marketPayShare ?? 0) * 100e6 } },
           },
     },
   };
@@ -90,8 +92,12 @@ describe("the launch gate over a cap run and its twin (Jeff, 2026-11-08)", () =>
     const run = makeRun();
     const g = evaluateGate(run, run);
     expect(GATE.band.fromYear).toBe(4);
+    expect(GATE.band.lo).toBe(0.84); // the step from 0.85 is the subsidy's share (the review's 16.7)
     expect(g.pass).toBe(true);
     expect(g.band.readings.map((x) => x.label)).toEqual(["S4Q1", "S4Q2", "S4Q3", "S4Q4"]);
+    // The twin's own readings at the same quarter-ends, and the gap, are reported for the next calibration.
+    expect(g.band.twinReadings.map((x) => x.value)).toEqual(g.band.readings.map((x) => x.value));
+    expect(g.band.gapToTwin).toBeCloseTo(0, 12);
     expect(evaluateGate(run, run, FROM_YEAR_3).band.readings).toHaveLength(8);
     expect(g.band.readings.every((x) => Math.abs(x.value - 0.9) < 1e-9)).toBe(true);
     expect(g.floors.years.map((y) => y.year)).toEqual([3, 4]);
@@ -141,14 +147,22 @@ describe("the launch gate over a cap run and its twin (Jeff, 2026-11-08)", () =>
     expect(evaluateGate(y4, y4, FROM_YEAR_3).band.laterStart.pass).toBe(false);
   });
 
-  it("the floors read carriers in service and cleared loads a day at the ends of years 3 and 4 against the twin, at 75%", () => {
+  it("the floors read carriers in service and cleared loads a day at the ends of years 3 and 4 against the twin: carriers at 72% then 75%, cleared loads at 75%", () => {
+    expect(GATE.floors.years.map((y) => [y.year, y.carriers, y.cleared])).toEqual([[3, 0.72, 0.75], [4, 0.75, 0.75]]);
     const twin = makeRun({ carriers: () => 600, cleared: () => 300 });
     const thin = makeRun({ carriers: (y) => (y === 4 ? 440 : 600), cleared: () => 300 });
     const g = evaluateGate(thin, twin);
     expect(g.floors.pass).toBe(false);
     expect(g.floors.years[0]!.carriersPass).toBe(true);
-    expect(g.floors.years[1]!.carriersPass).toBe(false);
+    expect(g.floors.years[1]!.carriersPass).toBe(false); // 73.3% at the end of year 4: under 75%
     expect(evaluateGate(makeRun({ carriers: () => 460 }), twin).floors.pass).toBe(true);
+    // The same 73.3% at the end of year 3 passes: the cap is still releasing there, and the line is 72%.
+    const early = makeRun({ carriers: (y) => (y === 3 ? 440 : 600), cleared: () => 300 });
+    expect(evaluateGate(early, twin).floors.years[0]!.carriersPass).toBe(true);
+    expect(evaluateGate(makeRun({ carriers: (y) => (y === 3 ? 430 : 600) }), twin).floors.years[0]!.carriersPass).toBe(false); // 71.7%
+    // The gap to the twin's band is reported: a run reading 0.88 against a twin at 0.90 sits two points under.
+    const lower = makeRun({ ratio: () => 0.88 });
+    expect(evaluateGate(lower, twin).band.gapToTwin).toBeCloseTo(-0.02, 6);
     const quiet = makeRun({ cleared: (y) => (y === 3 ? 220 : 300) });
     expect(evaluateGate(quiet, twin).floors.years[0]!.clearedPass).toBe(false);
     expect(evaluateGate(makeRun({ cleared: () => 226 }), twin).floors.pass).toBe(true);
@@ -209,17 +223,23 @@ describe("the launch gate over a cap run and its twin (Jeff, 2026-11-08)", () =>
 
   it("the figures reported, never gated: the first truck, the market's tripwire, the planned curve and the overshoot", () => {
     const twin = makeRun();
-    const run = makeRun({ market: 80, subsidy: 2.85e6, budget0: 36e6 });
+    const run = makeRun({ market: 2, marketPayShare: 0.064, subsidy: 2.85e6, budget0: 36e6 });
     const g = evaluateGate(run, twin);
-    expect(g.reported.marketShareLastYear).toBeCloseTo(80 / 1080, 6);
+    // The tripwire reads the market's purchases over NPC pay committed, whatever route paid the sale; the faucet tag,
+    // which the factor's advances bypass under the cap, is beside it for the record.
+    expect(g.reported.marketShareOfPay).toBeCloseTo(0.064, 9);
+    expect(g.reported.marketFaucetShareLastYear).toBeCloseTo(2 / 1002, 6);
     expect(g.reported.marketTripped).toBe(true);
     expect(g.pass).toBe(true); // tripped is reported, not gated
+    expect(evaluateGate(makeRun({ marketPayShare: 0.03 }), twin).reported.marketTripped).toBe(false);
+    const noPay: GateRun = { ...run, report: { ...run.report, emission: { ...run.report.emission!, pay: undefined } } };
+    expect(evaluateGate(noPay, twin).reported.marketShareOfPay).toBeNull(); // an older report: the faucet tag stands in
     expect(g.reported.plannedFd).toBeCloseTo(36e6 + 47 * 2.85e6, 3);
     expect(g.reported.netEmittedFd).toBeCloseTo(sum(run.days.map((d) => d.faucetFd - d.sinkFd)), 3);
     expect(g.reported.overshootFd).toBeCloseTo(g.reported.netEmittedFd - g.reported.plannedFd, 3);
     expect(g.reported.reserveDrawdownFd).toBeCloseTo(600e6 - run.days[run.days.length - 1]!.reserveFd, 3);
     expect(g.reported.curveHeadroomFd).toBeCloseTo(600e6 * (1 - 0.94 ** 48) - g.reported.reserveDrawdownFd, 0);
-    expect(GATE.floors.share).toBe(0.75);
+    expect(GATE.floors.years[1]!.carriers).toBe(0.75);
   });
 
   it("a run shorter than the floors' years fails the floors and says so", () => {

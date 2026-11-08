@@ -8,8 +8,10 @@
  * simulated carriers (rule-bot carriers) stand in the market, slowly: under the floor a bot that goes under retires
  * instead of restarting and the weakest bots wind down; over the ceiling new bot companies enter on the free path. It
  * never touches freight, cash, rates or costs: nobody is bailed out, and the dial itself posts nothing to the ledger
- * but the ordinary return of a retiring bot's own lease deposit. Players, and the wave's newcomers standing in for
- * them, are never touched.
+ * but the ordinary return of a retiring bot's own lease deposit and, since 2026-11-08, the settlement a liquidation
+ * would make (solvency.ts settleRetired): its paper paid, its holdings back to the market, and what it still owes
+ * written off as a bankruptcy's is — tagged, so it shows — so nothing a retired bot left behind can post again. Players,
+ * and the wave's newcomers standing in for them, are never touched.
  */
 import { dayOf } from "./clock.js";
 import { returnLease } from "./capacity.js";
@@ -18,6 +20,7 @@ import type { Company, PopulationState } from "./types.js";
 import { detachTruck, type World } from "./world.js";
 import { ordersOf } from "./dealer.js";
 import { endPlayerLease, leasedOut } from "./playerLeases.js";
+import { settleRetired } from "./solvency.js";
 
 export const dialOn = (w: World) => w.cfg.population.dial.enabled;
 
@@ -60,7 +63,9 @@ export const holdsRestart = (w: World, c: Company) => dialState(w) === "under" &
 /**
  * A simulated carrier leaves the market: what it still runs on a lease goes back (the NPC lease's deposit, the company's
  * own FD, comes back as when any lease ends), its staff go, its orders stop, and it is never restarted. Owned trucks are
- * sold before this by the wind-down; a bankrupt's were fire-sold by its liquidation.
+ * sold before this by the wind-down; a bankrupt's were fire-sold by its liquidation; a tractor it leased out comes back
+ * and is retired with it. Then everything else it holds or owes is settled as a liquidation settles it (solvency.ts
+ * settleRetired), so nothing posts to its account again (the red team's leak, 2026-11-08).
  */
 export function retireCompany(w: World, c: Company, why: "held" | "wound down"): void {
   for (const t of [...(w.trucksByCompany.get(c.id) ?? [])]) {
@@ -68,10 +73,15 @@ export function retireCompany(w: World, c: Company, why: "held" | "wound down"):
       detachTruck(w, t); // the lease's deposit comes back with it (world.ts)
       t.status = "retired";
     } else if (t.lease === "lessor" && t.status === "idle") returnLease(w, c, t);
+    else if (leasedOut(t) && (t.status === "idle" || t.status === "parked")) {
+      endPlayerLease(w, t, true);
+      t.status = "retired";
+    } else if (t.lease === "owned" && (t.status === "idle" || t.status === "parked")) t.status = "retired";
   }
   releaseAll(w, c);
   c.orders = [];
   c.suspendedOrders = [];
+  settleRetired(w, c);
   c.retiredDay = dayOf(w.t, w.cfg);
   c.windingDownDay = undefined;
   if (why === "held") state(w).retired++;

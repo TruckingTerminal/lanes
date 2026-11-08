@@ -17,6 +17,7 @@ import { forfeitAirdrop } from "./token.js";
 import { releaseStake } from "./staking.js";
 import { bondHeld, factoringLog, paperOpen, releaseContractStakes } from "./receivables.js";
 import { holdsRestart, retireCompany } from "./population.js";
+import { settlePayables } from "./receivables.js";
 import { releaseYard } from "./items.js";
 import { releaseBusinesses } from "./businesses.js";
 import { createTruck, freshPaperwork, newSafetyRecord, type World } from "./world.js";
@@ -43,7 +44,7 @@ export function workingCapital(w: World, c: Company): number {
 export function chargeHoldingCost(w: World): void {
   const rate = w.cfg.holdingCost.weeklyRate;
   for (const c of w.companies) {
-    if (c.liquidatingSince !== null || c.role === "holder") continue; // a wallet outside the game isn't charged
+    if (c.liquidatingSince !== null || c.retiredDay !== undefined || c.role === "holder") continue; // a wallet outside the game, or a bot that left it, isn't charged
     const acct = companyAccount(c.id);
     const excess = w.ledger.balance(acct) - workingCapital(w, c);
     if (excess > 0) w.ledger.post(w.t, acct, "sink:holding_cost", excess * rate, `holding:${c.id}`);
@@ -107,6 +108,49 @@ export function startLiquidation(w: World, c: Company): void {
   forfeitAirdrop(w, c);
   w.metrics.onBankruptcy();
   w.listener?.({ kind: "liquidated", companyId: c.id });
+}
+
+/**
+ * A bot the population dial retires (population.ts retireCompany) leaves nothing behind that can post to its account
+ * again (the red team's leak, 2026-11-08: retired bots' facilities kept shipping at a loss from an overdraft nothing
+ * bounded, paid to living carriers and never written off — emission the budget never saw). As a liquidation does: its
+ * open paper as payer is paid now, its facilities and businesses go back to the market, its yard, stakes and deposits
+ * come back to cash, its airdrop is forfeited, its Reserve emptied, its staffing stops; then whatever it still owes is
+ * written off through faucet:bankruptcy_writeoff, as a bankruptcy's is, and counted as one.
+ */
+export function settleRetired(w: World, c: Company): void {
+  settlePayables(w, c);
+  releaseContractStakes(w, c);
+  releaseYard(w, c);
+  releaseBusinesses(w, c);
+  if (!bondHeld(w, c)) releaseStake(w, c);
+  for (const o of w.leaseOffers) if (o.status === "open" && o.lessorId === c.id) o.status = "withdrawn";
+  withdrawSalesOf(w, c);
+  const deposited = depositorValue(w, c.id);
+  if (deposited > 0.01) withdraw(w, c.id, deposited);
+  for (const f of facilitiesOf(w, c.id)) {
+    f.ownerId = 0;
+    w.facilitySupply[f.type]++;
+  }
+  // Its facilities' loads still on the board or on the road become the NPC market's: a load with no shipper is NPC spot
+  // freight (trips.ts), paid from the shipper faucet on the budget, so no delivery after today posts to the owner that
+  // is gone.
+  for (const l of w.loads.values()) if (l.shipperId === c.id) l.shipperId = null;
+  forfeitAirdrop(w, c);
+  if (reserveOn(w)) emptyReserve(w, c, `retire:${c.id}`);
+  c.autoStaff = false;
+  const acct = companyAccount(c.id);
+  const owed = -w.ledger.balance(acct);
+  if (owed > 0.005) {
+    w.ledger.forgiveLockDebt(acct);
+    // Unpaid debt is FD that was spent but never earned: writing it off is a faucet, tagged so it shows (as restart).
+    w.ledger.post(w.t, "faucet:bankruptcy_writeoff", acct, owed, `writeoff:${c.id}`);
+    // A wind-down that ends in the red is a bankruptcy of its own; a bot held on the restart was counted when its liquidation began.
+    if (c.liquidatingSince === null) {
+      c.bankruptcies++;
+      w.metrics.onBankruptcy();
+    }
+  }
 }
 
 /**
@@ -191,6 +235,10 @@ export function refile(w: World, c: Company): void {
 }
 
 export function restart(w: World, c: Company): void {
+  // A bot the population dial retired never restarts: held on the free-path restart it kept its liquidation mark, and a
+  // refile when its revoked authority's bar ran out restarted it with the free path's NPC truck, whose lease, idle fuel,
+  // permits and fuel tax it then paid for years (the red team's leak, 2026-11-08, its last form).
+  if (c.retiredDay !== undefined) return;
   const acct = companyAccount(c.id);
   const owed = -w.ledger.balance(acct);
   // The spend-only FD it owes is discharged with the rest (before the write-off, which is free FD and would pay it).

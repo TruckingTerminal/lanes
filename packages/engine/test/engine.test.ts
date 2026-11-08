@@ -3976,7 +3976,7 @@ describe("the population dial (Jeff, 2026-11-02): the ratio held in a band by th
     expect(off.population).toBeUndefined();
   });
 
-  it("under the floor a bot that went under leaves the market instead of restarting, with no debt written off; inside the band it restarts as before", () => {
+  it("under the floor a bot that went under leaves the market instead of restarting, what it owes written off as a bankruptcy's and tagged; inside the band it restarts as before", () => {
     const run = (state: "under" | "within") => {
       const w = createWorld({ cfg: dial({ startDay: 0 }), net, feeds: neutralFeeds, seed: 72, keepLedgerEntries: true });
       populate(w, { freeOwnerOperators: 4, fleets: 0, brokers: 0 });
@@ -3993,8 +3993,11 @@ describe("the population dial (Jeff, 2026-11-02): the ratio held in a band by th
     expect(held.c.retiredDay).toBe(0);
     expect(held.c.liquidatingSince).not.toBeNull(); // never restarted
     expect(held.w.trucksByCompany.get(held.c.id)!.filter((t) => t.status !== "retired")).toHaveLength(0);
-    expect(held.w.ledger.entries.some((e) => e.from === "faucet:bankruptcy_writeoff")).toBe(false);
-    expect(held.w.ledger.balance(companyAccount(held.c.id))).toBeLessThan(0); // the debt stays on its books
+    // Since 2026-11-08 (economy-emission.md §16.6) a retired bot leaves nothing behind: what it owed is written off through
+    // the bankruptcy faucet, tagged so it shows, and its account is never posted to again. Its liquidation was counted once.
+    expect(held.w.ledger.entries.some((e) => e.from === "faucet:bankruptcy_writeoff")).toBe(true);
+    expect(held.w.ledger.balance(companyAccount(held.c.id))).toBeCloseTo(0, 6);
+    expect(held.c.bankruptcies).toBe(1);
     expect(held.w.population!.retired).toBe(1);
     // A player is never held, whatever the dial reads.
     const back = run("within");

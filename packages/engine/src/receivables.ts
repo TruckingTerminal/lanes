@@ -525,35 +525,52 @@ export function dailyReceivables(w: World): void {
       keep.push(r);
       continue;
     }
-    const toAcct = holderAccount(r);
-    if (r.holder === HOLDER_POOL) w.pools.factoring.exposureFd = Math.max(0, w.pools.factoring.exposureFd - r.amountFd);
-    if (r.payer === 0) {
-      // An NPC paying an NPC moves nothing inside the game.
-      if (r.holder !== HOLDER_NPC_FACTOR) w.ledger.post(w.t, r.faucet!, toAcct, r.amountFd, `receivable:${r.id}`);
-      continue;
-    }
-    const payer = companyById(w, r.payer);
-    if (contractOn(w) && payer.role === "broker" && !r.shipperPaper) {
-      // The contract: a broker's paper is paid from its cash, then its bond (the NPC factor's first).
-      settleBrokerPaper(w, payer, r);
-      continue;
-    }
-    const own = samePerson(w, payer.id, r.payeeId); // player brokerages: own paper stays out of credit
-    if (payer.liquidatingSince !== null) {
-      if (!own) recordPayment(payer, r.amountFd, true);
-      // The payer is being wound up: a broker's bond covers its carrier, as far as the surety pool goes; otherwise the holder loses.
-      const bondLeft = Math.max(0, w.cfg.token.staking.roles.broker - payer.suretyClaimedFd);
-      if (payer.role === "broker" && payer.suretyWriter === "pool" && r.holder !== HOLDER_NPC_FACTOR && bondLeft > 0.01) {
-        payer.suretyClaimedFd += payClaim(w, "surety", toAcct, Math.min(r.amountFd, bondLeft), `surety:${r.id}`);
-      } else if (r.holder === HOLDER_POOL) {
-        w.pools.factoring.claimsFd += r.amountFd;
-      }
-      w.metrics.onShipperDefault();
-      continue;
-    }
-    // Paid with cash in hand, or from an overdraft: the difference is the credit record.
-    if (!own) recordPayment(payer, r.amountFd, w.ledger.balance(companyAccount(payer.id)) < r.amountFd);
-    w.ledger.post(w.t, companyAccount(payer.id), toAcct, r.amountFd, `receivable:${r.id}`);
+    settleReceivable(w, r);
   }
   w.receivables = keep;
+}
+
+/**
+ * One receivable paid, at its due day or early (a retirement, solvency.ts settleRetired): an NPC's from its faucet, a
+ * broker's contract paper from its cash then its bond, a liquidating payer's as far as its surety goes (the holder loses
+ * the rest), anyone else's from cash in hand or an overdraft; the pool's exposure and the credit record move with it.
+ */
+export function settleReceivable(w: World, r: Receivable): void {
+  const toAcct = holderAccount(r);
+  if (r.holder === HOLDER_POOL) w.pools.factoring.exposureFd = Math.max(0, w.pools.factoring.exposureFd - r.amountFd);
+  if (r.payer === 0) {
+    // An NPC paying an NPC moves nothing inside the game.
+    if (r.holder !== HOLDER_NPC_FACTOR) w.ledger.post(w.t, r.faucet!, toAcct, r.amountFd, `receivable:${r.id}`);
+    return;
+  }
+  const payer = companyById(w, r.payer);
+  if (contractOn(w) && payer.role === "broker" && !r.shipperPaper) {
+    // The contract: a broker's paper is paid from its cash, then its bond (the NPC factor's first).
+    settleBrokerPaper(w, payer, r);
+    return;
+  }
+  const own = samePerson(w, payer.id, r.payeeId); // player brokerages: own paper stays out of credit
+  if (payer.liquidatingSince !== null) {
+    if (!own) recordPayment(payer, r.amountFd, true);
+    // The payer is being wound up: a broker's bond covers its carrier, as far as the surety pool goes; otherwise the holder loses.
+    const bondLeft = Math.max(0, w.cfg.token.staking.roles.broker - payer.suretyClaimedFd);
+    if (payer.role === "broker" && payer.suretyWriter === "pool" && r.holder !== HOLDER_NPC_FACTOR && bondLeft > 0.01) {
+      payer.suretyClaimedFd += payClaim(w, "surety", toAcct, Math.min(r.amountFd, bondLeft), `surety:${r.id}`);
+    } else if (r.holder === HOLDER_POOL) {
+      w.pools.factoring.claimsFd += r.amountFd;
+    }
+    w.metrics.onShipperDefault();
+    return;
+  }
+  // Paid with cash in hand, or from an overdraft: the difference is the credit record.
+  if (!own) recordPayment(payer, r.amountFd, w.ledger.balance(companyAccount(payer.id)) < r.amountFd);
+  w.ledger.post(w.t, companyAccount(payer.id), toAcct, r.amountFd, `receivable:${r.id}`);
+}
+
+/** A company's open paper as payer, paid now (a retirement, solvency.ts settleRetired), as it would be at the due day. */
+export function settlePayables(w: World, c: Company): void {
+  const mine = w.receivables.filter((r) => r.payer === c.id);
+  if (mine.length === 0) return;
+  for (const r of mine) settleReceivable(w, r);
+  w.receivables = w.receivables.filter((r) => r.payer !== c.id);
 }

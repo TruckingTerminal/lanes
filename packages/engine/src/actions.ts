@@ -243,6 +243,9 @@ export function applyAction(w: World, companyId: number, action: Action): Action
   if (bad) return { ok: false, reason: bad };
   if (company.authority.status === "revoked" && !ALLOWED_REVOKED.has(action.type)) return { ok: false, reason: "your authority is revoked" };
   if (company.liquidatingSince !== null && LIQUIDATING_BLOCKED.has(action.type)) return { ok: false, reason: "the company is being wound up" };
+  // A bot the population dial retired has left the market for good: nothing it could do may post to its account again
+  // (the red team's leak, 2026-11-08: retired owner-operators leased a truck back and paid its lease for years).
+  if (company.retiredDay !== undefined && action.type !== "wait") return { ok: false, reason: "the company has left the market" };
   if (company.human && !cfg.fraud.players && badActor(action)) return { ok: false, reason: "that isn't available to players" };
   // Player brokerages (brokerage.ts): re-posting a load taken off the board isn't a player carrier's action any more.
   if (cfg.brokerage.enabled && cfg.brokerage.closeDoubleBrokering && (company.human || company.partnerId !== undefined) && company.role === "carrier" && (action.type === "rebroker_load" || (action.type === "set_standing_orders" && action.orders.some((o) => o.kind === "rebroker")))) return { ok: false, reason: "a carrier brokers through its own brokerage" };

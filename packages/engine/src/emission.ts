@@ -73,9 +73,9 @@ export function emissionRatio(k: EmissionConfig): number {
   return 1 - k.firstMonthFd / (k.capFd - k.genesisFd);
 }
 
-/** R's subsidy ratio: 1 − first ÷ total, so the subsidy sums to its total. */
+/** R's subsidy ratio: 1 − first ÷ total, so the subsidy sums to its total; 1 when the subsidy is flat (the same every month until the reserve is spent). */
 export function subsidyRatio(k: EmissionConfig): number {
-  return 1 - k.subsidy.firstMonthFd / k.subsidy.totalFd;
+  return k.subsidy.flat ? 1 : 1 - k.subsidy.firstMonthFd / k.subsidy.totalFd;
 }
 
 /** R's subsidy for month m (m from 0). */
