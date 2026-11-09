@@ -36,7 +36,8 @@ import { facilityCap, locksOn, noteDiscount, peekDiscount, stakeDiscount, stakeF
 import { buyItem } from "./items.js";
 import { depositPool, withdrawPool } from "./pools.js";
 import { cashInvoice, contractOn, endFactoring, setContractTerms, signFactoring } from "./receivables.js";
-import type { Action, RuleScope } from "./types.js";
+import type { Action, Load, RuleScope, Truck } from "./types.js";
+import { AHEAD_STATUSES, canMake, reachRefusal, releaseLoad, windowsOn, type Reach } from "./windows.js";
 import { condition, rebuildable, rebuildCost } from "./wear.js";
 import { availableSupplyFor, clocksFollowDriver, companyById, crewed, depositCredit, hubMiles, invalidOrders, releaseDepositFor, seatDriver, staffById, syncFleet, takeSupplyFor, truckById, unseatDriver, type World, placeMiles, placeOfHub, placeLegMiles } from "./world.js";
 import type { EconomyConfig } from "@lanes/config";
@@ -115,6 +116,8 @@ export function badInput(cfg: EconomyConfig, a: Action): string | null {
       return isId(a.loadId) && finiteIn(a.rate, 0.01, 100) ? null : "bad tender";
     case "send_home":
       return isId(a.truckId) && (a.work === undefined || typeof a.work === "boolean") ? null : "bad truck id";
+    case "release_load":
+      return isId(a.loadId) ? null : "bad load";
     case "rebuild_truck":
     case "park_truck":
     case "unpark_truck":
@@ -398,7 +401,11 @@ export function applyAction(w: World, companyId: number, action: Action): Action
       const block = vettingBlock(w, company, load);
       if (block) return { ok: false, reason: `the poster's vetting rules you out: ${block}` };
       if (load.hot > 0 && !canMakeHot(company, truck)) return { ok: false, reason: "a hot load needs a team" };
-      const dh = placeMiles(w, truck.place, load.originPlace);
+      // Delivery windows (batch 2): a truck on a job books the load after it, if it can make it; any truck, a windowed load
+      // only if it can make it. The reach is from where the truck will be free.
+      const reach = bookAheadReach(w, truck, load);
+      if (reach && !reach.ok) return { ok: false, reason: reachRefusal(w, load, reach) };
+      const dh = placeMiles(w, reach ? reach.freePlace : truck.place, load.originPlace);
       if (dh > MANUAL_BID_MAX_DEADHEAD_MI) return { ok: false, reason: `the pickup is more than ${MANUAL_BID_MAX_DEADHEAD_MI} miles away` };
       const booked = bookLoad(w, company, truck, load, dh, true);
       if (booked === null) company.firstHandBidDay ??= dayOf(w.t, cfg); // a booking by hand is the owner's call too
@@ -887,7 +894,10 @@ export function applyAction(w: World, companyId: number, action: Action): Action
       const truck = truckById(w, action.truckId);
       const load = w.loads.get(action.loadId);
       if (!truck || truck.companyId !== company.id) return { ok: false, reason: "not your truck" };
-      if (truck.status !== "idle") return { ok: false, reason: "truck must be idle at a hub" };
+      // Delivery windows (batch 2): a truck on a job may bid for the load after it, one ahead, never two.
+      const ahead = windowsOn(w) && truck.status !== "idle" && AHEAD_STATUSES.has(truck.status);
+      if (truck.status !== "idle" && !ahead) return { ok: false, reason: "truck must be idle at a hub" };
+      if (ahead && truck.nextLoadId !== undefined) return { ok: false, reason: "this truck already has its next load booked: release it first" };
       if (!crewed(truck)) return { ok: false, reason: "the truck has no driver" };
       if (company.authority.status !== "active") return { ok: false, reason: "your authority is suspended" };
       if (!load || load.status !== "open") return { ok: false, reason: "that load is no longer on the board" };
@@ -897,8 +907,12 @@ export function applyAction(w: World, companyId: number, action: Action): Action
       if (blocked) return { ok: false, reason: `the poster won't load a carrier with ${blocked}` };
       if (load.hot > 0 && !canMakeHot(company, truck)) return { ok: false, reason: "a hot load's window takes a team" };
       if (!mayTake(w, company, load)) return { ok: false, reason: load.tenderedTo ? "that load is tendered to another carrier" : "the shipper is giving local carriers first call this round" };
+      // Delivery windows: whether the truck can make it, from where it will be free.
+      const reach = bookAheadReach(w, truck, load);
+      if (reach && !reach.ok) return { ok: false, reason: reachRefusal(w, load, reach) };
+      const fromPlace = reach ? reach.freePlace : truck.place;
       // board.bidReachFromTown: one reach with Book now, from the truck's own town to the pickup; off, market to market.
-      const bidReach = cfg.board.bidReachFromTown ? placeMiles(w, truck.place, load.originPlace) : hubMiles(w, truck.hub, load.origin);
+      const bidReach = cfg.board.bidReachFromTown ? placeMiles(w, fromPlace, load.originPlace) : hubMiles(w, reach ? w.net.places[fromPlace]!.market : truck.hub, load.origin);
       if (bidReach > MANUAL_BID_MAX_DEADHEAD_MI) return { ok: false, reason: `more than ${MANUAL_BID_MAX_DEADHEAD_MI} miles empty to the pickup` };
       if (!(action.rate > 0)) return { ok: false, reason: "bid a rate per mile above zero" };
       if (cfg.board.refuseOverCeiling && action.rate > load.ceiling + 1e-9) return { ok: false, reason: `above the ceiling, ${load.ceiling.toFixed(2)}/mi` }; // R17
@@ -912,6 +926,13 @@ export function applyAction(w: World, companyId: number, action: Action): Action
       if (!truck || truck.companyId !== company.id) return { ok: false, reason: "not your truck" };
       w.manualBids.delete(action.truckId);
       return { ok: true };
+    }
+
+    // Delivery windows (batch 2): drop a load booked ahead, with the cancel claim (windows.ts releaseLoad).
+    case "release_load": {
+      const load = w.loads.get(action.loadId);
+      if (!windowsOn(w) || !load) return { ok: false, reason: "only a load booked ahead can be released" };
+      return result(releaseLoad(w, company, load));
     }
 
     case "reposition_truck": {
@@ -1054,4 +1075,13 @@ export function applyAction(w: World, companyId: number, action: Action): Action
     default:
       return { ok: false, reason: "unknown action" };
   }
+}
+
+/**
+ * Delivery windows (batch 2): canMake's answer for a booking by hand when it applies (windows on, and a busy truck or a
+ * windowed load), else null: today's rules alone.
+ */
+function bookAheadReach(w: World, truck: Truck, load: Load): Reach | null {
+  if (!windowsOn(w) || (truck.status === "idle" && load.latestPickupT === undefined)) return null;
+  return canMake(w, truck, load);
 }

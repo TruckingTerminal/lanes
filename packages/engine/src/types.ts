@@ -343,6 +343,11 @@ export interface Company {
   tenderAcceptance: number;
   /** Open claims against this company (theft, unpaid carriers), by the day each expires. */
   claims: { day: number; until: number; kind: "theft" | "unpaid" }[];
+  /**
+   * Delivery windows: loads this carrier booked and never hauled (a release or a no-show; windows.ts), set only once it
+   * has one. They count against its reputation as a late delivery does, without counting as loads delivered.
+   */
+  failed?: number;
   /** Owed on a judgment or seizure, paid out of whatever the company still has. */
   judgmentFd: number;
   /** The company's insurance policy (insurance.ts). */
@@ -694,6 +699,12 @@ export interface Truck {
   targetPlace: number;
   remainingMi: number;
   loadId: number | null;
+  /**
+   * Delivery windows, booking ahead (windows.ts; absent unless one is booked): the load booked for after this one, two
+   * deep and never three. It's "assigned" with `ahead`, and becomes the truck's load when the job in hand ends (trips.ts
+   * setIdle).
+   */
+  nextLoadId?: number;
   /** Start of the current 24-hour duty day, or null before the first one. */
   shiftStartT: number | null;
   shiftDrivenMin: number;
@@ -944,6 +955,11 @@ export interface Load {
   latestDeliveryT?: number;
   /** The urgency walk's steps taken in the last rounds before the pickup closes (windows.urgencyRounds at most). */
   urgentSteps?: number;
+  /**
+   * Booked ahead for a truck still on another job (Truck.nextLoadId): "assigned", but nothing moves on it (no due time,
+   * no slot, no receivable) until the truck takes it.
+   */
+  ahead?: true;
 }
 
 /** A contract lane a local shipper gives a carrier: a weekly volume at a fixed rate for a term (contracts.ts). */
@@ -1198,6 +1214,8 @@ export type Action =
   /** A sealed bid by hand for the next board round (§Load board: sealed bids, plus standing orders). It replaces this truck's standing-order bids that round. */
   | { type: "place_bid"; truckId: number; loadId: number; rate: number }
   | { type: "cancel_bid"; truckId: number }
+  /** Delivery windows: drop a load booked ahead (windows.ts releaseLoad), with the cancel claim. */
+  | { type: "release_load"; loadId: number }
   /** Take an open load at its book-now price, now, for an idle truck within reach. */
   | { type: "book_load"; truckId: number; loadId: number }
   /** Send an idle truck home for its driver's days off (home time). */

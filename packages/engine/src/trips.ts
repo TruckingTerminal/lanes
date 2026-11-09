@@ -6,7 +6,8 @@ import { scaleDiscount } from "./scale.js";
 import { endOfLife } from "./assets.js";
 import { addTrailerMiles } from "./trailers.js";
 import { COMMODITIES, dexp, greatCircleMiles, NO_TERRAIN, routeTerrain, type Route } from "@lanes/data";
-import { deliveryWait, pickupWait } from "./docks.js";
+import { deliveryWait, pickupWait, setSlot } from "./docks.js";
+import { claimOn, noShow, windowsOn } from "./windows.js";
 import { flatbedDamage, reeferUnit } from "./equipment.js";
 import { winterNow } from "./safety.js";
 import { payLegFuel, roadService, serviceBill } from "./businesses.js";
@@ -23,7 +24,7 @@ import { companyAccount } from "./ledger.js";
 import { closeDutyDay, drivingLimitMin, legalDrivingMin, mphFor, safetyTick } from "./safety.js";
 import type { Company, Load, Truck } from "./types.js";
 import { breakdownsPer1000Mi } from "./wear.js";
-import { companyById, crewed, hubRoute, type World, placeLegMiles, placeOfHub, placeRoute } from "./world.js";
+import { companyById, crewed, hubRoute, type World, placeHours, placeLegMiles, placeMiles, placeOfHub, placeRoute } from "./world.js";
 
 /** Detention (cfg.detention): the hours of a closed-dock wait past the free time, capped per stop, priced. */
 function addDetention(w: World, load: Load, stop: "pickupH" | "deliveryH", waitMin: number): void {
@@ -57,6 +58,59 @@ function payDetention(w: World, load: Load, carrier: Company): number {
 }
 
 /** Truck is at the shipper: load for 1–2 hours (plus securing a flatbed, plus waiting for a closed dock to open), then roll. */
+/**
+ * A truck takes its load (board.ts assign's own arithmetic, kept here so a load booked ahead starts the same way when the
+ * job in hand ends): the due time by the HOS schedule, the slot, and off to the pickup, or loading where it stands.
+ */
+export function startJob(w: World, truck: Truck, load: Load, deadheadMi: number): void {
+  const { cfg } = w;
+  // Due = the HOS schedule (11 driving hours, then off until the 24-hour duty day
+  // resets) + worst-case loading and unloading + slack. A long breakdown makes it late.
+  // A hot load's window assumes 15 driving hours a day and little slack: a solo driver makes it only on falsified logs.
+  // Driving time follows the roads: interstates are quicker than two-lane highways.
+  const perDay = load.hot > 0 ? cfg.safety.hotLoads.hoursPerDay : cfg.hos.drivingHoursPerDay;
+  const drivingH = (deadheadMi > 0 ? placeHours(w, truck.place, load.originPlace) : 0) + load.routeHours;
+  // Full rest days before the last driving day: a run of exactly one day's driving has none.
+  const fullDays = Math.max(0, Math.ceil(drivingH / perDay) - 1);
+  const transitMin = (fullDays * cfg.hos.dutyDayHours + (drivingH - fullDays * perDay)) * 60;
+  const ops = cfg.equipmentOps;
+  const dwellMin = cfg.dwell.loadMinutes[1] + cfg.dwell.unloadMinutes[1] + (ops.enabled && load.equipment === "flatbed" ? ops.flatbedSecureMinutes[1] + ops.flatbedUntarpMinutes[1] : 0);
+  // Delivery windows: a truck at the shipper before the load is ready waits for it (startLoading), so the schedule
+  // counts from then.
+  const start = load.readyT !== undefined ? Math.max(w.t, load.readyT - (deadheadMi > 0 ? placeHours(w, truck.place, load.originPlace) * 60 : 0)) : w.t;
+  // Due by the HOS schedule, and never after the shipper's appointment.
+  load.dueT = Math.min(load.appointmentT, start + transitMin + dwellMin + (load.hot > 0 ? cfg.safety.hotLoads.slackMinutes : cfg.freight.deliverySlackMinutes));
+  // Appointment freight (docks.ts): a delivery slot on the hour after the arrival estimate, due at its grace.
+  setSlot(w, load, start + transitMin + dwellMin);
+  if (load.latestDeliveryT !== undefined) load.dueT = Math.min(load.dueT, load.latestDeliveryT);
+  truck.loadId = load.id;
+  truck.idleRounds = 0;
+  if (deadheadMi === 0) {
+    startLoading(w, truck, load);
+  } else {
+    truck.status = "toPickup";
+    truck.targetHub = load.origin;
+    truck.targetPlace = load.originPlace;
+    truck.remainingMi = placeLegMiles(w, truck.place, load.originPlace); // the bid's estimate, now the road's own figure
+  }
+}
+
+/**
+ * Delivery windows (batch 2): the job in hand is over, so the load booked ahead becomes the truck's (its pickup, or loading
+ * here, waiting for it to be ready). Gone, or the truck with no crew: nothing starts, and a load left assigned is the
+ * round's no-show. True when a job started.
+ */
+export function takeNextLoad(w: World, truck: Truck): boolean {
+  const id = truck.nextLoadId;
+  if (id === undefined) return false;
+  delete truck.nextLoadId;
+  const load = w.loads.get(id);
+  if (!load || load.status !== "assigned" || load.truckId !== truck.id || !crewed(truck)) return false;
+  delete load.ahead;
+  startJob(w, truck, load, placeMiles(w, truck.place, load.originPlace));
+  return true;
+}
+
 export function startLoading(w: World, truck: Truck, load: Load, now: number = w.t): void {
   const [lo, hi] = w.cfg.dwell.loadMinutes;
   truck.status = "loading";
@@ -207,6 +261,7 @@ export function moveTrucks(w: World): void {
           truck.idleRounds = 0;
           truck.idleSinceDay = dayOf(w.t, cfg);
           truck.idleSinceT = w.t;
+          if (truck.nextLoadId !== undefined) takeNextLoad(w, truck); // delivery windows: the load booked ahead
         }
         break;
       }
@@ -382,7 +437,16 @@ function terrainBreakdownMult(w: World, truck: Truck): number {
 
 function arrive(w: World, truck: Truck, now: number): void {
   truck.remainingMi = 0;
-  if (truck.status === "toPickup") startLoading(w, truck, w.loads.get(truck.loadId!)!, now);
+  if (truck.status === "toPickup") {
+    const load = w.loads.get(truck.loadId!)!;
+    // Delivery windows (batch 2): at the shipper after its pickup closed, it's a no-show; the truck stands there empty.
+    if (load.latestPickupT !== undefined && now > load.latestPickupT && windowsOn(w)) {
+      noShow(w, load);
+      arriveEmpty(w, truck);
+      return;
+    }
+    startLoading(w, truck, load, now);
+  }
   else if (truck.status === "loaded") startUnloading(w, truck, now);
   else arriveEmpty(w, truck);
 }
@@ -415,6 +479,8 @@ function setIdle(w: World, truck: Truck): void {
   truck.emptyMi = 0;
   truck.loadedMi = 0;
   truck.legKey = -1;
+  // Delivery windows: the load booked ahead comes first; home time and a queued run home wait for the job after it.
+  if (truck.nextLoadId !== undefined && takeNextLoad(w, truck)) return;
   homeArrival(w, truck);
   // labor.sendHomeToWork: the job in hand is done, so home to work now, no days off (unless the crew is going home for
   // days off anyway, which the home-time rules see to).
@@ -640,9 +706,14 @@ function deliver(w: World, truck: Truck, now: number): void {
   carrier.loadsThisWeek++;
   if (at <= load.dueT) carrier.onTime++;
   else carrier.late++;
+  // Delivery windows (batch 2; the director's call 1): past the hard deadline it is delivered and paid, and claimed
+  // (windows.lateClaimShare of the pay as booked), with today's late rules above and below. A spoiled load is refused, with
+  // its own cargo claim, as before.
+  if (!spoiled && load.latestDeliveryT !== undefined && at > load.latestDeliveryT && windowsOn(w)) costs += claimOn(w, carrier, load, cfg.windows!.lateClaimShare, "late");
   // Smoothed on-time rate: a company's record, not its size, sets its reputation.
   const prior = cfg.reputation.priorLoads;
-  carrier.reputation = (carrier.onTime + prior * cfg.reputation.start) / (carrier.delivered + prior);
+  // Delivery windows: loads booked and never hauled (Company.failed) count as late ones; absent, the same arithmetic.
+  carrier.reputation = (carrier.onTime + prior * cfg.reputation.start) / (carrier.delivered + (carrier.failed ?? 0) + prior);
 
   // Miles (§Points): loaded miles × on-time × margin factor × reputation × truck ladder.
   // Miles are earned on what the haul was worth, own freight included.

@@ -10,12 +10,11 @@ import { homeEdge, updateHomeCrowding } from "./home.js";
 import { creditDispatch, dispatchProfile, startHomeTime } from "./labor.js";
 import { companyAccount } from "./ledger.js";
 import { bidsFromStandingOrders, boardKey, canMakeHot, dockWaitCost, indexOpenLoads, scoreBid, desperation, estimateBreakEven, resting, trackingWouldShow, needsHome, homeward, hardCap, floorRate, lookaheadValue, ordersWaitForHand } from "./standingOrders.js";
-import { startLoading } from "./trips.js";
+import { startJob } from "./trips.js";
 import { bookingCapBlock, brokerBooks, contractOn, type BrokerBook } from "./receivables.js";
-import { setSlot } from "./docks.js";
-import { pickupClosed, posterKind, readyToday, urgencyStep, urgent, windowsOn } from "./windows.js";
+import { AHEAD_STATUSES, canMake, noShow, pickupClosed, posterKind, readyToday, urgencyStep, urgent, windowsOn } from "./windows.js";
 import type { Bid, Company, Load, StandingOrder, Truck } from "./types.js";
-import { companyById, crewed, hubHours, hubMiles, truckById, type World, placeHours, placeMiles, placeOfHub, placeLegMiles } from "./world.js";
+import { companyById, crewed, hubHours, hubMiles, truckById, type World, placeMiles, placeOfHub, placeLegMiles } from "./world.js";
 
 export interface RoundResult {
   round: number;
@@ -41,12 +40,14 @@ export function runBoardRound(w: World): RoundResult {
   expireTenders(w);
   holdsAtEnd(w); // tenders held for player brokerages whose window has ended (brokerage.ts)
   // Delivery windows (windows.ts): a load still open when its pickup closed is lost before the round clears. No slide, no
-  // re-post.
+  // re-post. A booked one whose truck never reached the shipper is a no-show (batch 2): claimed, and lost the same way.
   let expired = 0;
   if (windowsOn(w)) {
     for (const load of [...w.loads.values()]) {
-      if (load.status !== "open" || !pickupClosed(w, load)) continue;
-      giveUp(w, load);
+      if (!pickupClosed(w, load)) continue;
+      if (load.status === "open") giveUp(w, load);
+      else if (load.status === "assigned") noShow(w, load);
+      else continue;
       expired++;
     }
   }
@@ -169,18 +170,26 @@ export function runBoardRound(w: World): RoundResult {
   return result;
 }
 
-/** Hand-placed bids still valid this round (truck idle, load open, same trailer), capped at the ceiling. */
+/**
+ * Hand-placed bids still valid this round (truck idle, load open, same trailer), capped at the ceiling. Delivery windows
+ * (batch 2): a busy truck's bid stands for the load after its job (one ahead, never two), and any bid on a windowed load
+ * only while canMake says the truck can still make it; the deadhead is from where the truck will be free.
+ */
 function manualRoundBids(w: World): Bid[] {
   const out: Bid[] = [];
+  const win = windowsOn(w);
   for (const [truckId, mb] of w.manualBids) {
     const truck = truckById(w, truckId);
     const load = w.loads.get(mb.loadId);
-    if (!load || load.status !== "open" || truck.status !== "idle" || truck.trailer !== load.equipment || truck.companyId === 0 || !crewed(truck)) continue;
+    const ahead = win && truck.status !== "idle" && AHEAD_STATUSES.has(truck.status) && truck.nextLoadId === undefined;
+    if (!load || load.status !== "open" || (truck.status !== "idle" && !ahead) || truck.trailer !== load.equipment || truck.companyId === 0 || !crewed(truck)) continue;
     const company = companyById(w, truck.companyId);
     if (company.authority.status !== "active" || vettingBlock(w, company, load) !== null || load.doubleBroker?.companyId === company.id) continue;
     if (!mayTake(w, company, load)) continue;
     if (load.hot > 0 && !canMakeHot(company, truck)) continue;
-    const deadheadMi = placeMiles(w, truck.place, load.originPlace);
+    const reach = win && (ahead || load.latestPickupT !== undefined) ? canMake(w, truck, load) : null;
+    if (reach && !reach.ok) continue;
+    const deadheadMi = placeMiles(w, reach ? reach.freePlace : truck.place, load.originPlace);
     // A counter can go past the ceiling (taken only if nobody offers within it), up to the hard cap.
     const rate = Math.min(mb.rate, hardCap(w, load));
     out.push({ loadId: load.id, truckId, companyId: company.id, rate, deadheadMi, score: scoreBid(w, load.ceiling, rate, company.reputation, deadheadMi, homeEdge(w, company, load.origin)), tiebreak: 0 });
@@ -197,35 +206,14 @@ function assign(w: World, load: Load, truck: Truck, bid: Bid): void {
   load.clearedRate = bid.rate;
   noteClear(w, load, bid.rate); // what loads really clear at (freight.ts clearsNear)
   if (cfg.brokerage.enabled) onAssign(w, load, bid.companyId, bid.rate); // player brokerages: the rate flag, a passed load covered
-  // Due = the HOS schedule (11 driving hours, then off until the 24-hour duty day
-  // resets) + worst-case loading and unloading + slack. A long breakdown makes it late.
-  // A hot load's window assumes 15 driving hours a day and little slack: a solo driver makes it only on falsified logs.
-  // Driving time follows the roads: interstates are quicker than two-lane highways.
-  const perDay = load.hot > 0 ? cfg.safety.hotLoads.hoursPerDay : cfg.hos.drivingHoursPerDay;
-  const drivingH = (bid.deadheadMi > 0 ? placeHours(w, truck.place, load.originPlace) : 0) + load.routeHours;
-  // Full rest days before the last driving day: a run of exactly one day's driving has none.
-  const fullDays = Math.max(0, Math.ceil(drivingH / perDay) - 1);
-  const transitMin = (fullDays * cfg.hos.dutyDayHours + (drivingH - fullDays * perDay)) * 60;
-  const ops = cfg.equipmentOps;
-  const dwellMin = cfg.dwell.loadMinutes[1] + cfg.dwell.unloadMinutes[1] + (ops.enabled && load.equipment === "flatbed" ? ops.flatbedSecureMinutes[1] + ops.flatbedUntarpMinutes[1] : 0);
-  // Delivery windows: a truck at the shipper before the load is ready waits for it (trips.ts startLoading), so the schedule
-  // counts from then.
-  const start = load.readyT !== undefined ? Math.max(w.t, load.readyT - (bid.deadheadMi > 0 ? placeHours(w, truck.place, load.originPlace) * 60 : 0)) : w.t;
-  // Due by the HOS schedule, and never after the shipper's appointment.
-  load.dueT = Math.min(load.appointmentT, start + transitMin + dwellMin + (load.hot > 0 ? cfg.safety.hotLoads.slackMinutes : cfg.freight.deliverySlackMinutes));
-  // Appointment freight (docks.ts): a delivery slot on the hour after the arrival estimate, due at its grace.
-  setSlot(w, load, start + transitMin + dwellMin);
-  if (load.latestDeliveryT !== undefined) load.dueT = Math.min(load.dueT, load.latestDeliveryT);
-  truck.loadId = load.id;
-  truck.idleRounds = 0;
-  if (bid.deadheadMi === 0) {
-    startLoading(w, truck, load);
-  } else {
-    truck.status = "toPickup";
-    truck.targetHub = load.origin;
-    truck.targetPlace = load.originPlace;
-    truck.remainingMi = placeLegMiles(w, truck.place, load.originPlace); // the bid's estimate, now the road's own figure
+  // Delivery windows (batch 2): won for a truck still on a job, it's booked ahead: nothing moves on it until the truck takes
+  // it (trips.ts takeNextLoad), which sets its due time and slot from then.
+  if (truck.status !== "idle" && windowsOn(w)) {
+    load.ahead = true;
+    truck.nextLoadId = load.id;
+    return;
   }
+  startJob(w, truck, load, bid.deadheadMi);
 }
 
 export function rollover(w: World, load: Load): void {
@@ -268,7 +256,10 @@ export function raiseCeiling(w: World, load: Load): void {
 export function bookLoad(w: World, company: Company, truck: Truck, load: Load, deadheadMi: number, manual: boolean, rate = load.bookNow, books?: Map<number, BrokerBook>): string | null {
   if (load.status !== "open") return "that load is gone";
   if (pickupClosed(w, load)) return "that load's pickup has closed";
-  if (truck.status !== "idle" || !crewed(truck)) return "the truck isn't idle with a driver";
+  // Delivery windows (batch 2): a truck on a job books one load ahead (the caller has checked canMake), never a second.
+  const ahead = truck.status !== "idle" && windowsOn(w) && AHEAD_STATUSES.has(truck.status);
+  if ((truck.status !== "idle" && !ahead) || !crewed(truck)) return "the truck isn't idle with a driver";
+  if (ahead && truck.nextLoadId !== undefined) return "this truck already has its next load booked";
   if (truck.trailer !== load.equipment) return "wrong trailer";
   if (company.authority.status !== "active") return "your authority isn't active";
   if (!mayTake(w, company, load)) return load.tenderedTo ? "that load is tendered to another carrier" : "local shippers only for now";
@@ -350,14 +341,15 @@ export function autoBook(w: World): void {
  * pays the shipper a fall-off charge; a carrier that re-posted the load pays that broker the
  * same on the rate it took it at; a facility's goods go unsold. The load leaves the board.
  */
-function giveUp(w: World, load: Load): void {
+export function giveUp(w: World, load: Load, noShow = false): void {
   const { fallOffShare } = w.cfg.brokerRisk;
   const ref = `load:${load.id}`;
   const rounds = load.roundsUnfilled;
-  // Delivery windows: lost when its pickup closed, counted by who posted it, at what its shipper would have paid.
-  const closed = pickupClosed(w, load);
+  // Delivery windows: lost when its pickup closed, counted by who posted it, at what its shipper would have paid. A no-show
+  // (windows.ts noShow) is lost the same way: its carrier never reached the shipper.
+  const closed = noShow || pickupClosed(w, load);
   if (closed) w.metrics.onLost(posterKind(w, load), load.shipperRate * load.miles);
-  const unhauled = closed ? "before its pickup closed" : `in ${rounds} rounds`;
+  const unhauled = noShow ? "after its carrier failed to show at the pickup" : closed ? "before its pickup closed" : `in ${rounds} rounds`;
   load.status = "expired";
   if (w.cfg.brokerage.enabled) onFallOff(w, load);
   if (load.brokerId !== null) {
@@ -366,7 +358,7 @@ function giveUp(w: World, load: Load): void {
     w.ledger.post(w.t, companyAccount(broker.id), "sink:broker_falloff", charge, ref);
     broker.operating.costFd += charge;
     broker.openBrokerLoads--;
-    w.listener?.({ kind: "notice", companyId: broker.id, topic: "board", text: `No carrier took load #${load.id} ${unhauled} and the shipper gave up: a ${fmtInt(charge)} FD fall-off charge.`, tone: "bad" });
+    w.listener?.({ kind: "notice", companyId: broker.id, topic: "board", text: `${noShow ? `Load #${load.id} was lost` : `No carrier took load #${load.id}`} ${unhauled} and the shipper gave up: a ${fmtInt(charge)} FD fall-off charge.`, tone: "bad" });
   }
   if (load.doubleBroker) {
     const db = companyById(w, load.doubleBroker.companyId);

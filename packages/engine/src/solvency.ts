@@ -260,6 +260,7 @@ export function restart(w: World, c: Company): void {
   c.delivered = 0;
   c.onTime = 0;
   c.late = 0;
+  if (c.failed !== undefined) c.failed = 0;
   const fleet = w.trucksByCompany.get(c.id)!;
   if (c.role === "carrier" && !fleet.some((t) => t.lease === "npc")) createTruck(w, c, "npc", "workhorse", "van");
   c.suretyClaimedFd = 0;

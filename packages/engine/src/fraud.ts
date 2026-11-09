@@ -187,7 +187,7 @@ export function stealLoad(w: World, c: Company, truck: Truck): string | null {
   c.delivered++;
   c.late++;
   const prior = w.cfg.reputation.priorLoads;
-  c.reputation = (c.onTime + prior * w.cfg.reputation.start) / (c.delivered + prior);
+  c.reputation = (c.onTime + prior * w.cfg.reputation.start) / (c.delivered + (c.failed ?? 0) + prior);
   const [lo, hi] = t.investigationDays;
   newCase(w, {
     kind: "theft",

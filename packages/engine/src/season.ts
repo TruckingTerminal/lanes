@@ -60,8 +60,9 @@ export function closeSeason(w: World, season: number, day: number): SeasonCloseR
     c.delivered *= keepRecord;
     c.onTime *= keepRecord;
     c.late *= keepRecord;
+    if (c.failed !== undefined) c.failed *= keepRecord; // delivery windows: loads booked and never hauled
     const prior = w.cfg.reputation.priorLoads;
-    c.reputation = c.delivered > 0 ? (c.onTime + prior * w.cfg.reputation.start) / (c.delivered + prior) : w.cfg.reputation.start;
+    c.reputation = c.delivered + (c.failed ?? 0) > 0 ? (c.onTime + prior * w.cfg.reputation.start) / (c.delivered + (c.failed ?? 0) + prior) : w.cfg.reputation.start;
 
     c.milesHistory.push(c.milesTotal);
     c.milesTotal = 0;
