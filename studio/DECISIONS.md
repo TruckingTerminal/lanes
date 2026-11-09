@@ -1,5 +1,20 @@
 # Decisions (the producer's log for Jeff; newest first)
 
+- 2026-11-09 — the economy's look at the locals-first change (economy-locals-first-2026-11-09.md): the rule Jeff approved
+  is what the engine already does. A locals-first load is held for local carriers for one clearing only
+  (leverage.localRounds 1) and opens to every dispatcher and bot at the next; the ten-seed cap runs are runs of this rule,
+  so it moves no sim and needs no ruleset. The gap behind the Palm Coast diary is the hand bidder's round: place_bid
+  refuses a bid on a locals-first load in the interval before it opens ("first call this round"), so a player's first
+  clearing comes a round after the bots', and the opened loads had cleared to the visiting bots' dispatchers before the
+  player could file. The build is therefore small: accept a hand bid on a locals-first load in the round before it opens,
+  held for the opening clearing (the bots' filter unchanged, so the digest is identical), behind its own switch, default
+  off, riding with the five switches of c1af286 in 0.24.1. One round stays the hold (two rounds give locals two points of
+  their hub's locals-first loads and nothing of all wins). Under delivery windows the one round after posting stays as
+  batch 1 has it; anchoring the opening to the urgency rounds would hold a lead-three-day load for locals through about
+  seven rounds and leave visitors the walked leftovers, so that part of the recommendation is not built; the director confirmed the economy's version the same day
+  ("holding it longer would make the rule the trap I asked to remove"; the urgency walk stays its own rule) and gave
+  Iuliia's line for a filed bid, for the guidance spec when the switch is scheduled on. Red team: letting loads lapse buys nothing cheaper; a one-truck company based at any of the fifty hubs
+  without bot carriers has an uncontested first call on 38–53% of its loads, the intended play.
 - 2026-11-09 — Jeff: "agreed", on the director's recommendation from the diaries (the cautious owner-operator stranded at
   Palm Coast, seeing loads it could not bid on): a load a shipper offers to local carriers first, which no local carrier
   took in its first round, opens to everyone from its next round; under delivery windows, once it is in its urgency
