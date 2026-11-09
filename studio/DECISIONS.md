@@ -1,5 +1,10 @@
 # Decisions (the producer's log for Jeff; newest first)
 
+- 2026-11-09 — Jeff: "agreed", on the director's recommendation from the diaries (the cautious owner-operator stranded at
+  Palm Coast, seeing loads it could not bid on): a load a shipper offers to local carriers first, which no local carrier
+  took in its first round, opens to everyone from its next round; under delivery windows, once it is in its urgency
+  rounds. A market rule, so it goes to the economy for its look (the bots take the opened loads too, so the sims move)
+  and lands in a ruleset at a restart with no players; engineering builds it behind a switch after windows batch 2.
 - 2026-11-09 — the director, on the board's suggested bid (client pass 2, QA's replay finding 4; engineering's objection
   upheld): the brief's "a suggested bid never exceeds Book now" was wrong, since a bid pays the bidder's own rate and a
   booking at Book now takes the load first, so a bid capped there is Book now that also waits for the round. The default
