@@ -39,14 +39,14 @@ or `/private/tmp/claude-501/…` are the old laptop's; the repo is wherever you 
 Append a dated line to the state log saying the studio now runs on the Mac Studio (use `date`, mark it REAL CLOCK).
 
 ## 4. Verify the world (read-only; change nothing)
-1. The public test page: `curl -s https://truckingterminal.github.io/lanes-play/ | grep -c "0.23.0-phase0.38"` should
+1. The public test page: `curl -s https://truckingterminal.github.io/lanes-play/ | grep -c "0.24.0-phase0.40"` should
    print 1 (the build that CI deployed from `main`). `gh run list --limit 3` shows the deploys.
-2. The live page is the artifact https://claude.ai/artifact/SRYhczap5Lpcr8AucRf9wy (v49 at 77b8186, ruleset
-   lanes-live-1/0.23.0-phase0.38). With the ArtifactData tool, `get` collection `world` doc `meta`: it should read
-   `{v 1, seed 318745026, epochMs 1793770250000, msPerGameHour 900000, ruleset "lanes-live-1/0.23.0-phase0.38"}` at
-   version 28. `list` the `players` collection; it was empty on 2026-11-04. Do not write either.
+2. The live page is the artifact https://claude.ai/artifact/SRYhczap5Lpcr8AucRf9wy (v50 at 6f1a397, ruleset
+   lanes-live-1/0.24.0-phase0.40). With the ArtifactData tool, `get` collection `world` doc `meta`: it should read
+   `{v 1, seed 477630989, epochMs 1794013175000, msPerGameHour 900000, ruleset "lanes-live-1/0.24.0-phase0.40"}` at
+   version 29. `list` the `players` collection; it was empty on 2026-11-09. Do not write either.
 3. The studio board is https://claude.ai/artifact/2kmePVzETFib467bWP2J34.
-4. Build the live page once to prove the recipe, without publishing: `git worktree add ../lanes-live 77b8186`, then in
+4. Build the live page once to prove the recipe, without publishing: `git worktree add ../lanes-live 6f1a397`, then in
    it `node apps/web/build.mjs` → `apps/web/dist/lanes.html` (about 4.3 MB). Publishing is only ever by Jeff's word.
 
 ## 5. Things that could not travel in git
@@ -84,7 +84,8 @@ Give the economy role that file and the retune in the backlog, with the sim limi
   deploy"; if that happens, stop and tell Jeff (he can allow the Artifact tool), never work around it.
 - **Restart the live world (a rules change):** only with `players` empty or Jeff's explicit word. Publish the page
   first, then `set` `world/meta` pinned to its current version: `{v: 1, seed: <new 9 digits>, epochMs: <publish time
-  in ms − 43,200,000>, msPerGameHour: 900000, ruleset: "lanes-live-1/<economyConfig.version>"}`. Page and meta move
+  in ms − 221,400,000, that is 246 game hours, so the world opens at 06:00 of day 10, past the cap's warm week, as a new
+  test world does since 0.24.0>, msPerGameHour: 900000, ruleset: "lanes-live-1/<economyConfig.version>"}`. Page and meta move
   together: a client whose RULESET differs from the meta's refuses to run.
 - **Commits:** by explicit paths, `git diff --cached --name-only` first, never `git add -A`. Role commits end
   `Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>`; yours `Co-Authored-By: Claude Fable 5.1

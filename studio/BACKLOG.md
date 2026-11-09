@@ -58,11 +58,11 @@ then. Report: studio/reviews/redteam-2026-11-03.md.
 
 ## Itinerary from the 2026-11-07 reset (the producer, 2026-11-04; Jeff's order)
 
-In the order we do them. Rules change only with a ruleset bump and a live restart; the live world is on 0.23.0.
+In the order we do them. Rules change only with a ruleset bump and a live restart; the live world is on 0.24.0 (restarted 2026-11-09 on Jeff's word).
 
 1. **Emission cap, retuned** (economy). The cap is built and off (`token.emission`, `studio/reviews/economy-emission.md`). Retune: a budget drawdown cuts the volume NPC shippers post before it cuts rates; the rate multiplier floors near break-even (~0.8, not 0.5); the lessor's pay counts against the budget; first-month budget 36M as the next candidate. Targets: sinks 90–100% of faucets every quarter; prudent owner-operators' median cash at day 120 no lower than 70% of before.
 2. **Option B** (economy + engineering). Purchase-loan rates that rise with debt-to-equity and a bust covenant, behind a switch, on in the live levers. Target: the prudent rule bot's median cash at day 120 at least 1.5× the greedy one's, and more greedy companies wound up.
-3. **The launch gate.** Ten seeds, four years, cap and cap-off twin per seed (twenty sims). As Jeff approved on 2026-11-08
+3. **The launch gate.** DONE 2026-11-09 (Jeff: "Approved on all 3. Go"): ruleset 0.24.0-phase0.40 (6f1a397) with the cap on at a flat 5M a month, the gate calibrated from the first ten seeds (band 0.84 from year 4; carriers 72% at year 3, 75% at year 4; ten of ten; economy-emission.md §16.7), the red team's pass (redteam-emission.md), the live page republished (artifact version 50 (1794234575-7a38)) and the live world restarted (world/meta v29: seed 477630989, epochMs 1794013175000). As planned: ten seeds, four years, cap and cap-off twin per seed (twenty sims). As Jeff approved on 2026-11-08
    (DECISIONS.md): the band is the corrected ratio over the trailing four quarters in [0.85, 1.00] from year three, the
    check on the rules; the cap is checked by floors against the twin at the ends of years 3 and 4 (carriers and cleared
    loads at or above 75% of the twin's; debt in FD at or under 7.5% of FD held) and a cold-start line (month 1 commits at
@@ -76,7 +76,7 @@ In the order we do them. Rules change only with a ruleset bump and a live restar
 6. **The client queue** (engineering): DONE 2026-11-08 (8f2df11, 93bbf2f, 800f96f; the books' rows af61e8b, ec6a824): R9, R10, R21's rest, R22, R24, the draw and hold lines, the seed pin, the month report with every posting on a named row (crime's excepted, by rule). Not built: month.rank, month.vsLast, a contract-loads row, copy-player3's weekly draw row.
 7. **The writer's review** (in progress 2026-11-08): engineering's draft copy from the client queue and the month report (NEEDS, DEBT.badge, MONTH and its new rows, EXPLAIN month.* and news.*, NEWS, MOVE and move.cost, WALL, RETURN, the Economy panel's advance label, the Fees row's name), then Iuliia's intro beats and the first-load beats (copy.ts FIRST_ENTRY, TUTORIAL), walkthrough step 1's new line, the company-name word lists (companyNames.ts), and the diaries batch's draft lines (debt, hours, dock, detention, staking). The bible's week-one line is the director's.
 8. **QA replays** on the test page (in progress 2026-11-08; the list in the shared notes, producer-qa-replays-2026-11-08.md): the client queue and the month report first, then detention and the dock warning, lost bids from the table, the quit notice and the hire form, the debt figure (the "0 of 4 at −28k" case is unreproduced), the phone layout fixes, the tutorial lock.
-9. **Player diaries** of the five personas on the live world once it is on 0.24.0.
+9. **Player diaries** of the five personas on 0.24.0 (in progress 2026-11-09: the player role briefed; on the test page, which carries the live world's ruleset, since the player role never signs in).
 10. **Economy follow-ups**: FD in circulation by year three (+64% against 0.20.2), shipper defaults up, detention's sizes, the levels band and Jeff's levels call, the four-year sizing, detention/weights/hazmat/tolls.
 11. **Later**: the server sprint, the legal opinion and the trademark search, the brokerage items, the Back Lot. From the
     red team's cap pass (2026-11-08): when facilities open to players, scale facility output and the 60% hub-share cap by

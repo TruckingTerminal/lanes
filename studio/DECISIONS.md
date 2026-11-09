@@ -1,5 +1,23 @@
 # Decisions (the producer's log for Jeff; newest first)
 
+- 2026-11-09 — Jeff: "Approved on all 3. Go", on the three decisions put to him in depth (the gate's calibration
+  from the first ten seeds, band floor 0.84 from year 4 and the carriers' line 72% at year 3 and 75% at year 4; the
+  fixed 5M-a-month subsidy as the supply curve, 36M to open, 271M by year 4, the 600M spent in month 114; the word
+  for 0.24.0). Done the same day by the producer: ruleset 0.24.0-phase0.40 (6f1a397): the emission cap on in the
+  live levers with the economy's block (economy-emission.md §16.7), a driver sent home while the truck is moving
+  (labor.sendHomeWhileMoving) and the board's "usually clears near" weighted by time
+  (freight.clearsNear.halfLifeDays 1); the test page deployed from it; the live page rebuilt from it and
+  republished (artifact version 50 (1794234575-7a38)); the live world restarted with no players (world/meta v29: seed
+  477630989, epochMs 1794013175000, ruleset lanes-live-1/0.24.0-phase0.40). The economy and the red team drop to high: the
+  design work is done, what remains is running and reading. Found on the way, by the two web tests that failed on
+  the new levers: under the cap's warm start (half NPC volume for the world's first seven days, which lands month 1
+  on budget) a new test world's opening board at day 2.25 had 0 to 13 paying loads within 300 miles of LAX (cap off
+  20 to 59), while from day 10 it reads 37 to 137 (cap off 128 to 332): a week-one effect of a board still filling,
+  not the cap's steady state. The rules stand. The director amended ruling 5 of 2026-11-02 the same day: a new test
+  world opens at 06:00 of day 10 (246 hours) instead of day 2, the company still joining as a round clears, nothing of it shown
+  to the player as a warm week (engineering, 75d61df); the live world's epoch was set 246 game hours before the
+  publish, so it too opened at 06:00 of day 10, past its warm week, with no players in it. Next: the red team's pass over 0.24.0 on main, the player diaries (item 9), the economy's claim
+  sizes for item 4, then engineering's item 4 batch 1.
 - 2026-11-08 — the producer, on Jeff's "I trust you", after the first ten seeds of the gate (economy-emission.md §16.7;
   reversible before the restart): the gate's calibration moves one step. The band's floor is 0.84 (read from the fourth
   year, never lower) and the carriers' line reads 72% of the twin's at the end of year 3, while the cap is still
