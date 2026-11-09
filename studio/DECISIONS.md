@@ -1,5 +1,13 @@
 # Decisions (the producer's log for Jeff; newest first)
 
+- 2026-11-09 — the director, on QA's replay of the diaries' batch and the writer's pass: (1) the one figure for the first
+  truck is the cash the cheapest truck takes from the player on the day (down payment, fees, anything due at signing; the
+  loan covers the rest) against what the player can put toward it, named "To your first truck: N FD" and "You can buy
+  today" once met; the Dealer opens on that same figure; the cushion is Iuliia's advice under it, never part of the
+  figure; one function feeds the teaser, her page and the Dealer's card. (2) "Send home after this run" (the writer's
+  wording, true of a loaded and an empty truck); the queued line and the toast say what was chosen: "for days off" only
+  after "Home time", "home after this run, then back to work" after "Send home · back to work". The browser's seen and
+  visited marks are the same leak as the inherited cards: a new world starts with none.
 - 2026-11-09 — the director's calls on the five player diaries of 0.24.0 (play-2026-11-09-*.md in the shared folder), for
   engineering's client batch, which the producer put ahead of delivery windows batch 2 because the diaries found first-hour
   and first-truck blockers on the live ruleset. (1) The Dealer opens the moment the first truck is affordable (or the deposit
