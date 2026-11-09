@@ -5,7 +5,7 @@
   AI companies, plus pause and speed controls; your world stays in your browser). On every push to
   `main`, `.github/workflows/pages.yml` runs the typecheck and tests, then publishes the built page
   to the public `TruckingTerminal/lanes-play` repo (deploy key in the `LANES_PLAY_DEPLOY_KEY`
-  secret), which GitHub Pages serves. This repo stays private.
+  secret), which GitHub Pages serves. This repo is public since 2026-11-09 (Jeff's call, for free CI minutes); nothing secret is ever committed.
 - **Live world:** the shared, always-on MMO world runs as a claude.ai artifact (see "The live world").
 - **Locally:** `npm ci`, then `npm run build:site` and serve `apps/web/dist/site`, or `npm run build`
   and open `apps/web/dist/local-lanes.html` from a static server.

@@ -1,5 +1,13 @@
 # Decisions (the producer's log for Jeff; newest first)
 
+- 2026-11-09 — Jeff: "Let's make the repo public", then "Public now" after the producer's facts: GitHub had refused
+  the day's CI run over the account's Actions billing (about 200 runs and 1,800 minutes since November 1 on a 2,000-minute
+  free plan; a private repo's minutes are paid, a public repo's are free). The 511-commit history was scanned first:
+  no keys, tokens, env or credential files, no personal strings; the CI deploy key lives in GitHub's secrets. Accepted
+  with it: the studio folder is public (the bible, the decisions, the handoff, the 68 reviews with the red team's
+  attack analyses and their figures, the economy's cap sizing and gate), with Trucking Terminal's themes and logo and
+  the NPC name lists before the trademark search. The alternative offered, a self-hosted runner on the Mac Studio,
+  was declined. TruckingTerminal/lanes is public from 2026-11-09 15:10Z; the refused run was re-run and started.
 - 2026-11-09 — Jeff: "Approved on all 3. Go", on the three decisions put to him in depth (the gate's calibration
   from the first ten seeds, band floor 0.84 from year 4 and the carriers' line 72% at year 3 and 75% at year 4; the
   fixed 5M-a-month subsidy as the supply curve, 36M to open, 271M by year 4, the 600M spent in month 114; the word
