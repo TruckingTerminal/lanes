@@ -9,10 +9,10 @@ import { rebrokerLoad, vettingBlock } from "./fraud.js";
 import { homeEdge, updateHomeCrowding } from "./home.js";
 import { creditDispatch, dispatchProfile, startHomeTime } from "./labor.js";
 import { companyAccount } from "./ledger.js";
-import { bidsFromStandingOrders, boardKey, canMakeHot, dockWaitCost, indexOpenLoads, scoreBid, desperation, estimateBreakEven, resting, trackingWouldShow, needsHome, homeward, hardCap, floorRate, lookaheadValue, ordersWaitForHand } from "./standingOrders.js";
+import { bidsFromStandingOrders, boardKey, readyKey, canMakeHot, dockWaitCost, indexOpenLoads, scoreBid, desperation, estimateBreakEven, resting, trackingWouldShow, needsHome, homeward, hardCap, floorRate, lookaheadValue, ordersWaitForHand } from "./standingOrders.js";
 import { startJob } from "./trips.js";
 import { bookingCapBlock, brokerBooks, contractOn, type BrokerBook } from "./receivables.js";
-import { AHEAD_STATUSES, canMake, noShow, pickupClosed, posterKind, readyToday, urgencyStep, urgent, windowsOn } from "./windows.js";
+import { AHEAD_STATUSES, canMake, dispatchPlan, noShow, pickupClosed, planLoads, planMakes, posterKind, readyToday, urgencyStep, urgent, windowsOn } from "./windows.js";
 import type { Bid, Company, Load, StandingOrder, Truck } from "./types.js";
 import { companyById, crewed, hubHours, hubMiles, truckById, type World, placeMiles, placeOfHub, placeLegMiles } from "./world.js";
 
@@ -302,19 +302,22 @@ export function autoBook(w: World): void {
     const team = dispatchProfile(w, company, fleet.filter((t) => t.status !== "parked" && t.status !== "listed").length);
     const allowed = [true, vettingBlock(w, company, { vet: 1 } as Load) === null, vettingBlock(w, company, { vet: 2 } as Load) === null];
     for (const truck of fleet) {
-      if (truck.status !== "idle" || !crewed(truck) || resting(w, truck) || w.manualBids.has(truck.id)) continue;
+      // Delivery windows (batch 3, windows.ts dispatchPlan): a truck on a job books its next load as it will stand when free.
+      const plan = dispatchPlan(w, truck);
+      if (!plan || !crewed(truck) || resting(w, truck) || w.manualBids.has(truck.id)) continue;
+      const at = plan.at;
       if (team.coverage < 1 && rng.next() >= team.coverage) continue;
-      const desperate = desperation(w, company, truck);
+      const desperate = desperation(w, company, at);
       const want = order.breakEvenPlusPct * (1 - desperate);
       const goHome = needsHome(w, company, truck);
       let best: { load: Load; dh: number; profit: number } | null = null;
-      for (const hub of w.net.nearby[truck.hub]!) {
-        if (hubMiles(w, truck.hub, hub) > order.maxDeadheadMi + w.cfg.commodities.placeSlackMi) break; // nearby is sorted nearest first
-        const loads = idx.get(boardKey(hub, truck.trailer));
+      for (const hub of w.net.nearby[at.hub]!) {
+        if (hubMiles(w, at.hub, hub) > order.maxDeadheadMi + w.cfg.commodities.placeSlackMi) break; // nearby is sorted nearest first
+        const loads = planLoads(w, plan, idx, hub, truck.trailer, boardKey, readyKey);
         if (!loads) continue;
         for (const load of loads) {
           if (load.status !== "open") continue; // booked a moment ago by another truck
-          const dh = placeMiles(w, truck.place, load.originPlace);
+          const dh = placeMiles(w, at.place, load.originPlace);
           if (dh > order.maxDeadheadMi) continue;
           if (!mayTake(w, company, load)) continue;
           if (load.brokerId === company.id || load.doubleBroker?.companyId === company.id) continue;
@@ -322,11 +325,12 @@ export function autoBook(w: World): void {
           if (load.brokerId !== null && creditScore(w, companyById(w, load.brokerId)) < company.minBrokerCredit) continue; // no paper below the floor
           if (load.hot > 0 && !canMakeHot(company, truck)) continue;
           if (trackingWouldShow(company, load)) continue;
-          if (goHome && !homeward(w, company, truck, load)) continue;
-          const be = estimateBreakEven(w, truck, load, dh, fuel, team);
+          if (goHome && !homeward(w, company, at, load)) continue;
+          if (!planMakes(w, truck, plan, load)) continue; // never what the truck can't make (canMake)
+          const be = estimateBreakEven(w, at, load, dh, fuel, team);
           const min = Math.max(be * (1 + want), floorRate(w, load, be, floor, desperate));
           if (load.bookNow < min) continue;
-          const profit = (load.bookNow - be) * load.miles + lookaheadValue(w, team, load.dest, load.equipment) - dockWaitCost(w, truck, load, dh, team);
+          const profit = (load.bookNow - be) * load.miles + lookaheadValue(w, team, load.dest, load.equipment) - dockWaitCost(w, at, load, dh, team, plan.startT);
           if (!best || profit > best.profit || (profit === best.profit && load.id < best.load.id)) best = { load, dh, profit };
         }
       }

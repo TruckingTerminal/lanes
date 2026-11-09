@@ -34,10 +34,11 @@ import { giveUp } from "./board.js";
 import { samePerson } from "./brokerage.js";
 import { fmtInt } from "./economics.js";
 import { companyAccount } from "./ledger.js";
+import { driverFatigue } from "./labor.js";
 import { legalDrivingMin, reopenLoad } from "./safety.js";
-import { dutyResetAt, legKeyOf } from "./trips.js";
+import { cycleLimitMin, dutyResetAt, legKeyOf } from "./trips.js";
 import type { Company, Load, Truck } from "./types.js";
-import { companyById, placeHours, placeLegMiles, placeRoute, type World } from "./world.js";
+import { companyById, crewed, placeHours, placeLegMiles, placeRoute, type World } from "./world.js";
 
 /** windows.enabled; a config without the key (an older profile) reads as off. */
 export const windowsOn = (w: World): boolean => w.cfg.windows?.enabled === true;
@@ -164,111 +165,230 @@ export interface Reach {
  * then the dwell at its longest. The deadline reads the arrival when docks.lateFromArrival is on, as deliver does.
  * It reads only: no write to the truck, the load or w.rng.
  */
-export function canMake(w: World, truck: Truck, load: Load): Reach {
-  const { cfg } = w;
-  const hos = cfg.hos;
-  const ops = cfg.equipmentOps;
-  const limit = legalDrivingMin(w, truck);
-  const rest = (hos.restHours > 0 ? hos.restHours : hos.dutyDayHours - hos.drivingHoursPerDay) * MINUTES_PER_HOUR;
-  const breakAfter = hos.breakAfterHours * MINUTES_PER_HOUR;
-  const reset = dutyResetAt(w, truck);
-  const fresh = reset === null || w.t >= reset;
-  let t = w.t;
-  let left = fresh ? limit : Math.max(0, limit - truck.shiftDrivenMin);
-  let shift = fresh ? 0 : truck.shiftDrivenMin;
-  // Standing still: a stop as long as a rest gives the hours back.
-  const stop = (min: number) => {
-    if (!(min > 0)) return;
-    t += min;
-    if (min >= rest) {
-      left = limit;
-      shift = 0;
-    }
-  };
-  const until = (at: number) => stop(at - t);
-  const drive = (min: number, mi: number) => {
-    let need = min;
-    while (need > 1e-9) {
-      if (left <= 1e-9) {
-        t += rest;
-        left = limit;
-        shift = 0;
-        continue;
-      }
-      let d = Math.min(need, left);
-      const breakDue = hos.breakMinutes > 0 && shift < breakAfter && shift + d > breakAfter;
-      if (breakDue) d = breakAfter - shift;
-      t += d;
-      need -= d;
-      left -= d;
-      shift += d;
-      if (breakDue) t += hos.breakMinutes;
-    }
-    if (cfg.fuel.stopEveryMi > 0) t += Math.floor(mi / cfg.fuel.stopEveryMi) * cfg.fuel.stopMinutes;
-  };
-  const leg = (a: number, b: number) => drive(placeHours(w, a, b) * MINUTES_PER_HOUR, a === b ? 0 : placeLegMiles(w, a, b));
-  const legLeft = () => {
-    const r = placeRoute(w, truck.place, truck.targetPlace);
-    const min = r && r.miles > 0 ? (r.hours * MINUTES_PER_HOUR * truck.remainingMi) / r.miles : (truck.remainingMi / hos.avgMph) * MINUTES_PER_HOUR;
-    drive(min, truck.remainingMi);
-  };
-  const dockOpen = (l: Load, end: "pickup" | "delivery") => {
-    const h = cfg.docks.enabled ? dockHoursAt(w, l, end) : null;
-    return h ? nextOpen(w, t, h) : t;
-  };
-  const loadDwell = (l: Load) => cfg.dwell.loadMinutes[1] + (ops.enabled && l.equipment === "flatbed" ? ops.flatbedSecureMinutes[1] : 0);
-  const unloadDwell = (l: Load) => cfg.dwell.unloadMinutes[1] + (ops.enabled && l.equipment === "flatbed" ? ops.flatbedUntarpMinutes[1] : 0);
-  // From the shipper's dock to the receiver: ready, open, loaded, driven; the deadline's moment at the receiver.
-  const haul = (l: Load): { arrive: number; done: number } => {
-    until(Math.max(t, l.readyT ?? t));
-    until(dockOpen(l, "pickup"));
-    stop(loadDwell(l));
-    drive(l.routeHours * MINUTES_PER_HOUR, l.miles);
-    const arrive = t;
-    until(dockOpen(l, "delivery"));
-    stop(unloadDwell(l));
-    return { arrive, done: t };
-  };
-  const answer = (why: Reach["why"], freeT: number, freePlace: number, pickupT = t, deliverT = t): Reach => ({ ok: why === null, why, freeT, freePlace, pickupT, deliverT });
+export function canMake(w: World, truck: Truck, load: Load, free: Free = freeOf(w, truck)): Reach {
+  if (free.why !== null) return { ok: false, why: free.why, freeT: free.run.t, freePlace: free.place, pickupT: free.run.t, deliverT: free.run.t };
+  if (truck.status !== "idle" && truck.nextLoadId !== undefined && truck.nextLoadId !== load.id) return { ok: false, why: "ahead", freeT: free.run.t, freePlace: free.place, pickupT: free.run.t, deliverT: free.run.t };
+  const r = free.run.copy();
+  const freeT = r.t;
+  const answer = (why: Reach["why"], pickupT: number, deliverT: number): Reach => ({ ok: why === null, why, freeT, freePlace: free.place, pickupT, deliverT });
+  // To this load's shipper, before its pickup closes; then on to its receiver, by its deadline.
+  if (free.place !== load.originPlace) r.leg(free.place, load.originPlace);
+  const pickupT = r.t;
+  // With windows.planMarginMinutes to spare at each (a plan that makes it by minutes is a coin toss).
+  const margin = w.cfg.windows?.planMarginMinutes ?? 0;
+  if (load.latestPickupT !== undefined && pickupT + margin > load.latestPickupT) return answer("pickup", pickupT, pickupT);
+  const run = r.haul(load);
+  const at = w.cfg.docks.lateFromArrival ? run.arrive : run.done;
+  if (load.latestDeliveryT !== undefined && at + margin > load.latestDeliveryT) return answer("delivery", pickupT, run.arrive);
+  return answer(null, pickupT, run.arrive);
+}
 
-  // 1. Free of the job in hand.
-  if (truck.status === "parked" || truck.status === "listed" || truck.status === "retired") return answer("busy", t, truck.place);
-  if (truck.status !== "idle" && truck.nextLoadId !== undefined && truck.nextLoadId !== load.id) return answer("ahead", t, truck.place);
-  if (truck.status === "repair") until(Math.max(t, truck.repairUntilT ?? t));
-  stop(truck.breakdownMin + (truck.pauseMin ?? 0));
+/** A truck free of its job in hand: when (its run's clock) and where; `why` when it can't take loads at all. */
+export interface Free {
+  run: Run;
+  place: number;
+  why: "busy" | null;
+}
+
+/**
+ * The truck's projected free time and place (canMake's first half, once per truck for the dispatcher, batch 3): here and now
+ * when idle; else the rest of its job in hand (the leg, the wait for readyT and the docks, the dwell at its longest, the haul
+ * and the unloading), an empty run's arrival, or the shop's end. Reads only.
+ */
+export function freeOf(w: World, truck: Truck): Free {
+  const r = Run.start(w, truck);
+  if (truck.status === "parked" || truck.status === "listed" || truck.status === "retired") return { run: r, place: truck.place, why: "busy" };
+  if (truck.status === "repair") r.until(Math.max(r.t, truck.repairUntilT ?? r.t));
+  r.stop(truck.breakdownMin + (truck.pauseMin ?? 0));
   let place = truck.place;
   const cur = truck.loadId !== null ? w.loads.get(truck.loadId) : undefined;
   if (truck.status === "repositioning") {
-    legLeft();
+    r.legLeft(truck);
     place = truck.targetPlace;
   } else if (cur) {
     if (truck.status === "toPickup") {
-      legLeft();
-      haul(cur);
+      r.legLeft(truck);
+      r.haul(cur);
     } else if (truck.status === "loading") {
-      stop(truck.dwellMin);
-      drive(cur.routeHours * MINUTES_PER_HOUR, cur.miles);
-      until(dockOpen(cur, "delivery"));
-      stop(unloadDwell(cur));
+      r.stop(truck.dwellMin);
+      r.drive(cur.routeHours * MINUTES_PER_HOUR, cur.miles);
+      r.receive(cur);
     } else if (truck.status === "loaded") {
-      legLeft();
-      until(dockOpen(cur, "delivery"));
-      stop(unloadDwell(cur));
+      r.legLeft(truck);
+      r.receive(cur);
     } else if (truck.status === "unloading") {
-      stop(truck.dwellMin);
+      r.stop(truck.dwellMin);
     }
     place = cur.destPlace;
   }
-  const freeT = t;
+  return { run: r, place, why: null };
+}
 
-  // 2. To this load's shipper, before its pickup closes; then on to its receiver, by its deadline.
-  if (place !== load.originPlace) leg(place, load.originPlace);
-  const pickupT = t;
-  if (load.latestPickupT !== undefined && pickupT > load.latestPickupT) return answer("pickup", freeT, place, pickupT, pickupT);
-  const run = haul(load);
-  const at = cfg.docks.lateFromArrival ? run.arrive : run.done;
-  if (load.latestDeliveryT !== undefined && at > load.latestDeliveryT) return answer("delivery", freeT, place, pickupT, run.arrive);
-  return answer(null, freeT, place, pickupT, run.arrive);
+/**
+ * canMake's clock: a truck's time and its legal driving hours left in the shift, run forward by stops and drives. The
+ * route's hours at this driver's own pace (skill and fatigue, as safety.ts mphFor; never the company's speeding), within
+ * the legal hours (a team's with a team), a rest of hos.restHours when they run out, R12's break once a shift past
+ * breakAfterHours, the fuel stops; a stop as long as a rest gives the hours back. R12's weekly clock (hos.cycleHours): once
+ * the week's hours run out, a restart of hos.restartHours, as trips.ts drivingMinutesLeft waits for one; a stop that long
+ * restarts it. Docks by nextOpen and the appointment slot already set (no draw; a missed slot's wait at its longest).
+ * windows.planMarginMinutes at the edges: a dock closing within it counts as closed, and a day that can't finish the drive
+ * with that much of its hours to spare ends that much early (a truck stops at the last site within its hours, sites.ts
+ * planNight). canMake asks the same margin to spare at the pickup and the deadline.
+ */
+export class Run {
+  private constructor(
+    private readonly w: World,
+    private readonly limit: number,
+    /** Driving minutes per route minute: this driver's pace. */
+    private readonly pace: number,
+    public t: number,
+    private left: number,
+    private shift: number,
+    /** The weekly clock's driving minutes left, and a full week's (Infinity with the clock off). */
+    private cycleLeft: number,
+    private readonly cycleFull: number,
+  ) {}
+
+  /** From now: the day's hours left read without opening a new duty day (dutyResetAt), a fresh day once it has reset. */
+  static start(w: World, truck: Truck): Run {
+    const limit = legalDrivingMin(w, truck);
+    const reset = dutyResetAt(w, truck);
+    const fresh = reset === null || w.t >= reset;
+    const skill = 1 + w.cfg.labor.driver.mphRange * (truck.driverSkill - 0.5);
+    const tired = 1 - w.cfg.fatigue.paceLoss * driverFatigue(w, truck);
+    const hos = w.cfg.hos;
+    const cycleFull = hos.cycleHours > 0 ? cycleLimitMin(w, truck) : Infinity;
+    const restarted = truck.cycleLastT !== undefined && w.t - truck.cycleLastT >= hos.restartHours * MINUTES_PER_HOUR;
+    const cycleLeft = hos.cycleHours > 0 ? cycleFull - (restarted ? 0 : (truck.cycleMin ?? 0)) : Infinity;
+    return new Run(w, limit, 1 / Math.max(0.5, skill * tired), w.t, fresh ? limit : Math.max(0, limit - truck.shiftDrivenMin), fresh ? 0 : truck.shiftDrivenMin, cycleLeft, cycleFull);
+  }
+
+  copy(): Run {
+    return new Run(this.w, this.limit, this.pace, this.t, this.left, this.shift, this.cycleLeft, this.cycleFull);
+  }
+
+  private get restart(): number {
+    return this.w.cfg.hos.restartHours * MINUTES_PER_HOUR;
+  }
+
+  private get rest(): number {
+    const hos = this.w.cfg.hos;
+    return (hos.restHours > 0 ? hos.restHours : hos.dutyDayHours - hos.drivingHoursPerDay) * MINUTES_PER_HOUR;
+  }
+
+  /** Standing still: a stop as long as a rest gives the hours back. */
+  stop(min: number): void {
+    if (!(min > 0)) return;
+    this.t += min;
+    if (min >= this.rest) {
+      this.left = this.limit;
+      this.shift = 0;
+    }
+    if (min >= this.restart) this.cycleLeft = this.cycleFull;
+  }
+
+  until(at: number): void {
+    this.stop(at - this.t);
+  }
+
+  drive(min: number, mi: number): void {
+    const hos = this.w.cfg.hos;
+    const breakAfter = hos.breakAfterHours * MINUTES_PER_HOUR;
+    let need = min * this.pace;
+    while (need > 1e-9) {
+      if (this.cycleLeft <= 1e-9) {
+        // The week's hours are spent: a restart, which gives the day's hours back too.
+        this.t += this.restart;
+        this.cycleLeft = this.cycleFull;
+        this.left = this.limit;
+        this.shift = 0;
+        continue;
+      }
+      if (this.left <= 1e-9) {
+        this.t += this.rest;
+        this.left = this.limit;
+        this.shift = 0;
+        continue;
+      }
+      let d = Math.min(need, this.left, this.cycleLeft);
+      // The day ends before the drive does, or within the margin of its hours: the truck stops at a site short of them.
+      const ends = need > this.left - this.margin + 1e-9;
+      if (ends) d = Math.min(d, Math.max(0, this.left - this.margin));
+      const breakDue = hos.breakMinutes > 0 && this.shift < breakAfter && this.shift + d > breakAfter;
+      if (breakDue) d = breakAfter - this.shift;
+      this.t += d;
+      need -= d;
+      this.left -= d;
+      this.cycleLeft -= d;
+      this.shift += d;
+      if (breakDue) this.t += hos.breakMinutes;
+      else if (ends) this.left = 0;
+    }
+    const fuel = this.w.cfg.fuel;
+    if (fuel.stopEveryMi > 0) this.t += Math.floor(mi / fuel.stopEveryMi) * fuel.stopMinutes;
+  }
+
+  /** Place to place by road. */
+  leg(a: number, b: number): void {
+    this.drive(placeHours(this.w, a, b) * MINUTES_PER_HOUR, a === b ? 0 : placeLegMiles(this.w, a, b));
+  }
+
+  /** The rest of the truck's leg in hand, its grades included (roads.terrain, as trips.ts moveTrucks slows on them). */
+  legLeft(truck: Truck): void {
+    const r = placeRoute(this.w, truck.place, truck.targetPlace);
+    const tr = this.w.cfg.roads.terrain;
+    const roadMph = r && r.hours > 0 ? r.miles / r.hours : this.w.cfg.hos.avgMph;
+    const grades = tr.enabled && truck.legMiles > 0 && truck.legMountainMi > 0 ? truck.legMiles / (truck.legMiles + truck.legMountainMi * (roadMph / tr.mountainMph - 1)) : 1;
+    this.drive(((truck.remainingMi / roadMph) * MINUTES_PER_HOUR) / grades, truck.remainingMi);
+  }
+
+  /** At the receiver: its hours, the appointment slot already set (early: wait for it; missed: the next, at its longest), unloading. */
+  receive(l: Load): void {
+    this.until(this.dockOpen(l, "delivery"));
+    const k = this.w.cfg.docks;
+    if (k.enabled && l.slotT > 0) {
+      const a = k.appointment;
+      if (this.t < l.slotT - a.earlyMinutes) this.until(l.slotT - a.earlyMinutes);
+      else if (this.t > l.slotT + a.graceMinutes) this.stop(a.nextSlotHours[1] * MINUTES_PER_HOUR);
+    }
+    this.stop(this.unloadDwell(l));
+  }
+
+  /** When the dock is open for this arrival: now, its next opening, or, closing within the margin, the opening after. */
+  dockOpen(l: Load, end: "pickup" | "delivery"): number {
+    const h = this.w.cfg.docks.enabled ? dockHoursAt(this.w, l, end) : null;
+    if (!h) return this.t;
+    const open = nextOpen(this.w, this.t, h);
+    if (open > this.t) return open;
+    const edge = this.t + this.margin;
+    const after = nextOpen(this.w, edge, h);
+    return after > edge ? after : this.t;
+  }
+
+  private get margin(): number {
+    return this.w.cfg.windows?.planMarginMinutes ?? 0;
+  }
+
+  loadDwell(l: Load): number {
+    const ops = this.w.cfg.equipmentOps;
+    return this.w.cfg.dwell.loadMinutes[1] + (ops.enabled && l.equipment === "flatbed" ? ops.flatbedSecureMinutes[1] : 0);
+  }
+
+  unloadDwell(l: Load): number {
+    const ops = this.w.cfg.equipmentOps;
+    return this.w.cfg.dwell.unloadMinutes[1] + (ops.enabled && l.equipment === "flatbed" ? ops.flatbedUntarpMinutes[1] : 0);
+  }
+
+  /** From the shipper's dock to the receiver: ready, open, loaded, driven; the arrival, and when the unloading is done. */
+  haul(l: Load): { arrive: number; done: number } {
+    this.until(Math.max(this.t, l.readyT ?? this.t));
+    this.until(this.dockOpen(l, "pickup"));
+    this.stop(this.loadDwell(l));
+    this.drive(l.routeHours * MINUTES_PER_HOUR, l.miles);
+    const arrive = this.t;
+    this.receive(l);
+    return { arrive, done: this.t };
+  }
 }
 
 /** "Tue 09:00": a game minute as the engine's refusals say it (time.weekdayOfDay0 names day 0). */
@@ -366,4 +486,51 @@ export function noShow(w: World, load: Load): void {
   }
   delete load.ahead;
   giveUp(w, load, true);
+}
+
+// --- The dispatcher two deep (batch 3) ---------------------------------------------------------------------------
+
+/**
+ * How the dispatcher (standingOrders.ts bids, board.ts autoBook) plans a truck. Idle: as today, from here and now, with
+ * canMake's projection only while windows are on (a windowed load must pass it, as by hand). On a job (windows on, nothing
+ * booked ahead, crewed, free within windows.planAheadHours): `at` is the truck as it will stand when free (its place, its
+ * market, idle from then), so the deadhead runs from the current receiver and the lookahead from there; it bids for and
+ * books only what canMake passes, and the win is booked ahead (board.ts assign). Null: the dispatcher leaves the truck be.
+ */
+export interface Plan {
+  at: Truck;
+  free: Free | null;
+  ahead: boolean;
+  /** When the truck sets out for the pickup: now, or when it's free. */
+  startT: number;
+}
+
+export function dispatchPlan(w: World, truck: Truck): Plan | null {
+  if (truck.status === "idle") return { at: truck, free: windowsOn(w) ? freeOf(w, truck) : null, ahead: false, startT: w.t };
+  if (!windowsOn(w) || !AHEAD_STATUSES.has(truck.status) || truck.nextLoadId !== undefined || !crewed(truck)) return null;
+  const free = freeOf(w, truck);
+  if (free.why !== null || free.run.t - w.t > w.cfg.windows!.planAheadHours * MINUTES_PER_HOUR) return null;
+  const place = free.place;
+  const hub = w.net.places[place]!.market;
+  const at: Truck = { ...truck, status: "idle", loadId: null, place, targetPlace: place, hub, targetHub: hub, remainingMi: 0, idleSinceT: free.run.t };
+  return { at, free, ahead: true, startT: free.run.t };
+}
+
+/** Whether a planned truck may take this load: always, unless windows are on and it's booked ahead or windowed (canMake). */
+export function planMakes(w: World, truck: Truck, plan: Plan, load: Load): boolean {
+  if (!plan.free || (!plan.ahead && load.latestPickupT === undefined)) return true;
+  return canMake(w, truck, load, plan.free).ok;
+}
+
+/**
+ * The open loads a planned truck reads at a hub, from the board index (standingOrders.ts indexOpenLoads): the freight ready
+ * today, as today; a truck planned ahead also reads what will be ready by the day after it's free (its readyKey days),
+ * which canMake then sorts.
+ */
+export function planLoads(w: World, plan: Plan, idx: Map<string, Load[]>, hub: number, eq: string, boardKey: (hub: number, eq: string) => string, readyKey: (hub: number, eq: string, day: number) => string): Load[] | undefined {
+  const today = idx.get(boardKey(hub, eq));
+  if (!plan.ahead) return today;
+  const out = today ? [...today] : [];
+  for (let d = dayOf(w.t, w.cfg) + 1; d <= dayOf(plan.startT, w.cfg) + 1; d++) out.push(...(idx.get(readyKey(hub, eq, d)) ?? []));
+  return out;
 }

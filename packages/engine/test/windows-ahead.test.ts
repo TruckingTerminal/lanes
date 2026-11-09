@@ -4,7 +4,12 @@ import { buildNetwork, hubs, neutralFeeds } from "@lanes/data";
 import { populate } from "@lanes/agents";
 import {
   applyAction,
+  autoBook,
+  bidsFromStandingOrders,
   canMake,
+  dispatchPlan,
+  homeward,
+  indexOpenLoads,
   claimOn,
   companyAccount,
   createWorld,
@@ -19,6 +24,7 @@ import {
   vettingBlock,
   type Company,
   type Load,
+  type StandingOrder,
   type Truck,
   type World,
 } from "@lanes/engine";
@@ -279,5 +285,83 @@ describe("claims (test 7)", () => {
     delete broker.partnerId;
     delete c.partnerId;
     w.ledger.assertBalanced();
+  }, 60_000);
+});
+
+describe("the dispatcher two deep (test 5)", () => {
+  /** Standing orders that bid and book freely, the first call by hand made. */
+  const orders: StandingOrder[] = [
+    { kind: "bid", maxDeadheadMi: 300, price: { mode: "ceilingPct", pct: 0.95 } },
+    { kind: "floor", breakEvenPlusPct: -0.5 },
+    { kind: "bookNow", breakEvenPlusPct: -0.5, maxDeadheadMi: 300 },
+  ];
+  /** A truck on a short job, free within the plan-ahead hours; the loads near where it will be free made feasible, one not. */
+  function busy(seed: number) {
+    const { w, c, t } = setup(seed);
+    toNextRound(w); // two rounds of freight on the board
+    c.orders = orders;
+    c.firstHandBidDay = 0;
+    // A short first load into the market with the most freight this carrier may take, so the plan has a board to read.
+    const takeable = (l: Load) => l.status === "open" && l.equipment === t.trailer && l.hot === 0 && l.contractId === 0 && l.hold === undefined && vettingBlock(w, c, l) === null && mayTake(w, c, l);
+    const around = (place: number) => [...w.loads.values()].filter((l) => takeable(l) && placeMiles(w, place, l.originPlace) <= 250).length;
+    // Docks open around the clock at both ends, so the truck is free within the plan-ahead hours.
+    const a = [...w.loads.values()].filter((l) => takeable(l) && l.doubleBroker === null && l.routeHours > 1 && l.routeHours < 5 && dockHoursAt(w, l, "pickup") === null && dockHoursAt(w, l, "delivery") === null).sort((x, y) => around(y.destPlace) - around(x.destPlace) || x.id - y.id)[0]!;
+    expect(around(a.destPlace)).toBeGreaterThan(2);
+    widen(a, w.t);
+    standAt(t, a);
+    ok(applyAction(w, c.id, { type: "book_load", truckId: t.id, loadId: a.id }));
+    const plan = dispatchPlan(w, t)!;
+    expect(plan).not.toBeNull();
+    const nearby = [...w.loads.values()].filter((l) => l.status === "open" && l.equipment === t.trailer && placeMiles(w, a.destPlace, l.originPlace) <= 300);
+    for (const l of nearby) widen(l, plan.startT);
+    const missed = nearby[0]!;
+    missed.latestPickupT = w.t + 60; // closes before the truck is free
+    return { w, c, t, a, plan, missed };
+  }
+
+  it("plans a soon-free truck from where and when it's free, and bids and books only what canMake passes, one ahead", () => {
+    const { w, c, t, a, plan, missed } = busy(51);
+    expect(plan).toMatchObject({ ahead: true });
+    expect(plan.at.place).toBe(a.destPlace);
+    expect(plan.at.hub).toBe(w.net.places[a.destPlace]!.market);
+    expect(plan.startT).toBeGreaterThan(w.t);
+    expect(plan.startT - w.t).toBeLessThanOrEqual(w.cfg.windows.planAheadHours * 60);
+    const bids = bidsFromStandingOrders(w, c, indexOpenLoads(w)).filter((b) => b.truckId === t.id);
+    expect(bids.length).toBeGreaterThan(0);
+    for (const b of bids) {
+      const l = w.loads.get(b.loadId)!;
+      expect(b.deadheadMi).toBe(placeMiles(w, a.destPlace, l.originPlace)); // from the current receiver
+      expect(canMake(w, t, l).ok).toBe(true);
+    }
+    expect(canMake(w, t, missed).ok).toBe(false);
+    expect(bids.some((b) => b.loadId === missed.id)).toBe(false);
+    // Between rounds the dispatcher books ahead, never what the truck can't make, and never a third.
+    autoBook(w);
+    expect(t.loadId).toBe(a.id);
+    const next = w.loads.get(t.nextLoadId!)!;
+    expect(next).toMatchObject({ status: "assigned", ahead: true, truckId: t.id });
+    expect(canMake(w, t, next).ok).toBe(true);
+    expect(dispatchPlan(w, t)).toBeNull();
+    expect(bidsFromStandingOrders(w, c, indexOpenLoads(w)).filter((b) => b.truckId === t.id)).toEqual([]);
+    w.ledger.assertBalanced();
+  }, 60_000);
+
+  it("books ahead only homeward loads for a truck due home; plans nothing for a truck free later than the plan-ahead hours", () => {
+    const { w, c, t, plan } = busy(52);
+    w.staff[t.driverId - 1]!.wantsHome = true;
+    const bids = bidsFromStandingOrders(w, c, indexOpenLoads(w)).filter((b) => b.truckId === t.id);
+    for (const b of bids) expect(homeward(w, c, plan.at, w.loads.get(b.loadId)!)).toBe(true);
+    autoBook(w);
+    if (t.nextLoadId !== undefined) expect(homeward(w, c, plan.at, w.loads.get(t.nextLoadId)!)).toBe(true);
+    // A long haul: free past the plan-ahead hours, so the dispatcher leaves it be for now.
+    const { w: w2, c: c2, t: t2 } = setup(53);
+    c2.orders = orders;
+    c2.firstHandBidDay = 0;
+    const long = pick(w2, c2, t2, (l) => l.routeHours > 20);
+    widen(long, w2.t);
+    standAt(t2, long);
+    ok(applyAction(w2, c2.id, { type: "book_load", truckId: t2.id, loadId: long.id }));
+    expect(dispatchPlan(w2, t2)).toBeNull();
+    expect(bidsFromStandingOrders(w2, c2, indexOpenLoads(w2)).filter((b) => b.truckId === t2.id)).toEqual([]);
   }, 60_000);
 });

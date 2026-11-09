@@ -920,6 +920,14 @@ export const economyConfig = {
     // closes; in these last rounds the ceiling steps as a rollover does (board.rolloverCeilingStep) and book-now walks to
     // it, one step a round, at most this many steps. A player poster's pay never walks.
     urgencyRounds: 2,
+    // Booking ahead, the dispatcher (batch 3): a truck on a job is planned for its next load once it will be free within
+    // this many hours (canMake's projection), priced from where and when it's free; one ahead, never a third.
+    planAheadHours: 12,
+    // canMake's margin at the planning's knife edges (batch 3): a dock that closes within this many minutes of the arrival
+    // counts as closed (a Friday-night close costs a weekend); a day that can't finish its drive with this much of its hours
+    // to spare ends this much early, as a truck stops at the last site within its hours (sites.ts planNight); and the pickup
+    // and the deadline must be made with this much to spare.
+    planMarginMinutes: 60,
     // Claims, as shares (the economy's sizes, 2026-11-09), read by the booking-ahead batch: a late delivery (after
     // latestDeliveryT) of the load's pay as booked; a no-show (booked, not picked up by latestPickupT); a cancellation
     // (release_load) before, and in, the urgency rounds. Kept in order: cancel early < late < no-show = cancel urgent.

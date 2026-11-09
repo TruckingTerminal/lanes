@@ -10,7 +10,7 @@ import { vettingBlock } from "./fraud.js";
 import { homeEdge } from "./home.js";
 import { dispatchProfile, type DispatchProfile } from "./labor.js";
 import type { Bid, Company, Load, StandingOrder, Truck } from "./types.js";
-import { windowsOn } from "./windows.js";
+import { dispatchPlan, planLoads, planMakes, windowsOn } from "./windows.js";
 import { crewed, hubMiles, hubToll, type World, placeMiles, placeToll } from "./world.js";
 
 /** A solo truck makes a hot load's window only on falsified logs; a team makes it legally. */
@@ -127,18 +127,22 @@ export function bidsFromStandingOrders(w: World, company: Company, idx: BoardInd
   const rng = w.rng.dispatch;
 
   for (const truck of fleet) {
-    if (truck.status !== "idle" || !crewed(truck) || resting(w, truck)) continue;
+    // Delivery windows (batch 3, windows.ts dispatchPlan): a truck on a job is planned for its next load as it will stand
+    // when free; off, or idle, `at` is the truck itself and this is today's loop.
+    const plan = dispatchPlan(w, truck);
+    if (!plan || !crewed(truck) || resting(w, truck)) continue;
+    const at = plan.at;
     if (team.coverage < 1 && rng.next() >= team.coverage) continue;
     const goHome = needsHome(w, company, truck);
-    const desperate = desperation(w, company, truck);
+    const desperate = desperation(w, company, at);
     const candidates: { bid: Bid; profit: number }[] = [];
     let inRange = 0;
-    for (const hub of w.net.nearby[truck.hub]!) {
-      if (hubMiles(w, truck.hub, hub) > maxDh + w.cfg.commodities.placeSlackMi) break; // nearby is sorted nearest first
-      const loads = idx.get(boardKey(hub, truck.trailer));
+    for (const hub of w.net.nearby[at.hub]!) {
+      if (hubMiles(w, at.hub, hub) > maxDh + w.cfg.commodities.placeSlackMi) break; // nearby is sorted nearest first
+      const loads = planLoads(w, plan, idx, hub, truck.trailer, boardKey, readyKey);
       if (!loads) continue;
       for (const load of loads) {
-        const dh = placeMiles(w, truck.place, load.originPlace);
+        const dh = placeMiles(w, at.place, load.originPlace);
         if (dh > maxDh) continue;
         if (!mayTake(w, company, load)) continue;
         if (load.brokerId === company.id || load.doubleBroker?.companyId === company.id) continue;
@@ -146,12 +150,13 @@ export function bidsFromStandingOrders(w: World, company: Company, idx: BoardInd
         if (load.brokerId !== null && creditScore(w, w.companies[load.brokerId - 1]!) < company.minBrokerCredit) continue; // no paper below the floor
         if (load.hot > 0 && !canMakeHot(company, truck)) continue;
         if (trackingWouldShow(company, load)) continue;
-        if (goHome && !homeward(w, company, truck, load)) continue; // due home: only loads that head that way
+        if (goHome && !homeward(w, company, at, load)) continue; // due home: only loads that head that way
+        if (!planMakes(w, truck, plan, load)) continue; // never what the truck can't make (canMake)
         inRange++;
-        const priced = priceLoad(w, truck, load, dh, fuel, bidOrders, floor, team, desperate);
+        const priced = priceLoad(w, at, load, dh, fuel, bidOrders, floor, team, desperate);
         if (priced === null) continue;
         candidates.push({
-          profit: (priced.rate - priced.breakEven) * load.miles + lookaheadValue(w, team, load.dest, load.equipment) - dockWaitCost(w, truck, load, dh, team),
+          profit: (priced.rate - priced.breakEven) * load.miles + lookaheadValue(w, team, load.dest, load.equipment) - dockWaitCost(w, at, load, dh, team, plan.startT),
           bid: {
             loadId: load.id,
             truckId: truck.id,
@@ -178,14 +183,14 @@ export function bidsFromStandingOrders(w: World, company: Company, idx: BoardInd
  * then the receiver's hours. Appointment freight is booked into a slot and adds none. A skilled team
  * prices the wait at the routing time value; an untrained one barely sees it (the skill edge). FD.
  */
-export function dockWaitCost(w: World, truck: Truck, load: Load, dh: number, team: DispatchProfile): number {
+export function dockWaitCost(w: World, truck: Truck, load: Load, dh: number, team: DispatchProfile, startT: number = w.t): number {
   const k = w.cfg.docks;
   if (!k.enabled || team.skill <= 0) return 0;
   if (dockRule(w, load) === "appointment") return 0;
   const shipper = dockHoursAt(w, load, "pickup");
   const receiver = dockHoursAt(w, load, "delivery");
   if (!shipper && !receiver) return 0; // both docks run around the clock
-  const atPickup = w.t + (dh / w.cfg.hos.avgMph) * MINUTES_PER_HOUR;
+  const atPickup = startT + (dh / w.cfg.hos.avgMph) * MINUTES_PER_HOUR; // from now, or when a truck planned ahead is free
   const pickupWait = shipper ? nextOpen(w, atPickup, shipper) - atPickup : 0;
   const perDay = w.cfg.hos.drivingHoursPerDay;
   const fullDays = Math.max(0, Math.ceil(load.routeHours / perDay) - 1);

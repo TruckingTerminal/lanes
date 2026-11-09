@@ -9,6 +9,7 @@ import { laneDestWeights, reloadFactor } from "./freight.js";
 import { dispatchProfile, salesContracts, salesRatePremium } from "./labor.js";
 import { companyAccount } from "./ledger.js";
 import { resting } from "./standingOrders.js";
+import { canMake, windowsOn } from "./windows.js";
 import type { Company, Contract, Load, StandingOrder, Truck } from "./types.js";
 import { crewed, hubMiles, placeMiles, type World } from "./world.js";
 
@@ -392,6 +393,7 @@ export function autoTenders(w: World): { company: Company; load: Load; truck: Tr
       if (team.coverage < 1 && w.rng.dispatch.next() >= team.coverage) continue;
       const dh = placeMiles(w, truck.place, load.originPlace);
       if (dh > order.maxDeadheadMi) continue;
+      if (load.latestPickupT !== undefined && windowsOn(w) && !canMake(w, truck, load).ok) continue; // delivery windows: one it can make
       if (!best || dh < best.dh) best = { truck, dh };
     }
     if (!best) continue;
