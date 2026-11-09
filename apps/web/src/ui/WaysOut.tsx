@@ -9,7 +9,7 @@ import { confirmSpend } from "./Confirm.js";
 
 /** An exit's line: where, how far, what it costs, how long, and the loads that pay there. */
 export function exitLine(w: World, e: Exit): string {
-  return e.home ? PENDING.exitHome(e.mi, e.fd, e.time) : PENDING.exitTo(w.net.hubs[e.hub]!.name, e.mi, e.fd, e.time, e.pays);
+  return e.home ? PENDING.exitHome(e.mi, e.fd, e.time, e.pays) : PENDING.exitTo(w.net.hubs[e.hub]!.name, e.mi, e.fd, e.time, e.pays);
 }
 /** An exit's button: home is a run home to work, never days off (the director, 2026-11-09). */
 export function exitButton(w: World, e: Exit): string {

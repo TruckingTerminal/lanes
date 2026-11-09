@@ -13,7 +13,7 @@ import { PENDING } from "../../copy-pending.js";
 import { GUIDE_LABEL } from "../../copy.js";
 import { iuliiaFirst } from "../../iuliia.js";
 import { GAME_CONFIG } from "../../game.js";
-import { act, feed, me, S, setOnboard, useData } from "../../state.js";
+import { act, feed, markKey, me, S, setOnboard, useData } from "../../state.js";
 import { Btn, Card, Kv, Num, Panel, Sparkline } from "../bits.js";
 import { MonthReports, ThisWeekCard } from "../MonthReport.js";
 
@@ -54,10 +54,11 @@ export function Money(): JSX.Element {
   const cashHist = feed().history.map((h) => h.cash);
   // The hold toward the player's own truck (row 2): its total under Cash, with a note on the first visit that shows it.
   const held = depositCredit(w, c);
-  const heldNote = held >= 0.5 && !S.onboard.seen.includes("money:held");
+  const heldKey = markKey("money:held");
+  const heldNote = held >= 0.5 && !S.onboard.seen.includes(heldKey);
   useEffect(() => () => {
-    if (heldNote && !S.onboard.seen.includes("money:held")) setOnboard({ seen: [...S.onboard.seen, "money:held"] });
-  }, [heldNote]);
+    if (heldNote && !S.onboard.seen.includes(heldKey)) setOnboard({ seen: [...S.onboard.seen, heldKey] });
+  }, [heldNote, heldKey]);
   let token: JSX.Element;
   if (!live) {
     const daysLeft = GAME_CONFIG.token.betaYears * 365 - day;

@@ -205,7 +205,7 @@ function words(a: NextAction): { action: string; reason: string; button: string;
       if (!first) return { action, reason: PENDING.strandedNone, button: NEEDS.waysOut, go: () => waysOut(t) };
       return {
         action,
-        reason: `${PENDING.strandedReason(exitLine(w, first), first.pays)}${next ? ` ${PENDING.strandedNext(exitLine(w, next))}` : ""}`,
+        reason: `${PENDING.strandedReason(exitLine(w, first))}${next ? ` ${PENDING.strandedNext(exitLine(w, next))}` : ""}`,
         button: exitButton(w, first),
         go: () => takeExit(t, first),
       };
@@ -219,7 +219,7 @@ function words(a: NextAction): { action: string; reason: string; button: string;
     case "cushion":
       return { action: NOW.cushionAction, reason: NOW.cushionReason(a.weeks.toFixed(1)), button: NOW.cushionButton, go: () => setTab("money") };
     case "gap":
-      return { action: NOW.gapAction, reason: NOW.gapReason(fd(a.gapFd), w.cfg.guide.gapCushionWeeks), button: NOW.gapButton, go: () => setTab("market") };
+      return { action: NOW.gapAction, reason: PENDING.gapReason(fd(a.gapFd)), button: NOW.gapButton, go: () => setTab("market") };
     case "calm": {
       const e = a.event;
       const event = e.kind === "round" ? NOW.eventRound : e.kind === "monthClose" ? NOW.eventMonthClose : e.kind === "layer" ? NOW.eventLayer(e.layer === "businesses" ? "Businesses" : "Brokerage") : NOW.eventFactoring;
@@ -235,5 +235,8 @@ function idleReason(w: World, truckId: number, profitFd: number, grossFd: number
   const t = w.trucks[truckId - 1]!;
   const p = chipPair(w, t, profitFd, grossFd, drawFd);
   if (p.held < 0.5) return NOW.idleReason(truckNo(truckId), w.net.places[t.place]!.name, fdFull(profitFd)); // the truck's town, as the strip says it (logic.ts truckWhere)
+  // The owner's draw in the cash, said as the load page says it, so the sentence adds up (QA's replay: 2,109 over
+  // break-even, 1,510 to cash now and 1,396 toward the truck, with the 797 draw unsaid).
+  if ((p.draw ?? 0) >= 0.5) return PENDING.idleReasonHeldDraw(fdFull(p.profit), fdFull(Math.abs(p.cash)), p.cash < 0, fdFull(p.draw!), fdFull(p.held));
   return (p.cash < 0 ? NOW.idleReasonHeld : NOW.idleReasonHeldPlus)(fdFull(p.profit), fdFull(Math.abs(p.cash)), fdFull(p.held));
 }

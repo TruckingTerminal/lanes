@@ -10,11 +10,18 @@ export interface Onboard {
   v: 1;
   /** Walkthrough steps (walkthrough.ts ids) whose card this player has opened. */
   seen: string[];
-  /** The board has been opened once (its first visit sorts profitable book-nows first). */
+  /** The browser-wide first-board mark of earlier builds: kept when read, no longer used (the board's is `{scope}|board` in visited). */
   boardVisited: boolean;
-  /** Tabs opened at least once: an opened teaser shows "New" under More until then. */
+  /** Tabs this company opened at least once, `{scope}|{tab}` (and `{scope}|board`): an opened teaser shows "New" under More until then. */
   visited: string[];
 }
+
+/**
+ * One company's marks in one world: `{seed}:{company id}:{created day}`, so a replaced test world, or a fresh start in
+ * the same browser, sees none of the last one's (QA, 2026-11-09: Money's held note and the Dealer's "New" leaked).
+ */
+export const worldScope = (w: { seed: number }, c: { id: number; createdDay: number }): string => `${w.seed}:${c.id}:${c.createdDay}`;
+export const worldMark = (w: { seed: number }, c: { id: number; createdDay: number }, k: string): string => `${worldScope(w, c)}|${k}`;
 
 export const freshOnboard = (): Onboard => ({ v: 1, seen: [], boardVisited: false, visited: [] });
 

@@ -7,7 +7,7 @@ import { ANSWER, FINANCE, STAKE } from "../../copy.js";
 import { borrowable, contractOn, contractSoFar, equipmentWeekly, hasLeasedTrucks, leaseDeposit, loanRows, monthOfCosts, ownsATruck, playerPaperWaiting, rateLadder, rateToday } from "../../finance.js";
 import { cls, fdFull, hhmm, pct, shortDate } from "../../format.js";
 import { invoices, leaseMinFor } from "../../ledger.js";
-import { feed, isPhone, me, myTrucks, order, S, setTab, truckNo, useData } from "../../state.js";
+import { feed, isPhone, markKey, me, myTrucks, order, S, setTab, truckNo, useData } from "../../state.js";
 import { Bar, Btn, Card, Kv, Panel } from "../bits.js";
 import { Fig } from "../Explain.js";
 import { CapsLine } from "../Caps.js";
@@ -95,7 +95,7 @@ export function financeLine(): { key: string; line: string } | null {
   if (!g || !c) return null;
   const w = g.w;
   const f = c.factoring;
-  const seen = (k: string) => S.onboard.seen.includes(k);
+  const seen = (k: string) => S.onboard.seen.includes(markKey(k)); // marked scoped by the caption (Walkthrough.tsx)
   const pick = (key: string, line: string) => (seen(key) ? null : { key, line });
   if (contractOn(w) && f && f.until - today(w) <= 7 && !f.renew) {
     const p = pick(`fin:ending:${f.until}`, FINANCE.iuliiaEnding(shortDate(f.until)));

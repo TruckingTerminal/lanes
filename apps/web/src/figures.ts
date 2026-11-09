@@ -2,6 +2,8 @@ import { companyAccount, crewed, fuelPrice, layerOpen, locksOn, lotPrice, npcDea
 import { boardRows, type BoardRow } from "./board.js";
 import { buyPlan, cheapestNewRig } from "./finance.js";
 import { invoices, weekCosts } from "./ledger.js";
+import { PENDING } from "./copy-pending.js";
+import { fdFull } from "./format.js";
 
 /**
  * The figures Iuliia computes (specs/guidance.md, section 4): read from the world and the company, saving nothing, with
@@ -119,9 +121,12 @@ export function debtCountdown(w: World, c: Company): { n: number; of: number; ne
 }
 
 /**
- * guide.gapToTruck: the cheapest open route to the next truck (the used lot, a listing, or new at the cheapest source),
- * as the cash it needs now on a purchase loan (the Dealer's own figure: down payment, stake and tax, less the lease
- * deposit when it replaces the lessor's truck), less the cash above guide.gapCushionWeeks weeks of the company's spending.
+ * guide.gapToTruck, the one first-truck figure (the director, 2026-11-09): the cheapest open route to the next truck (the
+ * used lot, a listing, or new at the cheapest source), as the cash it takes from the player on the day on a purchase
+ * loan (the Dealer's own "Cash needed now": down payment, stake and tax, less the lease deposit when it replaces the
+ * lessor's truck), less the cash the player has. The Dealer's teaser, Iuliia's page and the Dealer's card all read it
+ * (firstTruckLine), and the Dealer opens on it (tabs.ts firstTruckAffordable), so the number and the opening never
+ * disagree. holdFd, guide.gapCushionWeeks of the company's spending, is Iuliia's advice under it, never in it.
  */
 export function gapToTruck(w: World, c: Company): { gapFd: number; route: "lot" | "listing" | "new"; needNowFd: number; grossNeedFd: number; depositFd: number; spareFd: number; holdFd: number } {
   const replacing = (w.trucksByCompany.get(c.id) ?? []).some((t) => t.lease === "npc");
@@ -138,9 +143,23 @@ export function gapToTruck(w: World, c: Company): { gapFd: number; route: "lot" 
     if (need < best.need) best = { route: r.route, need, gross: p.loan ? p.loan.cashNeed : p.cashNeed, deposit: Math.min(p.deposit, p.loan ? p.loan.cashNeed : p.cashNeed) };
   }
   const hold = w.cfg.guide.gapCushionWeeks * cushion(w, c).avgWeeklyFd;
-  const spare = Math.max(0, cash(w, c) - hold);
-  return { gapFd: Math.max(0, best.need - spare), route: best.route, needNowFd: best.need, grossNeedFd: best.gross, depositFd: best.deposit, spareFd: spare, holdFd: hold };
+  const have = cash(w, c);
+  return { gapFd: Math.max(0, best.need - have), route: best.route, needNowFd: best.need, grossNeedFd: best.gross, depositFd: best.deposit, spareFd: Math.max(0, have), holdFd: hold };
 }
+
+/**
+ * The first-truck figure's words, one function for the Dealer's teaser, Iuliia's page and the Dealer's card (as chipPair
+ * is for a load's cash): "To your first truck: N FD", or "You can buy today" once met; and Iuliia's cushion advice under
+ * it once a week of spending is known. Null with no truck for sale anywhere.
+ */
+export function firstTruckLine(w: World, c: Company): { figure: string; met: boolean; advice: string | null; needFd: number; gapFd: number } | null {
+  const g = gapToTruck(w, c);
+  if (!Number.isFinite(g.needNowFd)) return null;
+  const met = g.gapFd <= 0;
+  return { figure: met ? PENDING.firstTruckMet : PENDING.firstTruckToGo(fdFull(g.gapFd)), met, advice: g.holdFd >= 0.5 ? PENDING.firstTruckCushion(fdFull(roundCushion(g.holdFd))) : null, needFd: g.needNowFd, gapFd: g.gapFd };
+}
+/** Advice is a round number: to the hundred, to the thousand from ten thousand. */
+const roundCushion = (fd: number): number => (fd >= 10_000 ? Math.round(fd / 1_000) * 1_000 : Math.max(100, Math.round(fd / 100) * 100));
 
 /** The best load for an idle truck by the profit chip's one arithmetic (ruling 5): the most profit at book-now, if any pays. */
 export function bestLoad(w: World, c: Company, truck: Truck): BoardRow | null {

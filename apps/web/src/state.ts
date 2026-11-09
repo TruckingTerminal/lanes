@@ -7,7 +7,7 @@ import { fd, hhmm, realUntil, TIER_NAME, TRAILER_NAME, FAC_NAME, usd } from "./f
 import type { LiveAction } from "./live.js";
 import { VETTING_NAMES } from "@lanes/engine";
 import type { Tab } from "./tabs.js";
-import { freshOnboard, ONBOARD_KEY, parseOnboard, type Onboard } from "./onboard.js";
+import { freshOnboard, ONBOARD_KEY, parseOnboard, worldMark, type Onboard } from "./onboard.js";
 import type { PayLine } from "./rolling.js";
 import { FIRST_LOAD_TABS, firstLoadLocked } from "./tutorial.js";
 import { TUTORIAL } from "./copy.js";
@@ -289,6 +289,14 @@ export function setOnboard(change: Partial<Omit<Onboard, "v">>): void {
   }
   bumpData();
 }
+/** This company's mark in this world (onboard.ts worldMark); before a company is chosen, the browser's own. */
+export const markKey = (k: string): string => (S.game?.player ? worldMark(S.game.w, S.game.player, k) : k);
+/** Whether this company has opened a tab (or `board`) in this world. */
+export const visited = (tab: string): boolean => S.onboard.visited.includes(markKey(tab));
+/** Marks a tab (or `board`) opened for this company in this world. */
+export function markVisited(tab: string): void {
+  if (S.game?.player && !visited(tab)) setOnboard({ visited: [...S.onboard.visited, markKey(tab)] });
+}
 export function loadOnboard(): void {
   try {
     S.onboard = parseOnboard(localStorage.getItem(ONBOARD_KEY));
@@ -311,7 +319,7 @@ export function setTab(tab: Tab): void {
   S.tab = tab;
   if (tab === "money") S.moneyDot = false;
   // The first visit clears an opened teaser's "New" under More.
-  if (S.game?.player && !S.onboard.visited.includes(tab)) setOnboard({ visited: [...S.onboard.visited, tab] });
+  markVisited(tab);
   bumpData();
 }
 /** The phone layout's breakpoint: under 900 px the map fills the screen and the panel rides in a sheet. */

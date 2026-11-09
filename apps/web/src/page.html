@@ -245,8 +245,11 @@ table.mini td:first-child { font-family: inherit; }
 /* The laptop's card opens in the bottom corner away from its figure (guidance-ux.md section 3): bottom-left over the map
    for a figure in the panel, bottom-right for one on the map side. */
 @media (min-width: 900px) {
-  /* The four main tabs never scroll out of sight on a laptop (the gamer's diary): the nav stays at the top as the page scrolls. */
-  .side > .rackbar { position: sticky; top: 0; z-index: 4; background: var(--bg-primary); }
+  /* The four main tabs never scroll out of sight on a laptop (the gamer's diary): the nav stays at the top as the page
+     scrolls, under the sticky top strip (44 px and its border), not beneath it (QA, client pass 2: the page scrolled
+     148 px and the tabs slid under the test-speed buttons). A wheel past the panel's end no longer scrolls the page. */
+  .side > .rackbar { position: sticky; top: calc(45px + env(safe-area-inset-top)); z-index: 4; background: var(--bg-primary); }
+  .panelbox { overscroll-behavior: contain; }
   .explainsheet { left: auto; right: 16px; bottom: 16px; width: 320px; border: 1px solid var(--border); border-radius: 8px; }
   .explainsheet.left { left: 16px; right: auto; }
 }

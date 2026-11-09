@@ -12,7 +12,7 @@ import { Buy, Showroom } from "./Showroom.js";
 import { confirmAct } from "../Confirm.js";
 import { leaseDepositNow, leaseTruck, leaseWeeklyMin, newTruck, usedTruck } from "../../confirmspecs.js";
 import { ANSWER, CONFIRM, DEALER } from "../../copy.js";
-import { inFirstMonth } from "../../figures.js";
+import { firstTruckLine, inFirstMonth } from "../../figures.js";
 import { CapsLine } from "../Caps.js";
 
 export function Dealer(): JSX.Element {
@@ -51,9 +51,19 @@ export function Dealer(): JSX.Element {
     setLeaseAnswer(r.ok ? { text: r.at === null ? ANSWER.lease(`Workhorse with a ${TRAILER_NAME[tr].toLowerCase()}`, w.net.hubs[c.homeHub]!.name, fdFull(leaseDepositNow(w, tr))) : `Sent · in effect ${hhmm(r.at)}`, bad: false } : { text: r.reason, bad: true });
   };
   const facTypes: FacilityType[] = ["warehouse", "coldStorage", "factory"];
+  // The first truck's one figure (figures.ts firstTruckLine): the same number as the teaser and Iuliia's page.
+  const first = fleet.some((t) => t.lease === "owned") ? null : firstTruckLine(w, c);
   return (
     <Panel title="Dealer">
       <Scene name="dealer" still={SCENES.dealer} alt="The dealership lot" />
+      {first ? (
+        <Card>
+          <p>
+            <b>{first.figure}</b>
+          </p>
+          {first.advice ? <p class="muted small">{first.advice}</p> : null}
+        </Card>
+      ) : null}
       <CapsLine />
       {/* R7: the page's one line goes; each offer says when it delivers, and the wait says its cause when there's one. */}
       {dealerBacklog(w).counted > 0 ? <p class="muted small">{DEALER.newLead(lead)}</p> : null}

@@ -107,8 +107,12 @@ export function clearsNearSource(w: World, l: Load): { from: "lane" | "market" |
   return { from, n, rate, capped: rate > l.ceiling };
 }
 
-/** The suggested bid, as the players' default rule bids (R1): what it usually clears near, break-even the floor, over book-now, never over the ceiling. */
-export const suggestBid = (w: World, l: Load, be: number): number => Math.max(l.bookNow + 0.05, Math.min(l.ceiling, Math.max(be, clearsNear(w, l))));
+/**
+ * The suggested bid: what it usually clears near, break-even the floor, never over book-now (client pass 2, QA's replay: a
+ * 4.57 default lost to a 4.52 booking, and a bid that asks more than Book now offers reads as false) or the ceiling. The
+ * players' dispatcher (R1, the engine's standing orders) still bids over book-now; only the page's default changed.
+ */
+export const suggestBid = (w: World, l: Load, be: number): number => Math.min(l.bookNow, l.ceiling, Math.max(be, clearsNear(w, l)));
 
 /**
  * The bid range the stepper allows: a little over break-even, up to the ceiling. The engine still takes a bid over the

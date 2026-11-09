@@ -5,7 +5,7 @@ import { SCENES } from "../../assets.js";
 import { cls, dateLabel, fd, fdFull, pct, plural, TIER_NAME, TRAILER_NAME, hhmm, realUntil } from "../../format.js";
 import { HOURS, MOVE, NEEDS, TRUCK } from "../../copy.js";
 import { GAME_CONFIG } from "../../game.js";
-import { AttentionCard, CrewLine, goLoads, goStaff, idleLabel, idleWhy, openLoadsAt, StatusLine, stuckTrucks, tiredTrucks, truckName, truckWhere, wallLine, wallTrucks, waysOut } from "../../logic.js";
+import { AttentionCard, CrewLine, goLoads, goStaff, idleLabel, idleWhy, StatusLine, stuckTrucks, tiredTrucks, truckName, truckWhere, wallLine, wallTrucks, waysOut } from "../../logic.js";
 import { focusTruck } from "../../mapview.js";
 import { act, describe, feed, isPhone, me, myTrucks, S, selectTruck, truckNo, useData } from "../../state.js";
 import { Bar, Btn, Card, Num, Panel, Pixel } from "../bits.js";
@@ -20,6 +20,7 @@ import { TrailerLines, TruckAssetActions, YardCard } from "./Yard.js";
 import { WaysOutRows } from "../WaysOut.js";
 import { PENDING } from "../../copy-pending.js";
 import { PENDING_RULES } from "../../copy-pending-rules.js";
+import { paysFrom } from "../../exits.js";
 import { confirmAct, confirmSpend } from "../Confirm.js";
 import { rebuild as rebuildLines, sell as sellLines } from "../../confirmspecs.js";
 import { CapsLine } from "../Caps.js";
@@ -100,22 +101,30 @@ function SendHomeActions({ t, primary }: { t: Truck; primary?: boolean }): JSX.E
   const crew = [t.driverId, t.coDriverId].filter((id) => id > 0).map((id) => w.staff[id - 1]!);
   const owner = crew.some((d) => d.owner);
   const days = homeDays(c);
-  if (crew.every((d) => d.wantsHome)) return <p class="muted small">{t.status === "idle" ? "Heading home for days off." : PENDING.sendHomeAfterQueued}</p>;
+  if (crew.every((d) => d.wantsHome)) return <p class="muted small">{t.status === "idle" ? PENDING.homeTimeHeading : PENDING.sendHomeAfterQueued}</p>;
   if (t.homeAfter === "work") return <p class="muted small">{PENDING_RULES.homeAfterWorkQueued}</p>;
-  // labor.turnWhileEmpty: a truck running empty turns for home now, from where it is (back to work with sendHomeToWork).
+  // labor.turnWhileEmpty: a truck running empty turns for home now, from where it is. An owner-operator gets the two the
+  // director ruled, as on a truck at work: back to work (labor.sendHomeToWork) and home time; a hired driver, home time.
   if (t.status === "repositioning" && w.cfg.labor.turnWhileEmpty && t.targetHub !== c.homeHub) {
     const toWork = owner && w.cfg.labor.sendHomeToWork;
     return (
-      <Btn primary={primary} onClick={() => act({ type: "send_home", truckId: t.id, ...(toWork ? { work: true } : {}) }, PENDING_RULES.turnedToast, "truck:sendHome")}>
-        {toWork ? PENDING_RULES.sendHomeNowWork : PENDING_RULES.sendHomeNowDays(days)}
-      </Btn>
+      <>
+        {toWork ? (
+          <Btn primary={primary} onClick={() => act({ type: "send_home", truckId: t.id, work: true }, PENDING_RULES.turnedWorkToast, "truck:sendHome")}>
+            {PENDING_RULES.sendHomeNowWork}
+          </Btn>
+        ) : null}
+        <Btn primary={primary && !toWork} onClick={() => act({ type: "send_home", truckId: t.id }, PENDING_RULES.turnedDaysToast, "truck:sendHome")}>
+          {PENDING_RULES.sendHomeNowDays(days)}
+        </Btn>
+      </>
     );
   }
   if (t.status === "idle") {
     if (t.hub === c.homeHub) return null;
     const r = emptyRun(w, t, t.hub, c.homeHub);
     const price = MOVE.price(r.mi, r.fd, r.time);
-    const home = () => act({ type: "send_home", truckId: t.id }, "Heading home for days off", "truck:sendHome");
+    const home = () => act({ type: "send_home", truckId: t.id }, PENDING.homeTimeToast, "truck:sendHome");
     return (
       <>
         {owner ? <MoveBtn t={t} toHub={c.homeHub} label={PENDING.sendHomeWork} full={`${PENDING.sendHomeWork} · ${price}`} does={PENDING.sendHomeWorkDoes} primary={primary} run={() => act({ type: "reposition_truck", truckId: t.id, hubId: w.net.hubs[c.homeHub]!.id }, PENDING.sendHomeWorkToast, "truck:sendEmpty")} /> : null}
@@ -140,25 +149,29 @@ function SendHomeActions({ t, primary }: { t: Truck; primary?: boolean }): JSX.E
   );
 }
 
-/** Send empty: the hub list with each run's price and its loads, and the button priced for the hub picked, before the press (R24). */
+/**
+ * Send empty: the hub list with each run's price and the loads that pay there (exits.ts paysFrom, the ways-out sheet's
+ * count), and the button priced for the hub picked, before the press (R24). It opens on the cheapest run to a hub where a
+ * load pays (QA, client pass 2: it opened on Tampa, where nothing paid), else the nearest.
+ */
 function SendEmpty({ t, nearby }: { t: Truck; nearby: { i: number }[] }): JSX.Element | null {
   const w = S.game!.w;
+  const c = me();
   const [pick, setPick] = useState<number | null>(null);
   if (!nearby.length) return null;
-  const hub = pick !== null && nearby.some((x) => x.i === pick) ? pick : nearby[0]!.i;
+  const runs = nearby.map((x) => ({ i: x.i, run: emptyRun(w, t, t.hub, x.i), pays: paysFrom(w, c, t, x.i) }));
+  const paying = runs.filter((x) => x.pays > 0).sort((a, b) => a.run.costFd - b.run.costFd || a.i - b.i)[0];
+  const hub = pick !== null && nearby.some((x) => x.i === pick) ? pick : (paying ?? runs[0]!).i;
   const name = w.net.hubs[hub]!.name;
   const r = emptyRun(w, t, t.hub, hub);
   return (
     <>
       <select id={`send-${t.id}`} aria-label="Destination hub" value={String(hub)} onChange={(ev) => setPick(Number((ev.currentTarget as HTMLSelectElement).value))}>
-        {nearby.map((x) => {
-          const o = emptyRun(w, t, t.hub, x.i);
-          return (
-            <option value={String(x.i)} key={x.i}>
-              {MOVE.emptyOption(w.net.hubs[x.i]!.name, o.mi, o.fd, o.time, openLoadsAt(x.i).filter((l) => l.equipment === t.trailer).length)}
-            </option>
-          );
-        })}
+        {runs.map((x) => (
+          <option value={String(x.i)} key={x.i}>
+            {PENDING.exitTo(w.net.hubs[x.i]!.name, x.run.mi, x.run.fd, x.run.time, x.pays)}
+          </option>
+        ))}
       </select>
       <MoveBtn t={t} toHub={hub} label={MOVE.sendTo(name)} full={`${MOVE.sendTo(name)} · ${MOVE.price(r.mi, r.fd, r.time)}`} does={MOVE.confirmEmpty(name)} run={() => act({ type: "reposition_truck", truckId: t.id, hubId: w.net.hubs[hub]!.id }, TRUCK.sentEmpty, "truck:sendEmpty")} />
     </>
@@ -243,7 +256,7 @@ function TiredAlerts(): JSX.Element {
               {TRUCK.tired} {f.resetDays} days off at home reset it; every day sitting idle away from home costs {GAME_CONFIG.labor.driver.perDiemFd} FD per diem.
             </p>
             {d.wantsHome ? (
-              <p class="muted">{t.status === "idle" || t.status === "repositioning" ? "Heading home for days off." : TRUCK.goingHome(hubMiles(w, endHub(t), me().homeHub))}</p>
+              <p class="muted">{t.status === "idle" || t.status === "repositioning" ? PENDING.homeTimeHeading : TRUCK.goingHome(hubMiles(w, endHub(t), me().homeHub))}</p>
             ) : t.status === "idle" || w.cfg.labor.sendHomeWhileMoving ? (
               <div class="row">
                 <SendHomeActions t={t} primary />

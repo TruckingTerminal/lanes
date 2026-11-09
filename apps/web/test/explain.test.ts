@@ -306,14 +306,15 @@ describe("the hold toward your own truck (the director's row 2)", () => {
 });
 
 describe("the next-truck gap says what moved it (row 4)", () => {
-  it("names a change of route and the first week's close, until the player opens its explanation", async () => {
+  it("names a change of route, until the player opens its explanation; the first week's close no longer moves it", async () => {
     const g = await TestGame.create();
     const c = g.join("Gap Freight", "oo", "LAX")!;
     S.gapSeen = null;
     expect(gapNotes(g.w, c, "lot")).toEqual([]);
     expect(gapNotes(g.w, c, "new")).toEqual([GUIDE_LABEL.gapWhyCheapest]);
+    // Client pass 2: the cushion is Iuliia's advice, not the gap's, so a closed week adds no note.
     c.weeklySpend.push(5_000);
-    expect(gapNotes(g.w, c, "new")).toEqual([GUIDE_LABEL.gapWhyCheapest, GUIDE_LABEL.gapWhyCushion(GAME_CONFIG.guide.gapCushionWeeks)]);
+    expect(gapNotes(g.w, c, "new")).toEqual([GUIDE_LABEL.gapWhyCheapest]);
     S.gapSeen!.why = []; // what closing its explanation does
     expect(gapNotes(g.w, c, "new")).toEqual([]);
   }, 60_000);

@@ -9,6 +9,8 @@ import { fileURLToPath } from "node:url";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const site = process.argv.includes("--site");
+// The site build's id (version.ts): CI's commit, or LANES_BUILD; "local" never checks for a newer deploy.
+const buildId = site ? (process.env.LANES_BUILD ?? process.env.GITHUB_SHA?.slice(0, 7) ?? "local") : "local";
 const entry = process.argv.slice(2).find((a) => !a.startsWith("--")) ?? "main";
 const result = await build({
   entryPoints: [join(here, "src", existsSync(join(here, "src", `${entry}.tsx`)) ? `${entry}.tsx` : `${entry}.ts`)],
@@ -23,7 +25,7 @@ const result = await build({
   target: "es2020",
   write: false,
   legalComments: "none",
-  define: { __LANES_TEST__: site ? "true" : "false" },
+  define: { __LANES_TEST__: site ? "true" : "false", __LANES_BUILD__: JSON.stringify(buildId) },
 });
 const js = result.outputFiles[0].text.replace(/<\/script/gi, "<\\/script");
 // A replacer function, so `$&`, `$'` and `$$` in the bundle are kept as written.
@@ -62,6 +64,8 @@ const skeleton = `<!doctype html><html lang="en"><head><meta charset=utf8><meta 
 if (site) {
   mkdirSync(join(here, "dist", "site"), { recursive: true });
   writeFileSync(join(here, "dist", "site", "index.html"), skeleton);
+  // What the deployed build is, for a page from an older one to find (version.ts checkVersion).
+  writeFileSync(join(here, "dist", "site", "version.json"), JSON.stringify({ build: buildId }));
   // The same test build without the document skeleton, for publishing as a preview artifact.
   writeFileSync(join(here, "dist", "site", "test-page.html"), page);
   console.log(`dist/site/index.html: ${(skeleton.length / 1024).toFixed(0)} KB`);

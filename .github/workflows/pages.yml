@@ -39,7 +39,7 @@ jobs:
           printf '%s\n' "$DEPLOY_KEY" > ~/.ssh/deploy && chmod 600 ~/.ssh/deploy
           export GIT_SSH_COMMAND="ssh -i ~/.ssh/deploy -o StrictHostKeyChecking=accept-new"
           git clone --depth 1 git@github.com:TruckingTerminal/lanes-play.git out
-          cp apps/web/dist/site/*.html out/
+          cp apps/web/dist/site/*.html apps/web/dist/site/version.json out/
           # The painted map levels, seasons and sprites load from assets/ next to the page.
           rm -rf out/assets
           cp -R apps/web/dist/site/assets out/

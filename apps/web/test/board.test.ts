@@ -42,7 +42,7 @@ describe("the board", () => {
       const [lo, hi] = bidRange(g.w, r.l, r.be);
       expect(hi).toBe(r.l.ceiling);
       expect(lo).toBeLessThanOrEqual(hi);
-      expect(r.suggest).toBeLessThanOrEqual(Math.max(r.l.ceiling, r.l.bookNow + 0.05));
+      expect(r.suggest).toBeLessThanOrEqual(Math.min(r.l.ceiling, r.l.bookNow) + 1e-9); // never over book-now (client pass 2)
     }
   }, 60_000);
 
@@ -121,8 +121,8 @@ describe("stage 2: the board reads the engine's clearsNear (R1's anchor)", () =>
     for (const r of rows.slice(0, 10)) {
       expect(r.clears).toBe(engineClearsNear(w, r.l));
       expect(clearsNear(w, r.l)).toBe(r.clears);
-      // The suggestion: what it clears near, break-even the floor, over book-now, never over the ceiling.
-      expect(r.suggest).toBeCloseTo(Math.max(r.l.bookNow + 0.05, Math.min(r.l.ceiling, Math.max(r.be, r.clears))), 9);
+      // The suggestion: what it clears near, break-even the floor, never over book-now or the ceiling.
+      expect(r.suggest).toBeCloseTo(Math.min(r.l.bookNow, r.l.ceiling, Math.max(r.be, r.clears)), 9);
       const src = clearsNearSource(w, r.l);
       expect(Math.min(src.rate, r.l.ceiling)).toBeCloseTo(r.clears, 9);
       const b = breakdown(w, c, "board.clearsNear", { loadId: r.l.id, truckId: truck.id })!;

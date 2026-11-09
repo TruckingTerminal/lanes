@@ -7,7 +7,7 @@ import { DockWarning, ProfitChip } from "../ProfitChip.js";
 import { ANSWER, BOARD, CHIP, DELIVERED, INTEL, LOAD, ROUND, WALL } from "../../copy.js";
 import { cls, fdFull, hhmm, pct, shortDate, TRAILER_NAME, weekdayDate } from "../../format.js";
 import { nextRoundHour, nextRoundLabel, nextRoundWait, reloadLabel, roundProgress, seasonSwing } from "../../logic.js";
-import { bumpData, isPhone, me, myTrucks, openIntel, order, S, selectTruck, setOnboard, setTab, toast, truckNo, useData } from "../../state.js";
+import { bumpData, isPhone, markVisited, me, myTrucks, openIntel, order, S, selectTruck, setTab, toast, truckNo, useData, visited } from "../../state.js";
 import { deliveryEtaMin } from "../../rolling.js";
 import { tabOpen } from "../../tabs.js";
 import { iuliiaFirst, iuliiaOnChange, iuliiaSay } from "../../iuliia.js";
@@ -46,10 +46,8 @@ export function Loads(): JSX.Element {
   const [maxDh, setMaxDh] = useState(Math.min(300, MANUAL_BID_MAX_DEADHEAD_MI));
   const [query, setQuery] = useState("");
   // The first visit sorts loads that pay at book-now first; leaving the board ends the first visit.
-  const firstVisit = !S.onboard.boardVisited;
-  useEffect(() => () => {
-    if (!S.onboard.boardVisited) setOnboard({ boardVisited: true });
-  }, []);
+  const firstVisit = !visited("board");
+  useEffect(() => () => markVisited("board"), []);
   if (table && !isPhone()) {
     return (
       <div class="stack">

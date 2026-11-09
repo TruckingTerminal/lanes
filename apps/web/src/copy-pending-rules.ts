@@ -13,13 +13,17 @@ export const PENDING_RULES = {
   clearsBlend: "Together, at this load's reference",
 
   // Fleet.tsx SendHomeActions under labor.sendHomeToWork: an owner-operator's truck at work, home to work after the job.
-  homeAfterWork: "Send home after this delivery · back to work",
-  homeAfterWorkToast: "It runs home after this delivery, back to work",
-  homeAfterWorkQueued: "Going home after this delivery, back to work",
-  // Under labor.turnWhileEmpty: a truck running empty turns now.
+  // Client pass 2 (the director): the button is "Send home after this run" (the writer's), and the queued line and toast
+  // say what was chosen: back to work, no days off.
+  homeAfterWork: "Send home after this run · back to work",
+  homeAfterWorkToast: "Home after this run, then back to work",
+  homeAfterWorkQueued: "Home after this run, then back to work.",
+  // Under labor.turnWhileEmpty: a truck running empty turns now. An owner-operator gets both buttons, as at work.
   sendHomeNowWork: "Send home now · back to work",
-  sendHomeNowDays: (days: number) => `Send home now · ${days} days off`,
+  sendHomeNowDays: (days: number) => `Send home now · Home time · ${days} ${days === 1 ? "day" : "days"} off`,
   turnedToast: "Turned: it runs from the nearest town",
+  turnedWorkToast: "Turned for home: back to work from there, no days off",
+  turnedDaysToast: "Turned for home: days off when it gets there",
   // Dispatcher.tsx under businesses.parking.stopInTown: the night choice the shoulder ticket assumes.
   nightStopLabel: "When no rest area or truck stop is in reach tonight, sleep in town instead of the shoulder",
   nightStopSaved: "Night stop saved",

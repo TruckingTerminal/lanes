@@ -9,6 +9,7 @@ import { dayOf, ordersWaitForHand, type Company, type World } from "@lanes/engin
 import type { Tab } from "./tabs.js";
 import { STEP9 } from "./copy.js";
 import { firstTruckRoute } from "./finance.js";
+import { worldScope } from "./onboard.js";
 import { shortDate, TIER_NAME as TIER_LABEL, TRAILER_NAME as TRAILER_LABEL } from "./format.js";
 
 /** Iuliia's mood for the step: her face at rest in the live portrait (portrait.ts). */
@@ -293,7 +294,7 @@ export function stepText(step: WalkStep, w: World, c: Company): { brief: string;
  * day, as the milestones keep theirs. Kept per browser alone, one world's marks silenced the next world's lines (QA's
  * cheap-batch replay: "The truck rolls" never played in a second world).
  */
-export const stepScope = (w: World, c: Company): string => `${w.seed}:${c.id}:${c.createdDay}`;
+export const stepScope = (w: World, c: Company): string => worldScope(w, c);
 /** A walkthrough mark's key for this company: `{scope}|say:{id}`, `{scope}|arrival`. */
 export const stepKey = (w: World, c: Company, k: string): string => `${stepScope(w, c)}|${k}`;
 

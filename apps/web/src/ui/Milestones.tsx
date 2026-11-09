@@ -2,7 +2,7 @@ import type { JSX } from "preact";
 import { useState } from "preact/hooks";
 import { staffById, type Company, type World } from "@lanes/engine";
 import { FIGURE_ACT, GUIDE_LABEL, MILESTONE, RETURN } from "../copy.js";
-import { cushion, gapToTruck } from "../figures.js";
+import { cushion, firstTruckLine, gapToTruck } from "../figures.js";
 import { cls, fdFull, shortDate, weekdayDate } from "../format.js";
 import { closedMonths, monthReport, shownReport } from "../books.js";
 import { hasMonthReport, openMonthReport } from "./MonthReport.js";
@@ -231,24 +231,41 @@ export function CompanySoFar(): JSX.Element | null {
 }
 
 /**
- * What moved the next-truck gap since the player last opened its explanation (row 4): the cheapest route changed, or
- * the first week closed and the gap began holding back weeks of spending. Kept in the page, per company.
+ * What moved the next-truck gap since the player last opened its explanation (row 4): the cheapest route changed. Kept
+ * in the page, per company. (The first week's close no longer moves it: the cushion is Iuliia's advice, not the gap's.)
  */
 export function gapNotes(w: World, c: Company, route: string): string[] {
   const scope = milestoneScope(w, c);
   const weeks = c.weeklySpend.length;
   const seen = S.gapSeen?.scope === scope ? S.gapSeen : (S.gapSeen = { scope, route, weeks, why: [] });
   if (route !== seen.route && !seen.why.includes("cheapest")) seen.why.push("cheapest");
-  if (seen.weeks === 0 && weeks > 0 && !seen.why.includes("cushion")) seen.why.push("cushion");
   seen.route = route;
   seen.weeks = weeks;
-  return seen.why.map((k) => (k === "cheapest" ? GUIDE_LABEL.gapWhyCheapest : GUIDE_LABEL.gapWhyCushion(w.cfg.guide.gapCushionWeeks)));
+  return seen.why.map(() => GUIDE_LABEL.gapWhyCheapest);
 }
 
 /** The one figure that matters most now: the gap to the next truck, else the next layer to open, else the month's close. */
 function nextOnRoad(w: World, c: Company): JSX.Element | string {
   const gap = gapToTruck(w, c);
   const notes = gapNotes(w, c, gap.route);
+  // The first truck: the one figure (figures.ts firstTruckLine), as on the Dealer's teaser and card, Iuliia's cushion
+  // advice under it. "You can buy today" comes with the Dealer, which opens on the same figure.
+  const first = (w.trucksByCompany.get(c.id) ?? []).some((t) => t.lease === "owned") ? null : firstTruckLine(w, c);
+  if (first)
+    return (
+      <>
+        <Fig k="guide.gapToTruck" label={GUIDE_LABEL.gap} ctx={{ notes }}>
+          {first.figure}
+        </Fig>
+        {notes.map((n) => (
+          <span class="muted small" key={n}>
+            {" "}
+            {n}
+          </span>
+        ))}
+        {first.advice ? <span class="muted small"> {first.advice}</span> : null}
+      </>
+    );
   // A truck within reach today (a listing the cash and the hold already cover) still names the next truck, not the next
   // layer (QA's cheap-batch replay: the gap vanished for an owner-operator with a cheap listing open).
   // "You can afford your next truck now" only with the Dealer open (the director, 2026-11-09), which it is from then.

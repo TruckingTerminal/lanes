@@ -39,7 +39,7 @@ import { PENDING } from "./copy-pending.js";
 import { ARRIVAL, BROKERAGE, DEBT, DISPATCHER, FIRST_ENTRY, MOVE, NEEDS, SAFETY_NEWS, TRUCK } from "./copy.js";
 import { cashDipAhead, debtCountdown } from "./figures.js";
 import { hasTwo, kindInView, switchCompany, type CompanyKind } from "./companies.js";
-import { act, bumpData, clockMin, isPhone, me, myTrucks, onWorldReset, push, S, setTab, selectTruck, toast, truckNo, type Session } from "./state.js";
+import { act, bumpData, clockMin, isPhone, me, myTrucks, onWorldReset, push, S, setTab, selectTruck, toast, truckNo, visited, type Session } from "./state.js";
 import { iuliiaSay } from "./iuliia.js";
 import { tabOpen, teaserTabs, type Tab } from "./tabs.js";
 import { leaseMinFor } from "./ledger.js";
@@ -314,7 +314,7 @@ export function newTabs(): Tab[] {
   const g = S.game;
   if (!g?.player) return [];
   return teaserTabs()
-    .filter((t) => tabOpen(t.id, g.w, g.player) && !S.onboard.visited.includes(t.id))
+    .filter((t) => tabOpen(t.id, g.w, g.player) && !visited(t.id))
     .map((t) => t.id);
 }
 
@@ -432,7 +432,7 @@ export const REBUILD_DUE = 0.6;
 export function sendHomePriced(t: Truck, ev?: MouseEvent): void {
   const w = S.game!.w;
   const r = emptyRun(w, t, t.hub, me().homeHub);
-  confirmSpend({ verb: MOVE.sendHome, item: `truck ${truckNo(t.id)}`, costFd: r.costFd, does: MOVE.confirmHome, risk: MOVE.confirmRisk, run: () => act({ type: "send_home", truckId: t.id }, "Heading home for days off", "truck:sendHome") }, ev);
+  confirmSpend({ verb: MOVE.sendHome, item: `truck ${truckNo(t.id)}`, costFd: r.costFd, does: MOVE.confirmHome, risk: MOVE.confirmRisk, run: () => act({ type: "send_home", truckId: t.id }, PENDING.homeTimeToast, "truck:sendHome") }, ev);
 }
 
 /** labor.sendHomeWhileMoving: send_home on a moving truck sets the standing intent (off until the bump). */
@@ -595,9 +595,9 @@ export function idleWhy(t: Truck): IdleWhy {
   if (!loads.some((l) => mayTakeNow.has(l.id))) return { why: PENDING.idleStranded(trailer), fixes: [<Btn primary onClick={() => waysOut(t)}>{NEEDS.waysOut}</Btn>] };
   // The board's own break-even (breakeven.ts), so the alert and the cards never disagree about what pays.
   const payable = loads.filter((l) => mayTakeNow.has(l.id) && l.ceiling >= trueBreakEven(w, t, l, placeMiles(w, t.place, l.originPlace), placeToll(w, t.place, l.originPlace), prof.foresightDays, prof.reloadWeight) * (1 + floorPct));
-  if (payable.length === 0) return { why: `${plural(loads.length, `${trailer} load`)} in range, but none pays your floor (break-even + ${Math.round(floorPct * 100)}%) even at its ceiling.`, fixes: [board] };
+  if (payable.length === 0) return { why: PENDING.idleUnderFloor(loads.length, trailer, Math.round(floorPct * 100)), fixes: [board] };
   if (prof.coverage < 1) return { why: `Your dispatcher is stretched: ${prof.span} trucks' worth of attention for the ${running} you run, so this truck sits out about ${Math.round((1 - prof.coverage) * 100)}% of rounds.`, fixes: [<Btn primary onClick={goStaff}>Hire a dispatcher</Btn>, board] };
-  return { why: `${plural(payable.length, `${trailer} load`)} in range pay enough, but the dispatcher's bids keep losing: other carriers bid lower or have the better record.`, fixes: [<Btn primary onClick={() => goLoads(t.id)}>Bid by hand</Btn>] };
+  return { why: PENDING.idleBidsLosing(payable.length, trailer), fixes: [<Btn primary onClick={() => goLoads(t.id)}>Bid by hand</Btn>] };
 }
 
 /** Plain-text status, for tooltips and the ticker. */

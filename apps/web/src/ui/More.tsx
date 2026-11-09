@@ -2,12 +2,12 @@ import type { JSX } from "preact";
 import { firstLoadLocked } from "../tutorial.js";
 import { iconUrl } from "../art.js";
 import { ASSETS, hasAsset } from "../mapart.js";
-import { bumpData, openIntel, S, setTab, useData } from "../state.js";
+import { bumpData, openIntel, S, setTab, useData, visited } from "../state.js";
 import { MORE, tabDef, tabOpen, teaserTabs, type Tab } from "../tabs.js";
 import { Btn, Panel } from "./bits.js";
 import { BROKERAGE } from "../copy.js";
 import { PENDING } from "../copy-pending.js";
-import { gapToTruck } from "../figures.js";
+import { firstTruckLine } from "../figures.js";
 import { fdFull } from "../format.js";
 import { Iuliia } from "./Walkthrough.js";
 
@@ -18,7 +18,7 @@ export function TabIcon({ id, size }: { id: Tab; size: 24 | 48 }): JSX.Element {
 }
 
 /** An opened teaser this browser hasn't visited yet: "New" under More. */
-export const isNew = (id: Tab): boolean => !S.onboard.visited.includes(id);
+export const isNew = (id: Tab): boolean => !visited(id);
 
 /** More (copy-first-ten-minutes.md, Chrome): Iuliia, Help and Company, the teasers that have opened, then the ones coming. */
 export function More(): JSX.Element {
@@ -101,8 +101,16 @@ export function TeaserCard({ id }: { id: Tab }): JSX.Element {
 /** The Dealer's teaser carries the goal's price (the director, 2026-11-09): what the first truck takes now, and how far. */
 function DealerPrice(): JSX.Element {
   const g = S.game!;
-  const gap = gapToTruck(g.w, g.player!);
-  return <p class="small">{Number.isFinite(gap.needNowFd) ? PENDING.dealerPrice(fdFull(gap.needNowFd), fdFull(gap.gapFd)) : PENDING.dealerPriceNone}</p>;
+  const f = firstTruckLine(g.w, g.player!);
+  if (!f) return <p class="small">{PENDING.dealerPriceNone}</p>;
+  return (
+    <>
+      <p class="small">
+        {PENDING.dealerPrice(fdFull(f.needFd))} <b>{f.figure}</b>
+      </p>
+      {f.advice ? <p class="muted small">{f.advice}</p> : null}
+    </>
+  );
 }
 
 /** The laptop's teaser row under the nav: the teasers not yet open, dimmed; a click shows the card in the panel. */

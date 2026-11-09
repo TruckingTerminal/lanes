@@ -24,16 +24,29 @@ export interface Exit {
 export const EXIT_WITHIN_MI = 600;
 const EXIT_HUBS = 10;
 
-/** Loads that pay, read as the board reads them, for this truck as if it stood at the hub (the board's 300-mile reach). */
+let memo: { w: World | null; t: number; at: Map<string, Exit[]>; pays: Map<string, number> } = { w: null, t: -1, at: new Map(), pays: new Map() };
+const fresh = (w: World) => {
+  if (memo.w !== w || memo.t !== w.t) memo = { w, t: w.t, at: new Map(), pays: new Map() };
+};
+
+/**
+ * Loads that pay, read as the board reads them, for this truck as if it stood at the hub (the board's 300-mile reach).
+ * The one count of a hub's loads for a move: the ways-out sheet and Send empty's list both say it (QA, client pass 2:
+ * "2 loads pay there" against "3 loads there" for one Savannah). Kept for the game minute.
+ */
 export function paysFrom(w: World, c: Company, t: Truck, hub: number): number {
+  fresh(w);
+  const key = `${c.id}:${t.id}:${hub}`;
+  const hit = memo.pays.get(key);
+  if (hit !== undefined) return hit;
   const there: Truck = { ...t, hub, place: placeOfHub(hub) };
-  return boardRows(w, c, there, { dest: "any", maxDh: 300, query: "" }).filter((r) => !r.block && r.profitBook > 0).length;
+  const n = boardRows(w, c, there, { dest: "any", maxDh: 300, query: "" }).filter((r) => !r.block && r.profitBook > 0).length;
+  memo.pays.set(key, n);
+  return n;
 }
 
-let memo: { w: World | null; t: number; at: Map<string, Exit[]> } = { w: null, t: -1, at: new Map() };
-
 export function exitsFor(w: World, c: Company, t: Truck): Exit[] {
-  if (memo.w !== w || memo.t !== w.t) memo = { w, t: w.t, at: new Map() };
+  fresh(w);
   const key = `${c.id}:${t.id}:${t.place}`;
   const hit = memo.at.get(key);
   if (hit) return hit;

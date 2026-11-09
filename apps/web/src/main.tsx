@@ -19,6 +19,7 @@ import { App } from "./ui/App.js";
 import { askWhatNow } from "./ui/WhatNow.js";
 import { poachResult } from "./ui/panels/Staff.js";
 import { returnFor, saveVisit } from "./returncard.js";
+import { checkVersion } from "./version.js";
 
 /**
  * Boot, sessions and the game loop. The screen itself is the Preact app in ui/;
@@ -179,6 +180,7 @@ async function boot(): Promise<void> {
   wireHandlers();
   wireKeys();
   render(<App />, document.getElementById("app")!);
+  void checkVersion(); // a page from before the last deploy reloads once onto it (version.ts)
   if (TEST_BUILD) return bootTest();
   await connectLive();
 }

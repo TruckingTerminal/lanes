@@ -1,7 +1,6 @@
 import { crewed, dayOf, layerBlock, tokenLive, type Company, type World } from "@lanes/engine";
 import { dayDate } from "./format.js";
 import { GAME_CONFIG } from "./game.js";
-import { depositWhole } from "./board.js";
 import { PENDING } from "./copy-pending.js";
 import { gapToTruck } from "./figures.js";
 import { S, setOnboard } from "./state.js";
@@ -52,15 +51,16 @@ export const layerDay = (w: World, layer: "businesses" | "brokerage"): string =>
 /** The walkthrough step the Dealer and Finance wait for ("when Iuliia says so": buying your first truck). */
 const OWN_STEP = walkSteps(GAME_CONFIG).findIndex((s) => s.id === "own");
 /**
- * The first truck within reach (the director, 2026-11-09): the next-truck gap closed (figures.ts gapToTruck, the figure
- * behind Iuliia's "you can afford your next truck now"), or the hold toward the lessor's truck whole. Kept for the game
- * minute, since the nav and More read it every draw.
+ * The first truck within reach (the director, 2026-11-09, ruled again after QA's replay): the one first-truck figure met
+ * (figures.ts gapToTruck: the cheapest truck's cash on the day, less the player's cash), the same figure the teaser,
+ * Iuliia's page and the Dealer's card show, so the opening and the number never disagree. The hold toward the lessor's
+ * truck counts inside it, not as a rule of its own. Kept for the game minute, since the nav and More read it every draw.
  */
 let affordMemo: { w: World | null; t: number; c: number; v: boolean } = { w: null, t: -1, c: -1, v: false };
 export function firstTruckAffordable(w: World, c: Company): boolean {
   if (affordMemo.w === w && affordMemo.t === w.t && affordMemo.c === c.id) return affordMemo.v;
   const gap = gapToTruck(w, c);
-  const v = (gap.gapFd <= 0 && Number.isFinite(gap.needNowFd)) || trucksOf(w, c).some((t) => t.lease === "npc" && depositWhole(t));
+  const v = gap.gapFd <= 0 && Number.isFinite(gap.needNowFd);
   affordMemo = { w, t: w.t, c: c.id, v };
   return v;
 }
