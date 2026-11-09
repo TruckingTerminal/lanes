@@ -1,5 +1,22 @@
 # Decisions (the producer's log for Jeff; newest first)
 
+- 2026-11-09 — the director's calls on the five player diaries of 0.24.0 (play-2026-11-09-*.md in the shared folder), for
+  engineering's client batch, which the producer put ahead of delivery windows batch 2 because the diaries found first-hour
+  and first-truck blockers on the live ruleset. (1) The Dealer opens the moment the first truck is affordable (or the deposit
+  gap closes), whatever the walkthrough's step; a skipped step never keeps a tab closed and no tab ever vanishes from More;
+  before then the Dealer is a teaser with the price; and Iuliia never names an action whose screen the player can't open.
+  (2a) "Stranded" is a What now? state of its own, naming the cheapest exit with its figures, then the next; the ways-out
+  sheet carries the exits first and the board below, never an empty board alone; "pick the next load" with nothing to pick
+  and "5 loads pay enough" against an empty board are false and go with it. (2b) Send home never gives time off nobody asked
+  for: an owner-operator gets "Send home · back to work" (repositions only) and "Home time · 5 days off" (the days on the
+  button); a hired driver's home-time rule stands. (2c) The director's recommendation, not his to switch on: a locals-first
+  load that rolled over once opens to everyone from its next round (with delivery windows, once it enters its urgency
+  rounds), because a broker whose locals pass widens the net and the rule as built makes a thin town a trap; a market rule,
+  so it needs Jeff's yes, the economy's look in its next batch and a ruleset. (3) Send home on the road: on any truck,
+  whenever the player asks; empty or repositioning, "Send home now" with the miles, the FD and the days; loaded, "Send
+  home after this delivery", queued; with a load booked ahead (windows batch 2) a warning of that load's cancel claim; the
+  24 days out stays the rule for a driver's own demand; a visible button stays pressable (the Day-in-2-s re-render is a
+  bug). One cash figure everywhere, and a warning before net-30 takes a fleet below zero, need no call.
 - 2026-11-09 — Jeff: "Let's make the repo public", then "Public now" after the producer's facts: GitHub had refused
   the day's CI run over the account's Actions billing (about 200 runs and 1,800 minutes since November 1 on a 2,000-minute
   free plan; a private repo's minutes are paid, a public repo's are free). The 511-commit history was scanned first:
