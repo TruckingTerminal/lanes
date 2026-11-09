@@ -1,5 +1,20 @@
 # Decisions (the producer's log for Jeff; newest first)
 
+- 2026-11-09 — the economy's item 4 sizing batch (studio/reviews/economy-delivery-windows-sizing.md): delivery windows as
+  built in batches 1–3 (a644f14, 584f920, ea48c67) and sized fail the gate on all ten seeds and halve the bot economy
+  (72% of posted loads lost at the pickup's close, cleared loads −22%, rates −19%, NPC pay −41%, bankruptcies 185 → 488;
+  the cap-off twin collapses the same way), because today's price discovery is the pile-up and the slide and a windowed
+  load that does not pay at posting holds flat, steps twice and is lost, so nothing learns the freight went unhauled.
+  What works: 70% of wins booked ahead, on-time 0.72 → 0.81, claims 0.15% of pay, locals' share unchanged. Consequence,
+  the producer's: windows.enabled rides in no ruleset until the engine prices unserved demand and the ten seeds pass;
+  0.24.1 carries the five switches of c1af286 and the hand bid alone. The economy's fix for a windows batch 4 (the
+  director's design word asked): the hub's load-to-truck ratio remembers loads lost at the close over the trailing week,
+  decayed, so refRate rises where freight goes unhauled; pickupHours 24/48 and urgencyRounds 4 as the changed sizes;
+  the dispatcher and the bots release a load booked ahead when a breakdown breaks canMake for it (the cancel claim),
+  instead of a fault margin or 2,000 dead loads a run. OPEN FOR JEFF: a same-day premium of 1.10 on loads posted for
+  pickup the same day, as a market rule (a shipper pays more for a truck today than for one next week) rather than a
+  fallback; the economy asks for it alongside the ratio fix. The bond cap's call stands. Then the ten seeds again, the
+  target the off arm's cleared loads, NPC pay and rate within seed range, lost under a quarter of posted, the cap binding.
 - 2026-11-09 — OPEN FOR JEFF: the economy's worn-truck loan rule (economy-worn-truck-loans-2026-11-09.md), on the
   director's suspicion from the day-2 Dealer. Today the purchase loan reads the borrower's credit only (down 10–20%, 0.2–
   0.4% a week, 104 weeks) and never the truck: a 500k-mile reefer and a new Workhorse get the same down, rate and term, and
