@@ -309,3 +309,85 @@ reproduces the fourteen runs above to the FD). `runs/redteam-emission-before/` a
 
 Files for this addendum: `studio/reviews/redteam-emission.md` alone (`apps/sim/src/redteam/emission.ts` is as committed in
 51bd524). The worktree was removed after the runs.
+
+## Addendum 2 (2026-11-09, ruleset 0.24.0 at 6f1a397): the retirement rule's edges, the flat 5M, the thin board
+
+Four 364-day runs, seed 1, on the live levers of 0.24.0 (the cap on, flat 5M a month, the dial's retirement a rule), measured in a
+worktree checked out at 6f1a397 (`apps/sim/src/redteam/thin.ts`; `runs/redteam-thin/`). Two player fleets stand in the gate's
+world: the first pass's 30-truck fleet at Chicago (the big fleet) and a 5-truck fleet at Dallas formed at 06:00 of day 10, as a
+newcomer arrives on the test page (the small fleet; the same 1M of cash in every scenario, so the control pays the same holding
+cost). `control`: both honest. `corner`: the small fleet books every open van load within 300 miles of Dallas at its book-now
+price every hour, profit or not, and its idle trucks come straight back. `rebroker`: the small fleet forms a brokerage on day 91
+advertising 1%, tenders a held load to its own truck at the band's top when one stands at the pickup, otherwise holds it to the
+window's last hour and posts it at a 30% margin. `pair`: the big fleet runs the first pass's brokerage (1%, own tenders at the
+band's high end). Every run reads the retirement rule, the Dallas board at 06:00 daily and the 92 bot carriers whose home is
+within 300 miles of Dallas (four hubs).
+
+| 364 days, seed 1, 0.24.0 | control | corner | rebroker | pair | the 4M pair of the first addendum (6312f60): control · pair |
+|---|---|---|---|---|---|
+| big fleet, wealth a day | −0.91k | −2.0k | −0.27k | −0.42k | −0.66k · −0.17k |
+| the pair's gain over the control | – | – | – | **+0.49k** | +0.5k |
+| NPC pay to the big fleet (share of all) | 7.34M (2.05%) | 7.25M | 7.54M | 14.40M (4.05%) | 7.60M (2.27%) · 14.11M (4.21%) |
+| own tenders · brokerage cash · bond | – | – | – | 610 · 5k · 966k | – · 606 · 0 · 771k |
+| small fleet, wealth a day from day 10 | +0.36k | −0.02k | **+0.55k** | +0.37k | – |
+| the small fleet's gain over the control | – | −0.38k | **+0.19k** | +0.01k | – |
+| small: loads won · cornered (below 80% of the clearing rate) · own tenders · held posts | 616 · – | 663 · 337 (104) | 627 · – · 49 · 603 | 638 | – |
+| small: NPC pay in · paid out to carriers and the factor · fall-off charges | 1.36M · 1k · 0 | 1.21M · 9k · 0 | 1.91M · 773k · 42k | 1.40M · 0 · 0 | – |
+| Dallas bots (92): failed · median cash · loads · trucks at the end | 28 · 53k · 18.5k · 140 | 16 · 58k · 20.4k · 173 | 24 · 52k · 19.8k · 151 | 22 · 55k · 19.7k · 157 | – |
+| retired bots (held · wound down) · cash they keep · residue still owed | 133 (53 · 80) · 11.61M · 60k | 120 · 12.04M · 1k | 134 · 9.33M · 21k | 139 · 12.38M · 61k | – |
+| write-offs: retirements · liquidation restarts (posts) | 267k · 105k (21) | 204k · 417k (29) | 483k · 36k (24) | 170k · 57k (16) | – |
+| spent while overdrawn by bots later retired: to other companies · to sinks · to the two fleets | 1.56M · 3.70M · 171k | 1.71M · 3.44M · 172k | 1.62M · 3.54M · 165k | 1.75M · 4.02M · 172k | – |
+| world: budget · committed · NPC pay · carry | 392.6M · 363.6M · 357.2M · +29.1M | 388.2M · 358.8M · 353.2M | 394.2M · 364.6M · 358.8M | 391.4M · 362.4M · 355.9M | 361.9M · 341.3M · 335.6M · +20.6M |
+| days at the volume / rate floor · liquidations · in debt at the end | 231 / 129 · 95 · 66 | 243 / 145 · 104 · 70 | 232 / 150 · 101 · 66 | 238 / 147 · 90 · 68 | 270 / 222 · 99 · 95 |
+| brokered / direct pay, FD a mile | 3.46 / 4.05 (85%) | 3.45 / 4.01 | 3.43 / 4.06 | 3.47 / 4.03 (86%) | 3.39 / 4.02 (84%) · 3.41 / 4.03 (85%) |
+| bot median cash, OO greedy / conservative · fleet greedy / conservative | 38k / 99k · 76k / 208k | 35k / 91k · 102k / 181k | 34k / 102k · 88k / 188k | 32k / 98k · 98k / 179k | 32k / 99k · 109k / 204k |
+
+**The retirement rule (0ae0365): no player edge, two notes for the economy.**
+- A player cannot ride it: the dial retires `dialBot` companies only (not human, not `player:`/`wave:`, no brokerage partner), and
+  a retired company may do nothing but wait (`applyAction`), so there is no action a player or a scripted bot can take with a retired
+  account. What a player can be is a *creditor* of a bot about to retire: its open paper is paid at once from the bot's overdraft and
+  the overdraft written off. In the year, bots later retired spent 5.4M while overdrawn — 1.56M to other companies, 3.70M to sinks,
+  136k to the big fleet and 35k to the small (ordinary pay for hauling their facility freight and for used trucks) — and 267k of it was
+  still owed at retirement and written off (21 posts; a further 105k on the liquidation restart path, which uses the same faucet). A
+  lessor cannot gouge it: a bot takes a lease only at or under half its own per-truck weekly profit (`bestLeaseOffer`) and the lease
+  ends with the term waived when it fails. The whole write-off faucet is 0.09% of the year's budget, and since it counts among R's
+  other faucets it cuts the next budgets by the same amount: a cost to everyone, no gain to anyone.
+- Residue: 60k still owed by retired accounts at the end (0.017% of NPC pay; 1k–61k across the four runs), from trucks that were on
+  the road when the dial retired their company (5 · 3 · 3 · 2 unretired trucks): they finish their trip, and its fuel, wages and
+  tolls post from the dead account. Inside the 1% line §16.6 set; the fix, if wanted, is to retire a moving truck when it next
+  stands idle (a `retiredDay` check where the trip ends). No retired bot kept a facility or a stake.
+- **The cash retired bots keep is large: 11.6M in 133 accounts (9.3–12.4M across runs), 21% of the 54.9M supply.** It never moves,
+  pays no holding cost (`chargeHoldingCost` skips retired companies) and is counted as FD held (the gate's debt denominator). Not an
+  attack — a bot cannot be made to retire rich — but the economy should know where a fifth of the supply sits by year's end, and the
+  gate's "debt as a share of FD held" reads against it. The airdrop's forfeiture cannot be seen in 364 days (no launch in the run).
+
+**The flat 5M opens nothing the 6312f60 configuration did not.** The only code the schedule touches is `subsidyRatio` (1 when
+flat): the draw, the levers, the carry and the refill are unchanged. It is more subsidy, so the cap cuts less — budget 361.9M → 392.6M
+(+8.5%), NPC pay 335.6M → 357.2M (+6.4%), days at the rate floor 222 → 129, companies in debt 95 → 66, carry +20.6M → +29.1M — and
+the pair's gain is the same: **+0.49k a day against +0.5k**, its share of NPC pay 4.05% against 4.21%, brokered pay 86% of direct's
+against 85%. Everything in §1–§10 holds as written; the measured gains move within noise.
+
+**The thin board: a cost to newcomers, not a lever for a player.**
+- *What the board is.* Within 300 miles of Dallas at 06:00: 12 open van loads on day 0, 23–43 through week two, 39 on day 10 of
+  which 13 pay at or above 80% of the day's mean clearing rate (the producer's probe, with a leased owner-operator's own break-even,
+  read 1–12 by seed). It stays thin while the levers cut — monthly medians 31–41 open and 1–9 paying through month 5, book-now
+  1.8–2.6 FD a mile — and recovers once the budget releases, 48–122 open and 19–40 paying from month 6. The 92 Dallas bots lose
+  16–28 of their number in the year in every scenario (noise ±6), the cap's cost (§0), not an attacker's doing.
+- *Cornering (no gain, −0.38k a day).* The small fleet booked 337 loads at their book-now price, 104 of them under 80% of the
+  clearing rate, and ended the year 19 FD a day poorer than it started, 0.38k a day under the honest control; the Dallas bots were
+  *better* off (16 failed against 28, 20.4k loads against 18.5k, 173 trucks against 140): hauling loads away at any price lowers
+  the loads-to-trucks ratio for the next round, and with 30–120 loads open to 4–5 trucks nothing is cornered. To hold a hub's board a
+  player needs trucks for every load each round and pays the haul; the ratio then prices the next loads lower for everyone.
+- *Re-brokering at the floor with the hold run out (small gain, +0.19k a day).* The Dallas brokerage won 652 tenders on its 1%
+  advertisement, tendered 49 to its own trucks at the band's top and posted 603 at 30% in the hold's last hour; the thin board took
+  them (773k paid out to carriers and the factor, 42k of fall-off charges on the ones nobody took). The pair ended +0.55k a day
+  against the honest +0.36k: **+0.19k a day, ~70k a year**, the brokerage's own books −48k (300k in, 177k cash and the 75k bond
+  out). The gain is 1b's (the posted margin) on a thin board, the carriers who hauled at 30% under the shipper's rate paying it;
+  the fix is 1b's: post at the advertised margin, or let the shippers' pick read the margin posted (`postHeld`'s `marginPct`),
+  not the order's. Holding to the window's end added nothing the margin did not: the 12-hour hold keeps the load off the board,
+  and that lowers the ratio.
+
+Files for this addendum: `studio/reviews/redteam-emission.md`, `apps/sim/src/redteam/thin.ts` (new; typecheck clean). The worktree
+at 6f1a397 was removed after the runs. Exact commands, in the worktree:
+`npx tsx apps/sim/src/redteam/thin.ts --scenario control,corner,rebroker,pair --seeds 1 --out runs/redteam-thin` (four at once ≈
+85 s each at the full population; `--compare --seeds 1` prints the table).
