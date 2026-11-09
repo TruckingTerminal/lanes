@@ -276,13 +276,13 @@ async function continueTest(): Promise<void> {
 }
 
 /**
- * A new test world: the market runs its two warm days behind the loading screen, then you're in it with no company,
+ * A new test world: the market runs its warm start (game.ts WARM_HOURS) behind the loading screen, then you're in it with no company,
  * the clock paused, choosing your home hub (Jeff, 2026-11-02).
  */
 async function openTest(): Promise<void> {
-  // "Starting the world…" over the title loop while the market runs its two warm days (S0).
+  // "Starting the world…" over the title loop while the market runs its warm start (S0).
   showTitle({ kind: "starting" });
-  // The warm-up reads the starter hubs after each of its four rounds, so the rings' four-round mean is ready on arrival.
+  // The warm-up reads the starter hubs after each round (the mean keeps the last four), so the rings are ready on arrival.
   const t = await TestGame.create(
     (share) => {
       S.loadShare = share;

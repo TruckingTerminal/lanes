@@ -128,10 +128,14 @@ export interface TestLog {
 }
 
 /**
- * The warm start (the director's ruling 5, 2026-11-02): a new test world runs two game days, four rounds, before the
- * company joins, so a newcomer arrives in a market already moving, at 06:00 as a round clears. No load is planted.
+ * The warm start (the director's ruling 5, 2026-11-02): a new test world runs before the company joins, so a newcomer
+ * arrives in a market already moving, at 06:00 as a round clears. No load is planted. Since 0.24.0 it runs to 06:00 of
+ * day ten (246 hours, twenty rounds), past the cap's warm week: the cap opens at half NPC volume for the world's first
+ * seven days while the cold start's board fills, and a newcomer at day two found few or no paying loads within 300 miles
+ * of the big hubs (LAX 13 / 0 / 0 on three seeds; 107 / 37 / 18 at day ten). Day nine still read thin at the smaller
+ * hubs (the director's condition, 2026-11-09), so day ten.
  */
-export const WARM_HOURS = 54;
+export const WARM_HOURS = 246;
 
 /** Steps a world some hours in slices, so the page stays responsive and can show how far it is. */
 async function warmUp(w: World, hours: number, onProgress?: (share: number) => void, onHour?: (w: World) => void): Promise<void> {
@@ -190,8 +194,9 @@ export class TestGame {
   }
 
   /**
-   * A new test world: two game days of the market without you (the warm start). You arrive with no company and
-   * choose your home hub inside the world (Jeff, 2026-11-02); `join` brings the company in at that minute.
+   * A new test world: the market's first nine days and six hours without you (the warm start, WARM_HOURS). You arrive
+   * with no company and choose your home hub inside the world (Jeff, 2026-11-02); `join` brings the company in at that
+   * minute.
    */
   /** `onHour` sees the world after each warm-up hour (the screen samples the hub readings there; it only reads). */
   static async create(onProgress?: (share: number) => void, onHour?: (w: World) => void, seed = Math.floor(Math.random() * 1e9)): Promise<TestGame> {

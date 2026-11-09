@@ -63,13 +63,14 @@ describe("the caption's precedence (QA item 8, failures 1 and 7)", () => {
     const today = Math.floor(g.w.t / perDay);
     S.game = g;
     S.tab = "fleet";
+    // The month's close came while its before line was held (QA: "The weekly check is Jan 28…" on Jan 29). The company
+    // is dated back first: the scope carries its start day, and the world's warm week may hold a boom or a slump.
+    c.createdDay = today - 30;
     const sc = milestoneScope(g.w, c);
     S.onboard = { ...S.onboard, seen: allSeen(sc, ["ms:monthClose:at"]) };
     let now = 3e9;
     const clock = vi.spyOn(performance, "now").mockImplementation(() => now);
     try {
-      // The month's close came while its before line was held (QA: "The weekly check is Jan 28…" on Jan 29).
-      c.createdDay = today - 30;
       S.milestone = { key: "monthClose", phase: "before", tab: "fleet", at: now, held: true };
       expect(MilestoneLine()).toBeNull();
       expect(S.milestone).toBeNull();

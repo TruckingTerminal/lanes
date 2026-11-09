@@ -4,7 +4,7 @@ import { companyAccount } from "@lanes/engine";
 import { RULESET, TestGame, WARM_HOURS, type TestLog } from "../src/game.js";
 
 describe("the test world's warm start", () => {
-  it("opens two game days in, at 06:00, with no company until the hub is chosen", async () => {
+  it("opens at 06:00 of day ten, past the cap's warm week, with no company until the hub is chosen", async () => {
     const g = await TestGame.create();
     expect(g.w.t).toBe(WARM_HOURS * 60);
     expect((g.w.t / 60) % 24).toBe(6);
