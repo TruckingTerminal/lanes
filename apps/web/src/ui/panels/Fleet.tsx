@@ -17,6 +17,8 @@ import { DispatcherCard } from "./Dispatcher.js";
 import { DeliveredCard, RollingCards } from "./Rolling.js";
 import { emptyRun } from "../../rolling.js";
 import { TrailerLines, TruckAssetActions, YardCard } from "./Yard.js";
+import { WaysOutRows } from "../WaysOut.js";
+import { PENDING } from "../../copy-pending.js";
 import { confirmAct, confirmSpend } from "../Confirm.js";
 import { rebuild as rebuildLines, sell as sellLines } from "../../confirmspecs.js";
 import { CapsLine } from "../Caps.js";
@@ -30,10 +32,6 @@ function endHub(t: Truck): number {
   const w = S.game!.w;
   const load = t.loadId !== null ? w.loads.get(t.loadId) : undefined;
   return load && (t.status === "loaded" || t.status === "toPickup" || t.status === "loading" || t.status === "unloading") ? load.dest : t.status === "repositioning" ? t.targetHub : t.hub;
-}
-function homeRun(t: Truck): string {
-  const r = emptyRun(S.game!.w, t, t.hub, me().homeHub);
-  return MOVE.home(r.mi, r.fd, r.time);
 }
 /** A send-empty destination with its price (R24). */
 function emptyLine(t: Truck, hub: number): string {
@@ -78,9 +76,48 @@ function fitPrice(line: string): string {
   return out;
 }
 
-/** Send home, priced (R24). */
-function SendHome({ t, primary }: { t: Truck; primary?: boolean }): JSX.Element {
-  return <MoveBtn t={t} toHub={me().homeHub} label={MOVE.sendHome} full={homeRun(t)} does={MOVE.confirmHome} primary={primary} run={() => act({ type: "send_home", truckId: t.id }, "Heading home for days off", "truck:sendHome")} />;
+/** The days off a driver's home time gives (labor.ts startHomeTime: the home-time order's, else fatigue.resetDays). */
+function homeDays(c: Company): number {
+  const hm = c.orders.find((o): o is Extract<StandingOrder, { kind: "homeTime" }> => o.kind === "homeTime");
+  return hm?.restDays ?? GAME_CONFIG.fatigue.resetDays;
+}
+
+/**
+ * Send home (the director, 2026-11-09), on any truck, whenever the player asks; the home-time rule's 24 days stays the
+ * rule for a driver's own demand (TiredAlerts). Never time off nobody asked for, and the days on the button:
+ * - idle away from home, an owner-operator gets two: "Send home · back to work" (an empty run home, no days off) and
+ *   "Home time · n days off" (send_home); a hired driver's Send home is home time, as its rule stands;
+ * - working (loaded, heading to a pickup, loading or unloading, or running empty elsewhere), it's queued: home time after
+ *   this delivery, so the load is never abandoned (labor.sendHomeWhileMoving). Once asked it says so, and the button goes.
+ * An owner-operator's "back to work" after a delivery, and turning a truck that's running empty now, need the engine (the
+ * batch's report); until then the queued one is home time, said so on the button.
+ */
+function SendHomeActions({ t, primary }: { t: Truck; primary?: boolean }): JSX.Element | null {
+  const w = S.game!.w;
+  const c = me();
+  if (!crewed(t) || resting(w, t) || t.status === "parked" || t.status === "listed" || t.status === "retired") return null;
+  const crew = [t.driverId, t.coDriverId].filter((id) => id > 0).map((id) => w.staff[id - 1]!);
+  const owner = crew.some((d) => d.owner);
+  const days = homeDays(c);
+  if (crew.every((d) => d.wantsHome)) return <p class="muted small">{t.status === "idle" ? "Heading home for days off." : PENDING.sendHomeAfterQueued}</p>;
+  if (t.status === "idle") {
+    if (t.hub === c.homeHub) return null;
+    const r = emptyRun(w, t, t.hub, c.homeHub);
+    const price = MOVE.price(r.mi, r.fd, r.time);
+    const home = () => act({ type: "send_home", truckId: t.id }, "Heading home for days off", "truck:sendHome");
+    return (
+      <>
+        {owner ? <MoveBtn t={t} toHub={c.homeHub} label={PENDING.sendHomeWork} full={`${PENDING.sendHomeWork} · ${price}`} does={PENDING.sendHomeWorkDoes} primary={primary} run={() => act({ type: "reposition_truck", truckId: t.id, hubId: w.net.hubs[c.homeHub]!.id }, PENDING.sendHomeWorkToast, "truck:sendEmpty")} /> : null}
+        <MoveBtn t={t} toHub={c.homeHub} label={PENDING.homeTimeDays(days)} full={`${PENDING.homeTimeDays(days)} · ${price}`} does={PENDING.homeTimeDoes(days)} primary={primary && !owner} run={home} />
+      </>
+    );
+  }
+  if (!w.cfg.labor.sendHomeWhileMoving) return null;
+  return (
+    <Btn primary={primary} onClick={() => act({ type: "send_home", truckId: t.id }, PENDING.sendHomeAfterToast, "truck:sendHome")}>
+      {PENDING.sendHomeAfter} · {PENDING.homeTimeDays(days)}
+    </Btn>
+  );
 }
 
 /** Send empty: the hub list with each run's price and its loads, and the button priced for the hub picked, before the press (R24). */
@@ -187,16 +224,9 @@ function TiredAlerts(): JSX.Element {
             </p>
             {d.wantsHome ? (
               <p class="muted">{t.status === "idle" || t.status === "repositioning" ? "Heading home for days off." : TRUCK.goingHome(hubMiles(w, endHub(t), me().homeHub))}</p>
-            ) : t.status === "idle" ? (
+            ) : t.status === "idle" || w.cfg.labor.sendHomeWhileMoving ? (
               <div class="row">
-                <SendHome t={t} primary />
-              </div>
-            ) : w.cfg.labor.sendHomeWhileMoving ? (
-              // R9: the standing intent (labor.sendHomeWhileMoving): the truck heads home once this load is done.
-              <div class="row">
-                <Btn primary onClick={() => act({ type: "send_home", truckId: t.id }, TRUCK.goingHomeToast, "truck:sendHome")}>
-                  {TRUCK.sendHomeWhenIdle}
-                </Btn>
+                <SendHomeActions t={t} primary />
               </div>
             ) : (
               <p class="muted">{homeRuleLine(me(), d)}</p>
@@ -234,10 +264,10 @@ function IdleAlerts(): JSX.Element {
       {/* R22: a truck at a wall, from the moment it's idle: the one reason, and its ways out. */}
       {wallTrucks().map((t) => (
         <Card key={`wall-${t.id}`} alert need={`wall:${t.id}`} title={wallLine(t)}>
+          {/* The ways out first, labelled, cheapest first (the director, 2026-11-09); the board after them. */}
+          <WaysOutRows t={t} label />
           <div class="row">
-            <Btn primary onClick={() => waysOut(t)}>
-              {NEEDS.waysOut}
-            </Btn>
+            <Btn onClick={() => waysOut(t)}>{PENDING.waysOutBoard}</Btn>
           </div>
         </Card>
       ))}
@@ -388,9 +418,8 @@ function TruckCard({ t, idx }: { t: Truck; idx: number }): JSX.Element {
             </Btn>
           </>
         ) : null}
-        {t.status === "idle" && crewed(t) && !resting(w, t) && hubMiles(w, c.homeHub, t.hub) > w.cfg.map.nearbyRadiusMi ? (
-          <SendHome t={t} />
-        ) : null}
+        {/* Send home on any truck, whenever the player asks (the director, 2026-11-09); the tired card has its own. */}
+        {tiredTrucks().includes(t) ? null : <SendHomeActions t={t} />}
         {isPhone() ? (t.status === "idle" || t.status === "parked" || t.defects > 0 ? (
           <details class="overflow">
             <summary aria-label="More actions">⋯</summary>

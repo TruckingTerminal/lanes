@@ -14,6 +14,8 @@ export interface HubFacts {
   name: string;
   character: string | null;
   season: string;
+  /** The hub's own season line alone, for a row in a list, which says the country's mood once above it (moodLine). */
+  seasonOnly: string;
   freight: string[];
   whosHere: string[];
   costs: string[];
@@ -109,6 +111,12 @@ export function seasonLine(w: World, hub: number): string {
   return SEASON.fine(month);
 }
 
+/** The country's mood while the market is booming or slumping (marketMood), null while steady: one line above a list of hubs. */
+export function moodLine(w: World): string | null {
+  const mood = marketMood(w).state;
+  return mood === "steady" ? null : MARKET.card[mood];
+}
+
 /** The season line, and the country's mood after it while the market is booming or slumping (marketMood; steady says nothing). */
 function seasonWithMood(w: World, hub: number): string {
   const mood = marketMood(w).state;
@@ -142,6 +150,7 @@ export function hubFacts(w: World, hub: number): HubFacts {
     name: h.name,
     character: STARTERS[h.id]?.character ?? null,
     season: seasonWithMood(w, hub),
+    seasonOnly: seasonLine(w, hub),
     freight: [
       HUB_CARD.posted(posted, posted ? (rateSum / posted).toFixed(2) : "–"),
       HUB_CARD.perTruck(ratio.toFixed(1), ratioWord),

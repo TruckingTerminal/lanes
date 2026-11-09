@@ -1,11 +1,11 @@
 import type { JSX } from "preact";
 import { useEffect, useState } from "preact/hooks";
-import { MANUAL_BID_MAX_DEADHEAD_MI, VETTING_NAMES, type Truck } from "@lanes/engine";
+import { hubMiles, MANUAL_BID_MAX_DEADHEAD_MI, VETTING_NAMES, type Truck } from "@lanes/engine";
 import { COMMODITIES } from "@lanes/data";
-import { allInRate, bidRange, boardRows, chipCash, chipPair, clearsNear, posterOf, sortRows, type BoardRow, type BoardSort, type ChipPair } from "../../board.js";
+import { allInRate, bidRange, boardRows, chipCash, chipPair, clearsNear, dockWaits, posterOf, sortRows, type BoardRow, type BoardSort, type ChipPair } from "../../board.js";
 import { DockWarning, ProfitChip } from "../ProfitChip.js";
-import { ANSWER, BOARD, CHIP, INTEL, LOAD, ROUND, WALL } from "../../copy.js";
-import { cls, fdFull, hhmm, pct, shortDate, TRAILER_NAME } from "../../format.js";
+import { ANSWER, BOARD, CHIP, DELIVERED, INTEL, LOAD, ROUND, WALL } from "../../copy.js";
+import { cls, fdFull, hhmm, pct, shortDate, TRAILER_NAME, weekdayDate } from "../../format.js";
 import { nextRoundHour, nextRoundLabel, nextRoundWait, reloadLabel, roundProgress, seasonSwing } from "../../logic.js";
 import { bumpData, isPhone, me, myTrucks, openIntel, order, S, selectTruck, setOnboard, setTab, toast, truckNo, useData } from "../../state.js";
 import { deliveryEtaMin } from "../../rolling.js";
@@ -14,6 +14,8 @@ import { iuliiaFirst, iuliiaOnChange, iuliiaSay } from "../../iuliia.js";
 import { Btn, Card, Kv } from "../bits.js";
 import { LoadsTable } from "./Loads.js";
 import { Fig } from "../Explain.js";
+import { PENDING } from "../../copy-pending.js";
+import { WaysOutCard } from "../WaysOut.js";
 
 /**
  * The board (specs/first-ten-minutes.md, S2–S5): load cards with the profit chip, three sorts and a filter, blocked
@@ -92,8 +94,13 @@ export function Loads(): JSX.Element {
   const sorted = sortRows(rows, sort, firstVisit).filter((r) => r !== pinned);
   const takeable = rows.filter((r) => !r.block).length;
   const hub = w.net.places[truck.place]!.name;
+  // The ways-out sheet: the exits head the board while the truck it was opened for stands idle here.
+  const out = S.waysOut === truck.id;
+  if (S.waysOut !== null && !out) S.waysOut = null;
   return (
     <div class="stack">
+      {out ? <WaysOutCard t={truck} /> : null}
+      {out ? <h3 class="label">{PENDING.waysOutBoard}</h3> : null}
       <ResultCard onBidAgain={() => setSort("clears")} />
       {pinned && pending ? <PinnedBid r={pinned} rate={pending.rate} truck={truck} /> : null}
       <div class="boardhead">
@@ -219,7 +226,7 @@ function openLoad(id: number | null): void {
 }
 
 /** The pair at book-now for a board row (the row's own profit and hold). */
-export const bookPair = (r: BoardRow): ChipPair => ({ profit: r.profitBook, cash: r.profitBook - r.heldBook + r.draw, held: r.heldBook });
+export const bookPair = (r: BoardRow): ChipPair => ({ profit: r.profitBook, cash: r.profitBook - r.heldBook + r.draw, held: r.heldBook, draw: r.draw });
 
 function Chips({ r }: { r: BoardRow; truck: Truck }): JSX.Element {
   if (r.block) return <span class="chip muted">{r.block}</span>;
@@ -335,6 +342,10 @@ function LoadSheet({ r, truck }: { r: BoardRow; truck: Truck }): JSX.Element {
   const k = COMMODITIES[l.commodity]!;
   const poster = l.brokerId !== null ? w.companies[l.brokerId - 1] : l.shipperId !== null ? w.companies[l.shipperId - 1] : null;
   const bidProfit = (bid - r.be) * l.miles;
+  // The engine's reach for a bid by hand is market to market (actions.ts place_bid, hubMiles), where Book now's is the
+  // truck's own town to the pickup: said before the press, not refused after it (the gamer: 243 mi empty, "more than 300").
+  // One rule for both is the engine's (the batch's report).
+  const bidOut = hubMiles(w, truck.hub, l.origin) > MANUAL_BID_MAX_DEADHEAD_MI;
   // The bid's own pair (R14): the sheet's money rows are at book-now, so the button carries its cash itself.
   const bidHeld = chipPair(w, truck, bidProfit, bid * l.miles, r.draw).held;
   const bookUp = r.profitBook >= 0;
@@ -378,6 +389,13 @@ function LoadSheet({ r, truck }: { r: BoardRow; truck: Truck }): JSX.Element {
     bumpData();
   };
   const op = w.net.places[l.originPlace]!;
+  // The docks' own hours (board.ts dockWaits, which draws nothing): a shut pickup dock is when it loads, and a receiver
+  // that opens after the appointment is when it's due (the receiver's hours move the due time; the diaries had
+  // "Pick up · now" against a dock opening in 53 h, and "Deliver by Jan 14" against a receiver opening Jan 15).
+  const docks = dockWaits(w, truck, l, r.dh);
+  const at = (t: number) => `${weekdayDate(Math.floor(t / 1440))} ${hhmm(t)}`;
+  const pickupWhen = docks.pickup ? PENDING.pickupWhenOpens(at(docks.pickup.openT)) : "now";
+  const deliverBy = docks.delivery && docks.delivery.openT > l.appointmentT ? PENDING.deliverByOpens(at(docks.delivery.openT)) : `${shortDate(Math.floor(l.appointmentT / 1440))} ${hhmm(l.appointmentT)}`;
   // What this sheet's figures were computed from, for their explain sheets (explain.ts).
   const fx = { loadId: l.id, truckId: truck.id };
   const swing = seasonSwing(l.origin, l.equipment);
@@ -392,8 +410,8 @@ function LoadSheet({ r, truck }: { r: BoardRow; truck: Truck }): JSX.Element {
       <Card title={LOAD.route}>
         <Kv
           rows={[
-            [LOAD.pickUp, `${op.name}, ${op.state} · now`],
-            [LOAD.deliverBy, `${shortDate(Math.floor(l.appointmentT / 1440))} ${hhmm(l.appointmentT)} · ${place(l.destPlace)}`],
+            [LOAD.pickUp, `${op.name}, ${op.state} · ${pickupWhen}`],
+            [LOAD.deliverBy, `${deliverBy} · ${place(l.destPlace)}`],
             [LOAD.miles, <Fig k="board.deadhead" label={LOAD.miles} ctx={fx}>{LOAD.milesValue(Math.round(l.miles).toLocaleString("en-US"), Math.round(r.dh))}</Fig>],
             [LOAD.driving, `${l.routeHours.toFixed(1)} h`],
             [LOAD.reloadAt(w.net.hubs[l.dest]!.name), LOAD.reloadValue(reloadLabel(l.dest, l.equipment), Math.round(r.reloadMi))],
@@ -409,7 +427,9 @@ function LoadSheet({ r, truck }: { r: BoardRow; truck: Truck }): JSX.Element {
             // R14: the pair, on the sheet, when the lease holds: cash now (amber when negative) and what's held.
             ...(r.heldBook >= 0.5
               ? ([
-                  [CHIP.cashRow, <span class={r.profitBook - r.heldBook < -0.5 ? "warn" : undefined}>{`${chipCash(r.profitBook - r.heldBook)} FD`}</span>],
+                  // R14's one arithmetic: the chip's cash, the owner's draw in it and said so in the pay card's words (the
+                  // diaries: the chip counted the draw and this row didn't).
+                  [CHIP.cashRow, <span class={bookPair(r).cash < -0.5 ? "warn" : undefined}>{`${chipCash(bookPair(r).cash)} FD`}{r.draw >= 0.5 ? <span class="muted small">{` · ${DELIVERED.drawNote(fdFull(r.draw))}`}</span> : null}</span>],
                   [CHIP.heldRow, <Fig k="money.held" label={CHIP.heldRow} ctx={fx}>{`${fdFull(r.heldBook)} FD`}</Fig>],
                 ] as [string, JSX.Element][])
               : []),
@@ -477,8 +497,8 @@ function LoadSheet({ r, truck }: { r: BoardRow; truck: Truck }): JSX.Element {
           <Fig k="board.bid" label={LOAD.bidButton("")} ctx={{ ...fx, fd: bid }}><span class="muted small">{LOAD.range(lo.toFixed(2), hi.toFixed(2))}</span></Fig>
         </div>
         <div class="row">
-          <Btn primary={!bookUp} disabled={!!r.block} onClick={() => void placeBid()}>
-            {bidHere ? LOAD.changeBid : bidHeld >= 0.5 ? CHIP.bidAlone(signed(bidProfit), chipCash(bidProfit - bidHeld)) : CHIP.bid(signed(bidProfit))}
+          <Btn primary={!bookUp} disabled={!!r.block || bidOut} onClick={() => void placeBid()}>
+            {bidHere ? LOAD.changeBid : bidHeld >= 0.5 ? CHIP.bidAlone(signed(bidProfit), chipCash(bidProfit - bidHeld + r.draw)) : CHIP.bid(signed(bidProfit))}
           </Btn>
           {bidHere ? (
             <Btn ghost onClick={() => void withdraw(truck)}>
@@ -486,6 +506,7 @@ function LoadSheet({ r, truck }: { r: BoardRow; truck: Truck }): JSX.Element {
             </Btn>
           ) : null}
         </div>
+        {bidOut && !r.block ? <p class="small muted">{PENDING.bidReach(MANUAL_BID_MAX_DEADHEAD_MI)}</p> : null}
         {note ? <p class={cls("small", note.bad && "bad")}>{note.text}</p> : null}
       </div>
     </div>

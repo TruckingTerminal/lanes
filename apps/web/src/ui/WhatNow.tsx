@@ -1,6 +1,9 @@
 import type { JSX } from "preact";
-import type { Company, World } from "@lanes/engine";
-import { NOW } from "../copy.js";
+import { ownerDrawFd, placeMiles, type Company, type World } from "@lanes/engine";
+import { NEEDS, NOW } from "../copy.js";
+import { PENDING } from "../copy-pending.js";
+import { waysOut } from "../logic.js";
+import { exitButton, exitLine, takeExit } from "./WaysOut.js";
 import { fdFull, hhmm, pct, shortDate, plural } from "../format.js";
 import { GAME_CONFIG } from "../game.js";
 import { nextAction, type NextAction } from "../nextstep.js";
@@ -190,9 +193,21 @@ function words(a: NextAction): { action: string; reason: string; button: string;
       const t = w.trucks[a.truckId - 1]!;
       return {
         action: NOW.idleAction(l ? place(l.originPlace) : "", l ? place(l.destPlace) : ""),
-        reason: idleReason(w, a.truckId, a.profitFd, l ? l.bookNow * l.miles : 0),
+        reason: idleReason(w, a.truckId, a.profitFd, l ? l.bookNow * l.miles : 0, l ? ownerDrawFd(w, t, l.miles + placeMiles(w, t.place, l.originPlace)) : 0),
         button: NOW.idleButton,
         go: () => openLoadOf(a.truckId, a.loadId),
+      };
+    }
+    case "stranded": {
+      const t = w.trucks[a.truckId - 1]!;
+      const [first, next] = a.exits;
+      const action = PENDING.strandedAction(truckNo(a.truckId), w.net.places[t.place]!.name);
+      if (!first) return { action, reason: PENDING.strandedNone, button: NEEDS.waysOut, go: () => waysOut(t) };
+      return {
+        action,
+        reason: `${PENDING.strandedReason(exitLine(w, first), first.pays)}${next ? ` ${PENDING.strandedNext(exitLine(w, next))}` : ""}`,
+        button: exitButton(w, first),
+        go: () => takeExit(t, first),
       };
     }
     case "step": {
@@ -215,10 +230,10 @@ function words(a: NextAction): { action: string; reason: string; button: string;
   }
 }
 
-/** Rule 3's reason (R14): the chip's pair whenever the lease holds part of the load, else the plain line. */
-function idleReason(w: World, truckId: number, profitFd: number, grossFd: number): string {
+/** Rule 3's reason (R14): the chip's pair whenever the lease holds part of the load, else the plain line; the owner's draw in its cash, as the chip's. */
+function idleReason(w: World, truckId: number, profitFd: number, grossFd: number, drawFd: number): string {
   const t = w.trucks[truckId - 1]!;
-  const p = chipPair(w, t, profitFd, grossFd);
+  const p = chipPair(w, t, profitFd, grossFd, drawFd);
   if (p.held < 0.5) return NOW.idleReason(truckNo(truckId), w.net.places[t.place]!.name, fdFull(profitFd)); // the truck's town, as the strip says it (logic.ts truckWhere)
   return (p.cash < 0 ? NOW.idleReasonHeld : NOW.idleReasonHeldPlus)(fdFull(p.profit), fdFull(Math.abs(p.cash)), fdFull(p.held));
 }

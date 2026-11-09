@@ -1,7 +1,7 @@
 import type { JSX } from "preact";
 import type { Load, Truck, World } from "@lanes/engine";
 import { chipCash, chipFd, dockWaits, type ChipPair } from "../board.js";
-import { CHIP, DOCK } from "../copy.js";
+import { CHIP, DELIVERED, DOCK } from "../copy.js";
 import { cls, hhmm, weekdayDate } from "../format.js";
 
 /**
@@ -11,7 +11,9 @@ import { cls, hhmm, weekdayDate } from "../format.js";
 export function ProfitChip({ p }: { p: ChipPair }): JSX.Element {
   const up = p.profit >= 0;
   const held = p.held >= 0.5;
-  const label = held ? CHIP.a11y(chipCash(p.profit), chipCash(p.cash), chipFd(p.held)) : CHIP.a11yNoHold(chipCash(p.profit));
+  // The cash segment carries the owner's draw (R14's one arithmetic), so cash and held can exceed the profit: said here, as the pay card says it.
+  const draw = held && (p.draw ?? 0) >= 0.5 ? ` (${DELIVERED.drawNote(chipFd(p.draw!))})` : "";
+  const label = held ? `${CHIP.a11y(chipCash(p.profit), chipCash(p.cash), chipFd(p.held))}${draw}` : CHIP.a11yNoHold(chipCash(p.profit));
   return (
     <span class={cls("chip", "profitchip", up ? "good" : "bad")} aria-label={label} title={label}>
       {CHIP.profit(chipFd(p.profit), up)}

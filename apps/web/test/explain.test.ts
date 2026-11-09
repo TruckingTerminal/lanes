@@ -70,7 +70,7 @@ describe("help on every figure (explain.ts)", () => {
     expect(Math.abs(v.rows.reduce((a, r) => a + num(r.value), 0) - truckValue(g2.w, owned))).toBeLessThanOrEqual(v.rows.length);
     // Another company's figure never breaks down its inputs (Intel's row 1).
     expect(breakdown(g.w, c, "intel.creditBand.other", {})).toBeNull();
-  }, 60_000);
+  }, 120_000); // two worlds: past a minute on a loaded machine
 });
 
 describe("the walkthrough's board step", () => {

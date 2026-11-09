@@ -245,6 +245,8 @@ table.mini td:first-child { font-family: inherit; }
 /* The laptop's card opens in the bottom corner away from its figure (guidance-ux.md section 3): bottom-left over the map
    for a figure in the panel, bottom-right for one on the map side. */
 @media (min-width: 900px) {
+  /* The four main tabs never scroll out of sight on a laptop (the gamer's diary): the nav stays at the top as the page scrolls. */
+  .side > .rackbar { position: sticky; top: 0; z-index: 4; background: var(--bg-primary); }
   .explainsheet { left: auto; right: 16px; bottom: 16px; width: 320px; border: 1px solid var(--border); border-radius: 8px; }
   .explainsheet.left { left: 16px; right: auto; }
 }
@@ -354,6 +356,8 @@ table.mini td:first-child { font-family: inherit; }
 .titleaction { position: absolute; left: 16px; right: 16px; bottom: calc(24px + env(safe-area-inset-bottom)); z-index: 2; display: grid; justify-items: center; gap: 8px; min-height: 56px; }
 .titleaction p { margin: 0; padding: 6px 10px; border-radius: var(--radius); background: color-mix(in srgb, #090c17 70%, transparent); }
 .titleaction .btn { min-height: 44px; }
+/* CONTINUE with a long company name wraps inside the screen (the diaries: it ran off a phone's right edge). */
+.titleaction .btn { max-width: 100%; white-space: normal; text-align: center; overflow-wrap: anywhere; }
 .row.center, .stack.center { justify-content: center; justify-items: center; text-align: center; }
 .starting { font-family: var(--font-mono); color: var(--text-secondary); margin: 12px 0; }
 .titlemenu { position: absolute; top: calc(8px + env(safe-area-inset-top)); right: 8px; z-index: 2; }

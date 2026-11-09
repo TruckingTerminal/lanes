@@ -1,7 +1,7 @@
 import type { JSX } from "preact";
 import { useEffect, useRef, useState } from "preact/hooks";
 import { dayOf } from "@lanes/engine";
-import { useSettled } from "../settle.js";
+import { settleShown, useSettled } from "../settle.js";
 import { GAME_CONFIG } from "../game.js";
 import { skippedSteps, stepDo, stepKey, stepText, walkProgress, walkSteps, type Mood, type WalkStep } from "../walkthrough.js";
 import { iuliiaMuted, iuliiaNow, setIuliiaMuted } from "../iuliia.js";
@@ -176,7 +176,7 @@ export function FirstLoad(): JSX.Element | null {
           <p class="small">{b.beats[b.i]}</p>
           <div class="row">
             {!last ? (
-              <Btn sm primary onClick={() => mark()}>
+              <Btn sm primary onClick={() => (settleShown(`tut:${b.screen}:${b.i + 1}`), mark())}>
                 {CAPTION.next}
               </Btn>
             ) : b.screen === "truck" ? (

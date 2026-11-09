@@ -1,6 +1,7 @@
 import type { JSX } from "preact";
 import type { Truck } from "@lanes/engine";
 import { DELIVERED, ROLLING } from "../../copy.js";
+import { PENDING } from "../../copy-pending.js";
 import { cls, fdFull, hhmm, pct, shortDate } from "../../format.js";
 import { GAME_CONFIG } from "../../game.js";
 import { etaMin, nearestPlace, nightStop } from "../../rolling.js";
@@ -43,7 +44,8 @@ function RollingCard({ t }: { t: Truck }): JSX.Element | null {
         <Fig k="truck.eta" label={ROLLING.eta("")} ctx={{ truckId: t.id, loadId: l.id }}>{ROLLING.eta(when(eta))}</Fig>
         <span class={cls("chip", lateH > 0 ? "bad" : "good")}>{lateH > 0 ? ROLLING.late(lateH) : ROLLING.onTime}</span>
       </div>
-      {stop ? <p class="muted small">{stop.kind === "site" ? ROLLING.tonightSite(w.sites[stop.siteId - 1]!.businessId !== 0, nearestPlace(w, stop.lat, stop.lon)) : S.handLoads.has(l.id) ? ROLLING.tonightShoulder : ROLLING.tonightDispatcher}</p> : null}
+      {/* The shoulder names its ticket ahead (the diaries: a 250 FD ticket nobody was told of); the choice of a stop is the engine's (the batch's report). */}
+      {stop ? <p class="muted small">{stop.kind === "site" ? ROLLING.tonightSite(w.sites[stop.siteId - 1]!.businessId !== 0, nearestPlace(w, stop.lat, stop.lon)) : S.handLoads.has(l.id) ? PENDING.shoulderAhead(fdFull(w.cfg.businesses.parking.shoulderFineFd)) : ROLLING.tonightDispatcher}</p> : null}
     </Card>
   );
 }

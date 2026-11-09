@@ -6,7 +6,7 @@ import { cls, fd } from "../format.js";
 import { FLEET_START_EXTRA_FD, GAME_CONFIG, type StartKind } from "../game.js";
 import { H } from "../handlers.js";
 import { clearsNear } from "../board.js";
-import { hubFacts, rankStarters, seasonReading } from "../hubcard.js";
+import { hubFacts, moodLine, rankStarters, seasonReading } from "../hubcard.js";
 import { iuliiaFirst } from "../iuliia.js";
 import { bumpData, S, TEST_BUILD, useData, type EntryStage } from "../state.js";
 import { Btn, Card } from "./bits.js";
@@ -95,13 +95,20 @@ function Say({ line, mood = "wave", children }: { line: string; mood?: PortraitM
   );
 }
 
+/** The country's mood, once over a list of hubs (hubcard.ts moodLine), while it's booming or slumping. */
+function MoodLine(): JSX.Element | null {
+  const line = moodLine(S.game!.w);
+  return line ? <p class="muted small">{line}</p> : null;
+}
+
 function HubRow({ hub }: { hub: number }): JSX.Element {
   const f = hubFacts(S.game!.w, hub);
   return (
     <button type="button" class="hubrow" onClick={() => go("card", hub)}>
       <b>{f.name}</b>
       {f.character ? <span class="small">{f.character}</span> : null}
-      <span class="muted small">{f.season}</span>
+      {/* The hub's own line; the country's mood is said once, above the list (the diaries: it printed on all 60). */}
+      <span class="muted small">{f.seasonOnly}</span>
     </button>
   );
 }
@@ -109,6 +116,7 @@ function HubRow({ hub }: { hub: number }): JSX.Element {
 function Home(): JSX.Element {
   return (
     <Say line={FIRST_ENTRY.home}>
+      <MoodLine />
       <div class="hubrows">
         {ringedHubs().map((i) => (
           <HubRow key={i} hub={i} />
@@ -139,6 +147,7 @@ function AllHubs(): JSX.Element {
         </Btn>
       </div>
       <h3 class="label">{FIRST_ENTRY.allHubsHeader}</h3>
+      <MoodLine />
       <div class="hubrows">
         {order.map(({ i }) => (
           <HubRow key={i} hub={i} />

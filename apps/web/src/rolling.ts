@@ -1,4 +1,4 @@
-import { drivingLimitMin, dutyResetAt, fuelPrice, hubMiles, hubToll, legRoute, legMile, mphFor, planNight, tripCost, type Company, type Load, type Receivable, type Truck, type World, ownerDrawFd } from "@lanes/engine";
+import { drivingLimitMin, dutyResetAt, fuelPrice, hubMiles, hubToll, legRoute, legMile, mphFor, placeHours, placeLegMiles, placeOfHub, placeToll, planNight, tripCost, type Company, type Load, type Receivable, type Truck, type World, ownerDrawFd } from "@lanes/engine";
 import { DELIVERED, MOVE } from "./copy.js";
 import { shortDate } from "./format.js";
 
@@ -200,11 +200,15 @@ export function paidLine(w: World, c: Company, truck: Truck, fresh: Receivable |
  * break-even (economics.ts tripCost), plus the tolls; and its time at the nominal pace and the day's driving hours.
  */
 export function emptyRun(w: World, t: Truck, fromHub: number, toHub: number): { mi: string; fd: string; time: string; costFd: number; parts: { fuel: number; wages: number; tolls: number } } {
-  const mi = hubMiles(w, fromHub, toHub);
+  // From where the truck stands, the run the engine drives (reposition_truck, send_home: placeLegMiles from the truck's
+  // town to the hub's): the diaries' Send home said 894 mi and drove 956 when it priced hub to hub.
+  const here = fromHub === t.hub;
+  const to = placeOfHub(toHub);
+  const mi = here ? placeLegMiles(w, t.place, to) : hubMiles(w, fromHub, toHub);
   const run = tripCost(w.cfg, t, fuelPrice(w), mi, 0);
-  const hours = mi / w.cfg.hos.avgMph;
+  const hours = here && t.place !== to ? placeHours(w, t.place, to) : mi / w.cfg.hos.avgMph;
   const days = hours / w.cfg.hos.drivingHoursPerDay;
-  const parts = { fuel: run.fuel, wages: run.wages, tolls: hubToll(w, fromHub, toHub) };
+  const parts = { fuel: run.fuel, wages: run.wages, tolls: here ? placeToll(w, t.place, to) : hubToll(w, fromHub, toHub) };
   const costFd = parts.fuel + parts.wages + parts.tolls;
   return {
     costFd,

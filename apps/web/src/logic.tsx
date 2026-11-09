@@ -35,10 +35,11 @@ import {
 import { DISPATCHER_ORDERS, GAME_CONFIG, PLAYER_DISPATCHER_ORDERS } from "./game.js";
 import { trueBreakEven } from "./breakeven.js";
 import { boardRows } from "./board.js";
+import { PENDING } from "./copy-pending.js";
 import { ARRIVAL, BROKERAGE, DEBT, DISPATCHER, FIRST_ENTRY, MOVE, NEEDS, SAFETY_NEWS, TRUCK } from "./copy.js";
-import { debtCountdown } from "./figures.js";
+import { cashDipAhead, debtCountdown } from "./figures.js";
 import { hasTwo, kindInView, switchCompany, type CompanyKind } from "./companies.js";
-import { act, bumpData, clockMin, isPhone, me, myTrucks, push, S, setTab, selectTruck, toast, truckNo, type Session } from "./state.js";
+import { act, bumpData, clockMin, isPhone, me, myTrucks, onWorldReset, push, S, setTab, selectTruck, toast, truckNo, type Session } from "./state.js";
 import { iuliiaSay } from "./iuliia.js";
 import { tabOpen, teaserTabs, type Tab } from "./tabs.js";
 import { leaseMinFor } from "./ledger.js";
@@ -81,6 +82,10 @@ export interface Wall {
   rows: number;
 }
 let wallMemo: { t: number; at: Map<string, Wall> } = { t: -1, at: new Map() };
+onWorldReset(() => {
+  wallMemo = { t: -1, at: new Map() };
+  idleAlerted.clear();
+});
 export function wallAt(t: Truck): Wall {
   const w = S.game!.w;
   const c = me();
@@ -116,10 +121,11 @@ export function wallLine(t: Truck): string {
   return wall.reason ? NEEDS.stuck(truckNo(t.id), place, wall.reason) : NEEDS.stuckPays(truckNo(t.id), place);
 }
 /**
- * "See the ways out": What now?'s rule 3b once R23 is built (guidance.md, "Stuck: the ways out"); until then, as the
- * writer's copy-player5.md says, the board for this truck sorted by pay.
+ * "See the ways out" (the director, 2026-11-09): the ways-out sheet, the truck's exits first (ui/WaysOut.tsx), then the
+ * board for this truck sorted by pay below them, never an empty board alone. It holds while the truck stands idle.
  */
 export function waysOut(t: Truck): void {
+  S.waysOut = t.id;
   S.boardSortOnce = "pay";
   goLoads(t.id);
 }
@@ -331,6 +337,9 @@ function needsInView(fleet: boolean): Need[] {
     const d = debtCountdown(w, c);
     out.push({ key: `debt:${d.n}`, text: DEBT.badge(fdFull(-bal), d.n, d.of, dateLabel(d.nextDay)), tab: "money", target: ".cashcard", button: NEEDS.whatNow, run: askWhatNow, icon: "money", first: true, dueMin: d.nextDay * w.cfg.time.gameMinutesPerDay });
   }
+  // The net-30 warning, before it happens (the diaries, 2026-11-09): cash under zero ahead of the invoices due.
+  const dip = bal >= 0 ? cashDipAhead(w, c) : null;
+  if (dip) out.push({ key: `net30:${dip.day}`, text: PENDING.net30Warn(dateLabel(dip.day), fdFull(dip.lowFd), dateLabel(dip.landsDay)), tab: "money", target: ".net30", button: PENDING.net30WarnButton, run: () => setTab("money"), icon: "money", dueMin: dip.day * w.cfg.time.gameMinutesPerDay });
   for (const a of attentionItems()) {
     if (a.key === "cash") out.push({ key: a.key, text: a.text, tab: "money", target: ".cashcard", button: NEEDS.whatNow, run: askWhatNow, icon: "money" });
     if (!fleet) continue;
@@ -580,8 +589,12 @@ export function idleWhy(t: Truck): IdleWhy {
   const floorPct = floor?.breakEvenPlusPct ?? 0;
   const running = operatingTrucks(w, c.id);
   const prof = dispatchProfile(w, c, running);
+  // Only what this truck may take now, as the board reads it (its block: locals first, a tender, vetting, the authority's
+  // age): the diaries' Today line counted Palm Coast's locals-first loads as "pay enough" against an empty board.
+  const mayTakeNow = new Set(boardRows(w, c, t, { dest: "any", maxDh, query: "" }).filter((r) => !r.block).map((r) => r.l.id));
+  if (!loads.some((l) => mayTakeNow.has(l.id))) return { why: PENDING.idleStranded(trailer), fixes: [<Btn primary onClick={() => waysOut(t)}>{NEEDS.waysOut}</Btn>] };
   // The board's own break-even (breakeven.ts), so the alert and the cards never disagree about what pays.
-  const payable = loads.filter((l) => l.ceiling >= trueBreakEven(w, t, l, placeMiles(w, t.place, l.originPlace), placeToll(w, t.place, l.originPlace), prof.foresightDays, prof.reloadWeight) * (1 + floorPct));
+  const payable = loads.filter((l) => mayTakeNow.has(l.id) && l.ceiling >= trueBreakEven(w, t, l, placeMiles(w, t.place, l.originPlace), placeToll(w, t.place, l.originPlace), prof.foresightDays, prof.reloadWeight) * (1 + floorPct));
   if (payable.length === 0) return { why: `${plural(loads.length, `${trailer} load`)} in range, but none pays your floor (break-even + ${Math.round(floorPct * 100)}%) even at its ceiling.`, fixes: [board] };
   if (prof.coverage < 1) return { why: `Your dispatcher is stretched: ${prof.span} trucks' worth of attention for the ${running} you run, so this truck sits out about ${Math.round((1 - prof.coverage) * 100)}% of rounds.`, fixes: [<Btn primary onClick={goStaff}>Hire a dispatcher</Btn>, board] };
   return { why: `${plural(payable.length, `${trailer} load`)} in range pay enough, but the dispatcher's bids keep losing: other carriers bid lower or have the better record.`, fixes: [<Btn primary onClick={() => goLoads(t.id)}>Bid by hand</Btn>] };

@@ -6,6 +6,9 @@ import { bumpData, openIntel, S, setTab, useData } from "../state.js";
 import { MORE, tabDef, tabOpen, teaserTabs, type Tab } from "../tabs.js";
 import { Btn, Panel } from "./bits.js";
 import { BROKERAGE } from "../copy.js";
+import { PENDING } from "../copy-pending.js";
+import { gapToTruck } from "../figures.js";
+import { fdFull } from "../format.js";
 import { Iuliia } from "./Walkthrough.js";
 
 /** A tab's icon: the painted one when it exists (assets/icons/<id>.png), else the code-drawn one. */
@@ -70,6 +73,7 @@ export function TeaserCard({ id }: { id: Tab }): JSX.Element {
         </div>
       </header>
       <p class="small">{t.what}</p>
+      {id === "market" && g.player ? <DealerPrice /> : null}
       <div class="caption">
         <Iuliia mood="idle" size={64} />
         <span class="small">{t.iuliia}</span>
@@ -92,6 +96,13 @@ export function TeaserCard({ id }: { id: Tab }): JSX.Element {
       </div>
     </section>
   );
+}
+
+/** The Dealer's teaser carries the goal's price (the director, 2026-11-09): what the first truck takes now, and how far. */
+function DealerPrice(): JSX.Element {
+  const g = S.game!;
+  const gap = gapToTruck(g.w, g.player!);
+  return <p class="small">{Number.isFinite(gap.needNowFd) ? PENDING.dealerPrice(fdFull(gap.needNowFd), fdFull(gap.gapFd)) : PENDING.dealerPriceNone}</p>;
 }
 
 /** The laptop's teaser row under the nav: the teasers not yet open, dimmed; a click shows the card in the panel. */

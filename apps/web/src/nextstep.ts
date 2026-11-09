@@ -2,6 +2,7 @@ import type { EconomyConfig } from "@lanes/config";
 import { cashNowRate, companyAccount, crewed, MANUAL_BID_MAX_DEADHEAD_MI, truckValue, type Company, type Truck, type World } from "@lanes/engine";
 import { boardRows, clearsNear } from "./board.js";
 import { bestLoad, cushion, debtCountdown, freeTrucks, gapToTruck, nextEvent, owed, type NextEvent } from "./figures.js";
+import { exitsFor, type Exit } from "./exits.js";
 import { invoices } from "./ledger.js";
 import { walkProgress } from "./walkthrough.js";
 import { firstLoadLocked } from "./tutorial.js";
@@ -19,6 +20,7 @@ export type NextAction =
   | { rule: 2; kind: "driver"; truckId: number }
   | { rule: 2; kind: "lost"; loadId: number; truckId: number; profitFd: number; clearsNear: number }
   | { rule: 3; kind: "idle"; truckId: number; loadId: number; profitFd: number }
+  | { rule: 3; kind: "stranded"; truckId: number; exits: Exit[] }
   | { rule: 4; kind: "step"; index: number; total: number }
   | { rule: 5; kind: "factoringEnds"; untilDay: number; days: number }
   | { rule: 5; kind: "cushion"; weeks: number }
@@ -140,6 +142,10 @@ export function nextAction(cfg: EconomyConfig, w: World, c: Company, lost?: Lost
     if (r && (!idle || r.profitBook > idle.profitFd)) idle = { truckId: t.id, loadId: r.l.id, profitFd: r.profitBook };
   }
   if (idle) return { rule: 3, kind: "idle", ...idle };
+  // 3b. Stranded (the director, 2026-11-09): an idle truck with nothing in reach it may take that pays. Its ways out,
+  // cheapest first, never "pick the next load" with nothing to pick (the cautious diary at Palm Coast).
+  const stranded = freeTrucks(w, c)[0];
+  if (stranded) return { rule: 3, kind: "stranded", truckId: stranded.id, exits: exitsFor(w, c, stranded).slice(0, 2) };
 
   // 4. A walkthrough step is current.
   const p = walkProgress(cfg, w, c, skipped);

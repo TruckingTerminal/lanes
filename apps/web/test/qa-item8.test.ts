@@ -1,7 +1,7 @@
 import "./seed.js";
 import { h } from "preact";
 import { describe, expect, it, vi } from "vitest";
-import { companyAccount, condition, crewed, hubMiles } from "@lanes/engine";
+import { companyAccount, condition, crewed, hubMiles, placeOfHub } from "@lanes/engine";
 import { closedMonths, monthReport, shownReport, type MonthBooks } from "../src/books.js";
 import { GAME_CONFIG, TestGame } from "../src/game.js";
 import { needs, REBUILD_DUE, stuckTrucks } from "../src/logic.js";
@@ -171,6 +171,7 @@ describe("Needs you counts only what can be done now (QA item 8, failures 6, 8, 
       d.awayDays = g.w.cfg.fatigue.roadDays + 1;
       const far = g.w.net.hubs.map((_, i) => i).sort((a, b) => hubMiles(g.w, c.homeHub, b) - hubMiles(g.w, c.homeHub, a))[0]!;
       t.hub = far;
+      t.place = placeOfHub(far); // a truck stands in a town of its market: the empty run home is priced from there
       t.status = "idle";
       const acct = companyAccount(c.id);
       g.w.ledger.post(g.w.t, acct, "sink:test", g.w.ledger.balance(acct) - 50, "test");

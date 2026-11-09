@@ -24,6 +24,14 @@ function settled(): boolean {
   return !typing && performance.now() - lastInput >= SETTLE_MS;
 }
 
+/**
+ * A card's next page is the same card, already on screen: it shows at once (the diaries, 2026-11-09: Iuliia's "1 of 3"
+ * went on Next and "2 of 3" turned up a moment later on another screen, since the tap on Next was input to settle on).
+ */
+export function settleShown(key: string): void {
+  shown.add(key);
+}
+
 /** Whether the card `key` may show now (null: no card, nothing to hold). */
 export function useSettled(key: string | null): boolean {
   wire();

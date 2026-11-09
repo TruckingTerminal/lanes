@@ -251,7 +251,8 @@ function nextOnRoad(w: World, c: Company): JSX.Element | string {
   const notes = gapNotes(w, c, gap.route);
   // A truck within reach today (a listing the cash and the hold already cover) still names the next truck, not the next
   // layer (QA's cheap-batch replay: the gap vanished for an owner-operator with a cheap listing open).
-  if (gap.gapFd <= 0 && Number.isFinite(gap.needNowFd) && !(w.trucksByCompany.get(c.id) ?? []).some((t) => t.lease === "owned"))
+  // "You can afford your next truck now" only with the Dealer open (the director, 2026-11-09), which it is from then.
+  if (gap.gapFd <= 0 && Number.isFinite(gap.needNowFd) && tabOpen("market", w, c) && !(w.trucksByCompany.get(c.id) ?? []).some((t) => t.lease === "owned"))
     return (
       <Fig k="guide.gapToTruck" label={GUIDE_LABEL.gap} ctx={{ notes }}>
         {FIGURE_ACT.gapClosed}

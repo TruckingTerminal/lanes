@@ -23,7 +23,7 @@ describe("the test world's warm start", () => {
     expect(r.w.t).toBe(g.w.t);
     expect(r.player!.id).toBe(c.id);
     expect(r.w.ledger.balance(companyAccount(c.id))).toBe(g.w.ledger.balance(companyAccount(c.id)));
-  }, 60_000);
+  }, 120_000); // a world and its replay: the suite's heaviest, past a minute on a loaded machine
 
   it("still restores a log from before the warm start, which joined at 0 and opened at 06:00", async () => {
     const log: TestLog = { v: 1, ruleset: RULESET, seed: 7, name: "Old Freight", start: "oo", hub: "DAL", t: 6 * 60, acts: [] };

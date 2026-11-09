@@ -8,7 +8,8 @@ import { DEBT, MONEY } from "../../copy.js";
 import { invoices, milesOf, weekCosts } from "../../ledger.js";
 import { FinanceLinks } from "./Finance.js";
 import { Fig } from "../Explain.js";
-import { cushion, debtCountdown } from "../../figures.js";
+import { cashDipAhead, cushion, debtCountdown } from "../../figures.js";
+import { PENDING } from "../../copy-pending.js";
 import { GUIDE_LABEL } from "../../copy.js";
 import { iuliiaFirst } from "../../iuliia.js";
 import { GAME_CONFIG } from "../../game.js";
@@ -29,6 +30,18 @@ const num = (id: string): number => Number((document.getElementById(id) as HTMLI
  * this week's costs and the company's standing; loans and the token under folds, closed until opened. The deposit
  * side of Equipment Finance is gone (the bible).
  */
+/** The net-30 warning (the diaries, 2026-11-09): cash under zero ahead, before the invoices due land (figures.ts cashDipAhead). */
+function Net30Line(): JSX.Element | null {
+  const w = S.game!.w;
+  const dip = cashDipAhead(w, me());
+  if (!dip) return null;
+  return (
+    <p class="small warn net30">
+      {PENDING.net30Warn(dateLabel(dip.day), fdFull(dip.lowFd), dateLabel(dip.landsDay))} <span class="muted">{PENDING.net30Explain}</span>
+    </p>
+  );
+}
+
 export function Money(): JSX.Element {
   useData();
   const w = S.game!.w;
@@ -172,6 +185,7 @@ export function Money(): JSX.Element {
             {MONEY.red(w.cfg.insolvency.weeksInDebt, fdFull(w.cfg.insolvency.debtLimitFd))} {DEBT.count(debtCountdown(w, c).n, w.cfg.insolvency.weeksInDebt, dateLabel(debtCountdown(w, c).nextDay))}
           </p>
         ) : null}
+        <Net30Line />
       </Card>
       <Card title={<Fig k="money.owed" label={MONEY.owed}>{MONEY.owed}</Fig>}>
         {/* One row per invoice: line 2 is Cash it now while its switch is on (finance.md draft 2). */}

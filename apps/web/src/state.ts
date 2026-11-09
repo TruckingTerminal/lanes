@@ -84,6 +84,8 @@ export const S = {
   /** The milestone line in the caption; `held` when it carries a button (R10: it stays until answered, dismissed or left). */
   /** R22's "See the ways out" until R23: the board opens once on this sort. */
   boardSortOnce: null as null | import("./board.js").BoardSort,
+  /** The ways-out sheet (the director, 2026-11-09): the stranded truck whose exits head the board, until it moves. */
+  waysOut: null as number | null,
   milestone: null as null | { key: string; phase: "before" | "at"; tab: string; at: number; held?: boolean },
   /** The confirm card open now (R6, ui/Confirm.tsx), and when it opened (its confirm is inert for ui.tapSettleMs). */
   confirm: null as null | import("./ui/Confirm.js").ConfirmSpec & { openedAt: number; swap: boolean; tab: string },
@@ -145,6 +147,33 @@ export const S = {
 };
 
 /**
+ * What on the screen belongs to one world: its cards, results, badges, selections and the page's own records of it.
+ * A replaced world (≡ → Title screen → New test world → Replace it) starts from these as a reload would (the diaries of
+ * 2026-11-09: the last world's pay card, lost bid, cashed invoice and badges showed in the new one; QA item 8's #16 did
+ * the return card alone). Everything else in S is the page's or the browser's and stays: KEPT_ACROSS_WORLDS.
+ */
+export const PER_WORLD = [
+  "entry", "selTruck", "selHub", "cityView", "townView", "openLoad", "handBids", "bookedLoads", "idleFrom", "handLoads",
+  "boardPoster", "boardSortOnce", "waysOut", "milestone", "confirm", "lastAct", "returnCard", "lastReturn", "poachResults",
+  "gapSeen", "cashPlan", "cashed", "brokerSwitch", "lastDriver", "explain", "whatNow", "iuliiaLine", "intel", "homeNow",
+  "delivered", "moneyDot", "invoiceLanes", "following", "result", "selSite", "walkView", "okText",
+] as const satisfies readonly (keyof typeof S)[];
+export const KEPT_ACROSS_WORLDS = [
+  "platform", "live", "test", "game", "screen", "loadShare", "tab", "layout", "sheet", "ratesEq", "guidePage", "savedTest",
+  "onboard", "reporting", "reportKind", "speed", "toast", "theme",
+] as const satisfies readonly (keyof typeof S)[];
+const blank = (v: unknown): unknown => (v instanceof Map ? new Map() : v instanceof Set ? new Set() : Array.isArray(v) ? [] : v !== null && typeof v === "object" ? structuredClone(v) : v);
+const WORLD_START = Object.fromEntries(PER_WORLD.map((k) => [k, blank(S[k])])) as Record<string, unknown>;
+/** Hooks for module state that is one world's (main.tsx's trucks as last seen, the dispatcher's set-aside orders). */
+const worldResets: (() => void)[] = [];
+export const onWorldReset = (f: () => void): void => void worldResets.push(f);
+/** Clears everything that belongs to the world on screen; showGame calls it when the world changes. */
+export function resetWorldState(): void {
+  for (const k of PER_WORLD) (S as Record<string, unknown>)[k] = blank(WORLD_START[k]);
+  for (const f of worldResets) f();
+}
+
+/**
  * The test world's speeds, named by what they are (Jeff, 2026-11-02: "1×" read as the game's real pace). "Live pace" is
  * the live world's own clock (live.ts: a game day every six real hours), so a tester can feel the real rhythm.
  */
@@ -164,10 +193,25 @@ function emit(ch: Channel): void {
   ch.v++;
   for (const s of ch.subs) s();
 }
+/**
+ * A finger or the mouse held on the panel (main.tsx): the screen holds still under it, its changes waiting until it
+ * lifts, so a visible button stays where it is and pressable until the player acts (the diaries, 2026-11-09: at Day in
+ * 2 s, Send home and the ⋯ menu moved or went before the press landed). A press is short; a long one lets go at a cap.
+ */
+let held = false;
+let heldMissed = { tick: false, data: false };
+export function holdStill(on: boolean): void {
+  held = on;
+  if (on) return;
+  const missed = heldMissed;
+  heldMissed = { tick: false, data: false };
+  if (missed.data) emit(data);
+  if (missed.tick) emit(tick);
+}
 /** The clock moved: cheap components that show the time re-render. */
-export const bumpTick = (): void => emit(tick);
+export const bumpTick = (): void => (held ? void (heldMissed.tick = true) : emit(tick));
 /** Something the panels show changed. */
-export const bumpData = (): void => emit(data);
+export const bumpData = (): void => (held ? void (heldMissed.data = true) : emit(data));
 function useChannel(ch: Channel): number {
   const [v, setV] = useState(ch.v);
   useLayoutEffect(() => {

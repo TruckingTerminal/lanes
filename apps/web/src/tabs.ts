@@ -1,7 +1,11 @@
 import { crewed, dayOf, layerBlock, tokenLive, type Company, type World } from "@lanes/engine";
 import { dayDate } from "./format.js";
 import { GAME_CONFIG } from "./game.js";
-import { walkProgress, walkSteps } from "./walkthrough.js";
+import { depositWhole } from "./board.js";
+import { PENDING } from "./copy-pending.js";
+import { gapToTruck } from "./figures.js";
+import { S, setOnboard } from "./state.js";
+import { skippedSteps, stepScope, walkSteps } from "./walkthrough.js";
 
 /**
  * The tab registry: every panel the rack can show, with its label and icon. The nav, the More list, the teaser row,
@@ -26,6 +30,11 @@ export interface Teaser {
   open: (w: World, c: Company | null) => boolean;
   /** Not offered at all (its rule's switch is off): no card, no row. */
   hidden?: () => boolean;
+  /**
+   * Opens on the company's progress, which can fall back (cash, a truck sold, a seat filled), so once open for a company
+   * it stays open (the director, 2026-11-09: no tab ever vanishes from More). Kept in the browser's onboarding record.
+   */
+  sticky?: boolean;
 }
 
 export interface TabDef {
@@ -43,16 +52,35 @@ export const layerDay = (w: World, layer: "businesses" | "brokerage"): string =>
 /** The walkthrough step the Dealer and Finance wait for ("when Iuliia says so": buying your first truck). */
 const OWN_STEP = walkSteps(GAME_CONFIG).findIndex((s) => s.id === "own");
 /**
- * "When Iuliia says so": the Dealer and Finance open at the first-truck step, or on day 28 when her line ("most need a
- * second truck · See the Dealer") reaches this company, whichever is first, so she never points at a locked tab (QA
- * item 8: day 28's line pointed at the teaser while the walkthrough was still on "the law"). A company that began after
- * the line's window (milestones.ts) never hears it, so it waits for the step. The line before day 28 carries its button
- * only once the Dealer is open (ui/Milestones.tsx).
+ * The first truck within reach (the director, 2026-11-09): the next-truck gap closed (figures.ts gapToTruck, the figure
+ * behind Iuliia's "you can afford your next truck now"), or the hold toward the lessor's truck whole. Kept for the game
+ * minute, since the nav and More read it every draw.
  */
-export function firstTruckOpen(w: World, c: Company): boolean {
+let affordMemo: { w: World | null; t: number; c: number; v: boolean } = { w: null, t: -1, c: -1, v: false };
+export function firstTruckAffordable(w: World, c: Company): boolean {
+  if (affordMemo.w === w && affordMemo.t === w.t && affordMemo.c === c.id) return affordMemo.v;
+  const gap = gapToTruck(w, c);
+  const v = (gap.gapFd <= 0 && Number.isFinite(gap.needNowFd)) || trucksOf(w, c).some((t) => t.lease === "npc" && depositWhole(t));
+  affordMemo = { w, t: w.t, c: c.id, v };
+  return v;
+}
+
+/**
+ * When the Dealer and Finance open (the director, 2026-11-02, QA item 8 and 2026-11-09), whichever comes first:
+ * - the first truck is within reach (firstTruckAffordable), whatever the walkthrough's step, so Iuliia's "you can afford
+ *   your next truck now" never points at a closed tab;
+ * - the walkthrough reaches the first-truck step, a skipped step counting as passed (a skipped step never keeps a tab
+ *   closed: the gamer's diary skipped "The law" and the Dealer stayed shut);
+ * - day 28, when her line ("most need a second truck · See the Dealer") reaches this company; a company that began after
+ *   the line's window (milestones.ts) never hears it. The line before day 28 carries its button only once the Dealer is
+ *   open (ui/Milestones.tsx).
+ * Once open, tabOpen keeps them open (sticky).
+ */
+export function firstTruckOpen(w: World, c: Company, skipped: readonly string[] = skippedSteps(S.onboard.seen, w, c)): boolean {
   if (trucksOf(w, c).length >= 2) return true;
-  const { index } = walkProgress(GAME_CONFIG, w, c);
+  const index = walkSteps(GAME_CONFIG).findIndex((s) => !s.done(w, c) && !skipped.includes(s.id));
   if (index < 0 || index >= OWN_STEP) return true;
+  if (firstTruckAffordable(w, c)) return true;
   const ladder = w.cfg.unlockLadder;
   if (!ladder.enabled && !ladder.beta.enabled) return false;
   const d28 = ladder.layers.businesses.afterDays;
@@ -78,6 +106,7 @@ export const TABS: readonly TabDef[] = [
       iuliia: "You'll need one at the second truck, or sooner if a seat is empty.",
       opens: () => "at your second truck, or a truck without a driver",
       open: (w, c) => !!c && (trucksOf(w, c).length >= 2 || trucksOf(w, c).some((t) => !crewed(t))),
+      sticky: true,
     },
   },
   {
@@ -87,8 +116,9 @@ export const TABS: readonly TabDef[] = [
     teaser: {
       what: "New, used and leased rigs, and trailers of your own.",
       iuliia: "I'll say when it's time to buy. The first one is arithmetic.",
-      opens: () => "when Iuliia says so",
+      opens: () => PENDING.dealerOpens,
       open: (w, c) => !!c && firstTruckOpen(w, c),
+      sticky: true,
     },
   },
   {
@@ -122,8 +152,9 @@ export const TABS: readonly TabDef[] = [
       iuliia: "Read it before you buy, not after. The wait for your money starts with your first load.",
       // The director, 2026-11-02 (2b32a9d): Finance opens with the first-truck step, beside the Dealer, so Iuliia never
       // points at a locked tab.
-      opens: () => "when Iuliia says it's time to buy, with the Dealer",
+      opens: () => PENDING.financeOpens,
       open: (w, c) => !!c && firstTruckOpen(w, c),
+      sticky: true,
     },
   },
   {
@@ -195,10 +226,21 @@ export function tabLabel(id: Tab, w: World | null, c: Company | null): string {
 }
 export const TAB_NAME = Object.fromEntries(TABS.map((t) => [t.id, t.label])) as Record<Tab, string>;
 
-/** Whether a tab shows its panel (not its teaser card) for this company. */
+/** The onboarding record's mark for a sticky tab that has opened for this company. */
+const openKey = (id: Tab, w: World, c: Company): string => `${stepScope(w, c)}|open:${id}`;
+/** Whether a tab shows its panel (not its teaser card) for this company; a sticky one, once open, stays open. */
 export const tabOpen = (id: Tab, w: World, c: Company | null): boolean => {
   const t = tabDef(id).teaser;
-  return !t || t.open(w, c);
+  if (!t) return true;
+  if (!t.sticky || !c) return t.open(w, c);
+  const key = openKey(id, w, c);
+  if (S.onboard.seen.includes(key)) return true;
+  if (!t.open(w, c)) return false;
+  // Marked after the draw that found it open, never during it.
+  queueMicrotask(() => {
+    if (!S.onboard.seen.includes(key)) setOnboard({ seen: [...S.onboard.seen, key] });
+  });
+  return true;
 };
 /** The teaser tabs, open or not, in order. */
 export const teaserTabs = (): TabDef[] => TABS.filter((t) => t.teaser && !t.teaser.hidden?.());

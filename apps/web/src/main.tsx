@@ -14,7 +14,7 @@ import { nightStop, paidLine, payLine, type TruckBefore } from "./rolling.js";
 import { sampleStarters } from "./hubcard.js";
 import { drawMap, fitMap, flyTo, resetArt, setZoom, zoomIndex } from "./mapview.js";
 import { MemoryDb } from "./memdb.js";
-import { bumpData, bumpTick, feed, loadOnboard, setOnboard, loadTheme, markPersisted, persistTest, push, readTest, S, setLayout, setTab, SPEEDS, TEST_BUILD, toast, toggleFullscreen, truckNo, type Session, type TitleMenu } from "./state.js";
+import { bumpData, bumpTick, feed, holdStill, loadOnboard, onWorldReset, resetWorldState, setOnboard, loadTheme, markPersisted, persistTest, push, readTest, S, setLayout, setTab, SPEEDS, TEST_BUILD, toast, toggleFullscreen, truckNo, type Session, type TitleMenu } from "./state.js";
 import { App } from "./ui/App.js";
 import { askWhatNow } from "./ui/WhatNow.js";
 import { poachResult } from "./ui/panels/Staff.js";
@@ -63,9 +63,9 @@ function showLoading(title: string, note: string): void {
 function showGame(s: Session): void {
   if (S.game !== s) {
     resetArt();
-    // A world's return card is its own (QA item 8): a new world starts with none until its own return.
-    S.returnCard = null;
-    S.lastReturn = null;
+    // A world's cards, results, badges and records are its own (QA item 8 for the return card; the diaries of
+    // 2026-11-09 for the rest): a new world starts as a reload would.
+    resetWorldState();
   }
   S.game = s;
   feed(s).lastT = s.w.t;
@@ -134,7 +134,8 @@ function onEvent(s: Session, e: GameEvent): void {
     // factor holds it). Labelling "the newest the player holds" put a new lane on an older invoice (diary 2, row 7).
     const fresh = w.receivables.find((r) => r.id === w.nextReceivableId - 1 && r.payeeId === s.player!.id);
     const paid = truck ? paidLine(w, s.player!, truck, fresh) : DELIVERED.paidToday;
-    push(s, FEED.delivered(...ends(e.loadId, e.origin, e.dest), fdFull(e.grossFd), fdFull(e.grossFd - e.costFd - held), paid, held >= 0.5));
+    // "Yours" as the pay card reads it (rolling.ts payLine): the detention the poster paid is in it (the diaries: 2,825 here, 3,305 there).
+    push(s, FEED.delivered(...ends(e.loadId, e.origin, e.dest), fdFull(e.grossFd), fdFull(e.grossFd - e.costFd - held + (load?.detention?.fd ?? 0)), paid, held >= 0.5));
     const fd = feed(s).deliveries;
     fd.push({ day: Math.floor(w.t / 1440), grossFd: e.grossFd });
     if (fd.length > 60) fd.shift();
@@ -300,6 +301,8 @@ async function openTest(): Promise<void> {
 
 /** The hub chosen inside the world: in a test world the company joins now; live, the join is sent like any order. */
 let joiningLive = false;
+/** The longest a press holds the screen still (state.ts holdStill): long enough for a tap, short of a reading pause. */
+const HOLD_CAP_MS = 1500;
 /** The test world speeds up to Day a minute once, at the player's first bid by hand. */
 let firstBidSped = true;
 function choose(name: string, hub: string, start: StartKind, look: "m" | "f" = "m"): void {
@@ -379,6 +382,25 @@ function wireHandlers(): void {
 
 function wireKeys(): void {
   addEventListener("resize", () => S.game && fitMap());
+  // A press on the panel holds the screen still until it lifts and its click has run (state.ts holdStill); never the
+  // map, whose drag is its own; a long press lets go after HOLD_CAP_MS.
+  let holdTimer = 0;
+  const release = () => {
+    clearTimeout(holdTimer);
+    setTimeout(() => holdStill(false), 0);
+  };
+  document.addEventListener(
+    "pointerdown",
+    (ev) => {
+      if ((ev.target as Element | null)?.closest?.("#map")) return;
+      holdStill(true);
+      clearTimeout(holdTimer);
+      holdTimer = window.setTimeout(() => holdStill(false), HOLD_CAP_MS);
+    },
+    true,
+  );
+  document.addEventListener("pointerup", release, true);
+  document.addEventListener("pointercancel", release, true);
   addEventListener("pagehide", () => persistTest(true));
   document.addEventListener("visibilitychange", () => document.hidden && persistTest(true));
   document.addEventListener("fullscreenchange", () => S.game && fitMap());
@@ -444,6 +466,10 @@ async function resync(): Promise<void> {
 /** Daily bookkeeping for the screen: the cash sparkline and the freight-cycle headlines. */
 /** Each of your trucks as the screen last saw it, for the pay line of a delivery that happens between frames (rolling.ts). */
 const beforeDelivery = new Map<number, TruckBefore>();
+onWorldReset(() => {
+  beforeDelivery.clear();
+  firstBidSped = true;
+});
 function observe(s: Session): void {
   const f = feed(s);
   const w = s.w;

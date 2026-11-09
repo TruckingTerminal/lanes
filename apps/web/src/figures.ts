@@ -1,7 +1,7 @@
-import { companyAccount, crewed, layerOpen, locksOn, lotPrice, npcDealerMult, opsCap, ordersOf, resting, yardTrucks, type Company, type Truck, type World } from "@lanes/engine";
+import { companyAccount, crewed, fuelPrice, layerOpen, locksOn, lotPrice, npcDealerMult, opsCap, ordersOf, ownerDrawFd, resting, tripCost, yardTrucks, type Company, type Truck, type World } from "@lanes/engine";
 import { boardRows, type BoardRow } from "./board.js";
 import { buyPlan, cheapestNewRig } from "./finance.js";
-import { invoices } from "./ledger.js";
+import { invoices, weekCosts } from "./ledger.js";
 
 /**
  * The figures Iuliia computes (specs/guidance.md, section 4): read from the world and the company, saving nothing, with
@@ -52,6 +52,54 @@ export function fleetCaps(w: World, c: Company): FleetCaps {
   const binding = rows.reduce((a, b) => (b.n < a.n ? b : a));
   const running = (w.trucksByCompany.get(c.id) ?? []).filter((t) => t.status !== "retired").length + ordersOf(w, c.id).length;
   return { cap: binding.n, running, binding, others: rows.filter((r) => r !== binding) };
+}
+
+/**
+ * What a company spends a day, for the net-30 warning: its own average over the weeks it has (cushion), else, in its
+ * first week, its fixed weekly costs and each crewed truck's running costs over a working day (fuel, upkeep and a hired
+ * driver's pay at the legal day's miles; an owner's draw stays with the company).
+ */
+export function dailySpendFd(w: World, c: Company): number {
+  const avg = cushion(w, c).avgWeeklyFd;
+  if (avg > 0.5) return avg / 7;
+  const k = weekCosts(w, c);
+  let run = 0;
+  const mi = w.cfg.hos.avgMph * w.cfg.hos.drivingHoursPerDay;
+  for (const t of w.trucksByCompany.get(c.id) ?? []) {
+    if (t.status === "retired" || t.status === "parked" || t.status === "listed" || !crewed(t)) continue;
+    const r = tripCost(w.cfg, t, fuelPrice(w), mi, mi);
+    run += r.fuel + r.maintenance + r.wages - ownerDrawFd(w, t, mi);
+  }
+  return (k.leaseMinimum + k.insurance + k.yard) / 7 + k.perDiemPerDay + run;
+}
+
+/**
+ * The net-30 warning (the diaries, 2026-11-09: a small fleet kept 57,255 in January and stood at −7,742 with no word
+ * before): cash today, less what the company spends a day, plus each invoice on its due day, over the next
+ * `horizonDays`. When that goes under zero before an invoice due later would bring it back, the day it does, how far
+ * under it goes, and the next invoice's day. Null while it holds, with no invoices, or once already under (What now?'s
+ * danger rule says that). New deliveries' invoices aren't counted: they land after the horizon anyway.
+ */
+export function cashDipAhead(w: World, c: Company, horizonDays = 30): { day: number; lowFd: number; landsDay: number } | null {
+  const inv = invoices(w, c);
+  const start = cash(w, c);
+  if (!inv.length || start < 0) return null;
+  const perDay = dailySpendFd(w, c);
+  if (!(perDay > 0)) return null;
+  const today = day(w);
+  let bal = start;
+  let k = 0;
+  let under = -1;
+  let low = 0;
+  for (let d = today + 1; d <= today + horizonDays; d++) {
+    bal -= perDay;
+    while (k < inv.length && inv[k]!.dueDay <= d) bal += inv[k++]!.amountFd;
+    if (bal < 0 && under < 0) under = d;
+    if (under >= 0) low = Math.min(low, bal);
+  }
+  if (under < 0) return null;
+  const lands = inv.find((i) => i.dueDay > under);
+  return lands ? { day: under, lowFd: -low, landsDay: lands.dueDay } : null;
 }
 
 /** guide.cushion: weeks of the company's own spending its cash covers, from its average over guide.cushionAvgWeeks. */

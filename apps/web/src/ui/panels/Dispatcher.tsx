@@ -2,7 +2,7 @@ import type { JSX } from "preact";
 import { ordersWaitForHand, type StandingOrder } from "@lanes/engine";
 import { DISPATCHER } from "../../copy.js";
 import { DEFAULT_ORDERS, DISPATCHER_ORDERS, PLAYER_DISPATCHER_ORDERS } from "../../game.js";
-import { act, me, S, useData } from "../../state.js";
+import { act, me, onWorldReset, S, useData } from "../../state.js";
 import { Btn, Card, Label } from "../bits.js";
 import { Iuliia } from "../Walkthrough.js";
 import { iuliiaFirst } from "../../iuliia.js";
@@ -12,6 +12,7 @@ const checked = (id: string): boolean => Boolean((document.getElementById(id) as
 
 /** The bidding rules a switch-off set aside, per company, so switching back on restores them (diary 1, row 11). */
 const setAside = new Map<number, StandingOrder[]>();
+onWorldReset(() => setAside.clear());
 
 /**
  * The dispatcher (specs/first-ten-minutes.md, S9): before a one-truck company's first bid by hand, the switch shows the

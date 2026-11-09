@@ -150,11 +150,13 @@ export interface ChipPair {
   profit: number;
   cash: number;
   held: number;
+  /** The owner's draw inside `cash` (it stays with the company), said beside the figure as the pay card says it. */
+  draw?: number;
 }
 /** `drawFd`: the owner's draw the company keeps on this load (ownerDrawFd), which lands as cash though break-even counts it as the driver's pay. */
 export function chipPair(w: World, t: Truck, profitFd: number, grossFd: number, drawFd = 0): ChipPair {
   const held = leaseHold(w, t, grossFd);
-  return { profit: profitFd, cash: profitFd - held + drawFd, held };
+  return drawFd ? { profit: profitFd, cash: profitFd - held + drawFd, held, draw: drawFd } : { profit: profitFd, cash: profitFd - held, held };
 }
 /** A chip figure: whole FD up to 9,999, then thousands to one place ("12.4k"); no sign. */
 export function chipFd(x: number): string {
