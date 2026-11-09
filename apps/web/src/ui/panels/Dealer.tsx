@@ -61,6 +61,8 @@ export function Dealer(): JSX.Element {
           <p>
             <b>{first.figure}</b>
           </p>
+          {first.what ? <p class="small">{first.what}</p> : null}
+          {first.worn ? <p class="muted small">{first.worn}</p> : null}
           {first.advice ? <p class="muted small">{first.advice}</p> : null}
         </Card>
       ) : null}

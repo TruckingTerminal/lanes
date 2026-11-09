@@ -4,6 +4,7 @@ const HUB_COUNT = HUBS.length;
 import type { EconomyConfig } from "@lanes/config";
 import { MANUAL_BID_MAX_DEADHEAD_MI } from "@lanes/engine";
 import { type GuidePage, h, n, p, pct, see, table, ul } from "./util.js";
+import { PENDING } from "../copy-pending.js";
 
 const S = "The market";
 
@@ -22,7 +23,7 @@ export function marketPages(cfg: EconomyConfig): GuidePage[] {
         ul([
           `Every bid gets a score: ${pct(b.scoreWeights.price)} for price (how far under the ceiling), ${pct(b.scoreWeights.reputation)} for reputation (your on-time record), ${pct(b.scoreWeights.deadhead)} for empty miles to the pickup (none is best; at ${b.deadheadScaleMi} it scores zero and past that it counts against you).`,
           `Bids clear best score first. A truck wins at most one load a round, and a load goes to one truck.`,
-          `A bid above the ceiling, up to ${cfg.board.overCeilingMax} times it, wins only if nobody bids within the ceiling, cheapest first: in a hot market the poster pays over its ceiling rather than leave the load.`,
+          cfg.board.refuseOverCeiling ? PENDING.guideCeilingRefused : `A bid above the ceiling, up to ${cfg.board.overCeilingMax} times it, wins only if nobody bids within the ceiling, cheapest first: in a hot market the poster pays over its ceiling rather than leave the load.`,
           `A load nobody takes rolls to the next round with its ceiling up ${pct(b.rolloverCeilingStep)} and its appointment moved back a round. Nobody but a carrier ever hauls it: it rolls until a truck takes it or, after ${b.giveUpAfterRounds} rounds, the shipper gives up and the freight is lost. Open loads piling up where trucks are scarce lift that market's load-to-truck ratio, and so every new rate posted there.`,
         ]) +
         h("Bidding by hand") +

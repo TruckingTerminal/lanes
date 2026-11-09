@@ -470,7 +470,7 @@ function LoadSheet({ r, truck }: { r: BoardRow; truck: Truck }): JSX.Element {
         />
       </details>
       <div class="actions pinned">
-        {r.block ? <p class="bad small">{LOAD.blocked(r.block)}</p> : <DockWarning w={w} t={truck} l={l} dh={r.dh} />}
+        {r.block ? <p class="bad small">{LOAD.blocked(r.block.replace(/\.\s*$/, ""))}</p> : <DockWarning w={w} t={truck} l={l} dh={r.dh} />}
         <Btn primary={bookUp} disabled={!!r.block} onClick={() => void book()}>
           {CHIP.book(l.bookNow.toFixed(2), signed(r.profitBook))}
         </Btn>

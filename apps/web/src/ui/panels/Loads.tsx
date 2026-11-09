@@ -192,7 +192,8 @@ export function LoadsTable(): JSX.Element {
           No {TRAILER_NAME[truck.trailer].toLowerCase()} loads match within {maxDh} miles right now. Widen the search, send the truck to a busier hub, or wait for the next round.
         </p>
       )}
-      <p class="muted small">Book now and the load is yours at once. Or bid and wait for the round: the poster takes the best bid under its ceiling, weighing price, on-time record and empty miles; a bid above the ceiling wins only if nobody bid under it. One bid per truck per round; yours replaces your dispatcher's.</p>
+      {/* board.refuseOverCeiling (live): a bid over the ceiling is refused, so the line follows the switch (client batch 4). */}
+      <p class="muted small">{w.cfg.board.refuseOverCeiling ? PENDING.tableHowRefused : "Book now and the load is yours at once. Or bid and wait for the round: the poster takes the best bid under its ceiling, weighing price, on-time record and empty miles; a bid above the ceiling wins only if nobody bid under it. One bid per truck per round; yours replaces your dispatcher's."}</p>
     </Panel>
   );
 }
@@ -353,7 +354,7 @@ function LoadDetail({ r, truck, mine, pendingRate }: { r: Row; truck: Truck; min
               ["Profit at your bid", r.profit === null ? PENDING.bidBookBetter : <Num class={r.profit > 0 ? "good" : "bad"}>{fd(r.profit)} FD</Num>],
             ]}
           />
-          <p class="muted small">A bid above the ceiling wins only if nobody bids under it.</p>
+          <p class="muted small">{w.cfg.board.refuseOverCeiling ? PENDING.ceilingRefused : "A bid above the ceiling wins only if nobody bids under it."}</p>
         </div>
         <div>
           <h4>Company</h4>

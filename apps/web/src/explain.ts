@@ -23,6 +23,7 @@ import {
 } from "@lanes/engine";
 import { clearsNear, clearsNearSource } from "./board.js";
 import { PENDING_RULES } from "./copy-pending-rules.js";
+import { PENDING } from "./copy-pending.js";
 import { EXPLAIN, NEWS } from "./copy.js";
 import { moneyEvents, type MoneyEvent } from "./books.js";
 import { emptyRun } from "./rolling.js";
@@ -300,7 +301,7 @@ const BREAKDOWNS: Record<string, Fn> = {
         ...(g.depositFd > 0.5 ? [{ label: "Less what's held toward your truck", value: fd(-g.depositFd), key: "truck.leaseDeposit" }] : []),
         { label: "Less your cash", value: fd(-g.spareFd) },
       ],
-      total: { label: "Gap to the next truck", value: fd(g.gapFd) },
+      total: { label: (w.trucksByCompany.get(c.id) ?? []).some((t) => t.lease === "owned") ? "Gap to the next truck" : PENDING.firstTruckName, value: fd(g.gapFd) },
       notes: ctx.notes,
     };
   },

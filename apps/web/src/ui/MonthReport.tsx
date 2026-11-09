@@ -1,4 +1,5 @@
 import type { JSX } from "preact";
+import { PENDING } from "../copy-pending.js";
 import { closedMonths, monthReport, moneyEvents, shownReport, type MoneyEvent, type MonthReport } from "../books.js";
 import { MONTH, NEWS } from "../copy.js";
 import { cls, fdFull, monthName, pct } from "../format.js";
@@ -66,13 +67,13 @@ export function MonthCard({ r, title, first }: { r: MonthReport; title?: string;
             <td colSpan={2}>{MONTH.earned}</td>
           </tr>
           {r.earned.map((x) => (
-            <Row key={x.line} label={MONTH.row[x.line]!} value={amount(x.fd)} k={LINE_KEY[x.line]} bad={x.fd < 0} />
+            <Row key={x.line} label={rowName(x.line)} value={amount(x.fd)} k={LINE_KEY[x.line]} bad={x.fd < 0} />
           ))}
           <tr class="head">
             <td colSpan={2}>{MONTH.spent}</td>
           </tr>
           {r.spent.map((x) => (
-            <Row key={x.line} label={MONTH.row[x.line]!} value={amount(x.fd)} k={LINE_KEY[x.line]} />
+            <Row key={x.line} label={rowName(x.line)} value={amount(x.fd)} k={LINE_KEY[x.line]} />
           ))}
           <Row label={MONTH.kept} value={amount(r.keptFd)} strong bad={r.keptFd < 0} />
           {r.drawFd >= 0.5 ? (
@@ -90,7 +91,7 @@ export function MonthCard({ r, title, first }: { r: MonthReport; title?: string;
           {Math.abs(r.owedChange) >= 0.5 ? <Row label={owedLabel} value={signed(-r.owedChange)} /> : null}
           {Math.abs(r.payChange) >= 0.5 ? <Row label={payLabel} value={signed(r.payChange)} /> : null}
           {r.moved.map((x) => (
-            <Row key={x.line} label={(x.fd > 0 ? MONTH.rowBack[x.line] : undefined) ?? MONTH.row[x.line]!} value={signed(x.fd)} />
+            <Row key={x.line} label={(x.fd > 0 ? MONTH.rowBack[x.line] : undefined) ?? rowName(x.line)} value={signed(x.fd)} />
           ))}
           <Row label={MONTH.cashEnd} value={amount(r.cashEnd)} strong bad={r.cashEnd < 0} />
         </tbody>
@@ -146,7 +147,7 @@ export function openMonthReport(): void {
 function newsLine(e: MoneyEvent): { before: string; amount: string; after: string } {
   const n = e.truckId !== null ? truckNo(e.truckId) || e.truckId : 0;
   const fd = fdFull(e.fd);
-  const line = e.kind === "breakdown" ? NEWS.breakdown(n, fd) : e.kind === "crash" ? NEWS.crash(n, fd) : e.kind === "claim" ? NEWS.claim(fd) : (NEWS.fine[e.sub ?? ""] ?? NEWS.fine.other!)(n, fd);
+  const line = e.kind === "breakdown" ? NEWS.breakdown(n, fd) : e.kind === "crash" ? NEWS.crash(n, fd) : e.kind === "claim" ? (e.loadId !== undefined ? PENDING.newsServiceClaim(e.sub ?? "", String(e.loadId), fd) : NEWS.claim(fd)) : (NEWS.fine[e.sub ?? ""] ?? NEWS.fine.other!)(n, fd);
   const amt = `−${fd} FD`;
   const i = line.indexOf(amt);
   return i < 0 ? { before: line, amount: "", after: "" } : { before: line.slice(0, i), amount: amt, after: line.slice(i + amt.length) };
@@ -183,3 +184,6 @@ export function ThisWeekCard(): JSX.Element | null {
   const rows = MoneyEventRows({ sinceT: w.t - 7 * w.cfg.time.gameMinutesPerDay });
   return rows ? <Card title={NEWS.thisWeek}>{rows}</Card> : null;
 }
+
+/** A row's name: the claims row carries the delivery windows' claims too (client batch 4, placeholder for the writer). */
+const rowName = (line: string): string => (line === "claims" ? PENDING.claimsRow : MONTH.row[line]!);

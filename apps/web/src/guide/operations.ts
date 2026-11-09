@@ -1,5 +1,6 @@
 import type { EconomyConfig } from "@lanes/config";
 import { type GuidePage, h, n, p, pct, see, table, ul } from "./util.js";
+import { PENDING } from "../copy-pending.js";
 
 const S = "Running trucks";
 
@@ -35,7 +36,7 @@ export function operationsPages(cfg: EconomyConfig): GuidePage[] {
           [
             ["Bid at break-even plus %", "Asks your break-even on the load plus a margin, capped at the ceiling"],
             ["Bid at % of the ceiling", "Asks a share of the posted ceiling, whatever it costs you"],
-            ["Never below break-even +", "A floor: skips any load that wouldn't clear it"],
+            [`${PENDING.floorLabel} %`, PENDING.floorGuide],
             ["Max empty miles", "How far a truck will run empty to a pickup (up to 150)"],
             ["Move idle trucks", "After a number of idle rounds, sends the truck empty to the hub nearby with the most uncovered freight for its trailer"],
             ["Book loads between rounds", "Takes a load at its book-now price when it clears break-even plus your margin; the margin shrinks the longer the truck sits and the farther its driver is from home"],

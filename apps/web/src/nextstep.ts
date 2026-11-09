@@ -19,7 +19,8 @@ export type NextAction =
   | { rule: 2; kind: "tender"; loadId: number; untilMin: number; shipperId: number | null }
   | { rule: 2; kind: "driver"; truckId: number }
   | { rule: 2; kind: "lost"; loadId: number; truckId: number; profitFd: number; clearsNear: number }
-  | { rule: 3; kind: "idle"; truckId: number; loadId: number; profitFd: number }
+  /** `suggest`: the board's suggested bid on it (board.ts suggestBid), null when booking is the call (client batch 4). */
+  | { rule: 3; kind: "idle"; truckId: number; loadId: number; profitFd: number; suggest: number | null }
   | { rule: 3; kind: "stranded"; truckId: number; exits: Exit[] }
   | { rule: 4; kind: "step"; index: number; total: number }
   | { rule: 5; kind: "factoringEnds"; untilDay: number; days: number }
@@ -136,10 +137,10 @@ export function nextAction(cfg: EconomyConfig, w: World, c: Company, lost?: Lost
   }
 
   // 3. A truck idle with loads in reach that pay: the best by the profit chip.
-  let idle: { truckId: number; loadId: number; profitFd: number } | null = null;
+  let idle: { truckId: number; loadId: number; profitFd: number; suggest: number | null } | null = null;
   for (const t of freeTrucks(w, c)) {
     const r = bestLoad(w, c, t);
-    if (r && (!idle || r.profitBook > idle.profitFd)) idle = { truckId: t.id, loadId: r.l.id, profitFd: r.profitBook };
+    if (r && (!idle || r.profitBook > idle.profitFd)) idle = { truckId: t.id, loadId: r.l.id, profitFd: r.profitBook, suggest: r.suggest };
   }
   if (idle) return { rule: 3, kind: "idle", ...idle };
   // 3b. Stranded (the director, 2026-11-09): an idle truck with nothing in reach it may take that pays. Its ways out,

@@ -77,7 +77,7 @@ export function deliveryEtaMin(w: World, t: Truck, c: Company, l: Load): number 
 }
 
 /** Where tonight's stop is planned, or null when the leg ends within today's hours. */
-export type NightStop = { kind: "site"; siteId: number; lat: number; lon: number } | { kind: "shoulder" } | null;
+export type NightStop = { kind: "site"; siteId: number; lat: number; lon: number } | { kind: "town"; place: number } | { kind: "shoulder" } | null;
 
 /**
  * Tonight's planned stop (engineering's answer to the spec's question, read-only): the engine's own planNight
@@ -91,7 +91,15 @@ export function nightStop(w: World, t: Truck, c: Company): NightStop {
   const reach = (drivingLeftMin(w, t, c) / MIN_PER_HOUR) * legMph(w, t, c);
   if (t.remainingMi <= reach + 1e-9) return null;
   const mile = planNight(w, t, route, legMile(t), reach, reach);
-  if (mile === null) return w.cfg.businesses.enabled ? { kind: "shoulder" } : null;
+  if (mile === null) {
+    // businesses.parking.stopInTown with "town" chosen (trips.ts moveTrucks): at a leg's start with less than a full day's
+    // hours and no site with room in reach, the truck sleeps in the town it stands in (client batch 4: else the shoulder
+    // line is false while the switch is on). Midway along a leg it can only reach the shoulder, as before.
+    const k = w.cfg.businesses;
+    const inTown = k.enabled && k.parking.stopInTown && c.nightStop === "town" && (t.townNight === true || (legMile(t) <= 1e-6 && drivingLeftMin(w, t, c) < drivingLimitMin(w, t, c) - 1e-6));
+    if (inTown) return { kind: "town", place: t.place };
+    return k.enabled ? { kind: "shoulder" } : null;
+  }
   let best: { id: number; lat: number; lon: number; d: number } | null = null;
   for (const s of w.sites) {
     // The site at that mile of the route: the one the planner chose, found by its place along the leg.

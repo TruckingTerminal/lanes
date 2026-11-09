@@ -4,6 +4,8 @@ import { DISPATCHER } from "../../copy.js";
 import { DEFAULT_ORDERS, DISPATCHER_ORDERS, PLAYER_DISPATCHER_ORDERS } from "../../game.js";
 import { act, me, onWorldReset, S, useData } from "../../state.js";
 import { PENDING_RULES } from "../../copy-pending-rules.js";
+import { PENDING } from "../../copy-pending.js";
+import type { EconomyConfig } from "@lanes/config";
 import { Btn, Card, Label } from "../bits.js";
 import { Iuliia } from "../Walkthrough.js";
 import { iuliiaFirst } from "../../iuliia.js";
@@ -99,10 +101,12 @@ export function DispatcherCard(): JSX.Element {
       <details class="fold">
         <summary onClick={() => iuliiaFirst("dispatcher:rules")}>{DISPATCHER.moreRules}</summary>
         <div class="row">
-          <Label for="o-floor">{DISPATCHER.floor}</Label>
+          <Label for="o-floor">{PENDING.floorLabel}</Label>
           <input type="number" id="o-floor" min="0" max="50" defaultValue={String(Math.round((floor?.breakEvenPlusPct ?? 0) * 100))} />
           <span class="muted">%</span>
         </div>
+        {/* The floor relaxes as the truck needs to move (standingOrders.ts floorRate, desperation): said, not "never below" (QA, client batch 4). */}
+        <p class="muted small">{floorRelaxesLine(w.cfg)}</p>
         <div class="row">
           <label class="label">
             <input type="checkbox" id="o-bn" defaultChecked={Boolean(bn)} /> {DISPATCHER.bookNow}
@@ -144,4 +148,10 @@ export function DispatcherCard(): JSX.Element {
       </div>
     </Card>
   );
+}
+
+/** The dispatcher's floor as the engine applies it (bookNow.desperation): how it eases, from the config's own figures. */
+function floorRelaxesLine(cfg: EconomyConfig): string {
+  const k = cfg.bookNow.desperation;
+  return PENDING.floorRelaxes(k.idleHours, k.awayAfterDays, k.awayAfterDays + k.awayDays, Math.round(k.belowBreakEven * 100));
 }

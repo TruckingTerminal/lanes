@@ -4,7 +4,8 @@ import { join } from "node:path";
 import { describe, expect, it, vi } from "vitest";
 import { cashNowRate, companyAccount, truckValue } from "@lanes/engine";
 import { boardRows, chipCash, chipFd, chipPair, depositWhole, leaseHold } from "../src/board.js";
-import { CHIP, EXPLAIN, FIGURE_ACT, GUIDE_LABEL } from "../src/copy.js";
+import { CHIP, EXPLAIN, FIGURE_ACT } from "../src/copy.js";
+import { PENDING } from "../src/copy-pending.js";
 import { figureAct } from "../src/figureact.js";
 import { breakdown, FIRST_MONTH_KEYS } from "../src/explain.js";
 import { GAME_CONFIG, PLAYER_DISPATCHER_ORDERS, TestGame } from "../src/game.js";
@@ -311,10 +312,10 @@ describe("the next-truck gap says what moved it (row 4)", () => {
     const c = g.join("Gap Freight", "oo", "LAX")!;
     S.gapSeen = null;
     expect(gapNotes(g.w, c, "lot")).toEqual([]);
-    expect(gapNotes(g.w, c, "new")).toEqual([GUIDE_LABEL.gapWhyCheapest]);
+    expect(gapNotes(g.w, c, "new")).toEqual([PENDING.gapWhyCheapestSince]);
     // Client pass 2: the cushion is Iuliia's advice, not the gap's, so a closed week adds no note.
     c.weeklySpend.push(5_000);
-    expect(gapNotes(g.w, c, "new")).toEqual([GUIDE_LABEL.gapWhyCheapest]);
+    expect(gapNotes(g.w, c, "new")).toEqual([PENDING.gapWhyCheapestSince]);
     S.gapSeen!.why = []; // what closing its explanation does
     expect(gapNotes(g.w, c, "new")).toEqual([]);
   }, 60_000);

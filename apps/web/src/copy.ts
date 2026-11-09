@@ -1108,7 +1108,6 @@ export const NOW = {
   idleButton: "Show the load",
   stepButton: (tab: string) => `Go to ${tab}`,
   gapAction: "Keep hauling toward your own truck.",
-  gapReason: (gap: string, weeks: number) => `You're ${gap} FD short, counting your deposit and ${weeks} weeks of costs held back.`,
   gapButton: "See the Dealer",
   cushionAction: "Build your cushion before you spend.",
   cushionReason: (n: string) => `Your cash covers ${n} weeks of your own spending.`,

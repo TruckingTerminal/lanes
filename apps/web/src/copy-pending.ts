@@ -53,8 +53,6 @@ export const PENDING = {
   // button as "{sendHomeAfter} · {homeTimeDays}"), until the engine can queue "back to work". "Run", not "delivery":
   // Fleet.tsx shows it on any moving truck, a loaded one or one running empty.
   sendHomeAfter: "Send home after this run",
-  sendHomeAfterQueued: "Going home for days off when this run ends.",
-  sendHomeAfterToast: "Home for days off when this run ends",
 
   // The net-30 warning (Needs you and Money): figures.ts cashDipAhead, cash today less the daily spend plus each invoice
   // on its due day; the first day under zero, the lowest point, and the next invoice due after that day.
@@ -102,10 +100,52 @@ export const PENDING = {
   // The laptop table's Bid pressed with the field empty.
   bidEmpty: "Type a rate to bid, or book it now.",
   gapReason: (gap: string) => `You're ${gap} FD short of the cash the cheapest truck takes when you sign, counting what's held toward it.`,
+
+  // --- Client batch 4 (engineering's placeholders, 2026-11-09, for the writer) ---
+  // What now? rule 3 when the load sheet has no suggested bid (board.ts suggestBid null): the sheet's own call.
+  idleBookAction: (origin: string, dest: string) => `Book ${origin} to ${dest}.`,
+  // What now? rule 5 after the first truck (NOW.gapAction says "your own truck").
+  gapActionNext: "Keep hauling toward your next truck.",
+  // The figure's one name before the first truck: the label of its explanation and of Iuliia's figure (GUIDE_LABEL.gap
+  // and the explanation's total, "Gap to the next truck", stay for a company that owns one).
+  firstTruckName: "To your first truck",
+  // gapNotes' change note, with its reference point: since the player last opened the figure's explanation.
+  gapWhyCheapestSince: "The cheapest truck is a different one from when you last opened this figure: listings come and go, and the used lot sells out and restocks.",
+  // The Dealer's card names the truck the first-truck figure prices (figures.ts gapToTruck's pick). `kmi` "480k".
+  pricesNew: (tier: string, trailer: string) => `It prices the cheapest truck for sale: a new ${tier} with a ${trailer}.`,
+  pricesUsed: (tier: string, trailer: string, kmi: string, cond: string, at: string | null) => `It prices the cheapest truck for sale: a used ${tier} with a ${trailer}, ${kmi} miles, ${cond} condition${at ? `, at ${at}` : ""}.`,
+  // Iuliia's catch on a used truck under 60% condition (figures.ts WORN_BELOW): its repairs by the engine's own wear figures
+  // (wear.ts: breakdowns at the average repair bill, and maintenance per mile, worn as it is). Per `per` miles, not a month:
+  // the engine keeps no month's miles (the economy's figure, if wanted).
+  wornCatch: (kmi: string, cond: string, fd: string, per: string) => `That one's ${kmi} miles at ${cond}; expect about ${fd} FD in repairs every ${per} miles. I'd wait for a sounder one.`,
+  // Home time queued (Fleet.tsx): the engine sends a home-due truck home on a load headed that way, or empty once it's
+  // within `mi` of home or has sat `days` days idle (board.ts maybeReposition, fatigue.homeward). "Heading home" only when
+  // it is (homeTimeHeading: running empty toward home).
+  homeTimeQueued: (mi: string, days: number) => `Home for days off after this run: on a load headed that way, or empty once it's within ${mi} mi of home or has waited ${days} ${days === 1 ? "day" : "days"}.`,
+  homeTimeWaiting: (days: number) => `Waiting here for a load headed home for days off; it runs home empty after ${days} ${days === 1 ? "day" : "days"} without one.`,
+  homeTimeNextRound: "Heading home for days off at the next round.",
+  homeTimeQueuedToast: (days: number) => `Home for days off after this run: on a load headed that way, or empty within ${days} ${days === 1 ? "day" : "days"}`,
+  // Rolling.tsx under businesses.parking.stopInTown, "town" chosen: tonight's stop in the town it stands in.
+  tonightTown: (place: string) => `Tonight, as you chose: in town at ${place}, no ticket.`,
+  // The laptop table and the guide where board.refuseOverCeiling is on (live): a bid over the ceiling is refused.
+  tableHowRefused: "Book now and the load is yours at once. Or bid and wait for the round: the poster takes the best bid within its ceiling, weighing price, on-time record and empty miles, and refuses one over it. One bid per truck per round; yours replaces your dispatcher's.",
+  ceilingRefused: "A bid over the ceiling is refused.",
+  guideCeilingRefused: "A bid over the ceiling is refused: the poster never pays more than it.",
+  // The dispatcher's floor (Dispatcher.tsx, the guide): it relaxes as the truck needs to move (standingOrders.ts floorRate,
+  // desperation): to break-even after `idleH` hours idle (halfway at home), or from `awayFrom` to `awayTo` days from home;
+  // and for a load into a busier market down to `below`% under break-even.
+  floorLabel: "Ask at least break-even plus",
+  floorRelaxes: (idleH: number, awayFrom: number, awayTo: number, below: number) => `It eases as the truck needs to move: down to break-even after ${idleH} hours idle (only halfway at home), or as its driver's days from home go from ${awayFrom} to ${awayTo}; and for a load into a busier market it may go ${below}% under break-even.`,
+  floorGuide: "A floor: skips loads under it, easing as a truck sits idle or its driver is long from home",
+  // The month report's claims row and its news lines, now with the delivery windows' claims (books.ts).
+  claimsRow: "Claims: cargo, late, no-show and released loads",
+  newsServiceClaim: (kind: string, load: string, fd: string) => `${kind === "late" ? "Late delivery" : kind === "noshow" ? "No-show" : "Released load"} claim on load #${load}: −${fd} FD.`,
 } as const;
 
 /** Explanations that replace copy.ts EXPLAIN's (ui/Explain.tsx reads these first); fold in with the rest. */
 export const PENDING_EXPLAIN: Record<string, { what: string; how: string; moves: string }> = {
   // The gap left its cushion (client pass 2): the rows are the cheapest truck's cash on the day, the hold, your cash.
+  // Client batch 4: the claims row carries the delivery windows' claims too.
+  "month.claims": { what: "What you paid in claims: receivers for spoiled or damaged freight, a broker's charge when a posted load found no carrier, and a poster's claim on a load delivered late, never picked up, or released.", how: "Each claim or charge as it was paid; one paid to you counts back here.", moves: "Perishables on time; fewer crashes; booking only what the truck can make; releasing a load early, not late." },
   "guide.gapToTruck": { what: "How far you are from your next truck.", how: "The cash the cheapest truck takes when you sign (down payment, loan stake and sales tax), less what's held toward your truck, less your cash.", moves: "Hauling; the cheapest truck on offer, which changes; what you spend." },
 };

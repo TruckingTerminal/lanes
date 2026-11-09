@@ -1,9 +1,9 @@
-import { companyAccount, crewed, fuelPrice, layerOpen, locksOn, lotPrice, npcDealerMult, opsCap, ordersOf, ownerDrawFd, resting, tripCost, yardTrucks, type Company, type Truck, type World } from "@lanes/engine";
+import { breakdownsPer1000Mi, companyAccount, condition, crewed, fuelPrice, layerOpen, locksOn, lotPrice, maintenancePerMile, npcDealerMult, opsCap, ordersOf, ownerDrawFd, resting, tripCost, yardTrucks, type Company, type Truck, type TruckSpec, type World } from "@lanes/engine";
 import { boardRows, type BoardRow } from "./board.js";
 import { buyPlan, cheapestNewRig } from "./finance.js";
 import { invoices, weekCosts } from "./ledger.js";
 import { PENDING } from "./copy-pending.js";
-import { fdFull } from "./format.js";
+import { fdFull, pct, TIER_NAME, TRAILER_NAME } from "./format.js";
 
 /**
  * The figures Iuliia computes (specs/guidance.md, section 4): read from the world and the company, saving nothing, with
@@ -128,23 +128,46 @@ export function debtCountdown(w: World, c: Company): { n: number; of: number; ne
  * (firstTruckLine), and the Dealer opens on it (tabs.ts firstTruckAffordable), so the number and the opening never
  * disagree. holdFd, guide.gapCushionWeeks of the company's spending, is Iuliia's advice under it, never in it.
  */
-export function gapToTruck(w: World, c: Company): { gapFd: number; route: "lot" | "listing" | "new"; needNowFd: number; grossNeedFd: number; depositFd: number; spareFd: number; holdFd: number } {
+/** The truck a first-truck figure prices (client batch 4): what the Dealer's card names, and its wear for Iuliia's catch. */
+export type PricedTruck = { route: "lot" | "listing" | "new"; spec: TruckSpec; place: number | null };
+
+export function gapToTruck(w: World, c: Company): { gapFd: number; route: "lot" | "listing" | "new"; needNowFd: number; grossNeedFd: number; depositFd: number; spareFd: number; holdFd: number; truck: PricedTruck | null } {
   const replacing = (w.trucksByCompany.get(c.id) ?? []).some((t) => t.lease === "npc");
-  const routes: { route: "lot" | "listing" | "new"; price: number }[] = [];
-  if (w.cfg.usedMarket.npcLot.enabled && w.cfg.assets.enabled && w.usedLot.stock > 0) routes.push({ route: "lot", price: lotPrice(w, "workhorse", "van") * npcDealerMult(w) });
-  for (const l of w.listings) if (l.status === "open" && l.truckId > 0 && l.sellerId !== c.id && l.formerOwnerId !== c.id) routes.push({ route: "listing", price: l.askFd });
+  const routes: { route: "lot" | "listing" | "new"; price: number; truck: PricedTruck }[] = [];
+  const lot = w.cfg.usedMarket.npcLot;
+  if (lot.enabled && w.cfg.assets.enabled && w.usedLot.stock > 0)
+    routes.push({ route: "lot", price: lotPrice(w, "workhorse", "van") * npcDealerMult(w), truck: { route: "lot", spec: { tier: "workhorse", trailer: "van", lease: "owned", odometer: lot.odometer, milesSinceRebuild: lot.milesSinceRebuild, rebuilds: lot.rebuilds }, place: null } });
+  for (const l of w.listings) {
+    if (l.status !== "open" || l.truckId <= 0 || l.sellerId === c.id || l.formerOwnerId === c.id) continue;
+    const t = w.trucks[l.truckId - 1]!;
+    routes.push({ route: "listing", price: l.askFd, truck: { route: "listing", spec: { ...t, lease: "owned" }, place: t.place } });
+  }
   const rig = cheapestNewRig(w, c);
-  if (rig) routes.push({ route: "new", price: rig.price });
-  let best = { route: "new" as "lot" | "listing" | "new", need: Infinity, gross: Infinity, deposit: 0 };
+  if (rig) routes.push({ route: "new", price: rig.price, truck: { route: "new", spec: { tier: rig.tier, trailer: rig.trailer, lease: "owned", odometer: 0, milesSinceRebuild: 0 }, place: null } });
+  let best = { route: "new" as "lot" | "listing" | "new", need: Infinity, gross: Infinity, deposit: 0, truck: null as PricedTruck | null };
   for (const r of routes) {
     const p = buyPlan(w, c, r.price, replacing);
     const need = p.loanNowFd ?? p.cashNowFd;
     // What the route asks before the hold toward the truck is released into it (the explanation's two rows).
-    if (need < best.need) best = { route: r.route, need, gross: p.loan ? p.loan.cashNeed : p.cashNeed, deposit: Math.min(p.deposit, p.loan ? p.loan.cashNeed : p.cashNeed) };
+    if (need < best.need) best = { route: r.route, need, gross: p.loan ? p.loan.cashNeed : p.cashNeed, deposit: Math.min(p.deposit, p.loan ? p.loan.cashNeed : p.cashNeed), truck: r.truck };
   }
   const hold = w.cfg.guide.gapCushionWeeks * cushion(w, c).avgWeeklyFd;
   const have = cash(w, c);
-  return { gapFd: Math.max(0, best.need - have), route: best.route, needNowFd: best.need, grossNeedFd: best.gross, depositFd: best.deposit, spareFd: Math.max(0, have), holdFd: hold };
+  return { gapFd: Math.max(0, best.need - have), route: best.route, needNowFd: best.need, grossNeedFd: best.gross, depositFd: best.deposit, spareFd: Math.max(0, have), holdFd: hold, truck: best.truck };
+}
+
+/** A used truck under this condition gets Iuliia's catch line (the director, client batch 4: a worn truck on day 2). */
+export const WORN_BELOW = 0.6;
+/** Repairs every this many miles, the figure the catch names: the engine's wear is per mile, and it keeps no month's miles. */
+export const REPAIR_PER_MI = 10_000;
+
+/**
+ * What a truck costs in repairs every REPAIR_PER_MI miles, by the engine's own figures (wear.ts): its breakdowns at the
+ * average tow and repair bill (breakdowns.repairFd, an owner's to pay), and its maintenance per mile, worn as it is.
+ */
+export function repairsPer(w: World, spec: TruckSpec): number {
+  const [lo, hi] = w.cfg.breakdowns.repairFd;
+  return REPAIR_PER_MI * ((breakdownsPer1000Mi(w.cfg, spec) / 1000) * ((lo + hi) / 2) + maintenancePerMile(w.cfg, spec));
 }
 
 /**
@@ -152,11 +175,17 @@ export function gapToTruck(w: World, c: Company): { gapFd: number; route: "lot" 
  * is for a load's cash): "To your first truck: N FD", or "You can buy today" once met; and Iuliia's cushion advice under
  * it once a week of spending is known. Null with no truck for sale anywhere.
  */
-export function firstTruckLine(w: World, c: Company): { figure: string; met: boolean; advice: string | null; needFd: number; gapFd: number } | null {
+export function firstTruckLine(w: World, c: Company): { figure: string; met: boolean; advice: string | null; needFd: number; gapFd: number; what: string | null; worn: string | null } | null {
   const g = gapToTruck(w, c);
   if (!Number.isFinite(g.needNowFd)) return null;
   const met = g.gapFd <= 0;
-  return { figure: met ? PENDING.firstTruckMet : PENDING.firstTruckToGo(fdFull(g.gapFd)), met, advice: g.holdFd >= 0.5 ? PENDING.firstTruckCushion(fdFull(roundCushion(g.holdFd))) : null, needFd: g.needNowFd, gapFd: g.gapFd };
+  // Client batch 4 (the director): the Dealer's card names the truck it prices; Iuliia names a worn one's catch, in figures.
+  const t = g.truck;
+  const kmi = t ? `${Math.round(t.spec.odometer / 1000)}k` : "";
+  const cond = t ? condition(w.cfg, t.spec) : 1;
+  const what = !t ? null : t.route === "new" ? PENDING.pricesNew(TIER_NAME[t.spec.tier], TRAILER_NAME[t.spec.trailer].toLowerCase()) : PENDING.pricesUsed(TIER_NAME[t.spec.tier], TRAILER_NAME[t.spec.trailer].toLowerCase(), kmi, pct(cond), t.place !== null ? w.net.places[t.place]!.name : null);
+  const worn = t && t.route !== "new" && cond < WORN_BELOW ? PENDING.wornCatch(kmi, pct(cond), fdFull(Math.round(repairsPer(w, t.spec) / 100) * 100), REPAIR_PER_MI.toLocaleString("en-US")) : null;
+  return { figure: met ? PENDING.firstTruckMet : PENDING.firstTruckToGo(fdFull(g.gapFd)), met, advice: g.holdFd >= 0.5 ? PENDING.firstTruckCushion(fdFull(roundCushion(g.holdFd))) : null, needFd: g.needNowFd, gapFd: g.gapFd, what, worn };
 }
 /** Advice is a round number: to the hundred, to the thousand from ten thousand. */
 const roundCushion = (fd: number): number => (fd >= 10_000 ? Math.round(fd / 1_000) * 1_000 : Math.max(100, Math.round(fd / 100) * 100));

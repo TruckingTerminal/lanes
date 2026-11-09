@@ -3,6 +3,7 @@ import { useState } from "preact/hooks";
 import { staffById, type Company, type World } from "@lanes/engine";
 import { FIGURE_ACT, GUIDE_LABEL, MILESTONE, RETURN } from "../copy.js";
 import { cushion, firstTruckLine, gapToTruck } from "../figures.js";
+import { PENDING } from "../copy-pending.js";
 import { cls, fdFull, shortDate, weekdayDate } from "../format.js";
 import { closedMonths, monthReport, shownReport } from "../books.js";
 import { hasMonthReport, openMonthReport } from "./MonthReport.js";
@@ -241,7 +242,7 @@ export function gapNotes(w: World, c: Company, route: string): string[] {
   if (route !== seen.route && !seen.why.includes("cheapest")) seen.why.push("cheapest");
   seen.route = route;
   seen.weeks = weeks;
-  return seen.why.map(() => GUIDE_LABEL.gapWhyCheapest);
+  return seen.why.map(() => PENDING.gapWhyCheapestSince); // with its reference point (QA, client batch 4)
 }
 
 /** The one figure that matters most now: the gap to the next truck, else the next layer to open, else the month's close. */
@@ -251,19 +252,20 @@ function nextOnRoad(w: World, c: Company): JSX.Element | string {
   // The first truck: the one figure (figures.ts firstTruckLine), as on the Dealer's teaser and card, Iuliia's cushion
   // advice under it. "You can buy today" comes with the Dealer, which opens on the same figure.
   const first = (w.trucksByCompany.get(c.id) ?? []).some((t) => t.lease === "owned") ? null : firstTruckLine(w, c);
+  // Client batch 4: each its own sentence on its own line (QA: they ran together with no full stop), the figure under
+  // its one name, and a worn truck's catch.
   if (first)
     return (
       <>
-        <Fig k="guide.gapToTruck" label={GUIDE_LABEL.gap} ctx={{ notes }}>
-          {first.figure}
+        <Fig k="guide.gapToTruck" label={PENDING.firstTruckName} ctx={{ notes }}>
+          {`${first.figure}.`}
         </Fig>
-        {notes.map((n) => (
+        {[...notes, ...(first.worn ? [first.worn] : []), ...(first.advice ? [first.advice] : [])].map((n) => (
           <span class="muted small" key={n}>
-            {" "}
+            <br />
             {n}
           </span>
         ))}
-        {first.advice ? <span class="muted small"> {first.advice}</span> : null}
       </>
     );
   // A truck within reach today (a listing the cash and the hold already cover) still names the next truck, not the next

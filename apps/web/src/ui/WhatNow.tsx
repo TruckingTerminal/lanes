@@ -192,7 +192,8 @@ function words(a: NextAction): { action: string; reason: string; button: string;
       const l = load(a.loadId);
       const t = w.trucks[a.truckId - 1]!;
       return {
-        action: NOW.idleAction(l ? place(l.originPlace) : "", l ? place(l.destPlace) : ""),
+        // The sheet's own call (board.ts suggestBid): "Bid on" only where it suggests a bid, else "Book" (client batch 4).
+        action: (a.suggest !== null ? NOW.idleAction : PENDING.idleBookAction)(l ? place(l.originPlace) : "", l ? place(l.destPlace) : ""),
         reason: idleReason(w, a.truckId, a.profitFd, l ? l.bookNow * l.miles : 0, l ? ownerDrawFd(w, t, l.miles + placeMiles(w, t.place, l.originPlace)) : 0),
         button: NOW.idleButton,
         go: () => openLoadOf(a.truckId, a.loadId),
@@ -219,7 +220,7 @@ function words(a: NextAction): { action: string; reason: string; button: string;
     case "cushion":
       return { action: NOW.cushionAction, reason: NOW.cushionReason(a.weeks.toFixed(1)), button: NOW.cushionButton, go: () => setTab("money") };
     case "gap":
-      return { action: NOW.gapAction, reason: PENDING.gapReason(fd(a.gapFd)), button: NOW.gapButton, go: () => setTab("market") };
+      return { action: (w.trucksByCompany.get(c.id) ?? []).some((t) => t.lease === "owned") ? PENDING.gapActionNext : NOW.gapAction, reason: PENDING.gapReason(fd(a.gapFd)), button: NOW.gapButton, go: () => setTab("market") };
     case "calm": {
       const e = a.event;
       const event = e.kind === "round" ? NOW.eventRound : e.kind === "monthClose" ? NOW.eventMonthClose : e.kind === "layer" ? NOW.eventLayer(e.layer === "businesses" ? "Businesses" : "Brokerage") : NOW.eventFactoring;

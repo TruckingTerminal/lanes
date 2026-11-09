@@ -29,8 +29,10 @@ export interface MoneyEvent {
   /** FD paid, positive. */
   fd: number;
   truckId: number | null;
-  /** The fine's kind (the ref's: shoulder, speeding, hos, falselog, tracking), when a fine. */
+  /** The fine's kind (the ref's: shoulder, speeding, hos, falselog, tracking), when a fine; a windows claim's (late, noshow, cancel). */
   sub?: string;
+  /** A delivery windows claim's load. */
+  loadId?: number;
   /** What made a breakdown likely, read at the moment it was paid. */
   why?: { condition: number; odometer: number; ageMi: number; defects: number; mountainShare: number; canRebuild: boolean };
   ref: string;
@@ -150,6 +152,9 @@ export function lineOf(w: World, c: Company, other: string, ref: string, inflow:
       case "cargo_claims":
       case "cargo_claim":
       case "broker_falloff":
+      // Delivery windows (engine windows.ts claimOn): a late, no-show or released load's claim on NPC paper, or between one
+      // owner's two sides.
+      case "service_failure":
         return "claims";
       case "loan_interest":
       case "loan_risk":
@@ -224,6 +229,9 @@ export function lineOf(w: World, c: Company, other: string, ref: string, inflow:
     return "setAside";
   }
   const them = Number(id);
+  // A delivery windows claim between companies (windows.ts claimOn, ref claim:late|noshow|cancel:<load>): paid, a cost on
+  // the Claims row; received, money back on it. One owner's two sides never pay each other one (it goes to the sink).
+  if (ref.startsWith("claim:")) return "claims";
   if (c.partnerId === them || w.companies[them - 1]?.partnerId === c.id) return "between";
   if (settled) return inflow ? "loads" : "carrierPay";
   // Another company: freight pay between a carrier and its broker, a shop's or a stop's bill, or a trade.
@@ -267,7 +275,7 @@ const truckOfRef = (w: World, ref: string): number | null => {
 };
 
 function moneyEvent(w: World, b: CompanyBooks, other: string, ref: string, fd: number): void {
-  const kind: MoneyEvent["kind"] | null = ref.startsWith("breakdown:") ? "breakdown" : ref.startsWith("crash:") && other === "sink:repairs" ? "crash" : ref.startsWith("fine:") ? "fine" : other.startsWith("sink:cargo_claim") ? "claim" : null;
+  const kind: MoneyEvent["kind"] | null = ref.startsWith("breakdown:") ? "breakdown" : ref.startsWith("crash:") && other === "sink:repairs" ? "crash" : ref.startsWith("fine:") ? "fine" : other.startsWith("sink:cargo_claim") || ref.startsWith("claim:") ? "claim" : null;
   if (!kind) return;
   // One event per ref and minute: a bill split between a shop and the pump, or a tax on it, is one breakdown.
   const last = b.events[b.events.length - 1];
@@ -278,6 +286,12 @@ function moneyEvent(w: World, b: CompanyBooks, other: string, ref: string, fd: n
   const truckId = kind === "claim" ? null : truckOfRef(w, ref.startsWith("fine:") ? ref.slice(5) : ref);
   const e: MoneyEvent = { t: w.t, kind, fd, truckId, ref };
   if (kind === "fine") e.sub = ref.split(":")[1];
+  // A delivery windows claim names its kind and its load (ref claim:{kind}:{load id}).
+  if (kind === "claim" && ref.startsWith("claim:")) {
+    const [, sub, load] = ref.split(":");
+    e.sub = sub;
+    e.loadId = Number(load);
+  }
   if (kind === "breakdown" && truckId) {
     const t = w.trucks.find((x) => x.id === truckId)!;
     e.why = { condition: condition(w.cfg, t), odometer: t.odometer, ageMi: w.cfg.breakdowns.ageMi, defects: t.defects, mountainShare: t.legMiles > 0 ? t.legMountainMi / t.legMiles : 0, canRebuild: rebuildable(w.cfg, t) };

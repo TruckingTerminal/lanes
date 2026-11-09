@@ -1,6 +1,6 @@
 import type { JSX } from "preact";
 import { useState } from "preact/hooks";
-import { condition, crewed, dutyResetAt, hubMiles, ordersOf, rebuildable, rebuildCost, resting, truckValue, type Company, type Staff, type StandingOrder, type Truck } from "@lanes/engine";
+import { condition, crewed, dutyResetAt, hubMiles, ordersOf, rebuildable, rebuildCost, resting, truckValue, type Company, type Staff, type StandingOrder, type Truck, type World } from "@lanes/engine";
 import { SCENES } from "../../assets.js";
 import { cls, dateLabel, fd, fdFull, pct, plural, TIER_NAME, TRAILER_NAME, hhmm, realUntil } from "../../format.js";
 import { HOURS, MOVE, NEEDS, TRUCK } from "../../copy.js";
@@ -29,12 +29,6 @@ import { leaseMinFor } from "../../ledger.js";
 
 
 /** Send home's price before the tap (R24). */
-/** Where a truck will stand when its job is done: the load's receiver, the empty run's end, or where it is. */
-function endHub(t: Truck): number {
-  const w = S.game!.w;
-  const load = t.loadId !== null ? w.loads.get(t.loadId) : undefined;
-  return load && (t.status === "loaded" || t.status === "toPickup" || t.status === "loading" || t.status === "unloading") ? load.dest : t.status === "repositioning" ? t.targetHub : t.hub;
-}
 /** A send-empty destination with its price (R24). */
 function emptyLine(t: Truck, hub: number): string {
   const w = S.game!.w;
@@ -84,6 +78,21 @@ function homeDays(c: Company): number {
   return hm?.restDays ?? GAME_CONFIG.fatigue.resetDays;
 }
 
+/** The days a home-due truck waits for a homeward load before it runs home empty (fatigue.homeward, in board rounds). */
+const homeWaitDays = (w: World): number => w.cfg.fatigue.homeward.deadheadAfterRounds / w.cfg.time.boardRoundHours.length;
+
+/**
+ * A crew due home, said as the engine does it (client batch 4; QA's truck sat at Albuquerque Saturday to Monday): heading
+ * home only while running empty toward home; idle, home at the next round when near (fatigue.homeward.deadheadWithinMi),
+ * else waiting for a homeward load or the idle rounds; on a run, home after it the same way (board.ts maybeReposition).
+ */
+function homeTimeLine(w: World, c: Company, t: Truck): string {
+  const hw = w.cfg.fatigue.homeward;
+  if (t.status === "repositioning" && t.targetHub === c.homeHub) return PENDING.homeTimeHeading;
+  if (t.status === "idle") return hubMiles(w, t.hub, c.homeHub) <= hw.deadheadWithinMi ? PENDING.homeTimeNextRound : PENDING.homeTimeWaiting(homeWaitDays(w));
+  return PENDING.homeTimeQueued(hw.deadheadWithinMi.toLocaleString("en-US"), homeWaitDays(w));
+}
+
 /**
  * Send home (the director, 2026-11-09), on any truck, whenever the player asks; the home-time rule's 24 days stays the
  * rule for a driver's own demand (TiredAlerts). Never time off nobody asked for, and the days on the button:
@@ -101,7 +110,7 @@ function SendHomeActions({ t, primary }: { t: Truck; primary?: boolean }): JSX.E
   const crew = [t.driverId, t.coDriverId].filter((id) => id > 0).map((id) => w.staff[id - 1]!);
   const owner = crew.some((d) => d.owner);
   const days = homeDays(c);
-  if (crew.every((d) => d.wantsHome)) return <p class="muted small">{t.status === "idle" ? PENDING.homeTimeHeading : PENDING.sendHomeAfterQueued}</p>;
+  if (crew.every((d) => d.wantsHome)) return <p class="muted small">{homeTimeLine(w, c, t)}</p>;
   if (t.homeAfter === "work") return <p class="muted small">{PENDING_RULES.homeAfterWorkQueued}</p>;
   // labor.turnWhileEmpty: a truck running empty turns for home now, from where it is. An owner-operator gets the two the
   // director ruled, as on a truck at work: back to work (labor.sendHomeToWork) and home time; a hired driver, home time.
@@ -142,7 +151,7 @@ function SendHomeActions({ t, primary }: { t: Truck; primary?: boolean }): JSX.E
   return (
     <>
       {work}
-      <Btn primary={primary && !work} onClick={() => act({ type: "send_home", truckId: t.id }, PENDING.sendHomeAfterToast, "truck:sendHome")}>
+      <Btn primary={primary && !work} onClick={() => act({ type: "send_home", truckId: t.id }, PENDING.homeTimeQueuedToast(homeWaitDays(w)), "truck:sendHome")}>
         {PENDING.sendHomeAfter} · {PENDING.homeTimeDays(days)}
       </Btn>
     </>
@@ -256,7 +265,7 @@ function TiredAlerts(): JSX.Element {
               {TRUCK.tired} {f.resetDays} days off at home reset it; every day sitting idle away from home costs {GAME_CONFIG.labor.driver.perDiemFd} FD per diem.
             </p>
             {d.wantsHome ? (
-              <p class="muted">{t.status === "idle" || t.status === "repositioning" ? PENDING.homeTimeHeading : TRUCK.goingHome(hubMiles(w, endHub(t), me().homeHub))}</p>
+              <p class="muted">{homeTimeLine(w, me(), t)}</p>
             ) : t.status === "idle" || w.cfg.labor.sendHomeWhileMoving ? (
               <div class="row">
                 <SendHomeActions t={t} primary />
