@@ -10,7 +10,8 @@ import { nextRoundHour, nextRoundLabel, nextRoundWait, reloadLabel, roundProgres
 import { bumpData, isPhone, markVisited, me, myTrucks, openIntel, order, S, selectTruck, setTab, toast, truckNo, useData, visited } from "../../state.js";
 import { deliveryEtaMin } from "../../rolling.js";
 import { tabOpen } from "../../tabs.js";
-import { iuliiaFirst, iuliiaOnChange, iuliiaSay } from "../../iuliia.js";
+import { iuliiaFirst, iuliiaOnChange, iuliiaSay, iuliiaSayText } from "../../iuliia.js";
+import { PENDING_RULES } from "../../copy-pending-rules.js";
 import { Btn, Card, Kv } from "../bits.js";
 import { LoadsTable } from "./Loads.js";
 import { Fig } from "../Explain.js";
@@ -342,6 +343,8 @@ function LoadSheet({ r, truck }: { r: BoardRow; truck: Truck }): JSX.Element {
   const k = COMMODITIES[l.commodity]!;
   const poster = l.brokerId !== null ? w.companies[l.brokerId - 1] : l.shipperId !== null ? w.companies[l.shipperId - 1] : null;
   const bidProfit = bid === null ? 0 : (bid - r.be) * l.miles;
+  // The bid's controls: shut with the load's wall, open through a locals-first hold's last round (filed for the opening).
+  const bidShut = !!r.block && !r.files;
   // The engine's reach for a bid by hand is market to market (actions.ts place_bid, hubMiles), where Book now's is the
   // truck's own town to the pickup: said before the press, not refused after it (the gamer: 243 mi empty, "more than 300").
   // One rule for both is the engine's (the batch's report).
@@ -384,8 +387,10 @@ function LoadSheet({ r, truck }: { r: BoardRow; truck: Truck }): JSX.Element {
     const answer = ANSWER.bid(bid.toFixed(2), w.net.places[l.originPlace]!.name, w.net.places[l.destPlace]!.name, nextRoundHour());
     const res = await order({ type: "place_bid", truckId: truck.id, loadId: l.id, rate: bid }, answer);
     if (!res.ok) return setNote({ text: refusal(res.reason), bad: true });
-    iuliiaSay("load:bid");
-    S.handBids.set(l.id, { rate: bid, be: r.be, truckId: truck.id, from: w.net.places[l.originPlace]!.name, to: w.net.places[l.destPlace]!.name });
+    // Filed for a locals-first load's opening round: the director's line, with its hub and hour.
+    if (r.files) iuliiaSayText(PENDING_RULES.bidFiled(w.net.hubs[l.origin]!.name, nextRoundHour()));
+    else iuliiaSay("load:bid");
+    S.handBids.set(l.id, { rate: bid, be: r.be, truckId: truck.id, from: w.net.places[l.originPlace]!.name, to: w.net.places[l.destPlace]!.name, ...(r.files ? { filed: true } : {}) });
     S.handLoads.add(l.id);
     S.result = null;
     toast(answer);
@@ -470,12 +475,13 @@ function LoadSheet({ r, truck }: { r: BoardRow; truck: Truck }): JSX.Element {
         />
       </details>
       <div class="actions pinned">
-        {r.block ? <p class="bad small">{LOAD.blocked(r.block.replace(/\.\s*$/, ""))}</p> : <DockWarning w={w} t={truck} l={l} dh={r.dh} />}
+        {/* leverage.localHoldHandBids: the hold's last round files a bid for the opening instead of the first-call wall. */}
+        {r.files ? <p class="small">{PENDING_RULES.bidFilesFor(nextRoundHour())}</p> : r.block ? <p class="bad small">{LOAD.blocked(r.block.replace(/\.\s*$/, ""))}</p> : <DockWarning w={w} t={truck} l={l} dh={r.dh} />}
         <Btn primary={bookUp} disabled={!!r.block} onClick={() => void book()}>
           {CHIP.book(l.bookNow.toFixed(2), signed(r.profitBook))}
         </Btn>
         <div class="row stepper">
-          <Btn sm disabled={!!r.block || (bid !== null && bid <= lo)} onClick={() => step(-0.05)} title="Bid 0.05 lower">
+          <Btn sm disabled={bidShut || (bid !== null && bid <= lo)} onClick={() => step(-0.05)} title="Bid 0.05 lower">
             −
           </Btn>
           {/* The figure is typed (the gamer: fifteen taps of ±); held to the range when it's left. */}
@@ -484,7 +490,7 @@ function LoadSheet({ r, truck }: { r: BoardRow; truck: Truck }): JSX.Element {
             inputMode="decimal"
             class="num bidval bidinput"
             aria-label={LOAD.bidButton("")}
-            disabled={!!r.block}
+            disabled={bidShut}
             value={bidText ?? (bid === null ? "" : bid.toFixed(2))}
             onInput={(e) => setBidText((e.currentTarget as HTMLInputElement).value)}
             onBlur={() => {
@@ -496,13 +502,13 @@ function LoadSheet({ r, truck }: { r: BoardRow; truck: Truck }): JSX.Element {
               if (e.key === "Enter") (e.currentTarget as HTMLInputElement).blur();
             }}
           />
-          <Btn sm disabled={!!r.block || (bid !== null && bid >= hi)} onClick={() => step(0.05)} title="Bid 0.05 higher">
+          <Btn sm disabled={bidShut || (bid !== null && bid >= hi)} onClick={() => step(0.05)} title="Bid 0.05 higher">
             +
           </Btn>
           <Fig k="board.bid" label={LOAD.bidButton("")} ctx={{ ...fx, fd: bid ?? undefined }}><span class="muted small">{LOAD.range(lo.toFixed(2), hi.toFixed(2))}</span></Fig>
         </div>
         <div class="row">
-          <Btn primary={!bookUp && bid !== null} disabled={!!r.block || bidOut || bid === null} onClick={() => void placeBid()}>
+          <Btn primary={!bookUp && bid !== null} disabled={bidShut || bidOut || bid === null} onClick={() => void placeBid()}>
             {bidHere ? LOAD.changeBid : bidHeld >= 0.5 ? CHIP.bidAlone(signed(bidProfit), chipCash(bidProfit - bidHeld + r.draw)) : CHIP.bid(signed(bidProfit))}
           </Btn>
           {bidHere ? (
@@ -511,8 +517,8 @@ function LoadSheet({ r, truck }: { r: BoardRow; truck: Truck }): JSX.Element {
             </Btn>
           ) : null}
         </div>
-        {betLine && !r.block ? <p class="small muted">{betLine}</p> : null}
-        {bidOut && !r.block ? <p class="small muted">{PENDING.bidReach(MANUAL_BID_MAX_DEADHEAD_MI)}</p> : null}
+        {betLine && !bidShut ? <p class="small muted">{betLine}</p> : null}
+        {bidOut && !bidShut ? <p class="small muted">{PENDING.bidReach(MANUAL_BID_MAX_DEADHEAD_MI)}</p> : null}
         {note ? <p class={cls("small", note.bad && "bad")}>{note.text}</p> : null}
       </div>
     </div>

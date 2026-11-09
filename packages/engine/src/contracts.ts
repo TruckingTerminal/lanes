@@ -43,6 +43,15 @@ export function isLocal(w: World, c: Company, hub: number): boolean {
   return hubMiles(w, c.homeHub, hub) <= w.cfg.map.nearbyRadiusMi && c.localBanUntilDay <= today(w);
 }
 
+/**
+ * leverage.localHoldHandBids: a visitor's hand bid on a load held for local carriers is filed for the opening clearing when
+ * this is the last round of the hold (the load opens to everyone at the next clearing), and nothing else keeps the company
+ * off it (no tender to another, no brokerage hold). Off, never.
+ */
+export function filesForOpening(w: World, c: Company, load: Load): boolean {
+  return w.cfg.leverage.localHoldHandBids === true && load.tenderedTo === 0 && !load.hold && localOnly(w, load) && !isLocal(w, c, load.origin) && w.round >= load.localUntilRound;
+}
+
 /** Whether this company may take a load at all: the local-first window and tenders to someone else keep others off. */
 export function mayTake(w: World, c: Company, load: Load): boolean {
   if (load.tenderedTo !== 0 && load.tenderedTo !== c.id) return false;

@@ -284,6 +284,12 @@ export const economyConfig = {
     localShareSlope: 0.35, // …minus this × log2(load-to-truck ratio): Miami (0.5) ≈ 85%, a tight market (2) ≈ 15%
     localShareClamp: [0.1, 0.9] as const,
     localRounds: 1, // rounds a local-first load is held for local carriers
+    // The hand bidder's round (the economy's locals-first look, 2026-11-09; Jeff's yes, the director's line): a locals-first
+    // load opens to every dispatcher and bot at the clearing after its hold, but a visitor's bid by hand was refused in the
+    // interval before it, so a player's first clearing came a round after the bots'. On, place_bid accepts a hand bid on
+    // it in the last round of its hold and holds it for the opening clearing (manualRoundBids re-checks mayTake there, so a
+    // local who books it first still takes it). Earlier in the hold, refused as before. The bots' paths don't change.
+    localHoldHandBids: false,
     unreliableDays: 30, // a carrier that turns down tenders is passed over by local shippers this long
   },
   // Contracts: local shippers offer local carriers a weekly volume on a lane at a fixed rate for a term.

@@ -2,7 +2,7 @@ import type { JSX } from "preact";
 import { useState } from "preact/hooks";
 import { dispatchProfile, expectedReloadDeadheadMi, isLocal, operatingTrucks, localOnly, MANUAL_BID_MAX_DEADHEAD_MI, ownerDrawFd, placeMiles, placeToll, VETTING_NAMES, type Load, type Truck } from "@lanes/engine";
 import { COMMODITIES } from "@lanes/data";
-import { allInRate, bidRange, blockReason, chipPair, clearsNear, suggestBid } from "../../board.js";
+import { allInRate, bidFiles, bidRange, blockReason, chipPair, clearsNear, suggestBid } from "../../board.js";
 import { BOARD } from "../../copy.js";
 import { DockWarning, ProfitChip } from "../ProfitChip.js";
 import { trueBreakEven } from "../../breakeven.js";
@@ -36,6 +36,8 @@ interface Row {
   total: number;
   ageH: number;
   block: string | null;
+  /** A bid by hand is filed for the locals-first hold's opening round (board.ts bidFiles). */
+  files: boolean;
 }
 
 export function LoadsTable(): JSX.Element {
@@ -142,7 +144,7 @@ export function LoadsTable(): JSX.Element {
     const be = trueBreakEven(w, truck, l, dh, placeToll(w, truck.place, l.originPlace), prof.foresightDays, prof.reloadWeight);
     const suggest = suggestBid(w, l, be);
     const block = blockReason(w, me(), truck, l); // the board's one reason (R22), the same words as the cards
-    rows.push({ l, dh, be, suggest, profit: suggest === null ? null : (suggest - be) * l.miles, profitBook: (l.bookNow - be) * l.miles, reloadMi, tolls, highway: lane.highwayShare, hours: l.routeHours, total: l.bookNow * l.miles, ageH: l.roundsUnfilled * 12, block });
+    rows.push({ l, dh, be, suggest, profit: suggest === null ? null : (suggest - be) * l.miles, profitBook: (l.bookNow - be) * l.miles, reloadMi, tolls, highway: lane.highwayShare, hours: l.routeHours, total: l.bookNow * l.miles, ageH: l.roundsUnfilled * 12, block, files: bidFiles(w, me(), truck, l) });
   }
   const key = (r: Row): number => (sort === "rate" ? r.total : sort === "permi" ? r.l.bookNow : sort === "age" ? r.ageH : sort === "trip" ? r.l.miles : sort === "dh" ? r.dh : r.l.appointmentT);
   rows.sort((a, b) => (desc ? key(b) - key(a) : key(a) - key(b)));
@@ -283,6 +285,8 @@ function LoadDetail({ r, truck, mine, pendingRate }: { r: Row; truck: Truck; min
   const k = COMMODITIES[l.commodity]!;
   const p = poster(l);
   const off = Boolean(r.block);
+  // leverage.localHoldHandBids: Book now stays shut through the hold; a bid is filed for its opening round.
+  const bidOff = off && !r.files;
   const bidId = `bid-${l.id}`;
   const placeBid = () => {
     const rate = Number((document.getElementById(bidId) as HTMLInputElement).value);
@@ -290,7 +294,7 @@ function LoadDetail({ r, truck, mine, pendingRate }: { r: Row; truck: Truck; min
     act({ type: "place_bid", truckId: truck.id, loadId: l.id, rate }, `Bid in at ${rate.toFixed(2)}/mi. It clears at ${nextRoundLabel()}`);
     // A hand bid from the table is a hand bid too: the round's result card (main.tsx, the lostBid and won events and the
     // load leaving the board) reads this record (the trucker's laptop bid lost with no word).
-    S.handBids.set(l.id, { rate, be: r.be, truckId: truck.id, from: op.name, to: dp.name });
+    S.handBids.set(l.id, { rate, be: r.be, truckId: truck.id, from: op.name, to: dp.name, ...(r.files ? { filed: true } : {}) });
   };
   return (
     <div class="stack">
@@ -376,8 +380,8 @@ function LoadDetail({ r, truck, mine, pendingRate }: { r: Row; truck: Truck; min
             </Btn>
           </div>
           <div class="row" style={{ marginTop: "8px" }}>
-            <input type="number" id={bidId} step="0.01" min="0.5" max={l.ceiling.toFixed(2)} defaultValue={mine && pendingRate !== undefined ? pendingRate.toFixed(2) : r.suggest !== null ? r.suggest.toFixed(2) : ""} aria-label="Your bid per mile" disabled={off} />
-            <Btn on={mine} disabled={off} onClick={placeBid}>
+            <input type="number" id={bidId} step="0.01" min="0.5" max={l.ceiling.toFixed(2)} defaultValue={mine && pendingRate !== undefined ? pendingRate.toFixed(2) : r.suggest !== null ? r.suggest.toFixed(2) : ""} aria-label="Your bid per mile" disabled={bidOff} />
+            <Btn on={mine} disabled={bidOff} onClick={placeBid}>
               {mine ? "Change bid" : "Bid"}
             </Btn>
           </div>

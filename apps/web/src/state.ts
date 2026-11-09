@@ -65,7 +65,8 @@ export const S = {
   /** Load board: the load whose sheet is open (S3), or the expanded table row. */
   openLoad: null as number | null,
   /** Bids placed by hand from the board, by load: their rate and break-even, so the round's result can say how they did (S5). */
-  handBids: new Map<number, { rate: number; be: number; truckId?: number; from?: string; to?: string }>(),
+  // `filed`: a bid filed for a locals-first load's opening round (leverage.localHoldHandBids).
+  handBids: new Map<number, { rate: number; be: number; truckId?: number; from?: string; to?: string; filed?: boolean }>(),
   /** Loads booked by hand from the board, so the feed says "Booked" for them, not "Won" (S4). */
   bookedLoads: new Set<number>(),
   /**

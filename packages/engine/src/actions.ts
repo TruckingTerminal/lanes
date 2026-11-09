@@ -3,7 +3,7 @@ import { layerBlock } from "./ladder.js";
 import { buyLogbookBoost } from "./logbook.js";
 import { fitSecurity, hireCrew, postBounty } from "./robbery.js";
 import { scaleDiscount } from "./scale.js";
-import { acceptOffer, acceptTender, declineOffer, mayTake, rejectTender } from "./contracts.js";
+import { acceptOffer, acceptTender, declineOffer, filesForOpening, mayTake, rejectTender } from "./contracts.js";
 import { addParking, buyBusiness, buyTruckStop, serviceBill, setParkingPrice, setShopMarkup } from "./businesses.js";
 import { chargeSalesTax, salesTaxOn } from "./salesTax.js";
 import { bookLoad } from "./board.js";
@@ -906,7 +906,9 @@ export function applyAction(w: World, companyId: number, action: Action): Action
       const blocked = vettingBlock(w, company, load);
       if (blocked) return { ok: false, reason: `the poster won't load a carrier with ${blocked}` };
       if (load.hot > 0 && !canMakeHot(company, truck)) return { ok: false, reason: "a hot load's window takes a team" };
-      if (!mayTake(w, company, load)) return { ok: false, reason: load.tenderedTo ? "that load is tendered to another carrier" : "the shipper is giving local carriers first call this round" };
+      // leverage.localHoldHandBids: in the last round of a locals-first hold, the bid is filed for the opening clearing, where
+      // manualRoundBids checks mayTake again (a local who takes it first wins it).
+      if (!mayTake(w, company, load) && !filesForOpening(w, company, load)) return { ok: false, reason: load.tenderedTo ? "that load is tendered to another carrier" : "the shipper is giving local carriers first call this round" };
       // Delivery windows: whether the truck can make it, from where it will be free.
       const reach = bookAheadReach(w, truck, load);
       if (reach && !reach.ok) return { ok: false, reason: reachRefusal(w, load, reach) };

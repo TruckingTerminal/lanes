@@ -1,4 +1,4 @@
-import { canMakeHot, clearsNear as engineClearsNear, clearsNearParts, dayOf, dockHoursAt, dutyResetAt, nextOpen, dispatchProfile, EQUIPMENT, expectedReloadDeadheadMi, mayTake, operatingTrucks, ownerDrawFd, placeMiles, placeToll, planIndex, vettingBlock, type Company, type Load, type Truck, type World } from "@lanes/engine";
+import { canMakeHot, filesForOpening, clearsNear as engineClearsNear, clearsNearParts, dayOf, dockHoursAt, dutyResetAt, nextOpen, dispatchProfile, EQUIPMENT, expectedReloadDeadheadMi, mayTake, operatingTrucks, ownerDrawFd, placeMiles, placeToll, planIndex, vettingBlock, type Company, type Load, type Truck, type World } from "@lanes/engine";
 import { COMMODITIES } from "@lanes/data";
 import { trueBreakEven } from "./breakeven.js";
 import { WALL } from "./copy.js";
@@ -33,6 +33,8 @@ export interface BoardRow {
   draw: number;
   /** Why this company can't take it now, as the chip says it; null when it can. */
   block: string | null;
+  /** leverage.localHoldHandBids: the only block is a locals-first hold in its last round, so a bid by hand is filed for the opening. */
+  files: boolean;
 }
 
 /** "hot" (Jeff, 2026-11-04, in place of "deliver"): loads bound for the hottest markets first. */
@@ -152,6 +154,14 @@ export function blockReason(w: World, c: Company, truck: Truck, l: Load): string
 }
 
 /**
+ * leverage.localHoldHandBids (the economy's locals-first look): the load's one wall is the locals-first hold, in its last
+ * round, so Book now stays shut but a bid by hand is filed for the opening clearing (engine contracts.ts filesForOpening).
+ */
+export function bidFiles(w: World, c: Company, truck: Truck, l: Load): boolean {
+  return vettingBlock(w, c, l) === null && !(l.hot > 0 && !canMakeHot(c, truck)) && filesForOpening(w, c, l);
+}
+
+/**
  * What the lessor holds back toward the player's own truck from a load paying `grossFd`, as trips.ts settles it: a share
  * of each leased load (freeEntry.leases.byValue.escrowShareOfPay) until the deposit is whole. It is the player's money,
  * held, so the profit chip says it apart from what lands (the director's row 2).
@@ -255,6 +265,7 @@ export function boardRows(w: World, c: Company, truck: Truck, f: BoardFilter): B
       heat: marketHeat(w, l.dest, l.equipment),
       draw: ownerDrawFd(w, truck, l.miles + dh),
       block: blockReason(w, c, truck, l),
+      files: bidFiles(w, c, truck, l),
     });
   }
   return rows;

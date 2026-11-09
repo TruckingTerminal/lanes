@@ -27,4 +27,11 @@ export const PENDING_RULES = {
   // Dispatcher.tsx under businesses.parking.stopInTown: the night choice the shoulder ticket assumes.
   nightStopLabel: "When no rest area or truck stop with room is within the day's hours, stop for the night in town rather than drive on to the shoulder: no ticket, but the day's last hours go unused",
   nightStopSaved: "Night stop saved",
+
+  // leverage.localHoldHandBids (the economy's locals-first look, 2026-11-09): in the last round of a locals-first hold a
+  // bid by hand is filed for the opening clearing. The load sheet's line in place of the first-call wall (`hh` the opening
+  // round's hour); Iuliia's line when it's filed (the director's), and when a local carrier books it first.
+  bidFilesFor: (hh: string) => `Local carriers get first call this round. A bid now is filed for ${hh}, when it opens to everyone.`,
+  bidFiled: (hub: string, hh: string) => `Your bid is filed. The shipper gives ${hub}'s own carriers first call until ${hh}; if none takes it, yours is in that round.`,
+  localTook: "A local carrier took it. Here's what's next.",
 } as const;

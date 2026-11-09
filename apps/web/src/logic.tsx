@@ -40,7 +40,8 @@ import { ARRIVAL, BROKERAGE, DEBT, DISPATCHER, FIRST_ENTRY, MOVE, NEEDS, SAFETY_
 import { cashDipAhead, debtCountdown } from "./figures.js";
 import { hasTwo, kindInView, switchCompany, type CompanyKind } from "./companies.js";
 import { act, bumpData, clockMin, isPhone, me, myTrucks, onWorldReset, push, S, setTab, selectTruck, toast, truckNo, visited, type Session } from "./state.js";
-import { iuliiaSay } from "./iuliia.js";
+import { iuliiaSay, iuliiaSayText } from "./iuliia.js";
+import { PENDING_RULES } from "./copy-pending-rules.js";
 import { tabOpen, teaserTabs, type Tab } from "./tabs.js";
 import { leaseMinFor } from "./ledger.js";
 import { rebuild as rebuildLines } from "./confirmspecs.js";
@@ -488,7 +489,9 @@ export function settleHandBids(s: Session): void {
     if (load && load.status === "open") continue;
     S.handBids.delete(loadId);
     if (load && load.carrierId === s.player.id) continue; // ours after all: the won event has said so
-    iuliiaSay(load ? "result:lost" : "result:nobody");
+    // A bid filed for a locals-first load's opening, booked first by a local carrier in the hold (leverage.localHoldHandBids).
+    if (hb.filed && load && load.carrierId !== null) iuliiaSayText(PENDING_RULES.localTook);
+    else iuliiaSay(load ? "result:lost" : "result:nobody");
     S.result = { won: false, from: hb.from ?? "", to: hb.to ?? "", rate: hb.rate, winning: load ? load.clearedRate : null, be: hb.be, total: 0, seen: false, winnerId: load?.carrierId ?? undefined, lost: load && hb.truckId !== undefined ? { loadId, truckId: hb.truckId, profitAtWinningFd: (load.clearedRate - hb.be) * load.miles } : undefined };
     bumpData();
   }

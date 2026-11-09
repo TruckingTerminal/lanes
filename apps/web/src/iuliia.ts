@@ -65,6 +65,14 @@ export function iuliiaSay(key: string): void {
   bumpData();
 }
 
+/** A line of hers worded at the moment, with its figures (a filed bid's hub and hour): said as a keyed line is. */
+export function iuliiaSayText(text: string): void {
+  if (muted) return;
+  if (performance.now() - lastShownAt < GAME_CONFIG.ui.iuliia.quietSeconds * 1000) return;
+  S.iuliiaLine = { text, shownAt: null };
+  bumpData();
+}
+
 setSaidHook((key) => iuliiaSay(key));
 
 /** A first-visit trigger: once per screen per sitting (`screen` names the screen when several share one set of lines). */
