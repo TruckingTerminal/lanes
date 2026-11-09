@@ -8,7 +8,8 @@ import { DockWarning, ProfitChip } from "../ProfitChip.js";
 import { trueBreakEven } from "../../breakeven.js";
 import { cls, fd, fdFull, hhmm, pct, shortDate, TRAILER_CODE, TRAILER_NAME } from "../../format.js";
 import { nextRoundLabel, openLoadsAt, reloadClass, reloadLabel, SeasonNote, seasonSwing, statusText } from "../../logic.js";
-import { act, bumpData, me, myTrucks, S, selectTruck, useData } from "../../state.js";
+import { act, bumpData, me, myTrucks, S, selectTruck, toast, useData } from "../../state.js";
+import { PENDING } from "../../copy-pending.js";
 import { Btn, Card, Kv, Num, Panel } from "../bits.js";
 import { SCENES } from "../../assets.js";
 import { Portrait, Scene } from "../Loop.js";
@@ -24,8 +25,9 @@ interface Row {
   l: Load;
   dh: number;
   be: number;
-  suggest: number;
-  profit: number;
+  suggest: number | null;
+  /** Profit at the suggested bid; null with no suggestion. */
+  profit: number | null;
   profitBook: number;
   reloadMi: number;
   tolls: number;
@@ -140,7 +142,7 @@ export function LoadsTable(): JSX.Element {
     const be = trueBreakEven(w, truck, l, dh, placeToll(w, truck.place, l.originPlace), prof.foresightDays, prof.reloadWeight);
     const suggest = suggestBid(w, l, be);
     const block = blockReason(w, me(), truck, l); // the board's one reason (R22), the same words as the cards
-    rows.push({ l, dh, be, suggest, profit: (suggest - be) * l.miles, profitBook: (l.bookNow - be) * l.miles, reloadMi, tolls, highway: lane.highwayShare, hours: l.routeHours, total: l.bookNow * l.miles, ageH: l.roundsUnfilled * 12, block });
+    rows.push({ l, dh, be, suggest, profit: suggest === null ? null : (suggest - be) * l.miles, profitBook: (l.bookNow - be) * l.miles, reloadMi, tolls, highway: lane.highwayShare, hours: l.routeHours, total: l.bookNow * l.miles, ageH: l.roundsUnfilled * 12, block });
   }
   const key = (r: Row): number => (sort === "rate" ? r.total : sort === "permi" ? r.l.bookNow : sort === "age" ? r.ageH : sort === "trip" ? r.l.miles : sort === "dh" ? r.dh : r.l.appointmentT);
   rows.sort((a, b) => (desc ? key(b) - key(a) : key(a) - key(b)));
@@ -283,6 +285,7 @@ function LoadDetail({ r, truck, mine, pendingRate }: { r: Row; truck: Truck; min
   const bidId = `bid-${l.id}`;
   const placeBid = () => {
     const rate = Number((document.getElementById(bidId) as HTMLInputElement).value);
+    if (!Number.isFinite(rate) || rate <= 0) return toast(PENDING.bidEmpty, true); // an empty field places nothing (pass 2b)
     act({ type: "place_bid", truckId: truck.id, loadId: l.id, rate }, `Bid in at ${rate.toFixed(2)}/mi. It clears at ${nextRoundLabel()}`);
     // A hand bid from the table is a hand bid too: the round's result card (main.tsx, the lostBid and won events and the
     // load leaving the board) reads this record (the trucker's laptop bid lost with no word).
@@ -347,7 +350,7 @@ function LoadDetail({ r, truck, mine, pendingRate }: { r: Row; truck: Truck; min
               ["Usually clears near", <Num>{clearsNear(w, l).toFixed(2)}/mi</Num>],
               ["Ceiling", <Num>{l.ceiling.toFixed(2)}/mi</Num>],
               ["Bid range", <Num>{bidRange(w, l, r.be).map((x) => x.toFixed(2)).join(" – ")}</Num>],
-              ["Profit at your bid", <Num class={r.profit > 0 ? "good" : "bad"}>{fd(r.profit)} FD</Num>],
+              ["Profit at your bid", r.profit === null ? PENDING.bidBookBetter : <Num class={r.profit > 0 ? "good" : "bad"}>{fd(r.profit)} FD</Num>],
             ]}
           />
           <p class="muted small">A bid above the ceiling wins only if nobody bids under it.</p>
@@ -372,7 +375,7 @@ function LoadDetail({ r, truck, mine, pendingRate }: { r: Row; truck: Truck; min
             </Btn>
           </div>
           <div class="row" style={{ marginTop: "8px" }}>
-            <input type="number" id={bidId} step="0.01" min="0.5" max={l.ceiling.toFixed(2)} defaultValue={(mine && pendingRate !== undefined ? pendingRate : r.suggest).toFixed(2)} aria-label="Your bid per mile" disabled={off} />
+            <input type="number" id={bidId} step="0.01" min="0.5" max={l.ceiling.toFixed(2)} defaultValue={mine && pendingRate !== undefined ? pendingRate.toFixed(2) : r.suggest !== null ? r.suggest.toFixed(2) : ""} aria-label="Your bid per mile" disabled={off} />
             <Btn on={mine} disabled={off} onClick={placeBid}>
               {mine ? "Change bid" : "Bid"}
             </Btn>

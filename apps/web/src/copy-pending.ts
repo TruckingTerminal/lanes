@@ -86,6 +86,15 @@ export const PENDING = {
   // the trailer within the dispatcher's reach; `pct` the floor over break-even.
   idleUnderFloor: (n: number, trailer: string, pct: number) => `${n} ${trailer} ${n === 1 ? "load" : "loads"} in range, but none pays your floor (break-even + ${pct}%) even at its ceiling.`,
   idleBidsLosing: (n: number, trailer: string) => `${n} ${trailer} ${n === 1 ? "load" : "loads"} in range ${n === 1 ? "pays" : "pay"} enough, but the dispatcher's bids keep losing: other carriers bid lower or have the better record.`,
+  // Pass 2b, the bid (the director, 2026-11-09). Under a bid above Book now on the load sheet (Board.tsx LoadSheet):
+  // `fd` the bid's gross less Book now's, `hh` the round it clears at, `rate` Book now's per mile. Keep "A gamble" and the
+  // order: what it pays, then what beats it. No odds: the engine computes none from real clears.
+  bidGamble: (fd: string, hh: string, rate: string) => `A gamble: pays ${fd} FD more than Book now if it wins at ${hh}. Anyone who books first at ${rate} takes it.`,
+  // Iuliia's line when nothing above Book now is worth betting on (the usual-clears figure at or under Book now, or under
+  // break-even): no suggested bid, an empty field. Also the laptop table's "Profit at your bid" then.
+  bidBookBetter: "Nothing here pays more than Book now is worth betting on: booking is the better call.",
+  // The laptop table's Bid pressed with the field empty.
+  bidEmpty: "Type a rate to bid, or book it now.",
   gapReason: (gap: string) => `You're ${gap} FD short of the cheapest truck's cash on the day, counting what's held toward it.`,
 } as const;
 

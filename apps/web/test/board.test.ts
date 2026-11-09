@@ -42,7 +42,12 @@ describe("the board", () => {
       const [lo, hi] = bidRange(g.w, r.l, r.be);
       expect(hi).toBe(r.l.ceiling);
       expect(lo).toBeLessThanOrEqual(hi);
-      expect(r.suggest).toBeLessThanOrEqual(Math.min(r.l.ceiling, r.l.bookNow) + 1e-9); // never over book-now (client pass 2)
+      // Pass 2b: a suggestion is a bet above Book now, never over the ceiling or under break-even; or none at all.
+      if (r.suggest !== null) {
+        expect(r.suggest).toBeGreaterThan(r.l.bookNow);
+        expect(r.suggest).toBeLessThanOrEqual(r.l.ceiling);
+        expect(r.suggest).toBeGreaterThanOrEqual(r.be);
+      }
     }
   }, 60_000);
 
@@ -121,8 +126,9 @@ describe("stage 2: the board reads the engine's clearsNear (R1's anchor)", () =>
     for (const r of rows.slice(0, 10)) {
       expect(r.clears).toBe(engineClearsNear(w, r.l));
       expect(clearsNear(w, r.l)).toBe(r.clears);
-      // The suggestion: what it clears near, break-even the floor, never over book-now or the ceiling.
-      expect(r.suggest).toBeCloseTo(Math.min(r.l.bookNow, r.l.ceiling, Math.max(r.be, r.clears)), 9);
+      // The suggestion: what it clears near, never over the ceiling; none when that's at or under book-now or under break-even.
+      const s = Math.min(r.l.ceiling, r.clears);
+      expect(r.suggest).toBe(s > r.l.bookNow + 0.005 && s >= r.be ? s : null);
       const src = clearsNearSource(w, r.l);
       expect(Math.min(src.rate, r.l.ceiling)).toBeCloseTo(r.clears, 9);
       const b = breakdown(w, c, "board.clearsNear", { loadId: r.l.id, truckId: truck.id })!;

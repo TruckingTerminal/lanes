@@ -232,7 +232,7 @@ function Chips({ r }: { r: BoardRow; truck: Truck }): JSX.Element {
   return (
     <>
       <ProfitChip p={bookPair(r)} />
-      {!up && r.profitSuggest > 0 ? <span class="chip muted">{BOARD.chipSuggest(money(r.profitSuggest), r.suggest.toFixed(2))}</span> : null}
+      {!up && r.suggest !== null && r.profitSuggest !== null && r.profitSuggest > 0 ? <span class="chip muted">{BOARD.chipSuggest(money(r.profitSuggest), r.suggest.toFixed(2))}</span> : null}
     </>
   );
 }
@@ -333,22 +333,28 @@ function LoadSheet({ r, truck }: { r: BoardRow; truck: Truck }): JSX.Element {
   const [lo, hi] = bidRange(w, l, r.be);
   const mine = w.manualBids.get(truck.id);
   const bidHere = mine?.loadId === l.id;
-  const [bid, setBid] = useState(Math.min(hi, Math.max(lo, bidHere ? mine!.rate : r.suggest)));
+  // The field holds the player's bid in, else the suggestion, else nothing (pass 2b): never a bid placed for them.
+  const start = bidHere ? mine!.rate : r.suggest;
+  const [bid, setBid] = useState<number | null>(start === null ? null : Math.min(hi, Math.max(lo, start)));
   const [note, setNote] = useState<{ text: string; bad: boolean } | null>(null);
   // Iuliia on the sheet's first opening in a sitting: a blocked load has its own line (iuliia-lines.md, Loads).
   useEffect(() => iuliiaFirst(r.block ? "load:blocked" : "load:open", r.block ? "screen:loadBlocked" : "screen:load"), []);
   const k = COMMODITIES[l.commodity]!;
   const poster = l.brokerId !== null ? w.companies[l.brokerId - 1] : l.shipperId !== null ? w.companies[l.shipperId - 1] : null;
-  const bidProfit = (bid - r.be) * l.miles;
+  const bidProfit = bid === null ? 0 : (bid - r.be) * l.miles;
   // The engine's reach for a bid by hand is market to market (actions.ts place_bid, hubMiles), where Book now's is the
   // truck's own town to the pickup: said before the press, not refused after it (the gamer: 243 mi empty, "more than 300").
   // One rule for both is the engine's (the batch's report).
   const bidOut = !w.cfg.board.bidReachFromTown && hubMiles(w, truck.hub, l.origin) > MANUAL_BID_MAX_DEADHEAD_MI;
   // The bid's own pair (R14): the sheet's money rows are at book-now, so the button carries its cash itself.
-  const bidHeld = chipPair(w, truck, bidProfit, bid * l.miles, r.draw).held;
+  const bidHeld = bid === null ? 0 : chipPair(w, truck, bidProfit, bid * l.miles, r.draw).held;
   const bookUp = r.profitBook >= 0;
   const signed = (x: number) => `${x >= 0 ? "+" : "−"}${money(x)}`;
-  const step = (d: number) => setBid(Math.round(Math.min(hi, Math.max(lo, bid + d)) * 100) / 100);
+  // From an empty field the first step starts at the first rate above Book now in the range.
+  const step = (d: number) => setBid(Math.round(Math.min(hi, Math.max(lo, bid === null ? Math.max(lo, l.bookNow + 0.05) : bid + d)) * 100) / 100);
+  // Under a bid above Book now: what it pays over Book now if it wins at the round, and what beats it. With no suggestion
+  // and no such bid typed: Iuliia's word that booking is the better call here. No odds: the engine computes none.
+  const betLine = bid !== null && bid > l.bookNow + 0.005 ? PENDING.bidGamble(fdFull((bid - l.bookNow) * l.miles), nextRoundHour(), l.bookNow.toFixed(2)) : r.suggest === null ? PENDING.bidBookBetter : null;
   // The bid figure while it's being typed; null when it shows the bid.
   const [bidText, setBidText] = useState<string | null>(null);
   // R20: a refusal in the writer's words where the engine's reason is a vetting block; otherwise the engine's own.
@@ -374,6 +380,7 @@ function LoadSheet({ r, truck }: { r: BoardRow; truck: Truck }): JSX.Element {
     setTab("fleet");
   };
   const placeBid = async () => {
+    if (bid === null) return;
     const answer = ANSWER.bid(bid.toFixed(2), w.net.places[l.originPlace]!.name, w.net.places[l.destPlace]!.name, nextRoundHour());
     const res = await order({ type: "place_bid", truckId: truck.id, loadId: l.id, rate: bid }, answer);
     if (!res.ok) return setNote({ text: refusal(res.reason), bad: true });
@@ -468,7 +475,7 @@ function LoadSheet({ r, truck }: { r: BoardRow; truck: Truck }): JSX.Element {
           {CHIP.book(l.bookNow.toFixed(2), signed(r.profitBook))}
         </Btn>
         <div class="row stepper">
-          <Btn sm disabled={!!r.block || bid <= lo} onClick={() => step(-0.05)} title="Bid 0.05 lower">
+          <Btn sm disabled={!!r.block || (bid !== null && bid <= lo)} onClick={() => step(-0.05)} title="Bid 0.05 lower">
             −
           </Btn>
           {/* The figure is typed (the gamer: fifteen taps of ±); held to the range when it's left. */}
@@ -478,7 +485,7 @@ function LoadSheet({ r, truck }: { r: BoardRow; truck: Truck }): JSX.Element {
             class="num bidval bidinput"
             aria-label={LOAD.bidButton("")}
             disabled={!!r.block}
-            value={bidText ?? bid.toFixed(2)}
+            value={bidText ?? (bid === null ? "" : bid.toFixed(2))}
             onInput={(e) => setBidText((e.currentTarget as HTMLInputElement).value)}
             onBlur={() => {
               const v = Number((bidText ?? "").replace(",", "."));
@@ -489,13 +496,13 @@ function LoadSheet({ r, truck }: { r: BoardRow; truck: Truck }): JSX.Element {
               if (e.key === "Enter") (e.currentTarget as HTMLInputElement).blur();
             }}
           />
-          <Btn sm disabled={!!r.block || bid >= hi} onClick={() => step(0.05)} title="Bid 0.05 higher">
+          <Btn sm disabled={!!r.block || (bid !== null && bid >= hi)} onClick={() => step(0.05)} title="Bid 0.05 higher">
             +
           </Btn>
-          <Fig k="board.bid" label={LOAD.bidButton("")} ctx={{ ...fx, fd: bid }}><span class="muted small">{LOAD.range(lo.toFixed(2), hi.toFixed(2))}</span></Fig>
+          <Fig k="board.bid" label={LOAD.bidButton("")} ctx={{ ...fx, fd: bid ?? undefined }}><span class="muted small">{LOAD.range(lo.toFixed(2), hi.toFixed(2))}</span></Fig>
         </div>
         <div class="row">
-          <Btn primary={!bookUp} disabled={!!r.block || bidOut} onClick={() => void placeBid()}>
+          <Btn primary={!bookUp && bid !== null} disabled={!!r.block || bidOut || bid === null} onClick={() => void placeBid()}>
             {bidHere ? LOAD.changeBid : bidHeld >= 0.5 ? CHIP.bidAlone(signed(bidProfit), chipCash(bidProfit - bidHeld + r.draw)) : CHIP.bid(signed(bidProfit))}
           </Btn>
           {bidHere ? (
@@ -504,6 +511,7 @@ function LoadSheet({ r, truck }: { r: BoardRow; truck: Truck }): JSX.Element {
             </Btn>
           ) : null}
         </div>
+        {betLine && !r.block ? <p class="small muted">{betLine}</p> : null}
         {bidOut && !r.block ? <p class="small muted">{PENDING.bidReach(MANUAL_BID_MAX_DEADHEAD_MI)}</p> : null}
         {note ? <p class={cls("small", note.bad && "bad")}>{note.text}</p> : null}
       </div>

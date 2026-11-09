@@ -24,8 +24,9 @@ export interface BoardRow {
   heldBook: number;
   /** What it usually clears near (clearsNear), per mile. */
   clears: number;
-  suggest: number;
-  profitSuggest: number;
+  /** The suggested bid (suggestBid), or null when nothing above book-now is worth betting on. */
+  suggest: number | null;
+  profitSuggest: number | null;
   /** The destination market's loads per truck for this trailer last round (the Rates table's figure): hot at 1.5, tight at 1.1. */
   heat: number;
   /** The owner's draw over the loaded and empty miles when it stays with the company (ownerDrawFd): the cash segment counts it. */
@@ -108,11 +109,15 @@ export function clearsNearSource(w: World, l: Load): { from: "lane" | "market" |
 }
 
 /**
- * The suggested bid: what it usually clears near, break-even the floor, never over book-now (client pass 2, QA's replay: a
- * 4.57 default lost to a 4.52 booking, and a bid that asks more than Book now offers reads as false) or the ceiling. The
- * players' dispatcher (R1, the engine's standing orders) still bids over book-now; only the page's default changed.
+ * The suggested bid (the director, 2026-11-09, pass 2b): what the load usually clears near, never over the ceiling. Null
+ * when there is nothing above Book now worth betting on: the figure at or under book-now, or under break-even. Then the
+ * sheet shows Book now and an empty bid field. A suggestion is only ever a default the player presses; nothing places it.
+ * (A bid pays the bidder's rate and a booking at book-now takes the load first, so a bid is a bet on nobody booking.)
  */
-export const suggestBid = (w: World, l: Load, be: number): number => Math.min(l.bookNow, l.ceiling, Math.max(be, clearsNear(w, l)));
+export function suggestBid(w: World, l: Load, be: number): number | null {
+  const s = Math.min(l.ceiling, clearsNear(w, l));
+  return s > l.bookNow + 0.005 && s >= be ? s : null;
+}
 
 /**
  * The bid range the stepper allows: a little over break-even, up to the ceiling. The engine still takes a bid over the
@@ -246,7 +251,7 @@ export function boardRows(w: World, c: Company, truck: Truck, f: BoardFilter): B
       heldBook: leaseHold(w, truck, l.bookNow * l.miles),
       clears: clearsNear(w, l),
       suggest,
-      profitSuggest: (suggest - be) * l.miles,
+      profitSuggest: suggest === null ? null : (suggest - be) * l.miles,
       heat: marketHeat(w, l.dest, l.equipment),
       draw: ownerDrawFd(w, truck, l.miles + dh),
       block: blockReason(w, c, truck, l),
