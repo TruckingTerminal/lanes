@@ -90,6 +90,7 @@ export function reserveFactor(w: World): number {
 }
 import type { Load } from "./types.js";
 import { startHold } from "./brokerage.js";
+import { drawLeadDays, openWindow, readyToday, windowsOn } from "./windows.js";
 import type { World } from "./world.js";
 
 /** Destination weights per origin hub and equipment; static, so cached per network. */
@@ -148,7 +149,8 @@ export function generateRoundFreight(w: World): RoundFreight {
     loadsAt[planIndex(f.hub, EQUIPMENT.indexOf(f.equipment))]! += c;
     return c;
   });
-  for (const load of w.loads.values()) if (load.status === "open") loadsAt[planIndex(load.origin, EQUIPMENT.indexOf(load.equipment))]!++;
+  // Delivery windows: freight ready on a later day isn't today's market (windows.ts readyToday).
+  for (const load of w.loads.values()) if (load.status === "open" && readyToday(w, load)) loadsAt[planIndex(load.origin, EQUIPMENT.indexOf(load.equipment))]!++;
 
   // 2. Load-to-truck ratio within the nearby radius, per trailer type: Miami can be
   // swamped with idle vans while its reefer market is tight in produce season. Idle
@@ -351,6 +353,8 @@ export function generateRoundFreight(w: World): RoundFreight {
     load.vet = (load.hot > 0 ? Math.max(1, vet) : vet) as VettingTier;
   };
 
+  // Delivery windows (windows.ts): each load posted ahead, by a lead drawn from its own stream, so the rest draw as before.
+  const win = windowsOn(w);
   // 3. NPC loads, half of them tendered to brokers.
   const brokers = w.companies.filter((c) => c.role === "broker");
   // The AP cap (token.payment.factoring.contract): a broker takes a tender only while what it owes and has posted fits its bond.
@@ -374,6 +378,7 @@ export function generateRoundFreight(w: World): RoundFreight {
           tenderToBroker(w, load, brokers, contractRef * remoteMult(load) * cfg.rates.npcCeilingMarkup * (load.hot || 1), books);
         }
         finish(load, load.brokerId !== null ? w.companies[load.brokerId - 1]!.vetting : 0);
+        if (win) openWindow(w, load, drawLeadDays(w));
         w.loads.set(load.id, load);
         created.push(load);
       }
@@ -388,6 +393,7 @@ export function generateRoundFreight(w: World): RoundFreight {
     finish(load, 0);
     tender(w, load, c);
     routeLoad(load);
+    if (win) openWindow(w, load, 0); // a tender is for now: its carrier answers within the tender's hours
     w.loads.set(load.id, load);
     created.push(load);
   }
@@ -409,6 +415,7 @@ export function generateRoundFreight(w: World): RoundFreight {
       load.facilityId = f.id;
       load.saleValue = ref * cfg.facilities.types[f.type].saleValueOfRef * lane.miles;
       finish(load, w.companies[f.ownerId - 1]!.vetting);
+      if (win) openWindow(w, load, drawLeadDays(w));
       w.loads.set(load.id, load);
       created.push(load);
       facilityLoads++;

@@ -49,6 +49,7 @@ export * from "./businesses.js";
 export * from "./sites.js";
 export * from "./risk.js";
 export * from "./docks.js";
+export * from "./windows.js";
 export * from "./equipment.js";
 export * from "./pools.js";
 export * from "./playerLeases.js";

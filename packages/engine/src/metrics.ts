@@ -4,6 +4,7 @@ import { seasonOf } from "./clock.js";
 import { companyAccount } from "./ledger.js";
 import type { Company, Load } from "./types.js";
 import { condition } from "./wear.js";
+import { windowsOn, type PosterKind } from "./windows.js";
 import type { World } from "./world.js";
 
 /**
@@ -190,6 +191,12 @@ export interface DayMetrics {
   /** The insurance market index and the dealer's Workhorse + dry van price index. */
   insuranceIndex: number;
   dealerIndex: number;
+  /**
+   * Delivery windows (windows.ts; present only while windows.enabled): loads lost when their pickup closed, by who posted
+   * them, and what their shippers would have paid for the hauls (shipperRate × miles). They count in `expired` too.
+   */
+  lostLoads?: Record<PosterKind, number>;
+  lostFd?: Record<PosterKind, number>;
 }
 
 /** Collects the dashboard metrics every tick writes (§Tech — engineering rules). */
@@ -209,6 +216,12 @@ export class MetricsRecorder {
 
   onBreakdown(): void {
     this.acc.breakdowns++;
+  }
+
+  /** A load lost when its pickup closed (board.ts giveUp under windows). */
+  onLost(kind: PosterKind, fd: number): void {
+    this.acc.lostLoads[kind]++;
+    this.acc.lostFd[kind] += fd;
   }
 
   onPassClosure(): void {
@@ -569,6 +582,10 @@ export class MetricsRecorder {
         (w.cfg.dealerFd.tractor.workhorse * w.dealerIndex.tractor.workhorse + w.cfg.dealerFd.trailer.van * w.dealerIndex.trailer.van) /
         (w.cfg.dealerFd.tractor.workhorse + w.cfg.dealerFd.trailer.van),
     };
+    if (windowsOn(w)) {
+      m.lostLoads = { ...a.lostLoads };
+      m.lostFd = { ...a.lostFd };
+    }
     this.days.push(m);
     this.acc = emptyAcc();
     return m;
@@ -577,6 +594,8 @@ export class MetricsRecorder {
 
 function emptyAcc() {
   return {
+    lostLoads: { npc: 0, broker: 0, brokerage: 0, shipper: 0 } as Record<PosterKind, number>,
+    lostFd: { npc: 0, broker: 0, brokerage: 0, shipper: 0 } as Record<PosterKind, number>,
     posted: 0,
     cleared: 0,
     rolled: 0,

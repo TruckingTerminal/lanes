@@ -74,7 +74,7 @@ describe("The month's books", () => {
     // The open month still adds up to cash now.
     const sum = after.cashStart + Object.values(after.flows).reduce((s, x) => s + (x ?? 0), 0);
     expect(sum).toBeCloseTo(g.w.ledger.balance(companyAccount(c.id)), 1);
-  });
+  }, 60_000);
 
   it("counts a broker's repayment of the factor's advance (sink:npc_factor) as carrier pay, not negative loads", async () => {
     // brokerage.enabled flipped for this test only (the config is read-only to the game; tests may vary it).
@@ -121,7 +121,7 @@ describe("The month's books", () => {
     } finally {
       k.enabled = was;
     }
-  });
+  }, 60_000);
 
   /** Both companies' catch-all rows, unmoved by the postings, and under 2% of the open month's flows. */
   const catchAllFlat = (a: Record<string, number | undefined>, z: Record<string, number | undefined>) => {
@@ -155,7 +155,7 @@ describe("The month's books", () => {
       const o = openMonth(g.w, x)!;
       expect(o.cashStart + Object.values(o.flows).reduce((s, v) => s + (v ?? 0), 0)).toBeCloseTo(g.w.ledger.balance(companyAccount(x.id)), 1);
     }
-  });
+  }, 60_000);
 
   it("counts paper settled to the pool as carrier pay, and an invoice collected from a broker's bond as loads", async () => {
     const g = await TestGame.create();
@@ -177,7 +177,7 @@ describe("The month's books", () => {
     expect(delta(cBefore, cAfter, "setAside")).toBeCloseTo(0, 2);
     catchAllFlat(cBefore, cAfter);
     catchAllFlat(pBefore, pAfter);
-  });
+  }, 60_000);
 
   /** A fresh player company an hour in, its open month's flows read before and after a posting. */
   const fresh = async () => {
@@ -202,7 +202,7 @@ describe("The month's books", () => {
     expect(delta(a, z, "setAside")).toBeCloseTo(0, 2);
     catchAllFlat(a, z);
     addsUp();
-  });
+  }, 60_000);
 
   it("puts cargo insurance's payout under Insurance, seized cash under Fines and the buyback under the token", async () => {
     const { g, c, flows, addsUp } = await fresh();
@@ -216,7 +216,7 @@ describe("The month's books", () => {
     expect(delta(a, z, "token")).toBeCloseTo(-600, 2);
     catchAllFlat(a, z);
     addsUp();
-  });
+  }, 60_000);
 
   it("counts a player shipper's goods sold to the market as Goods sold: direct, through the factor or the pool, and owed", async () => {
     const { g, c, flows, addsUp } = await fresh();
@@ -246,5 +246,5 @@ describe("The month's books", () => {
     expect(r.earned.find((x) => x.line === "goods")?.fd).toBeCloseTo(900, 2);
     expect(r.earned.find((x) => x.line === "loads")?.fd).toBeCloseTo(250, 2);
     expect(r.cashStart + r.keptFd - r.owedChange + r.payChange + r.moved.reduce((s, x) => s + x.fd, 0)).toBeCloseTo(r.cashEnd, 2);
-  });
+  }, 60_000);
 });

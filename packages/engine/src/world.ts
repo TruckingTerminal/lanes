@@ -31,7 +31,8 @@ export interface World {
   net: Network;
   feeds: Feeds;
   seed: number;
-  rng: { freight: Rng; board: Rng; agents: Rng; ops: Rng; labor: Rng; safety: Rng; fraud: Rng; dispatch: Rng; contracts: Rng };
+  /** `windows`: delivery windows' lead days (windows.ts), its own stream so the freight it times draws the same either way. */
+  rng: { freight: Rng; board: Rng; agents: Rng; ops: Rng; labor: Rng; safety: Rng; fraud: Rng; dispatch: Rng; contracts: Rng; windows: Rng };
   t: number;
   round: number;
   /** Loads booked at their book-now price since the last round, folded into that round's clearing stats. */
@@ -176,6 +177,7 @@ export function createWorld(o: WorldOptions): World {
       fraud: root.fork("fraud"),
       dispatch: root.fork("dispatch"),
       contracts: root.fork("contracts"),
+      windows: root.fork("windows"), // a fork never advances the root: the other streams draw as before
     },
     t: 0,
     round: 0,

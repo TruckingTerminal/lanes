@@ -68,11 +68,16 @@ export function startLoading(w: World, truck: Truck, load: Load, now: number = w
   let dwell = w.rng.ops.int(lo, hi);
   const ops = w.cfg.equipmentOps;
   if (ops.enabled && load.equipment === "flatbed") dwell += w.rng.ops.int(ops.flatbedSecureMinutes[0], ops.flatbedSecureMinutes[1]); // chains, straps and tarps
+  // Delivery windows (windows.ts): at the shipper before the load is ready, the truck waits for it. Dwell, not detention, and
+  // the due time already counts from it (board.ts assign).
+  const early = load.readyT !== undefined && load.readyT > now ? load.readyT - now : 0;
+  dwell += early;
   // A first-come shipper outside its hours (docks.ts): the wait moves the due time.
-  const wait = pickupWait(w, load, now);
+  const wait = pickupWait(w, load, now + early);
   if (wait > 0) {
     dwell += wait;
     load.dueT += wait;
+    if (load.latestDeliveryT !== undefined) load.dueT = Math.min(load.dueT, load.latestDeliveryT); // inside the window
     w.metrics.onDockWait(wait);
     addDetention(w, load, "pickupH", wait);
   }

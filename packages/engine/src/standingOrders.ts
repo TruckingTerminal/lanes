@@ -10,6 +10,7 @@ import { vettingBlock } from "./fraud.js";
 import { homeEdge } from "./home.js";
 import { dispatchProfile, type DispatchProfile } from "./labor.js";
 import type { Bid, Company, Load, StandingOrder, Truck } from "./types.js";
+import { windowsOn } from "./windows.js";
 import { crewed, hubMiles, hubToll, type World, placeMiles, placeToll } from "./world.js";
 
 /** A solo truck makes a hot load's window only on falsified logs; a team makes it legally. */
@@ -57,12 +58,20 @@ export function desperation(w: World, c: Company, t: Truck): number {
 export type BoardIndex = Map<string, Load[]>;
 
 export const boardKey = (hub: number, eq: string) => `${hub}|${eq}`;
+/** Delivery windows: the key a load ready on a later day is filed under (the booking-ahead batches read these). */
+export const readyKey = (hub: number, eq: string, day: number) => `${hub}|${eq}|${day}`;
 
+/**
+ * The open board by origin and trailer. With delivery windows on (windows.ts), a load ready on a later day is filed under
+ * its ready day (readyKey), so a round's work is the freight ready today, as it was before windows.
+ */
 export function indexOpenLoads(w: World): BoardIndex {
   const idx: BoardIndex = new Map();
+  const today = windowsOn(w) ? dayOf(w.t, w.cfg) : null;
   for (const load of w.loads.values()) {
     if (load.status !== "open") continue;
-    const key = boardKey(load.origin, load.equipment);
+    const ready = today !== null && load.readyT !== undefined ? dayOf(load.readyT, w.cfg) : null;
+    const key = ready !== null && ready > today! ? readyKey(load.origin, load.equipment, ready) : boardKey(load.origin, load.equipment);
     let list = idx.get(key);
     if (!list) idx.set(key, (list = []));
     list.push(load);

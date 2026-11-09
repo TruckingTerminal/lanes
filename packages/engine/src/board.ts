@@ -13,6 +13,7 @@ import { bidsFromStandingOrders, boardKey, canMakeHot, dockWaitCost, indexOpenLo
 import { startLoading } from "./trips.js";
 import { bookingCapBlock, brokerBooks, contractOn, type BrokerBook } from "./receivables.js";
 import { setSlot } from "./docks.js";
+import { pickupClosed, posterKind, readyToday, urgencyStep, urgent, windowsOn } from "./windows.js";
 import type { Bid, Company, Load, StandingOrder, Truck } from "./types.js";
 import { companyById, crewed, hubHours, hubMiles, truckById, type World, placeHours, placeMiles, placeOfHub, placeLegMiles } from "./world.js";
 
@@ -39,9 +40,19 @@ export function runBoardRound(w: World): RoundResult {
   updateHomeCrowding(w);
   expireTenders(w);
   holdsAtEnd(w); // tenders held for player brokerages whose window has ended (brokerage.ts)
+  // Delivery windows (windows.ts): a load still open when its pickup closed is lost before the round clears. No slide, no
+  // re-post.
+  let expired = 0;
+  if (windowsOn(w)) {
+    for (const load of [...w.loads.values()]) {
+      if (load.status !== "open" || !pickupClosed(w, load)) continue;
+      giveUp(w, load);
+      expired++;
+    }
+  }
   const idx = indexOpenLoads(w);
   const openByEq = { van: 0, reefer: 0, flatbed: 0 };
-  for (const load of w.loads.values()) if (load.status === "open") openByEq[load.equipment]++;
+  for (const load of w.loads.values()) if (load.status === "open" && readyToday(w, load)) openByEq[load.equipment]++;
   const clearedByEq = { van: 0, reefer: 0, flatbed: 0 };
   const bids: Bid[] = [];
   const manual = manualRoundBids(w);
@@ -108,10 +119,16 @@ export function runBoardRound(w: World): RoundResult {
   }
 
   let rolled = 0;
-  let expired = 0;
+  const win = windowsOn(w);
   for (const load of [...w.loads.values()]) {
     if (load.status !== "open" || load.postedRound >= w.round || load.hold) continue;
     load.roundsUnfilled++;
+    // Delivery windows: the price holds while the load has slack, and walks in its last rounds; the deadline, not a count of
+    // rounds, ends it (above).
+    if (win && load.latestPickupT !== undefined) {
+      if (urgent(w, load) && urgencyStep(w, load, raiseCeiling)) rolled++;
+      continue;
+    }
     if (load.roundsUnfilled >= w.cfg.board.giveUpAfterRounds + (load.localUntilRound > 0 ? w.cfg.leverage.localRounds : 0)) {
       giveUp(w, load);
       expired++;
@@ -191,10 +208,14 @@ function assign(w: World, load: Load, truck: Truck, bid: Bid): void {
   const transitMin = (fullDays * cfg.hos.dutyDayHours + (drivingH - fullDays * perDay)) * 60;
   const ops = cfg.equipmentOps;
   const dwellMin = cfg.dwell.loadMinutes[1] + cfg.dwell.unloadMinutes[1] + (ops.enabled && load.equipment === "flatbed" ? ops.flatbedSecureMinutes[1] + ops.flatbedUntarpMinutes[1] : 0);
+  // Delivery windows: a truck at the shipper before the load is ready waits for it (trips.ts startLoading), so the schedule
+  // counts from then.
+  const start = load.readyT !== undefined ? Math.max(w.t, load.readyT - (bid.deadheadMi > 0 ? placeHours(w, truck.place, load.originPlace) * 60 : 0)) : w.t;
   // Due by the HOS schedule, and never after the shipper's appointment.
-  load.dueT = Math.min(load.appointmentT, w.t + transitMin + dwellMin + (load.hot > 0 ? cfg.safety.hotLoads.slackMinutes : cfg.freight.deliverySlackMinutes));
+  load.dueT = Math.min(load.appointmentT, start + transitMin + dwellMin + (load.hot > 0 ? cfg.safety.hotLoads.slackMinutes : cfg.freight.deliverySlackMinutes));
   // Appointment freight (docks.ts): a delivery slot on the hour after the arrival estimate, due at its grace.
-  setSlot(w, load, w.t + transitMin + dwellMin);
+  setSlot(w, load, start + transitMin + dwellMin);
+  if (load.latestDeliveryT !== undefined) load.dueT = Math.min(load.dueT, load.latestDeliveryT);
   truck.loadId = load.id;
   truck.idleRounds = 0;
   if (bid.deadheadMi === 0) {
@@ -208,6 +229,20 @@ function assign(w: World, load: Load, truck: Truck, bid: Bid): void {
 }
 
 export function rollover(w: World, load: Load): void {
+  raiseCeiling(w, load);
+  // Nobody took it at the book-now: the poster raises it toward the ceiling. R11 (bookNow.towardCeilingRounds): from where it
+  // opened to the ceiling over that many rounds, so only a waited load books at the ceiling.
+  const toward = w.cfg.bookNow.towardCeilingRounds;
+  if (toward > 0) {
+    const open = (load.bookNowOpen ??= load.bookNow);
+    load.bookNow = Math.min(load.ceiling, open + (load.ceiling - open) * Math.min(1, (load.roundsUnfilled) / toward));
+  } else load.bookNow = Math.min(load.ceiling, load.bookNow * (1 + w.cfg.bookNow.stepPerRound));
+  // The shipper still wants it moved, just later: the appointment slides back a round.
+  load.appointmentT += w.cfg.time.gameMinutesPerDay / w.cfg.time.boardRoundHours.length;
+}
+
+/** A rollover's ceiling step: an NPC shipper raises it (and pays it); a broker eats the raise up to its fall-off reach. */
+export function raiseCeiling(w: World, load: Load): void {
   const raised = load.ceiling * (1 + w.cfg.board.rolloverCeilingStep);
   if (load.brokerId === null) {
     load.ceiling = raised;
@@ -223,15 +258,6 @@ export function rollover(w: World, load: Load): void {
     const own = w.cfg.brokerage.enabled && broker !== undefined && broker.partnerId !== undefined;
     load.ceiling = Math.max(load.ceiling, Math.min(raised, own ? Math.max(load.ceiling, load.shipperRate) : most));
   }
-  // Nobody took it at the book-now: the poster raises it toward the ceiling. R11 (bookNow.towardCeilingRounds): from where it
-  // opened to the ceiling over that many rounds, so only a waited load books at the ceiling.
-  const toward = w.cfg.bookNow.towardCeilingRounds;
-  if (toward > 0) {
-    const open = (load.bookNowOpen ??= load.bookNow);
-    load.bookNow = Math.min(load.ceiling, open + (load.ceiling - open) * Math.min(1, (load.roundsUnfilled) / toward));
-  } else load.bookNow = Math.min(load.ceiling, load.bookNow * (1 + w.cfg.bookNow.stepPerRound));
-  // The shipper still wants it moved, just later: the appointment slides back a round.
-  load.appointmentT += w.cfg.time.gameMinutesPerDay / w.cfg.time.boardRoundHours.length;
 }
 
 /**
@@ -241,6 +267,7 @@ export function rollover(w: World, load: Load): void {
  */
 export function bookLoad(w: World, company: Company, truck: Truck, load: Load, deadheadMi: number, manual: boolean, rate = load.bookNow, books?: Map<number, BrokerBook>): string | null {
   if (load.status !== "open") return "that load is gone";
+  if (pickupClosed(w, load)) return "that load's pickup has closed";
   if (truck.status !== "idle" || !crewed(truck)) return "the truck isn't idle with a driver";
   if (truck.trailer !== load.equipment) return "wrong trailer";
   if (company.authority.status !== "active") return "your authority isn't active";
@@ -327,6 +354,10 @@ function giveUp(w: World, load: Load): void {
   const { fallOffShare } = w.cfg.brokerRisk;
   const ref = `load:${load.id}`;
   const rounds = load.roundsUnfilled;
+  // Delivery windows: lost when its pickup closed, counted by who posted it, at what its shipper would have paid.
+  const closed = pickupClosed(w, load);
+  if (closed) w.metrics.onLost(posterKind(w, load), load.shipperRate * load.miles);
+  const unhauled = closed ? "before its pickup closed" : `in ${rounds} rounds`;
   load.status = "expired";
   if (w.cfg.brokerage.enabled) onFallOff(w, load);
   if (load.brokerId !== null) {
@@ -335,7 +366,7 @@ function giveUp(w: World, load: Load): void {
     w.ledger.post(w.t, companyAccount(broker.id), "sink:broker_falloff", charge, ref);
     broker.operating.costFd += charge;
     broker.openBrokerLoads--;
-    w.listener?.({ kind: "notice", companyId: broker.id, topic: "board", text: `No carrier took load #${load.id} in ${rounds} rounds and the shipper gave up: a ${fmtInt(charge)} FD fall-off charge.`, tone: "bad" });
+    w.listener?.({ kind: "notice", companyId: broker.id, topic: "board", text: `No carrier took load #${load.id} ${unhauled} and the shipper gave up: a ${fmtInt(charge)} FD fall-off charge.`, tone: "bad" });
   }
   if (load.doubleBroker) {
     const db = companyById(w, load.doubleBroker.companyId);
@@ -347,7 +378,7 @@ function giveUp(w: World, load: Load): void {
     w.listener?.({ kind: "notice", companyId: db.id, topic: "board", text: `Nobody took load #${load.id} off your re-post and the shipper gave up: a ${fmtInt(charge)} FD fall-off charge.`, tone: "bad" });
   }
   if (load.shipperId !== null) {
-    w.listener?.({ kind: "notice", companyId: load.shipperId, topic: "board", text: `No carrier took load #${load.id} in ${rounds} rounds: the goods went unsold.`, tone: "bad" });
+    w.listener?.({ kind: "notice", companyId: load.shipperId, topic: "board", text: `No carrier took load #${load.id} ${unhauled}: the goods went unsold.`, tone: "bad" });
   }
   w.loads.delete(load.id);
 }
@@ -356,7 +387,7 @@ function giveUp(w: World, load: Load): void {
 function openLoadSurplus(w: World): Map<string, number> {
   const surplus = new Map<string, number>();
   const bump = (key: string, d: number) => surplus.set(key, (surplus.get(key) ?? 0) + d);
-  for (const load of w.loads.values()) if (load.status === "open") bump(boardKey(load.origin, load.equipment), 1);
+  for (const load of w.loads.values()) if (load.status === "open" && readyToday(w, load)) bump(boardKey(load.origin, load.equipment), 1);
   for (const truck of w.trucks) if (truck.status === "idle") bump(boardKey(truck.hub, truck.trailer), -1);
   return surplus;
 }

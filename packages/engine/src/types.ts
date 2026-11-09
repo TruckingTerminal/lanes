@@ -928,6 +928,16 @@ export interface Load {
   ownTenderLapsed?: number;
   /** A shipper's tender held off the board for a player's brokerage until `until` (brokerage.ts): it posts, tenders to its own carrier or (unless passed) declines. */
   hold?: { brokerId: number; until: number; declinable: boolean };
+  /**
+   * Delivery windows (item 4, windows.ts; set at posting while windows.enabled, absent otherwise): ready to load at the
+   * shipper from `readyT`; unbooked at `latestPickupT` it is lost; delivered after `latestDeliveryT` it is late (a claim).
+   * The appointment and the due time sit inside them.
+   */
+  readyT?: number;
+  latestPickupT?: number;
+  latestDeliveryT?: number;
+  /** The urgency walk's steps taken in the last rounds before the pickup closes (windows.urgencyRounds at most). */
+  urgentSteps?: number;
 }
 
 /** A contract lane a local shipper gives a carrier: a weekly volume at a fixed rate for a term (contracts.ts). */

@@ -882,6 +882,36 @@ export const economyConfig = {
     fallOffShare: 0.15,
   },
 
+  // Item 4, delivery windows (engineering's proposal engineering-item4-delivery-windows.md; the director's calls, DECISIONS.md
+  // 2026-11-08; the economy's sizes, studio/reviews/economy-delivery-windows.md). A load is posted ahead, ready at its
+  // shipper's dock on its lead day, with a pickup window and a hard delivery deadline. Unbooked when its pickup window
+  // closes it is lost: no slide, no re-post (a broker pays its fall-off charge, brokerRisk.fallOffShare: one figure for
+  // "the shipper gave up"). Its price holds while it has slack, and walks only in its last rounds. Off: the ten-round
+  // rollover and give-up of board.ts, on every path.
+  windows: {
+    enabled: false,
+    // NPC lead days, as [from, to, weight]: a bucket by weight, then a day inside it. 45% for today, 30% tomorrow, 15% the
+    // day after, 10% three to five days out.
+    leadDays: [
+      [0, 0, 0.45],
+      [1, 1, 0.3],
+      [2, 2, 0.15],
+      [3, 5, 0.1],
+    ] as const,
+    // Hours from readyT to the pickup's close: an appointment shipper's slot, a first-come (or daylight) dock's day.
+    pickupHours: { appointment: 12, firstCome: 24 },
+    // The urgency walk (the director's call 3): flat while more than this many rounds of slack remain before the pickup
+    // closes; in these last rounds the ceiling steps as a rollover does (board.rolloverCeilingStep) and book-now walks to
+    // it, one step a round, at most this many steps. A player poster's pay never walks.
+    urgencyRounds: 2,
+    // Claims, as shares (the economy's sizes, 2026-11-09), read by the booking-ahead batch: a late delivery (after
+    // latestDeliveryT) of the load's pay as booked; a no-show (booked, not picked up by latestPickupT); a cancellation
+    // (release_load) before, and in, the urgency rounds. Kept in order: cancel early < late < no-show = cancel urgent.
+    lateClaimShare: 0.2,
+    noShowClaimShare: 0.25,
+    cancelClaimShare: { early: 0.1, urgent: 0.25 },
+  },
+
   // §Roles — carrier authority; broker license and bond. Renew each season.
   permits: {
     carrierAuthorityFd: 300, // MC filing fee
