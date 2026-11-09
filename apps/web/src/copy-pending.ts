@@ -3,7 +3,7 @@
  * engineering's; each comment names where the string shows. They fold into copy.ts the next time engineering touches
  * these call sites; until then this file is copy like copy.ts, the writer's to word.
  */
-const paysThere = (n: number): string => (n === 0 ? "nothing pays there yet" : `${n} ${n === 1 ? "load pays" : "loads pay"} there`);
+const paysThere = (n: number): string => (n === 0 ? "nothing pays there now" :`${n} ${n === 1 ? "load pays" : "loads pay"} there`);
 
 export const PENDING = {
   // tabs.ts: the Dealer's and Finance's teaser card, after "Opens " (the director, 2026-11-09: they open the moment the
@@ -14,7 +14,7 @@ export const PENDING = {
   // ui/More.tsx TeaserCard (the Dealer, before it opens): the price of the goal, never a dead tap. figures.ts gapToTruck:
   // the cheapest route's cash on the day on a purchase loan (down payment, stake, tax, less the lease deposit). The
   // teaser then shows firstTruckToGo under it. (Client pass 2: the cushion left the figure; it is firstTruckCushion now.)
-  dealerPrice: (needFd: string) => `Your first truck takes about ${needFd} FD in cash on the day, with the Dealer's loan for the rest.`,
+  dealerPrice: (needFd: string) => `Your first truck takes about ${needFd} FD in cash when you sign, with a loan for the rest.`,
   dealerPriceNone: "No truck is for sale anywhere right now.",
   // The one first-truck figure (the director, 2026-11-09; figures.ts firstTruckLine): on the Dealer's teaser, Iuliia's
   // page ("Next on the road") and the Dealer's own card. The cheapest truck's cash on the day, less the player's cash.
@@ -77,29 +77,35 @@ export const PENDING = {
   // costs (NOW.gapReason in copy.ts said so; it no longer reads).
   // What now?'s rule 3 for an owner-operator on a lease (ui/WhatNow.tsx idleReason): NOW.idleReasonHeld(Plus) with the
   // owner's draw, which the cash includes (board.ts chipPair: cash = profit − held + draw). `out` when cash is negative.
-  idleReasonHeldDraw: (profit: string, cash: string, out: boolean, draw: string, held: string) => `${profit} over break-even: ${cash} ${out ? "out of" : "to"} cash now, with your ${draw} FD draw as the driver; ${held} toward your truck.`,
+  idleReasonHeldDraw: (profit: string, cash: string, out: boolean, draw: string, held: string) => `${profit} over break-even, plus your ${draw} draw as the driver: ${cash} ${out ? "out of" : "to"} cash now, ${held} toward your truck.`,
   // Home time, said where it was hard-coded (Fleet.tsx's crew-going-home line and the tired card, the home-time toast
   // there and in logic.tsx sendHomePriced): only after "Home time" was chosen, so "for days off" is true.
   homeTimeHeading: "Heading home for days off.",
   homeTimeToast: "Heading home for days off",
   // logic.tsx idleWhy's last two lines, moved here from the code (QA: "1 dry van load in range pay enough"). `n` loads of
   // the trailer within the dispatcher's reach; `pct` the floor over break-even.
-  idleUnderFloor: (n: number, trailer: string, pct: number) => `${n} ${trailer} ${n === 1 ? "load" : "loads"} in range, but none pays your floor (break-even + ${pct}%) even at its ceiling.`,
-  idleBidsLosing: (n: number, trailer: string) => `${n} ${trailer} ${n === 1 ? "load" : "loads"} in range ${n === 1 ? "pays" : "pay"} enough, but the dispatcher's bids keep losing: other carriers bid lower or have the better record.`,
+  idleUnderFloor: (n: number, trailer: string, pct: number) => {
+    const floor = pct > 0 ? `your floor, break-even + ${pct}%,` : "your break-even";
+    return n === 1 ? `1 ${trailer} load in range, and it doesn't cover ${floor} even at its ceiling.` : `${n} ${trailer} loads in range, and none this truck may take covers ${floor} even at its ceiling.`;
+  },
+  idleBidsLosing: (n: number, trailer: string) =>
+    n === 1
+      ? `1 ${trailer} load in range pays enough, but the dispatcher's bid on it hasn't won: another carrier bid lower, stood nearer or has the better record.`
+      : `${n} ${trailer} loads in range pay enough, but the dispatcher's bids haven't won: other carriers bid lower, stood nearer or have the better record.`,
   // Pass 2b, the bid (the director, 2026-11-09). Under a bid above Book now on the load sheet (Board.tsx LoadSheet):
   // `fd` the bid's gross less Book now's, `hh` the round it clears at, `rate` Book now's per mile. Keep "A gamble" and the
   // order: what it pays, then what beats it. No odds: the engine computes none from real clears.
-  bidGamble: (fd: string, hh: string, rate: string) => `A gamble: pays ${fd} FD more than Book now if it wins at ${hh}. Anyone who books first at ${rate} takes it.`,
+  bidGamble: (fd: string, hh: string, rate: string) => `A gamble: pays ${fd} FD more than Book now if it wins at ${hh}. Until then anyone can book it at ${rate}/mi, and at ${hh} a lower bid, a nearer truck or a better record can beat yours.`,
   // Iuliia's line when nothing above Book now is worth betting on (the usual-clears figure at or under Book now, or under
   // break-even): no suggested bid, an empty field. Also the laptop table's "Profit at your bid" then.
-  bidBookBetter: "Nothing here pays more than Book now is worth betting on: booking is the better call.",
+  bidBookBetter: "I wouldn't bid on this one: loads like it usually clear at or under Book now, or under your break-even.",
   // The laptop table's Bid pressed with the field empty.
   bidEmpty: "Type a rate to bid, or book it now.",
-  gapReason: (gap: string) => `You're ${gap} FD short of the cheapest truck's cash on the day, counting what's held toward it.`,
+  gapReason: (gap: string) => `You're ${gap} FD short of the cash the cheapest truck takes when you sign, counting what's held toward it.`,
 } as const;
 
 /** Explanations that replace copy.ts EXPLAIN's (ui/Explain.tsx reads these first); fold in with the rest. */
 export const PENDING_EXPLAIN: Record<string, { what: string; how: string; moves: string }> = {
   // The gap left its cushion (client pass 2): the rows are the cheapest truck's cash on the day, the hold, your cash.
-  "guide.gapToTruck": { what: "How far you are from your next truck.", how: "The cheapest truck's cash needed on the day (down payment, loan stake and tax), less what's held toward your truck and your cash.", moves: "Hauling; the cheapest truck on offer, which changes; what you spend." },
+  "guide.gapToTruck": { what: "How far you are from your next truck.", how: "The cash the cheapest truck takes when you sign (down payment, loan stake and sales tax), less what's held toward your truck, less your cash.", moves: "Hauling; the cheapest truck on offer, which changes; what you spend." },
 };

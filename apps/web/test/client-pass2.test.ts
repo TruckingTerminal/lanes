@@ -74,13 +74,13 @@ describe("client pass 2's strings and the reload rule", () => {
   it("says the draw, plurals the idle lines, says a hub with nothing paying, and home's loads", () => {
     expect(PENDING.idleBidsLosing(1, "dry van")).toMatch(/^1 dry van load in range pays enough,/);
     expect(PENDING.idleBidsLosing(2, "dry van")).toMatch(/^2 dry van loads in range pay enough,/);
-    expect(PENDING.idleUnderFloor(1, "reefer", 10)).toMatch(/^1 reefer load in range, but none pays your floor \(break-even \+ 10%\)/);
-    expect(PENDING.exitTo("Tampa", "120", "150", "3 h", 0)).toMatch(/nothing pays there yet$/);
+    expect(PENDING.idleUnderFloor(1, "reefer", 10)).toMatch(/^1 reefer load in range, and it doesn't cover your floor, break-even \+ 10%,/);
+    expect(PENDING.exitTo("Tampa", "120", "150", "3 h", 0)).toMatch(/nothing pays there now$/);
     expect(PENDING.exitHome("1,059", "1,300", "1 day", 3)).toMatch(/· 3 loads pay there$/);
     // Pass 2b: "A gamble" first, what it pays, then what beats it; no odds.
-    expect(PENDING.bidGamble("41", "18:00", "4.52")).toBe("A gamble: pays 41 FD more than Book now if it wins at 18:00. Anyone who books first at 4.52 takes it.");
+    expect(PENDING.bidGamble("41", "18:00", "4.52")).toBe("A gamble: pays 41 FD more than Book now if it wins at 18:00. Until then anyone can book it at 4.52/mi, and at 18:00 a lower bid, a nearer truck or a better record can beat yours.");
     expect(PENDING.bidGamble("41", "18:00", "4.52")).not.toMatch(/%/);
-    expect(PENDING.idleReasonHeldDraw("2,109", "1,510", false, "797", "1,396")).toContain("797 FD draw");
+    expect(PENDING.idleReasonHeldDraw("2,109", "1,510", false, "797", "1,396")).toContain("plus your 797 draw as the driver");
   });
 
   it("reloads once onto a newer deployed build, never for the same, a local one, or one already tried", () => {

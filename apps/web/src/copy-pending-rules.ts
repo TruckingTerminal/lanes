@@ -9,8 +9,8 @@ export const PENDING_RULES = {
   // clears it leans on this market's, then on the load's own reference).
   clearsShareLane: (trailer: string) => `This lane's recent ${trailer} clears`,
   clearsShareMarket: (hub: string, trailer: string) => `${hub}'s recent ${trailer} clears`,
-  clearsShareRef: "This load's own posted reference",
-  clearsBlend: "Together, at this load's reference",
+  clearsShareRef: "This load's reference rate",
+  clearsBlend: "Weighed together, on this load's reference rate",
 
   // Fleet.tsx SendHomeActions under labor.sendHomeToWork: an owner-operator's truck at work, home to work after the job.
   // Client pass 2 (the director): the button is "Send home after this run" (the writer's), and the queued line and toast
@@ -21,10 +21,10 @@ export const PENDING_RULES = {
   // Under labor.turnWhileEmpty: a truck running empty turns now. An owner-operator gets both buttons, as at work.
   sendHomeNowWork: "Send home now · back to work",
   sendHomeNowDays: (days: number) => `Send home now · Home time · ${days} ${days === 1 ? "day" : "days"} off`,
-  turnedToast: "Turned: it runs from the nearest town",
+  turnedToast: "Turned: it heads there from the nearest town",
   turnedWorkToast: "Turned for home: back to work from there, no days off",
   turnedDaysToast: "Turned for home: days off when it gets there",
   // Dispatcher.tsx under businesses.parking.stopInTown: the night choice the shoulder ticket assumes.
-  nightStopLabel: "When no rest area or truck stop is in reach tonight, sleep in town instead of the shoulder",
+  nightStopLabel: "When no rest area or truck stop with room is within the day's hours, stop for the night in town rather than drive on to the shoulder: no ticket, but the day's last hours go unused",
   nightStopSaved: "Night stop saved",
 } as const;
