@@ -319,6 +319,6 @@ Three arms of ten seeds at 1460 days (`_wsim.ts`: run.ts's world and report, a l
 four variants (`wv-*`, seeds 1–2, 730 days), all in a scratch worktree detached at c915f72 with node_modules symlinked by
 the before-rule recipe; launched in clear vitest gaps between 17:33 and 18:13, ten at a time. The reports, logs and
 scripts are kept at
-`/private/tmp/claude-501/-Users-jeff-Desktop-lanes-studio-lanes/d4111337-1fa7-4212-b119-16bd13637b23/scratchpad/windows-sizing-results/`
+the economy's session scratchpad (`windows-sizing-results/`)
 and the worktree is removed. Nothing in the shared checkout changed and nothing is staged; this note is the shared
 folder's first, for the producer to place as studio/reviews/economy-delivery-windows-sizing.md.
