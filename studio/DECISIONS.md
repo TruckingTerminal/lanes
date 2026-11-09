@@ -1,5 +1,16 @@
 # Decisions (the producer's log for Jeff; newest first)
 
+- 2026-11-09 — the director, on QA's replay of client pass 2 (qa-client2-2026-11-09.md): the Dealer opened on day 2 in
+  both worlds with "You can buy today", because a worn listing (462k–502k miles, 47–52% condition) needs under 5k FD cash
+  on the day. Ruling: the figure stays true and so does "You can buy today" (it answers "can I buy?", and a beater as a
+  first truck is a real and risky choice); the Dealer card names what it prices ("the cheapest truck for sale: a 2014
+  reefer, 480k miles, 48%") and Iuliia's advice line names the catch with figures, not taste ("That one's 480k miles at
+  48%; expect about X FD a month in repairs. I'd wait for a sounder one.", X the engine's wear figure); never a floor on
+  condition behind the figure, which would make it false. For the economy, not the batch: buying on day 2 sits badly
+  with Jeff's ruling that the first truck is hard to get; the falsehood is likely in the loan (real lenders want far more
+  down on a 480k-mile truck, or will not finance it), so the economy checks the down payment and terms on worn trucks
+  against real lending; if they are off, the fix is a rule change for Jeff and a ruleset. QA's replay otherwise passed
+  all nine items; its three smaller fails go into client batch 4.
 - 2026-11-09 — the economy's look at the locals-first change (economy-locals-first-2026-11-09.md): the rule Jeff approved
   is what the engine already does. A locals-first load is held for local carriers for one clearing only
   (leverage.localRounds 1) and opens to every dispatcher and bot at the next; the ten-seed cap runs are runs of this rule,
