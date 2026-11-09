@@ -1,5 +1,17 @@
 # Decisions (the producer's log for Jeff; newest first)
 
+- 2026-11-09 — the director, on the board's suggested bid (client pass 2, QA's replay finding 4; engineering's objection
+  upheld): the brief's "a suggested bid never exceeds Book now" was wrong, since a bid pays the bidder's own rate and a
+  booking at Book now takes the load first, so a bid capped there is Book now that also waits for the round. The default
+  bid sits at what the load usually clears near, never over the ceiling and never under break-even; when the usual-clears
+  figure is at or under Book now, or under break-even, the sheet shows no suggested bid, only Book now and an empty bid
+  field, and Iuliia's line says booking is the better call. Under a suggested bid the line reads "A gamble: pays N FD
+  more than Book now if it wins at HH:MM. Anyone who books first at R takes it." (the bid's gross less Book now's, the
+  round's time, Book now's rate); no odds unless the engine computes them from real clears. A default bid is never placed
+  for the player. Engineering applies it as client pass 2b; the capped version is in f10a59e until then. The same day:
+  engineering's rules batch (c1af286) put five player-facing rules behind switches, all off, each waiting for a ruleset
+  and Jeff's word before it turns on: "usually clears near" as a ratio to the load's reference (the economy's rule), Send
+  home back to work, turning a truck running empty, one reach for a bid and Book now, a legal night in town.
 - 2026-11-09 — the director, on QA's replay of the diaries' batch and the writer's pass: (1) the one figure for the first
   truck is the cash the cheapest truck takes from the player on the day (down payment, fees, anything due at signing; the
   loan covers the rest) against what the player can put toward it, named "To your first truck: N FD" and "You can buy
