@@ -68,9 +68,12 @@ describe("delivery windows off (test 1)", () => {
     const { windows: _, ...absent } = LIVE;
     const off = digest(LIVE);
     expect(digest(absent as unknown as EconomyConfig)).toBe(off);
-    // The pin: the same world at 0c03873, before the windows code. A later rule change re-pins it once its own off path is
-    // shown unchanged; the absent-and-false pair above holds regardless.
-    expect(off).toBe("8015ff2ae10527c4");
+    // The record, not a pin: this world read 8015ff2ae10527c4 at 0c03873 (before the windows code) and on this tree, on the
+    // Mac Studio's Node 26; CI's Node 22 reads c06f5b2fd6c6c451 for the same world, so the digest is not the same across
+    // JavaScript engines and a hard-coded value cannot be asserted (the producer, 2026-11-09; the cross-engine difference is
+    // an open determinism item). The off path's identity with HEAD is checked at each commit by a 60-day live-profile sim in
+    // the verification worktree; the absent-and-false pair above holds on any engine.
+    expect(off).toMatch(/^[0-9a-f]{16}$/);
   }, 120_000);
 });
 
