@@ -1,3 +1,4 @@
+import { startEmptyRun, turnTruck } from "./trips.js";
 import { layerBlock } from "./ladder.js";
 import { buyLogbookBoost } from "./logbook.js";
 import { fitSecurity, hireCrew, postBounty } from "./robbery.js";
@@ -112,10 +113,11 @@ export function badInput(cfg: EconomyConfig, a: Action): string | null {
       return isId(a.loadId) && (a.marginPct === undefined || finiteIn(a.marginPct, 0, 0.9)) ? null : "bad posting";
     case "tender_own":
       return isId(a.loadId) && finiteIn(a.rate, 0.01, 100) ? null : "bad tender";
+    case "send_home":
+      return isId(a.truckId) && (a.work === undefined || typeof a.work === "boolean") ? null : "bad truck id";
     case "rebuild_truck":
     case "park_truck":
     case "unpark_truck":
-    case "send_home":
     case "cancel_bid":
     case "fix_defects":
     case "return_lease":
@@ -190,6 +192,8 @@ export function badInput(cfg: EconomyConfig, a: Action): string | null {
       return typeof a.on === "boolean" ? null : "bad setting";
     case "set_compliance":
       return a.policy && typeof a.policy === "object" ? null : "bad policy";
+    case "set_night_stop":
+      return a.choice === "town" || a.choice === "shoulder" ? null : "bad choice";
     case "set_vetting":
       return a.tier === 0 || a.tier === 1 || a.tier === 2 ? null : "bad vetting tier";
     case "rebroker_load":
@@ -315,6 +319,13 @@ export function applyAction(w: World, companyId: number, action: Action): Action
     case "set_auto_staff":
       company.autoStaff = action.on;
       return { ok: true };
+
+    case "set_night_stop": {
+      if (!cfg.businesses.parking.stopInTown) return { ok: false, reason: "the night stop isn't a choice yet" };
+      if (action.choice === "town") company.nightStop = "town";
+      else delete company.nightStop;
+      return { ok: true };
+    }
 
     case "set_compliance": {
       const p = action.policy;
@@ -468,6 +479,28 @@ export function applyAction(w: World, companyId: number, action: Action): Action
       const truck = truckById(w, action.truckId);
       if (!truck || truck.companyId !== company.id) return { ok: false, reason: "not your truck" };
       if (!crewed(truck)) return { ok: false, reason: "nobody is driving it" };
+      const work = action.work === true;
+      if (work && !cfg.labor.sendHomeToWork) return { ok: false, reason: "home to work isn't offered yet" };
+      const crewOf = () => [truck.driverId, truck.coDriverId].filter((id) => id > 0).map((id) => w.staff[id - 1]!);
+      // labor.turnWhileEmpty: a truck running empty turns for home now, from where it is (trips.ts turnTruck).
+      if (truck.status === "repositioning" && cfg.labor.turnWhileEmpty) {
+        if (truck.targetHub === company.homeHub && (work || crewOf().every((d) => d.wantsHome))) return { ok: false, reason: "already heading home" };
+        if (truck.targetHub !== company.homeHub) turnTruck(w, truck, company.homeHub);
+        if (!work) for (const d of crewOf()) d.wantsHome = true;
+        return { ok: true };
+      }
+      if (truck.status !== "idle" && work) {
+        // labor.sendHomeToWork: home to work once the job in hand ends (trips.ts setIdle), never abandoning it.
+        if (truck.homeAfter === "work") return { ok: false, reason: "already heading home after this job" };
+        truck.homeAfter = "work";
+        return { ok: true };
+      }
+      if (truck.status === "idle" && work) {
+        if (truck.hub === company.homeHub) return { ok: false, reason: "the truck is already home" };
+        w.manualBids.delete(truck.id);
+        startEmptyRun(w, truck, company.homeHub);
+        return { ok: true };
+      }
       if (truck.status !== "idle") {
         // R9's Send home when idle (labor.sendHomeWhileMoving): on a truck at work, its drivers' standing intent. The
         // home-time rules take it home once it's idle (labor.ts homeArrival, board.ts maybeReposition via needsHome).
@@ -864,7 +897,9 @@ export function applyAction(w: World, companyId: number, action: Action): Action
       if (blocked) return { ok: false, reason: `the poster won't load a carrier with ${blocked}` };
       if (load.hot > 0 && !canMakeHot(company, truck)) return { ok: false, reason: "a hot load's window takes a team" };
       if (!mayTake(w, company, load)) return { ok: false, reason: load.tenderedTo ? "that load is tendered to another carrier" : "the shipper is giving local carriers first call this round" };
-      if (hubMiles(w, truck.hub, load.origin) > MANUAL_BID_MAX_DEADHEAD_MI) return { ok: false, reason: `more than ${MANUAL_BID_MAX_DEADHEAD_MI} miles empty to the pickup` };
+      // board.bidReachFromTown: one reach with Book now, from the truck's own town to the pickup; off, market to market.
+      const bidReach = cfg.board.bidReachFromTown ? placeMiles(w, truck.place, load.originPlace) : hubMiles(w, truck.hub, load.origin);
+      if (bidReach > MANUAL_BID_MAX_DEADHEAD_MI) return { ok: false, reason: `more than ${MANUAL_BID_MAX_DEADHEAD_MI} miles empty to the pickup` };
       if (!(action.rate > 0)) return { ok: false, reason: "bid a rate per mile above zero" };
       if (cfg.board.refuseOverCeiling && action.rate > load.ceiling + 1e-9) return { ok: false, reason: `above the ceiling, ${load.ceiling.toFixed(2)}/mi` }; // R17
       w.manualBids.set(truck.id, { loadId: load.id, rate: action.rate });
@@ -882,6 +917,15 @@ export function applyAction(w: World, companyId: number, action: Action): Action
     case "reposition_truck": {
       const truck = truckById(w, action.truckId);
       if (!truck || truck.companyId !== company.id) return { ok: false, reason: "not your truck" };
+      // labor.turnWhileEmpty: a truck running empty turns for the new hub now, from where it is (trips.ts turnTruck).
+      if (truck.status === "repositioning" && cfg.labor.turnWhileEmpty) {
+        const to = w.net.hubs.findIndex((h) => h.id === action.hubId);
+        if (to < 0) return { ok: false, reason: "unknown hub" };
+        if (to === truck.targetHub) return { ok: false, reason: "the truck is already headed there" };
+        if (!crewed(truck)) return { ok: false, reason: "the truck has no driver" };
+        turnTruck(w, truck, to);
+        return { ok: true };
+      }
       if (truck.status !== "idle") return { ok: false, reason: "truck must be idle at a hub" };
       const hub = w.net.hubs.findIndex((h) => h.id === action.hubId);
       if (hub < 0) return { ok: false, reason: "unknown hub" };

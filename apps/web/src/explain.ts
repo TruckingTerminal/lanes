@@ -22,6 +22,7 @@ import {
   type World,
 } from "@lanes/engine";
 import { clearsNear, clearsNearSource } from "./board.js";
+import { PENDING_RULES } from "./copy-pending-rules.js";
 import { EXPLAIN, NEWS } from "./copy.js";
 import { moneyEvents, type MoneyEvent } from "./books.js";
 import { emptyRun } from "./rolling.js";
@@ -213,7 +214,15 @@ const BREAKDOWNS: Record<string, Fn> = {
         : src.from === "market"
           ? `Too few clears on this lane yet; ${w.net.hubs[l.origin]!.name}'s ${trailer} loads: ${src.n.toLocaleString("en-US")} cleared`
           : "Too few clears yet; this load's reference rate";
-    const rows: Row[] = [{ label, value: perMi(src.rate) }];
+    const sh = src.shares;
+    const rows: Row[] = sh
+      ? [
+          { label: PENDING_RULES.clearsShareLane(trailer), value: `${Math.round(sh.lane * 100)}%` },
+          { label: PENDING_RULES.clearsShareMarket(w.net.hubs[l.origin]!.name, trailer), value: `${Math.round(sh.market * 100)}%` },
+          { label: PENDING_RULES.clearsShareRef, value: `${Math.round(sh.load * 100)}%` },
+          { label: PENDING_RULES.clearsBlend, value: perMi(src.rate) },
+        ]
+      : [{ label, value: perMi(src.rate) }];
     if (src.capped) rows.push({ label: "Held at this load's ceiling", value: perMi(l.ceiling), key: "board.ceiling" });
     return { rows, total: { label: "Usually clears near", value: perMi(clearsNear(w, l)) } };
   },

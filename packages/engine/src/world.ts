@@ -139,7 +139,8 @@ export interface World {
   /** Player brokerages (brokerage.ts), made on first use. */
   brokerageLog?: BrokerageLog;
   /** R11 and R1 (economy-player34.md stage 2): what loads really clear at, trailing, by lane and trailer and by origin market. */
-  clears?: { lane: Record<string, [number, number]>; hub: Record<string, [number, number]> };
+  /** `ratio`: the table holds ratios to the reference (freight.clearsNear.ratio); absent, rates per mile. */
+  clears?: { lane: Record<string, [number, number]>; hub: Record<string, [number, number]>; ratio?: true };
   /** The Reserve (cashReserve.ts), made on first use: holding cost and season burns taken from it, deposits and withdrawals. */
   reserveStats?: { holdingFd: number; burnedFd: number; depositFd: number; withdrawFd: number };
   /** The population dial (population.ts), made on first use while it is on. */

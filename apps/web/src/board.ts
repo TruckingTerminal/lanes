@@ -1,4 +1,4 @@
-import { canMakeHot, clearsNear as engineClearsNear, dayOf, dockHoursAt, dutyResetAt, nextOpen, dispatchProfile, EQUIPMENT, expectedReloadDeadheadMi, mayTake, operatingTrucks, ownerDrawFd, placeMiles, placeToll, planIndex, vettingBlock, type Company, type Load, type Truck, type World } from "@lanes/engine";
+import { canMakeHot, clearsNear as engineClearsNear, clearsNearParts, dayOf, dockHoursAt, dutyResetAt, nextOpen, dispatchProfile, EQUIPMENT, expectedReloadDeadheadMi, mayTake, operatingTrucks, ownerDrawFd, placeMiles, placeToll, planIndex, vettingBlock, type Company, type Load, type Truck, type World } from "@lanes/engine";
 import { COMMODITIES } from "@lanes/data";
 import { trueBreakEven } from "./breakeven.js";
 import { WALL } from "./copy.js";
@@ -89,7 +89,18 @@ export const clearsNear = (w: World, l: Load): number => engineClearsNear(w, l);
 
 /** Where clearsNear's figure came from, for its explanation. freight.ts reads a table once it has CLEARS_MIN clears (5). */
 const CLEARS_MIN = 5;
-export function clearsNearSource(w: World, l: Load): { from: "lane" | "market" | "load"; n: number; rate: number; capped: boolean } {
+export function clearsNearSource(w: World, l: Load): { from: "lane" | "market" | "load"; n: number; rate: number; capped: boolean; shares?: { lane: number; market: number; load: number } } {
+  // The economy's ratio rule (freight.clearsNear.ratio): the figure's share from the lane, its market and the load's own
+  // reference, by the weights the engine blends them with (freight.ts clearsNearParts); the largest names the source.
+  if (w.cfg.freight.clearsNear.ratio) {
+    const p = clearsNearParts(w, l);
+    const lane = p.laneW / (p.laneW + p.prior);
+    const market = (1 - lane) * (p.hubW / (p.hubW + p.prior));
+    const load = Math.max(0, 1 - lane - market);
+    const rate = p.laneRatio * l.refRate * (l.hot || 1);
+    const from = lane >= market && lane >= load ? "lane" : market >= load ? "market" : "load";
+    return { from, n: Math.round(from === "lane" ? p.laneW : p.hubW), rate, capped: rate > l.ceiling, shares: { lane, market, load } };
+  }
   const lane = w.clears?.lane[`${l.laneId}:${l.equipment}`];
   const hub = w.clears?.hub[`${l.origin}:${l.equipment}`];
   const [from, rate, n] = lane && lane[1] >= CLEARS_MIN ? (["lane", lane[0], lane[1]] as const) : hub && hub[1] >= CLEARS_MIN ? (["market", hub[0], hub[1]] as const) : (["load", l.refRate * (l.hot || 1), 0] as const);

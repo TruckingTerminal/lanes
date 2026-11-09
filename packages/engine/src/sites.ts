@@ -199,13 +199,23 @@ export function planNight(w: World, truck: Truck, route: Route, mile: number, re
   return last.mile;
 }
 
+/** businesses.parking.stopInTown: whether a site with room lies on the route within the hours left from this mile. */
+export function siteInReach(w: World, route: Route, mile: number, reachMi: number): boolean {
+  for (const s of sitesAlong(w, route)) {
+    if (s.mile <= mile + 0.1) continue;
+    if (s.mile > mile + reachMi) break;
+    if (hasRoom(w.sites[s.site - 1]!)) return true;
+  }
+  return false;
+}
+
 /**
  * The night, charged once per shift. At a site: a space (the public rest area is free, the full
  * idling; a player's truck stop idles at a quarter for its nightly price, taxed, the owner's own
  * trucks free). On the shoulder: illegal unless broken down — the full idling and, at the patrol's
  * odds, a ticket (a sink). The gallons count toward the fuel tax.
  */
-export function parkForTheNight(w: World, truck: Truck, site: TruckStopSite | null): void {
+export function parkForTheNight(w: World, truck: Truck, site: TruckStopSite | null, town = false): void {
   if (truck.restShiftT === truck.shiftStartT) return;
   // R12's restart (hos.cycleHours): with the weekly clock out, a duty day opens and closes every restHours without a
   // mile driven. That is the same stop, not another night: no second space, idling bill or patrol. Without the clock
@@ -223,8 +233,10 @@ export function parkForTheNight(w: World, truck: Truck, site: TruckStopSite | nu
     truck.restSite = site.id;
     w.metrics.onNight("site");
   } else {
-    w.metrics.onNight("shoulder");
+    // businesses.parking.stopInTown: a night in town is a legal stop, counted with the sites'.
+    w.metrics.onNight(town ? "site" : "shoulder");
   }
+  const at = site ? (stop ? "truckStop" : "restArea") : town ? "restArea" : "shoulder";
   const gal = cfg.costs.idleFuelGalPerDay * (truck.mods.apu ? 0.5 : 1) * (stop ? cfg.businesses.kinds.truckStop.idleFuelMult : 1);
   const burned = lockCost(w, c, gal * fuelPrice(w), () => gal * fuelPrice(w) * (1 - stakeDiscount(w, c)));
   c.fuelGalMonth += gal;
@@ -238,7 +250,7 @@ export function parkForTheNight(w: World, truck: Truck, site: TruckStopSite | nu
     c.operating.costFd += stop.parkingFd + chargeSalesTax(w, c.id, stop.parkingFd, `rest:${truck.id}`);
   }
   const p = cfg.businesses.parking;
-  if (!site && cfg.businesses.enabled && truck.breakdownMin <= 1e-9 && w.rng.ops.next() < p.patrolOdds) {
+  if (!site && !town && cfg.businesses.enabled && truck.breakdownMin <= 1e-9 && w.rng.ops.next() < p.patrolOdds) {
     w.ledger.post(w.t, companyAccount(c.id), "sink:fines", p.shoulderFineFd, `fine:shoulder:${truck.id}`);
     c.operating.costFd += p.shoulderFineFd;
     c.safety.finesFd += p.shoulderFineFd; // the Company page's fines row counts tickets too (diary 2, row 7); no rule reads it
@@ -249,9 +261,9 @@ export function parkForTheNight(w: World, truck: Truck, site: TruckStopSite | nu
   const ops = cfg.equipmentOps;
   if (ops.enabled && truck.trailer === "reefer" && truck.status === "loaded") reeferUnit(w, c, ops.nightHours * 60, `rest:${truck.id}`);
   // Cargo theft (risk.ts): where it sleeps, near what, with what aboard.
-  nightTheft(w, truck, c, site ? (stop ? "truckStop" : "restArea") : "shoulder", site ? site.theftRisk : null);
+  nightTheft(w, truck, c, at, site ? site.theftRisk : null);
   // A hired crew (robbery.ts), when one is on this truck.
-  if (cfg.robbery.enabled && truck.companyId) crewStrike(w, truck, c, site ? (stop ? "truckStop" : "restArea") : "shoulder", site ? site.theftRisk : theftRiskAt(w, ...truckLatLon(w, truck)));
+  if (cfg.robbery.enabled && truck.companyId) crewStrike(w, truck, c, at, site ? site.theftRisk : theftRiskAt(w, ...truckLatLon(w, truck)));
 }
 
 /** The morning: the space is free again. */

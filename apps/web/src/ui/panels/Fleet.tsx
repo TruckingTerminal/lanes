@@ -19,6 +19,7 @@ import { emptyRun } from "../../rolling.js";
 import { TrailerLines, TruckAssetActions, YardCard } from "./Yard.js";
 import { WaysOutRows } from "../WaysOut.js";
 import { PENDING } from "../../copy-pending.js";
+import { PENDING_RULES } from "../../copy-pending-rules.js";
 import { confirmAct, confirmSpend } from "../Confirm.js";
 import { rebuild as rebuildLines, sell as sellLines } from "../../confirmspecs.js";
 import { CapsLine } from "../Caps.js";
@@ -100,6 +101,16 @@ function SendHomeActions({ t, primary }: { t: Truck; primary?: boolean }): JSX.E
   const owner = crew.some((d) => d.owner);
   const days = homeDays(c);
   if (crew.every((d) => d.wantsHome)) return <p class="muted small">{t.status === "idle" ? "Heading home for days off." : PENDING.sendHomeAfterQueued}</p>;
+  if (t.homeAfter === "work") return <p class="muted small">{PENDING_RULES.homeAfterWorkQueued}</p>;
+  // labor.turnWhileEmpty: a truck running empty turns for home now, from where it is (back to work with sendHomeToWork).
+  if (t.status === "repositioning" && w.cfg.labor.turnWhileEmpty && t.targetHub !== c.homeHub) {
+    const toWork = owner && w.cfg.labor.sendHomeToWork;
+    return (
+      <Btn primary={primary} onClick={() => act({ type: "send_home", truckId: t.id, ...(toWork ? { work: true } : {}) }, PENDING_RULES.turnedToast, "truck:sendHome")}>
+        {toWork ? PENDING_RULES.sendHomeNowWork : PENDING_RULES.sendHomeNowDays(days)}
+      </Btn>
+    );
+  }
   if (t.status === "idle") {
     if (t.hub === c.homeHub) return null;
     const r = emptyRun(w, t, t.hub, c.homeHub);
@@ -112,11 +123,20 @@ function SendHomeActions({ t, primary }: { t: Truck; primary?: boolean }): JSX.E
       </>
     );
   }
-  if (!w.cfg.labor.sendHomeWhileMoving) return null;
-  return (
-    <Btn primary={primary} onClick={() => act({ type: "send_home", truckId: t.id }, PENDING.sendHomeAfterToast, "truck:sendHome")}>
-      {PENDING.sendHomeAfter} · {PENDING.homeTimeDays(days)}
+  // labor.sendHomeToWork: an owner-operator's home to work after the job in hand, no days off.
+  const work = owner && w.cfg.labor.sendHomeToWork ? (
+    <Btn primary={primary} onClick={() => act({ type: "send_home", truckId: t.id, work: true }, PENDING_RULES.homeAfterWorkToast, "truck:sendHome")}>
+      {PENDING_RULES.homeAfterWork}
     </Btn>
+  ) : null;
+  if (!w.cfg.labor.sendHomeWhileMoving) return work;
+  return (
+    <>
+      {work}
+      <Btn primary={primary && !work} onClick={() => act({ type: "send_home", truckId: t.id }, PENDING.sendHomeAfterToast, "truck:sendHome")}>
+        {PENDING.sendHomeAfter} · {PENDING.homeTimeDays(days)}
+      </Btn>
+    </>
   );
 }
 
@@ -348,7 +368,8 @@ function TruckCard({ t, idx }: { t: Truck; idx: number }): JSX.Element {
   const more = (
     <>
           {/* Home time is the drivers' days off: no move is offered until they're over (QA item 8: Send to did nothing). */}
-          {t.status === "idle" && !resting(w, t) ? <SendEmpty t={t} nearby={nearby} /> : null}
+          {/* labor.turnWhileEmpty: Send to also turns a truck running empty, from where it is. */}
+          {(t.status === "idle" && !resting(w, t)) || (t.status === "repositioning" && w.cfg.labor.turnWhileEmpty) ? <SendEmpty t={t} nearby={nearby} /> : null}
           {mine && t.status === "idle" && cond <= w.cfg.wear.rebuildMaxCondition && rebuildable(w.cfg, t) ? (
             <Btn onClick={(ev) => confirmAct({ verb: "Rebuild", item: `truck ${idx + 1}`, costFd: rebuildCost(w.cfg, t), ...rebuildLines(w, t), run: () => act({ type: "rebuild_truck", truckId: t.id }, "Truck is in the shop for two days", "truck:rebuild") }, ev)}>Rebuild · {fd(rebuildCost(w.cfg, t))} FD</Btn>
           ) : null}
@@ -420,7 +441,7 @@ function TruckCard({ t, idx }: { t: Truck; idx: number }): JSX.Element {
         ) : null}
         {/* Send home on any truck, whenever the player asks (the director, 2026-11-09); the tired card has its own. */}
         {tiredTrucks().includes(t) ? null : <SendHomeActions t={t} />}
-        {isPhone() ? (t.status === "idle" || t.status === "parked" || t.defects > 0 ? (
+        {isPhone() ? (t.status === "idle" || t.status === "parked" || t.defects > 0 || (t.status === "repositioning" && w.cfg.labor.turnWhileEmpty) ? (
           <details class="overflow">
             <summary aria-label="More actions">⋯</summary>
             <div class="row">{more}</div>

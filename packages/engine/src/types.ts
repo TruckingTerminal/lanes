@@ -172,6 +172,8 @@ export interface Company {
   strategy: string;
   /** Run by a person (the bad-actor actions can be locked to AI: config `fraud.players`). */
   human: boolean;
+  /** businesses.parking.stopInTown: the company's night choice when no site is in reach ("town"); absent, the shoulder. */
+  nightStop?: "town";
   /** Started on the free NPC-lease path (§Roles — carrier free start). */
   freePath: boolean;
   orders: StandingOrder[];
@@ -767,6 +769,10 @@ export interface Truck {
   overMin: number;
   /** Days with falsified logs, recent first window (roadside inspections look back 8 days). */
   logDays: number[];
+  /** labor.sendHomeToWork: run home, no days off, the moment the job in hand ends (trips.ts setIdle). Absent otherwise. */
+  homeAfter?: "work";
+  /** businesses.parking.stopInTown: tonight's stop is the town it stands at (trips.ts moveTrucks). Absent otherwise. */
+  townNight?: true;
   /** The current leg (origin, target, loaded) and the next weigh station on it. */
   legKey: number;
   legMiles: number;
@@ -1195,7 +1201,8 @@ export type Action =
   /** Take an open load at its book-now price, now, for an idle truck within reach. */
   | { type: "book_load"; truckId: number; loadId: number }
   /** Send an idle truck home for its driver's days off (home time). */
-  | { type: "send_home"; truckId: number }
+  /** `work` (labor.sendHomeToWork): home to work, no days off; at once when idle, else after the job in hand. */
+  | { type: "send_home"; truckId: number; work?: boolean }
   /** Contracts: take or decline a local shipper's offer; take a tender onto an idle truck, or leave it for the board. */
   | { type: "accept_contract"; contractId: number }
   | { type: "decline_contract"; contractId: number }
@@ -1247,6 +1254,8 @@ export type Action =
   | { type: "assign_driver"; staffId: number; truckId: number; team?: boolean }
   | { type: "set_auto_staff"; on: boolean }
   | { type: "set_compliance"; policy: CompliancePolicy }
+  /** businesses.parking.stopInTown: where a truck sleeps when no site with room is within its hours. */
+  | { type: "set_night_stop"; choice: "town" | "shoulder" }
   | { type: "fix_defects"; truckId: number }
   | { type: "set_vetting"; tier: VettingTier }
   /** After a revocation and its bar: file for new authority and start over on the free path. */

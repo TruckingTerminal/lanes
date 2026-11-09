@@ -11,7 +11,7 @@ import { clearsNear, companyAccount, createWorld, noteClear, stepHour, type Worl
  * of bots plays the same either way.
  */
 const net = buildNetwork(hubs, economyConfig);
-const withHalfLife = (days: number): EconomyConfig => ({ ...economyConfig, freight: { ...economyConfig.freight, clearsNear: { halfLifeDays: days } } });
+const withHalfLife = (days: number): EconomyConfig => ({ ...economyConfig, freight: { ...economyConfig.freight, clearsNear: { ...economyConfig.freight.clearsNear, halfLifeDays: days } } });
 const load = { laneId: 7, equipment: "van", origin: 3, refRate: 3, hot: 0, ceiling: 99, contractId: 0 } as unknown as Parameters<typeof clearsNear>[1];
 
 function bots(cfg: EconomyConfig, days: number): World {

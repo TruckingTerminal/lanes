@@ -225,6 +225,11 @@ export const economyConfig = {
     // a bid above the load's ceiling ("above the ceiling, {rate}") instead of letting it win when nobody bids under. The R17
     // package is this on and overCeilingMax at 1 (the dispatcher then bids at the ceiling when its margin would go over).
     refuseOverCeiling: false,
+    // One reach for a load taken by hand (the gamer's diary, 2026-11-09: a bid refused "more than 300 miles empty" on a
+    // 243-mile pickup that Book now took). Off: a bid by hand measures market to market (hubMiles), Book now from the
+    // truck's own town to the pickup (placeMiles). On: both from the truck's town to the pickup, the miles the card shows
+    // and the dispatcher prices by (actions.ts place_bid, book_load).
+    bidReachFromTown: false,
     maxBidsPerTruckPerRound: 12, // PoC assumption: performance bound
     freeStandingOrders: 5,
     // PoC assumption: board fee paid by players who post freight (brokers and player
@@ -355,7 +360,13 @@ export const economyConfig = {
     // trailing clearing rate as a plain mean of its first 40 clears, then trailing by count, which lags a rising board in
     // the first weeks. > 0: a mean weighted by time, each clear's weight halving every halfLifeDays. Only players'
     // dispatchers (the clearsNear price mode) and the board's figure read it; no bot does.
-    clearsNear: { halfLifeDays: 0 },
+    // ratio (the economy's rule, economy-clears-near-2026-11-09.md; off): each clear kept as its ratio to the load's
+    // reference (rate ÷ refRate × hot) under the same keys and half-life, and read with a prior decayed at read time: the
+    // hub's ratio leans on the reference (1) with priorClears' weight, the lane's on the hub's, and the figure is the lane's
+    // ratio × this load's reference, capped at its ceiling. A long and a short load out of one hub then each read their own
+    // reference, and a quiet lane fades to its hub, a quiet hub to the reference. priorClears replaces the five-clear gate.
+    // The table changes meaning, so it resets when the switch turns.
+    clearsNear: { halfLifeDays: 0, priorClears: 5, ratio: false },
   },
 
   // §Rates, demand and the scaled fuel engine
@@ -811,7 +822,12 @@ export const economyConfig = {
     // last site with room the day's hours still reach, early if the next is beyond them (trips.ts
     // planNight); a site found full sends them on. Owners add `spacesPerPurchase` spaces for
     // `spacePriceFd` each, through the catalogue split.
-    parking: { spaces: [5, 40] as const, shoulderFineFd: 250, patrolOdds: 0.33, defaultPriceFd: 20, priceRange: [10, 40] as const, spacesPerPurchase: 25, spacePriceFd: 1_000 },
+    // stopInTown (off): the parking choice the ticket assumes (the diaries, 2026-11-09: a 250 FD ticket with no choice
+    // offered). On, a company may choose (set_night_stop "town") that a truck which has driven today and stands at a town
+    // at a leg's start doesn't set out on a leg it can't finish without a shoulder night: when no site with room lies within
+    // the hours left, it sleeps in that town (a legal stop, no ticket) and starts in the morning. A truck with a full day's
+    // hours always sets out. Unchosen, or off: the shoulder, as today.
+    parking: { spaces: [5, 40] as const, shoulderFineFd: 250, patrolOdds: 0.33, defaultPriceFd: 20, priceRange: [10, 40] as const, spacesPerPurchase: 25, spacePriceFd: 1_000, stopInTown: false },
     // Truck-stop sites: one every so many interstate miles, ranked by the freight that passes (a gravity
     // model over the lanes), the busiest open for sale at the start, more opening as the fleet grows.
     // openPerBuilt: the open count follows coverage too — this many sites for sale per truck stop built.
@@ -1663,6 +1679,14 @@ export const economyConfig = {
     // (Staff.wantsHome) and leaves the truck on its job; the home-time rules take it home once it's idle. false: send_home
     // waits until the truck is idle, as today.
     sendHomeWhileMoving: false,
+    // Send home "back to work" (the director, 2026-11-09: Send home never gives time off nobody asked for). On, send_home
+    // takes `work: true`: an empty run home with no days off, at once on an idle truck, and on a truck at work queued for
+    // the moment its delivery (or empty run) ends (Truck.homeAfter), so the load is never abandoned. Off: refused.
+    sendHomeToWork: false,
+    // Turning a truck that's running empty (the director, 2026-11-09). On, reposition_truck and send_home on a truck that
+    // is repositioning turn it now, from the town nearest where it is (trips.ts turnTruck): the miles so far are paid, and
+    // the new run starts there. Off: a truck running empty must arrive first; send_home queues for the run's end.
+    turnWhileEmpty: false,
   },
 
   // The guards (the director's triage of the player's second diary, studio/reviews/director-player2.md): limits on what

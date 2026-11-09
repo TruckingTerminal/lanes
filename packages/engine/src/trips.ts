@@ -1,16 +1,16 @@
 import { brokerageLog, samePerson } from "./brokerage.js";
-import { commodityAttract, hubTheftRisk, stealCargo } from "./risk.js";
+import { commodityAttract, hubTheftRisk, stealCargo, truckLatLon } from "./risk.js";
 import { securityTheftMult } from "./labor.js";
 import { crewStrike } from "./robbery.js";
 import { scaleDiscount } from "./scale.js";
 import { endOfLife } from "./assets.js";
 import { addTrailerMiles } from "./trailers.js";
-import { COMMODITIES, dexp, NO_TERRAIN, routeTerrain, type Route } from "@lanes/data";
+import { COMMODITIES, dexp, greatCircleMiles, NO_TERRAIN, routeTerrain, type Route } from "@lanes/data";
 import { deliveryWait, pickupWait } from "./docks.js";
 import { flatbedDamage, reeferUnit } from "./equipment.js";
 import { winterNow } from "./safety.js";
 import { payLegFuel, roadService, serviceBill } from "./businesses.js";
-import { leaveParking, legMile, parkForTheNight, planNight, siteHere } from "./sites.js";
+import { leaveParking, legMile, parkForTheNight, planNight, siteHere, siteInReach } from "./sites.js";
 import { managerBreakdownMult, managerMaintenanceMult } from "./labor.js";
 import { dayOf, MINUTES_PER_HOUR } from "./clock.js";
 import { clamp, fuelPrice, tripCost, ownerDrawFd } from "./economics.js";
@@ -23,7 +23,7 @@ import { companyAccount } from "./ledger.js";
 import { closeDutyDay, drivingLimitMin, legalDrivingMin, mphFor, safetyTick } from "./safety.js";
 import type { Company, Load, Truck } from "./types.js";
 import { breakdownsPer1000Mi } from "./wear.js";
-import { companyById, hubRoute, type World, placeRoute } from "./world.js";
+import { companyById, crewed, hubRoute, type World, placeLegMiles, placeOfHub, placeRoute } from "./world.js";
 
 /** Detention (cfg.detention): the hours of a closed-dock wait past the free time, capped per stop, priced. */
 function addDetention(w: World, load: Load, stop: "pickupH" | "deliveryH", waitMin: number): void {
@@ -246,6 +246,12 @@ export function moveTrucks(w: World): void {
         const resetAt = dutyResetAt(w, truck)!;
         const hourEnd = w.t + MINUTES_PER_HOUR;
         if (resetAt >= hourEnd) {
+          // businesses.parking.stopInTown: the town it chose to sleep in (below), a legal stop.
+          if (truck.townNight) {
+            delete truck.townNight;
+            parkForTheNight(w, truck, null, true);
+            break;
+          }
           // The night: at the site the truck stands at (a rest area or a truck stop), else on the shoulder (sites.ts).
           const r = placeRoute(w, truck.place, truck.targetPlace);
           const here = r ? siteHere(w, r, legMile(truck)) : null;
@@ -262,6 +268,27 @@ export function moveTrucks(w: World): void {
         truck.legKey = key;
         beginLeg(w, truck, placeRoute(w, truck.place, truck.targetPlace));
       }
+      // businesses.parking.stopInTown: a company that chose the town doesn't set out, at a leg's start, on a run its hours
+      // left can't finish with no site with room in reach: it sleeps here, the duty day closed now. With a full day's
+      // hours it always sets out, so it never waits in a town for good.
+      if (cfg.businesses.parking.stopInTown && cfg.businesses.enabled && truck.companyId && legMile(truck) <= 1e-6 && companyById(w, truck.companyId).nightStop === "town") {
+        const fullDay = drivingLimitMin(w, truck, companyById(w, truck.companyId));
+        const leg = placeRoute(w, truck.place, truck.targetPlace);
+        const reachMi = (hosLeft / MINUTES_PER_HOUR) * (leg && leg.hours > 0 ? leg.miles / leg.hours : cfg.hos.avgMph);
+        if (leg && hosLeft < fullDay - 1e-6 && truck.remainingMi > reachMi && !siteInReach(w, leg, 0, reachMi)) {
+          truck.townNight = true;
+          // The day's hours spent, as planNight's early stop spends them (below): no rule bills, pays, logs or tires on
+          // these minutes (the weekly clock, the driver's pay and fatigue count driven minutes, the false log and the
+          // fines read overMin, and the day reopens at zero before the truck drives). The full limit, not += hosLeft:
+          // with the weekly clock binding, hosLeft is the cycle's remainder and the loop would come back here once per
+          // remainder.
+          truck.shiftDrivenMin = fullDay;
+          if (cfg.hos.restHours > 0) truck.offDutySinceT = now;
+          continue;
+        }
+      }
+      // Driving on: a night in town chosen earlier and not slept (its duty day reset within the hour) no longer stands.
+      if (truck.townNight) delete truck.townNight;
       // The road sets the pace: the route's miles over its hours, then the driver and the company's speed policy,
       // then the grades (roads.terrain): the leg's mountain miles run at the mountain speed.
       const route = placeRoute(w, truck.place, truck.targetPlace);
@@ -389,6 +416,50 @@ function setIdle(w: World, truck: Truck): void {
   truck.loadedMi = 0;
   truck.legKey = -1;
   homeArrival(w, truck);
+  // labor.sendHomeToWork: the job in hand is done, so home to work now, no days off (unless the crew is going home for
+  // days off anyway, which the home-time rules see to).
+  if (truck.homeAfter === "work") {
+    delete truck.homeAfter;
+    const c = truck.companyId ? companyById(w, truck.companyId) : null;
+    const resting = [truck.driverId, truck.coDriverId].some((id) => id > 0 && w.staff[id - 1]!.wantsHome);
+    if (c && crewed(truck) && !resting && truck.hub !== c.homeHub) startEmptyRun(w, truck, c.homeHub);
+  }
+}
+
+/** An empty run to a hub's place from where the truck stands (reposition_truck's, send_home's). */
+export function startEmptyRun(w: World, truck: Truck, hub: number): void {
+  truck.status = "repositioning";
+  truck.targetHub = hub;
+  truck.targetPlace = placeOfHub(hub);
+  truck.remainingMi = placeLegMiles(w, truck.place, truck.targetPlace);
+  truck.idleRounds = 0;
+}
+
+/**
+ * labor.turnWhileEmpty: a truck running empty turns for another hub from where it is now. It pays for the miles so far
+ * (as a run's end does), stands at the town nearest its point on the leg (risk.ts truckLatLon) plus the miles to it,
+ * and starts the new run from there.
+ */
+export function turnTruck(w: World, truck: Truck, hub: number): void {
+  const [lat, lon] = truckLatLon(w, truck);
+  let best = truck.place;
+  let bd = Infinity;
+  const cosLat = Math.cos((lat * Math.PI) / 180);
+  w.net.places.forEach((p, i) => {
+    const d = (p.lat - lat) ** 2 + ((p.lon - lon) * cosLat) ** 2;
+    if (d < bd) {
+      bd = d;
+      best = i;
+    }
+  });
+  const off = Math.round(greatCircleMiles({ lat, lon }, w.net.places[best]!) * 1.2);
+  companyById(w, truck.companyId).operating.costFd += payTripCosts(w, truck, `turn:${truck.id}`);
+  truck.place = best;
+  truck.hub = w.net.places[best]!.market;
+  startEmptyRun(w, truck, hub);
+  truck.remainingMi += off;
+  truck.legMiles = truck.remainingMi;
+  truck.legKey = -1;
 }
 
 /** Pays operating costs for the miles driven since the last settlement. Returns their total. */

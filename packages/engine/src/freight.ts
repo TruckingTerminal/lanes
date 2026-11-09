@@ -62,20 +62,72 @@ function trackClears(table: Record<string, [number, number]>, key: string, rate:
 /** freight.clearsNear.halfLifeDays in game minutes; 0 (off) keeps the trailing mean by count. */
 const clearsHalfLifeMin = (w: World): number => w.cfg.freight.clearsNear.halfLifeDays * w.cfg.time.gameMinutesPerDay;
 
+/** freight.clearsNear.ratio: the economy's rule (ratios to the reference, read with a prior); a config without the key is off. */
+const ratioOn = (w: World): boolean => w.cfg.freight.clearsNear.ratio === true;
+/** What a clear is measured against under the ratio rule: the load's own reference, its hot premium in it (as the figure's base). */
+const clearsBase = (load: Load): number => load.refRate * (load.hot || 1);
+
+/**
+ * The clears table for the rule in force. Its meaning changes with freight.clearsNear.ratio (rates per mile, or ratios to
+ * the reference), so a table kept under the other rule starts afresh when the switch turns: an empty table, which reads
+ * the reference until clears arrive, as a fresh world does (the economy's note).
+ */
+function clearsTable(w: World): NonNullable<World["clears"]> {
+  const ratio = ratioOn(w);
+  if (!w.clears || (w.clears.ratio === true) !== ratio) w.clears = ratio ? { lane: {}, hub: {}, ratio: true } : { lane: {}, hub: {} };
+  return w.clears;
+}
+
 /** Every cleared spot load (board.ts assign; not contract tenders): the lane's and the origin market's trailing clearing rate. */
 export function noteClear(w: World, load: Load, rate: number): void {
   if (load.contractId) return;
-  const c = (w.clears ??= { lane: {}, hub: {} });
+  const c = clearsTable(w);
   const half = clearsHalfLifeMin(w);
-  trackClears(c.lane, `${load.laneId}:${load.equipment}`, rate, w.t, half);
-  trackClears(c.hub, `${load.origin}:${load.equipment}`, rate, w.t, half);
+  const x = c.ratio ? rate / clearsBase(load) : rate;
+  trackClears(c.lane, `${load.laneId}:${load.equipment}`, x, w.t, half);
+  trackClears(c.hub, `${load.origin}:${load.equipment}`, x, w.t, half);
+}
+
+/**
+ * A key's weight now, under the ratio rule: its time weight decayed to this minute by the half-life (read only: nothing is
+ * written), or its count with the half-life off; 0 for a key with no entry.
+ */
+function clearsWeight(table: Record<string, [number, number]>, key: string, t: number, halfLifeMin: number): number {
+  const x = table[key];
+  if (!x) return 0;
+  if (!(halfLifeMin > 0)) return x[1];
+  const d = table[`${key}|decay`];
+  return d ? d[0] * dpow(0.5, Math.max(0, t - d[1]) / halfLifeMin) : Math.min(x[1], 1 / CLEARS_ALPHA);
+}
+
+/**
+ * The ratio rule's parts for a load (freight.clearsNear.ratio): the hub's ratio blends its clears with the reference (1)
+ * at priorClears' weight; the lane's blends its clears with the hub's ratio the same way. Weights are decayed to now at
+ * read time. The board's explanation reads the shares (apps/web board.ts clearsNearSource).
+ */
+export function clearsNearParts(w: World, load: Load): { laneW: number; laneM: number; hubW: number; hubM: number; prior: number; hubRatio: number; laneRatio: number } {
+  // Read only: a table kept under the other rule (before the switch's first clear resets it) reads as empty.
+  const t = w.clears?.ratio === true ? w.clears : { lane: {}, hub: {} };
+  const half = clearsHalfLifeMin(w);
+  const p = w.cfg.freight.clearsNear.priorClears ?? CLEARS_MIN;
+  const laneKey = `${load.laneId}:${load.equipment}`;
+  const hubKey = `${load.origin}:${load.equipment}`;
+  const hubW = clearsWeight(t.hub, hubKey, w.t, half);
+  const laneW = clearsWeight(t.lane, laneKey, w.t, half);
+  const hubM = t.hub[hubKey]?.[0] ?? 1;
+  const laneM = t.lane[laneKey]?.[0] ?? 1;
+  const hubRatio = (hubW * hubM + p * 1) / (hubW + p);
+  const laneRatio = (laneW * laneM + p * hubRatio) / (laneW + p);
+  return { laneW, laneM, hubW, hubM, prior: p, hubRatio, laneRatio };
 }
 
 /**
  * "Usually clears near" (R11, R1's bid anchor): the lane's trailing clearing rate for this trailer, else its origin market's,
- * else the load's own reference; never above the load's ceiling.
+ * else the load's own reference; never above the load's ceiling. Under the ratio rule (freight.clearsNear.ratio), the lane's
+ * blended ratio times this load's own reference, never above its ceiling.
  */
 export function clearsNear(w: World, load: Load): number {
+  if (ratioOn(w)) return Math.min(load.ceiling, clearsNearParts(w, load).laneRatio * clearsBase(load));
   const lane = w.clears?.lane[`${load.laneId}:${load.equipment}`];
   const hub = w.clears?.hub[`${load.origin}:${load.equipment}`];
   const r = lane && lane[1] >= CLEARS_MIN ? lane[0] : hub && hub[1] >= CLEARS_MIN ? hub[0] : load.refRate * (load.hot || 1);

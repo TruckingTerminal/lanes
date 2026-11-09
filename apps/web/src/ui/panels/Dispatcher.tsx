@@ -3,6 +3,7 @@ import { ordersWaitForHand, type StandingOrder } from "@lanes/engine";
 import { DISPATCHER } from "../../copy.js";
 import { DEFAULT_ORDERS, DISPATCHER_ORDERS, PLAYER_DISPATCHER_ORDERS } from "../../game.js";
 import { act, me, onWorldReset, S, useData } from "../../state.js";
+import { PENDING_RULES } from "../../copy-pending-rules.js";
 import { Btn, Card, Label } from "../bits.js";
 import { Iuliia } from "../Walkthrough.js";
 import { iuliiaFirst } from "../../iuliia.js";
@@ -128,6 +129,13 @@ export function DispatcherCard(): JSX.Element {
           </select>
         </div>
       </details>
+      {/* businesses.parking.stopInTown: where a truck sleeps when no site is in reach (the company's choice, kept by the engine). */}
+      {w.cfg.businesses.parking.stopInTown ? (
+        <label class="row switchrow">
+          <input type="checkbox" role="switch" checked={c.nightStop === "town"} onChange={(e) => act({ type: "set_night_stop", choice: (e.currentTarget as HTMLInputElement).checked ? "town" : "shoulder" }, PENDING_RULES.nightStopSaved)} />
+          <span class="small">{PENDING_RULES.nightStopLabel}</span>
+        </label>
+      ) : null}
       <div class="row">
         <Btn primary onClick={() => save(on)}>
           {DISPATCHER.save}

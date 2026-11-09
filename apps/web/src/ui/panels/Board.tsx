@@ -345,7 +345,7 @@ function LoadSheet({ r, truck }: { r: BoardRow; truck: Truck }): JSX.Element {
   // The engine's reach for a bid by hand is market to market (actions.ts place_bid, hubMiles), where Book now's is the
   // truck's own town to the pickup: said before the press, not refused after it (the gamer: 243 mi empty, "more than 300").
   // One rule for both is the engine's (the batch's report).
-  const bidOut = hubMiles(w, truck.hub, l.origin) > MANUAL_BID_MAX_DEADHEAD_MI;
+  const bidOut = !w.cfg.board.bidReachFromTown && hubMiles(w, truck.hub, l.origin) > MANUAL_BID_MAX_DEADHEAD_MI;
   // The bid's own pair (R14): the sheet's money rows are at book-now, so the button carries its cash itself.
   const bidHeld = chipPair(w, truck, bidProfit, bid * l.miles, r.draw).held;
   const bookUp = r.profitBook >= 0;
