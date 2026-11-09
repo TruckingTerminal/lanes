@@ -2,7 +2,7 @@ import type { JSX } from "preact";
 import { useState } from "preact/hooks";
 import { cashNowRate, companyAccount, dayOf, type Company, type Receivable, type World } from "@lanes/engine";
 import { CASHNOW } from "../../copy.js";
-import { fdFull, shortDate, plural } from "../../format.js";
+import { fdFull, shortDate, weekday } from "../../format.js";
 import { invoices } from "../../ledger.js";
 import { bumpData, order, S, useData } from "../../state.js";
 import { Btn } from "../bits.js";
@@ -62,7 +62,7 @@ export function InvoiceRows({ c }: { c: Company }): JSX.Element | null {
         return (
           <div class="stack invoicerow" key={r.id}>
             <span class="small">
-              {lane} · {fd(r.amountFd)} FD · due {shortDate(r.dueDay)} ({plural(Math.max(0, r.dueDay - today), "day")})
+              {lane} · {fd(r.amountFd)} FD · due {CASHNOW.dueWhen(weekday(r.dueDay), r.dueDay - today)}
             </span>
             {rate === null ? null : typeof rate === "string" ? (
               <span class="muted small">{refusal(rate)}</span>
@@ -90,7 +90,7 @@ export function InvoiceRows({ c }: { c: Company }): JSX.Element | null {
       {cashed.map((x) => (
         <div class="stack invoicerow muted" key={`cashed-${x.id}`}>
           <span class="small">
-            {x.lane} · due {shortDate(x.dueDay)}
+            {x.lane} · due {CASHNOW.dueWhen(weekday(x.dueDay), x.dueDay - today)}
           </span>
           <span class="small">{CASHNOW.cashed(shortDate(x.day), fd(x.landsFd))}</span>
         </div>
@@ -147,13 +147,13 @@ function CashSheet({ c, r, rate, lane, onDone }: { c: Company; r: Receivable; ra
   return (
     <div class="stack sheetcard">
       <b>{CASHNOW.sheetTitle}</b>
-      <p class="small">{CASHNOW.invoiceRow(o!, d ?? "", fd(r.amountFd), shortDate(r.dueDay))}</p>
+      <p class="small">{CASHNOW.invoiceRow(o!, d ?? "", fd(r.amountFd), CASHNOW.dueWhen(weekday(r.dueDay), r.dueDay - today))}</p>
       <p class="small">{c.factoring ? CASHNOW.feeContract(pct1(base), pct1(rate - base), age, fd(fee)) : CASHNOW.feeSpot(pct1(base), pct1(rate - base), age, fd(fee))}</p>
       <p class="small">
         <b>{CASHNOW.youGet(fd(lands))}</b>
       </p>
       <p class="muted small">Your cash after · {fd(w.ledger.balance(companyAccount(c.id)) + lands)} FD</p>
-      <p class="muted small">{CASHNOW.note(shortDate(r.dueDay))}</p>
+      <p class="muted small">{CASHNOW.note(CASHNOW.dueWhen(weekday(r.dueDay), r.dueDay - today))}</p>
       {c.role === "broker" ? <p class="muted small">{CASHNOW.brokerNote}</p> : null}
       <div class="row">
         <Btn sm primary onClick={() => void send()}>

@@ -1629,10 +1629,13 @@ export const CASHNOW = {
   several: (n: number, fd: string) => `Cash ${n} invoices · ${fd} FD today`,
   sheetTitle: "Cash this invoice now",
   invoiceRow: (o: string, d: string, fd: string, date: string) => `Invoice · ${o} to ${d} · ${fd} FD, due ${date}`,
+  /** When an invoice falls due, after "due": the weekday and the days to go, not the date (the game's months are 30 days,
+   * so "Feb 30" exists and reads as a bug; the diaries, 2026-11-09). */
+  dueWhen: (weekday: string, days: number) => (days <= 0 ? "today" : days === 1 ? `${weekday}, tomorrow` : `${weekday}, in ${days} days`),
   feeContract: (rate: string, aging: string, n: number, fd: string) => `Fee · ${rate} contract + ${aging} at ${n} days old · ${fd} FD`,
   feeSpot: (spot: string, aging: string, n: number, fd: string) => `Fee · ${spot} spot + ${aging} at ${n} days old · ${fd} FD`,
   youGet: (fd: string) => `You get today · ${fd} FD`,
-  note: (date: string) => `The shipper pays the factor on ${date}. The fee goes to the reserve.`,
+  note: (date: string) => `The shipper pays the factor when it falls due, ${date}. The fee goes to the reserve.`,
   /** A brokerage's sheet only (brokerage-strings.md). */
   brokerNote: "Cashing it doesn't change what you owe carriers, or when.",
   button: (fd: string) => `Cash it now · ${fd} FD`,
