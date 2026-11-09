@@ -1,5 +1,23 @@
 # Decisions (the producer's log for Jeff; newest first)
 
+- 2026-11-09 — OPEN FOR JEFF: the economy's worn-truck loan rule (economy-worn-truck-loans-2026-11-09.md), on the
+  director's suspicion from the day-2 Dealer. Today the purchase loan reads the borrower's credit only (down 10–20%, 0.2–
+  0.4% a week, 104 weeks) and never the truck: a 500k-mile reefer and a new Workhorse get the same down, rate and term, and
+  no age or odometer refuses a loan; a day-2 company's 14% down puts QA's 17.8k listing at 4,620 FD cash on the day. Real
+  lending (eleven sources in the note): 25–35% down on a worn truck or a thin-credit startup, a premium or a decline past 7
+  years or 500k miles, many lenders stopping at 700k, terms shortening with age. Proposed, behind a switch
+  (equipmentFinance.purchase.collateral): down = the credit share + 3 points a year of age over 3 + 3 points per 100k miles
+  over 300k (cap 50%) + 10 points for a company under a year old that has never owned a truck; declined past 10 years or
+  700k miles ("cash only", with the figure); the term ends by the truck's 7th birthday, never under 26 weeks; the rate
+  +0.03% a week per year of age over 3. QA's listing then takes 33% down, about 7,670 cash on day 2; a new rig 24%. At the
+  diary's pace the listing route moves from day 2 to about day 5 and the new-rig route from about day 12 to 18: the rule
+  makes the loan true, it does not by itself make the first truck hard (the harder version, no purchase loan under three
+  months of authority, is in the note as Jeff's pacing option, not the economy's recommendation). Bots, bounds on today's
+  keys (730 days, seeds 1–2): the free path's median first truck 28/51 days → 44/82, loans written halve, defaults −19–38%,
+  write-offs −45–64%, liquidations flat, profit per truck-week within ±4%; one coupling for the gate: NPC pay −3.4–5.0%
+  (fewer equipment sinks refill the cap's budget), to be read on the built rule's ten-seed pair against its twin before any
+  ruleset. Order: Jeff's yes, engineering builds it behind the switch, the economy runs the gate pair, then a ruleset at a
+  restart with no players; independent of windows. The first-truck figure itself stays true.
 - 2026-11-09 — the director, on QA's replay of client pass 2 (qa-client2-2026-11-09.md): the Dealer opened on day 2 in
   both worlds with "You can buy today", because a worn listing (462k–502k miles, 47–52% condition) needs under 5k FD cash
   on the day. Ruling: the figure stays true and so does "You can buy today" (it answers "can I buy?", and a beater as a
