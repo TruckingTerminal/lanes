@@ -44,14 +44,40 @@ export const LIVE_LEVERS: Record<string, unknown> = {
   "token.exchange.sellFeePct": 0.07,
   // The balance dial: NPC rates toward the sink-to-faucet target, read over a season's quarter.
   "token.circular.rateStabilizer.enabled": true,
-  // The emission cap (2026-11-04, studio/reviews/economy-emission.md): built, OFF until its retune. The first sizing
-  // (30M a month, 0.95 decline, rate multiplier floored at 0.5) pinned rates at the floor for the last third of every
-  // month, so prudent bots parked and lost most (seed 2 conservative −59%); month 1 overspent 22%; the lessor faucet
-  // (32%) is outside it. Retune: draw down posted volume before rates, floor the multiplier near break-even (~0.8),
-  // count npc_lessor. No ruleset bump while off.
-  "token.emission.enabled": false, // the emission cap (economy-emission.md)
+  // The emission cap (studio/reviews/economy-emission.md), switched on 2026-11-09 (ruleset 0.24.0-phase0.40; Jeff:
+  // "Approved on all 3. Go"): the NPC shippers' pay draws on a monthly budget that refills from the trailing 90 days'
+  // sinks net of the other faucets, plus a flat subsidy of 5M a month, the published supply curve (36M to open; 271M by
+  // year 4; the 600M spent in month 114). The levers cut posted volume (to 0.5) before rates (to 0.8); the balance dial
+  // moves one way under the cap and the volume dial follows the rules while the cap is slack (§16.2). Sized in §15–16
+  // and passed by the ten-seed gate (killCriteria.gate, calibrated in §16.7: band 0.84–1.00 from year 4, carriers 72%
+  // of the twin's at year 3 and 75% at year 4, cleared 75%, market debt 7.5%) ten of ten. The first sizing (30M a month,
+  // 0.95 decline, the multiplier floored at 0.5) starved the bots; its record is §1–5.
+  "token.emission.enabled": true,
+  "token.emission.firstMonthFd": 36_000_000,
+  "token.emission.multRange": [0.8, 1],
+  "token.emission.volRange": [0.5, 1],
+  "token.emission.pacing.horizonDays": 30,
+  "token.emission.pacing.windowDays": 14,
+  "token.emission.pacing.lagDays": 5,
+  "token.emission.pacing.stepPerDay": 0.03,
+  "token.emission.pacing.warmStart": 0.5,
+  "token.emission.pacing.holdAfterLagDays": 2,
+  "token.emission.refill": 1,
+  "token.emission.refillNet": true,
+  "token.emission.refillWindowDays": 90,
+  "token.emission.subsidy.firstMonthFd": 5_000_000,
+  "token.emission.subsidy.flat": true,
+  "token.emission.dialOneWay": true,
+  "token.emission.volumeDialOneWay": false,
   "token.circular.rateStabilizer.stepPerMonth": 0.05,
   "token.circular.rateStabilizer.windowDays": 90,
+  // Two switches from the sprint-3 batches, on with 0.24.0 as their batches recommended: Send home on a moving truck
+  // sets its drivers' standing intent and leaves the truck on its job, the home-time rules taking it home once idle
+  // (R9, player2-ux.md section 3); the board's "usually clears near" is a time-weighted mean, each clear's weight
+  // halving every game day, so it follows the first weeks' rising board instead of lagging it (item 5 of the
+  // 2026-11-07 itinerary).
+  "labor.sendHomeWhileMoving": true,
+  "freight.clearsNear.halfLifeDays": 1,
   // The sinks: fuel tax, sales tax, businesses on hubs and interstates, managers.
   "costs.fuelTax.enabled": true,
   "costs.salesTax.enabled": true,
