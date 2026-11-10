@@ -8,6 +8,7 @@ import type { EconomyConfig } from "@lanes/config";
 import { dayOf, ordersWaitForHand, type Company, type World } from "@lanes/engine";
 import type { Tab } from "./tabs.js";
 import { STEP9 } from "./copy.js";
+import { PENDING } from "./copy-pending.js";
 import { firstTruckRoute } from "./finance.js";
 import { worldScope } from "./onboard.js";
 import { shortDate, TIER_NAME as TIER_LABEL, TRAILER_NAME as TRAILER_LABEL } from "./format.js";
@@ -104,7 +105,7 @@ export function walkSteps(cfg: EconomyConfig, hub = "your home hub"): WalkStep[]
       title: "Getting paid",
       tab: "money",
       mood: "point",
-      brief: `Delivered, and paid today. Money shows the lessor's share and the ${pct(cfg.freeEntry.leases.byValue.escrowShareOfPay)} held toward your own truck.`,
+      brief: PENDING.walkPaidBrief(pct(cfg.freeEntry.leases.byValue.escrowShareOfPay)),
       say: [
         `Delivered, and paid the same day. That's the lease: the lessor holds the paper and pays you on delivery, less its share. When you haul with a truck of your own, you'll invoice the shipper yourself, and shippers pay net-30: thirty game days after the work. Quick pay brings that forward for ${pct(cfg.token.payment.quickPayPct)}; an instrument for emergencies, not a policy. Companies that live on quick pay receive a goodbye note from me. Handwritten. Fountain pen.`,
         `What arrives is net of the lessor's ${pct(cfg.costs.npcLeaseShareOfGross)}. The lease also holds ${pct(cfg.freeEntry.leases.byValue.escrowShareOfPay)} of each load back toward a truck of your own; you'll see it again when you buy, so don't mourn it. Money shows both. Watch the cash line at the top of the screen every day, the way my grandmother watched the samovar. Trust, and verify. Mostly verify.`,
@@ -205,7 +206,8 @@ export function walkSteps(cfg: EconomyConfig, hub = "your home hub"): WalkStep[]
         return r.route === "loan" ? STEP9.loanNow(fd(r.need)) : STEP9.gap(fd(r.need), fd(r.have), "", shortDate(r.restockDay));
       },
       why: "Ownership turns the lessor's cut into your margin and is the only way a one-truck company grows into two.",
-      done: (w, c) => trucksOf(w, c).some((t) => t.lease === "owned"),
+      // Client batch 7 (QA): a truck ordered to replace the lease counts too; the order's wait is What now?'s line then.
+      done: (w, c) => trucksOf(w, c).some((t) => t.lease === "owned") || w.orders.some((o) => o.companyId === c.id && o.replaceNpcLease && o.kind !== "trailer"),
     },
     {
       id: "driver",

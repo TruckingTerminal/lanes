@@ -1,7 +1,7 @@
 import "./seed.js";
 import { describe, expect, it } from "vitest";
 import { clearsNear as engineClearsNear, dispatchProfile, invalidOrders, marketMood, operatingTrucks, placeMiles, placeToll } from "@lanes/engine";
-import { bidRange, boardRows, chipCash, chipFd, clearsNear, clearsNearSource, posterOf, sortRows, suggestBid, destMatch } from "../src/board.js";
+import { bidCeiling, bidRange, boardRows, chipCash, chipFd, clearsNear, clearsNearSource, posterOf, sortRows, suggestBid, destMatch } from "../src/board.js";
 import { breakdown } from "../src/explain.js";
 import { needs, settleHandBids } from "../src/logic.js";
 import { S } from "../src/state.js";
@@ -40,7 +40,9 @@ describe("the board", () => {
     for (const r of rows) {
       expect(clearsNear(g.w, r.l)).toBeLessThanOrEqual(r.l.ceiling);
       const [lo, hi] = bidRange(g.w, r.l, r.be);
-      expect(hi).toBe(r.l.ceiling);
+      // Client batch 7: the range's top is the ceiling to the cent a bid can be placed at (rounded down), never over it.
+      expect(hi).toBe(bidCeiling(r.l));
+      expect(hi).toBeLessThanOrEqual(r.l.ceiling);
       expect(lo).toBeLessThanOrEqual(hi);
       // Pass 2b: a suggestion is a bet above Book now, never over the ceiling or under break-even; or none at all.
       if (r.suggest !== null) {

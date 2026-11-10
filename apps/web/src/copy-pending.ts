@@ -28,11 +28,15 @@ export const PENDING = {
   // `sooner`): the soonest, and of those the least cash today. `trailer` is its trailer ("dry van"; the engine keeps no
   // model year, so none is said); `fd` its cash today; `date` null when it delivers today.
   // The writer: "a truck with a" (the trailer isn't the truck), and the figure is cash at signing, not a gap ("0": the hold covers it).
-  soonerTruck: (trailer: string, fd: string, date: string | null) => `Or a truck with a ${trailer}, delivered ${date ?? "today"}: ${fd === "0" ? "your hold already covers it" : `${fd} FD in cash${date ? " today" : ""}`}.`,
+  // Client batch 7: `hauls` names the company's freight when the sooner truck's trailer isn't it (as pricesLeastCash does),
+  // and `date` can be whenIdle for a listing while the leased truck is on a run.
+  soonerTruck: (trailer: string, fd: string, date: string | null, hauls: string | null = null) => `Or a truck with a ${trailer}${hauls ? ` (your company hauls ${hauls})` : ""}, delivered ${date ?? "today"}: ${fd === "0" ? "your hold already covers it" : `${fd} FD in cash${date ? " today" : ""}`}.`,
   // Iuliia's page, under the figure, while the priced truck comes from the queue: what waiting keeps paying the lessor.
   // figures.ts waitCostFd: the lease's share of gross × the company's weekly gross lately (last month's revenue over its
   // weeks, else revenue so far over the weeks since it started) × the share of its fleet on the lease × days / 7, to 10 FD.
-  waitCost: (date: string, share: string, days: number, fd: string) => `Waiting to ${date} keeps you paying the lessor ${share} of gross for ${days} ${days === 1 ? "day" : "days"}: about ${fd} FD at what you've grossed lately.`,
+  // Client batch 7 (QA: "lately" read a month the truck sat idle): `basis` is figures.ts weeklyGross's, the basis that covers
+  // more weeks: "start" (the company's gross since it started; nearly always) or "month" (last month's).
+  waitCost: (date: string, share: string, days: number, fd: string, basis: "month" | "start" = "start") => `Waiting to ${date} keeps you paying the lessor ${share} of gross for ${days} ${days === 1 ? "day" : "days"}: about ${fd} FD at what you've grossed ${basis === "month" ? "last month" : "since you started"}.`,
   // Once a truck is ordered to replace the lease (figures.ts orderedFirstTruck): the Dealer's card, the teaser and
   // Iuliia's page say the wait in place of the figure; What now? says it too (whatNowOrdered).
   // The writer: "ready", not "arrives": the date is the earliest, and the hand-over waits for a day's close with the
@@ -204,6 +208,31 @@ export const PENDING = {
   day28AtFirst: "Businesses are open. Nobody needs a warehouse in week four, and you need a truck of your own first.",
   // `figure` is firstTruckLine's: "To your first truck: N FD" or "You can buy today"; null with no truck for sale anywhere.
   day28ReasonFirst: (figure: string | null) => (figure ? `A business pays over years. ${figure}.` : "A business pays over years."),
+  // Client batch 7 (QA: "You can buy today" and "NPC-leased truck is on a trip" while the leased truck was on a run). A
+  // listing changes hands only while the lessor's truck is idle (market.ts listingBlock). The first-truck figure when the
+  // priced truck is a listing and the leased truck is on a run (figures.ts firstTruckLine):
+  firstTruckWhenIdle: (truck: number, to: string) => `You can buy when truck ${truck} is next idle; it's on a run to ${to}`,
+  // A used listing's row on the Dealer, under its button, in place of the engine's "NPC-leased truck is on a trip".
+  listingWhenIdle: (truck: number, to: string) => `You can buy this when truck ${truck} is next idle; it's on a run to ${to}.`,
+  // That row's button while it waits (otherwise "Buy today").
+  buyWhenIdleLabel: "Buy",
+  // soonerTruck's `date` for a listing while the leased truck runs.
+  whenIdle: (truck: number) => `when truck ${truck} is next idle`,
+  // The used lot's rows (Showroom): the button, and the confirm sheet's verb and line (QA: "Buy Workhorse + Dry van?").
+  lotButton: (replacing: boolean) => `Order this rig${replacing ? " (replaces your lease)" : ""}`,
+  orderVerb: "Order",
+  lotOrderNote: (date: string, replacing: boolean) => `It's an order: ready ${date}.${replacing ? " Your lease ends when it's handed over." : ""}`,
+  // The yard line on the Truck tab (QA: "1 trailers of your own").
+  trailersOwn: (n: number) => `${n} ${n === 1 ? "trailer" : "trailers"} of your own`,
+  // The walkthrough's "Getting paid" step (QA: "Delivered, and paid today." stood for weeks until the second delivery).
+  walkPaidBrief: (share: string) => `Paid on delivery. Money shows the lessor's share and the ${share} held toward your own truck.`,
+  // Client batch 7 (QA: "Your own truck" was logged when the truck was ordered, three months before it ran). The milestone
+  // log's entry for the order (milestones.ts "truckOrdered"), on its day; "Your own truck" now dates the hand-over.
+  msOrderedName: "Truck ordered",
+  // Its line while the truck waits at the dealer (Iuliia's caption on the order day, and the log), and once it's run.
+  msOrderedAt: (date: string) => `You ordered your first truck. It's ready ${date}; the leased one runs until the hand-over.`,
+  msOrderedDone: "You ordered your first truck; it was handed over later, when the leased one was free.",
+  msOrderedReason: "An order isn't a truck yet: the lessor's share runs until the day it's handed over.",
   newsServiceClaim: (kind: string, load: string, fd: string) => `${kind === "late" ? `Late delivery, load #${load}` : kind === "noshow" ? `No-show, load #${load}` : `Released load #${load}`}: −${fd} FD claim to the poster.`,
 } as const;
 

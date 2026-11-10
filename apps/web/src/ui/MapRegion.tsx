@@ -46,9 +46,12 @@ export function MapView(): JSX.Element {
         <Btn sm title="Zoom in (+, wheel or double-click)" disabled={maxZoom()} onClick={() => setZoom(zoomIndex() + 1)}>
           +
         </Btn>
-        <Btn sm title="Whole map (0)" disabled={zoomIndex() === 0} onClick={() => setZoom(0)}>
-          Fit
-        </Btn>
+        {/* Client batch 7 (QA: "− FIT + FIT"): at the fit the readout already says Fit, so the button shows once zoomed. */}
+        {zoomIndex() === 0 ? null : (
+          <Btn sm title="Whole map (0)" onClick={() => setZoom(0)}>
+            Fit
+          </Btn>
+        )}
       </div>
     </div>
   );

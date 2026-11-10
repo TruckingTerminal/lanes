@@ -104,6 +104,9 @@ export function Showroom(): JSX.Element {
             <Buy
               key={tr}
               what={`Workhorse + ${TRAILER_NAME[tr]}`}
+              // Client batch 7 (QA): an order, said as one, with "(replaces your lease)" as the new rigs' buttons carry it.
+              verb={PENDING.orderVerb}
+              label={PENDING.lotButton(onLease)}
               price={lotPrice(w, "workhorse", tr) * npcDealerMult(w)}
               replacing={onLease}
               block={w.usedLot.stock < 1 ? DEALER.whyLotEmpty : capWhy ?? roomWhy}
@@ -111,7 +114,7 @@ export function Showroom(): JSX.Element {
               // Client batch 6 (QA): the engine's own lot wait for this buyer (dealerships.ts lotDeliveryDays): the NPC
               // dealer's queue for a starter replacing its lease, the lot's own days for a rig that adds to a fleet.
               when={DEALER.arrives(shortDate(today + lotDeliveryDays(w, onLease)))}
-              lines={usedTruck(w, c, { ...lotSpec(w, tr), tier: "workhorse", trailer: tr, lease: "owned" })}
+              lines={orderLines(usedTruck(w, c, { ...lotSpec(w, tr), tier: "workhorse", trailer: tr, lease: "owned" }), shortDate(today + lotDeliveryDays(w, onLease)), onLease)}
               truck={collateralOf(w, lotSpec(w, tr))}
               ok="Ordered from the used lot"
             />
@@ -239,7 +242,10 @@ export function Showroom(): JSX.Element {
  * shown on a sheet before it acts; the lot, a new rig, a tractor alone or another carrier's listing. A disabled button
  * always says why, under it; a refusal from the rules shows there too, never as a toast.
  */
-export function Buy({ what, label, price, replacing, block, action, ok, lines, when, truck }: { what: string; label?: string; price: number; replacing: boolean; block: string | null; action: Extract<Action, { type: "buy_asset" }> | Extract<Action, { type: "buy_listing" }>; ok: string; lines: Lines; when?: string; truck?: Collateral }): JSX.Element {
+/** The used lot's confirm lines with the order's day and, for a starter, the lease's end at the hand-over (client batch 7). */
+const orderLines = (base: Lines, date: string, replacing: boolean): Lines => ({ ...base, does: `${base.does} ${PENDING.lotOrderNote(date, replacing)}` });
+
+export function Buy({ what, label, verb = "Buy", price, replacing, block, action, ok, lines, when, truck }: { what: string; label?: string; verb?: string; price: number; replacing: boolean; block: string | null; action: Extract<Action, { type: "buy_asset" }> | Extract<Action, { type: "buy_listing" }>; ok: string; lines: Lines; when?: string; truck?: Collateral }): JSX.Element {
   const w = S.game!.w;
   const c = me();
   const [open, setOpen] = useState(false);
@@ -260,7 +266,7 @@ export function Buy({ what, label, price, replacing, block, action, ok, lines, w
   const said = myTrucks().some((t) => t.lease === "owned") || ordersOf(w, c.id).length ? "dealer:buyLater" : "dealer:buyFirst";
   // R6: every truck bought asks first, on the card: what leaves cash now, what's left, what it is and its one risk.
   const ask = (a: typeof action, ev: MouseEvent) =>
-    confirmAct({ verb: "Buy", item: what, costFd: a.finance ? p.loanNowFd ?? 0 : p.cashNowFd, ...lines, run: () => void go(a) }, ev);
+    confirmAct({ verb, item: what, costFd: a.finance ? p.loanNowFd ?? 0 : p.cashNowFd, ...lines, run: () => void go(a) }, ev);
   const go = async (a: typeof action) => {
     const r = await order(a, ok);
     if (!r.ok) return setRefused(r.reason);

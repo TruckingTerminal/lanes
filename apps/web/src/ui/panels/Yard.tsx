@@ -31,6 +31,7 @@ import { scrap as scrapLines } from "../../confirmspecs.js";
 import { CONFIRM } from "../../copy.js";
 import { DOOR } from "../../copy.js";
 import { layerDay } from "../../tabs.js";
+import { PENDING } from "../../copy-pending.js";
 
 const TYPES: Equipment[] = ["van", "reefer", "flatbed"];
 const name = (e: Equipment) => TRAILER_NAME[e].toLowerCase();
@@ -150,7 +151,7 @@ export function YardCard(): JSX.Element | null {
         rows={[
           ["Holds", <Num>{yardTrucks(w, c)} tractors · {trailerCap(w, c)} trailers</Num>],
           // What it runs, leased trucks included (copy-player5.md R25: "Now 0 tractors" read wrong with a leased truck running).
-          ["Running", <Num>{leased} leased, {tractors} owned · {ownedTrailers(w, c).length} trailers of your own</Num>],
+          ["Running", <Num>{leased} leased, {tractors} owned · {PENDING.trailersOwn(ownedTrailers(w, c).length)}</Num>],
         ]}
       />
       <p class="muted small">

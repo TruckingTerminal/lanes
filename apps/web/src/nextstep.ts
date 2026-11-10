@@ -154,7 +154,9 @@ export function nextAction(cfg: EconomyConfig, w: World, c: Company, lost?: Lost
 
   // 4. A walkthrough step is current.
   const p = walkProgress(cfg, w, c, skipped);
-  if (p.index >= 0 && !p.skipped) return { rule: 4, kind: "step", index: p.index, total: p.total };
+  // Client batch 7 (QA): while a truck ordered to replace the lease waits, the walkthrough waits too (the next step is the
+  // second truck), so the order's wait (rule 5) isn't hidden behind a step.
+  if (p.index >= 0 && !p.skipped && !orderedFirstTruck(w, c)) return { rule: 4, kind: "step", index: p.index, total: p.total };
 
   // 5. A milestone near: the factoring contract's last week, a thin cushion, the gap to the next truck.
   if (c.factoring && !c.factoring.renew && c.factoring.until - today <= 7) return { rule: 5, kind: "factoringEnds", untilDay: c.factoring.until, days: Math.max(0, c.factoring.until - today) };

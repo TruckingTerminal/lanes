@@ -2,7 +2,7 @@ import type { JSX } from "preact";
 import { useEffect, useRef, useState } from "preact/hooks";
 import { dispatchProfile, expectedReloadDeadheadMi, isLocal, operatingTrucks, localOnly, MANUAL_BID_MAX_DEADHEAD_MI, ownerDrawFd, placeMiles, placeToll, VETTING_NAMES, type Load, type Truck } from "@lanes/engine";
 import { COMMODITIES } from "@lanes/data";
-import { allInRate, bidFiles, bidRange, blockReason, chipPair, clearsNear, suggestBid } from "../../board.js";
+import { allInRate, bidCeiling, bidFiles, bidRange, blockReason, chipPair, clampToCeiling, clearsNear, suggestBid } from "../../board.js";
 import { BOARD } from "../../copy.js";
 import { DockWarning, ProfitChip } from "../ProfitChip.js";
 import { trueBreakEven } from "../../breakeven.js";
@@ -138,7 +138,7 @@ export function LoadsTable(): JSX.Element {
     const dp = w.net.places[l.destPlace]!;
     const k = COMMODITIES[l.commodity]!;
     if (q && ![k.name, op.name, op.state, dp.name, dp.state].some((s) => s.toLowerCase().includes(q))) continue;
-    const reloadMi = expectedReloadDeadheadMi(w, l.dest, l.equipment);
+    const reloadMi = expectedReloadDeadheadMi(w, l.dest, l.equipment, prof.foresightDays); // as the sheet's (board.ts): one figure
     const lane = w.net.lanes[l.laneId]!;
     const tolls = placeToll(w, truck.place, l.originPlace) + l.routeTollFd;
     const be = trueBreakEven(w, truck, l, dh, placeToll(w, truck.place, l.originPlace), prof.foresightDays, prof.reloadWeight);
@@ -225,7 +225,17 @@ function LoadRow({ r, truck, mine, pendingRate }: { r: Row; truck: Truck; mine: 
         <td class="num">{r.ageH === 0 ? "new" : `${r.ageH}h`}</td>
         <td>
           <div class="rate-big">{fdFull(r.total)} FD</div>
-          <div class="num muted">{BOARD.rpms(l.bookNow.toFixed(2), allInRate(r.total, l.miles, r.dh))}</div>
+          {/* Client batch 7: each rate holds together, so the cell wraps at most once, between them. */}
+          <div class="num muted">
+            {BOARD.rpms(l.bookNow.toFixed(2), allInRate(r.total, l.miles, r.dh))
+              .split(" · ")
+              .map((part, i) => (
+                <span key={i} class="nobreak">
+                  {i ? " · " : ""}
+                  {part}
+                </span>
+              ))}
+          </div>
         </td>
         <td class="num">{l.miles}</td>
         <td>
@@ -289,7 +299,8 @@ function LoadDetail({ r, truck, mine, pendingRate }: { r: Row; truck: Truck; min
   const bidOff = off && !r.files;
   const bidId = `bid-${l.id}`;
   const placeBid = () => {
-    const rate = Number((document.getElementById(bidId) as HTMLInputElement).value);
+    // Client batch 7: a typed bid within a cent above the shown ceiling is the shown ceiling (board.ts clampToCeiling).
+    const rate = clampToCeiling(l, Number((document.getElementById(bidId) as HTMLInputElement).value));
     if (!Number.isFinite(rate) || rate <= 0) return toast(PENDING.bidEmpty, true); // an empty field places nothing (pass 2b)
     act({ type: "place_bid", truckId: truck.id, loadId: l.id, rate }, `Bid in at ${rate.toFixed(2)}/mi. It clears at ${nextRoundLabel()}`);
     // A hand bid from the table is a hand bid too: the round's result card (main.tsx, the lostBid and won events and the
@@ -317,7 +328,7 @@ function LoadDetail({ r, truck, mine, pendingRate }: { r: Row; truck: Truck; min
         <Btn primary disabled={off} onClick={() => act({ type: "book_load", truckId: truck.id, loadId: l.id }, "Booked. The truck is on its way")}>
           Book now · {l.bookNow.toFixed(2)}
         </Btn>
-        <input type="number" id={bidId} step="0.01" min="0.5" max={l.ceiling.toFixed(2)} defaultValue={mine && pendingRate !== undefined ? pendingRate.toFixed(2) : r.suggest !== null ? r.suggest.toFixed(2) : ""} aria-label="Your bid per mile" disabled={bidOff} />
+        <input type="number" id={bidId} step="0.01" min="0.5" max={bidCeiling(l).toFixed(2)} defaultValue={mine && pendingRate !== undefined ? pendingRate.toFixed(2) : r.suggest !== null ? r.suggest.toFixed(2) : ""} aria-label="Your bid per mile" disabled={bidOff} />
         <Btn on={mine} disabled={bidOff} onClick={placeBid}>
           {mine ? "Change bid" : "Bid"}
         </Btn>
@@ -369,7 +380,7 @@ function LoadDetail({ r, truck, mine, pendingRate }: { r: Row; truck: Truck; min
           <Kv
             rows={[
               ["Usually clears near", <Num>{clearsNear(w, l).toFixed(2)}/mi</Num>],
-              ["Ceiling", <Num>{l.ceiling.toFixed(2)}/mi</Num>],
+              ["Ceiling", <Num>{bidCeiling(l).toFixed(2)}/mi</Num>],
               ["Bid range", <Num>{bidRange(w, l, r.be).map((x) => x.toFixed(2)).join(" – ")}</Num>],
               ["Profit at your bid", r.profit === null ? PENDING.bidBookBetter : <Num class={r.profit > 0 ? "good" : "bad"}>{fd(r.profit)} FD</Num>],
             ]}
@@ -423,7 +434,7 @@ export function HubLoadsTable({ hub }: { hub: number }): JSX.Element {
               <td>{TRAILER_NAME[l.equipment]}</td>
               <td class="num">{l.miles}</td>
               <td class="num">{l.bookNow.toFixed(2)}</td>
-              <td class="num">{l.ceiling.toFixed(2)}</td>
+              <td class="num">{bidCeiling(l).toFixed(2)}</td>
             </tr>
           ))}
         </tbody>

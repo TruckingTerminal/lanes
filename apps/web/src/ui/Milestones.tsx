@@ -2,7 +2,7 @@ import type { JSX } from "preact";
 import { useState } from "preact/hooks";
 import { staffById, type Company, type World } from "@lanes/engine";
 import { FIGURE_ACT, GUIDE_LABEL, MILESTONE, RETURN } from "../copy.js";
-import { cushion, firstTruckLine, gapToTruck } from "../figures.js";
+import { cushion, firstTruckLine, gapToTruck, orderedFirstTruck } from "../figures.js";
 import { PENDING } from "../copy-pending.js";
 import { cls, fdFull, shortDate, weekdayDate } from "../format.js";
 import { closedMonths, monthReport, shownReport } from "../books.js";
@@ -115,6 +115,11 @@ function words(w: World, c: Company, m: Milestone, phase: "before" | "at"): { li
   const today = Math.floor(w.t / w.cfg.time.gameMinutesPerDay);
   const go = (tab: string) => () => setTab(tab as Parameters<typeof setTab>[0]);
   switch (m.key) {
+    case "truckOrdered": {
+      // Client batch 7: the order, said as one, with the day the truck is ready while it waits.
+      const o = orderedFirstTruck(w, c);
+      return { line: o ? PENDING.msOrderedAt(shortDate(o.dueDay)) : PENDING.msOrderedDone, reason: PENDING.msOrderedReason };
+    }
     case "ownTruck":
       return { line: MILESTONE.ownTruck.at, reason: MILESTONE.ownTruck.reason, button: MILESTONE.ownTruck.button, go: go("loads") };
     case "hiredWeek": {
@@ -218,7 +223,7 @@ export function CompanySoFar(): JSX.Element | null {
             return (
               <li key={m.key}>
                 <button type="button" class="linkish" onClick={() => setOpen(open === m.key ? null : m.key)}>
-                  <span class="muted small">{m.day !== null ? shortDate(m.day) : MILESTONE.noDate}</span> {m.via === "trucks" ? MILESTONE.dispatcher.nameTrucks : MILESTONE[m.key].name}
+                  <span class="muted small">{m.day !== null ? shortDate(m.day) : MILESTONE.noDate}</span> {m.via === "trucks" ? MILESTONE.dispatcher.nameTrucks : m.key === "truckOrdered" ? PENDING.msOrderedName : MILESTONE[m.key].name}
                 </button>
                 {open === m.key ? (
                   <p class="small">
@@ -265,7 +270,7 @@ function nextOnRoad(w: World, c: Company): JSX.Element | string {
         <Fig k="guide.gapToTruck" label={PENDING.firstTruckName} ctx={{ notes }}>
           {`${first.figure}.`}
         </Fig>
-        {[...notes, ...(first.cashOnly ? [first.cashOnly] : []), ...(first.worn ? [first.worn] : []), ...(first.wait ? [first.wait] : []), ...(first.advice ? [first.advice] : [])].map((n) => (
+        {[...(first.ordered ? [] : notes), ...(first.cashOnly ? [first.cashOnly] : []), ...(first.worn ? [first.worn] : []), ...(first.wait ? [first.wait] : []), ...(first.advice ? [first.advice] : [])].map((n) => (
           <span class="muted small" key={n}>
             <br />
             {n}

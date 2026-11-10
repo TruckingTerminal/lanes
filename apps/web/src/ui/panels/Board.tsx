@@ -2,7 +2,7 @@ import type { JSX } from "preact";
 import { useEffect, useState } from "preact/hooks";
 import { hubMiles, MANUAL_BID_MAX_DEADHEAD_MI, VETTING_NAMES, type Truck } from "@lanes/engine";
 import { COMMODITIES } from "@lanes/data";
-import { allInRate, bidRange, boardRows, chipCash, chipPair, clearsNear, dockWaits, posterOf, sortRows, type BoardRow, type BoardSort, type ChipPair } from "../../board.js";
+import { allInRate, bidCeiling, bidRange, boardRows, clampToCeiling, chipCash, chipPair, clearsNear, dockWaits, posterOf, sortRows, type BoardRow, type BoardSort, type ChipPair } from "../../board.js";
 import { DockWarning, ProfitChip } from "../ProfitChip.js";
 import { ANSWER, BOARD, CHIP, DELIVERED, INTEL, LOAD, ROUND, WALL } from "../../copy.js";
 import { cls, fdFull, hhmm, pct, shortDate, TRAILER_NAME, weekdayDate } from "../../format.js";
@@ -337,6 +337,7 @@ function LoadSheet({ r, truck }: { r: BoardRow; truck: Truck }): JSX.Element {
   // The field holds the player's bid in, else the suggestion, else nothing (pass 2b): never a bid placed for them.
   const start = bidHere ? mine!.rate : r.suggest;
   const [bid, setBid] = useState<number | null>(start === null ? null : Math.min(hi, Math.max(lo, start)));
+  const bidState = bid;
   const [note, setNote] = useState<{ text: string; bad: boolean } | null>(null);
   // Iuliia on the sheet's first opening in a sitting: a blocked load has its own line (iuliia-lines.md, Loads).
   useEffect(() => iuliiaFirst(r.block ? "load:blocked" : "load:open", r.block ? "screen:loadBlocked" : "screen:load"), []);
@@ -363,7 +364,7 @@ function LoadSheet({ r, truck }: { r: BoardRow; truck: Truck }): JSX.Element {
   // R20: a refusal in the writer's words where the engine's reason is a vetting block; otherwise the engine's own.
   const refusal = (reason: string): string => {
     // board.refuseOverCeiling: the engine's "above the ceiling, {rate}/mi", in the writer's words (R20).
-    if (/above the ceiling/i.test(reason)) return ANSWER.ceiling(l.ceiling.toFixed(2));
+    if (/above the ceiling/i.test(reason)) return ANSWER.ceiling(bidCeiling(l).toFixed(2));
     if (!/vetting rules you out|won't load a carrier with/.test(reason) || !/authority|loads delivered/.test(reason)) return reason;
     const k = w.cfg.fraud.vetting;
     const age = Math.floor(w.t / w.cfg.time.gameMinutesPerDay) - me().authority.since;
@@ -383,6 +384,9 @@ function LoadSheet({ r, truck }: { r: BoardRow; truck: Truck }): JSX.Element {
     setTab("fleet");
   };
   const placeBid = async () => {
+    // A figure still being typed counts as typed (the press can come before the field's blur), held to the range.
+    const typed = bidText !== null ? Number(bidText.replace(",", ".")) : NaN;
+    const bid = Number.isFinite(typed) && typed > 0 ? Math.round(Math.min(hi, Math.max(lo, clampToCeiling(l, typed))) * 100) / 100 : bidState;
     if (bid === null) return;
     const answer = ANSWER.bid(bid.toFixed(2), w.net.places[l.originPlace]!.name, w.net.places[l.destPlace]!.name, nextRoundHour());
     const res = await order({ type: "place_bid", truckId: truck.id, loadId: l.id, rate: bid }, answer);
@@ -444,7 +448,7 @@ function LoadSheet({ r, truck }: { r: BoardRow; truck: Truck }): JSX.Element {
                 ] as [string, JSX.Element][])
               : []),
             [LOAD.clearsNear, <Fig k="board.clearsNear" label={LOAD.clearsNear} ctx={fx}>{`${clearsNear(w, l).toFixed(2)}/mi`}</Fig>],
-            [LOAD.ceiling, <Fig k="board.ceiling" label={LOAD.ceiling} ctx={fx}>{`${l.ceiling.toFixed(2)}/mi`}</Fig>],
+            [LOAD.ceiling, <Fig k="board.ceiling" label={LOAD.ceiling} ctx={fx}>{`${bidCeiling(l).toFixed(2)}/mi`}</Fig>],
           ]}
         />
       </Card>
@@ -495,7 +499,7 @@ function LoadSheet({ r, truck }: { r: BoardRow; truck: Truck }): JSX.Element {
             onInput={(e) => setBidText((e.currentTarget as HTMLInputElement).value)}
             onBlur={() => {
               const v = Number((bidText ?? "").replace(",", "."));
-              if (bidText !== null && Number.isFinite(v) && v > 0) setBid(Math.round(Math.min(hi, Math.max(lo, v)) * 100) / 100);
+              if (bidText !== null && Number.isFinite(v) && v > 0) setBid(Math.round(Math.min(hi, Math.max(lo, clampToCeiling(l, v))) * 100) / 100);
               setBidText(null);
             }}
             onKeyDown={(e) => {

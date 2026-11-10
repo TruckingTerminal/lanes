@@ -12,7 +12,7 @@ import { Buy, Showroom } from "./Showroom.js";
 import { confirmAct } from "../Confirm.js";
 import { leaseDepositNow, leaseTruck, leaseWeeklyMin, newTruck, usedTruck } from "../../confirmspecs.js";
 import { ANSWER, CONFIRM, DEALER } from "../../copy.js";
-import { firstTruckLine, inFirstMonth, truckPlace } from "../../figures.js";
+import { firstTruckLine, inFirstMonth, leaseOnRun, listingWhy, truckPlace } from "../../figures.js";
 import { PENDING } from "../../copy-pending.js";
 import { CapsLine } from "../Caps.js";
 
@@ -60,7 +60,7 @@ export function Dealer(): JSX.Element {
       {first ? (
         <Card>
           <p>
-            <b>{first.figure}</b>
+            <b>{first.ordered ? `${first.figure}.` : first.figure}</b>
           </p>
           {first.what ? <p class="small">{first.what}</p> : null}
           {/* Client batch 6b: a truck that delivers sooner than the one the figure prices, with its cash today. */}
@@ -95,10 +95,10 @@ export function Dealer(): JSX.Element {
             {/* The same loan and deposit rules as the lot (QA's Dealer replay); the engine's own checks, cash aside, name any block. */}
             <Buy
               what={`${TIER_NAME[t.tier]} + ${TRAILER_NAME[t.trailer]}`}
-              label="Buy today"
+              label={leaseOnRun(w, c) ? PENDING.buyWhenIdleLabel : "Buy today"}
               price={l.askFd}
               replacing={onLease}
-              block={listingBlock(w, c.id, l.id, Infinity)}
+              block={listingWhy(w, c, listingBlock(w, c.id, l.id, Infinity))}
               action={{ type: "buy_listing", listingId: l.id }}
               when={DEALER.deliversToday}
               lines={usedTruck(w, c, t, t.hub)}

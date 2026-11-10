@@ -164,6 +164,23 @@ export function gapToTruck(w: World, c: Company): { gapFd: number; route: "lot" 
 }
 
 /**
+ * The lessor's truck out on a run (client batch 7, QA): a listing changes hands only while it's idle (market.ts
+ * listingBlock), so a listing can be bought when it's next idle. Its number and where it's headed; null when idle or none.
+ */
+export function leaseOnRun(w: World, c: Company): { truckId: number; to: string } | null {
+  const t = (w.trucksByCompany.get(c.id) ?? []).find((x) => x.lease === "npc");
+  if (!t || t.status === "idle") return null;
+  return { truckId: t.id, to: w.net.places[t.targetPlace]?.name ?? w.net.hubs[t.targetHub]!.name };
+}
+
+/** A listing's block in the writer's words where the engine's is the lease on a run; any other block as the engine says it. */
+export function listingWhy(w: World, c: Company, block: string | null): string | null {
+  if (block !== "NPC-leased truck is on a trip") return block;
+  const run = leaseOnRun(w, c);
+  return run ? PENDING.listingWhenIdle(run.truckId, run.to) : block;
+}
+
+/**
  * A truck ordered to replace the lessor's, still at the dealer (client batch 6b, the director: once ordered, the wait is
  * counted): its due day and the days to it. `due` once the day has come: it takes over when the leased truck is next idle
  * at a day's close (dealer.ts deliverOrders), so it can come later than the date it was given.
@@ -176,14 +193,15 @@ export function orderedFirstTruck(w: World, c: Company): { dueDay: number; days:
 }
 
 /**
- * What the company grosses in a week lately: last month's revenue over its weeks, else its revenue so far over the weeks
- * since it started (as confirmspecs.ts weeklyKept counts its result).
+ * What the company grosses in a week, on the better-founded basis (client batch 7, QA: last month alone read a month the
+ * truck sat idle, 1,170 FD for 86 days): last month's revenue over its weeks, or the revenue since the company started over
+ * its weeks, whichever covers more weeks (since the start, once the company is older than its last month), and which.
  */
-export function weeklyGross(w: World, c: Company): number {
-  const perMonth = w.cfg.time.daysPerMonth / 7;
-  if (c.lastMonth) return c.lastMonth.revenueFd / perMonth;
-  const weeks = Math.max(1, (Math.floor(w.t / w.cfg.time.gameMinutesPerDay) - c.createdDay) / 7);
-  return c.operating.revenueFd / weeks;
+export function weeklyGross(w: World, c: Company): { fd: number; basis: "month" | "start" } {
+  const monthWeeks = w.cfg.time.daysPerMonth / 7;
+  const startWeeks = Math.max(1, (Math.floor(w.t / w.cfg.time.gameMinutesPerDay) - c.createdDay) / 7);
+  if (c.lastMonth && monthWeeks > startWeeks) return { fd: c.lastMonth.revenueFd / monthWeeks, basis: "month" };
+  return { fd: c.operating.revenueFd / startWeeks, basis: "start" };
 }
 
 /**
@@ -195,7 +213,7 @@ export function waitCostFd(w: World, c: Company, days: number): number {
   const fleet = w.trucksByCompany.get(c.id) ?? [];
   const leased = fleet.filter((t) => t.lease === "npc").length;
   if (!leased || days <= 0) return 0;
-  return w.cfg.costs.npcLeaseShareOfGross * weeklyGross(w, c) * (leased / fleet.length) * (days / 7);
+  return w.cfg.costs.npcLeaseShareOfGross * weeklyGross(w, c).fd * (leased / fleet.length) * (days / 7);
 }
 
 /** A used truck under this condition gets Iuliia's catch line (the director, client batch 4: a worn truck on day 2). */
@@ -249,6 +267,8 @@ export function firstTruckLine(w: World, c: Company): { figure: string; met: boo
   const desc = !t ? null : t.route === "new" ? PENDING.truckNew(TIER_NAME[t.spec.tier], TRAILER_NAME[t.spec.trailer].toLowerCase()) : PENDING.truckUsed(TIER_NAME[t.spec.tier], TRAILER_NAME[t.spec.trailer].toLowerCase(), kmi, pct(cond), t.place !== null ? truckPlace(w, t.place) : null);
   // A truck that delivers today says no date; one from the queue says its day.
   const later = t?.arrivesDay !== undefined && t.arrivesDay > today;
+  // A listing changes hands when the leased truck is idle (client batch 7): while it runs, "when truck N is next idle".
+  const run = leaseOnRun(w, c);
   const arrives = later ? shortDate(t!.arrivesDay!) : null;
   // The trailer, where it isn't the company's freight (the director): the company hauls what its trucks pull.
   const own = (w.trucksByCompany.get(c.id) ?? [])[0]?.trailer;
@@ -258,15 +278,18 @@ export function firstTruckLine(w: World, c: Company): { figure: string; met: boo
   let sooner: string | null = null;
   if (later) {
     const alt = g.routes.filter((r) => r.truck.arrivesDay !== undefined && r.truck.arrivesDay < t!.arrivesDay! && Number.isFinite(r.needFd)).sort((a, b) => a.truck.arrivesDay! - b.truck.arrivesDay! || a.needFd - b.needFd || a.price - b.price)[0];
-    if (alt) sooner = PENDING.soonerTruck(TRAILER_NAME[alt.truck.spec.trailer].toLowerCase(), fdFull(Math.max(0, alt.needFd)), alt.truck.arrivesDay! <= today ? null : shortDate(alt.truck.arrivesDay!));
+    // Client batch 7: it names the company's freight too when its trailer isn't it, and a listing waits for the lease's run.
+    const altHauls = own && alt && alt.truck.spec.trailer !== own ? TRAILER_NAME[own].toLowerCase() : null;
+    const when = !alt ? null : alt.truck.route === "listing" && run ? PENDING.whenIdle(run.truckId) : alt.truck.arrivesDay! <= today ? null : shortDate(alt.truck.arrivesDay!);
+    if (alt) sooner = PENDING.soonerTruck(TRAILER_NAME[alt.truck.spec.trailer].toLowerCase(), fdFull(Math.max(0, alt.needFd)), when, altHauls);
   }
   // Iuliia prices the wait: the lessor's share for the days to the priced truck's delivery, at the company's gross lately.
   const days = later ? t!.arrivesDay! - today : 0;
   const cost = waitCostFd(w, c, days);
-  const wait = later && cost >= 0.5 ? PENDING.waitCost(shortDate(t!.arrivesDay!), pct(w.cfg.costs.npcLeaseShareOfGross), days, fdFull(Math.round(cost / 10) * 10)) : null;
+  const wait = later && cost >= 0.5 ? PENDING.waitCost(shortDate(t!.arrivesDay!), pct(w.cfg.costs.npcLeaseShareOfGross), days, fdFull(Math.round(cost / 10) * 10), weeklyGross(w, c).basis) : null;
   const worn = t && t.route !== "new" && cond < WORN_BELOW ? PENDING.wornCatch(kmi, pct(cond), fdFull(Math.round(repairsPer(w, t.spec) / 100) * 100), REPAIR_PER_MI.toLocaleString("en-US")) : null;
   // equipmentFinance.purchase.collateral: the lender won't finance the truck it prices, so the figure is its cash.
-  const figure = !met ? PENDING.firstTruckToGo(fdFull(g.gapFd)) : later ? PENDING.firstTruckOrderToday(arrives!) : PENDING.firstTruckMet;
+  const figure = !met ? PENDING.firstTruckToGo(fdFull(g.gapFd)) : later ? PENDING.firstTruckOrderToday(arrives!) : t?.route === "listing" && run ? PENDING.firstTruckWhenIdle(run.truckId, run.to) : PENDING.firstTruckMet;
   return { figure, met, advice: g.holdFd >= 0.5 ? PENDING.firstTruckCushion(fdFull(roundCushion(g.holdFd))) : null, needFd: g.needNowFd, gapFd: g.gapFd, what, worn, cashOnly: g.cashOnly ? PENDING_RULES.cashOnlyFigure : null, sooner, wait, ordered: false };
 }
 /** Advice is a round number: to the hundred, to the thousand from ten thousand. */

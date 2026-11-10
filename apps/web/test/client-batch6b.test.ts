@@ -39,7 +39,7 @@ describe("client batch 6b: order today, delivered later", () => {
     c.operating.revenueFd = 7_000;
     const days = gap.truck!.arrivesDay! - today(w);
     const cost = waitCostFd(w, c, days);
-    expect(cost).toBeCloseTo(w.cfg.costs.npcLeaseShareOfGross * weeklyGross(w, c) * (days / 7), 6);
+    expect(cost).toBeCloseTo(w.cfg.costs.npcLeaseShareOfGross * weeklyGross(w, c).fd * (days / 7), 6);
     const wait = firstTruckLine(w, c)!.wait!;
     expect(wait).toContain(`for ${days} days`);
     expect(wait).toContain(`${Math.round(w.cfg.costs.npcLeaseShareOfGross * 100)}%`);

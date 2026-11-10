@@ -125,8 +125,17 @@ export function suggestBid(w: World, l: Load, be: number): number | null {
  * The bid range the stepper allows: a little over break-even, up to the ceiling. The engine still takes a bid over the
  * ceiling (it wins only if nobody bids within it), but the board doesn't offer one (market truth, row 15).
  */
+/**
+ * The highest bid a player can place, to the cent: the ceiling rounded down (client batch 7, QA: "Ceiling 4.06/mi" showed
+ * a ceiling of 4.0573 rounded up, and a bid of 4.06 was refused as above it). Shown wherever the ceiling is a bid's top.
+ */
+export const bidCeiling = (l: Load): number => Math.floor(l.ceiling * 100 + 1e-6) / 100;
+/** A typed bid within a cent above the shown ceiling is the shown ceiling (the cent the display rounded away). */
+export const clampToCeiling = (l: Load, rate: number): number => (rate > bidCeiling(l) && rate <= bidCeiling(l) + 0.01 + 1e-9 ? bidCeiling(l) : rate);
+
 export function bidRange(_w: World, l: Load, be: number): [number, number] {
-  return [Math.min(l.ceiling, Math.max(0.5, be * 1.05)), l.ceiling];
+  const top = bidCeiling(l);
+  return [Math.min(top, Math.max(0.5, be * 1.05)), top];
 }
 
 /** The next board round's hour, "18:00": when a round's local-first window opens to everyone. */

@@ -1,4 +1,4 @@
-import { marketMood, type Company, type World } from "@lanes/engine";
+import { factoringLog, marketMood, type Company, type World } from "@lanes/engine";
 import { debtCountdown, nextWeeklyCheckDay } from "./figures.js";
 
 /**
@@ -8,7 +8,7 @@ import { debtCountdown, nextWeeklyCheckDay } from "./figures.js";
  * and `ms:{key}:at`, scoped to the company in ui/Milestones.tsx) and only inside `guide.milestoneWindowDays` of the date. A milestone whose date the world doesn't
  * keep (a third truck) has `day` null: its at line shows while it holds, and the timeline lists it without a date.
  */
-export type MilestoneKey = "ownTruck" | "hiredWeek" | "dispatcher" | "monthClose" | "day28" | "firstBoom" | "slump" | "debt" | "day91";
+export type MilestoneKey = "truckOrdered" | "ownTruck" | "hiredWeek" | "dispatcher" | "monthClose" | "day28" | "firstBoom" | "slump" | "debt" | "day91";
 
 export interface Milestone {
   key: MilestoneKey;
@@ -54,7 +54,20 @@ export const firstBoomDay = (w: World, since: number): number | null => firstMoo
 export function milestones(w: World, c: Company): Milestone[] {
   const now = today(w);
   const out: Milestone[] = [];
-  if (c.firstOwnedTruckDay !== null) out.push({ key: "ownTruck", day: c.firstOwnedTruckDay, happened: true, before: false });
+  // Client batch 7 (QA: "Your own truck" was logged the day it was ordered, three months before the hand-over). The first
+  // owned truck is logged the day it runs, and a truck ordered first is logged as an order, on its day. The day it runs is
+  // the factoring log's firstInService, stamped at a day's close (so the day after a truck bought from a listing, which
+  // runs at once); with no payment layer, a truck owned now counts from the day it was bought. An order shows as more
+  // than a day between the purchase and that stamp (the quickest delivery takes a week).
+  if (c.firstOwnedTruckDay !== null) {
+    const ownsOne = (w.trucksByCompany.get(c.id) ?? []).some((t) => t.lease === "owned");
+    const inService = w.cfg.token.payment.enabled ? factoringLog(w).firstInService[c.id] : undefined;
+    const fromOrder = inService !== undefined && inService > c.firstOwnedTruckDay + 1;
+    const handedOver = fromOrder ? inService! : inService !== undefined || ownsOne ? c.firstOwnedTruckDay : null;
+    const waiting = w.orders.some((o) => o.companyId === c.id && o.replaceNpcLease && o.kind !== "trailer");
+    if (waiting || fromOrder) out.push({ key: "truckOrdered", day: c.firstOwnedTruckDay, happened: true, before: false });
+    if (handedOver !== null && !waiting) out.push({ key: "ownTruck", day: handedOver, happened: true, before: false });
+  }
   // The first payday: the weekly close after the first hired driver's hiring day. Its before line runs from the hiring
   // to the day before; its at line is the week so far, on the payday itself, before the close resets the figure (the
   // director). Queued behind other lines rather than dropped, both reach the caption (QA's guidance replays).
@@ -107,7 +120,7 @@ export function dueMilestone(w: World, c: Company, seen: (key: string) => boolea
 }
 
 /** The order milestones come in, for placing an undated one between its neighbours. */
-const ORDER: MilestoneKey[] = ["ownTruck", "hiredWeek", "dispatcher", "monthClose", "day28", "firstBoom", "slump", "debt", "day91"];
+const ORDER: MilestoneKey[] = ["truckOrdered", "ownTruck", "hiredWeek", "dispatcher", "monthClose", "day28", "firstBoom", "slump", "debt", "day91"];
 
 /** The company's history for the timeline: what has happened, newest first; an undated one sits just after its last dated forerunner. */
 export function history(w: World, c: Company): Milestone[] {
