@@ -1,5 +1,25 @@
 # Decisions (the producer's log for Jeff; newest first)
 
+- 2026-11-10 — the director, on two questions from the writer's pass on client batch 7
+  (studio/reviews/director-listing-idle.md). One: "ready" stands as the one word for the day an ordered truck can be
+  handed over (the lot rows said "arrives", the card "delivered", the ordered line "ready"); it is the honest word,
+  the date being the earliest day and not a promise. Past its date the line is to say since when and why ("ready
+  since Mar 8 · handed over when truck 1 next stands idle"); the writer has written the lines and engineering wires
+  them in client batch 8. Two, a rule for a later ruleset: a used listing can be bought while the leased truck runs
+  and is handed over at that truck's next idle moment, as an order is under assets.swapAtNextIdle, because a window
+  that is minutes long with a dispatcher on is a rule the player cannot use. The guards: the sale at once and a player
+  seller paid at the sale; no cancelling; the truck stands where it was listed and runs no loads; the lessor's cut
+  runs until the hand-over; the dispatcher books no new load for the leased truck once a hand-over is pending; others
+  see "Sold". Behind its own switch, the economy sizing any carrying cost. On engineering's list after the
+  early-delivery fee and the days-away rule.
+- 2026-11-10 — windows batch 6 is on main behind the switch (31dffac; the off digest unchanged, the 60-day sim
+  figure-identical): an AI broker at or over a quarter lost at a hub over the trailing week takes no tender there, the
+  bots' facility test reads the window's rounds and the hub's facility lost share, and a bot closes a facility still
+  at a loss after eight weeks. Engineering's 60-day smoke on ten seeds: the carriers' share of the cap's pay level
+  with off, no facility built at all under windows, the brokers' fall-off about double off's. The economy runs the
+  ten seeds at four years for the gate. Client batch 7b (e19698e) and the writer's lines (e14a746, c8c67db) are on
+  the test page with batch 7, build c8c67db, and QA replays them; pushes are held until QA reports. Engineering is on
+  the early-delivery fee's engine part.
 - 2026-11-10 — engineering's triage of the "Ledger entry to itself" that stopped two of the economy's windows-on twins
   (a7c1ad4): it cannot be reached with delivery windows off, so nothing in 0.24.1 is exposed. The cause: after a round
   the board re-posts some of what a dispatcher won; with windows on a win can be booked ahead for a truck still heading
