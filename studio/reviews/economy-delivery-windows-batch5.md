@@ -154,6 +154,18 @@ against the reference, at five hubs):
 Windows wait for batch 6 and a passing gate; 0.24.1 proceeds with its eight switches. The early-delivery fee (its own
 note, economy-early-delivery-2026-11-10.md) is a later ruleset of its own, not windows'.
 
+## Addendum: the off arm refreshed on f666d04 (ten seeds)
+
+The eight queued seeds landed; the off world on this code reads, over ten seeds: posted 811,946, cleared 445,404
+[432,366–460,721], fill 0.549, the mean rate 3.74, the cap's paid freight 1,377M (budget 1,402M, 245 days at the
+volume floor), companies bankrupt 182 (oo 76 · fleet 48 · broker 27), owner-operator profit per truck-week 2,090 and
+the fleets' 2,117, owned trucks at the end 577, loan defaults 178 and seizures 89, owner-operators liquidated 0.190,
+brokered loads 97,039 (25% of the cap's pay), supply 118M, the band's year-4 readings 0.848–0.874. Every line is the
+c915f72 baseline's to within a percent, so the comparisons above stand as written: against this off arm batch 5 reads
+cleared −8%, the rate −2%, the cap's paid freight −3%, owner-operators' profit −12%, fleets' −28%, liquidations 0.190 →
+0.303, defaults 178 → 424, bankruptcies 182 → 259. The twins of seeds 2 and 7 died again on the same `settleDoubleBroker`
+error, so the engine fix comes before the next twin.
+
 ## What ran, and where
 
 Two arms of ten seeds at 1460 days (batch 5 on, cap on; its cap-off twin, eight of ten after two engine errors), the
