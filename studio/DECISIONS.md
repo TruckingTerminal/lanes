@@ -1,5 +1,14 @@
 # Decisions (the producer's log for Jeff; newest first)
 
+- 2026-11-10 — Jeff: "I want the player agent to play the game with multiple different playstyles again and find holes
+  in the logic or bugs etc." The player role is briefed for six sessions on its own copy of the test page (build
+  c8c67db, ruleset 0.24.0-phase0.41), a diary each with a ranked "Holes and bugs" table and a summary of the ten worst
+  at the end: the exploit hunter (every field at its limits, book and release, buy and resell, reloads and two tabs),
+  the borrower (growth on debt into a cash crunch, on purpose), the middleman (a brokerage, equipment trading, the
+  businesses), the absentee (a dispatcher and weeks away), the stubborn specialist (the thinnest hub, one trailer, no
+  advice taken, trying to get stranded) and the cautious owner-operator again (does following every instruction ever
+  lose money or dead-end). At high effort. Findings are routed to engineering as each diary lands. This round plays
+  today's rules; the nine rules of 0.24.1 get a pass of their own once Jeff approves them for the test page.
 - 2026-11-10 — the director, on two questions from the writer's pass on client batch 7
   (studio/reviews/director-listing-idle.md). One: "ready" stands as the one word for the day an ordered truck can be
   handed over (the lot rows said "arrives", the card "delivered", the ordered line "ready"); it is the honest word,
