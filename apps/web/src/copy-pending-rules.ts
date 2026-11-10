@@ -38,7 +38,11 @@ export const PENDING_RULES = {
   // equipmentFinance.purchase.collateral (the economy's worn-truck loans): a truck past the lender's caps is cash only. On
   // the Dealer's row under its buttons; `why` the engine's reason ("the lender won't finance a truck past 700,000 miles:
   // cash only"), `fd` the cash it takes (Showroom.tsx Buy).
-  cashOnly: (why: string, fd: string) => `No loan on this one: ${why}, ${fd} FD.`,
+  // The engine's reason ends ": cash only"; said once, as the row's own sentence. `fd` is price and tax less any deposit.
+  cashOnly: (why: string, fd: string) => {
+    const reason = why.replace(/:\s*cash only\.?$/i, "");
+    return `${reason.charAt(0).toUpperCase()}${reason.slice(1)}. Cash only: ${fd} FD when you sign.`;
+  },
   // Under the first-truck figure (the Dealer's card, Iuliia's page) when the truck it prices is cash only.
-  cashOnlyFigure: "The lender won't finance that one for its age or miles, so the figure is its full price in cash.",
+  cashOnlyFigure: "The lender won't finance that one for its age or miles, so the figure counts its full price and sales tax in cash.",
 } as const;
