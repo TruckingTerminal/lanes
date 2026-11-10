@@ -5,6 +5,9 @@ import {
   bestSource,
   companyAccount,
   purchaseTerms,
+  collateralOf,
+  NEW_TRUCK,
+  type Collateral,
   lotPrice,
   lotSpec,
   npcDealerMult,
@@ -30,6 +33,7 @@ import { fd, pct, shortDate, TIER_NAME, TRAILER_NAME, plural } from "../../forma
 import { act, me, myTrucks, order, S, toast } from "../../state.js";
 import { iuliiaSay } from "../../iuliia.js";
 import { DEALER } from "../../copy.js";
+import { PENDING_RULES } from "../../copy-pending-rules.js";
 import { buyPlan } from "../../finance.js";
 import { useEffect, useRef, useState } from "preact/hooks";
 import type { Action } from "@lanes/engine";
@@ -105,6 +109,7 @@ export function Showroom(): JSX.Element {
               action={{ type: "buy_asset", tier: "workhorse", trailer: tr, replaceNpcLease: onLease, used: true }}
               when={DEALER.arrives(shortDate(today + deliveryDays(w)))}
               lines={usedTruck(w, c, { ...lotSpec(w, tr), tier: "workhorse", trailer: tr, lease: "owned" })}
+              truck={collateralOf(w, lotSpec(w, tr))}
               ok="Ordered from the used lot"
             />
           ))}
@@ -138,6 +143,7 @@ export function Showroom(): JSX.Element {
                 action={{ type: "buy_asset", tier, trailer: tr, replaceNpcLease: onLease, dealershipId: rig.dealershipId || undefined }}
                 when={DEALER.arrives(shortDate(today + rig.days))}
                 lines={newTruck(w, tier, tr, rig.days)}
+                truck={NEW_TRUCK}
                 ok={`Ordered. Delivery in ${plural(rig.days, "day")}`}
               />
               <div class="row">
@@ -156,6 +162,7 @@ export function Showroom(): JSX.Element {
                   action={{ type: "buy_asset", tier, trailer: tr, replaceNpcLease: onLease, tractorOnly: true, dealershipId: tractor.dealershipId || undefined }}
                   when={DEALER.arrives(shortDate(today + tractor.days))}
                   lines={newTruck(w, tier, tr, tractor.days)}
+                  truck={NEW_TRUCK}
                   ok="Tractor ordered. It hooks a spare from your yard, or a rental"
                 />
               ) : null}
@@ -229,7 +236,7 @@ export function Showroom(): JSX.Element {
  * shown on a sheet before it acts; the lot, a new rig, a tractor alone or another carrier's listing. A disabled button
  * always says why, under it; a refusal from the rules shows there too, never as a toast.
  */
-export function Buy({ what, label, price, replacing, block, action, ok, lines, when }: { what: string; label?: string; price: number; replacing: boolean; block: string | null; action: Extract<Action, { type: "buy_asset" }> | Extract<Action, { type: "buy_listing" }>; ok: string; lines: Lines; when?: string }): JSX.Element {
+export function Buy({ what, label, price, replacing, block, action, ok, lines, when, truck }: { what: string; label?: string; price: number; replacing: boolean; block: string | null; action: Extract<Action, { type: "buy_asset" }> | Extract<Action, { type: "buy_listing" }>; ok: string; lines: Lines; when?: string; truck?: Collateral }): JSX.Element {
   const w = S.game!.w;
   const c = me();
   const [open, setOpen] = useState(false);
@@ -239,11 +246,12 @@ export function Buy({ what, label, price, replacing, block, action, ok, lines, w
   useEffect(() => {
     if (open) sheet.current?.scrollIntoView({ block: "nearest" });
   }, [open]);
-  const p = buyPlan(w, c, price, replacing);
+  // equipmentFinance.purchase.collateral: the lender reads this truck (age and miles); past its caps, cash only.
+  const p = buyPlan(w, c, price, replacing, truck);
   // The reasons use the sheet's net figures (QA's Dealer re-check): what's needed after the lease deposit, against cash alone.
   const cash = p.have - p.deposit;
   const cashWhy = block ?? (p.cashOk ? null : DEALER.whyCash(fd(cash), fd(p.cashNowFd)));
-  const loanWhy = !p.loan ? null : block ?? (p.loan.why === "full" ? DEALER.whyLoans(purchaseTerms(w, c).maxLoans) : p.loan.why === "short" ? DEALER.whyLoan(fd(p.loanNowFd ?? 0), fd(cash)) : null);
+  const loanWhy = !p.loan ? null : block ?? (p.loan.why === "full" ? DEALER.whyLoans(purchaseTerms(w, c, truck).maxLoans) : p.loan.why === "short" ? DEALER.whyLoan(fd(p.loanNowFd ?? 0), fd(cash)) : null);
   const ef = w.cfg.equipmentFinance.purchase;
   // Iuliia's line for the purchase: the first truck of its own, or one more (iuliia-lines.md, Dealer).
   const said = myTrucks().some((t) => t.lease === "owned") || ordersOf(w, c.id).length ? "dealer:buyLater" : "dealer:buyFirst";
@@ -277,13 +285,14 @@ export function Buy({ what, label, price, replacing, block, action, ok, lines, w
         {p.loan ? (
           <>
             {" · "}
-            {DEALER.now} <Fig k="loan.cashNow" label={DEALER.now} ctx={{ fd: price, replacing }}>{`${fd(p.loanNowFd ?? 0)} FD`}</Fig>
+            {DEALER.now} <Fig k="loan.cashNow" label={DEALER.now} ctx={{ fd: price, replacing, truck }}>{`${fd(p.loanNowFd ?? 0)} FD`}</Fig>
             {" · "}
             {DEALER.down} <Fig k="loan.downPayment" label={DEALER.down}>{`${fd(p.loan.down)} FD`}</Fig>
           </>
         ) : null}
       </p>
       {cashWhy ? <p class="muted small">{cashWhy}</p> : null}
+      {p.cashOnly && !block ? <p class="muted small">{PENDING_RULES.cashOnly(p.cashOnly, fd(p.cashNowFd))}</p> : null}
       {refused ? <p class="bad small">{refused}</p> : null}
       {open && p.loan ? (
         <div ref={sheet}>
@@ -297,7 +306,7 @@ export function Buy({ what, label, price, replacing, block, action, ok, lines, w
               [DEALER.stake, DEALER.stakeValue(fd(p.loan.stake))],
               [DEALER.weekly, <Fig k="loan.rate" label={DEALER.weekly}>{DEALER.weeklyValue(fd(p.loan.weekly), p.loan.termWeeks, `${(p.loan.weeklyRate * 100).toFixed(2)}%`)}</Fig>],
               ...(p.deposit > 0.5 ? ([[DEALER.deposit, DEALER.depositValue(fd(p.deposit))]] as [string, string][]) : []),
-              [DEALER.now, <Fig k="loan.cashNow" label={DEALER.now} ctx={{ fd: price, replacing }}>{`${fd(p.loanNowFd ?? 0)} FD`}</Fig>],
+              [DEALER.now, <Fig k="loan.cashNow" label={DEALER.now} ctx={{ fd: price, replacing, truck }}>{`${fd(p.loanNowFd ?? 0)} FD`}</Fig>],
             ]}
           />
           <p class="warn small">{DEALER.missed(ef.missedToDefault)}</p>

@@ -16,7 +16,7 @@ import { dealerPrice, lotPrice, lotSpec, ordersOf, placeOrder, tractorOrdersOf, 
 import { fitTrailer, hook, hookedTrailer, ownedTrailers, rentTrailer, scrapTrailer, syncTrailer, trailerById, trailerCap, trailerCondition, trailerRefurbishable, unhook } from "./trailers.js";
 import { scrapOwnedTractor } from "./assets.js";
 import { dealershipPrice, lotDeliveryDays, npcDealerDays, npcDealerMult, sellFromStock, tradeIn } from "./dealerships.js";
-import { cancelPurchaseLoan, financeBlock, financedCashNeed, financePurchase, purchaseTerms } from "./purchaseLoans.js";
+import { cancelPurchaseLoan, collateralOf, financeBlock, financedCashNeed, financePurchase, NEW_TRUCK, purchaseTerms } from "./purchaseLoans.js";
 import { endPlayerLease, leasedOut, offerLease, takeLease, withdrawLeaseOffer } from "./playerLeases.js";
 import { buyAssetSale, listAssetSale, withdrawAssetSale } from "./assetSales.js";
 import { facilitiesOf, facilityEquipment } from "./demand.js";
@@ -37,7 +37,7 @@ import { buyItem } from "./items.js";
 import { depositPool, withdrawPool } from "./pools.js";
 import { cashInvoice, contractOn, endFactoring, setContractTerms, signFactoring } from "./receivables.js";
 import type { Action, Load, RuleScope, Truck } from "./types.js";
-import { AHEAD_STATUSES, canMake, reachRefusal, releaseLoad, windowsOn, type Reach } from "./windows.js";
+import { AHEAD_STATUSES, canMake, keepLoad, reachRefusal, releaseLoad, windowsOn, type Reach } from "./windows.js";
 import { condition, rebuildable, rebuildCost } from "./wear.js";
 import { availableSupplyFor, clocksFollowDriver, companyById, crewed, depositCredit, hubMiles, invalidOrders, releaseDepositFor, seatDriver, staffById, syncFleet, takeSupplyFor, truckById, unseatDriver, type World, placeMiles, placeOfHub, placeLegMiles } from "./world.js";
 import type { EconomyConfig } from "@lanes/config";
@@ -117,6 +117,7 @@ export function badInput(cfg: EconomyConfig, a: Action): string | null {
     case "send_home":
       return isId(a.truckId) && (a.work === undefined || typeof a.work === "boolean") ? null : "bad truck id";
     case "release_load":
+    case "keep_load":
       return isId(a.loadId) ? null : "bad load";
     case "rebuild_truck":
     case "park_truck":
@@ -551,7 +552,7 @@ export function applyAction(w: World, companyId: number, action: Action): Action
         const b = w.businesses[action.dealershipId - 1];
         if (!b) return { ok: false, reason: "no such dealership" };
         // On a purchase loan: the lender's share lands first, so the dealership is paid in full.
-        const loan = action.finance ? financePurchase(w, company, dealershipPrice(w, b, company.id, kind, action.tier, action.trailer)) : null;
+        const loan = action.finance ? financePurchase(w, company, dealershipPrice(w, b, company.id, kind, action.tier, action.trailer), NEW_TRUCK) : null;
         if (typeof loan === "string") return { ok: false, reason: loan };
         const why = sellFromStock(w, company, b, kind, action.tier, action.trailer);
         const lockedPaid = b.lastSaleLockedFd ?? 0;
@@ -574,12 +575,14 @@ export function applyAction(w: World, companyId: number, action: Action): Action
         const lotSave = peekDiscount(w, company, lotList); // a staking lock's discount on the used lot, within its budget (staking.ts)
         const price = lotList - lotSave;
         // Refused before the lease deposit moves (QA's Dealer replay: a refusal had released it, the lease still running).
+        // The lender reads the lot rig's age and miles (equipmentFinance.purchase.collateral).
+        const lotCol = collateralOf(w, lotSpec(w, action.trailer));
         if (action.finance) {
-          const why = financeBlock(w, company, price, replacing ? depositCredit(w, company) : 0);
+          const why = financeBlock(w, company, price, replacing ? depositCredit(w, company) : 0, lotCol);
           if (why) return { ok: false, reason: why };
         }
-        if (replacing) releaseDepositFor(w, company, action.finance ? financedCashNeed(w, company, price) : price + salesTaxOn(w, price));
-        const loan = action.finance ? financePurchase(w, company, price) : null;
+        if (replacing) releaseDepositFor(w, company, action.finance ? financedCashNeed(w, company, price, lotCol) : price + salesTaxOn(w, price));
+        const loan = action.finance ? financePurchase(w, company, price, lotCol) : null;
         if (typeof loan === "string") return { ok: false, reason: loan };
         if (w.ledger.balance(acct) < price) {
           if (loan) cancelPurchaseLoan(w, loan);
@@ -615,11 +618,11 @@ export function applyAction(w: World, companyId: number, action: Action): Action
         return { ok: true };
       }
       if (action.finance) {
-        const why = financeBlock(w, company, price, replacing ? depositCredit(w, company) : 0);
+        const why = financeBlock(w, company, price, replacing ? depositCredit(w, company) : 0, NEW_TRUCK);
         if (why) return { ok: false, reason: why };
       }
-      if (replacing) releaseDepositFor(w, company, action.finance ? financedCashNeed(w, company, price) : price + salesTaxOn(w, price));
-      const loan = action.finance ? financePurchase(w, company, price) : null;
+      if (replacing) releaseDepositFor(w, company, action.finance ? financedCashNeed(w, company, price, NEW_TRUCK) : price + salesTaxOn(w, price));
+      const loan = action.finance ? financePurchase(w, company, price, NEW_TRUCK) : null;
       if (typeof loan === "string") return { ok: false, reason: loan };
       if (w.ledger.balance(acct) < price) {
         if (loan) cancelPurchaseLoan(w, loan);
@@ -852,19 +855,21 @@ export function applyAction(w: World, companyId: number, action: Action): Action
       // A free starter's lease deposit counts toward the truck that replaces it, but moves only once nothing will refuse
       // the purchase (QA's Dealer replay: "on a trip" refused it after the deposit had been released).
       const credit = l && l.status === "open" && !l.trailerId ? depositCredit(w, company) : 0;
+      // The lender reads the listed truck's age and miles (equipmentFinance.purchase.collateral).
+      const col = l && l.truckId > 0 ? collateralOf(w, w.trucks[l.truckId - 1]!) : undefined;
       if (action.finance) {
         if (!l || l.status !== "open" || l.trailerId) return { ok: false, reason: "no such truck listing" };
-        const why = financeBlock(w, company, l.askFd, credit) ?? listingBlock(w, company.id, action.listingId, credit + l.askFd * (1 - purchaseTerms(w, company).downShare));
+        const why = financeBlock(w, company, l.askFd, credit, col) ?? listingBlock(w, company.id, action.listingId, credit + l.askFd * (1 - purchaseTerms(w, company, col).downShare));
         if (why) return { ok: false, reason: why };
       } else {
         const why = listingBlock(w, company.id, action.listingId, credit);
         if (why) return { ok: false, reason: why };
       }
-      if (credit > 0.005) releaseDepositFor(w, company, action.finance ? financedCashNeed(w, company, l!.askFd) : l!.askFd + salesTaxOn(w, l!.askFd));
+      if (credit > 0.005) releaseDepositFor(w, company, action.finance ? financedCashNeed(w, company, l!.askFd, col) : l!.askFd + salesTaxOn(w, l!.askFd));
       if (!action.finance) return result(buyListing(w, company.id, action.listingId));
       // On a purchase loan: a used truck (not a trailer alone), secured by itself once it's bought.
       if (!l || l.status !== "open" || l.trailerId) return { ok: false, reason: "no such truck listing" };
-      const loan = financePurchase(w, company, l.askFd);
+      const loan = financePurchase(w, company, l.askFd, col);
       if (typeof loan === "string") return { ok: false, reason: loan };
       const why = buyListing(w, company.id, action.listingId);
       if (why) {
@@ -935,6 +940,13 @@ export function applyAction(w: World, companyId: number, action: Action): Action
       const load = w.loads.get(action.loadId);
       if (!windowsOn(w) || !load) return { ok: false, reason: "only a load booked ahead can be released" };
       return result(releaseLoad(w, company, load));
+    }
+
+    // Delivery windows, batch 4: keep a load booked ahead after a breakdown's ask (windows.ts afterBreakdown).
+    case "keep_load": {
+      const load = w.loads.get(action.loadId);
+      if (!windowsOn(w) || !load) return { ok: false, reason: "nothing to keep: no breakdown has asked about that load" };
+      return result(keepLoad(w, company, load));
     }
 
     case "reposition_truck": {

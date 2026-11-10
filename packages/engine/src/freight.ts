@@ -142,7 +142,7 @@ export function reserveFactor(w: World): number {
 }
 import type { Load } from "./types.js";
 import { startHold } from "./brokerage.js";
-import { drawLeadDays, openWindow, readyToday, windowsOn } from "./windows.js";
+import { drawLeadDays, lostMemory, openWindow, readyToday, sameDayMult, windowsOn } from "./windows.js";
 import type { World } from "./world.js";
 
 /** Destination weights per origin hub and equipment; static, so cached per network. */
@@ -203,6 +203,13 @@ export function generateRoundFreight(w: World): RoundFreight {
   });
   // Delivery windows: freight ready on a later day isn't today's market (windows.ts readyToday).
   for (const load of w.loads.values()) if (load.status === "open" && readyToday(w, load)) loadsAt[planIndex(load.origin, EQUIPMENT.indexOf(load.equipment))]!++;
+  // Batch 4: the NPC freight lost at its pickup's close, remembered and decayed (windows.ts lostMemory), counts as open
+  // demand, so a hub where freight goes unhauled reads as short of trucks and its next postings price higher.
+  const lost = windowsOn(w) ? lostMemory(w) : null;
+  if (lost) {
+    const weight = cfg.windows!.lostMemoryWeight;
+    for (let k = 0; k < n * E; k++) loadsAt[k]! += weight * lost[k]!;
+  }
 
   // 2. Load-to-truck ratio within the nearby radius, per trailer type: Miami can be
   // swamped with idle vans while its reefer market is tight in produce season. Idle
@@ -422,15 +429,19 @@ export function generateRoundFreight(w: World): RoundFreight {
         const lane = lanes[rng.weighted(weights)]!;
         const load = newLoad(lane, eq, refRate(lane, eq));
         makeHot(load);
+        // Delivery windows: the lead, from its own stream (drawn here, before the tender, so batch 4's same-day premium can
+        // price it: the reference, then the ceiling, book-now and a broker's contract follow; windows.ts sameDayMult).
+        const lead = win ? drawLeadDays(w) : 0;
+        const sameDay = win ? sameDayMult(w, load, lead) : 1;
         // Shipper leverage: where trucks pile up, most loads go to local carriers first.
         if (rng.next() < localShare(w, i, eq)) load.localUntilRound = w.round + cfg.leverage.localRounds;
         if (rng.next() < cfg.freight.npcBrokerOnlyShare) {
           // The emission cap's rate lever reaches the NPC shipper's tender as it reaches spot (rf above): the haul's pay, not the cost pass-throughs. The contract index itself stays the market's own (red team, 2026-11-08).
           const contractRef = lane.baseRate * (w.stab.emissionMult ?? 1) * w.contractIndex[planIndex(i, e)]! * cfg.rates.equipmentPremium[eq] * reloadFactor(w, lane.dest, eq) + fsc + tollPerMile(lane) + terrainPerMile(lane) + theftPerMile(lane, eq) + exitPerMile(lane, eq);
-          tenderToBroker(w, load, brokers, contractRef * remoteMult(load) * cfg.rates.npcCeilingMarkup * (load.hot || 1), books);
+          tenderToBroker(w, load, brokers, contractRef * remoteMult(load) * cfg.rates.npcCeilingMarkup * (load.hot || 1) * sameDay, books);
         }
         finish(load, load.brokerId !== null ? w.companies[load.brokerId - 1]!.vetting : 0);
-        if (win) openWindow(w, load, drawLeadDays(w));
+        if (win) openWindow(w, load, lead);
         w.loads.set(load.id, load);
         created.push(load);
       }

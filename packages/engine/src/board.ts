@@ -12,7 +12,7 @@ import { companyAccount } from "./ledger.js";
 import { bidsFromStandingOrders, boardKey, readyKey, canMakeHot, dockWaitCost, indexOpenLoads, scoreBid, desperation, estimateBreakEven, resting, trackingWouldShow, needsHome, homeward, hardCap, floorRate, lookaheadValue, ordersWaitForHand } from "./standingOrders.js";
 import { startJob } from "./trips.js";
 import { bookingCapBlock, brokerBooks, contractOn, type BrokerBook } from "./receivables.js";
-import { AHEAD_STATUSES, canMake, dispatchPlan, noShow, pickupClosed, planLoads, planMakes, posterKind, readyToday, urgencyStep, urgent, windowsOn } from "./windows.js";
+import { AHEAD_STATUSES, canMake, dispatchPlan, noteLost, noShow, pickupClosed, planLoads, planMakes, posterKind, readyToday, urgencyStep, urgent, windowsOn } from "./windows.js";
 import type { Bid, Company, Load, StandingOrder, Truck } from "./types.js";
 import { companyById, crewed, hubHours, hubMiles, truckById, type World, placeMiles, placeOfHub, placeLegMiles } from "./world.js";
 
@@ -86,7 +86,7 @@ export function runBoardRound(w: World): RoundResult {
     if (load.status !== "open" || truckTaken.has(bid.truckId)) continue;
     if (books && bookingCapBlock(w, load, bid.rate, books)) continue;
     truckTaken.add(bid.truckId);
-    assign(w, load, truckById(w, bid.truckId), bid);
+    assign(w, load, truckById(w, bid.truckId), bid, byHand.has(bid.truckId));
     companyById(w, bid.companyId).bidStats.wins++;
     if (!byHand.has(bid.truckId)) {
       const company = companyById(w, bid.companyId);
@@ -198,7 +198,7 @@ function manualRoundBids(w: World): Bid[] {
   return out;
 }
 
-function assign(w: World, load: Load, truck: Truck, bid: Bid): void {
+function assign(w: World, load: Load, truck: Truck, bid: Bid, byHand = false): void {
   const { cfg } = w;
   load.status = "assigned";
   load.carrierId = bid.companyId;
@@ -210,6 +210,7 @@ function assign(w: World, load: Load, truck: Truck, bid: Bid): void {
   // it (trips.ts takeNextLoad), which sets its due time and slot from then.
   if (truck.status !== "idle" && windowsOn(w)) {
     load.ahead = true;
+    if (byHand) load.aheadByHand = true; // batch 4: a breakdown asks the player first about a load they booked themselves
     truck.nextLoadId = load.id;
     return;
   }
@@ -269,7 +270,7 @@ export function bookLoad(w: World, company: Company, truck: Truck, load: Load, d
   const capped = bookingCapBlock(w, load, rate, books);
   if (capped) return capped;
   w.manualBids.delete(truck.id);
-  assign(w, load, truck, { loadId: load.id, truckId: truck.id, companyId: company.id, rate, deadheadMi, score: 0, tiebreak: 0 });
+  assign(w, load, truck, { loadId: load.id, truckId: truck.id, companyId: company.id, rate, deadheadMi, score: 0, tiebreak: 0 }, manual);
   company.bidStats.truckRounds++;
   company.bidStats.wins++;
   w.booked.n++;
@@ -353,6 +354,7 @@ export function giveUp(w: World, load: Load, noShow = false): void {
   // (windows.ts noShow) is lost the same way: its carrier never reached the shipper.
   const closed = noShow || pickupClosed(w, load);
   if (closed) w.metrics.onLost(posterKind(w, load), load.shipperRate * load.miles);
+  if (closed) noteLost(w, load); // batch 4: unserved NPC demand prices the hub's next postings (freight.ts)
   const unhauled = noShow ? "after its carrier failed to show at the pickup" : closed ? "before its pickup closed" : `in ${rounds} rounds`;
   load.status = "expired";
   if (w.cfg.brokerage.enabled) onFallOff(w, load);

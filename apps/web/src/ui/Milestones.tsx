@@ -260,7 +260,7 @@ function nextOnRoad(w: World, c: Company): JSX.Element | string {
         <Fig k="guide.gapToTruck" label={PENDING.firstTruckName} ctx={{ notes }}>
           {`${first.figure}.`}
         </Fig>
-        {[...notes, ...(first.worn ? [first.worn] : []), ...(first.advice ? [first.advice] : [])].map((n) => (
+        {[...notes, ...(first.cashOnly ? [first.cashOnly] : []), ...(first.worn ? [first.worn] : []), ...(first.advice ? [first.advice] : [])].map((n) => (
           <span class="muted small" key={n}>
             <br />
             {n}

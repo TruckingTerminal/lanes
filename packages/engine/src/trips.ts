@@ -7,7 +7,7 @@ import { endOfLife } from "./assets.js";
 import { addTrailerMiles } from "./trailers.js";
 import { COMMODITIES, dexp, greatCircleMiles, NO_TERRAIN, routeTerrain, type Route } from "@lanes/data";
 import { deliveryWait, pickupWait, setSlot } from "./docks.js";
-import { claimOn, noShow, windowsOn } from "./windows.js";
+import { afterBreakdown, claimOn, noShow, windowsOn } from "./windows.js";
 import { flatbedDamage, reeferUnit } from "./equipment.js";
 import { winterNow } from "./safety.js";
 import { payLegFuel, roadService, serviceBill } from "./businesses.js";
@@ -107,6 +107,8 @@ export function takeNextLoad(w: World, truck: Truck): boolean {
   const load = w.loads.get(id);
   if (!load || load.status !== "assigned" || load.truckId !== truck.id || !crewed(truck)) return false;
   delete load.ahead;
+  delete load.aheadByHand;
+  delete load.releaseAsk; // the truck made it to the job after all: nothing left to decide
   startJob(w, truck, load, placeMiles(w, truck.place, load.originPlace));
   return true;
 }
@@ -466,6 +468,8 @@ function breakDown(w: World, truck: Truck): void {
   }
   w.listener?.({ kind: "breakdown", companyId: truck.companyId, truckId: truck.id, repairFd: bill });
   w.metrics.onBreakdown();
+  // Delivery windows, batch 4: a breakdown that breaks the plan for the load booked ahead (windows.ts afterBreakdown).
+  if (truck.nextLoadId !== undefined && windowsOn(w)) afterBreakdown(w, truck);
 }
 
 function setIdle(w: World, truck: Truck): void {

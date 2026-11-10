@@ -95,9 +95,9 @@ import { businessesOf, businessPriceFd, sitePriceFd, type BusinessKind } from "@
 import { companyName } from "@lanes/engine";
 import { brokerageLog, canFormBrokerage, formationCostFd, layerBlock, markPairs, ownBand, partnerOf } from "@lanes/engine";
 import { reserveCapFd, reserveFd, reserveOn } from "@lanes/engine";
-import { financedCashNeed, openPurchaseLoans, purchaseTerms, salesTaxOn } from "@lanes/engine";
+import { collateralOf, financedCashNeed, NEW_TRUCK, openPurchaseLoans, purchaseTerms, salesTaxOn, type Collateral } from "@lanes/engine";
 import { crewFeeFd, crewOn, crewStakeFd, fenceShareOf, fittingsCut, hubTheftRisk, securityTheftMult } from "@lanes/engine";
-import { depositCredit, lotPrice, npcDealerMult } from "@lanes/engine";
+import { depositCredit, lotPrice, lotSpec, npcDealerMult } from "@lanes/engine";
 import { MANUAL_BID_MAX_DEADHEAD_MI, boardKey, canMakeHot, companyById, creditScore, dispatchProfile, estimateBreakEven, floorRate, fuelPrice, hardCap, hubMiles, indexOpenLoads, loadCreditPremium, mayTake, ordersWaitForHand, placeMiles, resting, vettingBlock, type BoardIndex, type Load } from "@lanes/engine";
 
 /**
@@ -969,11 +969,14 @@ function marketPhase(w: World): "top" | "mid" | "bottom" {
   return phase;
 }
 
-/** Weekly purchase-loan payments a company carries, with a new loan of `newLoanFd` on top. */
-function debtService(w: World, c: Company, newLoanFd = 0): number {
+/** Weekly purchase-loan payments a company carries, with a new loan of `newLoanFd` on top (on this truck's terms, collateral on). */
+function debtService(w: World, c: Company, newLoanFd = 0, truck?: Collateral): number {
   let s = 0;
   for (const l of openPurchaseLoans(w, c.id)) if (l.status === "active") s += Math.min(l.principalFd, l.originalFd / l.termWeeks) + l.principalFd * l.weeklyRate;
-  if (newLoanFd > 0) s += newLoanFd / w.cfg.equipmentFinance.purchase.termWeeks + newLoanFd * purchaseTerms(w, c).weeklyRate;
+  if (newLoanFd > 0) {
+    const t = purchaseTerms(w, c, truck);
+    s += newLoanFd / t.termWeeks + newLoanFd * t.weeklyRate;
+  }
   return s;
 }
 
@@ -984,11 +987,30 @@ const BUST_WEEKS = 13;
  * A prudent owner borrows only what a bust can carry: after the down payment, the loan's stake and the tax on a truck
  * priced `priceFd`, the cash left over its cushion (`keep`) must cover a quarter of every loan payment, the new one too.
  */
-function canCarry(w: World, c: Company, priceFd: number, keep: number, weeks = BUST_WEEKS): boolean {
-  const loan = priceFd * (1 - purchaseTerms(w, c).downShare);
-  const after = w.ledger.balance(companyAccount(c.id)) - financedCashNeed(w, c, priceFd);
-  return after - keep >= weeks * debtService(w, c, loan);
+function canCarry(w: World, c: Company, priceFd: number, keep: number, weeks = BUST_WEEKS, truck?: Collateral): boolean {
+  const loan = priceFd * (1 - purchaseTerms(w, c, truck).downShare);
+  const after = w.ledger.balance(companyAccount(c.id)) - financedCashNeed(w, c, priceFd, truck);
+  return after - keep >= weeks * debtService(w, c, loan, truck);
 }
+
+/** equipmentFinance.purchase.collateral: the lender reads each truck, so a loan is judged on the truck itself. */
+const collateralOn = (w: World): boolean => w.cfg.equipmentFinance.purchase.collateral?.enabled === true;
+
+/** Collateral on: whether a loan on this truck is open to the company and its cash at signing fits `cashFd`. */
+function loanFits(w: World, c: Company, priceFd: number, cashFd: number, truck: Collateral): boolean {
+  if (!w.cfg.equipmentFinance.purchase.enabled || cashFd <= 0) return false;
+  const t = purchaseTerms(w, c, truck);
+  if (t.declined || openPurchaseLoans(w, c.id).length >= t.maxLoans) return false;
+  return financedCashNeed(w, c, priceFd, truck) <= cashFd;
+}
+const listingCollateral = (w: World, l: Listing): Collateral => collateralOf(w, w.trucks[l.truckId - 1]!);
+/** The dearest listing a loan fits: by the budget off; collateral on, each listing judged on its own truck. */
+function listingOnLoan(w: World, c: Company, cashFd: number, runOut = false): Listing | null {
+  if (!collateralOn(w)) return bestListing(w, financedBudget(w, c, cashFd), c.id, runOut);
+  return bestListing(w, Infinity, c.id, runOut, (l) => loanFits(w, c, l.askFd, cashFd, listingCollateral(w, l)));
+}
+/** Whether a loan on a truck at this price fits the cash: by the budget off; collateral on, on that truck's own terms. */
+const loanCovers = (w: World, c: Company, priceFd: number, cashFd: number, truck: Collateral): boolean => (collateralOn(w) ? loanFits(w, c, priceFd, cashFd, truck) : financedBudget(w, c, cashFd) >= priceFd);
 
 /**
  * Another truck is worth it only if a typical truck in this fleet earns well
@@ -1170,11 +1192,12 @@ function manageTrailers(w: World, c: Company, p: BotProfile, rng: Rng, today: nu
  * value and well under new, not worn out. Used trucks deliver today; new ones wait
  * for the dealer.
  */
-function bestListing(w: World, budget: number, buyerId: number, runOut = false): Listing | null {
+function bestListing(w: World, budget: number, buyerId: number, runOut = false, fits?: (l: Listing) => boolean): Listing | null {
   const today = dayOf(w.t, w.cfg);
   let best: { l: Listing; score: number } | null = null;
   for (const l of openListings(w)) {
     if (l.trailerId || l.askFd > budget || l.formerOwnerId === buyerId || l.sellerId === buyerId) continue; // trucks only: a trailer alone is no truck
+    if (fits && !fits(l)) continue; // collateral on: a loan this truck can carry
     const t = w.trucks[l.truckId - 1]!;
     if (condition(w.cfg, t) < 0.3) continue;
     // Assets: a tractor past its last rebuild is one to run out, not to grow on: only a first-truck buyer takes it (a fleet would sell it straight back).
@@ -1211,7 +1234,7 @@ function buyIn(w: World, c: Company, p: BotProfile): void {
   if (!src?.dealershipId && availableSupply(w, "workhorse", "van", true) <= 0) return;
   const price = src ? src.price : dealerPrice(w, { tier: "workhorse", trailer: "van" });
   const onLoan = w.cfg.equipmentFinance.purchase.enabled && openPurchaseLoans(w, c.id).length < purchaseTerms(w, c).maxLoans;
-  const need = (onLoan ? financedCashNeed(w, c, price) : price + salesTaxOn(w, price)) + p.firstTruckBuffer;
+  const need = (onLoan ? financedCashNeed(w, c, price, NEW_TRUCK) : price + salesTaxOn(w, price)) + p.firstTruckBuffer;
   const cash = w.ledger.balance(companyAccount(c.id));
   if (cash < need && !buyFdFor(w, c, need - cash)) return;
   applyAction(w, c.id, { type: "buy_asset", tier: "workhorse", trailer: "van", replaceNpcLease: false, dealershipId: src?.dealershipId || undefined, finance: onLoan || undefined });
@@ -1721,15 +1744,16 @@ export const ruleBotHook: DailyAgentHook = (w) => {
           const used = npcTruck.status === "idle" ? bestListing(w, cash - p.firstTruckBuffer, c.id, true) : null;
           // Purchase loans: a used truck on credit, if the down payment and the loan's stake fit when the price doesn't.
           // The prudent owner's first loan must leave two months of its payments in hand past its buffer.
-          const carries = (price: number) => !p.prudent || canCarry(w, c, price, p.firstTruckBuffer, 8);
-          const usedOnLoanPick = used || npcTruck.status !== "idle" ? null : bestListing(w, financedBudget(w, c, cash - p.firstTruckBuffer), c.id, true);
-          const usedOnLoan = usedOnLoanPick && carries(usedOnLoanPick.askFd) ? usedOnLoanPick : null;
+          const carries = (price: number, truck: Collateral) => !p.prudent || canCarry(w, c, price, p.firstTruckBuffer, 8, truck);
+          const usedOnLoanPick = used || npcTruck.status !== "idle" ? null : listingOnLoan(w, c, cash - p.firstTruckBuffer, true);
+          const usedOnLoan = usedOnLoanPick && carries(usedOnLoanPick.askFd, listingCollateral(w, usedOnLoanPick)) ? usedOnLoanPick : null;
           // Assets: the cheapest new Workhorse and van, a dealership's in stock or the NPC dealer's.
           const src = cfg.assets.enabled ? bestSource(w, c.id, "rig", "workhorse", "van") : null;
           // The NPC used lot (usedMarket.npcLot): a worn Workhorse and van at its used value, cash or on credit.
           const lot = !used && !usedOnLoan && cfg.usedMarket.npcLot.enabled && cfg.assets.enabled && w.usedLot.stock > 0 ? lotPrice(w, "workhorse", "van") * npcDealerMult(w) : null;
           const lotCash = lot !== null && cash >= lot + p.firstTruckBuffer;
-          const lotLoan = lot !== null && !lotCash && financedBudget(w, c, cash - p.firstTruckBuffer) >= lot && carries(lot);
+          const lotCol = collateralOf(w, lotSpec(w, "van"));
+          const lotLoan = lot !== null && !lotCash && loanCovers(w, c, lot, cash - p.firstTruckBuffer, lotCol) && carries(lot, lotCol);
           if (used) applyAction(w, c.id, { type: "buy_listing", listingId: used.id });
           else if (usedOnLoan) applyAction(w, c.id, { type: "buy_listing", listingId: usedOnLoan.id, finance: true });
           else if (lotCash || lotLoan) applyAction(w, c.id, { type: "buy_asset", tier: "workhorse", trailer: "van", replaceNpcLease: true, used: true, finance: lotLoan || undefined });
@@ -1738,7 +1762,7 @@ export const ruleBotHook: DailyAgentHook = (w) => {
             const need = price + p.firstTruckBuffer;
             // Token mode: a paying player can buy the FD it's short instead of saving it up.
             const funded = cash >= need || (live && p.payToWin && buyFdFor(w, c, need - cash));
-            const onLoan = !funded && financedBudget(w, c, cash - p.firstTruckBuffer) >= price && carries(price);
+            const onLoan = !funded && loanCovers(w, c, price, cash - p.firstTruckBuffer, NEW_TRUCK) && carries(price, NEW_TRUCK);
             if (funded || onLoan) applyAction(w, c.id, { type: "buy_asset", tier: "workhorse", trailer: "van", replaceNpcLease: true, dealershipId: src?.dealershipId || undefined, finance: onLoan || undefined });
           }
           continue; // no other investment until the first truck is owned
@@ -1806,8 +1830,8 @@ export const ruleBotHook: DailyAgentHook = (w) => {
           // Assets: a tractor on lease from another carrier, if its rent is well inside what a truck here earns.
           const lease = parked || !cfg.assets.enabled ? null : bestLeaseOffer(w, c, p, today, active);
           const used = parked || lease ? null : bestListing(w, cash - need, c.id);
-          const usedOnLoanPick = parked || lease || used ? null : bestListing(w, financedBudget(w, c, cash - need), c.id);
-          const usedOnLoan = usedOnLoanPick && (!p.prudent || canCarry(w, c, usedOnLoanPick.askFd, need)) ? usedOnLoanPick : null;
+          const usedOnLoanPick = parked || lease || used ? null : listingOnLoan(w, c, cash - need);
+          const usedOnLoan = usedOnLoanPick && (!p.prudent || canCarry(w, c, usedOnLoanPick.askFd, need, BUST_WEEKS, listingCollateral(w, usedOnLoanPick))) ? usedOnLoanPick : null;
           if (parked) applyAction(w, c.id, { type: "unpark_truck", truckId: parked.id });
           else if (lease) applyAction(w, c.id, { type: "take_lease", offerId: lease });
           else if (used) applyAction(w, c.id, { type: "buy_listing", listingId: used.id });
@@ -1824,7 +1848,7 @@ export const ruleBotHook: DailyAgentHook = (w) => {
                 const price = src ? src.price : dealerPrice(w, pick);
                 const short = price + need - cash;
                 // Purchase loans first when cash is short: the truck secures its own loan.
-                const onLoan = short > 0 && financedBudget(w, c, cash - need) >= price && (!p.prudent || canCarry(w, c, price, need));
+                const onLoan = short > 0 && loanCovers(w, c, price, cash - need, NEW_TRUCK) && (!p.prudent || canCarry(w, c, price, need, BUST_WEEKS, NEW_TRUCK));
                 // The farming season's dollar window (catalogue.usdWindow.assets): a paying bot short of FD buys the rig for dollars.
                 const uw = cfg.token.catalogue.usdWindow;
                 if (short > 0 && !onLoan && !live && cfg.token.enabled && p.payToWin && uw.enabled && uw.assets.enabled && !src?.dealershipId && c.usd.wallet >= assetPriceUsd(w, price) && (uw.assets.capUsdPerMc === null || c.usdSpentBetaAssets + assetPriceUsd(w, price) <= uw.assets.capUsdPerMc)) {

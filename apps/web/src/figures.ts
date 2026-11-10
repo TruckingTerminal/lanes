@@ -1,8 +1,9 @@
-import { breakdownsPer1000Mi, companyAccount, condition, crewed, deliveryDays, fuelPrice, layerOpen, locksOn, lotPrice, maintenancePerMile, npcDealerMult, opsCap, ordersOf, ownerDrawFd, resting, tripCost, yardTrucks, type Company, type Truck, type TruckSpec, type World } from "@lanes/engine";
+import { breakdownsPer1000Mi, collateralOf, companyAccount, condition, crewed, deliveryDays, lotSpec, NEW_TRUCK, type Collateral, fuelPrice, layerOpen, locksOn, lotPrice, maintenancePerMile, npcDealerMult, opsCap, ordersOf, ownerDrawFd, resting, tripCost, yardTrucks, type Company, type Truck, type TruckSpec, type World } from "@lanes/engine";
 import { boardRows, type BoardRow } from "./board.js";
 import { buyPlan, cheapestNewRig } from "./finance.js";
 import { invoices, weekCosts } from "./ledger.js";
 import { PENDING } from "./copy-pending.js";
+import { PENDING_RULES } from "./copy-pending-rules.js";
 import { fdFull, pct, shortDate, TIER_NAME, TRAILER_NAME } from "./format.js";
 
 /**
@@ -131,31 +132,32 @@ export function debtCountdown(w: World, c: Company): { n: number; of: number; ne
 /** The truck a first-truck figure prices (client batch 4): what the Dealer's card names, and its wear for Iuliia's catch. */
 export type PricedTruck = { route: "lot" | "listing" | "new"; spec: TruckSpec; place: number | null; arrivesDay?: number };
 
-export function gapToTruck(w: World, c: Company): { gapFd: number; route: "lot" | "listing" | "new"; needNowFd: number; grossNeedFd: number; depositFd: number; spareFd: number; holdFd: number; truck: PricedTruck | null; priceFd: number } {
+export function gapToTruck(w: World, c: Company): { gapFd: number; route: "lot" | "listing" | "new"; needNowFd: number; grossNeedFd: number; depositFd: number; spareFd: number; holdFd: number; truck: PricedTruck | null; priceFd: number; cashOnly: string | null } {
   const replacing = (w.trucksByCompany.get(c.id) ?? []).some((t) => t.lease === "npc");
-  const routes: { route: "lot" | "listing" | "new"; price: number; truck: PricedTruck }[] = [];
+  const routes: { route: "lot" | "listing" | "new"; price: number; truck: PricedTruck; col: Collateral }[] = [];
   const lot = w.cfg.usedMarket.npcLot;
   if (lot.enabled && w.cfg.assets.enabled && w.usedLot.stock > 0)
-    routes.push({ route: "lot", price: lotPrice(w, "workhorse", "van") * npcDealerMult(w), truck: { route: "lot", spec: { tier: "workhorse", trailer: "van", lease: "owned", odometer: lot.odometer, milesSinceRebuild: lot.milesSinceRebuild, rebuilds: lot.rebuilds }, place: null, arrivesDay: Math.floor(w.t / w.cfg.time.gameMinutesPerDay) + deliveryDays(w) } });
+    routes.push({ route: "lot", price: lotPrice(w, "workhorse", "van") * npcDealerMult(w), truck: { route: "lot", spec: { tier: "workhorse", trailer: "van", lease: "owned", odometer: lot.odometer, milesSinceRebuild: lot.milesSinceRebuild, rebuilds: lot.rebuilds }, place: null, arrivesDay: Math.floor(w.t / w.cfg.time.gameMinutesPerDay) + deliveryDays(w) }, col: collateralOf(w, lotSpec(w, "van")) });
   for (const l of w.listings) {
     if (l.status !== "open" || l.truckId <= 0 || l.sellerId === c.id || l.formerOwnerId === c.id) continue;
     const t = w.trucks[l.truckId - 1]!;
-    routes.push({ route: "listing", price: l.askFd, truck: { route: "listing", spec: { ...t, lease: "owned" }, place: t.place } });
+    routes.push({ route: "listing", price: l.askFd, truck: { route: "listing", spec: { ...t, lease: "owned" }, place: t.place }, col: collateralOf(w, t) });
   }
   const rig = cheapestNewRig(w, c);
-  if (rig) routes.push({ route: "new", price: rig.price, truck: { route: "new", spec: { tier: rig.tier, trailer: rig.trailer, lease: "owned", odometer: 0, milesSinceRebuild: 0 }, place: null } });
-  let best = { route: "new" as "lot" | "listing" | "new", need: Infinity, gross: Infinity, deposit: 0, truck: null as PricedTruck | null, price: Infinity };
+  if (rig) routes.push({ route: "new", price: rig.price, truck: { route: "new", spec: { tier: rig.tier, trailer: rig.trailer, lease: "owned", odometer: 0, milesSinceRebuild: 0 }, place: null }, col: NEW_TRUCK });
+  let best = { route: "new" as "lot" | "listing" | "new", need: Infinity, gross: Infinity, deposit: 0, truck: null as PricedTruck | null, price: Infinity, cashOnly: null as string | null };
   for (const r of routes) {
-    const p = buyPlan(w, c, r.price, replacing);
+    // equipmentFinance.purchase.collateral: the loan on this truck (a declined one is cash only: its cash figure counts).
+    const p = buyPlan(w, c, r.price, replacing, r.col);
     const need = p.loanNowFd ?? p.cashNowFd;
     // The least cash today; on a tie (the hold covering several trucks, all at 0), the cheapest of them (QA, client
     // batch 5: the card named a 52.2k lot rig over a 10.3k listing). What the route asks before the hold is released into
     // it is the explanation's two rows.
-    if (need < best.need - 0.005 || (need <= best.need + 0.005 && r.price < best.price)) best = { route: r.route, need, gross: p.loan ? p.loan.cashNeed : p.cashNeed, deposit: Math.min(p.deposit, p.loan ? p.loan.cashNeed : p.cashNeed), truck: r.truck, price: r.price };
+    if (need < best.need - 0.005 || (need <= best.need + 0.005 && r.price < best.price)) best = { route: r.route, need, gross: p.loan ? p.loan.cashNeed : p.cashNeed, deposit: Math.min(p.deposit, p.loan ? p.loan.cashNeed : p.cashNeed), truck: r.truck, price: r.price, cashOnly: p.cashOnly };
   }
   const hold = w.cfg.guide.gapCushionWeeks * cushion(w, c).avgWeeklyFd;
   const have = cash(w, c);
-  return { gapFd: Math.max(0, best.need - have), route: best.route, needNowFd: best.need, grossNeedFd: best.gross, depositFd: best.deposit, spareFd: Math.max(0, have), holdFd: hold, truck: best.truck, priceFd: best.price };
+  return { gapFd: Math.max(0, best.need - have), route: best.route, needNowFd: best.need, grossNeedFd: best.gross, depositFd: best.deposit, spareFd: Math.max(0, have), holdFd: hold, truck: best.truck, priceFd: best.price, cashOnly: best.cashOnly };
 }
 
 /** A used truck under this condition gets Iuliia's catch line (the director, client batch 4: a worn truck on day 2). */
@@ -177,7 +179,7 @@ export function repairsPer(w: World, spec: TruckSpec): number {
  * is for a load's cash): "To your first truck: N FD", or "You can buy today" once met; and Iuliia's cushion advice under
  * it once a week of spending is known. Null with no truck for sale anywhere.
  */
-export function firstTruckLine(w: World, c: Company): { figure: string; met: boolean; advice: string | null; needFd: number; gapFd: number; what: string | null; worn: string | null } | null {
+export function firstTruckLine(w: World, c: Company): { figure: string; met: boolean; advice: string | null; needFd: number; gapFd: number; what: string | null; worn: string | null; cashOnly: string | null } | null {
   const g = gapToTruck(w, c);
   if (!Number.isFinite(g.needNowFd)) return null;
   const met = g.gapFd <= 0;
@@ -190,7 +192,8 @@ export function firstTruckLine(w: World, c: Company): { figure: string; met: boo
   const arrives = t?.arrivesDay !== undefined ? shortDate(t.arrivesDay) : null;
   const what = desc === null ? null : g.needNowFd <= 0.5 ? PENDING.pricesCovered(desc, arrives) : PENDING.pricesLeastCash(desc, arrives);
   const worn = t && t.route !== "new" && cond < WORN_BELOW ? PENDING.wornCatch(kmi, pct(cond), fdFull(Math.round(repairsPer(w, t.spec) / 100) * 100), REPAIR_PER_MI.toLocaleString("en-US")) : null;
-  return { figure: met ? PENDING.firstTruckMet : PENDING.firstTruckToGo(fdFull(g.gapFd)), met, advice: g.holdFd >= 0.5 ? PENDING.firstTruckCushion(fdFull(roundCushion(g.holdFd))) : null, needFd: g.needNowFd, gapFd: g.gapFd, what, worn };
+  // equipmentFinance.purchase.collateral: the lender won't finance the truck it prices, so the figure is its cash.
+  return { figure: met ? PENDING.firstTruckMet : PENDING.firstTruckToGo(fdFull(g.gapFd)), met, advice: g.holdFd >= 0.5 ? PENDING.firstTruckCushion(fdFull(roundCushion(g.holdFd))) : null, needFd: g.needNowFd, gapFd: g.gapFd, what, worn, cashOnly: g.cashOnly ? PENDING_RULES.cashOnlyFigure : null };
 }
 /** Advice is a round number: to the hundred, to the thousand from ten thousand. */
 const roundCushion = (fd: number): number => (fd >= 10_000 ? Math.round(fd / 1_000) * 1_000 : Math.max(100, Math.round(fd / 100) * 100));

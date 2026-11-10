@@ -19,6 +19,7 @@ import {
   tripCost,
   truckValue,
   type Company,
+  type Collateral,
   type World,
 } from "@lanes/engine";
 import { clearsNear, clearsNearSource } from "./board.js";
@@ -45,6 +46,8 @@ export interface FigureCtx {
   /** An amount the figure is built on (a price for a loan, a gross for the lessor's share). */
   fd?: number;
   replacing?: boolean;
+  /** The truck a loan figure reads (equipmentFinance.purchase.collateral). */
+  truck?: Collateral;
   /** The open invoice a cash-now figure is for. */
   invoiceId?: number;
   /** Lines on what moved the figure since the player last looked (the gap's reasons, row 4). */
@@ -307,7 +310,7 @@ const BREAKDOWNS: Record<string, Fn> = {
   },
   "loan.cashNow": (w, c, ctx) => {
     if (ctx.fd === undefined) return null;
-    const p = buyPlan(w, c, ctx.fd, ctx.replacing ?? false);
+    const p = buyPlan(w, c, ctx.fd, ctx.replacing ?? false, ctx.truck);
     if (!p.loan) return null;
     return {
       rows: [

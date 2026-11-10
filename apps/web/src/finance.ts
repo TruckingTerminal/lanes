@@ -2,6 +2,10 @@ import type { Equipment, TractorTier } from "@lanes/config";
 import {
   activeLoanOn,
   bestSource,
+  collateralOf,
+  lotSpec,
+  NEW_TRUCK,
+  type Collateral,
   listingBlock,
   lotPrice,
   npcDealerMult,
@@ -152,34 +156,44 @@ export interface BuyPlan {
   deposit: number;
   cashNowFd: number;
   loanNowFd: number | null;
+  /** equipmentFinance.purchase.collateral: the lender won't finance this truck (its age or miles): cash only, and why. */
+  cashOnly: string | null;
 }
-export function buyPlan(w: World, c: Company, price: number, replacing: boolean): BuyPlan {
+/**
+ * A purchase's figures, for cash and on a loan. `truck` is what the lender reads with collateral on (engine
+ * purchaseLoans.ts): a listing's truck, the used lot's rig, a new one; past its caps there is no loan (`cashOnly`).
+ */
+export function buyPlan(w: World, c: Company, price: number, replacing: boolean, truck?: Collateral): BuyPlan {
   const tax = salesTaxOn(w, price);
   const have = w.ledger.balance(companyAccount(c.id)) + (replacing ? depositCredit(w, c) : 0);
   const k = w.cfg.equipmentFinance.purchase;
   let loan: BuyPlan["loan"] = null;
+  let cashOnly: string | null = null;
   if (k.enabled) {
-    const t = purchaseTerms(w, c);
-    const loanFd = price * (1 - t.downShare);
-    const need = financedCashNeed(w, c, price);
-    const full = openPurchaseLoans(w, c.id).length >= t.maxLoans;
-    loan = {
-      down: price * t.downShare,
-      loanFd,
-      stake: loanFd * k.stakeShare,
-      weekly: loanFd / k.termWeeks + loanFd * t.weeklyRate,
-      termWeeks: k.termWeeks,
-      weeklyRate: t.weeklyRate,
-      cashNeed: need,
-      ok: !full && have >= need,
-      why: full ? "full" : have >= need ? null : "short",
-    };
+    const t = purchaseTerms(w, c, truck);
+    if (t.declined) cashOnly = t.declined;
+    else {
+      const loanFd = price * (1 - t.downShare);
+      const need = financedCashNeed(w, c, price, truck);
+      const full = openPurchaseLoans(w, c.id).length >= t.maxLoans;
+      loan = {
+        down: price * t.downShare,
+        loanFd,
+        stake: loanFd * k.stakeShare,
+        weekly: loanFd / t.termWeeks + loanFd * t.weeklyRate,
+        termWeeks: t.termWeeks,
+        weeklyRate: t.weeklyRate,
+        cashNeed: need,
+        ok: !full && have >= need,
+        why: full ? "full" : have >= need ? null : "short",
+      };
+    }
   }
   // The engine releases the deposit into cash before it takes the price or the loan's cash (world.ts releaseDepositFor),
   // so what leaves the player's pocket now is the need less the deposit (QA's Dealer replay: the sheet said "applied"
   // and still counted it).
   const deposit = replacing ? depositCredit(w, c) : 0;
-  return { price, tax, cashNeed: price + tax, cashOk: have >= price + tax, have, loan, deposit, cashNowFd: Math.max(0, price + tax - deposit), loanNowFd: loan ? Math.max(0, loan.cashNeed - deposit) : null };
+  return { price, tax, cashNeed: price + tax, cashOk: have >= price + tax, have, loan, deposit, cashNowFd: Math.max(0, price + tax - deposit), loanNowFd: loan ? Math.max(0, loan.cashNeed - deposit) : null, cashOnly };
 }
 
 /**
@@ -206,8 +220,8 @@ export function cheapestNewRig(w: World, c: Company): { price: number; tier: Tra
  */
 export function firstTruckRoute(w: World, c: Company): { route: "lot" | "listing" | "loan" | "short" | "none"; listing: { truckId: number; askFd: number } | null; need: number; have: number; restockDay: number } {
   const replacing = (w.trucksByCompany.get(c.id) ?? []).some((t) => t.lease === "npc");
-  const can = (price: number) => {
-    const p = buyPlan(w, c, price, replacing);
+  const can = (price: number, truck: Collateral) => {
+    const p = buyPlan(w, c, price, replacing, truck);
     return p.cashOk || Boolean(p.loan?.ok);
   };
   const today = Math.floor(w.t / w.cfg.time.gameMinutesPerDay);
@@ -217,13 +231,13 @@ export function firstTruckRoute(w: World, c: Company): { route: "lot" | "listing
   const restockDay = d + 1;
   // A new rig only while the factory or a dealership has one (QA's phone check: the line offered a sold-out Workhorse).
   const rig = cheapestNewRig(w, c);
-  const newPlan = rig ? buyPlan(w, c, rig.price, replacing) : null;
+  const newPlan = rig ? buyPlan(w, c, rig.price, replacing, NEW_TRUCK) : null;
   const cashNow = w.ledger.balance(companyAccount(c.id));
   const base = { need: newPlan ? (newPlan.loanNowFd ?? newPlan.cashNowFd) : 0, have: cashNow, restockDay };
-  if (w.cfg.usedMarket.npcLot.enabled && w.cfg.assets.enabled && w.usedLot.stock > 0 && can(lotPrice(w, "workhorse", "van") * npcDealerMult(w))) return { route: "lot", listing: null, ...base };
+  if (w.cfg.usedMarket.npcLot.enabled && w.cfg.assets.enabled && w.usedLot.stock > 0 && can(lotPrice(w, "workhorse", "van") * npcDealerMult(w), collateralOf(w, lotSpec(w, "van")))) return { route: "lot", listing: null, ...base };
   // A listing counts when nothing but cash would refuse it (listingBlock with cash set aside) and the cash is there.
   const listings = w.listings
-    .filter((l) => l.status === "open" && l.truckId > 0 && listingBlock(w, c.id, l.id, Infinity) === null && can(l.askFd))
+    .filter((l) => l.status === "open" && l.truckId > 0 && listingBlock(w, c.id, l.id, Infinity) === null && can(l.askFd, collateralOf(w, w.trucks[l.truckId - 1]!)))
     .sort((a, b) => a.askFd - b.askFd);
   if (listings[0]) return { route: "listing", listing: { truckId: listings[0].truckId, askFd: listings[0].askFd }, ...base };
   if (!newPlan) return { route: "none", listing: null, ...base };

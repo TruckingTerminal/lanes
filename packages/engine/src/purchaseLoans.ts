@@ -23,24 +23,68 @@ import { closePurchaseLoan, detachTruck, loanStakeAccount, truckById, type World
 
 const lerp = (a: number, b: number, s: number) => a + (b - a) * s;
 
-/** What the lender offers this company, from its credit: strong (100) gets the first of each range. */
-export function purchaseTerms(w: World, c: Company): { downShare: number; weeklyRate: number; maxLoans: number } {
+/** The truck as the lender reads it (equipmentFinance.purchase.collateral): its age in years and its odometer. */
+export interface Collateral {
+  ageYears: number;
+  odometer: number;
+}
+/** A new rig or tractor from a dealer: no age, no miles. */
+export const NEW_TRUCK: Collateral = { ageYears: 0, odometer: 0 };
+/** A truck's (or a used lot rig's) age and miles, a year being the calendar's season (dealer.ts lotSpec counts so). */
+export const collateralOf = (w: World, t: { builtDay: number; odometer: number }): Collateral => ({ ageYears: Math.max(0, (dayOf(w.t, w.cfg) - t.builtDay) / w.cfg.time.daysPerSeason), odometer: t.odometer });
+
+/** The terms of a purchase loan; `declined` when the lender won't write one on this truck, and the down payment's parts. */
+export interface PurchaseTerms {
+  downShare: number;
+  weeklyRate: number;
+  maxLoans: number;
+  termWeeks: number;
+  /** collateral on: why the lender won't finance this truck (cash only), else null. */
+  declined: string | null;
+  /** collateral on: the down payment's shares, for the sheet to say why (credit, the truck's age and miles, a new business). */
+  parts?: { credit: number; age: number; miles: number; newBusiness: number };
+}
+
+/**
+ * What the lender offers this company, from its credit: strong (100) gets the first of each range. With
+ * equipmentFinance.purchase.collateral on and the truck given, it reads the truck too (age and miles, never condition), and
+ * a company under a year old that has never owned a truck puts more down; off, or with no truck, the credit alone.
+ */
+export function purchaseTerms(w: World, c: Company, truck?: Collateral): PurchaseTerms {
   const k = w.cfg.equipmentFinance.purchase;
   const weak = 1 - clamp(creditScore(w, c) / 100, 0, 1);
-  return {
+  const base: PurchaseTerms = {
     downShare: lerp(k.downShare[0], k.downShare[1], weak),
     weeklyRate: lerp(k.weeklyRate[0], k.weeklyRate[1], weak),
     maxLoans: Math.round(lerp(k.maxLoans[0], k.maxLoans[1], weak)),
+    termWeeks: k.termWeeks,
+    declined: null,
   };
+  const col = k.collateral;
+  if (col?.enabled !== true) return base;
+  const daysPerYear = w.cfg.time.daysPerSeason;
+  const fresh = c.firstOwnedTruckDay === null && dayOf(w.t, w.cfg) - c.authority.since < col.newBusiness.years * daysPerYear;
+  const newBusiness = fresh ? col.newBusiness.downAdd : 0;
+  const age = truck ? Math.max(0, truck.ageYears - col.freeYears) * col.downPerYear : 0;
+  const miles = truck ? (Math.max(0, truck.odometer - col.freeMiles) / 100_000) * col.downPer100kMi : 0;
+  const parts = { credit: base.downShare, age, miles, newBusiness };
+  const terms: PurchaseTerms = { ...base, downShare: Math.min(col.maxDownShare, base.downShare + age + miles + newBusiness), parts };
+  if (!truck) return terms;
+  if (truck.ageYears > col.declineOverYears) return { ...terms, declined: `the lender won't finance a truck over ${col.declineOverYears} years old: cash only` };
+  if (truck.odometer > col.declineOverMiles) return { ...terms, declined: `the lender won't finance a truck past ${col.declineOverMiles.toLocaleString("en-US")} miles: cash only` };
+  const weeksPerYear = daysPerYear / 7;
+  terms.termWeeks = Math.max(col.minTermWeeks, Math.min(k.termWeeks, Math.floor((col.payoffYears - truck.ageYears) * weeksPerYear)));
+  terms.weeklyRate = base.weeklyRate + Math.max(0, truck.ageYears - col.freeYears) * col.weeklyRatePerYear;
+  return terms;
 }
 
 export function openPurchaseLoans(w: World, companyId: number): PurchaseLoan[] {
   return w.purchaseLoans.filter((l) => l.borrowerId === companyId && (l.status === "active" || l.status === "defaulted"));
 }
 
-/** The cash a financed purchase at this price needs: the down payment, the stake and the sales tax. */
-export function financedCashNeed(w: World, c: Company, priceFd: number): number {
-  const { downShare } = purchaseTerms(w, c);
+/** The cash a financed purchase at this price needs: the down payment, the stake and the sales tax (on this truck, collateral on). */
+export function financedCashNeed(w: World, c: Company, priceFd: number, truck?: Collateral): number {
+  const { downShare } = purchaseTerms(w, c, truck);
   return priceFd * downShare + priceFd * (1 - downShare) * w.cfg.equipmentFinance.purchase.stakeShare + salesTaxOn(w, priceFd);
 }
 
@@ -53,21 +97,22 @@ export function financedCashNeed(w: World, c: Company, priceFd: number): number 
  * Why a purchase loan at this price would be refused, without opening one: the same checks financePurchase makes, with
  * `extraFd` counted as cash (a lease deposit about to be released toward the truck). Null when it would go through.
  */
-export function financeBlock(w: World, c: Company, priceFd: number, extraFd = 0): string | null {
+export function financeBlock(w: World, c: Company, priceFd: number, extraFd = 0, truck?: Collateral): string | null {
   const k = w.cfg.equipmentFinance.purchase;
   if (!k.enabled) return "no purchase loans";
   if (priceFd <= 0.01) return "nothing to finance";
-  const terms = purchaseTerms(w, c);
+  const terms = purchaseTerms(w, c, truck);
+  if (terms.declined) return terms.declined;
   if (openPurchaseLoans(w, c.id).length >= terms.maxLoans) return `the lender carries at most ${terms.maxLoans} loans at your credit`;
-  if (w.ledger.balance(companyAccount(c.id)) + extraFd < financedCashNeed(w, c, priceFd)) return "not enough FD for the down payment and the loan's stake";
+  if (w.ledger.balance(companyAccount(c.id)) + extraFd < financedCashNeed(w, c, priceFd, truck)) return "not enough FD for the down payment and the loan's stake";
   return null;
 }
 
-export function financePurchase(w: World, c: Company, priceFd: number): PurchaseLoan | string {
-  const k = w.cfg.equipmentFinance.purchase;
-  const why = financeBlock(w, c, priceFd);
+export function financePurchase(w: World, c: Company, priceFd: number, truck?: Collateral): PurchaseLoan | string {
+  const why = financeBlock(w, c, priceFd, 0, truck);
   if (why) return why;
-  const terms = purchaseTerms(w, c);
+  const k = w.cfg.equipmentFinance.purchase;
+  const terms = purchaseTerms(w, c, truck);
   const loanFd = priceFd * (1 - terms.downShare);
   const loan: PurchaseLoan = {
     id: w.purchaseLoans.length + 1,
@@ -77,7 +122,7 @@ export function financePurchase(w: World, c: Company, priceFd: number): Purchase
     originalFd: loanFd,
     principalFd: loanFd,
     weeklyRate: terms.weeklyRate,
-    termWeeks: k.termWeeks,
+    termWeeks: terms.termWeeks,
     stakeFd: loanFd * k.stakeShare,
     missed: 0,
     status: "active",

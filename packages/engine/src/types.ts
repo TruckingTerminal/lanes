@@ -960,6 +960,15 @@ export interface Load {
    * no slot, no receivable) until the truck takes it.
    */
   ahead?: true;
+  /** Batch 4: booked ahead by the player's own hand (a bid or Book now), not by the dispatcher: a breakdown asks first. */
+  aheadByHand?: true;
+  /**
+   * Batch 4: a breakdown broke canMake for this load booked ahead, on a company that books by hand: the player is asked to
+   * release it (at the early share, `fd`) or keep it (windows.ts afterBreakdown). Unanswered, the close makes it a no-show.
+   */
+  releaseAsk?: { truckId: number; fd: number; t: number };
+  /** Batch 4: posted for pickup the same day, with windows.sameDayPremium on its reference. */
+  sameDay?: true;
 }
 
 /** A contract lane a local shipper gives a carrier: a weekly volume at a fixed rate for a term (contracts.ts). */
@@ -1216,6 +1225,8 @@ export type Action =
   | { type: "cancel_bid"; truckId: number }
   /** Delivery windows: drop a load booked ahead (windows.ts releaseLoad), with the cancel claim. */
   | { type: "release_load"; loadId: number }
+  /** Delivery windows, batch 4: keep a load booked ahead after a breakdown's ask (windows.ts afterBreakdown). */
+  | { type: "keep_load"; loadId: number }
   /** Take an open load at its book-now price, now, for an idle truck within reach. */
   | { type: "book_load"; truckId: number; loadId: number }
   /** Send an idle truck home for its driver's days off (home time). */

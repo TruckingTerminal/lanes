@@ -9,6 +9,7 @@ import {
   canMake,
   dispatchPlan,
   homeward,
+  hubMiles,
   indexOpenLoads,
   claimOn,
   companyAccount,
@@ -163,8 +164,10 @@ describe("booking ahead (test 4)", () => {
     standAt(t, a);
     ok(applyAction(w, c.id, { type: "book_load", truckId: t.id, loadId: a.id }));
     const free = canMake(w, t, pick(w, c, t, () => true, [a])).freeT;
-    // The load after it, ready a while after the truck is free: at the shipper early, the truck waits.
-    const b = near(w, c, t, a.destPlace, [a]);
+    // The load after it, ready a while after the truck is free: at the shipper early, the truck waits. Its receiver has
+    // freight within a bid's reach, for the bid ahead at the end (the board depends on the window's sizes).
+    const reachable = (l: Load) => [...w.loads.values()].some((y) => y !== l && y !== a && y.status === "open" && y.equipment === t.trailer && y.hot === 0 && y.contractId === 0 && !y.hold && y.doubleBroker === null && vettingBlock(w, c, y) === null && mayTake(w, c, y) && hubMiles(w, w.net.places[l.destPlace]!.market, y.origin) <= 250);
+    const b = near(w, c, t, a.destPlace, [a], reachable);
     const h = dockHoursAt(w, b, "pickup");
     const ready = h ? nextOpen(w, free + 8 * 60, h) : free + 8 * 60;
     widen(b, ready);
@@ -197,7 +200,7 @@ describe("booking ahead (test 4)", () => {
     expect(b.status).toBe("inTransit");
     expect(b.detention?.pickupH ?? 0).toBe(0);
     // A bid ahead on the busy truck stands for the load after this one, and wins it at the round.
-    const y = near(w, c, t, b.destPlace, [a, b, x]);
+    const y = near(w, c, t, b.destPlace, [a, b, x], (l) => hubMiles(w, w.net.places[b.destPlace]!.market, l.origin) <= 250);
     widen(y, w.t + 4 * DAY);
     expect(canMake(w, t, y).ok).toBe(true);
     ok(applyAction(w, c.id, { type: "place_bid", truckId: t.id, loadId: y.id, rate: y.ceiling }));

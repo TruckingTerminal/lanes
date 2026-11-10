@@ -1,7 +1,7 @@
 import type { JSX } from "preact";
 import { useState } from "preact/hooks";
 import type { Equipment, FacilityType, TractorTier } from "@lanes/config";
-import { assetPriceUsd, availableSupply, listingBlock, companyAccount, condition, dealerPrice, deliveryDays, dealerBacklog, facilityOutlook, lessorTrucksOf, newPrice, openListings, ordersOf, tokenLive, truckCap, truckValue } from "@lanes/engine";
+import { assetPriceUsd, availableSupply, collateralOf, listingBlock, companyAccount, condition, dealerPrice, deliveryDays, dealerBacklog, facilityOutlook, lessorTrucksOf, newPrice, openListings, ordersOf, tokenLive, truckCap, truckValue } from "@lanes/engine";
 import { facilityUrl } from "../../art.js";
 import { SCENES } from "../../assets.js";
 import { FAC_NAME, fd, hhmm, pct, signedPct, TIER_NAME, TRAILER_NAME, usd, plural, fdFull } from "../../format.js";
@@ -62,6 +62,7 @@ export function Dealer(): JSX.Element {
             <b>{first.figure}</b>
           </p>
           {first.what ? <p class="small">{first.what}</p> : null}
+          {first.cashOnly ? <p class="muted small">{first.cashOnly}</p> : null}
           {first.worn ? <p class="muted small">{first.worn}</p> : null}
           {first.advice ? <p class="muted small">{first.advice}</p> : null}
         </Card>
@@ -98,6 +99,7 @@ export function Dealer(): JSX.Element {
               action={{ type: "buy_listing", listingId: l.id }}
               when={DEALER.deliversToday}
               lines={usedTruck(w, c, t, t.hub)}
+              truck={collateralOf(w, t)}
               ok="Bought. It's yours, idle where it stands"
             />
           </Card>

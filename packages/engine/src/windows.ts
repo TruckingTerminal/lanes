@@ -30,6 +30,7 @@ import { COMMODITIES } from "@lanes/data";
 import type { EconomyConfig } from "@lanes/config";
 import { dayOf, MINUTES_PER_HOUR } from "./clock.js";
 import { dockHoursAt, dockRule, nextOpen } from "./docks.js";
+import { EQUIPMENT, planIndex } from "./demand.js";
 import { giveUp } from "./board.js";
 import { samePerson } from "./brokerage.js";
 import { fmtInt } from "./economics.js";
@@ -447,18 +448,23 @@ function markFailed(w: World, c: Company): void {
  * rounds), the mark on its record, and the load back on the board as it stands (safety.ts reopenLoad), for anyone who can
  * still make it. Past its pickup's close it's a no-show instead.
  */
-export function releaseLoad(w: World, company: Company, load: Load): string | null {
+export function releaseLoad(w: World, company: Company, load: Load, breakdown = false): string | null {
   if (load.status !== "assigned" || load.ahead !== true || load.carrierId !== company.id) return "only a load booked ahead can be released";
   if (pickupClosed(w, load)) {
     noShow(w, load);
     return null;
   }
   const k = w.cfg.windows!;
-  claimOn(w, company, load, urgent(w, load) ? k.cancelClaimShare.urgent : k.cancelClaimShare.early, "cancel");
+  // Batch 4: a release a breakdown forced (the dispatcher's at once, or the player's answer to the ask) is at the early
+  // share, wherever the pickup stands (the director): the carrier reported it, as carriers do.
+  const early = breakdown || load.releaseAsk !== undefined;
+  claimOn(w, company, load, early || !urgent(w, load) ? k.cancelClaimShare.early : k.cancelClaimShare.urgent, "cancel");
   markFailed(w, company);
   const truck = load.truckId !== null ? w.trucks[load.truckId - 1] : undefined;
   if (truck && truck.nextLoadId === load.id) delete truck.nextLoadId;
   delete load.ahead;
+  delete load.aheadByHand;
+  delete load.releaseAsk;
   reopenLoad(w, load);
   return null;
 }
@@ -533,4 +539,85 @@ export function planLoads(w: World, plan: Plan, idx: Map<string, Load[]>, hub: n
   const out = today ? [...today] : [];
   for (let d = dayOf(w.t, w.cfg) + 1; d <= dayOf(plan.startT, w.cfg) + 1; d++) out.push(...(idx.get(readyKey(hub, eq, d)) ?? []));
   return out;
+}
+
+// --- Batch 4: unserved demand, the same-day premium, release on a breakdown ----------------------------------------
+
+/** NPC shippers' freight, the only kind the lost-load memory counts (the director): direct, or tendered to an AI broker. */
+const npcFreight = (w: World, load: Load): boolean => {
+  const kind = posterKind(w, load);
+  return kind === "npc" || kind === "broker";
+};
+
+/** The lost-load memory brought to now: each hub-and-trailer count decayed by windows.lostMemoryHalfLifeDays. */
+export function lostMemory(w: World): number[] | null {
+  const m = w.lostMem;
+  if (!m) return null;
+  if (w.t > m.t) {
+    const f = 0.5 ** ((w.t - m.t) / (w.cfg.windows!.lostMemoryHalfLifeDays * w.cfg.time.gameMinutesPerDay));
+    for (let k = 0; k < m.v.length; k++) m.v[k] = m.v[k]! * f;
+    m.t = w.t;
+  }
+  return m.v;
+}
+
+/** A load lost at its pickup's close (board.ts giveUp): NPC freight joins its hub's memory of unhauled demand. */
+export function noteLost(w: World, load: Load): void {
+  if (!npcFreight(w, load)) return;
+  if (!w.lostMem) w.lostMem = { t: w.t, v: new Array<number>(w.net.hubs.length * EQUIPMENT.length).fill(0) };
+  const v = lostMemory(w)!;
+  v[planIndex(load.origin, EQUIPMENT.indexOf(load.equipment))]! += 1;
+}
+
+/**
+ * The same-day premium at posting (freight.ts, NPC loads only): a load whose lead is 0 and that isn't hot pays
+ * windows.sameDayPremium on its reference, and its ceiling, book-now and shipper rates follow, as the remote premium's do.
+ * Returns the multiplier for a broker's contract (1 when none applies).
+ */
+export function sameDayMult(w: World, load: Load, leadDays: number): number {
+  const p = w.cfg.windows!.sameDayPremium;
+  if (leadDays !== 0 || load.hot > 0 || !(p > 1)) return 1;
+  load.refRate *= p;
+  load.ceiling *= p;
+  load.bookNow = Math.min(load.ceiling, load.bookNow * p);
+  load.shipperRate *= p;
+  load.spotShipperRate *= p;
+  load.sameDay = true;
+  return p;
+}
+
+/** A company's dispatcher is on: it bids or books by standing order. */
+const dispatcherOn = (c: Company): boolean => c.orders.some((o) => o.kind === "bid" || o.kind === "bookNow");
+
+/**
+ * Batch 4, release on a breakdown (the director's rule: nothing happens to a company the player did not set up). After a
+ * breakdown, a truck's load booked ahead is checked again (canMake, the stop in its free time). If the truck can no longer
+ * make it: a bot, or a player's dispatcher on a load it booked itself, releases it at once at the early share (the notice
+ * says so, for the client's Needs-you report); a load the player booked by hand, or any load with the dispatcher off, waits
+ * on the player (Load.releaseAsk: release_load at the early share, or keep_load), and unanswered the close makes it a
+ * no-show at its share, as today.
+ */
+export function afterBreakdown(w: World, truck: Truck): void {
+  const load = truck.nextLoadId !== undefined ? w.loads.get(truck.nextLoadId) : undefined;
+  if (!load || load.status !== "assigned" || load.ahead !== true || load.releaseAsk) return;
+  const r = canMake(w, truck, load);
+  if (r.ok) return;
+  const c = companyById(w, truck.companyId);
+  const fd = w.cfg.windows!.cancelClaimShare.early * load.clearedRate * load.miles;
+  const where = `${w.net.places[load.originPlace]!.name} by ${whenLabel(w, load.latestPickupT ?? w.t)}`;
+  if (!c.human || (dispatcherOn(c) && !load.aheadByHand)) {
+    const id = load.id;
+    releaseLoad(w, c, load, true);
+    w.listener?.({ kind: "notice", companyId: c.id, topic: "board", text: `Truck ${truck.id} broke down and can't reach ${where}: your dispatcher released load #${id}, a ${fmtInt(fd)} FD claim.`, tone: "bad", truckId: truck.id });
+    return;
+  }
+  load.releaseAsk = { truckId: truck.id, fd, t: w.t };
+  w.listener?.({ kind: "notice", companyId: c.id, topic: "board", text: `Truck ${truck.id}'s breakdown means it can't reach ${where}. Release load #${load.id} now (−${fmtInt(fd)} FD) or keep it.`, tone: "bad", truckId: truck.id });
+}
+
+/** keep_load: the player keeps a load booked ahead after a breakdown's ask; the close decides, as for any load. */
+export function keepLoad(w: World, company: Company, load: Load): string | null {
+  if (!load.releaseAsk || load.carrierId !== company.id) return "nothing to keep: no breakdown has asked about that load";
+  delete load.releaseAsk;
+  return null;
 }

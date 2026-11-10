@@ -719,6 +719,27 @@ export const economyConfig = {
       termWeeks: 104,
       maxLoans: [5, 1] as const,
       missedToDefault: 2,
+      // The lender reads the truck (the economy's worn-truck loans, economy-worn-truck-loans-2026-11-09.md; Jeff's yes,
+      // DECISIONS.md 2026-11-09). Off: the loan reads the borrower's credit alone, as before. On, over the free lines: the
+      // down payment rises downPerYear a year of age and downPer100kMi per 100k miles, plus newBusiness.downAdd for a company
+      // under newBusiness.years of authority that has never owned a truck, capped at maxDownShare; past declineOverYears or
+      // declineOverMiles the lender declines (cash only); the term ends by the truck's payoffYears birthday, never under
+      // minTermWeeks; the rate rises weeklyRatePerYear a week per year of age. Condition stays out of it (the director): a
+      // lender reads age and miles.
+      collateral: {
+        enabled: false,
+        freeYears: 3,
+        downPerYear: 0.03,
+        freeMiles: 300_000,
+        downPer100kMi: 0.03,
+        maxDownShare: 0.5,
+        declineOverYears: 10,
+        declineOverMiles: 700_000,
+        payoffYears: 7,
+        minTermWeeks: 26,
+        weeklyRatePerYear: 0.0003,
+        newBusiness: { years: 1, downAdd: 0.1 },
+      },
       // Risk pricing (Jeff, 2026-11-02: "prudent businessmen must win in the long run"; option B of
       // studio/reviews/economy-prudence.md). Off: the switch waits for Jeff. Each week every open loan pays its
       // credit rate plus `perDebtToEquity` for each unit of the borrower's debt-to-equity over `freeDebtToEquity`,
@@ -920,12 +941,25 @@ export const economyConfig = {
       [2, 2, 0.15],
       [3, 5, 0.1],
     ] as const,
-    // Hours from readyT to the pickup's close: an appointment shipper's slot, a first-come (or daylight) dock's day.
-    pickupHours: { appointment: 12, firstCome: 24 },
+    // Hours from readyT to the pickup's close: an appointment shipper's slot, a first-come (or daylight) dock's day. Batch 4
+    // (the economy's sizing, the director's amendment): 24 / 48, from 12 / 24, which brought the loads back.
+    pickupHours: { appointment: 24, firstCome: 48 },
     // The urgency walk (the director's call 3): flat while more than this many rounds of slack remain before the pickup
     // closes; in these last rounds the ceiling steps as a rollover does (board.rolloverCeilingStep) and book-now walks to
-    // it, one step a round, at most this many steps. A player poster's pay never walks.
-    urgencyRounds: 2,
+    // it, one step a round, at most this many steps. A player poster's pay never walks. Batch 4: 4 (from 2), the same walk
+    // over a 48-hour life's last two days (about +46%), never over the walked ceiling.
+    urgencyRounds: 4,
+    // Batch 4, unserved demand prices the next posting (the economy's sizing, the director's amendment): loads lost at their
+    // pickup's close are remembered per hub and trailer, decayed with this half-life, and join the open loads in the hub's
+    // load-to-truck ratio (freight.ts), each counting as lostMemoryWeight open loads, so the reference rises where freight
+    // goes unhauled. Only NPC shippers' freight counts (NPC direct and the AI brokers'), never a player's brokerage or a
+    // facility's, so no player can post loads to be lost and raise a hub's rate.
+    lostMemoryHalfLifeDays: 7,
+    lostMemoryWeight: 1,
+    // Batch 4, the same-day premium (Jeff, 2026-11-09, a market rule): an NPC load posted for pickup the same day (lead 0)
+    // pays this on its reference at posting; the ceiling, book-now and a broker's contract follow from it. Not on a hot load
+    // (its premium is its urgency); book-now never over the ceiling, the walk never over the walked ceiling.
+    sameDayPremium: 1.1,
     // Booking ahead, the dispatcher (batch 3): a truck on a job is planned for its next load once it will be free within
     // this many hours (canMake's projection), priced from where and when it's free; one ahead, never a third.
     planAheadHours: 12,

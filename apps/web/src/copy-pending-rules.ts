@@ -34,4 +34,11 @@ export const PENDING_RULES = {
   bidFilesFor: (hh: string) => `Local carriers have first call until ${hh}. Bid now and it's filed for that round, when the load opens to everyone.`,
   bidFiled: (hub: string, hh: string) => `Your bid is filed. The shipper gives ${hub}'s own carriers first call until ${hh}; if none takes it, yours is in that round.`,
   localTook: "A local carrier took it. Here's what's next.",
+
+  // equipmentFinance.purchase.collateral (the economy's worn-truck loans): a truck past the lender's caps is cash only. On
+  // the Dealer's row under its buttons; `why` the engine's reason ("the lender won't finance a truck past 700,000 miles:
+  // cash only"), `fd` the cash it takes (Showroom.tsx Buy).
+  cashOnly: (why: string, fd: string) => `No loan on this one: ${why}, ${fd} FD.`,
+  // Under the first-truck figure (the Dealer's card, Iuliia's page) when the truck it prices is cash only.
+  cashOnlyFigure: "The lender won't finance that one for its age or miles, so the figure is its full price in cash.",
 } as const;
