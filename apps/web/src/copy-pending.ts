@@ -249,6 +249,20 @@ export const PENDING = {
   msOrderedAt: (date: string) => `Your first truck is ordered, ready ${date}. Until it's handed over, the leased one keeps running.`,
   msOrderedDone: "Your first truck, ordered this day. It was handed over later, at a day's end with the leased one idle.",
   msOrderedReason: "An order isn't a truck yet: until the hand-over, the lessor still takes its share of every load.",
+  // The red team's persistence fixes (studio/reviews/redteam-persistence.md). The test page with this browser's world open
+  // in another tab (§4, a Web Lock): this tab shows it but never saves it and takes no orders.
+  testWatching: "Your world is open in another tab; this one only watches.",
+  // The live page's refusals (§1, §2). A tab that isn't this player's writer (another tab or device holds the lease, or this
+  // one lost it and another holds it now): an order is refused; shown in the order's error toast ("Couldn't send that
+  // order: …") and where a tap on a live screen is refused (state.ts act and order).
+  liveWatching: "This tab is only watching.",
+  // An order whose time would land more than a lead past the shared clock (an earlier order was stamped on a wrong clock):
+  // refused, shown in the order's error toast.
+  liveClockOff: "This order's time is off the shared clock: reload the page and try again.",
+  // The test page's clock stopped on an engine error in an hour (§6): the save stands at the hour before.
+  testBroken: "The world hit an error and stopped here. It takes no more orders; your save holds everything up to the hour before.",
+  // A restored world whose replay refused some of the saved orders (§6): they're kept in the save, not lost silently.
+  testRefusedOnRestore: (n: number) => `${n} of your saved ${n === 1 ? "order" : "orders"} couldn't be carried out on the way back; ${n === 1 ? "it's" : "they're"} kept in your save.`,
   newsServiceClaim: (kind: string, load: string, fd: string) => `${kind === "late" ? `Late delivery, load #${load}` : kind === "noshow" ? `No-show, load #${load}` : `Released load #${load}`}: −${fd} FD claim to the poster.`,
 } as const;
 

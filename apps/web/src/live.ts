@@ -2,6 +2,7 @@ import { ruleBotHook } from "@lanes/agents";
 import { applyAction, stepHour, type Action, type ActionResult, type Company, type GameEvent, type World } from "@lanes/engine";
 import { joinCompany, newWorld, RULESET } from "./game.js";
 import { booksAfterHour } from "./books.js";
+import { PENDING } from "./copy-pending.js";
 
 /**
  * The live world: one shared, permanent world that every player's page computes.
@@ -134,7 +135,28 @@ const before = (x: Entry, y: Entry) => x.r.at - y.r.at || (x.uid < y.uid ? -1 : 
 export interface LiveOptions {
   now?: () => number;
   holder?: string;
+  /** Tests: no renewal timer; the test fires `renewLease()` by hand (the red team's sequence). */
+  manualRenewal?: boolean;
+  /** The world owner's page: it keeps the list of orders that arrived stamped in the past (`earlyStamps`). */
+  owner?: boolean;
 }
+
+/**
+ * An order that reached the owner's page stamped earlier than that page's shared clock by more than the lead and the
+ * margins (persistence §2, the marker): for the owner only, never shown to players. A slow network can put an honest
+ * player here; it marks, it never refuses or undoes (every page applies the order at its stamp).
+ */
+export interface EarlyStamp {
+  uid: string;
+  s: number;
+  /** The order's stamped game minute, and how many game minutes before this page's clock it was when it arrived. */
+  at: number;
+  minutesEarly: number;
+  /** This page's game minute when it arrived. */
+  seenAt: number;
+}
+/** The most early stamps an owner's page keeps (the latest). */
+const EARLY_KEPT = 50;
 
 export class LiveWorld {
   readonly kind = "live";
@@ -174,6 +196,9 @@ export class LiveWorld {
   broken: { at: number; reason: string } | null = null;
   clockOffsetMs = 0;
 
+  /** The owner's page only (LiveOptions.owner): orders that arrived stamped in the past, the latest EARLY_KEPT. */
+  readonly earlyStamps: EarlyStamp[] = [];
+
   onOwnResult: ((r: ActRecord, res: ActionResult) => void) | null = null;
   onJoin: ((uid: string, c: Company) => void) | null = null;
   /** Sees the world after every hour it steps, the replay's included. It must only read: every page has to compute the same world. */
@@ -188,8 +213,18 @@ export class LiveWorld {
   private writes: Promise<void> = Promise.resolve();
   private unsub: (() => void) | null = null;
   private leaseTimer: ReturnType<typeof setInterval> | null = null;
+  /** The last time (this page's clock) the lease was taken or renewed: a gap longer than its life means it was lost. */
+  private leaseOkAt = -Infinity;
   private readonly now: () => number;
   private readonly holder: string;
+  private readonly manualRenewal: boolean;
+  private readonly owner: boolean;
+  /** Past the first load: records ingested from here on arrived while this page watched. */
+  private loaded = false;
+  /** Half the round trip of the lease call that set this page's clock, in game minutes; null until it's set. */
+  private clockErrMin: number | null = null;
+  /** Per player, the archive chunks this page has read or written (players/<uid>/log/c00000 …). */
+  private archivedSeen = new Map<string, number>();
 
   private constructor(
     readonly meta: WorldMeta,
@@ -199,6 +234,8 @@ export class LiveWorld {
   ) {
     this.now = o.now ?? Date.now;
     this.holder = o.holder ?? `tab-${Math.floor(Math.random() * 1e12).toString(36)}`;
+    this.manualRenewal = o.manualRenewal === true;
+    this.owner = o.owner === true;
     this.w = this.fresh();
   }
 
@@ -217,6 +254,7 @@ export class LiveWorld {
   static async open(db: DbLike, meta: WorldMeta, uid: string | null, o: LiveOptions = {}): Promise<LiveWorld> {
     const lw = new LiveWorld(meta, db, uid, o);
     await lw.load();
+    lw.loaded = true;
     if (uid) await lw.takeLease();
     lw.subscribe();
     return lw;
@@ -302,22 +340,27 @@ export class LiveWorld {
   /** Sends one of this player's actions. It takes effect at the returned game minute. */
   /** Sends one of this player's actions, for the company in view or for `as`. It takes effect at the returned game minute. */
   async submit(a: LiveAction, as: "brokerage" | "carrier" | undefined = this.inView === "brokerage" && this.brokerage ? "brokerage" : "carrier"): Promise<ActRecord> {
-    if (!this.uid || !this.writer) throw new Error("This tab is only watching");
+    if (!this.uid || !this.writer) throw new Error(PENDING.liveWatching);
     if (a.type !== "join" && !this.player) throw new Error("Your company isn't registered yet");
     if (a.type === "join" && (this.companies.has(this.uid) || this.own.acts.some((r) => r.a.type === "join"))) throw new Error("You already have a company");
     // One carrier and one brokerage per uid (brokerage-rule.md section 8; the server holds it per person later).
     if (a.type === "form_brokerage" && (this.brokerage || this.pending().some((r) => r.a.type === "form_brokerage"))) throw new Error("You already have a brokerage");
-    const prev = this.own.acts.at(-1);
-    const nextS = prev ? prev.s + 1 : this.own.archived > 0 ? this.maxSeq(this.uid) + 1 : 0;
-    const at = Math.max(prev?.at ?? 0, Math.ceil(this.gameMinute()) + LEAD_MIN);
-    const r: ActRecord = as === "brokerage" ? { s: nextS, at, a, as } : { s: nextS, at, a };
-    this.own.acts.push(r);
-    try {
-      await this.flushOwn();
-    } catch (e) {
-      this.own.acts = this.own.acts.filter((x) => x !== r);
-      throw e;
-    }
+    // The red team's stale writer (persistence §1): a lease not renewed within its life was lost while this tab slept or was
+    // cut off; take it again (re-reading what another device wrote) before writing, or refuse if another tab holds it.
+    if (this.now() - this.leaseOkAt > LEASE_TTL_MS && !(await this.retakeLease())) throw new Error(PENDING.liveWatching);
+    const uid = this.uid;
+    // The write appends after whatever the store holds (writeOwn), so the record is made inside it.
+    const r = await this.writeOwn((own) => {
+      const prev = own.acts.at(-1);
+      const nextS = prev ? prev.s + 1 : own.archived > 0 ? this.maxSeq(uid) + 1 : 0;
+      const now = Math.ceil(this.gameMinute());
+      const at = Math.max(prev?.at ?? 0, now + LEAD_MIN);
+      // Persistence §2, the honest half: the stamp is this page's server-set clock plus the lead. One pushed further out
+      // by an earlier order stamped on a wrong clock is refused; a lead's slack lets a small correction of this page's
+      // clock between two quick orders through.
+      if (at > now + 2 * LEAD_MIN) throw new Error(PENDING.liveClockOff);
+      return as === "brokerage" ? { s: nextS, at, a, as } : { s: nextS, at, a };
+    });
     this.ingest(this.uid, [r]);
     return r;
   }
@@ -333,7 +376,15 @@ export class LiveWorld {
     const w = newWorld(this.meta.seed);
     w.listener = (e) => {
       if (this.replaying) return;
-      for (const l of this.events) l(e);
+      // A screen's handler that throws must not abort the engine's hour (the red team, persistence §6): it would mark the
+      // world broken in advance's try. The page's error is logged; the world goes on.
+      for (const l of this.events) {
+        try {
+          l(e);
+        } catch (err) {
+          console.error(err);
+        }
+      }
     };
     return w;
   }
@@ -358,9 +409,10 @@ export class LiveWorld {
     // Player documents first, then their archives: an archive is always written before the document drops those entries.
     for (let i = 0; i < archivedOf.length; i += 6) {
       await Promise.all(
-        archivedOf.slice(i, i + 6).map(async ([uid]) => {
+        archivedOf.slice(i, i + 6).map(async ([uid, archived]) => {
           const chunks = await this.db.collection(`players/${uid}/log`).get();
           for (const c of chunks.docs) this.ingest(uid, parseActs(c.data()?.acts));
+          this.archivedSeen.set(uid, archived);
         }),
       );
     }
@@ -373,7 +425,14 @@ export class LiveWorld {
         for (const d of snap.docs) {
           if (d.id === this.uid && this.writer) continue; // this tab writes that log itself
           const body = d.data();
-          if (body) this.ingest(d.id, parseActs(body.acts));
+          if (body) {
+            const acts = parseActs(body.acts);
+            this.dropMissing(d.id, acts);
+            this.ingest(d.id, acts);
+            // Chunks archived while this page wasn't hearing (asleep, offline): read before they're missed for good.
+            const archived = Number(body.archived) || 0;
+            if (archived > (this.archivedSeen.get(d.id) ?? 0)) void this.readArchive(d.id, archived).catch((e) => console.error(e));
+          }
         }
       },
       () => {
@@ -398,65 +457,167 @@ export class LiveWorld {
       this.lease = "busy";
       return (this.writer = false);
     }
-    // The lease's expiry is stamped by the store, which gives this page the shared clock.
+    // The lease's expiry is stamped by the store, which gives this page the shared clock. Always (persistence §2): a large
+    // drift is the one that matters, and with no lease a tab can't write anyway.
     const server = res.expiresAt ? Date.parse(res.expiresAt) - LEASE_TTL_MS : NaN;
     const offset = server - (t0 + t1) / 2;
-    if (Number.isFinite(offset) && Math.abs(offset) < 10 * 60_000) this.clockOffsetMs = offset;
+    if (Number.isFinite(offset)) {
+      this.clockOffsetMs = offset;
+      this.clockErrMin = (t1 - t0) / 2 / MS_PER_GAME_MIN;
+    }
     this.writer = true;
     this.lease = "held";
-    if (!this.leaseTimer) {
-      this.leaseTimer = setInterval(async () => {
-        try {
-          const r = await doc.acquire({ holder: this.holder, ttlMs: LEASE_TTL_MS });
-          const had = this.writer;
-          this.writer = r.acquired;
-          this.lease = r.acquired ? "held" : "busy";
-          // Back in charge after another tab had it: pick up whatever that tab wrote.
-          if (r.acquired && !had && this.uid) {
-            const snap = await this.db.doc(`players/${this.uid}`).get();
-            const body = snap.data();
-            this.own = { acts: parseActs(body?.acts), archived: Number(body?.archived) || 0 };
-          }
-        } catch {
-          /* transient: the next renewal tries again */
-        }
-      }, 30_000);
-    }
+    this.leaseOkAt = t1;
+    if (!this.leaseTimer && !this.manualRenewal) this.leaseTimer = setInterval(() => void this.renewLease(), 30_000);
     return true;
+  }
+
+  /**
+   * The renewal (every 30 s, or by hand in tests). Held again after a gap longer than the lease's life, or after a renewal
+   * that failed, the lease was lost meanwhile (persistence §1: a sleeping device, a cut network): re-read what another
+   * device wrote before this tab writes again. A failed renewal leaves the tab watching until one succeeds.
+   */
+  async renewLease(): Promise<void> {
+    if (!this.uid) return;
+    const doc = this.db.doc(`players/${this.uid}/x/tab`);
+    const lapsed = this.now() - this.leaseOkAt > LEASE_TTL_MS;
+    try {
+      const r = await doc.acquire({ holder: this.holder, ttlMs: LEASE_TTL_MS });
+      const had = this.writer && !lapsed;
+      this.writer = r.acquired;
+      this.lease = r.acquired ? "held" : "busy";
+      if (!r.acquired) return;
+      this.leaseOkAt = this.now();
+      // Back in charge after another tab had it, after a gap, or after a failed renewal: pick up whatever was written.
+      if (!had) await this.rereadOwn();
+    } catch {
+      this.writer = false; // until a renewal succeeds: a tab that may have lost the lease doesn't write
+    }
   }
 
   /** Tries to make this tab the writer again (after another tab let go). */
   async retakeLease(): Promise<boolean> {
     const ok = await this.takeLease();
-    if (ok && this.uid) {
-      const snap = await this.db.doc(`players/${this.uid}`).get();
-      const body = snap.data();
-      this.own = { acts: parseActs(body?.acts), archived: Number(body?.archived) || 0 };
-    }
+    if (ok && this.uid) await this.rereadOwn();
     return ok;
   }
 
-  /** Writes this player's document; one write at a time, each carrying the latest list. */
-  private flushOwn(): Promise<void> {
+  /** This player's document as the store has it: this tab's list becomes it, and what another device wrote joins the world. */
+  private async rereadOwn(): Promise<void> {
+    const snap = await this.db.doc(`players/${this.uid}`).get();
+    const body = snap.data();
+    this.own = { acts: parseActs(body?.acts), archived: Number(body?.archived) || 0 };
+    await this.readArchive(this.uid!, this.own.archived);
+    this.dropMissing(this.uid!, this.own.acts);
+    this.ingest(this.uid!, this.own.acts);
+  }
+
+  /**
+   * A player's archive chunks this page hasn't read, up to `archived` (persistence §1, the archive edge): another device
+   * that wrote more than a chunk while this page slept moved orders this page never saw out of the document. Older
+   * orders, so the page rebuilds (ingest), and never marked early.
+   */
+  private async readArchive(uid: string, archived: number): Promise<void> {
+    const had = this.archivedSeen.get(uid) ?? 0;
+    for (let n = had; n < archived; n++) {
+      const chunk = await this.db.doc(`players/${uid}/log/c${String(n).padStart(5, "0")}`).get();
+      this.ingest(uid, parseActs(chunk.data()?.acts), false);
+    }
+    if (archived > (this.archivedSeen.get(uid) ?? 0)) this.archivedSeen.set(uid, archived);
+  }
+
+  /**
+   * Appends one record to this player's document; one write at a time. The red team's stale writer (persistence §1): the
+   * store's `set` replaces the whole document, so the write first reads it, and a list holding entries this tab hasn't
+   * seen (another device wrote while this tab slept) becomes this tab's list, its new entries joining the world, before the
+   * record is made after it (`make`). Never this tab's list whole over a list it hasn't seen.
+   */
+  private writeOwn(make: (own: { acts: ActRecord[]; archived: number }) => ActRecord): Promise<ActRecord> {
     const job = this.writes.then(async () => {
       const uid = this.uid!;
-      const done = this.w.t - 24 * 60;
-      if (this.own.acts.length > KEEP_IN_DOC) {
-        const old = this.own.acts.filter((r) => r.at < done).slice(0, ARCHIVE_CHUNK);
-        if (old.length === ARCHIVE_CHUNK) {
-          await this.db.doc(`players/${uid}/log/c${String(this.own.archived).padStart(5, "0")}`).set({ acts: old });
-          this.own.archived++;
-          const moved = new Set(old);
-          this.own.acts = this.own.acts.filter((r) => !moved.has(r));
+      const snap = await this.db.doc(`players/${uid}`).get();
+      const body = snap.exists ? snap.data() : undefined;
+      if (body) {
+        const stored = parseActs(body.acts);
+        const archived = Number(body.archived) || 0;
+        const mine = new Set(this.own.acts.map((x) => `${x.s}:${JSON.stringify(x)}`));
+        const unseen = archived !== this.own.archived || stored.length !== this.own.acts.length || stored.some((x) => !mine.has(`${x.s}:${JSON.stringify(x)}`));
+        if (unseen) {
+          this.own = { acts: stored, archived };
+          await this.readArchive(uid, archived);
+          this.dropMissing(uid, stored);
+          this.ingest(uid, stored);
         }
       }
-      await this.db.doc(`players/${uid}`).set({ v: 1, acts: this.own.acts, archived: this.own.archived });
+      // Shaped as a reader of the store shapes it (parseActs: a join's look and name), so this page's own copy and the
+      // stored one never differ and a re-read never reads as a rewrite.
+      const made = make(this.own);
+      const r = parseActs([made])[0];
+      if (!r) throw new Error("That order couldn't be written");
+      const acts = [...this.own.acts, r];
+      let archived = this.own.archived;
+      let kept = acts;
+      const done = this.w.t - 24 * 60;
+      if (acts.length > KEEP_IN_DOC) {
+        const old = acts.filter((x) => x.at < done).slice(0, ARCHIVE_CHUNK);
+        if (old.length === ARCHIVE_CHUNK) {
+          await this.db.doc(`players/${uid}/log/c${String(archived).padStart(5, "0")}`).set({ acts: old });
+          archived++;
+          this.archivedSeen.set(uid, Math.max(this.archivedSeen.get(uid) ?? 0, archived)); // this page has these
+          const moved = new Set(old);
+          kept = acts.filter((x) => !moved.has(x));
+        }
+      }
+      await this.db.doc(`players/${uid}`).set({ v: 1, acts: kept, archived });
+      this.own = { acts: kept, archived };
+      return r;
     });
-    this.writes = job.catch(() => undefined);
+    this.writes = job.then(
+      () => undefined,
+      () => undefined,
+    );
     return job;
   }
 
-  private ingest(uid: string, acts: ActRecord[]): void {
+  /**
+   * Persistence §1: a page drops the entries of a player's that the store's document no longer holds (an older device's
+   * write erased them, before the merge above), so two pages can't run two worlds. Only entries the document's span
+   * covers: those under its first sequence number are archived in its log chunks and stay. A change rebuilds the page.
+   */
+  private dropMissing(uid: string, acts: ActRecord[]): void {
+    const log = this.logs.get(uid);
+    if (!log || acts.length === 0) return;
+    const held = new Set(acts.map((x) => x.s));
+    const first = Math.min(...held);
+    for (const s of [...log.keys()]) {
+      if (s < first || held.has(s)) continue;
+      log.delete(s);
+      this.needRebuild = true;
+    }
+  }
+
+  /**
+   * Persistence §2, the marker (the owner's page only): another player's order that arrived stamped before this page's
+   * shared clock by more than the lead, this page's clock error (half its lease call's round trip) and the time since the
+   * store last answered this page (a backlog delivered after a sleep is this page's lateness, not the player's). Only
+   * while this page holds a fresh lease (its clock is the store's and it's in touch), and never during the first load.
+   */
+  private markEarly(uid: string, r: ActRecord): void {
+    if (!this.owner || !this.loaded || uid === this.uid || !this.writer || this.clockErrMin === null) return;
+    const now = this.now();
+    const sinceContactMin = (now - this.leaseOkAt) / MS_PER_GAME_MIN;
+    if (!(sinceContactMin <= LEASE_TTL_MS / MS_PER_GAME_MIN)) return;
+    const clock = this.gameMinute();
+    const early = clock - r.at;
+    if (early <= LEAD_MIN + this.clockErrMin + sinceContactMin) return;
+    const e: EarlyStamp = { uid, s: r.s, at: r.at, minutesEarly: Math.floor(early), seenAt: Math.floor(clock) };
+    this.earlyStamps.push(e);
+    if (this.earlyStamps.length > EARLY_KEPT) this.earlyStamps.shift();
+    console.warn(`[owner] player ${uid}'s order #${r.s} arrived stamped ${e.minutesEarly} game minutes in the past`, e);
+  }
+
+  /** `fresh`: the records came from a player's document as it is now, not from an archive chunk (only those can be early). */
+  private ingest(uid: string, acts: ActRecord[], fresh = true): void {
     let log = this.logs.get(uid);
     if (!log) this.logs.set(uid, (log = new Map()));
     for (const r of acts) {
@@ -468,6 +629,7 @@ export class LiveWorld {
       }
       log.set(r.s, r);
       if (seen) continue;
+      if (fresh) this.markEarly(uid, r);
       const e: Entry = { uid, r };
       // Too late for a moment already computed: the page rebuilds so it agrees with everyone else.
       if (r.at < this.w.t || (this.last && before(e, this.last) < 0)) {

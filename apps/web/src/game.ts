@@ -189,7 +189,14 @@ export class TestGame {
     this.log = log;
     this.w = w;
     this.w.listener = (e) => {
-      for (const l of this.listeners) l(e);
+      // A screen's handler that throws must not abort the engine's hour (the red team, persistence §6).
+      for (const l of this.listeners) {
+        try {
+          l(e);
+        } catch (err) {
+          console.error(err);
+        }
+      }
     };
   }
 
@@ -229,8 +236,14 @@ export class TestGame {
     let next = 0;
     const applyDue = () => {
       while (next < log.acts.length && log.acts[next]![0] <= g.w.t) {
-        const [, a, as] = log.acts[next++]!;
-        g.act(a, as);
+        const entry = log.acts[next++]!;
+        const [, a, as] = entry;
+        // Persistence §6: an order the replay refuses stays in the log (a save of the restored world never loses
+        // history silently), and is counted so the page can say so.
+        if (!g.act(a, as).ok) {
+          g.log.acts.push(entry);
+          g.refusedOnRestore++;
+        }
       }
     };
     while (g.w.t < log.t) {
@@ -262,6 +275,11 @@ export class TestGame {
     if (r.ok) this.log.acts.push(as === "brokerage" ? [this.w.t, JSON.parse(JSON.stringify(action)) as Action, as] : [this.w.t, JSON.parse(JSON.stringify(action)) as Action]);
     return r;
   }
+
+  /** Orders a restore's replay refused (kept in the log, persistence §6). */
+  refusedOnRestore = 0;
+  /** Persistence §6: the engine threw in an hour; the clock stops here, as the live page's does. */
+  broken: { at: number; reason: string } | null = null;
 
   stepHour(): void {
     stepHour(this.w, ruleBotHook);

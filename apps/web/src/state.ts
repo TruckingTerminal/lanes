@@ -11,6 +11,7 @@ import { freshOnboard, ONBOARD_KEY, parseOnboard, worldMark, type Onboard } from
 import type { PayLine } from "./rolling.js";
 import { FIRST_LOAD_TABS, firstLoadLocked } from "./tutorial.js";
 import { TUTORIAL } from "./copy.js";
+import { PENDING } from "./copy-pending.js";
 
 /**
  * The screen's shared state: which world is on screen, what is selected, and the
@@ -134,6 +135,11 @@ export const S = {
   savedTest: null as { name: string; day: number } | null,
   /** The test build: why the saved world was set aside (QA client 5: a toast never shows on the title), said on the title until a new world starts. */
   titleNote: null as null | "stale" | "unreadable",
+  /**
+   * The test build (the red team's persistence §4): another tab holds this browser's world (a Web Lock, or without locks
+   * another tab's write seen in the key). This tab only watches: it never saves and takes no orders.
+   */
+  testWatching: false,
   /** The walkthrough card (walkthrough.ts): the step being read ahead, or null for the current one. */
   walkView: null as number | null,
   /** What this browser has already been shown in the first ten minutes (onboard.ts). */
@@ -163,7 +169,7 @@ export const PER_WORLD = [
 ] as const satisfies readonly (keyof typeof S)[];
 export const KEPT_ACROSS_WORLDS = [
   "platform", "live", "test", "game", "screen", "loadShare", "tab", "layout", "sheet", "ratesEq", "guidePage", "savedTest",
-  "titleNote", "onboard", "reporting", "reportKind", "speed", "toast", "theme",
+  "titleNote", "testWatching", "onboard", "reporting", "reportKind", "speed", "toast", "theme",
 ] as const satisfies readonly (keyof typeof S)[];
 const blank = (v: unknown): unknown => (v instanceof Map ? new Map() : v instanceof Set ? new Set() : Array.isArray(v) ? [] : v !== null && typeof v === "object" ? structuredClone(v) : v);
 const WORLD_START = Object.fromEntries(PER_WORLD.map((k) => [k, blank(S[k])])) as Record<string, unknown>;
@@ -345,18 +351,66 @@ export function selectTruck(id: number | null): void {
 // --- The test build's world, kept in this browser -------------------------------------
 
 const TEST_KEY = "lanes.testworld.v1";
+/**
+ * The test page's guard against two tabs on one saved world (the red team, persistence §4): a Web Lock on the world's
+ * key, taken at Continue and at New world and held for the tab's life. A tab that can't take it only watches.
+ */
+let lockHeld = false;
+/** Whether this browser's Web Locks work here (every current browser has them; a refused request clears it). */
+let locksWork = typeof navigator !== "undefined" && typeof navigator.locks?.request === "function";
+/** Takes the world's lock for this tab if it's free; true when this tab may save (also where there are no locks). */
+export function claimTestLock(): Promise<boolean> {
+  if (lockHeld || !locksWork) return Promise.resolve(true);
+  return new Promise<boolean>((resolve) => {
+    navigator.locks
+      .request(TEST_KEY, { ifAvailable: true }, (lock) => {
+        if (!lock) return void resolve(false);
+        lockHeld = true;
+        resolve(true);
+        // Never settles: the lock is this tab's until it closes.
+        return new Promise<never>(() => {});
+      })
+      .catch(() => {
+        // No usable locks after all: the fallback in persistTest guards instead.
+        locksWork = false;
+        resolve(true);
+      });
+  });
+}
+/** This tab only watches the world (persistence §4): no saves, no orders, and the player told so. */
+export function startWatching(): void {
+  if (S.testWatching) return;
+  S.testWatching = true;
+  toast(PENDING.testWatching, true);
+  bumpData();
+}
 let persistedAt = 0;
 let persistedT = -1;
 let persistedActs = -1;
+/** What this tab last wrote or restored, for the fallback without locks; null for a new world not yet saved. */
+let keyWas: { t: number; n: number } | null = null;
 
 /** Writes the test world's log when it has changed, at most every few seconds unless forced. */
 export function persistTest(force = false): void {
-  if (!TEST_BUILD || !S.test?.player) return;
+  if (!TEST_BUILD || !S.test?.player || S.testWatching || S.test.broken) return;
   const log = S.test.log;
   if (log.t === persistedT && log.acts.length === persistedActs) return;
   if (!force && performance.now() - persistedAt < 5000) return;
+  // Without Web Locks (§4's fallback): the key should still hold what this tab last wrote or restored. Anything else is
+  // another tab's write: this one stops saving and says so, rather than overwrite that tab's world.
+  if (!locksWork && keyWas) {
+    const other = ((): { t?: unknown; acts?: unknown } | null => {
+      try {
+        return JSON.parse(localStorage.getItem(TEST_KEY) ?? "null") as { t?: unknown; acts?: unknown } | null;
+      } catch {
+        return null; // unreadable: treated as changed
+      }
+    })();
+    if (!other || other.t !== keyWas.t || !Array.isArray(other.acts) || other.acts.length !== keyWas.n) return startWatching();
+  }
   try {
     localStorage.setItem(TEST_KEY, JSON.stringify(log));
+    keyWas = { t: log.t, n: log.acts.length };
   } catch {
     /* storage blocked or full: the world still runs, it just won't be here next visit */
   }
@@ -364,9 +418,14 @@ export function persistTest(force = false): void {
   persistedT = log.t;
   persistedActs = log.acts.length;
 }
-export function markPersisted(t: TestGame): void {
-  persistedT = t.log.t;
-  persistedActs = t.log.acts.length;
+/**
+ * After a restore, with the log it read: saved as it stands. With none, a new world: its first save (the hub choice)
+ * replaces the key whole.
+ */
+export function markPersisted(t: TestGame, saved?: TestLog): void {
+  persistedT = saved ? t.log.t : -1;
+  persistedActs = saved ? t.log.acts.length : -1;
+  keyWas = saved ? { t: saved.t, n: saved.acts.length } : null;
 }
 /** The stored test world, or "stale" when it was played under rules this build no longer runs. */
 export function readTest(): TestLog | "stale" | null {
@@ -527,6 +586,7 @@ export function act(a: Action, ok: string, said?: string, as?: "brokerage" | "ca
   const g = S.game!;
   S.lastAct = { tab: S.tab, at: performance.now() };
   if (g.kind === "test") {
+    if (S.testWatching || g.broken) return void toast(S.testWatching ? PENDING.testWatching : PENDING.testBroken, true);
     const r = g.act(a, as);
     persistTest(true);
     if (r.ok) {
@@ -537,7 +597,7 @@ export function act(a: Action, ok: string, said?: string, as?: "brokerage" | "ca
     return;
   }
   if (!g.writer) {
-    toast("This tab is only watching.", true);
+    toast(PENDING.liveWatching, true);
     return;
   }
   g.submit(a, as).then(
@@ -564,12 +624,13 @@ export async function order(a: Action, ok: string, as?: "brokerage" | "carrier")
   S.lastAct = { tab: S.tab, at: performance.now() };
   const sentence = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
   if (g.kind === "test") {
+    if (S.testWatching || g.broken) return { ok: false, reason: S.testWatching ? PENDING.testWatching : PENDING.testBroken };
     const r = g.act(a, as);
     persistTest(true);
     bumpData();
     return r.ok ? { ok: true, at: null } : { ok: false, reason: sentence(r.reason) };
   }
-  if (!g.writer) return { ok: false, reason: "This tab is only watching." };
+  if (!g.writer) return { ok: false, reason: PENDING.liveWatching };
   try {
     const r = await g.submit(a, as);
     S.okText.set(r.s, ok);

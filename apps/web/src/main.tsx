@@ -14,12 +14,13 @@ import { nightStop, paidLine, payLine, type TruckBefore } from "./rolling.js";
 import { sampleStarters } from "./hubcard.js";
 import { drawMap, fitMap, flyTo, resetArt, setZoom, zoomIndex } from "./mapview.js";
 import { MemoryDb } from "./memdb.js";
-import { bumpData, bumpTick, feed, holdStill, loadOnboard, onWorldReset, resetWorldState, setOnboard, loadTheme, markPersisted, persistTest, push, readTest, S, setLayout, setTab, SPEEDS, TEST_BUILD, toast, toggleFullscreen, truckNo, type Session, type TitleMenu } from "./state.js";
+import { bumpData, bumpTick, feed, holdStill, loadOnboard, onWorldReset, resetWorldState, setOnboard, loadTheme, claimTestLock, markPersisted, persistTest, push, readTest, S, setLayout, setTab, SPEEDS, TEST_BUILD, toast, toggleFullscreen, truckNo, type Session, type TitleMenu } from "./state.js";
 import { App } from "./ui/App.js";
 import { askWhatNow } from "./ui/WhatNow.js";
 import { poachResult } from "./ui/panels/Staff.js";
 import { returnFor, saveVisit } from "./returncard.js";
 import { checkVersion } from "./version.js";
+import { PENDING } from "./copy-pending.js";
 
 /**
  * Boot, sessions and the game loop. The screen itself is the Preact app in ui/;
@@ -204,8 +205,11 @@ async function enterLive(meta: WorldMeta): Promise<void> {
   if (meta.ruleset !== RULESET) return showTitle({ kind: "update", theirs: meta.ruleset });
   // The replay runs behind the title, the button reading "Connecting…" (S0), so the title is the login and nothing else.
   showTitle({ kind: "connecting" });
-  const lw = await LiveWorld.open(S.platform.db!, meta, S.platform.uid);
+  const lw = await LiveWorld.open(S.platform.db!, meta, S.platform.uid, { owner: S.platform.owner });
   S.live = lw;
+  // The owner's page only (persistence §2, the marker): orders that arrived stamped in the past, read in the console as
+  // lanesOwner.earlyStamps(). Never shown to players; each one also logs a console warning as it lands.
+  if (S.platform.owner) (window as unknown as { lanesOwner?: unknown }).lanesOwner = { earlyStamps: () => lw.earlyStamps.slice() };
   lw.onEvent((e) => onEvent(lw, e));
   lw.onOwnResult = (r, res) => {
     const ok = S.okText.get(r.s);
@@ -260,6 +264,8 @@ async function continueTest(): Promise<void> {
     return;
   }
   showLoading(LOADING.title, "");
+  // Persistence §4: one tab plays this browser's world; a second one opened on it only watches.
+  const mine = await claimTestLock();
   let t: TestGame;
   try {
     if (!log.acts.every((x) => Array.isArray(x) && Number.isFinite(x[0]) && x[1] && typeof x[1] === "object")) throw new Error("bad log");
@@ -274,10 +280,14 @@ async function continueTest(): Promise<void> {
   }
   S.test = t;
   t.onEvent((e) => onEvent(t, e));
-  markPersisted(t);
+  markPersisted(t, log);
+  S.testWatching = !mine;
   S.speed = 0;
   showGame(t);
   toast("Welcome back. The clock is paused; press a speed or 1–4 to run it.");
+  // Persistence §6: orders the replay refused are kept in the save; the player hears how many.
+  if (t.refusedOnRestore) toast(PENDING.testRefusedOnRestore(t.refusedOnRestore), true);
+  if (!mine) toast(PENDING.testWatching, true);
 }
 
 /**
@@ -288,6 +298,7 @@ async function openTest(): Promise<void> {
   // "Starting the world…" over the title loop while the market runs its warm start (S0). A new world ends the title's note.
   S.titleNote = null;
   showTitle({ kind: "starting" });
+  const mine = await claimTestLock();
   // The warm-up reads the starter hubs after each round (the mean keeps the last four), so the rings are ready on arrival.
   const t = await TestGame.create(
     (share) => {
@@ -299,9 +310,12 @@ async function openTest(): Promise<void> {
   );
   S.test = t;
   t.onEvent((e) => onEvent(t, e));
+  markPersisted(t);
+  S.testWatching = !mine;
   S.speed = 0;
   acc = 0;
   showGame(t);
+  if (!mine) toast(PENDING.testWatching, true);
 }
 
 /** The hub chosen inside the world: in a test world the company joins now; live, the join is sent like any order. */
@@ -547,8 +561,18 @@ function loop(now: number): void {
   if (t && S.game === t) {
     acc += (dt / 1000) * SPEEDS[S.speed]!.hoursPerSec;
     const budget = now + 10;
-    while (acc >= 1 && performance.now() < budget) {
-      t.stepHour();
+    while (acc >= 1 && performance.now() < budget && !t.broken) {
+      // Persistence §6: the hour's step wrapped as the live page's is. The engine throwing stops this world's clock for
+      // good (the hour is half done): no more steps, saves or orders, and the save keeps the hour before.
+      try {
+        t.stepHour();
+      } catch (e) {
+        console.error(e);
+        t.broken = { at: t.w.t, reason: (e as { message?: string })?.message ?? String(e) };
+        S.speed = 0;
+        toast(PENDING.testBroken, true);
+        break;
+      }
       acc -= 1;
     }
     if (acc > 48) acc = 48;
