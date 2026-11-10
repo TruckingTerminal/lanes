@@ -1,5 +1,17 @@
 # Decisions (the producer's log for Jeff; newest first)
 
+- 2026-11-10 — the director, on the early-delivery fee (studio/reviews/director-expedite-wait-cost.md), where her
+  design and the economy's sizing pulled apart: her rule showed only the lessor's share and the payments running as
+  the cost of a wait, and on those a fleet's 115k rig says no (6,900 for four weeks against about 4,400), while the
+  economy's sink assumed the fleets say yes. Ruled: the wait's cost may also count the company's own kept per truck,
+  a fact from its books and not a forecast, for the bots and for Iuliia alike. The guards: only an order that adds a
+  truck (never a lease replacement, never a trailer alone); only when the truck would have a driver; trailing eight
+  weeks (the economy may set the span), floored at zero, nothing under four weeks of history; the payments and the
+  earnings said as two figures, the earnings as "have kept … if this one does the same", the verdict conditional on
+  the freight. The producer's calls to engineering with it: the term sits behind a key so the economy's pair reads
+  the rule both ways; a bot's cushion after the fee mirrors its loan rule (cash over its working cushion covers two
+  months of every loan payment; with no loan the fee comes out of cash over the working cushion); the slots count
+  the NPC dealer's queue only, one order one delivery; the fee's burn is proven outside the cap's refill.
 - 2026-11-10 — Jeff: "I want the player agent to play the game with multiple different playstyles again and find holes
   in the logic or bugs etc." The player role is briefed for six sessions on its own copy of the test page (build
   c8c67db, ruleset 0.24.0-phase0.41), a diary each with a ranked "Holes and bugs" table and a summary of the ten worst
