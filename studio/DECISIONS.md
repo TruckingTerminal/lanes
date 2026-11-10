@@ -1,5 +1,14 @@
 # Decisions (the producer's log for Jeff; newest first)
 
+- 2026-11-10 — the producer, on engineering's flag from the director's check (client batch 6b, 74ebc41): an ordered
+  truck's due day never changes, but a truck that replaces the lessor's is handed over only at a day's close with the
+  leased truck idle (dealer.ts deliverOrders), and a dispatcher rebooks the moment a truck goes idle: in a 60-day probe 7
+  of 13 such trucks came late (median two days, at most sixteen) and 15 were still at the dealer past their day. The
+  director's line: the date a player is given is the date the truck arrives, and a slip is a bug or a rule question.
+  Treated as a bug in the hand-over's timing: engineering builds the hand-over at the leased truck's next idle once the
+  order is due, behind a switch (off), and the economy reads it before a ruleset, since the bots' own trucks arrive on
+  time under it and the sims move. Until then the client says the truth ("it takes over when the leased one is next
+  idle").
 - 2026-11-10 — the director, on the days-away count (the red team's 0.24.1 pass §2; for a later ruleset, since it moves
   the bots): a night at home is one day of recovery, not a reset. A night at home is the duty day closing with the truck
   at home (the economy's definition); passing through counts for nothing. The days-away count steps back one day for a
