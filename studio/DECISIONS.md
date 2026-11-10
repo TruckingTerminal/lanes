@@ -1,5 +1,17 @@
 # Decisions (the producer's log for Jeff; newest first)
 
+- 2026-11-10 — the director, on a dispatcher that waits for the roll (the economy's rule for the clears-near ratio):
+  the default bids now; waiting is a switch the player turns on ("Wait for loads to reach their usual price", off for
+  everyone at first, offered by Iuliia once the player has seen a rolled load clear high), with a limit the economy
+  sizes so a truck never waits forever. While it waits every surface says why, with figures: the idle reason ("Waiting
+  on purpose: Dallas loads usually clear near 4.10/mi after about three rounds; your dispatcher bids at 18:00"), What
+  now? as one action ("Bid now on Dallas → Tulsa at 3.10/mi (+X FD today), or let it wait until 18:00"), and Iuliia
+  naming the trade ("Waiting usually pays about 4% more here, and the truck sits until then. Your call."). The sheet
+  reads rates and clock times, never ratios and rounds ("Loads here usually clear near 4.10/mi by Wed 18:00 · this
+  one's ceiling today is 3.10"), and says the figure comes from loads that rolled. And for the economy: under delivery
+  windows loads no longer roll ten rounds, so a figure built from rolled loads goes stale the day windows go on; the
+  waiting rule and its figure are sized on the windows build. The producer's consequence: freight.clearsNear.ratio and
+  the waiting switch ride the windows ruleset, not 0.24.1 and not one between.
 - 2026-11-10 — the economy's calls on the red team's 0.24.1 findings (studio/reviews/economy-redteam-0241-calls.md), and
   the producer's on the ruleset's contents. (1) The loan rule's ten new-business points are keyed to the company's age
   alone, the authority under a year, whatever it owns: what a lender means by time in business; the wreck-first dodge
