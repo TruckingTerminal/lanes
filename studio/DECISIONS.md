@@ -1,5 +1,21 @@
 # Decisions (the producer's log for Jeff; newest first)
 
+- 2026-11-10 — the red team's pass over the 0.24.1 set (studio/reviews/redteam-0241.md; seven rules behind switches):
+  one hole the ruleset closes before it turns on, and three notes. THE HOLE: turning an empty truck starts a new leg at
+  the nearest town and the night-in-town rule reads "a leg's start", so a company that chose the town turns its truck an
+  hour before its hours run out and sleeps there with no ticket (two shoulder nights and 500 FD of fines became none on
+  the probe); engineering guards it (the town night only for a leg the truck began idle at that town). THE LOAN RULE'S
+  DODGE: the ten new-business points end the day any truck is owned or ordered, so a 9.6k wreck bought and resold costs
+  about 1.2k and takes 18.2k off a new rig's cash at signing; the economy chooses the key (the company's age alone, or a
+  truck owned thirty days or in service) and engineering makes it. THE CLEARS-NEAR LEVEL: nobody can move the figure
+  for others, but at a thin hub it reads 1.3–1.9 times the reference all year, because loads that clear after rolling
+  clear at walked ceilings and are written against the posting reference, so the client's default dispatcher bids the
+  ceiling on every fresh Dallas load; the economy calls the form of the fix and whether the switch rides in 0.24.1.
+  FATIGUE: a pass home with no day off zeroes the days-away count, today's rule, which Send home back to work makes one
+  click; a rules question for the director and the economy, for a later ruleset since it moves the bots. No exploit in
+  the one reach for bids, the hand bidder's round, turning alone or a night in town alone. The producer's consequence:
+  0.24.1 waits for the guard, the loan rule's key and the economy's word on clears-near, then QA's replay on the test
+  page, then Jeff's word for the live restart.
 - 2026-11-10 — the economy's second reading of delivery windows, on batch 4 (studio/reviews/economy-delivery-windows-
   batch4.md; ten seeds, 1460 days): most of the way back and not there. Against the off arm: cleared loads −5% (the
   first sizing −22%), NPC freight pay −13% (−42%), the rate −7% (−19%), bankruptcies 243 a run (488; 185 off), the gate
