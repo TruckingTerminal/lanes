@@ -1,5 +1,16 @@
 # Decisions (the producer's log for Jeff; newest first)
 
+- 2026-11-10 — the player's fourth diary, the absentee (studio/playtests/play-2026-11-10-absentee.md; 181 game days at
+  Los Angeles, a dispatcher set in week one and three check-ins weeks apart). The company did not stall: six months
+  of profit with no taps, 8 to 15 loads a month. But it never grew: after six months it still leased, with 96,560 FD
+  in cash, because the one prompt (Iuliia's "Go to dealer") twice led to a truck the Dealer's page did not show, and
+  only the first return said what had happened while away. For engineering, raised to the top of its client list
+  with the borrower's same finding: the first-truck card must price a truck the player can open. For the director,
+  with the cautious owner-operator's diary: a "while you were away" on every return. And one more reading for the
+  reload question: this player's screen read "Mon 14:00 · 20,921 FD" before a reload and "Thu 06:00 · 27,450 FD"
+  after, with the title's Continue naming Thursday. The player's pane was hidden, where a browser stops repainting,
+  so the likeliest answer is a page whose words stood still while the world ran on, not a world that replays
+  differently; QA's reload hunt checks exactly that.
 - 2026-11-10 — the red team's persistence pass (studio/reviews/redteam-persistence.md), from the exploit hunter's two
   findings. TWO REACH THE LIVE WORLD. (1) Shown on a stand-in store: a tab that sleeps through its writer lease and
   wakes after the player's other device has played and gone writes its old list of orders over the player's record,
