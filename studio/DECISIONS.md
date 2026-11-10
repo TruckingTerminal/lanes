@@ -1,5 +1,19 @@
 # Decisions (the producer's log for Jeff; newest first)
 
+- 2026-11-10 — QA's replay of client batches 6 and 6b (qa-client6-2026-11-10.md, build 9f46d1f): every item passes,
+  the director's order-today lines among them; QA's ordered truck was handed over two days after its date, as
+  engineering's probe predicted. Its new findings are client batch 7 (the walkthrough's step 9 contradicting an order,
+  "You can buy today" while a purchase is blocked by the leased truck's trip, a bid at the shown ceiling refused because
+  the display rounds up, and smaller ones). One went to the economy and came back confirmed
+  (studio/reviews/economy-weekly-spend.md): the ledger counts a truck bought from the dealer or the lot as that week's
+  spending, in full, while a listing bought from another company is a transfer and is not, so the cushion read 0.4 weeks
+  after a purchase and differs by route for the same truck; the same list feeds the holding cost's working capital, the
+  season's carryover, the Reserve's cap, the prudent bots' floor and the guide's cushion, all sized as operating burn,
+  and counting capital there shelters cash (the Reserve's cap 160k higher for four weeks after a 50k rig). The
+  economy's fix, the producer's call to build: the ledger's not-an-outflow list gains the capital refs (a truck's or a
+  facility's or a business's purchase and its tax, a listing's market fee), behind ledger.capitalNotSpending (off); a
+  two-seed pair against the twin before it turns on; it rides 0.24.1 if it is built and reads clean before the cut,
+  else the next ruleset.
 - 2026-11-10 — OPEN FOR JEFF, with 0.24.1: a starter's used-lot truck from the lot's stock (usedMarket.npcLot.
   startersFromStock, 1633cc7; the economy's pair, studio/reviews/economy-starters-from-stock.md: the loan rule on in both
   arms, ten seeds, 1460 days). On: a starter's lot rig arrives in 7 days instead of 36–72 in the first quarter (33–37
