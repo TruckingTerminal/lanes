@@ -67,8 +67,8 @@ describe("client batch 7", () => {
     const t = w.trucksByCompany.get(c.id)![0]!;
     t.status = "repositioning";
     const f = firstTruckLine(w, c)!;
-    expect(f.figure).toMatch(new RegExp(`^You can buy when truck ${t.id} is next idle; it's on a run to `));
-    expect(listingWhy(w, c, "NPC-leased truck is on a trip")).toMatch(/^You can buy this when truck \d+ is next idle/);
+    expect(f.figure).toMatch(new RegExp(`^You can buy once truck ${t.id} is idle; it's on a run to `));
+    expect(listingWhy(w, c, "NPC-leased truck is on a trip")).toMatch(/^A truck changes hands only while your leased one stands idle, and truck \d+ is on a run to /);
     expect(listingWhy(w, c, "insufficient FD")).toBe("insufficient FD");
   }, 120_000);
 

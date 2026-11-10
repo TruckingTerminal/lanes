@@ -29,10 +29,10 @@ describe("client batch 6b: order today, delivered later", () => {
     expect(gap.truck!.arrivesDay!).toBeGreaterThan(today(w));
     const f = firstTruckLine(w, c)!;
     expect(f.met).toBe(true);
-    expect(f.figure).toMatch(/^You can order today · delivered /);
+    expect(f.figure).toMatch(/^You can order today · ready /);
     expect(f.figure).not.toContain("You can buy today");
     // A listing delivers today: the second line names it, with its cash today.
-    if (w.listings.some((l) => l.status === "open" && l.truckId > 0)) expect(f.sooner).toMatch(/^Or a truck with a .+, delivered today: (.+ FD in cash|your hold already covers it)\.$/);
+    if (w.listings.some((l) => l.status === "open" && l.truckId > 0)) expect(f.sooner).toMatch(/^Or a truck with a .+, ready today: (.+ FD in cash|your hold already covers it)\.$/);
     // The wait in the lessor's share: none with no gross yet; with a week's gross, share × gross × days / 7.
     c.operating.revenueFd = 0;
     expect(firstTruckLine(w, c)!.wait).toBeNull();

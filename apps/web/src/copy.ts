@@ -26,8 +26,8 @@ export const CONFIRM = {
   usedLastRisk: (fd: string) => `It runs until it's worn out, then goes for scrap, for about ${fd} FD.`,
   usedAway: (hub: string, mi: string) => `It's at ${hub}, ${mi} miles from home.`,
   usedAwayRisk: "Bringing it home takes a driver and empty miles.",
-  newTruck: (make: string, date: string) => `A new ${make}, arriving ${date}.`,
-  newRisk: "It loses value from the day it arrives, and costs money every week it sits.",
+  newTruck: (make: string, date: string) => `A new ${make}, ready ${date}.`,
+  newRisk: "It loses value from the day it's handed over, and costs money every week it sits.",
   lease: (make: string, deposit: string, min: string) => `Leases a ${make}: ${deposit} FD deposit, at least ${min} FD a week.`,
   leaseRisk: (days: number) => `It costs the weekly minimum, earning or not, for at least ${days} days.`,
   trailer: (type: string) => `A ${type} trailer of your own, kept in your yard.`,
@@ -962,10 +962,11 @@ export const INTEL = {
 
 /** The Dealer's buy controls (QA's Finance replay): a disabled button always says why; a loan shows its numbers first (the writer's strings). */
 export const DEALER = {
-  /** The writer's (copy-player2.md R7): each offer says when it delivers. newLead's cause is for the economy to confirm. */
-  deliversToday: "Delivers today",
-  arrives: (date: string) => `Ordered: arrives ${date}`,
-  newLead: (n: number) => `New trucks arrive in ${n} days: the factory is behind on orders.`,
+  /** The writer's (copy-player2.md R7): each offer says when it delivers. newLead's cause is for the economy to confirm.
+   * Client batch 7 (QA: one word for one event): an order's day is "ready" everywhere, the copy files' every date. */
+  deliversToday: "Ready today",
+  arrives: (date: string) => `Ordered today: ready ${date}`,
+  newLead: (n: number) => `New trucks are ready ${n} days after you order them: the factory is behind on orders.`,
   onLoan: "Buy on a loan ›",
   loanTitle: (what: string) => `Buy ${what} on a purchase loan`,
   price: "Price",
@@ -998,7 +999,7 @@ export const DEALER = {
  */
 export const IULIIA_SAY: Record<string, readonly string[]> = {
   // First entry: the hub screen.
-  "hub:ringed": ["A good place to start this month. Read the costs before the character.", "Ringed for a reason: freight leaves here for a new carrier."],
+  "hub:ringed": ["One of the three starting hubs with the most freight right now. Read the costs before the character.", "Ringed for a reason: freight leaves here for a new carrier."],
   "hub:starter": ["You may start here. Whether you should is what the card is for.", "Every city has a character. Look at what it costs to live with it."],
   "hub:other": ["A fine place to deliver to. For a home, look at the rings."],
   "hub:board": ["Look, don't touch: these are someone else's loads until you live here.", "Read the ceilings. Those are what shippers pay a stranger."],

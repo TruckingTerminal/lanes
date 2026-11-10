@@ -43,7 +43,7 @@ describe("client batch 4", () => {
 
   it("words the batch's placeholders: Book when no bid is suggested, the catch in figures, home time as the engine does it", () => {
     expect(PENDING.idleBookAction("Pomona", "Windsor")).toBe("Book Pomona to Windsor.");
-    expect(PENDING.wornCatch("480k", "48%", "3,100", "10,000")).toBe("The truck behind that figure is worn: expect about 3,100 FD in breakdowns and upkeep every 10,000 miles, and more as it wears. I'd wait for a sounder one.");
+    expect(PENDING.wornCatch("480k", "48%", "3,100", "10,000")).toBe("The truck I've priced for your first is worn, at 48% condition: expect about 3,100 FD in breakdowns and upkeep every 10,000 miles, and more as it wears. I'd wait for a sounder one.");
     expect(PENDING.homeTimeQueued("400", 2)).toMatch(/within 400 mi of home or has waited 2 days for one\.$/);
     expect(PENDING.newsServiceClaim("noshow", "77", "1,253")).toContain("−1,253 FD");
   });
