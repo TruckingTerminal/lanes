@@ -98,7 +98,7 @@ export function Showroom(): JSX.Element {
         <>
           <h3>The used lot</h3>
           <p class="muted small">
-            Worn rigs at their used value: a Workhorse about {lotSpec(w, "van").odometer.toLocaleString("en-US")} miles and {Math.round((w.t / w.cfg.time.gameMinutesPerDay - lotSpec(w, "van").builtDay) / 365)} years old. {w.usedLot.stock} on the lot this week; delivered like a new one.
+            Worn rigs at their used value: a Workhorse about {lotSpec(w, "van").odometer.toLocaleString("en-US")} miles and {Math.round((w.t / w.cfg.time.gameMinutesPerDay - lotSpec(w, "van").builtDay) / 365)} years old. {w.usedLot.stock} on the lot this week; {PENDING.lotReadyNote}.
           </p>
           {TYPES.map((tr) => (
             <Buy
@@ -150,11 +150,11 @@ export function Showroom(): JSX.Element {
                 when={DEALER.arrives(shortDate(today + rig.days))}
                 lines={newTruck(w, tier, tr, rig.days)}
                 truck={NEW_TRUCK}
-                ok={`Ordered. Delivery in ${plural(rig.days, "day")}`}
+                ok={PENDING.orderedReady(plural(rig.days, "day"))}
               />
               <div class="row">
                 {dollarWindow && !rig.dealershipId ? (
-                  <Btn disabled={!(c.usd.wallet >= assetPriceUsd(w, rig.price) && rigLeft && trailerRoom > 0)} onClick={() => act({ type: "buy_asset", tier, trailer: tr, replaceNpcLease: onLease, pay: "usd" }, `Ordered for dollars. Delivery in ${plural(rig.days, "day")}`)}>
+                  <Btn disabled={!(c.usd.wallet >= assetPriceUsd(w, rig.price) && rigLeft && trailerRoom > 0)} onClick={() => act({ type: "buy_asset", tier, trailer: tr, replaceNpcLease: onLease, pay: "usd" }, PENDING.orderedReadyUsd(plural(rig.days, "day")))}>
                     Or ${assetPriceUsd(w, rig.price).toLocaleString("en-US", { maximumFractionDigits: 0 })} (to the launch pool)
                   </Btn>
                 ) : null}

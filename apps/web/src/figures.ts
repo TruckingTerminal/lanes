@@ -167,11 +167,15 @@ export function gapToTruck(w: World, c: Company): { gapFd: number; route: "lot" 
  * The lessor's truck out on a run (client batch 7, QA): a listing changes hands only while it's idle (market.ts
  * listingBlock), so a listing can be bought when it's next idle. Its number and where it's headed; null when idle or none.
  */
-export function leaseOnRun(w: World, c: Company): { truckId: number; to: string } | null {
+export function leaseOnRun(w: World, c: Company): { truckId: number; to: string | null } | null {
   const t = (w.trucksByCompany.get(c.id) ?? []).find((x) => x.lease === "npc");
   if (!t || t.status === "idle") return null;
-  return { truckId: t.id, to: w.net.places[t.targetPlace]?.name ?? w.net.hubs[t.targetHub]!.name };
+  // Client batch 7b (the writer): only a run is "on a run to {place}"; in the shop or parked it's just not idle.
+  const run = RUN_STATUSES.has(t.status);
+  return { truckId: t.id, to: run ? (w.net.places[t.targetPlace]?.name ?? w.net.hubs[t.targetHub]!.name) : null };
 }
+/** The statuses that are a run: to the pickup, loading, loaded, unloading, repositioning. */
+const RUN_STATUSES: ReadonlySet<Truck["status"]> = new Set(["toPickup", "loading", "loaded", "unloading", "repositioning"]);
 
 /** A listing's block in the writer's words where the engine's is the lease on a run; any other block as the engine says it. */
 export function listingWhy(w: World, c: Company, block: string | null): string | null {

@@ -5,6 +5,9 @@
  */
 const paysThere = (n: number): string => (n === 0 ? "nothing pays there now" :`${n} ${n === 1 ? "load pays" : "loads pay"} there`);
 
+/** whenIdle's words, shared with readyWhenIdle (client batch 7b), so the two can't drift apart. */
+const PENDING_WHEN_IDLE = (truck: number): string => `once truck ${truck} is idle`;
+
 export const PENDING = {
   // tabs.ts: the Dealer's and Finance's teaser card, after "Opens " (the director, 2026-11-09: they open the moment the
   // first truck is affordable, whatever the walkthrough's step; firstTruckOpen also opens them at Iuliia's first-truck
@@ -213,13 +216,21 @@ export const PENDING = {
   // Client batch 7 (QA: "You can buy today" and "NPC-leased truck is on a trip" while the leased truck was on a run). A
   // listing changes hands only while the lessor's truck is idle (market.ts listingBlock). The first-truck figure when the
   // priced truck is a listing and the leased truck is on a run (figures.ts firstTruckLine):
-  firstTruckWhenIdle: (truck: number, to: string) => `You can buy once truck ${truck} is idle; it's on a run to ${to} now`,
+  // Client batch 7b: `to` is null when the leased truck isn't idle but isn't on a run either (in the shop, parked).
+  firstTruckWhenIdle: (truck: number, to: string | null) => (to !== null ? `You can buy once truck ${truck} is idle; it's on a run to ${to} now` : `You can buy once truck ${truck} is idle`),
   // A used listing's row on the Dealer, under its button, in place of the engine's "NPC-leased truck is on a trip".
-  listingWhenIdle: (truck: number, to: string) => `A truck changes hands only while your leased one stands idle, and truck ${truck} is on a run to ${to} now.`,
+  listingWhenIdle: (truck: number, to: string | null) => (to !== null ? `A truck changes hands only while your leased one stands idle, and truck ${truck} is on a run to ${to} now.` : `A truck changes hands only while your leased one stands idle, and truck ${truck} isn't idle now.`),
   // That row's button while it waits (otherwise "Buy today").
   buyWhenIdleLabel: "Buy",
   // soonerTruck's `date` for a listing while the leased truck runs.
-  whenIdle: (truck: number) => `once truck ${truck} is idle`,
+  whenIdle: (truck: number) => PENDING_WHEN_IDLE(truck),
+  // Client batch 7b: a used listing's "when" line while the leased truck isn't idle, in place of "Ready today" (Dealer.tsx).
+  readyWhenIdle: (truck: number) => `Ready ${PENDING_WHEN_IDLE(truck)}`,
+  // The Showroom's inline strings, moved here for the writer (the one word "ready"): the used lot's lead line, its end…
+  lotReadyNote: "ready when a new one would be",
+  // …and the new rig's order toasts, for FD and for dollars.
+  orderedReady: (days: string) => `Ordered. Ready in ${days}`,
+  orderedReadyUsd: (days: string) => `Ordered for dollars. Ready in ${days}`,
   // The used lot's rows (Showroom): the button, and the confirm sheet's verb and line (QA: "Buy Workhorse + Dry van?").
   lotButton: (replacing: boolean) => `Order this rig${replacing ? " (replaces your lease)" : ""}`,
   orderVerb: "Order",

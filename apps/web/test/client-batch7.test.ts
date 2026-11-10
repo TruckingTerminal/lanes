@@ -70,6 +70,10 @@ describe("client batch 7", () => {
     expect(f.figure).toMatch(new RegExp(`^You can buy once truck ${t.id} is idle; it's on a run to `));
     expect(listingWhy(w, c, "NPC-leased truck is on a trip")).toMatch(/^A truck changes hands only while your leased one stands idle, and truck \d+ is on a run to /);
     expect(listingWhy(w, c, "insufficient FD")).toBe("insufficient FD");
+    // Client batch 7b: in the shop the leased truck isn't idle, and isn't on a run either, so no run is claimed.
+    t.status = "repair";
+    expect(firstTruckLine(w, c)!.figure).toBe(`You can buy once truck ${t.id} is idle`);
+    expect(listingWhy(w, c, "NPC-leased truck is on a trip")).toBe(`A truck changes hands only while your leased one stands idle, and truck ${t.id} isn't idle now.`);
   }, 120_000);
 
   it("prices the wait on the basis that covers more weeks, and says which", async () => {
