@@ -1,5 +1,15 @@
 # Decisions (the producer's log for Jeff; newest first)
 
+- 2026-11-10 — Jeff: "Agreed, and let's add another sink: early delivery for a fee." (1) AGREED: a starter's used-lot
+  truck comes from the lot's stock (usedMarket.npcLot.startersFromStock), on the economy's pair (the OPEN FOR JEFF entry
+  below); it rides in 0.24.1, which is then seven switches: Send home back to work, turning an empty truck (with the
+  red team's guard), one reach for bids, a night in town, the hand bidder's round, the worn-truck loan rule (the points
+  on the company's age) and the starter's lot rig from stock, with the cross-engine fix. (2) NEW, Jeff's: a sink, early
+  delivery for a fee, read by the producer as paying to have an ordered truck delivered sooner than the dealer's queue
+  gives it (to be confirmed with Jeff). To the director for the design (where it is offered, what the player is told,
+  whether paying moves others back) and to the economy for the size, the bots' use of it (the same rule for everyone)
+  and the gate, since under the cap the NPC freight budget refills from sinks; behind a switch, a later ruleset. Jeff
+  asked for 0.24.1 itself to be explained before he answers it; that approval is still open.
 - 2026-11-10 — QA's replay of client batches 6 and 6b (qa-client6-2026-11-10.md, build 9f46d1f): every item passes,
   the director's order-today lines among them; QA's ordered truck was handed over two days after its date, as
   engineering's probe predicted. Its new findings are client batch 7 (the walkthrough's step 9 contradicting an order,
