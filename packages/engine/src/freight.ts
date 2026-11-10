@@ -206,6 +206,8 @@ export function generateRoundFreight(w: World): RoundFreight {
   // Batch 4: the NPC freight lost at its pickup's close, remembered and decayed (windows.ts lostMemory), counts as open
   // demand, so a hub where freight goes unhauled reads as short of trucks and its next postings price higher.
   const lost = windowsOn(w) ? lostMemory(w) : null;
+  // Batch 5: the open loads without the memory, for a facility's goods (facilityRef): worth what they were; the haul got dearer.
+  const loadsBase = windowsOn(w) ? Float64Array.from(loadsAt) : null;
   if (lost) {
     const weight = cfg.windows!.lostMemoryWeight;
     for (let k = 0; k < n * E; k++) loadsAt[k]! += weight * lost[k]!;
@@ -222,20 +224,27 @@ export function generateRoundFreight(w: World): RoundFreight {
   for (const truck of w.trucks) {
     if (truck.status === "idle" && truck.pricedOutRound !== w.round) trucksAt[planIndex(truck.hub, EQUIPMENT.indexOf(truck.trailer))]!++;
   }
-  const [lo, hi] = cfg.rates.ratioClamp;
+  const [lo, hiRates] = cfg.rates.ratioClamp;
+  // Batch 5: while windows are on, the ratio's top is windows.ratioClampTop (the memory's lift reaches further); this one
+  // clamp is what every reader of the ratio sees (economy.config.ts windows.ratioClampTop lists them).
+  const hi = loadsBase ? (cfg.windows!.ratioClampTop ?? hiRates) : hiRates;
   const ratio = new Float64Array(n);
   const ratioEq = new Float64Array(n * E);
+  const ratioEqBase = loadsBase ? new Float64Array(n * E) : null;
   for (let i = 0; i < n; i++) {
     let loads = 0;
     let trucks = 0;
     for (let e = 0; e < E; e++) {
       let l = 0;
+      let lb = 0;
       let t = 0;
       for (const j of net.nearby[i]!) {
         l += loadsAt[planIndex(j, e)]!;
+        if (loadsBase) lb += loadsBase[planIndex(j, e)]!;
         t += trucksAt[planIndex(j, e)]!;
       }
       ratioEq[planIndex(i, e)] = clamp(l / Math.max(1, t), lo, hi);
+      if (ratioEqBase) ratioEqBase[planIndex(i, e)] = clamp(lb / Math.max(1, t), lo, hiRates);
       loads += l;
       trucks += t;
     }
@@ -245,6 +254,21 @@ export function generateRoundFreight(w: World): RoundFreight {
   w.lastRatioEq = ratioEq;
   // How easily a truck reloads after delivering at each hub, smoothed so one round doesn't swing prices.
   const beta = 1 / cfg.rates.reloadSmoothingRounds;
+  // Batch 5: the same index without the memory and under rates.ratioClamp, for a facility's goods (facilityRef); it starts
+  // from the index as it stood the first round windows are on.
+  if (ratioEqBase) {
+    if (!w.reloadIndexBase || !w.reloadMeanBase) {
+      w.reloadIndexBase = Float64Array.from(w.reloadIndex);
+      w.reloadMeanBase = Float64Array.from(w.reloadMean);
+    }
+    const ib = w.reloadIndexBase;
+    for (let k = 0; k < n * E; k++) ib[k] = ib[k]! + beta * (ratioEqBase[k]! - ib[k]!);
+    for (let e = 0; e < E; e++) {
+      let sum = 0;
+      for (let i = 0; i < n; i++) sum += ib[planIndex(i, e)]!;
+      w.reloadMeanBase[e] = sum / n;
+    }
+  }
   for (let k = 0; k < n * E; k++) w.reloadIndex[k] = w.reloadIndex[k]! + beta * (ratioEq[k]! - w.reloadIndex[k]!);
   for (let e = 0; e < E; e++) {
     let sum = 0;
@@ -278,10 +302,10 @@ export function generateRoundFreight(w: World): RoundFreight {
     return (cfg.rates.exitDeadheadShare * cfg.rates.deadheadFdPerMile * (exitCap === null ? dh : Math.min(dh, exitCap * lane.miles))) / lane.miles;
   };
   const rf = reserveFactor(w) * w.stab.rateMult * (w.stab.emissionMult ?? 1); // the emission cap (emission.ts), the reserve, and the balance dial (step.ts monthlyStabilizers)
-  const refRate = (lane: Lane, eq: Equipment) =>
+  const refRateOf = (r: Float64Array) => (lane: Lane, eq: Equipment) =>
     lane.baseRate *
       rf *
-      dpow(ratioEq[planIndex(lane.origin, EQUIPMENT.indexOf(eq))]!, cfg.rates.ratioExponent) *
+      dpow(r[planIndex(lane.origin, EQUIPMENT.indexOf(eq))]!, cfg.rates.ratioExponent) *
       feeds.weather(net.hubs[lane.origin]!.id, day) *
       cfg.rates.equipmentPremium[eq] *
       seasonality(w, lane.origin, eq, day).rate *
@@ -291,6 +315,27 @@ export function generateRoundFreight(w: World): RoundFreight {
     terrainPerMile(lane) +
     theftPerMile(lane, eq) +
     exitPerMile(lane, eq);
+  const refRate = refRateOf(ratioEq);
+  /**
+   * Batch 5: what a facility's goods are worth per mile, the reference without the lost-load memory and under
+   * rates.ratioClamp (the economy: the goods' value inflated with the lifted reference and took the NPC market's budget
+   * from the hauls). The ratio term reads the memory-free ratio, and the destination's reload terms (reloadFactor, and
+   * the expected empty run out in exitPerMile, through reloadOdds, expectedWaitDays and localShare) read the memory-free
+   * index, put in w.reloadIndex for the call (nothing on that path caches). Off, the reference itself.
+   */
+  const facilityRef = (lane: Lane, eq: Equipment): number => {
+    if (!ratioEqBase || !w.reloadIndexBase || !w.reloadMeanBase) return refRate(lane, eq);
+    const index = w.reloadIndex;
+    const mean = w.reloadMean;
+    w.reloadIndex = w.reloadIndexBase;
+    w.reloadMean = w.reloadMeanBase;
+    try {
+      return refRateOf(ratioEqBase)(lane, eq);
+    } finally {
+      w.reloadIndex = index;
+      w.reloadMean = mean;
+    }
+  };
 
   const month = Math.floor(((day % cfg.time.daysPerSeason) / cfg.time.daysPerSeason) * 12);
   const eco = net.economy;
@@ -476,7 +521,8 @@ export function generateRoundFreight(w: World): RoundFreight {
       routeLoad(load);
       load.shipperId = f.ownerId;
       load.facilityId = f.id;
-      load.saleValue = ref * cfg.facilities.types[f.type].saleValueOfRef * lane.miles;
+      // Batch 5: the goods at the reference without the lost-load memory (facilityRef); the haul itself pays `ref`.
+      load.saleValue = facilityRef(lane, f.equipment) * cfg.facilities.types[f.type].saleValueOfRef * lane.miles;
       finish(load, w.companies[f.ownerId - 1]!.vetting);
       if (win) openWindow(w, load, drawLeadDays(w));
       w.loads.set(load.id, load);

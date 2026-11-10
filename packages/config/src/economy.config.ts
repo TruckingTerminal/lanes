@@ -967,6 +967,14 @@ export const economyConfig = {
     // facility's, so no player can post loads to be lost and raise a hub's rate.
     lostMemoryHalfLifeDays: 7,
     lostMemoryWeight: 1,
+    // Batch 5 (studio/reviews/economy-delivery-windows-batch4.md §3; DECISIONS.md 2026-11-10): while windows are on, the
+    // hub's load-to-truck ratio clamps at this top instead of rates.ratioClamp's (2.5), so the memory's lift on the
+    // reference reaches about 6^0.35 ≈ ×1.87 instead of ×1.38. One clamp in posting (freight.ts), so every reader of the
+    // ratio sees it: the reference and book-now's opening, the reload index (destination pricing, the expected wait, the
+    // local-first share, the dispatcher's lookahead, the bots' choice of trailer), the contract index, w.lastRatio and
+    // w.lastRatioEq. rates.ratioClamp stays as it is for everything else, and off this is never read. A facility's goods
+    // are priced from the ratio without the memory, under rates.ratioClamp (freight.ts facilityRef).
+    ratioClampTop: 6,
     // Batch 4, the same-day premium (Jeff, 2026-11-09, a market rule): an NPC load posted for pickup the same day (lead 0)
     // pays this on its reference at posting; the ceiling, book-now and a broker's contract follow from it. Not on a hot load
     // (its premium is its urgency); book-now never over the ceiling, the walk never over the walked ceiling.

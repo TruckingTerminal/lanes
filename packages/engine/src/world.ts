@@ -103,6 +103,12 @@ export interface World {
   reloadIndex: Float64Array;
   /** National average of reloadIndex per trailer type. */
   reloadMean: Float64Array;
+  /**
+   * Windows batch 5: reloadIndex and reloadMean as they'd read without the lost-load memory and under rates.ratioClamp,
+   * for a facility's sale value (freight.ts facilityRef). Made the first round windows are on; absent otherwise.
+   */
+  reloadIndexBase?: Float64Array;
+  reloadMeanBase?: Float64Array;
   /** The weekly buyback auction: standing offers, rolled-over budget, results, and each company's last fill. */
   buyback: {
     offers: Map<number, { amountFd: number; minPriceUsd: number }>;
