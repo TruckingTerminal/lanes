@@ -1,5 +1,22 @@
 # Decisions (the producer's log for Jeff; newest first)
 
+- 2026-11-10 — the economy's fourth reading of delivery windows, on batch 6 (studio/reviews/economy-delivery-windows-
+  batch6.md; ten seeds, 1460 days): it fails the gate on every seed and reads worse than batch 5 (the band 0.75–0.80).
+  The crash fix holds: both twins that died ran to the end. The facility leak is closed (the cap's goods purchases
+  0.6% of its pay), but the bots still buy 128 facilities a run and close every one eight weeks later, because the
+  test's fallback reads a 0.52 fill over four rounds as 95% covered. The brokers' cover rule never fires (zero tenders
+  passed up on every seed): its tally is per broker and hub, and four loads a week per broker-hub is almost never
+  reached. With no brake and contracts priced on the memory-lifted index, the AI brokers take 73% of the cap's
+  freight pay (26% off) and burn a quarter of it as fall-off (6.7% of the cap's pay); the carriers' share of the cap's
+  pay falls to 75–76% (94% off), their freight income per truck-week −19%, fleets' profit −53%, owner-operators' −29%;
+  the cap sits at its volume floor 586 days of 1,460 (245 off) and cleared loads end 18% under. The miss is priced
+  in, not sized: no value of batch 6's keys reaches it. The producer's call on the economy's sizing: windows batch 7,
+  same switch: the AI brokers' contracts priced on the memory-free reference, as the facilities' goods are, so the
+  memory lifts what the board pays a carrier and not what the shipper pays the broker; the cover tally per hub
+  across the AI brokers; the facility test's fallback on the hub's NPC lost share from the lost-load memory. Then the
+  ten seeds with the same lines (the carriers' share at 90% or better, the brokered share near half, fall-off under
+  3%, facilities standing in the tens, the volume lever off the floor). Engineering builds it after the early-
+  delivery fee's engine part. Windows stay out of 0.24.1.
 - 2026-11-10 — the director, on the early-delivery fee (studio/reviews/director-expedite-wait-cost.md), where her
   design and the economy's sizing pulled apart: her rule showed only the lessor's share and the payments running as
   the cost of a wait, and on those a fleet's 115k rig says no (6,900 for four weeks against about 4,400), while the
