@@ -378,6 +378,8 @@ export interface FactoringLog {
   /** Broker tenders some broker had to pass up at its posted bond (the AP cap), those no broker could take (they went to the open board), and bids and bookings refused on brokers' loads. */
   tendersCapped: number;
   tendersToBoard: number;
+  /** Windows batch 6: tenders an AI broker passed up for losing too much of what it takes at that hub (windows.brokerMaxLostShare). */
+  tendersUncovered?: number;
   bookingsCapped: number;
   /** Brokers' paper paid from the bond because their cash couldn't, and the part of it that went to the NPC factor or lessor. */
   bondPaidFd: number;

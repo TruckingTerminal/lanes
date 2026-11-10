@@ -108,6 +108,11 @@ export interface World {
    * for a facility's sale value (freight.ts facilityRef). Made the first round windows are on; absent otherwise.
    */
   reloadIndexBase?: Float64Array;
+  /**
+   * Windows batch 6 (windows.ts tally): per key, the trailing days' loads taken and lost at their pickup's close, one
+   * entry a day: `b:{broker}:{hub}` for an AI broker's tenders, `f:{hub}` for facility freight. Absent with windows off.
+   */
+  winTally?: Record<string, { day: number; taken: number; lost: number }[]>;
   reloadMeanBase?: Float64Array;
   /** The weekly buyback auction: standing offers, rolled-over budget, results, and each company's last fill. */
   buyback: {

@@ -27,7 +27,7 @@
  * sets is absent on a load posted while off, so those loads take today's path wherever they go.
  */
 import { COMMODITIES, dpow } from "@lanes/data";
-import type { EconomyConfig } from "@lanes/config";
+import type { EconomyConfig, Equipment } from "@lanes/config";
 import { dayOf, MINUTES_PER_HOUR } from "./clock.js";
 import { dockHoursAt, dockRule, nextOpen } from "./docks.js";
 import { EQUIPMENT, planIndex } from "./demand.js";
@@ -38,7 +38,7 @@ import { companyAccount } from "./ledger.js";
 import { driverFatigue } from "./labor.js";
 import { legalDrivingMin, reopenLoad } from "./safety.js";
 import { cycleLimitMin, dutyResetAt, legKeyOf } from "./trips.js";
-import type { Company, Load, Truck } from "./types.js";
+import type { Company, Facility, Load, Truck } from "./types.js";
 import { companyById, crewed, placeHours, placeLegMiles, placeRoute, type World } from "./world.js";
 
 /** windows.enabled; a config without the key (an older profile) reads as off. */
@@ -621,3 +621,76 @@ export function keepLoad(w: World, company: Company, load: Load): string | null 
   delete load.releaseAsk;
   return null;
 }
+
+// --- Batch 6: who covers what they take ----------------------------------------------------------
+
+/** A tally's key: an AI broker's tenders at a hub, or a hub's facility freight. */
+export const brokerKey = (brokerId: number, hub: number): string => `b:${brokerId}:${hub}`;
+export const facilityKey = (hub: number): string => `f:${hub}`;
+
+/** Counts a load taken (`taken`) or lost at its pickup's close (`lost`) under a key, on today's entry (windows on only). */
+export function tally(w: World, key: string, kind: "taken" | "lost"): void {
+  if (!windowsOn(w)) return;
+  const day = dayOf(w.t, w.cfg);
+  const keep = w.cfg.windows!.coverDays;
+  const t = (w.winTally ??= {});
+  const list = (t[key] ??= []);
+  let last = list[list.length - 1];
+  if (!last || last.day !== day) list.push((last = { day, taken: 0, lost: 0 }));
+  last[kind]++;
+  while (list.length && list[0]!.day <= day - keep) list.shift();
+}
+
+/** The trailing week's loads taken and lost under a key, and the lost share once coverMinLoads were taken (else null). */
+export function lostShare(w: World, key: string): { taken: number; lost: number; share: number | null } {
+  const k = w.cfg.windows!;
+  const day = dayOf(w.t, w.cfg);
+  let taken = 0;
+  let lost = 0;
+  for (const e of w.winTally?.[key] ?? []) {
+    if (e.day <= day - k.coverDays) continue;
+    taken += e.taken;
+    lost += e.lost;
+  }
+  return { taken, lost, share: taken >= k.coverMinLoads ? Math.min(1, lost / taken) : null };
+}
+
+/** An AI broker (not a person's company or a player's brokerage), whose tenders the cover rule reads. */
+export const aiBroker = (w: World, id: number): boolean => !byPlayer(w, id);
+
+/** windows.brokerMaxLostShare: this AI broker loses too much of what it takes at this hub to take another tender there. */
+export function brokerUncovered(w: World, brokerId: number, hub: number): boolean {
+  if (!windowsOn(w) || !aiBroker(w, brokerId)) return false;
+  const s = lostShare(w, brokerKey(brokerId, hub)).share;
+  return s !== null && s >= w.cfg.windows!.brokerMaxLostShare;
+}
+
+/**
+ * The chance a facility's load is hauled before its pickup closes, for the bots' facility test (ruleBots chooseFacility):
+ * one less the hub's facility lost share over the trailing week, or, with too few loads to read, the board's fill over the
+ * rounds a load lives in its window (its pickup hours in rounds: two for an appointment dock, four for a first-come one).
+ */
+export function facilityCovered(w: World, hub: number, eq: Equipment): number {
+  const s = lostShare(w, facilityKey(hub)).share;
+  if (s !== null) return 1 - s;
+  const k = w.cfg.windows!;
+  const roundHours = w.cfg.time.gameMinutesPerDay / 60 / w.cfg.time.boardRoundHours.length;
+  const hours = w.cfg.docks.byEquipment[eq] === "appointment" ? k.pickupHours.appointment : k.pickupHours.firstCome;
+  const rounds = Math.max(1, Math.round(hours / roundHours));
+  return 1 - dpow(1 - w.fillRate[eq], rounds);
+}
+
+/**
+ * windows.facilityCloseWeeks: a facility closed by its owner. It stops posting and its upkeep stops (step.ts skips a
+ * facility with no owner), its slot goes back to the supply, and nothing is paid back, as at a liquidation; the loads it
+ * posted stay its owner's to sell. The smallest honest sale: no bot buys a facility on the asset market, so a listing
+ * would stand unsold and keep losing.
+ */
+export function closeFacility(w: World, f: Facility): void {
+  if (f.ownerId === 0) return;
+  const owner = f.ownerId;
+  f.ownerId = 0;
+  w.facilitySupply[f.type]++;
+  w.listener?.({ kind: "notice", companyId: owner, topic: "board", text: `Closed your ${f.type} at ${w.net.hubs[f.hub]!.name}: it ran at a loss.`, tone: "info" });
+}
+

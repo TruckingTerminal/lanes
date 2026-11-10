@@ -142,7 +142,7 @@ export function reserveFactor(w: World): number {
 }
 import type { Load } from "./types.js";
 import { startHold } from "./brokerage.js";
-import { drawLeadDays, lostMemory, openWindow, readyToday, sameDayMult, windowsOn } from "./windows.js";
+import { brokerKey, brokerUncovered, drawLeadDays, facilityKey, lostMemory, openWindow, readyToday, sameDayMult, tally, windowsOn } from "./windows.js";
 import type { World } from "./world.js";
 
 /** Destination weights per origin hub and equipment; static, so cached per network. */
@@ -521,6 +521,7 @@ export function generateRoundFreight(w: World): RoundFreight {
       routeLoad(load);
       load.shipperId = f.ownerId;
       load.facilityId = f.id;
+      tally(w, facilityKey(f.hub), "taken"); // windows batch 6: the hub's facility freight posted, against what it loses
       // Batch 5: the goods at the reference without the lost-load memory (facilityRef); the haul itself pays `ref`.
       load.saleValue = facilityRef(lane, f.equipment) * cfg.facilities.types[f.type].saleValueOfRef * lane.miles;
       finish(load, w.companies[f.ownerId - 1]!.vetting);
@@ -563,9 +564,15 @@ function tenderToBroker(w: World, load: Load, brokers: Company[], contractShippe
   // What the load would add to a broker's books if posted at its ceiling (the high-value lift lands after the tender).
   const posts = (b: Company) => contractShipperRate * (1 - clamp(marginOf(b), 0, 0.9)) * load.miles * highValueMult(w.cfg, load.commodity);
   let capped = false;
+  let uncovered = false;
   for (const b of brokers) {
     const order = b.orders.find((o) => o.kind === "broker");
     if (order && order.kind === "broker" && b.openBrokerLoads < order.maxOpenLoads && brokerLicensed(w, b)) {
+      // Windows batch 6: an AI broker that loses too much of what it takes at this hub doesn't take another tender here.
+      if (brokerUncovered(w, b.id, load.origin)) {
+        uncovered = true;
+        continue;
+      }
       if (books) {
         const why = apCapBlock(w, b, books.get(b.id), posts(b), true);
         if (why) {
@@ -580,15 +587,17 @@ function tenderToBroker(w: World, load: Load, brokers: Company[], contractShippe
     }
   }
   if (capped) factoringLog(w).tendersCapped++;
-  // With no broker capacity the load stays on the open board as NPC spot freight.
+  if (uncovered) factoringLog(w).tendersUncovered = (factoringLog(w).tendersUncovered ?? 0) + 1; // windows batch 6
+  // With no broker capacity (or none covering what it takes, windows batch 6) the load stays on the open board as NPC spot freight.
   if (eligible.length === 0) {
-    if (capped) factoringLog(w).tendersToBoard++;
+    if (capped || uncovered) factoringLog(w).tendersToBoard++;
     return;
   }
   const broker = eligible[w.rng.freight.weighted(weights)]!;
   const order = broker.orders.find((o) => o.kind === "broker");
   const margin = clamp(order && order.kind === "broker" ? order.marginPct : 0, 0, 0.9);
   load.brokerId = broker.id;
+  tally(w, brokerKey(broker.id, load.origin), "taken"); // windows batch 6: what it takes, against what it loses (windows.ts)
   load.shipperRate = contractShipperRate;
   load.ceiling = contractShipperRate * (1 - margin);
   load.bookNow = Math.min(load.bookNow, load.ceiling);

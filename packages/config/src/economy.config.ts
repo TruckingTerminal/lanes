@@ -993,6 +993,18 @@ export const economyConfig = {
     // pays this on its reference at posting; the ceiling, book-now and a broker's contract follow from it. Not on a hot load
     // (its premium is its urgency); book-now never over the ceiling, the walk never over the walked ceiling.
     sameDayPremium: 1.1,
+    // Batch 6 (studio/reviews/economy-delivery-windows-batch5.md §3; DECISIONS.md 2026-11-10): who covers what they take.
+    // A trailing week (coverDays) of loads taken and loads lost at their pickup's close is kept per AI broker and hub, and
+    // per hub for facility freight (windows.ts tally); a share counts once coverMinLoads were taken in the week.
+    // brokerMaxLostShare: an AI broker takes an NPC tender at a hub only while its lost share there is under this; above
+    // it the tender goes to the board, as a capped tender does (freight.ts tenderToBroker).
+    // The bots' facility test reads the hub's facility lost share (ruleBots chooseFacility; with too few loads, the board's
+    // fill over the window's rounds of life, its pickup hours in rounds), and a bot closes a facility that has run at a
+    // loss (its netFd under zero) facilityCloseWeeks after it bought it (windows.ts closeFacility).
+    coverDays: 7,
+    coverMinLoads: 4,
+    brokerMaxLostShare: 0.25,
+    facilityCloseWeeks: 8,
     // Booking ahead, the dispatcher (batch 3): a truck on a job is planned for its next load once it will be free within
     // this many hours (canMake's projection), priced from where and when it's free; one ahead, never a third.
     planAheadHours: 12,

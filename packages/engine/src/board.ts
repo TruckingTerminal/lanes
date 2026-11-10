@@ -12,7 +12,7 @@ import { companyAccount } from "./ledger.js";
 import { bidsFromStandingOrders, boardKey, readyKey, canMakeHot, dockWaitCost, indexOpenLoads, scoreBid, desperation, estimateBreakEven, resting, trackingWouldShow, needsHome, homeward, hardCap, floorRate, lookaheadValue, ordersWaitForHand } from "./standingOrders.js";
 import { startJob } from "./trips.js";
 import { bookingCapBlock, brokerBooks, contractOn, type BrokerBook } from "./receivables.js";
-import { AHEAD_STATUSES, canMake, dispatchPlan, noteLost, noShow, pickupClosed, planLoads, planMakes, posterKind, readyToday, urgencyStep, urgent, windowsOn } from "./windows.js";
+import { AHEAD_STATUSES, aiBroker, brokerKey, canMake, dispatchPlan, facilityKey, noteLost, noShow, pickupClosed, planLoads, planMakes, posterKind, readyToday, tally, urgencyStep, urgent, windowsOn } from "./windows.js";
 import type { Bid, Company, Load, StandingOrder, Truck } from "./types.js";
 import { companyById, crewed, hubHours, hubMiles, truckById, type World, placeMiles, placeOfHub, placeLegMiles } from "./world.js";
 
@@ -355,6 +355,9 @@ export function giveUp(w: World, load: Load, noShow = false): void {
   const closed = noShow || pickupClosed(w, load);
   if (closed) w.metrics.onLost(posterKind(w, load), load.shipperRate * load.miles);
   if (closed) noteLost(w, load); // batch 4: unserved NPC demand prices the hub's next postings (freight.ts)
+  // Batch 6: lost at the close, against what was taken: an AI broker's at its hub, a facility's at its hub (windows.ts tally).
+  if (closed && load.brokerId !== null && aiBroker(w, load.brokerId)) tally(w, brokerKey(load.brokerId, load.origin), "lost");
+  if (closed && load.facilityId !== null) tally(w, facilityKey(load.origin), "lost");
   const unhauled = noShow ? "after its carrier failed to show at the pickup" : closed ? "before its pickup closed" : `in ${rounds} rounds`;
   load.status = "expired";
   if (w.cfg.brokerage.enabled) onFallOff(w, load);

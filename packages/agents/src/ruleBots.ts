@@ -1,6 +1,7 @@
 import type { Equipment, FacilityType, TractorTier } from "@lanes/config";
 import { dcos, dexp, dlog, dpow } from "@lanes/data";
 import { chopBoardPrice, fenceBoardPrice, heatOf, lotFeeFd, lotOn } from "@lanes/engine";
+import { closeFacility, facilityCovered, windowsOn } from "@lanes/engine";
 import {
   addTruck,
   applyAction,
@@ -1608,7 +1609,9 @@ function chooseFacility(w: World, budget: number, maxPaybackWeeks: number, cache
     for (let hub = 0; hub < w.net.hubs.length; hub++) {
       const o = outlookFor(w, cache, type, hub);
       const ref = (cfg.rates.baseRatePerMile + cfg.rates.shortHaulBonus / TYPICAL_LANE_MI) * cfg.rates.equipmentPremium[o.equipment];
-      const covered = 1 - dpow(1 - w.fillRate[o.equipment], cfg.board.giveUpAfterRounds);
+      // Windows batch 6: under windows a facility load lives two to four rounds, not giveUpAfterRounds, and the hub's own
+      // facility freight says how much of it is lost (engine windows.ts facilityCovered).
+      const covered = windowsOn(w) ? facilityCovered(w, hub, o.equipment) : 1 - dpow(1 - w.fillRate[o.equipment], cfg.board.giveUpAfterRounds);
       const hauled = spec.saleValueOfRef * (1 - cfg.board.posterFeePct) - ASSUMED_CLEARED_OF_REF;
       const margin = covered * hauled * ref * TYPICAL_LANE_MI;
       const weeklyNet = o.loadsPerRound * 14 * margin - spec.upkeepPerWeekFd;
@@ -1662,6 +1665,12 @@ export const ruleBotHook: DailyAgentHook = (w) => {
     // Shut down: wait out the bar (new authority comes by itself when it ends).
     if (p && c.authority.status === "revoked") continue;
     if (!p || c.liquidatingSince !== null || c.retiredDay !== undefined) continue; // not a bot, being wound up, or gone
+    // Windows batch 6: a facility that has run at a loss facilityCloseWeeks after it was bought is closed, whatever else the
+    // bot does today (windows.ts closeFacility; no bot buys one on the asset market, so a listing would stand unsold).
+    if (windowsOn(w)) {
+      const day = dayOf(w.t, cfg);
+      for (const f of facilitiesOf(w, c.id)) if (day - f.boughtDay >= 7 * cfg.windows!.facilityCloseWeeks && f.netFd < 0) closeFacility(w, f);
+    }
     const acct = companyAccount(c.id);
     const fleet = w.trucksByCompany.get(c.id)!;
     // The population dial: a bot winding down sells its owned trucks as they come idle, hands leases back, then leaves.
