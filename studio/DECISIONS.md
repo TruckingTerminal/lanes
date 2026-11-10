@@ -1,5 +1,20 @@
 # Decisions (the producer's log for Jeff; newest first)
 
+- 2026-11-10 — the player's first diary of Jeff's round, the exploit hunter (studio/playtests/play-2026-11-10-exploit-
+  hunter.md; build c8c67db, 61 game days, the small-fleet start at Los Angeles). No money from nowhere: the ceiling
+  equals book-now, a truck bought on a loan and sold repays the loan first, nothing charges twice. What is open is
+  the plumbing. The producer's triage: (1) the same world in two tabs, the last to save wins, which is an undo in a
+  game with none; and (2) a reload mid-trip came back at the same clock 73 miles further on and 20 FD lower. Both go
+  to the red team for a persistence pass before engineering touches them, with the question that matters: does either
+  reach the live world and its store. (3) A truck listed for seven weeks never sold while its card says what it
+  "would fetch today": the economy reads who buys listings and whether that worth is a price anyone pays; the engine
+  already has withdraw_listing and the client never offers it. For engineering's client batch 8, with QA's fails: the
+  loan's second confirmation opening off screen ("the buy button is broken"), no word when a listing sells or its
+  loan is repaid, the sell sheet silent on the loan, a name of spaces replaced without a word, number fields that
+  take anything in silence, the Staff list redrawing every second even paused, the lot row without its condition,
+  the pause control before the first load, "Wed Feb 29" in Year 1, and February's bridge with no "invoices not yet
+  paid" line. Three shoulder tickets under the dispatcher with no choice offered: 0.24.1's sleep-in-town rule is the
+  answer, not yet on the test page.
 - 2026-11-10 — the economy's fourth reading of delivery windows, on batch 6 (studio/reviews/economy-delivery-windows-
   batch6.md; ten seeds, 1460 days): it fails the gate on every seed and reads worse than batch 5 (the band 0.75–0.80).
   The crash fix holds: both twins that died ran to the end. The facility leak is closed (the cap's goods purchases
