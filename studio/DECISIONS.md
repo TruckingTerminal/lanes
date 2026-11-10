@@ -1,5 +1,32 @@
 # Decisions (the producer's log for Jeff; newest first)
 
+- 2026-11-10 — the economy on who buys a listing and what "would fetch today" is worth
+  (studio/reviews/economy-listing-worth.md, from the exploit hunter's stuck reefer): the buyers are bots only (a
+  starter's first truck, a growing fleet, a dealership's trade-in at 80% of book), the lowest ask against book value
+  inside the buyer's budget wins whatever the trailer, and a 159k truck found nobody because no buyer had the budget,
+  not because of the reefer or the test page. The card's "worth" is book value, the figure the lender and the lot
+  price from, and no price sells a dear truck with certainty: at the 60% floor, week eight, a listing is withdrawn and
+  the truck parked, and a listed truck pays the idle fee meanwhile, none of it said on the sheet. Its
+  recommendations: words now (the card says "book value" and a realistic "would sell for about"; the sell sheet says
+  the weekly drop, the floor and the idle fee); the drop unchanged; and a certain exit, an NPC dealer's trade-in at
+  65% of book behind a switch, which is a new rule that moves money. OPEN FOR JEFF: whether to build the trade-in
+  (the director's view is asked first); the economy would then run a ten-seed pair before any ruleset.
+- 2026-11-10 — QA's replay of client batches 7 and 7b (build c8c67db; world 7 played from Feb 16 to Jun 1): the
+  walkthrough against an order, the table's ceiling, the milestones' log, the lot rig's order, the word "ready", the
+  sooner line and its countdown, the wait's basis, the small items, the worn line and the ringed hub all pass. Fails,
+  for client batch 8: the leased truck's engine id shown for its number ("truck 897"); Iuliia's caption on the order
+  day saying the lessor's cut ends today; an open What now? answer keeping an old countdown; the bid sheet lowering
+  an over-ceiling bid without a word (the producer: it refuses with the table's message; a rate is never shown above
+  the shown ceiling); and the small ones (the lot rig's loan button and toast, "Reload at ABE" against "Reload at
+  Allentown", "It costs 44.7k FD with tax" under "Price 48.9k FD"). The hand-over came eight days after the ready
+  day with the dispatcher on, which is what 0.24.1's on-time hand-over answers. The version check is still
+  unverified: QA tests it as the next deploy lands. Pushes are released.
+- 2026-11-10 — the early-delivery fee's engine part is on main behind assets.expedite.enabled (6754516; the off digest
+  unchanged, the 60-day sim figure-identical). Engineering's smoke showed no bot expediting under either reading of
+  the wait's cost: a fleet that orders to grow never has a driver without a truck, since a hire needs an empty seat.
+  The director re-ruled (studio/reviews/director-expedite-wait-cost.md): the earnings count when the company staffs
+  what it owns, none of its trucks standing without a driver today and at least one seated; an owner who already
+  drives does not count as the second truck's driver. Engineering changes the guard, then windows batch 7.
 - 2026-11-10 — the player's first diary of Jeff's round, the exploit hunter (studio/playtests/play-2026-11-10-exploit-
   hunter.md; build c8c67db, 61 game days, the small-fleet start at Los Angeles). No money from nowhere: the ceiling
   equals book-now, a truck bought on a loan and sold repays the loan first, nothing charges twice. What is open is

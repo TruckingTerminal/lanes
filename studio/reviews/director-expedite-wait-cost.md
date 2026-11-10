@@ -30,3 +30,27 @@ Then one of:
 **The fixed parts:** the payments first, as the certain cost; the earnings as "have kept … if this one does the
 same"; the fee last; the verdict conditional on the freight. The writer may tune the words, not that order or the
 "if".
+
+## Re-ruling: the driver guard (2026-11-10, after engineering's smoke)
+
+**Rule 1 replaces "would have a driver".** The earnings term counts when the company staffs what it owns: today
+none of its trucks stands without a driver, and at least one truck is seated. My intent is unchanged: never price
+earnings for a truck that will sit. In this engine the hire comes the day the truck does, so a yard with no empty
+seat is the honest stand-in. Not rule 2: one day's candidates say nothing about a truck weeks out.
+
+**An owner who already drives a truck doesn't count as the second truck's driver.** That truck needs a hire, which
+rule 1 covers. The four weeks of books still apply. Bots follow the same rule.
+
+**When the term counts:**
+> Waiting four weeks costs about 4,400 FD in payments. Your trucks have each kept about 2,200 a week over the last
+> eight weeks; if this one does the same, with a driver hired the day it arrives, that's about 8,800. The fee is
+> 6,900.
+
+**When a truck stands empty:**
+> Waiting four weeks costs about 4,400 FD in payments; that's all I can count. Truck 3 has no driver today; seat it
+> before you count on another.
+
+**When the books are under four weeks:**
+> …that's all I can count. Your company needs four weeks of loads before I can say what a truck keeps.
+
+The order and the "if" stay fixed, as before.
