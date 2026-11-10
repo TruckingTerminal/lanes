@@ -1,7 +1,7 @@
 import type { EconomyConfig } from "@lanes/config";
 import { cashNowRate, companyAccount, crewed, MANUAL_BID_MAX_DEADHEAD_MI, truckValue, type Company, type Truck, type World } from "@lanes/engine";
 import { boardRows, clearsNear } from "./board.js";
-import { bestLoad, cushion, debtCountdown, freeTrucks, gapToTruck, nextEvent, owed, type NextEvent } from "./figures.js";
+import { bestLoad, cushion, debtCountdown, freeTrucks, gapToTruck, nextEvent, orderedFirstTruck, owed, type NextEvent } from "./figures.js";
 import { exitsFor, type Exit } from "./exits.js";
 import { invoices } from "./ledger.js";
 import { walkProgress } from "./walkthrough.js";
@@ -27,6 +27,8 @@ export type NextAction =
   | { rule: 5; kind: "factoringEnds"; untilDay: number; days: number }
   | { rule: 5; kind: "cushion"; weeks: number }
   | { rule: 5; kind: "gap"; gapFd: number }
+  /** Client batch 6b (the director): a truck ordered to replace the lease is at the dealer; `days` to its due day. */
+  | { rule: 5; kind: "ordered"; days: number }
   | { rule: 6; kind: "calm"; event: NextEvent }
   | { rule: -1; kind: "none" };
 
@@ -158,6 +160,9 @@ export function nextAction(cfg: EconomyConfig, w: World, c: Company, lost?: Lost
   if (c.factoring && !c.factoring.renew && c.factoring.until - today <= 7) return { rule: 5, kind: "factoringEnds", untilDay: c.factoring.until, days: Math.max(0, c.factoring.until - today) };
   const cu = cushion(w, c);
   if (cu.weeks !== null && cu.weeks < w.cfg.guide.gapCushionWeeks) return { rule: 5, kind: "cushion", weeks: cu.weeks };
+  // Ordered: the wait, counted (the gap would price a truck already bought).
+  const ordered = orderedFirstTruck(w, c);
+  if (ordered) return { rule: 5, kind: "ordered", days: ordered.days };
   const gap = gapToTruck(w, c);
   if (gap.gapFd > 0) return { rule: 5, kind: "gap", gapFd: gap.gapFd };
 

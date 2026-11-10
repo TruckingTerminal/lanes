@@ -103,6 +103,8 @@ function DealerPrice(): JSX.Element {
   const g = S.game!;
   const f = firstTruckLine(g.w, g.player!);
   if (!f) return <p class="small">{PENDING.dealerPriceNone}</p>;
+  // Client batch 6b: a truck already ordered says its wait alone.
+  if (f.ordered) return <p class="small"><b>{f.figure}</b></p>;
   return (
     <>
       <p class="small">

@@ -49,7 +49,7 @@ describe("client batch 6", () => {
     const f = hubFacts(w, hub);
     expect(f.season).toBe(seasonLine(w, hub));
     expect(f.country).toBe(moodLine(w));
-    expect(f.country).toMatch(/^Across the country, rates are up 30%/);
+    expect(f.country).toMatch(/^Across the country, rates over the last week are up 30%/);
     expect(f.season).not.toContain("country");
   }, 120_000);
 });

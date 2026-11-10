@@ -222,6 +222,8 @@ function words(a: NextAction): { action: string; reason: string; button: string;
       return { action: NOW.cushionAction, reason: NOW.cushionReason(a.weeks.toFixed(1)), button: NOW.cushionButton, go: () => setTab("money") };
     case "gap":
       return { action: (w.trucksByCompany.get(c.id) ?? []).some((t) => t.lease === "owned") ? PENDING.gapActionNext : NOW.gapAction, reason: PENDING.gapReason(fd(a.gapFd)), button: NOW.gapButton, go: () => setTab("market") };
+    case "ordered":
+      return { action: PENDING.whatNowOrderedAction(a.days), reason: PENDING.whatNowOrderedReason, button: NOW.gapButton, go: () => setTab("market") };
     case "calm": {
       const e = a.event;
       const event = e.kind === "round" ? NOW.eventRound : e.kind === "monthClose" ? NOW.eventMonthClose : e.kind === "layer" ? NOW.eventLayer(e.layer === "businesses" ? "Businesses" : "Brokerage") : NOW.eventFactoring;

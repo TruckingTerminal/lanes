@@ -63,6 +63,8 @@ export function Dealer(): JSX.Element {
             <b>{first.figure}</b>
           </p>
           {first.what ? <p class="small">{first.what}</p> : null}
+          {/* Client batch 6b: a truck that delivers sooner than the one the figure prices, with its cash today. */}
+          {first.sooner ? <p class="small">{first.sooner}</p> : null}
           {first.cashOnly ? <p class="muted small">{first.cashOnly}</p> : null}
           {first.worn ? <p class="muted small">{first.worn}</p> : null}
           {first.advice ? <p class="muted small">{first.advice}</p> : null}

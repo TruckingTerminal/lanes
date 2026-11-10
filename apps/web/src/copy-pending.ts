@@ -19,8 +19,27 @@ export const PENDING = {
   // The one first-truck figure (the director, 2026-11-09; figures.ts firstTruckLine): on the Dealer's teaser, Iuliia's
   // page ("Next on the road") and the Dealer's own card. The cheapest truck's cash on the day, less the player's cash.
   firstTruckToGo: (fd: string) => `To your first truck: ${fd} FD`,
-  // Once met; the Dealer opens on the same figure.
+  // Once met; the Dealer opens on the same figure. Client batch 6b (the director): only for a truck that delivers today.
   firstTruckMet: "You can buy today",
+  // Met, for a truck from the queue (the used lot or new from the NPC dealer, or a player dealership's stock): the day it
+  // is delivered. The Dealer opens on this too. Same places as firstTruckMet.
+  firstTruckOrderToday: (date: string) => `You can order today · delivered ${date}`,
+  // The Dealer's card, a second line when another truck delivers sooner than the priced one (figures.ts firstTruckLine
+  // `sooner`): the soonest, and of those the least cash today. `trailer` is its trailer ("dry van"; the engine keeps no
+  // model year, so none is said); `fd` its cash today; `date` null when it delivers today.
+  soonerTruck: (trailer: string, fd: string, date: string | null) => `Or a ${trailer}, ${fd} FD today, delivered ${date ?? "today"}.`,
+  // Iuliia's page, under the figure, while the priced truck comes from the queue: what waiting keeps paying the lessor.
+  // figures.ts waitCostFd: the lease's share of gross × the company's weekly gross lately (last month's revenue over its
+  // weeks, else revenue so far over the weeks since it started) × the share of its fleet on the lease × days / 7, to 10 FD.
+  waitCost: (date: string, share: string, days: number, fd: string) => `Waiting to ${date} keeps the lessor's ${share} for ${days} ${days === 1 ? "day" : "days"}, about ${fd} FD.`,
+  // Once a truck is ordered to replace the lease (figures.ts orderedFirstTruck): the Dealer's card, the teaser and
+  // Iuliia's page say the wait in place of the figure; What now? says it too (whatNowOrdered).
+  truckOrdered: (date: string, days: number) => `Your truck arrives ${date}, in ${days} ${days === 1 ? "day" : "days"}; until then the leased one runs`,
+  // Its day has come: it takes over when the leased truck is next idle at a day's close (dealer.ts deliverOrders).
+  truckOrderedDue: "Your truck is at the dealer; it takes over when the leased one is next idle",
+  // What now?, rule 5, while a truck ordered to replace the lease is at the dealer (nextstep.ts "ordered").
+  whatNowOrderedAction: (days: number) => (days > 0 ? `Your truck arrives in ${days} ${days === 1 ? "day" : "days"}; until then the leased one runs.` : "Your truck is at the dealer; it takes over when the leased one is next idle."),
+  whatNowOrderedReason: "Keep the leased truck booked meanwhile: it earns until the day it goes back.",
   // Iuliia's advice under it, never part of it: guide.gapCushionWeeks of the company's own spending, rounded. Shown once a
   // week of spending is known.
   firstTruckCushion: (fd: string) => `I'd keep about ${fd} FD back for fuel and repairs before you sign.`,
@@ -127,17 +146,21 @@ export const PENDING = {
   lostBookAction: (origin: string, dest: string) => `Book ${origin} to ${dest} instead.`,
   // Client batch 6 (QA): its reason quotes the booking it recommends, Book now's rate and profit (the sheet's "Profit at
   // book-now"); copy.ts NOW.lostReason's clears-near figures stay with "Bid on … instead.".
-  lostBookReason: (rate: string, fd: string) => `You lost the last one. This one books now at ${rate}/mi and pays ${fd} FD over break-even.`,
+  lostBookReason: (rate: string, fd: string) => `You lost the last one. This load books now at ${rate}/mi and pays ${fd} FD over break-even.`,
   // The guide's Book-now prices page (guide/market.ts) where board.refuseOverCeiling is on: no bid over the ceiling wins.
   // `board` is the link to the load board page. And its dispatcher paragraph, eased as the dispatcher's floor line says it.
   guideBookNowIntro: (board: string) => `Every load shows a <b>book-now</b> price: what the poster is offering right now. Take it and the load is yours at once, no round to wait for. Want more? Bid above it and wait for the round: the poster takes the best bid at or under its ceiling, weighing price, on-time record and empty miles, and refuses one over it (${board}). Anyone who'd take the posted price just books.`,
   guideBookNowEases: (idleH: number, awayFrom: number, awayTo: number, below: number, everyH: number) => `The standing order "Book loads between rounds" takes a load whenever its book-now clears your break-even plus a margin. The margin eases as the truck needs to move: down to nothing by ${idleH} hours idle, or as its driver's days from home run from ${awayFrom} to ${awayTo}. At home it eases only halfway. It never books under break-even, nor under your dispatcher's floor as that eases. Dispatchers look every ${everyH} hours.`,
-  pricesLeastCash: (truck: string, arrives: string | null) => `That's for the truck that takes the least cash today: ${truck}${arrives ? `, delivered ${arrives}` : ""}.`,
-  pricesCovered: (truck: string, arrives: string | null) => `That's for the cheapest truck your hold already covers: ${truck}${arrives ? `, delivered ${arrives}` : ""}.`,
+  // Client batch 6b: `hauls` (the director) names the company's freight when the priced truck's trailer isn't it: "…a
+  // reefer, 480k miles, 48% condition; your company hauls dry van." Null when it matches.
+  pricesLeastCash: (truck: string, arrives: string | null, hauls: string | null = null) => `That's for the truck that takes the least cash today: ${truck}${arrives ? `, delivered ${arrives}` : ""}${hauls ? `; your company hauls ${hauls}` : ""}.`,
+  pricesCovered: (truck: string, arrives: string | null, hauls: string | null = null) => `That's for the cheapest truck your hold already covers: ${truck}${arrives ? `, delivered ${arrives}` : ""}${hauls ? `; your company hauls ${hauls}` : ""}.`,
   // Iuliia's catch on a used truck under 60% condition (figures.ts WORN_BELOW): its repairs by the engine's own wear figures
   // (wear.ts: breakdowns at the average repair bill, and maintenance per mile, worn as it is). Per `per` miles, not a month:
   // the engine keeps no month's miles (the economy's figure, if wanted).
-  wornCatch: (kmi: string, cond: string, fd: string, per: string) => `That one has ${kmi} miles on it and sits at ${cond} condition. Expect about ${fd} FD in breakdowns and upkeep every ${per} miles, and more as it wears. I'd wait for a sounder one.`,
+  // Client batch 6 (QA: it restated the miles and condition the Dealer's card had just given): it names the figure's truck
+  // and says it's worn; `kmi` and `cond` are kept for the signature and unused.
+  wornCatch: (kmi: string, cond: string, fd: string, per: string) => `The truck behind that figure is worn: expect about ${fd} FD in breakdowns and upkeep every ${per} miles, and more as it wears. I'd wait for a sounder one.`,
   // Home time queued (Fleet.tsx): the engine sends a home-due truck home on a load headed that way, or empty once it's
   // within `mi` of home or has sat `days` days idle (board.ts maybeReposition, fatigue.homeward). "Heading home" only when
   // it is (homeTimeHeading: running empty toward home).
@@ -161,21 +184,21 @@ export const PENDING = {
   claimsRow: "Claims: cargo, late, no-show, released and unfilled loads",
   // Client batch 6. The title (test build), above Continue and New test world, standing until a new world starts: why
   // the saved world was set aside. Stale: a version bump changed the rules (RULESET), so its log can't be replayed.
-  titleStale: "The rules changed since your last visit, so your old test world can't be replayed. Start a new one.",
+  titleStale: "The rules have changed since you last played, so your saved test world can't be continued. Start a new one.",
   // Unreadable: the saved log failed its check or its replay.
-  titleUnreadable: "Your saved test world couldn't be replayed, so it was set aside. Start a new one.",
+  titleUnreadable: "Your saved test world couldn't be opened. Start a new one.",
   // Client batch 6 (QA: "Freight is booming across the country" over hub rows that say "A little thin in January").
   // The country's reading, from freight.ts marketMood: the last week's cleared rate across the country against the four
   // weeks before (booming from +rates.news.boomAt, slumping from slumpAt). It reads rates, not how much freight there
   // is, so it says rates and says it's the country's. Once under the hub list (ChooseHub), and on its own line under a
   // hub's own season line on its page. copy.ts MARKET.card is no longer read; MARKET.feed (the news line on the day the
-  // mood crosses) is unchanged.
-  countryRatesUp: (pct: string) => `Across the country, rates are up ${pct} on the month before.`,
-  countryRatesDown: (pct: string) => `Across the country, rates are down ${pct} on the month before.`,
+  // mood crosses) says rates too (the writer's pass).
+  countryRatesUp: (pct: string) => `Across the country, rates over the last week are up ${pct} on the four weeks before.`,
+  countryRatesDown: (pct: string) => `Across the country, rates over the last week are down ${pct} on the four weeks before.`,
   // Client batch 6 (QA: "most need a second truck… Your gap to the next truck is 0 FD" to a company that owns none, beside
   // the card's "You can buy today"). Iuliia's day-28 line, before any truck is owned (ui/Milestones.tsx); copy.ts
   // MILESTONE.day28.at and .reason stay for a company that owns one.
-  day28AtFirst: "Businesses are open. Nobody needs a warehouse in week four; most need their first truck.",
+  day28AtFirst: "Businesses are open. Nobody needs a warehouse in week four, and you need a truck of your own first.",
   // `figure` is firstTruckLine's: "To your first truck: N FD" or "You can buy today"; null with no truck for sale anywhere.
   day28ReasonFirst: (figure: string | null) => (figure ? `A business pays over years. ${figure}.` : "A business pays over years."),
   newsServiceClaim: (kind: string, load: string, fd: string) => `${kind === "late" ? `Late delivery, load #${load}` : kind === "noshow" ? `No-show, load #${load}` : `Released load #${load}`}: −${fd} FD claim to the poster.`,

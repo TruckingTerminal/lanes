@@ -312,7 +312,8 @@ export const SEASON = {
 
 /** The market's mood (freight.ts marketMood): the writer's copy-player1.md row 13, on the feed and, unchanged, on the hub cards (none there when normal). */
 export const MARKET = {
-  feed: { booming: "Freight is booming across the country. Rates are climbing; book what pays.", slumping: "Freight is slumping across the country. Expect thin boards and lower rates for a while.", steady: "Freight is back to normal across the country." },
+  // Client batch 6 (the writer): it reads rates, the last week's against the four weeks before, as the country line does.
+  feed: { booming: "Rates are climbing across the country: the last week cleared well above the four weeks before.", slumping: "Rates are falling across the country: the last week cleared well under the four weeks before.", steady: "Rates across the country are back near the four weeks before." },
   card: { booming: "Freight is booming across the country. Rates are climbing; book what pays.", slumping: "Freight is slumping across the country. Expect thin boards and lower rates for a while." },
 };
 
