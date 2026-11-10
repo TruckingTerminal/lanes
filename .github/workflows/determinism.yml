@@ -1,0 +1,56 @@
+# Cross-engine determinism (BACKLOG item 11). The live world is replayed in every player's browser, so V8 (Chrome, Node)
+# and JavaScriptCore (Safari, Bun) must compute the same world from the same seed. The ten-day live-profile world's daily
+# digests (apps/sim/src/determinism.ts) on Node 22, 24 and 26 and on Bun must all match; the first day that differs names
+# where to look. Separate from the deploy (pages.yml), so a determinism failure never cancels or blocks a deploy.
+name: Cross-engine determinism
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: determinism-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  digests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Node 22
+        run: node --version && npx tsx apps/sim/src/determinism.ts > node22.txt && cat node22.txt
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Node 24
+        run: node --version && npx tsx apps/sim/src/determinism.ts > node24.txt && cat node24.txt
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 26
+      - name: Node 26
+        run: node --version && npx tsx apps/sim/src/determinism.ts > node26.txt && cat node26.txt
+      - uses: oven-sh/setup-bun@v2
+      - name: Bun (JavaScriptCore)
+        run: bun --version && bun apps/sim/src/determinism.ts > bun.txt && cat bun.txt
+      - name: Compare
+        run: |
+          status=0
+          for f in node24.txt node26.txt bun.txt; do
+            if ! diff -q node22.txt "$f" > /dev/null; then
+              echo "::error::$f differs from node22.txt; first difference:"
+              diff node22.txt "$f" | head -4 || true
+              status=1
+            fi
+          done
+          [ $status -eq 0 ] && echo "All engines agree: $(tail -1 node22.txt)"
+          exit $status

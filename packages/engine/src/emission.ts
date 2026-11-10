@@ -1,4 +1,5 @@
 import type { EconomyConfig } from "@lanes/config";
+import { dpow } from "@lanes/data";
 import { clamp } from "./economics.js";
 import type { EmissionState, Load } from "./types.js";
 import type { World } from "./world.js";
@@ -80,7 +81,7 @@ export function subsidyRatio(k: EmissionConfig): number {
 
 /** R's subsidy for month m (m from 0). */
 export function subsidyFd(k: EmissionConfig, month: number): number {
-  return k.subsidy.firstMonthFd * subsidyRatio(k) ** month;
+  return k.subsidy.firstMonthFd * dpow(subsidyRatio(k), month); // dpow, not **: engines' pow differ in the last bit (data/dmath.ts)
 }
 
 /**
@@ -88,7 +89,7 @@ export function subsidyFd(k: EmissionConfig, month: number): number {
  * faucets other than NPC freight pay — loans, deposits, payouts: what the freight faucet need not balance — times `refill`.
  */
 export function budgetFd(k: EmissionConfig, month: number, trailingSinksPerMonthFd = 0, trailingOtherFaucetsPerMonthFd = 0): number {
-  if (!(k.refill > 0)) return k.firstMonthFd * emissionRatio(k) ** month;
+  if (!(k.refill > 0)) return k.firstMonthFd * dpow(emissionRatio(k), month);
   if (month === 0) return k.firstMonthFd;
   const base = Math.max(0, trailingSinksPerMonthFd - (k.refillNet ? trailingOtherFaucetsPerMonthFd : 0));
   return k.refill * base + subsidyFd(k, month);
@@ -97,7 +98,7 @@ export function budgetFd(k: EmissionConfig, month: number, trailingSinksPerMonth
 /** G's cumulative budget through month m (inclusive). */
 export function cumulativeBudgetFd(k: EmissionConfig, month: number): number {
   const r = emissionRatio(k);
-  return (k.firstMonthFd * (1 - r ** (month + 1))) / (1 - r);
+  return (k.firstMonthFd * (1 - dpow(r, month + 1))) / (1 - r);
 }
 
 /** The lever product's floor: volume at its floor and rates at theirs. */

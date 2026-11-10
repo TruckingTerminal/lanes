@@ -104,7 +104,11 @@ function greatCirclePoints(a: LL, b: LL, n: number): { f: number; p: LL }[] {
   };
   const va = toVec(a);
   const vb = toVec(b);
-  const chord = Math.sqrt((va[0] - vb[0]) ** 2 + (va[1] - vb[1]) ** 2 + (va[2] - vb[2]) ** 2);
+  // Products, not ** 2: a square is exact either way, but ** goes through each engine's own pow.
+  const dx = va[0] - vb[0];
+  const dy = va[1] - vb[1];
+  const dz = va[2] - vb[2];
+  const chord = Math.sqrt(dx * dx + dy * dy + dz * dz);
   const ang = 2 * dasin(Math.min(1, chord / 2));
   const sinAng = dsin(ang);
   const out: { f: number; p: LL }[] = [];

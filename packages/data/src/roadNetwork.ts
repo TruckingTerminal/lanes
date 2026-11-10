@@ -1,3 +1,4 @@
+import { dcos } from "./dmath.js";
 import { ROAD_EDGES_PACKED, ROAD_EDGE_COUNT, ROAD_GEOM_PACKED, ROAD_HUBS, ROAD_LABELS, ROAD_NODE_COUNT, ROAD_STATIONS } from "./roads.js";
 
 const B64 = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
@@ -204,7 +205,7 @@ export class RoadNetwork {
         this.lon[g + k] = plon / 1000;
         if (k > 0) {
           const dy = this.lat[g + k]! - this.lat[g + k - 1]!;
-          const dx = (this.lon[g + k]! - this.lon[g + k - 1]!) * Math.cos((this.lat[g + k]! * Math.PI) / 180);
+          const dx = (this.lon[g + k]! - this.lon[g + k - 1]!) * dcos((this.lat[g + k]! * Math.PI) / 180);
           flat += Math.sqrt(dx * dx + dy * dy);
           this.along[g + k] = flat;
         }
@@ -256,7 +257,7 @@ export class RoadNetwork {
     }
     const cy = Math.floor(lat * 4);
     const cx = Math.floor(lon * 4);
-    const k = Math.cos((lat * Math.PI) / 180);
+    const k = dcos((lat * Math.PI) / 180);
     let best = -1;
     let bestD = Infinity;
     for (let ring = 0; ring <= 8 && best < 0; ring++) {
@@ -305,7 +306,7 @@ export class RoadNetwork {
     }
     const cy = Math.floor(lat * 4);
     const cx = Math.floor(lon * 4);
-    const k = Math.cos((lat * Math.PI) / 180);
+    const k = dcos((lat * Math.PI) / 180);
     let best = -1;
     let bestD = Infinity;
     const scan = (ring: number) => {
@@ -345,7 +346,7 @@ export class RoadNetwork {
     if (!this.geomGrid) this.nearestPoint(lat, lon);
     const cy = Math.floor(lat * 4);
     const cx = Math.floor(lon * 4);
-    const kx = Math.cos((lat * Math.PI) / 180);
+    const kx = dcos((lat * Math.PI) / 180);
     const rings = Math.ceil(withinMi / (69 / 4)) + 1;
     const best = new Map<number, RoadSpot>();
     // The segment from point k to k + 1 of its edge.
@@ -412,7 +413,7 @@ export class RoadNetwork {
     const e = this.edges[spot.edge]!;
     const node = spot.along <= 0.05 ? e.a : spot.along >= e.miles - 0.05 ? e.b : this.splitEdge(spot);
     const dy = (spot.lat - lat) * 69.0;
-    const dx = (spot.lon - lon) * 69.0 * Math.cos((lat * Math.PI) / 180);
+    const dx = (spot.lon - lon) * 69.0 * dcos((lat * Math.PI) / 180);
     const stub = Math.sqrt(dx * dx + dy * dy) * 1.2; // local roads wander
     this.terminals.push({ node, stub });
     return this.terminals.length - 1;
@@ -584,7 +585,7 @@ export class RoadNetwork {
     const dLon = this.nodeLon[dst]!;
     const h = (v: number) => {
       const dy = (this.nodeLat[v]! - dLat) * 69;
-      const dx = (this.nodeLon[v]! - dLon) * 69 * Math.cos((((this.nodeLat[v]! + dLat) / 2) * Math.PI) / 180);
+      const dx = (this.nodeLon[v]! - dLon) * 69 * dcos((((this.nodeLat[v]! + dLat) / 2) * Math.PI) / 180);
       return Math.sqrt(dx * dx + dy * dy) / mph;
     };
     cost[src] = 0;
