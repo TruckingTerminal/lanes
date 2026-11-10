@@ -74,8 +74,19 @@ export function rebrokerLoad(w: World, c: Company, load: Load, rate: number, pay
   if (load.shipperId === c.id) return "that's your own freight";
   if (!(rate > 0) || rate >= load.clearedRate) return "re-post it below the rate you won it at";
   const truck = load.truckId !== null ? w.trucks[load.truckId - 1] : undefined;
-  if (!truck || truck.status !== "toPickup") return "the truck is already loading";
-  abandonLeg(w, truck);
+  // Delivery windows: a load booked ahead (the truck's next, not the one it's heading for) leaves the truck's plan as a
+  // release does, and the truck stays on the job it's on. Before this, a truck heading for another load's pickup passed
+  // the check: abandoning that leg started the truck on this very load (setIdle, takeNextLoad), which was then re-posted
+  // while it hauled it and reached its re-poster as its own hauler, a ledger entry to itself (the economy's windows-on
+  // twins, 2026-11-10). With windows off a truck heading for a pickup always holds this load, so nothing changes.
+  const ahead = truck !== undefined && truck.nextLoadId === load.id;
+  if (!truck || (!ahead && (truck.status !== "toPickup" || truck.loadId !== load.id))) return "the truck is already loading";
+  if (ahead) {
+    delete truck.nextLoadId;
+    delete load.ahead;
+    delete load.aheadByHand;
+    delete load.releaseAsk;
+  } else abandonLeg(w, truck);
   load.doubleBroker = { companyId: c.id, upstreamRate: load.clearedRate, pays };
   load.status = "open";
   load.carrierId = null;
@@ -100,6 +111,9 @@ export function settleDoubleBroker(w: World, load: Load, hauler: Company | null,
   const d = w.cfg.fraud.doubleBroker;
   broker.operating.revenueFd += upstreamGross;
   let paid = 0;
+  // A company never pays itself (no ledger entry to itself): unreachable since rebrokerLoad's fix, kept so no path can
+  // stop a world on it. Its own haul of a load it re-posted is its own freight: no pay, and no fraud against anyone.
+  if (hauler && hauler.id === broker.id) return 0;
   if (hauler && db.pays) {
     w.ledger.post(w.t, companyAccount(broker.id), companyAccount(hauler.id), gross, `rebroker:${load.id}`);
     broker.operating.costFd += gross;
