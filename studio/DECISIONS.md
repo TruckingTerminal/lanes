@@ -1,5 +1,15 @@
 # Decisions (the producer's log for Jeff; newest first)
 
+- 2026-11-10 — the director, on the days-away count (the red team's 0.24.1 pass §2; for a later ruleset, since it moves
+  the bots): a night at home is one day of recovery, not a reset. A night at home is the duty day closing with the truck
+  at home (the economy's definition); passing through counts for nothing. The days-away count steps back one day for a
+  night at home instead of adding one, and zeroes only on a full day off at home (24 hours off duty there); fatigue
+  recovers one day's worth for a night at home and clears only with days off; hired drivers, an owner-operator and bots
+  alike. A regional driver home three nights a week nets about one day out a week and never reaches the home-time
+  threshold; a truck that touches home once in twenty days nets eighteen, tires, and owes its five days. Until that
+  ruleset the "Back to work" button says nothing new (today's code still resets the count); then the writer adds "Back
+  to work · no days off · your driver's fatigue carries on" and Iuliia names the trade on the truck card. The economy
+  runs the pair when engineering builds it behind a switch, after windows batch 5.
 - 2026-11-10 — the director, on a dispatcher that waits for the roll (the economy's rule for the clears-near ratio):
   the default bids now; waiting is a switch the player turns on ("Wait for loads to reach their usual price", off for
   everyone at first, offered by Iuliia once the player has seen a rolled load clear high), with a limit the economy
