@@ -1,5 +1,19 @@
 # Decisions (the producer's log for Jeff; newest first)
 
+- 2026-11-10 — the player's second diary, the borrower (studio/playtests/play-2026-11-10-borrower.md; 151 game days at
+  Chicago: a lot rig on a loan, two more trucks on loans to the lender's cap of three, a cash crunch on purpose). The
+  rules held: a starter cannot borrow before the first truck, the lender carries three loans at most, two missed
+  payments and the truck is taken, and the company survived with one truck and its debt. Last round's blockers are
+  gone (a replaced world inherits nothing; Send home shows on a moving truck; the two cash figures agree). What the
+  game does not do is say so. The producer's triage, for engineering's client batch with QA's and the exploit
+  hunter's: the lender took two trucks without a notice, a log line or a line in the month report, and the surviving
+  truck was renumbered; May's report counted bought trucks' odometers as the month's miles ("18,741 of 435,579 miles
+  loaded"); What now? named the four-week clock while repossession was a week away; the loan's sheet never says the
+  payments run from the order (twelve weeks paid on a truck still on the lot; 0.24.1's lot rig from stock cuts that
+  to one); the first-truck card priced a truck no listing showed and gave three pieces of advice at once; a hire
+  sometimes confirms and sometimes does not, and a shifting list hired a second dispatcher; the phone's Dealer clips
+  its button and draws a dollar price as a button on the first-truck screen. The advice items go to the director
+  with the cautious owner-operator's diary, which is about exactly that.
 - 2026-11-10 — the director on a truck's worth, the sell sheet and a certain exit
   (studio/reviews/director-listing-worth.md). Ruled, for client batch 8: "worth" goes, since it named a price nobody
   pays; the card says "Book value" and a second figure in FD worded by how sure it is ("Usually sells for about
