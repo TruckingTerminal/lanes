@@ -1,5 +1,14 @@
 # Decisions (the producer's log for Jeff; newest first)
 
+- 2026-11-09 — Jeff: "Yes, build it", the economy's worn-truck loan rule (economy-worn-truck-loans-2026-11-09.md; the
+  OPEN FOR JEFF entry below), behind equipmentFinance.purchase.collateral, default off: the purchase loan reads the truck
+  as well as the borrower (down by age over three years and mileage over 300k, capped at 50%, ten points more for a
+  company under a year old that has never owned a truck; declined past ten years or 700k miles, "cash only" with the
+  figure; the term ending by the truck's seventh birthday, never under 26 weeks; the rate rising with age). Engineering
+  builds it after windows batch 4; the economy runs the ten-seed gate pair on the built rule against its twin (the
+  coupling to watch: fewer and later truck purchases are fewer equipment sinks for the cap's budget); then it rides in a
+  ruleset at a restart with no players. The harder pacing option (no purchase loan in a company's first three months) was
+  not taken.
 - 2026-11-09 — Jeff: "Yes, allow it", the same-day premium of 1.10 on loads posted for pickup the same day, as a market
   rule (a shipper pays more for a truck today than for one next week), for windows batch 4. The director the same day
   confirmed the economy's batch 4 with amendments: (1) the hub's ratio remembers loads lost at the close, but only NPC
