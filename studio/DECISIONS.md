@@ -1,5 +1,18 @@
 # Decisions (the producer's log for Jeff; newest first)
 
+- 2026-11-10 — engineering's triage of the "Ledger entry to itself" that stopped two of the economy's windows-on twins
+  (a7c1ad4): it cannot be reached with delivery windows off, so nothing in 0.24.1 is exposed. The cause: after a round
+  the board re-posts some of what a dispatcher won; with windows on a win can be booked ahead for a truck still heading
+  for another pickup, and the re-post abandoned that leg and started the truck on the very load being re-posted, which
+  then reached its re-poster as its own hauler. Fixed: a load booked ahead leaves the truck's plan as a release does,
+  and a company is never paid from itself. The off digest is unchanged (79e553e47d838330) and the 60-day live-profile
+  sim figure-identical. Client batch 7 is on main too (897247a), from QA's replay of batches 6 and 6b: an ordered truck
+  meets the walkthrough's own-truck step; a listing that cannot change hands while the leased truck runs says when it
+  can; the shown ceiling is a ceiling a bid can be placed at; "Your own truck" dates the hand-over and the order has a
+  milestone of its own; the lot rig's sheet says it is an order; the wait's figure names its basis. With the writer for
+  its new lines and three standing slips (one word for the day an ordered truck is ready, Iuliia's worn-truck line,
+  a ringed hub above "A little thin"), then QA's replay. Engineering is on windows batch 6. Still open for Jeff:
+  0.24.1's approval, with its nine rules, and max effort for the producer.
 - 2026-11-10 — the economy's pair on capital as spending (ledger.capitalNotSpending, 5a38fc1;
   studio/reviews/economy-capital-spending.md; 0.24.1's set on in both arms, seeds 1–2, 1460 days, the twin beside): it
   does what was asked and moves nothing else. The gate two of two, the band 0.848–0.862 against 0.841–0.853 with it off
