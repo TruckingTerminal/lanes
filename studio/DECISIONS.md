@@ -1,5 +1,13 @@
 # Decisions (the producer's log for Jeff; newest first)
 
+- 2026-11-10 — the economy's pair on capital as spending (ledger.capitalNotSpending, 5a38fc1;
+  studio/reviews/economy-capital-spending.md; 0.24.1's set on in both arms, seeds 1–2, 1460 days, the twin beside): it
+  does what was asked and moves nothing else. The gate two of two, the band 0.848–0.862 against 0.841–0.853 with it off
+  (seven thousandths up: less cash sheltered); cleared loads 445k → 446k, the rate 3.77 both, bankruptcies 181 → 173,
+  owner-operator profit per truck-week 2,153 → 2,150, the holding cost's sink 2.33M → 2.05M, owned trucks 535 → 606 as
+  the prudent bots put unsheltered cash into equipment. The week after an owner-operator buys its lot rig on a loan the
+  cushion reads 0.8–1.9 weeks instead of 0.1–0.5, and the Reserve's cap 44–77k instead of 196–228k. The economy's call,
+  and the producer's: it rides in 0.24.1 as the ninth switch; with Jeff, whose approval of the ruleset is open.
 - 2026-11-10 — the economy's third reading of delivery windows, on batch 5 (studio/reviews/economy-delivery-windows-
   batch5.md; ten seeds, 1460 days): the price is back and the carriers are not. The rate reads 3.67 against 3.73 off and
   the cap's paid freight −3%, cleared −8%; but the carriers' freight income per truck-week is still −12.6% (their share
