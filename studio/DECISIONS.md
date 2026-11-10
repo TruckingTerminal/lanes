@@ -1,5 +1,21 @@
 # Decisions (the producer's log for Jeff; newest first)
 
+- 2026-11-10 — the economy's pair on early delivery for a fee (studio/reviews/economy-expedite-pair.md; 0.24.1's nine
+  switches on in every arm, ten seeds, 1460 days, the fee off, on with the kept-per-truck term, on without it): it
+  works as a choice and barely exists as a sink, and the economy does not notice it. With the term the bots expedite
+  107 orders a run at about 8,900 FD each, 958k FD burned a run: 20k a month, about 0.07% of the cap's monthly budget
+  and a third of the 50–60k first estimated; without the term, four a run. The slots are a quarter taken and run dry
+  only in two boom months a run, so the director's fault line (a pool emptied by bots) is clear; the wait for those
+  who do not pay is 33 days in every arm. Cleared loads, the rate, carriers' profit, the fleets' size and orders, the
+  first truck, liquidations and defaults are all inside the spread; the gate reads 9 of 10 in all three arms, the fee
+  off included (seed 7 at the band's floor in each), so the fee moves nothing. The economy's reading for Jeff: no
+  size in its block makes it a sink (the burn is bounded by the fleets' 210 orders a year), and a sink of size would
+  have to sit on something every company pays; it is worth having for the honest date and the trade-off Iuliia can
+  price. OPEN FOR JEFF: keep it as a feature (its screens are not built and are on hold), or look for a real sink.
+  Also 2026-11-10: the red team's persistence fixes are on main (a5788d9, client only; the live page unchanged
+  until its next build), and on Jeff's word ("We need to tone it down", the Fable week at 92%) the studio is cut
+  back to one builder: engineering on client batch 8a at high effort; windows batch 7, batch 8b, the fee's screens,
+  the red team's re-check and every further gate run on hold.
 - 2026-11-10 — QA's reload hunt (studio/reviews/qa-reload-hunt.md): the reload that "came back a different world" is a
   display lag, not a different world, and the red team's fifth finding is closed. QA reproduced the player's case
   exactly (the same clock and cash, a truck 193 miles from its drop before the reload and unloading after) and
