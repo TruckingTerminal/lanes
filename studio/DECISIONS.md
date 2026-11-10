@@ -1,5 +1,15 @@
 # Decisions (the producer's log for Jeff; newest first)
 
+- 2026-11-10 — QA's reload hunt (studio/reviews/qa-reload-hunt.md): the reload that "came back a different world" is a
+  display lag, not a different world, and the red team's fifth finding is closed. QA reproduced the player's case
+  exactly (the same clock and cash, a truck 193 miles from its drop before the reload and unloading after) and
+  found the cause on screen and in the code: the test page's clock redraws every frame, while the trucks, the ETAs
+  and the top bar's cash redraw about once a second of real time, so at "Day in 2 s" a panel can sit several game
+  hours behind the clock beside it. Twenty-four reloads: every restored world was byte for byte the world saved;
+  five readings differed and all five were taken while running, none after a pause; no exception in the hour's
+  step and no order dropped by a restore. The fix is a line in the page's loop (redraw the panels whenever the
+  minute changes), on engineering's client list. On the live page, where a game hour is fifteen real minutes, the
+  lag is a second of real time and shows nothing.
 - 2026-11-10 — the director's rulings on the playtest round (studio/reviews/director-playtest-rulings.md): "one
   instruction at a time, from a ranking, and never a step that can't be done." Words, for the writer and engineering:
   (A) the first-truck card gives one verdict ("Buy it now", "Not yet: buy at 9,400 FD in cash, about 3 loads from
