@@ -1,8 +1,24 @@
 # Decisions (the producer's log for Jeff; newest first)
 
+- 2026-11-10 — the economy's second reading of delivery windows, on batch 4 (studio/reviews/economy-delivery-windows-
+  batch4.md; ten seeds, 1460 days): most of the way back and not there. Against the off arm: cleared loads −5% (the
+  first sizing −22%), NPC freight pay −13% (−42%), the rate −7% (−19%), bankruptcies 243 a run (488; 185 off), the gate
+  six of ten (none), the four fails on the band's floor with every other line passing; a newcomer's month at Dallas +15%
+  on today's; release on a breakdown works (1,354 releases against 618 no-shows; 2,017 no-shows before). What stops
+  short is the carriers' income: direct NPC freight clears at 2.92 a mile against 3.57, owner-operators' profit per
+  truck-week −22% and fleets' −38%, loan defaults doubled. Two causes, measured: the memory's lift on a hub's reference
+  is capped by rates.ratioClamp at ×1.38 (at a top of 6, ×1.87, pay, rate and cleared loads come back within 3%); and
+  the carriers then receive 81–84% of the cap's freight money against 94%, because a facility's sale value reads the
+  same reference the memory lifts, so the bots' facilities' goods inflate with it and take the budget (2% of the cap's
+  pay to 6–10%), and the brokers' fall-off on loads lost at the close goes 26M to 72M. The producer's call, on the
+  economy's sizing: windows batch 5 behind the same switch, windows.ratioClampTop 6 and the facilities' sale value
+  reading the reference without the memory; nothing on the fall-off yet; then the ten seeds again with the carriers'
+  share of the cap's pay at 90% or better and their profit and the fleets' truck count within the off arm's range as
+  added targets. Windows stay out of 0.24.1. A correction the economy made to its first sizing: its "NPC pay" was the
+  NPC faucets in all; the gate reads the cap's paid total, and the direction was the same.
 - 2026-11-10 — the economy's gate pair on the worn-truck loan rule (studio/reviews/economy-worn-truck-loans-gate.md; the
   rule as built in ad349e3, ten seeds, 1460 days, each against its cap-off twin): the market with the rule on is the
-  market with it off (cleared loads 448k against 447k, the mean rate 3.72 against 3.73, NPC pay 1,740M against 1,737M,
+  market with it off (cleared loads 448k against 447k, the mean rate 3.72 against 3.73, NPC freight pay (the cap's paid total) 1,379M against 1,381M,
   companies bankrupt 178 against 185); the equipment-sink coupling feared from the bound arms does not appear (the bots
   buy the same trucks a few weeks later); loans written −7%, defaults −9%, FD written off −17%; the free path's median
   first truck 30 → 49 days, and on the test page's world a route to "You can buy today" opens on day 25 instead of 16.
