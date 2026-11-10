@@ -1,5 +1,15 @@
 # Decisions (the producer's log for Jeff; newest first)
 
+- 2026-11-10 — engineering's triage of the middleman's stalled carrier: not a hole in the game. The dispatcher is the
+  engine's: every carrier's bids and bookings come from its standing orders in every round and every hour, with no
+  "away" state, no company on screen and no client loop anywhere; on the live world a player with no page open still
+  has a dispatcher bidding. What the player read ("the dispatcher is off, so nobody bids for this truck while you're
+  away", with the box ticked) was the client explaining the carrier's truck from the brokerage's orders, because the
+  brokerage was the company in view; a client fix, on engineering's list. A headless run with a brokerage in view
+  throughout started the same jobs as the carrier alone. One question stays, for the economy and the red team: a
+  player's brokerage holds the tenders it is offered off the board, its own carrier included, so a brokerage at a bad
+  margin can take its hub's best loads away until they fall off (each fall-off costs it, and it holds twenty at
+  most): what that costs the brokerage against what it takes from the carriers there.
 - 2026-11-10 — the player's fifth diary, the stubborn specialist (studio/playtests/play-2026-11-10-stubborn-
   specialist.md; 63 game days from Miami with a reefer, the dispatcher off, no advice taken). The niche is real and
   the game rewards it: reefer out of Florida in winter paid 6.9 to 10.9 a mile, the thin hub's sheet was true in
