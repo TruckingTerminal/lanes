@@ -1,5 +1,19 @@
 # Decisions (the producer's log for Jeff; newest first)
 
+- 2026-11-09 — Jeff: "Yes, allow it", the same-day premium of 1.10 on loads posted for pickup the same day, as a market
+  rule (a shipper pays more for a truck today than for one next week), for windows batch 4. The director the same day
+  confirmed the economy's batch 4 with amendments: (1) the hub's ratio remembers loads lost at the close, but only NPC
+  postings count toward the memory, since a player brokerage or shipper could otherwise post cheap loads to be lost and
+  raise a hub's rate at will (the red team adds that attack to its windows list); (2) pickupHours 24/48 and urgencyRounds
+  4, amending the two-round call (four steps reach about +46%, true of a load nobody will cover at its deadline), the
+  guards standing (never over the walked ceiling, player posters' pay never walks; the red team retests urgency farming
+  at these sizes); (3) release on a breakdown that breaks canMake for the load booked ahead, under the rule that nothing
+  happens to a company the player did not set up: with the dispatcher on it releases at once at the early share and
+  Needs you reports it with the claim and why; with the dispatcher off, or a hand-booked load, Needs you asks first with
+  the figures ("Truck 2's breakdown means it can't reach Tulsa by 14:00. Release it now (−X FD) or keep it."), and an
+  unanswered ask becomes a no-show at its share; the bots release. For the guidance spec when batch 4 is scheduled: a
+  hub's rising price as Iuliia's reason to move, the release decision under the Needs-you item, and a load lost at the
+  close that the player bid on ("No carrier took it by its pickup; it's gone, not reposted").
 - 2026-11-09 — the economy's item 4 sizing batch (studio/reviews/economy-delivery-windows-sizing.md): delivery windows as
   built in batches 1–3 (a644f14, 584f920, ea48c67) and sized fail the gate on all ten seeds and halve the bot economy
   (72% of posted loads lost at the pickup's close, cleared loads −22%, rates −19%, NPC pay −41%, bankruptcies 185 → 488;
