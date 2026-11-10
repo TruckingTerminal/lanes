@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import { withLiveLevers, type EconomyConfig } from "@lanes/config";
 import { buildNetwork, hubs, neutralFeeds } from "@lanes/data";
 import { populate, ruleBotHook } from "@lanes/agents";
-import { applyAction, companyAccount, createWorld, dayOf, driverFree, expediteFee, expediteQuote, expediteSlotsPerWeek, expediteWaitParts, formCompany, keptPerTruck, stepHour, type World } from "@lanes/engine";
+import { applyAction, companyAccount, createWorld, dayOf, expediteFee, expediteQuote, expediteSlotsPerWeek, expediteWaitParts, formCompany, keptPerTruck, staffsWhatItOwns, stepHour, unseatDriver, type World } from "@lanes/engine";
 
 /**
  * Early delivery for a fee (assets.expedite; the director's design, studio/reviews/director-early-delivery.md, and the
@@ -143,23 +143,14 @@ describe("early delivery for a fee (assets.expedite)", () => {
   it("the bots, on the director's rule: the fee against the payments and the trucks' kept per week, with its guards", () => {
     const B: EconomyConfig = { ...ON, assets: { ...ON.assets, expedite: { ...ON.assets.expedite, countsKeptPerTruck: false } } };
     expect(ON.assets.expedite.countsKeptPerTruck).toBe(true); // the default: C, with guards
-    const run = (cfg: EconomyConfig, opts: { driver?: boolean; tweak?: (w: World, o: { dueDay: number }, id: number) => void } = {}) => {
+    const run = (cfg: EconomyConfig, opts: { books?: number; tweak?: (w: World, o: { dueDay: number }, id: number) => void } = {}) => {
       const w = createWorld({ cfg, net, feeds: neutralFeeds, seed: 12 });
       populate(w, { freeOwnerOperators: 0, fleets: 2, brokers: 0 });
       const c = w.companies.find((x) => x.role === "carrier")!;
       w.ledger.post(w.t, "faucet:starting_grant", companyAccount(c.id), 5_000_000, "test");
-      // Eight weeks of books: each truck kept 5,000 a week (30,000 in, 15,000 out over 3 truck-weeks a week).
-      c.expediteBooks = Array.from({ length: 9 }, (_, i) => ({ revenueFd: i * 30_000, costFd: i * 15_000, truckWeeks: i * 3 }));
-      expect(keptPerTruck(w, c)).toEqual({ perWeekFd: 5_000, weeks: 8 });
-      expect(driverFree(w, c)).toBe(false); // every driver on a truck
-      // A spare driver, when asked for: one more than the trucks (as after selling a truck), so the day's staffing finds no
-      // empty seat for them. A driver lifted off a truck would be seated again at the day's close (labor.ts autoStaff).
-      if (opts.driver !== false) {
-        const s = w.staff.find((x) => x.status === "pool" && x.kind === "driver")!;
-        Object.assign(s, { status: "employed", companyId: c.id, truckId: 0, pay: 1, hiredDay: dayOf(w.t, w.cfg), offer: null });
-        w.staffByCompany.get(c.id)!.push(s);
-        expect(driverFree(w, c)).toBe(true);
-      }
+      // Weeks of books (eight by default): each truck kept 5,000 a week (30,000 in, 15,000 out over 3 truck-weeks a week).
+      const weeks = opts.books ?? 8;
+      c.expediteBooks = Array.from({ length: weeks + 1 }, (_, i) => ({ revenueFd: i * 30_000, costFd: i * 15_000, truckWeeks: i * 3 }));
       expect(applyAction(w, c.id, { type: "buy_asset", tier: "workhorse", trailer: "van", replaceNpcLease: false, finance: true }).ok).toBe(true);
       const o = w.orders.filter((x) => x.companyId === c.id).at(-1)!;
       opts.tweak?.(w, o, c.id);
@@ -167,23 +158,41 @@ describe("early delivery for a fee (assets.expedite)", () => {
       for (let h = 0; h < 24; h++) stepHour(w, ruleBotHook);
       const after = w.orders.find((x) => x.id === o.id);
       w.ledger.assertBalanced();
-      return { expedited: after?.expediteFeesFd !== undefined, parts };
+      return { expedited: after?.expediteFeesFd !== undefined, parts, c, w };
     };
     // B: the fee against the loan's payments alone, more than a few weeks of payments save.
     const b = run(B);
     expect(b.expedited).toBe(false);
     if ("why" in b.parts) throw new Error(b.parts.why);
-    expect(b.parts.keptFd).toBe(0);
+    expect(b.parts.keptCase).toBe("notApplicable");
     expect(b.parts.feeFd).toBeGreaterThan(b.parts.paymentsFd);
-    // C with a driver: what the trucks kept is counted, said apart from the payments.
+    // C, a fleet that staffs what it owns, eight weeks of books: what the trucks kept counts, said apart from the payments.
     const c = run(ON);
     if ("why" in c.parts) throw new Error(c.parts.why);
+    expect(staffsWhatItOwns(c.w, c.c).staffed).toBe(true);
+    expect(c.parts.keptCase).toBe("counts");
+    expect(keptPerTruck(c.w, c.c)).toEqual({ perWeekFd: 5_000, weeks: 8 });
     expect(c.parts.keptFd).toBeCloseTo((5_000 * c.parts.daysSaved) / 7, 6);
-    expect(c.parts.driver).toBe(true);
     expect(c.expedited).toBe(true);
-    // No driver for it: the earnings count nothing, and it waits.
-    const n = run(ON, { driver: false });
+    // A truck on the road with no driver today: the term counts nothing, and the parts name it as the player numbers it.
+    let expectNo = 0;
+    const e = run(ON, {
+      tweak: (w, _o, id) => {
+        const fleet = (w.trucksByCompany.get(id) ?? []).filter((t) => t.status !== "retired");
+        const t = fleet.find((x) => x.status === "idle" && x.driverId !== 0 && !w.staff[x.driverId - 1]!.owner)!;
+        unseatDriver(w, w.staff[t.driverId - 1]!);
+        expectNo = fleet.indexOf(t) + 1;
+      },
+    });
+    if ("why" in e.parts) throw new Error(e.parts.why);
+    expect(e.parts.keptCase).toBe("emptyTruck");
+    expect(e.parts.keptFd).toBe(0);
+    expect(e.parts.emptyTruckNo).toBe(expectNo);
+    expect(expectNo).toBeGreaterThan(0);
+    // Under four weeks of books: nothing counted, and it waits.
+    const n = run(ON, { books: 3 });
     if ("why" in n.parts) throw new Error(n.parts.why);
+    expect(n.parts.keptCase).toBe("books");
     expect(n.parts.keptFd).toBe(0);
     expect(n.expedited).toBe(false);
     // Not inside the 21-day wait…

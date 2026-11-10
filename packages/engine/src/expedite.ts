@@ -162,9 +162,20 @@ export function keptPerTruck(w: World, c: Company): { perWeekFd: number; weeks: 
   return { perWeekFd: Math.max(0, kept / Math.max(1, b.truckWeeks - a.truckWeeks)), weeks };
 }
 
-/** Someone to drive a truck that adds to the fleet: a driver without a truck, or an owner who would drive it. */
-export function driverFree(w: World, c: Company): boolean {
-  return (w.staffByCompany.get(c.id) ?? []).some((s) => s.status === "employed" && s.truckId === 0 && (s.kind === "driver" || s.owner));
+/**
+ * The director's re-ruled driver guard (rule 1, director-expedite-wait-cost-2026-11-10.md): the company staffs what it
+ * owns, so a truck it adds will be driven (the hire comes the day the truck does). Today none of its trucks on the road
+ * stands without a driver, and at least one is seated. A parked or listed truck is off the road and needs no driver (the
+ * day's staffing seats it last, labor.ts autoStaff). An owner who drives a truck doesn't count for a second. `emptyTruckNo`
+ * is the first empty truck as the player numbers it (its place among the company's trucks not retired, as the client's
+ * truckNo), for Iuliia's "Truck 3 has no driver today".
+ */
+export function staffsWhatItOwns(w: World, c: Company): { staffed: boolean; seated: number; emptyTruckNo: number | null } {
+  const fleet = (w.trucksByCompany.get(c.id) ?? []).filter((t) => t.status !== "retired");
+  const onRoad = fleet.filter((t) => t.status !== "parked" && t.status !== "listed");
+  const empty = onRoad.find((t) => t.driverId === 0);
+  const seated = fleet.filter((t) => t.driverId !== 0).length;
+  return { staffed: !empty && seated > 0, seated, emptyTruckNo: empty ? fleet.indexOf(empty) + 1 : null };
 }
 
 /** What waiting costs over the days an expedite saves, in parts (the client and Iuliia say each for what it is). */
@@ -178,8 +189,16 @@ export type ExpediteWaitParts = {
   lessorFd: number;
   /** countsKeptPerTruck: whether the earnings term applies (an order adding a truck, not a trailer, not a lease replacement). */
   addsTruck: boolean;
-  /** A driver for it: a driver without a truck, or an owner who would drive it. */
+  /** The company staffs what it owns (staffsWhatItOwns): the truck it adds will be driven. */
   driver: boolean;
+  /**
+   * Which of Iuliia's sentences (the director's re-ruling): "counts" (the term counts), "emptyTruck" (a truck on the road
+   * stands without a driver today: emptyTruckNo), "noTruckSeated" (none of its trucks is seated), "books" (under
+   * keptMinHistoryWeeks of books), or "notApplicable" (the key off, a lease replacement or a trailer).
+   */
+  keptCase: "counts" | "emptyTruck" | "noTruckSeated" | "books" | "notApplicable";
+  /** The empty truck as the player numbers it, for "emptyTruck"; else null. */
+  emptyTruckNo: number | null;
   /** What the trucks have each kept a week, and over how many weeks of books (keptPerTruck). */
   keptPerTruckWeekFd: number;
   keptWeeks: number;
@@ -209,10 +228,12 @@ export function expediteWaitParts(w: World, c: Company, orderId: number): Expedi
     if (leased > 0) lessor = w.cfg.costs.npcLeaseShareOfGross * weeklyGrossFd(w, c) * (leased / fleet.length);
   }
   const addsTruck = k.countsKeptPerTruck && !o.replaceNpcLease && o.kind !== "trailer";
-  const driver = driverFree(w, c);
+  const staff = staffsWhatItOwns(w, c);
   const kept = keptPerTruck(w, c);
-  const keptFd = addsTruck && driver && kept.weeks >= k.keptMinHistoryWeeks ? kept.perWeekFd * weeks : 0;
-  return { readyDay: q.readyDay, daysSaved: q.daysSaved, feeFd: q.feeFd, paymentsFd: payments * weeks, lessorFd: lessor * weeks, addsTruck, driver, keptPerTruckWeekFd: kept.perWeekFd, keptWeeks: kept.weeks, keptFd };
+  // An empty truck first (the player can seat it today), then no truck seated, then the books.
+  const keptCase = !addsTruck ? "notApplicable" : staff.emptyTruckNo !== null ? "emptyTruck" : !staff.staffed ? "noTruckSeated" : kept.weeks < k.keptMinHistoryWeeks ? "books" : "counts";
+  const keptFd = keptCase === "counts" ? kept.perWeekFd * weeks : 0;
+  return { readyDay: q.readyDay, daysSaved: q.daysSaved, feeFd: q.feeFd, paymentsFd: payments * weeks, lessorFd: lessor * weeks, addsTruck, driver: staff.staffed, keptCase, emptyTruckNo: keptCase === "emptyTruck" ? staff.emptyTruckNo : null, keptPerTruckWeekFd: kept.perWeekFd, keptWeeks: kept.weeks, keptFd };
 }
 
 /** What the wait costs in all, for the bots' rule: the payments, the lessor's share, and the earnings term as counted. */

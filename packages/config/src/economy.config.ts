@@ -629,8 +629,9 @@ export const economyConfig = {
       // the loan payments running on the order, plus, for an order replacing the lease, the lessor's share at the
       // company's weekly gross. countsKeptPerTruck (the director, 2026-11-10: C, with guards; director-expedite-wait-
       // cost-2026-11-10.md): for an order that adds a truck to a fleet (never a lease replacement, whose leased truck still
-      // earns; never a trailer alone), and only when the truck would have a driver (a driver without a truck, or an owner
-      // who would drive it), also what the company's trucks have each kept a week from its books (revenue less operating
+      // earns; never a trailer alone), and only when the company staffs what it owns (the director's re-ruling, rule 1:
+      // no truck on the road stands without a driver today and at least one is seated; the hire comes the day the truck
+      // does), also what the company's trucks have each kept a week from its books (revenue less operating
       // costs: the driver's pay and the truck's costs) over the last keptSpanWeeks, floored at zero, and nothing with
       // under keptMinHistoryWeeks of books. Off counts the payments and the lessor's share alone (the economy's pair reads both).
       countsKeptPerTruck: true,
