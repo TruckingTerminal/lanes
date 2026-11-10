@@ -31,6 +31,12 @@ const NOT_SPENDING = ["season:", "launch:", "holding:", "swap:", "buyback:"];
  * comes back).
  */
 const NOT_OUTFLOW = [...NOT_SPENDING, "deposit:"];
+/**
+ * ledger.capitalNotSpending: buying capital isn't operating spending. A truck, trailer or tractor from the dealer or the
+ * used lot (`buy:`, its sales tax under the same ref), a facility (`facility:`), a business (`business:`), and a listing's
+ * market fee and tax (`listing:`; its price is a transfer to the seller, so it never counted). Off, they count.
+ */
+const CAPITAL = ["buy:", "facility:", "business:", "listing:"];
 
 /**
  * Spend-only FD (Jeff, 2026-11-01: the airdrop paid at the TGE "unlocked inside the game", the launch carryover,
@@ -84,7 +90,11 @@ export class Ledger {
   private mintedCents = 0;
   private readonly circular: boolean;
 
-  constructor(private readonly keepEntries: boolean, circular: CircularConfig | null = null) {
+  /** What a company's outflows leave out (NOT_OUTFLOW, and with ledger.capitalNotSpending the CAPITAL refs). */
+  private readonly notOutflow: readonly string[];
+
+  constructor(private readonly keepEntries: boolean, circular: CircularConfig | null = null, capitalNotSpending = false) {
+    this.notOutflow = capitalNotSpending ? [...NOT_OUTFLOW, ...CAPITAL] : NOT_OUTFLOW;
     this.circular = circular?.enabled ?? false;
     if (!circular?.enabled) return;
     const cap = toCents(circular.capFd);
@@ -137,7 +147,7 @@ export class Ledger {
       this.sinkCents += cents;
       this.totals.set(to, (this.totals.get(to) ?? 0) + cents);
     }
-    if (from.startsWith("co:") && kind === "sink" && !NOT_OUTFLOW.some((p) => ref.startsWith(p))) this.outflows.set(from, (this.outflows.get(from) ?? 0) + cents);
+    if (from.startsWith("co:") && kind === "sink" && !this.notOutflow.some((p) => ref.startsWith(p))) this.outflows.set(from, (this.outflows.get(from) ?? 0) + cents);
     if (this.keepEntries) this.entries.push({ t, from, to, amount: cents / 100, kind, ref });
     // A freeOnly payment may overdraw the free part by its cent of rounding: that cent of locked FD was spent.
     if (carriesLock(from)) {

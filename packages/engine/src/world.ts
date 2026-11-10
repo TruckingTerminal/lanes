@@ -194,7 +194,7 @@ export function createWorld(o: WorldOptions): World {
     t: 0,
     round: 0,
     booked: { n: 0, rateSum: 0 },
-    ledger: new Ledger(o.keepLedgerEntries ?? false, o.cfg.token.circular),
+    ledger: new Ledger(o.keepLedgerEntries ?? false, o.cfg.token.circular, o.cfg.ledger?.capitalNotSpending === true),
     companies: [],
     trucks: [],
     trucksByCompany: new Map(),

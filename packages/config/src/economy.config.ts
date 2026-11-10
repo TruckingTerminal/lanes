@@ -879,6 +879,20 @@ export const economyConfig = {
     roadService: { rangeMi: 100, callOutFd: 400, callOutPerMi: 6, mph: 50, npcMarkup: 1.5, npcHours: 8 },
   },
 
+  // A company's spending, as the ledger counts it (ledger.ts outflows; studio/reviews/economy-weekly-spend.md, QA's
+  // finding the economy confirmed): every payment from a company to a sink, except burns and the NPC lease's deposit, so a
+  // truck bought from the dealer or the lot counts in full in that week's spending (its price and sales tax, the whole
+  // price on a loan, since the lender's share lands first), while a listing bought from another company is a transfer and
+  // doesn't. Five readers size it as operating burn: the holding cost's working capital, the season's carryover, the
+  // Reserve's cap, the prudent bots' two-week floor and lock sizing, the guide's cushion.
+  // `capitalNotSpending`: on, the capital refs leave it too: `buy:` (the dealer's and the lot's orders, trailers, with
+  // their sales tax), `facility:`, `business:` (a business bought, with its tax), and `listing:` (a listing's market fee
+  // and tax, for evenness). Repairs, rebuilds, refurbishments, parts, loan payments, lease rent, the yard, insurance,
+  // wages, fuel and tolls stay in. The readers are unchanged. Off (and absent), as today.
+  ledger: {
+    capitalNotSpending: false,
+  },
+
   // §Circular economy — season close (the last 30 in-game days)
   seasonClose: {
     enabled: true, // the sim can run without seasons to compare
