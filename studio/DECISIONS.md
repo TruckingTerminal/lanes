@@ -1,5 +1,15 @@
 # Decisions (the producer's log for Jeff; newest first)
 
+- 2026-11-10 — the economy's pair on the on-time hand-over (assets.swapAtNextIdle, 6fa465f;
+  studio/reviews/economy-swap-at-idle.md; the loan rule and the starter's lot rig from stock on in both arms, ten seeds,
+  1460 days): a hand-over rule the economy does not notice. Late hand-overs of a starter's replacement truck 58% → 36%,
+  the days late a median of 5.5 → 1 (the worst 194 → 4), trucks still waiting past their day at day 60 13.5 → 0.3 a run;
+  cleared loads 447k → 450k, the rate 3.76 both, the cap's paid freight 1,392M → 1,399M, bankruptcies 178 → 180,
+  owner-operator liquidations 0.196 both. The gate reads nine of ten: seed 7's band at 0.837, three thousandths under
+  the floor, on the seed that sits at the floor on every run of this code (0.843 the baseline, 0.840 the loan rule), the
+  ten seeds' ratios within four thousandths of the off arm's: a different realization, not a mechanism. The economy's
+  call, and the producer's: it rides in 0.24.1 as the eighth switch, as the fix to a date the game gives and did not
+  keep; put to Jeff with the ruleset's contents, since his approval of 0.24.1 is still open.
 - 2026-11-10 — the director's design for Jeff's sink, early delivery for a fee (director-early-delivery-2026-11-10.md in
   the shared folder; read, as the producer read it, as an ordered truck delivered sooner; a load delivered early would
   pay a carrier and is no sink). What can be expedited: a new tractor or trailer from the NPC dealer's queue, each its
