@@ -1,5 +1,18 @@
 # Decisions (the producer's log for Jeff; newest first)
 
+- 2026-11-10 — the director on a truck's worth, the sell sheet and a certain exit
+  (studio/reviews/director-listing-worth.md). Ruled, for client batch 8: "worth" goes, since it named a price nobody
+  pays; the card says "Book value" and a second figure in FD worded by how sure it is ("Usually sells for about
+  40,500 within two weeks" inside a starter's budget; above it "Few buyers at this price. Fleets pay about 103–137k
+  for trucks like this, when one is buying; it can take weeks, or not sell"). The sell sheet says, in this order, the
+  price path (5% a week to 60% of today's book value in week eight), the idle fee while it waits, the end (off sale
+  and parked at the floor) and, for a dear truck, that few carriers have the cash; the listing carries "Take it off
+  sale" from day one. Her view for Jeff on the economy's trade-in: yes, a certain exit at wholesale is true to life
+  and keeps the downside a real loss instead of a frozen truck. Her guards: the loan repaid first (the player may pay
+  a shortfall from cash); only an idle truck with nothing booked; never inside liquidation; every way out shown
+  together, a dealership's 80% first; no round trip that does not lose after fees and tax; the bots on the same
+  rule. OPEN FOR JEFF: build the NPC dealer's trade-in at 65% of book behind a switch, the economy's ten-seed pair
+  before any ruleset.
 - 2026-11-10 — the economy on who buys a listing and what "would fetch today" is worth
   (studio/reviews/economy-listing-worth.md, from the exploit hunter's stuck reefer): the buyers are bots only (a
   starter's first truck, a growing fleet, a dealership's trade-in at 80% of book), the lowest ask against book value
