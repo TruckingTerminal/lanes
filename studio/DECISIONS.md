@@ -1,5 +1,17 @@
 # Decisions (the producer's log for Jeff; newest first)
 
+- 2026-11-10 — the player's sixth diary, the cautious owner-operator (studio/playtests/play-2026-11-10-cautious-owner-
+  operator.md; 191 game days at Los Angeles doing exactly what Iuliia and What now? said). The answer to the round's
+  question is yes: obedience loses money. Following the guide by hand for eighty days kept cash between 3,000 and
+  8,000 FD while the 21-day home rule sent the truck home empty three times (about 3,000 FD each) without a word
+  from What now?; the dispatcher, which no step of the walkthrough mentions, then took cash from 3,579 to 25,592 in
+  the wait for the truck. The first-truck advice gave four instructions at once (519 FD away, wait for a sounder
+  one, waiting costs 6,680, keep 8,900 back) and later priced a reefer at 28% condition for a dry-van company; step
+  10 sent a one-truck owner to a locked Staff page; the lot rig's row and its confirm showed two prices and two
+  dates; a default bid lost by half a dollar a mile. What worked: the stranded state and its way out, the hand-over
+  with no idle gap, and the cash forecast, "the best thing on the screen". In the player's words: "The guide's
+  advice is honest about each number and wrong about the path." The producer's call: the guide's path goes to the
+  director as one bundle with the advice findings of all six diaries, before engineering touches the walkthrough.
 - 2026-11-10 — engineering's triage of the middleman's stalled carrier: not a hole in the game. The dispatcher is the
   engine's: every carrier's bids and bookings come from its standing orders in every round and every hour, with no
   "away" state, no company on screen and no client loop anywhere; on the live world a player with no page open still
