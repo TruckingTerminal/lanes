@@ -186,48 +186,83 @@ export function deliverOrders(w: World): void {
       waiting.push(o);
       continue;
     }
-    if (npc) {
-      // The lease goes back to the NPC lessor (its trailer too, and its deposit back to the carrier); the new
-      // truck starts where it stood, and takes its ladder slot.
-      refundLeaseDeposit(w, npc);
-      unlockFreePathEarnings(w, company);
-      if (w.cfg.assets.enabled) unhook(w, npc);
-      // A rig from the NPC used lot comes as worn as it was priced.
-      const u = o.used;
-      Object.assign(npc, {
-        lease: "owned",
-        tier: o.tier,
-        trailer: o.trailer,
-        odometer: u?.odometer ?? 0,
-        milesSinceRebuild: u?.milesSinceRebuild ?? 0,
-        rebuilds: u?.rebuilds ?? 0,
-        builtDay: u?.builtDay ?? day,
-        idleSinceDay: day,
-        idleSinceT: w.t,
-        defects: 0,
-      });
-      freshPaperwork(npc);
-      if (w.cfg.assets.enabled) {
-        if (o.kind === "rig") hook(w, npc, newTrailer(w, company, o.trailer, "owned", u ? { odometer: u.odometer, milesSinceRefurb: u.trailerMilesSinceRefurb, builtDay: u.builtDay } : undefined));
-        else fitTrailer(w, npc, o.trailer);
-      }
-      syncTruck(w, npc);
-    }
-    const delivered = npc ?? createTruck(w, company, "owned", o.tier, o.trailer, o.used, company.homeHub, o.kind === "tractor" ? "fit" : "new");
-    // The spend-only FD it was paid with is its locked basis (ledger.ts), shared with a rig's own trailer by list price.
-    const basis = o.lockedPaidFd ?? 0;
-    const tr = w.cfg.assets.enabled && o.kind === "rig" ? hookedTrailer(w, delivered) : null;
-    if (tr && basis > 0) {
-      const share = trailerPrice(w, o.trailer) / Math.max(1, trailerPrice(w, o.trailer) + tractorPrice(w, o.tier));
-      tr.lockedBasisFd = basis * share;
-      delivered.lockedBasisFd = basis * (1 - share);
-    } else delivered.lockedBasisFd = basis;
-    bindOrderLoan(w, o.id, delivered.id); // a purchase loan takes the truck it paid for as security
-    w.metrics.onTruckDelivered();
-    w.listener?.({ kind: "truckDelivered", companyId: company.id, truckId: delivered.id });
+    handOver(w, company, o, npc ?? null);
   }
   w.orders = waiting;
 }
+
+/**
+ * Hands an order's truck to the company: in place of the leased truck it replaces (the lease and its trailer back to the
+ * NPC lessor, the deposit back to the carrier, the new truck where the old one stood under the same id), or as a new
+ * truck at home. Shared by the day's close (deliverOrders) and assets.swapAtNextIdle (swapAtIdle).
+ */
+function handOver(w: World, company: Company, o: TruckOrder, npc: Truck | null): void {
+  const day = dayOf(w.t, w.cfg);
+  if (npc) {
+    // The lease goes back to the NPC lessor (its trailer too, and its deposit back to the carrier); the new
+    // truck starts where it stood, and takes its ladder slot.
+    refundLeaseDeposit(w, npc);
+    unlockFreePathEarnings(w, company);
+    if (w.cfg.assets.enabled) unhook(w, npc);
+    // A rig from the NPC used lot comes as worn as it was priced.
+    const u = o.used;
+    Object.assign(npc, {
+      lease: "owned",
+      tier: o.tier,
+      trailer: o.trailer,
+      odometer: u?.odometer ?? 0,
+      milesSinceRebuild: u?.milesSinceRebuild ?? 0,
+      rebuilds: u?.rebuilds ?? 0,
+      builtDay: u?.builtDay ?? day,
+      idleSinceDay: day,
+      idleSinceT: w.t,
+      defects: 0,
+    });
+    freshPaperwork(npc);
+    if (w.cfg.assets.enabled) {
+      if (o.kind === "rig") hook(w, npc, newTrailer(w, company, o.trailer, "owned", u ? { odometer: u.odometer, milesSinceRefurb: u.trailerMilesSinceRefurb, builtDay: u.builtDay } : undefined));
+      else fitTrailer(w, npc, o.trailer);
+    }
+    syncTruck(w, npc);
+  }
+  const delivered = npc ?? createTruck(w, company, "owned", o.tier, o.trailer, o.used, company.homeHub, o.kind === "tractor" ? "fit" : "new");
+  // The spend-only FD it was paid with is its locked basis (ledger.ts), shared with a rig's own trailer by list price.
+  const basis = o.lockedPaidFd ?? 0;
+  const tr = w.cfg.assets.enabled && o.kind === "rig" ? hookedTrailer(w, delivered) : null;
+  if (tr && basis > 0) {
+    const share = trailerPrice(w, o.trailer) / Math.max(1, trailerPrice(w, o.trailer) + tractorPrice(w, o.tier));
+    tr.lockedBasisFd = basis * share;
+    delivered.lockedBasisFd = basis * (1 - share);
+  } else delivered.lockedBasisFd = basis;
+  bindOrderLoan(w, o.id, delivered.id); // a purchase loan takes the truck it paid for as security
+  w.metrics.onTruckDelivered();
+  w.listener?.({ kind: "truckDelivered", companyId: company.id, truckId: delivered.id });
+}
+
+/**
+ * assets.swapAtNextIdle: the leased truck has just gone idle (trips.ts setIdle); a lease-replacing order of its company
+ * that is due is handed over now, before a dispatcher or a hand booking takes the truck. Not while a load booked ahead
+ * waits for it on another trailer than the new truck's (the new rig couldn't carry it: it swaps at the next idle after
+ * that load); on the same trailer the load goes on with the new truck, which keeps the id it's booked under. The
+ * driver's duty clocks carry over (freshPaperwork would reset them: a new owner's, not the same driver's day). False when
+ * nothing was handed over.
+ */
+export function swapAtIdle(w: World, truck: Truck): boolean {
+  if (!w.cfg.assets.swapAtNextIdle || truck.lease !== "npc" || truck.status !== "idle" || !truck.companyId) return false;
+  const day = dayOf(w.t, w.cfg);
+  const o = w.orders.find((x) => x.companyId === truck.companyId && x.replaceNpcLease && x.kind !== "trailer" && x.dueDay <= day);
+  if (!o) return false;
+  if (truck.nextLoadId !== undefined) {
+    const next = w.loads.get(truck.nextLoadId);
+    if (next && next.equipment !== o.trailer) return false;
+  }
+  const clocks = { shiftStartT: truck.shiftStartT, shiftDrivenMin: truck.shiftDrivenMin, offDutySinceT: truck.offDutySinceT, overMin: truck.overMin, logDays: truck.logDays, cycleMin: truck.cycleMin, cycleLastT: truck.cycleLastT, restShiftT: truck.restShiftT };
+  w.orders = w.orders.filter((x) => x !== o);
+  handOver(w, companyOf(w, truck.companyId), o, truck);
+  Object.assign(truck, clocks);
+  return true;
+}
+const companyOf = (w: World, id: number): Company => w.companies[id - 1]!;
 
 /** A trailer alone: behind a tractor idle at the yard that pulls a rental (handed back), else into the yard. */
 function deliverTrailer(w: World, c: Company, o: TruckOrder): void {

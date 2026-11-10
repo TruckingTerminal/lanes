@@ -8,6 +8,7 @@ import { addTrailerMiles } from "./trailers.js";
 import { COMMODITIES, dcos, dexp, greatCircleMiles, NO_TERRAIN, routeTerrain, type Route } from "@lanes/data";
 import { deliveryWait, pickupWait, setSlot } from "./docks.js";
 import { afterBreakdown, claimOn, noShow, windowsOn } from "./windows.js";
+import { swapAtIdle } from "./dealer.js";
 import { flatbedDamage, reeferUnit } from "./equipment.js";
 import { winterNow } from "./safety.js";
 import { payLegFuel, roadService, serviceBill } from "./businesses.js";
@@ -486,6 +487,8 @@ function setIdle(w: World, truck: Truck): void {
   truck.emptyMi = 0;
   truck.loadedMi = 0;
   truck.legKey = -1;
+  // assets.swapAtNextIdle: a due truck ordered to replace this lease takes over now, before anything books it (dealer.ts).
+  swapAtIdle(w, truck);
   // Delivery windows: the load booked ahead comes first; home time and a queued run home wait for the job after it.
   if (truck.nextLoadId !== undefined && takeNextLoad(w, truck)) return;
   homeArrival(w, truck);

@@ -600,6 +600,12 @@ export const economyConfig = {
   // as a dearer, slower backstop. Off in the base config; on in the live levers.
   assets: {
     enabled: false,
+    // `swapAtNextIdle` (the producer, 2026-11-10, from engineering's probe: a due lease-replacing truck waited at the
+    // dealer while its leased truck was out at every day's close, 7 of 13 late and 15 waiting past due by day 60): on,
+    // once such an order is due, the truck is handed over the moment the leased truck next goes idle (trips.ts setIdle,
+    // before a dispatcher or a hand booking takes it), and at the day's close as today if it's idle then. The driver's
+    // duty clocks carry over that swap. Off (and absent), only at the day's close (dealer.ts deliverOrders).
+    swapAtNextIdle: false,
     tractor: {
       lifeMi: 1_000_000, // no rebuild past this odometer…
       maxRebuilds: 2, // …or past two rebuilds: then it runs until it is worn out and goes for scrap
