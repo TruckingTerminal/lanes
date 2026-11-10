@@ -1,5 +1,30 @@
 # Decisions (the producer's log for Jeff; newest first)
 
+- 2026-11-10 — the economy's third reading of delivery windows, on batch 5 (studio/reviews/economy-delivery-windows-
+  batch5.md; ten seeds, 1460 days): the price is back and the carriers are not. The rate reads 3.67 against 3.73 off and
+  the cap's paid freight −3%, cleared −8%; but the carriers' freight income per truck-week is still −12.6% (their share
+  of the cap's pay about 85% against 94%), owner-operator liquidations 0.303 against 0.187, and the gate fails every
+  seed (the band 0.79–0.83). Two bot rules under windows take the difference: the AI brokers accept tenders they cannot
+  cover (brokered pay 65% of the cap's against 26%, fall-off 7.3% of it burned, 31 of 60 brokers liquidated), and the
+  bots build 69 facilities a run where none stand today, because their payback test counts ten rounds of chances to be
+  hauled where a window gives two to four (the memory-free goods price of batch 5 is right and the leak is the count).
+  Also an engine error on two twins, "Ledger entry to itself" from fraud.ts settleDoubleBroker with windows on. The
+  producer's call on the economy's sizing: windows batch 6: an AI broker accepts a tender only while its trailing-week
+  lost share at the hub is under a quarter; the facility test reads the window's rounds of life and the hub's facility
+  lost share, and a bot sells a facility that has lost money for eight weeks; the crash fixed; then the ten seeds with
+  the carriers' share, the facilities and the fall-off as lines of their own. Windows stay out of 0.24.1. The
+  director's question answered: under windows "usually clears near" reads 1.1–1.3 times the reference at every hub
+  (1.5–2.3 today, from rolled loads), loads clear one to three rounds from posting, and the waiting switch earns
+  nothing, so it is off by default there, with the sheet saying "loads that cleared here this week". A note on the
+  baseline: the cross-engine fix replays a world differently, so the off arm is being rerun on today's code; every
+  difference above is many times that shift.
+- 2026-11-10 — the economy's size for Jeff's sink, early delivery for a fee (studio/reviews/economy-early-delivery.md, on
+  the director's design, studio/reviews/director-early-delivery.md): 1.5% of the truck's price per week saved, read to
+  the day, a floor of 300 FD and a cap of 9% (six weeks); expedite slots at half the trailing four weeks' deliveries a
+  week, never under two; the bots expedite only past a 21-day wait and with two months of payments kept, else the
+  fleets empty the pool; the fee a burn outside the cap's refill. It sinks about 50–60k FD a month at years 1 and 4,
+  0.2% of the cap's budget: its worth is the choice and the honest date more than the FD. Engineering builds it behind a
+  switch on these sizes; it comes to Jeff with its ruleset.
 - 2026-11-10 — the economy's pair on the on-time hand-over (assets.swapAtNextIdle, 6fa465f;
   studio/reviews/economy-swap-at-idle.md; the loan rule and the starter's lot rig from stock on in both arms, ten seeds,
   1460 days): a hand-over rule the economy does not notice. Late hand-overs of a starter's replacement truck 58% → 36%,
