@@ -1,5 +1,22 @@
 # Decisions (the producer's log for Jeff; newest first)
 
+- 2026-11-10 — the economy's calls on the red team's 0.24.1 findings (studio/reviews/economy-redteam-0241-calls.md), and
+  the producer's on the ruleset's contents. (1) The loan rule's ten new-business points are keyed to the company's age
+  alone, the authority under a year, whatever it owns: what a lender means by time in business; the wreck-first dodge
+  closes; the gate pair stands (a first truck is identical under both forms, only a second financed truck inside a
+  company's first year changes). Engineering makes it. (2) "Usually clears near" as a ratio is true as built and stays
+  (Dallas loads really clear at 1.4–1.9 times their reference after rolling; neither of the red team's forms helps);
+  what is wrong is the default bid, min(figure, ceiling), which takes every fresh load at its ceiling while the patient
+  bot is paid more for the rolled ones. The economy's rule: under the clears-near mode the dispatcher places no bid this
+  round on a load whose figure sits more than freight.clearsNear.waitOverCeiling (5%) over its ceiling, and the table
+  carries the mean rounds to a clear so the sheet can say "near 1.6× after about three rounds". A dispatcher that
+  declines to bid changes what a player sees their truck do, so it goes to the director first, then engineering, then
+  the economy's trucker's-month probe. THE PRODUCER'S CALL: freight.clearsNear.ratio stays off in 0.24.1 and rides a
+  later ruleset with that rule; 0.24.1 is six switches (Send home back to work, turning an empty truck with the red
+  team's guard, one reach for bids, a night in town, the hand bidder's round, the loan rule keyed to the company's age)
+  and the cross-engine fix. (3) The fatigue reset: the economy would reset the days-away count on a night at home (the
+  duty day closed with the truck at home), not on a pass through and not only on a day off; with the director, for a
+  later ruleset.
 - 2026-11-10 — the red team's pass over the 0.24.1 set (studio/reviews/redteam-0241.md; seven rules behind switches):
   one hole the ruleset closes before it turns on, and three notes. THE HOLE: turning an empty truck starts a new leg at
   the nearest town and the night-in-town rule reads "a leg's start", so a company that chose the town turns its truck an
