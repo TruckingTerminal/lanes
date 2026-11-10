@@ -1,5 +1,25 @@
 # Decisions (the producer's log for Jeff; newest first)
 
+- 2026-11-10 — the director's rulings on the playtest round (studio/reviews/director-playtest-rulings.md): "one
+  instruction at a time, from a ranking, and never a step that can't be done." Words, for the writer and engineering:
+  (A) the first-truck card gives one verdict ("Buy it now", "Not yet: buy at 9,400 FD in cash, about 3 loads from
+  here", or "Order it now · ready May 23") for the cheapest sound truck in the company's own freight that the page
+  shows, the figures under "Why"; this amends her 2026-11-09 call, and "sound" is a figure the economy sets. (B) The
+  walkthrough's step after the first hand-booked load is "Set your dispatcher before you go"; the first bid by hand
+  stands. (C) What now? warns of the home rule from five days ahead with a load toward home. (D) A step shows only
+  when it can be done; the order for a leased one-truck owner is the dispatcher, miles, the law, the first truck,
+  then on owning the condition bar and the yard, and hiring only with a second truck ordered or a truck without a
+  driver. (E) Every return after a day away shows that interval: what went wrong, the money, on time, one next step.
+  (F) What now? ranks across all trucks: losing an asset or going under, money bleeding now, a load at risk, due home
+  or near a breakdown, a load to book, a walkthrough step, follow-ups; a lost-bid follow-up expires at the next
+  round. (G) The bid's floor is break-even itself, the default only where the lane has enough clears, and a lane
+  that clears under the player's break-even is said to be one. (K) A broker's margin is shown against the market
+  before it is saved. (M) The standing orders stay off, each offered once at its moment. (J) The dollar price is
+  plain text on every first-truck screen and "to the launch pool" goes. (L) The fee's line when no truck is seated.
+  OPEN FOR JEFF, three rule changes she recommends, each needing the economy's look: with the dispatcher off the
+  game tells an owner the truck is due home and never drives it there; a hired driver on home time cannot be booked
+  out before his days off end, and an owner may cut his own short with a warning; and the owner chooses which truck
+  he drives, the day's staffing never leaving a paid driver without a truck while one stands empty.
 - 2026-11-10 — the player's sixth diary, the cautious owner-operator (studio/playtests/play-2026-11-10-cautious-owner-
   operator.md; 191 game days at Los Angeles doing exactly what Iuliia and What now? said). The answer to the round's
   question is yes: obedience loses money. Following the guide by hand for eighty days kept cash between 3,000 and
