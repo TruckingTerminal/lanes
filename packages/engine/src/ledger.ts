@@ -36,7 +36,7 @@ const NOT_OUTFLOW = [...NOT_SPENDING, "deposit:"];
  * used lot (`buy:`, its sales tax under the same ref), a facility (`facility:`), a business (`business:`), and a listing's
  * market fee and tax (`listing:`; its price is a transfer to the seller, so it never counted). Off, they count.
  */
-const CAPITAL = ["buy:", "facility:", "business:", "listing:"];
+const CAPITAL = ["buy:", "facility:", "business:", "listing:", "expedite:"];
 
 /**
  * Spend-only FD (Jeff, 2026-11-01: the airdrop paid at the TGE "unlocked inside the game", the launch carryover,
@@ -60,7 +60,7 @@ const toCents = (fd: number) => Math.round(fd * 100);
 export type CircularConfig = { enabled: boolean; capFd: number; shares: { reserve: number; pool: number; airdrop: number; dev?: number } };
 export const RESERVE_ACCOUNT = "reserve";
 const ALLOCATION_OF: Record<string, string> = { "faucet:airdrop": "alloc:airdrop", "faucet:launch_liquidity": "alloc:pool", "faucet:auction": "alloc:treasury" };
-export const CIRCULAR_BURNS = new Set(["sink:season_close", "sink:buyback", "sink:exchange_fee", "sink:airdrop_forfeit", "sink:unstake_haircut", "sink:profit_tax_burn", "sink:asset_burn", "sink:lock_slash"]);
+export const CIRCULAR_BURNS = new Set(["sink:season_close", "sink:buyback", "sink:exchange_fee", "sink:airdrop_forfeit", "sink:unstake_haircut", "sink:profit_tax_burn", "sink:asset_burn", "sink:lock_slash", "sink:expedite"]);
 
 export class Ledger {
   private balances = new Map<string, number>();

@@ -1,3 +1,4 @@
+import { noteBooks } from "./expedite.js";
 import { dailyAssets } from "./assets.js";
 import { monthlyIntel } from "./intel.js";
 import { monthlyFactory } from "./dealerships.js";
@@ -124,6 +125,7 @@ function endOfDay(w: World, day: number, agents?: DailyAgentHook): void {
     for (const c of w.companies) {
       const trucks = operatingTrucks(w, c.id);
       c.truckWeeks += trucks;
+      noteBooks(w, c); // assets.expedite: the week's books, for what the trucks have each kept
       const overhead = fleetOverheadPerWeek(cfg, trucks);
       if (overhead <= 0) continue;
       w.ledger.post(w.t, companyAccount(c.id), "sink:fleet_overhead", overhead, `overhead:${c.id}`);

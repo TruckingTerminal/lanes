@@ -12,6 +12,7 @@ export * from "./companyNames.js";
 export * from "./contracts.js";
 export * from "./dealer.js";
 export * from "./dealerships.js";
+export * from "./expedite.js";
 export * from "./demand.js";
 export * from "./economics.js";
 export * from "./finance.js";

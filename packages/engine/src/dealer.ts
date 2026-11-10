@@ -9,6 +9,7 @@ import { truckCap } from "./staking.js";
 import { fitTrailer, handBack, hook, hookedTrailer, newTrailer, trailerCondition, trailerLifeUsed, trailersOf, unhook } from "./trailers.js";
 import { notice } from "./safety.js";
 import { stockOf } from "./dealerships.js";
+import { noteQueueDelivery } from "./expedite.js";
 
 /** The dealer's price today for this tractor + trailer: list price × each part's supply-and-demand index. */
 export function dealerPrice(w: World, t: Pick<TruckSpec, "tier" | "trailer">): number {
@@ -173,6 +174,7 @@ export function deliverOrders(w: World): void {
     if (o.kind === "trailer") {
       deliverTrailer(w, company, o);
       w.metrics.onTrailerDelivered();
+      noteQueueDelivery(w, o); // assets.expedite: the slots are sized from the NPC queue's deliveries
       continue;
     }
     const fleet = w.trucksByCompany.get(company.id)!;
@@ -198,6 +200,7 @@ export function deliverOrders(w: World): void {
  */
 function handOver(w: World, company: Company, o: TruckOrder, npc: Truck | null): void {
   const day = dayOf(w.t, w.cfg);
+  noteQueueDelivery(w, o); // assets.expedite: one order, one delivery, the NPC queue's only
   if (npc) {
     // The lease goes back to the NPC lessor (its trailer too, and its deposit back to the carrier); the new
     // truck starts where it stood, and takes its ladder slot.

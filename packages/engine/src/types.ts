@@ -220,6 +220,11 @@ export interface Company {
   overheadPaidFd: number;
   /** Operating (unparked) truck-weeks, counted at each weekly overhead charge. */
   truckWeeks: number;
+  /**
+   * assets.expedite: the books at each weekly close (cumulative operating revenue and cost, and truck-weeks), the last
+   * keptSpanWeeks + 1, for what the trucks have each kept a week (expedite.ts keptPerTruck). Absent with the switch off.
+   */
+  expediteBooks?: { revenueFd: number; costFd: number; truckWeeks: number }[];
   /** Spending over the last few weeks (FD per week), for the season-close working-capital carryover. */
   weeklySpend: number[];
   lastOutflowCents: number;
@@ -1109,6 +1114,10 @@ export interface TruckOrder {
   lockedPaidFd?: number;
   /** From the NPC used lot (usedMarket.npcLot): the worn rig it delivers, as priced. */
   used?: { odometer: number; milesSinceRebuild: number; rebuilds: number; builtDay: number; trailerMilesSinceRefurb: number };
+  /** assets.expedite: the price paid at the order (the fee reads it), a player dealership's order's dealership (not expeditable), and the fees paid on it. Set only with the switch on. */
+  priceFd?: number;
+  dealershipId?: number;
+  expediteFeesFd?: number;
 }
 
 /** An Equipment Finance loan against one owned truck (§DeFi buildings). */
@@ -1188,9 +1197,11 @@ export type Action =
   | { type: "set_standing_orders"; orders: StandingOrder[] }
   /** A dealer order. Assets: `tractorOnly` orders the tractor without a trailer (it hooks a spare from the yard, or a rental). */
   /** `finance`: on a purchase loan (purchaseLoans.ts) instead of cash. */
-  | { type: "buy_asset"; tier: TractorTier; trailer: Equipment; replaceNpcLease: boolean; tractorOnly?: boolean; dealershipId?: number; finance?: boolean; used?: boolean; pay?: "usd" }
+  | { type: "buy_asset"; tier: TractorTier; trailer: Equipment; replaceNpcLease: boolean; tractorOnly?: boolean; dealershipId?: number; finance?: boolean; used?: boolean; pay?: "usd"; expedite?: boolean }
+  /** assets.expedite: bring an order's ready day forward for a fee (expedite.ts). */
+  | { type: "expedite_order"; orderId: number }
   /** Assets: a trailer alone, delivered to the yard (or straight behind a tractor pulling a rental there). From a player dealership's stock, or the NPC dealer. */
-  | { type: "buy_trailer"; trailer: Equipment; dealershipId?: number; pay?: "usd" }
+  | { type: "buy_trailer"; trailer: Equipment; dealershipId?: number; pay?: "usd"; expedite?: boolean }
   /** Assets: sell an idle owned truck to a dealership's used lot at its trade-in share of value. */
   | { type: "trade_in"; truckId: number; dealershipId: number }
   /** Assets, player lessors: offer an idle tractor for lease by the week, withdraw the offer, or take one. A lessee hands it back with return_lease. */

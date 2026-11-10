@@ -113,6 +113,11 @@ export interface World {
    * entry a day: `b:{broker}:{hub}` for an AI broker's tenders, `f:{hub}` for facility freight. Absent with windows off.
    */
   winTally?: Record<string, { day: number; taken: number; lost: number }[]>;
+  /**
+   * assets.expedite (expedite.ts): expedite slots taken, by the week (day ÷ 7) the expedited order is ready in; and the
+   * NPC dealer queue's deliveries by day, the trailing four weeks the slots are sized from. Absent with the switch off.
+   */
+  expedite?: { byWeek: Record<number, number>; deliveredByDay?: Record<number, number> };
   reloadMeanBase?: Float64Array;
   /** The weekly buyback auction: standing offers, rolled-over budget, results, and each company's last fill. */
   buyback: {

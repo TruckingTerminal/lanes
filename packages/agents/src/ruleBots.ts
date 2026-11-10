@@ -2,6 +2,7 @@ import type { Equipment, FacilityType, TractorTier } from "@lanes/config";
 import { dcos, dexp, dlog, dpow } from "@lanes/data";
 import { chopBoardPrice, fenceBoardPrice, heatOf, lotFeeFd, lotOn } from "@lanes/engine";
 import { closeFacility, facilityCovered, windowsOn } from "@lanes/engine";
+import { expeditable, expediteOn, expediteQuote, expediteWaitCostFd } from "@lanes/engine";
 import {
   addTruck,
   applyAction,
@@ -1623,6 +1624,28 @@ function chooseFacility(w: World, budget: number, maxPaybackWeeks: number, cache
   return best;
 }
 
+/**
+ * assets.expedite, the bots' rule (the director's §6, the economy's guards; the producer, 2026-11-10): an order from the
+ * NPC dealer's queue is expedited when its wait is over botMinWaitDays, the fee is under what the wait costs over the
+ * days saved (engine expedite.ts expediteWaitCostFd: the order's loan payments, the lessor's share for a lease
+ * replacement, and with countsKeptPerTruck the kept per truck for an order that adds one), and the cushion holds: after
+ * the fee, cash over the bot's own working cushion (the `keep` its buying rule holds back: the first-truck buffer for a
+ * lease replacement, its reserve otherwise) covers botCushionWeeks of every loan payment it has (canCarry's measure).
+ */
+function maybeExpedite(w: World, c: Company, p: BotProfile): void {
+  const k = w.cfg.assets.expedite;
+  const today = dayOf(w.t, w.cfg);
+  for (const o of ordersOf(w, c.id)) {
+    if (!expeditable(o) || o.dueDay - today <= k.botMinWaitDays) continue;
+    const q = expediteQuote(w, c, o.id);
+    if ("why" in q) continue;
+    if (!(q.feeFd < expediteWaitCostFd(w, c, o.id))) continue;
+    const keep = o.replaceNpcLease ? p.firstTruckBuffer : reserve(w, c, p);
+    if (w.ledger.balance(companyAccount(c.id)) - q.feeFd - keep < k.botCushionWeeks * debtService(w, c)) continue;
+    applyAction(w, c.id, { type: "expedite_order", orderId: o.id });
+  }
+}
+
 /** Once per in-game day: tune prices, rebuild worn trucks, then invest spare FD. */
 export const ruleBotHook: DailyAgentHook = (w) => {
   const rng = w.rng.agents;
@@ -1671,6 +1694,8 @@ export const ruleBotHook: DailyAgentHook = (w) => {
       const day = dayOf(w.t, cfg);
       for (const f of facilitiesOf(w, c.id)) if (day - f.boughtDay >= 7 * cfg.windows!.facilityCloseWeeks && f.netFd < 0) closeFacility(w, f);
     }
+    // assets.expedite: an order worth bringing forward, on Iuliia's rule (here, whatever else the bot does today).
+    if (expediteOn(w)) maybeExpedite(w, c, p);
     const acct = companyAccount(c.id);
     const fleet = w.trucksByCompany.get(c.id)!;
     // The population dial: a bot winding down sells its owned trucks as they come idle, hands leases back, then leaves.

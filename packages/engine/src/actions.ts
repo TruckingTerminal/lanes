@@ -6,6 +6,7 @@ import { scaleDiscount } from "./scale.js";
 import { acceptOffer, acceptTender, declineOffer, filesForOpening, mayTake, rejectTender } from "./contracts.js";
 import { addParking, buyBusiness, buyTruckStop, serviceBill, setParkingPrice, setShopMarkup } from "./businesses.js";
 import { chargeSalesTax, salesTaxOn } from "./salesTax.js";
+import { expediteOn, expediteOrder, quoteFor } from "./expedite.js";
 import { bookLoad } from "./board.js";
 import { offerFd } from "./buyback.js";
 import { leaseTruck, returnLease } from "./capacity.js";
@@ -65,9 +66,11 @@ export function badInput(cfg: EconomyConfig, a: Action): string | null {
     case "set_standing_orders":
       return invalidOrders(cfg, a.orders);
     case "buy_asset":
-      return TIERS.has(a.tier) && TRAILERS.has(a.trailer) && typeof a.replaceNpcLease === "boolean" && (a.tractorOnly === undefined || typeof a.tractorOnly === "boolean") && (a.dealershipId === undefined || isId(a.dealershipId)) && (a.finance === undefined || typeof a.finance === "boolean") && (a.used === undefined || typeof a.used === "boolean") ? null : "bad truck";
+      return TIERS.has(a.tier) && TRAILERS.has(a.trailer) && typeof a.replaceNpcLease === "boolean" && (a.tractorOnly === undefined || typeof a.tractorOnly === "boolean") && (a.dealershipId === undefined || isId(a.dealershipId)) && (a.finance === undefined || typeof a.finance === "boolean") && (a.used === undefined || typeof a.used === "boolean") && (a.expedite === undefined || typeof a.expedite === "boolean") ? null : "bad truck";
     case "buy_trailer":
-      return TRAILERS.has(a.trailer) && (a.dealershipId === undefined || isId(a.dealershipId)) ? null : "bad trailer";
+      return TRAILERS.has(a.trailer) && (a.dealershipId === undefined || isId(a.dealershipId)) && (a.expedite === undefined || typeof a.expedite === "boolean") ? null : "bad trailer";
+    case "expedite_order":
+      return isId(a.orderId) ? null : "bad order id";
     case "trade_in":
       return isId(a.truckId) && isId(a.dealershipId) ? null : "bad trade-in";
     case "offer_lease":
@@ -208,7 +211,7 @@ export function badInput(cfg: EconomyConfig, a: Action): string | null {
 }
 
 /** What a company being wound up can't do: it isn't buying, bidding or borrowing again until it restarts. */
-const LIQUIDATING_BLOCKED = new Set<Action["type"]>(["place_bid", "book_load", "reposition_truck", "buy_asset", "buy_trailer", "rent_trailer", "buy_facility", "lease_truck", "borrow", "buy_listing", "unpark_truck", "offer_staff", "take_lease", "buy_asset_sale", "list_asset_sale"]);
+const LIQUIDATING_BLOCKED = new Set<Action["type"]>(["place_bid", "book_load", "reposition_truck", "buy_asset", "buy_trailer", "rent_trailer", "buy_facility", "lease_truck", "borrow", "buy_listing", "unpark_truck", "offer_staff", "take_lease", "buy_asset_sale", "list_asset_sale", "expedite_order"]);
 
 /** What a company whose authority was revoked can still do: wait out the bar, file again, and handle its money. */
 const ALLOWED_REVOKED = new Set<Action["type"]>(["wait", "transfer_capital", "reserve_withdraw", "cash_invoice", "refile_authority", "buy_fd", "bid_auction", "sell_fd", "cancel_withdrawal", "offer_fd", "claim_airdrop_now", "withdraw_finance", "withdraw_listing", "set_compliance", "set_vetting", "set_auto_staff"]);
@@ -551,6 +554,7 @@ export function applyAction(w: World, companyId: number, action: Action): Action
       if (cfg.assets.enabled && action.dealershipId) {
         const b = w.businesses[action.dealershipId - 1];
         if (!b) return { ok: false, reason: "no such dealership" };
+        if (action.expedite) return { ok: false, reason: "a dealership's order comes in its own week: no early delivery" }; // assets.expedite
         // On a purchase loan: the lender's share lands first, so the dealership is paid in full.
         const loan = action.finance ? financePurchase(w, company, dealershipPrice(w, b, company.id, kind, action.tier, action.trailer), NEW_TRUCK) : null;
         if (typeof loan === "string") return { ok: false, reason: loan };
@@ -562,6 +566,7 @@ export function applyAction(w: World, companyId: number, action: Action): Action
         }
         const order = placeOrder(w, company, action.tier, action.trailer, replacing, kind, cfg.businesses.kinds.dealership.deliveryDays);
         order.lockedPaidFd = lockedPaid;
+        if (expediteOn(w)) order.dealershipId = b.id; // assets.expedite: its own stock and week, not the NPC queue
         if (loan) loan.orderId = order.id;
         company.firstOwnedTruckDay ??= dayOf(w.t, cfg);
         return { ok: true };
@@ -569,6 +574,7 @@ export function applyAction(w: World, companyId: number, action: Action): Action
       // The NPC used lot (usedMarket.npcLot): a worn rig at its used value, from the lot's stock, delivered like a new one.
       if (action.used) {
         if (!cfg.usedMarket.npcLot.enabled || !cfg.assets.enabled) return { ok: false, reason: "there's no used lot" };
+        if (action.expedite) return { ok: false, reason: "a used-lot rig comes from stock: no early delivery" }; // assets.expedite
         if (kind !== "rig" || action.dealershipId) return { ok: false, reason: "the used lot sells whole rigs" };
         if (w.usedLot.stock < 1) return { ok: false, reason: "the used lot is empty this week" };
         const lotList = lotPrice(w, action.tier, action.trailer) * npcDealerMult(w);
@@ -608,12 +614,20 @@ export function applyAction(w: World, companyId: number, action: Action): Action
       const dealerList = (kind === "tractor" ? tractorPrice(w, action.tier) : dealerPrice(w, action)) * npcDealerMult(w) * (1 - scaleDiscount(w, company));
       const dealerSave = peekDiscount(w, company, dealerList); // a staking lock's discount at the NPC dealer, within its budget (staking.ts)
       const price = dealerList - dealerSave;
+      // assets.expedite: early delivery asked at the order is quoted before any money moves, and its fee counted in the cash.
+      const early = action.expedite ? quoteFor(w, { kind, tier: action.tier, trailer: action.trailer, priceFd: price, dueDay: dayOf(w.t, cfg) + npcDealerDays(w) }) : null;
+      if (early && "why" in early) return { ok: false, reason: early.why };
+      const earlyFd = early ? early.feeFd : 0;
       // The farming season's dollar window (token.catalogue.usdWindow.assets): a new rig for dollars, every dollar held for the launch pool.
       if (action.pay === "usd") {
+        if (earlyFd > 0 && w.ledger.balance(acct) < earlyFd) return { ok: false, reason: "not enough FD for the early delivery's fee" };
         const why = payAssetUsd(w, company, price);
         if (why) return { ok: false, reason: why };
         takeSupplyFor(w, kind, action.tier, action.trailer, firstTruck);
-        placeOrder(w, company, action.tier, action.trailer, replacing, kind, npcDealerDays(w)).lockedPaidFd = 0;
+        const order = placeOrder(w, company, action.tier, action.trailer, replacing, kind, npcDealerDays(w));
+        order.lockedPaidFd = 0;
+        if (expediteOn(w)) order.priceFd = price;
+        if (early) expediteOrder(w, company, order.id);
         company.firstOwnedTruckDay ??= dayOf(w.t, cfg);
         return { ok: true };
       }
@@ -624,9 +638,9 @@ export function applyAction(w: World, companyId: number, action: Action): Action
       if (replacing) releaseDepositFor(w, company, action.finance ? financedCashNeed(w, company, price, NEW_TRUCK) : price + salesTaxOn(w, price));
       const loan = action.finance ? financePurchase(w, company, price, NEW_TRUCK) : null;
       if (typeof loan === "string") return { ok: false, reason: loan };
-      if (w.ledger.balance(acct) < price) {
+      if (w.ledger.balance(acct) < price + (early ? salesTaxOn(w, price) + earlyFd : 0)) {
         if (loan) cancelPurchaseLoan(w, loan);
-        return { ok: false, reason: "insufficient FD" };
+        return { ok: false, reason: early ? "not enough FD for the truck and its early delivery" : "insufficient FD" };
       }
 
       const ref = `buy:${company.id}:${action.tier}:${kind === "tractor" ? "tractor" : action.trailer}`;
@@ -636,10 +650,15 @@ export function applyAction(w: World, companyId: number, action: Action): Action
       takeSupplyFor(w, kind, action.tier, action.trailer, firstTruck);
       const order = placeOrder(w, company, action.tier, action.trailer, replacing, kind, npcDealerDays(w));
       order.lockedPaidFd = lockedPaid;
+      if (expediteOn(w)) order.priceFd = price;
       if (loan) loan.orderId = order.id;
+      if (early) expediteOrder(w, company, order.id);
       company.firstOwnedTruckDay ??= dayOf(w.t, cfg);
       return { ok: true };
     }
+
+    case "expedite_order":
+      return result(expediteOrder(w, company, action.orderId));
 
     case "trade_in": {
       const truck = truckById(w, action.truckId);
@@ -688,26 +707,40 @@ export function applyAction(w: World, companyId: number, action: Action): Action
       if (action.dealershipId) {
         const b = w.businesses[action.dealershipId - 1];
         if (!b) return { ok: false, reason: "no such dealership" };
+        if (action.expedite) return { ok: false, reason: "a dealership's order comes in its own week: no early delivery" }; // assets.expedite
         const why = sellFromStock(w, company, b, "trailer", "workhorse", action.trailer);
         if (why) return { ok: false, reason: why };
-        placeOrder(w, company, "workhorse", action.trailer, false, "trailer", cfg.businesses.kinds.dealership.deliveryDays).lockedPaidFd = b.lastSaleLockedFd ?? 0;
+        const order = placeOrder(w, company, "workhorse", action.trailer, false, "trailer", cfg.businesses.kinds.dealership.deliveryDays);
+        order.lockedPaidFd = b.lastSaleLockedFd ?? 0;
+        if (expediteOn(w)) order.dealershipId = b.id;
         return { ok: true };
       }
       if (availableSupplyFor(w, "trailer", "workhorse", action.trailer, false) <= 0) return { ok: false, reason: "PoC supply exhausted" };
       const price = trailerPrice(w, action.trailer) * npcDealerMult(w);
+      // assets.expedite: quoted before any money moves (as a truck's).
+      const early = action.expedite ? quoteFor(w, { kind: "trailer", tier: "workhorse", trailer: action.trailer, priceFd: price, dueDay: dayOf(w.t, cfg) + npcDealerDays(w) }) : null;
+      if (early && "why" in early) return { ok: false, reason: early.why };
+      const earlyFd = early ? early.feeFd : 0;
       if (action.pay === "usd") {
+        if (earlyFd > 0 && w.ledger.balance(acct) < earlyFd) return { ok: false, reason: "not enough FD for the early delivery's fee" };
         const why = payAssetUsd(w, company, price);
         if (why) return { ok: false, reason: why };
         takeSupplyFor(w, "trailer", "workhorse", action.trailer, false);
-        placeOrder(w, company, "workhorse", action.trailer, false, "trailer", npcDealerDays(w)).lockedPaidFd = 0;
+        const order = placeOrder(w, company, "workhorse", action.trailer, false, "trailer", npcDealerDays(w));
+        order.lockedPaidFd = 0;
+        if (expediteOn(w)) order.priceFd = price;
+        if (early) expediteOrder(w, company, order.id);
         return { ok: true };
       }
-      if (w.ledger.balance(acct) < price) return { ok: false, reason: "insufficient FD" };
+      if (w.ledger.balance(acct) < price + (early ? salesTaxOn(w, price) + earlyFd : 0)) return { ok: false, reason: early ? "not enough FD for the trailer and its early delivery" : "insufficient FD" };
       const ref = `buy:${company.id}:trailer:${action.trailer}`;
       const lockedPaid = w.ledger.post(w.t, acct, "sink:equipment_dealer", price, ref);
       chargeSalesTax(w, company.id, price, ref);
       takeSupplyFor(w, "trailer", "workhorse", action.trailer, false);
-      placeOrder(w, company, "workhorse", action.trailer, false, "trailer", npcDealerDays(w)).lockedPaidFd = lockedPaid;
+      const order = placeOrder(w, company, "workhorse", action.trailer, false, "trailer", npcDealerDays(w));
+      order.lockedPaidFd = lockedPaid;
+      if (expediteOn(w)) order.priceFd = price;
+      if (early) expediteOrder(w, company, order.id);
       return { ok: true };
     }
 

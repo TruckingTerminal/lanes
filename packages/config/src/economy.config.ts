@@ -606,6 +606,37 @@ export const economyConfig = {
     // before a dispatcher or a hand booking takes it), and at the day's close as today if it's idle then. The driver's
     // duty clocks carry over that swap. Off (and absent), only at the day's close (dealer.ts deliverOrders).
     swapAtNextIdle: false,
+    // Early delivery for a fee (Jeff's sink; the director's design, studio/reviews/director-early-delivery.md; the
+    // economy's sizes, economy-early-delivery.md): a new rig, tractor or trailer on order in the NPC dealer's queue (not the
+    // used lot's, not a player dealership's) may have its ready day brought forward, at the order or later, to the
+    // earliest open expedite slot. The fee is feePerWeekSaved of the price paid per week saved, read to the day, at least
+    // minFeeFd and at most maxFeeShare of the price; paid at once and never refunded, a burn (sink:expedite, outside the
+    // cap's refill). Slots a week: slotsShareOfDeliveries of the trailing four weeks' deliveries (trucks and trailers) a
+    // week, rounded up, never under minSlotsPerWeek, apart from the ordinary queue, so nobody else's date moves. Never
+    // sooner than floorDays from the payment. The bots expedite only past botMinWaitDays of wait and with
+    // botCushionWeeks of payments kept after the fee (expedite.ts). Off (and absent), nothing is offered.
+    expedite: {
+      enabled: false,
+      feePerWeekSaved: 0.015,
+      minFeeFd: 300,
+      maxFeeShare: 0.09,
+      slotsShareOfDeliveries: 0.5,
+      minSlotsPerWeek: 2,
+      floorDays: 7,
+      botMinWaitDays: 21,
+      botCushionWeeks: 60 / 7,
+      // The bots expedite when the fee is under what the wait costs over the days saved (expedite.ts expediteWaitParts):
+      // the loan payments running on the order, plus, for an order replacing the lease, the lessor's share at the
+      // company's weekly gross. countsKeptPerTruck (the director, 2026-11-10: C, with guards; director-expedite-wait-
+      // cost-2026-11-10.md): for an order that adds a truck to a fleet (never a lease replacement, whose leased truck still
+      // earns; never a trailer alone), and only when the truck would have a driver (a driver without a truck, or an owner
+      // who would drive it), also what the company's trucks have each kept a week from its books (revenue less operating
+      // costs: the driver's pay and the truck's costs) over the last keptSpanWeeks, floored at zero, and nothing with
+      // under keptMinHistoryWeeks of books. Off counts the payments and the lessor's share alone (the economy's pair reads both).
+      countsKeptPerTruck: true,
+      keptSpanWeeks: 8,
+      keptMinHistoryWeeks: 4,
+    },
     tractor: {
       lifeMi: 1_000_000, // no rebuild past this odometer…
       maxRebuilds: 2, // …or past two rebuilds: then it runs until it is worn out and goes for scrap
