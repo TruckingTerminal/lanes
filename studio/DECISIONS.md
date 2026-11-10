@@ -1,5 +1,16 @@
 # Decisions (the producer's log for Jeff; newest first)
 
+- 2026-11-10 — the player's fifth diary, the stubborn specialist (studio/playtests/play-2026-11-10-stubborn-
+  specialist.md; 63 game days from Miami with a reefer, the dispatcher off, no advice taken). The niche is real and
+  the game rewards it: reefer out of Florida in winter paid 6.9 to 10.9 a mile, the thin hub's sheet was true in
+  every word, and "Send to Wichita" got a stranded truck out in one tap. The game does not trap a player who reads
+  the truck card. What it does not do is watch a second truck: with the reefer and its driver idle nine days in
+  Nebraska, What now? was still advising a re-bid on a van load lost on day 1. The producer's triage, for
+  engineering's list: a bid whose lowest allowed price (break-even plus 5%) was above the price that won, offered as
+  "a gamble"; Book now enabled on a truck with no driver; Staff locked from More and open from What now?; a parked
+  truck's "idle N d" line written into Today every day. For the director with the last diary: the bid floor (her
+  ruling named break-even), booking through a driver's home time without a word, and the owner unable to move from
+  one truck to another. No setting to sleep in town was found: that is 0.24.1's rule, not yet on the test page.
 - 2026-11-10 — the player's fourth diary, the absentee (studio/playtests/play-2026-11-10-absentee.md; 181 game days at
   Los Angeles, a dispatcher set in week one and three check-ins weeks apart). The company did not stall: six months
   of profit with no taps, 8 to 15 loads a month. But it never grew: after six months it still leased, with 96,560 FD
