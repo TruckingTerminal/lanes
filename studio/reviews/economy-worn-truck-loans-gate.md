@@ -15,8 +15,8 @@ weeks; the rate rises 0.03% a week per year of age over three.
 ## The finding first
 
 **The rule costs the economy nothing and does what it was sized to do.** On the ten seeds the market with the rule on
-is the market with it off: cleared loads 448k against 447k, the mean rate 3.72 against 3.73, NPC pay 1,740M against
-1,737M, carriers' profit per truck-week 2,082 / 2,085 against 2,063 / 2,099, companies bankrupt 178 against 185. The
+is the market with it off: cleared loads 448k against 447k, the mean rate 3.72 against 3.73, NPC freight pay (the
+cap's paid total) 1,379M against 1,381M, carriers' profit per truck-week 2,082 / 2,085 against 2,063 / 2,099, companies bankrupt 178 against 185. The
 coupling I flagged from the bound arms (fewer and later truck purchases as fewer equipment sinks for the cap's budget,
 NPC pay −3.4–5.0%) does not appear: equipment sinks are 190M against 189M over four years, because the bots buy the
 same trucks a few weeks later. What moves is the lender's book and the first truck's day: loans written −7%, defaults
@@ -55,7 +55,8 @@ ten, the two fails on the band's floor by 0.002–0.005, and the baseline gate o
 
 | Ten-seed means | Off | The rule on |
 |---|---|---|
-| NPC pay, M FD | 1,737 [1,650–1,786] | 1,740 [1,688–1,788] |
+| NPC freight pay, M FD (the cap's paid total) | 1,381 | 1,379 |
+| NPC faucets in all, M FD (advances and the lessor included; the first notes' measure) | 1,737 [1,650–1,786] | 1,740 [1,688–1,788] |
 | Equipment sinks, M FD (all equipment, four years) | 189 | 190 |
 | Days at the cap's volume floor · rate floor | 235 · 141 | 241 · 142 |
 | Volume lever after year 1 | 0.805 | 0.828 |
