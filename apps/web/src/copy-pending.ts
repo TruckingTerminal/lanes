@@ -256,7 +256,7 @@ export const PENDING = {
   // sheet's row under the weekly payment, saying when the first one falls and, for a truck that comes later, that the
   // payments run from the order while it waits (engine: the weekly step charges every open purchase loan).
   loanFirstLabel: "First payment",
-  loanFirstValue: (date: string, waits: boolean) => (waits ? `${date}, and every week from then while the truck waits at the dealer` : date),
+  loanFirstValue: (date: string, waits: boolean) => (waits ? `${date}, and every week after, even while the truck waits at the dealer` : date),
   // Client batch 8a item 46 (the stubborn specialist: Book now was live on a truck with no driver and refused after the
   // tap): under the board's head when the chosen truck has no driver, and as the reason under a shut Book now.
   boardNeedsDriver: (n: number) => `Truck ${n} has no driver: hire one on Staff before it can book a load.`,
@@ -277,31 +277,38 @@ export const PENDING = {
   soundName: (fd: string) => `To a sound first truck: ${fd} FD`,
   soundBuy: "Buy it now.",
   soundOrder: (date: string) => `Order it now · ready ${date}`,
-  soundNotYet: (fd: string, loads: number | null) => (loads === null ? `Not yet: buy at ${fd} FD in cash.` : `Not yet: buy at ${fd} FD in cash, about ${loads} ${loads === 1 ? "load" : "loads"} from here.`),
-  soundNone: (trailer: string) => `No sound ${trailer} truck on the lot today; I'll tell you when one lists.`,
+  // Writer 8a: "buy at N FD" read as a price; N is the cash to hold (the price's cash plus the cushion), so "once you have".
+  soundNotYet: (fd: string, loads: number | null) => (loads === null ? `Not yet: buy once you have ${fd} FD in cash.` : `Not yet: buy once you have ${fd} FD in cash, about ${loads} ${loads === 1 ? "load" : "loads"} from here.`),
+  // "For sale", not "on the lot": the card reads the lot's rigs, the used listings and the new rig, and "the lot" names
+  // only the first (lotReadyNote, lotButton).
+  soundNone: (trailer: string) => `No sound ${trailer} truck for sale today; I'll tell you when one lists.`,
   whyLabel: "Why",
   whyTruck: (truck: string) => `The truck: ${truck}.`,
   whyPrice: (price: string, need: string) => `Price ${price} FD; it takes ${need} FD in cash today.`,
-  whyCushion: (after: string, hold: string) => `${after} FD left after it, against the ${hold} FD I'd keep back for fuel and repairs.`,
+  whyCushion: (after: string, hold: string) => `${after} FD left after it, against the ${hold} FD I'd keep in hand for running costs.`,
   whyWorn: (truck: string, price: string) => `Cheaper, but worn or for other freight: ${truck} at ${price} FD.`,
   seeIt: "See it",
   // Client batch 8a item 59 (the director's F and C; items 21, 45 and 55): What now?'s new answers. The debt line names
   // the nearest clock: a purchase loan with a payment missed, the truck the lender takes and when, the payment and its
   // day. The home rule with the dispatcher off, from five days ahead and on the day. A breakdown's ask on a load booked
   // ahead. A lost bid's follow-up now names its truck (lostForTruck wraps NOW.lostAction / lostBookAction).
-  loanDefaultAction: (missed: number, truck: number | null, date: string) => `${missed} ${missed === 1 ? "payment" : "payments"} missed: the lender takes ${truck === null ? "the truck on order" : `Truck ${truck}`} on ${date} if the next one misses.`,
+  loanDefaultAction: (missed: number, truck: number | null, date: string) => `${missed} ${missed === 1 ? "payment" : "payments"} missed: the lender takes ${truck === null ? "the truck on order" : `truck ${truck}`} on ${date} if the next one misses.`,
   loanDefaultReason: (fd: string, date: string) => `The next payment is ${fd} FD, on ${date}. Keep that much in cash by then.`,
   loanDefaultButton: "Money",
-  homeDueAction: (date: string, days: number) => (days === 0 ? "Due home today: take a load toward home, or Send home." : `Due home ${date} (${days} ${days === 1 ? "day" : "days"}).`),
-  homeDueReason: (home: string, load: string | null) => (load ? `A load toward ${home} keeps the truck paid: ${load}.` : `With your dispatcher off, the truck turns for ${home} at the rule's day, empty if no load goes that way.`),
-  homeDueButton: (load: boolean) => (load ? "See the load" : "Send home"),
+  // Writer 8a: What now? shows these after "Truck N: " (lostForTruck), so the day's line takes a full stop, not a second colon.
+  homeDueAction: (date: string, days: number) => (days === 0 ? "Due home today. Take a load toward home, or Send home." : `Due home ${date} (${days} ${days === 1 ? "day" : "days"}).`),
+  // With no load toward home: the engine (board.ts maybeReposition) turns an idle truck due home for home, empty when it's
+  // near or has waited a couple of rounds; with the dispatcher off, no one but the player books it a homeward load.
+  homeDueReason: (home: string, load: string | null) => (load ? `A load toward ${home} keeps the truck paid: ${load}.` : `With your dispatcher off, only you can book it a load toward ${home}. Once it's due and idle, it heads home empty.`),
+  homeDueButton: (load: boolean) => (load ? "Show the load" : "Send home"),
   atRiskAction: (truck: number) => `Truck ${truck} broke down and can't make its next pickup.`,
-  atRiskReason: (fd: string, by: string) => `Release the load now (a ${fd} FD claim) or keep it and hope, before ${by}.`,
-  atRiskButton: "Truck",
+  // The ask's claim is the early share (windows.ts afterBreakdown); a no-show at the pickup's close is the larger one.
+  atRiskReason: (fd: string, by: string) => `Release the load now for a ${fd} FD claim, or keep it: if the truck misses the pickup by ${by}, it's a no-show and a bigger claim.`,
+  atRiskButton: "Show the truck",
   lostForTruck: (truck: number, action: string) => `Truck ${truck}: ${action}`,
   // Client batch 8a item 19 (the borrower): the month report's line under its loads line, when the lender took trucks
   // in the month: how many, and what their loans owed when it did (they leave the books with the trucks).
-  monthTaken: (n: number, fd: string) => `The lender took ${n} ${n === 1 ? "truck" : "trucks"} this month; ${n === 1 ? "its loan" : "their loans"}, ${fd} FD owed, closed with ${n === 1 ? "it" : "them"}.`,
+  monthTaken: (n: number, fd: string) => `Taken by the lender: ${n === 1 ? "1 truck" : `${n} trucks`}, closing ${n === 1 ? "a loan" : "loans"} that owed ${fd} FD.`,
   // Client batch 8a item 6: a listed truck or trailer's control to take it off sale (engine withdraw_listing); on the truck's
   // card (its ⋯ on a phone) and the trailer's yard row, beside "for sale at {ask} FD". A truck taken off is parked where
   // it stands; a trailer goes back to the yard.
@@ -312,14 +319,16 @@ export const PENDING = {
   // The live page's refusals (§1, §2). A tab that isn't this player's writer (another tab or device holds the lease, or this
   // one lost it and another holds it now): an order is refused; shown in the order's error toast ("Couldn't send that
   // order: …") and where a tap on a live screen is refused (state.ts act and order).
-  liveWatching: "This tab is only watching.",
+  // Writer 8a: the reason, both ways it happens (live.ts takeLease: "busy", another tab or device holds the lease; "denied",
+  // the store couldn't be reached).
+  liveWatching: "This tab is only watching (your company is open in another tab or on another device, or this one lost its connection).",
   // An order whose time would land more than a lead past the shared clock (an earlier order was stamped on a wrong clock):
   // refused, shown in the order's error toast.
   liveClockOff: "This order's time is off the shared clock: reload the page and try again.",
   // The test page's clock stopped on an engine error in an hour (§6): the save stands at the hour before.
   testBroken: "The world hit an error and stopped here. It takes no more orders; your save holds everything up to the hour before.",
   // A restored world whose replay refused some of the saved orders (§6): they're kept in the save, not lost silently.
-  testRefusedOnRestore: (n: number) => `${n} of your saved ${n === 1 ? "order" : "orders"} couldn't be carried out on the way back; ${n === 1 ? "it's" : "they're"} kept in your save.`,
+  testRefusedOnRestore: (n: number) => `When your world reopened, ${n} of your saved ${n === 1 ? "order" : "orders"} couldn't be carried out again; ${n === 1 ? "it's" : "they're"} kept in your save.`,
   newsServiceClaim: (kind: string, load: string, fd: string) => `${kind === "late" ? `Late delivery, load #${load}` : kind === "noshow" ? `No-show, load #${load}` : `Released load #${load}`}: −${fd} FD claim to the poster.`,
 } as const;
 

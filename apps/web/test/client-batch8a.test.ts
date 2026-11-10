@@ -88,7 +88,7 @@ describe("client batch 8a: on a world", () => {
     if (f.open !== null) expect(shown.has(f.open)).toBe(true);
     // A starter with its starting cash: not yet, with the cash it takes; the figures sit under Why, not beside the verdict.
     if (!f.met && f.open !== null) {
-      expect(f.verdict).toMatch(/^Not yet: buy at /);
+      expect(f.verdict).toMatch(/^Not yet: buy once you have /);
       expect(f.figure).toMatch(/^To a sound first truck: /);
       expect(f.why.length).toBeGreaterThan(0);
     }

@@ -49,7 +49,7 @@ describe("client pass 2 on one world", () => {
       // A week of spending known: the cushion is under Why, and the gap's own figure doesn't move.
       c.weeklySpend = [1_000];
       f = firstTruckLine(w, c)!;
-      if (f.open !== null) expect(f.why.some((x) => x.includes("I'd keep back"))).toBe(true);
+      if (f.open !== null) expect(f.why.some((x) => x.includes("I'd keep in hand"))).toBe(true);
       expect(gapToTruck(w, c).gapFd).toBe(gap.gapFd);
       expect(gapToTruck(w, c).holdFd).toBe(GAME_CONFIG.guide.gapCushionWeeks * 1_000);
       // The Dealer opens on the same figure: short, closed; the cash met, open and "You can buy today".
