@@ -1,5 +1,39 @@
 # Decisions (the producer's log for Jeff; newest first)
 
+- 2026-11-10 — the red team's persistence pass (studio/reviews/redteam-persistence.md), from the exploit hunter's two
+  findings. TWO REACH THE LIVE WORLD. (1) Shown on a stand-in store: a tab that sleeps through its writer lease and
+  wakes after the player's other device has played and gone writes its old list of orders over the player's record,
+  erasing the other device's orders for everyone and for good, while pages that had already seen them keep them: an
+  undo on the live world for anyone with two devices and four minutes, and a split world. The fix is small (re-read
+  the record before every write and append; treat a lease renewed after a gap as lost; drop entries a re-read no
+  longer holds). (2) Read from the code: the minute an order takes effect is stamped by the client, and the store
+  takes whatever the player's page writes. An honest clock more than ten minutes off puts every order into everyone's
+  past and every page replays; with the browser's console a player can file a bid on a load whose round has already
+  cleared, or an FD trade with hindsight. The honest half has a small fix (always use the server's clock, refuse a
+  stamp outside the window); the forged half needs a writer the client cannot be, a server or an owner-run relay:
+  OPEN FOR JEFF, with the server sprint. Until then the live world is honest-clients-only. Also: any late order makes
+  every page replay from the seed (minutes, growing with the world's age); the two-tab overwrite is the test page
+  only (the live page has a lease) and a Web Lock closes it; the reload that came back different was NOT reproduced
+  (the replay matched the live run to the hash in every check) and needs the saved log of a world that shows it; and
+  the store's access rules must be confirmed on the published page (the records say players, players/{self} and
+  reports were declared; world/meta is not in that list). The producer's order for engineering: where a dispatcher
+  runs (the middleman's finding), then these live fixes, ahead of windows batch 7. The live world has no players
+  today; none of this is in 0.24.1's nine rules, but the two live fixes should be on the live page before anyone
+  joins it.
+- 2026-11-10 — the player's third diary, the middleman (studio/playtests/play-2026-11-10-middleman.md; 112 game days at
+  Atlanta, a brokerage from day 84) and QA's version check. The version check passes (QA, on the 9c9d004 deploy): a
+  stale cached page saw the newer build, reloaded itself once at ?v=9c9d004, did not loop, and the saved world was
+  intact; a tab left open across a deploy changes build only at its next load. The middleman: the brokerage's cost
+  screen is a model of saying every number first, and brokering lost 19,000 FD in its first month, much of it from a
+  90% margin the game accepted without a word. The producer's triage, first the one that could be a hole in the game
+  itself: while the player sat in the brokerage's view for six days the carrier's truck stood idle with its
+  dispatcher ticked ("the dispatcher is off, so nobody bids for this truck while you're away") and was booked within
+  the hour of switching back; engineering triages where a dispatcher runs before anything else, since on the shared
+  world a player is away most of the time, and the player's absentee session tests the same thing. Then: the
+  brokerage's funding field jams on a negative figure and then takes no typing; one load at a 10% margin paid its
+  carrier the whole shipper price; "See what brokers earned" lists every broker as "#1" with no figure; the
+  prefilled name cut mid-word and fixed for life; the broker's quick pay near 10%; "Due Feb 29" again; and a world
+  that takes two and a half minutes to load at day 84.
 - 2026-11-10 — the player's second diary, the borrower (studio/playtests/play-2026-11-10-borrower.md; 151 game days at
   Chicago: a lot rig on a loan, two more trucks on loans to the lender's cap of three, a cash crunch on purpose). The
   rules held: a starter cannot borrow before the first truck, the lender carries three loans at most, two missed
