@@ -1,6 +1,30 @@
 # Decisions (the producer's log for Jeff; newest first)
 
-- 2026-11-09 — Jeff: "Yes, build it", the economy's worn-truck loan rule (economy-worn-truck-loans-2026-11-09.md; the
+- 2026-11-10 — the economy's gate pair on the worn-truck loan rule (studio/reviews/economy-worn-truck-loans-gate.md; the
+  rule as built in ad349e3, ten seeds, 1460 days, each against its cap-off twin): the market with the rule on is the
+  market with it off (cleared loads 448k against 447k, the mean rate 3.72 against 3.73, NPC pay 1,740M against 1,737M,
+  companies bankrupt 178 against 185); the equipment-sink coupling feared from the bound arms does not appear (the bots
+  buy the same trucks a few weeks later); loans written −7%, defaults −9%, FD written off −17%; the free path's median
+  first truck 30 → 49 days, and on the test page's world a route to "You can buy today" opens on day 25 instead of 16.
+  The gate reads eight of ten: seeds 7 and 8 fail the band's floor by 0.002–0.005, and the baseline on the same code
+  passes ten of ten with those two seeds at 0.843 and 0.840, so the fails are the floor's margin, not the rule (it moves
+  them by 0.002–0.003). The economy recommends the rule ride in 0.24.1 with the five switches of c1af286 and the hand
+  bid, at the one restart; windows stay out. OPEN FOR JEFF with the 0.24.1 decision: a gate that reads eight of ten on
+  the calibration he approved. Also found: the dealer's queue, which a starter's used-lot rig still waits in (the call
+  of 2026-11-03), peaks at ten weeks in the first quarter's order rush and settles at five; with the loan rule the brake
+  at its cause, the economy recommends a starter's lot rig come from stock in the lot's own days, to be read on a pair
+  once engineering gives it a key (usedMarket.npcLot.startersFromStock, default off); switching it on is a rule change
+  for Jeff.
+- 2026-11-10 — the director, on QA's replay of client batch 5 (qa-client5-2026-11-09.md; items 1–4 passed): "You can
+  buy today" only for a truck that delivers today; a truck from the queue reads "You can order today · delivered Apr
+  19" on the card and in Iuliia's line, and What now? counts the wait ("Your truck arrives in 68 days; until then the
+  leased one runs"); before the order the date may move with the queue, after it the date given is the date the truck
+  arrives (if the engine can slip an ordered truck's date, engineering flags it: a bug or a rule question for Jeff). The
+  wait is said, not counted: the one figure stays the least cash needed today; a second line names a truck that
+  delivers sooner ("Or a dry van, 7.2k today, delivered today"), and Iuliia prices the wait in figures ("Waiting to Apr
+  19 keeps the lessor's 15% for 68 days, about X FD"). The trailer type is said when it does not match the company's
+  freight ("…a reefer, 480k miles, 48%; your company hauls dry van"). QA's seven smaller findings are client batch 6.
+- 2026-11-09 — Jeff: "Yes, build it", the economy's worn-truck loan rule (studio/reviews/economy-worn-truck-loans.md; the
   OPEN FOR JEFF entry below), behind equipmentFinance.purchase.collateral, default off: the purchase loan reads the truck
   as well as the borrower (down by age over three years and mileage over 300k, capped at 50%, ten points more for a
   company under a year old that has never owned a truck; declined past ten years or 700k miles, "cash only" with the
@@ -38,7 +62,7 @@
   pickup the same day, as a market rule (a shipper pays more for a truck today than for one next week) rather than a
   fallback; the economy asks for it alongside the ratio fix. The bond cap's call stands. Then the ten seeds again, the
   target the off arm's cleared loads, NPC pay and rate within seed range, lost under a quarter of posted, the cap binding.
-- 2026-11-09 — OPEN FOR JEFF: the economy's worn-truck loan rule (economy-worn-truck-loans-2026-11-09.md), on the
+- 2026-11-09 — OPEN FOR JEFF: the economy's worn-truck loan rule (studio/reviews/economy-worn-truck-loans.md), on the
   director's suspicion from the day-2 Dealer. Today the purchase loan reads the borrower's credit only (down 10–20%, 0.2–
   0.4% a week, 104 weeks) and never the truck: a 500k-mile reefer and a new Workhorse get the same down, rate and term, and
   no age or odometer refuses a loan; a day-2 company's 14% down puts QA's 17.8k listing at 4,620 FD cash on the day. Real
@@ -67,7 +91,7 @@
   down on a 480k-mile truck, or will not finance it), so the economy checks the down payment and terms on worn trucks
   against real lending; if they are off, the fix is a rule change for Jeff and a ruleset. QA's replay otherwise passed
   all nine items; its three smaller fails go into client batch 4.
-- 2026-11-09 — the economy's look at the locals-first change (economy-locals-first-2026-11-09.md): the rule Jeff approved
+- 2026-11-09 — the economy's look at the locals-first change (studio/reviews/economy-locals-first.md): the rule Jeff approved
   is what the engine already does. A locals-first load is held for local carriers for one clearing only
   (leverage.localRounds 1) and opens to every dispatcher and bot at the next; the ten-seed cap runs are runs of this rule,
   so it moves no sim and needs no ruleset. The gap behind the Palm Coast diary is the hand bidder's round: place_bid
