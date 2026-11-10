@@ -37,11 +37,14 @@ export const npcDealerDays = (w: World): number => deliveryDays(w) + (npcBacksto
 /**
  * The NPC used lot's wait. A rig that adds to a fleet comes from the lot's stock in usedMarket.npcLot.deliveryDays when
  * that is set. A free starter's first truck, which replaces the lessor's, keeps the NPC dealer's queue so step 9 keeps its
- * pace (economy-player2.md §1c: delivering those sooner raised owner-operator liquidations). Unset, every rig queues, as today.
+ * pace (economy-player2.md §1c: delivering those sooner raised owner-operator liquidations), unless
+ * usedMarket.npcLot.startersFromStock is on: then it comes from stock as a fleet's does (the economy's worn-truck loans
+ * gate §5: the loan rule now brakes the first truck at its cause). Unset, every rig queues, as today.
  */
 export const lotDeliveryDays = (w: World, replacesLease = false): number => {
-  const own = w.cfg.usedMarket.npcLot.deliveryDays;
-  return own !== null && !replacesLease ? own : npcDealerDays(w);
+  const lot = w.cfg.usedMarket.npcLot;
+  const own = lot.deliveryDays;
+  return own !== null && (!replacesLease || lot.startersFromStock === true) ? own : npcDealerDays(w);
 };
 
 /** List price today (list × the dealer index) of a rig, a tractor alone or a trailer alone. */

@@ -679,7 +679,12 @@ export const economyConfig = {
     // day 42. A number delivers a lot rig that adds to a fleet from the lot's stock in that many days (a free starter's
     // first truck, replacing the lessor's, keeps the queue: step 9's pace); `inBacklog: false` leaves lot rigs out of the
     // count that sets the new-truck wait (and the dealer's price index, dealer.ts monthlyDealerPrices).
-    npcLot: { enabled: false, ageYears: 4, odometer: 450_000, milesSinceRebuild: 120_000, rebuilds: 1, perWeek: 15, stock: 30, daily: false, deliveryDays: null as number | null, inBacklog: true },
+    // `startersFromStock` (the economy, economy-worn-truck-loans-gate.md §5: the starters' queue peaks at ten weeks in the
+    // first quarter's rush, a brake the worn-truck loan rule now applies at its cause): on, a free starter's lot rig, the
+    // one that replaces the lessor's truck, comes from the lot's stock in `deliveryDays` as a fleet's does; off (and
+    // absent), it keeps the NPC dealer's queue. With `deliveryDays` null every lot rig queues either way. A rule change
+    // for Jeff; the economy runs its ten-seed pair on it (dealerships.ts lotDeliveryDays).
+    npcLot: { enabled: false, ageYears: 4, odometer: 450_000, milesSinceRebuild: 120_000, rebuilds: 1, perWeek: 15, stock: 30, daily: false, deliveryDays: null as number | null, inBacklog: true, startersFromStock: false },
   },
 
   // §DeFi buildings — Equipment Finance, in FD for Season 1. Depositors fund the
