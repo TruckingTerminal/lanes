@@ -784,6 +784,13 @@ export interface Truck {
   homeAfter?: "work";
   /** businesses.parking.stopInTown: tonight's stop is the town it stands at (trips.ts moveTrucks). Absent otherwise. */
   townNight?: true;
+  /**
+   * businesses.parking.stopInTown with labor.turnWhileEmpty: the truck turned this duty day (trips.ts turnTruck), so the
+   * leg it is on began at a turn, not idle in a town, and the night in town doesn't apply to it (the red team's 0.24.1
+   * pass: a turn an hour before the hours ran out bought a legal night anywhere). Cleared when the duty day closes or the
+   * truck goes idle. Absent otherwise.
+   */
+  turnedToday?: true;
   /** The current leg (origin, target, loaded) and the next weigh station on it. */
   legKey: number;
   legMiles: number;

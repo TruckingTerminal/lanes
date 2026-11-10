@@ -722,7 +722,7 @@ export const economyConfig = {
       // The lender reads the truck (the economy's worn-truck loans, economy-worn-truck-loans-2026-11-09.md; Jeff's yes,
       // DECISIONS.md 2026-11-09). Off: the loan reads the borrower's credit alone, as before. On, over the free lines: the
       // down payment rises downPerYear a year of age and downPer100kMi per 100k miles, plus newBusiness.downAdd for a company
-      // under newBusiness.years of authority that has never owned a truck, capped at maxDownShare; past declineOverYears or
+      // under newBusiness.years of authority (a company under a year old, whatever it owns), capped at maxDownShare; past declineOverYears or
       // declineOverMiles the lender declines (cash only); the term ends by the truck's payoffYears birthday, never under
       // minTermWeeks; the rate rises weeklyRatePerYear a week per year of age. Condition stays out of it (the director): a
       // lender reads age and miles.

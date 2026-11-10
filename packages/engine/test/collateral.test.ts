@@ -22,7 +22,7 @@ function digest(cfg: EconomyConfig): string {
   return createHash("sha256").update(s).digest("hex").slice(0, 16);
 }
 
-/** A newcomer: formed today, never owned a truck. */
+/** A newcomer: formed today. */
 function newcomer(cfg: EconomyConfig) {
   const w: World = createWorld({ cfg, net, feeds: neutralFeeds, seed: 3 });
   const c = formCompany(w, { name: "Loan Freight", role: "carrier", homeHubId: "DAL", strategy: "test", orders: [], freePath: true });
@@ -51,10 +51,16 @@ describe("the lender reads the truck (equipmentFinance.purchase.collateral)", ()
     const t = purchaseTerms(w, c, worn);
     expect(t.downShare).toBeCloseTo(credit + 0.1 + 0.03 + 0.03 * 2.02339, 9);
     expect(t.parts).toEqual({ credit, age: expect.closeTo(0.03, 12), miles: expect.closeTo(0.0607017, 6), newBusiness: 0.1 });
-    // Once the company has owned a truck, no new-business share.
+    // A truck owned (or a wreck bought and resold) doesn't end the new-business share: the authority's age alone does (the
+    // red team's 0.24.1 pass §7).
     c.firstOwnedTruckDay = 0;
-    expect(purchaseTerms(w, c, NEW_TRUCK).downShare).toBeCloseTo(credit, 12);
+    expect(purchaseTerms(w, c, NEW_TRUCK).downShare).toBeCloseTo(credit + k.newBusiness.downAdd, 12);
     c.firstOwnedTruckDay = null;
+    // A company a year old or more gets none.
+    const since = c.authority.since;
+    c.authority.since = since - k.newBusiness.years * ON.time.daysPerSeason;
+    expect(purchaseTerms(w, c, NEW_TRUCK).parts!.newBusiness).toBe(0);
+    c.authority.since = since;
     // Capped at half.
     expect(purchaseTerms(w, c, { ageYears: 10, odometer: 700_000 }).downShare).toBe(k.maxDownShare);
     // Declined past either cap: cash only, said by financeBlock too.

@@ -201,6 +201,7 @@ export function drivingMinutesLeft(w: World, truck: Truck, now: number): number 
     closeDutyDay(w, truck);
     truck.shiftStartT = now;
     truck.shiftDrivenMin = 0;
+    delete truck.turnedToday; // a new duty day: a turn made in the last one no longer counts
     if (hos.restHours > 0) truck.offDutySinceT = now;
   }
   const limit = truck.companyId ? drivingLimitMin(w, truck, companyById(w, truck.companyId)) : hos.drivingHoursPerDay * MINUTES_PER_HOUR;
@@ -327,8 +328,9 @@ export function moveTrucks(w: World): void {
       }
       // businesses.parking.stopInTown: a company that chose the town doesn't set out, at a leg's start, on a run its hours
       // left can't finish with no site with room in reach: it sleeps here, the duty day closed now. With a full day's
-      // hours it always sets out, so it never waits in a town for good.
-      if (cfg.businesses.parking.stopInTown && cfg.businesses.enabled && truck.companyId && legMile(truck) <= 1e-6 && companyById(w, truck.companyId).nightStop === "town") {
+      // hours it always sets out, so it never waits in a town for good. Only a leg the truck began idle at this town: one
+      // a turn began this duty day (turnTruck's mile 0) drives on to a site or the shoulder (the red team, 0.24.1).
+      if (cfg.businesses.parking.stopInTown && cfg.businesses.enabled && truck.companyId && legMile(truck) <= 1e-6 && companyById(w, truck.companyId).nightStop === "town" && !truck.turnedToday) {
         const fullDay = drivingLimitMin(w, truck, companyById(w, truck.companyId));
         const leg = placeRoute(w, truck.place, truck.targetPlace);
         const reachMi = (hosLeft / MINUTES_PER_HOUR) * (leg && leg.hours > 0 ? leg.miles / leg.hours : cfg.hos.avgMph);
@@ -478,6 +480,7 @@ function setIdle(w: World, truck: Truck): void {
   truck.place = truck.targetPlace;
   truck.loadId = null;
   truck.idleRounds = 0;
+  delete truck.turnedToday;
   truck.idleSinceDay = dayOf(w.t, w.cfg);
   truck.idleSinceT = w.t;
   truck.emptyMi = 0;
@@ -528,6 +531,8 @@ export function turnTruck(w: World, truck: Truck, hub: number): void {
   companyById(w, truck.companyId).operating.costFd += payTripCosts(w, truck, `turn:${truck.id}`);
   truck.place = best;
   truck.hub = w.net.places[best]!.market;
+  // businesses.parking.stopInTown: this leg began at a turn, so tonight's town rule doesn't apply to it (moveTrucks).
+  if (w.cfg.businesses.parking.stopInTown) truck.turnedToday = true;
   startEmptyRun(w, truck, hub);
   truck.remainingMi += off;
   truck.legMiles = truck.remainingMi;

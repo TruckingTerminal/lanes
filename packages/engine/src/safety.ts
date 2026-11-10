@@ -304,6 +304,7 @@ export function inspect(w: World, t: Truck, c: Company, level: number, where: st
       t.overMin = 0;
       t.shiftStartT = w.t + e.oosHours.hos * MINUTES_PER_HOUR;
       t.shiftDrivenMin = 0;
+      delete t.turnedToday; // the break starts a new duty day
     }
     // Only the last week or so of logs is on the truck.
     t.logDays = t.logDays.filter((d) => d >= day - e.recentLogDays);

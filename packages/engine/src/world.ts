@@ -573,6 +573,7 @@ export function freshPaperwork(truck: Truck): void {
   truck.overMin = 0;
   truck.shiftStartT = null;
   truck.shiftDrivenMin = 0;
+  delete truck.turnedToday;
   truck.emptyMi = 0;
   truck.loadedMi = 0;
   truck.breakdownMin = 0;

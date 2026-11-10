@@ -48,7 +48,7 @@ export interface PurchaseTerms {
 /**
  * What the lender offers this company, from its credit: strong (100) gets the first of each range. With
  * equipmentFinance.purchase.collateral on and the truck given, it reads the truck too (age and miles, never condition), and
- * a company under a year old that has never owned a truck puts more down; off, or with no truck, the credit alone.
+ * a company under a year old puts more down, whatever it owns; off, or with no truck, the credit alone.
  */
 export function purchaseTerms(w: World, c: Company, truck?: Collateral): PurchaseTerms {
   const k = w.cfg.equipmentFinance.purchase;
@@ -63,7 +63,9 @@ export function purchaseTerms(w: World, c: Company, truck?: Collateral): Purchas
   const col = k.collateral;
   if (col?.enabled !== true) return base;
   const daysPerYear = w.cfg.time.daysPerSeason;
-  const fresh = c.firstOwnedTruckDay === null && dayOf(w.t, w.cfg) - c.authority.since < col.newBusiness.years * daysPerYear;
+  // The new-business points read the authority's age alone, whatever the company owns: a wreck bought and resold, or a truck
+  // ordered, no longer ends them (the red team's 0.24.1 pass §7; the economy's call).
+  const fresh = dayOf(w.t, w.cfg) - c.authority.since < col.newBusiness.years * daysPerYear;
   const newBusiness = fresh ? col.newBusiness.downAdd : 0;
   const age = truck ? Math.max(0, truck.ageYears - col.freeYears) * col.downPerYear : 0;
   const miles = truck ? (Math.max(0, truck.odometer - col.freeMiles) / 100_000) * col.downPer100kMi : 0;

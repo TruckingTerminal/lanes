@@ -303,4 +303,52 @@ describe("a night in town (businesses.parking.stopInTown)", () => {
     expect(t.townNight).toBeUndefined(); // slept in town
     expect(w.ledger.entries.some((e) => e.ref === `fine:shoulder:${t.id}`)).toBe(false);
   }, 10_000);
+
+  describe("with labor.turnWhileEmpty (the red team's 0.24.1 pass: turn + town)", () => {
+    const BOTH = on((c) => ({ ...c, labor: { ...c.labor, turnWhileEmpty: true }, businesses: { ...c.businesses, parking: { ...c.businesses.parking, stopInTown: true } } }));
+
+    it("a turn an hour before the hours run out drives on and sleeps on the shoulder, as before the town", () => {
+      const { w, c, t, far } = oo(BOTH, true);
+      w.t = 6 * 60;
+      expect(applyAction(w, c.id, { type: "set_night_stop", choice: "town" }).ok).toBe(true);
+      expect(applyAction(w, c.id, { type: "reposition_truck", truckId: t.id, hubId: w.net.hubs[far]!.id }).ok).toBe(true);
+      for (let h = 0; h < 3; h++) stepHour(w);
+      expect(t.emptyMi).toBeGreaterThan(50);
+      // An hour of driving left, then a turn toward a hub that hour can't reach, every site on its first 200 miles full.
+      const limit = w.cfg.hos.drivingHoursPerDay * 60;
+      t.shiftDrivenMin = limit - 60;
+      const other = w.net.hubs.findIndex((_, i) => i !== far && i !== c.homeHub && hubMiles(w, i, c.homeHub) < 400 && hubMiles(w, i, c.homeHub) > 150);
+      expect(applyAction(w, c.id, { type: "reposition_truck", truckId: t.id, hubId: w.net.hubs[other]!.id }).ok).toBe(true);
+      expect(t.turnedToday).toBe(true);
+      const route = placeRoute(w, t.place, t.targetPlace)!;
+      for (const s of sitesAlong(w, route)) if (s.mile < 200) w.sites[s.site - 1]!.parked = w.sites[s.site - 1]!.spaces;
+      const nights: string[] = [];
+      const onNight = w.metrics.onNight.bind(w.metrics);
+      w.metrics.onNight = ((k: Parameters<typeof onNight>[0]) => {
+        nights.push(k);
+        onNight(k);
+      }) as typeof onNight;
+      const mi = t.remainingMi;
+      stepHour(w);
+      // It set out: no night in town on a leg a turn began.
+      expect(t.remainingMi).toBeLessThan(mi);
+      expect(t.townNight).toBeUndefined();
+      // The hour spent, the night is the shoulder's (no site with room in reach), and the next duty day clears the mark.
+      for (let h = 0; h < 14 && t.turnedToday; h++) stepHour(w);
+      expect(t.turnedToday).toBeUndefined();
+      expect(t.shiftDrivenMin).toBeLessThan(limit);
+      expect(t.townNight).toBeUndefined();
+      expect(nights[0]).toBe("shoulder");
+      w.ledger.assertBalanced();
+    });
+
+    it("a truck that began the leg idle in the town still sleeps there", () => {
+      const { w, t } = lateStart(BOTH, true);
+      expect(t.turnedToday).toBeUndefined();
+      const mi = t.remainingMi;
+      for (let h = 0; h < 6; h++) stepHour(w);
+      expect(t.remainingMi).toBe(mi);
+      expect(w.ledger.entries.some((e) => e.ref === `fine:shoulder:${t.id}`)).toBe(false);
+    });
+  });
 });
