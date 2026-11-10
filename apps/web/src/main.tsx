@@ -245,8 +245,9 @@ async function bootTest(): Promise<void> {
   S.platform = { db: null, uid: null, owner: true, local: true };
   const log = readTest();
   S.savedTest = log && log !== "stale" ? { name: log.name, day: Math.floor(log.t / 1440) } : null;
+  // Said on the title itself, standing until a new world starts: a toast renders only inside the game (QA client 5).
+  S.titleNote = log === "stale" ? "stale" : null;
   showTitle({ kind: "test" });
-  if (log === "stale") toast("The rules changed since your last visit, so your old test world can't be replayed. Start a new one.");
 }
 
 /** Replays the saved test world (the title's Continue button). */
@@ -254,6 +255,7 @@ async function continueTest(): Promise<void> {
   const log = readTest();
   if (!log || log === "stale") {
     S.savedTest = null;
+    S.titleNote = log === "stale" ? "stale" : null;
     showTitle({ kind: "test" });
     return;
   }
@@ -266,8 +268,8 @@ async function continueTest(): Promise<void> {
     });
   } catch {
     S.savedTest = null;
+    S.titleNote = "unreadable";
     showTitle({ kind: "test" });
-    toast("Your saved test world couldn't be replayed, so it was set aside. Start a new one.", true);
     return;
   }
   S.test = t;
@@ -283,7 +285,8 @@ async function continueTest(): Promise<void> {
  * the clock paused, choosing your home hub (Jeff, 2026-11-02).
  */
 async function openTest(): Promise<void> {
-  // "Starting the world…" over the title loop while the market runs its warm start (S0).
+  // "Starting the world…" over the title loop while the market runs its warm start (S0). A new world ends the title's note.
+  S.titleNote = null;
   showTitle({ kind: "starting" });
   // The warm-up reads the starter hubs after each round (the mean keeps the last four), so the rings are ready on arrival.
   const t = await TestGame.create(

@@ -155,14 +155,19 @@ function words(w: World, c: Company, m: Milestone, phase: "before" | "at"): { li
         ...(hasMonthReport() ? { button: MILESTONE.monthClose.button, go: openMonthReport } : {}),
       };
     }
-    case "day28":
+    case "day28": {
+      // Client batch 6 (QA): before a truck is owned, the first-truck figure's own name and words (figures.ts
+      // firstTruckLine, as the Dealer's card says it), and never "a second truck" to a company that owns none.
+      const owns = c.firstOwnedTruckDay !== null || (w.trucksByCompany.get(c.id) ?? []).some((t) => t.lease === "owned");
+      const first = owns ? null : firstTruckLine(w, c);
       return {
-        line: phase === "before" ? MILESTONE.day28.before(shortDate(m.day!)) : MILESTONE.day28.at,
-        reason: MILESTONE.day28.reason(fdFull(gapToTruck(w, c).gapFd)),
+        line: phase === "before" ? MILESTONE.day28.before(shortDate(m.day!)) : owns ? MILESTONE.day28.at : PENDING.day28AtFirst,
+        reason: owns ? MILESTONE.day28.reason(fdFull(gapToTruck(w, c).gapFd)) : PENDING.day28ReasonFirst(first?.figure ?? null),
         // Never a button to a locked tab (the director): the Dealer opens on day 28 (tabs.ts firstTruckOpen), so the line
         // before it points there only if the walkthrough has opened it already.
         ...(tabOpen("market", w, c) ? { button: phase === "before" ? MILESTONE.day28.beforeButton : MILESTONE.day28.button, go: go("market") } : {}),
       };
+    }
     case "firstBoom":
       return { line: MILESTONE.firstBoom.at, reason: MILESTONE.firstBoom.reason, button: MILESTONE.firstBoom.button, go: go("loads") };
     case "slump": {

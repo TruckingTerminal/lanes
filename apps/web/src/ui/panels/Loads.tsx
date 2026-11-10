@@ -1,5 +1,5 @@
 import type { JSX } from "preact";
-import { useState } from "preact/hooks";
+import { useEffect, useRef, useState } from "preact/hooks";
 import { dispatchProfile, expectedReloadDeadheadMi, isLocal, operatingTrucks, localOnly, MANUAL_BID_MAX_DEADHEAD_MI, ownerDrawFd, placeMiles, placeToll, VETTING_NAMES, type Load, type Truck } from "@lanes/engine";
 import { COMMODITIES } from "@lanes/data";
 import { allInRate, bidFiles, bidRange, blockReason, chipPair, clearsNear, suggestBid } from "../../board.js";
@@ -296,6 +296,13 @@ function LoadDetail({ r, truck, mine, pendingRate }: { r: Row; truck: Truck; min
     // load leaving the board) reads this record (the trucker's laptop bid lost with no word).
     S.handBids.set(l.id, { rate, be: r.be, truckId: truck.id, from: op.name, to: dp.name, ...(r.files ? { filed: true } : {}) });
   };
+  // Client batch 6 (QA, laptop at 1024×768): the actions sat at the foot of the third column, the bid field about 164 px
+  // below the window. They lead now, one row under the heading, and the opened row brings them into view if it must.
+  const acts = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const el = acts.current;
+    if (el && typeof el.scrollIntoView === "function") requestAnimationFrame(() => el.scrollIntoView({ block: "nearest" }));
+  }, [l.id]);
   return (
     <div class="stack">
       {off ? null : <DockWarning w={w} t={truck} l={l} dh={r.dh} />}
@@ -305,6 +312,15 @@ function LoadDetail({ r, truck, mine, pendingRate }: { r: Row; truck: Truck; min
         </b>
         <span class="muted">{l.miles} mi</span>
         {r.block ? <span class="bad">Not for you yet: {r.block}.</span> : null}
+      </div>
+      <div class="row loadacts" ref={acts}>
+        <Btn primary disabled={off} onClick={() => act({ type: "book_load", truckId: truck.id, loadId: l.id }, "Booked. The truck is on its way")}>
+          Book now · {l.bookNow.toFixed(2)}
+        </Btn>
+        <input type="number" id={bidId} step="0.01" min="0.5" max={l.ceiling.toFixed(2)} defaultValue={mine && pendingRate !== undefined ? pendingRate.toFixed(2) : r.suggest !== null ? r.suggest.toFixed(2) : ""} aria-label="Your bid per mile" disabled={bidOff} />
+        <Btn on={mine} disabled={bidOff} onClick={placeBid}>
+          {mine ? "Change bid" : "Bid"}
+        </Btn>
       </div>
       <div class="detail">
         <div>
@@ -374,17 +390,6 @@ function LoadDetail({ r, truck, mine, pendingRate }: { r: Row; truck: Truck; min
               ...(l.tenderedTo === me().id ? ([["Your tender", <span class="good">{(w.contracts.find((x) => x.id === l.contractId)?.ratePerMile ?? 0).toFixed(2)}/mi · accept by {hhmm(l.tenderUntil)}</span>]] as [string, JSX.Element][]) : []),
             ]}
           />
-          <div class="row" style={{ marginTop: "10px" }}>
-            <Btn primary disabled={off} onClick={() => act({ type: "book_load", truckId: truck.id, loadId: l.id }, "Booked. The truck is on its way")}>
-              Book now · {l.bookNow.toFixed(2)}
-            </Btn>
-          </div>
-          <div class="row" style={{ marginTop: "8px" }}>
-            <input type="number" id={bidId} step="0.01" min="0.5" max={l.ceiling.toFixed(2)} defaultValue={mine && pendingRate !== undefined ? pendingRate.toFixed(2) : r.suggest !== null ? r.suggest.toFixed(2) : ""} aria-label="Your bid per mile" disabled={bidOff} />
-            <Btn on={mine} disabled={bidOff} onClick={placeBid}>
-              {mine ? "Change bid" : "Bid"}
-            </Btn>
-          </div>
         </div>
       </div>
     </div>

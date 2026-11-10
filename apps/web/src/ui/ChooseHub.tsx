@@ -95,7 +95,7 @@ function Say({ line, mood = "wave", children }: { line: string; mood?: PortraitM
   );
 }
 
-/** The country's mood, once over a list of hubs (hubcard.ts moodLine), while it's booming or slumping. */
+/** The country's reading, once under a list of hubs (hubcard.ts moodLine), while it's booming or slumping: the hubs' own lines lead. */
 function MoodLine(): JSX.Element | null {
   const line = moodLine(S.game!.w);
   return line ? <p class="muted small">{line}</p> : null;
@@ -107,8 +107,8 @@ function HubRow({ hub }: { hub: number }): JSX.Element {
     <button type="button" class="hubrow" onClick={() => go("card", hub)}>
       <b>{f.name}</b>
       {f.character ? <span class="small">{f.character}</span> : null}
-      {/* The hub's own line; the country's mood is said once, above the list (the diaries: it printed on all 60). */}
-      <span class="muted small">{f.seasonOnly}</span>
+      {/* The hub's own line; the country's is said once, under the list (the diaries: it printed on all 60). */}
+      <span class="muted small">{f.season}</span>
     </button>
   );
 }
@@ -116,12 +116,12 @@ function HubRow({ hub }: { hub: number }): JSX.Element {
 function Home(): JSX.Element {
   return (
     <Say line={FIRST_ENTRY.home}>
-      <MoodLine />
       <div class="hubrows">
         {ringedHubs().map((i) => (
           <HubRow key={i} hub={i} />
         ))}
       </div>
+      <MoodLine />
       <div class="row">
         <Btn ghost onClick={() => go("all")}>
           {FIRST_ENTRY.allHubs}
@@ -147,12 +147,12 @@ function AllHubs(): JSX.Element {
         </Btn>
       </div>
       <h3 class="label">{FIRST_ENTRY.allHubsHeader}</h3>
-      <MoodLine />
       <div class="hubrows">
         {order.map(({ i }) => (
           <HubRow key={i} hub={i} />
         ))}
       </div>
+      <MoodLine />
     </div>
   );
 }
@@ -185,6 +185,8 @@ function HubCard({ hub }: { hub: number }): JSX.Element {
       <h2>{f.name}</h2>
       {f.character ? <p>{f.character}</p> : null}
       <p class="muted">{f.season}</p>
+      {/* The country's reading on its own line, after the hub's own (client batch 6). */}
+      {f.country ? <p class="muted small">{f.country}</p> : null}
       {group(HUB_CARD.freightNow, f.freight)}
       {/* No Intel link here (Jeff, 2026-11-04): before a company the sheet is the hub choice and nothing leaves it. */}
       {group(HUB_CARD.whosHere, f.whosHere)}

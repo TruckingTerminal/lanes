@@ -12,7 +12,8 @@ import { Buy, Showroom } from "./Showroom.js";
 import { confirmAct } from "../Confirm.js";
 import { leaseDepositNow, leaseTruck, leaseWeeklyMin, newTruck, usedTruck } from "../../confirmspecs.js";
 import { ANSWER, CONFIRM, DEALER } from "../../copy.js";
-import { firstTruckLine, inFirstMonth } from "../../figures.js";
+import { firstTruckLine, inFirstMonth, truckPlace } from "../../figures.js";
+import { PENDING } from "../../copy-pending.js";
 import { CapsLine } from "../Caps.js";
 
 export function Dealer(): JSX.Element {
@@ -81,7 +82,7 @@ export function Dealer(): JSX.Element {
                   {TIER_NAME[t.tier]} + {TRAILER_NAME[t.trailer]}
                 </h3>
                 <p>
-                  {Math.round(t.odometer).toLocaleString("en-US")} mi · {pct(condition(w.cfg, t))} condition · at {w.net.hubs[t.hub]!.name}
+                  {Math.round(t.odometer).toLocaleString("en-US")} mi · {pct(condition(w.cfg, t))} condition · {PENDING.truckIn(truckPlace(w, t.place))}
                   {l.sellerId === 0 ? <span class="warn"> · repo</span> : null}
                 </p>
                 <p>

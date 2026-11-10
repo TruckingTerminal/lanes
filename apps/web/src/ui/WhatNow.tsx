@@ -187,7 +187,7 @@ function words(a: NextAction): { action: string; reason: string; button: string;
     case "lost": {
       const l = load(a.loadId);
       // The sheet's own call (board.ts suggestBid): "Bid on" only where it suggests a bid, else "Book" (client batch 5).
-      return { action: (a.suggest !== null ? NOW.lostAction : PENDING.lostBookAction)(l ? place(l.originPlace) : "", l ? place(l.destPlace) : ""), reason: NOW.lostReason(a.clearsNear.toFixed(2), fd(a.profitFd)), button: NOW.lostButton, go: () => openLoadOf(a.truckId, a.loadId) };
+      return { action: (a.suggest !== null ? NOW.lostAction : PENDING.lostBookAction)(l ? place(l.originPlace) : "", l ? place(l.destPlace) : ""), reason: a.suggest !== null ? NOW.lostReason(a.clearsNear.toFixed(2), fd(a.profitFd)) : PENDING.lostBookReason(a.bookNow.toFixed(2), fd(a.profitBookFd)), button: NOW.lostButton, go: () => openLoadOf(a.truckId, a.loadId) };
     }
     case "idle": {
       const l = load(a.loadId);

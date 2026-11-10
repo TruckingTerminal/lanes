@@ -1,4 +1,4 @@
-import { breakdownsPer1000Mi, collateralOf, companyAccount, condition, crewed, deliveryDays, lotSpec, NEW_TRUCK, type Collateral, fuelPrice, layerOpen, locksOn, lotPrice, maintenancePerMile, npcDealerMult, opsCap, ordersOf, ownerDrawFd, resting, tripCost, yardTrucks, type Company, type Truck, type TruckSpec, type World } from "@lanes/engine";
+import { breakdownsPer1000Mi, collateralOf, companyAccount, condition, crewed, lotDeliveryDays, lotSpec, NEW_TRUCK, type Collateral, fuelPrice, layerOpen, locksOn, lotPrice, maintenancePerMile, npcDealerMult, opsCap, ordersOf, ownerDrawFd, resting, tripCost, yardTrucks, type Company, type Truck, type TruckSpec, type World } from "@lanes/engine";
 import { boardRows, type BoardRow } from "./board.js";
 import { buyPlan, cheapestNewRig } from "./finance.js";
 import { invoices, weekCosts } from "./ledger.js";
@@ -137,7 +137,7 @@ export function gapToTruck(w: World, c: Company): { gapFd: number; route: "lot" 
   const routes: { route: "lot" | "listing" | "new"; price: number; truck: PricedTruck; col: Collateral }[] = [];
   const lot = w.cfg.usedMarket.npcLot;
   if (lot.enabled && w.cfg.assets.enabled && w.usedLot.stock > 0)
-    routes.push({ route: "lot", price: lotPrice(w, "workhorse", "van") * npcDealerMult(w), truck: { route: "lot", spec: { tier: "workhorse", trailer: "van", lease: "owned", odometer: lot.odometer, milesSinceRebuild: lot.milesSinceRebuild, rebuilds: lot.rebuilds }, place: null, arrivesDay: Math.floor(w.t / w.cfg.time.gameMinutesPerDay) + deliveryDays(w) }, col: collateralOf(w, lotSpec(w, "van")) });
+    routes.push({ route: "lot", price: lotPrice(w, "workhorse", "van") * npcDealerMult(w), truck: { route: "lot", spec: { tier: "workhorse", trailer: "van", lease: "owned", odometer: lot.odometer, milesSinceRebuild: lot.milesSinceRebuild, rebuilds: lot.rebuilds }, place: null, arrivesDay: Math.floor(w.t / w.cfg.time.gameMinutesPerDay) + lotDeliveryDays(w, replacing) }, col: collateralOf(w, lotSpec(w, "van")) });
   for (const l of w.listings) {
     if (l.status !== "open" || l.truckId <= 0 || l.sellerId === c.id || l.formerOwnerId === c.id) continue;
     const t = w.trucks[l.truckId - 1]!;
@@ -175,6 +175,16 @@ export function repairsPer(w: World, spec: TruckSpec): number {
 }
 
 /**
+ * Where a truck stands, one wording for the Dealer's card and the lists it's found in (client batch 6, QA: the card said
+ * the town and the used list the hub, so the card's truck couldn't be found): the town, with its market where they differ.
+ */
+export function truckPlace(w: World, place: number): string {
+  const p = w.net.places[place]!;
+  const market = w.net.hubs[p.market]!.name;
+  return p.name === market ? p.name : PENDING.townInMarket(p.name, market);
+}
+
+/**
  * The first-truck figure's words, one function for the Dealer's teaser, Iuliia's page and the Dealer's card (as chipPair
  * is for a load's cash): "To your first truck: N FD", or "You can buy today" once met; and Iuliia's cushion advice under
  * it once a week of spending is known. Null with no truck for sale anywhere.
@@ -188,7 +198,7 @@ export function firstTruckLine(w: World, c: Company): { figure: string; met: boo
   const kmi = t ? `${Math.round(t.spec.odometer / 1000)}k` : "";
   const cond = t ? condition(w.cfg, t.spec) : 1;
   // The words fit the rule: the truck that takes the least cash today, or, the hold covering several, the cheapest of them.
-  const desc = !t ? null : t.route === "new" ? PENDING.truckNew(TIER_NAME[t.spec.tier], TRAILER_NAME[t.spec.trailer].toLowerCase()) : PENDING.truckUsed(TIER_NAME[t.spec.tier], TRAILER_NAME[t.spec.trailer].toLowerCase(), kmi, pct(cond), t.place !== null ? w.net.places[t.place]!.name : null);
+  const desc = !t ? null : t.route === "new" ? PENDING.truckNew(TIER_NAME[t.spec.tier], TRAILER_NAME[t.spec.trailer].toLowerCase()) : PENDING.truckUsed(TIER_NAME[t.spec.tier], TRAILER_NAME[t.spec.trailer].toLowerCase(), kmi, pct(cond), t.place !== null ? truckPlace(w, t.place) : null);
   const arrives = t?.arrivesDay !== undefined ? shortDate(t.arrivesDay) : null;
   const what = desc === null ? null : g.needNowFd <= 0.5 ? PENDING.pricesCovered(desc, arrives) : PENDING.pricesLeastCash(desc, arrives);
   const worn = t && t.route !== "new" && cond < WORN_BELOW ? PENDING.wornCatch(kmi, pct(cond), fdFull(Math.round(repairsPer(w, t.spec) / 100) * 100), REPAIR_PER_MI.toLocaleString("en-US")) : null;

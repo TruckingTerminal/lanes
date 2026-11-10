@@ -1,5 +1,5 @@
 import type { JSX } from "preact";
-import { useEffect } from "preact/hooks";
+import { useEffect, useLayoutEffect, useRef } from "preact/hooks";
 import { iuliiaFirst } from "../iuliia.js";
 import { ExplainSheet } from "./Explain.js";
 import { hhmm, realUntil } from "../format.js";
@@ -104,10 +104,30 @@ export function SideRack(): JSX.Element {
   );
 }
 
+/**
+ * Client batch 6 (QA, laptop at 1024×768): the panel box's height was the window less a fixed 200 px, but what sits above
+ * it (the bar, the nav, the teaser row, Iuliia's caption) runs taller, so its bottom, and the load sheet's pinned Book now
+ * and Bid with it, sat about 164 px below the window until the page scrolled. Its top on the page, measured, sets
+ * `--boxtop`, and page.html caps the box at the window less that: its bottom, and whatever is pinned to it, in view.
+ */
+function panelTop(el: HTMLDivElement | null): void {
+  if (!el) return;
+  const top = Math.max(0, Math.round(el.getBoundingClientRect().top + window.scrollY));
+  const v = `${top}px`;
+  if (el.style.getPropertyValue("--boxtop") !== v) el.style.setProperty("--boxtop", v);
+}
+
 /** What the nav opens: the teaser row (laptop), Iuliia's caption, and the tab's panel or its teaser card. On a phone the sheet holds this. */
 export function RackBody(): JSX.Element {
   useData();
   switchWhenFormed();
+  const box = useRef<HTMLDivElement>(null);
+  useLayoutEffect(() => panelTop(box.current));
+  useEffect(() => {
+    const f = () => panelTop(box.current);
+    window.addEventListener("resize", f);
+    return () => window.removeEventListener("resize", f);
+  }, []);
   const g = S.game!;
   // Before a company the sheet is the hub choice whatever the tab (Jeff, 2026-11-04: a tap elsewhere lost it); locked, a tab outside the lock reads as Truck.
   const picking = choosing();
@@ -127,7 +147,7 @@ export function RackBody(): JSX.Element {
       <Caption />
       <ExplainSheet />
       <ConfirmSheet />
-      <div class="panelbox">
+      <div class="panelbox" ref={box}>
         <ReportCard key={S.reportKind} />
         {open && !watching ? <><StepMoment /><FirstLoad /></> : null}
         {under ? (

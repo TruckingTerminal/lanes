@@ -117,8 +117,17 @@ export const PENDING = {
   // `arrives` is the used lot's (or a dealer's) delivery date, when it has one.
   truckNew: (tier: string, trailer: string) => `a new ${tier} with a ${trailer}`,
   truckUsed: (tier: string, trailer: string, kmi: string, cond: string, at: string | null) => `a used ${tier} with a ${trailer}, ${kmi} miles, ${cond} condition${at ? `, in ${at}` : ""}`,
+  // Client batch 6 (QA: "in Colorado Springs" on the card was "at Denver" in the list). Where a truck stands, the same
+  // words on the Dealer's card (truckUsed's `at`), its used list and the Showroom's lease rows (figures.ts truckPlace):
+  // the town, and its market where the town isn't the hub itself.
+  townInMarket: (town: string, market: string) => `${town} (${market} market)`,
+  // The used list's and the lease rows' place, after the condition: "… · 34% condition · in Colorado Springs (Denver market)".
+  truckIn: (place: string) => `in ${place}`,
   // What now? rule 2 after a lost bid, when the better load's sheet suggests no bid (NOW.lostAction says "Bid on … instead").
   lostBookAction: (origin: string, dest: string) => `Book ${origin} to ${dest} instead.`,
+  // Client batch 6 (QA): its reason quotes the booking it recommends, Book now's rate and profit (the sheet's "Profit at
+  // book-now"); copy.ts NOW.lostReason's clears-near figures stay with "Bid on … instead.".
+  lostBookReason: (rate: string, fd: string) => `You lost the last one. This one books now at ${rate}/mi and pays ${fd} FD over break-even.`,
   // The guide's Book-now prices page (guide/market.ts) where board.refuseOverCeiling is on: no bid over the ceiling wins.
   // `board` is the link to the load board page. And its dispatcher paragraph, eased as the dispatcher's floor line says it.
   guideBookNowIntro: (board: string) => `Every load shows a <b>book-now</b> price: what the poster is offering right now. Take it and the load is yours at once, no round to wait for. Want more? Bid above it and wait for the round: the poster takes the best bid at or under its ceiling, weighing price, on-time record and empty miles, and refuses one over it (${board}). Anyone who'd take the posted price just books.`,
@@ -150,6 +159,25 @@ export const PENDING = {
   floorGuide: "The dispatcher's floor: it takes no load under it, and it eases as a truck sits idle or its driver is long from home",
   // The month report's claims row and its news lines, now with the delivery windows' claims (books.ts).
   claimsRow: "Claims: cargo, late, no-show, released and unfilled loads",
+  // Client batch 6. The title (test build), above Continue and New test world, standing until a new world starts: why
+  // the saved world was set aside. Stale: a version bump changed the rules (RULESET), so its log can't be replayed.
+  titleStale: "The rules changed since your last visit, so your old test world can't be replayed. Start a new one.",
+  // Unreadable: the saved log failed its check or its replay.
+  titleUnreadable: "Your saved test world couldn't be replayed, so it was set aside. Start a new one.",
+  // Client batch 6 (QA: "Freight is booming across the country" over hub rows that say "A little thin in January").
+  // The country's reading, from freight.ts marketMood: the last week's cleared rate across the country against the four
+  // weeks before (booming from +rates.news.boomAt, slumping from slumpAt). It reads rates, not how much freight there
+  // is, so it says rates and says it's the country's. Once under the hub list (ChooseHub), and on its own line under a
+  // hub's own season line on its page. copy.ts MARKET.card is no longer read; MARKET.feed (the news line on the day the
+  // mood crosses) is unchanged.
+  countryRatesUp: (pct: string) => `Across the country, rates are up ${pct} on the month before.`,
+  countryRatesDown: (pct: string) => `Across the country, rates are down ${pct} on the month before.`,
+  // Client batch 6 (QA: "most need a second truck… Your gap to the next truck is 0 FD" to a company that owns none, beside
+  // the card's "You can buy today"). Iuliia's day-28 line, before any truck is owned (ui/Milestones.tsx); copy.ts
+  // MILESTONE.day28.at and .reason stay for a company that owns one.
+  day28AtFirst: "Businesses are open. Nobody needs a warehouse in week four; most need their first truck.",
+  // `figure` is firstTruckLine's: "To your first truck: N FD" or "You can buy today"; null with no truck for sale anywhere.
+  day28ReasonFirst: (figure: string | null) => (figure ? `A business pays over years. ${figure}.` : "A business pays over years."),
   newsServiceClaim: (kind: string, load: string, fd: string) => `${kind === "late" ? `Late delivery, load #${load}` : kind === "noshow" ? `No-show, load #${load}` : `Released load #${load}`}: −${fd} FD claim to the poster.`,
 } as const;
 

@@ -2,7 +2,8 @@ import { dayOf, EQUIPMENT, marketMood, garagingOf, homeCrowding, hubTheftRisk, l
 import { hubs as HUBS } from "@lanes/data";
 import { starterBreakEven } from "./breakeven.js";
 import { FIRST_HUBS } from "./game.js";
-import { HUB_CARD, MARKET, SEASON, STARTERS, SECURITY } from "./copy.js";
+import { HUB_CARD, SEASON, STARTERS, SECURITY } from "./copy.js";
+import { PENDING } from "./copy-pending.js";
 import { fd, pct } from "./format.js";
 
 /**
@@ -13,9 +14,13 @@ import { fd, pct } from "./format.js";
 export interface HubFacts {
   name: string;
   character: string | null;
+  /** The hub's own season line (seasonLine): its freight against its trucks. It leads, in a list's row and on the hub's page. */
   season: string;
-  /** The hub's own season line alone, for a row in a list, which says the country's mood once above it (moodLine). */
-  seasonOnly: string;
+  /**
+   * The country's reading on its own line (moodLine), null while steady. Client batch 6 (QA): it sat in one paragraph with
+   * the hub's line and read as a contradiction ("booming across the country" over "a little thin"); it reads rates, not freight.
+   */
+  country: string | null;
   freight: string[];
   whosHere: string[];
   costs: string[];
@@ -111,16 +116,14 @@ export function seasonLine(w: World, hub: number): string {
   return SEASON.fine(month);
 }
 
-/** The country's mood while the market is booming or slumping (marketMood), null while steady: one line above a list of hubs. */
+/**
+ * The country's reading while the market is booming or slumping (freight.ts marketMood: the last week's cleared rate
+ * across the country against the four weeks before), null while steady: once under a list of hubs, and on its own line
+ * under a hub's own on its page. It reads rates, so it says rates and says whose (client batch 6).
+ */
 export function moodLine(w: World): string | null {
-  const mood = marketMood(w).state;
-  return mood === "steady" ? null : MARKET.card[mood];
-}
-
-/** The season line, and the country's mood after it while the market is booming or slumping (marketMood; steady says nothing). */
-function seasonWithMood(w: World, hub: number): string {
-  const mood = marketMood(w).state;
-  return mood === "steady" ? seasonLine(w, hub) : `${seasonLine(w, hub)} ${MARKET.card[mood]}`;
+  const m = marketMood(w);
+  return m.state === "steady" ? null : m.state === "booming" ? PENDING.countryRatesUp(pct(m.change)) : PENDING.countryRatesDown(pct(-m.change));
 }
 
 const timesWord = (x: number): string => (Math.abs(x - 2) < 0.25 ? "twice" : Math.abs(x - 3) < 0.25 ? "three times" : `${x.toFixed(1)} times`);
@@ -149,8 +152,8 @@ export function hubFacts(w: World, hub: number): HubFacts {
   return {
     name: h.name,
     character: STARTERS[h.id]?.character ?? null,
-    season: seasonWithMood(w, hub),
-    seasonOnly: seasonLine(w, hub),
+    season: seasonLine(w, hub),
+    country: moodLine(w),
     freight: [
       HUB_CARD.posted(posted, posted ? (rateSum / posted).toFixed(2) : "–"),
       HUB_CARD.perTruck(ratio.toFixed(1), ratioWord),

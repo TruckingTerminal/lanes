@@ -153,9 +153,8 @@ describe("the hub list says the country's mood once (diaries item 8)", () => {
     const w = g.w;
     const hub = w.net.hubs.findIndex((h) => h.id === "DAL");
     const f = hubFacts(w, hub);
-    expect(f.seasonOnly).toBe(seasonLine(w, hub));
-    const mood = moodLine(w);
-    if (mood) expect(f.season).toContain(mood);
-    else expect(f.season).toBe(f.seasonOnly);
+    // Client batch 6: the hub's own line leads, alone, and the country's stands apart on its own line.
+    expect(f.season).toBe(seasonLine(w, hub));
+    expect(f.country).toBe(moodLine(w));
   }, 60_000);
 });

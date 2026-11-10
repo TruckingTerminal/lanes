@@ -132,6 +132,8 @@ export const S = {
   guidePage: "start",
   /** The test build: the world saved in this browser, for the title's Continue button (name and the day it reached). */
   savedTest: null as { name: string; day: number } | null,
+  /** The test build: why the saved world was set aside (QA client 5: a toast never shows on the title), said on the title until a new world starts. */
+  titleNote: null as null | "stale" | "unreadable",
   /** The walkthrough card (walkthrough.ts): the step being read ahead, or null for the current one. */
   walkView: null as number | null,
   /** What this browser has already been shown in the first ten minutes (onboard.ts). */
@@ -161,7 +163,7 @@ export const PER_WORLD = [
 ] as const satisfies readonly (keyof typeof S)[];
 export const KEPT_ACROSS_WORLDS = [
   "platform", "live", "test", "game", "screen", "loadShare", "tab", "layout", "sheet", "ratesEq", "guidePage", "savedTest",
-  "onboard", "reporting", "reportKind", "speed", "toast", "theme",
+  "titleNote", "onboard", "reporting", "reportKind", "speed", "toast", "theme",
 ] as const satisfies readonly (keyof typeof S)[];
 const blank = (v: unknown): unknown => (v instanceof Map ? new Map() : v instanceof Set ? new Set() : Array.isArray(v) ? [] : v !== null && typeof v === "object" ? structuredClone(v) : v);
 const WORLD_START = Object.fromEntries(PER_WORLD.map((k) => [k, blank(S[k])])) as Record<string, unknown>;

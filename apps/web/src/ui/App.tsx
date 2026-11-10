@@ -10,6 +10,7 @@ import { LOGO_TITLE, LOGO_TITLE_H, LOGO_W } from "../assets.js";
 import { GameScreen } from "./Shell.js";
 import { fsEnabled, S, TEST_BUILD, toggleFullscreen, useData } from "../state.js";
 import { LOGIN } from "../copy.js";
+import { PENDING } from "../copy-pending.js";
 import { weekdayDate } from "../format.js";
 import { Btn } from "./bits.js";
 
@@ -145,7 +146,11 @@ function TitleAction(): JSX.Element {
       </div>
     );
   }
+  // Why the saved world was set aside, standing on the title until a new world starts (QA client 5).
+  const note = S.titleNote === "stale" ? PENDING.titleStale : S.titleNote === "unreadable" ? PENDING.titleUnreadable : null;
   return (
+    <>
+      {note ? <p class="titlenote">{note}</p> : null}
     <div class="row center">
       {current ? (
         <Btn primary onClick={current.go}>
@@ -157,6 +162,7 @@ function TitleAction(): JSX.Element {
       </Btn>
       {S.live ? <Btn onClick={H.backToLive}>Back to the live world</Btn> : null}
     </div>
+    </>
   );
 }
 

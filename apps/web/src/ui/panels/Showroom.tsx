@@ -27,7 +27,7 @@ import {
   truckValue,
   yardTrailers,
   type Source,
-  deliveryDays,
+  lotDeliveryDays,
 } from "@lanes/engine";
 import { fd, pct, shortDate, TIER_NAME, TRAILER_NAME, plural } from "../../format.js";
 import { act, me, myTrucks, order, S, toast } from "../../state.js";
@@ -42,7 +42,8 @@ import { Rig } from "../Loop.js";
 import { Fig } from "../Explain.js";
 import { confirmAct } from "../Confirm.js";
 import { newTruck, trailer as trailerLines, usedTruck, type Lines } from "../../confirmspecs.js";
-import { inFirstMonth } from "../../figures.js";
+import { inFirstMonth, truckPlace } from "../../figures.js";
+import { PENDING } from "../../copy-pending.js";
 import { fleetCaps } from "../../figures.js";
 import { CAPS, DOOR } from "../../copy.js";
 
@@ -107,7 +108,9 @@ export function Showroom(): JSX.Element {
               replacing={onLease}
               block={w.usedLot.stock < 1 ? DEALER.whyLotEmpty : capWhy ?? roomWhy}
               action={{ type: "buy_asset", tier: "workhorse", trailer: tr, replaceNpcLease: onLease, used: true }}
-              when={DEALER.arrives(shortDate(today + deliveryDays(w)))}
+              // Client batch 6 (QA): the engine's own lot wait for this buyer (dealerships.ts lotDeliveryDays): the NPC
+              // dealer's queue for a starter replacing its lease, the lot's own days for a rig that adds to a fleet.
+              when={DEALER.arrives(shortDate(today + lotDeliveryDays(w, onLease)))}
               lines={usedTruck(w, c, { ...lotSpec(w, tr), tier: "workhorse", trailer: tr, lease: "owned" })}
               truck={collateralOf(w, lotSpec(w, tr))}
               ok="Ordered from the used lot"
@@ -216,7 +219,7 @@ export function Showroom(): JSX.Element {
           return (
             <div class="row" key={o.id}>
               <span>
-                {TIER_NAME[t.tier]} · {pct(condition(w.cfg, t))} · {Math.round(t.odometer / 1000)}k mi · at {w.net.hubs[t.hub]?.name} · <Num>{fd(o.weeklyFd)}</Num> FD a week, {o.minWeeks} weeks minimum · from {owner?.name ?? "?"} (value {fd(truckValue(w, t))})
+                {TIER_NAME[t.tier]} · {pct(condition(w.cfg, t))} · {Math.round(t.odometer / 1000)}k mi · {PENDING.truckIn(truckPlace(w, t.place))} · <Num>{fd(o.weeklyFd)}</Num> FD a week, {o.minWeeks} weeks minimum · from {owner?.name ?? "?"} (value {fd(truckValue(w, t))})
               </span>
               <Btn sm onClick={() => act({ type: "take_lease", offerId: o.id }, "Leased: it joins your fleet where it stands, with your trailer")}>
                 Lease it

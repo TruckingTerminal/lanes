@@ -409,8 +409,9 @@ details.fold > summary { cursor: pointer; padding: 6px 0; color: var(--text-seco
 .tabs .btn:hover { background: color-mix(in srgb, var(--accent) 8%, transparent); }
 .tabs .btn.on { background: transparent; color: var(--accent); border-bottom-color: var(--accent); }
 .tabs .btn img.px { width: 24px; height: 24px; }
-.panelbox { max-height: clamp(360px, calc(100vh - 200px), 1100px); overflow: auto; padding-right: 2px; scrollbar-color: var(--border) transparent; }
-.board.panel .panelbox { max-height: calc(100vh - 170px); }
+/* --boxtop: the box's own top on the page, measured (ui/Rack.tsx panelTop; client batch 6), so its bottom and what's pinned to it stay in the window. */
+.panelbox { max-height: clamp(240px, calc(100vh - var(--boxtop, 200px) - 8px), 1100px); overflow: auto; padding-right: 2px; scrollbar-color: var(--border) transparent; }
+.board.panel .panelbox { max-height: max(240px, calc(100vh - var(--boxtop, 170px) - 8px)); }
 .panelbox::-webkit-scrollbar { width: 10px; }
 .panelbox::-webkit-scrollbar-thumb { background: var(--border); border-radius: 5px; }
 .ticker { display: flex; gap: 28px; overflow: hidden; white-space: nowrap; align-items: center; min-height: 30px; padding: 4px 12px; background: var(--bg-secondary); border-top: 1px solid var(--border); font-family: var(--font-mono); font-size: 12px; color: var(--text-secondary); }
