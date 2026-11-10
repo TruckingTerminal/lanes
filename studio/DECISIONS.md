@@ -1,5 +1,18 @@
 # Decisions (the producer's log for Jeff; newest first)
 
+- 2026-11-10 — the director's design for Jeff's sink, early delivery for a fee (director-early-delivery-2026-11-10.md in
+  the shared folder; read, as the producer read it, as an ordered truck delivered sooner; a load delivered early would
+  pay a carrier and is no sink). What can be expedited: a new tractor or trailer from the NPC dealer's queue, each its
+  own fee; not a used-lot rig (from stock in a week under 0.24.1, and that week is the floor), not a player
+  dealership's order (its own price, a transfer), nothing not on order. Offered on the Dealer's order sheet and then on
+  the ordered truck's card, with the date without it, the date with it, the fee ("paid now, not refunded") and what
+  waiting costs where the game computes it (the lessor's share, payments already due), never invented lost earnings. A
+  fixed number of expedite slots a week nationally, apart from the ordinary queue, so nobody else's ordered date moves;
+  paying takes the earliest open slot; the fee scales with the days saved, capped; never sooner than seven days from
+  payment; payable after ordering; no refund. Iuliia prices both sides and recommends it only when the figures and the
+  cushion say so, and never suggests buying FD to pay it. Bots use it under the same rule. The economy sizes the slots,
+  the fee and the floor and reads the gate (a new sink refills the cap's budget); engineering builds it behind a switch
+  after that; a later ruleset than 0.24.1.
 - 2026-11-10 — Jeff: "Agreed, and let's add another sink: early delivery for a fee." (1) AGREED: a starter's used-lot
   truck comes from the lot's stock (usedMarket.npcLot.startersFromStock), on the economy's pair (the OPEN FOR JEFF entry
   below); it rides in 0.24.1, which is then seven switches: Send home back to work, turning an empty truck (with the
