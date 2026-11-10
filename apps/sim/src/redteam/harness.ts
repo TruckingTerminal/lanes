@@ -34,6 +34,17 @@ export function liveConfig(overrides: Record<string, unknown> = {}): EconomyConf
   return Object.keys(overrides).length ? applyLevers(base, overrides) : base;
 }
 
+/** The seven switches of ruleset 0.24.1 (c1af286, c915f72, ad349e3), on: the red team's pass of 2026-11-10. */
+export const RULES_0241: Record<string, unknown> = {
+  "freight.clearsNear.ratio": true,
+  "labor.sendHomeToWork": true,
+  "labor.turnWhileEmpty": true,
+  "board.bidReachFromTown": true,
+  "businesses.parking.stopInTown": true,
+  "leverage.localHoldHandBids": true,
+  "equipmentFinance.purchase.collateral.enabled": true,
+};
+
 /** The bare base config with a set of levers (so a scenario can turn exactly one switch on). */
 export function baseConfig(overrides: Record<string, unknown> = {}): EconomyConfig {
   return Object.keys(overrides).length ? applyLevers(economyConfig, overrides) : structuredClone(economyConfig) as unknown as EconomyConfig;
