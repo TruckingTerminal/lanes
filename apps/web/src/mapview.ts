@@ -454,6 +454,10 @@ function routeAhead(t: Truck): [number, number][] | null {
 }
 
 export function drawMap(now: number): void {
+  // A world just shown (showGame resets the art) paints at once, not at the next resize: continuing a saved world with the
+  // clock paused left the map on "Finding…" until the ticker's first reflow (QA, client batch 5). One build; fitMap is a
+  // no-op while the window has no size yet.
+  if (!art && cv && S.game) fitMap();
   // A canvas briefly zero-sized (a layout change mid-resize) can't be drawn on or drawn from (QA's console, 2026-11-02).
   if (!cv || !art || !S.game || !cv.width || !cv.height) return;
   if (S.layout === "panel") return;

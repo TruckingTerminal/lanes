@@ -112,8 +112,19 @@ export const PENDING = {
   // gapNotes' change note, with its reference point: since the player last opened the figure's explanation.
   gapWhyCheapestSince: "The cheapest truck is a different one from when you last opened this figure: listings come and go, and the used lot sells out and restocks.",
   // The Dealer's card names the truck the first-truck figure prices (figures.ts gapToTruck's pick). `kmi` "480k".
-  pricesNew: (tier: string, trailer: string) => `That's for the cheapest truck for sale: a new ${tier} with a ${trailer}.`,
-  pricesUsed: (tier: string, trailer: string, kmi: string, cond: string, at: string | null) => `That's for the cheapest truck for sale: a used ${tier} with a ${trailer}, ${kmi} miles, ${cond} condition${at ? `, in ${at}` : ""}.`,
+  // Client batch 5 (QA: "the cheapest" was untrue when the hold covered several trucks): the pick is the truck that takes
+  // the least cash today, and among several the hold already covers (0 FD each), the cheapest. The words follow the rule;
+  // `arrives` is the used lot's (or a dealer's) delivery date, when it has one.
+  truckNew: (tier: string, trailer: string) => `a new ${tier} with a ${trailer}`,
+  truckUsed: (tier: string, trailer: string, kmi: string, cond: string, at: string | null) => `a used ${tier} with a ${trailer}, ${kmi} miles, ${cond} condition${at ? `, in ${at}` : ""}`,
+  // What now? rule 2 after a lost bid, when the better load's sheet suggests no bid (NOW.lostAction says "Bid on … instead").
+  lostBookAction: (origin: string, dest: string) => `Book ${origin} to ${dest} instead.`,
+  // The guide's Book-now prices page (guide/market.ts) where board.refuseOverCeiling is on: no bid over the ceiling wins.
+  // `board` is the link to the load board page. And its dispatcher paragraph, eased as the dispatcher's floor line says it.
+  guideBookNowIntro: (board: string) => `Every load shows a <b>book-now</b> price: what the poster is offering right now. Take it and the load is yours at once, no round to wait for. Want more? Bid above it and wait for the round: the poster takes the best bid within its ceiling and refuses one over it (${board}). Anyone who'd take the posted price just books.`,
+  guideBookNowEases: (idleH: number, awayFrom: number, awayTo: number, below: number, everyH: number) => `The standing order "Book loads between rounds" takes a load whenever its book-now clears your break-even plus a margin. The margin eases as the truck needs to move: gone after ${idleH} hours idle (only halfway at home), or as its driver's days from home go from ${awayFrom} to ${awayTo}; and for a load into a busier market it may go ${below}% under break-even. Dispatchers look every ${everyH} hours.`,
+  pricesLeastCash: (truck: string, arrives: string | null) => `That's for the truck that takes the least cash today: ${truck}${arrives ? `, arriving ${arrives}` : ""}.`,
+  pricesCovered: (truck: string, arrives: string | null) => `That's for the cheapest truck your hold already covers: ${truck}${arrives ? `, arriving ${arrives}` : ""}.`,
   // Iuliia's catch on a used truck under 60% condition (figures.ts WORN_BELOW): its repairs by the engine's own wear figures
   // (wear.ts: breakdowns at the average repair bill, and maintenance per mile, worn as it is). Per `per` miles, not a month:
   // the engine keeps no month's miles (the economy's figure, if wanted).

@@ -18,7 +18,8 @@ export type NextAction =
   | { rule: 1; kind: "danger"; debt: ReturnType<typeof debtCountdown>; lever: Lever | null }
   | { rule: 2; kind: "tender"; loadId: number; untilMin: number; shipperId: number | null }
   | { rule: 2; kind: "driver"; truckId: number }
-  | { rule: 2; kind: "lost"; loadId: number; truckId: number; profitFd: number; clearsNear: number }
+  /** `suggest`: the board's suggested bid on it (board.ts suggestBid), null when booking is the call (client batch 5). */
+  | { rule: 2; kind: "lost"; loadId: number; truckId: number; profitFd: number; clearsNear: number; suggest: number | null }
   /** `suggest`: the board's suggested bid on it (board.ts suggestBid), null when booking is the call (client batch 4). */
   | { rule: 3; kind: "idle"; truckId: number; loadId: number; profitFd: number; suggest: number | null }
   | { rule: 3; kind: "stranded"; truckId: number; exits: Exit[] }
@@ -125,14 +126,14 @@ export function nextAction(cfg: EconomyConfig, w: World, c: Company, lost?: Lost
     // its "usually clears near" rate is positive and at least what the lost load would have left at the winning rate.
     const truck = w.trucks[lost.truckId - 1];
     if (truck && freeTrucks(w, c).includes(truck)) {
-      let best: { loadId: number; profit: number; rate: number; due: number } | null = null;
+      let best: { loadId: number; profit: number; rate: number; due: number; suggest: number | null } | null = null;
       for (const r of bestRows(w, c, truck)) {
         const rate = clearsNear(w, r.l);
         const profit = (rate - r.be) * r.l.miles;
         if (profit <= 0 || profit < lost.profitAtWinningFd || r.l.id === lost.loadId) continue;
-        if (!best || profit > best.profit || (profit === best.profit && r.l.appointmentT < best.due)) best = { loadId: r.l.id, profit, rate, due: r.l.appointmentT };
+        if (!best || profit > best.profit || (profit === best.profit && r.l.appointmentT < best.due)) best = { loadId: r.l.id, profit, rate, due: r.l.appointmentT, suggest: r.suggest };
       }
-      if (best) return { rule: 2, kind: "lost", loadId: best.loadId, truckId: truck.id, profitFd: best.profit, clearsNear: best.rate };
+      if (best) return { rule: 2, kind: "lost", loadId: best.loadId, truckId: truck.id, profitFd: best.profit, clearsNear: best.rate, suggest: best.suggest };
     }
   }
 

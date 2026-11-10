@@ -39,7 +39,11 @@ export function marketPages(cfg: EconomyConfig): GuidePage[] {
       section: S,
       title: "Book-now prices",
       html:
-        p(`Every load shows a <b>book-now</b> price: what the poster is offering right now. Take it and the load is yours at once, no round to wait for. Want more? Bid above it and wait for the round: the poster takes the best bid within its ceiling or, if none is within it, the cheapest above (${see("board", "The load board")}). Anyone who'd take the posted price just books.`) +
+        p(
+          cfg.board.refuseOverCeiling
+            ? PENDING.guideBookNowIntro(see("board", "The load board"))
+            : `Every load shows a <b>book-now</b> price: what the poster is offering right now. Take it and the load is yours at once, no round to wait for. Want more? Bid above it and wait for the round: the poster takes the best bid within its ceiling or, if none is within it, the cheapest above (${see("board", "The load board")}). Anyone who'd take the posted price just books.`,
+        ) +
         h("How posters set it") +
         ul([
           `It opens as a share of the reference rate set by the load-to-truck ratio at the origin: about ${pct(cfg.bookNow.openAtRatio[0][1])} where trucks pile up (ratio ${cfg.bookNow.openAtRatio[0][0]}), ${pct(cfg.bookNow.openAtRatio[1][1])} at a balanced ${cfg.bookNow.openAtRatio[1][0]}, ${pct(cfg.bookNow.openAtRatio[2][1])} when trucks are scarce (ratio ${cfg.bookNow.openAtRatio[2][0]}), never above the ceiling.`,
@@ -47,7 +51,8 @@ export function marketPages(cfg: EconomyConfig): GuidePage[] {
           `So a carrier that can wait makes the poster come up, and a carrier that has to move takes what's posted. In a truck-heavy market the book-now is cheap and rising; in a tight one it opens near the ceiling.`,
         ]) +
         h("Your dispatcher and book-now") +
-        p(`The standing order "Book loads between rounds" takes a load whenever its book-now clears your break-even plus a margin. The margin shrinks with <b>desperation</b>: a truck idle ${cfg.bookNow.desperation.idleHours} hours, or a driver more than ${cfg.bookNow.desperation.awayAfterDays} days from home, will take anything that covers costs. A truck sitting at home is half as pressed. Dispatchers look every ${cfg.bookNow.autoEveryHours} hours.`),
+        // Client batch 5: the easing as the engine applies it (standingOrders.ts desperation, floorRate), as the dispatcher's floor line says it.
+        p(PENDING.guideBookNowEases(cfg.bookNow.desperation.idleHours, cfg.bookNow.desperation.awayAfterDays, cfg.bookNow.desperation.awayAfterDays + cfg.bookNow.desperation.awayDays, Math.round(cfg.bookNow.desperation.belowBreakEven * 100), cfg.bookNow.autoEveryHours)),
     },
     {
       id: "commodities",

@@ -34,7 +34,7 @@ describe("client batch 4", () => {
 
     // (9) The first-truck figure names the truck it prices, and a worn used one carries Iuliia's catch in figures.
     const f = firstTruckLine(w, c)!;
-    expect(f.what).toMatch(/^That's for the cheapest truck for sale: a (new|used) /);
+    expect(f.what).toMatch(/^(That's for the truck that takes the least cash today|That's for the cheapest truck your hold already covers): a (new|used) /);
     const fresh = { tier: "workhorse" as const, trailer: "van" as const, lease: "owned" as const, odometer: 0, milesSinceRebuild: 0 };
     const worn = { ...fresh, odometer: 480_000, milesSinceRebuild: 0.55 * w.cfg.wear.lifeMiles, rebuilds: 1 };
     expect(repairsPer(w, worn)).toBeGreaterThan(repairsPer(w, fresh));
