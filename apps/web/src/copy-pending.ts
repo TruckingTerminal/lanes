@@ -27,19 +27,22 @@ export const PENDING = {
   // The Dealer's card, a second line when another truck delivers sooner than the priced one (figures.ts firstTruckLine
   // `sooner`): the soonest, and of those the least cash today. `trailer` is its trailer ("dry van"; the engine keeps no
   // model year, so none is said); `fd` its cash today; `date` null when it delivers today.
-  soonerTruck: (trailer: string, fd: string, date: string | null) => `Or a ${trailer}, ${fd} FD today, delivered ${date ?? "today"}.`,
+  // The writer: "a truck with a" (the trailer isn't the truck), and the figure is cash at signing, not a gap ("0": the hold covers it).
+  soonerTruck: (trailer: string, fd: string, date: string | null) => `Or a truck with a ${trailer}, delivered ${date ?? "today"}: ${fd === "0" ? "your hold already covers it" : `${fd} FD in cash${date ? " today" : ""}`}.`,
   // Iuliia's page, under the figure, while the priced truck comes from the queue: what waiting keeps paying the lessor.
   // figures.ts waitCostFd: the lease's share of gross × the company's weekly gross lately (last month's revenue over its
   // weeks, else revenue so far over the weeks since it started) × the share of its fleet on the lease × days / 7, to 10 FD.
-  waitCost: (date: string, share: string, days: number, fd: string) => `Waiting to ${date} keeps the lessor's ${share} for ${days} ${days === 1 ? "day" : "days"}, about ${fd} FD.`,
+  waitCost: (date: string, share: string, days: number, fd: string) => `Waiting to ${date} keeps you paying the lessor ${share} of gross for ${days} ${days === 1 ? "day" : "days"}: about ${fd} FD at what you've grossed lately.`,
   // Once a truck is ordered to replace the lease (figures.ts orderedFirstTruck): the Dealer's card, the teaser and
   // Iuliia's page say the wait in place of the figure; What now? says it too (whatNowOrdered).
-  truckOrdered: (date: string, days: number) => `Your truck arrives ${date}, in ${days} ${days === 1 ? "day" : "days"}; until then the leased one runs`,
+  // The writer: "ready", not "arrives": the date is the earliest, and the hand-over waits for a day's close with the
+  // leased truck idle (deliverOrders at endOfDay), so no line promises the day itself.
+  truckOrdered: (date: string, days: number) => `Your truck is ready ${date}, in ${days} ${days === 1 ? "day" : "days"}; until then the leased one runs`,
   // Its day has come: it takes over when the leased truck is next idle at a day's close (dealer.ts deliverOrders).
-  truckOrderedDue: "Your truck is at the dealer; it takes over when the leased one is next idle",
+  truckOrderedDue: "Your truck is ready: it takes over at the first day's end that finds the leased one idle",
   // What now?, rule 5, while a truck ordered to replace the lease is at the dealer (nextstep.ts "ordered").
-  whatNowOrderedAction: (days: number) => (days > 0 ? `Your truck arrives in ${days} ${days === 1 ? "day" : "days"}; until then the leased one runs.` : "Your truck is at the dealer; it takes over when the leased one is next idle."),
-  whatNowOrderedReason: "Keep the leased truck booked meanwhile: it earns until the day it goes back.",
+  whatNowOrderedAction: (days: number) => (days > 0 ? `Your truck is ready in ${days} ${days === 1 ? "day" : "days"}; until then the leased one runs.` : "Your truck is ready: it takes over at the first day's end that finds the leased one idle."),
+  whatNowOrderedReason: "The leased truck earns until it goes back, so keep it booked. The swap comes at a day's end when it's idle.",
   // Iuliia's advice under it, never part of it: guide.gapCushionWeeks of the company's own spending, rounded. Shown once a
   // week of spending is known.
   firstTruckCushion: (fd: string) => `I'd keep about ${fd} FD back for fuel and repairs before you sign.`,

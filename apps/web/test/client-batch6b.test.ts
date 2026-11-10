@@ -32,7 +32,7 @@ describe("client batch 6b: order today, delivered later", () => {
     expect(f.figure).toMatch(/^You can order today · delivered /);
     expect(f.figure).not.toContain("You can buy today");
     // A listing delivers today: the second line names it, with its cash today.
-    if (w.listings.some((l) => l.status === "open" && l.truckId > 0)) expect(f.sooner).toMatch(/^Or a .+ FD today, delivered today\.$/);
+    if (w.listings.some((l) => l.status === "open" && l.truckId > 0)) expect(f.sooner).toMatch(/^Or a truck with a .+, delivered today: (.+ FD in cash|your hold already covers it)\.$/);
     // The wait in the lessor's share: none with no gross yet; with a week's gross, share × gross × days / 7.
     c.operating.revenueFd = 0;
     expect(firstTruckLine(w, c)!.wait).toBeNull();
@@ -64,7 +64,7 @@ describe("client batch 6b: order today, delivered later", () => {
     const o = w.orders.find((x) => x.companyId === c.id)!;
     const f = firstTruckLine(w, c)!;
     expect(f.ordered).toBe(true);
-    expect(f.figure).toMatch(new RegExp(`^Your truck arrives .+, in ${o.dueDay - today(w)} days; until then the leased one runs$`));
+    expect(f.figure).toMatch(new RegExp(`^Your truck is ready .+, in ${o.dueDay - today(w)} days; until then the leased one runs$`));
     const a = nextAction(GAME_CONFIG, w, c);
     // What now?'s rule 5 says the wait, unless something needs the player first (rules 1–4).
     if (a.rule === 5) expect(a).toEqual({ rule: 5, kind: "ordered", days: o.dueDay - today(w) });
