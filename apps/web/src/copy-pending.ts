@@ -227,7 +227,10 @@ export const PENDING = {
   // Client batch 7b: a used listing's "when" line while the leased truck isn't idle, in place of "Ready today" (Dealer.tsx).
   readyWhenIdle: (truck: number) => `Ready ${PENDING_WHEN_IDLE(truck)}`,
   // The Showroom's inline strings, moved here for the writer (the one word "ready"): the used lot's lead line, its end…
-  lotReadyNote: "ready when a new one would be",
+  // The writer (7b): live, a lot rig that adds to a fleet is ready in the lot's own days (usedMarket.npcLot.deliveryDays,
+  // 7) and one that replaces the lease waits the NPC dealer's queue (lotDeliveryDays), so "when a new one would be" held
+  // for one buyer only. Each row says its own date.
+  lotReadyNote: "each row says when it's ready",
   // …and the new rig's order toasts, for FD and for dollars.
   orderedReady: (days: string) => `Ordered. Ready in ${days}`,
   orderedReadyUsd: (days: string) => `Ordered for dollars. Ready in ${days}`,
