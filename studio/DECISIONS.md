@@ -1,5 +1,17 @@
 # Decisions (the producer's log for Jeff; newest first)
 
+- 2026-11-10 — OPEN FOR JEFF, with 0.24.1: a starter's used-lot truck from the lot's stock (usedMarket.npcLot.
+  startersFromStock, 1633cc7; the economy's pair, studio/reviews/economy-starters-from-stock.md: the loan rule on in both
+  arms, ten seeds, 1460 days). On: a starter's lot rig arrives in 7 days instead of 36–72 in the first quarter (33–37
+  after), and the dealer's wait for everyone falls from ten weeks at the peak to five, since the rush was the starters'
+  rigs in the queue; on the test page's world a newcomer is delivered 30–65 days sooner and no date slides. The cost:
+  owner-operator liquidations 72 → 79 a run over four years (0.181 → 0.196 of the free path), loan defaults 158 → 206,
+  seizures 71 → 110, the finding of 2026-11-03 back at its size, all of it on the greedy and random starters (median
+  wealth 17k → 10k, 36k → 22k) and none on the conservative (liquidated 0.178 both, median wealth 22k → 31k): a truck
+  five weeks sooner is five weeks sooner to be imprudent with. The economy is unchanged (cleared 448k → 447k, the rate
+  3.73 → 3.76, carriers 77–89% of the twin's, the band 0.842–0.871) and the gate passes ten of ten. The economy's call:
+  ride in 0.24.1; if Jeff keeps the queue as the brake on the imprudent, the economy's lines are the same either way.
+  The spot check: the loan rule's gate stands on the age-keyed points (two of two seeds, the band 0.851–0.857).
 - 2026-11-10 — the producer, on engineering's flag from the director's check (client batch 6b, 74ebc41): an ordered
   truck's due day never changes, but a truck that replaces the lessor's is handed over only at a day's close with the
   leased truck idle (dealer.ts deliverOrders), and a dispatcher rebooks the moment a truck goes idle: in a 60-day probe 7
