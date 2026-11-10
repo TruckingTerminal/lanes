@@ -1,4 +1,4 @@
-import type { JSX } from "preact";
+import { Fragment, type JSX } from "preact";
 import { useState } from "preact/hooks";
 import { askingPay, askOf, crewed, payFloor, dispatchProfile, poolOf, spanOf, type Company, type Staff as StaffT, type Truck, type World } from "@lanes/engine";
 import { fd, hhmm, pct, shortDate, TRAILER_NAME } from "../../format.js";
@@ -111,14 +111,21 @@ export function Staff(): JSX.Element {
     if (kind === "poach") return void poach(s, pay);
     const v = sel(`${kind}-${s.id}`);
     const run = () => act({ type: "offer_staff", staffId: s.id, pay, truckId: v ? Number(v) : undefined }, kind === "hire" ? "Hired" : "Offer made: their employer has two days to match", kind === "hire" ? (s.kind === "driver" ? "staff:hireDriver" : s.kind === "dispatcher" ? "staff:hireDispatcher" : "staff:hireManager") : undefined);
-    // R6: a hire asks first only when its weekly wage passes what the company kept in a week lately (a driver's per-mile
-    // pay at a month's miles).
+    // Client batch 8a item 24 (the borrower: a driver confirmed in one session and not the next, a dispatcher never, and a
+    // second tap on a shifting list hired a second dispatcher): every hire asks first, with its weekly cost (a driver's
+    // per-mile pay at a month's miles). The risk line, what the company kept in a week lately, only when the wage passes it.
     const weekly = s.kind === "driver" ? (pay * MILES_PER_MONTH) / (w.cfg.time.daysPerMonth / 7) : pay;
     const kept = weeklyKept(w, me());
-    if (kind === "hire" && weekly > kept) confirmAct({ verb: "Hire", item: s.name, costFd: null, costLine: CONFIRM.hireCost(fd(weekly)), ...hireLines(s.name, weekly, kept), go: `Hire ${s.name}`, run }, ev);
-    else run();
+    if (kind === "hire") {
+      const lines = hireLines(s.name, weekly, kept);
+      confirmAct({ verb: "Hire", item: s.name, costFd: null, costLine: CONFIRM.hireCost(fd(weekly)), does: lines.does, risk: weekly > kept ? lines.risk : null, go: `Hire ${s.name}`, run }, ev);
+    } else run();
   };
 
+  // Client batch 8a item 11 (the exploit hunter: the hire list redrew about every second, even paused, so taps missed
+  // and the laptop table wrapped names): these rows were components declared inside the panel, a new type on every
+  // render, so Preact remounted every row each second. They're called as functions now, so a redraw changes nothing in
+  // the page unless the row's data did.
   const PersonCard = ({ s }: { s: StaffT }) => {
     const seatText =
       s.kind === "dispatcher" ? (
@@ -302,7 +309,7 @@ export function Staff(): JSX.Element {
           <input type="checkbox" checked={c.autoStaff} onChange={(ev) => act({ type: "set_auto_staff", on: (ev.currentTarget as HTMLInputElement).checked }, (ev.currentTarget as HTMLInputElement).checked ? "Auto-staff on" : "Auto-staff off")} /> Auto-staff: fill empty seats and hire or let go a dispatcher as the fleet changes
         </label>
       </Card>
-      {hired.length ? hired.map((s) => <PersonCard s={s} key={s.id} />) : <p class="muted">Nobody on the payroll yet. You drive your own truck and dispatch it yourself.</p>}
+      {hired.length ? hired.map((s) => <Fragment key={s.id}>{PersonCard({ s })}</Fragment>) : <p class="muted">Nobody on the payroll yet. You drive your own truck and dispatch it yourself.</p>}
       <Card title="Hire a driver">
         <p class="muted small">Market pay rises with skill (wage index {w.labor.wageIndex.toFixed(2)}). Drivers improve with every mile, and expect a raise as they do.</p>
         <table class="pooltable">
@@ -317,7 +324,7 @@ export function Staff(): JSX.Element {
           </thead>
           <tbody>
             {poolDrivers.map((s) => (
-              <PoolRow s={s} key={s.id} />
+              <Fragment key={s.id}>{PoolRow({ s })}</Fragment>
             ))}
           </tbody>
         </table>
@@ -336,7 +343,7 @@ export function Staff(): JSX.Element {
           </thead>
           <tbody>
             {poolDispatchers.map((s) => (
-              <PoolRow s={s} key={s.id} />
+              <Fragment key={s.id}>{PoolRow({ s })}</Fragment>
             ))}
           </tbody>
         </table>
@@ -358,10 +365,10 @@ export function Staff(): JSX.Element {
             </thead>
             <tbody>
               {poolManagers("opsManager").map((s) => (
-                <PoolRow s={s} key={s.id} />
+                <Fragment key={s.id}>{PoolRow({ s })}</Fragment>
               ))}
               {poolManagers("maintManager").map((s) => (
-                <PoolRow s={s} key={s.id} />
+                <Fragment key={s.id}>{PoolRow({ s })}</Fragment>
               ))}
             </tbody>
           </table>
@@ -371,7 +378,7 @@ export function Staff(): JSX.Element {
         <p class="muted small">Their employer gets {w.cfg.labor.morale.noticeDays} days to match. Unhappy people come cheaper.</p>
         <div class="stack poachrows">
           {poachable.map((s) => (
-            <PoachRow s={s} key={s.id} />
+            <Fragment key={s.id}>{PoachRow({ s })}</Fragment>
           ))}
         </div>
         {pending.map((s) => (

@@ -1,8 +1,8 @@
 import type { JSX } from "preact";
 import { useEffect, useState } from "preact/hooks";
-import { hubMiles, MANUAL_BID_MAX_DEADHEAD_MI, VETTING_NAMES, type Truck } from "@lanes/engine";
+import { crewed, hubMiles, MANUAL_BID_MAX_DEADHEAD_MI, VETTING_NAMES, type Truck } from "@lanes/engine";
 import { COMMODITIES } from "@lanes/data";
-import { allInRate, bidCeiling, bidRange, boardRows, clampToCeiling, chipCash, chipPair, clearsNear, dockWaits, posterOf, sortRows, type BoardRow, type BoardSort, type ChipPair } from "../../board.js";
+import { allInRate, bidCeiling, bidRange, boardRows, clampToCeiling, chipCash, chipPair, clearsNear, dockWaits, overCeiling, posterOf, rateShown, sortRows, type BoardRow, type BoardSort, type ChipPair } from "../../board.js";
 import { DockWarning, ProfitChip } from "../ProfitChip.js";
 import { ANSWER, BOARD, CHIP, DELIVERED, INTEL, LOAD, ROUND, WALL } from "../../copy.js";
 import { cls, fdFull, hhmm, pct, shortDate, TRAILER_NAME, weekdayDate } from "../../format.js";
@@ -100,6 +100,8 @@ export function Loads(): JSX.Element {
     <div class="stack">
       {out ? <WaysOutCard t={truck} /> : null}
       {out ? <h3 class="label">{PENDING.waysOutBoard}</h3> : null}
+      {/* Client batch 8a item 46: a truck with no driver can't book; its board says so first. */}
+      {!crewed(truck) ? <p class="bad small">{PENDING.boardNeedsDriver(truckNo(truck.id))}</p> : null}
       <ResultCard onBidAgain={() => setSort("clears")} />
       {pinned && pending ? <PinnedBid r={pinned} rate={pending.rate} truck={truck} /> : null}
       <div class="boardhead">
@@ -243,7 +245,7 @@ function LoadCard({ r, truck, name }: { r: BoardRow; truck: Truck; name: (i: num
   return (
     <button type="button" class={cls("loadcard", r.block && "blocked")} onClick={() => openLoad(l.id)} title={`${name(l.origin)} → ${name(l.dest)}`}>
       <span class="l1">{BOARD.line1(place(l.originPlace), place(l.destPlace), Math.round(l.miles).toLocaleString("en-US"))}</span>
-      <span class="l2 small">{BOARD.line2(fdFull(r.total), l.bookNow.toFixed(2), allInRate(r.total, l.miles, r.dh), Math.round(r.dh))}</span>
+      <span class="l2 small">{BOARD.line2(fdFull(r.total), rateShown(l, l.bookNow), allInRate(r.total, l.miles, r.dh), Math.round(r.dh))}</span>
       <span class="chips">
         <Chips r={r} truck={truck} />
         {r.heat >= 1.5 ? <span class="chip good">{BOARD.hotTo(name(l.dest))}</span> : r.heat >= 1.1 ? <span class="chip">{BOARD.tightTo(name(l.dest))}</span> : null}
@@ -358,7 +360,10 @@ function LoadSheet({ r, truck }: { r: BoardRow; truck: Truck }): JSX.Element {
   const step = (d: number) => setBid(Math.round(Math.min(hi, Math.max(lo, bid === null ? Math.max(lo, l.bookNow + 0.05) : bid + d)) * 100) / 100);
   // Under a bid above Book now: what it pays over Book now if it wins at the round, and what beats it. With no suggestion
   // and no such bid typed: Iuliia's word that booking is the better call here. No odds: the engine computes none.
-  const betLine = bid !== null && bid > l.bookNow + 0.005 ? PENDING.bidGamble(fdFull((bid - l.bookNow) * l.miles), nextRoundHour(), l.bookNow.toFixed(2)) : r.suggest === null ? PENDING.bidBookBetter : null;
+  // Client batch 8a item 61: under break-even the loss is said; where loads like this clear under the player's break-even,
+  // that in place of the gamble line.
+  const clears = clearsNear(w, l);
+  const betLine = bid !== null && bid < r.be - 0.005 ? PENDING.bidUnderBreakEven(fdFull((r.be - bid) * l.miles)) : clears < r.be ? PENDING.laneUnderBreakEven(rateShown(l, clears), r.be.toFixed(2)) : bid !== null && bid > l.bookNow + 0.005 ? PENDING.bidGamble(fdFull((bid - l.bookNow) * l.miles), nextRoundHour(), rateShown(l, l.bookNow)) : r.suggest === null ? PENDING.bidBookBetter : null;
   // The bid figure while it's being typed; null when it shows the bid.
   const [bidText, setBidText] = useState<string | null>(null);
   // R20: a refusal in the writer's words where the engine's reason is a vetting block; otherwise the engine's own.
@@ -386,7 +391,11 @@ function LoadSheet({ r, truck }: { r: BoardRow; truck: Truck }): JSX.Element {
   const placeBid = async () => {
     // A figure still being typed counts as typed (the press can come before the field's blur), held to the range.
     const typed = bidText !== null ? Number(bidText.replace(",", ".")) : NaN;
-    const bid = Number.isFinite(typed) && typed > 0 ? Math.round(Math.min(hi, Math.max(lo, clampToCeiling(l, typed))) * 100) / 100 : bidState;
+    // Client batch 8a item 4 (QA): as the laptop table does, more than a cent over the shown ceiling is refused in words
+    // and nothing is placed; within a cent it's held to the ceiling. Never lowered without a word.
+    if (Number.isFinite(typed) && typed > 0 && overCeiling(l, typed)) return setNote({ text: ANSWER.ceiling(bidCeiling(l).toFixed(2)), bad: true });
+    // Under break-even is allowed (item 61), with the loss said under the field; only the ceiling holds it.
+    const bid = Number.isFinite(typed) && typed > 0 ? Math.round(Math.min(hi, clampToCeiling(l, typed)) * 100) / 100 : bidState;
     if (bid === null) return;
     const answer = ANSWER.bid(bid.toFixed(2), w.net.places[l.originPlace]!.name, w.net.places[l.destPlace]!.name, nextRoundHour());
     const res = await order({ type: "place_bid", truckId: truck.id, loadId: l.id, rate: bid }, answer);
@@ -435,7 +444,7 @@ function LoadSheet({ r, truck }: { r: BoardRow; truck: Truck }): JSX.Element {
       <Card title={LOAD.money}>
         <Kv
           rows={[
-            [LOAD.bookNow, <Fig k="board.bookNow" label={LOAD.bookNow} ctx={fx}>{`${fdFull(r.total)} FD · ${BOARD.rpms(l.bookNow.toFixed(2), allInRate(r.total, l.miles, r.dh))}`}</Fig>],
+            [LOAD.bookNow, <Fig k="board.bookNow" label={LOAD.bookNow} ctx={fx}>{`${fdFull(r.total)} FD · ${BOARD.rpms(rateShown(l, l.bookNow), allInRate(r.total, l.miles, r.dh))}`}</Fig>],
             [LOAD.breakEven, <Fig k="truck.breakEven" label={LOAD.breakEven} ctx={fx}>{`${r.be.toFixed(2)}/mi`}</Fig>],
             [LOAD.profitBook, <Fig k="board.profitChip" label={LOAD.profitBook} ctx={fx}><span class={bookUp ? "good" : "bad"}>{`${signed(r.profitBook)} FD`}</span></Fig>],
             // R14: the pair, on the sheet, when the lease holds: cash now (amber when negative) and what's held.
@@ -447,7 +456,7 @@ function LoadSheet({ r, truck }: { r: BoardRow; truck: Truck }): JSX.Element {
                   [CHIP.heldRow, <Fig k="money.held" label={CHIP.heldRow} ctx={fx}>{`${fdFull(r.heldBook)} FD`}</Fig>],
                 ] as [string, JSX.Element][])
               : []),
-            [LOAD.clearsNear, <Fig k="board.clearsNear" label={LOAD.clearsNear} ctx={fx}>{`${clearsNear(w, l).toFixed(2)}/mi`}</Fig>],
+            [LOAD.clearsNear, <Fig k="board.clearsNear" label={LOAD.clearsNear} ctx={fx}>{`${rateShown(l, clearsNear(w, l))}/mi`}</Fig>],
             [LOAD.ceiling, <Fig k="board.ceiling" label={LOAD.ceiling} ctx={fx}>{`${bidCeiling(l).toFixed(2)}/mi`}</Fig>],
           ]}
         />
@@ -481,8 +490,10 @@ function LoadSheet({ r, truck }: { r: BoardRow; truck: Truck }): JSX.Element {
       <div class="actions pinned">
         {/* leverage.localHoldHandBids: the hold's last round files a bid for the opening instead of the first-call wall. */}
         {r.files ? <p class="small">{PENDING_RULES.bidFilesFor(nextRoundHour())}</p> : r.block ? <p class="bad small">{LOAD.blocked(r.block.replace(/\.\s*$/, ""))}</p> : <DockWarning w={w} t={truck} l={l} dh={r.dh} />}
-        <Btn primary={bookUp} disabled={!!r.block} onClick={() => void book()}>
-          {CHIP.book(l.bookNow.toFixed(2), signed(r.profitBook))}
+        {/* Client batch 8a item 46: shut with its reason when the truck has no driver, never refused after the tap. */}
+        {!crewed(truck) ? <p class="bad small">{PENDING.bookNeedsDriver}</p> : null}
+        <Btn primary={bookUp} disabled={!!r.block || !crewed(truck)} onClick={() => void book()}>
+          {CHIP.book(rateShown(l, l.bookNow), signed(r.profitBook))}
         </Btn>
         <div class="row stepper">
           <Btn sm disabled={bidShut || (bid !== null && bid <= lo)} onClick={() => step(-0.05)} title="Bid 0.05 lower">
@@ -499,7 +510,12 @@ function LoadSheet({ r, truck }: { r: BoardRow; truck: Truck }): JSX.Element {
             onInput={(e) => setBidText((e.currentTarget as HTMLInputElement).value)}
             onBlur={() => {
               const v = Number((bidText ?? "").replace(",", "."));
-              if (bidText !== null && Number.isFinite(v) && v > 0) setBid(Math.round(Math.min(hi, Math.max(lo, clampToCeiling(l, v))) * 100) / 100);
+              // Client batch 8a items 4 and 61: over the ceiling is said and the field keeps the bid it had; under break-even
+              // is kept, its loss said under the field.
+              if (bidText !== null && Number.isFinite(v) && v > 0) {
+                if (overCeiling(l, v)) setNote({ text: ANSWER.ceiling(bidCeiling(l).toFixed(2)), bad: true });
+                else setBid(Math.round(Math.min(hi, clampToCeiling(l, v)) * 100) / 100);
+              }
               setBidText(null);
             }}
             onKeyDown={(e) => {
@@ -540,7 +556,7 @@ function PosterLoads({ poster }: { poster: number }): JSX.Element {
       <PosterChip name={name} />
       {loads.map((l) => (
         <p key={l.id} class="small">
-          {BOARD.line1(place(l.originPlace), place(l.destPlace), Math.round(l.miles).toLocaleString("en-US"))} · {l.bookNow.toFixed(2)}/mi
+          {BOARD.line1(place(l.originPlace), place(l.destPlace), Math.round(l.miles).toLocaleString("en-US"))} · {rateShown(l, l.bookNow)}/mi
         </p>
       ))}
     </div>

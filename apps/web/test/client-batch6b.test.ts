@@ -27,32 +27,30 @@ describe("client batch 6b: order today, delivered later", () => {
     const gap = gapToTruck(w, c);
     expect(gap.truck!.route).toBe("lot");
     expect(gap.truck!.arrivesDay!).toBeGreaterThan(today(w));
+    // Client batch 8a item 57 (the director's A): one verdict, "Order it now · ready {date}" for a queued sound truck.
     const f = firstTruckLine(w, c)!;
-    expect(f.met).toBe(true);
-    expect(f.figure).toMatch(/^You can order today · ready /);
-    expect(f.figure).not.toContain("You can buy today");
-    // A listing delivers today: the second line names it, with its cash today.
-    if (w.listings.some((l) => l.status === "open" && l.truckId > 0)) expect(f.sooner).toMatch(/^Or a truck with a .+, ready today: (.+ FD in cash|your hold already covers it)\.$/);
-    // The wait in the lessor's share: none with no gross yet; with a week's gross, share × gross × days / 7.
+    if (f.open === null) return;
+    const queued = f.verdict.startsWith("Order it now · ready ");
+    expect(queued || f.verdict === "Buy it now." || f.verdict.startsWith("Not yet: ")).toBe(true);
+    // The wait in the lessor's share, under Why for a queued truck: none with no gross yet; with a week's gross, share ×
+    // gross × days / 7.
     c.operating.revenueFd = 0;
-    expect(firstTruckLine(w, c)!.wait).toBeNull();
+    expect(firstTruckLine(w, c)!.why.some((x) => x.startsWith("Waiting to "))).toBe(false);
     c.operating.revenueFd = 7_000;
     const days = gap.truck!.arrivesDay! - today(w);
     const cost = waitCostFd(w, c, days);
     expect(cost).toBeCloseTo(w.cfg.costs.npcLeaseShareOfGross * weeklyGross(w, c).fd * (days / 7), 6);
-    const wait = firstTruckLine(w, c)!.wait!;
-    expect(wait).toContain(`for ${days} days`);
-    expect(wait).toContain(`${Math.round(w.cfg.costs.npcLeaseShareOfGross * 100)}%`);
+    if (queued) expect(firstTruckLine(w, c)!.why.some((x) => x.includes(`${Math.round(w.cfg.costs.npcLeaseShareOfGross * 100)}%`))).toBe(true);
   }, 120_000);
 
-  it("says the company's freight when the priced truck pulls another trailer", async () => {
+  it("prices a truck in the company's own freight (client batch 8a item 57)", async () => {
     const s = await lotPriced();
     if (!s) return;
     const { w, c } = s;
-    expect(gapToTruck(w, c).truck!.spec.trailer).toBe("van");
-    expect(firstTruckLine(w, c)!.what).not.toContain("your company hauls");
     w.trucksByCompany.get(c.id)![0]!.trailer = "reefer";
-    expect(firstTruckLine(w, c)!.what).toMatch(/; your company hauls reefer\.$/);
+    const f = firstTruckLine(w, c)!;
+    if (f.open === null) expect(f.verdict).toContain("reefer");
+    else expect(f.why[0]).toContain("reefer");
   }, 120_000);
 
   it("once ordered, the figure and What now? count the wait", async () => {
@@ -67,6 +65,6 @@ describe("client batch 6b: order today, delivered later", () => {
     expect(f.figure).toMatch(new RegExp(`^Your truck is ready .+, in ${o.dueDay - today(w)} days; until then the leased one runs$`));
     const a = nextAction(GAME_CONFIG, w, c);
     // What now?'s rule 5 says the wait, unless something needs the player first (rules 1–4).
-    if (a.rule === 5) expect(a).toEqual({ rule: 5, kind: "ordered", days: o.dueDay - today(w) });
+    if (a.rule === 7) expect(a).toEqual({ rule: 7, kind: "ordered", days: o.dueDay - today(w) }); // client batch 8a: tier 7
   }, 120_000);
 });

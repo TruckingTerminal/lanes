@@ -2,13 +2,13 @@ import type { JSX } from "preact";
 import { ownerDrawFd, placeMiles, type Company, type World } from "@lanes/engine";
 import { NEEDS, NOW } from "../copy.js";
 import { PENDING } from "../copy-pending.js";
-import { waysOut } from "../logic.js";
+import { sendHomePriced, waysOut } from "../logic.js";
 import { exitButton, exitLine, takeExit } from "./WaysOut.js";
 import { fdFull, hhmm, pct, shortDate, plural } from "../format.js";
 import { GAME_CONFIG } from "../game.js";
 import { nextAction, type NextAction } from "../nextstep.js";
 import { act, bumpData, isPhone, me, S, selectTruck, setTab, truckNo } from "../state.js";
-import { TAB_NAME } from "../tabs.js";
+import { TAB_NAME, tabOpen } from "../tabs.js";
 import { skippedSteps, stepDo, stepText, walkSteps } from "../walkthrough.js";
 import { Btn } from "./bits.js";
 import { chipPair } from "../board.js";
@@ -27,7 +27,7 @@ import { leaseMinFor } from "../ledger.js";
 /** The answer now, fed the last hand bid that lost (rule 2's "a better load beside it"), while its result is up. */
 function currentAction(w: World, c: Company): NextAction {
   const r = S.result;
-  return nextAction(GAME_CONFIG, w, c, r && !r.won ? (r.lost ?? null) : null, skippedSteps(S.onboard.seen, w, c));
+  return nextAction(GAME_CONFIG, w, c, r && !r.won ? (r.lost ?? null) : null, skippedSteps(S.onboard.seen, w, c), (tab) => tabOpen(tab, w, c));
 }
 
 /** Ask What now? (the chip, the "?" key, the explain sheet's foot, the debt milestone). */
@@ -46,7 +46,8 @@ export function WhatNowChip(): JSX.Element | null {
   const c = g?.player;
   if (!g || !c) return null;
   const now = currentAction(g.w, c);
-  const dot = now.rule >= 1 && now.rule <= 3 && walkSteps(GAME_CONFIG).some((s) => !s.done(g.w, c));
+  // The dot: an answer in a tier above the walkthrough's step (client batch 8a item 59: tiers 1 to 5 outrank step 6).
+  const dot = now.rule >= 1 && now.rule <= 5 && walkSteps(GAME_CONFIG).some((s) => !s.done(g.w, c));
   return (
     <Btn sm class="whatnowchip" onClick={askWhatNow} label={NOW.chip}>
       {NOW.chip}
@@ -69,7 +70,8 @@ export function WhatNowAnswer(): JSX.Element | null {
     bumpData();
   };
   // If the world moved and the action is no longer the one to take, say so; never a stale action.
-  if (!same(S.whatNow.a, now)) {
+  const shown = answerShown(S.whatNow.a, now);
+  if (!shown) {
     return (
       <div class="caption whatnow">
         <Iuliia mood="idle" size={64} />
@@ -80,7 +82,7 @@ export function WhatNowAnswer(): JSX.Element | null {
       </div>
     );
   }
-  const view = words(S.whatNow.a);
+  const view = words(shown);
   return (
     <div class="caption whatnow">
       <Iuliia mood="point" size={64} />
@@ -115,6 +117,14 @@ export function whatNowWords(): { action: string; reason: string; button: string
   const c = g?.player;
   if (!g || !c || kindInView(g) === "brokerage") return null;
   return words(currentAction(g.w, c));
+}
+
+/**
+ * The answer to show for one asked earlier: today's, while it's still the same answer; null once it isn't. Client batch
+ * 8a item 3 (QA): the words were the asked answer's, so an "ordered" answer kept its old day count; they follow the day.
+ */
+export function answerShown(asked: NextAction, now: NextAction): NextAction | null {
+  return same(asked, now) ? now : null;
 }
 
 /** The same answer, still the one to give: the same rule and kind, about the same truck or load. */
@@ -184,10 +194,28 @@ function words(a: NextAction): { action: string; reason: string; button: string;
       const gone = S.lastDriver.get(a.truckId);
       return { action: NOW.driverAction(truckNo(a.truckId)), reason: gone ? NOW.driverReason(gone) : NOW.driverReasonNone(truckNo(a.truckId)), button: NOW.driverButton, go: () => setTab("staff") };
     }
+    case "loanDefault": {
+      const n = a.truckId ? truckNo(a.truckId) : null;
+      return { red: true, action: PENDING.loanDefaultAction(a.missed, n, shortDate(a.day)), reason: PENDING.loanDefaultReason(fd(a.paymentFd), shortDate(a.day)), button: PENDING.loanDefaultButton, go: () => setTab("money") };
+    }
+    case "homeDue": {
+      const l = a.loadId !== null ? load(a.loadId) : undefined;
+      const home = w.net.hubs[c.homeHub]!.name;
+      const t = w.trucks[a.truckId - 1]!;
+      return {
+        action: `${PENDING.lostForTruck(truckNo(a.truckId), PENDING.homeDueAction(shortDate(a.day), a.days))}`,
+        reason: PENDING.homeDueReason(home, l ? `${place(l.originPlace)} to ${place(l.destPlace)}, ${fd(a.profitFd)} FD over break-even` : null),
+        button: PENDING.homeDueButton(!!l),
+        go: () => (l ? openLoadOf(a.truckId, l.id) : t.status === "idle" ? sendHomePriced(t) : setTab("fleet")),
+      };
+    }
+    case "atRisk":
+      return { red: true, action: PENDING.atRiskAction(truckNo(a.truckId)), reason: PENDING.atRiskReason(fd(a.claimFd), `${shortDate(Math.floor(a.byMin / 1440))} ${hhmm(a.byMin)}`), button: PENDING.atRiskButton, go: () => setTab("fleet") };
     case "lost": {
       const l = load(a.loadId);
       // The sheet's own call (board.ts suggestBid): "Bid on" only where it suggests a bid, else "Book" (client batch 5).
-      return { action: (a.suggest !== null ? NOW.lostAction : PENDING.lostBookAction)(l ? place(l.originPlace) : "", l ? place(l.destPlace) : ""), reason: a.suggest !== null ? NOW.lostReason(a.clearsNear.toFixed(2), fd(a.profitFd)) : PENDING.lostBookReason(a.bookNow.toFixed(2), fd(a.profitBookFd)), button: NOW.lostButton, go: () => openLoadOf(a.truckId, a.loadId) };
+      // Client batch 8a item 59: the follow-up names its truck.
+      return { action: PENDING.lostForTruck(truckNo(a.truckId), (a.suggest !== null ? NOW.lostAction : PENDING.lostBookAction)(l ? place(l.originPlace) : "", l ? place(l.destPlace) : "")), reason: a.suggest !== null ? NOW.lostReason(a.clearsNear.toFixed(2), fd(a.profitFd)) : PENDING.lostBookReason(a.bookNow.toFixed(2), fd(a.profitBookFd)), button: NOW.lostButton, go: () => openLoadOf(a.truckId, a.loadId) };
     }
     case "idle": {
       const l = load(a.loadId);

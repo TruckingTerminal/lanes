@@ -16,6 +16,7 @@ import { GAME_CONFIG } from "../game.js";
 import { tabOpen } from "../tabs.js";
 import { Btn, Card } from "./bits.js";
 import { Fig } from "./Explain.js";
+import { FirstTruckVerdictBlock } from "./FirstTruckCard.js";
 import { Iuliia } from "./Walkthrough.js";
 import { askWhatNow, WhatNowChip } from "./WhatNow.js";
 
@@ -267,15 +268,11 @@ function nextOnRoad(w: World, c: Company): JSX.Element | string {
   if (first)
     return (
       <>
+        {/* Client batch 8a item 57: the same verdict as the Dealer's card. */}
         <Fig k="guide.gapToTruck" label={PENDING.firstTruckName} ctx={{ notes }}>
-          {`${first.figure}.`}
+          {first.ordered ? `${first.figure}.` : first.figure}
         </Fig>
-        {[...(first.ordered ? [] : notes), ...(first.cashOnly ? [first.cashOnly] : []), ...(first.worn ? [first.worn] : []), ...(first.wait ? [first.wait] : []), ...(first.advice ? [first.advice] : [])].map((n) => (
-          <span class="muted small" key={n}>
-            <br />
-            {n}
-          </span>
-        ))}
+        {first.ordered ? null : <FirstTruckVerdictBlock f={{ ...first, figure: "" }} />}
       </>
     );
   // A truck within reach today (a listing the cash and the hold already cover) still names the next truck, not the next

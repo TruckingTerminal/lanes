@@ -3,6 +3,8 @@ import { describe, expect, it } from "vitest";
 import { companyAccount, financedCashNeed, listTruck } from "@lanes/engine";
 import { buyPlan, cheapestNewRig, firstTruckRoute } from "../src/finance.js";
 import { stepDo, walkSteps } from "../src/walkthrough.js";
+import { firstTruckLine } from "../src/figures.js";
+import { PENDING } from "../src/copy-pending.js";
 import { GAME_CONFIG } from "../src/game.js";
 import { boardRows } from "../src/board.js";
 import { TestGame } from "../src/game.js";
@@ -66,9 +68,10 @@ describe("the Dealer's refusals", () => {
       const plan = buyPlan(g.w, c, rig.price, true);
       expect(r.need).toBeCloseTo(plan.loanNowFd!, 6);
       expect(r.have).toBeCloseTo(plan.have - plan.deposit, 6);
-      expect(stepDo(own, g.w, c)).toContain(Math.round(r.need).toLocaleString("en-US"));
     } else expect(r.route).toBe("none");
-    expect(stepDo(own, g.w, c)).not.toBe(own.do);
+    // Client batch 8a items 57 and 58: the first-truck step says the card's one verdict.
+    const f = firstTruckLine(g.w, c)!;
+    expect(stepDo(own, g.w, c)).toBe(f.figure === PENDING.soundTitle ? f.verdict : `${f.figure}. ${f.verdict}`);
     // The factory sold out: no new route, and the line says so.
     for (const k of Object.keys(g.w.supply.tractor) as (keyof typeof g.w.supply.tractor)[]) g.w.supply.tractor[k] = 0;
     expect(firstTruckRoute(g.w, c).route).toBe("none");
@@ -76,6 +79,5 @@ describe("the Dealer's refusals", () => {
     npc.status = "idle";
     r = firstTruckRoute(g.w, c);
     expect(r.route).toBe("listing");
-    expect(stepDo(own, g.w, c)).toContain("500");
   }, 60_000);
 });

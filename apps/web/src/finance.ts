@@ -200,10 +200,11 @@ export function buyPlan(w: World, c: Company, price: number, replacing: boolean,
  * The cheapest new rig the company could order today: from a player dealership's stock, or the NPC dealer while the
  * factory has the tractor and the trailer (the Dealer's "The factory has none left this month" otherwise). Null if none.
  */
-export function cheapestNewRig(w: World, c: Company): { price: number; tier: TractorTier; trailer: Equipment; days: number } | null {
+/** `only`: the cheapest pulling this trailer (the first-truck verdict prices the company's own freight). */
+export function cheapestNewRig(w: World, c: Company, only?: Equipment): { price: number; tier: TractorTier; trailer: Equipment; days: number } | null {
   let best: { price: number; tier: TractorTier; trailer: Equipment; days: number } | null = null;
   for (const tier of ["workhorse", "highwayPro", "flagship"] as const) {
-    for (const trailer of ["van", "reefer", "flatbed"] as const) {
+    for (const trailer of only ? [only] : (["van", "reefer", "flatbed"] as const)) {
       const src = bestSource(w, c.id, "rig", tier, trailer);
       const left = src.dealershipId ? true : w.supply.tractor[tier] > 0 && w.supply.trailer[trailer] > 0;
       // `days`: its source's wait (a player dealership's stock, or the NPC dealer's queue), for the first-truck figure's date.

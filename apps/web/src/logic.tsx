@@ -39,7 +39,7 @@ import { PENDING } from "./copy-pending.js";
 import { ARRIVAL, BROKERAGE, DEBT, DISPATCHER, FIRST_ENTRY, MOVE, NEEDS, SAFETY_NEWS, TRUCK } from "./copy.js";
 import { cashDipAhead, debtCountdown } from "./figures.js";
 import { hasTwo, kindInView, switchCompany, type CompanyKind } from "./companies.js";
-import { act, bumpData, clockMin, isPhone, me, myTrucks, onWorldReset, push, S, setTab, selectTruck, toast, truckNo, visited, type Session } from "./state.js";
+import { act, bumpData, carrierCo, clockMin, isPhone, me, myTrucks, onWorldReset, ownerOf, push, pushKeyed, S, setTab, selectTruck, toast, truckNo, visited, type Session } from "./state.js";
 import { iuliiaSay, iuliiaSayText } from "./iuliia.js";
 import { PENDING_RULES } from "./copy-pending-rules.js";
 import { tabOpen, teaserTabs, type Tab } from "./tabs.js";
@@ -89,7 +89,7 @@ onWorldReset(() => {
 });
 export function wallAt(t: Truck): Wall {
   const w = S.game!.w;
-  const c = me();
+  const c = ownerOf(t);
   if (wallMemo.t !== w.t) wallMemo = { t: w.t, at: new Map() };
   const key = `${c.id}:${t.id}:${t.place}`;
   const hit = wallMemo.at.get(key);
@@ -111,7 +111,7 @@ export function wallAt(t: Truck): Wall {
 /** R22: the player's idle trucks with nothing in reach they may take that pays, from the moment they're idle. */
 export const wallTrucks = (): Truck[] => {
   const w = S.game!.w;
-  if (me().authority.status !== "active") return [];
+  if (carrierCo().authority.status !== "active") return [];
   return myTrucks().filter((t) => t.status === "idle" && crewed(t) && !resting(w, t) && t.breakdownMin <= 0 && !w.manualBids.has(t.id) && wallAt(t).pays === 0);
 };
 /** R22's line for a stuck truck: the wall's reason, or that nothing in reach pays. */
@@ -141,17 +141,22 @@ export const truckWhere = (t: Truck): string => S.game!.w.net.places[t.place]!.n
 /** R1: with the dispatcher off, the idle card offers it after one idle round, not two. */
 const roundHours = (): number => 24 / S.game!.w.cfg.time.boardRoundHours.length;
 export const stuckTrucks = (): Truck[] => {
-  const off = !me().orders.some((o) => o.kind === "bid");
+  const off = !carrierCo().orders.some((o) => o.kind === "bid");
   const walls = new Set(wallTrucks().map((t) => t.id));
   // A truck with no driver isn't stuck for want of bids: its item is the empty seat (QA item 8: "Let the dispatcher bid"
   // sat beside "Truck 2 has no driver").
   return myTrucks().filter((t) => t.status === "idle" && crewed(t) && idleHours(t) >= (off ? roundHours() : IDLE_ALERT_HOURS) && !resting(S.game!.w, t) && !walls.has(t.id));
 };
 
-/** R1's one button ("Let the dispatcher bid"): the dispatcher's default rules on, the company's other orders kept. */
+/**
+ * R1's one button ("Let the dispatcher bid"): the dispatcher's default rules on, the company's other orders kept. For the
+ * carrier, whose trucks it bids for, whichever company is in view (client batch 8a item 29: in the brokerage's view it
+ * set the brokerage's orders).
+ */
 export function letDispatcherBid(): void {
-  const keep = me().orders.filter((o) => !DISPATCHER_ORDERS.has(o.kind));
-  act({ type: "set_standing_orders", orders: [...PLAYER_DISPATCHER_ORDERS, ...keep] }, DISPATCHER.saved, "dispatcher:on");
+  const c = carrierCo();
+  const keep = c.orders.filter((o) => !DISPATCHER_ORDERS.has(o.kind));
+  act({ type: "set_standing_orders", orders: [...PLAYER_DISPATCHER_ORDERS, ...keep] }, DISPATCHER.saved, "dispatcher:on", "carrier");
 }
 
 /** Shouts once per idle day per truck, in the ticker and as a toast. */
@@ -170,7 +175,8 @@ export function checkIdleAlerts(): void {
     idleAlerted.set(key, days);
     const text = `Truck ${truckNo(t.id)} has been idle ${idleLabel(t)} at ${truckWhere(t)}: ${idleWhy(t).why}`;
     // R22: the idle card and the badge carry it from the moment the truck is idle; it no longer arrives as a toast.
-    push(g, text, "bad");
+    // Client batch 8a item 48: one line per idle truck, kept current, never one more each day.
+    pushKeyed(g, `idle:${t.id}`, text, "bad");
     bumpData();
   }
 }
@@ -432,7 +438,7 @@ export const REBUILD_DUE = 0.6;
  */
 export function sendHomePriced(t: Truck, ev?: MouseEvent): void {
   const w = S.game!.w;
-  const r = emptyRun(w, t, t.hub, me().homeHub);
+  const r = emptyRun(w, t, t.hub, ownerOf(t).homeHub);
   confirmSpend({ verb: MOVE.sendHome, item: `truck ${truckNo(t.id)}`, costFd: r.costFd, does: MOVE.confirmHome, risk: MOVE.confirmRisk, run: () => act({ type: "send_home", truckId: t.id }, PENDING.homeTimeToast, "truck:sendHome") }, ev);
 }
 
@@ -442,7 +448,7 @@ const sendHomeWhileMoving = (w: World): boolean => w.cfg.labor.sendHomeWhileMovi
 /** The one move for a truck stuck idle, as a button: the first fix its idle diagnosis gives. */
 function idleFix(t: Truck): { button: string; run: () => void } {
   const w = S.game!.w;
-  const c = me();
+  const c = ownerOf(t);
   if (ordersWaitForHand(w, c)) return { button: ARRIVAL.showBoard, run: () => goLoads(t.id) };
   if (!c.orders.some((o) => o.kind === "bid")) return { button: DISPATCHER.letBid, run: letDispatcherBid };
   return { button: TRUCK.bidByHand, run: () => goLoads(t.id) };
@@ -492,7 +498,7 @@ export function settleHandBids(s: Session): void {
     // A bid filed for a locals-first load's opening, booked first by a local carrier in the hold (leverage.localHoldHandBids).
     if (hb.filed && load && load.carrierId !== null) iuliiaSayText(PENDING_RULES.localTook);
     else iuliiaSay(load ? "result:lost" : "result:nobody");
-    S.result = { won: false, from: hb.from ?? "", to: hb.to ?? "", rate: hb.rate, winning: load ? load.clearedRate : null, be: hb.be, total: 0, seen: false, winnerId: load?.carrierId ?? undefined, lost: load && hb.truckId !== undefined ? { loadId, truckId: hb.truckId, profitAtWinningFd: (load.clearedRate - hb.be) * load.miles } : undefined };
+    S.result = { won: false, from: hb.from ?? "", to: hb.to ?? "", rate: hb.rate, winning: load ? load.clearedRate : null, be: hb.be, total: 0, seen: false, winnerId: load?.carrierId ?? undefined, lost: load && hb.truckId !== undefined ? { loadId, truckId: hb.truckId, profitAtWinningFd: (load.clearedRate - hb.be) * load.miles, round: S.game!.w.round } : undefined };
     bumpData();
   }
 }
@@ -552,7 +558,8 @@ export const goLoads = (truck: number): void => {
 /** Why one of the player's idle trucks isn't moving, and what would move it. */
 export function idleWhy(t: Truck): IdleWhy {
   const w = S.game!.w;
-  const c = me();
+  // Client batch 8a item 29: the truck's own company, not the company in view (engineering's dispatcher triage).
+  const c = ownerOf(t);
   const hubName = w.net.hubs[t.hub]!.name;
   const trailer = TRAILER_NAME[t.trailer].toLowerCase();
   const board = <Btn onClick={() => goLoads(t.id)}>{TRUCK.bidByHand}</Btn>;
@@ -638,7 +645,7 @@ export function StatusLine({ t }: { t: Truck }): ComponentChildren {
   switch (t.status) {
     case "idle": {
       const bid = w.manualBids.get(t.id);
-      if (!bid && ordersWaitForHand(w, me())) return <>{DISPATCHER.waitingCard(name(t.place))}</>;
+      if (!bid && ordersWaitForHand(w, ownerOf(t))) return <>{DISPATCHER.waitingCard(name(t.place))}</>;
       if (resting(w, t)) {
         const d = w.staff[t.driverId - 1]!;
         const left = d.homeUntilDay! - Math.floor(clockMin() / 1440) - (d.drivenMinToday > 0 ? 1 : 0);

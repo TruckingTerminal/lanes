@@ -5,7 +5,7 @@ import { defaultName, FIRST_ENTRY, HUB_CARD, NAMING } from "../copy.js";
 import { cls, fd } from "../format.js";
 import { FLEET_START_EXTRA_FD, GAME_CONFIG, type StartKind } from "../game.js";
 import { H } from "../handlers.js";
-import { clearsNear } from "../board.js";
+import { clearsNear, rateShown } from "../board.js";
 import { hubFacts, moodLine, rankStarters, seasonReading } from "../hubcard.js";
 import { iuliiaFirst } from "../iuliia.js";
 import { bumpData, S, TEST_BUILD, useData, type EntryStage } from "../state.js";
@@ -226,7 +226,7 @@ function ReadOnlyBoard({ hub }: { hub: number }): JSX.Element {
             {S.game!.w.net.places[l.originPlace]!.name} → {S.game!.w.net.places[l.destPlace]!.name} · {Math.round(l.miles).toLocaleString("en-US")} mi
           </div>
           <div class="small">
-            {fd(l.bookNow * l.miles)} FD · {l.bookNow.toFixed(2)}/mi · 0 mi empty · usually clears near {clearsNear(S.game!.w, l).toFixed(2)}/mi
+            {fd(l.bookNow * l.miles)} FD · {rateShown(l, l.bookNow)}/mi · 0 mi empty · usually clears near {rateShown(l, clearsNear(S.game!.w, l))}/mi
           </div>
         </div>
       ))}

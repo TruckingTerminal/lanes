@@ -96,6 +96,7 @@ export function MonthCard({ r, title, first }: { r: MonthReport; title?: string;
           <Row label={MONTH.cashEnd} value={amount(r.cashEnd)} strong bad={r.cashEnd < 0} />
         </tbody>
       </table>
+      {r.taken > 0 ? <p class="small bad">{PENDING.monthTaken(r.taken, fdFull(r.takenLoansFd))}</p> : null}
       <p class="small muted">{r.loads > 0 ? MONTH.lines(r.loads, pct(r.onTimePct ?? 0), Math.round(r.loadedMi).toLocaleString("en-US"), Math.round(r.allMi).toLocaleString("en-US"), pct(r.allMi > 0 ? r.loadedMi / r.allMi : 0)) : MONTH.noLoads}</p>
     </Card>
   );

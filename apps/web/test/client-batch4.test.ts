@@ -32,9 +32,9 @@ describe("client batch 4", () => {
     expect(lineOf(w, c, `co:${other.id}`, "claim:noshow:12", false)).toBe("claims");
     expect(lineOf(w, c, `co:${other.id}`, "claim:cancel:12", true)).toBe("claims");
 
-    // (9) The first-truck figure names the truck it prices, and a worn used one carries Iuliia's catch in figures.
+    // (9) The first-truck card names the truck it prices (client batch 8a item 57: under Why, beside one verdict).
     const f = firstTruckLine(w, c)!;
-    expect(f.what).toMatch(/^(That's for the truck that takes the least cash today|That's for the cheapest truck your hold already covers): a (new|used) /);
+    if (f.open !== null) expect(f.why[0]).toMatch(/^The truck: a (new|used) /);
     const fresh = { tier: "workhorse" as const, trailer: "van" as const, lease: "owned" as const, odometer: 0, milesSinceRebuild: 0 };
     const worn = { ...fresh, odometer: 480_000, milesSinceRebuild: 0.55 * w.cfg.wear.lifeMiles, rebuilds: 1 };
     expect(repairsPer(w, worn)).toBeGreaterThan(repairsPer(w, fresh));

@@ -42,7 +42,7 @@ import { Rig } from "../Loop.js";
 import { Fig } from "../Explain.js";
 import { confirmAct } from "../Confirm.js";
 import { newTruck, trailer as trailerLines, usedTruck, type Lines } from "../../confirmspecs.js";
-import { inFirstMonth, truckPlace } from "../../figures.js";
+import { inFirstMonth, nextWeeklyCheckDay, truckPlace } from "../../figures.js";
 import { PENDING } from "../../copy-pending.js";
 import { fleetCaps } from "../../figures.js";
 import { CAPS, DOOR } from "../../copy.js";
@@ -101,8 +101,8 @@ export function Showroom(): JSX.Element {
             Worn rigs at their used value: a Workhorse about {lotSpec(w, "van").odometer.toLocaleString("en-US")} miles and {Math.round((w.t / w.cfg.time.gameMinutesPerDay - lotSpec(w, "van").builtDay) / 365)} years old. {w.usedLot.stock} on the lot this week; {PENDING.lotReadyNote}.
           </p>
           {TYPES.map((tr) => (
+            <div id={`lot-${tr}`} key={tr}>
             <Buy
-              key={tr}
               what={`Workhorse + ${TRAILER_NAME[tr]}`}
               // Client batch 7 (QA): an order, said as one, with "(replaces your lease)" as the new rigs' buttons carry it.
               verb={PENDING.orderVerb}
@@ -114,10 +114,12 @@ export function Showroom(): JSX.Element {
               // Client batch 6 (QA): the engine's own lot wait for this buyer (dealerships.ts lotDeliveryDays): the NPC
               // dealer's queue for a starter replacing its lease, the lot's own days for a rig that adds to a fleet.
               when={DEALER.arrives(shortDate(today + lotDeliveryDays(w, onLease)))}
+              ordered={lotDeliveryDays(w, onLease) > 0}
               lines={orderLines(usedTruck(w, c, { ...lotSpec(w, tr), tier: "workhorse", trailer: tr, lease: "owned" }), shortDate(today + lotDeliveryDays(w, onLease)), onLease)}
               truck={collateralOf(w, lotSpec(w, tr))}
               ok="Ordered from the used lot"
             />
+            </div>
           ))}
         </>
       ) : null}
@@ -128,7 +130,8 @@ export function Showroom(): JSX.Element {
           const tractor = bestSource(w, c.id, "tractor", tier, tr);
           const rigLeft = rig.dealershipId ? true : w.supply.tractor[tier] > 0 && w.supply.trailer[tr] > 0;
           return (
-            <Card key={`${tier}-${tr}`}>
+            <div id={`new-${tier}-${tr}`} key={`${tier}-${tr}`}>
+            <Card>
               <div class="truckhead">
                 <Rig eq={tr} alt={`${TIER_NAME[tier]} with ${TRAILER_NAME[tr]}`} />
                 <div>
@@ -148,6 +151,7 @@ export function Showroom(): JSX.Element {
                 block={!rigLeft ? DEALER.whySupply : capWhy ?? roomWhy}
                 action={{ type: "buy_asset", tier, trailer: tr, replaceNpcLease: onLease, dealershipId: rig.dealershipId || undefined }}
                 when={DEALER.arrives(shortDate(today + rig.days))}
+                ordered={rig.days > 0}
                 lines={newTruck(w, tier, tr, rig.days)}
                 truck={NEW_TRUCK}
                 ok={PENDING.orderedReady(plural(rig.days, "day"))}
@@ -167,12 +171,14 @@ export function Showroom(): JSX.Element {
                   block={tractor.dealershipId || w.supply.tractor[tier] > 0 ? capWhy : DEALER.whySupply}
                   action={{ type: "buy_asset", tier, trailer: tr, replaceNpcLease: onLease, tractorOnly: true, dealershipId: tractor.dealershipId || undefined }}
                   when={DEALER.arrives(shortDate(today + tractor.days))}
+                  ordered={tractor.days > 0}
                   lines={newTruck(w, tier, tr, tractor.days)}
                   truck={NEW_TRUCK}
                   ok="Tractor ordered. It hooks a spare from your yard, or a rental"
                 />
               ) : null}
             </Card>
+            </div>
           );
         }),
       )}
@@ -245,7 +251,8 @@ export function Showroom(): JSX.Element {
 /** The used lot's confirm lines with the order's day and, for a starter, the lease's end at the hand-over (client batch 7). */
 const orderLines = (base: Lines, date: string, replacing: boolean): Lines => ({ ...base, does: `${base.does} ${PENDING.lotOrderNote(date, replacing)}` });
 
-export function Buy({ what, label, verb = "Buy", price, replacing, block, action, ok, lines, when, truck }: { what: string; label?: string; verb?: string; price: number; replacing: boolean; block: string | null; action: Extract<Action, { type: "buy_asset" }> | Extract<Action, { type: "buy_listing" }>; ok: string; lines: Lines; when?: string; truck?: Collateral }): JSX.Element {
+/** `ordered`: the truck comes on a later day (the dealer's queue or the lot's wait), so it's an order, not a truck owned today. */
+export function Buy({ what, label, verb = "Buy", price, replacing, block, action, ok, lines, when, truck, ordered = false }: { what: string; label?: string; verb?: string; price: number; replacing: boolean; block: string | null; action: Extract<Action, { type: "buy_asset" }> | Extract<Action, { type: "buy_listing" }>; ok: string; lines: Lines; when?: string; truck?: Collateral; ordered?: boolean }): JSX.Element {
   const w = S.game!.w;
   const c = me();
   const [open, setOpen] = useState(false);
@@ -262,8 +269,11 @@ export function Buy({ what, label, verb = "Buy", price, replacing, block, action
   const cashWhy = block ?? (p.cashOk ? null : DEALER.whyCash(fd(cash), fd(p.cashNowFd)));
   const loanWhy = !p.loan ? null : block ?? (p.loan.why === "full" ? DEALER.whyLoans(purchaseTerms(w, c, truck).maxLoans) : p.loan.why === "short" ? DEALER.whyLoan(fd(p.loanNowFd ?? 0), fd(cash)) : null);
   const ef = w.cfg.equipmentFinance.purchase;
-  // Iuliia's line for the purchase: the first truck of its own, or one more (iuliia-lines.md, Dealer).
-  const said = myTrucks().some((t) => t.lease === "owned") || ordersOf(w, c.id).length ? "dealer:buyLater" : "dealer:buyFirst";
+  // Iuliia's line for the purchase: the first truck of its own, or one more (iuliia-lines.md, Dealer). Client batch 8a
+  // item 2 (QA): buyFirst ("Yours. The lessor's cut ends today…") is for a truck owned that day; an order gets the
+  // "Truck ordered" caption alone.
+  const first = !(myTrucks().some((t) => t.lease === "owned") || ordersOf(w, c.id).length);
+  const said = ordered ? (first ? null : "dealer:buyLater") : first ? "dealer:buyFirst" : "dealer:buyLater";
   // R6: every truck bought asks first, on the card: what leaves cash now, what's left, what it is and its one risk.
   const ask = (a: typeof action, ev: MouseEvent) =>
     confirmAct({ verb, item: what, costFd: a.finance ? p.loanNowFd ?? 0 : p.cashNowFd, ...lines, run: () => void go(a) }, ev);
@@ -273,7 +283,7 @@ export function Buy({ what, label, verb = "Buy", price, replacing, block, action
     setRefused(null);
     setOpen(false);
     toast(ok);
-    iuliiaSay(said);
+    if (said) iuliiaSay(said);
   };
   return (
     <div class="stack buy">
@@ -314,6 +324,8 @@ export function Buy({ what, label, verb = "Buy", price, replacing, block, action
               [DEALER.loan, `${fd(p.loan.loanFd)} FD`],
               [DEALER.stake, DEALER.stakeValue(fd(p.loan.stake))],
               [DEALER.weekly, <Fig k="loan.rate" label={DEALER.weekly}>{DEALER.weeklyValue(fd(p.loan.weekly), p.loan.termWeeks, `${(p.loan.weeklyRate * 100).toFixed(2)}%`)}</Fig>],
+              // Client batch 8a item 22: the first payment's day, and that payments run while an ordered truck waits.
+              [PENDING.loanFirstLabel, PENDING.loanFirstValue(shortDate(nextWeeklyCheckDay(w)), ordered)],
               ...(p.deposit > 0.5 ? ([[DEALER.deposit, DEALER.depositValue(fd(p.deposit))]] as [string, string][]) : []),
               [DEALER.now, <Fig k="loan.cashNow" label={DEALER.now} ctx={{ fd: price, replacing, truck }}>{`${fd(p.loanNowFd ?? 0)} FD`}</Fig>],
             ]}

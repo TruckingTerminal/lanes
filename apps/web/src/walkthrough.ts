@@ -5,7 +5,8 @@
  * says about it, where to click, and why; the player can read ahead.
  */
 import type { EconomyConfig } from "@lanes/config";
-import { dayOf, ordersWaitForHand, type Company, type World } from "@lanes/engine";
+import { crewed, dayOf, ordersWaitForHand, type Company, type World } from "@lanes/engine";
+import { firstTruckLine } from "./figures.js";
 import type { Tab } from "./tabs.js";
 import { STEP9 } from "./copy.js";
 import { PENDING } from "./copy-pending.js";
@@ -36,7 +37,15 @@ export interface WalkStep {
   /** The words instead for a company with no lessor's truck (a small fleet owns its two from the start). */
   owned?: { brief: string; say: string[]; do: string; why: string };
   done: (w: World, c: Company) => boolean;
+  /**
+   * Client batch 8a item 58 (the director's D): whether the step's object exists, so it can be done now. A step that
+   * can't be done yet waits: neither skipped nor shown, and the next one that can shows. Absent: always.
+   */
+  can?: (w: World, c: Company) => boolean;
 }
+
+/** The Miles step's done mark: loaded miles in all (second in the director's order, so a first stretch, not a career). */
+export const MILES_STEP_DONE = 2_500;
 
 const n = (x: number) => Math.round(x).toLocaleString("en-US");
 const pct = (x: number) => `${Math.round(x * 100)}%`;
@@ -83,6 +92,34 @@ export function walkSteps(cfg: EconomyConfig, hub = "your home hub"): WalkStep[]
       // books from the start (no first bid by hand to wait for) ticks it on its first load instead (QA's guidance
       // replay: a small fleet never had a truck idle to bid by hand, and the step stood for a month).
       done: (w, c) => c.firstHandBidDay !== null || (!ordersWaitForHand(w, c) && (c.delivered > 0 || (w.trucksByCompany.get(c.id) ?? []).some((t) => t.loadId !== null))),
+    },
+    {
+      id: "orders",
+      title: "Set your dispatcher before you go",
+      tab: "fleet",
+      mood: "laugh",
+      // Client batch 8a item 58 (the director's B): right after the first hand-booked load, with her line.
+      brief: "It bids for your truck while you're away. You can still book by hand any time.",
+      say: [
+        `Nobody bids every load by hand past two trucks, and the clock is indifferent to your sleep. The standing orders at the bottom of the Truck tab are your rules: where to bid, how low, which lanes, when the drivers go home. Your dispatcher follows them for every truck you don't handle yourself.`,
+        `Set them before you need them, then audit what they did, because a rule that looked clever on Tuesday finds a way to be foolish by Friday. I've managed rules. I've managed people. The rules, at least, have never asked me to invest in a cousin's restaurant.`,
+      ],
+      do: "Check the dispatcher is on in Standing orders on the Truck tab, then watch a round clear.",
+      why: "Orders turn a company that needs you every six hours into one that runs while you're away.",
+      // Any state that satisfies it (R2): the orders took over the fleet, or the player chose to bid by hand and switched
+      // the dispatcher off after its first load.
+      // Done once the dispatcher bids for the company, or a hired dispatcher runs the trucks. Where a company joins with the
+      // dispatcher already on (guard.dispatcherDefaultOn, off in the live rules), the step shows on the day of the first
+      // hand booking and is done the day after (a round cleared with it bidding), or at once when the player turned it
+      // off to bid by hand (R2: off, then, is the player's choice, not a step left undone).
+      done: (w, c) => {
+        if (trucksOf(w, c).length >= 3 || staffOf(w, c, "dispatcher") >= 1) return true;
+        const on = c.orders.some((o) => o.kind === "bid");
+        if (!w.cfg.guard.dispatcherDefaultOn) return on;
+        return c.firstHandBidDay !== null && (!on || dayOf(w.t, w.cfg) > c.firstHandBidDay);
+      },
+      // Its object: a first load booked by hand (the dispatcher waits for it, ordersWaitForHand).
+      can: (w, c) => !ordersWaitForHand(w, c),
     },
     {
       id: "haul",
@@ -154,19 +191,22 @@ export function walkSteps(cfg: EconomyConfig, hub = "your home hub"): WalkStep[]
       done: (w, c) => age(w, c) >= 14 && c.delivered >= 5,
     },
     {
-      id: "maintenance",
-      title: "Keeping it on the road",
-      tab: "fleet",
-      mood: "point",
-      brief: "Condition falls with the miles, and a worn truck breaks down more. Repairs at home are cheaper than away.",
+      id: "miles",
+      title: "Miles",
+      tab: "money",
+      mood: "wave",
+      brief: "Every loaded mile earns Miles: your standing in the beta, on Money. The Report button reaches me, and I read every one.",
       say: [
-        `Condition falls with the miles, and a worn truck breaks down more. Defects accumulate if nobody attends to them, and an inspector will notice before you do. A rebuild resets the clock and costs real money, more the higher the odometer, because a shop can read an odometer too.`,
-        `A breakdown on the road calls out road service, the dearest mechanic in the game, unless a truck stop with a shop is near. Repairs at home are cheaper than repairs away. A truck gets two rebuilds in a life, or about a million miles, then runs until it's worn out and goes for scrap. My grandfather's Volga got none and ran thirty years, on pride and good manners.`,
+        `Every loaded mile earns Miles. That's your standing in the beta, on Money, under Standing. What Miles become is announced when the token is; until then they're the score, and the score is how you get on my clipboard in ink rather than pencil.`,
+        `Two more things. The locked tabs are the layers still coming; the Guide's road ahead has the plan. And the Report button sends me a bug or an idea with everything I need already attached. I read every one. Some of them twice, with the eyebrow.`,
       ],
-      do: "Check the condition bar; plan the rebuild before it's urgent.",
-      why: "A breakdown costs the tow, the repair, the missed delivery and the driver's hours. A planned rebuild costs the rebuild.",
-      done: (w, c) => age(w, c) >= 28 && c.delivered >= 8,
+      do: "Open Standing on Money, then the road ahead.",
+      why: "The beta is tuned on what players do; your reports are how the market gets right.",
+      // Client batch 8a item 58: second in the director's order, so done on a first stretch of loaded miles (it was the last
+      // step, at 25,000, and would have held every later step for weeks). The figure is engineering's; the director's to set.
+      done: (w, c) => miles(c) >= MILES_STEP_DONE,
     },
+
     {
       id: "law",
       title: "The law",
@@ -195,6 +235,9 @@ export function walkSteps(cfg: EconomyConfig, hub = "your home hub"): WalkStep[]
       // From the Dealer's own figures, only routes the company can take now (QA's step-9 replay): the lot keeps the step's
       // line; a listing it can buy, a new rig on a loan it can carry, or the gap and the lot's restock.
       doNow: (w, c) => {
+        // Client batch 8a items 57 and 58 (the director's A and D): the first-truck step says the card's one verdict.
+        const f = firstTruckLine(w, c);
+        if (f && !f.ordered) return f.figure === PENDING.soundTitle ? f.verdict : `${f.figure}. ${f.verdict}`;
         const r = firstTruckRoute(w, c);
         const fd = (x: number) => Math.round(x).toLocaleString("en-US");
         if (r.route === "lot") return null;
@@ -210,38 +253,26 @@ export function walkSteps(cfg: EconomyConfig, hub = "your home hub"): WalkStep[]
       done: (w, c) => trucksOf(w, c).some((t) => t.lease === "owned") || w.orders.some((o) => o.companyId === c.id && o.replaceNpcLease && o.kind !== "trailer"),
     },
     {
-      id: "driver",
-      title: "Hiring a driver",
-      tab: "staff",
-      mood: "point",
-      brief: "A second truck needs a second driver. Pay decides who takes the job; home time decides who stays.",
-      say: [
-        `A second truck needs a second driver, so: Staff, under More, and the labor pool. Skill shows up as fuel, maintenance and fewer letters from the patrol. Pay decides who takes the job: offer below market and the good ones decline, politely, and work for your competitor. Morale decides who stays: home time every few weeks, or you'll be hiring again, and I'll be raising an eyebrow again. I do it in two languages.`,
-        `You can run ${cfg.labor.owner.span} trucks yourself. From the next one you need a dispatcher, who bids and plans for the trucks you don't touch. Then every few trucks, another. It's a ladder; each rung costs money; it is also the only way up. I'll be at the top, with the clipboard and the good tea.`,
-      ],
-      do: "Hire a driver at a pay the market will take.",
-      why: "Drivers are the largest cost in the game and the largest difference between two companies with the same trucks.",
-      done: (w, c) => trucksOf(w, c).length >= 2 && staffOf(w, c, "driver") >= 1,
-    },
-    {
-      id: "orders",
-      title: "Standing orders",
+      id: "maintenance",
+      title: "Keeping it on the road",
+      // The director's D: on owning only; never the condition bar on a truck the lessor maintains.
+      can: (w, c) => trucksOf(w, c).some((t) => t.lease === "owned" && t.lessorId === 0),
       tab: "fleet",
-      mood: "laugh",
-      brief: "Nobody bids every load by hand past two trucks. Your dispatcher's rules run the trucks you don't touch.",
+      mood: "point",
+      brief: "Condition falls with the miles, and a worn truck breaks down more. Repairs at home are cheaper than away.",
       say: [
-        `Nobody bids every load by hand past two trucks, and the clock is indifferent to your sleep. The standing orders at the bottom of the Truck tab are your rules: where to bid, how low, which lanes, when the drivers go home. Your dispatcher follows them for every truck you don't handle yourself.`,
-        `Set them before you need them, then audit what they did, because a rule that looked clever on Tuesday finds a way to be foolish by Friday. I've managed rules. I've managed people. The rules, at least, have never asked me to invest in a cousin's restaurant.`,
+        `Condition falls with the miles, and a worn truck breaks down more. Defects accumulate if nobody attends to them, and an inspector will notice before you do. A rebuild resets the clock and costs real money, more the higher the odometer, because a shop can read an odometer too.`,
+        `A breakdown on the road calls out road service, the dearest mechanic in the game, unless a truck stop with a shop is near. Repairs at home are cheaper than repairs away. A truck gets two rebuilds in a life, or about a million miles, then runs until it's worn out and goes for scrap. My grandfather's Volga got none and ran thirty years, on pride and good manners.`,
       ],
-      do: "Set the bidding and home-time rules, then watch a round clear.",
-      why: "Orders turn a company that needs you every six hours into one that runs while you're away.",
-      // Any state that satisfies it (R2): the orders took over the fleet, or the player chose to bid by hand and switched
-      // the dispatcher off after its first load.
-      done: (w, c) => trucksOf(w, c).length >= 3 || staffOf(w, c, "dispatcher") >= 1 || (c.firstHandBidDay !== null && !c.orders.some((o) => o.kind === "bid")),
+      do: "Check the condition bar; plan the rebuild before it's urgent.",
+      why: "A breakdown costs the tow, the repair, the missed delivery and the driver's hours. A planned rebuild costs the rebuild.",
+      done: (w, c) => trucksOf(w, c).some((t) => t.lease === "owned") && age(w, c) >= 28 && c.delivered >= 8,
     },
     {
       id: "yard",
       title: "The yard",
+      // The director's D: on owning only.
+      can: (w, c) => trucksOf(w, c).some((t) => t.lease === "owned"),
       tab: "business",
       mood: "point",
       brief: `Past ${cfg.token.catalogue.trucksWithoutYard} trucks you need a yard: park, drop trailers, swap them. That's how one truck does two jobs.`,
@@ -254,20 +285,22 @@ export function walkSteps(cfg: EconomyConfig, hub = "your home hub"): WalkStep[]
       done: (w, c) => c.yard !== "none",
     },
     {
-      id: "miles",
-      title: "Miles",
-      tab: "money",
-      mood: "wave",
-      brief: "Every loaded mile earns Miles: your standing in the beta, on Money. The Report button reaches me, and I read every one.",
+      id: "driver",
+      title: "Hiring a driver",
+      // The director's D: only when a second truck is ordered or a truck has no driver; never "a second truck needs a
+      // second driver" with one truck.
+      can: (w, c) => w.orders.some((o) => o.companyId === c.id && !o.replaceNpcLease && o.kind !== "trailer") || trucksOf(w, c).some((t) => !crewed(t)),
+      tab: "staff",
+      mood: "point",
+      brief: "A second truck needs a second driver. Pay decides who takes the job; home time decides who stays.",
       say: [
-        `Every loaded mile earns Miles. That's your standing in the beta, on Money, under Standing. What Miles become is announced when the token is; until then they're the score, and the score is how you get on my clipboard in ink rather than pencil.`,
-        `Two more things. The locked tabs are the layers still coming; the Guide's road ahead has the plan. And the Report button sends me a bug or an idea with everything I need already attached. I read every one. Some of them twice, with the eyebrow.`,
+        `A second truck needs a second driver, so: Staff, under More, and the labor pool. Skill shows up as fuel, maintenance and fewer letters from the patrol. Pay decides who takes the job: offer below market and the good ones decline, politely, and work for your competitor. Morale decides who stays: home time every few weeks, or you'll be hiring again, and I'll be raising an eyebrow again. I do it in two languages.`,
+        `You can run ${cfg.labor.owner.span} trucks yourself. From the next one you need a dispatcher, who bids and plans for the trucks you don't touch. Then every few trucks, another. It's a ladder; each rung costs money; it is also the only way up. I'll be at the top, with the clipboard and the good tea.`,
       ],
-      do: "Open Standing on Money, then the road ahead.",
-      why: "The beta is tuned on what players do; your reports are how the market gets right.",
-      done: (w, c) => miles(c) >= 25_000,
-    },
-  ];
+      do: "Hire a driver at a pay the market will take.",
+      why: "Drivers are the largest cost in the game and the largest difference between two companies with the same trucks.",
+      done: (w, c) => trucksOf(w, c).length >= 2 && staffOf(w, c, "driver") >= 1,
+    },  ];
 }
 
 /** The first step not yet done, and how many are done. */
@@ -276,10 +309,15 @@ export function walkSteps(cfg: EconomyConfig, hub = "your home hub"): WalkStep[]
  * skipped, not done, What now? never offers it, and she says nothing of it; the next step still waits for the world, so
  * no line runs ahead of its event. `skipped` is the player's, kept by the page; the bots skip nothing.
  */
-export function walkProgress(cfg: EconomyConfig, w: World, c: Company, skipped: readonly string[] = []): { step: WalkStep | null; index: number; done: number; total: number; skipped: boolean } {
+/**
+ * Client batch 8a item 58 (the director's D): a step is current only when it can be done: its object exists (`can`) and,
+ * where the page says (`pageOpen`, the client's tabOpen), its page is open. A step that can't be done waits: the next one
+ * that can is current. `index` is -1 when every step left is done or waiting.
+ */
+export function walkProgress(cfg: EconomyConfig, w: World, c: Company, skipped: readonly string[] = [], pageOpen?: (tab: Tab) => boolean): { step: WalkStep | null; index: number; done: number; total: number; skipped: boolean } {
   const steps = walkSteps(cfg);
   const done = steps.filter((s) => s.done(w, c)).length;
-  const index = steps.findIndex((s) => !s.done(w, c));
+  const index = steps.findIndex((s) => !s.done(w, c) && (s.can?.(w, c) ?? true) && (pageOpen?.(s.tab) ?? true));
   const step = index >= 0 ? steps[index]! : null;
   return { step, index, done, total: steps.length, skipped: step !== null && skipped.includes(step.id) };
 }

@@ -2085,6 +2085,10 @@ export const economyConfig = {
     gapCushionWeeks: 4, // the gap to the next truck holds back this many weeks of the company's own spending
     cushionAvgWeeks: 4, // the cushion averages spending over this many weeks (at most seasonClose.workingCapitalWeeks are kept)
     milestoneWindowDays: 12, // a milestone's line shows within this many game days of its date (the director's gate)
+    // The first-truck verdict's "sound" truck (the director's ruling A, 2026-11-10): a truck at or over this condition
+    // (wear.ts condition, 0–1). PLACEHOLDER until the economy sets it from its wear rules (the condition at which expected
+    // repairs stay under its level); 0.6 is the client's worn line today (figures.ts WORN_BELOW). Screens only.
+    soundCondition: 0.6,
   },
   // A hub reads its open dry-van loads whose ceiling clears a starter's break-even by `margin`, per round of its base van freight.
   ui: {

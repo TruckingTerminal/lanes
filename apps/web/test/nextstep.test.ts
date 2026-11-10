@@ -27,37 +27,37 @@ async function fresh() {
 }
 
 describe("What now? (nextAction), rule by rule", () => {
-  it("rule 3: an idle truck with a paying load in reach, ahead of the walkthrough's step", async () => {
+  // Client batch 8a item 59: the rules are the director's tiers (nextstep.ts NextAction).
+  it("tier 2: an idle truck with a paying load in reach, ahead of the walkthrough's step", async () => {
     const { g, c, truck } = await fresh();
     const a = nextAction(GAME_CONFIG, g.w, c);
-    expect(a.rule).toBe(3);
+    expect(a.rule).toBe(2);
     if (a.kind !== "idle") throw new Error(a.kind);
     expect(a.truckId).toBe(truck.id);
     expect(a.profitFd).toBeGreaterThan(0);
   }, 60_000);
 
-  it("rule 4: the walkthrough's step once no truck is free", async () => {
+  it("tier 6: the walkthrough's step once no truck is free", async () => {
     const { g, c, truck } = await fresh();
     const row = boardRows(g.w, c, truck, { dest: "any", maxDh: 300, query: "" }).find((r) => !r.block)!;
     expect(g.act({ type: "book_load", truckId: truck.id, loadId: row.l.id }).ok).toBe(true);
     const a = nextAction(GAME_CONFIG, g.w, c);
-    expect(a.rule).toBe(4);
+    expect(a.rule).toBe(6);
   }, 60_000);
 
   it("rule 2: a truck without a driver, and a tender before it", async () => {
     const { g, c, truck } = await fresh();
     truck.driverId = 0;
-    // Before the first load Staff is locked (tutorial.ts): the empty seat waits, and the first load is the step (QA item 8).
-    const locked = c.firstHandBidDay === null && c.delivered === 0;
-    if (locked) {
-      expect(nextAction(GAME_CONFIG, g.w, c)).not.toMatchObject({ kind: "driver" });
-      c.firstHandBidDay = Math.floor(g.w.t / g.w.cfg.time.gameMinutesPerDay);
-    }
+    // Client batch 8a items 47 and 59: Staff opens for a truck with no driver even before the first load, and the empty
+    // seat is money bleeding (tier 2), ahead of a tender (a load to book, tier 5).
     expect(nextAction(GAME_CONFIG, g.w, c)).toMatchObject({ rule: 2, kind: "driver", truckId: truck.id });
     const load = [...g.w.loads.values()].find((l) => l.status === "open")!;
     load.tenderedTo = c.id;
     load.tenderUntil = g.w.t + 600;
-    expect(nextAction(GAME_CONFIG, g.w, c)).toMatchObject({ rule: 2, kind: "tender", loadId: load.id });
+    expect(nextAction(GAME_CONFIG, g.w, c)).toMatchObject({ rule: 2, kind: "driver", truckId: truck.id });
+    truck.driverId = c.id; // a seat filled again (any staff id): the tender is next once nothing bleeds
+    truck.status = "loaded";
+    expect(nextAction(GAME_CONFIG, g.w, c)).toMatchObject({ rule: 5, kind: "tender", loadId: load.id });
   }, 60_000);
 
   it("rule 1: danger outranks everything, with the countdown and a real lever", async () => {
@@ -80,8 +80,10 @@ describe("What now? (nextAction), rule by rule", () => {
     expect(a.truckId).toBe(truck.id);
     expect(a.loadId).not.toBe(lostLoad.id);
     expect(a.profitFd).toBeGreaterThan(0);
-    // Nothing beside it would have left as much as the lost load at the winning rate: rule 3 as usual.
-    expect(nextAction(GAME_CONFIG, g.w, c, { loadId: lostLoad.id, truckId: truck.id, profitAtWinningFd: 1e9 }).rule).toBe(3);
+    // Nothing beside it would have left as much as the lost load at the winning rate: the truck's own answer as usual.
+    expect(nextAction(GAME_CONFIG, g.w, c, { loadId: lostLoad.id, truckId: truck.id, profitAtWinningFd: 1e9 }).kind).toBe("idle");
+    // The follow-up expires at the next round's clear.
+    expect(nextAction(GAME_CONFIG, g.w, c, { loadId: lostLoad.id, truckId: truck.id, profitAtWinningFd: 0, round: g.w.round - 1 }).kind).not.toBe("lost");
   }, 60_000);
 
   it("rule 1: invoices due before the deciding check come before selling a truck (QA's guidance replay)", async () => {
@@ -183,24 +185,34 @@ describe("the walkthrough's soft ways out (the director's R2)", () => {
     expect(g.act({ type: "book_load", truckId: truck.id, loadId: row.l.id }).ok).toBe(true);
     const before = walkProgress(GAME_CONFIG, g.w, c);
     const a = nextAction(GAME_CONFIG, g.w, c);
-    expect(a).toMatchObject({ rule: 4, index: before.index });
+    expect(a).toMatchObject({ rule: 6, index: before.index });
     const id = walkSteps(GAME_CONFIG)[before.index]!.id;
     const after = walkProgress(GAME_CONFIG, g.w, c, [id]);
     expect(after.index).toBe(before.index); // the next step doesn't run ahead of its event
     expect(after.skipped).toBe(true);
     expect(after.done).toBe(before.done); // skipped isn't done
-    expect(nextAction(GAME_CONFIG, g.w, c, null, [id])).not.toMatchObject({ rule: 4, index: before.index });
+    expect(nextAction(GAME_CONFIG, g.w, c, null, [id])).not.toMatchObject({ rule: 6, index: before.index });
     // Marks are this company's: another world's skip in the same browser doesn't count.
     expect(skippedSteps([stepKey(g.w, c, "say:paid"), stepKey(g.w, c, `skip:${id}`), `other:1:0|skip:paid`], g.w, c)).toEqual([id]);
   }, 60_000);
 
-  it("Standing orders is done for a player who bids by hand and switched the dispatcher off", async () => {
+  it("the dispatcher's step: done once it bids; with the dispatcher on from the join, done for a player who switched it off (R2)", async () => {
     const { g, c } = await fresh();
     const orders = walkSteps(GAME_CONFIG).find((s) => s.id === "orders")!;
     expect(orders.done(g.w, c)).toBe(false);
     c.firstHandBidDay = 0;
     c.orders = c.orders.filter((o) => o.kind !== "bid");
-    expect(orders.done(g.w, c)).toBe(true);
+    // The live rules join with it off (client batch 8a item 58, the director's B): the step waits for it to be on.
+    const guard = g.w.cfg.guard as { dispatcherDefaultOn: boolean };
+    const was = guard.dispatcherDefaultOn;
+    guard.dispatcherDefaultOn = false;
+    try {
+      expect(orders.done(g.w, c)).toBe(false);
+      guard.dispatcherDefaultOn = true;
+      expect(orders.done(g.w, c)).toBe(true);
+    } finally {
+      guard.dispatcherDefaultOn = was;
+    }
   }, 60_000);
 });
 

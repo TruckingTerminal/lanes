@@ -9,9 +9,10 @@ import { VETTING_NAMES } from "@lanes/engine";
 import type { Tab } from "./tabs.js";
 import { freshOnboard, ONBOARD_KEY, parseOnboard, worldMark, type Onboard } from "./onboard.js";
 import type { PayLine } from "./rolling.js";
-import { FIRST_LOAD_TABS, firstLoadLocked } from "./tutorial.js";
+import { tabLocked } from "./tutorial.js";
 import { TUTORIAL } from "./copy.js";
 import { PENDING } from "./copy-pending.js";
+import { truckNumber } from "./trucknos.js";
 
 /**
  * The screen's shared state: which world is on screen, what is selected, and the
@@ -90,7 +91,9 @@ export const S = {
   waysOut: null as number | null,
   milestone: null as null | { key: string; phase: "before" | "at"; tab: string; at: number; held?: boolean },
   /** The confirm card open now (R6, ui/Confirm.tsx), and when it opened (its confirm is inert for ui.tapSettleMs). */
-  confirm: null as null | import("./ui/Confirm.js").ConfirmSpec & { openedAt: number; swap: boolean; tab: string },
+  /** The Dealer's row to bring into view when it next draws (the first-truck card's "See it", client batch 8a item 57). */
+  dealerFocus: null as string | null,
+  confirm: null as null | import("./ui/Confirm.js").ConfirmSpec & { openedAt: number; swap: boolean; tab: string; anchor?: { top: number; left: number } },
   /** The player's last order: on which tab, at which real time (R2: a caption line retires when the player acts on another screen). */
   lastAct: null as null | { tab: string; at: number },
   /** R21: what changed while the player was away, shown as the return card until answered (returncard.ts). */
@@ -165,7 +168,7 @@ export const PER_WORLD = [
   "entry", "selTruck", "selHub", "cityView", "townView", "openLoad", "handBids", "bookedLoads", "idleFrom", "handLoads",
   "boardPoster", "boardSortOnce", "waysOut", "milestone", "confirm", "lastAct", "returnCard", "lastReturn", "poachResults",
   "gapSeen", "cashPlan", "cashed", "brokerSwitch", "lastDriver", "explain", "whatNow", "iuliiaLine", "intel", "homeNow",
-  "delivered", "moneyDot", "invoiceLanes", "following", "result", "selSite", "walkView", "okText",
+  "delivered", "moneyDot", "invoiceLanes", "following", "result", "selSite", "walkView", "okText", "dealerFocus",
 ] as const satisfies readonly (keyof typeof S)[];
 export const KEPT_ACROSS_WORLDS = [
   "platform", "live", "test", "game", "screen", "loadShare", "tab", "layout", "sheet", "ratesEq", "guidePage", "savedTest",
@@ -240,7 +243,8 @@ export const useData = (): number => useChannel(data);
 // --- The feed: ticker and the cash history, per session ------------------------------
 
 export interface Feed {
-  ticker: { text: string; cls: string }[];
+  /** `key`: a line kept current in place (pushKeyed), not one more line each time. */
+  ticker: { text: string; cls: string; key?: string }[];
   history: { day: number; cash: number }[];
   /** The company's deliveries as this page saw them (gross, game day), newest last: Finance's "average load" (specs/finance.md). */
   deliveries: { day: number; grossFd: number }[];
@@ -260,11 +264,31 @@ export function push(s: Session, text: string, cls = ""): void {
   if (f.ticker.length > 30) f.ticker.pop();
   if (s === S.game) bumpData();
 }
+/**
+ * One line per key, kept current (client batch 8a item 48, the stubborn specialist: a truck standing idle wrote a new
+ * "idle N d" line into Today every day and buried everything else): the key's earlier line goes, and the new one leads.
+ */
+export function pushKeyed(s: Session, key: string, text: string, cls = ""): void {
+  const f = feed(s);
+  const i = f.ticker.findIndex((x) => x.key === key);
+  if (i >= 0) f.ticker.splice(i, 1);
+  f.ticker.unshift({ text, cls, key });
+  if (f.ticker.length > 30) f.ticker.pop();
+  if (s === S.game) bumpData();
+}
 
 // --- Reading the world -------------------------------------------------------------------
 
 /** The player's company on screen; panels only call this once they've checked there is one. */
 export const me = (): Company => S.game!.player!;
+/**
+ * The company a truck belongs to (client batch 8a item 29, engineering's dispatcher triage): what's said and done about a
+ * truck reads its own company, never the company in view, so the brokerage's view doesn't explain the carrier's trucks
+ * from the brokerage's orders.
+ */
+export const ownerOf = (t: Truck): Company => S.game!.w.companies[t.companyId - 1]!;
+/** The carrier: the company whose trucks the screens show, whichever company is in view. */
+export const carrierCo = (): Company => S.game!.carrier ?? S.game!.player!;
 /** Game time on screen: the live world shows the clock's minute, a test world its own hour. */
 export const clockMin = (s: Session | null = S.game): number => (!s ? 0 : s.kind === "live" ? Math.max(s.w.t, s.gameMinute()) : s.w.t);
 /** The player's trucks: the carrier's, whichever company is in view (a brokerage runs none; the map shows them both ways). */
@@ -273,8 +297,11 @@ export function myTrucks(): Truck[] {
   const c = g?.carrier ?? g?.player;
   return g && c ? (g.w.trucksByCompany.get(c.id) ?? []).filter((t) => t.status !== "retired") : [];
 }
+/** The number the player knows a truck by: given once and never changed (trucknos.ts, client batch 8a items 1 and 19). */
 export function truckNo(id: number): number {
-  return myTrucks().findIndex((t) => t.id === id) + 1 || 0;
+  const g = S.game;
+  const t = g?.w.trucks[id - 1];
+  return g && t ? truckNumber(g.w, t) : 0;
 }
 
 let toastTimer = 0;
@@ -324,7 +351,7 @@ export function openIntel(at: { card?: number; hub?: string; brokers?: boolean; 
 export function setTab(tab: Tab): void {
   // The first load's lock (tutorial.ts; Jeff, 2026-11-04): until it, only Truck and Loads open; a locked tab says so and stays put.
   const g = S.game;
-  if (g?.player && !FIRST_LOAD_TABS.includes(tab) && firstLoadLocked(g.w, g.player)) return toast(TUTORIAL.locked);
+  if (g?.player && tabLocked(g.w, g.player, tab)) return toast(TUTORIAL.locked);
   S.tab = tab;
   if (tab === "money") S.moneyDot = false;
   // The first visit clears an opened teaser's "New" under More.
@@ -582,8 +609,21 @@ export function setSaidHook(f: (key: string) => void): void {
 }
 
 /** Gives an order with a toast; `said` is Iuliia's line for it, spoken only when it goes through (never on a refusal). */
-export function act(a: Action, ok: string, said?: string, as?: "brokerage" | "carrier"): void {
+/**
+ * Who an order acts for when the caller didn't say (client batch 8a item 29): an order about one of the carrier's trucks
+ * is the carrier's, whichever company is in view; anything else, the company in view.
+ */
+function actsFor(a: Action, as: "brokerage" | "carrier" | undefined): "brokerage" | "carrier" | undefined {
+  if (as !== undefined) return as;
+  const g = S.game;
+  const id = (a as { truckId?: unknown }).truckId;
+  if (!g?.carrier || typeof id !== "number") return undefined;
+  return g.w.trucks[id - 1]?.companyId === g.carrier.id ? "carrier" : undefined;
+}
+
+export function act(a: Action, ok: string, said?: string, as0?: "brokerage" | "carrier"): void {
   const g = S.game!;
+  const as = actsFor(a, as0);
   S.lastAct = { tab: S.tab, at: performance.now() };
   if (g.kind === "test") {
     if (S.testWatching || g.broken) return void toast(S.testWatching ? PENDING.testWatching : PENDING.testBroken, true);
@@ -619,8 +659,9 @@ export type OrderResult = { ok: true; at: number | null } | { ok: false; reason:
  * `at`, and its own result arrives later through onOwnResult). No toast: the screen that asked says what happened.
  */
 /** An order for the company in view, or for `as` (the brokerage's first orders, sent as it's formed). */
-export async function order(a: Action, ok: string, as?: "brokerage" | "carrier"): Promise<OrderResult> {
+export async function order(a: Action, ok: string, as0?: "brokerage" | "carrier"): Promise<OrderResult> {
   const g = S.game!;
+  const as = actsFor(a, as0);
   S.lastAct = { tab: S.tab, at: performance.now() };
   const sentence = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
   if (g.kind === "test") {

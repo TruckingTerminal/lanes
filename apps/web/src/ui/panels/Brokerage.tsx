@@ -4,6 +4,7 @@ import { apCapBlock, brokerageLog, brokerBooks, brokerLicensed, canFormBrokerage
 import { BROKERAGE } from "../../copy.js";
 import { hasTwo, kindInView, switchCompany } from "../../companies.js";
 import { fdFull, hhmm, pct, shortDate, TRAILER_NAME } from "../../format.js";
+import { PENDING } from "../../copy-pending.js";
 import { nextRoundHour } from "../../logic.js";
 import { bumpData, isPhone, me, openIntel, order, S, toast, useData } from "../../state.js";
 import { layerDay } from "../../tabs.js";
@@ -111,6 +112,10 @@ function StartBrokerage(): JSX.Element {
   // Prefilled with the engine's figure: the bond, the licence and brokerage.startCashFd of working cash (formationCostFd
   // adds the fee on top). Step 3 starts from the first order formBrokerage sets, and only a change is sent.
   const [capital, setCapital] = useState(bond + licence + k.brokerage.startCashFd);
+  // Client batch 8a item 30 (the middleman): the field holds what's typed; the amount takes it only when it's one the
+  // carrier can move, and otherwise the field says the range in words. It was a formatted controlled field ("90.3k"),
+  // which turned -50000 into 0 and then ignored typing.
+  const [capText, setCapText] = useState<string | null>(null);
   const [margin, setMargin] = useState<number>(k.brokerage.defaultMarginPct);
   const [open, setOpen] = useState<number>(k.brokerage.defaultOpenLoads);
   const [vet, setVet] = useState<0 | 1 | 2>(k.brokerage.defaultVetting as 0 | 1 | 2);
@@ -123,6 +128,11 @@ function StartBrokerage(): JSX.Element {
     }
   }, []);
   const blocked = canFormBrokerage(w, carrier);
+  // The amounts the field takes: at least the bond and the licence, at most what the carrier's cash covers with the fee.
+  const minCap = bond + licence;
+  const maxCap = Math.floor(Math.max(0, cash(w, carrier)) / (1 + feePct));
+  const typedCap = capText === null ? capital : /^\s*\d[\d,\s]*\s*$/.test(capText) ? Number(capText.replace(/[,\s]/g, "")) : NaN;
+  const capWhy = capText === null ? null : !Number.isFinite(typedCap) ? PENDING.fundNotANumber : typedCap < minCap || typedCap > maxCap ? PENDING.fundRange(fdFull(minCap), fdFull(Math.max(minCap, maxCap))) : null;
   const fee = capital * feePct;
   const short = capital + fee - cash(w, carrier);
   const tooSmall = capital - licence < bond;
@@ -172,8 +182,19 @@ function StartBrokerage(): JSX.Element {
           {w.token.launchDay === null ? <p class="muted small">{BROKERAGE.betaNote}</p> : null}
           <label class="field">
             <span class="label">{BROKERAGE.moving(carrier.name, fd(capital))}</span>
-            <input type="text" inputMode="numeric" value={fd(capital)} onChange={(e) => setCapital(Math.max(0, Number((e.currentTarget as HTMLInputElement).value.replace(/[^\d]/g, "")) || 0))} />
+            <input
+              type="text"
+              inputMode="numeric"
+              value={capText ?? String(Math.round(capital))}
+              onInput={(e) => {
+                const text = (e.currentTarget as HTMLInputElement).value;
+                setCapText(text);
+                const n = /^\s*\d[\d,\s]*\s*$/.test(text) ? Number(text.replace(/[,\s]/g, "")) : NaN;
+                if (Number.isFinite(n) && n >= minCap && n <= maxCap) setCapital(n);
+              }}
+            />
           </label>
+          {capWhy ? <p class="bad small">{capWhy}</p> : null}
           <p class="small">{BROKERAGE.feeRow(pct(feePct), fd(fee))}</p>
           <p class="small">{BROKERAGE.licenceFromIt(fd(licence))}</p>
           <p class="small">{BROKERAGE.cashAfter(carrier.name, fd(cash(w, carrier) - capital - fee))}</p>
@@ -210,7 +231,7 @@ function StartBrokerage(): JSX.Element {
           </Btn>
         ) : null}
         {step < 4 ? (
-          <Btn sm primary disabled={blocked !== null || (step === 2 && (short > 0.5 || tooSmall))} onClick={() => setStep(step + 1)}>
+          <Btn sm primary disabled={blocked !== null || (step === 2 && (short > 0.5 || tooSmall || capWhy !== null))} onClick={() => setStep(step + 1)}>
             {BROKERAGE.next}
           </Btn>
         ) : null}

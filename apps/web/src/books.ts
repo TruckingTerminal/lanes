@@ -1,4 +1,5 @@
 import { companyAccount, condition, rebuildable, type Company, type Truck, type World } from "@lanes/engine";
+import { numberTrucks } from "./trucknos.js";
 
 /**
  * The month's books (R10, player2-ux.md section 4): what each player's company earned and spent by kind, and why its
@@ -51,6 +52,12 @@ interface Open {
   emptyMi: number;
   /** The owner's draw kept by the company so far (Company.ownerDrawFd, labor.owner.drawStays) as the month began. */
   drawStart: number;
+  /**
+   * Client batch 8a item 19 (the borrower: May's bridge lost about 68,000 FD of loans with no line): trucks the lender
+   * took this month, and what their loans owed when it did (purchaseLoans.ts seize; read from the loans, not the ledger).
+   */
+  taken?: number;
+  takenLoansFd?: number;
 }
 export interface MonthBooks extends Open {
   closedDay: number;
@@ -68,7 +75,10 @@ interface CompanyBooks {
   closed: MonthBooks[];
   mark: number | null;
   events: MoneyEvent[];
-  odo: Map<number, { odo: number; loaded: boolean }>;
+  /** Each truck's odometer as the hour began, and which truck it was (a hand-over puts a new truck under the same id). */
+  odo: Map<number, { odo: number; loaded: boolean; built: number; lease: Truck["lease"]; tier: Truck["tier"] }>;
+  /** Each purchase loan's status and what it owed as the hour began (item 19: a loan closed by the lender taking its truck). */
+  loans: Map<number, { status: string; owedFd: number; truckId: number }>;
 }
 interface WorldBooks {
   byCompany: Map<number, CompanyBooks>;
@@ -261,7 +271,7 @@ function booksOf(w: World, c: Company, cashBefore: number): CompanyBooks {
   const wb = BOOKS.get(w)!;
   let b = wb.byCompany.get(c.id);
   if (!b) {
-    b = { open: { fromDay: dayOfT(w, w.t), cashStart: cashBefore, owedStart: owedTo(w, c), goodsOwedStart: goodsOwed(w, c), payStart: owedBy(w, c), flows: {}, loadedMi: 0, emptyMi: 0, drawStart: c.ownerDrawFd }, closed: [], mark: c.lastMonth?.closedDay ?? null, events: [], odo: new Map() };
+    b = { open: { fromDay: dayOfT(w, w.t), cashStart: cashBefore, owedStart: owedTo(w, c), goodsOwedStart: goodsOwed(w, c), payStart: owedBy(w, c), flows: {}, loadedMi: 0, emptyMi: 0, drawStart: c.ownerDrawFd, taken: 0, takenLoansFd: 0 }, closed: [], mark: c.lastMonth?.closedDay ?? null, events: [], odo: new Map(), loans: new Map() };
     wb.byCompany.set(c.id, b);
   }
   return b;
@@ -335,12 +345,14 @@ export function watchBooks(w: World): void {
 
 /** After each game hour (TestGame.stepHour, LiveWorld.advance): the miles, and the month close once the engine has written it. */
 export function booksAfterHour(w: World): void {
+  numberTrucks(w); // client batch 8a: each truck's number, given once (trucknos.ts)
   const wb = BOOKS.get(w);
   if (!wb) return;
   try {
     for (const [id, b] of wb.byCompany) {
       const c = w.companies[id - 1]!;
       for (const t of w.trucksByCompany.get(c.id) ?? []) milesOf(b, t);
+      takenOf(w, c, b);
       const closed = c.lastMonth?.closedDay ?? null;
       if (closed === null || closed === b.mark) continue;
       b.mark = closed;
@@ -350,10 +362,32 @@ export function booksAfterHour(w: World): void {
       const payEnd = owedBy(w, c);
       b.closed.push({ ...b.open, closedDay: closed, cashEnd, owedEnd, goodsOwedEnd, payEnd, loads: c.lastMonth!.loads, onTime: c.lastMonth!.onTime, drawEnd: c.ownerDrawFd });
       if (b.closed.length > 24) b.closed.shift();
-      b.open = { fromDay: closed, cashStart: cashEnd, owedStart: owedEnd, goodsOwedStart: goodsOwedEnd, payStart: payEnd, flows: {}, loadedMi: 0, emptyMi: 0, drawStart: c.ownerDrawFd };
+      b.open = { fromDay: closed, cashStart: cashEnd, owedStart: owedEnd, goodsOwedStart: goodsOwedEnd, payStart: payEnd, flows: {}, loadedMi: 0, emptyMi: 0, drawStart: c.ownerDrawFd, taken: 0, takenLoansFd: 0 };
     }
   } catch (e) {
     console.error(e);
+  }
+}
+
+/**
+ * Client batch 8a item 19: a purchase loan of the company's that closed this hour with its truck retired from the
+ * company was the lender taking the truck (purchaseLoans.ts seize); the month counts the truck and what the loan owed.
+ * A loan repaid, or closed by a sale (the truck goes on to its buyer), isn't one.
+ */
+function takenOf(w: World, c: Company, b: CompanyBooks): void {
+  for (const loan of w.purchaseLoans) {
+    if (loan.borrowerId !== c.id) continue;
+    const was = b.loans.get(loan.id);
+    const open = loan.status === "active" || loan.status === "defaulted";
+    if (was && (was.status === "active" || was.status === "defaulted") && !open) {
+      const t = was.truckId ? w.trucks[was.truckId - 1] : undefined;
+      if (t && t.status === "retired") {
+        b.open.taken = (b.open.taken ?? 0) + 1;
+        b.open.takenLoansFd = (b.open.takenLoansFd ?? 0) + was.owedFd;
+      }
+    }
+    if (open) b.loans.set(loan.id, { status: loan.status, owedFd: loan.principalFd, truckId: loan.truckId });
+    else b.loans.delete(loan.id);
   }
 }
 
@@ -361,14 +395,17 @@ export function booksAfterHour(w: World): void {
 function milesOf(b: CompanyBooks, t: Truck): void {
   const was = b.odo.get(t.id);
   const loaded = t.status === "loaded";
-  if (was) {
+  // Client batch 8a item 20: an ordered truck handed over in place of the lessor's keeps the id but brings its own
+  // odometer (dealer.ts handOver); that jump is the truck's past, not the month's miles. A new truck starts the count.
+  const same = was !== undefined && was.built === t.builtDay && was.lease === t.lease && was.tier === t.tier;
+  if (was && same) {
     const d = t.odometer - was.odo;
     if (d > 0) {
       if (was.loaded) b.open.loadedMi += d;
       else b.open.emptyMi += d;
     }
   }
-  b.odo.set(t.id, { odo: t.odometer, loaded });
+  b.odo.set(t.id, { odo: t.odometer, loaded, built: t.builtDay, lease: t.lease, tier: t.tier });
 }
 
 /** The company's closed months, newest first. */
@@ -406,6 +443,9 @@ export interface MonthReport {
   allMi: number;
   /** labor.owner.drawStays: the owner's draw as the driver this month, priced in break-even but kept in cash (so in kept). */
   drawFd: number;
+  /** Client batch 8a item 19: trucks the lender took this month, and what their loans owed then. */
+  taken: number;
+  takenLoansFd: number;
 }
 
 /**
@@ -482,5 +522,7 @@ export function monthReport(m: MonthBooks): MonthReport {
     loadedMi: m.loadedMi,
     allMi: m.loadedMi + m.emptyMi,
     drawFd: Math.max(0, m.drawEnd - m.drawStart),
+    taken: m.taken ?? 0,
+    takenLoansFd: m.takenLoansFd ?? 0,
   };
 }

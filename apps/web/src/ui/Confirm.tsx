@@ -46,7 +46,19 @@ export function confirmAct(spec: ConfirmSpec, ev?: MouseEvent): void {
     const box = el.closest(".panelbox") as HTMLElement | null;
     if (box) box.style.paddingBottom = "62vh";
     if (isPhone() && S.sheet !== "full") S.sheet = "full";
-    requestAnimationFrame(() => el.scrollIntoView({ block: "start" }));
+    requestAnimationFrame(() => {
+      el.scrollIntoView({ block: "start" });
+      // Client batch 8a item 7 (the exploit hunter: the loan's confirm opened in the window's far corner, below the fold
+      // of the pane, and was pressed three times unseen): on a laptop the card opens just under the control that was
+      // tapped, kept inside the window, so it is where the eye already is.
+      if (!isPhone() && S.confirm && typeof window !== "undefined" && window.innerWidth >= 900) {
+        const r = el.getBoundingClientRect();
+        const left = Math.max(16, Math.min(r.left, window.innerWidth - 336));
+        const top = Math.max(16, Math.min(r.bottom + 8, window.innerHeight - 260));
+        S.confirm = { ...S.confirm, anchor: { top, left } };
+        bumpData();
+      }
+    });
   }
   bumpData();
 }
@@ -105,7 +117,12 @@ export function ConfirmSheet(): JSX.Element | null {
   return createPortal(
     <>
       <div class="explainscrim" aria-hidden="true" onClick={close} />
-      <section class="explainsheet right confirmsheet" role="dialog" aria-label={CONFIRM.title(s.verb, s.item)}>
+      <section
+        class="explainsheet right confirmsheet"
+        role="dialog"
+        aria-label={CONFIRM.title(s.verb, s.item)}
+        style={s.anchor ? { top: `${s.anchor.top}px`, left: `${s.anchor.left}px`, right: "auto", bottom: "auto", maxHeight: `calc(100vh - ${s.anchor.top + 16}px)` } : undefined}
+      >
         <header class="explainhead">
           <span class="grab" aria-hidden="true" />
           <b class="bighead">{CONFIRM.title(s.verb, s.item)}</b>

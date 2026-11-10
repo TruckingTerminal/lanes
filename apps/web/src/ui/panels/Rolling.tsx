@@ -5,7 +5,7 @@ import { PENDING } from "../../copy-pending.js";
 import { cls, fdFull, hhmm, pct, shortDate } from "../../format.js";
 import { GAME_CONFIG } from "../../game.js";
 import { etaMin, nearestPlace, nightStop } from "../../rolling.js";
-import { bumpData, me, myTrucks, S, truckNo, useData } from "../../state.js";
+import { bumpData, me, myTrucks, ownerOf, S, truckNo, useData } from "../../state.js";
 import { Bar, Btn, Card, Kv } from "../bits.js";
 import { Fig } from "../Explain.js";
 import { StepMoment } from "../Walkthrough.js";
@@ -28,7 +28,8 @@ export function RollingCards(): JSX.Element | null {
 
 function RollingCard({ t }: { t: Truck }): JSX.Element | null {
   const w = S.game!.w;
-  const c = me();
+  // Client batch 8a item 29: the truck's own company, whichever company is in view.
+  const c = ownerOf(t);
   const l = w.loads.get(t.loadId!);
   if (!l) return null;
   const place = (i: number) => w.net.places[i]!.name;

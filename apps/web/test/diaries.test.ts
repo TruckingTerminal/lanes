@@ -97,7 +97,7 @@ describe("a stranded truck's ways out (diaries item 3)", () => {
     }
     expect(boardRows(w, c, truck, { dest: "any", maxDh: 300, query: "" }).some((r) => !r.block && r.profitBook > 0)).toBe(false);
     const a = nextAction(GAME_CONFIG, w, c);
-    expect(a).toMatchObject({ rule: 3, kind: "stranded", truckId: truck.id });
+    expect(a).toMatchObject({ rule: 2, kind: "stranded", truckId: truck.id }); // client batch 8a: the director's tier 2
     const exits = exitsFor(w, c, truck);
     expect(exits.length).toBeGreaterThan(0);
     for (let i = 1; i < exits.length; i++) expect(exits[i]!.costFd).toBeGreaterThanOrEqual(exits[i - 1]!.costFd);

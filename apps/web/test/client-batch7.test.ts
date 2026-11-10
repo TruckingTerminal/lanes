@@ -41,7 +41,7 @@ describe("client batch 7", () => {
     const own = walkProgress(GAME_CONFIG, w, c);
     expect(own.step?.id).not.toBe("own");
     const a = nextAction(GAME_CONFIG, w, c);
-    expect(a.rule).not.toBe(4);
+    expect(a.rule).not.toBe(6); // client batch 8a: the step is tier 6
     // The log says the order as an order, on its day; "Your own truck" waits for the hand-over.
     const keys = milestones(w, c).map((m) => m.key);
     expect(keys).toContain("truckOrdered");
@@ -63,17 +63,23 @@ describe("client batch 7", () => {
     for (const l of w.listings) if (l.status === "open" && l !== listing) l.askFd *= 100;
     w.usedLot.stock = 0;
     expect(gapToTruck(w, c).truck!.route).toBe("listing");
-    expect(firstTruckLine(w, c)!.figure).toBe("You can buy today");
+    // Client batch 8a item 57: a sound listing is the one verdict's truck ("Buy it now."); while the lease runs, Why says
+    // when it can change hands, with the truck's own number (item 1).
+    const pick = firstTruckLine(w, c)!;
     const t = w.trucksByCompany.get(c.id)![0]!;
     t.status = "repositioning";
     const f = firstTruckLine(w, c)!;
-    expect(f.figure).toMatch(new RegExp(`^You can buy once truck ${t.id} is idle; it's on a run to `));
+    if (pick.open === `used-${listing.id}`) {
+      expect(pick.verdict).toBe("Buy it now.");
+      expect(f.why.some((x) => x.startsWith("You can buy once truck 1 is idle; it's on a run to "))).toBe(true);
+    }
     expect(listingWhy(w, c, "NPC-leased truck is on a trip")).toMatch(/^A truck changes hands only while your leased one stands idle, and truck \d+ is on a run to /);
     expect(listingWhy(w, c, "insufficient FD")).toBe("insufficient FD");
     // Client batch 7b: in the shop the leased truck isn't idle, and isn't on a run either, so no run is claimed.
     t.status = "repair";
-    expect(firstTruckLine(w, c)!.figure).toBe(`You can buy once truck ${t.id} is idle`);
-    expect(listingWhy(w, c, "NPC-leased truck is on a trip")).toBe(`A truck changes hands only while your leased one stands idle, and truck ${t.id} isn't idle now.`);
+    // Client batch 8a item 1: the truck's own number, never the engine's id.
+    if (pick.open === `used-${listing.id}`) expect(firstTruckLine(w, c)!.why).toContain("You can buy once truck 1 is idle");
+    expect(listingWhy(w, c, "NPC-leased truck is on a trip")).toBe("A truck changes hands only while your leased one stands idle, and truck 1 isn't idle now.");
   }, 120_000);
 
   it("prices the wait on the basis that covers more weeks, and says which", async () => {

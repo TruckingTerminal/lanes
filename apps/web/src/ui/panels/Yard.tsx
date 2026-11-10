@@ -24,7 +24,7 @@ import {
   type Truck,
 } from "@lanes/engine";
 import { dateLabel, fd, pct, TRAILER_NAME, fdFull } from "../../format.js";
-import { act, me, myTrucks, S, setTab, truckNo, useData } from "../../state.js";
+import { act, me, myTrucks, ownerOf, S, setTab, truckNo, useData } from "../../state.js";
 import { Btn, Card, Kv, Num } from "../bits.js";
 import { confirmAct } from "../Confirm.js";
 import { scrap as scrapLines } from "../../confirmspecs.js";
@@ -73,7 +73,8 @@ export function TrailerLines({ t }: { t: Truck }): JSX.Element | null {
 /** Assets: a truck's trailer swaps and rentals, and what its owner can do with the tractor. */
 export function TruckAssetActions({ t }: { t: Truck }): JSX.Element | null {
   const w = S.game!.w;
-  const c = me();
+  // Client batch 8a item 29: the truck's own company, whichever company is in view.
+  const c = ownerOf(t);
   if (!w.cfg.assets.enabled || t.lease !== "owned") return null;
   const leasedIn = t.lessorId !== 0 && t.lessorId !== c.id;
   const standing = t.status === "idle" || t.status === "parked";
@@ -178,6 +179,15 @@ export function YardCard(): JSX.Element | null {
                 Sell · {fd(value)}
               </Btn>
             ) : null}
+            {/* Client batch 8a item 6: a listed trailer can come off sale (engine withdraw_listing). */}
+            {(() => {
+              const sale = tr.status === "listed" ? w.listings.find((x) => x.status === "open" && x.trailerId === tr.id) : undefined;
+              return sale ? (
+                <Btn sm onClick={() => act({ type: "withdraw_listing", listingId: sale.id }, PENDING.offSaleTrailer)}>
+                  {PENDING.takeOffSale} · {PENDING.forSaleAt(fd(sale.askFd))}
+                </Btn>
+              ) : null;
+            })()}
             {tr.status === "dropped" ? (
               <Btn sm danger onClick={(ev) => confirmAct({ verb: "Scrap", item: `this ${name(tr.type)}`, costFd: null, costLine: "", does: CONFIRM.scrapTrailer(name(tr.type), fd(trailerScrapFd(w, tr))), risk: CONFIRM.scrapRisk(fd(trailerValue(w, tr))), go: `Scrap · ${fdFull(trailerScrapFd(w, tr))} FD`, destructive: true, run: () => act({ type: "scrap_trailer", trailerId: tr.id }, "Trailer scrapped") }, ev)}>
                 Scrap · {fd(trailerScrapFd(w, tr))}

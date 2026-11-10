@@ -26,7 +26,7 @@ import { Money } from "./panels/Money.js";
 import { Rates } from "./panels/Rates.js";
 import { Staff } from "./panels/Staff.js";
 import { ConfirmSheet } from "./Confirm.js";
-import { FIRST_LOAD_TABS, firstLoadLocked } from "../tutorial.js";
+import { tabLocked } from "../tutorial.js";
 import { TUTORIAL } from "../copy.js";
 import { FirstLoad } from "./Walkthrough.js";
 
@@ -70,7 +70,7 @@ export function Nav(): JSX.Element | null {
   if (choosing()) return null;
   const on = navOf(S.tab);
   // The first load's lock (tutorial.ts): Money and More dim until it; a tap on one says why (setTab).
-  const locked = (id: Tab) => !!g.player && !FIRST_LOAD_TABS.includes(id) && firstLoadLocked(g.w, g.player);
+  const locked = (id: Tab) => !!g.player && tabLocked(g.w, g.player, id);
   const moreNew = !!g.player && teaserTabs().some((t) => tabOpen(t.id, g.w, g.player) && isNew(t.id));
   // On a phone a nav tap raises the sheet: half for most, full for Loads (specs/first-ten-minutes.md).
   const go = (id: Tab) => {
@@ -131,7 +131,7 @@ export function RackBody(): JSX.Element {
   const g = S.game!;
   // Before a company the sheet is the hub choice whatever the tab (Jeff, 2026-11-04: a tap elsewhere lost it); locked, a tab outside the lock reads as Truck.
   const picking = choosing();
-  const tab: Tab = g.player && !FIRST_LOAD_TABS.includes(S.tab) && firstLoadLocked(g.w, g.player) ? "fleet" : S.tab;
+  const tab: Tab = g.player && tabLocked(g.w, g.player, S.tab) ? "fleet" : S.tab;
   const watching = !g.player && !WATCHABLE.includes(tab);
   const under = !picking && navOf(tab) === "more" && tab !== "more";
   const open = tabOpen(tab, g.w, g.player);

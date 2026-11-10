@@ -117,6 +117,9 @@ export function clearsNearSource(w: World, l: Load): { from: "lane" | "market" |
  * (A bid pays the bidder's rate and a booking at book-now takes the load first, so a bid is a bet on nobody booking.)
  */
 export function suggestBid(w: World, l: Load, be: number): number | null {
+  // Client batch 8a item 61 (the director's G): a default only where the lane has enough clears of its own (the market's
+  // or the load's own figure is not a lane's usual clear), and so "Bid on…" is recommended only then.
+  if (clearsNearSource(w, l).from !== "lane") return null;
   const s = Math.min(l.ceiling, clearsNear(w, l));
   return s > l.bookNow + 0.005 && s >= be ? s : null;
 }
@@ -130,12 +133,24 @@ export function suggestBid(w: World, l: Load, be: number): number | null {
  * a ceiling of 4.0573 rounded up, and a bid of 4.06 was refused as above it). Shown wherever the ceiling is a bid's top.
  */
 export const bidCeiling = (l: Load): number => Math.floor(l.ceiling * 100 + 1e-6) / 100;
+/**
+ * A rate as shown beside the ceiling (client batch 8a item 4, QA): never over the shown ceiling. "Book now 4.68/mi" and
+ * "Usually clears near 4.68/mi" beside "Ceiling 4.67/mi" read as a contradiction; a figure that would show over it shows
+ * the ceiling's.
+ */
+export const rateShown = (l: Load, rate: number): string => Math.min(Math.round(rate * 100) / 100, bidCeiling(l)).toFixed(2);
+/** The over-ceiling test for a typed bid: more than a cent above the shown ceiling is refused, never lowered in silence. */
+export const overCeiling = (l: Load, rate: number): boolean => rate > bidCeiling(l) + 0.01 + 1e-9;
 /** A typed bid within a cent above the shown ceiling is the shown ceiling (the cent the display rounded away). */
 export const clampToCeiling = (l: Load, rate: number): number => (rate > bidCeiling(l) && rate <= bidCeiling(l) + 0.01 + 1e-9 ? bidCeiling(l) : rate);
 
+/**
+ * Client batch 8a item 61 (the director's G; the stubborn specialist's 2.32 floor above the 2.28 that won): the stepper's
+ * floor is break-even itself, to the cent; a bid typed under it is allowed, with the loss said.
+ */
 export function bidRange(_w: World, l: Load, be: number): [number, number] {
   const top = bidCeiling(l);
-  return [Math.min(top, Math.max(0.5, be * 1.05)), top];
+  return [Math.min(top, Math.max(0.01, Math.ceil(be * 100 - 1e-6) / 100)), top];
 }
 
 /** The next board round's hour, "18:00": when a round's local-first window opens to everyone. */

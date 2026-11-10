@@ -13,7 +13,7 @@
  * a bust covenant brings a thin borrower's default forward (riskPremium below).
  */
 import { dayOf } from "./clock.js";
-import { clamp } from "./economics.js";
+import { clamp, fmtInt } from "./economics.js";
 import { creditScore } from "./credit.js";
 import { orderPrice, ordersOf, trailerValue, truckValue } from "./dealer.js";
 import { companyAccount } from "./ledger.js";
@@ -285,6 +285,7 @@ function seize(w: World, loan: PurchaseLoan): void {
   }
   if (truck.status !== "idle" && truck.status !== "parked") return;
   const value = truckValue(w, truck);
+  const owed = loan.principalFd;
   const covered = Math.min(value, loan.principalFd);
   loan.principalFd -= covered;
   if (value - covered > 0.01) w.ledger.post(w.t, "faucet:npc_finance", companyAccount(loan.borrowerId), value - covered, `seized:${loan.id}`);
@@ -293,4 +294,15 @@ function seize(w: World, loan: PurchaseLoan): void {
   detachTruck(w, truck);
   truck.status = "retired";
   w.purchaseLending.seized++;
+  // Client batch 8a item 19 (the borrower: two trucks went without a word): the borrower hears it on the day, with the
+  // figures as they stood. A listener line only; nothing in the world reads it.
+  w.listener?.({ kind: "notice", companyId: loan.borrowerId, topic: "fleet", text: seizedNotice(truck.id, loan.missed, owed, covered, value - covered), tone: "bad", truckId: truck.id });
+}
+
+/** The lender's notice (the writer may reword it): the truck, what the loan owed, what the truck's value covered, what came back. */
+export function seizedNotice(truckId: number, missed: number, owedFd: number, coveredFd: number, backFd: number): string {
+  const rest = owedFd - coveredFd;
+  const tail = backFd > 0.5 ? ` Its value was more than that: ${fmtInt(backFd)} FD came back to you.` : rest > 0.5 ? ` Its value covered ${fmtInt(coveredFd)} FD; the other ${fmtInt(rest)} FD came from the loan's stake and your cash, as far as they went.` : "";
+  const after = missed > 0 ? ` after ${missed} missed ${missed === 1 ? "payment" : "payments"}` : "";
+  return `The lender took Truck ${truckId}${after}. Its loan owed ${fmtInt(owedFd)} FD and is closed.${tail}`;
 }

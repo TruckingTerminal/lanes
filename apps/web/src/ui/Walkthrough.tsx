@@ -11,7 +11,7 @@ import { bumpData, myTrucks, S, setOnboard, setTab, toast, useData } from "../st
 import { ARRIVAL, CAPTION, DISPATCHER, INTEL, NOW, TUTORIAL } from "../copy.js";
 import { firstLoadLocked } from "../tutorial.js";
 import { pct, TRAILER_NAME } from "../format.js";
-import { TAB_NAME, type Tab } from "../tabs.js";
+import { TAB_NAME, type Tab, tabOpen } from "../tabs.js";
 import { Btn, Card } from "./bits.js";
 import { financeLine } from "./panels/Finance.js";
 import { letDispatcherBid } from "../logic.js";
@@ -69,7 +69,7 @@ export function Walkthrough(): JSX.Element | null {
   if (!g || !c) return null;
   const steps = walkSteps(GAME_CONFIG, g.w.net.hubs[c.homeHub]?.name);
   const skipped = skippedSteps(S.onboard.seen, g.w, c);
-  const { index, done, total } = walkProgress(GAME_CONFIG, g.w, c, skipped);
+  const { index, done, total } = walkProgress(GAME_CONFIG, g.w, c, skipped, (tab) => tabOpen(tab, g.w, c));
   // "The truck rolls" waits for the load itself, as the caption does (QA's Iuliia replay): until then the board step stays current.
   const loaded = (g.w.trucksByCompany.get(c.id) ?? []).some((t) => t.loadId !== null) || c.delivered > 0;
   const current = index < 0 ? total : steps[index]!.id === "haul" && !loaded && index > 0 ? index - 1 : index;
@@ -217,7 +217,7 @@ function currentStep(): WalkStep | null {
   const g = S.game!;
   const c = g.player!;
   const steps = walkSteps(GAME_CONFIG, g.w.net.hubs[c.homeHub]?.name);
-  const p = walkProgress(GAME_CONFIG, g.w, c, skippedSteps(S.onboard.seen, g.w, c));
+  const p = walkProgress(GAME_CONFIG, g.w, c, skippedSteps(S.onboard.seen, g.w, c), (tab) => tabOpen(tab, g.w, c));
   return p.index >= 0 && !p.skipped ? steps[p.index]! : null;
 }
 
@@ -373,7 +373,7 @@ export function Caption(): JSX.Element | null {
   // A first-load beat on this screen (FirstLoad) is her voice here too.
   if (tutorialBeat()) return bare("point");
   const steps = walkSteps(GAME_CONFIG, g.w.net.hubs[c.homeHub]?.name);
-  const progress = walkProgress(GAME_CONFIG, g.w, c, skippedSteps(S.onboard.seen, g.w, c));
+  const progress = walkProgress(GAME_CONFIG, g.w, c, skippedSteps(S.onboard.seen, g.w, c), (tab) => tabOpen(tab, g.w, c));
   const index = progress.index;
   // A skipped step is silent (R2): her other lines and milestones may speak, it doesn't.
   const step = index >= 0 && !progress.skipped ? steps[index]! : null;

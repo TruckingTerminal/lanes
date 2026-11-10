@@ -1,8 +1,9 @@
 import type { JSX } from "preact";
 import { useEffect, useRef, useState } from "preact/hooks";
-import { dispatchProfile, expectedReloadDeadheadMi, isLocal, operatingTrucks, localOnly, MANUAL_BID_MAX_DEADHEAD_MI, ownerDrawFd, placeMiles, placeToll, VETTING_NAMES, type Load, type Truck } from "@lanes/engine";
+import { crewed, dispatchProfile, expectedReloadDeadheadMi, isLocal, operatingTrucks, localOnly, MANUAL_BID_MAX_DEADHEAD_MI, ownerDrawFd, placeMiles, placeToll, VETTING_NAMES, type Load, type Truck } from "@lanes/engine";
 import { COMMODITIES } from "@lanes/data";
-import { allInRate, bidCeiling, bidFiles, bidRange, blockReason, chipPair, clampToCeiling, clearsNear, suggestBid } from "../../board.js";
+import { allInRate, bidCeiling, bidFiles, bidRange, blockReason, chipPair, clampToCeiling, clearsNear, overCeiling, rateShown, suggestBid } from "../../board.js";
+import { ANSWER } from "../../copy.js";
 import { BOARD } from "../../copy.js";
 import { DockWarning, ProfitChip } from "../ProfitChip.js";
 import { trueBreakEven } from "../../breakeven.js";
@@ -227,7 +228,7 @@ function LoadRow({ r, truck, mine, pendingRate }: { r: Row; truck: Truck; mine: 
           <div class="rate-big">{fdFull(r.total)} FD</div>
           {/* Client batch 7: each rate holds together, so the cell wraps at most once, between them. */}
           <div class="num muted">
-            {BOARD.rpms(l.bookNow.toFixed(2), allInRate(r.total, l.miles, r.dh))
+            {BOARD.rpms(rateShown(l, l.bookNow), allInRate(r.total, l.miles, r.dh))
               .split(" · ")
               .map((part, i) => (
                 <span key={i} class="nobreak">
@@ -294,7 +295,9 @@ function LoadDetail({ r, truck, mine, pendingRate }: { r: Row; truck: Truck; min
   const d = w.net.hubs[l.dest]!;
   const k = COMMODITIES[l.commodity]!;
   const p = poster(l);
-  const off = Boolean(r.block);
+  // Client batch 8a item 46: a truck with no driver can't book (said under the button, never refused after the tap).
+  const noDriver = !crewed(truck);
+  const off = Boolean(r.block) || noDriver;
   // leverage.localHoldHandBids: Book now stays shut through the hold; a bid is filed for its opening round.
   const bidOff = off && !r.files;
   const bidId = `bid-${l.id}`;
@@ -302,7 +305,11 @@ function LoadDetail({ r, truck, mine, pendingRate }: { r: Row; truck: Truck; min
     // Client batch 7: a typed bid within a cent above the shown ceiling is the shown ceiling (board.ts clampToCeiling).
     const rate = clampToCeiling(l, Number((document.getElementById(bidId) as HTMLInputElement).value));
     if (!Number.isFinite(rate) || rate <= 0) return toast(PENDING.bidEmpty, true); // an empty field places nothing (pass 2b)
-    act({ type: "place_bid", truckId: truck.id, loadId: l.id, rate }, `Bid in at ${rate.toFixed(2)}/mi. It clears at ${nextRoundLabel()}`);
+    // Client batch 8a item 4: more than a cent over the shown ceiling is refused in words, and nothing is placed.
+    if (overCeiling(l, rate)) return toast(ANSWER.ceiling(bidCeiling(l).toFixed(2)), true);
+    // Client batch 8a item 61: a bid under break-even goes in, with the loss said.
+    const loss = rate < r.be - 0.005 ? ` ${PENDING.bidUnderBreakEven(fdFull((r.be - rate) * l.miles))}` : "";
+    act({ type: "place_bid", truckId: truck.id, loadId: l.id, rate }, `Bid in at ${rate.toFixed(2)}/mi. It clears at ${nextRoundLabel()}.${loss}`);
     // A hand bid from the table is a hand bid too: the round's result card (main.tsx, the lostBid and won events and the
     // load leaving the board) reads this record (the trucker's laptop bid lost with no word).
     S.handBids.set(l.id, { rate, be: r.be, truckId: truck.id, from: op.name, to: dp.name, ...(r.files ? { filed: true } : {}) });
@@ -322,11 +329,11 @@ function LoadDetail({ r, truck, mine, pendingRate }: { r: Row; truck: Truck; min
           {op.name}, {op.state} <span class="accent">→</span> {dp.name}, {dp.state}
         </b>
         <span class="muted">{l.miles} mi</span>
-        {r.block ? <span class="bad">Not for you yet: {r.block}.</span> : null}
+        {r.block ? <span class="bad">Not for you yet: {r.block}.</span> : noDriver ? <span class="bad">{PENDING.bookNeedsDriver}</span> : null}
       </div>
       <div class="row loadacts" ref={acts}>
         <Btn primary disabled={off} onClick={() => act({ type: "book_load", truckId: truck.id, loadId: l.id }, "Booked. The truck is on its way")}>
-          Book now · {l.bookNow.toFixed(2)}
+          Book now · {rateShown(l, l.bookNow)}
         </Btn>
         <input type="number" id={bidId} step="0.01" min="0.5" max={bidCeiling(l).toFixed(2)} defaultValue={mine && pendingRate !== undefined ? pendingRate.toFixed(2) : r.suggest !== null ? r.suggest.toFixed(2) : ""} aria-label="Your bid per mile" disabled={bidOff} />
         <Btn on={mine} disabled={bidOff} onClick={placeBid}>
@@ -370,7 +377,7 @@ function LoadDetail({ r, truck, mine, pendingRate }: { r: Row; truck: Truck; min
           <Kv
             rows={[
               ["Book now", <span class="rate-big">{fdFull(r.total)} FD</span>],
-              ["Rate / mile", <Num>{l.bookNow.toFixed(2)}</Num>],
+              ["Rate / mile", <Num>{rateShown(l, l.bookNow)}</Num>],
               ["Your break-even", <Num>{r.be.toFixed(2)}/mi</Num>],
               ["Profit at book-now", <Num class={r.profitBook > 0 ? "good" : "bad"}>{fd(r.profitBook)} FD</Num>],
               ["Raised", l.roundsUnfilled > 0 ? <span class="warn">{l.roundsUnfilled} round{l.roundsUnfilled > 1 ? "s" : ""} running</span> : "not yet"],
@@ -379,7 +386,7 @@ function LoadDetail({ r, truck, mine, pendingRate }: { r: Row; truck: Truck; min
           <h4 style={{ marginTop: "10px" }}>Market rates</h4>
           <Kv
             rows={[
-              ["Usually clears near", <Num>{clearsNear(w, l).toFixed(2)}/mi</Num>],
+              ["Usually clears near", <Num>{rateShown(l, clearsNear(w, l))}/mi</Num>],
               ["Ceiling", <Num>{bidCeiling(l).toFixed(2)}/mi</Num>],
               ["Bid range", <Num>{bidRange(w, l, r.be).map((x) => x.toFixed(2)).join(" – ")}</Num>],
               ["Profit at your bid", r.profit === null ? PENDING.bidBookBetter : <Num class={r.profit > 0 ? "good" : "bad"}>{fd(r.profit)} FD</Num>],
@@ -433,7 +440,7 @@ export function HubLoadsTable({ hub }: { hub: number }): JSX.Element {
               <td>{w.net.hubs[l.dest]!.id}</td>
               <td>{TRAILER_NAME[l.equipment]}</td>
               <td class="num">{l.miles}</td>
-              <td class="num">{l.bookNow.toFixed(2)}</td>
+              <td class="num">{rateShown(l, l.bookNow)}</td>
               <td class="num">{bidCeiling(l).toFixed(2)}</td>
             </tr>
           ))}

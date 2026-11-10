@@ -21,6 +21,7 @@ import { poachResult } from "./ui/panels/Staff.js";
 import { returnFor, saveVisit } from "./returncard.js";
 import { checkVersion } from "./version.js";
 import { PENDING } from "./copy-pending.js";
+import { panelsMoved } from "./panelclock.js";
 
 /**
  * Boot, sessions and the game loop. The screen itself is the Preact app in ui/;
@@ -116,7 +117,7 @@ function onEvent(s: Session, e: GameEvent): void {
       const load = w.loads.get(e.loadId);
       const winning = e.kind === "won" ? e.rate : e.winningRate;
       iuliiaSay(e.kind === "won" ? "result:won" : e.winningRate === null ? "result:nobody" : "result:lost");
-      S.result = { won: e.kind === "won", from: ends(e.loadId, e.origin, e.dest)[0], to: ends(e.loadId, e.origin, e.dest)[1], rate: e.kind === "won" ? e.rate : mine.rate, winning, be: mine.be, total: e.kind === "won" && load ? e.rate * load.miles : 0, seen: false, winnerId: e.kind === "lostBid" && load && load.carrierId ? load.carrierId : undefined, lost: e.kind === "lostBid" && winning !== null && load ? { loadId: e.loadId, truckId: e.truckId, profitAtWinningFd: (winning - mine.be) * load.miles } : undefined };
+      S.result = { won: e.kind === "won", from: ends(e.loadId, e.origin, e.dest)[0], to: ends(e.loadId, e.origin, e.dest)[1], rate: e.kind === "won" ? e.rate : mine.rate, winning, be: mine.be, total: e.kind === "won" && load ? e.rate * load.miles : 0, seen: false, winnerId: e.kind === "lostBid" && load && load.carrierId ? load.carrierId : undefined, lost: e.kind === "lostBid" && winning !== null && load ? { loadId: e.loadId, truckId: e.truckId, profitAtWinningFd: (winning - mine.be) * load.miles, round: w.round } : undefined };
     }
   }
   if (e.kind === "won") {
@@ -585,11 +586,13 @@ function loop(now: number): void {
   const g = S.game;
   if (g && S.screen.kind === "game") {
     try {
-      const before = g.w.t;
       observe(g);
       drawMap(now);
       bumpTick();
-      if (g.w.t !== before || now - lastPanelAt > 1000) {
+      // Client batch 8a item 66 (QA's reload hunt): `before` was read after the hour's stepping, so the panels never saw
+      // the clock move and redrew only on the one-second timer; at fast speeds a truck's card, its ETA and the cash sat
+      // hours behind the clock. They redraw whenever the world's minute differs from the one last drawn.
+      if (panelsMoved(g.w.t) || now - lastPanelAt > 1000) {
         lastPanelAt = now;
         checkIdleAlerts();
         checkAttention();

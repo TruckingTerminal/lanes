@@ -1,8 +1,10 @@
-import { breakdownsPer1000Mi, collateralOf, companyAccount, condition, crewed, lotDeliveryDays, lotSpec, NEW_TRUCK, type Collateral, fuelPrice, layerOpen, locksOn, lotPrice, maintenancePerMile, npcDealerMult, opsCap, ordersOf, ownerDrawFd, resting, tripCost, yardTrucks, type Company, type Truck, type TruckSpec, type World } from "@lanes/engine";
+import type { Equipment } from "@lanes/config";
+import { breakdownsPer1000Mi, collateralOf, companyAccount, condition, crewed, lotDeliveryDays, lotSpec, NEW_TRUCK, type Collateral, fuelPrice, layerOpen, locksOn, lotPrice, maintenancePerMile, npcDealerMult, opsCap, ordersOf, ownerDrawFd, resting, tripCost, truckValue, yardTrucks, type Company, type Listing, type Truck, type TruckSpec, type World } from "@lanes/engine";
 import { boardRows, type BoardRow } from "./board.js";
 import { buyPlan, cheapestNewRig } from "./finance.js";
 import { invoices, weekCosts } from "./ledger.js";
 import { PENDING } from "./copy-pending.js";
+import { truckNumber } from "./trucknos.js";
 import { PENDING_RULES } from "./copy-pending-rules.js";
 import { fdFull, pct, shortDate, TIER_NAME, TRAILER_NAME } from "./format.js";
 
@@ -167,12 +169,13 @@ export function gapToTruck(w: World, c: Company): { gapFd: number; route: "lot" 
  * The lessor's truck out on a run (client batch 7, QA): a listing changes hands only while it's idle (market.ts
  * listingBlock), so a listing can be bought when it's next idle. Its number and where it's headed; null when idle or none.
  */
-export function leaseOnRun(w: World, c: Company): { truckId: number; to: string | null } | null {
+/** `no`: the number the player knows the truck by (trucknos.ts; client batch 8a item 1: the lines printed the engine's id). */
+export function leaseOnRun(w: World, c: Company): { truckId: number; no: number; to: string | null } | null {
   const t = (w.trucksByCompany.get(c.id) ?? []).find((x) => x.lease === "npc");
   if (!t || t.status === "idle") return null;
   // Client batch 7b (the writer): only a run is "on a run to {place}"; in the shop or parked it's just not idle.
   const run = RUN_STATUSES.has(t.status);
-  return { truckId: t.id, to: run ? (w.net.places[t.targetPlace]?.name ?? w.net.hubs[t.targetHub]!.name) : null };
+  return { truckId: t.id, no: truckNumber(w, t), to: run ? (w.net.places[t.targetPlace]?.name ?? w.net.hubs[t.targetHub]!.name) : null };
 }
 /** The statuses that are a run: to the pickup, loading, loaded, unloading, repositioning. */
 const RUN_STATUSES: ReadonlySet<Truck["status"]> = new Set(["toPickup", "loading", "loaded", "unloading", "repositioning"]);
@@ -181,7 +184,7 @@ const RUN_STATUSES: ReadonlySet<Truck["status"]> = new Set(["toPickup", "loading
 export function listingWhy(w: World, c: Company, block: string | null): string | null {
   if (block !== "NPC-leased truck is on a trip") return block;
   const run = leaseOnRun(w, c);
-  return run ? PENDING.listingWhenIdle(run.truckId, run.to) : block;
+  return run ? PENDING.listingWhenIdle(run.no, run.to) : block;
 }
 
 /**
@@ -244,57 +247,91 @@ export function truckPlace(w: World, place: number): string {
   return p.name === market ? p.name : PENDING.townInMarket(p.name, market);
 }
 
-/**
- * The first-truck figure's words, one function for the Dealer's teaser, Iuliia's page and the Dealer's card (as chipPair
- * is for a load's cash): "To your first truck: N FD", or once met "You can buy today" for a truck that delivers today and
- * "You can order today · delivered {date}" for one from the queue (client batch 6b, the director); and Iuliia's cushion
- * advice under it once a week of spending is known. The figure stays the least cash needed today; `sooner` names a truck
- * that delivers sooner than the priced one, with its cash today, and `wait` prices the priced one's wait in the lessor's
- * share. With a truck already ordered to replace the lease, the figure counts its wait instead. Null with no truck for
- * sale anywhere.
- */
-export function firstTruckLine(w: World, c: Company): { figure: string; met: boolean; advice: string | null; needFd: number; gapFd: number; what: string | null; worn: string | null; cashOnly: string | null; sooner: string | null; wait: string | null; ordered: boolean } | null {
+/** The used listings the Dealer shows, in its order (client batch 8a item 57): one choice for its list and the verdict. */
+export function dealerUsed(w: World, c: Company): { l: Listing; t: Truck }[] {
+  return w.listings
+    .filter((l) => l.status === "open" && l.truckId > 0 && l.formerOwnerId !== c.id && l.sellerId !== c.id)
+    .map((l) => ({ l, t: w.trucks[l.truckId - 1]! }))
+    .sort((a, b) => a.l.askFd / Math.max(1, truckValue(w, a.t)) - b.l.askFd / Math.max(1, truckValue(w, b.t)) || a.l.id - b.l.id)
+    .slice(0, 8);
+}
+
+/** A truck the Dealer shows, for the first-truck verdict: its row's id on the page (`open`), to bring it into view. */
+type ShownTruck = { route: "lot" | "listing" | "new"; spec: TruckSpec; place: number | null; arrivesDay: number; price: number; col: Collateral; open: string };
+
+/** The trucks the Dealer shows: the used lot's rigs, its used list, and the cheapest new rig in the company's freight. */
+function shownTrucks(w: World, c: Company, own: Equipment, replacing: boolean): ShownTruck[] {
   const today = Math.floor(w.t / w.cfg.time.gameMinutesPerDay);
+  const out: ShownTruck[] = [];
+  if (w.cfg.usedMarket.npcLot.enabled && w.cfg.assets.enabled && w.usedLot.stock > 0)
+    for (const tr of ["van", "reefer", "flatbed"] as const) {
+      const u = lotSpec(w, tr);
+      out.push({ route: "lot", spec: { tier: "workhorse", trailer: tr, lease: "owned", odometer: u.odometer, milesSinceRebuild: u.milesSinceRebuild, rebuilds: u.rebuilds }, place: null, arrivesDay: today + lotDeliveryDays(w, replacing), price: lotPrice(w, "workhorse", tr) * npcDealerMult(w), col: collateralOf(w, u), open: `lot-${tr}` });
+    }
+  for (const { l, t } of dealerUsed(w, c)) out.push({ route: "listing", spec: { ...t, lease: "owned" }, place: t.place, arrivesDay: today, price: l.askFd, col: collateralOf(w, t), open: `used-${l.id}` });
+  const rig = cheapestNewRig(w, c, own);
+  if (rig) out.push({ route: "new", spec: { tier: rig.tier, trailer: rig.trailer, lease: "owned", odometer: 0, milesSinceRebuild: 0 }, place: null, arrivesDay: today + rig.days, price: rig.price, col: NEW_TRUCK, open: `new-${rig.tier}-${rig.trailer}` });
+  return out;
+}
+
+/**
+ * The first-truck card (the director's ruling A, 2026-11-10; client batch 8a item 57, which replaces items 23 and 39 and
+ * the three-advice card): one verdict for the cheapest sound truck in the company's own freight that the Dealer shows.
+ * Sound: guide.soundCondition (a placeholder until the economy gives it). The tests, in her order: the truck exists and
+ * is shown, the cash on the day, the cushion afterwards (guide.gapCushionWeeks of the company's spending). One verdict:
+ * "Buy it now.", "Order it now · ready {date}", or "Not yet: buy at N FD in cash, about n loads from here."; the card
+ * named for what it prices ("To a sound first truck: N FD", N the cash still to find); every supporting figure under
+ * "Why", never beside the verdict. With none listed: "No sound {trailer} truck on the lot today; I'll tell you when one
+ * lists." `open` is the truck's row on the Dealer, so the card's truck is always one the player can open. One function
+ * for the Dealer's card, its teaser, Iuliia's page and What now?. With a truck already ordered, its wait alone.
+ */
+export type FirstTruckVerdict = { figure: string; verdict: string; why: string[]; open: string | null; met: boolean; needFd: number; gapFd: number; ordered: boolean };
+export function firstTruckLine(w: World, c: Company): FirstTruckVerdict | null {
   const ordered = orderedFirstTruck(w, c);
   if (ordered) {
     const figure = ordered.due ? PENDING.truckOrderedDue : PENDING.truckOrdered(shortDate(ordered.dueDay), ordered.days);
-    return { figure, met: true, advice: null, needFd: 0, gapFd: 0, what: null, worn: null, cashOnly: null, sooner: null, wait: null, ordered: true };
+    return { figure, verdict: "", why: [], open: null, met: true, needFd: 0, gapFd: 0, ordered: true };
   }
-  const g = gapToTruck(w, c);
-  if (!Number.isFinite(g.needNowFd)) return null;
-  const met = g.gapFd <= 0;
-  // Client batch 4 (the director): the Dealer's card names the truck it prices; Iuliia names a worn one's catch, in figures.
-  const t = g.truck;
-  const kmi = t ? `${Math.round(t.spec.odometer / 1000)}k` : "";
-  const cond = t ? condition(w.cfg, t.spec) : 1;
-  // The words fit the rule: the truck that takes the least cash today, or, the hold covering several, the cheapest of them.
-  const desc = !t ? null : t.route === "new" ? PENDING.truckNew(TIER_NAME[t.spec.tier], TRAILER_NAME[t.spec.trailer].toLowerCase()) : PENDING.truckUsed(TIER_NAME[t.spec.tier], TRAILER_NAME[t.spec.trailer].toLowerCase(), kmi, pct(cond), t.place !== null ? truckPlace(w, t.place) : null);
-  // A truck that delivers today says no date; one from the queue says its day.
-  const later = t?.arrivesDay !== undefined && t.arrivesDay > today;
-  // A listing changes hands when the leased truck is idle (client batch 7): while it runs, "when truck N is next idle".
-  const run = leaseOnRun(w, c);
-  const arrives = later ? shortDate(t!.arrivesDay!) : null;
-  // The trailer, where it isn't the company's freight (the director): the company hauls what its trucks pull.
-  const own = (w.trucksByCompany.get(c.id) ?? [])[0]?.trailer;
-  const hauls = t && own && t.spec.trailer !== own ? TRAILER_NAME[own].toLowerCase() : null;
-  const what = desc === null ? null : g.needNowFd <= 0.5 ? PENDING.pricesCovered(desc, arrives, hauls) : PENDING.pricesLeastCash(desc, arrives, hauls);
-  // A truck that delivers sooner than the priced one: the soonest, and of those the least cash today (the director).
-  let sooner: string | null = null;
-  if (later) {
-    const alt = g.routes.filter((r) => r.truck.arrivesDay !== undefined && r.truck.arrivesDay < t!.arrivesDay! && Number.isFinite(r.needFd)).sort((a, b) => a.truck.arrivesDay! - b.truck.arrivesDay! || a.needFd - b.needFd || a.price - b.price)[0];
-    // Client batch 7: it names the company's freight too when its trailer isn't it, and a listing waits for the lease's run.
-    const altHauls = own && alt && alt.truck.spec.trailer !== own ? TRAILER_NAME[own].toLowerCase() : null;
-    const when = !alt ? null : alt.truck.route === "listing" && run ? PENDING.whenIdle(run.truckId) : alt.truck.arrivesDay! <= today ? null : shortDate(alt.truck.arrivesDay!);
-    if (alt) sooner = PENDING.soonerTruck(TRAILER_NAME[alt.truck.spec.trailer].toLowerCase(), fdFull(Math.max(0, alt.needFd)), when, altHauls);
-  }
-  // Iuliia prices the wait: the lessor's share for the days to the priced truck's delivery, at the company's gross lately.
-  const days = later ? t!.arrivesDay! - today : 0;
-  const cost = waitCostFd(w, c, days);
-  const wait = later && cost >= 0.5 ? PENDING.waitCost(shortDate(t!.arrivesDay!), pct(w.cfg.costs.npcLeaseShareOfGross), days, fdFull(Math.round(cost / 10) * 10), weeklyGross(w, c).basis) : null;
-  const worn = t && t.route !== "new" && cond < WORN_BELOW ? PENDING.wornCatch(kmi, pct(cond), fdFull(Math.round(repairsPer(w, t.spec) / 100) * 100), REPAIR_PER_MI.toLocaleString("en-US")) : null;
-  // equipmentFinance.purchase.collateral: the lender won't finance the truck it prices, so the figure is its cash.
-  const figure = !met ? PENDING.firstTruckToGo(fdFull(g.gapFd)) : later ? PENDING.firstTruckOrderToday(arrives!) : t?.route === "listing" && run ? PENDING.firstTruckWhenIdle(run.truckId, run.to) : PENDING.firstTruckMet;
-  return { figure, met, advice: g.holdFd >= 0.5 ? PENDING.firstTruckCushion(fdFull(roundCushion(g.holdFd))) : null, needFd: g.needNowFd, gapFd: g.gapFd, what, worn, cashOnly: g.cashOnly ? PENDING_RULES.cashOnlyFigure : null, sooner, wait, ordered: false };
+  const fleet = w.trucksByCompany.get(c.id) ?? [];
+  const own: Equipment = fleet[0]?.trailer ?? "van";
+  const replacing = fleet.some((t) => t.lease === "npc");
+  const today = Math.floor(w.t / w.cfg.time.gameMinutesPerDay);
+  const sound = w.cfg.guide.soundCondition;
+  const shown = shownTrucks(w, c, own, replacing);
+  const isSound = (x: ShownTruck) => x.spec.trailer === own && condition(w.cfg, x.spec) >= sound - 1e-9;
+  const pick = shown.filter(isSound).sort((a, b) => a.price - b.price || a.arrivesDay - b.arrivesDay)[0];
+  const trailer = TRAILER_NAME[own].toLowerCase();
+  if (!pick) return { figure: PENDING.soundTitle, verdict: PENDING.soundNone(trailer), why: [], open: null, met: false, needFd: Infinity, gapFd: Infinity, ordered: false };
+  // 2. The cash on the day: the least cash it takes today (a purchase loan where the lender gives one), against cash.
+  const plan = buyPlan(w, c, pick.price, replacing, pick.col);
+  const need = plan.loanNowFd ?? plan.cashNowFd;
+  const have = cash(w, c);
+  // 3. The cushion afterwards: what's left against guide.gapCushionWeeks of the company's own spending.
+  const hold = w.cfg.guide.gapCushionWeeks * cushion(w, c).avgWeeklyFd;
+  const at = need + hold;
+  const gap = Math.max(0, at - have);
+  const met = gap <= 0.5;
+  const later = pick.arrivesDay > today;
+  // About how many loads from here, at what a load has kept the company so far; none said before a load is delivered.
+  const perLoad = c.delivered > 0 ? (c.operating.revenueFd - c.operating.costFd) / c.delivered : 0;
+  const loads = !met && perLoad > 0.5 ? Math.max(1, Math.ceil(gap / perLoad)) : null;
+  const verdict = !met ? PENDING.soundNotYet(fdFull(Math.round(at / 100) * 100), loads) : later ? PENDING.soundOrder(shortDate(pick.arrivesDay)) : PENDING.soundBuy;
+  const desc = (x: ShownTruck) =>
+    x.route === "new" ? PENDING.truckNew(TIER_NAME[x.spec.tier], TRAILER_NAME[x.spec.trailer].toLowerCase()) : PENDING.truckUsed(TIER_NAME[x.spec.tier], TRAILER_NAME[x.spec.trailer].toLowerCase(), `${Math.round(x.spec.odometer / 1000)}k`, pct(condition(w.cfg, x.spec)), x.place !== null ? truckPlace(w, x.place) : null);
+  const why: string[] = [PENDING.whyTruck(desc(pick)), PENDING.whyPrice(fdFull(pick.price), fdFull(Math.max(0, need)))];
+  if (hold >= 0.5) why.push(PENDING.whyCushion(fdFull(have - need), fdFull(Math.round(hold / 100) * 100)));
+  // A listing changes hands while the leased truck is idle (client batch 7).
+  const run = pick.route === "listing" ? leaseOnRun(w, c) : null;
+  if (run) why.push(PENDING.firstTruckWhenIdle(run.no, run.to));
+  // The lessor's share while it waits, for a truck that comes on a later day.
+  const days = pick.arrivesDay - today;
+  const cost = later ? waitCostFd(w, c, days) : 0;
+  if (cost >= 0.5) why.push(PENDING.waitCost(shortDate(pick.arrivesDay), pct(w.cfg.costs.npcLeaseShareOfGross), days, fdFull(Math.round(cost / 10) * 10), weeklyGross(w, c).basis));
+  if (plan.cashOnly) why.push(PENDING_RULES.cashOnlyFigure);
+  // The worn alternative, named as such: the cheapest the page shows under the sound one's price that's worn or for other freight.
+  const cheaper = shown.filter((x) => !isSound(x) && x.price < pick.price).sort((a, b) => a.price - b.price)[0];
+  if (cheaper) why.push(PENDING.whyWorn(desc(cheaper), fdFull(cheaper.price)));
+  return { figure: met ? PENDING.soundTitle : PENDING.soundName(fdFull(Math.round(gap))), verdict, why, open: pick.open, met, needFd: need, gapFd: gap, ordered: false };
 }
 /** Advice is a round number: to the hundred, to the thousand from ten thousand. */
 const roundCushion = (fd: number): number => (fd >= 10_000 ? Math.round(fd / 1_000) * 1_000 : Math.max(100, Math.round(fd / 100) * 100));

@@ -7,7 +7,7 @@ import { HOURS, MOVE, NEEDS, TRUCK } from "../../copy.js";
 import { GAME_CONFIG } from "../../game.js";
 import { AttentionCard, CrewLine, goLoads, goStaff, idleLabel, idleWhy, StatusLine, stuckTrucks, tiredTrucks, truckName, truckWhere, wallLine, wallTrucks, waysOut } from "../../logic.js";
 import { focusTruck } from "../../mapview.js";
-import { act, describe, feed, isPhone, me, myTrucks, S, selectTruck, truckNo, useData } from "../../state.js";
+import { act, describe, feed, isPhone, me, myTrucks, ownerOf, S, selectTruck, truckNo, useData } from "../../state.js";
 import { Bar, Btn, Card, Num, Panel, Pixel } from "../bits.js";
 import { Rig, Scene } from "../Loop.js";
 import { Fig } from "../Explain.js";
@@ -105,7 +105,8 @@ function homeTimeLine(w: World, c: Company, t: Truck): string {
  */
 function SendHomeActions({ t, primary }: { t: Truck; primary?: boolean }): JSX.Element | null {
   const w = S.game!.w;
-  const c = me();
+  // Client batch 8a item 29: the truck's own company, whichever company is in view.
+  const c = ownerOf(t);
   if (!crewed(t) || resting(w, t) || t.status === "parked" || t.status === "listed" || t.status === "retired") return null;
   const crew = [t.driverId, t.coDriverId].filter((id) => id > 0).map((id) => w.staff[id - 1]!);
   const owner = crew.some((d) => d.owner);
@@ -165,7 +166,8 @@ function SendHomeActions({ t, primary }: { t: Truck; primary?: boolean }): JSX.E
  */
 function SendEmpty({ t, nearby }: { t: Truck; nearby: { i: number }[] }): JSX.Element | null {
   const w = S.game!.w;
-  const c = me();
+  // Client batch 8a item 29: the truck's own company, whichever company is in view.
+  const c = ownerOf(t);
   const [pick, setPick] = useState<number | null>(null);
   if (!nearby.length) return null;
   const runs = nearby.map((x) => ({ i: x.i, run: emptyRun(w, t, t.hub, x.i), pays: paysFrom(w, c, t, x.i) }));
@@ -265,13 +267,13 @@ function TiredAlerts(): JSX.Element {
               {TRUCK.tired} {f.resetDays} days off at home reset it; every day sitting idle away from home costs {GAME_CONFIG.labor.driver.perDiemFd} FD per diem.
             </p>
             {d.wantsHome ? (
-              <p class="muted">{homeTimeLine(w, me(), t)}</p>
+              <p class="muted">{homeTimeLine(w, ownerOf(t), t)}</p>
             ) : t.status === "idle" || w.cfg.labor.sendHomeWhileMoving ? (
               <div class="row">
                 <SendHomeActions t={t} primary />
               </div>
             ) : (
-              <p class="muted">{homeRuleLine(me(), d)}</p>
+              <p class="muted">{homeRuleLine(ownerOf(t), d)}</p>
             )}
           </Card>
         );
@@ -372,7 +374,8 @@ function HoursLines({ t }: { t: Truck }): JSX.Element | null {
 
 function TruckCard({ t, idx }: { t: Truck; idx: number }): JSX.Element {
   const w = S.game!.w;
-  const c = me();
+  // Client batch 8a item 29: the truck's own company, whichever company is in view.
+  const c = ownerOf(t);
   const leased = t.lease !== "owned";
   // Assets: a tractor leased from another carrier runs here, but its owner sells, rebuilds and parks it.
   const leasedIn = t.lessorId !== 0 && t.lessorId !== c.id;
@@ -408,6 +411,16 @@ function TruckCard({ t, idx }: { t: Truck; idx: number }): JSX.Element {
             </Btn>
           ) : null}
           {t.lease === "lessor" && t.status === "idle" ? <Btn onClick={() => act({ type: "return_lease", truckId: t.id }, "Lease returned")}>Return lease</Btn> : null}
+          {/* Client batch 8a item 6: a listed truck can come off sale (engine withdraw_listing). */}
+          {(() => {
+            const sale = mine ? w.listings.find((x) => x.status === "open" && x.truckId === t.id && x.sellerId === t.companyId) : undefined;
+            return sale ? (
+              <>
+                <span class="small">{PENDING.forSaleAt(fd(sale.askFd))}</span>
+                <Btn onClick={() => act({ type: "withdraw_listing", listingId: sale.id }, PENDING.offSaleTruck)}>{PENDING.takeOffSale}</Btn>
+              </>
+            ) : null;
+          })()}
           <TruckAssetActions t={t} />
           {t.defects > 0 && (t.status === "idle" || t.status === "parked") ? (
             <Btn onClick={() => act({ type: "fix_defects", truckId: t.id }, "Defects fixed")}>

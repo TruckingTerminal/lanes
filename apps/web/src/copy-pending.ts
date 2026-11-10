@@ -252,6 +252,63 @@ export const PENDING = {
   // The red team's persistence fixes (studio/reviews/redteam-persistence.md). The test page with this browser's world open
   // in another tab (§4, a Web Lock): this tab shows it but never saves it and takes no orders.
   testWatching: "Your world is open in another tab; this one only watches.",
+  // Client batch 8a item 22 (the borrower paid 505 FD a week for twelve weeks on a truck still on the lot): the loan
+  // sheet's row under the weekly payment, saying when the first one falls and, for a truck that comes later, that the
+  // payments run from the order while it waits (engine: the weekly step charges every open purchase loan).
+  loanFirstLabel: "First payment",
+  loanFirstValue: (date: string, waits: boolean) => (waits ? `${date}, and every week from then while the truck waits at the dealer` : date),
+  // Client batch 8a item 46 (the stubborn specialist: Book now was live on a truck with no driver and refused after the
+  // tap): under the board's head when the chosen truck has no driver, and as the reason under a shut Book now.
+  boardNeedsDriver: (n: number) => `Truck ${n} has no driver: hire one on Staff before it can book a load.`,
+  bookNeedsDriver: "No driver in this truck, so it can't book. Hire one on Staff.",
+  // Client batch 8a item 30 (the middleman: the funding field took -50000 as 0 and then no typing at all): under the
+  // brokerage's funding field (step 2) when the typed amount isn't one the carrier can move; the field keeps what was typed.
+  fundRange: (min: string, max: string) => `Fund it with ${min} to ${max} FD: at least the bond and the licence, at most what your carrier can spare with the fee.`,
+  fundNotANumber: "Type an amount in FD, digits only.",
+  // Client batch 8a item 61 (the director's G; items 44 and 53): the bid's floor is break-even itself, and a bid under it
+  // is allowed with the loss said, under the bid field (and in the laptop table's toast); a lane whose loads clear under
+  // the player's break-even says so in the sheet in place of the gamble line.
+  bidUnderBreakEven: (fd: string) => `Under break-even: you'd lose ${fd} FD.`,
+  laneUnderBreakEven: (clears: string, be: string) => `Loads like this clear near ${clears} here, under your break-even of ${be}. This lane pays less than it costs you; book another or pass.`,
+  // Client batch 8a item 57 (the director's ruling A): the first-truck card's one verdict, on the Dealer's card (the Dealer
+  // opens on it), its teaser under More, Iuliia's page and What now?. The name says what it prices; the verdict is one of
+  // three; the figures sit under "Why" (whyLabel), never beside the verdict; "See it" brings the truck's row into view.
+  soundTitle: "A sound first truck",
+  soundName: (fd: string) => `To a sound first truck: ${fd} FD`,
+  soundBuy: "Buy it now.",
+  soundOrder: (date: string) => `Order it now · ready ${date}`,
+  soundNotYet: (fd: string, loads: number | null) => (loads === null ? `Not yet: buy at ${fd} FD in cash.` : `Not yet: buy at ${fd} FD in cash, about ${loads} ${loads === 1 ? "load" : "loads"} from here.`),
+  soundNone: (trailer: string) => `No sound ${trailer} truck on the lot today; I'll tell you when one lists.`,
+  whyLabel: "Why",
+  whyTruck: (truck: string) => `The truck: ${truck}.`,
+  whyPrice: (price: string, need: string) => `Price ${price} FD; it takes ${need} FD in cash today.`,
+  whyCushion: (after: string, hold: string) => `${after} FD left after it, against the ${hold} FD I'd keep back for fuel and repairs.`,
+  whyWorn: (truck: string, price: string) => `Cheaper, but worn or for other freight: ${truck} at ${price} FD.`,
+  seeIt: "See it",
+  // Client batch 8a item 59 (the director's F and C; items 21, 45 and 55): What now?'s new answers. The debt line names
+  // the nearest clock: a purchase loan with a payment missed, the truck the lender takes and when, the payment and its
+  // day. The home rule with the dispatcher off, from five days ahead and on the day. A breakdown's ask on a load booked
+  // ahead. A lost bid's follow-up now names its truck (lostForTruck wraps NOW.lostAction / lostBookAction).
+  loanDefaultAction: (missed: number, truck: number | null, date: string) => `${missed} ${missed === 1 ? "payment" : "payments"} missed: the lender takes ${truck === null ? "the truck on order" : `Truck ${truck}`} on ${date} if the next one misses.`,
+  loanDefaultReason: (fd: string, date: string) => `The next payment is ${fd} FD, on ${date}. Keep that much in cash by then.`,
+  loanDefaultButton: "Money",
+  homeDueAction: (date: string, days: number) => (days === 0 ? "Due home today: take a load toward home, or Send home." : `Due home ${date} (${days} ${days === 1 ? "day" : "days"}).`),
+  homeDueReason: (home: string, load: string | null) => (load ? `A load toward ${home} keeps the truck paid: ${load}.` : `With your dispatcher off, the truck turns for ${home} at the rule's day, empty if no load goes that way.`),
+  homeDueButton: (load: boolean) => (load ? "See the load" : "Send home"),
+  atRiskAction: (truck: number) => `Truck ${truck} broke down and can't make its next pickup.`,
+  atRiskReason: (fd: string, by: string) => `Release the load now (a ${fd} FD claim) or keep it and hope, before ${by}.`,
+  atRiskButton: "Truck",
+  lostForTruck: (truck: number, action: string) => `Truck ${truck}: ${action}`,
+  // Client batch 8a item 19 (the borrower): the month report's line under its loads line, when the lender took trucks
+  // in the month: how many, and what their loans owed when it did (they leave the books with the trucks).
+  monthTaken: (n: number, fd: string) => `The lender took ${n} ${n === 1 ? "truck" : "trucks"} this month; ${n === 1 ? "its loan" : "their loans"}, ${fd} FD owed, closed with ${n === 1 ? "it" : "them"}.`,
+  // Client batch 8a item 6: a listed truck or trailer's control to take it off sale (engine withdraw_listing); on the truck's
+  // card (its ⋯ on a phone) and the trailer's yard row, beside "for sale at {ask} FD". A truck taken off is parked where
+  // it stands; a trailer goes back to the yard.
+  forSaleAt: (ask: string) => `For sale at ${ask} FD`,
+  takeOffSale: "Take it off sale",
+  offSaleTruck: "Off sale: the truck is parked where it stands",
+  offSaleTrailer: "Off sale: the trailer is back in your yard",
   // The live page's refusals (§1, §2). A tab that isn't this player's writer (another tab or device holds the lease, or this
   // one lost it and another holds it now): an order is refused; shown in the order's error toast ("Couldn't send that
   // order: …") and where a tap on a live screen is refused (state.ts act and order).

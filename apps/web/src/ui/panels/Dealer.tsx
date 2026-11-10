@@ -1,5 +1,5 @@
 import type { JSX } from "preact";
-import { useState } from "preact/hooks";
+import { useEffect, useState } from "preact/hooks";
 import type { Equipment, FacilityType, TractorTier } from "@lanes/config";
 import { assetPriceUsd, availableSupply, collateralOf, listingBlock, companyAccount, condition, dealerPrice, deliveryDays, dealerBacklog, facilityOutlook, lessorTrucksOf, newPrice, openListings, ordersOf, tokenLive, truckCap, truckValue } from "@lanes/engine";
 import { facilityUrl } from "../../art.js";
@@ -12,7 +12,8 @@ import { Buy, Showroom } from "./Showroom.js";
 import { confirmAct } from "../Confirm.js";
 import { leaseDepositNow, leaseTruck, leaseWeeklyMin, newTruck, usedTruck } from "../../confirmspecs.js";
 import { ANSWER, CONFIRM, DEALER } from "../../copy.js";
-import { firstTruckLine, inFirstMonth, leaseOnRun, listingWhy, truckPlace } from "../../figures.js";
+import { dealerUsed, firstTruckLine, inFirstMonth, leaseOnRun, listingWhy, truckPlace } from "../../figures.js";
+import { FirstTruckVerdictBlock } from "../FirstTruckCard.js";
 import { PENDING } from "../../copy-pending.js";
 import { CapsLine } from "../Caps.js";
 
@@ -31,11 +32,15 @@ export function Dealer(): JSX.Element {
   const tiers: TractorTier[] = ["workhorse", "highwayPro", "flagship"];
   const trailers: Equipment[] = ["van", "reefer", "flatbed"];
   const today = Math.floor(w.t / 1440);
-  const used = openListings(w)
-    .filter((l) => l.truckId > 0 && l.formerOwnerId !== c.id && l.sellerId !== c.id)
-    .map((l) => ({ l, t: w.trucks[l.truckId - 1]! }))
-    .sort((a, b) => a.l.askFd / Math.max(1, truckValue(w, a.t)) - b.l.askFd / Math.max(1, truckValue(w, b.t)))
-    .slice(0, 8);
+  // The used list (figures.ts dealerUsed): the same list the first-truck verdict reads, so its truck is always on the page.
+  const used = dealerUsed(w, c);
+  // The first-truck card's "See it" from another page: the row comes into view once the Dealer has drawn.
+  useEffect(() => {
+    if (!S.dealerFocus) return;
+    const id = S.dealerFocus;
+    S.dealerFocus = null;
+    requestAnimationFrame(() => document.getElementById(id)?.scrollIntoView({ block: "center" }));
+  });
   const canLease = fleet.some((t) => t.lease === "owned") && lessorTrucksOf(w, c.id).length < w.cfg.freeEntry.leases.maxPerCompany;
   // R7: what stops a lease, in the writer's words, before the press (the binding one first).
   const leaseWhy = (tr: Equipment): string | null => {
@@ -57,17 +62,10 @@ export function Dealer(): JSX.Element {
   return (
     <Panel title="Dealer">
       <Scene name="dealer" still={SCENES.dealer} alt="The dealership lot" />
+      {/* Client batch 8a item 57 (the director's A): the Dealer opens on the first-truck card's one verdict. */}
       {first ? (
         <Card>
-          <p>
-            <b>{first.ordered ? `${first.figure}.` : first.figure}</b>
-          </p>
-          {first.what ? <p class="small">{first.what}</p> : null}
-          {/* Client batch 6b: a truck that delivers sooner than the one the figure prices, with its cash today. */}
-          {first.sooner ? <p class="small">{first.sooner}</p> : null}
-          {first.cashOnly ? <p class="muted small">{first.cashOnly}</p> : null}
-          {first.worn ? <p class="muted small">{first.worn}</p> : null}
-          {first.advice ? <p class="muted small">{first.advice}</p> : null}
+          <FirstTruckVerdictBlock f={first} here />
         </Card>
       ) : null}
       <CapsLine />
@@ -76,7 +74,8 @@ export function Dealer(): JSX.Element {
       <h3>Used trucks</h3>
       {used.length ? (
         used.map(({ l, t }) => (
-          <Card key={l.id}>
+          <div id={`used-${l.id}`} key={l.id}>
+          <Card>
             <div class="truckhead">
               <Rig eq={t.trailer} paint="grey" alt="Used truck" />
               <div>
@@ -101,12 +100,13 @@ export function Dealer(): JSX.Element {
               block={listingWhy(w, c, listingBlock(w, c.id, l.id, Infinity))}
               action={{ type: "buy_listing", listingId: l.id }}
               // Client batch 7b: while the leased truck isn't idle, the listing isn't ready today either.
-              when={leaseOnRun(w, c) ? PENDING.readyWhenIdle(leaseOnRun(w, c)!.truckId) : DEALER.deliversToday}
+              when={leaseOnRun(w, c) ? PENDING.readyWhenIdle(leaseOnRun(w, c)!.no) : DEALER.deliversToday}
               lines={usedTruck(w, c, t, t.hub)}
               truck={collateralOf(w, t)}
               ok="Bought. It's yours, idle where it stands"
             />
           </Card>
+          </div>
         ))
       ) : (
         <p class="muted">Nothing listed right now.</p>
