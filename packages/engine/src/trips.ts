@@ -5,7 +5,7 @@ import { crewStrike } from "./robbery.js";
 import { scaleDiscount } from "./scale.js";
 import { endOfLife } from "./assets.js";
 import { addTrailerMiles } from "./trailers.js";
-import { COMMODITIES, dexp, greatCircleMiles, NO_TERRAIN, routeTerrain, type Route } from "@lanes/data";
+import { COMMODITIES, dcos, dexp, greatCircleMiles, NO_TERRAIN, routeTerrain, type Route } from "@lanes/data";
 import { deliveryWait, pickupWait, setSlot } from "./docks.js";
 import { afterBreakdown, claimOn, noShow, windowsOn } from "./windows.js";
 import { flatbedDamage, reeferUnit } from "./equipment.js";
@@ -514,9 +514,11 @@ export function turnTruck(w: World, truck: Truck, hub: number): void {
   const [lat, lon] = truckLatLon(w, truck);
   let best = truck.place;
   let bd = Infinity;
-  const cosLat = Math.cos((lat * Math.PI) / 180);
+  const cosLat = dcos((lat * Math.PI) / 180); // dcos and products, not Math.cos and **: each engine has its own (data/dmath.ts)
   w.net.places.forEach((p, i) => {
-    const d = (p.lat - lat) ** 2 + ((p.lon - lon) * cosLat) ** 2;
+    const dy = p.lat - lat;
+    const dx = (p.lon - lon) * cosLat;
+    const d = dy * dy + dx * dx;
     if (d < bd) {
       bd = d;
       best = i;

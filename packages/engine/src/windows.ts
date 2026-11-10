@@ -26,7 +26,7 @@
  * Off, nothing here runs: windowsOn is read at posting, at the round, at the index and in the ratio, and every field it
  * sets is absent on a load posted while off, so those loads take today's path wherever they go.
  */
-import { COMMODITIES } from "@lanes/data";
+import { COMMODITIES, dpow } from "@lanes/data";
 import type { EconomyConfig } from "@lanes/config";
 import { dayOf, MINUTES_PER_HOUR } from "./clock.js";
 import { dockHoursAt, dockRule, nextOpen } from "./docks.js";
@@ -554,7 +554,7 @@ export function lostMemory(w: World): number[] | null {
   const m = w.lostMem;
   if (!m) return null;
   if (w.t > m.t) {
-    const f = 0.5 ** ((w.t - m.t) / (w.cfg.windows!.lostMemoryHalfLifeDays * w.cfg.time.gameMinutesPerDay));
+    const f = dpow(0.5, (w.t - m.t) / (w.cfg.windows!.lostMemoryHalfLifeDays * w.cfg.time.gameMinutesPerDay)); // dpow, not **: engines' pow differ
     for (let k = 0; k < m.v.length; k++) m.v[k] = m.v[k]! * f;
     m.t = w.t;
   }
