@@ -1,5 +1,26 @@
 # Decisions (the producer's log for Jeff; newest first)
 
+- 2026-11-13 — the three ideas from EVE Online, sized by the economy (studio/reviews/economy-eve-sinks.md) and given a
+  player side by the director (studio/reviews/director-eve.md). The economy: build all three, the report first.
+  (1) A public monthly report on Intel, "The freight economy", one frozen page per game month: freight, trucks,
+  companies, then money (FD in circulation, what came in and went out by kind, the net), aggregates only, no figure
+  from fewer than ten companies, never a company named or ranked by cash; four new tallies. No rule change. (2) A
+  settlement fee (the director's name; never "burn" on a player's screen): 1% of every cleared load and every sale
+  between companies, paid by the seller, burned outside the cap's refill, shown as one named line with any market
+  fee, the same for everyone, a change announced a game month ahead. From a ten-seed pair at 0, 1% and 2%: at 1% it
+  burns about 270k FD a month (thirteen times the early-delivery fee), FD in circulation ends 3% lower, carriers'
+  profit per truck-week 3% lower, loan defaults 9% higher, cleared loads, the rate and bankruptcies unmoved; the
+  gate's band must count it among its sinks. 2% is the most the economy would set. (3) Loyalty: the economy proposed
+  points per on-time delivery spent with FD on looks (a small sink), with access perks later; the director rules
+  against any store bought with FD as false to trucking and proposes "standing with a shipper" instead: tiers
+  (Approved, Preferred, Core) earned by on-time delivery and lost by failure, giving first call on that shipper's
+  tenders for one round, better pay terms, dock priority and contracts; not a sink. The producer recommends the
+  report now, the settlement fee at 1% behind a switch into a ruleset after QA, and the director's standing, paired
+  by the economy for the perks that move the market. OPEN FOR JEFF.
+- 2026-11-12 — the director on QA's three doubts (studio/reviews/director-qa-0241.md): the night in town reaches
+  mid-leg (a rule behind its own switch, with honest words until then); a hand bid in a local hold is right as
+  designed, and a lost bid names what beat it (engineering found no clearing bug); the sound-truck verdict stays,
+  with progress toward it on the card.
 - 2026-11-12 — QA's replay of 0.24.1 and client batch 8a on the test page (studio/reviews/qa-0241-8a.md): the nine
   rules work (Send home back to work, the turn of an empty truck, a night in town, the hand bid in a local hold, the
   loan sheet, the lot rig from stock in a week, the hand-over at the next idle moment, the cushion after a loan), the
