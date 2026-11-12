@@ -1,5 +1,14 @@
 # Decisions (the producer's log for Jeff; newest first)
 
+- 2026-11-13 — Jeff: "Yes as recommended, but instead of having 3 tiers for shipper loyalty, make it 10 tiers, 3 tiers
+  is too small with all of the variance in trucking." Approved: the public monthly report (a minimum group of ten
+  companies); the settlement fee at 1% on the seller, burned outside the refill, behind its own switch and into a
+  ruleset after QA, with the gate's band counting it; and the director's standing with a shipper, earned and lost,
+  never bought, with ten tiers. The producer's view, sent to the director as a suggestion: a standing score from the
+  trailing on-time share, the loads hauled and the claims, shown as ten tiers; perks unlocking at a few milestones
+  rather than every tier, the tier ordering first call between them; a tier moving at most one step a week so
+  variance does not swing it; decay slow enough that a month away costs one tier. The director redesigns it, the
+  economy sizes the perks that move the market, engineering builds the report and the fee first.
 - 2026-11-13 — the three ideas from EVE Online, sized by the economy (studio/reviews/economy-eve-sinks.md) and given a
   player side by the director (studio/reviews/director-eve.md). The economy: build all three, the report first.
   (1) A public monthly report on Intel, "The freight economy", one frozen page per game month: freight, trucks,
