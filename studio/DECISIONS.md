@@ -1,5 +1,17 @@
 # Decisions (the producer's log for Jeff; newest first)
 
+- 2026-11-13 — the economy's sixth reading of delivery windows, on batch 8 (studio/reviews/economy-delivery-windows-
+  batch8.md; ten seeds, 1460 days, 0.24.1 on in both arms): windows can go into a ruleset after one small bot fix.
+  The gate passes 10 of 10; the rate is within 2% of the world without windows (4% over in year 1, 3–6% under
+  later); the carriers keep 94.5% of the cap's pay; owner-operators' and fleets' profit per truck-week are level with
+  the world without windows; the prudent lose nothing. What windows cost, by design ("lost means lost"): 54% of posted
+  loads are lost at their close against 44% given up today, cleared loads 7.5% fewer, the cap's paid freight 13%
+  lower, FD in circulation 32% lower by year 4, the greedy and random owner-operators liquidated more, loan defaults
+  up by three fifths. The fix: bots still buy hundreds of facilities that all lose, because their test prices the haul
+  at the plain reference while windows lift what carriers are paid; with windows on, the test reads the hub's lift.
+  Then a two-seed check. The producer's path to a ruleset: that fix and check, then the windows' screens (the client
+  batch), the red team and QA, then a ruleset and a live restart. OPEN FOR JEFF: take windows on that path, knowing
+  the smaller economy they make.
 - 2026-11-13 — Jeff, reaffirming his 2026-11-08 ruling: "this game must be cutthroat like real trucking." The economy
   is never tuned to the days to a first truck; that pacing guard left the gate on 2026-11-08 and is reported only.
 - 2026-11-13 — Jeff: "Yes as recommended, but instead of having 3 tiers for shipper loyalty, make it 10 tiers, 3 tiers
