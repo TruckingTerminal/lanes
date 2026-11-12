@@ -435,15 +435,36 @@ export const PENDING = {
   soundName: (fd: string) => `To a sound first truck: ${fd} FD`,
   soundBuy: "Buy it now.",
   soundOrder: (date: string) => `Order it now · ready ${date}`,
-  // Writer 8a: "buy at N FD" read as a price; N is the cash to hold (the price's cash plus the cushion), so "once you have".
   // Client batch 8b item 52: the profit chip's sheet, on a leased truck, the row between break-even and the profit.
   lessorOfMargin: (share: string) => `Less the lessor's ${share} of what's over break-even`,
-  // The director's sound-lot ruling (2026-11-12): how far off, in loads and weeks at the recent average.
+  // Writer 8a: "buy at N FD" read as a price; N is the cash to hold (the price's cash plus the cushion), so "once you have".
+  // The director's sound-lot ruling (2026-11-12): how far off, in loads and weeks at the recent average. Since client batch
+  // 8c it says this only before the first delivery (no average yet); after, soundNotYetPlan.
   soundNotYet: (fd: string, loads: number | null, weeks: number | null = null) =>
     loads === null ? `Not yet: buy once you have ${fd} FD in cash.` : `Not yet: buy once you have ${fd} FD in cash, about ${loads} ${loads === 1 ? "load" : "loads"}${weeks !== null ? ` and ${weeks} ${weeks === 1 ? "week" : "weeks"}` : ""} from here.`,
   // "For sale", not "on the lot": the card reads the lot's rigs, the used listings and the new rig, and "the lot" names
   // only the first (lotReadyNote, lotButton).
   soundNone: (trailer: string) => `No sound ${trailer} truck for sale today; I'll tell you when one lists.`,
+  // Client batch 8c item 70 (the director, director-qa-0241-2026-11-12.md §3): "Not yet" ties each load to the goal and says
+  // where the player stands; a bar shows it on the card and Iuliia's page; she marks the quarter points; the listing watch
+  // stays. Never a word about buying FD to close the gap.
+  soundNotYetPlan: (loads: number, span: string | null, perLoadFd: string, pct: string) =>
+    `Not yet: a sound truck is about ${loads} ${loads === 1 ? "load" : "loads"} away at your recent average${span ? `, around ${span}` : ""}. Each load adds about ${perLoadFd} FD toward it. You're ${pct} of the way.`,
+  soundProgress: (pct: string) => `${pct} of the way to a sound truck`,
+  soundWatch: "I'll tell you when a sound used truck lists for less.",
+  soundQuarter: (n: 1 | 2 | 3) => (n === 1 ? "A quarter of the way to your truck." : n === 2 ? "Halfway to your truck." : "Three quarters of the way to your truck."),
+  soundListed: (truck: string, fd: string) => `A sound used truck just listed for less: ${truck}, ${fd} FD. It's on your first-truck card.`,
+  // Client batch 8c item 69 (the director): a lost bid names what beat it, from the clearing's own terms (board.ts lostWhy).
+  lostWhy: (kind: "record" | "nearer" | "home" | "local" | "outright") =>
+    kind === "record"
+      ? "The shipper chose a carrier with a longer safety record."
+      : kind === "nearer"
+        ? "The shipper chose a carrier whose truck was nearer the pickup, so it could load sooner."
+        : kind === "home"
+          ? "The shipper chose a carrier based near the pickup."
+          : kind === "local"
+            ? "A local carrier took it outright during the locals' first call."
+            : "Another carrier took it outright before the round.",
   whyLabel: "Why",
   whyTruck: (truck: string) => `The truck: ${truck}.`,
   whyPrice: (price: string, need: string) => `Price ${price} FD; it takes ${need} FD in cash today.`,

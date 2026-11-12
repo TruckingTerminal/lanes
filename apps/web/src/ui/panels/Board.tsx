@@ -302,6 +302,8 @@ function ResultCard({ onBidAgain }: { onBidAgain?: () => void }): JSX.Element | 
             ? ROUND.lost(res.winning.toFixed(2), res.rate.toFixed(2), res.be.toFixed(2))
             : ROUND.nobody(res.rate.toFixed(2))}
       </p>
+      {/* Client batch 8c item 69: what beat it, when a higher bid won or the load went before the round. */}
+      {!res.won && res.why ? <p class="small">{PENDING.lostWhy(res.why)}</p> : null}
       {!res.won && res.winnerId ? (
         <button type="button" class="linkrow" onClick={() => openIntel({ card: res.winnerId })}>
           {INTEL.lostTo(S.game!.w.companies[res.winnerId - 1]?.name ?? "", (res.winning ?? 0).toFixed(2))}

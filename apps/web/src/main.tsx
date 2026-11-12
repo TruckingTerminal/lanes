@@ -1,10 +1,10 @@
 import { render } from "preact";
-import { companyAccount, condition, crewed, marketMood, resting, staffById, type GameEvent } from "@lanes/engine";
+import { companyAccount, condition, crewed, marketMood, resting, staffById, type Company, type GameEvent, type World } from "@lanes/engine";
 import { installTheme } from "./art.js";
 import { truckSheet, whenAssetsReady } from "./assets.js";
 import { fd, fdFull, hhmm, realUntil, shortDate } from "./format.js";
 import { DELIVERED, FEED, LOADING, MARKET, ROUND } from "./copy.js";
-import { iuliiaOnChange, iuliiaSay } from "./iuliia.js";
+import { iuliiaOnChange, iuliiaSay, iuliiaSayText } from "./iuliia.js";
 import { RULESET, TestGame, type StartKind } from "./game.js";
 import { H } from "./handlers.js";
 import { createMeta, LiveWorld, readMeta, type DbLike, type WorldMeta } from "./live.js";
@@ -20,7 +20,8 @@ import { askWhatNow } from "./ui/WhatNow.js";
 import { poachResult } from "./ui/panels/Staff.js";
 import { returnFor, saveVisit } from "./returncard.js";
 import { checkVersion } from "./version.js";
-import { profitOver } from "./board.js";
+import { lostWhy, profitOver } from "./board.js";
+import { firstTruckLine } from "./figures.js";
 import { PENDING } from "./copy-pending.js";
 import { panelsMoved } from "./panelclock.js";
 
@@ -122,7 +123,7 @@ function onEvent(s: Session, e: GameEvent): void {
       const load = w.loads.get(e.loadId);
       const winning = e.kind === "won" ? e.rate : e.winningRate;
       iuliiaSay(e.kind === "won" ? "result:won" : e.winningRate === null ? "result:nobody" : "result:lost");
-      S.result = { won: e.kind === "won", from: ends(e.loadId, e.origin, e.dest)[0], to: ends(e.loadId, e.origin, e.dest)[1], rate: e.kind === "won" ? e.rate : mine.rate, winning, be: mine.be, total: e.kind === "won" && load ? e.rate * load.miles : 0, seen: false, winnerId: e.kind === "lostBid" && load && load.carrierId ? load.carrierId : undefined, lost: e.kind === "lostBid" && winning !== null && load ? { loadId: e.loadId, truckId: e.truckId, profitAtWinningFd: profitOver(w, w.trucks[e.truckId - 1], winning, mine.be, load.miles), round: w.round } : undefined };
+      S.result = { won: e.kind === "won", from: ends(e.loadId, e.origin, e.dest)[0], to: ends(e.loadId, e.origin, e.dest)[1], rate: e.kind === "won" ? e.rate : mine.rate, winning, be: mine.be, total: e.kind === "won" && load ? e.rate * load.miles : 0, seen: false, winnerId: e.kind === "lostBid" && load && load.carrierId ? load.carrierId : undefined, lost: e.kind === "lostBid" && winning !== null && load ? { loadId: e.loadId, truckId: e.truckId, profitAtWinningFd: profitOver(w, w.trucks[e.truckId - 1], winning, mine.be, load.miles), round: w.round } : undefined, why: e.kind === "lostBid" && load ? lostWhy(w, load, { truckId: e.truckId, rate: mine.rate }) : null };
     }
   }
   if (e.kind === "won") {
@@ -495,7 +496,29 @@ const beforeDelivery = new Map<number, TruckBefore>();
 onWorldReset(() => {
   beforeDelivery.clear();
   firstBidSped = true;
+  soundSeen = null;
 });
+
+/**
+ * Client batch 8c item 70 (the director, director-qa-0241-2026-11-12.md §3), while the company owns no truck, read once a
+ * game hour: Iuliia marks a quarter, half and three quarters of the way to a sound truck (the furthest reached this
+ * sitting, so a dip and a climb back say nothing twice), and keeps the listing watch: a sound used truck listed for less
+ * than the one the card priced. The first look only sets a baseline, as her other change lines do.
+ */
+let soundSeen: { co: number; hour: number; best: number; price: number | null } | null = null;
+function soundWatch(w: World, c: Company): void {
+  const hour = Math.floor(w.t / 60);
+  if (soundSeen && soundSeen.co === c.id && soundSeen.hour === hour) return;
+  if ((w.trucksByCompany.get(c.id) ?? []).some((t) => t.lease === "owned")) return;
+  const f = firstTruckLine(w, c);
+  const bucket = f && f.progress !== null ? Math.floor(f.progress * 4) : -1;
+  const price = f?.pick?.price ?? null;
+  const was = soundSeen && soundSeen.co === c.id ? soundSeen : null;
+  soundSeen = { co: c.id, hour, best: Math.max(was?.best ?? bucket, bucket), price };
+  if (!was || !f) return;
+  if (bucket > was.best && (bucket === 1 || bucket === 2 || bucket === 3)) iuliiaSayText(PENDING.soundQuarter(bucket));
+  else if (f.pick?.route === "listing" && price !== null && was.price !== null && price < was.price - 0.5) iuliiaSayText(PENDING.soundListed(f.pick.desc, fdFull(price)));
+}
 function observe(s: Session): void {
   const f = feed(s);
   const w = s.w;
@@ -514,6 +537,7 @@ function observe(s: Session): void {
   // truck, the safety rating moving, the policy renewing, a driver turning restless. The first look only sets a baseline.
   if (s === S.game && s.player) {
     const c = s.player;
+    soundWatch(w, c);
     for (const t of w.trucksByCompany.get(c.id) ?? []) {
       // Who last drove each truck, while this page watched: What now? names a driver who has gone only when one did.
       const d = t.driverId ? staffById(w, t.driverId) : null;

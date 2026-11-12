@@ -294,7 +294,24 @@ function shownTrucks(w: World, c: Company, own: Equipment, replacing: boolean): 
  * lists." `open` is the truck's row on the Dealer, so the card's truck is always one the player can open. One function
  * for the Dealer's card, its teaser, Iuliia's page and What now?. With a truck already ordered, its wait alone.
  */
-export type FirstTruckVerdict = { figure: string; verdict: string; why: string[]; open: string | null; met: boolean; needFd: number; gapFd: number; ordered: boolean };
+/**
+ * Client batch 8c item 70: `progress`, how far the company's cash is toward the cash the verdict needs (0–1; null with no
+ * sound truck shown or one ordered); `watch`, the listing watch's line; `pick`, the truck it prices (Iuliia's watch reads
+ * its price).
+ */
+export type FirstTruckVerdict = {
+  figure: string;
+  verdict: string;
+  why: string[];
+  open: string | null;
+  met: boolean;
+  needFd: number;
+  gapFd: number;
+  ordered: boolean;
+  progress: number | null;
+  watch: string | null;
+  pick: { route: ShownTruck["route"]; price: number; desc: string } | null;
+};
 export function firstTruckLine(w: World, c: Company): FirstTruckVerdict | null {
   const ordered = orderedFirstTruck(w, c);
   if (ordered) {
@@ -302,7 +319,7 @@ export function firstTruckLine(w: World, c: Company): FirstTruckVerdict | null {
     const n = leasedNo(w, c);
     const today = Math.floor(w.t / w.cfg.time.gameMinutesPerDay);
     const figure = ordered.due ? PENDING.truckOrderedDue(ordered.dueDay < today ? shortDate(ordered.dueDay) : null, n, w.cfg.assets.swapAtNextIdle) : PENDING.truckOrdered(shortDate(ordered.dueDay), ordered.days);
-    return { figure, verdict: "", why: [], open: null, met: true, needFd: 0, gapFd: 0, ordered: true };
+    return { figure, verdict: "", why: [], open: null, met: true, needFd: 0, gapFd: 0, ordered: true, progress: null, watch: null, pick: null };
   }
   const fleet = w.trucksByCompany.get(c.id) ?? [];
   const own: Equipment = fleet[0]?.trailer ?? "van";
@@ -316,7 +333,7 @@ export function firstTruckLine(w: World, c: Company): FirstTruckVerdict | null {
   // The director's sound-lot ruling: the lot's rig in the company's freight, as a fact with its figures, first under Why.
   const lot = shown.find((x) => x.route === "lot" && x.spec.trailer === own && x !== pick);
   const lotLine = lot ? lotFact(w, c, lot, replacing, today) : null;
-  if (!pick) return { figure: PENDING.soundTitle, verdict: PENDING.soundNone(trailer), why: lotLine ? [lotLine] : [], open: null, met: false, needFd: Infinity, gapFd: Infinity, ordered: false };
+  if (!pick) return { figure: PENDING.soundTitle, verdict: PENDING.soundNone(trailer), why: lotLine ? [lotLine] : [], open: null, met: false, needFd: Infinity, gapFd: Infinity, ordered: false, progress: null, watch: null, pick: null };
   // 2. The cash on the day: the least cash it takes today (a purchase loan where the lender gives one), against cash.
   const plan = buyPlan(w, c, pick.price, replacing, pick.col);
   const need = plan.loanNowFd ?? plan.cashNowFd;
@@ -333,7 +350,16 @@ export function firstTruckLine(w: World, c: Company): FirstTruckVerdict | null {
   // And in weeks at the recent average kept a week (the director's sound-lot ruling).
   const perWeek = (c.operating.revenueFd - c.operating.costFd) / Math.max(1, (today - c.createdDay) / 7);
   const weeksOff = !met && loads !== null && perWeek > 0.5 ? Math.max(1, Math.ceil(gap / perWeek)) : null;
-  const verdict = !met ? PENDING.soundNotYet(fdFull(Math.round(at / 100) * 100), loads, weeksOff) : later ? PENDING.soundOrder(shortDate(pick.arrivesDay)) : PENDING.soundBuy;
+  // Client batch 8c item 70 (the director): with an average to go on, where the player stands and what each load does.
+  const progress = met ? 1 : Math.max(0, Math.min(1, have / Math.max(1, at)));
+  const shown100 = (x: number) => `${Math.floor(x * 100)}%`;
+  const verdict = !met
+    ? loads !== null
+      ? PENDING.soundNotYetPlan(loads, weeksOff !== null ? spanOfWeeks(weeksOff) : null, fdFull(Math.round(perLoad / 10) * 10), shown100(progress))
+      : PENDING.soundNotYet(fdFull(Math.round(at / 100) * 100), loads, weeksOff)
+    : later
+      ? PENDING.soundOrder(shortDate(pick.arrivesDay))
+      : PENDING.soundBuy;
   const desc = (x: ShownTruck) =>
     x.route === "new" ? PENDING.truckNew(TIER_NAME[x.spec.tier], TRAILER_NAME[x.spec.trailer].toLowerCase()) : PENDING.truckUsed(TIER_NAME[x.spec.tier], TRAILER_NAME[x.spec.trailer].toLowerCase(), `${Math.round(x.spec.odometer / 1000)}k`, pct(condition(w.cfg, x.spec)), x.place !== null ? truckPlace(w, x.place) : null);
   const why: string[] = [...(lotLine ? [lotLine] : []), PENDING.whyTruck(desc(pick)), PENDING.whyPrice(fdFull(pick.price), fdFull(Math.max(0, need)))];
@@ -353,7 +379,27 @@ export function firstTruckLine(w: World, c: Company): FirstTruckVerdict | null {
     const other = cheaper.spec.trailer !== own;
     why.push(PENDING.whyWorn(desc(cheaper), fdFull(cheaper.price), worn && other ? "both" : other ? "freight" : "worn"));
   }
-  return { figure: met ? PENDING.soundTitle : PENDING.soundName(fdFull(Math.round(gap))), verdict, why, open: pick.open, met, needFd: need, gapFd: gap, ordered: false };
+  return {
+    figure: met ? PENDING.soundTitle : PENDING.soundName(fdFull(Math.round(gap))),
+    verdict,
+    why,
+    open: pick.open,
+    met,
+    needFd: need,
+    gapFd: gap,
+    ordered: false,
+    progress: met ? null : progress,
+    watch: met ? null : PENDING.soundWatch,
+    pick: { route: pick.route, price: pick.price, desc: desc(pick) },
+  };
+}
+
+const SMALL = ["", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten", "eleven", "twelve"];
+/** A wait in words, as the director wrote it: weeks under two months, then months ("around five months"). */
+function spanOfWeeks(weeks: number): string {
+  if (weeks < 9) return weeks === 1 ? "a week" : `${weeks} weeks`;
+  const months = Math.round(weeks / 4.35);
+  return `${SMALL[months] ?? months} months`;
 }
 /**
  * Where a carrier stands for a contract offer at its home market, for its trailer (client batch 8b item 41), as

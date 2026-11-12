@@ -26,8 +26,9 @@ export const PENDING_RULES = {
   turnedToast: "Turned: it heads there from the nearest town",
   turnedWorkToast: "Turned for home: back to work from there, no days off",
   turnedDaysToast: "Turned for home: days off when it gets there",
-  // Dispatcher.tsx under businesses.parking.stopInTown: the night choice the shoulder ticket assumes.
-  nightStopLabel: "When no rest area or truck stop with room is within the day's hours, stop for the night in town rather than drive on to the shoulder: no ticket, but the day's last hours go unused",
+  // Dispatcher.tsx under businesses.parking.stopInTown: the night choice the shoulder ticket assumes. Client batch 8c item
+  // 68 (the director, 2026-11-12): what it does today, honestly; it applies at a leg's start only (trips.ts moveTrucks).
+  nightStopLabel: "Stops for the night in a town when a leg would begin past your hours. A long leg can still end on the shoulder.",
   nightStopSaved: "Night stop saved",
 
   // leverage.localHoldHandBids (the economy's locals-first look, 2026-11-09): in the last round of a locals-first hold a

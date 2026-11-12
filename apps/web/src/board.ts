@@ -1,4 +1,4 @@
-import { canMakeHot, filesForOpening, clearsNear as engineClearsNear, clearsNearParts, dayOf, dockHoursAt, dutyResetAt, nextOpen, dispatchProfile, EQUIPMENT, expectedReloadDeadheadMi, mayTake, operatingTrucks, ownerDrawFd, placeMiles, placeToll, planIndex, vettingBlock, type Company, type Load, type Truck, type World } from "@lanes/engine";
+import { canMakeHot, filesForOpening, homeEdge, clearsNear as engineClearsNear, clearsNearParts, dayOf, dockHoursAt, dutyResetAt, nextOpen, dispatchProfile, EQUIPMENT, expectedReloadDeadheadMi, mayTake, operatingTrucks, ownerDrawFd, placeMiles, placeToll, planIndex, vettingBlock, type Company, type Load, type Truck, type World } from "@lanes/engine";
 import { COMMODITIES } from "@lanes/data";
 import { trueBreakEven } from "./breakeven.js";
 import { WALL } from "./copy.js";
@@ -224,6 +224,36 @@ export interface ChipPair {
 export function chipPair(w: World, t: Truck, profitFd: number, grossFd: number, drawFd = 0): ChipPair {
   const held = leaseHold(w, t, grossFd);
   return drawFd ? { profit: profitFd, cash: profitFd - held + drawFd, held, draw: drawFd } : { profit: profitFd, cash: profitFd - held, held };
+}
+
+/** What beat a hand bid (client batch 8c item 69); PENDING.lostWhy words each. */
+export type LostWhy = "record" | "nearer" | "home" | "local" | "outright";
+
+/**
+ * Client batch 8c item 69 (the director, director-qa-0241-2026-11-12.md §2): what beat a hand bid in the round, read off the
+ * clearing's own score (engine standingOrders.ts scoreBid: the price against the ceiling, the carrier's reputation, the
+ * empty miles to the pickup, the home edge of a carrier based near it). When a higher bid won, the term that gave the
+ * winner the most over the player's: its record, its truck nearer the pickup, or its home there. Null when the winner bid
+ * the same or lower. A higher bid with none of these behind it is an engine bug (the director): logged, and said as nothing.
+ */
+export function lostWhy(w: World, load: Load, mine: { truckId: number; rate: number }): LostWhy | null {
+  if (load.carrierId === null || load.truckId === null || load.clearedRate <= mine.rate + 1e-9) return null;
+  const myTruck = w.trucks[mine.truckId - 1];
+  const theirTruck = w.trucks[load.truckId - 1];
+  if (!myTruck || !theirTruck) return null;
+  const me = w.companies[myTruck.companyId - 1]!;
+  const them = w.companies[load.carrierId - 1]!;
+  const k = w.cfg.board;
+  const dh = (t: Truck) => placeMiles(w, t.place, load.originPlace);
+  const terms: [LostWhy, number][] = [
+    ["record", k.scoreWeights.reputation * (them.reputation - me.reputation)],
+    ["nearer", (k.scoreWeights.deadhead * (dh(myTruck) - dh(theirTruck))) / k.deadheadScaleMi],
+    ["home", homeEdge(w, them, load.origin) - homeEdge(w, me, load.origin)],
+  ];
+  const best = terms.sort((a, b) => b[1] - a[1])[0]!;
+  if (best[1] > 1e-9) return best[0];
+  console.warn(`[engine] load ${load.id}: a higher bid (${load.clearedRate.toFixed(2)}) beat a hand bid (${mine.rate.toFixed(2)}) with no reason in the score`);
+  return null;
 }
 
 /**

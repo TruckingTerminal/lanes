@@ -505,7 +505,7 @@ export function settleHandBids(s: Session): void {
       const key = markKey("lostBetween");
       if (!S.onboard.seen.includes(key)) setOnboard({ seen: [...S.onboard.seen, key] });
     }
-    S.result = { won: false, from: hb.from ?? "", to: hb.to ?? "", rate: hb.rate, winning: load ? load.clearedRate : null, be: hb.be, total: 0, seen: false, winnerId: load?.carrierId ?? undefined, lost: load && hb.truckId !== undefined ? { loadId, truckId: hb.truckId, profitAtWinningFd: profitOver(S.game!.w, S.game!.w.trucks[hb.truckId - 1], load.clearedRate, hb.be, load.miles), round: S.game!.w.round } : undefined };
+    S.result = { won: false, from: hb.from ?? "", to: hb.to ?? "", rate: hb.rate, winning: load ? load.clearedRate : null, be: hb.be, total: 0, seen: false, winnerId: load?.carrierId ?? undefined, why: load && load.carrierId !== null ? (hb.filed ? "local" : "outright") : null, lost: load && hb.truckId !== undefined ? { loadId, truckId: hb.truckId, profitAtWinningFd: profitOver(S.game!.w, S.game!.w.trucks[hb.truckId - 1], load.clearedRate, hb.be, load.miles), round: S.game!.w.round } : undefined };
     bumpData();
   }
 }
