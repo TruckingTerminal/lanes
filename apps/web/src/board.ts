@@ -141,6 +141,16 @@ export const bidCeiling = (l: Load): number => Math.floor(l.ceiling * 100 + 1e-6
 export const rateShown = (l: Load, rate: number): string => Math.min(Math.round(rate * 100) / 100, bidCeiling(l)).toFixed(2);
 /** The over-ceiling test for a typed bid: more than a cent above the shown ceiling is refused, never lowered in silence. */
 export const overCeiling = (l: Load, rate: number): boolean => rate > bidCeiling(l) + 0.01 + 1e-9;
+/**
+ * What a typed bid field holds (client batch 8b item 10): empty, a rate a mile (above 0), or something that isn't one
+ * ("abc", −5, 0). A comma counts as the decimal point.
+ */
+export function typedRate(text: string): { kind: "empty" } | { kind: "rate"; rate: number } | { kind: "bad" } {
+  const t = text.trim().replace(",", ".");
+  if (t === "") return { kind: "empty" };
+  const n = /^\d*\.?\d+$/.test(t) ? Number(t) : NaN;
+  return Number.isFinite(n) && n > 0 ? { kind: "rate", rate: n } : { kind: "bad" };
+}
 /** A typed bid within a cent above the shown ceiling is the shown ceiling (the cent the display rounded away). */
 export const clampToCeiling = (l: Load, rate: number): number => (rate > bidCeiling(l) && rate <= bidCeiling(l) + 0.01 + 1e-9 ? bidCeiling(l) : rate);
 
@@ -207,10 +217,25 @@ export interface ChipPair {
   /** The owner's draw inside `cash` (it stays with the company), said beside the figure as the pay card says it. */
   draw?: number;
 }
-/** `drawFd`: the owner's draw the company keeps on this load (ownerDrawFd), which lands as cash though break-even counts it as the driver's pay. */
+/**
+ * `profitFd`: what the load leaves at the rate (profitOver). `drawFd`: the owner's draw the company keeps on this load
+ * (ownerDrawFd), which lands as cash though break-even counts it as the driver's pay.
+ */
 export function chipPair(w: World, t: Truck, profitFd: number, grossFd: number, drawFd = 0): ChipPair {
   const held = leaseHold(w, t, grossFd);
   return drawFd ? { profit: profitFd, cash: profitFd - held + drawFd, held, draw: drawFd } : { profit: profitFd, cash: profitFd - held, held };
+}
+
+/**
+ * What a load leaves the company at `rate`, over break-even `be` (client batch 8b item 52, the producer's call of
+ * 2026-11-12). Break-even prices the lessor's share at break-even revenue only (economics.ts breakEvenPerMile divides the
+ * costs by what the lessor leaves), so on a leased truck the lessor still takes its share of every FD over it, as the
+ * pay line settles it (rolling.ts payLine). Before, the margin was shown whole, and What now?'s "to cash now" ran about
+ * 15% of the profit over the pay. Every profit a screen shows comes through here (the board's and the Loads table's
+ * rows, a bid's profit, What now?'s and a lost bid's, the profit chip's sheet), so they agree; chipPair reads it.
+ */
+export function profitOver(w: World, t: { lease: Truck["lease"] } | undefined, rate: number, be: number, miles: number): number {
+  return (rate - be) * miles * (t && t.lease !== "owned" ? 1 - w.cfg.costs.npcLeaseShareOfGross : 1);
 }
 /** A chip figure: whole FD up to 9,999, then thousands to one place ("12.4k"); no sign. */
 export function chipFd(x: number): string {
@@ -281,11 +306,11 @@ export function boardRows(w: World, c: Company, truck: Truck, f: BoardFilter): B
       reloadMi: expectedReloadDeadheadMi(w, l.dest, l.equipment, prof.foresightDays),
       tolls: tolls + l.routeTollFd,
       total: l.bookNow * l.miles,
-      profitBook: (l.bookNow - be) * l.miles,
+      profitBook: profitOver(w, truck, l.bookNow, be, l.miles),
       heldBook: leaseHold(w, truck, l.bookNow * l.miles),
       clears: clearsNear(w, l),
       suggest,
-      profitSuggest: suggest === null ? null : (suggest - be) * l.miles,
+      profitSuggest: suggest === null ? null : profitOver(w, truck, suggest, be, l.miles),
       heat: marketHeat(w, l.dest, l.equipment),
       draw: ownerDrawFd(w, truck, l.miles + dh),
       block: blockReason(w, c, truck, l),

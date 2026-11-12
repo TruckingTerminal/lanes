@@ -47,10 +47,14 @@ export const PENDING = {
   // leased truck idle (deliverOrders at endOfDay), so no line promises the day itself.
   truckOrdered: (date: string, days: number) => `Your truck is ready ${date}, in ${days} ${days === 1 ? "day" : "days"}; until then the leased one runs`,
   // Its day has come: it takes over when the leased truck is next idle at a day's close (dealer.ts deliverOrders).
-  truckOrderedDue: "Your truck is ready: it takes over at the first day's end that finds the leased one idle",
+  // Client batch 8b item 17 (the writer's 7b item 6, the director's shape): "ready since" an ordered truck past its ready
+  // day; `date` null on the ready day itself ("ready today"); `n` the leased truck's number, which the new one keeps;
+  // `swap` assets.swapAtNextIdle, which hands it over the moment the leased one next stands idle.
+  truckOrderedDue: (date: string | null, n: number, swap: boolean) => `${date === null ? "Your truck is ready today" : `Your truck has been ready since ${date}`} · ${(swap ? `handed over when leased truck ${n} next stands idle` : `handed over at the first day's end with leased truck ${n} idle`)}`,
   // What now?, rule 5, while a truck ordered to replace the lease is at the dealer (nextstep.ts "ordered").
-  whatNowOrderedAction: (days: number) => (days > 0 ? `Your truck is ready in ${days} ${days === 1 ? "day" : "days"}; until then the leased one runs.` : "Your truck is ready: it takes over at the first day's end that finds the leased one idle."),
-  whatNowOrderedReason: "The leased truck earns until it goes back, so keep it booked. The swap comes at a day's end when it's idle.",
+  whatNowOrderedAction: (days: number, date: string | null = null, n = 1, swap = false) =>
+    days > 0 ? `Your truck is ready in ${days} ${days === 1 ? "day" : "days"}; until then the leased one runs.` : `${date === null ? "Your truck is ready today" : `Your truck has been ready since ${date}`}; it's ${(swap ? `handed over when leased truck ${n} next stands idle` : `handed over at the first day's end with leased truck ${n} idle`)}.`,
+  whatNowOrderedReason: (swap = false) => `The leased truck earns until it goes back, so keep it booked. ${swap ? "The swap comes the moment it's next idle." : "The swap comes at a day's end when it's idle."}`,
   // Iuliia's advice under it, never part of it: guide.gapCushionWeeks of the company's own spending, rounded. Shown once a
   // week of spending is known.
   firstTruckCushion: (fd: string) => `I'd keep about ${fd} FD back for fuel and repairs before you sign.`,
@@ -129,6 +133,9 @@ export const PENDING = {
   bidBookBetter: "I wouldn't bid on this one: loads like it usually clear at or under Book now, or under your break-even.",
   // The laptop table's Bid pressed with the field empty.
   bidEmpty: "Type a rate to bid, or book it now.",
+  // Client batch 8b item 10 (the exploit hunter: the bid field took −5 and "abc" in silence): under the bid field (the
+  // sheet) or as the table's toast, when what's typed isn't a rate a mile; nothing is placed.
+  bidNotARate: "That isn't a rate: type the FD a mile you'd haul it for, like 2.45.",
   gapReason: (gap: string) => `You're ${gap} FD short of the cash the cheapest truck takes when you sign, counting what's held toward it.`,
 
   // --- Client batch 4 (engineering's placeholders, 2026-11-09, for the writer) ---
@@ -179,7 +186,8 @@ export const PENDING = {
   homeTimeQueued: (mi: string, days: number) => `Home for days off after this run: on a load headed that way, or empty once it's within ${mi} mi of home or has waited ${days} ${days === 1 ? "day" : "days"} for one.`,
   homeTimeWaiting: (days: number) => `Waiting for a load headed home, for days off there. With none in ${days} ${days === 1 ? "day" : "days"} idle, it runs home empty.`,
   homeTimeNextRound: "Sets off for home and days off at the next round.",
-  homeTimeQueuedToast: (days: number) => `Home for days off after this run: on a load headed that way, or empty within ${days} ${days === 1 ? "day" : "days"} idle`,
+  // Client batch 8b item 49 (the stubborn specialist: the card said its rule in two wordings): the toast says the card's.
+  homeTimeQueuedToast: (mi: string, days: number) => `Home for days off after this run: on a load headed that way, or empty once it's within ${mi} mi of home or has waited ${days} ${days === 1 ? "day" : "days"} for one`,
   // Rolling.tsx under businesses.parking.stopInTown, "town" chosen: tonight's stop in the town it stands in.
   tonightTown: (place: string) => `Tonight, as you chose: a night in town at ${place}, no ticket`,
   // The laptop table and the guide where board.refuseOverCeiling is on (live): a bid over the ceiling is refused.
@@ -237,7 +245,10 @@ export const PENDING = {
   // The used lot's rows (Showroom): the button, and the confirm sheet's verb and line (QA: "Buy Workhorse + Dry van?").
   lotButton: (replacing: boolean) => `Order this rig${replacing ? " (replaces your lease)" : ""}`,
   orderVerb: "Order",
-  lotOrderNote: (date: string, replacing: boolean) => `It's an order: ready ${date}${replacing ? ", and handed over at the first day's end after that with your leased truck idle. Your lease ends then." : "."}`,
+  // QA's 0.24.1 replay, fail 2: with assets.swapAtNextIdle on, the hand-over is at the leased truck's next idle moment
+  // (the writer's 7b item 6 tail, "handed over when leased truck {n} next stands idle").
+  lotOrderNote: (date: string, replacing: boolean, swap = false, n: number | null = null) =>
+    `It's an order: ready ${date}${replacing ? (swap ? `, and handed over when ${n !== null ? `leased truck ${n}` : "your leased truck"} next stands idle. Your lease ends then.` : ", and handed over at the first day's end after that with your leased truck idle. Your lease ends then.") : "."}`,
   // The yard line on the Truck tab (QA: "1 trailers of your own").
   trailersOwn: (n: number) => `${n} ${n === 1 ? "trailer" : "trailers"} of your own`,
   // The walkthrough's "Getting paid" step (QA: "Delivered, and paid today." stood for weeks until the second delivery).
@@ -246,8 +257,9 @@ export const PENDING = {
   // log's entry for the order (milestones.ts "truckOrdered"), on its day; "Your own truck" now dates the hand-over.
   msOrderedName: "Truck ordered",
   // Its line while the truck waits at the dealer (Iuliia's caption on the order day, and the log), and once it's run.
-  msOrderedAt: (date: string) => `Your first truck is ordered, ready ${date}. Until it's handed over, the leased one keeps running.`,
-  msOrderedDone: "Your first truck, ordered this day. It was handed over later, at a day's end with the leased one idle.",
+  msOrderedAt: (date: string, n = 1, past = false, swap = false) =>
+    past ? `Your first truck has been ready since ${date}. It's ${(swap ? `handed over when leased truck ${n} next stands idle` : `handed over at the first day's end with leased truck ${n} idle`)}; until then that one keeps running.` : `Your first truck is ordered, ready ${date}. Until it's handed over, the leased one keeps running.`,
+  msOrderedDone: (swap = false) => (swap ? "Your first truck, ordered this day. It was handed over later, the moment the leased one stood idle." : "Your first truck, ordered this day. It was handed over later, at a day's end with the leased one idle."),
   msOrderedReason: "An order isn't a truck yet: until the hand-over, the lessor still takes its share of every load.",
   // The red team's persistence fixes (studio/reviews/redteam-persistence.md). The test page with this browser's world open
   // in another tab (§4, a Web Lock): this tab shows it but never saves it and takes no orders.
@@ -270,6 +282,152 @@ export const PENDING = {
   // the player's break-even says so in the sheet in place of the gamble line.
   bidUnderBreakEven: (fd: string) => `Under break-even: you'd lose ${fd} FD.`,
   laneUnderBreakEven: (clears: string, be: string) => `Loads like this clear near ${clears} here, under your break-even of ${be}. This lane pays less than it costs you; book another or pass.`,
+  // Client batch 8b items 26 and 64 (the director's J): the dollar price under the FD button, plain text on a first-truck
+  // screen (a company that owns no truck yet), a button elsewhere; "to the launch pool" goes.
+  orUsd: (usd: string) => `Or ${usd}`,
+  // Client batch 8b item 18 (the director's listing-worth ruling §1–2): the truck card names its figure for what it is
+  // (book value: what the lender and the lot price it at) and beside it what such trucks really sell for, by how sure
+  // that is: inside the starters' band, near book within two weeks; above it, few buyers and a range. The sell sheet, in
+  // her order: the price's path, the cost of waiting, the end, and the buyer line above the band. Item 8: the sheet says
+  // before listing that the sale repays the truck's loan first, with a purchase loan's stake back.
+  ownedBook: (fd: string) => `owned · book value ${fd} FD`,
+  bookValueLabel: "Book value",
+  sellsUsually: (fd: string) => `Usually sells for about ${fd} within two weeks.`,
+  sellsFew: (lo: string, hi: string) => `Few buyers at this price. Fleets pay about ${lo}–${hi} for trucks like this, when one is buying; it can take weeks, or not sell.`,
+  sellPath: (pct: string, floorPct: string, floor: string, weeks: number) => `The price drops ${pct} a week, to ${floorPct} of today's book value (${floor} FD) in week ${weeks}.`,
+  sellWaiting: (fd: string) => `A listed truck pays the idle fee, ${fd} FD a day, while it waits.`,
+  sellEnd: (floor: string) => `At ${floor} FD, if no one has bought, it comes off sale and is parked.`,
+  sellFewBuyers: "Only carriers with the cash buy trucks this dear; there are few.",
+  sellLoan: (owed: string, stake: boolean) => `The sale repays the truck's loan first (${owed} FD owed)${stake ? ", and the loan's stake comes back to you" : ""}.`,
+  // Client batch 8b item 32 (the middleman: "Shipper 1,964 · carrier 1,964 · fee 59 · yours -59"): under a moving load's
+  // money line when the carrier's pay walked up to (or near) what the shipper pays: no carrier took it at the brokerage's
+  // price, so each round raised the pay toward the shipper's (board.ts raiseCeiling, never past it), and the margin went.
+  marginWalked: "The margin went to get it hauled: no carrier took it at your price, so each round raised the pay toward what the shipper pays.",
+  // Client batch 8b item 25 (the borrower: a driver hired seconds ago read "14 d out · fatigue 57%"): on the hire list, a
+  // candidate's days out and fatigue from their last job, carried into the next (the pool doesn't rest them).
+  candidateTired: (days: number, fatigue: string) => `${days} d out · fatigue ${fatigue}`,
+  // Client batch 8b item 36 (the middleman: a brokerage's cash it now ran about 10%, where he expected the brokers' rate):
+  // under a brokerage's invoice rows when it holds no factoring contract. Cash now for any company is the spot rate plus
+  // aging; the brokers' decided rate is the contract's, flat (token.payment.factoring.contract.brokerRate).
+  brokerSpotRate: (spot: string, perDay: string, cap: string, contract: string) => `Cash now is ${spot} plus ${perDay} a day of an invoice's age, at most ${cap} more. Under a factoring contract a brokerage's paper goes at ${contract} flat.`,
+  // Client batch 8b item 41 (the absentee: contracts on for six months, none came): under "No contracts held", where the
+  // carrier stands for an offer at its home market for its trailer, as the engine picks (contracts.ts weeklyContracts):
+  // about `expected` offers a week go to the `fit` local carriers with room, the best standing first (reputation × tender
+  // record, a carrier without a contract ranked up).
+  contractStanding: (hub: string, expected: string, fit: number, rank: number) => `At ${hub} about ${expected} offers a week go to ${fit} local ${fit === 1 ? "carrier" : "carriers"} with room, the best record first. You stand ${rank} of ${fit}.`,
+  contractNotLocal: "No offers come while local shippers are passing you over for turned-down tenders.",
+  // Client batch 8b item 27 (the borrower: the owner's card went once drivers were hired, and a hired driver sat on the
+  // payroll with no truck): on Staff's "You" card, what the game does with the owner's seat today (labor.ts: an owner
+  // without a truck takes a hired driver's at the next hub, and that driver waits for the next empty seat); and on a
+  // driver's card, plainly, a wage paid with no truck.
+  ownerSeat: "Hiring doesn't take your seat. If your truck goes, you take a hired driver's at the next hub, and that driver waits for the next empty seat.",
+  ownerOffRoad: "You're off the road: no truck of yours has a free seat at a hub yet.",
+  paidNoTruck: (fd: string) => `Paid with no truck: about ${fd} FD a week until a seat frees up.`,
+  // Client batch 8b items 31 and 62 (the director's K; the middleman's 90% margin): under the margin field (step 3 and
+  // the standing order), before it's saved, the margin in figures and against the market, from the world's own loads at
+  // the brokerage's hub. `marginUnder` when the pay it posts at sits under what loads like them clear at there.
+  marginFacts: (margin: string, carrier: string, perLoad: string, lo: string, hi: string, feeLo: string, feeHi: string) =>
+    `At ${margin}, carriers see ${carrier} of the shipper's rate, about ${perLoad} FD a load. Brokers here take ${lo}–${hi}. Loads no carrier takes fall off, and each costs you its fall-off fee (${feeLo}–${feeHi} FD on recent loads).`,
+  marginUnder: (post: string, clears: string) => `At this margin your loads post near ${post}/mi, under the ${clears}/mi loads like them clear at here: few carriers will take them.`,
+  // Client batch 8b item 33 (the middleman: "See what brokers earned last month" listed every broker as "#1" with no
+  // figure): on each row when the list is sorted by the month, what the company kept in its last closed month; and over
+  // the list before any month has closed.
+  monthKept: (fd: string) => `kept ${fd} FD last month`,
+  noMonthYet: "No month has closed yet: the ranking by month starts at the first close.",
+  // Client batch 8b item 37 (the middleman: "{carrier} has no free truck in reach of the pickup" under every card): once,
+  // over the brokerage's loads on the board, when the carrier has no idle truck with a driver at all.
+  carrierNoFreeTruck: (carrier: string) => `${carrier} has no free truck right now, so these can't go to it yet.`,
+  // Client batch 8b item 40 (the absentee: the hold sat at 15,925 FD for months and nothing said it was full): on Money's
+  // held row once the deposit is whole (trips.ts holds back only until depositDueFd), what's held and what happens to it.
+  heldFull: (fd: string) => `Full: ${fd} FD is all the lease holds. Your loads pay in whole from here, and the ${fd} FD goes toward your own truck when you buy one.`,
+  // Client batch 8b item 60 (the director's E): "while you were away", after a game day or more, in her order: the time
+  // away; what went wrong (claims, late deliveries, empty miles, breakdowns, trucks the lender took, a missed payment,
+  // fines); the money (delivered, paid, kept, cash then and now); on time; one next step (What now?, as before). Iuliia's
+  // line is drawn from the interval's worst item, else its best, never the same line twice running (awayLines).
+  awayFor: (days: number, hours: number) => `You were away ${days > 0 ? `${days} ${days === 1 ? "day" : "days"}` : ""}${days > 0 && hours > 0 ? " and " : ""}${hours > 0 || days === 0 ? `${hours} ${hours === 1 ? "hour" : "hours"}` : ""} of game time.`,
+  awayWrong: (items: string) => `What went wrong: ${items}.`,
+  awayClaims: (n: number, fd: string) => `${n} ${n === 1 ? "claim" : "claims"} (${fd} FD)`,
+  awayLate: (n: number) => `${n} late ${n === 1 ? "delivery" : "deliveries"}`,
+  awayEmpty: (mi: string) => `${mi} empty miles`,
+  awayBreakdowns: (n: number) => `${n} ${n === 1 ? "breakdown" : "breakdowns"}`,
+  awayTaken: (n: number) => `${n} ${n === 1 ? "truck" : "trucks"} taken by the lender`,
+  awayMissed: (n: number) => `${n} loan ${n === 1 ? "payment" : "payments"} missed`,
+  awayFines: (fd: string) => `${fd} FD in fines`,
+  awayNothingWrong: "Nothing went wrong.",
+  awayMoney: (n: number, paid: string, kept: string, then: string, now: string) => `${n} ${n === 1 ? "load" : "loads"} delivered, ${paid} FD paid, ${kept} FD kept. Cash ${then} FD then, ${now} FD now.`,
+  awayOnTime: (pct: string) => `On time: ${pct}.`,
+  awayLines: {
+    taken: ["A truck gone to the lender is a lesson with a price. Let's not take the course twice."],
+    missed: ["A missed payment is a clock, not a mood. The next one decides the truck."],
+    claims: ["Claims are the shipper's way of saying the clock matters. It does."],
+    breakdowns: ["The road keeps its own books. Repairs are in them."],
+    late: ["Late is a habit if it's allowed to be one."],
+    empty: ["Empty miles are fuel spent on the view."],
+    fines: ["The patrol was busy. So, it seems, were we."],
+    kept: ["Money kept while you slept. My favorite kind."],
+    delivered: ["The trucks worked; the invoices are the proof."],
+    quiet: ["Quiet. Quiet is fine. Quiet pays nothing, though."],
+  } as Record<string, string[]>,
+  // Client batch 8b item 63 (the director's M): Iuliia offers each further standing order once, at its moment, on the
+  // Truck tab: after a second stranding, at the first contract offer, after a load lost between rounds.
+  offerReposition: "Twice now a truck has stood where nothing pays. I can have the dispatcher move an idle truck toward freight after two rounds. Want that?",
+  offerContracts: "A shipper has offered you a contract. I can have the dispatcher take offers like it as they come. Want that?",
+  offerBookNow: "That load went between rounds, to someone who booked it. I can have the dispatcher book a paying load between rounds. Want that?",
+  offerYes: "Turn it on",
+  offerNo: "Not now",
+  offerDone: "Done: it's in your standing orders on the Truck tab.",
+  // Client batch 8b section D, the early-delivery fee's screens (behind assets.expedite.enabled): the Dealer's second
+  // button beside a new rig's order, the ordered truck's "Expedite" on Truck's order rows until the floor, and the confirm's
+  // lines in the director's fixed order: the dates and days sooner; the fee, paid now, not refunded; what waiting costs
+  // (Iuliia's sentence from expediteWaitParts, its figures each named and never summed; the order and the "if" are the
+  // director's, the words the writer's). Item 65 (the director's L): the sentence when no truck is seated at all.
+  expediteButton: (date: string, fee: string) => `Order early · ready ${date} · ${fee} FD`,
+  expediteCardButton: (date: string, fee: string) => `Expedite · ready ${date} · ${fee} FD`,
+  expediteVerb: "Expedite",
+  expediteDates: (date: string, was: string, days: number) => `Ready ${date} instead of ${was}: ${days} ${days === 1 ? "day" : "days"} sooner.`,
+  expediteFee: (fee: string) => `The fee is ${fee} FD, paid now and not refunded.`,
+  expediteDone: (date: string) => `Expedited: ready ${date}.`,
+  orderOnRow: (what: string, date: string) => `On order: ${what}, ready ${date}`,
+  waitPayments: (span: string, fd: string) => `Waiting ${span} costs about ${fd} FD in payments`,
+  waitLessor: (span: string, fd: string) => `Waiting ${span} costs about ${fd} FD to the lessor`,
+  waitBoth: (span: string, pay: string, lessor: string) => `Waiting ${span} costs about ${pay} FD in payments and ${lessor} FD to the lessor`,
+  waitNothing: (span: string) => `Waiting ${span} costs nothing I can count in payments`,
+  waitCounts: (perWeek: string, weeks: number, fd: string, fee: string) =>
+    `Your trucks have each kept about ${perWeek} a week over the last ${weeks} weeks; if this one does the same, with a driver hired the day it arrives, that's about ${fd}. The fee is ${fee}.`,
+  waitAllICount: "that's all I can count.",
+  waitEmptyTruck: (n: number) => `Truck ${n} has no driver today; seat it before you count on another.`,
+  waitNoneSeated: "None of your trucks has a driver today; hire one before you count on another.",
+  waitBooks: (weeks: number) => `Your company needs ${weeks} weeks of loads before I can say what a truck keeps.`,
+  waitFeeOnly: (fee: string) => `The fee is ${fee}.`,
+  waitPays: "It pays if the freight holds.",
+  waitDoesNot: "It doesn't pay at your recent weeks; I'd wait.",
+  // Client batch 8b item 35 (the middleman: More still offered "Start a brokerage" above the one he owned): the panel's
+  // title under More once the player has a brokerage, above its row.
+  brokerageOwnedTitle: "Your brokerage",
+  // Client batch 8b item 16 (the writer): a trailer's order toast, with its wait.
+  trailerOrderedReady: (days: number) => `Trailer ordered. Ready in ${days} ${days === 1 ? "day" : "days"}`,
+  // Client batch 8b item 5 (QA): an order said as one on the loan's controls (the lot's rig and new rigs, which come on a
+  // later day): the button, the sheet's title and its confirm button; the lot order's toast with its wait; and the cash
+  // line under a buy when the lease's hold counts toward it (the lower figure is the cash after the hold, not the price).
+  orderOnLoan: "Order on a loan ›",
+  orderLoanTitle: (what: string) => `Order ${what} on a purchase loan`,
+  orderLoanButton: (fd: string) => `Order on a loan · ${fd} FD now`,
+  lotOrdered: (days: number) => `Ordered from the used lot. Ready in ${days} ${days === 1 ? "day" : "days"}`,
+  whyCashAfterHold: (have: string, need: string, held: string) => `You have ${have} FD. It takes ${need} FD in cash with tax, after the ${held} FD your lease holds toward it.`,
+  // Client batch 8b item 28 (the borrower: "100% condition" beside "33% of its life left, no rebuilds", two measures read
+  // as one): each named. Condition is the wear since its last rebuild (what a rebuild resets); life is the share of its
+  // miles left before it goes for scrap. `conditionSince` on the Dealer's used rows, the lot's line, the used trailers'
+  // and the lease rows; `usedLastNamed` in a used truck's confirm when it has no rebuild left.
+  conditionSince: (pct: string) => `${pct} condition`,
+  usedLastNamed: (make: string, cond: string, life: string) => `A used ${make}: ${cond} condition since its last rebuild, and ${life} of its working life left, with no rebuild to come.`,
+  // Client batch 8b item 12 (the exploit hunter: the lot rig's condition was only in the confirm): on the used lot's line.
+  lotCondition: (pct: string) => `They come at ${pct} condition`,
+  // Client batch 8b item 9 (the exploit hunter: a name of only spaces became the default without a word): under the
+  // company name field when what's typed is only spaces; the company isn't started.
+  nameBlank: "Give your company a name: spaces alone aren't one.",
+  // Client batch 8b item 34 (the middleman: the brokerage's name was prefilled cut mid-word and is fixed for life): under
+  // the brokerage's name field, the limit and that it stays.
+  nameLimit: (n: number) => `Up to ${n} characters. The name stays for the life of the brokerage.`,
   // Client batch 8a item 57 (the director's ruling A): the first-truck card's one verdict, on the Dealer's card (the Dealer
   // opens on it), its teaser under More, Iuliia's page and What now?. The name says what it prices; the verdict is one of
   // three; the figures sit under "Why" (whyLabel), never beside the verdict; "See it" brings the truck's row into view.
@@ -278,7 +436,11 @@ export const PENDING = {
   soundBuy: "Buy it now.",
   soundOrder: (date: string) => `Order it now · ready ${date}`,
   // Writer 8a: "buy at N FD" read as a price; N is the cash to hold (the price's cash plus the cushion), so "once you have".
-  soundNotYet: (fd: string, loads: number | null) => (loads === null ? `Not yet: buy once you have ${fd} FD in cash.` : `Not yet: buy once you have ${fd} FD in cash, about ${loads} ${loads === 1 ? "load" : "loads"} from here.`),
+  // Client batch 8b item 52: the profit chip's sheet, on a leased truck, the row between break-even and the profit.
+  lessorOfMargin: (share: string) => `Less the lessor's ${share} of what's over break-even`,
+  // The director's sound-lot ruling (2026-11-12): how far off, in loads and weeks at the recent average.
+  soundNotYet: (fd: string, loads: number | null, weeks: number | null = null) =>
+    loads === null ? `Not yet: buy once you have ${fd} FD in cash.` : `Not yet: buy once you have ${fd} FD in cash, about ${loads} ${loads === 1 ? "load" : "loads"}${weeks !== null ? ` and ${weeks} ${weeks === 1 ? "week" : "weeks"}` : ""} from here.`,
   // "For sale", not "on the lot": the card reads the lot's rigs, the used listings and the new rig, and "the lot" names
   // only the first (lotReadyNote, lotButton).
   soundNone: (trailer: string) => `No sound ${trailer} truck for sale today; I'll tell you when one lists.`,
@@ -286,7 +448,12 @@ export const PENDING = {
   whyTruck: (truck: string) => `The truck: ${truck}.`,
   whyPrice: (price: string, need: string) => `Price ${price} FD; it takes ${need} FD in cash today.`,
   whyCushion: (after: string, hold: string) => `${after} FD left after it, against the ${hold} FD I'd keep in hand for running costs.`,
-  whyWorn: (truck: string, price: string) => `Cheaper, but worn or for other freight: ${truck} at ${price} FD.`,
+  // The writer's flag 2c: which it is, worn, for other freight, or both.
+  whyWorn: (truck: string, price: string, kind: "worn" | "freight" | "both" = "worn") => `Cheaper, but ${kind === "worn" ? "worn" : kind === "freight" ? "for other freight" : "worn and for other freight"}: ${truck} at ${price} FD.`,
+  // The director's sound-lot ruling (2026-11-12): the lot's rig is the first line under "Why" whenever the lot has one in
+  // the company's freight, a fact with its figures; What now? never points at it.
+  whyLot: (cond: string, ready: string, cash: string, times: string, month: string) =>
+    `A worn rig from the lot: ${cond} condition, ${ready}, about ${cash} FD in cash on a loan. Expect repairs near ${times} a fresh truck's, about ${month} FD a month.`,
   seeIt: "See it",
   // Client batch 8a item 59 (the director's F and C; items 21, 45 and 55): What now?'s new answers. The debt line names
   // the nearest clock: a purchase loan with a payment missed, the truck the lender takes and when, the payment and its
@@ -316,6 +483,39 @@ export const PENDING = {
   takeOffSale: "Take it off sale",
   offSaleTruck: "Off sale: the truck is parked where it stands",
   offSaleTrailer: "Off sale: the trailer is back in your yard",
+  // QA's 0.24.1 replay, fail 3: listing a truck takes its crew off it (engine market.ts listTruck), and a driver with no
+  // truck to drive for labor.morale.unseatedWeeks weeks quits. The sell confirm says so; off sale puts a free driver
+  // standing by it back in and the truck back on the road; What now? sees a parked truck with no driver, or a paid
+  // driver sitting in a parked one.
+  // The producer (2026-11-12): said plainly, before listing, that the driver leaves the truck, and quits after the weeks
+  // with no truck unless seated on another.
+  sellCrew: (names: string[], weeks: number) => {
+    const who = names.join(" and ");
+    return `Listing it takes ${who} off the truck. ${names.length === 1 ? `${who} stays` : "They stay"} on your payroll, and quit${names.length === 1 ? "s" : ""} after ${weeks} weeks with no truck unless you seat ${names.length === 1 ? "them" : "them"} on another. Taking it off sale puts ${names.length === 1 ? who : "them"} back in it.`;
+  },
+  sellOwnerOff: "Listing it takes you off the truck, free to drive another. Taking it off sale puts you back in it.",
+  offSaleBack: (n: number, name: string) => `Off sale: Truck ${n} is back on the road, with ${name} driving`,
+  parkedNoDriver: (n: number, place: string) => `Truck ${n} is parked at ${place} with no driver, so it earns nothing.`,
+  seatBackAction: (name: string, n: number) => `Put ${name} back in Truck ${n}.`,
+  seatBackReason: (name: string, n: number, place: string, weeks: number) =>
+    `${name} is on the payroll with no truck, and Truck ${n} stands parked at ${place}. A driver with no truck to drive for ${weeks} weeks quits.`,
+  seatBackOwnerReason: (n: number, place: string) => `You have no truck to drive, and Truck ${n} stands parked at ${place}.`,
+  seatBackButton: "Back on the road",
+  parkedCrewAction: (n: number) => `Put Truck ${n} back on the road.`,
+  parkedCrewReason: (name: string, weeks: number) => `${name} is paid to sit in a parked truck, and a driver parked for ${weeks} weeks quits.`,
+  // QA's 0.24.1 replay, item 9: home time taken within the home radius (map.nearbyRadiusMi) but not at the home hub.
+  homeTimeNear: (home: string, place: string) => `Home time near ${home}, at ${place}`,
+  // QA's 0.24.1 replay, fail 2: the walkthrough's first-truck step, as the rules now run (placeholders for the writer's
+  // pass after 8b). The lot's rig is worn and ready in its days; the first-truck card names the sound truck; with
+  // equipmentFinance.purchase.collateral on, the lender reads the truck's age and miles.
+  walkOwnBrief: (share: string) => `The lessor's ${share} ends the day you own a truck. The first-truck card names the sound one and when you can buy it.`,
+  walkOwnLot: (share: string, rig: string, lotDays: number | null, cond: string) =>
+    `The lessor's ${share} is the most expensive thing you pay and the only one that ends when you own a truck. A new Workhorse with a van is about ${rig} FD. The used lot on Dealer, under More, sells a worn one at about a quarter of that${lotDays !== null ? `, ready ${lotDays} days after you order it` : ""}, at ${cond} condition, so its repairs run well over a fresh truck's. The first-truck card prices the cheapest sound truck you can buy, and says when.`,
+  walkOwnLoanCollateral: (down: string, freeYears: number, freeMiles: string, perYear: string, per100k: string, newBiz: string, maxDown: string, declineYears: number, declineMiles: string) =>
+    `Your lease deposit counts toward it, and the Dealer's purchase loan covers the rest. The lender reads the truck: ${down} down on one under ${freeYears} years and ${freeMiles} miles, ${perYear} more for each year past that and ${per100k} for each 100,000 miles, ${newBiz} more while your authority is under a year old, never over ${maxDown}. Past ${declineYears} years or ${declineMiles} miles it lends nothing: cash only. Owned trucks pay their own maintenance and insurance, cost you when they sit, and lose value every year. They also keep every dollar they earn.`,
+  walkOwnLoanPlain: (down: string) =>
+    `Your lease deposit counts toward it, and the Dealer's purchase loan covers the rest with ${down} down. Owned trucks pay their own maintenance and insurance, cost you when they sit, and lose value every year. They also keep every dollar they earn.`,
+  walkOwnDo: "Buy the truck the first-truck card names, with a purchase loan if the cash is short.",
   // The live page's refusals (§1, §2). A tab that isn't this player's writer (another tab or device holds the lease, or this
   // one lost it and another holds it now): an order is refused; shown in the order's error toast ("Couldn't send that
   // order: …") and where a tap on a live screen is refused (state.ts act and order).

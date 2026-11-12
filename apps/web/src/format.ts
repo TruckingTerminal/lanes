@@ -21,10 +21,23 @@ export const TRAILER_NAME: Record<Equipment, string> = { van: "Dry van", reefer:
 export const TRAILER_CODE: Record<Equipment, string> = { van: "V", reefer: "R", flatbed: "F" };
 export const FAC_NAME: Record<FacilityType, string> = { warehouse: "Warehouse", coldStorage: "Cold storage", factory: "Factory" };
 
+/**
+ * Client batch 8b item 14 (the exploit hunter: "Wed Feb 29" in Year 1, and "due Feb 30"): the dates were labelled on
+ * twelve 30-day months, December running long, so February had 30 days. They're on the calendar's own months now (a
+ * 365-day year, no leap day), so every date shown is one that exists. The engine's month closes still come every 30
+ * days (step.ts); a month's report is named for the month most of it falls in (MonthReport, its middle day).
+ */
+const MONTH_START = [0, 31, 59, 90, 120, 151, 181, 212, 243, 273, 304, 334, 365];
+/** The calendar month (0–11) and the day of it (1–31) a game day falls on. */
+export function calendarDate(day: number): { month: number; date: number } {
+  const doy = ((day % 365) + 365) % 365;
+  let m = 11;
+  while (MONTH_START[m]! > doy) m--;
+  return { month: m, date: doy - MONTH_START[m]! + 1 };
+}
 export function dateLabel(day: number): string {
-  const doy = day % 365;
-  const m = Math.min(11, Math.floor(doy / 30));
-  return `${DAYS[day % 7]} ${MONTHS[m]} ${doy - m * 30 + 1}, Year ${Math.floor(day / 365) + 1}`;
+  const { month, date } = calendarDate(day);
+  return `${DAYS[day % 7]} ${MONTHS[month]} ${date}, Year ${Math.floor(day / 365) + 1}`;
 }
 /** "Jan 29, Year 1": a date without its weekday, for when something opens. */
 export const dayDate = (day: number): string => dateLabel(day).slice(4);
@@ -32,15 +45,14 @@ export const dayDate = (day: number): string => dateLabel(day).slice(4);
 export const weekday = (day: number): string => DAYS[day % 7]!;
 /** The game's date with its weekday: "Fri Feb 2" (the title's Continue, copy-player5.md R25). */
 export const weekdayDate = (day: number): string => `${DAYS[day % 7]} ${shortDate(day)}`;
-/** "January": the game month a day falls in (30-day months, the last running to the year's end). */
-export const monthName = (day: number): string => MONTH_NAMES[Math.min(11, Math.floor((day % 365) / 30))]!;
+/** "January": the calendar month a day falls in. */
+export const monthName = (day: number): string => MONTH_NAMES[calendarDate(day).month]!;
 const MONTH_NAMES = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
 /** "Oct 28" from a day number, for dense tables. */
 
 export function shortDate(day: number): string {
-  const doy = day % 365;
-  const m = Math.min(11, Math.floor(doy / 30));
-  return `${MONTHS[m]} ${doy - m * 30 + 1}`;
+  const { month, date } = calendarDate(day);
+  return `${MONTHS[month]} ${date}`;
 }
 export const hhmm = (gameMin: number): string => `${String(Math.floor(gameMin / 60) % 24).padStart(2, "0")}:${String(Math.floor(gameMin) % 60).padStart(2, "0")}`;
 /** Real time until a game minute, for the live world: "45s", "12m", "2h 05m". */

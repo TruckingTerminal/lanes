@@ -17,7 +17,9 @@ export const PENDING_RULES = {
   // say what was chosen: back to work, no days off.
   homeAfterWork: "Send home after this run · back to work",
   homeAfterWorkToast: "Home after this run, then back to work",
-  homeAfterWorkQueued: "Home after this run, then back to work.",
+  // QA's 0.24.1 replay, item 10: no days off, so the days-away count doesn't clear (the director's H: "your days-away count
+  // won't clear").
+  homeAfterWorkQueued: "Home after this run, then back to work. With no days off, the days-away count doesn't clear.",
   // Under labor.turnWhileEmpty: a truck running empty turns now. An owner-operator gets both buttons, as at work.
   sendHomeNowWork: "Send home now · back to work",
   sendHomeNowDays: (days: number) => `Send home now · Home time · ${days} ${days === 1 ? "day" : "days"} off`,

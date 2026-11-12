@@ -7,6 +7,7 @@ import { invoices } from "../../ledger.js";
 import { bumpData, order, S, useData } from "../../state.js";
 import { Btn } from "../bits.js";
 import { Fig } from "../Explain.js";
+import { PENDING } from "../../copy-pending.js";
 
 /**
  * Cash it now (UX's finance.md draft 2, the writer's finance-strings.md; receivables.ts cashNowRate / cashInvoice): every
@@ -52,8 +53,13 @@ export function InvoiceRows({ c }: { c: Company }): JSX.Element | null {
   const [sheet, setSheet] = useState<number | null>(plan.length === 1 ? plan[0]! : null);
   if (!open.length && !cashed.length) return null;
   const on = cashNowOn(w);
+  // Client batch 8b item 36: a brokerage without a contract pays the spot rate plus aging, said beside the brokers' rate.
+  const k = w.cfg.token.payment;
+  const brokerSpot = on && c.role === "broker" && !c.factoring;
+  const pc = (x: number) => `${Number((x * 100).toFixed(1))}%`;
   return (
     <div class="stack invoicerows">
+      {brokerSpot ? <p class="muted small">{PENDING.brokerSpotRate(pc(k.cashNow.spotPct), pc(k.cashNow.agingPerDay), pc(k.cashNow.agingCap), pc(k.factoring.contract.brokerRate))}</p> : null}
       {on && plan.length > 1 ? <CashSeveral c={c} ids={plan} /> : null}
       {open.map((inv) => {
         const r = w.receivables.find((x) => x.id === inv.id)!;

@@ -5,7 +5,7 @@
  * says about it, where to click, and why; the player can read ahead.
  */
 import type { EconomyConfig } from "@lanes/config";
-import { crewed, dayOf, ordersWaitForHand, type Company, type World } from "@lanes/engine";
+import { condition, crewed, dayOf, ordersWaitForHand, type Company, type World } from "@lanes/engine";
 import { firstTruckLine } from "./figures.js";
 import type { Tab } from "./tabs.js";
 import { STEP9 } from "./copy.js";
@@ -60,6 +60,14 @@ export function walkSteps(cfg: EconomyConfig, hub = "your home hub"): WalkStep[]
   const [down0, down1] = cfg.equipmentFinance.purchase.downShare;
   const hours = cfg.hos.drivingHoursPerDay;
   const rig = cfg.dealerFd.tractor.workhorse + cfg.dealerFd.trailer.van;
+  // The lot's rig as the lot sells it (usedMarket.npcLot), and the purchase loan's down payment as the lender reads it.
+  const lot = cfg.usedMarket.npcLot;
+  const lotCondition = condition(cfg, { lease: "owned", milesSinceRebuild: lot.milesSinceRebuild });
+  const col = cfg.equipmentFinance.purchase.collateral;
+  const downs = down0 === down1 ? pct(down0) : `${pct(down0)} to ${pct(down1)}`;
+  const ownLoanLine = col.enabled
+    ? PENDING.walkOwnLoanCollateral(downs, col.freeYears, n(col.freeMiles), pct(col.downPerYear), pct(col.downPer100kMi), pct(col.newBusiness.downAdd), pct(col.maxDownShare), col.declineOverYears, n(col.declineOverMiles))
+    : PENDING.walkOwnLoanPlain(downs);
   return [
     {
       id: "welcome",
@@ -226,12 +234,11 @@ export function walkSteps(cfg: EconomyConfig, hub = "your home hub"): WalkStep[]
       title: "Your first truck",
       tab: "market",
       mood: "wave",
-      brief: `The lessor's ${pct(cfg.costs.npcLeaseShareOfGross)} ends the day you buy. Buy the used one first; ambition is for the second truck.`,
-      say: [
-        `The lessor's ${pct(cfg.costs.npcLeaseShareOfGross)} is the most expensive thing you pay and the only one that ends when you buy. A new Workhorse with a van is about ${n(rig)} FD. The used lot on Dealer, under More, sells a worn one at about a quarter of that: four years old, a great many miles, delivered like new, and good enough to earn. Not elegant. My first office had a view of a parking structure. One begins.`,
-        `Your lease deposit counts toward it, and the Dealer's purchase loan covers the rest with ${pct(down0)} to ${pct(down1)} down. Owned trucks pay their own maintenance and insurance, cost you when they sit, and lose value every year. They also keep every dollar they earn. Buy the used one first. Ambition is for the second truck; the first one is arithmetic.`,
-      ],
-      do: "Buy a rig from the used lot, with a purchase loan if the cash is short.",
+      // QA's 0.24.1 replay, fail 2: as the rules run now (the lot's rig ready in its days and worn; the card's sound truck;
+      // the lender reading the truck under equipmentFinance.purchase.collateral). Placeholders for the writer's pass.
+      brief: PENDING.walkOwnBrief(pct(cfg.costs.npcLeaseShareOfGross)),
+      say: [PENDING.walkOwnLot(pct(cfg.costs.npcLeaseShareOfGross), n(rig), cfg.usedMarket.npcLot.deliveryDays, pct(lotCondition)), ownLoanLine],
+      do: PENDING.walkOwnDo,
       // From the Dealer's own figures, only routes the company can take now (QA's step-9 replay): the lot keeps the step's
       // line; a listing it can buy, a new rig on a loan it can carry, or the gap and the lot's restock.
       doNow: (w, c) => {

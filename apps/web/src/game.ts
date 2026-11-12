@@ -66,7 +66,11 @@ export const DEFAULT_ORDERS: StandingOrder[] = [
  * at what the load usually clears near with break-even the floor (standingOrders.ts clearsNear mode), and no margin
  * floor above break-even. It signs no contract offer: that's the player's own accept, or the rule they switch on. Joins keep DEFAULT_ORDERS: joinCompany is replayed, so its orders are the ruleset's.
  */
-export const PLAYER_DISPATCHER_ORDERS: StandingOrder[] = DEFAULT_ORDERS.filter((o) => DISPATCHER_ORDERS.has(o.kind)).map((o) =>
+// Client batch 8b item 63 (the director's M): turning the dispatcher on is the setup, bidding and its floor; the further
+// orders (move idle trucks, book between rounds, take contracts) stay off, each offered once by Iuliia at its moment
+// (ui/OrderOffers.tsx). Contracts stay in the list with acceptOffers false, as before.
+export const FURTHER_ORDERS = new Set<StandingOrder["kind"]>(["reposition", "bookNow"]);
+export const PLAYER_DISPATCHER_ORDERS: StandingOrder[] = DEFAULT_ORDERS.filter((o) => DISPATCHER_ORDERS.has(o.kind) && !FURTHER_ORDERS.has(o.kind)).map((o) =>
   o.kind === "bid" ? { ...o, price: { mode: "clearsNear", pct: 0 } } : o.kind === "floor" ? { ...o, breakEvenPlusPct: 0 } : o.kind === "contracts" ? { ...o, acceptOffers: false } : o,
 );
 

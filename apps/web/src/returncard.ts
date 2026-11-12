@@ -1,5 +1,6 @@
-import { dayOf, type Company, type World } from "@lanes/engine";
-import { closedMonths, moneyEvents, monthReport, shownReport } from "./books.js";
+import { companyAccount, dayOf, type Company, type World } from "@lanes/engine";
+import { closedMonths, emptyMilesSoFar, moneyEvents, monthReport, shownReport } from "./books.js";
+import { monthName } from "./format.js";
 import { stepScope } from "./walkthrough.js";
 
 /**
@@ -14,6 +15,12 @@ const KEY = "lanes.lastVisit";
 
 interface Visit {
   realMs: number;
+  /** Client batch 8b item 60: the game minute, cash, empty miles, open purchase loans and missed payments at the visit. */
+  t?: number;
+  cashFd?: number;
+  emptyMi?: number;
+  loanIds?: number[];
+  missed?: number;
   scope: string;
   day: number;
   delivered: number;
@@ -40,10 +47,29 @@ export interface Away {
   breakdowns: number;
   /** When the player came back: the game minute, for the header and the timeline's row. */
   backT: number;
+  /** Client batch 8b item 60 (the director's E): the interval in her order; absent on a card from an older visit record. */
+  e?: {
+    awayMin: number;
+    claims: number;
+    claimsFd: number;
+    emptyMi: number;
+    taken: number;
+    missed: number;
+    finesFd: number;
+    keptFd: number;
+    cashThen: number;
+    cashNow: number;
+  };
 }
 
+const openLoans = (w: World, c: Company) => w.purchaseLoans.filter((l) => l.borrowerId === c.id && (l.status === "active" || l.status === "defaulted"));
 const snapshot = (w: World, c: Company): Visit => ({
   realMs: Date.now(),
+  t: w.t,
+  cashFd: w.ledger.balance(companyAccount(c.id)),
+  emptyMi: emptyMilesSoFar(w, c),
+  loanIds: openLoans(w, c).map((l) => l.id),
+  missed: openLoans(w, c).reduce((s, l) => s + l.missed, 0),
   scope: stepScope(w, c),
   day: dayOf(w.t, w.cfg),
   delivered: c.delivered,
@@ -67,13 +93,34 @@ export function saveVisit(w: World, c: Company): void {
   }
 }
 
-const MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
 
 /** The month report's kept for a closed month (books.ts), so the return card and Money say one figure (R10). */
 const keptOf = (w: World, c: Company, closedDay: number): number | null => {
   const m = closedMonths(w, c).find((x) => x.closedDay === closedDay);
   return m ? shownReport(monthReport(m)).keptFd : null;
 };
+
+/** The interval since the visit, in the director's order (item 60). */
+function awayInterval(w: World, c: Company, v: Visit): NonNullable<Away["e"]> {
+  const since = (v.t ?? w.t) as number;
+  const ev = moneyEvents(w, c, since, 0);
+  const claims = ev.filter((e) => e.kind === "claim");
+  const ids = new Set(v.loanIds ?? []);
+  const taken = w.purchaseLoans.filter((l) => ids.has(l.id) && l.status !== "active" && l.status !== "defaulted" && l.truckId > 0 && w.trucks[l.truckId - 1]?.status === "retired").length;
+  const missedNow = openLoans(w, c).reduce((s, l) => s + l.missed, 0);
+  return {
+    awayMin: w.t - since,
+    claims: claims.length,
+    claimsFd: claims.reduce((s, e) => s + Math.abs(e.fd), 0),
+    emptyMi: Math.max(0, emptyMilesSoFar(w, c) - (v.emptyMi ?? 0)),
+    taken,
+    missed: Math.max(0, missedNow - (v.missed ?? 0)),
+    finesFd: Math.max(0, c.safety.finesFd - v.finesFd),
+    keptFd: c.operating.revenueFd - v.revenueFd - (c.operating.costFd + (c.finesOffCostsFd ?? 0) - v.costFd),
+    cashThen: v.cashFd ?? 0,
+    cashNow: w.ledger.balance(companyAccount(c.id)),
+  };
+}
 
 /** At the world's opening: what changed since the last visit, if it was RETURN_HOURS or more ago and the same company. */
 export function returnFor(w: World, c: Company, live: boolean, nowMs = Date.now()): Away | null {
@@ -83,7 +130,10 @@ export function returnFor(w: World, c: Company, live: boolean, nowMs = Date.now(
   } catch {
     v = null;
   }
-  if (!v || v.scope !== stepScope(w, c) || nowMs - v.realMs < RETURN_HOURS * 3_600_000) return null;
+  if (!v || v.scope !== stepScope(w, c)) return null;
+  // Client batch 8b item 60 (the director's E): every return after a game day or more away; an older record without its
+  // minute keeps the real-hours rule.
+  if (v.t !== undefined ? w.t - v.t < w.cfg.time.gameMinutesPerDay : nowMs - v.realMs < RETURN_HOURS * 3_600_000) return null;
   const closed = c.lastMonth && c.lastMonth.closedDay !== v.monthClosedDay ? c.lastMonth : null;
   return {
     scope: v.scope,
@@ -95,6 +145,7 @@ export function returnFor(w: World, c: Company, live: boolean, nowMs = Date.now(
     tickets: c.safety.finesFd > v.finesFd + 0.5 ? 1 : 0,
     breakdowns: moneyEvents(w, c, v.day * w.cfg.time.gameMinutesPerDay, 0).filter((e) => e.kind === "breakdown").length,
     backT: w.t,
-    month: closed ? { name: MONTHS[Math.min(11, Math.floor(((closed.closedDay - 1) % 365) / 30))]!, keptFd: keptOf(w, c, closed.closedDay) ?? closed.revenueFd - closed.spentFd } : null,
+    month: closed ? { name: monthName(Math.floor((closed.closedDay - 30 + closed.closedDay - 1) / 2)), keptFd: keptOf(w, c, closed.closedDay) ?? closed.revenueFd - closed.spentFd } : null,
+    e: v.t === undefined ? undefined : awayInterval(w, c, v),
   };
 }

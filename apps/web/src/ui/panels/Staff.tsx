@@ -1,6 +1,6 @@
 import { Fragment, type JSX } from "preact";
 import { useState } from "preact/hooks";
-import { askingPay, askOf, crewed, payFloor, dispatchProfile, poolOf, spanOf, type Company, type Staff as StaffT, type Truck, type World } from "@lanes/engine";
+import { askingPay, askOf, crewed, payFloor, dispatchProfile, poolOf, spanOf, weeklyWage, type Company, type Staff as StaffT, type Truck, type World } from "@lanes/engine";
 import { fd, hhmm, pct, shortDate, TRAILER_NAME } from "../../format.js";
 import { GAME_CONFIG } from "../../game.js";
 import { atHub, marketPayOf, moraleClass, moraleWord, staffPay, Stars } from "../../logic.js";
@@ -13,6 +13,7 @@ import { confirmAct } from "../Confirm.js";
 import { hire as hireLines, weeklyKept } from "../../confirmspecs.js";
 import { ANSWER, CONFIRM } from "../../copy.js";
 import { MILES_PER_MONTH } from "../../finance.js";
+import { PENDING } from "../../copy-pending.js";
 
 const num = (id: string): number => Number((document.getElementById(id) as HTMLInputElement | null)?.value);
 const sel = (id: string): string | undefined => (document.getElementById(id) as HTMLSelectElement | null)?.value;
@@ -140,13 +141,15 @@ export function Staff(): JSX.Element {
       ) : (
         <span class="bad">no truck</span>
       );
+    // Client batch 8b item 27: a driver paid with no truck is said plainly, with the wage.
+    const idlePay = s.kind === "driver" && !s.truckId ? PENDING.paidNoTruck(fd(weeklyWage(w, s, s.pay))) : null;
     const canSeat = s.kind === "driver" && trucks.some(openSeat);
     const canTeam = s.kind === "driver" && trucks.some((t) => teamSeat(t) && t.driverId !== s.id);
     return (
       <Card key={s.id} need={s.unhappyNotice ? `notice:${s.id}` : undefined}>
         <div class="row">
           <Portrait file={staffFace(s)} />
-          <b>{s.name}</b>
+          <b>{s.name}</b>{idlePay ? <span class="bad small"> {idlePay}</span> : null}
           <Stars skill={s.skill} />
           <span class="muted">{kindLabel(s.kind)}</span>
           <span class={moraleClass(s.morale)}>{moraleWord(s.morale)}</span>
@@ -219,7 +222,8 @@ export function Staff(): JSX.Element {
         </td>
         <td class="num">{staffPay(s, ask)}</td>
         {/* QA item 8: "0/0" said nothing on a phone, where the header doesn't show; the record in words. */}
-        <td>{driver ? driverRecord(s.violations, s.crashes) : s.kind === "dispatcher" ? `${spanOf(w, s)} trucks` : s.kind === "opsManager" ? `${w.cfg.labor.managers.ops.span} trucks` : "the shop"}</td>
+        {/* Client batch 8b item 25: a candidate's days out and fatigue from the last job, which the hire carries. */}
+        <td>{driver ? `${driverRecord(s.violations, s.crashes)}${s.awayDays > 0 || s.fatigue >= 0.005 ? ` · ${PENDING.candidateTired(s.awayDays, pct(s.fatigue))}` : ""}` : s.kind === "dispatcher" ? `${spanOf(w, s)} trucks` : s.kind === "opsManager" ? `${w.cfg.labor.managers.ops.span} trucks` : "the shop"}</td>
         <td>
           {can ? (
             <div class="row">
@@ -290,6 +294,9 @@ export function Staff(): JSX.Element {
           <Portrait file={`dispatcher-${owner?.look ?? "m"}`} />
           <span class="muted small">You drive and you dispatch, until you hire.</span>
         </div>
+        {/* Client batch 8b item 27: what the game does with the owner's seat, and the owner off the road said so. */}
+        <p class="muted small">{PENDING.ownerSeat}</p>
+        {owner && !owner.truckId && trucks.length ? <p class="bad small">{PENDING.ownerOffRoad}</p> : null}
         <Kv
           rows={[
             ["Driving", owner ? <><Stars skill={owner.skill} /> · {owner.truckId ? `truck ${truckNo(owner.truckId)}` : "not driving"} · {fd(owner.experience + owner.pending)} mi driven</> : "–"],

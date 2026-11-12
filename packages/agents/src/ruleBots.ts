@@ -1,7 +1,7 @@
 import type { Equipment, FacilityType, TractorTier } from "@lanes/config";
 import { dcos, dexp, dlog, dpow } from "@lanes/data";
 import { chopBoardPrice, fenceBoardPrice, heatOf, lotFeeFd, lotOn } from "@lanes/engine";
-import { closeFacility, facilityCovered, windowsOn } from "@lanes/engine";
+import { blockFacilityHub, closeFacility, facilityBlocked, facilityCovered, windowsOn } from "@lanes/engine";
 import { expeditable, expediteOn, expediteQuote, expediteWaitCostFd } from "@lanes/engine";
 import {
   addTruck,
@@ -1608,6 +1608,7 @@ function chooseFacility(w: World, budget: number, maxPaybackWeeks: number, cache
     const spec = cfg.facilities.types[type];
     if (w.facilitySupply[type] <= 0 || spec.priceFd > budget) continue;
     for (let hub = 0; hub < w.net.hubs.length; hub++) {
+      if (facilityBlocked(w, hub)) continue; // windows batch 8: a bot closed one here at a loss lately
       const o = outlookFor(w, cache, type, hub);
       const ref = (cfg.rates.baseRatePerMile + cfg.rates.shortHaulBonus / TYPICAL_LANE_MI) * cfg.rates.equipmentPremium[o.equipment];
       // Windows batch 6: under windows a facility load lives two to four rounds, not giveUpAfterRounds, and the hub's own
@@ -1692,7 +1693,11 @@ export const ruleBotHook: DailyAgentHook = (w) => {
     // bot does today (windows.ts closeFacility; no bot buys one on the asset market, so a listing would stand unsold).
     if (windowsOn(w)) {
       const day = dayOf(w.t, cfg);
-      for (const f of facilitiesOf(w, c.id)) if (day - f.boughtDay >= 7 * cfg.windows!.facilityCloseWeeks && f.netFd < 0) closeFacility(w, f);
+      for (const f of facilitiesOf(w, c.id)) {
+        if (day - f.boughtDay < 7 * cfg.windows!.facilityCloseWeeks || f.netFd >= 0) continue;
+        closeFacility(w, f);
+        blockFacilityHub(w, f.hub); // batch 8: no bot rebuilds there for windows.facilityBlockWeeks
+      }
     }
     // assets.expedite: an order worth bringing forward, on Iuliia's rule (here, whatever else the bot does today).
     if (expediteOn(w)) maybeExpedite(w, c, p);

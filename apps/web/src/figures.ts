@@ -1,7 +1,8 @@
-import type { Equipment } from "@lanes/config";
+import { economyConfig, type Equipment } from "@lanes/config";
+import { contractRatingBlock, contractRoom, contractSlots, isLocal, localShare } from "@lanes/engine";
 import { breakdownsPer1000Mi, collateralOf, companyAccount, condition, crewed, lotDeliveryDays, lotSpec, NEW_TRUCK, type Collateral, fuelPrice, layerOpen, locksOn, lotPrice, maintenancePerMile, npcDealerMult, opsCap, ordersOf, ownerDrawFd, resting, tripCost, truckValue, yardTrucks, type Company, type Listing, type Truck, type TruckSpec, type World } from "@lanes/engine";
 import { boardRows, type BoardRow } from "./board.js";
-import { buyPlan, cheapestNewRig } from "./finance.js";
+import { buyPlan, cheapestNewRig, MILES_PER_MONTH } from "./finance.js";
 import { invoices, weekCosts } from "./ledger.js";
 import { PENDING } from "./copy-pending.js";
 import { truckNumber } from "./trucknos.js";
@@ -224,7 +225,9 @@ export function waitCostFd(w: World, c: Company, days: number): number {
 }
 
 /** A used truck under this condition gets Iuliia's catch line (the director, client batch 4: a worn truck on day 2). */
-export const WORN_BELOW = 0.6;
+// Client batch 8b (the writer's flag 2a): one line for "sound" and "worn", the economy's guide.soundCondition, so a
+// truck is never neither.
+export const WORN_BELOW = economyConfig.guide.soundCondition;
 /** Repairs every this many miles, the figure the catch names: the engine's wear is per mile, and it keeps no month's miles. */
 export const REPAIR_PER_MI = 10_000;
 
@@ -245,6 +248,12 @@ export function truckPlace(w: World, place: number): string {
   const p = w.net.places[place]!;
   const market = w.net.hubs[p.market]!.name;
   return p.name === market ? p.name : PENDING.townInMarket(p.name, market);
+}
+
+/** The leased truck's number (the new truck keeps it at the hand-over); 1 with none. */
+export function leasedNo(w: World, c: Company): number {
+  const t = (w.trucksByCompany.get(c.id) ?? []).find((x) => x.lease === "npc");
+  return t ? truckNumber(w, t) || 1 : 1;
 }
 
 /** The used listings the Dealer shows, in its order (client batch 8a item 57): one choice for its list and the verdict. */
@@ -289,7 +298,10 @@ export type FirstTruckVerdict = { figure: string; verdict: string; why: string[]
 export function firstTruckLine(w: World, c: Company): FirstTruckVerdict | null {
   const ordered = orderedFirstTruck(w, c);
   if (ordered) {
-    const figure = ordered.due ? PENDING.truckOrderedDue : PENDING.truckOrdered(shortDate(ordered.dueDay), ordered.days);
+    // Client batch 8b item 17: past its day, "ready since", with the leased truck's number and how the hand-over comes.
+    const n = leasedNo(w, c);
+    const today = Math.floor(w.t / w.cfg.time.gameMinutesPerDay);
+    const figure = ordered.due ? PENDING.truckOrderedDue(ordered.dueDay < today ? shortDate(ordered.dueDay) : null, n, w.cfg.assets.swapAtNextIdle) : PENDING.truckOrdered(shortDate(ordered.dueDay), ordered.days);
     return { figure, verdict: "", why: [], open: null, met: true, needFd: 0, gapFd: 0, ordered: true };
   }
   const fleet = w.trucksByCompany.get(c.id) ?? [];
@@ -301,7 +313,10 @@ export function firstTruckLine(w: World, c: Company): FirstTruckVerdict | null {
   const isSound = (x: ShownTruck) => x.spec.trailer === own && condition(w.cfg, x.spec) >= sound - 1e-9;
   const pick = shown.filter(isSound).sort((a, b) => a.price - b.price || a.arrivesDay - b.arrivesDay)[0];
   const trailer = TRAILER_NAME[own].toLowerCase();
-  if (!pick) return { figure: PENDING.soundTitle, verdict: PENDING.soundNone(trailer), why: [], open: null, met: false, needFd: Infinity, gapFd: Infinity, ordered: false };
+  // The director's sound-lot ruling: the lot's rig in the company's freight, as a fact with its figures, first under Why.
+  const lot = shown.find((x) => x.route === "lot" && x.spec.trailer === own && x !== pick);
+  const lotLine = lot ? lotFact(w, c, lot, replacing, today) : null;
+  if (!pick) return { figure: PENDING.soundTitle, verdict: PENDING.soundNone(trailer), why: lotLine ? [lotLine] : [], open: null, met: false, needFd: Infinity, gapFd: Infinity, ordered: false };
   // 2. The cash on the day: the least cash it takes today (a purchase loan where the lender gives one), against cash.
   const plan = buyPlan(w, c, pick.price, replacing, pick.col);
   const need = plan.loanNowFd ?? plan.cashNowFd;
@@ -315,10 +330,13 @@ export function firstTruckLine(w: World, c: Company): FirstTruckVerdict | null {
   // About how many loads from here, at what a load has kept the company so far; none said before a load is delivered.
   const perLoad = c.delivered > 0 ? (c.operating.revenueFd - c.operating.costFd) / c.delivered : 0;
   const loads = !met && perLoad > 0.5 ? Math.max(1, Math.ceil(gap / perLoad)) : null;
-  const verdict = !met ? PENDING.soundNotYet(fdFull(Math.round(at / 100) * 100), loads) : later ? PENDING.soundOrder(shortDate(pick.arrivesDay)) : PENDING.soundBuy;
+  // And in weeks at the recent average kept a week (the director's sound-lot ruling).
+  const perWeek = (c.operating.revenueFd - c.operating.costFd) / Math.max(1, (today - c.createdDay) / 7);
+  const weeksOff = !met && loads !== null && perWeek > 0.5 ? Math.max(1, Math.ceil(gap / perWeek)) : null;
+  const verdict = !met ? PENDING.soundNotYet(fdFull(Math.round(at / 100) * 100), loads, weeksOff) : later ? PENDING.soundOrder(shortDate(pick.arrivesDay)) : PENDING.soundBuy;
   const desc = (x: ShownTruck) =>
     x.route === "new" ? PENDING.truckNew(TIER_NAME[x.spec.tier], TRAILER_NAME[x.spec.trailer].toLowerCase()) : PENDING.truckUsed(TIER_NAME[x.spec.tier], TRAILER_NAME[x.spec.trailer].toLowerCase(), `${Math.round(x.spec.odometer / 1000)}k`, pct(condition(w.cfg, x.spec)), x.place !== null ? truckPlace(w, x.place) : null);
-  const why: string[] = [PENDING.whyTruck(desc(pick)), PENDING.whyPrice(fdFull(pick.price), fdFull(Math.max(0, need)))];
+  const why: string[] = [...(lotLine ? [lotLine] : []), PENDING.whyTruck(desc(pick)), PENDING.whyPrice(fdFull(pick.price), fdFull(Math.max(0, need)))];
   if (hold >= 0.5) why.push(PENDING.whyCushion(fdFull(have - need), fdFull(Math.round(hold / 100) * 100)));
   // A listing changes hands while the leased truck is idle (client batch 7).
   const run = pick.route === "listing" ? leaseOnRun(w, c) : null;
@@ -329,10 +347,53 @@ export function firstTruckLine(w: World, c: Company): FirstTruckVerdict | null {
   if (cost >= 0.5) why.push(PENDING.waitCost(shortDate(pick.arrivesDay), pct(w.cfg.costs.npcLeaseShareOfGross), days, fdFull(Math.round(cost / 10) * 10), weeklyGross(w, c).basis));
   if (plan.cashOnly) why.push(PENDING_RULES.cashOnlyFigure);
   // The worn alternative, named as such: the cheapest the page shows under the sound one's price that's worn or for other freight.
-  const cheaper = shown.filter((x) => !isSound(x) && x.price < pick.price).sort((a, b) => a.price - b.price)[0];
-  if (cheaper) why.push(PENDING.whyWorn(desc(cheaper), fdFull(cheaper.price)));
+  const cheaper = shown.filter((x) => !isSound(x) && x !== lot && x.price < pick.price).sort((a, b) => a.price - b.price)[0];
+  if (cheaper) {
+    const worn = condition(w.cfg, cheaper.spec) < sound - 1e-9;
+    const other = cheaper.spec.trailer !== own;
+    why.push(PENDING.whyWorn(desc(cheaper), fdFull(cheaper.price), worn && other ? "both" : other ? "freight" : "worn"));
+  }
   return { figure: met ? PENDING.soundTitle : PENDING.soundName(fdFull(Math.round(gap))), verdict, why, open: pick.open, met, needFd: need, gapFd: gap, ordered: false };
 }
+/**
+ * Where a carrier stands for a contract offer at its home market, for its trailer (client batch 8b item 41), as
+ * contracts.ts weeklyContracts picks: the local carriers with room that run the trailer (`fit`), the offers expected a
+ * week there (`expected`), and this carrier's rank by standing (reputation × (0.5 + 0.5 × tender acceptance), × the
+ * newcomer boost with no contract held). Null when it isn't in the running (not local, no room, a rating block).
+ */
+export function contractStanding(w: World, c: Company): { fit: number; rank: number; expected: number } | null {
+  const k = w.cfg.contracts;
+  const m = c.homeHub;
+  const eq = (w.trucksByCompany.get(c.id) ?? [])[0]?.trailer;
+  if (!eq) return null;
+  const held = (x: Company) => w.contracts.filter((q) => q.carrierId === x.id && (q.status === "active" || q.status === "offered")).length;
+  const runs = (x: Company) => (w.trucksByCompany.get(x.id) ?? []).some((t) => t.trailer === eq && t.status !== "retired" && t.status !== "listed");
+  const fit = w.companies.filter((x) => x.role === "carrier" && x.authority.status === "active" && x.liquidatingSince === null && isLocal(w, x, m) && held(x) < contractSlots(w, x) && contractRatingBlock(w, x) === null && runs(x) && contractRoom(w, x, eq) >= 1);
+  if (!fit.some((x) => x.id === c.id)) return null;
+  const score = (x: Company) => x.reputation * (0.5 + 0.5 * x.tenderAcceptance) * (w.contracts.some((q) => q.carrierId === x.id && q.status === "active") ? 1 : k.newcomerBoost);
+  const mine = score(c);
+  const rank = 1 + fit.filter((x) => x.id !== c.id && (score(x) > mine || (score(x) === mine && x.id < c.id))).length;
+  return { fit: fit.length, rank, expected: fit.length * k.offerShareOfLocals * localShare(w, m, eq) * 2 };
+}
+
+/**
+ * The lot's rig as a fact (the director's sound-lot ruling, 2026-11-12): its condition, when it's ready, the cash it takes
+ * on a loan, and its repairs against a fresh truck's of the same make, a month at MILES_PER_MONTH, from the engine's own
+ * wear figures (repairsPer).
+ */
+function lotFact(w: World, c: Company, x: ShownTruck, replacing: boolean, today: number): string {
+  const plan = buyPlan(w, c, x.price, replacing, x.col);
+  const cash = plan.loanNowFd ?? plan.cashNowFd;
+  const days = x.arrivesDay - today;
+  const ready = days <= 0 ? "ready today" : days === 7 ? "ready in a week" : `ready in ${days} ${days === 1 ? "day" : "days"}`;
+  const fresh = repairsPer(w, { ...x.spec, odometer: 0, milesSinceRebuild: 0, rebuilds: 0 });
+  const mine = repairsPer(w, x.spec);
+  const ratio = fresh > 0 ? mine / fresh : 1;
+  const times = Math.abs(ratio - 2) < 0.25 ? "twice" : Math.abs(ratio - 3) < 0.25 ? "three times" : `${ratio.toFixed(1)}×`;
+  const month = Math.round((mine * (MILES_PER_MONTH / REPAIR_PER_MI)) / 100) * 100;
+  return PENDING.whyLot(pct(condition(w.cfg, x.spec)), ready, fdFull(Math.round(Math.max(0, cash) / 100) * 100), times, fdFull(month));
+}
+
 /** Advice is a round number: to the hundred, to the thousand from ten thousand. */
 const roundCushion = (fd: number): number => (fd >= 10_000 ? Math.round(fd / 1_000) * 1_000 : Math.max(100, Math.round(fd / 100) * 100));
 

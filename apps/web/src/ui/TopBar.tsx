@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from "preact/hooks";
 import { companyAccount, type Company } from "@lanes/engine";
 import { cls, fdFull, hhmm, shortDate, weekday } from "../format.js";
 import { BROKERAGE, FIRST_ENTRY, NEEDS } from "../copy.js";
+import { PENDING } from "../copy-pending.js";
 import { hasTwo, kindInView, switchCompany, type CompanyKind } from "../companies.js";
 import { ASSETS } from "../mapart.js";
 import { H } from "../handlers.js";
@@ -34,6 +35,7 @@ export function TopBar(): JSX.Element {
     );
   }
   return (
+    <>
     <header class={cls("topbar", hasTwo(g) && `co-${kindInView(g)}`)}>
       <CompanySwitch />
       <Clock />
@@ -45,6 +47,9 @@ export function TopBar(): JSX.Element {
       {g.kind === "test" ? <Speeds /> : null}
       <Menu />
     </header>
+    {/* QA's 0.24.1 replay, item 4: the watching tab says so for as long as it watches, not in a toast alone. */}
+    {g.kind === "test" && S.testWatching ? <div class="watchbar" role="status">{PENDING.testWatching}</div> : null}
+    </>
   );
 }
 
@@ -182,7 +187,7 @@ function Speeds(): JSX.Element {
     <>
       <div class="speeds laptop-only" role="group" aria-label="Test world speed">
         {SPEEDS.map((sp, i) => (
-          <Btn key={sp.icon} sm on={S.speed === i} title={sp.title} onClick={() => setSpeed(i)}>
+          <Btn key={sp.icon} sm on={S.speed === i} title={S.speed === i ? `${sp.title} (now)` : sp.title} onClick={() => setSpeed(i)}>
             {sp.label}
           </Btn>
         ))}

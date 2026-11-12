@@ -700,6 +700,18 @@ export function noteNpcPosted(w: World, load: Load): void {
  * posted stay its owner's to sell. The smallest honest sale: no bot buys a facility on the asset market, so a listing
  * would stand unsold and keep losing.
  */
+/**
+ * Windows batch 8: a bot facility closed at a loss blocks bot facilities at its hub for windows.facilityBlockWeeks, so
+ * the next bot doesn't rebuild where the last one failed (ruleBots chooseFacility reads facilityBlocked).
+ */
+export function blockFacilityHub(w: World, hub: number): void {
+  if (!windowsOn(w)) return;
+  (w.facilityBlocked ??= {})[hub] = dayOf(w.t, w.cfg) + 7 * w.cfg.windows!.facilityBlockWeeks;
+}
+
+/** Whether bots may not buy a facility at this hub today (blockFacilityHub). */
+export const facilityBlocked = (w: World, hub: number): boolean => windowsOn(w) && (w.facilityBlocked?.[hub] ?? -Infinity) > dayOf(w.t, w.cfg);
+
 export function closeFacility(w: World, f: Facility): void {
   if (f.ownerId === 0) return;
   const owner = f.ownerId;

@@ -1,6 +1,6 @@
 import type { EconomyConfig } from "@lanes/config";
-import { cashNowRate, companyAccount, crewed, hubMiles, MANUAL_BID_MAX_DEADHEAD_MI, resting, truckValue, type Company, type StandingOrder, type Truck, type World } from "@lanes/engine";
-import { boardRows, clearsNear, type BoardRow } from "./board.js";
+import { cashNowRate, companyAccount, crewed, hubMiles, MANUAL_BID_MAX_DEADHEAD_MI, resting, truckValue, type Company, type Staff, type StandingOrder, type Truck, type World } from "@lanes/engine";
+import { boardRows, clearsNear, profitOver, type BoardRow } from "./board.js";
 import { bestLoad, cushion, debtCountdown, freeTrucks, gapToTruck, nextEvent, nextWeeklyCheckDay, orderedFirstTruck, owed, type NextEvent } from "./figures.js";
 import { truckDayCostFd } from "./logic.js";
 import { exitsFor, type Exit } from "./exits.js";
@@ -27,14 +27,20 @@ export type NextAction =
   | { rule: 1; kind: "danger"; debt: ReturnType<typeof debtCountdown>; lever: Lever | null }
   /** A purchase loan with payments missed: the lender takes `truckId` (0 for a truck still on order) on `day` if the next one misses. */
   | { rule: 1; kind: "loanDefault"; loanId: number; truckId: number; day: number; missed: number; of: number; paymentFd: number }
-  | { rule: 2; kind: "driver"; truckId: number; costPerDayFd: number }
+  /**
+   * A truck with no driver. `parked`: it stands parked (QA's 0.24.1 replay, fail 3: a listed truck taken off sale);
+   * `freeId`: a driver of the company with no truck, standing by it, who can go back in.
+   */
+  | { rule: 2; kind: "driver"; truckId: number; costPerDayFd: number; parked?: boolean; freeId?: number | null }
+  /** A paid driver sitting in a parked truck: no pay comes in, and a driver parked labor.morale.unseatedWeeks quits. */
+  | { rule: 2; kind: "parkedCrew"; truckId: number; staffId: number; costPerDayFd: number }
   /** `suggest`: the board's suggested bid on it (board.ts suggestBid), null when booking is the call (client batch 4). */
   | { rule: 2; kind: "idle"; truckId: number; loadId: number; profitFd: number; suggest: number | null }
   | { rule: 2; kind: "stranded"; truckId: number; exits: Exit[] }
   /** A breakdown's ask on a load booked ahead (windows.ts afterBreakdown): release it or keep it, by the pickup. */
   | { rule: 3; kind: "atRisk"; loadId: number; truckId: number; claimFd: number; byMin: number }
   /** The home rule (the company's homeTime order) with the dispatcher off: from five days ahead, and on the day. `loadId`: a load toward home. */
-  | { rule: 4; kind: "homeDue"; truckId: number; day: number; days: number; loadId: number | null; profitFd: number }
+  | { rule: 2 | 4; kind: "homeDue"; truckId: number; day: number; days: number; loadId: number | null; profitFd: number }
   | { rule: 5; kind: "tender"; loadId: number; untilMin: number; shipperId: number | null }
   | { rule: 6; kind: "step"; index: number; total: number }
   /**
@@ -156,17 +162,42 @@ export function nextAction(cfg: EconomyConfig, w: World, c: Company, lost?: Lost
 
   // 2. Money bleeding now, across all trucks, the dearest a day first: an idle truck with a paying load, a stranded one,
   // a truck with no driver (before the first load Staff opens for it, tutorial.ts tabLocked).
+  // The home rule's warning (4 below), computed here: an idle truck due home gets it at its idle answer's rank (QA's 0.24.1
+  // replay, item 5: tier 2 always outranked it, so an idle truck's warning never showed).
+  const homeRule = c.orders.find((o): o is Extract<StandingOrder, { kind: "homeTime" }> => o.kind === "homeTime");
+  const homeWarns = !!homeRule && !c.orders.some((o) => o.kind === "bid");
+  const homeDueOf = (t: Truck): Extract<NextAction, { kind: "homeDue" }> | null => {
+    if (!homeWarns || !t.driverId || t.status === "listed" || t.status === "parked" || t.status === "retired" || resting(w, t)) return null;
+    const d = w.staff[t.driverId - 1]!;
+    const days = homeRule!.afterDays - d.awayDays;
+    if (days > HOME_WARN_DAYS || days < 0 || t.hub === c.homeHub) return null;
+    const toward = t.status === "idle" && crewed(t) ? homewardLoad(w, c, t) : null;
+    return { rule: 4, kind: "homeDue", truckId: t.id, day: today + days, days, loadId: toward?.l.id ?? null, profitFd: toward?.profitBook ?? 0 };
+  };
+  const dueAtIdle = new Set<number>();
   for (const t of freeTrucks(w, c)) {
     const cost = truckDayCostFd(w, c, t);
+    const hd = homeDueOf(t);
+    if (hd) {
+      dueAtIdle.add(t.id);
+      cands.push({ a: { ...hd, rule: 2 }, key: -cost - hd.profitFd / 1e6 });
+      continue;
+    }
     const r = bestLoad(w, c, t);
     if (r) cands.push({ a: { rule: 2, kind: "idle", truckId: t.id, loadId: r.l.id, profitFd: r.profitBook, suggest: r.suggest }, key: -cost - r.profitBook / 1e6 });
     // Stranded (the director, 2026-11-09): nothing in reach it may take that pays; its ways out, cheapest first.
     else cands.push({ a: { rule: 2, kind: "stranded", truckId: t.id, exits: exitsFor(w, c, t).slice(0, 2) }, key: -cost });
   }
   for (const t of w.trucksByCompany.get(c.id) ?? []) {
-    if (crewed(t) || t.status === "listed" || t.status === "parked" || t.status === "retired") continue;
+    if (t.status === "listed" || t.status === "retired") continue;
     const cost = truckDayCostFd(w, c, t);
-    cands.push({ a: { rule: 2, kind: "driver", truckId: t.id, costPerDayFd: cost }, key: -cost });
+    if (!crewed(t)) {
+      // QA's 0.24.1 replay, fail 3: a parked truck with no driver bleeds too; a free driver standing by it is named.
+      const parked = t.status === "parked";
+      cands.push({ a: { rule: 2, kind: "driver", truckId: t.id, costPerDayFd: cost, parked, freeId: parked ? (freeDriverFor(w, c, t)?.id ?? null) : null }, key: -cost });
+    } else if (t.status === "parked" && !w.staff[t.driverId - 1]!.owner) {
+      cands.push({ a: { rule: 2, kind: "parkedCrew", truckId: t.id, staffId: t.driverId, costPerDayFd: cost }, key: -cost });
+    }
   }
 
   // 3. A load at risk: a breakdown's ask on a load booked ahead, by its pickup.
@@ -178,16 +209,10 @@ export function nextAction(cfg: EconomyConfig, w: World, c: Company, lost?: Lost
 
   // 4. Due home (the director's C): the home rule turns a truck for home at its driver's days out; with the dispatcher off
   // nothing plans the homeward loads, so What now? warns from HOME_WARN_DAYS ahead with a load toward home, and on the day.
-  const homeRule = c.orders.find((o): o is Extract<StandingOrder, { kind: "homeTime" }> => o.kind === "homeTime");
-  if (homeRule && !c.orders.some((o) => o.kind === "bid")) {
-    for (const t of w.trucksByCompany.get(c.id) ?? []) {
-      if (!t.driverId || t.status === "listed" || t.status === "parked" || t.status === "retired" || resting(w, t)) continue;
-      const d = w.staff[t.driverId - 1]!;
-      const days = homeRule.afterDays - d.awayDays;
-      if (days > HOME_WARN_DAYS || days < 0 || t.hub === c.homeHub) continue;
-      const toward = t.status === "idle" && crewed(t) ? homewardLoad(w, c, t) : null;
-      cands.push({ a: { rule: 4, kind: "homeDue", truckId: t.id, day: today + days, days, loadId: toward?.l.id ?? null, profitFd: toward?.profitBook ?? 0 }, key: (today + days) * perDay });
-    }
+  for (const t of w.trucksByCompany.get(c.id) ?? []) {
+    if (dueAtIdle.has(t.id)) continue; // said at tier 2
+    const hd = homeDueOf(t);
+    if (hd) cands.push({ a: hd, key: hd.day * perDay });
   }
 
   // 5. A load to book: a tender lapsing, the nearest first.
@@ -207,7 +232,7 @@ export function nextAction(cfg: EconomyConfig, w: World, c: Company, lost?: Lost
       let best: { loadId: number; profit: number; rate: number; due: number; suggest: number | null; bookNow: number; profitBook: number } | null = null;
       for (const r of bestRows(w, c, truck)) {
         const rate = clearsNear(w, r.l);
-        const profit = (rate - r.be) * r.l.miles;
+        const profit = profitOver(w, truck, rate, r.be, r.l.miles);
         if (profit <= 0 || profit < lost.profitAtWinningFd || r.l.id === lost.loadId) continue;
         if (!best || profit > best.profit || (profit === best.profit && r.l.appointmentT < best.due)) best = { loadId: r.l.id, profit, rate, due: r.l.appointmentT, suggest: r.suggest, bookNow: r.l.bookNow, profitBook: r.profitBook };
       }
@@ -242,6 +267,24 @@ export function nextAction(cfg: EconomyConfig, w: World, c: Company, lost?: Lost
 type Cand = { a: NextAction; key: number };
 
 /** The best paying load whose destination is nearer home than where the truck stands (the home rule's warning). */
+/** A driver of the company with no truck, not leaving: free to take a truck. */
+export const isFreeDriver = (c: Company, s: Staff): boolean => s.companyId === c.id && s.kind === "driver" && s.status === "employed" && s.truckId === 0 && !s.offer;
+
+/**
+ * QA's 0.24.1 replay, fail 3 (the producer, 2026-11-12): who goes back in a parked truck. Its own driver, if still free
+ * (`own`: the crew it had when listed, the page's record; `name`: the driver the page last saw in it); only when they
+ * are gone or seated elsewhere, another free driver standing by it (engine assign_driver: off a truck a driver stands
+ * where they left it).
+ */
+export function freeDriverFor(w: World, c: Company, t: Truck, own: readonly number[] = [], name?: string): Staff | null {
+  for (const id of own) {
+    const s = w.staff[id - 1];
+    if (s && isFreeDriver(c, s)) return s;
+  }
+  const free = w.staff.filter((s) => isFreeDriver(c, s) && (s.lastHub === undefined || s.lastHub === t.hub));
+  return free.find((s) => s.name === name) ?? free[0] ?? null;
+}
+
 function homewardLoad(w: World, c: Company, t: Truck): BoardRow | null {
   const here = hubMiles(w, t.hub, c.homeHub);
   let best: BoardRow | null = null;

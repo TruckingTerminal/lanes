@@ -20,6 +20,7 @@ import { askWhatNow } from "./ui/WhatNow.js";
 import { poachResult } from "./ui/panels/Staff.js";
 import { returnFor, saveVisit } from "./returncard.js";
 import { checkVersion } from "./version.js";
+import { profitOver } from "./board.js";
 import { PENDING } from "./copy-pending.js";
 import { panelsMoved } from "./panelclock.js";
 
@@ -108,7 +109,11 @@ function onEvent(s: Session, e: GameEvent): void {
     push(s, "FD is live on the exchange. Your airdrop's first quarter has landed.", "warn");
     if (s === S.game) toast("Launch day: FD can now be bought and sold.");
   }
-  if (!s.player || !("companyId" in e) || e.companyId !== s.player.id) return;
+  // Client batch 8b item 37: a notice for the player's other company (the carrier's, with the brokerage in view, or the
+  // reverse) is kept in that company's own lines; every other event acts for the company in view only.
+  if (!s.player || !("companyId" in e)) return;
+  const other = e.companyId !== s.player.id;
+  if (other && !(e.kind === "notice" && (e.companyId === s.carrier?.id || e.companyId === s.brokerage?.id))) return;
   // A bid placed by hand from the board: the round's result card says how it did (S5) until OK or the next bid.
   if ((e.kind === "won" || e.kind === "lostBid") && s === S.game) {
     const mine = S.handBids.get(e.loadId);
@@ -117,7 +122,7 @@ function onEvent(s: Session, e: GameEvent): void {
       const load = w.loads.get(e.loadId);
       const winning = e.kind === "won" ? e.rate : e.winningRate;
       iuliiaSay(e.kind === "won" ? "result:won" : e.winningRate === null ? "result:nobody" : "result:lost");
-      S.result = { won: e.kind === "won", from: ends(e.loadId, e.origin, e.dest)[0], to: ends(e.loadId, e.origin, e.dest)[1], rate: e.kind === "won" ? e.rate : mine.rate, winning, be: mine.be, total: e.kind === "won" && load ? e.rate * load.miles : 0, seen: false, winnerId: e.kind === "lostBid" && load && load.carrierId ? load.carrierId : undefined, lost: e.kind === "lostBid" && winning !== null && load ? { loadId: e.loadId, truckId: e.truckId, profitAtWinningFd: (winning - mine.be) * load.miles, round: w.round } : undefined };
+      S.result = { won: e.kind === "won", from: ends(e.loadId, e.origin, e.dest)[0], to: ends(e.loadId, e.origin, e.dest)[1], rate: e.kind === "won" ? e.rate : mine.rate, winning, be: mine.be, total: e.kind === "won" && load ? e.rate * load.miles : 0, seen: false, winnerId: e.kind === "lostBid" && load && load.carrierId ? load.carrierId : undefined, lost: e.kind === "lostBid" && winning !== null && load ? { loadId: e.loadId, truckId: e.truckId, profitAtWinningFd: profitOver(w, w.trucks[e.truckId - 1], winning, mine.be, load.miles), round: w.round } : undefined };
     }
   }
   if (e.kind === "won") {
@@ -164,7 +169,8 @@ function onEvent(s: Session, e: GameEvent): void {
   if (e.kind === "liquidated") push(s, FEED.woundUp, "bad");
   if (e.kind === "notice") {
     const text = s === S.game ? e.text.replace(/\bTruck (\d+)\b/g, (m, id: string) => (truckNo(Number(id)) ? `Truck ${truckNo(Number(id))}` : m)) : e.text;
-    push(s, text, e.tone === "good" ? "good" : e.tone === "bad" ? "bad" : "");
+    push(s, text, e.tone === "good" ? "good" : e.tone === "bad" ? "bad" : "", e.companyId);
+    if (other) return;
     if (s === S.game && (e.topic === "crash" || e.topic === "authority")) toast(text, e.tone === "bad");
     if (s === S.game && e.topic === "staff") poachResult(w, s.player!, e.text);
   }

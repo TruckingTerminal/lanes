@@ -22,7 +22,7 @@ import {
   type Collateral,
   type World,
 } from "@lanes/engine";
-import { clearsNear, clearsNearSource } from "./board.js";
+import { clearsNear, clearsNearSource, profitOver } from "./board.js";
 import { PENDING_RULES } from "./copy-pending-rules.js";
 import { PENDING } from "./copy-pending.js";
 import { EXPLAIN, NEWS } from "./copy.js";
@@ -197,12 +197,17 @@ const BREAKDOWNS: Record<string, Fn> = {
     const l = ctx.loadId !== undefined ? w.loads.get(ctx.loadId) : undefined;
     if (!b || !l) return null;
     const rate = ctx.fd ?? l.bookNow;
+    // Client batch 8b item 52: on a leased truck the lessor's share of what's over break-even, as the chip takes it.
+    const t = ctx.truckId !== undefined ? w.trucks[ctx.truckId - 1] : undefined;
+    const margin = (rate - b.total) * l.miles;
+    const profit = profitOver(w, t, rate, b.total, l.miles);
     return {
       rows: [
         { label: `${rate.toFixed(2)}/mi × ${Math.round(l.miles).toLocaleString("en-US")} mi`, value: fd(rate * l.miles) },
         { label: `Less break-even ${perMi(b.total)} × ${Math.round(l.miles).toLocaleString("en-US")} mi`, value: fd(-b.total * l.miles), key: "truck.breakEven" },
+        ...(Math.abs(margin - profit) >= 0.5 ? [{ label: PENDING.lessorOfMargin(pct(w.cfg.costs.npcLeaseShareOfGross)), value: fd(profit - margin), key: "pay.lessorShare" }] : []),
       ],
-      total: { label: "Profit", value: fd((rate - b.total) * l.miles) },
+      total: { label: "Profit", value: fd(profit) },
     };
   },
   // freight.ts clearsNear: the lane's trailing clears for this trailer, else the origin market's, else the load's own

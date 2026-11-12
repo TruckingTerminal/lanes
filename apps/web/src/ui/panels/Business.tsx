@@ -8,6 +8,7 @@ import { confirmAct } from "../Confirm.js";
 import { item as itemLines } from "../../confirmspecs.js";
 import { CONFIRM } from "../../copy.js";
 import { inFirstMonth } from "../../figures.js";
+import { PENDING } from "../../copy-pending.js";
 
 const num = (id: string): number => Number((document.getElementById(id) as HTMLInputElement | null)?.value);
 
@@ -88,7 +89,7 @@ export function Business(): JSX.Element {
             </Btn>
             {assetDollars ? (
               <Btn disabled={atCap || cash < biz.kinds.truckStop.bondFd || c.usd.wallet < assetPriceUsd(w, price)} onClick={() => act({ type: "buy_business", kind: "truckStop", siteId: s.id, pay: "usd" }, "Truck stop open, paid in dollars: fuel, a shop and parking")}>
-                Or {usd(assetPriceUsd(w, price))} (to the launch pool; the bond in FD)
+                {PENDING.orUsd(usd(assetPriceUsd(w, price)))} (the bond in FD)
               </Btn>
             ) : null}
           </div>
@@ -100,7 +101,7 @@ export function Business(): JSX.Element {
   const dollarRow = (kind: Exclude<BusinessKind, "truckStop">, price: number, bond: number, room: { h: { id: string; name: string } }[]) =>
     assetDollars ? (
       <div class="row">
-        <span class="muted small">Or {usd(assetPriceUsd(w, price))} to the launch pool (the bond in FD):</span>
+        <span class="muted small">{PENDING.orUsd(usd(assetPriceUsd(w, price)))} (the bond in FD):</span>
         {room.map(({ h }) => (
           <Btn key={`usd-${h.id}`} disabled={atCap || cash < bond || c.usd.wallet < assetPriceUsd(w, price)} onClick={() => act({ type: "buy_business", kind, hubId: h.id, pay: "usd" }, `${KIND_NAME[kind]} open at ${h.name}, paid in dollars`)}>
             {h.id} · {usd(assetPriceUsd(w, price))}

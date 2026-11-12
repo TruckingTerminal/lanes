@@ -6,6 +6,7 @@ import { hasTwo, kindInView, switchCompany } from "../../companies.js";
 import { fdFull, hhmm, pct, shortDate, TRAILER_NAME } from "../../format.js";
 import { PENDING } from "../../copy-pending.js";
 import { nextRoundHour } from "../../logic.js";
+import { clearsNear } from "../../board.js";
 import { bumpData, isPhone, me, openIntel, order, S, toast, useData } from "../../state.js";
 import { layerDay } from "../../tabs.js";
 import { Btn, Card, Kv, Panel } from "../bits.js";
@@ -76,7 +77,8 @@ export function BrokerageTab(): JSX.Element {
   const g = S.game!;
   if (hasTwo(g))
     return (
-      <Panel title={BROKERAGE.startCard}>
+      // Client batch 8b item 35: with a brokerage, the panel is the player's own, never "Start a brokerage".
+      <Panel title={PENDING.brokerageOwnedTitle}>
         <button type="button" class="morerow" onClick={() => switchCompany("brokerage")}>
           <span>{BROKERAGE.moreRow(g.brokerage!.name)}</span>
         </button>
@@ -97,6 +99,38 @@ function startRefusal(w: World, why: string): string {
   return BROKERAGE.refuseBefore(layerDay(w, "brokerage"));
 }
 
+/** A name within `max` characters, cut at the last whole word that fits (a single long word is cut at the limit). */
+/** The funding field's longest entry: digits with separators, well past any FD a carrier holds. */
+export const FUNDING_MAX_CHARS = 16;
+
+/**
+ * Step 2's funding field (QA's 0.24.1 replay, fail 1): its own keyed input with its own maxLength, so it never inherits
+ * the name field's. Every keystroke is kept as typed; the amount moves only when the text is a number in range.
+ */
+export function FundingField(p: { text: string; minCap: number; maxCap: number; onText: (text: string) => void; onCapital: (fd: number) => void }): JSX.Element {
+  return (
+    <input
+      key="funding"
+      type="text"
+      inputMode="numeric"
+      maxLength={FUNDING_MAX_CHARS}
+      value={p.text}
+      onInput={(e) => {
+        const text = (e.currentTarget as HTMLInputElement).value;
+        p.onText(text);
+        const n = /^\s*\d[\d,\s]*\s*$/.test(text) ? Number(text.replace(/[,\s]/g, "")) : NaN;
+        if (Number.isFinite(n) && n >= p.minCap && n <= p.maxCap) p.onCapital(n);
+      }}
+    />
+  );
+}
+
+export function fitName(name: string, max: number): string {
+  if (name.length <= max) return name;
+  const cut = name.slice(0, max + 1).lastIndexOf(" ");
+  return (cut > 0 ? name.slice(0, cut) : name.slice(0, max)).trim();
+}
+
 /** Starting a brokerage (brokerage-ux.md section 3): three steps, the costs and the funding on one sheet before the button. */
 function StartBrokerage(): JSX.Element {
   const g = S.game!;
@@ -108,7 +142,8 @@ function StartBrokerage(): JSX.Element {
   const surety = newSurety(w);
   const feePct = k.brokerage.transferFeePct;
   const [step, setStep] = useState(1);
-  const [name, setName] = useState(BROKERAGE.defaultName(carrier.name).slice(0, 32));
+  // Client batch 8b item 34: the prefilled name whole, cut at a word inside the limit (it was cut mid-word).
+  const [name, setName] = useState(fitName(BROKERAGE.defaultName(carrier.name), 32));
   // Prefilled with the engine's figure: the bond, the licence and brokerage.startCashFd of working cash (formationCostFd
   // adds the fee on top). Step 3 starts from the first order formBrokerage sets, and only a change is sent.
   const [capital, setCapital] = useState(bond + licence + k.brokerage.startCashFd);
@@ -163,17 +198,20 @@ function StartBrokerage(): JSX.Element {
     <Panel title={BROKERAGE.startCard}>
       {step <= 3 ? <p class="label">{BROKERAGE.stepCounter(step)}</p> : null}
       {blocked ? <p class="bad small">{startRefusal(w, blocked)}</p> : null}
+      {/* QA's 0.24.1 replay, fail 1: each step's card is its own element (keyed), so step 2's funding field never reuses
+          step 1's name input (Preact took maxLength={32} off it as 0, and nothing could be typed). */}
       {step === 1 ? (
-        <Card title={BROKERAGE.step1}>
+        <Card key="step1" title={BROKERAGE.step1}>
           <label class="field">
             <span class="label">{BROKERAGE.nameField}</span>
-            <input type="text" maxLength={32} value={name} onInput={(e) => setName((e.currentTarget as HTMLInputElement).value)} />
+            <input key="name" type="text" maxLength={32} value={name} onInput={(e) => setName((e.currentTarget as HTMLInputElement).value)} />
           </label>
+          <p class="muted small">{PENDING.nameLimit(32)}</p>
           <p class="small">{BROKERAGE.homeHub(hub)}</p>
           <p class="muted small">{BROKERAGE.homeFixed}</p>
         </Card>
       ) : step === 2 ? (
-        <Card title={BROKERAGE.step2}>
+        <Card key="step2" title={BROKERAGE.step2}>
           <p class="small">{BROKERAGE.rowLicenceCost(fd(licence))}</p>
           <p class="small">{BROKERAGE.rowBondHeld(fd(bond))}</p>
           <p class="small">{BROKERAGE.rowSurety(fd(surety.fd), surety.band)}</p>
@@ -182,17 +220,7 @@ function StartBrokerage(): JSX.Element {
           {w.token.launchDay === null ? <p class="muted small">{BROKERAGE.betaNote}</p> : null}
           <label class="field">
             <span class="label">{BROKERAGE.moving(carrier.name, fd(capital))}</span>
-            <input
-              type="text"
-              inputMode="numeric"
-              value={capText ?? String(Math.round(capital))}
-              onInput={(e) => {
-                const text = (e.currentTarget as HTMLInputElement).value;
-                setCapText(text);
-                const n = /^\s*\d[\d,\s]*\s*$/.test(text) ? Number(text.replace(/[,\s]/g, "")) : NaN;
-                if (Number.isFinite(n) && n >= minCap && n <= maxCap) setCapital(n);
-              }}
-            />
+            <FundingField text={capText ?? String(Math.round(capital))} minCap={minCap} maxCap={maxCap} onText={setCapText} onCapital={setCapital} />
           </label>
           {capWhy ? <p class="bad small">{capWhy}</p> : null}
           <p class="small">{BROKERAGE.feeRow(pct(feePct), fd(fee))}</p>
@@ -243,13 +271,40 @@ function StartBrokerage(): JSX.Element {
 }
 
 /** The terms: the margin, the cap on open loads, and who may haul (step 3, and Carriers' standing order). */
+/**
+ * The margin in figures and against the market (client batch 8b items 31 and 62, the director's K), from the world's own
+ * brokered loads out of the carrier's home hub: what carriers see a load at this margin, the AI brokers' margins, the
+ * fall-off fee on those loads, and the pay it posts at against what loads like them clear at. Null with no such loads.
+ */
+function marginFacts(margin: number): { facts: string; under: string | null } | null {
+  const g = S.game!;
+  const w = g.w;
+  const hub = (g.carrier ?? g.player!).homeHub;
+  const loads = [...w.loads.values()].filter((l) => l.origin === hub && l.brokerId !== null && l.shipperId === null);
+  if (!loads.length) return null;
+  const gross = loads.map((l) => l.shipperRate * l.miles);
+  const avg = gross.reduce((a, b) => a + b, 0) / gross.length;
+  const fall = gross.map((x) => x * w.cfg.brokerRisk.fallOffShare);
+  const ai = w.companies.filter((c) => c.role === "broker" && c.partnerId === undefined).map((c) => c.orders.find((o) => o.kind === "broker")).filter((o): o is Extract<Company["orders"][number], { kind: "broker" }> => !!o).map((o) => o.marginPct);
+  const lo = ai.length ? Math.min(...ai) : margin;
+  const hi = ai.length ? Math.max(...ai) : margin;
+  const facts = PENDING.marginFacts(pct(margin), pct(1 - margin), fdFull(Math.round((avg * (1 - margin)) / 10) * 10), pct(lo), pct(hi), fdFull(Math.min(...fall)), fdFull(Math.max(...fall)));
+  const post = loads.reduce((s, l) => s + l.shipperRate * (1 - margin), 0) / loads.length;
+  const clears = loads.reduce((s, l) => s + clearsNear(w, l), 0) / loads.length;
+  return { facts, under: post < clears - 0.005 ? PENDING.marginUnder(post.toFixed(2), clears.toFixed(2)) : null };
+}
+
 function Terms(p: { margin: number; setMargin: (x: number) => void; open: number; setOpen: (x: number) => void; vet?: 0 | 1 | 2; setVet?: (x: 0 | 1 | 2) => void; lines?: readonly string[] }): JSX.Element {
+  const facts = marginFacts(p.margin);
   return (
     <div class="stack">
       <label class="field">
         <span class="label">{BROKERAGE.rowMargin(pct(p.margin))}</span>
         <input type="number" min={0} max={90} step={1} value={Math.round(p.margin * 100)} onInput={(e) => p.setMargin(Math.max(0, Math.min(90, Number((e.currentTarget as HTMLInputElement).value) || 0)) / 100)} />
       </label>
+      {/* Client batch 8b items 31 and 62: the margin in figures and against the market, before it's saved. */}
+      {facts ? <p class="muted small">{facts.facts}</p> : null}
+      {facts?.under ? <p class="bad small">{facts.under}</p> : null}
       <label class="field">
         <span class="label">{BROKERAGE.rowOpenLoads(p.open)}</span>
         <input type="number" min={1} max={200} step={1} value={p.open} onInput={(e) => p.setOpen(Math.max(1, Math.min(200, Math.round(Number((e.currentTarget as HTMLInputElement).value) || 1))))} />
@@ -290,6 +345,8 @@ export function Book(): JSX.Element {
   const w = g.w;
   const c = me();
   const partner = hasTwo(g) ? g.carrier : null;
+  // Item 37: the carrier has no idle truck with a driver anywhere.
+  const noFree = !!partner && !(w.trucksByCompany.get(partner.id) ?? []).some((t) => t.status === "idle" && crewed(t));
   const { mine, held, tendered, onBoard, moving } = bookStates(w, c);
   const owed = w.receivables.filter((r) => r.holder === c.id && r.amountFd > 0.005);
   const hours = Math.max(1, Math.round((roundAt(w) - w.t) / 60));
@@ -318,8 +375,11 @@ export function Book(): JSX.Element {
         </Card>
       ) : null}
       <Card title={BROKERAGE.groups[0]}>
+        {/* Client batch 8b item 37: with no idle truck at all, the carrier's reason once, not under every card. */}
+        {partner && noFree && onBoard.length ? <p class="muted small">{PENDING.carrierNoFreeTruck(partner.name)}</p> : null}
         {onBoard.map((l) => {
-          const cant = partner ? carrierCantTake(w, partner, l) : null;
+          const cant = partner && !noFree ? carrierCantTake(w, partner, l) : null;
+          const shut = partner ? carrierCantTake(w, partner, l) !== null : false;
           return (
             <div class={`stack bookcard${l.id === S.openLoad ? " sel" : ""}`} key={l.id}>
               <b>{lane(w, l)}</b>
@@ -330,7 +390,7 @@ export function Book(): JSX.Element {
                   <TenderSheet load={l} carrier={partner} onDone={() => setTendering(null)} />
                 ) : (
                   <>
-                    <Btn sm disabled={!!cant} onClick={() => setTendering(l.id)}>
+                    <Btn sm disabled={shut} onClick={() => setTendering(l.id)}>
                       {BROKERAGE.tenderButton(partner.name)}
                     </Btn>
                     {cant ? <span class="muted small">{cant}</span> : null}
@@ -364,6 +424,8 @@ export function Book(): JSX.Element {
                 {a}
                 <b class={shipper - carrierPay - fee < 0 ? "bad" : ""}>{b}</b>
               </span>
+              {/* Client batch 8b item 32: the margin given up in the rounds' walk, said so (it's the design, not a fault). */}
+              {carrierPay >= shipper - fee - 0.5 ? <span class="muted small">{PENDING.marginWalked}</span> : null}
             </div>
           );
         })}

@@ -2,12 +2,13 @@ import type { JSX } from "preact";
 import { useState } from "preact/hooks";
 import { condition, crewed, dutyResetAt, hubMiles, ordersOf, rebuildable, rebuildCost, resting, truckValue, type Company, type Staff, type StandingOrder, type Truck, type World } from "@lanes/engine";
 import { SCENES } from "../../assets.js";
-import { cls, dateLabel, fd, fdFull, pct, plural, TIER_NAME, TRAILER_NAME, hhmm, realUntil } from "../../format.js";
+import { cls, dateLabel, fd, fdFull, pct, plural, shortDate, TIER_NAME, TRAILER_NAME, hhmm, realUntil } from "../../format.js";
 import { HOURS, MOVE, NEEDS, TRUCK } from "../../copy.js";
 import { GAME_CONFIG } from "../../game.js";
-import { AttentionCard, CrewLine, goLoads, goStaff, idleLabel, idleWhy, StatusLine, stuckTrucks, tiredTrucks, truckName, truckWhere, wallLine, wallTrucks, waysOut } from "../../logic.js";
+import { AttentionCard, CrewLine, goLoads, goStaff, idleLabel, idleWhy, seatBack, StatusLine, stuckTrucks, tiredTrucks, truckName, truckWhere, wallLine, wallTrucks, waysOut } from "../../logic.js";
+import { freeDriverFor, isFreeDriver } from "../../nextstep.js";
 import { focusTruck } from "../../mapview.js";
-import { act, describe, feed, isPhone, me, myTrucks, ownerOf, S, selectTruck, truckNo, useData } from "../../state.js";
+import { act, describe, isPhone, me, myTrucks, ownerOf, S, selectTruck, truckNo, useData, tickerInView } from "../../state.js";
 import { Bar, Btn, Card, Num, Panel, Pixel } from "../bits.js";
 import { Rig, Scene } from "../Loop.js";
 import { Fig } from "../Explain.js";
@@ -22,9 +23,12 @@ import { PENDING } from "../../copy-pending.js";
 import { PENDING_RULES } from "../../copy-pending-rules.js";
 import { paysFrom } from "../../exits.js";
 import { confirmAct, confirmSpend } from "../Confirm.js";
-import { rebuild as rebuildLines, sell as sellLines } from "../../confirmspecs.js";
+import { rebuild as rebuildLines, sell as sellLines, sellsFor } from "../../confirmspecs.js";
 import { CapsLine } from "../Caps.js";
 import { leaseMinFor } from "../../ledger.js";
+import { OrderOffers } from "../OrderOffers.js";
+import { expediteOn, expediteQuote, expediteWaitParts } from "@lanes/engine";
+import { expediteLines, waitSentence } from "../../expediteui.js";
 
 
 
@@ -152,7 +156,7 @@ function SendHomeActions({ t, primary }: { t: Truck; primary?: boolean }): JSX.E
   return (
     <>
       {work}
-      <Btn primary={primary && !work} onClick={() => act({ type: "send_home", truckId: t.id }, PENDING.homeTimeQueuedToast(homeWaitDays(w)), "truck:sendHome")}>
+      <Btn primary={primary && !work} onClick={() => act({ type: "send_home", truckId: t.id }, PENDING.homeTimeQueuedToast(w.cfg.fatigue.homeward.deadheadWithinMi.toLocaleString("en-US"), homeWaitDays(w)), "truck:sendHome")}>
         {PENDING.sendHomeAfter} · {PENDING.homeTimeDays(days)}
       </Btn>
     </>
@@ -164,6 +168,24 @@ function SendHomeActions({ t, primary }: { t: Truck; primary?: boolean }): JSX.E
  * count), and the button priced for the hub picked, before the press (R24). It opens on the cheapest run to a hub where a
  * load pays (QA, client pass 2: it opened on Tampa, where nothing paid), else the nearest.
  */
+/**
+ * QA's 0.24.1 replay, fail 3: off sale undoes the listing when it can. Listing took the crew off the truck (market.ts
+ * listTruck); a driver of the company with no truck, standing by it (the one who drove it first), goes back in, and the
+ * truck back on the road (withdraw_listing leaves it parked). With none, it stays parked and What now? asks for a driver.
+ */
+function offSale(w: World, t: Truck, listingId: number): void {
+  const c = ownerOf(t);
+  const own = S.listedCrew.get(t.id) ?? [];
+  const s = freeDriverFor(w, c, t, own, S.lastDriver.get(t.id));
+  if (!s) return act({ type: "withdraw_listing", listingId }, PENDING.offSaleTruck);
+  // Its own co-driver too, when the driver going back is its own and the co-driver is still free.
+  const co = own[0] === s.id && own[1] ? w.staff[own[1] - 1] : undefined;
+  const ok = PENDING.offSaleBack(truckNo(t.id), s.owner ? "you" : s.name);
+  act({ type: "withdraw_listing", listingId }, ok);
+  seatBack(t.id, s.id, ok, co && isFreeDriver(c, co) ? co.id : undefined);
+  S.listedCrew.delete(t.id);
+}
+
 function SendEmpty({ t, nearby }: { t: Truck; nearby: { i: number }[] }): JSX.Element | null {
   const w = S.game!.w;
   // Client batch 8a item 29: the truck's own company, whichever company is in view.
@@ -198,6 +220,8 @@ export function Fleet(): JSX.Element {
     <Panel title="Your fleet">
       <DeliveredCard />
       <RollingCards />
+      {/* Client batch 8b item 63: a further standing order, offered once at its moment. */}
+      <OrderOffers />
       <TodayCard />
       <Scene name="yard" still={SCENES.yard} alt="Your yard at dusk" />
       <AttentionCard />
@@ -205,7 +229,38 @@ export function Fleet(): JSX.Element {
       <TiredAlerts />
       <IdleAlerts />
       <PendingCard />
-      {pending.length ? <p class="muted">On order: {pending.map((o) => `${o.kind === "trailer" ? `${TRAILER_NAME[o.trailer]} trailer` : o.kind === "tractor" ? `${TIER_NAME[o.tier]} tractor` : `${TIER_NAME[o.tier]} + ${TRAILER_NAME[o.trailer]}`}, arrives ${dateLabel(o.dueDay)}`).join("; ")}</p> : null}
+      {/* Client batch 8b section D: an order row each, with "Expedite" while an early slot comes before its ready day. */}
+      {pending.map((o) => {
+        const what = o.kind === "trailer" ? `${TRAILER_NAME[o.trailer]} trailer` : o.kind === "tractor" ? `${TIER_NAME[o.tier]} tractor` : `${TIER_NAME[o.tier]} + ${TRAILER_NAME[o.trailer]}`;
+        const q = expediteOn(w) ? expediteQuote(w, me(), o.id) : null;
+        const parts = q && !("why" in q) ? expediteWaitParts(w, me(), o.id) : null;
+        return (
+          <div class="row" key={o.id}>
+            <span class="muted small">{PENDING.orderOnRow(what, dateLabel(o.dueDay))}</span>
+            {q && !("why" in q) ? (
+              <Btn
+                sm
+                onClick={(ev) =>
+                  confirmAct(
+                    {
+                      verb: PENDING.expediteVerb,
+                      item: what,
+                      costFd: q.feeFd,
+                      does: expediteLines(q, o.dueDay).join(" "),
+                      risk: parts && !("why" in parts) ? waitSentence(w, me(), parts) : null,
+                      go: PENDING.expediteCardButton(shortDate(q.readyDay), fdFull(q.feeFd)),
+                      run: () => act({ type: "expedite_order", orderId: o.id }, PENDING.expediteDone(shortDate(q.readyDay))),
+                    },
+                    ev,
+                  )
+                }
+              >
+                {PENDING.expediteCardButton(shortDate(q.readyDay), fdFull(q.feeFd))}
+              </Btn>
+            ) : null}
+          </div>
+        );
+      })}
       {trucks.map((t, idx) => (
         <TruckCard key={t.id} t={t} idx={idx} />
       ))}
@@ -221,8 +276,9 @@ function TodayCard(): JSX.Element | null {
   // R9: the day's breakdowns, fines and claims over guard.newsFd come first, in the money style; their ticker lines give way.
   const w = S.game!.w;
   const money = <MoneyEventRows sinceT={w.t - w.cfg.time.gameMinutesPerDay} />;
-  const lines = feed()
-    .ticker.filter((l) => !l.cls.split(" ").includes("money"))
+  // Client batch 8b item 37: the company in view's lines.
+  const lines = tickerInView()
+    .filter((l) => !l.cls.split(" ").includes("money"))
     .slice(0, 8);
   if (!lines.length && !MoneyEventRows({ sinceT: w.t - w.cfg.time.gameMinutesPerDay })) return null;
   return (
@@ -382,7 +438,13 @@ function TruckCard({ t, idx }: { t: Truck; idx: number }): JSX.Element {
   const mine = t.lease === "owned" && !leasedIn;
   const cond = condition(w.cfg, t);
   const share = pct(w.cfg.costs.npcLeaseShareOfGross);
-  const kind = t.lease === "npc" ? TRUCK.leased(share) : t.lease === "lessor" ? TRUCK.secondLease(share, fdFull(leaseMinFor(w, t))) : leasedIn ? `Leased from another carrier` : <Fig k="truck.value" label="Worth" ctx={{ truckId: t.id }}>{TRUCK.owned(fdFull(truckValue(w, t)))}</Fig>;
+  const kind = t.lease === "npc" ? TRUCK.leased(share) : t.lease === "lessor" ? TRUCK.secondLease(share, fdFull(leaseMinFor(w, t))) : leasedIn ? `Leased from another carrier` : (
+        // Client batch 8b item 18 (the director): book value, named, and what trucks like it really sell for.
+        <>
+          <Fig k="truck.value" label={PENDING.bookValueLabel} ctx={{ truckId: t.id }}>{PENDING.ownedBook(fdFull(truckValue(w, t)))}</Fig>
+          <span class="muted small"> {sellsFor(truckValue(w, t))}</span>
+        </>
+      );
   const nearby = w.net.hubs
     .map((h, i) => ({ h, i, mi: hubMiles(w, t.hub, i) }))
     .filter((x) => x.i !== t.hub)
@@ -404,7 +466,11 @@ function TruckCard({ t, idx }: { t: Truck; idx: number }): JSX.Element {
             <Btn
               onClick={(ev) => {
                 const value = truckValue(w, t);
-                confirmAct({ verb: "Sell", item: `truck ${idx + 1}`, costFd: null, costLine: "", ...sellLines(idx + 1, value), go: `Sell · ${fdFull(value)} FD`, run: () => act({ type: "list_truck", truckId: t.id, askFd: value, floorFd: value * 0.6, stepFd: value * 0.05 }, `Listed at ${fd(value)} FD; the price drops 5% a week until it sells`) }, ev);
+                confirmAct({ verb: "Sell", item: `truck ${truckNo(t.id)}`, costFd: null, costLine: "", ...sellLines(w, t, truckNo(t.id), value), go: `Sell · ${fdFull(value)} FD`, run: () => {
+                    // The crew it had, for off sale to seat back (QA fail 3).
+                    S.listedCrew.set(t.id, [t.driverId, t.coDriverId].filter((id) => id > 0));
+                    act({ type: "list_truck", truckId: t.id, askFd: value, floorFd: value * 0.6, stepFd: value * 0.05 }, `Listed at ${fd(value)} FD; the price drops 5% a week until it sells`);
+                  } }, ev);
               }}
             >
               Sell
@@ -417,7 +483,7 @@ function TruckCard({ t, idx }: { t: Truck; idx: number }): JSX.Element {
             return sale ? (
               <>
                 <span class="small">{PENDING.forSaleAt(fd(sale.askFd))}</span>
-                <Btn onClick={() => act({ type: "withdraw_listing", listingId: sale.id }, PENDING.offSaleTruck)}>{PENDING.takeOffSale}</Btn>
+                <Btn onClick={() => offSale(w, t, sale.id)}>{PENDING.takeOffSale}</Btn>
               </>
             ) : null;
           })()}

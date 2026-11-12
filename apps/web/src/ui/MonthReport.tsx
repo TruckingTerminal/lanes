@@ -7,6 +7,9 @@ import { isPhone, me, S, setTab, truckNo } from "../state.js";
 import { Card } from "./bits.js";
 import { Fig } from "./Explain.js";
 
+/** The report's month (client batch 8b item 14): the calendar month of its middle day, where most of its 30 days fall. */
+const midDay = (r: { fromDay: number; closedDay: number }): number => Math.floor((r.fromDay + r.closedDay - 1) / 2);
+
 /**
  * R10 (player2-ux.md section 4): the month report on Money, and the money events of R9 (section 3) in the money style.
  * The figures are books.ts's, which add up from cash on the 1st to cash at the close.
@@ -59,8 +62,8 @@ export function MonthCard({ r, title, first }: { r: MonthReport; title?: string;
   const owedLabel = r.owedChange >= 0 ? MONTH.owedUp : MONTH.owedDown;
   const payLabel = r.payChange >= 0 ? MONTH.payUp : MONTH.payDown;
   return (
-    <Card class="monthcard" title={title ?? MONTH.header(monthName(r.closedDay - 1), fdFull(r.keptFd))}>
-      {title ? <p class="small"><b>{MONTH.header(monthName(r.closedDay - 1), fdFull(r.keptFd))}</b></p> : null}
+    <Card class="monthcard" title={title ?? MONTH.header(monthName(midDay(r)), fdFull(r.keptFd))}>
+      {title ? <p class="small"><b>{MONTH.header(monthName(midDay(r)), fdFull(r.keptFd))}</b></p> : null}
       <table class="books" data-month={r.closedDay}>
         <tbody>
           <tr class="head">
@@ -88,7 +91,15 @@ export function MonthCard({ r, title, first }: { r: MonthReport; title?: string;
           </tr>
           <Row label={first ? MONTH.cashStartFirst : MONTH.cashStart} value={amount(r.cashStart)} />
           <Row label={MONTH.kept} value={signed(r.keptFd)} />
-          {Math.abs(r.owedChange) >= 0.5 ? <Row label={owedLabel} value={signed(-r.owedChange)} /> : null}
+          {/* Client batch 8b item 15: the two parts of what's owed, each on its own row, where the month kept them. */}
+          {r.owedNew !== undefined && r.owedEarlierPaid !== undefined ? (
+            <>
+              {Math.abs(r.owedNew) >= 0.5 ? <Row label={MONTH.owedUp} value={signed(-r.owedNew)} /> : null}
+              {Math.abs(r.owedEarlierPaid) >= 0.5 ? <Row label={MONTH.owedDown} value={signed(r.owedEarlierPaid)} /> : null}
+            </>
+          ) : Math.abs(r.owedChange) >= 0.5 ? (
+            <Row label={owedLabel} value={signed(-r.owedChange)} />
+          ) : null}
           {Math.abs(r.payChange) >= 0.5 ? <Row label={payLabel} value={signed(r.payChange)} /> : null}
           {r.moved.map((x) => (
             <Row key={x.line} label={(x.fd > 0 ? MONTH.rowBack[x.line] : undefined) ?? rowName(x.line)} value={signed(x.fd)} />

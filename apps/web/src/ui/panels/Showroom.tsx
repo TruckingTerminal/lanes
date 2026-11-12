@@ -29,7 +29,7 @@ import {
   type Source,
   lotDeliveryDays,
 } from "@lanes/engine";
-import { fd, pct, shortDate, TIER_NAME, TRAILER_NAME, plural } from "../../format.js";
+import { fd, fdFull, pct, shortDate, TIER_NAME, TRAILER_NAME, plural } from "../../format.js";
 import { act, me, myTrucks, order, S, toast } from "../../state.js";
 import { iuliiaSay } from "../../iuliia.js";
 import { DEALER } from "../../copy.js";
@@ -42,10 +42,12 @@ import { Rig } from "../Loop.js";
 import { Fig } from "../Explain.js";
 import { confirmAct } from "../Confirm.js";
 import { newTruck, trailer as trailerLines, usedTruck, type Lines } from "../../confirmspecs.js";
-import { inFirstMonth, nextWeeklyCheckDay, truckPlace } from "../../figures.js";
+import { inFirstMonth, leasedNo, nextWeeklyCheckDay, truckPlace } from "../../figures.js";
 import { PENDING } from "../../copy-pending.js";
 import { fleetCaps } from "../../figures.js";
 import { CAPS, DOOR } from "../../copy.js";
+import { expediteOn } from "@lanes/engine";
+import { partsBeforeOrder, expediteLines, waitSentence } from "../../expediteui.js";
 
 const TIERS: TractorTier[] = ["workhorse", "highwayPro", "flagship"];
 const TYPES: Equipment[] = ["van", "reefer", "flatbed"];
@@ -98,7 +100,7 @@ export function Showroom(): JSX.Element {
         <>
           <h3>The used lot</h3>
           <p class="muted small">
-            Worn rigs at their used value: a Workhorse about {lotSpec(w, "van").odometer.toLocaleString("en-US")} miles and {Math.round((w.t / w.cfg.time.gameMinutesPerDay - lotSpec(w, "van").builtDay) / 365)} years old. {w.usedLot.stock} on the lot this week; {PENDING.lotReadyNote}.
+            Worn rigs at their used value: a Workhorse about {lotSpec(w, "van").odometer.toLocaleString("en-US")} miles and {Math.round((w.t / w.cfg.time.gameMinutesPerDay - lotSpec(w, "van").builtDay) / 365)} years old. {PENDING.lotCondition(pct(condition(w.cfg, { lease: "owned", milesSinceRebuild: lotSpec(w, "van").milesSinceRebuild })))}. {w.usedLot.stock} on the lot this week; {PENDING.lotReadyNote}.
           </p>
           {TYPES.map((tr) => (
             <div id={`lot-${tr}`} key={tr}>
@@ -115,9 +117,9 @@ export function Showroom(): JSX.Element {
               // dealer's queue for a starter replacing its lease, the lot's own days for a rig that adds to a fleet.
               when={DEALER.arrives(shortDate(today + lotDeliveryDays(w, onLease)))}
               ordered={lotDeliveryDays(w, onLease) > 0}
-              lines={orderLines(usedTruck(w, c, { ...lotSpec(w, tr), tier: "workhorse", trailer: tr, lease: "owned" }), shortDate(today + lotDeliveryDays(w, onLease)), onLease)}
+              lines={orderLines(usedTruck(w, c, { ...lotSpec(w, tr), tier: "workhorse", trailer: tr, lease: "owned" }), shortDate(today + lotDeliveryDays(w, onLease)), onLease, w.cfg.assets.swapAtNextIdle, onLease ? leasedNo(w, c) : null)}
               truck={collateralOf(w, lotSpec(w, tr))}
-              ok="Ordered from the used lot"
+              ok={PENDING.lotOrdered(lotDeliveryDays(w, onLease))}
             />
             </div>
           ))}
@@ -156,11 +158,46 @@ export function Showroom(): JSX.Element {
                 truck={NEW_TRUCK}
                 ok={PENDING.orderedReady(plural(rig.days, "day"))}
               />
-              <div class="row">
-                {dollarWindow && !rig.dealershipId ? (
-                  <Btn disabled={!(c.usd.wallet >= assetPriceUsd(w, rig.price) && rigLeft && trailerRoom > 0)} onClick={() => act({ type: "buy_asset", tier, trailer: tr, replaceNpcLease: onLease, pay: "usd" }, PENDING.orderedReadyUsd(plural(rig.days, "day")))}>
-                    Or ${assetPriceUsd(w, rig.price).toLocaleString("en-US", { maximumFractionDigits: 0 })} (to the launch pool)
+              {/* Client batch 8b section D: the second button, an order delivered early, beside the NPC dealer's order. */}
+              {(() => {
+                if (!expediteOn(w) || rig.dealershipId || rig.days <= 0) return null;
+                const parts = partsBeforeOrder(w, c, { kind: "rig", tier, trailer: tr, priceFd: rig.price, dueDay: today + rig.days, replaceNpcLease: onLease });
+                if (!parts) return null;
+                const q = { readyDay: parts.readyDay, daysSaved: parts.daysSaved, feeFd: parts.feeFd, priceFd: rig.price };
+                return (
+                  <Btn
+                    sm
+                    disabled={!rigLeft || capWhy !== null || roomWhy !== null}
+                    onClick={(ev) =>
+                      confirmAct(
+                        {
+                          verb: PENDING.orderVerb,
+                          item: `${TIER_NAME[tier]} + ${TRAILER_NAME[tr]}`,
+                          costFd: rig.price + parts.feeFd,
+                          does: expediteLines(q, today + rig.days).join(" "),
+                          risk: waitSentence(w, c, parts),
+                          go: PENDING.expediteButton(shortDate(parts.readyDay), fdFull(parts.feeFd)),
+                          run: () => act({ type: "buy_asset", tier, trailer: tr, replaceNpcLease: onLease, expedite: true }, PENDING.expediteDone(shortDate(parts.readyDay))),
+                        },
+                        ev,
+                      )
+                    }
+                  >
+                    {PENDING.expediteButton(shortDate(parts.readyDay), fdFull(parts.feeFd))}
                   </Btn>
+                );
+              })()}
+              <div class="row">
+                {/* Client batch 8b items 26 and 64 (the director's J): on a first-truck screen the dollar price is plain
+                    text under the FD button, never a button; elsewhere a button. "To the launch pool" goes. */}
+                {dollarWindow && !rig.dealershipId ? (
+                  !myTrucks().some((t) => t.lease === "owned") ? (
+                    <span class="muted small">{PENDING.orUsd(`$${assetPriceUsd(w, rig.price).toLocaleString("en-US", { maximumFractionDigits: 0 })}`)}</span>
+                  ) : (
+                    <Btn disabled={!(c.usd.wallet >= assetPriceUsd(w, rig.price) && rigLeft && trailerRoom > 0)} onClick={() => act({ type: "buy_asset", tier, trailer: tr, replaceNpcLease: onLease, pay: "usd" }, PENDING.orderedReadyUsd(plural(rig.days, "day")))}>
+                      {PENDING.orUsd(`$${assetPriceUsd(w, rig.price).toLocaleString("en-US", { maximumFractionDigits: 0 })}`)}
+                    </Btn>
+                  )
                 ) : null}
               </div>
               {tr === "van" ? (
@@ -191,7 +228,7 @@ export function Showroom(): JSX.Element {
           const src = bestSource(w, c.id, "trailer", "workhorse", tr);
           const left = src.dealershipId ? true : w.supply.trailer[tr] > 0;
           return (
-            <Btn key={tr} disabled={!(cash >= src.price && left && trailerRoom > 0)} onClick={(ev) => confirmAct({ verb: "Buy", item: `a ${TRAILER_NAME[tr].toLowerCase()} trailer`, costFd: src.price, ...trailerLines(tr), run: () => act({ type: "buy_trailer", trailer: tr, dealershipId: src.dealershipId || undefined }, `Trailer ordered. Delivery in ${plural(src.days, "day")}`) }, ev)}>
+            <Btn key={tr} disabled={!(cash >= src.price && left && trailerRoom > 0)} onClick={(ev) => confirmAct({ verb: "Buy", item: `a ${TRAILER_NAME[tr].toLowerCase()} trailer`, costFd: src.price, ...trailerLines(tr), run: () => act({ type: "buy_trailer", trailer: tr, dealershipId: src.dealershipId || undefined }, PENDING.trailerOrderedReady(src.days)) }, ev)}>
               {TRAILER_NAME[tr]} · {fd(src.price)} · {src.days} d
             </Btn>
           );
@@ -209,7 +246,7 @@ export function Showroom(): JSX.Element {
           return (
             <div class="row" key={l.id}>
               <span>
-                {TRAILER_NAME[tr.type]} · {pct(trailerCondition(w, tr))} · {Math.round(tr.odometer / 1000)}k mi · asking <Num>{fd(l.askFd)}</Num> (value {fd(trailerValue(w, tr))})
+                {TRAILER_NAME[tr.type]} · {PENDING.conditionSince(pct(trailerCondition(w, tr)))} · {Math.round(tr.odometer / 1000)}k mi · asking <Num>{fd(l.askFd)}</Num> (value {fd(trailerValue(w, tr))})
               </span>
               <Btn sm disabled={cash < l.askFd || trailerRoom <= 0} onClick={(ev) => confirmAct({ verb: "Buy", item: `this ${TRAILER_NAME[tr.type].toLowerCase()}`, costFd: l.askFd, ...trailerLines(tr.type), run: () => act({ type: "buy_listing", listingId: l.id }, "Bought: it's in your yard") }, ev)}>
                 Buy
@@ -228,7 +265,7 @@ export function Showroom(): JSX.Element {
           return (
             <div class="row" key={o.id}>
               <span>
-                {TIER_NAME[t.tier]} · {pct(condition(w.cfg, t))} · {Math.round(t.odometer / 1000)}k mi · {PENDING.truckIn(truckPlace(w, t.place))} · <Num>{fd(o.weeklyFd)}</Num> FD a week, {o.minWeeks} weeks minimum · from {owner?.name ?? "?"} (value {fd(truckValue(w, t))})
+                {TIER_NAME[t.tier]} · {PENDING.conditionSince(pct(condition(w.cfg, t)))} · {Math.round(t.odometer / 1000)}k mi · {PENDING.truckIn(truckPlace(w, t.place))} · <Num>{fd(o.weeklyFd)}</Num> FD a week, {o.minWeeks} weeks minimum · from {owner?.name ?? "?"} (value {fd(truckValue(w, t))})
               </span>
               <Btn sm onClick={() => act({ type: "take_lease", offerId: o.id }, "Leased: it joins your fleet where it stands, with your trailer")}>
                 Lease it
@@ -249,7 +286,7 @@ export function Showroom(): JSX.Element {
  * always says why, under it; a refusal from the rules shows there too, never as a toast.
  */
 /** The used lot's confirm lines with the order's day and, for a starter, the lease's end at the hand-over (client batch 7). */
-const orderLines = (base: Lines, date: string, replacing: boolean): Lines => ({ ...base, does: `${base.does} ${PENDING.lotOrderNote(date, replacing)}` });
+const orderLines = (base: Lines, date: string, replacing: boolean, swap = false, n: number | null = null): Lines => ({ ...base, does: `${base.does} ${PENDING.lotOrderNote(date, replacing, swap, n)}` });
 
 /** `ordered`: the truck comes on a later day (the dealer's queue or the lot's wait), so it's an order, not a truck owned today. */
 export function Buy({ what, label, verb = "Buy", price, replacing, block, action, ok, lines, when, truck, ordered = false }: { what: string; label?: string; verb?: string; price: number; replacing: boolean; block: string | null; action: Extract<Action, { type: "buy_asset" }> | Extract<Action, { type: "buy_listing" }>; ok: string; lines: Lines; when?: string; truck?: Collateral; ordered?: boolean }): JSX.Element {
@@ -266,7 +303,8 @@ export function Buy({ what, label, verb = "Buy", price, replacing, block, action
   const p = buyPlan(w, c, price, replacing, truck);
   // The reasons use the sheet's net figures (QA's Dealer re-check): what's needed after the lease deposit, against cash alone.
   const cash = p.have - p.deposit;
-  const cashWhy = block ?? (p.cashOk ? null : DEALER.whyCash(fd(cash), fd(p.cashNowFd)));
+  // Client batch 8b item 5: with the lease's hold counted, the figure is the cash after it, said so.
+  const cashWhy = block ?? (p.cashOk ? null : p.deposit > 0.5 ? PENDING.whyCashAfterHold(fd(cash), fd(p.cashNowFd), fd(p.deposit)) : DEALER.whyCash(fd(cash), fd(p.cashNowFd)));
   const loanWhy = !p.loan ? null : block ?? (p.loan.why === "full" ? DEALER.whyLoans(purchaseTerms(w, c, truck).maxLoans) : p.loan.why === "short" ? DEALER.whyLoan(fd(p.loanNowFd ?? 0), fd(cash)) : null);
   const ef = w.cfg.equipmentFinance.purchase;
   // Iuliia's line for the purchase: the first truck of its own, or one more (iuliia-lines.md, Dealer). Client batch 8a
@@ -293,7 +331,7 @@ export function Buy({ what, label, verb = "Buy", price, replacing, block, action
         </Btn>
         {p.loan && !block ? (
           <Btn onClick={() => setOpen(!open)} on={open}>
-            {DEALER.onLoan}
+            {ordered ? PENDING.orderOnLoan : DEALER.onLoan}
           </Btn>
         ) : null}
       </div>
@@ -315,7 +353,7 @@ export function Buy({ what, label, verb = "Buy", price, replacing, block, action
       {refused ? <p class="bad small">{refused}</p> : null}
       {open && p.loan ? (
         <div ref={sheet}>
-        <Card title={DEALER.loanTitle(what)}>
+        <Card title={ordered ? PENDING.orderLoanTitle(what) : DEALER.loanTitle(what)}>
           <Kv
             rows={[
               [DEALER.price, <Fig k="dealer.price" label={DEALER.price}>{`${fd(price)} FD`}</Fig>],
@@ -333,7 +371,7 @@ export function Buy({ what, label, verb = "Buy", price, replacing, block, action
           <p class="warn small">{DEALER.missed(ef.missedToDefault)}</p>
           <div class="row">
             <Btn primary disabled={loanWhy !== null} onClick={(ev) => ask({ ...action, finance: true }, ev)}>
-              {DEALER.buyLoan(fd(p.loanNowFd ?? 0))}
+              {ordered ? PENDING.orderLoanButton(fd(p.loanNowFd ?? 0)) : DEALER.buyLoan(fd(p.loanNowFd ?? 0))}
             </Btn>
             <Btn ghost onClick={() => setOpen(false)}>
               {DEALER.cancel}

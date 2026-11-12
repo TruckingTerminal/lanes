@@ -2,13 +2,13 @@ import type { JSX } from "preact";
 import { useEffect, useState } from "preact/hooks";
 import { crewed, hubMiles, MANUAL_BID_MAX_DEADHEAD_MI, VETTING_NAMES, type Truck } from "@lanes/engine";
 import { COMMODITIES } from "@lanes/data";
-import { allInRate, bidCeiling, bidRange, boardRows, clampToCeiling, chipCash, chipPair, clearsNear, dockWaits, overCeiling, posterOf, rateShown, sortRows, type BoardRow, type BoardSort, type ChipPair } from "../../board.js";
+import { allInRate, bidCeiling, bidRange, boardRows, typedRate, clampToCeiling, chipCash, chipPair, clearsNear, dockWaits, overCeiling, posterOf, profitOver, rateShown, sortRows, type BoardRow, type BoardSort, type ChipPair } from "../../board.js";
 import { DockWarning, ProfitChip } from "../ProfitChip.js";
 import { ANSWER, BOARD, CHIP, DELIVERED, INTEL, LOAD, ROUND, WALL } from "../../copy.js";
 import { cls, fdFull, hhmm, pct, shortDate, TRAILER_NAME, weekdayDate } from "../../format.js";
 import { nextRoundHour, nextRoundLabel, nextRoundWait, reloadLabel, roundProgress, seasonSwing } from "../../logic.js";
 import { bumpData, isPhone, markVisited, me, myTrucks, openIntel, order, S, selectTruck, setTab, toast, truckNo, useData, visited } from "../../state.js";
-import { deliveryEtaMin } from "../../rolling.js";
+import { deliveryEtaMin, etaMin } from "../../rolling.js";
 import { tabOpen } from "../../tabs.js";
 import { iuliiaFirst, iuliiaOnChange, iuliiaSay, iuliiaSayText } from "../../iuliia.js";
 import { PENDING_RULES } from "../../copy-pending-rules.js";
@@ -215,8 +215,9 @@ const money = (x: number): string => fdFull(Math.abs(x));
 function etaOf(t: Truck): string | null {
   const w = S.game!.w;
   const l = t.loadId !== null ? w.loads.get(t.loadId) : undefined;
-  if (!l) return null;
-  const at = deliveryEtaMin(w, t, me(), l);
+  // QA's 0.24.1 replay, item 12: a truck running empty has its arrival's ETA, not a dash.
+  const at = l ? deliveryEtaMin(w, t, me(), l) : t.status === "repositioning" ? etaMin(w, t, me()) : null;
+  if (at === null) return null;
   return `${shortDate(Math.floor(at / 1440))} ${hhmm(at)}`;
 }
 /** Opens a load's sheet: full on a phone (S3). */
@@ -345,7 +346,7 @@ function LoadSheet({ r, truck }: { r: BoardRow; truck: Truck }): JSX.Element {
   useEffect(() => iuliiaFirst(r.block ? "load:blocked" : "load:open", r.block ? "screen:loadBlocked" : "screen:load"), []);
   const k = COMMODITIES[l.commodity]!;
   const poster = l.brokerId !== null ? w.companies[l.brokerId - 1] : l.shipperId !== null ? w.companies[l.shipperId - 1] : null;
-  const bidProfit = bid === null ? 0 : (bid - r.be) * l.miles;
+  const bidProfit = bid === null ? 0 : profitOver(w, truck, bid, r.be, l.miles);
   // The bid's controls: shut with the load's wall, open through a locals-first hold's last round (filed for the opening).
   const bidShut = !!r.block && !r.files;
   // The engine's reach for a bid by hand is market to market (actions.ts place_bid, hubMiles), where Book now's is the
@@ -357,7 +358,12 @@ function LoadSheet({ r, truck }: { r: BoardRow; truck: Truck }): JSX.Element {
   const bookUp = r.profitBook >= 0;
   const signed = (x: number) => `${x >= 0 ? "+" : "−"}${money(x)}`;
   // From an empty field the first step starts at the first rate above Book now in the range.
-  const step = (d: number) => setBid(Math.round(Math.min(hi, Math.max(lo, bid === null ? Math.max(lo, l.bookNow + 0.05) : bid + d)) * 100) / 100);
+  // QA's 0.24.1 replay, item 12: a refusal said under the field goes once the field holds a bid it takes.
+  const clearRefusal = () => setNote((x) => (x?.bad ? null : x));
+  const step = (d: number) => {
+    clearRefusal();
+    setBid(Math.round(Math.min(hi, Math.max(lo, bid === null ? Math.max(lo, l.bookNow + 0.05) : bid + d)) * 100) / 100);
+  };
   // Under a bid above Book now: what it pays over Book now if it wins at the round, and what beats it. With no suggestion
   // and no such bid typed: Iuliia's word that booking is the better call here. No odds: the engine computes none.
   // Client batch 8a item 61: under break-even the loss is said; where loads like this clear under the player's break-even,
@@ -390,7 +396,10 @@ function LoadSheet({ r, truck }: { r: BoardRow; truck: Truck }): JSX.Element {
   };
   const placeBid = async () => {
     // A figure still being typed counts as typed (the press can come before the field's blur), held to the range.
-    const typed = bidText !== null ? Number(bidText.replace(",", ".")) : NaN;
+    // Client batch 8b item 10: a field that holds something other than a rate says so, and nothing is placed.
+    const read = bidText !== null ? typedRate(bidText) : null;
+    if (read?.kind === "bad") return setNote({ text: PENDING.bidNotARate, bad: true });
+    const typed = read?.kind === "rate" ? read.rate : NaN;
     // Client batch 8a item 4 (QA): as the laptop table does, more than a cent over the shown ceiling is refused in words
     // and nothing is placed; within a cent it's held to the ceiling. Never lowered without a word.
     if (Number.isFinite(typed) && typed > 0 && overCeiling(l, typed)) return setNote({ text: ANSWER.ceiling(bidCeiling(l).toFixed(2)), bad: true });
@@ -509,12 +518,17 @@ function LoadSheet({ r, truck }: { r: BoardRow; truck: Truck }): JSX.Element {
             value={bidText ?? (bid === null ? "" : bid.toFixed(2))}
             onInput={(e) => setBidText((e.currentTarget as HTMLInputElement).value)}
             onBlur={() => {
-              const v = Number((bidText ?? "").replace(",", "."));
+              const read = typedRate(bidText ?? "");
+              if (read.kind === "bad") setNote({ text: PENDING.bidNotARate, bad: true });
+              const v = read.kind === "rate" ? read.rate : NaN;
               // Client batch 8a items 4 and 61: over the ceiling is said and the field keeps the bid it had; under break-even
               // is kept, its loss said under the field.
               if (bidText !== null && Number.isFinite(v) && v > 0) {
                 if (overCeiling(l, v)) setNote({ text: ANSWER.ceiling(bidCeiling(l).toFixed(2)), bad: true });
-                else setBid(Math.round(Math.min(hi, clampToCeiling(l, v)) * 100) / 100);
+                else {
+                  clearRefusal();
+                  setBid(Math.round(Math.min(hi, clampToCeiling(l, v)) * 100) / 100);
+                }
               }
               setBidText(null);
             }}

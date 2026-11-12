@@ -1020,23 +1020,48 @@ export const economyConfig = {
     // local-first share, the dispatcher's lookahead, the bots' choice of trailer), the contract index, w.lastRatio and
     // w.lastRatioEq. rates.ratioClamp stays as it is for everything else, and off this is never read. A facility's goods
     // are priced from the ratio without the memory, under rates.ratioClamp (freight.ts facilityRef).
+    // Batch 7 (studio/reviews/economy-delivery-windows-batch6.md §3, option 1): what a shipper pays a broker never carries
+    // the memory either. Every brokered tender, an AI broker's and a player's brokerage's alike (freight.ts tenderToBroker),
+    // is priced from a second contract index, w.contractIndexBase: the same lag, read from the ratio without the memory
+    // under rates.ratioClamp, from the contract index as it stood the round windows came on; its destination's reload terms
+    // read the memory-free reload index, as a facility's goods do (freight.ts contractRef, withBaseReload). So the memory
+    // lifts what the board pays a carrier for a load, not the broker's contract. A carrier's own shipper contract
+    // (contracts.ts contractRate) still reads the market's contract index, memory and all.
     ratioClampTop: 6,
+    // Batch 8 (economy-delivery-windows-batch7-2026-11-12.md §4.1; the producer, 2026-11-12): the memory's lift steeper,
+    // not higher. While windows are on, this exponent takes the place of rates.ratioExponent (0.35) in all three of its
+    // reads in freight.ts generateRoundFreight: the board's reference (refRateOf), the contract index (the carriers'
+    // contract pay) and batch 7's memory-free contract index (every brokered tender), as the economy's two-seed check ran
+    // it (rates.ratioExponent 0.5 in the windows-on arm: the rate 3.73 against the off arm's 3.77). The clamp's top is
+    // unchanged. Off, rates.ratioExponent as before.
+    ratioExponent: 0.5,
     // Batch 4, the same-day premium (Jeff, 2026-11-09, a market rule): an NPC load posted for pickup the same day (lead 0)
     // pays this on its reference at posting; the ceiling, book-now and a broker's contract follow from it. Not on a hot load
     // (its premium is its urgency); book-now never over the ceiling, the walk never over the walked ceiling.
     sameDayPremium: 1.1,
-    // Batch 6 (studio/reviews/economy-delivery-windows-batch5.md §3; DECISIONS.md 2026-11-10): who covers what they take.
-    // A trailing week (coverDays) of loads taken and loads lost at their pickup's close is kept per AI broker and hub, and
-    // per hub for facility freight (windows.ts tally); a share counts once coverMinLoads were taken in the week.
-    // brokerMaxLostShare: an AI broker takes an NPC tender at a hub only while its lost share there is under this; above
-    // it the tender goes to the board, as a capped tender does (freight.ts tenderToBroker).
-    // The bots' facility test reads the hub's facility lost share (ruleBots chooseFacility; with too few loads, the board's
-    // fill over the window's rounds of life, its pickup hours in rounds), and a bot closes a facility that has run at a
-    // loss (its netFd under zero) facilityCloseWeeks after it bought it (windows.ts closeFacility).
+    // Batch 6 (studio/reviews/economy-delivery-windows-batch5.md §3; DECISIONS.md 2026-11-10), as batch 7 (§3–4 of
+    // economy-delivery-windows-batch6.md) changed it: who covers what they take. A trailing week (coverDays) of loads taken
+    // and loads lost at their pickup's close is kept per hub (windows.ts tally): the AI brokers' together (b:{hub}), the
+    // hub's facility freight, and the hub's NPC shippers' freight, posted and lost (n:{hub}: NPC direct and the AI brokers',
+    // as the lost-load memory counts it). A share counts once coverMinLoads were taken (or posted) in the week.
+    // brokerMaxLostShare: at a hub whose AI brokers lost this share of what they took, every AI broker passes the tender up
+    // and it goes to the board, as a capped tender does (freight.ts tenderToBroker). A player's brokerage is never tallied
+    // and never held by it.
+    // The bots' facility test reads the hub's facility lost share (ruleBots chooseFacility); with too few facility loads,
+    // one less the hub's NPC shippers' lost share; with too few of those, 0 (nothing says freight moves there, so a bot
+    // doesn't buy). A bot closes a facility that has run at a loss (its netFd under zero) facilityCloseWeeks after it
+    // bought it (windows.ts closeFacility).
+    // Batch 7, a tender held for a player's brokerage (brokerage.ts): while held it has no window; the lead drawn at
+    // posting is kept on the hold and the window opens from it when the hold ends (endHold: posted, declined, or tendered
+    // to its own carrier), so the hold never eats the window. Off, the window is drawn at posting as before.
     coverDays: 7,
     coverMinLoads: 4,
     brokerMaxLostShare: 0.25,
     facilityCloseWeeks: 8,
+    // Batch 8 (§4.2): a bot facility closed at a loss blocks bot facilities at its hub for this many weeks (w.facilityBlocked,
+    // windows.ts blockFacilityHub; ruleBots chooseFacility skips the hub), so the next bot doesn't rebuild where the last
+    // one failed; the tally's week is too short to remember.
+    facilityBlockWeeks: 26,
     // Booking ahead, the dispatcher (batch 3): a truck on a job is planned for its next load once it will be free within
     // this many hours (canMake's projection), priced from where and when it's free; one ahead, never a third.
     planAheadHours: 12,
@@ -2086,8 +2111,10 @@ export const economyConfig = {
     cushionAvgWeeks: 4, // the cushion averages spending over this many weeks (at most seasonClose.workingCapitalWeeks are kept)
     milestoneWindowDays: 12, // a milestone's line shows within this many game days of its date (the director's gate)
     // The first-truck verdict's "sound" truck (the director's ruling A, 2026-11-10): a truck at or over this condition
-    // (wear.ts condition, 0–1). PLACEHOLDER until the economy sets it from its wear rules (the condition at which expected
-    // repairs stay under its level); 0.6 is the client's worn line today (figures.ts WORN_BELOW). Screens only.
+    // (wear.ts condition, 0–1). Set by the economy from the wear rules (economy-sound-truck-2026-11-12.md §1): at 0.6 a
+    // Workhorse's expected repairs run about twice a fresh truck's, and it sits above the cheapest moment to rebuild at
+    // any mileage (0.47–0.57), so its owner earns without the shop's big job first. The client's worn line reads it too
+    // (figures.ts WORN_BELOW). Screens only.
     soundCondition: 0.6,
   },
   // A hub reads its open dry-van loads whose ceiling clears a starter's break-even by `margin`, per round of its base van freight.

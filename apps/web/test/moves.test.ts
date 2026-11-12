@@ -64,7 +64,8 @@ describe("the return sitting (R21, R22, R24)", () => {
     try {
       saveVisit(g.w, c);
       const saved = JSON.parse(store.get("lanes.lastVisit")!) as { realMs: number };
-      const back = returnFor(g.w, c, true, saved.realMs + RETURN_HOURS * 3_600_000)!;
+      for (let h = 0; h < 24; h++) g.stepHour(); // client batch 8b item 60: a game day away
+      const back = returnFor(g.w, c, true, saved.realMs)!;
       expect(back.backT).toBe(g.w.t);
       expect(back.breakdowns).toBe(0);
     } finally {

@@ -2,7 +2,8 @@ import type { JSX } from "preact";
 import { dockHoursAt, dutyResetAt, hubMiles, nextOpen, type Company, type Truck, type World } from "@lanes/engine";
 import { needs, wallAt } from "../logic.js";
 import { RETURN } from "../copy.js";
-import { fdFull, hhmm, shortDate, weekdayDate } from "../format.js";
+import { fdFull, hhmm, pct, shortDate, weekdayDate } from "../format.js";
+import { PENDING } from "../copy-pending.js";
 import { drivingLeftMin, etaMin } from "../rolling.js";
 import { bumpData, S, setTab, truckNo } from "../state.js";
 import { Btn } from "./bits.js";
@@ -101,6 +102,24 @@ export function ReturnCard(): JSX.Element | null {
   const ranked = rankedTrucks(trucks);
   const day = Math.floor(away.backT / w.cfg.time.gameMinutesPerDay);
   const lines: { text: string; go?: () => void; button?: string }[] = [{ text: RETURN.helloAt(`${weekdayDate(day)}, ${hhmm(away.backT)}`) }];
+  // Client batch 8b item 60 (the director's E): the time away, then what went wrong, the money, on time; the next step is
+  // What now?'s, below. Iuliia's line from the worst item, else the best, never the same twice running.
+  const e = away.e;
+  if (e) {
+    lines.push({ text: PENDING.awayFor(Math.floor(e.awayMin / 1440), Math.floor((e.awayMin % 1440) / 60)) });
+    const wrong = [
+      ...(e.taken ? [PENDING.awayTaken(e.taken)] : []),
+      ...(e.missed ? [PENDING.awayMissed(e.missed)] : []),
+      ...(e.claims ? [PENDING.awayClaims(e.claims, fdFull(e.claimsFd))] : []),
+      ...(away.late ? [PENDING.awayLate(away.late)] : []),
+      ...(e.emptyMi >= 1 ? [PENDING.awayEmpty(Math.round(e.emptyMi).toLocaleString("en-US"))] : []),
+      ...(away.breakdowns ? [PENDING.awayBreakdowns(away.breakdowns)] : []),
+      ...(e.finesFd >= 0.5 ? [PENDING.awayFines(fdFull(e.finesFd))] : []),
+    ];
+    lines.push({ text: wrong.length ? PENDING.awayWrong(wrong.join(", ")) : PENDING.awayNothingWrong });
+    lines.push({ text: PENDING.awayMoney(away.delivered, fdFull(away.inFd), fdFull(e.keptFd), fdFull(e.cashThen), fdFull(e.cashNow)), go: seeToday, button: RETURN.seeToday });
+    if (away.delivered > 0) lines.push({ text: PENDING.awayOnTime(pct(Math.max(0, away.delivered - away.late) / away.delivered)) });
+  }
   if (trucks.length === 1) lines.push(...truckLines(w, c, trucks[0]!).map((text) => ({ text })));
   else if (trucks.length > 1) {
     const idle = trucks.filter((t) => t.status === "idle");
@@ -110,7 +129,9 @@ export function ReturnCard(): JSX.Element | null {
     for (const t of ranked.slice(0, 3)) lines.push(...truckLines(w, c, t, `Truck ${truckNo(t.id)}`).map((text) => ({ text })));
     if (trucks.length > 3) lines.push({ text: RETURN.more(trucks.length - 3) });
   }
-  if (!away.live) lines.push({ text: RETURN.awayTest });
+  if (e) {
+    /* the interval said above, in the director's order */
+  } else if (!away.live) lines.push({ text: RETURN.awayTest });
   else if (away.delivered > 0 || away.inFd > 0.5 || away.outFd > 0.5) {
     lines.push({ text: RETURN.awayLive(away.delivered, fdFull(away.inFd), fdFull(away.outFd)), go: seeToday, button: RETURN.seeToday });
     const trouble = [...(away.breakdowns ? [RETURN.breakdown(away.breakdowns)] : []), ...(away.late ? [RETURN.late(away.late)] : []), ...(away.tickets ? [RETURN.ticket(away.tickets)] : [])];
@@ -123,6 +144,7 @@ export function ReturnCard(): JSX.Element | null {
       <span class="small stripline">{stripLine(w, c, ranked[0])}</span>
       <Iuliia mood="wave" size={96} />
       <div class="stack full">
+        {e ? <i class="small">{awayLine(away)}</i> : null}
         {lines.map((l, i) => (
           <span class="small" key={i}>
             {l.text}
@@ -158,6 +180,45 @@ export function ReturnCard(): JSX.Element | null {
       </span>
     </div>
   );
+}
+
+/**
+ * Iuliia's line for a return (the director's E): from the interval's worst item, else its best; never the line she said
+ * last time (kept in this browser), so the next kind down speaks instead.
+ */
+const AWAY_LINE_KEY = "lanes.awayLine";
+const lineMemo = new WeakMap<object, string>();
+function awayLine(a: NonNullable<typeof S.returnCard>): string {
+  const hit = lineMemo.get(a);
+  if (hit) return hit;
+  const e = a.e!;
+  const kinds = [
+    ...(e.taken ? ["taken"] : []),
+    ...(e.missed ? ["missed"] : []),
+    ...(e.claims ? ["claims"] : []),
+    ...(a.breakdowns ? ["breakdowns"] : []),
+    ...(a.late ? ["late"] : []),
+    ...(e.emptyMi >= 100 ? ["empty"] : []),
+    ...(e.finesFd >= 0.5 ? ["fines"] : []),
+    ...(e.keptFd >= 0.5 ? ["kept"] : []),
+    ...(a.delivered > 0 ? ["delivered"] : []),
+    "quiet",
+  ];
+  let last: string | null = null;
+  try {
+    last = localStorage.getItem(AWAY_LINE_KEY);
+  } catch {
+    last = null;
+  }
+  const all = kinds.flatMap((k) => PENDING.awayLines[k] ?? []);
+  const line = all.find((x) => x !== last) ?? all[0] ?? "";
+  try {
+    localStorage.setItem(AWAY_LINE_KEY, line);
+  } catch {
+    /* a private window: no memory of the last line */
+  }
+  lineMemo.set(a, line);
+  return line;
 }
 
 /** More › Iuliia's timeline: the last return's card, reopened as it was (the UX spec). */

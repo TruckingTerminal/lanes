@@ -2,11 +2,11 @@ import type { JSX } from "preact";
 import { ownerDrawFd, placeMiles, type Company, type World } from "@lanes/engine";
 import { NEEDS, NOW } from "../copy.js";
 import { PENDING } from "../copy-pending.js";
-import { sendHomePriced, waysOut } from "../logic.js";
+import { seatBack, sendHomePriced, waysOut } from "../logic.js";
 import { exitButton, exitLine, takeExit } from "./WaysOut.js";
 import { fdFull, hhmm, pct, shortDate, plural } from "../format.js";
 import { GAME_CONFIG } from "../game.js";
-import { nextAction, type NextAction } from "../nextstep.js";
+import { freeDriverFor, nextAction, type NextAction } from "../nextstep.js";
 import { act, bumpData, isPhone, me, S, selectTruck, setTab, truckNo } from "../state.js";
 import { TAB_NAME, tabOpen } from "../tabs.js";
 import { skippedSteps, stepDo, stepText, walkSteps } from "../walkthrough.js";
@@ -15,6 +15,7 @@ import { chipPair } from "../board.js";
 import { Iuliia } from "./Walkthrough.js";
 import { kindInView } from "../companies.js";
 import { leaseMinFor } from "../ledger.js";
+import { leasedNo, orderedFirstTruck } from "../figures.js";
 
 /**
  * What now? (specs/guidance.md section 1, guidance-ux.md section 1): a chip in Iuliia's caption, in its own button row, on
@@ -190,9 +191,24 @@ function words(a: NextAction): { action: string; reason: string; button: string;
       return { action: NOW.tenderAction(shipper || "A shipper"), reason: NOW.tenderReason(hhmm(a.untilMin)), button: NOW.tenderButton, go: () => setTab("fleet") };
     }
     case "driver": {
+      // QA's 0.24.1 replay, fail 3: a parked truck with no driver; with a free driver standing by it, back in it goes.
+      const n = truckNo(a.truckId);
+      const tk = w.trucks[a.truckId - 1]!;
+      const at = w.net.places[tk.place]!.name;
+      if (a.freeId) {
+        // Its own driver first, as off sale does (the page's record of the crew it listed with).
+        const s = freeDriverFor(w, w.companies[tk.companyId - 1]!, tk, S.listedCrew.get(a.truckId), S.lastDriver.get(a.truckId)) ?? w.staff[a.freeId - 1]!;
+        const reason = s.owner ? PENDING.seatBackOwnerReason(n, at) : PENDING.seatBackReason(s.name, n, at, w.cfg.labor.morale.unseatedWeeks);
+        return { action: PENDING.seatBackAction(s.owner ? "yourself" : s.name, n), reason, button: PENDING.seatBackButton, go: () => seatBack(a.truckId, s.id, PENDING.offSaleBack(n, s.owner ? "you" : s.name)) };
+      }
+      if (a.parked) return { action: NOW.driverAction(n), reason: PENDING.parkedNoDriver(n, at), button: NOW.driverButton, go: () => setTab("staff") };
       // "Has gone" only for a driver this page saw drive the truck; a truck nobody has driven reads differently (QA).
       const gone = S.lastDriver.get(a.truckId);
       return { action: NOW.driverAction(truckNo(a.truckId)), reason: gone ? NOW.driverReason(gone) : NOW.driverReasonNone(truckNo(a.truckId)), button: NOW.driverButton, go: () => setTab("staff") };
+    }
+    case "parkedCrew": {
+      const s = w.staff[a.staffId - 1]!;
+      return { action: PENDING.parkedCrewAction(truckNo(a.truckId)), reason: PENDING.parkedCrewReason(s.name, w.cfg.labor.morale.unseatedWeeks), button: PENDING.seatBackButton, go: () => act({ type: "unpark_truck", truckId: a.truckId }, PENDING.offSaleBack(truckNo(a.truckId), s.name)) };
     }
     case "loanDefault": {
       const n = a.truckId ? truckNo(a.truckId) : null;
@@ -251,7 +267,13 @@ function words(a: NextAction): { action: string; reason: string; button: string;
     case "gap":
       return { action: (w.trucksByCompany.get(c.id) ?? []).some((t) => t.lease === "owned") ? PENDING.gapActionNext : NOW.gapAction, reason: PENDING.gapReason(fd(a.gapFd)), button: NOW.gapButton, go: () => setTab("market") };
     case "ordered":
-      return { action: PENDING.whatNowOrderedAction(a.days), reason: PENDING.whatNowOrderedReason, button: NOW.gapButton, go: () => setTab("market") };
+    {
+      // Client batch 8b item 17: past its day, "ready since", with the leased truck's number and how the hand-over comes.
+      const o = orderedFirstTruck(w, c);
+      const today = Math.floor(w.t / w.cfg.time.gameMinutesPerDay);
+      const swap = w.cfg.assets.swapAtNextIdle;
+      return { action: PENDING.whatNowOrderedAction(a.days, o && o.dueDay < today ? shortDate(o.dueDay) : null, leasedNo(w, c), swap), reason: PENDING.whatNowOrderedReason(swap), button: NOW.gapButton, go: () => setTab("market") };
+    }
     case "calm": {
       const e = a.event;
       const event = e.kind === "round" ? NOW.eventRound : e.kind === "monthClose" ? NOW.eventMonthClose : e.kind === "layer" ? NOW.eventLayer(e.layer === "businesses" ? "Businesses" : "Brokerage") : NOW.eventFactoring;

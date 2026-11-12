@@ -1,4 +1,4 @@
-import { companyAccount, condition, rebuildable, type Company, type Truck, type World } from "@lanes/engine";
+import { companyAccount, condition, rebuildable, riskPremium, type Company, type Truck, type World } from "@lanes/engine";
 import { numberTrucks } from "./trucknos.js";
 
 /**
@@ -58,11 +58,19 @@ interface Open {
    */
   taken?: number;
   takenLoansFd?: number;
+  /**
+   * Client batch 8b item 15 (the exploit hunter: February's report had no "Invoices not yet paid" though about 17,000 FD
+   * of February's was owed): the invoices owed to the company as the month began, by id, so the close can split what's
+   * owed into this month's still unpaid and earlier months' paid (the report showed only their net, under one label).
+   */
+  owedIdsStart?: number[];
 }
 export interface MonthBooks extends Open {
   closedDay: number;
   cashEnd: number;
   owedEnd: number;
+  /** Of owedEnd, what earlier months raised and is still unpaid (item 15); absent on months kept before it. */
+  owedEarlierEnd?: number;
   goodsOwedEnd: number;
   payEnd: number;
   loads: number;
@@ -78,7 +86,7 @@ interface CompanyBooks {
   /** Each truck's odometer as the hour began, and which truck it was (a hand-over puts a new truck under the same id). */
   odo: Map<number, { odo: number; loaded: boolean; built: number; lease: Truck["lease"]; tier: Truck["tier"] }>;
   /** Each purchase loan's status and what it owed as the hour began (item 19: a loan closed by the lender taking its truck). */
-  loans: Map<number, { status: string; owedFd: number; truckId: number }>;
+  loans: Map<number, { status: string; owedFd: number; truckId: number; missed: number }>;
 }
 interface WorldBooks {
   byCompany: Map<number, CompanyBooks>;
@@ -86,6 +94,8 @@ interface WorldBooks {
 const BOOKS = new WeakMap<World, WorldBooks>();
 
 /** Invoices the company holds, not yet paid: what it is owed. */
+/** The ids of the invoices owed to the company and held by it (item 15's split). */
+const owedIds = (w: World, c: Company): number[] => w.receivables.filter((r) => r.payeeId === c.id && r.holder === c.id).map((r) => r.id);
 export const owedTo = (w: World, c: Company): number => w.receivables.reduce((s, r) => (r.payeeId === c.id && r.holder === c.id ? s + r.amountFd : s), 0);
 /** Of what the company is owed, its goods sold to the NPC market (trips.ts: the market buys a player shipper's goods). */
 export const goodsOwed = (w: World, c: Company): number => w.receivables.reduce((s, r) => (r.payeeId === c.id && r.holder === c.id && r.faucet === "faucet:npc_market" ? s + r.amountFd : s), 0);
@@ -271,7 +281,7 @@ function booksOf(w: World, c: Company, cashBefore: number): CompanyBooks {
   const wb = BOOKS.get(w)!;
   let b = wb.byCompany.get(c.id);
   if (!b) {
-    b = { open: { fromDay: dayOfT(w, w.t), cashStart: cashBefore, owedStart: owedTo(w, c), goodsOwedStart: goodsOwed(w, c), payStart: owedBy(w, c), flows: {}, loadedMi: 0, emptyMi: 0, drawStart: c.ownerDrawFd, taken: 0, takenLoansFd: 0 }, closed: [], mark: c.lastMonth?.closedDay ?? null, events: [], odo: new Map(), loans: new Map() };
+    b = { open: { fromDay: dayOfT(w, w.t), cashStart: cashBefore, owedStart: owedTo(w, c), goodsOwedStart: goodsOwed(w, c), payStart: owedBy(w, c), flows: {}, loadedMi: 0, emptyMi: 0, drawStart: c.ownerDrawFd, taken: 0, takenLoansFd: 0, owedIdsStart: owedIds(w, c) }, closed: [], mark: c.lastMonth?.closedDay ?? null, events: [], odo: new Map(), loans: new Map() };
     wb.byCompany.set(c.id, b);
   }
   return b;
@@ -358,11 +368,13 @@ export function booksAfterHour(w: World): void {
       b.mark = closed;
       const cashEnd = w.ledger.balance(companyAccount(c.id));
       const owedEnd = owedTo(w, c);
+      const earlier = new Set(b.open.owedIdsStart ?? []);
+      const owedEarlierEnd = w.receivables.reduce((s, r) => (r.payeeId === c.id && r.holder === c.id && earlier.has(r.id) ? s + r.amountFd : s), 0);
       const goodsOwedEnd = goodsOwed(w, c);
       const payEnd = owedBy(w, c);
-      b.closed.push({ ...b.open, closedDay: closed, cashEnd, owedEnd, goodsOwedEnd, payEnd, loads: c.lastMonth!.loads, onTime: c.lastMonth!.onTime, drawEnd: c.ownerDrawFd });
+      b.closed.push({ ...b.open, closedDay: closed, cashEnd, owedEnd, owedEarlierEnd: b.open.owedIdsStart ? owedEarlierEnd : undefined, goodsOwedEnd, payEnd, loads: c.lastMonth!.loads, onTime: c.lastMonth!.onTime, drawEnd: c.ownerDrawFd });
       if (b.closed.length > 24) b.closed.shift();
-      b.open = { fromDay: closed, cashStart: cashEnd, owedStart: owedEnd, goodsOwedStart: goodsOwedEnd, payStart: payEnd, flows: {}, loadedMi: 0, emptyMi: 0, drawStart: c.ownerDrawFd, taken: 0, takenLoansFd: 0 };
+      b.open = { fromDay: closed, cashStart: cashEnd, owedStart: owedEnd, goodsOwedStart: goodsOwedEnd, payStart: payEnd, flows: {}, loadedMi: 0, emptyMi: 0, drawStart: c.ownerDrawFd, taken: 0, takenLoansFd: 0, owedIdsStart: owedIds(w, c) };
     }
   } catch (e) {
     console.error(e);
@@ -382,11 +394,15 @@ function takenOf(w: World, c: Company, b: CompanyBooks): void {
     if (was && (was.status === "active" || was.status === "defaulted") && !open) {
       const t = was.truckId ? w.trucks[was.truckId - 1] : undefined;
       if (t && t.status === "retired") {
+        // Client batch 8b (the writer's flag 3): a seizure in the same weekly step as the miss that defaulted it comes
+        // after that week's interest is added (purchaseLoans.ts), so the owed matches the lender's notice.
+        const k = w.cfg.equipmentFinance.purchase;
+        const interest = loan.missed > was.missed ? was.owedFd * (loan.weeklyRate + (k.risk.enabled ? riskPremium(w, c).rate : 0)) : 0;
         b.open.taken = (b.open.taken ?? 0) + 1;
-        b.open.takenLoansFd = (b.open.takenLoansFd ?? 0) + was.owedFd;
+        b.open.takenLoansFd = (b.open.takenLoansFd ?? 0) + was.owedFd + interest;
       }
     }
-    if (open) b.loans.set(loan.id, { status: loan.status, owedFd: loan.principalFd, truckId: loan.truckId });
+    if (open) b.loans.set(loan.id, { status: loan.status, owedFd: loan.principalFd, truckId: loan.truckId, missed: loan.missed });
     else b.loans.delete(loan.id);
   }
 }
@@ -406,6 +422,13 @@ function milesOf(b: CompanyBooks, t: Truck): void {
     }
   }
   b.odo.set(t.id, { odo: t.odometer, loaded, built: t.builtDay, lease: t.lease, tier: t.tier });
+}
+
+/** Empty miles the books have counted for the company in all (closed months and the open one), item 60's "while away". */
+export function emptyMilesSoFar(w: World, c: Company): number {
+  const b = BOOKS.get(w)?.byCompany.get(c.id);
+  if (!b) return 0;
+  return b.closed.reduce((s, m) => s + m.emptyMi, 0) + b.open.emptyMi;
 }
 
 /** The company's closed months, newest first. */
@@ -433,6 +456,13 @@ export interface MonthReport {
   cashStart: number;
   /** Invoices raised this month still owed at the close, less those of earlier months paid in it (− in the sum). */
   owedChange: number;
+  /**
+   * Item 15: owedChange in its two parts, when the month kept them: this month's invoices still unpaid at the close
+   * (`owedNew`, out of cash: − in the path) and earlier months' paid in it (`owedEarlierPaid`, + in the path).
+   * owedChange = owedNew − owedEarlierPaid.
+   */
+  owedNew?: number;
+  owedEarlierPaid?: number;
   /** Bills the company owes at the close not yet paid, less earlier ones paid (+ in the sum). */
   payChange: number;
   moved: { line: (typeof MOVED)[number]; fd: number }[];
@@ -489,7 +519,11 @@ export function shownReport(r: MonthReport): MonthReport {
   // The cash path: −owed change, + payable change, + every other movement, to land on cash at the close.
   const path = apportion([-r.owedChange, r.payChange, ...r.moved.map((x) => x.fd)], cashEnd - cashStart - keptFd);
   const moved = r.moved.map((x, i) => ({ ...x, fd: path[i + 2]! })).filter((x) => x.fd !== 0);
-  return { ...r, earned, spent, earnedFd, spentFd, keptFd, cashStart, cashEnd, owedChange: -path[0]!, payChange: path[1]!, moved, drawFd: Math.round(r.drawFd) };
+  // Item 15: the two parts in whole FD that still net to the path's owed change.
+  const owedChange = -path[0]!;
+  const owedEarlierPaid = r.owedEarlierPaid === undefined ? undefined : Math.round(r.owedEarlierPaid);
+  const owedNew = owedEarlierPaid === undefined ? undefined : owedChange + owedEarlierPaid;
+  return { ...r, earned, spent, earnedFd, spentFd, keptFd, cashStart, cashEnd, owedChange, owedNew, owedEarlierPaid, payChange: path[1]!, moved, drawFd: Math.round(r.drawFd) };
 }
 
 export function monthReport(m: MonthBooks): MonthReport {
@@ -514,6 +548,8 @@ export function monthReport(m: MonthBooks): MonthReport {
     keptFd: earnedFd - spentFd,
     cashStart: m.cashStart,
     owedChange,
+    owedNew: m.owedEarlierEnd === undefined ? undefined : m.owedEnd - m.owedEarlierEnd,
+    owedEarlierPaid: m.owedEarlierEnd === undefined ? undefined : m.owedStart - m.owedEarlierEnd,
     payChange,
     moved: moved.filter((r) => Math.abs(r.fd) >= 0.5),
     cashEnd: m.cashEnd,

@@ -2,9 +2,9 @@ import type { JSX } from "preact";
 import { useEffect, useRef, useState } from "preact/hooks";
 import { crewed, dispatchProfile, expectedReloadDeadheadMi, isLocal, operatingTrucks, localOnly, MANUAL_BID_MAX_DEADHEAD_MI, ownerDrawFd, placeMiles, placeToll, VETTING_NAMES, type Load, type Truck } from "@lanes/engine";
 import { COMMODITIES } from "@lanes/data";
-import { allInRate, bidCeiling, bidFiles, bidRange, blockReason, chipPair, clampToCeiling, clearsNear, overCeiling, rateShown, suggestBid } from "../../board.js";
+import { allInRate, bidCeiling, bidFiles, bidRange, typedRate, blockReason, chipPair, clampToCeiling, clearsNear, overCeiling, profitOver, rateShown, suggestBid } from "../../board.js";
 import { ANSWER } from "../../copy.js";
-import { BOARD } from "../../copy.js";
+import { BOARD, LOAD } from "../../copy.js";
 import { DockWarning, ProfitChip } from "../ProfitChip.js";
 import { trueBreakEven } from "../../breakeven.js";
 import { cls, fd, fdFull, hhmm, pct, shortDate, TRAILER_CODE, TRAILER_NAME } from "../../format.js";
@@ -145,7 +145,7 @@ export function LoadsTable(): JSX.Element {
     const be = trueBreakEven(w, truck, l, dh, placeToll(w, truck.place, l.originPlace), prof.foresightDays, prof.reloadWeight);
     const suggest = suggestBid(w, l, be);
     const block = blockReason(w, me(), truck, l); // the board's one reason (R22), the same words as the cards
-    rows.push({ l, dh, be, suggest, profit: suggest === null ? null : (suggest - be) * l.miles, profitBook: (l.bookNow - be) * l.miles, reloadMi, tolls, highway: lane.highwayShare, hours: l.routeHours, total: l.bookNow * l.miles, ageH: l.roundsUnfilled * 12, block, files: bidFiles(w, me(), truck, l) });
+    rows.push({ l, dh, be, suggest, profit: suggest === null ? null : profitOver(w, truck, suggest, be, l.miles), profitBook: profitOver(w, truck, l.bookNow, be, l.miles), reloadMi, tolls, highway: lane.highwayShare, hours: l.routeHours, total: l.bookNow * l.miles, ageH: l.roundsUnfilled * 12, block, files: bidFiles(w, me(), truck, l) });
   }
   const key = (r: Row): number => (sort === "rate" ? r.total : sort === "permi" ? r.l.bookNow : sort === "age" ? r.ageH : sort === "trip" ? r.l.miles : sort === "dh" ? r.dh : r.l.appointmentT);
   rows.sort((a, b) => (desc ? key(b) - key(a) : key(a) - key(b)));
@@ -303,8 +303,11 @@ function LoadDetail({ r, truck, mine, pendingRate }: { r: Row; truck: Truck; min
   const bidId = `bid-${l.id}`;
   const placeBid = () => {
     // Client batch 7: a typed bid within a cent above the shown ceiling is the shown ceiling (board.ts clampToCeiling).
-    const rate = clampToCeiling(l, Number((document.getElementById(bidId) as HTMLInputElement).value));
-    if (!Number.isFinite(rate) || rate <= 0) return toast(PENDING.bidEmpty, true); // an empty field places nothing (pass 2b)
+    // Client batch 8b item 10: something other than a rate is said; an empty field places nothing (pass 2b).
+    const read = typedRate((document.getElementById(bidId) as HTMLInputElement).value);
+    if (read.kind === "bad") return toast(PENDING.bidNotARate, true);
+    if (read.kind === "empty") return toast(PENDING.bidEmpty, true);
+    const rate = clampToCeiling(l, read.rate);
     // Client batch 8a item 4: more than a cent over the shown ceiling is refused in words, and nothing is placed.
     if (overCeiling(l, rate)) return toast(ANSWER.ceiling(bidCeiling(l).toFixed(2)), true);
     // Client batch 8a item 61: a bid under break-even goes in, with the loss said.
@@ -367,7 +370,8 @@ function LoadDetail({ r, truck, mine, pendingRate }: { r: Row; truck: Truck; min
               ["Cargo value", <Num>{fd(l.cargoValue)} FD</Num>],
               ["Driving", <>{r.hours.toFixed(1)} h{r.highway >= 0.05 ? <span class="warn"> · {pct(r.highway)} two-lane</span> : " · interstate"}</>],
               ["Tolls", r.tolls > 0 ? <span class="warn">{fd(r.tolls)} FD</span> : "none"],
-              ["Reload at " + d.id, <><span class={reloadClass(l.dest, l.equipment)}>{reloadLabel(l.dest, l.equipment)}</span> · about {Math.round(r.reloadMi)} mi empty to the next load</>],
+              // Client batch 8b item 5: the sheet's name for the place (it read "Reload at ABE" here, Allentown there).
+              [LOAD.reloadAt(d.name), <><span class={reloadClass(l.dest, l.equipment)}>{reloadLabel(l.dest, l.equipment)}</span> · about {Math.round(r.reloadMi)} mi empty to the next load</>],
               ["Season", Math.abs(seasonSwing(l.origin, l.equipment)) < 0.05 ? "normal" : <SeasonNote hub={l.origin} eq={l.equipment} />],
             ]}
           />

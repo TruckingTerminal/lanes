@@ -301,8 +301,15 @@ function seize(w: World, loan: PurchaseLoan): void {
 
 /** The lender's notice (the writer may reword it): the truck, what the loan owed, what the truck's value covered, what came back. */
 export function seizedNotice(truckId: number, missed: number, owedFd: number, coveredFd: number, backFd: number): string {
+  // The writer's lines (writer-client8a-2026-11-10.md section 1): what seize() does, said whole, including what's written
+  // off and the stake that comes back.
   const rest = owedFd - coveredFd;
-  const tail = backFd > 0.5 ? ` Its value was more than that: ${fmtInt(backFd)} FD came back to you.` : rest > 0.5 ? ` Its value covered ${fmtInt(coveredFd)} FD; the other ${fmtInt(rest)} FD came from the loan's stake and your cash, as far as they went.` : "";
+  const tail =
+    backFd > 0.5
+      ? ` The truck was worth ${fmtInt(backFd)} FD more than the loan: that came back to you, and so did the loan's stake.`
+      : rest > 0.5
+        ? ` The truck covered ${fmtInt(coveredFd)} FD of it. The rest, ${fmtInt(rest)} FD, came out of the loan's stake and then your cash; any stake left over came back to you, and what neither covered is written off.`
+        : " The loan's stake came back to you.";
   const after = missed > 0 ? ` after ${missed} missed ${missed === 1 ? "payment" : "payments"}` : "";
   return `The lender took Truck ${truckId}${after}. Its loan owed ${fmtInt(owedFd)} FD and is closed.${tail}`;
 }

@@ -1,8 +1,9 @@
-import { condition, dayOf, leaseValueFd, effectiveMpg, fuelPrice, hubMiles, maintenancePerMile, rebuildable, rebuildCost, tractorLifeUsed, tractorScrapFd, truckValue, type Company, type Truck, type TruckSpec, type World } from "@lanes/engine";
+import { activeLoanOn, condition, dayOf, leaseValueFd, purchaseLoanOn, effectiveMpg, fuelPrice, hubMiles, maintenancePerMile, rebuildable, rebuildCost, tractorLifeUsed, tractorScrapFd, truckValue, type Company, type Truck, type TruckSpec, type World } from "@lanes/engine";
 import type { Equipment, TractorTier } from "@lanes/config";
 import { CONFIRM } from "./copy.js";
 import { MILES_PER_MONTH } from "./finance.js";
 import { fdFull, pct, shortDate, TIER_NAME, TRAILER_NAME } from "./format.js";
+import { PENDING } from "./copy-pending.js";
 
 /**
  * What the confirm card says for each kind of act (the writer's copy-player2.md, R6): "what it does" and "the one risk",
@@ -23,7 +24,8 @@ export function usedTruck(w: World, c: Company, t: TruckSpec & { tier: TractorTi
   const base: Lines =
     left > 0
       ? { does: CONFIRM.usedFresh(make(t.tier, t.trailer), pct(condition(w.cfg, t)), left), risk: CONFIRM.usedFreshRisk(fdFull(rebuildCost(w.cfg, t))) }
-      : { does: CONFIRM.usedLast(make(t.tier, t.trailer), pct(1 - tractorLifeUsed(w.cfg, t))), risk: CONFIRM.usedLastRisk(fdFull(scrap)) };
+      : // Client batch 8b item 28: condition and life named apart, each for what it is.
+        { does: PENDING.usedLastNamed(make(t.tier, t.trailer), pct(condition(w.cfg, t)), pct(1 - tractorLifeUsed(w.cfg, t))), risk: CONFIRM.usedLastRisk(fdFull(scrap)) };
   if (at === undefined || at === c.homeHub) return base;
   const mi = Math.round(hubMiles(w, c.homeHub, at)).toLocaleString("en-US");
   return { does: `${base.does} ${CONFIRM.usedAway(w.net.hubs[at]!.name, mi)}`, risk: `${base.risk} ${CONFIRM.usedAwayRisk}` };
@@ -52,7 +54,36 @@ export const rebuild = (w: World, t: Truck): Lines => ({ does: CONFIRM.rebuild, 
 
 export const scrap = (w: World, t: Truck, n: number): Lines => ({ does: CONFIRM.scrap(n, fdFull(tractorScrapFd(w, t))), risk: CONFIRM.scrapRisk(fdFull(truckValue(w, t))) });
 
-export const sell = (n: number, askFd: number): Lines => ({ does: CONFIRM.sell(n, fdFull(askFd)), risk: CONFIRM.sellRisk });
+/**
+ * The sell sheet (client batch 8b items 8 and 18, the director's order): what it does, then the price's path to its
+ * floor, the cost of waiting, the end; the buyer line above the starters' band; and the truck's loans, repaid first.
+ */
+export function sell(w: World, t: Truck, n: number, askFd: number, floorShare = 0.6, stepShare = 0.05): Lines {
+  const floor = fdFull(askFd * floorShare);
+  const weeks = Math.round((1 - floorShare) / stepShare);
+  // QA's 0.24.1 replay, fail 3 (the producer: said plainly, before listing): the crew comes off the truck when it's
+  // listed (market.ts listTruck), right after what the sale is.
+  const crew = [t.driverId, t.coDriverId].filter((id) => id > 0).map((id) => w.staff[id - 1]!);
+  const hired = crew.filter((s) => !s.owner).map((s) => s.name);
+  const crewLines = [...(hired.length ? [PENDING.sellCrew(hired, w.cfg.labor.morale.unseatedWeeks)] : []), ...(crew.some((s) => s.owner) ? [PENDING.sellOwnerOff] : [])];
+  const does = [CONFIRM.sell(n, fdFull(askFd)), ...crewLines, PENDING.sellPath(pct(stepShare), pct(floorShare), floor, weeks), PENDING.sellEnd(floor)];
+  const risk = [PENDING.sellWaiting(fdFull(w.cfg.costs.idleFeePerDay))];
+  if (askFd > STARTERS_BAND_FD) risk.push(PENDING.sellFewBuyers);
+  const pl = purchaseLoanOn(w, t.id);
+  const fl = activeLoanOn(w, t.id);
+  const owed = (pl && (pl.status === "active" || pl.status === "defaulted") ? pl.principalFd : 0) + (fl ? fl.principalFd : 0);
+  if (owed > 0.5) risk.push(PENDING.sellLoan(fdFull(owed), !!pl));
+  return { does: does.join(" "), risk: risk.join(" ") };
+}
+
+/** What a starter's spare cash buys up to (the economy's listing-worth note): above it, few buyers. */
+export const STARTERS_BAND_FD = 60_000;
+/** What such a truck really sells for, by how sure that is (the director's listing-worth ruling §1). */
+export function sellsFor(bookFd: number): string {
+  if (bookFd <= STARTERS_BAND_FD) return PENDING.sellsUsually(fdFull(Math.round((bookFd * 0.9) / 100) * 100));
+  const k = (x: number) => `${Math.round(x / 1000)}k`;
+  return PENDING.sellsFew(k(bookFd * 0.6), k(bookFd * 0.8));
+}
 
 export const hire = (name: string, weeklyFd: number, keptFd: number): Lines => ({ does: CONFIRM.hire(name, fdFull(weeklyFd)), risk: CONFIRM.hireRisk(fdFull(keptFd)) });
 

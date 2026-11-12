@@ -80,8 +80,12 @@ export function intelRows(w: World): IntelRow[] {
 
 export type IntelSort = "miles" | "trucks" | "month";
 /** Rank by the sort, descending; ties share a rank. */
+/** What a company kept in its last closed month (revenue less spending); 0 before its first close. */
+export const monthKept = (c: Company): number => (c.lastMonth ? c.lastMonth.revenueFd - c.lastMonth.spentFd : 0);
+
 export function ranked(rows: IntelRow[], sort: IntelSort): { r: IntelRow; rank: number }[] {
-  const key = (r: IntelRow) => (sort === "miles" ? r.miles : sort === "trucks" ? r.trucks : (r.c.lastMonth?.revenueFd ?? 0));
+  // Client batch 8b item 33: the month's ranking by what each kept in its last closed month (revenue less spending).
+  const key = (r: IntelRow) => (sort === "miles" ? r.miles : sort === "trucks" ? r.trucks : monthKept(r.c));
   const sorted = [...rows].sort((a, b) => key(b) - key(a) || a.c.id - b.c.id);
   let rank = 0;
   let prev = NaN;

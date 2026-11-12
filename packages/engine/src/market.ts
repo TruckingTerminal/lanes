@@ -1,4 +1,5 @@
 import { dayOf } from "./clock.js";
+import { fmtInt } from "./economics.js";
 import { chargeSalesTax, salesTaxOn } from "./salesTax.js";
 import { activeLoanOn, closeLoanFromPoolProceeds, POOL_ACCOUNT, settleLoanFromSale, writeOffLoan } from "./finance.js";
 import { companyAccount } from "./ledger.js";
@@ -136,6 +137,7 @@ export function buyListing(w: World, buyerId: number, listingId: number): string
   const loan = l.loanId !== null ? w.finance.loans[l.loanId - 1] : undefined;
   const loanOpen = loan !== undefined && (loan.status === "active" || loan.status === "defaulted" || loan.status === "repossessed");
   const basis = truck.lockedBasisFd ?? 0; // what the seller bought it with in spend-only FD comes back locked (ledger.ts)
+  let sellerBefore = 0;
   if (l.sellerId === 0) {
     // A repossession: the pool keeps what it's owed, the former owner gets any surplus.
     lockedPaid += w.ledger.post(w.t, buyerAcct, POOL_ACCOUNT, net, ref, "lockedFirst");
@@ -147,6 +149,7 @@ export function buyListing(w: World, buyerId: number, listingId: number): string
   } else {
     // An owner's sale: the seller is paid, then repays any loan on the truck from it.
     const sellerAcct = companyAccount(l.sellerId);
+    sellerBefore = w.ledger.balance(sellerAcct);
     const carried = w.ledger.post(w.t, buyerAcct, sellerAcct, net, ref);
     lockedPaid += carried;
     w.ledger.lock(sellerAcct, Math.max(0, Math.min(net, basis) - carried)); // locked up to the basis in all, what the payment carried included
@@ -155,7 +158,13 @@ export function buyListing(w: World, buyerId: number, listingId: number): string
   truck.lockedBasisFd = lockedPaid;
 
   if (l.sellerId !== 0) companyById(w, l.sellerId).usedSold++;
-  detachTruck(w, truck);
+  detachTruck(w, truck); // a purchase loan on it closes here, its stake back to the seller
+  // Client batch 8b item 8 (the exploit hunter: a listing sold without a word): the seller hears it on the day, with
+  // the price, the fee, what repaid the truck's loans and what it kept. A listener line only; nothing reads it.
+  if (l.sellerId !== 0) {
+    const kept = w.ledger.balance(companyAccount(l.sellerId)) - sellerBefore;
+    w.listener?.({ kind: "notice", companyId: l.sellerId, topic: "fleet", text: soldNotice(truck.id, l.askFd, fee, net, kept), tone: "good", truckId: truck.id });
+  }
   if (npc) {
     // A free owner-operator's first owned truck: the NPC lease goes back to the lessor.
     detachTruck(w, npc);
@@ -168,6 +177,18 @@ export function buyListing(w: World, buyerId: number, listingId: number): string
   l.status = "sold";
   w.metrics.onUsedSale(l.sellerId === 0);
   return null;
+}
+
+/**
+ * The seller's notice when its listing sells (the writer may reword it): the price, the market's fee, and, where the sale
+ * repaid a loan on the truck, what that took and what the seller kept (a purchase loan's stake comes back in it).
+ */
+export function soldNotice(truckId: number, askFd: number, feeFd: number, netFd: number, keptFd: number): string {
+  const head = `Truck ${truckId} sold on the used market for ${fmtInt(askFd)} FD; after the ${fmtInt(feeFd)} FD market fee, ${fmtInt(netFd)} FD came to you.`;
+  const repaid = netFd - keptFd;
+  if (repaid > 0.5) return `${head} ${fmtInt(repaid)} FD of it repaid the truck's loan, with the loan's stake back to you: you kept ${fmtInt(keptFd)} FD.`;
+  if (keptFd - netFd > 0.5) return `${head} The truck's loan was already paid, and its ${fmtInt(keptFd - netFd)} FD stake came back to you too.`;
+  return head;
 }
 
 /** Assets: a used trailer goes to the buyer's yard, or straight behind a tractor there that pulls a rental. */

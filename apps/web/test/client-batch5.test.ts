@@ -27,7 +27,7 @@ describe("client batch 5", () => {
     expect(gap.priceFd).toBeCloseTo(Math.min(...prices), 6);
     // Client batch 8a item 57: the card prices the cheapest sound truck the page shows, named under Why.
     const f = firstTruckLine(w, c)!;
-    if (f.open !== null) expect(f.why[0]).toMatch(/^The truck: /);
+    if (f.open !== null) expect(f.why.some((x) => x.startsWith("The truck: "))).toBe(true); // after the lot's rig, if any
   }, 120_000);
 
   it("the guide's Book-now page says no bid over the ceiling wins where the poster refuses one, and eases as the floor does", () => {

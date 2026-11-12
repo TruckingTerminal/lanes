@@ -283,7 +283,7 @@ export const FIRST_ENTRY = {
 
 export const HUB_CARD = {
   freightNow: "Freight now",
-  posted: (n: number, rate: string) => `${n} loads posted last round · ${rate}/mi average`,
+  posted: (n: number, rate: string) => `${n} ${n === 1 ? "load" : "loads"} posted last round · ${rate}/mi average`,
   perTruck: (x: string, word: string) => `${x} loads per truck · ${word}`,
   ships: (word: "more than" | "about what" | "less than") => `Ships ${word} it receives`,
   reload: (word: "easy" | "fair" | "hard") => `Reload: ${word}`,
@@ -1306,7 +1306,8 @@ export const EXPLAIN = (cfg: EconomyConfig): Record<string, Ex> => ({
   "invoice.cashNowLands": { what: "What reaches your cash today if you cash this invoice now.", how: "The invoice, less the fee.", moves: "The fee: a contract's rate instead of spot, and the invoice's age." },
   // QA's guidance replay: the Dealer's rows carried no figure to tap.
   "dealer.price": { what: "What this rig costs here today, before tax.", how: "The make's list price, times the dealer's monthly index, which follows the order backlog and stock.", moves: "The month's backlog and stock; another seller; a used rig instead." },
-  "truck.value": { what: "What your owned truck would fetch today.", how: "Its list price, less depreciation by age and miles.", moves: "Time, miles, condition and the make." },
+  // Client batch 8b item 18 (the director): book value, what the lender and the lot price it at; not a price anyone pays.
+  "truck.value": { what: "Book value: what the lender and the lot price your truck at.", how: "Its list price today, less miles, age and wear.", moves: "New-truck prices (it rises with them), time, miles and condition." },
   "loan.downPayment": { what: "The share of the price you pay yourself on a purchase loan.", how: `${pctOf(cfg.equipmentFinance.purchase.downShare[0])} to ${pctOf(cfg.equipmentFinance.purchase.downShare[1])} of the price: the better your credit score, the lower.`, moves: "A better credit score, before you sign." },
   "loan.cashNow": { what: "The cash a purchase loan needs at signing.", how: `Down payment, a ${pctOf(cfg.equipmentFinance.purchase.stakeShare)} loan stake and sales tax. Your lease deposit comes off when this truck replaces the lessor's.`, moves: "Your credit score, and the price you choose." },
   "loan.rate": { what: "What the loan costs each week on what's owed.", how: `${pct2(cfg.equipmentFinance.purchase.weeklyRate[0])} to ${pct2(cfg.equipmentFinance.purchase.weeklyRate[1])} a week: the better your credit score at signing, the lower.`, moves: "A better score lowers your next loan. A running loan's rate never changes." },

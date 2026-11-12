@@ -16,6 +16,7 @@ import { GAME_CONFIG } from "../../game.js";
 import { act, feed, markKey, me, S, setOnboard, useData } from "../../state.js";
 import { Btn, Card, Kv, Num, Panel, Sparkline } from "../bits.js";
 import { MonthReports, ThisWeekCard } from "../MonthReport.js";
+import { depositWhole } from "../../board.js";
 
 /** On a lease with no truck of its own, the lessor pays on delivery: nothing is ever owed (R25). */
 const myTruckLeased = (w: World, c: Company): boolean => {
@@ -171,6 +172,8 @@ export function Money(): JSX.Element {
             <Fig k="truck.leaseDeposit" label={MONEY.held}>{MONEY.heldValue(fdFull(held))}</Fig>
           </p>
         ) : null}
+        {/* Client batch 8b item 40: a whole deposit is said to be full, and what happens to it. */}
+        {held >= 0.5 && (w.trucksByCompany.get(c.id) ?? []).some(depositWhole) ? <p class="muted small">{PENDING.heldFull(fdFull(held))}</p> : null}
         {heldNote ? <p class="muted small">{MONEY.heldNote(`${Math.round(w.cfg.freeEntry.leases.byValue.escrowShareOfPay * 100)}%`)}</p> : null}
         {/* Iuliia's figures (figures.ts): the cushion, and the countdown once cash is under the line. */}
         <p class="small">

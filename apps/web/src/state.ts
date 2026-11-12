@@ -112,6 +112,8 @@ export const S = {
   brokerSwitch: false,
   /** Who last drove each of the player's trucks, as this page saw it (What now?'s "has gone" needs one who did). */
   lastDriver: new Map<number, string>(),
+  /** A truck's crew when this page listed it (staff ids, the driver first), so taking it off sale seats them back (QA fail 3). */
+  listedCrew: new Map<number, number[]>(),
   explain: null as null | { key: string; ctx: import("./explain.js").FigureCtx; label: string; value: string; side?: "left" | "right"; tab?: string },
   /** What now?'s answer while it shows, and the tab it was asked on (ui/WhatNow.tsx). */
   whatNow: null as null | { a: import("./nextstep.js").NextAction; tab: Tab },
@@ -167,7 +169,7 @@ export const S = {
 export const PER_WORLD = [
   "entry", "selTruck", "selHub", "cityView", "townView", "openLoad", "handBids", "bookedLoads", "idleFrom", "handLoads",
   "boardPoster", "boardSortOnce", "waysOut", "milestone", "confirm", "lastAct", "returnCard", "lastReturn", "poachResults",
-  "gapSeen", "cashPlan", "cashed", "brokerSwitch", "lastDriver", "explain", "whatNow", "iuliiaLine", "intel", "homeNow",
+  "gapSeen", "cashPlan", "cashed", "brokerSwitch", "lastDriver", "listedCrew", "explain", "whatNow", "iuliiaLine", "intel", "homeNow",
   "delivered", "moneyDot", "invoiceLanes", "following", "result", "selSite", "walkView", "okText", "dealerFocus",
 ] as const satisfies readonly (keyof typeof S)[];
 export const KEPT_ACROSS_WORLDS = [
@@ -243,8 +245,11 @@ export const useData = (): number => useChannel(data);
 // --- The feed: ticker and the cash history, per session ------------------------------
 
 export interface Feed {
-  /** `key`: a line kept current in place (pushKeyed), not one more line each time. */
-  ticker: { text: string; cls: string; key?: string }[];
+  /**
+   * `key`: a line kept current in place (pushKeyed), not one more line each time. `co`: the company the line is about
+   * (client batch 8b item 37: each company's lines in its own view); absent, a line for both.
+   */
+  ticker: { text: string; cls: string; key?: string; co?: number }[];
   history: { day: number; cash: number }[];
   /** The company's deliveries as this page saw them (gross, game day), newest last: Finance's "average load" (specs/finance.md). */
   deliveries: { day: number; grossFd: number }[];
@@ -258,21 +263,26 @@ export function feed(s: Session | null = S.game): Feed {
   if (!f) feeds.set(s, (f = { ticker: [], history: [], deliveries: [], band: "", lastT: s.w.t }));
   return f;
 }
-export function push(s: Session, text: string, cls = ""): void {
+export function push(s: Session, text: string, cls = "", co?: number): void {
   const f = feed(s);
-  f.ticker.unshift({ text, cls });
+  f.ticker.unshift(co === undefined ? { text, cls } : { text, cls, co });
   if (f.ticker.length > 30) f.ticker.pop();
   if (s === S.game) bumpData();
+}
+/** The feed's lines for the company in view (client batch 8b item 37): its own, and those for both. */
+export function tickerInView(s: Session | null = S.game): Feed["ticker"] {
+  const id = s?.player?.id;
+  return feed(s).ticker.filter((l) => l.co === undefined || l.co === id);
 }
 /**
  * One line per key, kept current (client batch 8a item 48, the stubborn specialist: a truck standing idle wrote a new
  * "idle N d" line into Today every day and buried everything else): the key's earlier line goes, and the new one leads.
  */
-export function pushKeyed(s: Session, key: string, text: string, cls = ""): void {
+export function pushKeyed(s: Session, key: string, text: string, cls = "", co?: number): void {
   const f = feed(s);
   const i = f.ticker.findIndex((x) => x.key === key);
   if (i >= 0) f.ticker.splice(i, 1);
-  f.ticker.unshift({ text, cls, key });
+  f.ticker.unshift(co === undefined ? { text, cls, key } : { text, cls, key, co });
   if (f.ticker.length > 30) f.ticker.pop();
   if (s === S.game) bumpData();
 }

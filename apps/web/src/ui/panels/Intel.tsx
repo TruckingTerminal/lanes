@@ -5,10 +5,11 @@ import { partnerOf, VETTING_NAMES, type Company } from "@lanes/engine";
 import { INTEL } from "../../copy.js";
 import { cls, fdFull, pct } from "../../format.js";
 import { posterOf } from "../../board.js";
-import { insuranceBand, intelRows, ownCosts, pastSeasons, ranked, safetyBand, type IntelRow } from "../../intel.js";
+import { insuranceBand, intelRows, monthKept, ownCosts, pastSeasons, ranked, safetyBand, type IntelRow } from "../../intel.js";
 import { bumpData, openIntel, S, setTab, useData } from "../../state.js";
 import { Btn, Card, Kv, Panel } from "../bits.js";
 import { Fig } from "../Explain.js";
+import { PENDING } from "../../copy-pending.js";
 
 /**
  * Intel (specs/intel.md, specs/intel-ux.md): every company, players and AI, carriers and brokers, by Miles; a card per
@@ -79,6 +80,7 @@ export function Intel(): JSX.Element {
           </Btn>
         ))}
       </div>
+      {f.sort === "month" && !rows.some((r) => r.c.lastMonth) ? <p class="muted small">{PENDING.noMonthYet}</p> : null}
       {shown.length ? (
         <div class="intelrows">
           {shown.slice(0, f.shown).map((x) => (
@@ -105,9 +107,13 @@ export function Intel(): JSX.Element {
   );
 }
 
+const r0 = (x: { r: IntelRow }): IntelRow => x.r;
+
 /** A row: rank, name and marks; then the home city, trucks and Miles (a broker: its credit, which a carrier reads first). */
 function Row({ x, own }: { x: { r: IntelRow; rank: number }; own?: boolean }): JSX.Element {
   const w = S.game!.w;
+  // Client batch 8b item 33: sorted by the month, each row says the figure it's ranked by.
+  const month = S.intel.sort === "month" && r0(x).c.lastMonth ? ` · ${PENDING.monthKept(fdFull(monthKept(r0(x).c)))}` : "";
   const { r, rank } = x;
   const hub = w.net.hubs[r.c.homeHub]?.name ?? "";
   return (
@@ -125,7 +131,10 @@ function Row({ x, own }: { x: { r: IntelRow; rank: number }; own?: boolean }): J
           </>
         ) : null}
       </span>
-      <span class="muted small">{r.broker ? INTEL.line2Broker(hub, r.credit) : INTEL.line2(hub, r.trucks, fdFull(r.miles))}</span>
+      <span class="muted small">
+        {r.broker ? INTEL.line2Broker(hub, r.credit) : INTEL.line2(hub, r.trucks, fdFull(r.miles))}
+        {month}
+      </span>
     </button>
   );
 }

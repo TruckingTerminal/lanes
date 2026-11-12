@@ -34,12 +34,12 @@ import {
 } from "@lanes/engine";
 import { DISPATCHER_ORDERS, GAME_CONFIG, PLAYER_DISPATCHER_ORDERS } from "./game.js";
 import { trueBreakEven } from "./breakeven.js";
-import { boardRows } from "./board.js";
+import { boardRows, profitOver } from "./board.js";
 import { PENDING } from "./copy-pending.js";
 import { ARRIVAL, BROKERAGE, DEBT, DISPATCHER, FIRST_ENTRY, MOVE, NEEDS, SAFETY_NEWS, TRUCK } from "./copy.js";
 import { cashDipAhead, debtCountdown } from "./figures.js";
 import { hasTwo, kindInView, switchCompany, type CompanyKind } from "./companies.js";
-import { act, bumpData, carrierCo, clockMin, isPhone, me, myTrucks, onWorldReset, ownerOf, push, pushKeyed, S, setTab, selectTruck, toast, truckNo, visited, type Session } from "./state.js";
+import { act, bumpData, carrierCo, clockMin, isPhone, markKey, me, myTrucks, onWorldReset, ownerOf, push, pushKeyed, S, setOnboard, setTab, selectTruck, toast, truckNo, visited, type Session } from "./state.js";
 import { iuliiaSay, iuliiaSayText } from "./iuliia.js";
 import { PENDING_RULES } from "./copy-pending-rules.js";
 import { tabOpen, teaserTabs, type Tab } from "./tabs.js";
@@ -52,6 +52,7 @@ import { askWhatNow } from "./ui/WhatNow.js";
 import { myTenders } from "./ui/panels/Contracts.js";
 import { dateLabel, fd, fdFull, hhmm, hoursLabel, pct, plural, realUntil, signedPct, TRAILER_NAME, weekday } from "./format.js";
 import { Btn } from "./ui/bits.js";
+import { economyConfig } from "@lanes/config";
 
 /** Game reasoning the panels share: idle diagnoses, status lines, crew lines, reload and season reads. */
 
@@ -176,7 +177,7 @@ export function checkIdleAlerts(): void {
     const text = `Truck ${truckNo(t.id)} has been idle ${idleLabel(t)} at ${truckWhere(t)}: ${idleWhy(t).why}`;
     // R22: the idle card and the badge carry it from the moment the truck is idle; it no longer arrives as a toast.
     // Client batch 8a item 48: one line per idle truck, kept current, never one more each day.
-    pushKeyed(g, `idle:${t.id}`, text, "bad");
+    pushKeyed(g, `idle:${t.id}`, text, "bad", t.companyId);
     bumpData();
   }
 }
@@ -430,7 +431,8 @@ function needsInView(fleet: boolean): Need[] {
  * "near condition 0.6" (economy.config.ts wear's comment on the cost curves). QA item 8: "due a rebuild" fired at 81%
  * with both rebuilds left. A client figure until the key joins the config's guide block.
  */
-export const REBUILD_DUE = 0.6;
+// Client batch 8b (the writer's flag 2a): the rebuild-due line at the economy's sound condition, one figure for all three.
+export const REBUILD_DUE = economyConfig.guide.soundCondition;
 
 /**
  * Send home, priced as the Truck card prices it (R24's empty run) and through R6's card past guard.confirmShareOfCash
@@ -498,7 +500,12 @@ export function settleHandBids(s: Session): void {
     // A bid filed for a locals-first load's opening, booked first by a local carrier in the hold (leverage.localHoldHandBids).
     if (hb.filed && load && load.carrierId !== null) iuliiaSayText(PENDING_RULES.localTook);
     else iuliiaSay(load ? "result:lost" : "result:nobody");
-    S.result = { won: false, from: hb.from ?? "", to: hb.to ?? "", rate: hb.rate, winning: load ? load.clearedRate : null, be: hb.be, total: 0, seen: false, winnerId: load?.carrierId ?? undefined, lost: load && hb.truckId !== undefined ? { loadId, truckId: hb.truckId, profitAtWinningFd: (load.clearedRate - hb.be) * load.miles, round: S.game!.w.round } : undefined };
+    // Client batch 8b item 63: a load taken between rounds is the moment to offer "book between rounds", once.
+    if (load && load.carrierId !== null && !hb.filed) {
+      const key = markKey("lostBetween");
+      if (!S.onboard.seen.includes(key)) setOnboard({ seen: [...S.onboard.seen, key] });
+    }
+    S.result = { won: false, from: hb.from ?? "", to: hb.to ?? "", rate: hb.rate, winning: load ? load.clearedRate : null, be: hb.be, total: 0, seen: false, winnerId: load?.carrierId ?? undefined, lost: load && hb.truckId !== undefined ? { loadId, truckId: hb.truckId, profitAtWinningFd: profitOver(S.game!.w, S.game!.w.trucks[hb.truckId - 1], load.clearedRate, hb.be, load.miles), round: S.game!.w.round } : undefined };
     bumpData();
   }
 }
@@ -610,13 +617,34 @@ export function idleWhy(t: Truck): IdleWhy {
   return { why: PENDING.idleBidsLosing(payable.length, trailer), fixes: [<Btn primary onClick={() => goLoads(t.id)}>Bid by hand</Btn>] };
 }
 
+/**
+ * QA's 0.24.1 replay, fail 3: a free driver back in a parked truck (engine assign_driver), and the truck back on the road
+ * (unpark_truck), in that order.
+ */
+export function seatBack(truckId: number, staffId: number, ok: string, coDriverId?: number): void {
+  act({ type: "assign_driver", staffId, truckId }, ok);
+  if (coDriverId) act({ type: "assign_driver", staffId: coDriverId, truckId, team: true }, ok);
+  act({ type: "unpark_truck", truckId }, ok);
+}
+
+/**
+ * QA's 0.24.1 replay, item 9: home time is taken anywhere within the home radius (labor.ts standingAtHome,
+ * map.nearbyRadiusMi); away from the home hub the line says it's near home.
+ */
+function homeTimeWhere(t: Truck): string {
+  const w = S.game!.w;
+  const home = w.companies[t.companyId - 1]!.homeHub;
+  const at = w.net.places[t.place]!.name;
+  return t.hub === home ? `Home time at ${at}` : PENDING.homeTimeNear(w.net.hubs[home]!.name, at);
+}
+
 /** Plain-text status, for tooltips and the ticker. */
 export function statusText(t: Truck): string {
   const w = S.game!.w;
   const name = (i: number) => w.net.places[i]!.name;
   switch (t.status) {
     case "idle":
-      return resting(w, t) ? `Home time at ${name(t.place)}` : `Idle at ${name(t.place)} for ${idleLabel(t)}`;
+      return resting(w, t) ? homeTimeWhere(t) : `Idle at ${name(t.place)} for ${idleLabel(t)}`;
     case "toPickup":
       return `Heading empty to ${name(t.targetPlace)} for a pickup · ${Math.round(t.remainingMi)} mi`;
     case "loading":
@@ -651,7 +679,7 @@ export function StatusLine({ t }: { t: Truck }): ComponentChildren {
         const left = d.homeUntilDay! - Math.floor(clockMin() / 1440) - (d.drivenMinToday > 0 ? 1 : 0);
         return (
           <>
-            Home time at {name(t.place)}: {plural(Math.max(1, left), "day")} off{d.drivenMinToday > 0 ? ", starting tomorrow" : " left"}
+            {homeTimeWhere(t)}: {plural(Math.max(1, left), "day")} off{d.drivenMinToday > 0 ? ", starting tomorrow" : " left"}
           </>
         );
       }

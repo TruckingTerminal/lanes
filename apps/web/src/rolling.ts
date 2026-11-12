@@ -1,4 +1,5 @@
-import { drivingLimitMin, dutyResetAt, fuelPrice, hubMiles, hubToll, legRoute, legMile, mphFor, placeHours, placeLegMiles, placeOfHub, placeToll, planNight, tripCost, type Company, type Load, type Receivable, type Truck, type World, ownerDrawFd } from "@lanes/engine";
+import { dcos, greatCircleMiles } from "@lanes/data";
+import { drivingLimitMin, dutyResetAt, fuelPrice, hubMiles, hubToll, legRoute, legMile, mphFor, placeHours, placeLegMiles, placeOfHub, placeToll, planNight, tripCost, truckLatLon, type Company, type Load, type Receivable, type Truck, type World, ownerDrawFd } from "@lanes/engine";
 import { DELIVERED, MOVE } from "./copy.js";
 import { shortDate } from "./format.js";
 
@@ -207,16 +208,42 @@ export function paidLine(w: World, c: Company, truck: Truck, fresh: Receivable |
  * An empty run's price before the tap (R24): fuel and the driver's pay over the empty miles, from the same parts as
  * break-even (economics.ts tripCost), plus the tolls; and its time at the nominal pace and the day's driving hours.
  */
+/**
+ * Where a truck running empty would turn from, read without moving it (trips.ts turnTruck, the same arithmetic): the town
+ * nearest its point on the leg (risk.ts truckLatLon), and the road miles to that town (the great circle × 1.2).
+ */
+export function turnPoint(w: World, t: Truck): { place: number; offMi: number } {
+  const [lat, lon] = truckLatLon(w, t);
+  let best = t.place;
+  let bd = Infinity;
+  const cosLat = dcos((lat * Math.PI) / 180);
+  w.net.places.forEach((p, i) => {
+    const dy = p.lat - lat;
+    const dx = (p.lon - lon) * cosLat;
+    const d = dy * dy + dx * dx;
+    if (d < bd) {
+      bd = d;
+      best = i;
+    }
+  });
+  return { place: best, offMi: Math.round(greatCircleMiles({ lat, lon }, w.net.places[best]!) * 1.2) };
+}
+
 export function emptyRun(w: World, t: Truck, fromHub: number, toHub: number): { mi: string; fd: string; time: string; costFd: number; parts: { fuel: number; wages: number; tolls: number } } {
   // From where the truck stands, the run the engine drives (reposition_truck, send_home: placeLegMiles from the truck's
   // town to the hub's): the diaries' Send home said 894 mi and drove 956 when it priced hub to hub.
   const here = fromHub === t.hub;
+  // QA's 0.24.1 replay, item 8: a truck running empty turns from its point on the leg (labor.turnWhileEmpty, trips.ts
+  // turnTruck), so it's priced from the town nearest that point plus the miles to it, never from where the run began.
+  const turn = here && t.status === "repositioning" && w.cfg.labor.turnWhileEmpty ? turnPoint(w, t) : null;
+  const from = turn ? turn.place : t.place;
+  const off = turn ? turn.offMi : 0;
   const to = placeOfHub(toHub);
-  const mi = here ? placeLegMiles(w, t.place, to) : hubMiles(w, fromHub, toHub);
+  const mi = here ? placeLegMiles(w, from, to) + off : hubMiles(w, fromHub, toHub);
   const run = tripCost(w.cfg, t, fuelPrice(w), mi, 0);
-  const hours = here && t.place !== to ? placeHours(w, t.place, to) : mi / w.cfg.hos.avgMph;
+  const hours = here && from !== to ? placeHours(w, from, to) + off / w.cfg.hos.avgMph : mi / w.cfg.hos.avgMph;
   const days = hours / w.cfg.hos.drivingHoursPerDay;
-  const parts = { fuel: run.fuel, wages: run.wages, tolls: here ? placeToll(w, t.place, to) : hubToll(w, fromHub, toHub) };
+  const parts = { fuel: run.fuel, wages: run.wages, tolls: here ? placeToll(w, from, to) : hubToll(w, fromHub, toHub) };
   const costFd = parts.fuel + parts.wages + parts.tolls;
   return {
     costFd,

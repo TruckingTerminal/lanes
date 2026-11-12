@@ -206,6 +206,9 @@ export function generateRoundFreight(w: World): RoundFreight {
   // Batch 4: the NPC freight lost at its pickup's close, remembered and decayed (windows.ts lostMemory), counts as open
   // demand, so a hub where freight goes unhauled reads as short of trucks and its next postings price higher.
   const lost = windowsOn(w) ? lostMemory(w) : null;
+  // Windows batch 8: under windows, windows.ratioExponent in each of the ratio's three reads below (the contract index,
+  // the memory-free contract index, the reference); off, rates.ratioExponent, term for term as before.
+  const ratioEx = windowsOn(w) ? cfg.windows!.ratioExponent : cfg.rates.ratioExponent;
   // Batch 5: the open loads without the memory, for a facility's goods (facilityRef): worth what they were; the haul got dearer.
   const loadsBase = windowsOn(w) ? Float64Array.from(loadsAt) : null;
   if (lost) {
@@ -288,11 +291,11 @@ export function generateRoundFreight(w: World): RoundFreight {
       const k = planIndex(i, e);
       const weather = feeds.weather(net.hubs[i]!.id, day);
       const season = seasonality(w, i, eq, day).rate;
-      const spot = dpow(ratioEq[k]!, cfg.rates.ratioExponent) * weather * season;
+      const spot = dpow(ratioEq[k]!, ratioEx) * weather * season;
       // The first round's contracts are signed at the market as it stands.
       w.contractIndex[k] = Number.isNaN(w.contractIndex[k]!) ? spot : w.contractIndex[k]! + alpha * (spot - w.contractIndex[k]!);
       if (cb) {
-        const spotBase = dpow(ratioEqBase![k]!, cfg.rates.ratioExponent) * weather * season;
+        const spotBase = dpow(ratioEqBase![k]!, ratioEx) * weather * season;
         cb[k] = Number.isNaN(cb[k]!) ? spotBase : cb[k]! + alpha * (spotBase - cb[k]!);
       }
     }
@@ -315,7 +318,7 @@ export function generateRoundFreight(w: World): RoundFreight {
   const refRateOf = (r: Float64Array) => (lane: Lane, eq: Equipment) =>
     lane.baseRate *
       rf *
-      dpow(r[planIndex(lane.origin, EQUIPMENT.indexOf(eq))]!, cfg.rates.ratioExponent) *
+      dpow(r[planIndex(lane.origin, EQUIPMENT.indexOf(eq))]!, ratioEx) *
       feeds.weather(net.hubs[lane.origin]!.id, day) *
       cfg.rates.equipmentPremium[eq] *
       seasonality(w, lane.origin, eq, day).rate *

@@ -34,7 +34,8 @@ describe("client batch 4", () => {
 
     // (9) The first-truck card names the truck it prices (client batch 8a item 57: under Why, beside one verdict).
     const f = firstTruckLine(w, c)!;
-    if (f.open !== null) expect(f.why[0]).toMatch(/^The truck: a (new|used) /);
+    // The lot's rig, when the lot has one in the company's freight, comes first (the director's sound-lot ruling).
+    if (f.open !== null) expect(f.why.find((x) => x.startsWith("The truck: "))).toMatch(/^The truck: a (new|used) /);
     const fresh = { tier: "workhorse" as const, trailer: "van" as const, lease: "owned" as const, odometer: 0, milesSinceRebuild: 0 };
     const worn = { ...fresh, odometer: 480_000, milesSinceRebuild: 0.55 * w.cfg.wear.lifeMiles, rebuilds: 1 };
     expect(repairsPer(w, worn)).toBeGreaterThan(repairsPer(w, fresh));

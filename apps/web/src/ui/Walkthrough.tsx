@@ -1,6 +1,9 @@
 import type { JSX } from "preact";
 import { useEffect, useRef, useState } from "preact/hooks";
 import { dayOf } from "@lanes/engine";
+
+/** How long Iuliia's "your dispatcher bids when you don't" line stands after the first bid by hand, in game days (QA's 0.24.1 replay, item 12). */
+const DISPATCHER_LINE_DAYS = 2;
 import { settleShown, useSettled } from "../settle.js";
 import { GAME_CONFIG } from "../game.js";
 import { skippedSteps, stepDo, stepKey, stepText, walkProgress, walkSteps, type Mood, type WalkStep } from "../walkthrough.js";
@@ -481,7 +484,9 @@ export function Caption(): JSX.Element | null {
   }
   // After the first bid by hand (S9): once, the dispatcher is now on, and where its rules are.
   // Re-checked against the world (R2): with the dispatcher switched off the line is false, and it retires for good.
-  if (c.firstHandBidDay !== null && g.w.cfg.freeEntry.firstBidByHand && !seen("dispatcher") && !c.orders.some((o) => o.kind === "bid")) queueMicrotask(() => (mark("dispatcher"), bumpData()));
+  // QA's 0.24.1 replay, item 12: it's for the days after the first bid; past DISPATCHER_LINE_DAYS it retires too.
+  const dispatcherStale = c.firstHandBidDay !== null && dayOf(g.w.t, g.w.cfg) - c.firstHandBidDay >= DISPATCHER_LINE_DAYS;
+  if (c.firstHandBidDay !== null && g.w.cfg.freeEntry.firstBidByHand && !seen("dispatcher") && (dispatcherStale || !c.orders.some((o) => o.kind === "bid"))) queueMicrotask(() => (mark("dispatcher"), bumpData()));
   else if (c.firstHandBidDay !== null && g.w.cfg.freeEntry.firstBidByHand && !seen("dispatcher")) {
     return standing("dispatcher", say(
       DISPATCHER.afterFirst,

@@ -83,7 +83,7 @@ export function Dealer(): JSX.Element {
                   {TIER_NAME[t.tier]} + {TRAILER_NAME[t.trailer]}
                 </h3>
                 <p>
-                  {Math.round(t.odometer).toLocaleString("en-US")} mi · {pct(condition(w.cfg, t))} condition · {PENDING.truckIn(truckPlace(w, t.place))}
+                  {Math.round(t.odometer).toLocaleString("en-US")} mi · {PENDING.conditionSince(pct(condition(w.cfg, t)))} · {PENDING.truckIn(truckPlace(w, t.place))}
                   {l.sellerId === 0 ? <span class="warn"> · repo</span> : null}
                 </p>
                 <p>
@@ -183,7 +183,7 @@ export function Dealer(): JSX.Element {
             </div>
             {dollarWindow ? (
               <div class="row">
-                <span class="muted small">Or {usd(assetPriceUsd(w, spec.priceFd))} to the launch pool:</span>
+                <span class="muted small">{PENDING.orUsd(usd(assetPriceUsd(w, spec.priceFd)))}:</span>
                 {best.map((b) => (
                   <Btn key={`usd-${b.h.id}`} disabled={!(c.usd.wallet >= assetPriceUsd(w, spec.priceFd) && w.facilitySupply[type] > 0)} onClick={() => act({ type: "buy_facility", facility: type, hubId: b.h.id, pay: "usd" }, `${FAC_NAME[type]} open at ${b.h.name}, paid in dollars`)}>
                     {b.h.name} · {usd(assetPriceUsd(w, spec.priceFd))}

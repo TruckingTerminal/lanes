@@ -263,7 +263,8 @@ describe("the confirm card (R6)", () => {
     S.confirm = null;
     // The lines, from this truck's own figures.
     const used = usedTruck(w, c, { tier: "workhorse", trailer: "van", lease: "owned", odometer: 900_000, milesSinceRebuild: 300_000, rebuilds: 2 }, w.net.hubs.findIndex((_, i) => i !== c.homeHub));
-    expect(used.does).toMatch(/^A used Workhorse with a dry van: \d+% of its life left, no rebuilds\. It's at .+, [\d,]+ miles from home\.$/);
+    // Client batch 8b item 28: condition since the last rebuild and the working life left, named apart.
+    expect(used.does).toMatch(/^A used Workhorse with a dry van: \d+% condition since its last rebuild, and \d+% of its working life left, with no rebuild to come\. It's at .+, [\d,]+ miles from home\.$/);
     expect(used.risk).toMatch(/^It runs until it's worn out, then goes for scrap, for about [\d,]+ FD\. Bringing it home takes a driver and empty miles\.$/);
     // A new truck has no record: the payback reads a typical month's miles and the engine's own cuts, never "unknown".
     for (const m of ["apu", "aero", "tires", "sleeper"] as const) expect(item(w, c, m, truck, 1, 5000).risk).toMatch(/about [\d,]+ weeks/);
@@ -348,23 +349,28 @@ describe("R7: one figure from one source; only what the lender gives", () => {
 });
 
 describe("the return card (R21)", () => {
-  it("shows after RETURN_HOURS away, for the same company, with what changed; not before, not for another", async () => {
+  // Client batch 8b item 60 (the director's E): a return after a game day or more away, whatever the real hours.
+  it("shows after a game day away, for the same company, with what changed; not before, not for another", async () => {
     const { g, c } = await fresh();
     const store = new Map<string, string>();
     (globalThis as { localStorage?: unknown }).localStorage = { getItem: (k: string) => store.get(k) ?? null, setItem: (k: string, v: string) => store.set(k, v) };
     try {
       saveVisit(g.w, c);
       const saved = JSON.parse(store.get("lanes.lastVisit")!) as { realMs: number };
-      expect(returnFor(g.w, c, true, saved.realMs + 3_600_000)).toBeNull(); // an hour: no card
+      expect(returnFor(g.w, c, true, saved.realMs + RETURN_HOURS * 3_600_000)).toBeNull(); // real hours, no game time: no card
+      for (let h = 0; h < 12; h++) g.stepHour();
+      expect(returnFor(g.w, c, true, saved.realMs)).toBeNull(); // half a game day: no card
+      for (let h = 0; h < 12; h++) g.stepHour();
       c.delivered += 2;
       c.operating.revenueFd += 4_000;
       c.late += 1;
-      const back = returnFor(g.w, c, true, saved.realMs + RETURN_HOURS * 3_600_000)!;
+      const back = returnFor(g.w, c, true, saved.realMs)!;
       expect(back).toMatchObject({ live: true, delivered: 2, late: 1 });
       expect(back.inFd).toBeCloseTo(4_000, 6);
+      expect(back.e).toMatchObject({ awayMin: 24 * 60 });
       const other = (await fresh()).c;
       other.id = c.id + 1;
-      expect(returnFor(g.w, other, true, saved.realMs + RETURN_HOURS * 3_600_000)).toBeNull(); // another company
+      expect(returnFor(g.w, other, true, saved.realMs)).toBeNull(); // another company
     } finally {
       delete (globalThis as { localStorage?: unknown }).localStorage;
     }

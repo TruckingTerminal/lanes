@@ -121,6 +121,11 @@ export interface World {
    */
   winTally?: Record<string, { day: number; taken: number; lost: number }[]>;
   /**
+   * Windows batch 8 (windows.ts blockFacilityHub): by hub, the day until which bots buy no facility there, set when a bot
+   * closes one at a loss (windows.facilityBlockWeeks). Absent with windows off.
+   */
+  facilityBlocked?: Record<number, number>;
+  /**
    * assets.expedite (expedite.ts): expedite slots taken, by the week (day ÷ 7) the expedited order is ready in; and the
    * NPC dealer queue's deliveries by day, the trailing four weeks the slots are sized from. Absent with the switch off.
    */

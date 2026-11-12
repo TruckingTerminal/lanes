@@ -8,6 +8,8 @@ import { Btn, Card, Num } from "../bits.js";
 import { confirmAct } from "../Confirm.js";
 import { contract as contractLines } from "../../confirmspecs.js";
 import { CONFIRM } from "../../copy.js";
+import { PENDING } from "../../copy-pending.js";
+import { contractStanding } from "../../figures.js";
 
 /** Contract tenders waiting for the player's company. */
 export const myTenders = (c: Company): Load[] => [...S.game!.w.loads.values()].filter((l) => l.status === "open" && l.tenderedTo === c.id);
@@ -131,7 +133,15 @@ export function ContractsCard({ c }: { c: Company }): JSX.Element {
             </table>
           </>
         ) : (
+          <>
           <p class="muted">No contracts held. Offers come to local carriers with a good record; the dispatcher takes them unless you turn that off.</p>
+          {/* Client batch 8b item 41: where the carrier stands for an offer, as the engine picks. */}
+          {(() => {
+            const st = contractStanding(w, c);
+            if (!st) return c.localBanUntilDay > Math.floor(w.t / w.cfg.time.gameMinutesPerDay) ? <p class="muted small">{PENDING.contractNotLocal}</p> : null;
+            return <p class="muted small">{PENDING.contractStanding(w.net.hubs[c.homeHub]!.name, st.expected.toFixed(1), st.fit, st.rank)}</p>;
+          })()}
+          </>
         )}
       </Card>
     </>

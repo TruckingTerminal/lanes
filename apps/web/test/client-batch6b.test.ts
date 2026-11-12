@@ -50,7 +50,7 @@ describe("client batch 6b: order today, delivered later", () => {
     w.trucksByCompany.get(c.id)![0]!.trailer = "reefer";
     const f = firstTruckLine(w, c)!;
     if (f.open === null) expect(f.verdict).toContain("reefer");
-    else expect(f.why[0]).toContain("reefer");
+    else expect(f.why.find((x) => x.startsWith("The truck: "))).toContain("reefer"); // after the lot's rig, if any
   }, 120_000);
 
   it("once ordered, the figure and What now? count the wait", async () => {

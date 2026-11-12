@@ -2,7 +2,7 @@ import type { JSX } from "preact";
 import { useState } from "preact/hooks";
 import { staffById, type Company, type World } from "@lanes/engine";
 import { FIGURE_ACT, GUIDE_LABEL, MILESTONE, RETURN } from "../copy.js";
-import { cushion, firstTruckLine, gapToTruck, orderedFirstTruck } from "../figures.js";
+import { cushion, firstTruckLine, gapToTruck, leasedNo, orderedFirstTruck } from "../figures.js";
 import { PENDING } from "../copy-pending.js";
 import { cls, fdFull, shortDate, weekdayDate } from "../format.js";
 import { closedMonths, monthReport, shownReport } from "../books.js";
@@ -119,7 +119,9 @@ function words(w: World, c: Company, m: Milestone, phase: "before" | "at"): { li
     case "truckOrdered": {
       // Client batch 7: the order, said as one, with the day the truck is ready while it waits.
       const o = orderedFirstTruck(w, c);
-      return { line: o ? PENDING.msOrderedAt(shortDate(o.dueDay)) : PENDING.msOrderedDone, reason: PENDING.msOrderedReason };
+      // Client batch 8b item 17: past its day, "ready since", with the leased truck's number and how the hand-over comes.
+      const swap = w.cfg.assets.swapAtNextIdle;
+      return { line: o ? PENDING.msOrderedAt(shortDate(o.dueDay), leasedNo(w, c), o.dueDay < today, swap) : PENDING.msOrderedDone(swap), reason: PENDING.msOrderedReason };
     }
     case "ownTruck":
       return { line: MILESTONE.ownTruck.at, reason: MILESTONE.ownTruck.reason, button: MILESTONE.ownTruck.button, go: go("loads") };

@@ -2,6 +2,7 @@ import type { JSX } from "preact";
 import { useEffect, useState } from "preact/hooks";
 import { hubs as HUBS } from "@lanes/data";
 import { defaultName, FIRST_ENTRY, HUB_CARD, NAMING } from "../copy.js";
+import { PENDING } from "../copy-pending.js";
 import { cls, fd } from "../format.js";
 import { FLEET_START_EXTRA_FD, GAME_CONFIG, type StartKind } from "../game.js";
 import { H } from "../handlers.js";
@@ -242,9 +243,13 @@ function ReadOnlyBoard({ hub }: { hub: number }): JSX.Element {
   );
 }
 
+/** Client batch 8b item 9: a typed name of only spaces is no name (refused, never replaced without a word). */
+export const blankName = (typed: string | null): boolean => typed !== null && typed.trim() === "";
+
 function Naming({ hub }: { hub: number }): JSX.Element {
   const h = S.game!.w.net.hubs[hub]!;
   const [typed, setTyped] = useState<string | null>(null);
+  const [blank, setBlank] = useState(false);
   const [start, setStart] = useState<StartKind>("oo");
   // The owner's look: none picked until the player taps one; without a pick the owner keeps the man's portrait.
   const [look, setLook] = useState<"m" | "f" | null>(null);
@@ -252,6 +257,8 @@ function Naming({ hub }: { hub: number }): JSX.Element {
   const name = typed ?? (defaultName(h.id) || `${h.name} Freight`);
   const submit = (ev: Event) => {
     ev.preventDefault();
+    // Client batch 8b item 9: only spaces is refused as an empty name is, never replaced without a word.
+    if (blankName(typed)) return setBlank(true);
     H.choose((name.trim() || defaultName(h.id) || `${h.name} Freight`).slice(0, 32), h.id, TEST_BUILD ? start : "oo", look ?? "m");
   };
   return (
@@ -264,7 +271,18 @@ function Naming({ hub }: { hub: number }): JSX.Element {
         <label class="label" for="cname">
           {NAMING.field}
         </label>
-        <input type="text" id="cname" maxLength={32} value={name} onInput={(e) => setTyped((e.target as HTMLInputElement).value)} required />
+        <input
+          type="text"
+          id="cname"
+          maxLength={32}
+          value={name}
+          onInput={(e) => {
+            setTyped((e.target as HTMLInputElement).value);
+            setBlank(false);
+          }}
+          required
+        />
+        {blank ? <p class="bad small">{PENDING.nameBlank}</p> : null}
       </div>
       <div class="field">
         <span class="label">{NAMING.you}</span>
