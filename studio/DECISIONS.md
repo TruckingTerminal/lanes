@@ -1,5 +1,7 @@
 # Decisions (the producer's log for Jeff; newest first)
 
+- 2026-11-13 — Jeff, reaffirming his 2026-11-08 ruling: "this game must be cutthroat like real trucking." The economy
+  is never tuned to the days to a first truck; that pacing guard left the gate on 2026-11-08 and is reported only.
 - 2026-11-13 — Jeff: "Yes as recommended, but instead of having 3 tiers for shipper loyalty, make it 10 tiers, 3 tiers
   is too small with all of the variance in trucking." Approved: the public monthly report (a minimum group of ten
   companies); the settlement fee at 1% on the seller, burned outside the refill, behind its own switch and into a
