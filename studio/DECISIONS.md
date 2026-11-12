@@ -1,5 +1,15 @@
 # Decisions (the producer's log for Jeff; newest first)
 
+- 2026-11-12 — Jeff: "Yes, size them", on three ideas from EVE Online's economy put to him by the producer: a small
+  burn on every cleared load and every player-to-player sale (EVE's market taxes, its largest sink, and the economy's
+  finding that a real sink has to sit on something every company does), a public monthly economic report on the
+  Intel tab (EVE's Monthly Economic Report), and shipper loyalty points redeemed with points plus FD for perks
+  (EVE's loyalty-point stores). The economy sizes them (economy-eve-sinks-2026-11-12.md, with a verdict for Jeff) and
+  the director gives the player-facing side; Jeff picks what is built. Also: the director rules the first-truck card
+  keeps its verdict on the cheapest sound truck and names the used lot's worn rig under "Why"
+  (studio/reviews/director-sound-lot.md; words, for client batch 8b); the red team's re-check of the persistence
+  fixes passes every stale-writer case but finds two client holes that block the live build, which engineering is
+  fixing first, and one store rule the producer adds at the live publish.
 - 2026-11-12 — Jeff: "Make sure all agent models are set to opus 5.5 (you choose appropriate effort level. Do it all",
   in answer to the producer's seven open questions. Every role session runs on Opus 5.5 (engineering, the economy and
   the red team at xhigh; QA, the director, the writer and the player at high; UX and art at medium; the producer on
