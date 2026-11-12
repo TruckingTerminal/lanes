@@ -1,5 +1,16 @@
 # Decisions (the producer's log for Jeff; newest first)
 
+- 2026-11-12 — QA's replay of 0.24.1 and client batch 8a on the test page (studio/reviews/qa-0241-8a.md): the nine
+  rules work (Send home back to work, the turn of an empty truck, a night in town, the hand bid in a local hold, the
+  loan sheet, the lot rig from stock in a week, the hand-over at the next idle moment, the cushion after a loan), the
+  first-truck card, the walkthrough, the bid floor and ceiling, the truck numbers and the loaded miles pass, and the
+  two-tab guard works. Three fails, for engineering's client batch 8b before the live build: the brokerage's funding
+  field still takes no typing; wording that still describes the old rules (the lot rig's confirm, What now?'s
+  ordered reason, the walkthrough's first-truck step); and a truck listed right after its driver was hired loses the
+  driver for good, unseen by What now?. Three design doubts to the director: a night in town does not stop a
+  shoulder ticket at the end of a leg; a hand bid in a local hold can lose at the opening; the sound-truck verdict
+  can send a beginner to a truck 64 loads away. The live page is rebuilt on 0.24.1 once these, the red team's two
+  live-page fixes and its last re-check are done.
 - 2026-11-12 — the economy's fifth reading of delivery windows, on batch 7 (studio/reviews/economy-delivery-windows-
   batch7.md; ten seeds, 1460 days, 0.24.1's nine rules on in both arms): the gate passes on all ten seeds for the
   first time (band 0.89–0.93), and the brokers' leak is closed: the carriers' share of the cap's pay is back to 94%,
