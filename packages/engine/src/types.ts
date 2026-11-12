@@ -958,7 +958,16 @@ export interface Load {
   /** QA's S4: the own carrier let that tender lapse, and the load went to the board at this rate (the card's line). */
   ownTenderLapsed?: number;
   /** A shipper's tender held off the board for a player's brokerage until `until` (brokerage.ts): it posts, tenders to its own carrier or (unless passed) declines. */
-  hold?: { brokerId: number; until: number; declinable: boolean };
+  /**
+   * `lead`: delivery windows (windows batch 7, the economy): the lead drawn at posting for a shipper's tender held for a
+   * player's brokerage. The load has no window while it's held; its pickup window opens at the release, with this lead,
+   * so the hold doesn't eat the 24 to 48 hours a carrier has to take it.
+   */
+  /**
+   * `marginPct`: the margin a shipper's tender was drawn at (the broker's order, freight.ts tenderToBroker); the held
+   * load posts at no more than it (the economy, 2026-11-12: the shipper picks the broker on the cut it advertises).
+   */
+  hold?: { brokerId: number; until: number; declinable: boolean; lead?: number; marginPct?: number };
   /**
    * Delivery windows (item 4, windows.ts; set at posting while windows.enabled, absent otherwise): ready to load at the
    * shipper from `readyT`; unbooked at `latestPickupT` it is lost; delivered after `latestDeliveryT` it is late (a claim).

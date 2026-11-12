@@ -142,7 +142,7 @@ export function reserveFactor(w: World): number {
 }
 import type { Load } from "./types.js";
 import { startHold } from "./brokerage.js";
-import { brokerKey, brokerUncovered, drawLeadDays, facilityKey, lostMemory, openWindow, readyToday, sameDayMult, tally, windowsOn } from "./windows.js";
+import { aiBroker, brokerKey, brokerUncovered, drawLeadDays, facilityKey, lostMemory, noteNpcPosted, openWindow, readyToday, sameDayMult, tally, windowsOn } from "./windows.js";
 import type { World } from "./world.js";
 
 /** Destination weights per origin hub and equipment; static, so cached per network. */
@@ -278,13 +278,23 @@ export function generateRoundFreight(w: World): RoundFreight {
 
   // Contract rates trail the spot market: smooth each hub's spot rate level over the contract lag.
   const alpha = 1 / (cfg.brokerRisk.contractLagDays * cfg.time.boardRoundHours.length);
+  // Batch 7: the same index without the memory and under rates.ratioClamp, for every brokered tender's contract
+  // (contractRef); it starts from the index as it stood the first round windows are on.
+  if (ratioEqBase && !w.contractIndexBase) w.contractIndexBase = Float64Array.from(w.contractIndex);
+  const cb = ratioEqBase ? w.contractIndexBase! : null;
   for (let i = 0; i < n; i++) {
     for (let e = 0; e < EQUIPMENT.length; e++) {
       const eq = EQUIPMENT[e]!;
       const k = planIndex(i, e);
-      const spot = dpow(ratioEq[k]!, cfg.rates.ratioExponent) * feeds.weather(net.hubs[i]!.id, day) * seasonality(w, i, eq, day).rate;
+      const weather = feeds.weather(net.hubs[i]!.id, day);
+      const season = seasonality(w, i, eq, day).rate;
+      const spot = dpow(ratioEq[k]!, cfg.rates.ratioExponent) * weather * season;
       // The first round's contracts are signed at the market as it stands.
       w.contractIndex[k] = Number.isNaN(w.contractIndex[k]!) ? spot : w.contractIndex[k]! + alpha * (spot - w.contractIndex[k]!);
+      if (cb) {
+        const spotBase = dpow(ratioEqBase![k]!, cfg.rates.ratioExponent) * weather * season;
+        cb[k] = Number.isNaN(cb[k]!) ? spotBase : cb[k]! + alpha * (spotBase - cb[k]!);
+      }
     }
   }
 
@@ -325,16 +335,36 @@ export function generateRoundFreight(w: World): RoundFreight {
    */
   const facilityRef = (lane: Lane, eq: Equipment): number => {
     if (!ratioEqBase || !w.reloadIndexBase || !w.reloadMeanBase) return refRate(lane, eq);
+    return withBaseReload(() => refRateOf(ratioEqBase)(lane, eq));
+  };
+  /** Runs `f` with the memory-free reload index in w.reloadIndex and w.reloadMean (batch 5; nothing on these paths caches). */
+  const withBaseReload = <T>(f: () => T): T => {
     const index = w.reloadIndex;
     const mean = w.reloadMean;
-    w.reloadIndex = w.reloadIndexBase;
-    w.reloadMean = w.reloadMeanBase;
+    w.reloadIndex = w.reloadIndexBase!;
+    w.reloadMean = w.reloadMeanBase!;
     try {
-      return refRateOf(ratioEqBase)(lane, eq);
+      return f();
     } finally {
       w.reloadIndex = index;
       w.reloadMean = mean;
     }
+  };
+  /**
+   * What an NPC shipper's contract with its broker pays per mile, before the tender's own multipliers: every brokered
+   * tender, an AI broker's and a player's brokerage's alike. The emission cap's rate lever reaches it as it reaches spot
+   * (rf above): the haul's pay, not the cost pass-throughs; the contract index itself stays the market's own (red team,
+   * 2026-11-08). Windows batch 7 (studio/reviews/economy-delivery-windows-batch6.md §4.1): while windows are on, the
+   * contract reads the memory-free contract index under rates.ratioClamp (w.contractIndexBase), and its destination's
+   * reload terms the memory-free reload index, as a facility's goods do; so the lost-load memory lifts what the board pays
+   * a carrier for the load and not what the shipper pays the broker for it.
+   */
+  const contractRefOf = (index: Float64Array, lane: Lane, eq: Equipment): number =>
+    lane.baseRate * (w.stab.emissionMult ?? 1) * index[planIndex(lane.origin, EQUIPMENT.indexOf(eq))]! * cfg.rates.equipmentPremium[eq] * reloadFactor(w, lane.dest, eq) + fsc + tollPerMile(lane) + terrainPerMile(lane) + theftPerMile(lane, eq) + exitPerMile(lane, eq);
+  const contractRef = (lane: Lane, eq: Equipment): number => {
+    const base = w.contractIndexBase;
+    if (!ratioEqBase || !base || !w.reloadIndexBase || !w.reloadMeanBase) return contractRefOf(w.contractIndex, lane, eq);
+    return withBaseReload(() => contractRefOf(base, lane, eq));
   };
 
   const month = Math.floor(((day % cfg.time.daysPerSeason) / cfg.time.daysPerSeason) * 12);
@@ -481,12 +511,14 @@ export function generateRoundFreight(w: World): RoundFreight {
         // Shipper leverage: where trucks pile up, most loads go to local carriers first.
         if (rng.next() < localShare(w, i, eq)) load.localUntilRound = w.round + cfg.leverage.localRounds;
         if (rng.next() < cfg.freight.npcBrokerOnlyShare) {
-          // The emission cap's rate lever reaches the NPC shipper's tender as it reaches spot (rf above): the haul's pay, not the cost pass-throughs. The contract index itself stays the market's own (red team, 2026-11-08).
-          const contractRef = lane.baseRate * (w.stab.emissionMult ?? 1) * w.contractIndex[planIndex(i, e)]! * cfg.rates.equipmentPremium[eq] * reloadFactor(w, lane.dest, eq) + fsc + tollPerMile(lane) + terrainPerMile(lane) + theftPerMile(lane, eq) + exitPerMile(lane, eq);
-          tenderToBroker(w, load, brokers, contractRef * remoteMult(load) * cfg.rates.npcCeilingMarkup * (load.hot || 1) * sameDay, books);
+          tenderToBroker(w, load, brokers, contractRef(lane, eq) * remoteMult(load) * cfg.rates.npcCeilingMarkup * (load.hot || 1) * sameDay, books);
         }
         finish(load, load.brokerId !== null ? w.companies[load.brokerId - 1]!.vetting : 0);
-        if (win) openWindow(w, load, lead);
+        if (win) noteNpcPosted(w, load); // batch 7: the hub's NPC freight posted, against what it loses (the facility test)
+        // Batch 7 (the economy): a tender held for a player's brokerage opens its window at the release, not now
+        // (brokerage.ts endHold), so the hold doesn't eat its pickup hours.
+        if (win && load.hold) load.hold.lead = lead;
+        else if (win) openWindow(w, load, lead);
         w.loads.set(load.id, load);
         created.push(load);
       }
@@ -501,6 +533,7 @@ export function generateRoundFreight(w: World): RoundFreight {
     finish(load, 0);
     tender(w, load, c);
     routeLoad(load);
+    if (win) noteNpcPosted(w, load); // batch 7: NPC freight as the lost-load memory counts it
     if (win) openWindow(w, load, 0); // a tender is for now: its carrier answers within the tender's hours
     w.loads.set(load.id, load);
     created.push(load);
@@ -597,12 +630,13 @@ function tenderToBroker(w: World, load: Load, brokers: Company[], contractShippe
   const order = broker.orders.find((o) => o.kind === "broker");
   const margin = clamp(order && order.kind === "broker" ? order.marginPct : 0, 0, 0.9);
   load.brokerId = broker.id;
-  tally(w, brokerKey(broker.id, load.origin), "taken"); // windows batch 6: what it takes, against what it loses (windows.ts)
+  // Windows batch 6: what the AI brokers take at the hub, against what they lose (batch 7: all of them together, windows.ts).
+  if (aiBroker(w, broker.id)) tally(w, brokerKey(load.origin), "taken");
   load.shipperRate = contractShipperRate;
   load.ceiling = contractShipperRate * (1 - margin);
   load.bookNow = Math.min(load.bookNow, load.ceiling);
   broker.openBrokerLoads++;
-  startHold(w, load, broker); // a player's brokerage holds it off the board first (brokerage.ts)
+  startHold(w, load, broker, margin); // a player's brokerage holds it off the board first, at the margin it was drawn at (brokerage.ts)
   if (books) {
     let b = books.get(broker.id);
     if (!b) books.set(broker.id, (b = { apFd: 0, postedFd: 0 }));

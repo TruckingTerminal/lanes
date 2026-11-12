@@ -564,6 +564,7 @@ export function lostMemory(w: World): number[] | null {
 /** A load lost at its pickup's close (board.ts giveUp): NPC freight joins its hub's memory of unhauled demand. */
 export function noteLost(w: World, load: Load): void {
   if (!npcFreight(w, load)) return;
+  tally(w, npcKey(load.origin), "lost"); // batch 7: against what was posted there (noteNpcPosted), for the facility test
   if (!w.lostMem) w.lostMem = { t: w.t, v: new Array<number>(w.net.hubs.length * EQUIPMENT.length).fill(0) };
   const v = lostMemory(w)!;
   v[planIndex(load.origin, EQUIPMENT.indexOf(load.equipment))]! += 1;
@@ -624,9 +625,14 @@ export function keepLoad(w: World, company: Company, load: Load): string | null 
 
 // --- Batch 6: who covers what they take ----------------------------------------------------------
 
-/** A tally's key: an AI broker's tenders at a hub, or a hub's facility freight. */
-export const brokerKey = (brokerId: number, hub: number): string => `b:${brokerId}:${hub}`;
+/**
+ * A tally's key. Batch 7: the AI brokers' tenders at a hub, all of them together (the freight nobody can haul is the
+ * hub's; batch 6 kept one per broker and hub, and at 60 brokers a broker-hub never reached coverMinLoads). A hub's
+ * facility freight. A hub's NPC shippers' freight, as the lost-load memory counts it (batch 7, the facility test).
+ */
+export const brokerKey = (hub: number): string => `b:${hub}`;
 export const facilityKey = (hub: number): string => `f:${hub}`;
+export const npcKey = (hub: number): string => `n:${hub}`;
 
 /** Counts a load taken (`taken`) or lost at its pickup's close (`lost`) under a key, on today's entry (windows on only). */
 export function tally(w: World, key: string, kind: "taken" | "lost"): void {
@@ -658,26 +664,34 @@ export function lostShare(w: World, key: string): { taken: number; lost: number;
 /** An AI broker (not a person's company or a player's brokerage), whose tenders the cover rule reads. */
 export const aiBroker = (w: World, id: number): boolean => !byPlayer(w, id);
 
-/** windows.brokerMaxLostShare: this AI broker loses too much of what it takes at this hub to take another tender there. */
+/**
+ * windows.brokerMaxLostShare: the AI brokers lose too much of what they take at this hub for this AI broker to take
+ * another tender there (batch 7: the hub's tally across the AI brokers). A player's brokerage is never held by it.
+ */
 export function brokerUncovered(w: World, brokerId: number, hub: number): boolean {
   if (!windowsOn(w) || !aiBroker(w, brokerId)) return false;
-  const s = lostShare(w, brokerKey(brokerId, hub)).share;
+  const s = lostShare(w, brokerKey(hub)).share;
   return s !== null && s >= w.cfg.windows!.brokerMaxLostShare;
 }
 
 /**
  * The chance a facility's load is hauled before its pickup closes, for the bots' facility test (ruleBots chooseFacility):
- * one less the hub's facility lost share over the trailing week, or, with too few loads to read, the board's fill over the
- * rounds a load lives in its window (its pickup hours in rounds: two for an appointment dock, four for a first-come one).
+ * one less the hub's facility lost share over the trailing week. Batch 7: with too few facility loads to read, one less
+ * the hub's NPC shippers' lost share over the same week (the freight the lost-load memory counts, NPC direct and the AI
+ * brokers', posted against lost at the close), so a facility is bought only where loads are being hauled. With too few of
+ * those either (under coverMinLoads in the week), nothing says freight moves there: 0. Batch 6's fallback, the board's
+ * fill over the window's rounds, read a first-come hub at a fill of 0.52 as 95% covered.
  */
-export function facilityCovered(w: World, hub: number, eq: Equipment): number {
+export function facilityCovered(w: World, hub: number, _eq: Equipment): number {
   const s = lostShare(w, facilityKey(hub)).share;
   if (s !== null) return 1 - s;
-  const k = w.cfg.windows!;
-  const roundHours = w.cfg.time.gameMinutesPerDay / 60 / w.cfg.time.boardRoundHours.length;
-  const hours = w.cfg.docks.byEquipment[eq] === "appointment" ? k.pickupHours.appointment : k.pickupHours.firstCome;
-  const rounds = Math.max(1, Math.round(hours / roundHours));
-  return 1 - dpow(1 - w.fillRate[eq], rounds);
+  const npc = lostShare(w, npcKey(hub)).share;
+  return npc !== null ? 1 - npc : 0;
+}
+
+/** Batch 7: an NPC shippers' load posted at its hub, counted as the lost-load memory counts freight (npcFreight). */
+export function noteNpcPosted(w: World, load: Load): void {
+  if (npcFreight(w, load)) tally(w, npcKey(load.origin), "taken");
 }
 
 /**

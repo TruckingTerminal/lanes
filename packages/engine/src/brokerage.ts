@@ -23,6 +23,7 @@ import { apCapBlock, brokerBooks } from "./receivables.js";
 import { brokerLicensed, stakeFd } from "./staking.js";
 import type { BrokerageLog, Company, Load } from "./types.js";
 import { formCompany, type World } from "./world.js";
+import { openWindow, windowsOn } from "./windows.js";
 
 
 export const brokerageOn = (w: World): boolean => w.cfg.brokerage.enabled;
@@ -318,7 +319,7 @@ export function tenderOwn(w: World, broker: Company, load: Load, rate: number): 
   const [lo, hi] = ownBand(w, load);
   if (!(rate >= lo - 1e-9 && rate <= hi + 1e-9)) return refuse(w, "the pay is outside the lane's band");
   if (load.hold) {
-    load.hold = undefined; // out of the hold: to the own carrier, then the board if it lapses
+    endHold(w, load); // out of the hold: to the own carrier, then the board if it lapses
     load.postedRound = w.round;
     load.roundsUnfilled = 0;
     brokerageLog(w).holds.toOwn++;
@@ -336,21 +337,42 @@ export function tenderOwn(w: World, broker: Company, load: Load, rate: number): 
  * contracts.tenderHours, an "offered to you" moment in which the owner posts it, tenders it to the own carrier or
  * declines it. AI brokers post at once, as before (freight.ts tenderToBroker).
  */
-export function startHold(w: World, load: Load, broker: Company): void {
+/**
+ * `marginPct`: the margin the tender was drawn at (the broker's order when the shipper chose it); by default the order's
+ * now. The bait-and-switch rule (the economy, 2026-11-12): the shipper's draw favors a broker by (0.25 + credit) ÷
+ * margin², so a brokerage advertising 1% wins nearly every tender; it then posts the load at no more than that 1%.
+ */
+export function startHold(w: World, load: Load, broker: Company, marginPct?: number): void {
   if (!w.cfg.brokerage.enabled || broker.partnerId === undefined) return;
-  load.hold = { brokerId: broker.id, until: w.t + w.cfg.contracts.tenderHours * 60, declinable: true };
+  const m = Math.min(0.9, Math.max(0, marginPct ?? brokerOrderOf(broker)?.marginPct ?? w.cfg.brokerage.defaultMarginPct));
+  load.hold = { brokerId: broker.id, until: w.t + w.cfg.contracts.tenderHours * 60, declinable: true, marginPct: m };
   brokerageLog(w).holds.held++;
 }
 
 const brokerOrderOf = (b: Company) => b.orders.find((o): o is Extract<Company["orders"][number], { kind: "broker" }> => o.kind === "broker");
 
-/** Posts a held load to the board at this margin of the shipper's rate: priced and posted from this round. */
+/**
+ * A hold ends (posted, declined, or tendered to the own carrier). Delivery windows (batch 7, the economy): a shipper's
+ * tender held for a player's brokerage had no window while held, and its pickup window opens now, with the lead it was
+ * posted with (freight.ts), so the carriers get the window's whole 24 to 48 hours from the release.
+ */
+function endHold(w: World, load: Load): void {
+  const lead = load.hold?.lead;
+  load.hold = undefined;
+  if (lead !== undefined && windowsOn(w)) openWindow(w, load, lead);
+}
+
+/**
+ * Posts a held load to the board at this margin of the shipper's rate: priced and posted from this round. A shipper's
+ * tender posts at no more than the margin it was drawn at (startHold), by hand or by the standing order.
+ */
 export function postHeld(w: World, broker: Company, load: Load, marginPct?: number, byHand = true): string | null {
   if (!load.hold || load.hold.brokerId !== broker.id || load.status !== "open") return "that tender isn't held for you";
-  const m = Math.min(0.9, Math.max(0, marginPct ?? brokerOrderOf(broker)?.marginPct ?? w.cfg.brokerage.defaultMarginPct));
+  const asked = Math.min(0.9, Math.max(0, marginPct ?? brokerOrderOf(broker)?.marginPct ?? w.cfg.brokerage.defaultMarginPct));
+  const m = load.hold.marginPct !== undefined ? Math.min(asked, load.hold.marginPct) : asked;
   load.ceiling = load.shipperRate * (1 - m);
   load.bookNow = Math.min(load.bookNow, load.ceiling);
-  load.hold = undefined;
+  endHold(w, load);
   load.postedRound = w.round;
   load.roundsUnfilled = 0;
   const h = brokerageLog(w).holds;
@@ -367,7 +389,7 @@ export function declineHeld(w: World, broker: Company, load: Load): string | nul
   load.shipperRate = load.spotShipperRate;
   load.ceiling = load.spotShipperRate;
   load.bookNow = Math.min(load.bookNow, load.ceiling);
-  load.hold = undefined;
+  endHold(w, load);
   load.postedRound = w.round;
   load.roundsUnfilled = 0;
   broker.openBrokerLoads--;

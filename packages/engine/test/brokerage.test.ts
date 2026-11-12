@@ -238,10 +238,10 @@ describe("player brokerages (brokerage.enabled)", () => {
     expect(a.hold).toMatchObject({ brokerId: b.id, declinable: true });
     expect(mayTake(w, stranger, a)).toBe(false);
     expect(mayTake(w, c, a)).toBe(false);
-    // Posted by hand at 8%: on the board at 92% of the shipper's rate.
-    expect(applyAction(w, b.id, { type: "post_tender", loadId: a.id, marginPct: 0.08 })).toEqual({ ok: true });
+    // Posted by hand at 4% (under the 5% it was drawn at, the bait-and-switch rule's cap): on the board at 96%.
+    expect(applyAction(w, b.id, { type: "post_tender", loadId: a.id, marginPct: 0.04 })).toEqual({ ok: true });
     expect(a.hold).toBeUndefined();
-    expect(a.ceiling).toBeCloseTo(3 * 0.92, 9);
+    expect(a.ceiling).toBeCloseTo(3 * 0.96, 9);
     expect(mayTake(w, stranger, a)).toBe(true);
     // Declined: it goes on as the shipper's own spot freight.
     const d = held();
@@ -268,6 +268,34 @@ describe("player brokerages (brokerage.enabled)", () => {
     expect(g.brokerId).toBe(b.id);
     expect(g.ceiling).toBeCloseTo(3 * (1 - on.brokerage.defaultMarginPct), 9);
     expect(brokerageLog(w).holds).toMatchObject({ held: 5, postedByHand: 1, declined: 2, postedByOrder: 2, passedPosted: 1 });
+  });
+
+  it("posts a held tender at no more than the margin it was tendered at: tendered at 1%, never posted at 30% (the economy's bait and switch)", () => {
+    const { w, b } = pair(13);
+    const lane = net.lanes.find((l) => l.miles > 300 && l.miles < 600)!;
+    const held = (margin: number) => {
+      const load = testLoad(w, lane, { brokerId: b.id, shipperRate: 3, spotShipperRate: 3.2, ceiling: 2.97 });
+      b.openBrokerLoads++;
+      startHold(w, load, b, margin);
+      return load;
+    };
+    // Drawn at 1%: posted by hand at 30%, it goes up at 1%.
+    const a = held(0.01);
+    expect(a.hold!.marginPct).toBe(0.01);
+    expect(applyAction(w, b.id, { type: "post_tender", loadId: a.id, marginPct: 0.3 })).toEqual({ ok: true });
+    expect(a.ceiling).toBeCloseTo(3 * 0.99, 9);
+    // The standing order at 30% after drawing tenders at 1%: the window's end posts at 1% too.
+    const e = held(0.01);
+    b.orders = [{ kind: "broker", marginPct: 0.3, maxOpenLoads: 20 }];
+    w.t = e.hold!.until;
+    holdsAtEnd(w);
+    expect(e.hold).toBeUndefined();
+    expect(e.ceiling).toBeCloseTo(3 * 0.99, 9);
+    // Under the margin it was drawn at is the brokerage's choice.
+    const f = held(0.1);
+    expect(applyAction(w, b.id, { type: "post_tender", loadId: f.id, marginPct: 0.05 })).toEqual({ ok: true });
+    expect(f.ceiling).toBeCloseTo(3 * 0.95, 9);
+    w.ledger.assertBalanced();
   });
 
   it("red team E2-FORM: refuses to form a brokerage from a carrier in a debt week or under its stake, and creates nothing", () => {

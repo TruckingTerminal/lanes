@@ -1,9 +1,9 @@
 import { createHash } from "node:crypto";
 import { describe, expect, it } from "vitest";
 import { withLiveLevers, type EconomyConfig } from "@lanes/config";
-import { buildNetwork, dpow, hubs, neutralFeeds } from "@lanes/data";
+import { buildNetwork, hubs, neutralFeeds } from "@lanes/data";
 import { populate, ruleBotHook } from "@lanes/agents";
-import { applyAction, brokerKey, brokerUncovered, companyAccount, createWorld, dayOf, facilityCovered, facilityKey, factoringLog, isRoundBoundary, lostShare, stepHour, tally, type World } from "@lanes/engine";
+import { applyAction, brokerKey, brokerUncovered, companyAccount, createWorld, dayOf, facilityCovered, facilityKey, factoringLog, isRoundBoundary, lostShare, npcKey, stepHour, tally, type World } from "@lanes/engine";
 
 /**
  * Delivery windows batch 6 (studio/reviews/economy-delivery-windows-batch5.md §3; DECISIONS.md 2026-11-10): an AI broker
@@ -36,7 +36,7 @@ describe("delivery windows batch 6", () => {
 
   it("keeps a trailing week of loads taken and lost, and reads a share once enough were taken", () => {
     const w = createWorld({ cfg: ON, net, feeds: neutralFeeds, seed: 3 });
-    const key = brokerKey(9, 4);
+    const key = brokerKey(4);
     for (let i = 0; i < 3; i++) tally(w, key, "taken");
     tally(w, key, "lost");
     expect(lostShare(w, key)).toEqual({ taken: 3, lost: 1, share: null }); // under coverMinLoads
@@ -51,15 +51,15 @@ describe("delivery windows batch 6", () => {
     expect(off.winTally).toBeUndefined();
   });
 
-  it("an AI broker that loses a quarter of what it takes at a hub takes no tender there; the load goes to the board", () => {
+  it("AI brokers that lose a quarter of what they take at a hub take no tender there; the load goes to the board", () => {
     const w = createWorld({ cfg: ON, net, feeds: neutralFeeds, seed: 4 });
     populate(w, { freeOwnerOperators: 20, fleets: 4, brokers: 6 });
     for (let d = 0; d < 3; d++) for (let h = 0; h < 24; h++) stepHour(w, ruleBotHook);
     const brokers = w.companies.filter((c) => c.role === "broker");
     expect(brokers.length).toBeGreaterThan(0);
-    // Every AI broker at every hub has lost half of what it took.
+    // The AI brokers at every hub have lost half of what they took (batch 7: one tally per hub across them).
     const day = dayOf(w.t, w.cfg);
-    for (const b of brokers) for (let hub = 0; hub < w.net.hubs.length; hub++) (w.winTally ??= {})[brokerKey(b.id, hub)] = [{ day, taken: 100, lost: 50 }];
+    for (let hub = 0; hub < w.net.hubs.length; hub++) (w.winTally ??= {})[brokerKey(hub)] = [{ day, taken: 100, lost: 50 }];
     expect(brokerUncovered(w, brokers[0]!.id, 0)).toBe(true);
     const before = new Set(w.loads.keys());
     const uncovered = factoringLog(w).tendersUncovered ?? 0;
@@ -71,16 +71,20 @@ describe("delivery windows batch 6", () => {
     w.ledger.assertBalanced();
   }, 120_000);
 
-  it("reads a facility's chance of a haul from the hub's facility freight, else the board's fill over the window's rounds", () => {
+  it("reads a facility's chance of a haul from the hub's facility freight, else (batch 7) the hub's NPC freight, else 0", () => {
     const w = createWorld({ cfg: ON, net, feeds: neutralFeeds, seed: 5 });
     const hub = 3;
-    const rounds = (eq: "van" | "reefer") => {
-      const hours = ON.docks.byEquipment[eq] === "appointment" ? ON.windows.pickupHours.appointment : ON.windows.pickupHours.firstCome;
-      return Math.max(1, Math.round(hours / (24 / ON.time.boardRoundHours.length)));
-    };
-    expect(facilityCovered(w, hub, "van")).toBeCloseTo(1 - dpow(1 - w.fillRate.van, rounds("van")), 12);
-    expect(rounds("van")).toBeLessThan(ON.board.giveUpAfterRounds);
-    (w.winTally ??= {})[facilityKey(hub)] = [{ day: dayOf(w.t, w.cfg), taken: 10, lost: 4 }];
+    const day = dayOf(w.t, w.cfg);
+    // Nothing read at the hub: nothing says freight moves there.
+    expect(facilityCovered(w, hub, "van")).toBe(0);
+    // Too few NPC loads to read (under coverMinLoads): still 0.
+    (w.winTally ??= {})[npcKey(hub)] = [{ day, taken: 3, lost: 0 }];
+    expect(facilityCovered(w, hub, "van")).toBe(0);
+    // The hub's NPC freight: 2 of 10 lost.
+    w.winTally[npcKey(hub)] = [{ day, taken: 10, lost: 2 }];
+    expect(facilityCovered(w, hub, "van")).toBeCloseTo(0.8, 12);
+    // The hub's own facility freight, once it has enough, comes first.
+    w.winTally[facilityKey(hub)] = [{ day, taken: 10, lost: 4 }];
     expect(facilityCovered(w, hub, "van")).toBeCloseTo(0.6, 12);
   });
 

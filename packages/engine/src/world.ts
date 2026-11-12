@@ -109,8 +109,15 @@ export interface World {
    */
   reloadIndexBase?: Float64Array;
   /**
+   * Windows batch 7: the contract index as it'd read without the lost-load memory and under rates.ratioClamp, for every
+   * brokered tender's contract (freight.ts contractRef). Made the first round windows are on, from the contract index as
+   * it stood; absent otherwise.
+   */
+  contractIndexBase?: Float64Array;
+  /**
    * Windows batch 6 (windows.ts tally): per key, the trailing days' loads taken and lost at their pickup's close, one
-   * entry a day: `b:{broker}:{hub}` for an AI broker's tenders, `f:{hub}` for facility freight. Absent with windows off.
+   * entry a day: `b:{hub}` for the AI brokers' tenders at a hub (batch 7; per broker and hub in batch 6), `f:{hub}` for
+   * facility freight, `n:{hub}` for NPC shippers' freight (batch 7). Absent with windows off.
    */
   winTally?: Record<string, { day: number; taken: number; lost: number }[]>;
   /**

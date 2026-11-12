@@ -355,8 +355,9 @@ export function giveUp(w: World, load: Load, noShow = false): void {
   const closed = noShow || pickupClosed(w, load);
   if (closed) w.metrics.onLost(posterKind(w, load), load.shipperRate * load.miles);
   if (closed) noteLost(w, load); // batch 4: unserved NPC demand prices the hub's next postings (freight.ts)
-  // Batch 6: lost at the close, against what was taken: an AI broker's at its hub, a facility's at its hub (windows.ts tally).
-  if (closed && load.brokerId !== null && aiBroker(w, load.brokerId)) tally(w, brokerKey(load.brokerId, load.origin), "lost");
+  // Batch 6: lost at the close, against what was taken: the AI brokers' at the hub (batch 7: all of them together), a
+  // facility's at its hub (windows.ts tally).
+  if (closed && load.brokerId !== null && aiBroker(w, load.brokerId)) tally(w, brokerKey(load.origin), "lost");
   if (closed && load.facilityId !== null) tally(w, facilityKey(load.origin), "lost");
   const unhauled = noShow ? "after its carrier failed to show at the pickup" : closed ? "before its pickup closed" : `in ${rounds} rounds`;
   load.status = "expired";
