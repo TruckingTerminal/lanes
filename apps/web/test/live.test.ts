@@ -2,8 +2,8 @@ import "./seed.js";
 import { describe, expect, it } from "vitest";
 import { hubs } from "@lanes/data";
 import { hubMiles, type Action, type World } from "@lanes/engine";
-import { PLAYER_DISPATCHER_ORDERS, RULESET } from "../src/game.js";
-import { LEAD_MIN, LiveWorld, MS_PER_GAME_HOUR, type WorldMeta } from "../src/live.js";
+import { GAME_CONFIG, PLAYER_DISPATCHER_ORDERS, RULESET } from "../src/game.js";
+import { LEAD_MIN, LiveWorld, MS_PER_GAME_HOUR, type LiveAction, type SnapLike, type WorldMeta } from "../src/live.js";
 import { MemoryDb } from "../src/memdb.js";
 
 const MIN = MS_PER_GAME_HOUR / 60;
@@ -207,14 +207,17 @@ describe("the live rings", () => {
       A.advance(1e9);
       await A.submit(orders(1));
       await A.submit(orders(2));
+      await A.submit(orders(3));
       const watcher = await LiveWorld.open(db, meta, "p3", { now, holder: "W", manualRenewal: true });
       await watcher.rebuild();
       expect(watcher.needRebuild).toBe(false);
-      // An older device's whole-list write, as before the fix: the last order is gone from the store.
-      const body = (await db.doc("players/p1").get()).data() as { acts: unknown[]; archived: number };
-      await db.doc("players/p1").set({ v: 1, acts: body.acts.slice(0, 2), archived: 0 });
+      // An older device's whole-list write, as before the fix: it never saw the last two orders, and its own lands on the
+      // first of their numbers (the re-check §5: an erasure always comes with a rewritten entry).
+      const body = (await db.doc("players/p1").get()).data() as { acts: { s: number; at: number }[]; archived: number };
+      await db.doc("players/p1").set({ v: 1, acts: [...body.acts.slice(0, 2), { s: 2, at: body.acts[2]!.at, a: orders(0) }], archived: 0 });
       await settle();
       expect(watcher.needRebuild).toBe(true);
+      expect(held(watcher, "p1")).toBe(3);
       await watcher.rebuild();
       const fresh = await LiveWorld.open(db, meta, null, { now });
       await fresh.rebuild();
@@ -300,7 +303,7 @@ describe("the live rings", () => {
       const join = (name: string, hub: string) => ({ type: "join", name, hub });
       // In the store before the owner's page opened: history, never marked.
       await db.doc("players/old").set({ v: 1, acts: [{ s: 0, at: 60, a: join("Old Co", starters[2]!) }], archived: 0 });
-      const owner = await LiveWorld.open(db, meta, "owner", { now, holder: "O", manualRenewal: true, owner: true });
+      const owner = await LiveWorld.open(db, meta, "owner", { now, mono: now, holder: "O", manualRenewal: true, owner: true });
       const player = await LiveWorld.open(db, meta, "p5", { now, holder: "P", manualRenewal: true });
       await owner.rebuild();
       await player.rebuild();
@@ -312,7 +315,7 @@ describe("the live rings", () => {
       const past = Math.ceil(clock / MIN) - 60;
       await db.doc("players/forger").set({ v: 1, acts: [{ s: 0, at: past, a: join("Back Dated Co", starters[1]!) }], archived: 0 });
       await settle();
-      expect(owner.earlyStamps).toEqual([{ uid: "forger", s: 0, at: past, minutesEarly: 60, seenAt: Math.floor(clock / MIN) }]);
+      expect(owner.earlyStamps).toEqual([{ kind: "early", uid: "forger", s: 0, at: past, minutesEarly: 60, seenAt: Math.floor(clock / MIN) }]);
       expect(player.earlyStamps).toEqual([]);
       // An owner's page out of touch (no renewal within the lease's life) marks nothing: a backlog is its own lateness.
       clock += LEASE_GONE;
@@ -321,6 +324,379 @@ describe("the live rings", () => {
       expect(owner.earlyStamps).toHaveLength(1);
       owner.close();
       player.close();
+    });
+  });
+
+  describe("the red team's re-check (redteam-persistence-recheck-2026-11-12.md §1, §2, §5, §8)", () => {
+    const meta: WorldMeta = { v: 1, seed: 4242, epochMs: 0, msPerGameHour: MS_PER_GAME_HOUR, ruleset: RULESET };
+    const LEASE_GONE = 5 * 60_000;
+    const orders = (n: number): Action => ({ type: "set_standing_orders", orders: n === 0 ? [] : PLAYER_DISPATCHER_ORDERS.slice(0, n) });
+    const held = (lw: LiveWorld, uid: string) => (lw as unknown as { logs: Map<string, Map<number, unknown>> }).logs.get(uid)?.size ?? 0;
+    const join = (name: string, hub: string): LiveAction => ({ type: "join", name, hub });
+
+    it("a brokerage's order, stored and read again, acts for the brokerage on every page (§1)", async () => {
+      // The ladder's brokerage layer open, and a bond the new carrier's cash covers: the config varied for this test only.
+      const cfg = GAME_CONFIG as unknown as { unlockLadder: { enabled: boolean }; token: { staking: { roles: { broker: number } } } };
+      const was = { ladder: cfg.unlockLadder.enabled, bond: cfg.token.staking.roles.broker };
+      cfg.unlockLadder.enabled = false;
+      cfg.token.staking.roles.broker = 1_000;
+      try {
+        let clock = 6 * MS_PER_GAME_HOUR;
+        const now = () => clock;
+        const db = new MemoryDb(now);
+        const A = await LiveWorld.open(db, meta, "p1", { now, holder: "A", manualRenewal: true });
+        const W = await LiveWorld.open(db, meta, "p3", { now, holder: "W", manualRenewal: true });
+        await A.rebuild();
+        await W.rebuild();
+        await A.submit(join("One Truck Co", starters[0]!));
+        clock += 5 * MIN;
+        A.advance(1e9);
+        await A.submit({ type: "form_brokerage", name: "Red River Logistics", capitalFd: 2_500 } as Action, "carrier");
+        clock += 5 * MIN;
+        A.advance(1e9);
+        expect(A.brokerage?.name).toBe("Red River Logistics");
+        const terms = [{ kind: "broker", marginPct: 0.1, maxOpenLoads: 40 }];
+        await A.submit({ type: "set_standing_orders", orders: terms } as Action, "brokerage");
+        const body = (await db.doc("players/p1").get()).data() as { acts: { as?: string }[] };
+        expect(body.acts.at(-1)!.as).toBe("brokerage");
+        clock += 5 * MIN;
+        await settle();
+        A.close();
+        // The page that sent it, a page that heard it, the sender's own reopened, and one opened afterwards by nobody.
+        const A2 = await LiveWorld.open(db, meta, "p1", { now, holder: "A", manualRenewal: true });
+        const fresh = await LiveWorld.open(db, meta, null, { now });
+        for (const lw of [A, W, A2, fresh]) {
+          await lw.rebuild();
+          const cos = lw.w.companies;
+          expect(cos.find((c) => c.name === "Red River Logistics")!.orders).toEqual(terms);
+          expect(cos.find((c) => c.name === "One Truck Co")!.orders).not.toEqual(terms);
+        }
+        expect(summary(A.w)).toBe(summary(fresh.w));
+        expect(summary(W.w)).toBe(summary(fresh.w));
+        expect(summary(A2.w)).toBe(summary(fresh.w));
+        for (const lw of [W, A2, fresh]) lw.close();
+      } finally {
+        cfg.unlockLadder.enabled = was.ladder;
+        cfg.token.staking.roles.broker = was.bond;
+      }
+    });
+
+    it("a device clock set back after the page opened stamps on the store's clock: no order lands in a round already cleared (§2)", async () => {
+      let server = 6 * MS_PER_GAME_HOUR;
+      let skew = 0;
+      const db = new MemoryDb(() => server);
+      const A = await LiveWorld.open(db, meta, "p1", { now: () => server + skew, mono: () => server, holder: "A", manualRenewal: true });
+      await A.rebuild();
+      await A.submit(join("One Truck Co", starters[0]!));
+      server += 5 * MIN;
+      A.advance(1e9);
+      // Set back an hour, and an order before any renewal: the jump between the two clocks reads as a lost lease.
+      skew = -60 * 60_000;
+      expect((await A.submit(orders(1))).at).toBe(Math.ceil(server / MIN) + LEAD_MIN);
+      // Set back again, and the renewal comes first: it reads the store's clock again.
+      server += MIN;
+      skew = -2 * 60 * 60_000;
+      await A.renewLease();
+      expect((await A.submit(orders(2))).at).toBe(Math.ceil(server / MIN) + LEAD_MIN);
+      A.close();
+    });
+
+    it("a device clock set forward after the page opened doesn't lock the player's other device out (§2)", async () => {
+      let server = 6 * MS_PER_GAME_HOUR;
+      let skew = 0;
+      const db = new MemoryDb(() => server);
+      const A = await LiveWorld.open(db, meta, "p1", { now: () => server + skew, mono: () => server, holder: "A", manualRenewal: true });
+      await A.rebuild();
+      await A.submit(join("One Truck Co", starters[0]!));
+      server += 5 * MIN;
+      A.advance(1e9);
+      // Twelve minutes ahead (48 game minutes), then the renewal's timer fires: before the fix the renewal kept the old
+      // offset, the order went out 48 game minutes ahead, and every later order on the other device was refused till then.
+      skew = 12 * 60_000;
+      await A.renewLease();
+      expect((await A.submit(orders(1))).at).toBe(Math.ceil(server / MIN) + LEAD_MIN);
+      A.close();
+      server += LEASE_GONE;
+      const B = await LiveWorld.open(db, meta, "p1", { now: () => server, mono: () => server, holder: "B", manualRenewal: true });
+      await B.rebuild();
+      expect((await B.submit(orders(2))).at).toBe(Math.ceil(server / MIN) + LEAD_MIN);
+      B.close();
+    });
+
+    it("a returning page whose subscription hands it older copies first drops nothing and needs no second replay (§5)", async () => {
+      let clock = 6 * MS_PER_GAME_HOUR;
+      const now = () => clock;
+      const db = new MemoryDb(now);
+      const A = await LiveWorld.open(db, meta, "p1", { now, holder: "A", manualRenewal: true });
+      await A.rebuild();
+      await A.submit(join("One Truck Co", starters[0]!));
+      clock += 5 * MIN;
+      A.advance(1e9);
+      for (const n of [1, 2, 3]) await A.submit(orders(n));
+      const acts = ((await db.doc("players/p1").get()).data() as { acts: { s: number; at: number }[] }).acts;
+      const copy = (list: unknown[]) => [{ id: "p1", exists: true, data: () => ({ v: 1, acts: JSON.parse(JSON.stringify(list)) as unknown[], archived: 0 }) }];
+      // The store's saved copy from the last visit, marked so (it even holds a rewrite), then one older and unmarked.
+      const marked = copy([acts[0], { s: 1, at: acts[1]!.at, a: orders(0) }]);
+      const older = copy(acts.slice(0, 2));
+      const coll = db.collection.bind(db);
+      db.collection = (path: string) => {
+        const c = coll(path);
+        return {
+          get: () => c.get(),
+          onSnapshot: (next, err) => {
+            if (path === "players") {
+              queueMicrotask(() => next({ docs: marked, metadata: { fromCache: true } }));
+              queueMicrotask(() => next({ docs: older }));
+            }
+            return c.onSnapshot(next, err);
+          },
+        };
+      };
+      const W = await LiveWorld.open(db, meta, "p3", { now, holder: "W", manualRenewal: true });
+      await settle();
+      await settle();
+      expect(held(W, "p1")).toBe(4);
+      expect(W.needRebuild).toBe(false);
+      A.close();
+      W.close();
+    });
+
+    it("the owner's page lists a rewritten record, an erased one, and a young one slipped into an archive chunk (§8)", async () => {
+      let clock = 6 * MS_PER_GAME_HOUR;
+      const now = () => clock;
+      const db = new MemoryDb(now);
+      const m = Math.ceil(clock / MIN);
+      const first = [{ s: 0, at: 60, a: join("Forge Co", starters[1]!) }, { s: 1, at: 70, a: orders(1) }, { s: 2, at: 80, a: orders(2) }];
+      await db.doc("players/f").set({ v: 1, acts: first, archived: 0 }); // history before the owner's page opened
+      const owner = await LiveWorld.open(db, meta, "owner", { now, mono: now, holder: "O", manualRenewal: true, owner: true });
+      const player = await LiveWorld.open(db, meta, "p5", { now, holder: "P", manualRenewal: true });
+      await owner.rebuild();
+      await player.rebuild();
+      // From the console: s1 rewritten (an undo), and s2 gone with it.
+      await db.doc("players/f").set({ v: 1, acts: [first[0], { s: 1, at: 70, a: orders(0) }], archived: 0 });
+      await settle();
+      // Then an "archive" that slips in a record stamped ten game minutes ago.
+      await db.doc("players/f/log/c00000").set({ acts: [first[0], { s: 9, at: m - 10, a: orders(2) }] });
+      await db.doc("players/f").set({ v: 1, acts: [{ s: 10, at: m + LEAD_MIN, a: orders(1) }], archived: 1 });
+      for (let i = 0; i < 4; i++) await settle();
+      expect(owner.earlyStamps.map((e) => [e.kind, e.uid, e.s])).toEqual([
+        ["drop", "f", 2],
+        ["rewrite", "f", 1],
+        ["chunk", "f", 9],
+      ]);
+      expect(player.earlyStamps).toEqual([]);
+      owner.close();
+      player.close();
+    });
+  });
+
+  describe("the red team's second re-check (redteam-persistence-recheck2-2026-11-12.md §1–§4)", () => {
+    const meta: WorldMeta = { v: 1, seed: 4242, epochMs: 0, msPerGameHour: MS_PER_GAME_HOUR, ruleset: RULESET };
+    const LEASE_GONE = 5 * 60_000;
+    const orders = (n: number): Action => ({ type: "set_standing_orders", orders: n === 0 ? [] : PLAYER_DISPATCHER_ORDERS.slice(0, n) });
+    const held = (lw: LiveWorld, uid: string) => (lw as unknown as { logs: Map<string, Map<number, unknown>> }).logs.get(uid)?.size ?? 0;
+    const join = (name: string, hub: string): LiveAction => ({ type: "join", name, hub });
+    /** Every object's keys in reverse order, at every depth: a store that keeps keys its own way. */
+    const reorder = (x: unknown): unknown =>
+      Array.isArray(x) ? x.map(reorder) : x && typeof x === "object" ? Object.fromEntries(Object.entries(x).reverse().map(([k, v]) => [k, reorder(v)])) : x;
+    const reordered = (s: SnapLike): SnapLike => ({ id: s.id, exists: s.exists, data: () => reorder(s.data()) as Record<string, unknown> | undefined });
+
+    it("a store that hands keys back in its own order costs the sender's page no replay (§1)", async () => {
+      let clock = 6 * MS_PER_GAME_HOUR;
+      const now = () => clock;
+      const db = new MemoryDb(now);
+      const doc = db.doc.bind(db);
+      db.doc = (path: string) => {
+        const d = doc(path);
+        const get = d.get.bind(d);
+        d.get = async () => reordered(await get());
+        return d;
+      };
+      const coll = db.collection.bind(db);
+      db.collection = (path: string) => {
+        const c = coll(path);
+        return { get: async () => ({ docs: (await c.get()).docs.map(reordered) }), onSnapshot: (next, err) => c.onSnapshot((x) => next({ ...x, docs: x.docs.map(reordered) }), err) };
+      };
+      const A = await LiveWorld.open(db, meta, "p1", { now, mono: now, holder: "A", manualRenewal: true });
+      const W = await LiveWorld.open(db, meta, "p3", { now, mono: now, holder: "W", manualRenewal: true });
+      await A.rebuild();
+      await W.rebuild();
+      await A.submit(join("One Truck Co", starters[0]!));
+      clock += 5 * MIN;
+      A.advance(1e9);
+      for (const n of [1, 2, 3, 0, 2]) {
+        await A.submit(orders(n));
+        expect(A.needRebuild).toBe(false); // before the fix, every order after the first read as a rewrite: a full replay
+      }
+      await settle();
+      expect(W.needRebuild).toBe(false);
+      const fresh = await LiveWorld.open(db, meta, null, { now });
+      for (const lw of [A, W, fresh]) await lw.rebuild();
+      expect(summary(A.w)).toBe(summary(fresh.w));
+      expect(summary(W.w)).toBe(summary(fresh.w));
+      A.close();
+      W.close();
+      fresh.close();
+    });
+
+    it("a players collection the store only ever hands over as fromCache still brings other players' new orders, and never drops one (§4)", async () => {
+      let clock = 6 * MS_PER_GAME_HOUR;
+      const now = () => clock;
+      const db = new MemoryDb(now);
+      const P = await LiveWorld.open(db, meta, "p1", { now, holder: "P", manualRenewal: true });
+      await P.rebuild();
+      await P.submit(join("One Truck Co", starters[0]!));
+      clock += 5 * MIN;
+      P.advance(1e9);
+      // Too large to read whole: every snapshot this page gets is marked fromCache, and no definitive one follows.
+      const coll = db.collection.bind(db);
+      db.collection = (path: string) => {
+        const c = coll(path);
+        return { get: () => c.get(), onSnapshot: (next, err) => c.onSnapshot((x) => next({ ...x, metadata: { fromCache: true } }), err) };
+      };
+      const W = await LiveWorld.open(db, meta, "p3", { now, holder: "W", manualRenewal: true });
+      await W.rebuild();
+      expect(held(W, "p1")).toBe(1);
+      await P.submit(orders(1));
+      await P.submit(orders(2));
+      await settle();
+      expect(held(W, "p1")).toBe(3); // the new orders arrive
+      // A cached copy that lacks the newest order and rewrites one drops nothing and rewrites nothing.
+      const body = (await db.doc("players/p1").get()).data() as { acts: { s: number; at: number }[] };
+      await db.doc("players/p1").set({ v: 1, acts: [body.acts[0], { s: 1, at: body.acts[1]!.at, a: orders(0) }], archived: 0 });
+      await settle();
+      expect(held(W, "p1")).toBe(3);
+      expect(W.needRebuild).toBe(false);
+      P.close();
+      W.close();
+    });
+
+    it("a record removed from the middle of a player's list is dropped and marked on every running page (§2)", async () => {
+      let clock = 6 * MS_PER_GAME_HOUR;
+      const now = () => clock;
+      const db = new MemoryDb(now);
+      const owner = await LiveWorld.open(db, meta, "owner", { now, mono: now, holder: "O", manualRenewal: true, owner: true });
+      const P = await LiveWorld.open(db, meta, "p1", { now, mono: now, holder: "P", manualRenewal: true });
+      await owner.rebuild();
+      await P.rebuild();
+      await P.submit(join("One Truck Co", starters[0]!));
+      clock += 5 * MIN;
+      P.advance(1e9);
+      for (const n of [1, 2, 3]) await P.submit(orders(n));
+      await settle();
+      expect(held(owner, "p1")).toBe(4);
+      // From the console: s2 taken out of the middle, nothing rewritten.
+      const body = (await db.doc("players/p1").get()).data() as { acts: { s: number }[] };
+      await db.doc("players/p1").set({ v: 1, acts: body.acts.filter((r) => r.s !== 2), archived: 0 });
+      await settle();
+      expect(held(owner, "p1")).toBe(3);
+      expect(owner.needRebuild).toBe(true);
+      expect(owner.earlyStamps.map((e) => [e.kind, e.uid, e.s])).toEqual([["drop", "p1", 2]]);
+      const fresh = await LiveWorld.open(db, meta, null, { now });
+      await owner.rebuild();
+      await fresh.rebuild();
+      expect(summary(owner.w)).toBe(summary(fresh.w));
+      owner.close();
+      P.close();
+      fresh.close();
+    });
+
+    it("a clock moved during a lease call stamps nothing; the next order retakes on a still clock (§3)", async () => {
+      let server = 6 * MS_PER_GAME_HOUR;
+      let skew = 0;
+      let moveInFlight = 0;
+      const db = new MemoryDb(() => server);
+      const doc = db.doc.bind(db);
+      db.doc = (path: string) => {
+        const d = doc(path);
+        if (path.endsWith("/x/tab")) {
+          const acquire = d.acquire.bind(d);
+          d.acquire = async (o) => {
+            const r = await acquire(o);
+            skew += moveInFlight; // the device clock moves while the reply is on its way
+            moveInFlight = 0;
+            return r;
+          };
+        }
+        return d;
+      };
+      const A = await LiveWorld.open(db, meta, "p1", { now: () => server + skew, mono: () => server, holder: "A", manualRenewal: true });
+      await A.rebuild();
+      await A.submit(join("One Truck Co", starters[0]!));
+      server += 5 * MIN;
+      A.advance(1e9);
+      moveInFlight = -6.25 * 60_000;
+      await A.renewLease();
+      // Before the fix the renewal's stamp was taken across the move: the order went out 10 game minutes in the past.
+      expect((await A.submit(orders(1))).at).toBe(Math.ceil(server / MIN) + LEAD_MIN);
+      A.close();
+    });
+
+    it("a lease reply held on its way stamps at the clock's upper bound, never in the past (§3)", async () => {
+      let server = 6 * MS_PER_GAME_HOUR;
+      let hold = 0;
+      const db = new MemoryDb(() => server);
+      const doc = db.doc.bind(db);
+      db.doc = (path: string) => {
+        const d = doc(path);
+        if (path.endsWith("/x/tab")) {
+          const acquire = d.acquire.bind(d);
+          d.acquire = async (o) => {
+            const r = await acquire(o);
+            server += hold; // a proxy holds the reply
+            return r;
+          };
+        }
+        return d;
+      };
+      const A = await LiveWorld.open(db, meta, "p1", { now: () => server, mono: () => server, holder: "A", manualRenewal: true });
+      await A.rebuild();
+      await A.submit(join("One Truck Co", starters[0]!));
+      server += 5 * MIN;
+      A.advance(1e9);
+      hold = 110_000;
+      await A.renewLease();
+      const at = (await A.submit(orders(1))).at;
+      // The store's minute now, plus the lead, at the least (before the fix: 1.33 game minutes in the past).
+      expect(at).toBeGreaterThanOrEqual(Math.ceil(server / MIN) + LEAD_MIN);
+      expect(at).toBeLessThanOrEqual(Math.ceil(server / MIN) + LEAD_MIN + 1);
+      A.close();
+    });
+
+    it("a lease request a stall held 110 s, then let through, leaves the next orders accepted (the third re-check, finding 1)", async () => {
+      let server = 6 * MS_PER_GAME_HOUR;
+      let hold = 0;
+      const db = new MemoryDb(() => server);
+      const doc = db.doc.bind(db);
+      db.doc = (path: string) => {
+        const d = doc(path);
+        if (path.endsWith("/x/tab")) {
+          const acquire = d.acquire.bind(d);
+          d.acquire = async (o) => {
+            server += hold; // the stall holds the request on its way: the store stamps the lease that much later
+            return acquire(o);
+          };
+        }
+        return d;
+      };
+      const A = await LiveWorld.open(db, meta, "p1", { now: () => server, mono: () => server, holder: "A", manualRenewal: true });
+      await A.rebuild();
+      await A.submit(join("One Truck Co", starters[0]!));
+      server += 5 * MIN;
+      A.advance(1e9);
+      hold = 110_000;
+      await A.renewLease();
+      hold = 0;
+      // Stamped at the clock's upper bound after the stall: well ahead of the store's minute.
+      await A.submit(orders(1));
+      // A renewal without a stall puts the clock's error back to nothing; the next orders follow the one stamped ahead.
+      // Before the widening they were refused as off the shared clock, and a reload didn't help (the stamp is stored).
+      await A.renewLease();
+      for (const n of [2, 3, 0, 2]) {
+        await expect(A.submit(orders(n))).resolves.toMatchObject({ a: { type: "set_standing_orders" } });
+        server += 10_000;
+      }
+      A.close();
     });
   });
 });
