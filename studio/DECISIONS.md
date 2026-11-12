@@ -1,5 +1,19 @@
 # Decisions (the producer's log for Jeff; newest first)
 
+- 2026-11-12 — Jeff: "Make sure all agent models are set to opus 5.5 (you choose appropriate effort level. Do it all",
+  in answer to the producer's seven open questions. Every role session runs on Opus 5.5 (engineering, the economy and
+  the red team at xhigh; QA, the director, the writer and the player at high; UX and art at medium; the producer on
+  Opus since 2026-11-11). Read as yes to the producer's recommendation on each: (1) QA replays client batch 8a, with
+  0.24.1's rules, in one pass; (2) 0.24.1 is approved: its nine rules switched on in the live levers
+  (0.24.1-phase0.42), the test page first, QA's replay, the red team's re-check of the persistence fixes, then the
+  live page rebuilt and the empty live world restarted on it; (3) the director's three rule changes (the home rule
+  never driving a truck with the dispatcher off, no booking a hired driver out of his days off, the owner choosing
+  his truck) are built behind switches and paired; (4) the NPC dealer's trade-in at 65% of book is built behind a
+  switch and paired; (5) the red team's write-up stays in the public repo; (6) the early-delivery fee stays as a
+  small feature and its screens are built; (7) the server work for forged order times waits. Engineering's queue in
+  order: windows batch 7, client batch 8b with the fee's screens, the three rules, the trade-in, the days-away rule,
+  the listing bought while the lease runs. Usage at the time: all models 62% of the week, Fable 95%, resetting
+  Nov 14 at 8 pm Eastern.
 - 2026-11-10 — the economy's pair on early delivery for a fee (studio/reviews/economy-expedite-pair.md; 0.24.1's nine
   switches on in every arm, ten seeds, 1460 days, the fee off, on with the kept-per-truck term, on without it): it
   works as a choice and barely exists as a sink, and the economy does not notice it. With the term the bots expedite
