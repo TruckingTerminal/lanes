@@ -12,6 +12,8 @@ import { applyAction, companyAccount, createWorld, dayOf, formCompany, hookedTra
 const LIVE = withLiveLevers();
 const net = buildNetwork(hubs, LIVE);
 const ON: EconomyConfig = { ...LIVE, assets: { ...LIVE.assets, swapAtNextIdle: true } };
+// Off by its own key (0.24.1 switched it on in the live levers).
+const OFF: EconomyConfig = { ...LIVE, assets: { ...LIVE.assets, swapAtNextIdle: false } };
 
 function digest(cfg: EconomyConfig): string {
   const w = createWorld({ cfg, net, feeds: neutralFeeds, seed: 20_261_109 });
@@ -39,13 +41,12 @@ function busyStarter(cfg: EconomyConfig) {
 
 describe("a lease-replacing truck handed over on time (assets.swapAtNextIdle)", () => {
   it("leaves the ten-day world byte-identical with the key false and absent", () => {
-    expect(LIVE.assets.swapAtNextIdle).toBe(false);
-    const { swapAtNextIdle: _, ...assets } = LIVE.assets;
-    expect(digest({ ...LIVE, assets } as unknown as EconomyConfig)).toBe(digest(LIVE));
+    const { swapAtNextIdle: _, ...assets } = OFF.assets;
+    expect(digest({ ...OFF, assets } as unknown as EconomyConfig)).toBe(digest(OFF));
   }, 120_000);
 
   it("off: the order waits through an idle hour until a day's close finds the leased truck idle", () => {
-    const { w, c, t } = busyStarter(LIVE);
+    const { w, c, t } = busyStarter(OFF);
     let h = 0;
     while (t.status !== "idle" && h++ < 72) stepHour(w);
     expect(t.status).toBe("idle");

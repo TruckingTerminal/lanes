@@ -238,6 +238,20 @@ export const LIVE_LEVERS: Record<string, unknown> = {
   // detention at a closed dock (sizes the economy sets later).
   "docks.lateFromArrival": true,
   "detention.enabled": true,
+  // 0.24.1 (Jeff, 2026-11-12: "Do it all"): the nine rules built and paired on 2026-11-09/10 (studio/DECISIONS.md).
+  // Send home back to work and turning an empty truck (the diaries); a bid's reach measured from the town a truck
+  // sleeps in; parking in town; a hand bid during a local hold (the locals-first change); the purchase loan's down
+  // payment keyed to the truck's age and miles and the company's authority age; a starter's lot rig from stock; an
+  // ordered truck handed over at the leased truck's next idle moment; capital not counted as weekly spending.
+  "labor.sendHomeToWork": true,
+  "labor.turnWhileEmpty": true,
+  "board.bidReachFromTown": true,
+  "businesses.parking.stopInTown": true,
+  "leverage.localHoldHandBids": true,
+  "equipmentFinance.purchase.collateral.enabled": true,
+  "usedMarket.npcLot.startersFromStock": true,
+  "assets.swapAtNextIdle": true,
+  "ledger.capitalNotSpending": true,
 };
 
 /** A config with the levers applied by path; throws on a path the config doesn't have. */

@@ -12,6 +12,8 @@ import { applyAction, companyAccount, createWorld, formCompany, hubMiles, isRoun
  */
 const LIVE = withLiveLevers();
 const ON: EconomyConfig = { ...LIVE, leverage: { ...LIVE.leverage, localHoldHandBids: true } };
+// Off by its own key (0.24.1 switched it on in the live levers).
+const OFF: EconomyConfig = { ...LIVE, leverage: { ...LIVE.leverage, localHoldHandBids: false } };
 const net = buildNetwork(hubs, LIVE);
 
 function digest(cfg: EconomyConfig): string {
@@ -52,10 +54,9 @@ const FIRST_CALL = { ok: false, reason: "the shipper is giving local carriers fi
 
 describe("the hand bidder's round (leverage.localHoldHandBids)", () => {
   it("leaves the ten-day world identical with the key false and absent, and on, since no bot files a bid", () => {
-    expect(LIVE.leverage.localHoldHandBids).toBe(false);
-    const { localHoldHandBids: _, ...leverage } = LIVE.leverage;
-    const off = digest(LIVE);
-    expect(digest({ ...LIVE, leverage } as unknown as EconomyConfig)).toBe(off);
+    const { localHoldHandBids: _, ...leverage } = OFF.leverage;
+    const off = digest(OFF);
+    expect(digest({ ...OFF, leverage } as unknown as EconomyConfig)).toBe(off);
     expect(digest(ON)).toBe(off);
   }, 120_000);
 
@@ -67,7 +68,7 @@ describe("the hand bidder's round (leverage.localHoldHandBids)", () => {
     expect(bid(w, c, t, load)).toEqual(FIRST_CALL);
     // Off, the last round refuses too.
     load.localUntilRound = w.round;
-    (w as { cfg: EconomyConfig }).cfg = LIVE;
+    (w as { cfg: EconomyConfig }).cfg = OFF;
     expect(bid(w, c, t, load)).toEqual(FIRST_CALL);
     (w as { cfg: EconomyConfig }).cfg = ON;
     // On, in the last round: filed for the opening clearing.

@@ -39,7 +39,7 @@ or `/private/tmp/claude-501/…` are the old laptop's; the repo is wherever you 
 Append a dated line to the state log saying the studio now runs on the Mac Studio (use `date`, mark it REAL CLOCK).
 
 ## 4. Verify the world (read-only; change nothing)
-1. The public test page: `curl -s https://truckingterminal.github.io/lanes-play/ | grep -c "0.24.0-phase0.41"` should
+1. The public test page: `curl -s https://truckingterminal.github.io/lanes-play/ | grep -c "0.24.1-phase0.42"` should
    print 1 (the build that CI deployed from `main`). `gh run list --limit 3` shows the deploys.
 2. The live page is the artifact https://claude.ai/artifact/SRYhczap5Lpcr8AucRf9wy (v50 at 6f1a397, ruleset
    lanes-live-1/0.24.0-phase0.40). With the ArtifactData tool, `get` collection `world` doc `meta`: it should read

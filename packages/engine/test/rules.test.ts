@@ -32,6 +32,13 @@ const net = buildNetwork(hubs, LIVE);
 const DAY = LIVE.time.gameMinutesPerDay;
 const on = (patch: (c: EconomyConfig) => EconomyConfig): EconomyConfig => patch(LIVE);
 const RATIO = on((c) => ({ ...c, freight: { ...c.freight, clearsNear: { ...c.freight.clearsNear, ratio: true } } }));
+// Each rule off by its own key (0.24.1 switched sendHomeToWork, turnWhileEmpty, bidReachFromTown and stopInTown on in the
+// live levers), and all four off together for the identity test.
+const OFF_HOME = on((c) => ({ ...c, labor: { ...c.labor, sendHomeToWork: false } }));
+const OFF_TURN = on((c) => ({ ...c, labor: { ...c.labor, turnWhileEmpty: false } }));
+const OFF_REACH = on((c) => ({ ...c, board: { ...c.board, bidReachFromTown: false } }));
+const OFF_TOWN = on((c) => ({ ...c, businesses: { ...c.businesses, parking: { ...c.businesses.parking, stopInTown: false } } }));
+const OFF = on((c) => ({ ...c, board: { ...c.board, bidReachFromTown: false }, labor: { ...c.labor, sendHomeToWork: false, turnWhileEmpty: false }, businesses: { ...c.businesses, parking: { ...c.businesses.parking, stopInTown: false } } }));
 
 /** The ten-day world's digest (the windows batch's): the clock, the books, every day's metrics, the board and the trucks. */
 function digest(cfg: EconomyConfig): string {
@@ -52,17 +59,16 @@ function digest(cfg: EconomyConfig): string {
 
 describe("the switches off", () => {
   it("leave the ten-day world byte-identical with the keys false and absent; the ratio rule moves no bot either", () => {
-    expect([LIVE.freight.clearsNear.ratio, LIVE.board.bidReachFromTown, LIVE.labor.sendHomeToWork, LIVE.labor.turnWhileEmpty, LIVE.businesses.parking.stopInTown]).toEqual([false, false, false, false, false]);
-    const { ratio: _r, priorClears: _p, ...cn } = LIVE.freight.clearsNear;
-    const { bidReachFromTown: _b, ...board } = LIVE.board;
-    const { sendHomeToWork: _s, turnWhileEmpty: _t, ...labor } = LIVE.labor;
-    const { stopInTown: _n, ...parking } = LIVE.businesses.parking;
-    const absent = { ...LIVE, freight: { ...LIVE.freight, clearsNear: cn }, board, labor, businesses: { ...LIVE.businesses, parking } } as unknown as EconomyConfig;
-    const off = digest(LIVE);
-    expect(digest(absent)).toBe(off);
+    expect(LIVE.freight.clearsNear.ratio).toBe(false);
+    const { ratio: _r, priorClears: _p, ...cn } = OFF.freight.clearsNear;
+    const { bidReachFromTown: _b, ...board } = OFF.board;
+    const { sendHomeToWork: _s, turnWhileEmpty: _t, ...labor } = OFF.labor;
+    const { stopInTown: _n, ...parking } = OFF.businesses.parking;
+    const absent = { ...OFF, freight: { ...OFF.freight, clearsNear: cn }, board, labor, businesses: { ...OFF.businesses, parking } } as unknown as EconomyConfig;
+    expect(digest(absent)).toBe(digest(OFF));
     // The economy's test 4: no bot reads "usually clears near", so its rule moves nothing but the table (not in the digest).
-    expect(digest(RATIO)).toBe(off);
-  }, 120_000);
+    expect(digest(RATIO)).toBe(digest(LIVE));
+  }, 240_000);
 });
 
 describe("usually clears near, as a ratio to the reference (freight.clearsNear.ratio)", () => {
@@ -140,7 +146,7 @@ describe("Send home to work (labor.sendHomeToWork)", () => {
   const ON = on((c) => ({ ...c, labor: { ...c.labor, sendHomeToWork: true } }));
 
   it("off: home to work is refused, and Send home is today's", () => {
-    const { w, c, t, far } = oo(LIVE);
+    const { w, c, t, far } = oo(OFF_HOME);
     standAt(t, far);
     expect(applyAction(w, c.id, { type: "send_home", truckId: t.id, work: true }).ok).toBe(false);
     expect(t.status).toBe("idle");
@@ -156,7 +162,9 @@ describe("Send home to work (labor.sendHomeToWork)", () => {
   });
 
   it("on, at work: queued until the job in hand ends, then home with no days off", () => {
-    const { w, c, t, d, far } = oo(ON);
+    // The job in hand is an empty run, which labor.turnWhileEmpty (on in the live levers since 0.24.1) turns for home at
+    // once (its own describe below); the queue is this rule's alone, so the turn is off here.
+    const { w, c, t, d, far } = oo(on((x) => ({ ...x, labor: { ...x.labor, sendHomeToWork: true, turnWhileEmpty: false } })));
     standAt(t, far);
     const next = w.net.hubs.findIndex((_, i) => i !== far && hubMiles(w, i, far) > 60 && hubMiles(w, i, far) < 150);
     expect(applyAction(w, c.id, { type: "reposition_truck", truckId: t.id, hubId: w.net.hubs[next]!.id }).ok).toBe(true);
@@ -177,7 +185,7 @@ describe("turning a truck running empty (labor.turnWhileEmpty)", () => {
   const ON = on((c) => ({ ...c, labor: { ...c.labor, turnWhileEmpty: true } }));
 
   it("off: a truck running empty can't be turned until it arrives", () => {
-    const { w, c, t, far } = oo(LIVE);
+    const { w, c, t, far } = oo(OFF_TURN);
     expect(applyAction(w, c.id, { type: "reposition_truck", truckId: t.id, hubId: w.net.hubs[far]!.id }).ok).toBe(true);
     for (let h = 0; h < 6; h++) stepHour(w);
     const other = w.net.hubs.findIndex((_, i) => i !== far && i !== c.homeHub);
@@ -239,7 +247,7 @@ describe("one reach for a bid and Book now (board.bidReachFromTown)", () => {
   }
 
   it("off: the bid measures market to market and is refused where Book now's reach takes the load", () => {
-    const { w, c, t, load } = edge(LIVE);
+    const { w, c, t, load } = edge(OFF_REACH);
     const r = applyAction(w, c.id, { type: "place_bid", truckId: t.id, loadId: load.id, rate: load.ceiling * 0.9 });
     expect(r).toMatchObject({ ok: false, reason: expect.stringMatching(/miles empty to the pickup/) });
   }, 60_000);
@@ -270,7 +278,7 @@ describe("a night in town (businesses.parking.stopInTown)", () => {
   }
 
   it("off, or not chosen: the shoulder, as today; the choice is refused while off", () => {
-    const { w, c } = oo(LIVE);
+    const { w, c } = oo(OFF_TOWN);
     expect(applyAction(w, c.id, { type: "set_night_stop", choice: "town" }).ok).toBe(false);
     const { w: w2, t } = lateStart(ON, false);
     const mi = t.remainingMi;

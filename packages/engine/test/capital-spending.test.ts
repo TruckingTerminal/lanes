@@ -15,6 +15,9 @@ const net = buildNetwork(hubs, LIVE);
 // The unlock ladder off, so a facility can be bought on day 0 (live, businesses open on day 28 of the beta).
 const BASE: EconomyConfig = { ...LIVE, unlockLadder: { ...LIVE.unlockLadder, enabled: false, beta: { ...LIVE.unlockLadder.beta, enabled: false } } };
 const ON: EconomyConfig = { ...BASE, ledger: { ...BASE.ledger, capitalNotSpending: true } };
+// Off by its own key (0.24.1 switched it on in the live levers): the live profile, and the test's base, with it false.
+const LIVE_OFF: EconomyConfig = { ...LIVE, ledger: { ...LIVE.ledger, capitalNotSpending: false } };
+const OFF: EconomyConfig = { ...BASE, ledger: { ...BASE.ledger, capitalNotSpending: false } };
 
 function digest(cfg: EconomyConfig): string {
   const w = createWorld({ cfg, net, feeds: neutralFeeds, seed: 20_261_109 });
@@ -34,13 +37,12 @@ const buyLot = (w: World, id: number) => applyAction(w, id, { type: "buy_asset",
 
 describe("capital isn't operating spending (ledger.capitalNotSpending)", () => {
   it("leaves the ten-day world byte-identical with the key false and absent", () => {
-    expect(LIVE.ledger.capitalNotSpending).toBe(false);
-    const { ledger: _, ...absent } = LIVE;
-    expect(digest(absent as unknown as EconomyConfig)).toBe(digest(LIVE));
+    const { capitalNotSpending: _, ...ledger } = LIVE_OFF.ledger;
+    expect(digest({ ...LIVE_OFF, ledger } as unknown as EconomyConfig)).toBe(digest(LIVE_OFF));
   }, 120_000);
 
   it("off: a truck from the lot counts in the week's spending, its price and tax, as today", () => {
-    const { w, c, out } = buyer(BASE);
+    const { w, c, out } = buyer(OFF);
     const before = out();
     expect(buyLot(w, c.id).ok).toBe(true);
     const paid = w.ledger.entries.filter((e) => e.from === companyAccount(c.id) && e.kind === "sink" && e.ref.startsWith("buy:")).reduce((s, e) => s + e.amount, 0);

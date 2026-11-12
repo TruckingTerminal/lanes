@@ -69,11 +69,12 @@ function liveDigest(c: EconomyConfig): string {
 
 describe("a starter's lot rig from the lot's stock (usedMarket.npcLot.startersFromStock)", () => {
   it("leaves the ten-day live world identical with the key false and absent", () => {
+    // Off by its own key (0.24.1 switched it on in the live levers).
     const LIVE = withLiveLevers();
-    expect(LIVE.usedMarket.npcLot.startersFromStock).toBe(false);
-    const { startersFromStock: _, ...npcLot } = LIVE.usedMarket.npcLot;
-    const absent = { ...LIVE, usedMarket: { ...LIVE.usedMarket, npcLot } } as unknown as EconomyConfig;
-    expect(liveDigest(absent)).toBe(liveDigest(LIVE));
+    const OFF = { ...LIVE, usedMarket: { ...LIVE.usedMarket, npcLot: { ...LIVE.usedMarket.npcLot, startersFromStock: false } } } as EconomyConfig;
+    const { startersFromStock: _, ...npcLot } = OFF.usedMarket.npcLot;
+    const absent = { ...OFF, usedMarket: { ...OFF.usedMarket, npcLot } } as unknown as EconomyConfig;
+    expect(liveDigest(absent)).toBe(liveDigest(OFF));
   }, 120_000);
 
   it("off: a starter's rig keeps the dealer's queue; on: it comes from stock in the lot's days; a fleet's rig is the lot's either way", () => {

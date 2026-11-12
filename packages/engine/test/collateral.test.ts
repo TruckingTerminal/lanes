@@ -12,6 +12,8 @@ import { companyAccount, createWorld, financeBlock, financedCashNeed, formCompan
  */
 const LIVE = withLiveLevers();
 const ON: EconomyConfig = { ...LIVE, equipmentFinance: { ...LIVE.equipmentFinance, purchase: { ...LIVE.equipmentFinance.purchase, collateral: { ...LIVE.equipmentFinance.purchase.collateral, enabled: true } } } };
+// Off by its own key (0.24.1 switched it on in the live levers): the live profile with the lender not reading the truck.
+const OFF: EconomyConfig = { ...LIVE, equipmentFinance: { ...LIVE.equipmentFinance, purchase: { ...LIVE.equipmentFinance.purchase, collateral: { ...LIVE.equipmentFinance.purchase.collateral, enabled: false } } } };
 const net = buildNetwork(hubs, LIVE);
 
 function digest(cfg: EconomyConfig): string {
@@ -31,10 +33,9 @@ function newcomer(cfg: EconomyConfig) {
 
 describe("the lender reads the truck (equipmentFinance.purchase.collateral)", () => {
   it("leaves the ten-day world identical with the key false and absent", () => {
-    expect(LIVE.equipmentFinance.purchase.collateral.enabled).toBe(false);
-    const { collateral: _, ...purchase } = LIVE.equipmentFinance.purchase;
-    const absent = { ...LIVE, equipmentFinance: { ...LIVE.equipmentFinance, purchase } } as unknown as EconomyConfig;
-    expect(digest(absent)).toBe(digest(LIVE));
+    const { collateral: _, ...purchase } = OFF.equipmentFinance.purchase;
+    const absent = { ...OFF, equipmentFinance: { ...OFF.equipmentFinance, purchase } } as unknown as EconomyConfig;
+    expect(digest(absent)).toBe(digest(OFF));
   }, 120_000);
 
   it("adds age, miles and a new business to the credit share, capped at half; declines past 10 years or 700k miles", () => {
@@ -42,7 +43,7 @@ describe("the lender reads the truck (equipmentFinance.purchase.collateral)", ()
     const k = ON.equipmentFinance.purchase.collateral;
     const credit = purchaseTerms(w, c).parts!.credit;
     // Off: the credit alone, whatever the truck.
-    const off = newcomer(LIVE);
+    const off = newcomer(OFF);
     expect(purchaseTerms(off.w, off.c, { ageYears: 9, odometer: 690_000 }).downShare).toBeCloseTo(purchaseTerms(off.w, off.c).downShare, 12);
     // A new rig for a newcomer: the credit share and the new business.
     expect(purchaseTerms(w, c, NEW_TRUCK).downShare).toBeCloseTo(credit + k.newBusiness.downAdd, 12);
@@ -84,7 +85,7 @@ describe("the lender reads the truck (equipmentFinance.purchase.collateral)", ()
 
   it("asks QA's day-2 company far more cash for a 502k-mile listing, and a new rig 10 points more down", () => {
     const { w, c } = newcomer(ON);
-    const off = newcomer(LIVE);
+    const off = newcomer(OFF);
     const worn = { ageYears: 4, odometer: 502_339 };
     const stake = ON.equipmentFinance.purchase.stakeShare;
     const before = financedCashNeed(off.w, off.c, 17_800, worn);
