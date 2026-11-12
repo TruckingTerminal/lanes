@@ -1,5 +1,15 @@
 # Decisions (the producer's log for Jeff; newest first)
 
+- 2026-11-12 — the economy's fifth reading of delivery windows, on batch 7 (studio/reviews/economy-delivery-windows-
+  batch7.md; ten seeds, 1460 days, 0.24.1's nine rules on in both arms): the gate passes on all ten seeds for the
+  first time (band 0.89–0.93), and the brokers' leak is closed: the carriers' share of the cap's pay is back to 94%,
+  fall-off 1.5% of it. Windows still cost the carriers about a fifth of their pay: the cap pays 18% less for freight,
+  the rate is 7% lower, cleared loads 6% fewer, and owner-operator liquidations, bankruptcies and loan defaults rise.
+  The cause is the price, not the cap: under windows a load walks up only in its last two days. Bots also still
+  build and close facilities in a churn. The producer's call on the economy's sizing: windows batch 8, behind the
+  same switch, a ratio exponent of 0.5 under windows (today 0.35 for every load) after a two-seed check, and a
+  26-week block on bot facilities at a hub where one closed at a loss; then the ten seeds again. Windows stay out of
+  any ruleset until a batch passes on the carriers' pay as well as the gate.
 - 2026-11-12 — Jeff: "Yes, size them", on three ideas from EVE Online's economy put to him by the producer: a small
   burn on every cleared load and every player-to-player sale (EVE's market taxes, its largest sink, and the economy's
   finding that a real sink has to sit on something every company does), a public monthly economic report on the
