@@ -12,6 +12,8 @@
  */
 import type { Equipment } from "@lanes/config";
 import { dayOf } from "./clock.js";
+import { econDestroyed } from "./econMonth.js";
+import { trailerValue } from "./dealer.js";
 import { companyAccount } from "./ledger.js";
 import { yardCut } from "./backlot.js";
 import { securityTheftMult } from "./labor.js";
@@ -248,6 +250,7 @@ export function scrapTrailer(w: World, tr: Trailer): void {
   if (tr.lease !== "owned" || tr.status === "gone") return;
   const owner = tr.companyId;
   const scrap = trailerScrapFd(w, tr);
+  econDestroyed(w, trailerValue(w, tr), false); // the monthly report's value destroyed (econMonth.ts)
   if (tr.truckId) {
     const truck = w.trucks[tr.truckId - 1]!;
     truck.trailerId = 0;

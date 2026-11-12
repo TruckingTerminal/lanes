@@ -1,4 +1,6 @@
 import { writeOffRig } from "./assets.js";
+import { truckValue } from "./dealer.js";
+import { econDestroyed } from "./econMonth.js";
 import { heatPullInAdd, heatReviewOdds, investigate } from "./backlot.js";
 import { stationsOnRoute, weighStations, type Network } from "@lanes/data";
 import { opsCrashMult, opsPullInMult } from "./labor.js";
@@ -422,6 +424,7 @@ export function crash(w: World, t: Truck, c: Company): void {
       w.ledger.post(w.t, acct, "sink:npc_lease", k.leasedTotalLossFd, `totalloss:${t.id}`);
       w.lessor.out--;
     }
+    econDestroyed(w, truckValue(w, t), true); // the monthly report's value destroyed (econMonth.ts)
     // A loan on a totaled truck has nothing left to repossess: the pool writes it off.
     const loan = activeLoanOn(w, t.id);
     if (loan) settleLoanFromSale(w, loan, acct, 0);

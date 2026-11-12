@@ -1,6 +1,7 @@
 import { acceptTender, autoTenders, expireTenders, mayTake, settleTender } from "./contracts.js";
 import { holdsAtEnd, onAssign, onFallOff } from "./brokerage.js";
 import { fmtInt, fuelPrice } from "./economics.js";
+import { econCleared } from "./econMonth.js";
 import { seasonality, EQUIPMENT } from "./demand.js";
 import { dayOf } from "./clock.js";
 import { creditScore } from "./credit.js";
@@ -205,6 +206,7 @@ function assign(w: World, load: Load, truck: Truck, bid: Bid, byHand = false): v
   load.truckId = truck.id;
   load.clearedRate = bid.rate;
   noteClear(w, load, bid.rate); // what loads really clear at (freight.ts clearsNear)
+  econCleared(w, load, bid.rate, bid.companyId); // the monthly report's rate index by trailer (econMonth.ts)
   if (cfg.brokerage.enabled) onAssign(w, load, bid.companyId, bid.rate); // player brokerages: the rate flag, a passed load covered
   // Delivery windows (batch 2): won for a truck still on a job, it's booked ahead: nothing moves on it until the truck takes
   // it (trips.ts takeNextLoad), which sets its due time and slot from then.

@@ -10,6 +10,7 @@ import { bumpData, openIntel, S, setTab, useData } from "../../state.js";
 import { Btn, Card, Kv, Panel } from "../bits.js";
 import { Fig } from "../Explain.js";
 import { PENDING } from "../../copy-pending.js";
+import { EconomyReport } from "../EconomyReport.js";
 
 /**
  * Intel (specs/intel.md, specs/intel-ux.md): every company, players and AI, carriers and brokers, by Miles; a card per
@@ -58,6 +59,8 @@ export function Intel(): JSX.Element {
           {other ? <Row x={other} own /> : null}
         </div>
       ) : null}
+      {/* The public monthly report (Jeff's yes, 2026-11-13; econreport.ts): aggregates only, above the companies. */}
+      <EconomyReport />
       <input type="search" class="intelfind" placeholder={INTEL.find} aria-label={INTEL.find} value={f.q} onInput={(e) => set({ q: (e.target as HTMLInputElement).value })} />
       <div class="row chips">
         {me ? chip(f.myHub, INTEL.myHub, () => set({ myHub: !f.myHub, hub: null })) : null}

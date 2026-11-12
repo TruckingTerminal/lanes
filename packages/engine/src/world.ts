@@ -120,6 +120,8 @@ export interface World {
    * facility freight, `n:{hub}` for NPC shippers' freight (batch 7). Absent with windows off.
    */
   winTally?: Record<string, { day: number; taken: number; lost: number }[]>;
+  /** The public monthly report's tallies and closed months (econMonth.ts): state for the screens, read by no rule. */
+  econ?: import("./econMonth.js").EconBook;
   /**
    * Windows batch 8 (windows.ts blockFacilityHub): by hub, the day until which bots buy no facility there, set when a bot
    * closes one at a loss (windows.facilityBlockWeeks). Absent with windows off.

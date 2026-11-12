@@ -1,5 +1,6 @@
 import { dayOf } from "./clock.js";
 import { fmtInt } from "./economics.js";
+import { econUsedSale } from "./econMonth.js";
 import { chargeSalesTax, salesTaxOn } from "./salesTax.js";
 import { activeLoanOn, closeLoanFromPoolProceeds, POOL_ACCOUNT, settleLoanFromSale, writeOffLoan } from "./finance.js";
 import { companyAccount } from "./ledger.js";
@@ -176,6 +177,7 @@ export function buyListing(w: World, buyerId: number, listingId: number): string
   buyer.usedBought++;
   l.status = "sold";
   w.metrics.onUsedSale(l.sellerId === 0);
+  econUsedSale(w, l.askFd, truckValue(w, truck), l.sellerId, buyerId); // the monthly report's price over book (econMonth.ts)
   return null;
 }
 

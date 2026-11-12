@@ -2,6 +2,7 @@ import { dealerPrice, orderPrice, ordersOf, trailerValue, truckValue } from "./d
 import { facilitiesOf } from "./demand.js";
 import { depositorValue } from "./finance.js";
 import { companyAccount } from "./ledger.js";
+import { companyWealthFd, gini } from "./econMonth.js";
 import type { DayMetrics } from "./metrics.js";
 import type { BrokerageLog, LaunchRecord } from "./types.js";
 import { creditScore } from "./credit.js";
@@ -669,16 +670,7 @@ export function buildReport(w: World): RunReport {
   }
 
   // Wealth concentration.
-  const wealthOf = (companyId: number) => {
-    let wealth = w.ledger.balance(companyAccount(companyId)) + depositorValue(w, companyId) + (cfg.cashReserve.enabled ? reserveHeldFd(w, companyId) : 0);
-    // Assets: a leased tractor is its owner's wealth, not the lessee's; trailers in the yard count too.
-    for (const t of w.trucksByCompany.get(companyId)!) if (!t.lessorId || t.lessorId === companyId) wealth += truckValue(w, t);
-    for (const t of w.trucks) if (t.lessorId === companyId && t.companyId !== companyId && t.status !== "retired") wealth += truckValue(w, t);
-    for (const tr of w.trailersByCompany.get(companyId) ?? []) if (tr.lease === "owned" && tr.status !== "hooked") wealth += trailerValue(w, tr);
-    for (const o of ordersOf(w, companyId)) wealth += orderPrice(w, o);
-    for (const f of facilitiesOf(w, companyId)) wealth += cfg.facilities.types[f.type].priceFd;
-    return wealth;
-  };
+  const wealthOf = (companyId: number) => companyWealthFd(w, companyId);
   // Wallets outside the game (role "holder") aren't companies: wealth and Miles figures leave them out.
   const counted = w.companies.filter((c) => c.role !== "holder");
   const wealthAll = counted.map((c) => wealthOf(c.id));
@@ -1305,17 +1297,6 @@ function sumTags(rows: Record<string, number>[]): Record<string, number> {
 }
 
 const sum = (xs: number[]) => xs.reduce((a, b) => a + b, 0);
-
-/** Gini coefficient of non-negative holdings (negative balances count as zero). */
-function gini(values: number[]): number {
-  const xs = values.map((x) => Math.max(0, x)).sort((a, b) => a - b);
-  const n = xs.length;
-  const total = sum(xs);
-  if (n === 0 || total === 0) return 0;
-  let weighted = 0;
-  xs.forEach((x, i) => (weighted += (i + 1) * x));
-  return (2 * weighted) / (n * total) - (n + 1) / n;
-}
 
 function median(xs: number[]): number {
   if (xs.length === 0) return 0;

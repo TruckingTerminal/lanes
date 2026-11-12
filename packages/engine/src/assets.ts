@@ -7,6 +7,7 @@
  * (insurance.ts payPhysicalDamage) pays an insured loss at its value less the deductible.
  */
 import { trailerValue, truckValue } from "./dealer.js";
+import { econDestroyed } from "./econMonth.js";
 import { activeLoanOn, settleLoanFromSale } from "./finance.js";
 import { payPhysicalDamage } from "./insurance.js";
 import { companyAccount } from "./ledger.js";
@@ -31,6 +32,8 @@ export function tractorScrapFd(w: World, t: Truck): number {
 export function scrapTractor(w: World, truck: Truck, payTo: string, withTrailer: boolean): void {
   let scrap = tractorScrapFd(w, truck);
   const tr = hookedTrailer(w, truck);
+  // The monthly report's value destroyed (econMonth.ts): the tractor's book value, and its own trailer's when it goes too.
+  econDestroyed(w, truckValue(w, truck) + (tr && tr.lease === "owned" && withTrailer ? trailerValue(w, tr) : 0), true);
   if (tr && tr.lease === "owned" && withTrailer) {
     scrap += trailerScrapFd(w, tr);
     for (const l of w.listings) if (l.trailerId === tr.id && l.status === "open") l.status = "withdrawn";
@@ -68,6 +71,7 @@ export function writeOffRig(w: World, c: Company, truck: Truck): number {
   const acct = companyAccount(owner.id);
   const value = truckValue(w, truck);
   const tr = hookedTrailer(w, truck);
+  econDestroyed(w, value + (tr && tr.lease === "owned" ? trailerValue(w, tr) : 0), true); // the monthly report (econMonth.ts)
   if (tr && tr.lease === "owned") trailerGone(w, tr);
   else if (tr) handBack(w, tr);
   const paid = payPhysicalDamage(w, c, value, `pd:truck:${truck.id}`, owner, truck.lockedBasisFd ?? 0);
