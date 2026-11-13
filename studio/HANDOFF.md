@@ -44,12 +44,15 @@ Append a dated line to the state log saying the studio now runs on the Mac Studi
    ten-day digest, `npx tsx apps/sim/src/determinism.ts` (behind the test gate), reads `3f845f443af9924f` at
    0.25.0-phase0.43 on the Mac Studio's Node; CI's Node reads another value, so no test pins it. Anything new behind a
    switch must leave it unchanged.
-2. The live page is the artifact https://claude.ai/artifact/SRYhczap5Lpcr8AucRf9wy (v50 at 6f1a397, ruleset
-   lanes-live-1/0.24.0-phase0.40). With the ArtifactData tool, `get` collection `world` doc `meta`: it should read
-   `{v 1, seed 477630989, epochMs 1794013175000, msPerGameHour 900000, ruleset "lanes-live-1/0.24.0-phase0.40"}` at
-   version 29. `list` the `players` collection; it was empty on 2026-11-09. Do not write either.
+2. The live page is the artifact https://claude.ai/artifact/SRYhczap5Lpcr8AucRf9wy (v51 at 60f9464, ruleset
+   lanes-live-1/0.25.0-phase0.43, published 2026-11-13). With the ArtifactData tool, `get` collection `world` doc `meta`:
+   it should read `{v 1, seed 707508792, epochMs 1794391304000, msPerGameHour 900000, ruleset
+   "lanes-live-1/0.25.0-phase0.43"}` at version 30. `list` the `players` collection; it was empty on 2026-11-13. Do not
+   write either. The page's db rules (restate all five on any publish that passes capabilities): players read view,
+   write owner; players/{self} write interact; reports read admin, write owner; reports/{self} read and write
+   interact; world read view, write owner.
 3. The studio board is https://claude.ai/artifact/2kmePVzETFib467bWP2J34.
-4. Build the live page once to prove the recipe, without publishing: `git worktree add ../lanes-live 6f1a397`, then in
+4. Build the live page once to prove the recipe, without publishing: `git worktree add ../lanes-live 60f9464`, then in
    it `node apps/web/build.mjs` → `apps/web/dist/lanes.html` (about 4.3 MB). Publishing is only ever by Jeff's word.
 
 ## 5. Things that could not travel in git
