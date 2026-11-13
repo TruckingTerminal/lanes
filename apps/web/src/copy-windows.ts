@@ -75,10 +75,10 @@ export const WINDOWS = {
   claimCauseDock: (place: string) => ` The dock wait at ${place} ate the time to spare.`,
   // Engineering's placeholders for the writer (economy-windows-clearsnear-2026-11-13.md): when loads like this clear,
   // after the "usually clears near" figure, and the share behind it in the figure's explanation.
-  clearsWalk: ", most in their last two days",
-  clearsQuick: ", most within a round of posting",
-  clearsShareWalk: (pct: string, from: "lane" | "hub", hub: string) => `${pct} of ${from === "lane" ? "this lane's" : `${hub}'s`} recent loads cleared in their last two days, as the pay climbed`,
-  clearsShareQuick: (pct: string, from: "lane" | "hub", hub: string) => `${pct} of ${from === "lane" ? "this lane's" : `${hub}'s`} recent loads cleared within half a day of posting`,
+  clearsWalk: ", most in the last two days before pickup closes",
+  clearsQuick: ", most within a day of posting",
+  clearsShareWalk: (pct: string, from: "lane" | "hub", hub: string) => `${pct} of ${from === "lane" ? "this lane's recent loads" : `recent loads like this out of ${hub}`} cleared in the last two days before their pickup closed`,
+  clearsShareQuick: (pct: string, from: "lane" | "hub", hub: string) => `${pct} of ${from === "lane" ? "this lane's recent loads" : `recent loads like this out of ${hub}`} cleared within a day of posting`,
 };
 
 /** The explain sheets' words for the windows' figures (Explain.tsx reads these before copy.ts EXPLAIN). */
