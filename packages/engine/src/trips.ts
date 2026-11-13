@@ -316,7 +316,14 @@ export function moveTrucks(w: World): void {
           const here = r ? siteHere(w, r, legMile(truck)) : null;
           if (here && !(here.parked < here.spaces)) w.metrics.onFull();
           // A truck already in a space here keeps it (R12's restart runs several duty days without a drive).
-          parkForTheNight(w, truck, here && (here.parked < here.spaces || truck.restSite === here.id) ? here : null);
+          const site = here && (here.parked < here.spaces || truck.restSite === here.id) ? here : null;
+          // businesses.parking.stopInTownMidLeg: no site, mid-leg, a company that chose the town: the night in a town.
+          if (!site && cfg.businesses.enabled && cfg.businesses.parking.stopInTown && cfg.businesses.parking.stopInTownMidLeg && truck.companyId && legMile(truck) > 1e-6 && companyById(w, truck.companyId).nightStop === "town") {
+            nightInTown(w, truck);
+            parkForTheNight(w, truck, null, true);
+            break;
+          }
+          parkForTheNight(w, truck, site);
           break;
         }
         budget = hourEnd - resetAt;
@@ -509,6 +516,51 @@ export function startEmptyRun(w: World, truck: Truck, hub: number): void {
   truck.targetPlace = placeOfHub(hub);
   truck.remainingMi = placeLegMiles(w, truck.place, truck.targetPlace);
   truck.idleRounds = 0;
+}
+
+/**
+ * businesses.parking.stopInTownMidLeg (option 1, the producer 2026-11-13): the night mid-leg in the town nearest the
+ * truck's point, as a turn finds it (the nearest place, and the road miles to it at 1.2 × the great circle). When that
+ * town lies ahead (nearer the leg's end than the truck), it's beyond the day's hours, so the nearest town not ahead of the
+ * truck. The miles there and back count as driven: the leg's miles grow by both, so the trip settles them like any other
+ * (fuel, pay, wear) and the truck resumes from the same point.
+ */
+export function nightInTown(w: World, truck: Truck): { place: number; offMi: number } {
+  const [lat, lon] = truckLatLon(w, truck);
+  const cosLat = dcos((lat * Math.PI) / 180);
+  const sq = (p: { lat: number; lon: number }) => {
+    const dy = p.lat - lat;
+    const dx = (p.lon - lon) * cosLat;
+    return dy * dy + dx * dx;
+  };
+  const end = w.net.places[truck.targetPlace]!;
+  const toEnd = (p: { lat: number; lon: number }) => {
+    const dy = p.lat - end.lat;
+    const dx = (p.lon - end.lon) * cosLat;
+    return dy * dy + dx * dx;
+  };
+  const mine = toEnd({ lat, lon });
+  let best = -1;
+  let bd = Infinity;
+  let short = -1;
+  let sd = Infinity;
+  w.net.places.forEach((p, i) => {
+    const d = sq(p);
+    if (d < bd) {
+      bd = d;
+      best = i;
+    }
+    if (toEnd(p) >= mine && d < sd) {
+      sd = d;
+      short = i;
+    }
+  });
+  const pick = toEnd(w.net.places[best]!) >= mine || short < 0 ? best : short;
+  const offMi = Math.round(greatCircleMiles({ lat, lon }, w.net.places[pick]!) * 1.2);
+  // There and back: the leg is that much longer, on the trip's own settlement.
+  truck.remainingMi += 2 * offMi;
+  truck.legMiles += 2 * offMi;
+  return { place: pick, offMi };
 }
 
 /**

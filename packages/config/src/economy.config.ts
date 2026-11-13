@@ -897,7 +897,11 @@ export const economyConfig = {
     // at a leg's start doesn't set out on a leg it can't finish without a shoulder night: when no site with room lies within
     // the hours left, it sleeps in that town (a legal stop, no ticket) and starts in the morning. A truck with a full day's
     // hours always sets out. Unchosen, or off: the shoulder, as today.
-    parking: { spaces: [5, 40] as const, shoulderFineFd: 250, patrolOdds: 0.33, defaultPriceFd: 20, priceRange: [10, 40] as const, spacesPerPurchase: 25, spacePriceFd: 1_000, stopInTown: false },
+    // parking.stopInTownMidLeg (the director's night in town, option 1; the producer, 2026-11-13): with stopInTown and a
+    // company that chose the town, a day whose hours run out mid-leg with no site with room ends at the town nearest the
+    // truck's point (trips.ts nightInTown, the nearest place as a turn finds it), or the nearest one not ahead of it when
+    // that one lies beyond the hours; the miles there and back count as driven. Off: such a night is on the shoulder.
+    parking: { spaces: [5, 40] as const, shoulderFineFd: 250, patrolOdds: 0.33, defaultPriceFd: 20, priceRange: [10, 40] as const, spacesPerPurchase: 25, spacePriceFd: 1_000, stopInTown: false, stopInTownMidLeg: false },
     // Truck-stop sites: one every so many interstate miles, ranked by the freight that passes (a gravity
     // model over the lanes), the busiest open for sale at the start, more opening as the fleet grows.
     // openPerBuilt: the open count follows coverage too — this many sites for sale per truck stop built.
