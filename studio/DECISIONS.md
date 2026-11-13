@@ -1,5 +1,13 @@
 # Decisions (the producer's log for Jeff; newest first)
 
+- 2026-11-13 — the economy on three commits. (1) The director's rules C, H and I (home, home time, the owner's seat)
+  cannot move the bots, who book through their dispatchers and staff themselves: a four-year world on two seeds is
+  identical day for day with all three on, so they ride in a ruleset with no economy pair; their test is a player's.
+  (2) Windows batch 9 ends the bots' facility churn (seven and four bought a run against hundreds, the goods' share
+  of the cap's pay back to the world without windows), takes fleet bankruptcies from 52 to about 20 a run, passes
+  the gate, and leaves the rate 1.5–2.5% under batch 8's. Windows are ready on the economy's side for a ruleset;
+  Jeff's word is open. (3) The settlement fee's build matches the spec; two small follow-ups (a refund of the fee
+  when a player shipper defaults, and three display figures) go to engineering; its ten-seed pair is running.
 - 2026-11-13 — the economy on why the AI brokers lose money every month (studio/reviews/economy-ai-brokers.md; QA saw
   it, engineering confirmed the books read right): they alone pay for the board's unhauled freight. A third of NPC
   freight is never hauled; an unhauled direct load costs nobody, an unhauled brokered one costs its broker 15% of the
