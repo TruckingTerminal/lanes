@@ -328,7 +328,17 @@ export function firstTruckLine(w: World, c: Company): FirstTruckVerdict | null {
   const sound = w.cfg.guide.soundCondition;
   const shown = shownTrucks(w, c, own, replacing);
   const isSound = (x: ShownTruck) => x.spec.trailer === own && condition(w.cfg, x.spec) >= sound - 1e-9;
-  const pick = shown.filter(isSound).sort((a, b) => a.price - b.price || a.arrivesDay - b.arrivesDay)[0];
+  // Client batch 8e item 75 (QA: "63 loads", then "Buy it now", then "41 loads" in five days as listings came and went):
+  // a used listing carries the card only while the company can buy it today; otherwise the plan is priced on the cheapest
+  // sound truck that stays for sale (the lot's or a new rig), so the counts don't jump as listings come and go.
+  const sorted = shown.filter(isSound).sort((a, b) => a.price - b.price || a.arrivesDay - b.arrivesDay);
+  const holdNow = w.cfg.guide.gapCushionWeeks * cushion(w, c).avgWeeklyFd;
+  const buyable = (x: ShownTruck) => {
+    const p = buyPlan(w, c, x.price, replacing, x.col);
+    return (p.loanNowFd ?? p.cashNowFd) + holdNow - cash(w, c) <= 0.5;
+  };
+  const stable = sorted.find((x) => x.route !== "listing");
+  const pick = sorted[0] && sorted[0].route === "listing" && !buyable(sorted[0]) && stable ? stable : sorted[0];
   const trailer = TRAILER_NAME[own].toLowerCase();
   // The director's sound-lot ruling: the lot's rig in the company's freight, as a fact with its figures, first under Why.
   const lot = shown.find((x) => x.route === "lot" && x.spec.trailer === own && x !== pick);
@@ -382,6 +392,20 @@ export function firstTruckLine(w: World, c: Company): FirstTruckVerdict | null {
     const other = cheaper.spec.trailer !== own;
     why.push(PENDING.whyWorn(desc(cheaper), fdFull(cheaper.price), worn && other ? "both" : other ? "freight" : "worn"));
   }
+  // A listing that made it "Buy it now": said to be one, and remembered, so the card says so for a day once it has sold.
+  const held = heldListings(w);
+  const listingId = pick.route === "listing" && pick.open?.startsWith("used-") ? Number(pick.open.slice(5)) : null;
+  if (met && listingId !== null) {
+    held.set(c.id, { listingId, goneDay: null });
+    why.unshift(PENDING.soundHeldListing);
+  } else {
+    const h = held.get(c.id);
+    if (h && w.listings[h.listingId - 1]?.status !== "open") {
+      h.goneDay ??= today;
+      if (today - h.goneDay <= 1) why.unshift(PENDING.soundListingGone);
+      else held.delete(c.id);
+    }
+  }
   return {
     figure: met ? PENDING.soundTitle : PENDING.soundName(fdFull(Math.round(gap))),
     verdict,
@@ -395,6 +419,14 @@ export function firstTruckLine(w: World, c: Company): FirstTruckVerdict | null {
     watch: met ? null : PENDING.soundWatch,
     pick: { route: pick.route, price: pick.price, desc: desc(pick) },
   };
+}
+
+/** The used listing each company's card said "Buy it now" on (client batch 8e item 75), per world. */
+const heldByWorld = new WeakMap<World, Map<number, { listingId: number; goneDay: number | null }>>();
+function heldListings(w: World): Map<number, { listingId: number; goneDay: number | null }> {
+  let m = heldByWorld.get(w);
+  if (!m) heldByWorld.set(w, (m = new Map()));
+  return m;
 }
 
 const SMALL = ["", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten", "eleven", "twelve"];

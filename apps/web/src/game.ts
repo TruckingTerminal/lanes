@@ -1,5 +1,5 @@
 import { economyConfig, withLiveLevers, type EconomyConfig } from "@lanes/config";
-import { buildNetwork, hubs, neutralFeeds, syntheticCassCycle } from "@lanes/data";
+import { buildNetwork, hubs, neutralFeeds, PLACE_OF_HUB, syntheticCassCycle } from "@lanes/data";
 import { populate, ruleBotHook } from "@lanes/agents";
 import { booksAfterHour, watchBooks } from "./books.js";
 import {
@@ -76,6 +76,13 @@ export const PLAYER_DISPATCHER_ORDERS: StandingOrder[] = DEFAULT_ORDERS.filter((
 
 export function newWorld(seed: number): World {
   const net = buildNetwork(hubs, GAME_CONFIG);
+  // Client batch 8e item 71: one name for one place. A hub's own town is called by the hub's name ("Newark", not "New
+  // York City" for the town the Newark hub sits in), so the truck card, the board and Iuliia agree. Names are only ever
+  // read for words (no rule reads one), so the world is the same.
+  hubs.forEach((h, i) => {
+    const p = PLACE_OF_HUB[i];
+    if (p !== undefined && net.places[p] && net.places[p]!.name !== h.name) (net.places as { name: string }[])[p] = { ...net.places[p]!, name: h.name };
+  });
   const w = createWorld({ cfg: GAME_CONFIG, net, feeds: { ...neutralFeeds, cycle: syntheticCassCycle({ seed }) }, seed });
   populate(w, POPULATION);
   // The month's books read every posting from here on (books.ts); they only read, so the replay is untouched.

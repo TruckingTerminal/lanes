@@ -459,6 +459,12 @@ export const PENDING = {
   cutDaysOff: (days: number) => `You'll go back out with ${days} ${days === 1 ? "day" : "days"} at home; your days-away count won't clear.`,
   cutDaysOffGo: "Go back out",
   cutDaysOffItem: "this load on your days off",
+  // Client batch 8e (QA's 8d replay, items 71 to 77): placeholders for the writer.
+  soundHeldListing: "It's a used listing: gone if someone else buys it first.",
+  soundListingGone: "The used truck that made it \"Buy it now\" has sold; the plan is back on the trucks that stay for sale.",
+  clearsNearMarket: "Loads like it in this market clear near",
+  speedFirstLoad: "The clock runs at a day a minute while your first load rolls; set the pace in the top bar.",
+  dispatcherTurnOn: "Turn the dispatcher on in Standing orders on the Truck tab, or keep booking by hand, then watch a round clear.",
   // token.settlementFee on a sale: the market's fee and the settlement fee as one named line (the director's rule).
   sellFees: (pctShown: string, fd: string) => `The market's fee and the settlement fee, ${pctShown}: about ${fd} FD of the price.`,
   // Client batch 8d (QA's 8b replay, qa-8b-2026-11-13.md): placeholders for the writer.

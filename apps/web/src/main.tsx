@@ -587,7 +587,12 @@ function loop(now: number): void {
   const t = S.test;
   if (t && S.game === t && !firstBidSped && t.player?.firstHandBidDay !== null && t.player) {
     firstBidSped = true;
-    if (S.speed === 1) S.speed = 2;
+    // Client batch 8e item 74 (QA: "the clock changes speed by itself"): the first load by hand runs at a day a minute,
+    // by design (the truck's first run, watched), and now it says so.
+    if (S.speed === 1) {
+      S.speed = 2;
+      toast(PENDING.speedFirstLoad);
+    }
   }
   if (t && S.game === t) {
     acc += (dt / 1000) * SPEEDS[S.speed]!.hoursPerSec;

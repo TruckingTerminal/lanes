@@ -287,6 +287,15 @@ export function pushKeyed(s: Session, key: string, text: string, cls = "", co?: 
   if (s === S.game) bumpData();
 }
 
+/** Drops a keyed line once what it said no longer stands (client batch 8e item 77). */
+export function dropKeyed(s: Session, key: string): void {
+  const f = feed(s);
+  const i = f.ticker.findIndex((x) => x.key === key);
+  if (i < 0) return;
+  f.ticker.splice(i, 1);
+  if (s === S.game) bumpData();
+}
+
 // --- Reading the world -------------------------------------------------------------------
 
 /** The player's company on screen; panels only call this once they've checked there is one. */

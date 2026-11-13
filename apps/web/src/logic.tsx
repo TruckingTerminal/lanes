@@ -39,7 +39,7 @@ import { PENDING } from "./copy-pending.js";
 import { ARRIVAL, BROKERAGE, DEBT, DISPATCHER, FIRST_ENTRY, MOVE, NEEDS, SAFETY_NEWS, TRUCK } from "./copy.js";
 import { cashDipAhead, debtCountdown } from "./figures.js";
 import { hasTwo, kindInView, switchCompany, type CompanyKind } from "./companies.js";
-import { act, bumpData, carrierCo, clockMin, isPhone, markKey, me, myTrucks, onWorldReset, ownerOf, push, pushKeyed, S, setOnboard, setTab, selectTruck, toast, truckNo, visited, type Session } from "./state.js";
+import { act, bumpData, carrierCo, clockMin, dropKeyed, isPhone, markKey, me, myTrucks, onWorldReset, ownerOf, push, pushKeyed, S, setOnboard, setTab, selectTruck, toast, truckNo, visited, type Session } from "./state.js";
 import { iuliiaSay, iuliiaSayText } from "./iuliia.js";
 import { PENDING_RULES } from "./copy-pending-rules.js";
 import { tabOpen, teaserTabs, type Tab } from "./tabs.js";
@@ -162,18 +162,25 @@ export function letDispatcherBid(): void {
 
 /** Shouts once per idle day per truck, in the ticker and as a toast. */
 const idleAlerted = new Map<string, number>();
+/** The reason each truck's idle line gave (client batch 8e item 77: the line follows the latest state). */
+const idleWhySaid = new Map<string, string>();
 export function checkIdleAlerts(): void {
   const g = S.game;
   if (!g?.player) return;
   for (const t of myTrucks()) {
     const key = `${g.kind}:${t.id}`;
-    if (t.status !== "idle") {
+    // Client batch 8e item 77: no longer idle (or home), the line goes; still idle with another reason (a driver hired,
+    // the dispatcher on), it's rewritten now, not tomorrow.
+    if (t.status !== "idle" || resting(g.w, t)) {
       idleAlerted.delete(key);
+      if (idleWhySaid.delete(key)) dropKeyed(g, `idle:${t.id}`);
       continue;
     }
     const days = idleDays(t);
-    if (idleHours(t) < IDLE_ALERT_HOURS || idleAlerted.get(key) === days || resting(g.w, t)) continue;
+    const why = idleWhy(t).why;
+    if (idleHours(t) < IDLE_ALERT_HOURS || (idleAlerted.get(key) === days && idleWhySaid.get(key) === why)) continue;
     idleAlerted.set(key, days);
+    idleWhySaid.set(key, why);
     const text = `Truck ${truckNo(t.id)} has been idle ${idleLabel(t)} at ${truckWhere(t)}: ${idleWhy(t).why}`;
     // R22: the idle card and the badge carry it from the moment the truck is idle; it no longer arrives as a toast.
     // Client batch 8a item 48: one line per idle truck, kept current, never one more each day.
@@ -535,13 +542,19 @@ export function checkAttention(): void {
   if (!g?.player) return;
   const items = attentionItems();
   const keys = new Set(items.map((a) => `${g.kind}:${a.key}`));
-  for (const k of [...attentionSeen]) if (!keys.has(k)) attentionSeen.delete(k);
+  // Client batch 8e item 77 (QA: Today kept "Truck 2 has no driver and earns nothing" after the hire): an item's line is
+  // keyed, and goes from the feed once the item does.
+  for (const k of [...attentionSeen])
+    if (!keys.has(k)) {
+      attentionSeen.delete(k);
+      if (k.startsWith(`${g.kind}:`)) dropKeyed(g, `need:${k.slice(g.kind.length + 1)}`);
+    }
   for (const a of items) {
     const k = `${g.kind}:${a.key}`;
     if (attentionSeen.has(k)) continue;
     attentionSeen.add(k);
     toast(a.text, a.tone === "bad");
-    push(g, a.text, a.tone === "bad" ? "bad" : "warn");
+    pushKeyed(g, `need:${a.key}`, a.text, a.tone === "bad" ? "bad" : "warn");
   }
 }
 /** The player's trucks whose driver has been out past the fatigue line or is already tired. */

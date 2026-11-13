@@ -467,7 +467,8 @@ function LoadSheet({ r, truck }: { r: BoardRow; truck: Truck }): JSX.Element {
                   [CHIP.heldRow, <Fig k="money.held" label={CHIP.heldRow} ctx={fx}>{`${fdFull(r.heldBook)} FD`}</Fig>],
                 ] as [string, JSX.Element][])
               : []),
-            [LOAD.clearsNear, <Fig k="board.clearsNear" label={LOAD.clearsNear} ctx={fx}>{`${rateShown(l, clearsNear(w, l))}/mi`}</Fig>],
+            // Client batch 8e item 76: the lane's own figure, or the market's said as the market's.
+            [clearsNearSource(w, l).from === "lane" ? LOAD.clearsNear : PENDING.clearsNearMarket, <Fig k="board.clearsNear" label={LOAD.clearsNear} ctx={fx}>{`${rateShown(l, clearsNear(w, l))}/mi`}</Fig>],
             [LOAD.ceiling, <Fig k="board.ceiling" label={LOAD.ceiling} ctx={fx}>{`${bidCeiling(l).toFixed(2)}/mi`}</Fig>],
           ]}
         />

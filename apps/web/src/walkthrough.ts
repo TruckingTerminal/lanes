@@ -113,6 +113,8 @@ export function walkSteps(cfg: EconomyConfig, hub = "your home hub"): WalkStep[]
         `Set them before you need them, then audit what they did, because a rule that looked clever on Tuesday finds a way to be foolish by Friday. I've managed rules. I've managed people. The rules, at least, have never asked me to invest in a cousin's restaurant.`,
       ],
       do: "Check the dispatcher is on in Standing orders on the Truck tab, then watch a round clear.",
+      // Client batch 8e item 73: with the dispatcher still off, the step asks to turn it on, not to check that it is.
+      doNow: (_w, c) => (c.orders.some((o) => o.kind === "bid") ? null : PENDING.dispatcherTurnOn),
       why: "Orders turn a company that needs you every six hours into one that runs while you're away.",
       // Any state that satisfies it (R2): the orders took over the fleet, or the player chose to bid by hand and switched
       // the dispatcher off after its first load.
@@ -135,9 +137,9 @@ export function walkSteps(cfg: EconomyConfig, hub = "your home hub"): WalkStep[]
       title: "The truck rolls",
       tab: "fleet",
       mood: "idle",
-      brief: `You won one. Now the slow part, which is most of trucking: ${hours} driving hours a day, fuel every 400 miles, docks with their own hours.`,
+      brief: `It's yours. Now the slow part, which is most of trucking: ${hours} driving hours a day, fuel every 400 miles, docks with their own hours.`,
       say: [
-        `You won one. Now the slow part, which is most of trucking and, I'm told, most of life. A driver may drive ${hours} hours in a day, then must rest, and the game counts; the truck fuels about every 400 miles, and the gallons are money. At night it sleeps where it stands: a truck stop is safe, a rest area is free, and the shoulder is illegal, about which the patrol writes a very courteous ticket.`,
+        `It's yours. Now the slow part, which is most of trucking and, I'm told, most of life. A driver may drive ${hours} hours in a day, then must rest, and the game counts; the truck fuels about every 400 miles, and the gallons are money. At night it sleeps where it stands: a truck stop is safe, a rest area is free, and the shoulder is illegal, about which the patrol writes a very courteous ticket.`,
         `Docks keep their own hours. The big dry-van docks never close; the rest work business hours, and a truck that arrives at midnight waits for the morning like a diplomat at a border. Watch the ETA on the Fleet card, waiting included, and the truck on the map. My grandfather drove the Moscow–Leningrad road for thirty years. I know a long haul when I see one, and I still like watching them go.`,
       ],
       do: "Watch the ETA. Note where it sleeps tonight.",
