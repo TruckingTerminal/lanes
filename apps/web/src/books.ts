@@ -195,6 +195,9 @@ export function lineOf(w: World, c: Company, other: string, ref: string, inflow:
       case "loan_principal":
         return "principal";
       case "npc_finance":
+        // Client batch 8d item 4: the surplus on a seized truck (purchaseLoans.ts seize, `seized:`) is its value over the
+        // loan, paid back: a sale's proceeds, not a loan.
+        if (inflow && ref.startsWith("seized:")) return "sold";
         return inflow ? "loansIn" : "principal";
       case "lease_deposit":
         return "held";

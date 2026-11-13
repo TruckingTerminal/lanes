@@ -26,6 +26,29 @@ export function resting(w: World, t: Truck): boolean {
   return d.homeUntilDay !== null && d.homeUntilDay > dayOf(w.t, w.cfg);
 }
 
+/**
+ * The director's rules H and C (director-playtest-rulings-2026-11-10.md), each behind its switch: why a truck's hired
+ * driver won't take this load by hand (book, bid or tender), or null. H (labor.homeTimeHolds): a hired driver on home time
+ * isn't called out, so a pickup before the days off end is refused; one booked ahead past them is fine. C
+ * (labor.pastDueRefuses): past the home rule's days out, loads toward home only, until sent home. An owner-operator's own
+ * days off are theirs to cut (the page warns first), so neither applies to the owner.
+ */
+export function homeBlock(w: World, c: Company, truck: Truck, load: Load): string | null {
+  const k = w.cfg.labor;
+  if (!truck.driverId || !(k.homeTimeHolds || k.pastDueRefuses)) return null;
+  const d = w.staff[truck.driverId - 1]!;
+  if (d.owner) return null;
+  if (k.homeTimeHolds && resting(w, truck)) {
+    const back = d.homeUntilDay! * w.cfg.time.gameMinutesPerDay;
+    if (Math.max(w.t, load.readyT ?? w.t) < back) return `${d.name} is home until the days off end; this pickup comes before them`;
+  }
+  if (k.pastDueRefuses) {
+    const hm = c.orders.find((o): o is Extract<StandingOrder, { kind: "homeTime" }> => o.kind === "homeTime");
+    if (hm && d.awayDays >= hm.afterDays && !homeward(w, c, truck, load)) return `${d.name} is past due home: loads toward home only, until you send them home`;
+  }
+  return null;
+}
+
 /** The truck's driver is due home: a send-home order, or the home-time rule's days out are up. */
 export function needsHome(w: World, c: Company, t: Truck): boolean {
   if (!t.driverId) return false;

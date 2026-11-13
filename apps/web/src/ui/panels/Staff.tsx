@@ -111,7 +111,14 @@ export function Staff(): JSX.Element {
   const hire = (s: StaffT, pay: number, kind: "hire" | "poach", ev?: MouseEvent) => {
     if (kind === "poach") return void poach(s, pay);
     const v = sel(`${kind}-${s.id}`);
-    const run = () => act({ type: "offer_staff", staffId: s.id, pay, truckId: v ? Number(v) : undefined }, kind === "hire" ? "Hired" : "Offer made: their employer has two days to match", kind === "hire" ? (s.kind === "driver" ? "staff:hireDriver" : s.kind === "dispatcher" ? "staff:hireDispatcher" : "staff:hireManager") : undefined);
+    // Client batch 8d, fail 1 (QA's 8b replay): a hire for a parked truck's seat brings the truck back on the road first
+    // (the engine seats a hire only in a truck on the road), so What now?'s "Hire a driver" for a parked truck works.
+    const parked = kind === "hire" && v ? w.trucks[Number(v) - 1]?.status === "parked" : false;
+    const run = () => {
+      if (parked) act({ type: "unpark_truck", truckId: Number(v) }, "Back on the road");
+      hireNow();
+    };
+    const hireNow = () => act({ type: "offer_staff", staffId: s.id, pay, truckId: v ? Number(v) : undefined }, kind === "hire" ? "Hired" : "Offer made: their employer has two days to match", kind === "hire" ? (s.kind === "driver" ? "staff:hireDriver" : s.kind === "dispatcher" ? "staff:hireDispatcher" : "staff:hireManager") : undefined);
     // Client batch 8a item 24 (the borrower: a driver confirmed in one session and not the next, a dispatcher never, and a
     // second tap on a shifting list hired a second dispatcher): every hire asks first, with its weekly cost (a driver's
     // per-mile pay at a month's miles). The risk line, what the company kept in a week lately, only when the wage passes it.
@@ -119,7 +126,8 @@ export function Staff(): JSX.Element {
     const kept = weeklyKept(w, me());
     if (kind === "hire") {
       const lines = hireLines(s.name, weekly, kept);
-      confirmAct({ verb: "Hire", item: s.name, costFd: null, costLine: CONFIRM.hireCost(fd(weekly)), does: lines.does, risk: weekly > kept ? lines.risk : null, go: `Hire ${s.name}`, run }, ev);
+      const does = parked ? `${lines.does} ${PENDING.hireUnparks(truckNo(Number(v)))}` : lines.does;
+      confirmAct({ verb: "Hire", item: s.name, costFd: null, costLine: CONFIRM.hireCost(fd(weekly)), does, risk: weekly > kept ? lines.risk : null, go: `Hire ${s.name}`, run }, ev);
     } else run();
   };
 
@@ -194,7 +202,13 @@ export function Staff(): JSX.Element {
               <Btn onClick={() => seat(s, true)}>Co-drive</Btn>
             </>
           ) : null}
-          <Btn onClick={() => act({ type: "release_staff", staffId: s.id }, "Let go")}>Let go</Btn>
+          <Btn
+            onClick={(ev) =>
+              confirmAct({ verb: "Let go", item: s.name, costFd: null, does: PENDING.letGoDoes(s.name, s.truckId > 0), risk: PENDING.letGoRisk, go: PENDING.letGoGo(s.name), destructive: true, run: () => act({ type: "release_staff", staffId: s.id }, "Let go") }, ev)
+            }
+          >
+            Let go
+          </Btn>
         </div>
       </Card>
     );
@@ -300,7 +314,7 @@ export function Staff(): JSX.Element {
         <Kv
           rows={[
             ["Driving", owner ? <><Stars skill={owner.skill} /> · {owner.truckId ? `truck ${truckNo(owner.truckId)}` : "not driving"} · {fd(owner.experience + owner.pending)} mi driven</> : "–"],
-            ["Dispatching", <><Stars skill={c.ownerDispatch.skill} /> · {Math.round(c.ownerDispatch.experience)} loads booked · you can run {w.cfg.labor.owner.span} trucks</>],
+            ["Dispatching", <><Stars skill={c.ownerDispatch.skill} /> · {PENDING.dispatchedByRules(Math.round(c.ownerDispatch.experience))} · you can run {w.cfg.labor.owner.span} trucks</>],
           ]}
         />
       </Card>

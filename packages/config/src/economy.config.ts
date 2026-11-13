@@ -1837,6 +1837,19 @@ export const economyConfig = {
     // is repositioning turn it now, from the town nearest where it is (trips.ts turnTruck): the miles so far are paid, and
     // the new run starts there. Off: a truck running empty must arrive first; send_home queues for the run's end.
     turnWhileEmpty: false,
+    // The director's rule H (director-playtest-rulings-2026-11-10.md): out there, a driver on home time isn't called out.
+    // On, a booking, bid or tender taken by hand for a truck whose hired driver is home is refused unless the pickup comes
+    // after the days off end (booking ahead past them is fine); an owner-operator may cut their own days off, warned first
+    // on the page. Off: as today, a hand booking takes a resting truck out.
+    homeTimeHolds: false,
+    // The director's rule C: with the home rule (a homeTime order), a hired driver past its days out takes only loads toward
+    // home by hand (standingOrders.ts homeward) until sent home. The dispatcher, on, already plans homeward loads. Off: any.
+    pastDueRefuses: false,
+    // The director's rule I: the day's staffing never leaves a paid driver without a truck while one stands empty at their
+    // hub, the owner's included. On, for a company that staffs by hand (autoStaff, every bot's, already does it), a hired
+    // driver with no truck takes an empty one where they stand each day, idle before in the shop; a parked truck is the
+    // player's to restart, so it's left (What now? names it). Off: as today.
+    seatPaidDrivers: false,
   },
 
   // The guards (the director's triage of the player's second diary, studio/reviews/director-player2.md): limits on what

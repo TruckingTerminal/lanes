@@ -386,7 +386,11 @@ export function dailyLabor(w: World): void {
     }
     if (offerDue(w, s, today)) settleOffer(w, s);
   }
-  for (const c of w.companies) if (c.autoStaff && c.role === "carrier") autoStaff(w, c);
+  for (const c of w.companies) {
+    if (c.role !== "carrier") continue;
+    if (c.autoStaff) autoStaff(w, c);
+    else if (w.cfg.labor.seatPaidDrivers) seatPaidDrivers(w, c); // the director's rule I
+  }
   dailyDrivers(w);
 }
 
@@ -485,6 +489,31 @@ export function dailyDrivers(w: World): void {
     s.fatigue = clamp(s.fatigue + accrual - fromBuffer - (hours === 0 ? f.restDayOnRoad : f.recoverPerDay), 0, 1);
     if (before < f.tiredAt && s.fatigue >= f.tiredAt) notice(w, c.id, `${label(s)} is running tired: ${s.awayDays} days out${s.longDays > 1 ? `, ${s.longDays} long days in a row` : ""}. Crash odds are up and they're slowing down.`, "bad", t?.id);
     if (!s.owner && s.fatigue > 0.5) s.morale = clamp(s.morale - f.moralePerDay * (s.fatigue - 0.5) * 2, 0, 1);
+  }
+}
+
+/**
+ * The director's rule I (labor.seatPaidDrivers; director-playtest-rulings-2026-11-10.md): for a company that staffs by hand,
+ * a hired driver with no truck takes an empty one at the hub where they stand, idle trucks before ones in the shop, told in
+ * the feed. A parked truck is the player's to restart, and the owner keeps their own choice of seat (Staff), so neither
+ * moves here; the owner's empty truck counts as empty.
+ */
+export function seatPaidDrivers(w: World, c: Company): void {
+  if (c.authority.status === "revoked" || c.liquidatingSince !== null) return;
+  const promised = new Set<number>();
+  for (const s of w.staff) if (s.offer && s.offer.companyId === c.id && s.offer.truckId) promised.add(s.offer.truckId);
+  const empty = w.trucksByCompany
+    .get(c.id)!
+    .filter((t) => !crewed(t) && (t.status === "idle" || t.status === "repair") && !promised.has(t.id))
+    .sort((a, b) => Number(a.status === "repair") - Number(b.status === "repair") || a.id - b.id);
+  if (!empty.length) return;
+  for (const s of driversOf(w, c.id)) {
+    if (s.owner || s.status !== "employed" || s.truckId !== 0 || s.offer) continue;
+    const i = empty.findIndex((t) => s.lastHub === undefined || s.lastHub === t.hub);
+    if (i < 0) continue;
+    const t = empty.splice(i, 1)[0]!;
+    seatDriver(w, s, t);
+    notice(w, c.id, `${label(s)} took the empty truck at ${w.net.hubs[t.hub]!.name}: a paid driver doesn't sit beside an empty truck.`, "info", t.id);
   }
 }
 

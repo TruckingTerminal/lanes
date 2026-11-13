@@ -30,7 +30,7 @@ import { finiteIn } from "./economics.js";
 import { offerStaff, payFloor, releaseStaff, setPay, severance, startHomeTime } from "./labor.js";
 import { buyListing, listingBlock, listTrailer, listTruck, withdrawListing } from "./market.js";
 import { canRefile, notice } from "./safety.js";
-import { canMakeHot } from "./standingOrders.js";
+import { canMakeHot, homeBlock } from "./standingOrders.js";
 import { inCloseWindow } from "./season.js";
 import { refile } from "./solvency.js";
 import { facilityCap, locksOn, noteDiscount, peekDiscount, stakeDiscount, stakeFd, truckCap, unstakeFd } from "./staking.js";
@@ -405,6 +405,8 @@ export function applyAction(w: World, companyId: number, action: Action): Action
       const block = vettingBlock(w, company, load);
       if (block) return { ok: false, reason: `the poster's vetting rules you out: ${block}` };
       if (load.hot > 0 && !canMakeHot(company, truck)) return { ok: false, reason: "a hot load needs a team" };
+      const home = homeBlock(w, company, truck, load); // the director's rules H and C, each behind its switch
+      if (home) return { ok: false, reason: home };
       // Delivery windows (batch 2): a truck on a job books the load after it, if it can make it; any truck, a windowed load
       // only if it can make it. The reach is from where the truck will be free.
       const reach = bookAheadReach(w, truck, load);
@@ -431,6 +433,8 @@ export function applyAction(w: World, companyId: number, action: Action): Action
       const contract = w.contracts.find((k) => k.id === load.contractId);
       const rate = load.ownTenderRate ?? contract?.ratePerMile; // Rule B: the own brokerage's tender carries its pay
       if (rate === undefined) return { ok: false, reason: "that contract is gone" };
+      const home = homeBlock(w, company, truck, load); // the director's rules H and C
+      if (home) return { ok: false, reason: home };
       const dh = placeMiles(w, truck.place, load.originPlace);
       if (dh > MANUAL_BID_MAX_DEADHEAD_MI) return { ok: false, reason: `the pickup is more than ${MANUAL_BID_MAX_DEADHEAD_MI} miles away` };
       const why = acceptTender(w, company, load, truck);
@@ -944,6 +948,8 @@ export function applyAction(w: World, companyId: number, action: Action): Action
       const blocked = vettingBlock(w, company, load);
       if (blocked) return { ok: false, reason: `the poster won't load a carrier with ${blocked}` };
       if (load.hot > 0 && !canMakeHot(company, truck)) return { ok: false, reason: "a hot load's window takes a team" };
+      const home = homeBlock(w, company, truck, load); // the director's rules H and C
+      if (home) return { ok: false, reason: home };
       // leverage.localHoldHandBids: in the last round of a locals-first hold, the bid is filed for the opening clearing, where
       // manualRoundBids checks mayTake again (a local who takes it first wins it).
       if (!mayTake(w, company, load) && !filesForOpening(w, company, load)) return { ok: false, reason: load.tenderedTo ? "that load is tendered to another carrier" : "the shipper is giving local carriers first call this round" };

@@ -192,7 +192,9 @@ function SendEmpty({ t, nearby }: { t: Truck; nearby: { i: number }[] }): JSX.El
   const c = ownerOf(t);
   const [pick, setPick] = useState<number | null>(null);
   if (!nearby.length) return null;
-  const runs = nearby.map((x) => ({ i: x.i, run: emptyRun(w, t, t.hub, x.i), pays: paysFrom(w, c, t, x.i) }));
+  // Client batch 8d item 6: running empty, the hub it already runs to isn't a turn.
+  const runs = nearby.filter((x) => !(t.status === "repositioning" && x.i === t.targetHub)).map((x) => ({ i: x.i, run: emptyRun(w, t, t.hub, x.i), pays: paysFrom(w, c, t, x.i) }));
+  if (!runs.length) return null;
   const paying = runs.filter((x) => x.pays > 0).sort((a, b) => a.run.costFd - b.run.costFd || a.i - b.i)[0];
   const hub = pick !== null && nearby.some((x) => x.i === pick) ? pick : (paying ?? runs[0]!).i;
   const name = w.net.hubs[hub]!.name;

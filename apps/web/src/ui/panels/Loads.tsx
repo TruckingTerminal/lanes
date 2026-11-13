@@ -8,7 +8,7 @@ import { BOARD, LOAD } from "../../copy.js";
 import { DockWarning, ProfitChip } from "../ProfitChip.js";
 import { trueBreakEven } from "../../breakeven.js";
 import { cls, fd, fdFull, hhmm, pct, shortDate, TRAILER_CODE, TRAILER_NAME } from "../../format.js";
-import { nextRoundLabel, openLoadsAt, reloadClass, reloadLabel, SeasonNote, seasonSwing, statusText } from "../../logic.js";
+import { nextRoundLabel, openLoadsAt, reloadClass, reloadLabel, SeasonNote, seasonSwing, statusText, withDaysOffWarning } from "../../logic.js";
 import { act, bumpData, me, myTrucks, S, selectTruck, toast, useData } from "../../state.js";
 import { PENDING } from "../../copy-pending.js";
 import { Btn, Card, Kv, Num, Panel } from "../bits.js";
@@ -335,11 +335,11 @@ function LoadDetail({ r, truck, mine, pendingRate }: { r: Row; truck: Truck; min
         {r.block ? <span class="bad">Not for you yet: {r.block}.</span> : noDriver ? <span class="bad">{PENDING.bookNeedsDriver}</span> : null}
       </div>
       <div class="row loadacts" ref={acts}>
-        <Btn primary disabled={off} onClick={() => act({ type: "book_load", truckId: truck.id, loadId: l.id }, "Booked. The truck is on its way")}>
+        <Btn primary disabled={off} onClick={(ev) => withDaysOffWarning(truck, "Book", PENDING.cutDaysOffItem, () => act({ type: "book_load", truckId: truck.id, loadId: l.id }, "Booked. The truck is on its way"), ev)}>
           Book now · {rateShown(l, l.bookNow)}
         </Btn>
         <input type="number" id={bidId} step="0.01" min="0.5" max={bidCeiling(l).toFixed(2)} defaultValue={mine && pendingRate !== undefined ? pendingRate.toFixed(2) : r.suggest !== null ? r.suggest.toFixed(2) : ""} aria-label="Your bid per mile" disabled={bidOff} />
-        <Btn on={mine} disabled={bidOff} onClick={placeBid}>
+        <Btn on={mine} disabled={bidOff} onClick={(ev) => withDaysOffWarning(truck, "Bid", PENDING.cutDaysOffItem, placeBid, ev)}>
           {mine ? "Change bid" : "Bid"}
         </Btn>
       </div>

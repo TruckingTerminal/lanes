@@ -1,8 +1,9 @@
-import { canMakeHot, filesForOpening, homeEdge, clearsNear as engineClearsNear, clearsNearParts, dayOf, dockHoursAt, dutyResetAt, nextOpen, dispatchProfile, EQUIPMENT, expectedReloadDeadheadMi, mayTake, operatingTrucks, ownerDrawFd, placeMiles, placeToll, planIndex, vettingBlock, type Company, type Load, type Truck, type World } from "@lanes/engine";
+import { canMakeHot, filesForOpening, homeBlock, homeEdge, resting, clearsNear as engineClearsNear, clearsNearParts, dayOf, dockHoursAt, dutyResetAt, nextOpen, dispatchProfile, EQUIPMENT, expectedReloadDeadheadMi, mayTake, operatingTrucks, ownerDrawFd, placeMiles, placeToll, planIndex, vettingBlock, type Company, type Load, type Truck, type World } from "@lanes/engine";
 import { COMMODITIES } from "@lanes/data";
 import { trueBreakEven } from "./breakeven.js";
 import { WALL } from "./copy.js";
-import { shortDate } from "./format.js";
+import { hhmm, shortDate, weekday } from "./format.js";
+import { PENDING } from "./copy-pending.js";
 
 /**
  * The board's arithmetic (specs/first-ten-minutes.md, S2–S5), apart from the screen so it can be tested: each open load
@@ -183,8 +184,27 @@ export function blockReason(w: World, c: Company, truck: Truck, l: Load): string
     return v.charAt(0).toUpperCase() + v.slice(1);
   }
   if (l.hot > 0 && !canMakeHot(c, truck)) return WALL.hot;
+  // The director's rules H and C (engine standingOrders.ts homeBlock, each behind its switch), in her words.
+  if (homeBlock(w, c, truck, l)) {
+    const d = w.staff[truck.driverId - 1]!;
+    if (!resting(w, truck)) return PENDING.pastDueHome(d.name);
+    const back = d.homeUntilDay! * w.cfg.time.gameMinutesPerDay;
+    const pickup = Math.max(w.t, l.readyT ?? w.t);
+    const when = (t: number) => `${weekday(Math.floor(t / w.cfg.time.gameMinutesPerDay))} ${hhmm(t)}`;
+    return PENDING.homeUntil(d.name, when(back), when(pickup));
+  }
   if (!mayTake(w, c, l)) return WALL.localFirst(nextRoundHH(w));
   return null;
+}
+
+/**
+ * The director's rule H, the owner's half: an owner-operator on home time may cut their own days off, warned first (on
+ * the page, under labor.homeTimeHolds). The days at home so far, or null when no warning is due.
+ */
+export function cutsDaysOff(w: World, truck: Truck): number | null {
+  if (!w.cfg.labor.homeTimeHolds || !truck.driverId || !resting(w, truck)) return null;
+  const d = w.staff[truck.driverId - 1]!;
+  return d.owner ? d.restDays : null;
 }
 
 /**

@@ -346,7 +346,10 @@ export function firstTruckLine(w: World, c: Company): FirstTruckVerdict | null {
   const later = pick.arrivesDay > today;
   // About how many loads from here, at what a load has kept the company so far; none said before a load is delivered.
   const perLoad = c.delivered > 0 ? (c.operating.revenueFd - c.operating.costFd) / c.delivered : 0;
-  const loads = !met && perLoad > 0.5 ? Math.max(1, Math.ceil(gap / perLoad)) : null;
+  // Client batch 8d item 5: no count from under the early-delivery fee's weeks of history (keptMinHistoryWeeks, 4): a
+  // week's books gave "72 loads and 72 weeks", then 33 and 12. Under it, the cash it takes, as before the first load.
+  const history = (today - c.createdDay) / 7 >= w.cfg.assets.expedite.keptMinHistoryWeeks;
+  const loads = !met && history && perLoad > 0.5 ? Math.max(1, Math.ceil(gap / perLoad)) : null;
   // And in weeks at the recent average kept a week (the director's sound-lot ruling).
   const perWeek = (c.operating.revenueFd - c.operating.costFd) / Math.max(1, (today - c.createdDay) / 7);
   const weeksOff = !met && loads !== null && perWeek > 0.5 ? Math.max(1, Math.ceil(gap / perWeek)) : null;

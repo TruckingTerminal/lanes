@@ -452,6 +452,22 @@ export const PENDING = {
     `Not yet: a sound truck is about ${loads} ${loads === 1 ? "load" : "loads"} away at your recent average${span ? `, around ${span}` : ""}. Each load adds about ${perLoadFd} FD toward it. You're ${pct} of the way.`,
   soundProgress: (pct: string) => `${pct} of the way to a sound truck`,
   soundWatch: "I'll tell you when a sound used truck lists for less.",
+  // The director's rules H and C (director-playtest-rulings-2026-11-10.md), the load's one wall (board.ts blockReason), in
+  // her words; and her warning before an owner-operator cuts their own days off.
+  homeUntil: (name: string, back: string, pickup: string) => `${name} is home until ${back}; this pickup is ${pickup}.`,
+  pastDueHome: (name: string) => `${name} is past due home: loads toward home only, until you send them home.`,
+  cutDaysOff: (days: number) => `You'll go back out with ${days} ${days === 1 ? "day" : "days"} at home; your days-away count won't clear.`,
+  cutDaysOffGo: "Go back out",
+  cutDaysOffItem: "this load on your days off",
+  // Client batch 8d (QA's 8b replay, qa-8b-2026-11-13.md): placeholders for the writer.
+  hireUnparks: (n: number) => `Truck ${n} goes back on the road with them.`,
+  letGoDoes: (name: string, seated: boolean) => `${name} leaves your company today${seated ? ", and their truck stands empty" : ""}.`,
+  letGoRisk: "Taking them back means hiring them again, at whatever they ask then.",
+  letGoGo: (name: string) => `Let ${name} go`,
+  bidThinLane: "Too few loads like this have cleared on this lane to say where it clears; Book now is the sure price.",
+  bidFieldLabel: "Your bid, FD a mile",
+  bidChipEmpty: "Bid",
+  dispatchedByRules: (n: number) => `${n} ${n === 1 ? "load" : "loads"} dispatched by your rules`,
   soundQuarter: (n: 1 | 2 | 3) => (n === 1 ? "A quarter of the way to your truck." : n === 2 ? "Halfway to your truck." : "Three quarters of the way to your truck."),
   soundListed: (truck: string, fd: string) => `A sound used truck just listed for less: ${truck}, ${fd} FD. It's on your first-truck card.`,
   // Client batch 8c item 69 (the director): a lost bid names what beat it, from the clearing's own terms (board.ts lostWhy).

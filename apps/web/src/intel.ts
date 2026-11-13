@@ -66,7 +66,8 @@ export function intelRows(w: World): IntelRow[] {
     c,
     player: isHuman(c),
     broker: c.role === "broker",
-    trucks: operatingTrucks(w, c.id),
+    // Client batch 8d item 9: every truck the company has, parked or listed too (QA: "1 truck" for a company with two).
+    trucks: (w.trucksByCompany.get(c.id) ?? []).filter((t) => t.status !== "retired").length,
     trailers: trailers.get(c.id) ?? zero(),
     drivers: (w.staffByCompany.get(c.id) ?? []).filter((s) => s.kind === "driver" && s.status === "employed").length,
     facilities: facilities.get(c.id) ?? {},

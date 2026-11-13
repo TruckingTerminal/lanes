@@ -9,6 +9,7 @@ import type { EconomyConfig } from "@lanes/config";
 import { Btn, Card, Label } from "../bits.js";
 import { Iuliia } from "../Walkthrough.js";
 import { iuliiaFirst } from "../../iuliia.js";
+import { formOf, ordersFrom } from "../../dispatcherform.js";
 
 const num = (id: string): number => Number((document.getElementById(id) as HTMLInputElement | null)?.value);
 const checked = (id: string): boolean => Boolean((document.getElementById(id) as HTMLInputElement | null)?.checked);
@@ -34,27 +35,28 @@ export function DispatcherCard(): JSX.Element {
   const floor = find("floor");
   const repo = find("reposition");
   const bn = find("bookNow");
-  const hm = find("homeTime");
   const ct = find("contracts");
+  const f0 = formOf(c.orders);
   const on = !waiting && Boolean(bid);
-  const spotNow = ct ? (ct.spotAbovePct === null ? "always" : String(ct.spotAbovePct)) : "always";
-  const def = <K extends StandingOrder["kind"]>(k: K) => [...PLAYER_DISPATCHER_ORDERS, ...DEFAULT_ORDERS].find((o): o is Extract<StandingOrder, { kind: K }> => o.kind === k);
-  const orders = (bidding: boolean): StandingOrder[] => {
-    const dh = Math.max(0, Math.min(150, num("o-dh") || 150));
-    const list: StandingOrder[] = [];
-    if (bidding) {
-      list.push({ kind: "bid", maxDeadheadMi: dh, price: { mode: bid?.price.mode ?? "clearsNear", pct: Math.max(0, num("o-pct")) / 100 } });
-      list.push({ kind: "floor", breakEvenPlusPct: Math.max(0, num("o-floor")) / 100 });
-      if (checked("o-repo")) list.push({ kind: "reposition", afterIdleRounds: Math.max(1, num("o-repo-r")), to: { openLoadsWithinMi: 400 } });
-      if (checked("o-bn")) list.push({ kind: "bookNow", breakEvenPlusPct: Math.min(5, Math.max(0, num("o-bn-pct") / 100 || 0)), maxDeadheadMi: dh });
-      if (checked("o-ct")) {
-        const spot = (document.getElementById("o-ct-spot") as HTMLSelectElement).value;
-        list.push({ kind: "contracts", acceptOffers: true, spotAbovePct: spot === "always" ? null : Number(spot), maxDeadheadMi: dh });
-      }
-    }
-    list.push({ kind: "homeTime", afterDays: Math.min(365, Math.max(1, Math.round(num("o-home-after")) || 21)), restDays: hm?.restDays ?? def("homeTime")?.restDays ?? 5 });
-    return list;
-  };
+  // Client batch 8d, fail 2 (QA's 8b replay): the form is data (dispatcherform.ts), so Save with nothing changed writes the
+  // orders it was shown; the contracts box is the offers (acceptOffers), never just "a contracts order".
+  const orders = (bidding: boolean): StandingOrder[] =>
+    ordersFrom(
+      {
+        dh: num("o-dh"),
+        pct: num("o-pct"),
+        floor: num("o-floor"),
+        repo: checked("o-repo"),
+        repoRounds: num("o-repo-r"),
+        bn: checked("o-bn"),
+        bnPct: num("o-bn-pct"),
+        ct: checked("o-ct"),
+        ctSpot: (document.getElementById("o-ct-spot") as HTMLSelectElement | null)?.value ?? f0.ctSpot,
+        homeAfter: num("o-home-after"),
+      },
+      bidding,
+      c.orders,
+    );
   const save = (bidding: boolean, said?: string) => act({ type: "set_standing_orders", orders: orders(bidding) }, DISPATCHER.saved, said);
   // The switch keeps the rules: off sets the bidding rules aside, on brings them back (or the defaults, the first time).
   const flip = (to: boolean) => {
@@ -85,47 +87,47 @@ export function DispatcherCard(): JSX.Element {
       {switchRow}
       <div class="row">
         <Label for="o-pct">{bid?.price.mode === "ceilingPct" ? "Bid at" : (bid?.price.mode ?? "clearsNear") === "clearsNear" ? DISPATCHER.bidAtClears : DISPATCHER.bidAt}</Label>
-        <input type="number" id="o-pct" step="1" min="0" max="120" defaultValue={String(Math.round((bid?.price.pct ?? def("bid")?.price.pct ?? 0) * 100))} />
+        <input type="number" id="o-pct" step="1" min="0" max="120" defaultValue={String(f0.pct)} />
         <span class="muted">{bid?.price.mode === "ceilingPct" ? DISPATCHER.ceilingSuffix : "%"}</span>
       </div>
       <div class="row">
         <Label for="o-dh">{DISPATCHER.emptyUpTo}</Label>
-        <input type="number" id="o-dh" min="0" max="150" defaultValue={String(bid?.maxDeadheadMi ?? 150)} />
+        <input type="number" id="o-dh" min="0" max="150" defaultValue={String(f0.dh)} />
         <span class="muted">mi</span>
       </div>
       <div class="row">
         <Label for="o-home-after">{DISPATCHER.homeAfter}</Label>
-        <input type="number" id="o-home-after" min="1" max="365" defaultValue={String(hm?.afterDays ?? def("homeTime")?.afterDays ?? 21)} />
+        <input type="number" id="o-home-after" min="1" max="365" defaultValue={String(f0.homeAfter)} />
         <span class="muted">days</span>
       </div>
       <details class="fold">
         <summary onClick={() => iuliiaFirst("dispatcher:rules")}>{DISPATCHER.moreRules}</summary>
         <div class="row">
           <Label for="o-floor">{PENDING.floorLabel}</Label>
-          <input type="number" id="o-floor" min="0" max="50" defaultValue={String(Math.round((floor?.breakEvenPlusPct ?? 0) * 100))} />
+          <input type="number" id="o-floor" min="0" max="50" defaultValue={String(f0.floor)} />
           <span class="muted">%</span>
         </div>
         {/* The floor relaxes as the truck needs to move (standingOrders.ts floorRate, desperation): said, not "never below" (QA, client batch 4). */}
         <p class="muted small">{floorRelaxesLine(w.cfg)}</p>
         <div class="row">
           <label class="label">
-            <input type="checkbox" id="o-bn" defaultChecked={Boolean(bn)} /> {DISPATCHER.bookNow}
+            <input type="checkbox" id="o-bn" defaultChecked={f0.bn} /> {DISPATCHER.bookNow}
           </label>
-          <input type="number" id="o-bn-pct" min="0" max="100" defaultValue={String(Math.round((bn?.breakEvenPlusPct ?? 0.2) * 100))} />
+          <input type="number" id="o-bn-pct" min="0" max="100" defaultValue={String(f0.bnPct)} />
           <span class="muted">%</span>
         </div>
         <div class="row">
           <label class="label">
-            <input type="checkbox" id="o-repo" defaultChecked={Boolean(repo)} /> {DISPATCHER.moveIdle}
+            <input type="checkbox" id="o-repo" defaultChecked={f0.repo} /> {DISPATCHER.moveIdle}
           </label>
-          <input type="number" id="o-repo-r" min="1" max="20" defaultValue={String(repo?.afterIdleRounds ?? 2)} />
+          <input type="number" id="o-repo-r" min="1" max="20" defaultValue={String(f0.repoRounds)} />
           <span class="muted">{DISPATCHER.idleRounds}</span>
         </div>
         <div class="row">
           <label class="label">
-            <input type="checkbox" id="o-ct" defaultChecked={Boolean(ct)} /> Contracts: take offers from local shippers and
+            <input type="checkbox" id="o-ct" defaultChecked={f0.ct} /> Contracts: take offers from local shippers and
           </label>
-          <select id="o-ct-spot" defaultValue={spotNow}>
+          <select id="o-ct-spot" defaultValue={f0.ctSpot}>
             <option value="always">honor every tender</option>
             <option value="0.1">let a tender lapse when spot is 10% above the contract</option>
             <option value="0.15">let it lapse at 15% above</option>

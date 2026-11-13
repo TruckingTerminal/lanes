@@ -34,7 +34,7 @@ import {
 } from "@lanes/engine";
 import { DISPATCHER_ORDERS, GAME_CONFIG, PLAYER_DISPATCHER_ORDERS } from "./game.js";
 import { trueBreakEven } from "./breakeven.js";
-import { boardRows, profitOver } from "./board.js";
+import { boardRows, cutsDaysOff, profitOver } from "./board.js";
 import { PENDING } from "./copy-pending.js";
 import { ARRIVAL, BROKERAGE, DEBT, DISPATCHER, FIRST_ENTRY, MOVE, NEEDS, SAFETY_NEWS, TRUCK } from "./copy.js";
 import { cashDipAhead, debtCountdown } from "./figures.js";
@@ -615,6 +615,16 @@ export function idleWhy(t: Truck): IdleWhy {
   if (payable.length === 0) return { why: PENDING.idleUnderFloor(loads.length, trailer, Math.round(floorPct * 100)), fixes: [board] };
   if (prof.coverage < 1) return { why: `Your dispatcher is stretched: ${prof.span} trucks' worth of attention for the ${running} you run, so this truck sits out about ${Math.round((1 - prof.coverage) * 100)}% of rounds.`, fixes: [<Btn primary onClick={goStaff}>Hire a dispatcher</Btn>, board] };
   return { why: PENDING.idleBidsLosing(payable.length, trailer), fixes: [<Btn primary onClick={() => goLoads(t.id)}>Bid by hand</Btn>] };
+}
+
+/**
+ * The director's rule H, the owner's half (board.ts cutsDaysOff): an owner-operator on home time who books or bids goes
+ * back out early, so the page warns first; otherwise the order goes at once.
+ */
+export function withDaysOffWarning(truck: Truck, verb: string, item: string, run: () => void, ev?: MouseEvent): void {
+  const days = cutsDaysOff(S.game!.w, truck);
+  if (days === null) return run();
+  confirmAct({ verb, item, costFd: null, does: PENDING.cutDaysOff(days), risk: null, go: PENDING.cutDaysOffGo, run }, ev);
 }
 
 /**
