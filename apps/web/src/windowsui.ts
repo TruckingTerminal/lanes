@@ -1,4 +1,4 @@
-import { AHEAD_STATUSES, canMake, crewed, dayOf, freeOf, lostShare, memoryLift, npcKey, urgent, whenLabel, windowsOn, type Company, type Free, type Load, type Reach, type Truck, type World } from "@lanes/engine";
+import { AHEAD_STATUSES, canMake, clearsWhen, crewed, dayOf, freeOf, lostShare, memoryLift, npcKey, urgent, whenLabel, windowsOn, type Company, type Free, type Load, type Reach, type Truck, type World } from "@lanes/engine";
 import { WINDOWS } from "./copy-windows.js";
 import { fdFull, hhmm } from "./format.js";
 import { deliveryEtaMin, etaMin } from "./rolling.js";
@@ -236,4 +236,19 @@ export function hubLosses(w: World, top = 5): { hub: number; lost: number; liftP
     return { hub, lost: lostShare(w, npcKey(hub)).lost, liftPct: lift >= 0.005 ? `${Math.round(lift * 100)}%` : null };
   });
   return out.filter((x) => x.lost > 0).sort((a, b) => b.lost - a.lost || a.hub - b.hub).slice(0, top);
+}
+
+/**
+ * When loads like this one clear (the economy's spec, economy-windows-clearsnear-2026-11-13.md): the walk clause when half
+ * or more of the recent clears came in the urgency walk, else the round clause when half or more came within a round of
+ * posting, else none. With the share behind it, for the figure's explanation. Null with windows off or too few clears.
+ */
+export function clearsTiming(w: World, l: Load): { clause: string; share: string } | null {
+  const c = clearsWhen(w, l);
+  if (!c) return null;
+  const hub = w.net.hubs[l.origin]!.name;
+  const pct = (x: number) => `${Math.round(x * 100)}%`;
+  if (c.walk >= 0.5) return { clause: WINDOWS.clearsWalk, share: WINDOWS.clearsShareWalk(pct(c.walk), c.from, hub) };
+  if (c.quick >= 0.5) return { clause: WINDOWS.clearsQuick, share: WINDOWS.clearsShareQuick(pct(c.quick), c.from, hub) };
+  return null;
 }

@@ -86,6 +86,50 @@ export function noteClear(w: World, load: Load, rate: number): void {
   const x = c.ratio ? rate / clearsBase(load) : rate;
   trackClears(c.lane, `${load.laneId}:${load.equipment}`, x, w.t, half);
   trackClears(c.hub, `${load.origin}:${load.equipment}`, x, w.t, half);
+  // Delivery windows (economy-windows-clearsnear-2026-11-13.md): when it cleared, beside the rate. Windows on only; no
+  // bot reads it.
+  if (windowsOn(w)) {
+    const cw = (w.clearsWhen ??= { lane: {}, hub: {} });
+    const quick = w.round - load.postedRound <= 1 ? 1 : 0;
+    const walk = (load.urgentSteps ?? 0) > 0 ? 1 : 0;
+    trackWhen(cw.lane, `${load.laneId}:${load.equipment}`, quick, walk, w.t, half);
+    trackWhen(cw.hub, `${load.origin}:${load.equipment}`, quick, walk, w.t, half);
+  }
+}
+
+/** One clear's two timing marks into a key's time-weighted shares (as trackClears keeps its mean). */
+function trackWhen(table: Record<string, [number, number, number, number]>, key: string, quick: number, walk: number, t: number, halfLifeMin: number): void {
+  const x = table[key];
+  if (!x) {
+    table[key] = [quick, walk, 1, t];
+    return;
+  }
+  const weight = halfLifeMin > 0 ? x[2] * dpow(0.5, Math.max(0, t - x[3]) / halfLifeMin) : x[2];
+  x[0] += (quick - x[0]) / (weight + 1);
+  x[1] += (walk - x[1]) / (weight + 1);
+  x[2] = weight + 1;
+  x[3] = t;
+}
+
+/**
+ * When loads like this one clear (windows on): the lane's shares within a round of posting and in the urgency walk, read
+ * decayed to now (nothing written) once the lane has priorClears of weight, else the hub's on the same test, else null.
+ * No prior blended in: a share is a fact about the clears or it isn't shown.
+ */
+export function clearsWhen(w: World, load: Load): { quick: number; walk: number; from: "lane" | "hub"; weight: number } | null {
+  if (!windowsOn(w) || !w.clearsWhen) return null;
+  const half = clearsHalfLifeMin(w);
+  const p = w.cfg.freight.clearsNear.priorClears ?? CLEARS_MIN;
+  const read = (table: Record<string, [number, number, number, number]>, key: string) => {
+    const x = table[key];
+    if (!x) return null;
+    const weight = half > 0 ? x[2] * dpow(0.5, Math.max(0, w.t - x[3]) / half) : x[2];
+    return weight >= p ? { quick: x[0], walk: x[1], weight } : null;
+  };
+  const lane = read(w.clearsWhen.lane, `${load.laneId}:${load.equipment}`);
+  if (lane) return { ...lane, from: "lane" };
+  const hub = read(w.clearsWhen.hub, `${load.origin}:${load.equipment}`);
+  return hub ? { ...hub, from: "hub" } : null;
 }
 
 /**

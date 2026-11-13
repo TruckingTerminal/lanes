@@ -177,6 +177,12 @@ export interface World {
   /** `ratio`: the table holds ratios to the reference (freight.clearsNear.ratio); absent, rates per mile. */
   clears?: { lane: Record<string, [number, number]>; hub: Record<string, [number, number]>; ratio?: true };
   /**
+   * When loads clear (delivery windows; economy-windows-clearsnear-2026-11-13.md), under the rate's keys: per key the
+   * time-weighted share of clears within a round of posting, the share in the urgency walk, the decayed weight and its
+   * minute. Kept only while windows are on (freight.ts noteClear).
+   */
+  clearsWhen?: { lane: Record<string, [number, number, number, number]>; hub: Record<string, [number, number, number, number]> };
+  /**
    * Delivery windows, batch 4 (windows.ts noteLost, lostMemory): NPC freight lost at its pickup's close, per hub and trailer
    * (planIndex), decayed to `t` with windows.lostMemoryHalfLifeDays. Made on the first loss; absent with windows off.
    */

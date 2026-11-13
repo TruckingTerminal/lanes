@@ -12,7 +12,7 @@ import { deliveryEtaMin, etaMin } from "../../rolling.js";
 import { tabOpen } from "../../tabs.js";
 import { iuliiaFirst, iuliiaOnce, iuliiaOnChange, iuliiaSay, iuliiaSayText } from "../../iuliia.js";
 import { WINDOWS } from "../../copy-windows.js";
-import { aheadable, agreement, boardable, freeAt, windowLine } from "../../windowsui.js";
+import { aheadable, agreement, boardable, clearsTiming, freeAt, windowLine } from "../../windowsui.js";
 import { PENDING_RULES } from "../../copy-pending-rules.js";
 import { Btn, Card, Kv } from "../bits.js";
 import { LoadsTable } from "./Loads.js";
@@ -518,7 +518,7 @@ function LoadSheet({ r, truck }: { r: BoardRow; truck: Truck }): JSX.Element {
                 ] as [string, JSX.Element][])
               : []),
             // Client batch 8e item 76: the lane's own figure, or the market's said as the market's.
-            [clearsNearSource(w, l).from === "lane" ? LOAD.clearsNear : PENDING.clearsNearMarket, <Fig k="board.clearsNear" label={LOAD.clearsNear} ctx={fx}>{`${rateShown(l, clearsNear(w, l))}/mi`}</Fig>],
+            [clearsNearSource(w, l).from === "lane" ? LOAD.clearsNear : PENDING.clearsNearMarket, <Fig k="board.clearsNear" label={LOAD.clearsNear} ctx={fx}>{`${rateShown(l, clearsNear(w, l))}/mi${clearsTiming(w, l)?.clause ?? ""}`}</Fig>],
             [LOAD.ceiling, <Fig k="board.ceiling" label={LOAD.ceiling} ctx={fx}>{`${bidCeiling(l).toFixed(2)}/mi`}</Fig>],
           ]}
         />

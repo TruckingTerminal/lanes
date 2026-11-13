@@ -32,7 +32,7 @@ import { cushion, debtCountdown, gapToTruck } from "./figures.js";
 import { buyPlan } from "./finance.js";
 import { TRAILER_NAME } from "./format.js";
 import { whenLabel } from "@lanes/engine";
-import { claimsAt, urgentFrom } from "./windowsui.js";
+import { claimsAt, clearsTiming, urgentFrom } from "./windowsui.js";
 
 /**
  * Help on every figure (specs/guidance.md section 2): one table keyed like copy.ts. The writer's what / how / moves are
@@ -260,7 +260,9 @@ const BREAKDOWNS: Record<string, Fn> = {
         ]
       : [{ label, value: perMi(src.rate) }];
     if (src.capped) rows.push({ label: "Held at this load's ceiling", value: perMi(l.ceiling), key: "board.ceiling" });
-    return { rows, total: { label: "Usually clears near", value: perMi(clearsNear(w, l)) } };
+    // Delivery windows: the share behind the timing clause the sheet shows (economy-windows-clearsnear-2026-11-13.md).
+    const timing = clearsTiming(w, l);
+    return { rows, total: { label: "Usually clears near", value: perMi(clearsNear(w, l)) }, ...(timing ? { notes: [timing.share] } : {}) };
   },
   // The truck's worth, as dealer.ts truckValue: the price new today, less the share of its life its miles used, less
   // its age, held at its floor, less wear; with the assets on, its trailer is valued on its own and added.
