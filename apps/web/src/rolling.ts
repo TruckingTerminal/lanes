@@ -1,5 +1,5 @@
 import { dcos, greatCircleMiles } from "@lanes/data";
-import { drivingLimitMin, dutyResetAt, fuelPrice, hubMiles, hubToll, legRoute, legMile, mphFor, placeHours, placeLegMiles, placeOfHub, placeToll, planNight, settlementShare, tripCost, truckLatLon, type Company, type Load, type Receivable, type Truck, type World, ownerDrawFd } from "@lanes/engine";
+import { cycleLimitMin, drivingLimitMin, dutyResetAt, fuelPrice, hubMiles, hubToll, legRoute, legMile, mphFor, placeHours, placeLegMiles, placeOfHub, placeToll, planNight, settlementShare, tripCost, truckLatLon, type Company, type Load, type Receivable, type Truck, type World, ownerDrawFd } from "@lanes/engine";
 import { DELIVERED, MOVE } from "./copy.js";
 import { shortDate } from "./format.js";
 
@@ -78,7 +78,7 @@ export function deliveryEtaMin(w: World, t: Truck, c: Company, l: Load): number 
 }
 
 /** Where tonight's stop is planned, or null when the leg ends within today's hours. */
-export type NightStop = { kind: "site"; siteId: number; lat: number; lon: number } | { kind: "town"; place: number } | { kind: "shoulder" } | null;
+export type NightStop = { kind: "site"; siteId: number; lat: number; lon: number } | { kind: "town"; place: number } | { kind: "townNear"; maxMi: number | null } | { kind: "shoulder" } | null;
 
 /**
  * Tonight's planned stop (engineering's answer to the spec's question, read-only): the engine's own planNight
@@ -99,6 +99,10 @@ export function nightStop(w: World, t: Truck, c: Company): NightStop {
     const k = w.cfg.businesses;
     const inTown = k.enabled && k.parking.stopInTown && c.nightStop === "town" && (t.townNight === true || (legMile(t) <= 1e-6 && drivingLeftMin(w, t, c) < drivingLimitMin(w, t, c) - 1e-6));
     if (inTown) return { kind: "town", place: t.place };
+    // Client batch X (QA's 0.25.0 replay, fail 5): businesses.parking.stopInTownMidLeg. Midway the engine picks the town at
+    // the night itself, from where the hours run out (trips.ts nightInTown, the nearest town within parking.stopInTownMaxMi,
+    // else the shoulder); it plans none ahead. So the line says that rule, not a town the engine hasn't chosen.
+    if (k.enabled && k.parking.stopInTown && k.parking.stopInTownMidLeg && c.nightStop === "town") return { kind: "townNear", maxMi: k.parking.stopInTownMaxMi ?? null };
     return k.enabled ? { kind: "shoulder" } : null;
   }
   let best: { id: number; lat: number; lon: number; d: number } | null = null;
@@ -257,4 +261,19 @@ export function emptyRun(w: World, t: Truck, fromHub: number, toHub: number): { 
     fd: Math.round(costFd).toLocaleString("en-US"),
     time: MOVE.time(days < 1 ? 0 : Math.ceil(days), Math.max(1, Math.ceil(hours))),
   };
+}
+
+/**
+ * When a truck on the road is off duty until (R12's clocks on the card), or null while it can drive. Client batch X (QA's
+ * 0.25.0 replay, fail 8): only while the day's hours are spent (the truck's own limit: a team's, a town night's or an early
+ * stop's, trips.ts), or the week's. The rest site alone isn't enough: a night that ends inside an hour keeps its space
+ * until the next hour's start (trips.ts moveTrucks), so for that hour the truck drove on under "Resting until" the next
+ * night's reset.
+ */
+export function restingUntil(w: World, t: Truck, c: Company): number | null {
+  const resetAt = dutyResetAt(w, t);
+  if (resetAt === null || resetAt <= w.t) return null;
+  const daySpent = t.shiftDrivenMin >= drivingLimitMin(w, t, c) - 1e-6;
+  const weekSpent = w.cfg.hos.cycleHours > 0 && t.cycleMin !== undefined && t.cycleMin >= cycleLimitMin(w, t) - 1e-6;
+  return daySpent || weekSpent ? resetAt : null;
 }

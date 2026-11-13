@@ -12,7 +12,7 @@ import { deliveryEtaMin, etaMin } from "../../rolling.js";
 import { tabOpen } from "../../tabs.js";
 import { iuliiaFirst, iuliiaOnce, iuliiaOnChange, iuliiaSay, iuliiaSayText } from "../../iuliia.js";
 import { WINDOWS } from "../../copy-windows.js";
-import { aheadable, agreement, boardable, clearsTiming, freeAt, windowLine } from "../../windowsui.js";
+import { aheadable, agreement, boardable, bookBar, clearsTiming, freeAt, windowLine } from "../../windowsui.js";
 import { PENDING_RULES } from "../../copy-pending-rules.js";
 import { Btn, Card, Kv } from "../bits.js";
 import { LoadsTable } from "./Loads.js";
@@ -70,7 +70,8 @@ export function Loads(): JSX.Element {
   const trucks = myTrucks();
   const idle = trucks.filter((t) => t.status === "idle");
   // Client batch W: with windows on, a truck on a job books its next load here too (the director's §2: no separate screen).
-  const truck = trucks.find((t) => t.id === S.selTruck && boardable(w, t)) ?? idle[0] ?? trucks.find((t) => aheadable(w, t));
+  // Client batch X (fail 3): an idle truck that can book comes before one holding its next load, whose board says why.
+  const truck = trucks.find((t) => t.id === S.selTruck && boardable(w, t)) ?? idle.find((t) => boardable(w, t)) ?? trucks.find((t) => aheadable(w, t)) ?? idle[0];
   const name = (i: number) => w.net.hubs[i]!.name;
   if (S.result) S.result.seen = true;
 
@@ -119,8 +120,10 @@ export function Loads(): JSX.Element {
           <select value={truck.id} onChange={(ev) => selectTruck(Number((ev.currentTarget as HTMLSelectElement).value))} aria-label="Truck">
             {trucks.map((t) => (
               <option value={t.id} key={t.id} disabled={!boardable(w, t)}>
-                {/* Client batch W: a busy truck that may book ahead, with when and where it's free. */}
+                {/* Client batch W: a busy truck that may book ahead, with when and where it's free. Client batch X (fail 3):
+                    one that can't book says why beside it. */}
                 {aheadable(w, t) ? WINDOWS.pickerBusy(truckNo(t.id), TRAILER_NAME[t.trailer], freeAt(w, t).label, freeAt(w, t).placeName) : BOARD.truck(truckNo(t.id), TRAILER_NAME[t.trailer])}
+                {!boardable(w, t) && bookBar(w, t, truckNo(t.id)) ? WINDOWS.pickerWhy(bookBar(w, t, truckNo(t.id))!.short) : ""}
               </option>
             ))}
           </select>
@@ -391,9 +394,10 @@ function LoadSheet({ r, truck }: { r: BoardRow; truck: Truck }): JSX.Element {
   // Under a bid above Book now: what it pays over Book now if it wins at the round, and what beats it. With no suggestion
   // and no such bid typed: Iuliia's word that booking is the better call here. No odds: the engine computes none.
   // Client batch 8a item 61: under break-even the loss is said; where loads like this clear under the player's break-even,
-  // that in place of the gamble line.
+  // that in place of the gamble line. Client batch X (item 78): the gamble's figure is net of the lessor's share and the
+  // settlement fee (profitOver), as the chip beside it is.
   const clears = clearsNear(w, l);
-  const betLine = bid !== null && bid < r.be - 0.005 ? PENDING.bidUnderBreakEven(fdFull((r.be - bid) * l.miles)) : clears < r.be ? PENDING.laneUnderBreakEven(rateShown(l, clears), r.be.toFixed(2)) : bid !== null && bid > l.bookNow + 0.005 ? PENDING.bidGamble(fdFull((bid - l.bookNow) * l.miles), nextRoundHour(), rateShown(l, l.bookNow)) : r.suggest === null ? (clearsNearSource(w, l).from !== "lane" ? PENDING.bidThinLane : PENDING.bidBookBetter) : null;
+  const betLine = bid !== null && bid < r.be - 0.005 ? PENDING.bidUnderBreakEven(fdFull((r.be - bid) * l.miles)) : clears < r.be ? PENDING.laneUnderBreakEven(rateShown(l, clears), r.be.toFixed(2)) : bid !== null && bid > l.bookNow + 0.005 ? PENDING.bidGambleNet(fdFull(bidProfit - r.profitBook), nextRoundHour(), rateShown(l, l.bookNow)) : r.suggest === null ? (clearsNearSource(w, l).from !== "lane" ? PENDING.bidThinLane : PENDING.bidBookBetter) : null;
   // The bid figure while it's being typed; null when it shows the bid.
   const [bidText, setBidText] = useState<string | null>(null);
   // R20: a refusal in the writer's words where the engine's reason is a vetting block; otherwise the engine's own.
@@ -458,7 +462,8 @@ function LoadSheet({ r, truck }: { r: BoardRow; truck: Truck }): JSX.Element {
   const fx = { loadId: l.id, truckId: truck.id };
   const swing = seasonSwing(l.origin, l.equipment);
   // Client batch W (the director's §1): the windows, then what the booking agrees to in FD, at the rate Book now takes.
-  const win = windowLine(w, l);
+  // Client batch X (fail 1): the sheet dates every time.
+  const win = windowLine(w, l, true);
   const agree = agreement(w, truck, l, l.bookNow, truckNo(truck.id));
   useEffect(() => {
     if (win) iuliiaOnce("win:sheet", WINDOWS.iuliiaFirstSheet);

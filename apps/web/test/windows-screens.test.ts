@@ -1,6 +1,6 @@
 import "./seed.js";
 import { describe, expect, it } from "vitest";
-import { canMake, npcKey, tally, whenLabel, type Load, type World } from "@lanes/engine";
+import { canMake, npcKey, tally, type Load, type World } from "@lanes/engine";
 import { boardRows } from "../src/board.js";
 import { WINDOWS } from "../src/copy-windows.js";
 import { hhmm } from "../src/format.js";
@@ -8,7 +8,7 @@ import { GAME_CONFIG, TestGame } from "../src/game.js";
 import { settleHandBids } from "../src/logic.js";
 import { nextAction } from "../src/nextstep.js";
 import { S } from "../src/state.js";
-import { aheadable, agreement, askFigures, askLines, brokerageClosing, claimCause, claimsAt, hubLosses, nowNext, spanLabel, windowLine, windowStates } from "../src/windowsui.js";
+import { aheadable, agreement, askFigures, askLines, brokerageClosing, claimCause, claimsAt, hubLosses, nowNext, readyAt, spanLabel, whenAt, windowLine, windowStates } from "../src/windowsui.js";
 
 /** Client batch W: the delivery windows' screens (director-windows-screens-2026-11-13.md), on a world with windows on. */
 const WIN = { ...GAME_CONFIG, windows: { ...GAME_CONFIG.windows, enabled: true } };
@@ -40,8 +40,9 @@ describe("client batch W: delivery windows on the page", () => {
     const { w, truck } = await started();
     const l = windowed(w)[0]!;
     const line = windowLine(w, l)!;
-    expect(line.ready).toBe(whenLabel(w, l.readyT ?? w.t));
-    expect([line.pickupBy, line.deliverBy]).toEqual([whenLabel(w, l.latestPickupT), whenLabel(w, l.latestDeliveryT)]);
+    // Client batch X (fail 1): a past ready time reads "since"; 6 or more days out, a time carries its date.
+    expect(line.ready).toBe(readyAt(w, l.readyT ?? w.t));
+    expect([line.pickupBy, line.deliverBy]).toEqual([whenAt(w, l.latestPickupT), whenAt(w, l.latestDeliveryT)]);
     // The sheet, at Book now's rate: the no-show and late claims, in the economy's shares of the pay.
     const rows = boardRows(w, w.companies.find((x) => x.human)!, truck, any).filter((r) => !r.block && r.reach?.ok);
     const r = rows[0]!;
@@ -105,7 +106,7 @@ describe("client batch W: delivery windows on the page", () => {
     const lines = askLines(w, a, 1);
     expect(lines[0]).toMatch(/^Truck 1's breakdown puts .+ at risk\.$/);
     expect(lines.some((x) => x.includes(Math.round(a.releaseFd).toLocaleString("en-US")))).toBe(true);
-    expect(lines.at(-1)).toBe(WINDOWS.askNoAnswer(whenLabel(w, l.latestPickupT!)));
+    expect(lines.at(-1)).toBe(WINDOWS.askNoAnswer(whenAt(w, l.latestPickupT!)));
     expect(nextAction(WIN, w, c)).toMatchObject({ rule: 3, kind: "atRisk", loadId: l.id });
     // Keep: the ask goes; release: the claim, and the load back on the board.
     expect(g.act({ type: "keep_load", loadId: l.id }).ok).toBe(true);

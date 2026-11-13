@@ -12,7 +12,7 @@ import { nextRoundLabel, openLoadsAt, reloadClass, reloadLabel, SeasonNote, seas
 import { act, bumpData, me, myTrucks, S, selectTruck, toast, useData } from "../../state.js";
 import { PENDING } from "../../copy-pending.js";
 import { WINDOWS } from "../../copy-windows.js";
-import { reachChip, reachFor, windowLine } from "../../windowsui.js";
+import { bookBar, reachChip, reachFor, windowLine } from "../../windowsui.js";
 import { truckNumber } from "../../trucknos.js";
 import { Btn, Card, Kv, Num, Panel } from "../bits.js";
 import { SCENES } from "../../assets.js";
@@ -149,7 +149,8 @@ export function LoadsTable(): JSX.Element {
     const suggest = suggestBid(w, l, be);
     // The board's one reason (R22), the same words as the cards; client batch W: canMake's, once windows are on.
     const reach = reachFor(w, truck, l);
-    const block = blockReason(w, me(), truck, l) ?? (reach ? reachChip(w, l, reach, truckNumber(w, truck)) : null);
+    // Client batch X: a truck holding its next load takes none (fail 3); canMake's reason before H or C (fail 13).
+    const block = (truck.nextLoadId !== undefined ? bookBar(w, truck, truckNumber(w, truck))?.line : null) ?? blockReason(w, me(), truck, l, reach ? reachChip(w, l, reach, truckNumber(w, truck)) : null);
     rows.push({ l, dh, be, suggest, profit: suggest === null ? null : profitOver(w, truck, suggest, be, l.miles), profitBook: profitOver(w, truck, l.bookNow, be, l.miles), reloadMi, tolls, highway: lane.highwayShare, hours: l.routeHours, total: l.bookNow * l.miles, ageH: l.roundsUnfilled * 12, block, files: bidFiles(w, me(), truck, l) });
   }
   const key = (r: Row): number => (sort === "rate" ? r.total : sort === "permi" ? r.l.bookNow : sort === "age" ? r.ageH : sort === "trip" ? r.l.miles : sort === "dh" ? r.dh : (r.l.latestPickupT ?? r.l.appointmentT));

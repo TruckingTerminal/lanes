@@ -69,3 +69,32 @@ export function hoursLabel(h: number): string {
   return d === 0 ? `${hh} h` : `${d} d${hh % 24 ? ` ${hh % 24} h` : ""}`;
 }
 export const cls = (...xs: (string | false | null | undefined)[]): string => xs.filter(Boolean).join(" ");
+
+/**
+ * Client batch X (QA's 0.25.0 replay, fail 7): "a 804 FD claim" and "1 loads". A line's article before a figure follows
+ * how the figure is said ("an 804", "an 11-min", "an 18,000", "a 1,100"), and a count of one takes the singular. Applied
+ * to a finished line, so the writer's templates keep their words (withGrammar wraps a copy object's functions).
+ */
+const AN_FIGURE = /(^|[^\w])([Aa]) (?=(\d[\d,]*))/g;
+function anFor(figure: string): boolean {
+  const lead = figure.split(",")[0]!;
+  return lead.startsWith("8") || lead === "11" || lead === "18";
+}
+const ONE_OF = /(^|[^\w.,−-])1 (load|day|truck|driver|claim|night|week|hour|round|mile|order|space|year|month|trailer|bid)s\b/g;
+export function grammar(text: string): string {
+  return text.replace(AN_FIGURE, (m, pre: string, a: string, fig: string) => (anFor(fig) ? `${pre}${a}n ` : m)).replace(ONE_OF, (_m, pre: string, word: string) => `${pre}1 ${word}`);
+}
+/** A copy object whose functions' lines pass through grammar (fail 7); its plain strings are as written. */
+export function withGrammar<T extends object>(o: T): T {
+  const out: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(o)) {
+    out[k] =
+      typeof v === "function"
+        ? (...a: unknown[]) => {
+            const r = (v as (...x: unknown[]) => unknown)(...a);
+            return typeof r === "string" ? grammar(r) : r;
+          }
+        : v;
+  }
+  return out as T;
+}

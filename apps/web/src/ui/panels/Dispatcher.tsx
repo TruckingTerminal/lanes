@@ -139,7 +139,7 @@ export function DispatcherCard(): JSX.Element {
       {w.cfg.businesses.parking.stopInTown ? (
         <label class="row switchrow">
           <input type="checkbox" role="switch" checked={c.nightStop === "town"} onChange={(e) => act({ type: "set_night_stop", choice: (e.currentTarget as HTMLInputElement).checked ? "town" : "shoulder" }, PENDING_RULES.nightStopSaved)} />
-          <span class="small">{PENDING_RULES.nightStopLabel}</span>
+          <span class="small">{w.cfg.businesses.parking.stopInTownMidLeg ? PENDING.nightStopLabelMidLeg(w.cfg.businesses.parking.stopInTownMaxMi ?? null) : PENDING_RULES.nightStopLabel}</span>
         </label>
       ) : null}
       <div class="row">

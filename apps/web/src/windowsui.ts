@@ -1,6 +1,6 @@
-import { AHEAD_STATUSES, canMake, clearsWhen, crewed, dayOf, freeOf, lostShare, memoryLift, npcKey, urgent, whenLabel, windowsOn, type Company, type Free, type Load, type Reach, type Truck, type World } from "@lanes/engine";
+import { AHEAD_STATUSES, canMake, clearsWhen, companyAccount, crewed, dayOf, freeOf, lostShare, memoryLift, npcKey, resting, urgent, whenLabel, windowsOn, type Company, type Free, type Load, type Reach, type Truck, type World } from "@lanes/engine";
 import { WINDOWS } from "./copy-windows.js";
-import { fdFull, hhmm } from "./format.js";
+import { fdFull, hhmm, shortDate } from "./format.js";
 import { deliveryEtaMin, etaMin } from "./rolling.js";
 
 /**
@@ -18,6 +18,20 @@ export function spanLabel(min: number): string {
   const r = m % 60;
   return h === 0 ? `${r} min` : r === 0 || h >= 10 ? `${h} h` : `${h} h ${r} min`;
 }
+/**
+ * Client batch X (QA's 0.25.0 replay, fail 1): a weekday alone is ambiguous once windows run a week out ("Ready Tue 07:00"
+ * was last Tuesday on one card and next Tuesday two rows down). A time 6 or more calendar days from today carries its date
+ * ("Fri Jan 19 15:38"), and the load sheet dates every time (`dated`). Nearer, the weekday names one day only.
+ */
+export function whenAt(w: World, t: number, dated = false): string {
+  const day = dayOf(t, w.cfg);
+  if (!dated && Math.abs(day - dayOf(w.t, w.cfg)) < 6) return whenLabel(w, t);
+  const [wd, hm] = whenLabel(w, t).split(" ");
+  return `${wd} ${shortDate(day)} ${hm}`;
+}
+/** A ready time: one already past reads as past ("since Tue 07:00"), never as a bare weekday that could be next week's. */
+export const readyAt = (w: World, ready: number, dated = false): string => (ready < w.t ? WINDOWS.readySince(whenAt(w, ready, dated)) : whenAt(w, ready, dated));
+
 const roundMinutes = (w: World): number => w.cfg.time.gameMinutesPerDay / w.cfg.time.boardRoundHours.length;
 
 /** The load card's line (§1): ready, pick up by, deliver by; the same-day mark and premium; the last rounds' line. */
@@ -32,36 +46,59 @@ export interface WindowLine {
   /** The same-day premium as the pay says it ("10%"), or null. */
   sameDay: string | null;
 }
-export function windowLine(w: World, l: Load): WindowLine | null {
+export function windowLine(w: World, l: Load, dated = false): WindowLine | null {
   if (!windowsOn(w) || l.latestPickupT === undefined || l.latestDeliveryT === undefined) return null;
   const ready = l.readyT ?? w.t;
   return {
-    ready: whenLabel(w, ready),
+    ready: readyAt(w, ready, dated),
     today: dayOf(ready, w.cfg) <= dayOf(w.t, w.cfg),
-    pickupBy: whenLabel(w, l.latestPickupT),
-    deliverBy: whenLabel(w, l.latestDeliveryT),
-    closing: urgent(w, l) && l.latestPickupT > w.t ? whenLabel(w, l.latestPickupT) : null,
+    pickupBy: whenAt(w, l.latestPickupT, dated),
+    deliverBy: whenAt(w, l.latestDeliveryT, dated),
+    closing: urgent(w, l) && l.latestPickupT > w.t ? whenAt(w, l.latestPickupT, dated) : null,
     sameDay: l.sameDay ? `${Math.round((w.cfg.windows!.sameDayPremium - 1) * 100)}%` : null,
   };
 }
 
 /** A truck that may book its next load now (§2): on a job, crewed, nothing booked ahead yet (engine AHEAD_STATUSES). */
 export const aheadable = (w: World, t: Truck): boolean => windowsOn(w) && t.status !== "idle" && AHEAD_STATUSES.has(t.status) && t.nextLoadId === undefined && crewed(t);
-/** A truck the board may book for: idle, or one that may book ahead. */
-export const boardable = (w: World, t: Truck): boolean => t.status === "idle" || aheadable(w, t);
+/**
+ * A truck the board may book for: idle, or one that may book ahead; never one that already holds its next load (client
+ * batch X, fail 3: rule H's hold on an idle truck at home looked bookable until Book now refused it).
+ */
+export const boardable = (w: World, t: Truck): boolean => t.nextLoadId === undefined && (t.status === "idle" || aheadable(w, t));
+
+/**
+ * Why this truck can't take a booking now (fail 3), said up front: `line` on the board's chips, `short` in the truck
+ * picker beside its disabled option. The engine's own refusals (actions.ts place_bid, board.ts bookLoad): a next load
+ * already held (rule H's hold while its driver is home, or one booked ahead), no driver, or a job that can't book ahead.
+ * Null when it can book.
+ */
+export function bookBar(w: World, t: Truck, truckNo: number): { line: string; short: string } | null {
+  if (t.nextLoadId !== undefined) {
+    if (t.status === "idle" && resting(w, t)) {
+      const d = w.staff[t.driverId - 1]!;
+      const back = whenAt(w, d.homeUntilDay! * w.cfg.time.gameMinutesPerDay);
+      return { line: WINDOWS.heldDaysOff(truckNo, d.name, back), short: WINDOWS.whyHeld(back) };
+    }
+    return { line: WINDOWS.twoDeep(truckNo), short: WINDOWS.whyHasNext };
+  }
+  if (!crewed(t)) return { line: WINDOWS.whyNoDriver, short: WINDOWS.whyNoDriver };
+  if (t.status !== "idle" && !aheadable(w, t)) return { line: WINDOWS.whyBusy, short: WINDOWS.whyBusy };
+  return null;
+}
 
 /** When and where a busy truck is free of its job in hand (freeOf), for the picker and the board's head. */
 export function freeAt(w: World, t: Truck): { t: number; place: number; label: string; placeName: string } {
   const f = freeOf(w, t);
-  return { t: f.run.t, place: f.place, label: whenLabel(w, f.run.t), placeName: place(w, f.place) };
+  return { t: f.run.t, place: f.place, label: whenAt(w, f.run.t), placeName: place(w, f.place) };
 }
 
 /** canMake's refusal as the card's single chip (R22), in the director's words; null when it makes it. */
 export function reachChip(w: World, l: Load, r: Reach, truckNo: number): string | null {
   if (r.ok) return null;
   if (r.why === "ahead") return WINDOWS.twoDeep(truckNo);
-  if (r.why === "pickup") return WINDOWS.cantPickup(truckNo, place(w, l.originPlace), whenLabel(w, r.pickupT), hhmm(l.latestPickupT!));
-  if (r.why === "delivery") return WINDOWS.cantDeliver(truckNo, place(w, l.destPlace), whenLabel(w, r.deliverT), hhmm(l.latestDeliveryT!));
+  if (r.why === "pickup") return WINDOWS.cantPickup(truckNo, place(w, l.originPlace), whenAt(w, r.pickupT), hhmm(l.latestPickupT!));
+  if (r.why === "delivery") return WINDOWS.cantDeliver(truckNo, place(w, l.destPlace), whenAt(w, r.deliverT), hhmm(l.latestDeliveryT!));
   return null;
 }
 
@@ -90,17 +127,20 @@ export function agreement(w: World, t: Truck, l: Load, rate: number, truckNo: nu
   if (!windowsOn(w) || l.latestPickupT === undefined || l.latestDeliveryT === undefined) return null;
   const cl = claimsAt(w, l, rate);
   const fd = (x: number) => fdFull(Math.round(x));
-  const lines = [WINDOWS.agreeNoShow(whenLabel(w, l.latestPickupT), fd(cl.noShowFd)), WINDOWS.agreeLate(whenLabel(w, l.latestDeliveryT), fd(cl.lateFd))];
+  // The sheet's lines date every time (fail 1), the projection's arrival too: "at Salem by 16:48" sat beside "Dock opens Fri
+  // Jan 12 07:00" with no day of its own.
+  const at = (x: number) => whenAt(w, x, true);
+  const lines = [WINDOWS.agreeNoShow(at(l.latestPickupT), fd(cl.noShowFd)), WINDOWS.agreeLate(at(l.latestDeliveryT), fd(cl.lateFd))];
   if (aheadable(w, t)) {
     const from = urgentFrom(w, l);
-    lines.push(w.t < from ? WINDOWS.agreeRelease(whenLabel(w, from), fd(cl.releaseEarlyFd), fd(cl.releaseUrgentFd)) : WINDOWS.agreeReleaseLate(fd(cl.releaseUrgentFd)));
+    lines.push(w.t < from ? WINDOWS.agreeRelease(at(from), fd(cl.releaseEarlyFd), fd(cl.releaseUrgentFd)) : WINDOWS.agreeReleaseLate(fd(cl.releaseUrgentFd)));
   }
   const r = canMake(w, t, l);
   let spareMin: number | null = null;
   if (r.ok) {
     spareMin = l.latestDeliveryT - r.deliverT;
-    const free = r.freeT > w.t ? whenLabel(w, r.freeT) : "";
-    lines.push(WINDOWS.agreeTruck(truckNo, free, place(w, r.freePlace), place(w, l.originPlace), hhmm(r.pickupT), whenLabel(w, r.deliverT), spanLabel(spareMin)));
+    const free = r.freeT > w.t ? at(r.freeT) : "";
+    lines.push(WINDOWS.agreeTruck(truckNo, free, place(w, r.freePlace), place(w, l.originPlace), at(r.pickupT), at(r.deliverT), spanLabel(spareMin)));
   }
   return { lines, tight: spareMin !== null && spareMin < 4 * 60 ? WINDOWS.tight(spanLabel(spareMin)) : null, spareMin };
 }
@@ -111,8 +151,18 @@ export function nowNext(w: World, c: Company, t: Truck): { now: string | null; n
   const cur = t.loadId !== null ? w.loads.get(t.loadId) : undefined;
   const nxt = t.nextLoadId !== undefined ? w.loads.get(t.nextLoadId) : undefined;
   if (!nxt) return { now: null, next: null };
-  const now = cur ? WINDOWS.nowLine(place(w, cur.originPlace), place(w, cur.destPlace), whenLabel(w, deliveryEtaMin(w, t, c, cur))) : null;
-  return { now, next: WINDOWS.nextLine(place(w, nxt.originPlace), place(w, nxt.destPlace), whenLabel(w, nxt.latestPickupT ?? nxt.appointmentT)) };
+  const now = cur ? WINDOWS.nowLine(place(w, cur.originPlace), place(w, cur.destPlace), whenAt(w, deliveryEtaMin(w, t, c, cur))) : null;
+  return { now, next: WINDOWS.nextLine(place(w, nxt.originPlace), place(w, nxt.destPlace), whenAt(w, nxt.latestPickupT ?? nxt.appointmentT)) };
+}
+
+/**
+ * Client batch X (QA's 0.25.0 replay, fail 2): Release asks first, on the confirm card letting a driver go uses. Its
+ * figures: the claim in FD as the engine takes it (never more than the cash, windows.ts claimOn), what it does, and the
+ * mark on the record. Fleet.tsx adds the run.
+ */
+export function releaseCard(w: World, c: Company, l: Load, claimFd: number, truckNo: number): { verb: string; item: string; costFd: number; does: string; risk: string; destructive: true } {
+  const cash = w.ledger.balance(companyAccount(c.id));
+  return { verb: "Release", item: WINDOWS.releaseItem(l.id), costFd: Math.round(Math.min(claimFd, Math.max(0, cash))), does: WINDOWS.releaseDoes(place(w, l.originPlace), place(w, l.destPlace), truckNo), risk: WINDOWS.releaseRisk, destructive: true };
 }
 
 /** A breakdown's ask on a load booked ahead (§3): the repair, the projected arrival, the two prices, the close. */
@@ -140,10 +190,10 @@ export function askLines(w: World, a: AskFigures, truckNo: number): string[] {
   const l = a.load;
   const fd = (x: number) => fdFull(Math.round(x));
   const out = [WINDOWS.askTitle(truckNo, place(w, l.originPlace), place(w, l.destPlace))];
-  if (a.lateMin > 0) out.push(WINDOWS.askFigures(whenLabel(w, a.repairedT), place(w, l.originPlace), whenLabel(w, a.reachT), spanLabel(a.lateMin), hhmm(a.closesT)));
+  if (a.lateMin > 0) out.push(WINDOWS.askFigures(whenAt(w, a.repairedT), place(w, l.originPlace), whenAt(w, a.reachT), spanLabel(a.lateMin), hhmm(a.closesT)));
   out.push(WINDOWS.askRelease(fd(a.releaseFd)));
   out.push(a.lateMin > 0 ? WINDOWS.askKeep(fd(a.noShowFd)) : WINDOWS.askKeepLikely(spanLabel(-a.lateMin)));
-  out.push(WINDOWS.askNoAnswer(whenLabel(w, a.closesT)));
+  out.push(WINDOWS.askNoAnswer(whenAt(w, a.closesT)));
   return out;
 }
 

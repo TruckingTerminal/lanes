@@ -47,7 +47,7 @@ function RollingCard({ t }: { t: Truck }): JSX.Element | null {
         <span class={cls("chip", lateH > 0 ? "bad" : "good")}>{lateH > 0 ? ROLLING.late(lateH) : ROLLING.onTime}</span>
       </div>
       {/* The shoulder names its ticket ahead (the diaries: a 250 FD ticket nobody was told of); the choice of a stop is the engine's (the batch's report). */}
-      {stop ? <p class="muted small">{stop.kind === "site" ? ROLLING.tonightSite(w.sites[stop.siteId - 1]!.businessId !== 0, nearestPlace(w, stop.lat, stop.lon)) : stop.kind === "town" ? PENDING.tonightTown(place(stop.place)) : S.handLoads.has(l.id) ? PENDING.shoulderAhead(fdFull(w.cfg.businesses.parking.shoulderFineFd)) : ROLLING.tonightDispatcher}</p> : null}
+      {stop ? <p class="muted small">{stop.kind === "site" ? ROLLING.tonightSite(w.sites[stop.siteId - 1]!.businessId !== 0, nearestPlace(w, stop.lat, stop.lon)) : stop.kind === "town" ? PENDING.tonightTown(place(stop.place)) : stop.kind === "townNear" ? PENDING.tonightTownNear(stop.maxMi) : S.handLoads.has(l.id) ? PENDING.shoulderAhead(fdFull(w.cfg.businesses.parking.shoulderFineFd)) : ROLLING.tonightDispatcher}</p> : null}
     </Card>
   );
 }

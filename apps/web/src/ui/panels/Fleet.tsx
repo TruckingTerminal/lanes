@@ -1,6 +1,6 @@
 import type { JSX } from "preact";
 import { useState } from "preact/hooks";
-import { condition, crewed, dutyResetAt, hubMiles, ordersOf, rebuildable, rebuildCost, resting, truckValue, type Company, type Staff, type StandingOrder, type Truck, type World } from "@lanes/engine";
+import { condition, crewed, hubMiles, ordersOf, rebuildable, rebuildCost, resting, truckValue, type Company, type Staff, type StandingOrder, type Truck, type World } from "@lanes/engine";
 import { SCENES } from "../../assets.js";
 import { cls, dateLabel, fd, fdFull, pct, plural, shortDate, TIER_NAME, TRAILER_NAME, hhmm, realUntil } from "../../format.js";
 import { HOURS, MOVE, NEEDS, TRUCK } from "../../copy.js";
@@ -16,7 +16,7 @@ import { TendersCard } from "./Contracts.js";
 import { MoneyEventRows } from "../MonthReport.js";
 import { DispatcherCard } from "./Dispatcher.js";
 import { DeliveredCard, RollingCards } from "./Rolling.js";
-import { emptyRun } from "../../rolling.js";
+import { emptyRun, restingUntil } from "../../rolling.js";
 import { TrailerLines, TruckAssetActions, YardCard } from "./Yard.js";
 import { WaysOutRows } from "../WaysOut.js";
 import { PENDING } from "../../copy-pending.js";
@@ -30,7 +30,7 @@ import { OrderOffers } from "../OrderOffers.js";
 import { expediteOn, expediteQuote, expediteWaitParts } from "@lanes/engine";
 import { expediteLines, waitSentence } from "../../expediteui.js";
 import { WINDOWS } from "../../copy-windows.js";
-import { askFigures, askLines, claimsAt, nowNext, urgentFrom } from "../../windowsui.js";
+import { askFigures, askLines, claimsAt, nowNext, releaseCard, urgentFrom } from "../../windowsui.js";
 
 
 
@@ -279,12 +279,14 @@ export function Fleet(): JSX.Element {
 function TodayCard(): JSX.Element | null {
   // R9: the day's breakdowns, fines and claims over guard.newsFd come first, in the money style; their ticker lines give way.
   const w = S.game!.w;
-  const money = <MoneyEventRows sinceT={w.t - w.cfg.time.gameMinutesPerDay} />;
+  // Client batch X (QA's 0.25.0 replay, fail 12): today's lines only, from midnight; Thursday's sat under Today on Monday.
+  const midnight = Math.floor(w.t / w.cfg.time.gameMinutesPerDay) * w.cfg.time.gameMinutesPerDay;
+  const money = <MoneyEventRows sinceT={midnight} />;
   // Client batch 8b item 37: the company in view's lines.
   const lines = tickerInView()
-    .filter((l) => !l.cls.split(" ").includes("money"))
+    .filter((l) => !l.cls.split(" ").includes("money") && (l.t === undefined || l.t >= midnight))
     .slice(0, 8);
-  if (!lines.length && !MoneyEventRows({ sinceT: w.t - w.cfg.time.gameMinutesPerDay })) return null;
+  if (!lines.length && !MoneyEventRows({ sinceT: midnight })) return null;
   return (
     <Card class="todaycard" title={TRUCK.today}>
       {money}
@@ -402,11 +404,13 @@ function HoursLines({ t }: { t: Truck }): JSX.Element | null {
   const k = w.cfg;
   if (t.status === "idle" || t.status === "parked" || t.status === "listed" || t.status === "retired" || !crewed(t)) return null;
   const h = (min: number) => (Math.round((min / 60) * 10) / 10).toFixed(1);
-  const day = HOURS.day(h(t.shiftDrivenMin), k.hos.drivingHoursPerDay);
-  const week = k.hos.cycleHours > 0 && t.cycleMin !== undefined ? ` · ${HOURS.week(h(t.cycleMin), k.hos.cycleHours)}` : "";
-  // Off duty for the night: the day's hours spent, or parked at a rest site, until the hours come back (trips.ts dutyResetAt).
-  const resetAt = dutyResetAt(w, t);
-  const reset = resetAt !== null && resetAt > w.t && (t.restSite ? true : t.shiftDrivenMin >= k.hos.drivingHoursPerDay * 60 - 1e-6) ? resetAt : null;
+  // Off duty for the night, until the hours come back (rolling.ts restingUntil). Client batch X (fail 8): resting, the
+  // day's figure goes (a town night or an early stop books the day's hours as spent, so it read "11.0 h of 11 today" above
+  // a smaller week); the week's stands alone.
+  const reset = restingUntil(w, t, ownerOf(t));
+  const weekOn = k.hos.cycleHours > 0 && t.cycleMin !== undefined;
+  const day = reset !== null ? "" : HOURS.day(h(t.shiftDrivenMin), k.hos.drivingHoursPerDay);
+  const week = weekOn ? `${day ? " · " : ""}${HOURS.week(h(t.cycleMin!), k.hos.cycleHours)}` : "";
   const pause = t.pauseMin ?? 0;
   const now =
     reset !== null
@@ -444,6 +448,9 @@ function WindowsLines({ t }: { t: Truck }): JSX.Element | null {
   if (!nn.next || !next) return null;
   const ask = next.releaseAsk ? askFigures(w, next) : null;
   const stop = (ev: MouseEvent) => ev.stopPropagation();
+  // Client batch X (QA's 0.25.0 replay, fail 2): a release asks first, on the confirm card letting a driver go uses: the
+  // claim in FD (what the engine takes: never more than the cash, windows.ts claimOn) and the mark on the record.
+  const release = (fdAsked: number, ev: MouseEvent) => confirmAct({ ...releaseCard(w, c, next, fdAsked, truckNo(t.id)), run: () => act({ type: "release_load", loadId: next.id }, WINDOWS.released) }, ev);
   if (ask) {
     const lines = askLines(w, ask, truckNo(t.id));
     return (
@@ -455,7 +462,7 @@ function WindowsLines({ t }: { t: Truck }): JSX.Element | null {
           <p key={i}>{x}</p>
         ))}
         <div class="row">
-          <Btn onClick={() => act({ type: "release_load", loadId: next.id }, WINDOWS.released)}>{WINDOWS.release(fdFull(Math.round(ask.releaseFd)))}</Btn>
+          <Btn onClick={(ev) => release(ask.releaseFd, ev)}>{WINDOWS.release(fdFull(Math.round(ask.releaseFd)))}</Btn>
           <Btn onClick={() => act({ type: "keep_load", loadId: next.id }, WINDOWS.kept)}>{WINDOWS.askKeepButton}</Btn>
         </div>
       </div>
@@ -468,7 +475,7 @@ function WindowsLines({ t }: { t: Truck }): JSX.Element | null {
       {nn.now ? <p>{nn.now}</p> : null}
       <p>{nn.next}</p>
       <div class="row">
-        <Btn sm onClick={() => act({ type: "release_load", loadId: next.id }, WINDOWS.released)}>{WINDOWS.release(fdFull(Math.round(price)))}</Btn>
+        <Btn sm onClick={(ev) => release(price, ev)}>{WINDOWS.release(fdFull(Math.round(price)))}</Btn>
       </div>
     </div>
   );

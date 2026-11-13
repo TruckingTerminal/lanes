@@ -2,10 +2,10 @@ import { canMakeHot, filesForOpening, freeOf, homeBlock, windowsOn, type Reach, 
 import { COMMODITIES } from "@lanes/data";
 import { trueBreakEven } from "./breakeven.js";
 import { WALL } from "./copy.js";
-import { hhmm, shortDate, weekday } from "./format.js";
+import { grammar, shortDate } from "./format.js";
 import { PENDING } from "./copy-pending.js";
 import { truckNumber } from "./trucknos.js";
-import { reachChip, reachFor } from "./windowsui.js";
+import { bookBar, reachChip, reachFor, whenAt } from "./windowsui.js";
 
 /**
  * The board's arithmetic (specs/first-ten-minutes.md, S2–S5), apart from the screen so it can be tested: each open load
@@ -179,7 +179,7 @@ function nextRoundHH(w: World): string {
 }
 
 /** The chip's words for a load this company can't take (copy-first-ten-minutes.md, S2 "Blocked chips"). */
-export function blockReason(w: World, c: Company, truck: Truck, l: Load): string | null {
+export function blockReason(w: World, c: Company, truck: Truck, l: Load, reachLine: string | null = null): string | null {
   const v = vettingBlock(w, c, l);
   if (v) {
     const k = w.cfg.fraud.vetting;
@@ -187,17 +187,19 @@ export function blockReason(w: World, c: Company, truck: Truck, l: Load): string
     if (v.startsWith("authority under") && l.vet === 1) return WALL.vettingStandard(k.standard.minAuthorityDays, shortDate(c.authority.since + k.standard.minAuthorityDays));
     // Strict: only the date is short once the loads are there; else both counts, theirs and yours.
     if (v.startsWith("authority under") && c.delivered >= k.strict.minDelivered) return WALL.vettingStrictDate(k.strict.minAuthorityDays, shortDate(c.authority.since + k.strict.minAuthorityDays));
-    if (v.startsWith("authority under") || v.startsWith("fewer than")) return WALL.vettingStrict(k.strict.minAuthorityDays, k.strict.minDelivered, age, c.delivered);
+    if (v.startsWith("authority under") || v.startsWith("fewer than")) return grammar(WALL.vettingStrict(k.strict.minAuthorityDays, k.strict.minDelivered, age, c.delivered)); // "1 loads" (fail 7)
     return v.charAt(0).toUpperCase() + v.slice(1);
   }
   if (l.hot > 0 && !canMakeHot(c, truck)) return WALL.hot;
+  // Client batch X (fail 13): canMake's "reaches … after the pickup" outranks the H or C line: no driver's choice books it.
+  if (reachLine) return reachLine;
   // The director's rules H and C (engine standingOrders.ts homeBlock, each behind its switch), in her words.
   if (homeBlock(w, c, truck, l)) {
     const d = w.staff[truck.driverId - 1]!;
     if (!resting(w, truck)) return PENDING.pastDueHome(d.name);
     const back = d.homeUntilDay! * w.cfg.time.gameMinutesPerDay;
     const pickup = Math.max(w.t, l.readyT ?? w.t);
-    const when = (t: number) => `${weekday(Math.floor(t / w.cfg.time.gameMinutesPerDay))} ${hhmm(t)}`;
+    const when = (t: number) => whenAt(w, t);
     return PENDING.homeUntil(d.name, when(back), when(pickup));
   }
   if (!mayTake(w, c, l)) return WALL.localFirst(nextRoundHH(w));
@@ -345,6 +347,7 @@ export function boardRows(w: World, c: Company, truck: Truck, f: BoardFilter): B
   const free = windowsOn(w) ? freeOf(w, truck) : null;
   const from = free && truck.status !== "idle" ? free.place : truck.place;
   const no = truckNumber(w, truck);
+  const bar = truck.nextLoadId !== undefined ? bookBar(w, truck, no)?.line ?? null : null;
   for (const l of w.loads.values()) {
     if (l.status !== "open" || l.equipment !== truck.trailer || l.brokerId === c.id) continue;
     if (l.tenderedTo !== 0 && l.tenderedTo !== c.id) continue; // someone else's contract tender
@@ -378,7 +381,8 @@ export function boardRows(w: World, c: Company, truck: Truck, f: BoardFilter): B
       heat: marketHeat(w, l.dest, l.equipment),
       draw: ownerDrawFd(w, truck, l.miles + dh),
       // Client batch W: a load this truck can't make is closed with canMake's reason as its chip (R22).
-      block: blockReason(w, c, truck, l) ?? (reach ? reachChip(w, l, reach, no) : null),
+      // Client batch X (fail 3): a truck that already holds its next load can take none: every chip says why.
+      block: bar ?? blockReason(w, c, truck, l, reach ? reachChip(w, l, reach, no) : null),
       files: bidFiles(w, c, truck, l) && (!reach || reach.ok),
       reach,
     });

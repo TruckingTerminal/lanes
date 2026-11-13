@@ -3,7 +3,7 @@ import { useLayoutEffect, useState } from "preact/hooks";
 import { type Action, type Company, type Truck } from "@lanes/engine";
 import { RULESET, TestGame, type TestLog } from "./game.js";
 import type { DbLike, LiveWorld } from "./live.js";
-import { fd, hhmm, realUntil, TIER_NAME, TRAILER_NAME, FAC_NAME, usd } from "./format.js";
+import { fd, grammar, hhmm, realUntil, TIER_NAME, TRAILER_NAME, FAC_NAME, usd } from "./format.js";
 import type { LiveAction } from "./live.js";
 import { VETTING_NAMES } from "@lanes/engine";
 import type { Tab } from "./tabs.js";
@@ -249,7 +249,7 @@ export interface Feed {
    * `key`: a line kept current in place (pushKeyed), not one more line each time. `co`: the company the line is about
    * (client batch 8b item 37: each company's lines in its own view); absent, a line for both.
    */
-  ticker: { text: string; cls: string; key?: string; co?: number }[];
+  ticker: { text: string; cls: string; key?: string; co?: number; t?: number }[];
   history: { day: number; cash: number }[];
   /** The company's deliveries as this page saw them (gross, game day), newest last: Finance's "average load" (specs/finance.md). */
   deliveries: { day: number; grossFd: number }[];
@@ -265,14 +265,20 @@ export function feed(s: Session | null = S.game): Feed {
 }
 export function push(s: Session, text: string, cls = "", co?: number): void {
   const f = feed(s);
-  f.ticker.unshift(co === undefined ? { text, cls } : { text, cls, co });
+  // Client batch X: each line its game minute, so Today holds today's (fail 12); and its grammar (fail 7: the engine's
+  // notices say "a 804 FD claim").
+  text = grammar(text);
+  f.ticker.unshift(co === undefined ? { text, cls, t: s.w.t } : { text, cls, co, t: s.w.t });
   if (f.ticker.length > 30) f.ticker.pop();
   if (s === S.game) bumpData();
 }
-/** The feed's lines for the company in view (client batch 8b item 37): its own, and those for both. */
+/**
+ * The feed's lines for the company in view (client batch 8b item 37): its own, and those for both. Client batch X (fail
+ * 12): a load's "Booked" line (keyed booked:{load id}) goes once the company has released that load.
+ */
 export function tickerInView(s: Session | null = S.game): Feed["ticker"] {
   const id = s?.player?.id;
-  return feed(s).ticker.filter((l) => l.co === undefined || l.co === id);
+  return feed(s).ticker.filter((l) => (l.co === undefined || l.co === id) && !(l.key?.startsWith("booked:") && id !== undefined && s!.w.loads.get(Number(l.key.slice(7)))?.releasedBy?.includes(id)));
 }
 /**
  * One line per key, kept current (client batch 8a item 48, the stubborn specialist: a truck standing idle wrote a new
@@ -282,7 +288,8 @@ export function pushKeyed(s: Session, key: string, text: string, cls = "", co?: 
   const f = feed(s);
   const i = f.ticker.findIndex((x) => x.key === key);
   if (i >= 0) f.ticker.splice(i, 1);
-  f.ticker.unshift(co === undefined ? { text, cls, key } : { text, cls, key, co });
+  text = grammar(text);
+  f.ticker.unshift(co === undefined ? { text, cls, key, t: s.w.t } : { text, cls, key, co, t: s.w.t });
   if (f.ticker.length > 30) f.ticker.pop();
   if (s === S.game) bumpData();
 }

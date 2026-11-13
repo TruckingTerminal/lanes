@@ -1,9 +1,12 @@
+import { withGrammar } from "./format.js";
+
 /**
  * Delivery windows' words (client batch W; the director's design, director-windows-screens-2026-11-13.md). Placeholders
  * for the writer, who words them in one pass; every figure comes from the engine (windowsui.ts). Shown only with
  * windows.enabled on. Worded by the writer, 2026-11-13 (writer-windows-2026-11-13.md).
+ * Client batch X (fail 7): each line passes through format.ts grammar ("an 804 FD claim", "1 load").
  */
-export const WINDOWS = {
+export const WINDOWS = withGrammar({
   // §1 The load card: one line under the lane, in the order the player meets them.
   cardLine: (ready: string, pickupBy: string, deliverBy: string) => `Ready ${ready} · pick up by ${pickupBy} · deliver by ${deliverBy}`,
   readyToday: "Today",
@@ -84,7 +87,24 @@ export const WINDOWS = {
   feeOffBreakEven: (div: string, fee: string) => `÷ ${div}, the settlement fee's ${fee} off each load`,
   lessorAndFeeOffBreakEven: (div: string, lessor: string, fee: string) => `÷ ${div}, the lessor's ${lessor} and the settlement fee's ${fee} off each load`,
   feeOfMargin: (fee: string) => `Less the settlement fee's ${fee} of what's over break-even`,
-};
+  // Engineering's placeholders for the writer (client batch X, QA's 0.25.0 replay; engineering-client-batchX-2026-11-13.md).
+  // Fail 1: a ready time already past ("Ready since Tue 07:00").
+  readySince: (when: string) => `since ${when}`,
+  // Fail 3: why a truck can't book, on every chip (the line) and beside its disabled option in the truck picker (short).
+  heldDaysOff: (truck: number, name: string, back: string) => `Truck ${truck} holds its next load while ${name} is home until ${back}. Release it to book another.`,
+  whyHeld: (back: string) => `days off until ${back}, next load held`,
+  whyHasNext: "has its next load",
+  whyNoDriver: "no driver",
+  whyBusy: "on a job",
+  pickerWhy: (why: string) => ` · ${why}`,
+  // Fail 2: Release asks first, on the confirm card ("Release load #12?").
+  releaseItem: (id: number) => `load #${id}`,
+  releaseDoes: (from: string, to: string, truck: number) => `${from} → ${to} goes back on the board, and truck ${truck} no longer has a next load.`,
+  releaseRisk: "A mark on your record, which the Company page counts beside your reputation.",
+  // Fail 6: the marks behind Reputation, on the Company page.
+  recordLabel: "Marks on your record",
+  recordMarks: (late: number, failed: number) => `${late} late · ${failed} released or not picked up`,
+});
 
 /** The explain sheets' words for the windows' figures (Explain.tsx reads these before copy.ts EXPLAIN). */
 export const WINDOWS_EXPLAIN: Record<string, { what: string; how: string; moves: string }> = {

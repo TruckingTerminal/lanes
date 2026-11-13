@@ -1,3 +1,5 @@
+import { withGrammar } from "./format.js";
+
 /**
  * The diaries batch's strings (engineering's placeholders of 2026-11-09, worded by the writer the same day). Keys are
  * engineering's; each comment names where the string shows. They fold into copy.ts the next time engineering touches
@@ -8,7 +10,7 @@ const paysThere = (n: number): string => (n === 0 ? "nothing pays there now" :`$
 /** whenIdle's words, shared with readyWhenIdle (client batch 7b), so the two can't drift apart. */
 const PENDING_WHEN_IDLE = (truck: number): string => `once truck ${truck} is idle`;
 
-export const PENDING = {
+export const PENDING = withGrammar({
   // tabs.ts: the Dealer's and Finance's teaser card, after "Opens " (the director, 2026-11-09: they open the moment the
   // first truck is affordable, whatever the walkthrough's step; firstTruckOpen also opens them at Iuliia's first-truck
   // step and with the businesses layer).
@@ -575,7 +577,15 @@ export const PENDING = {
   // A restored world whose replay refused some of the saved orders (§6): they're kept in the save, not lost silently.
   testRefusedOnRestore: (n: number) => `When your world reopened, ${n} of your saved ${n === 1 ? "order" : "orders"} couldn't be carried out again; ${n === 1 ? "it's" : "they're"} kept in your save.`,
   newsServiceClaim: (kind: string, load: string, fd: string) => `${kind === "late" ? `Late delivery, load #${load}` : kind === "noshow" ? `No-show, load #${load}` : `Released load #${load}`}: −${fd} FD claim to the poster.`,
-} as const;
+  // Engineering's placeholders for the writer (client batch X, QA's 0.25.0 replay; engineering-client-batchX-2026-11-13.md).
+  // Fail 5: the truck card's tonight line with businesses.parking.stopInTownMidLeg on and the town chosen: the engine picks
+  // the town at the night, from where the hours run out (trips.ts nightInTown), so the line says the rule, not a town.
+  tonightTownNear: (maxMi: number | null) => `Tonight, as you chose: a town ${maxMi !== null ? `within ${maxMi} mi of` : "near"} where its hours run out, or the shoulder if none is that close`,
+  // Fail 5: the dispatcher's night switch, with the mid-leg town on (copy-pending-rules.ts nightStopLabel without it).
+  nightStopLabelMidLeg: (maxMi: number | null) => `Stops for the night in a town when a leg would begin past your hours, or when the hours run out midway, in a town ${maxMi !== null ? `within ${maxMi} miles` : "nearby"}. Farther than that, the shoulder.`,
+  // Item 78: the bid's gamble line, its figure net of the lessor's share and the settlement fee, as the chip beside it is.
+  bidGambleNet: (fd: string, hh: string, rate: string) => `A gamble: leaves you ${fd} FD more than Book now if it wins at ${hh}. Until then anyone can book it at ${rate}/mi, and at ${hh} a lower bid, a nearer truck or a better record can beat yours.`,
+} as const);
 
 /** Explanations that replace copy.ts EXPLAIN's (ui/Explain.tsx reads these first); fold in with the rest. */
 export const PENDING_EXPLAIN: Record<string, { what: string; how: string; moves: string }> = {

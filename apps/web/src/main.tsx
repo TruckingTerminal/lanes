@@ -14,7 +14,7 @@ import { nightStop, paidLine, payLine, type TruckBefore } from "./rolling.js";
 import { sampleStarters } from "./hubcard.js";
 import { drawMap, fitMap, flyTo, resetArt, setZoom, zoomIndex } from "./mapview.js";
 import { MemoryDb } from "./memdb.js";
-import { bumpData, bumpTick, feed, holdStill, loadOnboard, onWorldReset, resetWorldState, setOnboard, loadTheme, claimTestLock, markPersisted, persistTest, push, readTest, S, setLayout, setTab, SPEEDS, TEST_BUILD, toast, toggleFullscreen, truckNo, type Session, type TitleMenu } from "./state.js";
+import { bumpData, bumpTick, feed, holdStill, loadOnboard, onWorldReset, resetWorldState, setOnboard, loadTheme, claimTestLock, markPersisted, persistTest, push, pushKeyed, readTest, S, setLayout, setTab, SPEEDS, TEST_BUILD, toast, toggleFullscreen, truckNo, type Session, type TitleMenu } from "./state.js";
 import { App } from "./ui/App.js";
 import { askWhatNow } from "./ui/WhatNow.js";
 import { poachResult } from "./ui/panels/Staff.js";
@@ -132,7 +132,8 @@ function onEvent(s: Session, e: GameEvent): void {
     const load = w.loads.get(e.loadId);
     // A book-now (by hand, or by the dispatcher's book-now rule) clears at the load's book-now rate; a bid rarely lands on it.
     const atBookNow = load !== undefined && Math.abs(e.rate - load.bookNow) < 0.005;
-    push(s, booked ? ROUND.booked(from, to, fdFull(load ? e.rate * load.miles : 0)) : atBookNow ? FEED.booked(from, to, e.miles, e.rate.toFixed(2)) : FEED.won(from, to, e.miles, e.rate.toFixed(2), e.manual), "good");
+    // Client batch X (fail 12): keyed by the load, so its line goes if the load is released (state.ts tickerInView).
+    pushKeyed(s, `booked:${e.loadId}`, booked ? ROUND.booked(from, to, fdFull(load ? e.rate * load.miles : 0)) : atBookNow ? FEED.booked(from, to, e.miles, e.rate.toFixed(2)) : FEED.won(from, to, e.miles, e.rate.toFixed(2), e.manual), "good");
   }
   if (e.kind === "delivered") {
     // S7: the pay line, on the Truck tab until OK; Money gets a dot for the invoice.

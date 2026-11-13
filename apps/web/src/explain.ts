@@ -32,8 +32,7 @@ import { emptyRun } from "./rolling.js";
 import { cushion, debtCountdown, gapToTruck } from "./figures.js";
 import { buyPlan } from "./finance.js";
 import { TRAILER_NAME } from "./format.js";
-import { whenLabel } from "@lanes/engine";
-import { claimsAt, clearsTiming, urgentFrom } from "./windowsui.js";
+import { claimsAt, clearsTiming, readyAt, urgentFrom, whenAt } from "./windowsui.js";
 import { WINDOWS } from "./copy-windows.js";
 
 /**
@@ -142,7 +141,7 @@ function claimParts(w: World, ctx: FigureCtx, kind: "noShow" | "late" | "lost"):
   if (kind === "noShow") return { rows: [...rows, { label: "No-show share", value: pct(k.noShowClaimShare) }], total: { label: "No-show claim", value: fd(cl.noShowFd) } };
   if (kind === "late") return { rows: [...rows, { label: "Late share", value: pct(k.lateClaimShare) }], total: { label: "Late claim", value: fd(cl.lateFd) } };
   return {
-    rows: [...rows, { label: `Before ${whenLabel(w, urgentFrom(w, l))}`, value: `${pct(k.cancelClaimShare.early)} · ${fd(cl.releaseEarlyFd)}` }, { label: "In its last rounds", value: `${pct(k.cancelClaimShare.urgent)} · ${fd(cl.releaseUrgentFd)}` }],
+    rows: [...rows, { label: `Before ${whenAt(w, urgentFrom(w, l), true)}`, value: `${pct(k.cancelClaimShare.early)} · ${fd(cl.releaseEarlyFd)}` }, { label: "In its last rounds", value: `${pct(k.cancelClaimShare.urgent)} · ${fd(cl.releaseUrgentFd)}` }],
     total: { label: "Release now", value: fd(w.t < urgentFrom(w, l) ? cl.releaseEarlyFd : cl.releaseUrgentFd) },
   };
 }
@@ -152,7 +151,7 @@ const BREAKDOWNS: Record<string, Fn> = {
   "load.window": (w, _c, ctx) => {
     const l = ctx.loadId !== undefined ? w.loads.get(ctx.loadId) : undefined;
     if (!l || l.latestPickupT === undefined || l.latestDeliveryT === undefined) return null;
-    return { rows: [{ label: "Ready", value: whenLabel(w, l.readyT ?? w.t) }, { label: "Pick up by", value: whenLabel(w, l.latestPickupT) }], total: { label: "Deliver by", value: whenLabel(w, l.latestDeliveryT) } };
+    return { rows: [{ label: "Ready", value: readyAt(w, l.readyT ?? w.t, true) }, { label: "Pick up by", value: whenAt(w, l.latestPickupT, true) }], total: { label: "Deliver by", value: whenAt(w, l.latestDeliveryT, true) } };
   },
   "claim.noShow": (w, _c, ctx) => claimParts(w, ctx, "noShow"),
   "claim.late": (w, _c, ctx) => claimParts(w, ctx, "late"),
