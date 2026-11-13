@@ -1,5 +1,14 @@
 # Decisions (the producer's log for Jeff; newest first)
 
+- 2026-11-13 — the economy on why the AI brokers lose money every month (studio/reviews/economy-ai-brokers.md; QA saw
+  it, engineering confirmed the books read right): they alone pay for the board's unhauled freight. A third of NPC
+  freight is never hauled; an unhauled direct load costs nobody, an unhauled brokered one costs its broker 15% of the
+  contract, and 27–36% of their loads fall off in year one, while the board's walk pays carriers up to 15% over the
+  contract and nothing limits which tenders they take with windows off. It matters mostly to the brokers' own books:
+  cleared loads do not move, carriers gain from the brokers' capital, and 24–30 of 60 brokers liquidate over four
+  years. The producer's call on the economy's fix: the per-hub cover rule with windows off too (a fall-off counting
+  as lost) and the walk's reach capped at the contract plus the fall-off share, behind a switch, then a ten-seed pair
+  before any ruleset. Queued for engineering after the settlement fee.
 - 2026-11-13 — the economy's sixth reading of delivery windows, on batch 8 (studio/reviews/economy-delivery-windows-
   batch8.md; ten seeds, 1460 days, 0.24.1 on in both arms): windows can go into a ruleset after one small bot fix.
   The gate passes 10 of 10; the rate is within 2% of the world without windows (4% over in year 1, 3–6% under
