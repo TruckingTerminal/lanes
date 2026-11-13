@@ -1,5 +1,13 @@
 # Decisions (the producer's log for Jeff; newest first)
 
+- 2026-11-13 — Jeff: "Since this is mostly a menu screen game/sim, let's make the menus as beautiful and interactive
+  as graphically possible… beautiful and animated." Also: use every remaining PixelLab generation before he cancels
+  the plan (5,743 left of 19,672 on Tier 3, resetting in about a week), on assets the game will use. The producer's
+  plan: the UX role designs the menu system (visual language, motion, each screen's backdrop, legibility rules, and a
+  byte and frame-rate budget that the test page's site and the live artifact's file limits can hold); the art role
+  spends the PixelLab balance, the menu kit and backdrops first, then the feature scenes (broker, shipper, standing
+  badges, the Back Lot), into an art bank outside the public repo; engineering builds the menus after ruleset 0.25.0
+  goes live.
 - 2026-11-13 — Jeff: "1. B, 2. this bundle, 3. done, max effort". One bundled ruleset, 0.25.0, goes live once; delivery
   windows are in it. It carries windows (batches 1 to 9), the settlement fee at 1% with its follow-ups, early
   delivery for a fee, and the director's rules C, H and I with the night in town mid-leg. Not in it: the AI brokers'
