@@ -10,6 +10,8 @@ import { balanceSinksFd, companyAccount, createWorld, ratioOf, stepHour, trailin
  * to the tag, so every reading is as before (the live digest, unchanged).
  */
 const LIVE = withLiveLevers();
+/** The fee off by its own key (on in the live levers since 0.25.0), so the only posting to the tag is the test's. */
+const FEE_OFF = { ...LIVE, token: { ...LIVE.token, settlementFee: { ...LIVE.token.settlementFee, enabled: false } } };
 
 describe("the settlement fee's readers", () => {
   it("the balance readers add the fee's burn; the cap's refill doesn't", () => {
@@ -29,7 +31,7 @@ describe("the settlement fee's readers", () => {
   }, 120_000);
 
   it("a posting to sink:trade_burn is a burn in the day's books, not an operating sink", () => {
-    const w = createWorld({ cfg: LIVE, net: buildNetwork(hubs, LIVE), feeds: neutralFeeds, seed: 5 });
+    const w = createWorld({ cfg: FEE_OFF, net: buildNetwork(hubs, FEE_OFF), feeds: neutralFeeds, seed: 5 });
     populate(w, { freeOwnerOperators: 10, fleets: 2, brokers: 1 });
     for (let h = 0; h < 24; h++) stepHour(w, ruleBotHook);
     const c = w.companies.find((x) => x.role === "carrier")!;

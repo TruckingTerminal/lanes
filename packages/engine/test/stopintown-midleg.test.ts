@@ -12,10 +12,18 @@ import { createWorld, nightInTown, stepHour, truckLatLon, type World } from "@la
 const LIVE = withLiveLevers();
 const net = buildNetwork(hubs, LIVE);
 const parking = (midLeg: boolean): EconomyConfig => ({ ...LIVE, businesses: { ...LIVE.businesses, parking: { ...LIVE.businesses.parking, stopInTownMidLeg: midLeg } } });
+/**
+ * Every site full, so a day's hours run out with no space in reach. On the live profile since 0.25.0 these worlds see
+ * almost no night without a site (seed 31, six days: none; seed 11, a week: one), too few for the rule to be measured.
+ */
+const noRoom = (w: World): void => {
+  for (const s of w.sites) s.spaces = 0;
+};
 
 function world(cfg: EconomyConfig, town: boolean, days: number): World {
   const w = createWorld({ cfg, net, feeds: neutralFeeds, seed: 31 });
   populate(w, { freeOwnerOperators: 40, fleets: 10, brokers: 4 });
+  noRoom(w);
   if (town) for (const c of w.companies) if (c.role === "carrier") c.nightStop = "town";
   for (let h = 0; h < days * 24; h++) stepHour(w, ruleBotHook);
   return w;
@@ -47,6 +55,7 @@ describe("the night in town reaching mid-leg", () => {
     const cfg = parking(true);
     const w = createWorld({ cfg, net, feeds: neutralFeeds, seed: 11 });
     populate(w, { freeOwnerOperators: 40, fleets: 10, brokers: 4 });
+    noRoom(w);
     for (const c of w.companies) if (c.role === "carrier") c.nightStop = "town";
     const cap = cfg.businesses.parking.stopInTownMaxMi;
     const prev = new Map<number, { leg: string; legMiles: number; driven: number }>();

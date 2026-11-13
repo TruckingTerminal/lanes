@@ -32,13 +32,15 @@ const net = buildNetwork(hubs, LIVE);
 const DAY = LIVE.time.gameMinutesPerDay;
 const on = (patch: (c: EconomyConfig) => EconomyConfig): EconomyConfig => patch(LIVE);
 const RATIO = on((c) => ({ ...c, freight: { ...c.freight, clearsNear: { ...c.freight.clearsNear, ratio: true } } }));
+// The ratio rule off by its own key (0.25.0 switched it on in the live levers).
+const NO_RATIO = on((c) => ({ ...c, freight: { ...c.freight, clearsNear: { ...c.freight.clearsNear, ratio: false } } }));
 // Each rule off by its own key (0.24.1 switched sendHomeToWork, turnWhileEmpty, bidReachFromTown and stopInTown on in the
 // live levers), and all four off together for the identity test.
 const OFF_HOME = on((c) => ({ ...c, labor: { ...c.labor, sendHomeToWork: false } }));
 const OFF_TURN = on((c) => ({ ...c, labor: { ...c.labor, turnWhileEmpty: false } }));
 const OFF_REACH = on((c) => ({ ...c, board: { ...c.board, bidReachFromTown: false } }));
 const OFF_TOWN = on((c) => ({ ...c, businesses: { ...c.businesses, parking: { ...c.businesses.parking, stopInTown: false } } }));
-const OFF = on((c) => ({ ...c, board: { ...c.board, bidReachFromTown: false }, labor: { ...c.labor, sendHomeToWork: false, turnWhileEmpty: false }, businesses: { ...c.businesses, parking: { ...c.businesses.parking, stopInTown: false } } }));
+const OFF = on((c) => ({ ...c, freight: { ...c.freight, clearsNear: { ...c.freight.clearsNear, ratio: false } }, board: { ...c.board, bidReachFromTown: false }, labor: { ...c.labor, sendHomeToWork: false, turnWhileEmpty: false }, businesses: { ...c.businesses, parking: { ...c.businesses.parking, stopInTown: false } } }));
 
 /** The ten-day world's digest (the windows batch's): the clock, the books, every day's metrics, the board and the trucks. */
 function digest(cfg: EconomyConfig): string {
@@ -59,7 +61,6 @@ function digest(cfg: EconomyConfig): string {
 
 describe("the switches off", () => {
   it("leave the ten-day world byte-identical with the keys false and absent; the ratio rule moves no bot either", () => {
-    expect(LIVE.freight.clearsNear.ratio).toBe(false);
     const { ratio: _r, priorClears: _p, ...cn } = OFF.freight.clearsNear;
     const { bidReachFromTown: _b, ...board } = OFF.board;
     const { sendHomeToWork: _s, turnWhileEmpty: _t, ...labor } = OFF.labor;
@@ -67,7 +68,7 @@ describe("the switches off", () => {
     const absent = { ...OFF, freight: { ...OFF.freight, clearsNear: cn }, board, labor, businesses: { ...OFF.businesses, parking } } as unknown as EconomyConfig;
     expect(digest(absent)).toBe(digest(OFF));
     // The economy's test 4: no bot reads "usually clears near", so its rule moves nothing but the table (not in the digest).
-    expect(digest(RATIO)).toBe(digest(LIVE));
+    expect(digest(RATIO)).toBe(digest(NO_RATIO));
   }, 240_000);
 });
 
@@ -85,7 +86,7 @@ describe("usually clears near, as a ratio to the reference (freight.clearsNear.r
     expect(clearsNear(w, short)).toBeCloseTo(4.6, 6);
     expect(clearsNear(w, long)).toBeCloseTo(2.4, 6);
     // Under the old rule the two read one market figure, the hub's mean per mile.
-    const old = world(LIVE);
+    const old = world(NO_RATIO);
     for (let i = 0; i < 30; i++) noteClear(old, load(9, 3, 600), 3);
     expect(clearsNear(old, short)).toBeCloseTo(clearsNear(old, long), 6);
   });
@@ -111,7 +112,7 @@ describe("usually clears near, as a ratio to the reference (freight.clearsNear.r
   });
 
   it("starts the table afresh when the switch turns, and a read writes nothing", () => {
-    const w = world(LIVE);
+    const w = world(NO_RATIO);
     for (let i = 0; i < 10; i++) noteClear(w, load(7, 3, 500), 4.5);
     const before = JSON.stringify(w.clears);
     (w as { cfg: EconomyConfig }).cfg = RATIO;
@@ -313,7 +314,9 @@ describe("a night in town (businesses.parking.stopInTown)", () => {
   }, 10_000);
 
   describe("with labor.turnWhileEmpty (the red team's 0.24.1 pass: turn + town)", () => {
-    const BOTH = on((c) => ({ ...c, labor: { ...c.labor, turnWhileEmpty: true }, businesses: { ...c.businesses, parking: { ...c.businesses.parking, stopInTown: true } } }));
+    // The night at the leg's start only: the mid-leg town (businesses.parking.stopInTownMidLeg, on since 0.25.0) has its
+    // own tests in stopintown-midleg.test.ts, and with it on the night below is a town's within stopInTownMaxMi.
+    const BOTH = on((c) => ({ ...c, labor: { ...c.labor, turnWhileEmpty: true }, businesses: { ...c.businesses, parking: { ...c.businesses.parking, stopInTown: true, stopInTownMidLeg: false } } }));
 
     it("a turn an hour before the hours run out drives on and sleeps on the shoulder, as before the town", () => {
       const { w, c, t, far } = oo(BOTH, true);

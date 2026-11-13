@@ -12,6 +12,8 @@ import { aheadable, agreement, askFigures, askLines, brokerageClosing, claimCaus
 
 /** Client batch W: the delivery windows' screens (director-windows-screens-2026-11-13.md), on a world with windows on. */
 const WIN = { ...GAME_CONFIG, windows: { ...GAME_CONFIG.windows, enabled: true } };
+/** Windows off by its own key: on in the live levers since 0.25.0. */
+const OFF = { ...GAME_CONFIG, windows: { ...GAME_CONFIG.windows, enabled: false } };
 const any = { dest: "any", maxDh: 300, query: "" };
 const windowed = (w: World) => [...w.loads.values()].filter((l): l is Load & { latestPickupT: number; latestDeliveryT: number } => l.status === "open" && l.latestPickupT !== undefined && l.latestDeliveryT !== undefined);
 
@@ -23,7 +25,7 @@ async function started(seed = 41) {
 
 describe("client batch W: delivery windows on the page", () => {
   it("shows nothing new with windows off", async () => {
-    const g = await TestGame.create(undefined, undefined, 41);
+    const g = await TestGame.create(undefined, undefined, 41, OFF);
     const c = g.join("Plain Freight", "oo", "LAX")!;
     const w = g.w;
     const t = w.trucksByCompany.get(c.id)![0]!;
@@ -91,6 +93,8 @@ describe("client batch W: delivery windows on the page", () => {
   it("asks release or keep after a breakdown, with both prices, and What now? ranks a load at risk by its claim", async () => {
     const { g, w, c, truck } = await started();
     const first = boardRows(w, c, truck, any).find((x) => !x.block && x.reach?.ok)!;
+    // The first load ready now: a wait of over a day at its dock is What now?'s tier 2 (waitLong), ahead of the ask.
+    first.l.readyT = w.t;
     g.act({ type: "book_load", truckId: truck.id, loadId: first.l.id });
     const next = boardRows(w, c, truck, any).find((x) => !x.block && x.reach?.ok)!;
     expect(g.act({ type: "book_load", truckId: truck.id, loadId: next.l.id }).ok).toBe(true);

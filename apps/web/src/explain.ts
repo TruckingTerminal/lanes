@@ -20,6 +20,7 @@ import {
   truckValue,
   type Company,
   type Collateral,
+  settlementShare,
   type World,
 } from "@lanes/engine";
 import { clearsNear, clearsNearSource, profitOver } from "./board.js";
@@ -33,6 +34,7 @@ import { buyPlan } from "./finance.js";
 import { TRAILER_NAME } from "./format.js";
 import { whenLabel } from "@lanes/engine";
 import { claimsAt, clearsTiming, urgentFrom } from "./windowsui.js";
+import { WINDOWS } from "./copy-windows.js";
 
 /**
  * Help on every figure (specs/guidance.md section 2): one table keyed like copy.ts. The writer's what / how / moves are
@@ -93,7 +95,8 @@ function breakEvenParts(w: World, c: Company, ctx: FigureCtx): { parts: [string,
   const climb = tr.enabled && lane ? tr.fuelGalPerClimbM * lane.climbM * fuel : 0;
   const driven = l.miles + dh + reload;
   const cost = tripCost(w.cfg, t, fuel, driven, l.miles);
-  const keep = t.lease !== "owned" ? 1 - w.cfg.costs.npcLeaseShareOfGross : 1;
+  // token.settlementFee: a share of gross like the lessor's, as the board's break-even counts it (economics.ts).
+  const keep = (t.lease !== "owned" ? 1 - w.cfg.costs.npcLeaseShareOfGross : 1) - settlementShare(w.cfg);
   const per = (x: number) => x / (l.miles * keep);
   const tolls = placeToll(w, t.place, l.originPlace) + l.routeTollFd + climb;
   const parts: [string, number][] = [
@@ -216,7 +219,11 @@ const BREAKDOWNS: Record<string, Fn> = {
     if (!b) return null;
     const t = w.trucks[ctx.truckId! - 1]!;
     const rows: Row[] = b.parts.map(([label, x]) => ({ label, value: perMi(x), key: label === "Fuel" ? "pay.fuel" : label === "Maintenance" ? "pay.maintenance" : label === "Insurance" ? "pay.insurance" : label === "Tolls and climbs" ? "pay.tolls" : undefined }));
-    if (t.lease !== "owned") rows.push({ label: `÷ ${pct(1 - w.cfg.costs.npcLeaseShareOfGross)}, the lessor's ${pct(w.cfg.costs.npcLeaseShareOfGross)} off each load`, value: "included", key: "pay.lessorShare" });
+    const lessor = w.cfg.costs.npcLeaseShareOfGross;
+    const fee = settlementShare(w.cfg);
+    if (t.lease !== "owned" && fee > 0) rows.push({ label: WINDOWS.lessorAndFeeOffBreakEven(pct(1 - lessor - fee), pct(lessor), pct(fee)), value: "included", key: "pay.lessorShare" });
+    else if (t.lease !== "owned") rows.push({ label: `÷ ${pct(1 - lessor)}, the lessor's ${pct(lessor)} off each load`, value: "included", key: "pay.lessorShare" });
+    else if (fee > 0) rows.push({ label: WINDOWS.feeOffBreakEven(pct(1 - fee), pct(fee)), value: "included", key: "pay.settlement" });
     return { rows, total: { label: "Break-even", value: perMi(b.total) } };
   },
   "board.profitChip": (w, c, ctx) => {
@@ -228,11 +235,15 @@ const BREAKDOWNS: Record<string, Fn> = {
     const t = ctx.truckId !== undefined ? w.trucks[ctx.truckId - 1] : undefined;
     const margin = (rate - b.total) * l.miles;
     const profit = profitOver(w, t, rate, b.total, l.miles);
+    // The lessor's share and the settlement fee's (token.settlementFee), each its own row: together, margin less profit.
+    const lessorFd = t && t.lease !== "owned" ? margin * w.cfg.costs.npcLeaseShareOfGross : 0;
+    const feeFd = margin * settlementShare(w.cfg);
     return {
       rows: [
         { label: `${rate.toFixed(2)}/mi × ${Math.round(l.miles).toLocaleString("en-US")} mi`, value: fd(rate * l.miles) },
         { label: `Less break-even ${perMi(b.total)} × ${Math.round(l.miles).toLocaleString("en-US")} mi`, value: fd(-b.total * l.miles), key: "truck.breakEven" },
-        ...(Math.abs(margin - profit) >= 0.5 ? [{ label: PENDING.lessorOfMargin(pct(w.cfg.costs.npcLeaseShareOfGross)), value: fd(profit - margin), key: "pay.lessorShare" }] : []),
+        ...(Math.abs(lessorFd) >= 0.5 ? [{ label: PENDING.lessorOfMargin(pct(w.cfg.costs.npcLeaseShareOfGross)), value: fd(-lessorFd), key: "pay.lessorShare" }] : []),
+        ...(Math.abs(feeFd) >= 0.5 ? [{ label: WINDOWS.feeOfMargin(pct(settlementShare(w.cfg))), value: fd(-feeFd), key: "pay.settlement" }] : []),
       ],
       total: { label: "Profit", value: fd(profit) },
     };

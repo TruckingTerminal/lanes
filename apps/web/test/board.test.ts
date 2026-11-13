@@ -1,6 +1,6 @@
 import "./seed.js";
 import { describe, expect, it } from "vitest";
-import { clearsNear as engineClearsNear, dispatchProfile, invalidOrders, marketMood, operatingTrucks, placeMiles, placeToll } from "@lanes/engine";
+import { clearsNear as engineClearsNear, dispatchProfile, settlementShare, invalidOrders, marketMood, operatingTrucks, placeMiles, placeToll } from "@lanes/engine";
 import { bidCeiling, bidRange, boardRows, chipCash, chipFd, clearsNear, clearsNearSource, posterOf, profitOver, sortRows, suggestBid, destMatch } from "../src/board.js";
 import { breakdown } from "../src/explain.js";
 import { needs, settleHandBids } from "../src/logic.js";
@@ -27,8 +27,9 @@ describe("the board", () => {
     for (const r of rows.slice(0, 10)) {
       const be = trueBreakEven(g.w, truck, r.l, placeMiles(g.w, truck.place, r.l.originPlace), placeToll(g.w, truck.place, r.l.originPlace), prof.foresightDays, prof.reloadWeight);
       expect(r.be).toBeCloseTo(be, 9);
-      // Client batch 8b item 52: the leased starter's profit is the margin less the lessor's share of it.
-      const keep = truck.lease !== "owned" ? 1 - g.w.cfg.costs.npcLeaseShareOfGross : 1;
+      // Client batch 8b item 52: the leased starter's profit is the margin less the lessor's share of it; and the
+      // settlement fee's share, as break-even counts it (on in the live levers since 0.25.0).
+      const keep = (truck.lease !== "owned" ? 1 - g.w.cfg.costs.npcLeaseShareOfGross : 1) - settlementShare(g.w.cfg);
       expect(r.profitBook).toBeCloseTo((r.l.bookNow - be) * r.l.miles * keep, 6);
       expect(r.profitBook).toBeCloseTo(profitOver(g.w, truck, r.l.bookNow, be, r.l.miles), 9);
       expect(r.suggest).toBe(suggestBid(g.w, r.l, be));
@@ -132,9 +133,11 @@ describe("stage 2: the board reads the engine's clearsNear (R1's anchor)", () =>
       expect(r.clears).toBe(engineClearsNear(w, r.l));
       expect(clearsNear(w, r.l)).toBe(r.clears);
       // The suggestion: what it clears near, never over the ceiling; none when that's at or under book-now or under break-even.
-      const s = Math.min(r.l.ceiling, r.clears);
-      expect(r.suggest).toBe(s > r.l.bookNow + 0.005 && s >= r.be ? s : null);
+      // Client batch 8a item 61: only where the figure is the lane's own (with the ratio rule, on since 0.25.0, the lane's
+      // share of the blend is the largest).
       const src = clearsNearSource(w, r.l);
+      const s = Math.min(r.l.ceiling, r.clears);
+      expect(r.suggest).toBe(src.from === "lane" && s > r.l.bookNow + 0.005 && s >= r.be ? s : null);
       expect(Math.min(src.rate, r.l.ceiling)).toBeCloseTo(r.clears, 9);
       const b = breakdown(w, c, "board.clearsNear", { loadId: r.l.id, truckId: truck.id })!;
       expect(b.total.value).toBe(`${r.clears.toFixed(2)}/mi`);

@@ -1,7 +1,8 @@
 import "./seed.js";
 import { describe, expect, it } from "vitest";
-import { askOf, hubMiles, ownerDrawFd, payFloor, placeLegMiles, placeMiles, placeOfHub, poolOf, truckValue, type ExpediteWaitParts, type GameEvent } from "@lanes/engine";
-import { chipPair, typedRate } from "../src/board.js";
+import { askOf, dispatchProfile, hubMiles, operatingTrucks, ownerDrawFd, payFloor, placeLegMiles, placeMiles, placeOfHub, placeToll, poolOf, truckValue, type ExpediteWaitParts, type GameEvent } from "@lanes/engine";
+import { chipPair, profitOver, typedRate } from "../src/board.js";
+import { trueBreakEven } from "../src/breakeven.js";
 import { bestLoad } from "../src/figures.js";
 import { monthReport, shownReport, type MonthBooks } from "../src/books.js";
 import { PENDING } from "../src/copy-pending.js";
@@ -83,6 +84,9 @@ describe("client batch 8b", () => {
   // counts the expected empty run out of the destination (the director's one break-even), and the drive picks up its
   // night stops' detours (businesses.parking.stopInTown). On these five seeds the forecast now lands 0 to 93 FD under the
   // pay (at most 5.4%); before, it ran 18% to 26% over (2,685 against 2,160 on seed 11).
+  // 0.25.0 (delivery windows on in the live levers): the pay is read without detention, paid on top for a closed dock no
+  // forecast knows of (480 FD on seeds 12 and 15), and the forecast may land under it by the expected empty run as well
+  // (seed 12: 278 FD of it; without it, 3% over). Never more than 8% over, item 52's fault.
   it("item 52: What now?'s cash now lands within 8% of the delivery's pay on the probe seeds", async () => {
     for (const seed of [11, 12, 13, 14, 15]) {
       const g = await TestGame.create(undefined, undefined, seed);
@@ -94,6 +98,9 @@ describe("client batch 8b", () => {
       const l = r.l;
       const draw = ownerDrawFd(w, t, l.miles + placeMiles(w, t.place, l.originPlace));
       const cash = chipPair(w, t, r.profitBook, l.bookNow * l.miles, draw).cash; // What now?'s idle reason (WhatNow.tsx)
+      const prof = dispatchProfile(w, c, operatingTrucks(w, c.id));
+      const noReload = trueBreakEven(w, t, l, placeMiles(w, t.place, l.originPlace), placeToll(w, t.place, l.originPlace), prof.foresightDays, 0);
+      const reloadFd = profitOver(w, t, l.bookNow, noReload, l.miles) - r.profitBook; // the expected empty run's share
       let got = null as Extract<GameEvent, { kind: "delivered" }> | null;
       const before = { emptyMi: 0, depositFd: t.depositFd ?? 0 };
       g.onEvent((e) => {
@@ -103,8 +110,10 @@ describe("client batch 8b", () => {
       for (let h = 0; h < 24 * 12 && !got; h++) g.stepHour();
       const e = got as Extract<GameEvent, { kind: "delivered" }> | null;
       expect(e).not.toBeNull();
-      const yours = payLine(w, t, l, e!.grossFd, e!.costFd, before).yours;
-      expect(Math.abs(cash - yours) / yours).toBeLessThan(0.08);
+      const p = payLine(w, t, l, e!.grossFd, e!.costFd, before);
+      const yours = p.yours - p.detention;
+      expect((cash - yours) / yours).toBeLessThan(0.08);
+      expect((cash + reloadFd - yours) / yours).toBeGreaterThan(-0.08);
     }
   }, 300_000);
 

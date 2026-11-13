@@ -9,6 +9,8 @@ import { clearsTiming } from "../src/windowsui.js";
 
 /** When loads clear, beside "usually clears near" (economy-windows-clearsnear-2026-11-13.md, its tests 1 to 4). */
 const WIN = { ...GAME_CONFIG, windows: { ...GAME_CONFIG.windows, enabled: true } };
+/** Windows off by its own key: on in the live levers since 0.25.0. */
+const OFF = { ...GAME_CONFIG, windows: { ...GAME_CONFIG.windows, enabled: false } };
 function world(cfg = WIN): World {
   const w = createWorld({ cfg, net: buildNetwork(hubs, cfg), feeds: neutralFeeds, seed: 5 });
   populate(w, { freeOwnerOperators: 10, fleets: 2, brokers: 1 });
@@ -62,7 +64,7 @@ describe("when loads clear, under windows", () => {
   }, 60_000);
 
   it("with windows off, no clause and nothing kept", () => {
-    const w = world(GAME_CONFIG);
+    const w = world(OFF);
     const l = [...w.loads.values()].find((x) => x.status === "open")!;
     for (let i = 0; i < 10; i++) clear(w, l, true, true);
     expect(w.clearsWhen).toBeUndefined();

@@ -79,6 +79,11 @@ export const WINDOWS = {
   clearsQuick: ", most within a day of posting",
   clearsShareWalk: (pct: string, from: "lane" | "hub", hub: string) => `${pct} of ${from === "lane" ? "this lane's recent loads" : `recent loads like this out of ${hub}`} cleared in the last two days before their pickup closed`,
   clearsShareQuick: (pct: string, from: "lane" | "hub", hub: string) => `${pct} of ${from === "lane" ? "this lane's recent loads" : `recent loads like this out of ${hub}`} cleared within a day of posting`,
+  // Engineering's placeholders for the writer (the 0.25.0 switch-on): the settlement fee in the break-even's and the
+  // profit chip's explanations, beside the lessor's share (explain.ts truck.breakEven and board.profitChip).
+  feeOffBreakEven: (div: string, fee: string) => `÷ ${div}, the settlement fee's ${fee} off each load`,
+  lessorAndFeeOffBreakEven: (div: string, lessor: string, fee: string) => `÷ ${div}, the lessor's ${lessor} and the settlement fee's ${fee} off each load`,
+  feeOfMargin: (fee: string) => `Less the settlement fee's ${fee} of what's over break-even`,
 };
 
 /** The explain sheets' words for the windows' figures (Explain.tsx reads these before copy.ts EXPLAIN). */

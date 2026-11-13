@@ -1,6 +1,6 @@
 import "./seed.js";
 import { describe, expect, it } from "vitest";
-import { companyAccount, placeLegMiles, placeOfHub, type Load } from "@lanes/engine";
+import { companyAccount, placeLegMiles, placeOfHub, settlementShare, type Load } from "@lanes/engine";
 import { boardRows, chipPair, profitOver } from "../src/board.js";
 import { exitsFor } from "../src/exits.js";
 import { cashDipAhead } from "../src/figures.js";
@@ -123,9 +123,9 @@ describe("one cash figure (diaries item 5)", () => {
     const c = g.join("Cash Freight", "oo", "LAX")!;
     const truck = g.w.trucksByCompany.get(c.id)![0]!;
     // The starter is leased: the lessor's share comes off the margin (client batch 8b item 52, board.ts profitOver), and the
-    // pair reads that profit.
+    // settlement fee's share with it (on in the live levers since 0.25.0); the pair reads that profit.
     const profit = profitOver(g.w, truck, 3.0, 2.0, 1_000);
-    expect(profit).toBeCloseTo(1_000 * (1 - g.w.cfg.costs.npcLeaseShareOfGross), 6);
+    expect(profit).toBeCloseTo(1_000 * (1 - g.w.cfg.costs.npcLeaseShareOfGross - settlementShare(g.w.cfg)), 6);
     const p = chipPair(g.w, truck, profit, 3_000, 250);
     expect(p.cash).toBeCloseTo(profit - p.held + 250, 6);
     expect(p.draw).toBe(250);

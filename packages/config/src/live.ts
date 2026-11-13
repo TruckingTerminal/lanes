@@ -252,6 +252,22 @@ export const LIVE_LEVERS: Record<string, unknown> = {
   "usedMarket.npcLot.startersFromStock": true,
   "assets.swapAtNextIdle": true,
   "ledger.capitalNotSpending": true,
+  // 0.25.0 (Jeff, 2026-11-12: "this bundle"; 2026-11-13: windows in, the brokers' charge at 10%): one ruleset, gone live
+  // once. Delivery windows (a pickup window and a delivery deadline on every load, claims for late, no-show and
+  // cancelled loads, a lost load lost); the 1% settlement fee; the expedite; the director's three rules (C, H, I); a
+  // night in town mid-leg; the clears-near figure as a ratio to the reference; a hired driver's days off kept whole; and
+  // a broker's fall-off charge at 10% under windows. The gate: studio/reviews/economy-bundle-0250-gate.md (10 of 10),
+  // with the days-off and the brokers' pairs (economy-days-off-pair.md, economy-broker-viability.md).
+  "windows.enabled": true,
+  "token.settlementFee.enabled": true,
+  "assets.expedite.enabled": true,
+  "labor.homeTimeHolds": true,
+  "labor.pastDueRefuses": true,
+  "labor.seatPaidDrivers": true,
+  "businesses.parking.stopInTownMidLeg": true,
+  "freight.clearsNear.ratio": true,
+  "labor.daysOffFull": true,
+  "brokerRisk.fallOffShare": 0.1,
 };
 
 /** A config with the levers applied by path; throws on a path the config doesn't have. */

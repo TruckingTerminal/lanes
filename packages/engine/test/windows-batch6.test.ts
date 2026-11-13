@@ -14,7 +14,8 @@ const net = buildNetwork(hubs, LIVE);
 // The unlock ladder off, so brokers and facilities are open on day 0.
 const noLadder = (c: EconomyConfig): EconomyConfig => ({ ...c, unlockLadder: { ...c.unlockLadder, enabled: false, beta: { ...c.unlockLadder.beta, enabled: false } } });
 const ON = noLadder({ ...LIVE, windows: { ...LIVE.windows, enabled: true } });
-const OFF = noLadder(LIVE);
+// Windows off by its own key: on in the live levers since 0.25.0.
+const OFF = noLadder({ ...LIVE, windows: { ...LIVE.windows, enabled: false } });
 
 function digest(cfg: EconomyConfig): string {
   const w = createWorld({ cfg, net, feeds: neutralFeeds, seed: 20_261_109 });
@@ -30,8 +31,9 @@ const toNextRound = (w: World) => {
 
 describe("delivery windows batch 6", () => {
   it("leaves the ten-day world byte-identical with windows off, the new keys present or absent", () => {
-    const { coverDays: _a, coverMinLoads: _b, brokerMaxLostShare: _c, facilityCloseWeeks: _d, ...windows } = LIVE.windows;
-    expect(digest({ ...LIVE, windows } as unknown as EconomyConfig)).toBe(digest(LIVE));
+    const base: EconomyConfig = { ...LIVE, windows: { ...LIVE.windows, enabled: false } };
+    const { coverDays: _a, coverMinLoads: _b, brokerMaxLostShare: _c, facilityCloseWeeks: _d, ...windows } = base.windows;
+    expect(digest({ ...base, windows } as unknown as EconomyConfig)).toBe(digest(base));
   }, 120_000);
 
   it("keeps a trailing week of loads taken and lost, and reads a share once enough were taken", () => {

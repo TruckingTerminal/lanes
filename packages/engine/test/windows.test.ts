@@ -28,6 +28,8 @@ import {
  */
 const LIVE = withLiveLevers();
 const ON: EconomyConfig = { ...LIVE, windows: { ...LIVE.windows, enabled: true } };
+// Windows off by its own key: on in the live levers since 0.25.0.
+const OFF: EconomyConfig = { ...LIVE, windows: { ...LIVE.windows, enabled: false } };
 const net = buildNetwork(hubs, LIVE);
 const DAY = LIVE.time.gameMinutesPerDay;
 const ROUND = DAY / LIVE.time.boardRoundHours.length;
@@ -64,9 +66,8 @@ describe("delivery windows off (test 1)", () => {
   }
 
   it("leaves the ten-day world byte-identical with the key false and with it absent, as at HEAD before windows", () => {
-    expect(LIVE.windows.enabled).toBe(false);
-    const { windows: _, ...absent } = LIVE;
-    const off = digest(LIVE);
+    const { windows: _, ...absent } = OFF;
+    const off = digest(OFF);
     expect(digest(absent as unknown as EconomyConfig)).toBe(off);
     // The record, not a pin: this world read 8015ff2ae10527c4 at 0c03873 (before the windows code) and on this tree, on the
     // Mac Studio's Node 26; CI's Node 22 reads c06f5b2fd6c6c451 for the same world, so the digest is not the same across
@@ -200,7 +201,7 @@ describe("delivery windows on: the board (tests 6, 7 and 8)", () => {
     expect(k.lateClaimShare).toBeLessThan(k.noShowClaimShare);
     expect(k.cancelClaimShare.urgent).toBe(k.noShowClaimShare);
     // The lost shipment's claim is the fall-off share: one figure for "the shipper gave up".
-    expect(ON.brokerRisk.fallOffShare).toBe(0.15);
+    expect(ON.brokerRisk.fallOffShare).toBe(0.1); // Jeff, 2026-11-13: the brokers' charge at 10% (0.25.0)
   });
 
   it("holds the price while slack remains, walks it in the last two rounds never over the ceiling, and never walks a player poster's pay (test 8)", () => {

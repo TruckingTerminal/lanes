@@ -41,7 +41,8 @@ describe("the truck on the road", () => {
     expect(row).toBeTruthy();
     expect(g.act({ type: "book_load", truckId: truck.id, loadId: row!.l.id }).ok).toBe(true);
     const seen = new Set<string>();
-    for (let h = 0; h < 72 && truck.status !== "unloading" && truck.loadId !== null; h++) {
+    // Eight days: under delivery windows (on in the live levers since 0.25.0) a load can be ready days after its booking.
+    for (let h = 0; h < 24 * 8 && truck.status !== "unloading" && truck.loadId !== null; h++) {
       const before = JSON.stringify(truck);
       const eta = deliveryEtaMin(g.w, truck, c, row!.l);
       expect(JSON.stringify(truck)).toBe(before);
@@ -70,7 +71,8 @@ describe("the truck on the road", () => {
     const p = payLine(g.w, truck, load, d.grossFd, d.costFd, before);
     expect(p.load).toBe(d.grossFd);
     expect(p.lessor).toBeCloseTo(d.grossFd * g.w.cfg.costs.npcLeaseShareOfGross, 6);
-    expect(p.load - p.fuel - p.tolls - p.driver - p.upkeep - p.lessor - p.held).toBeCloseTo(p.yours, 6);
+    // The settlement fee's own line (on in the live levers since 0.25.0) is in the sum.
+    expect(p.load - p.fuel - p.tolls - p.driver - p.upkeep - p.lessor - p.settlement - p.held).toBeCloseTo(p.yours, 6);
     expect(p.yours).toBeCloseTo(d.grossFd - d.costFd - p.held, 6);
   }, 120_000);
 });

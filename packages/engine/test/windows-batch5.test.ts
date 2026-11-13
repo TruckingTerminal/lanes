@@ -11,6 +11,8 @@ import { applyAction, companyAccount, createWorld, formCompany, isRoundBoundary,
  */
 const LIVE = withLiveLevers();
 const ON: EconomyConfig = { ...LIVE, windows: { ...LIVE.windows, enabled: true } };
+// Windows off by its own key: on in the live levers since 0.25.0.
+const OFF: EconomyConfig = { ...LIVE, windows: { ...LIVE.windows, enabled: false } };
 const net = buildNetwork(hubs, LIVE);
 
 function digest(cfg: EconomyConfig): string {
@@ -31,10 +33,9 @@ const remember = (w: World, x: number) => {
 
 describe("delivery windows batch 5", () => {
   it("leaves the ten-day world byte-identical with windows off, the new key present or absent", () => {
-    expect(LIVE.windows.enabled).toBe(false);
-    expect(LIVE.windows.ratioClampTop).toBe(6);
-    const { ratioClampTop: _, ...windows } = LIVE.windows;
-    expect(digest({ ...LIVE, windows } as unknown as EconomyConfig)).toBe(digest(LIVE));
+    expect(OFF.windows.ratioClampTop).toBe(6);
+    const { ratioClampTop: _, ...windows } = OFF.windows;
+    expect(digest({ ...OFF, windows } as unknown as EconomyConfig)).toBe(digest(OFF));
   }, 120_000);
 
   it("clamps the ratio at windows.ratioClampTop only while windows are on", () => {
@@ -45,7 +46,7 @@ describe("delivery windows batch 5", () => {
       return Math.max(...w.lastRatioEq, ...w.lastRatio);
     };
     const [, rates] = LIVE.rates.ratioClamp;
-    expect(top(LIVE)).toBeLessThanOrEqual(rates); // off: the memory isn't read, and the top is rates.ratioClamp's
+    expect(top(OFF)).toBeLessThanOrEqual(rates); // off: the memory isn't read, and the top is rates.ratioClamp's
     const on = top(ON);
     expect(on).toBeGreaterThan(rates);
     expect(on).toBeLessThanOrEqual(ON.windows.ratioClampTop);

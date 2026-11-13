@@ -12,7 +12,8 @@ const LIVE = withLiveLevers();
 const net = buildNetwork(hubs, LIVE);
 const noLadder = (c: EconomyConfig): EconomyConfig => ({ ...c, unlockLadder: { ...c.unlockLadder, enabled: false, beta: { ...c.unlockLadder.beta, enabled: false } } });
 const ON = noLadder({ ...LIVE, windows: { ...LIVE.windows, enabled: true } });
-const OFF = noLadder(LIVE);
+// Windows off by its own key: on in the live levers since 0.25.0.
+const OFF = noLadder({ ...LIVE, windows: { ...LIVE.windows, enabled: false } });
 
 function world(cfg: EconomyConfig): World {
   const w = createWorld({ cfg, net, feeds: neutralFeeds, seed: 9 });

@@ -12,6 +12,8 @@ import { applyAction, companyAccount, createWorld, dayOf, expediteFee, expediteQ
 const LIVE = withLiveLevers();
 const net = buildNetwork(hubs, LIVE);
 const ON: EconomyConfig = { ...LIVE, assets: { ...LIVE.assets, expedite: { ...LIVE.assets.expedite, enabled: true } } };
+/** The off case states its key: the expedite is on in the live levers since 0.25.0. */
+const OFF: EconomyConfig = { ...LIVE, assets: { ...LIVE.assets, expedite: { ...LIVE.assets.expedite, enabled: false } } };
 
 function digest(cfg: EconomyConfig): string {
   const w = createWorld({ cfg, net, feeds: neutralFeeds, seed: 20_261_109 });
@@ -31,9 +33,8 @@ const newRig = (w: World, id: number, expedite?: boolean) => applyAction(w, id, 
 
 describe("early delivery for a fee (assets.expedite)", () => {
   it("leaves the ten-day world byte-identical with the key false and absent", () => {
-    expect(LIVE.assets.expedite.enabled).toBe(false);
-    const { expedite: _, ...assets } = LIVE.assets;
-    expect(digest({ ...LIVE, assets } as unknown as EconomyConfig)).toBe(digest(LIVE));
+    const { expedite: _, ...assets } = OFF.assets;
+    expect(digest({ ...OFF, assets } as unknown as EconomyConfig)).toBe(digest(OFF));
   }, 120_000);
 
   it("prices 1.5% of the truck a week saved, to the day, at least 300 FD and at most 9%", () => {
@@ -109,7 +110,7 @@ describe("early delivery for a fee (assets.expedite)", () => {
     expect(o.expediteFeesFd).toBeGreaterThan(0);
     expect(applyAction(w, c.id, { type: "buy_asset", tier: "workhorse", trailer: "van", replaceNpcLease: false, used: true, expedite: true }).ok).toBe(false);
     // Off, nothing is offered.
-    const off = buyer(LIVE);
+    const off = buyer(OFF);
     expect(newRig(off.w, off.c.id, true).ok).toBe(false);
     w.ledger.assertBalanced();
   });

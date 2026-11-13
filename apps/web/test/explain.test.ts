@@ -2,7 +2,7 @@ import "./seed.js";
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it, vi } from "vitest";
-import { cashNowRate, companyAccount, truckValue } from "@lanes/engine";
+import { cashNowRate, companyAccount, settlementShare, truckValue } from "@lanes/engine";
 import { boardRows, chipCash, chipFd, chipPair, depositWhole, leaseHold } from "../src/board.js";
 import { CHIP, EXPLAIN, FIGURE_ACT } from "../src/copy.js";
 import { PENDING } from "../src/copy-pending.js";
@@ -72,6 +72,34 @@ describe("help on every figure (explain.ts)", () => {
     // Another company's figure never breaks down its inputs (Intel's row 1).
     expect(breakdown(g.w, c, "intel.creditBand.other", {})).toBeNull();
   }, 120_000); // two worlds: past a minute on a loaded machine
+
+  it("counts the settlement fee in the break-even and the profit chip as the board does, and names it (0.25.0)", async () => {
+    const num = (s: string) => Number(s.replace("−", "-").replace(/[^0-9.-]/g, ""));
+    const FEE_OFF = { ...GAME_CONFIG, token: { ...GAME_CONFIG.token, settlementFee: { ...GAME_CONFIG.token.settlementFee, enabled: false } } };
+    for (const cfg of [GAME_CONFIG, FEE_OFF]) {
+      const g = await TestGame.create(undefined, undefined, 7, cfg);
+      const c = g.join("Fee Freight", "oo", "LAX")!;
+      const truck = g.w.trucksByCompany.get(c.id)![0]!;
+      const fee = settlementShare(g.w.cfg);
+      expect(fee).toBe(cfg === GAME_CONFIG ? 0.01 : 0);
+      const rows = boardRows(g.w, c, truck, { dest: "any", maxDh: 300, query: "" }).filter((r) => !r.block).slice(0, 5);
+      expect(rows.length).toBeGreaterThan(0);
+      for (const r of rows) {
+        const ctx = { loadId: r.l.id, truckId: truck.id };
+        const be = breakdown(g.w, c, "truck.breakEven", ctx)!;
+        expect(be.total.value).toBe(`${r.be.toFixed(2)}/mi`);
+        // The leased starter: one divisor row, naming the fee only while it's on.
+        const div = be.rows.find((x) => x.key === "pay.lessorShare")!;
+        expect(div.label.includes("settlement fee")).toBe(fee > 0);
+        const p = breakdown(g.w, c, "board.profitChip", ctx)!;
+        expect(num(p.total.value)).toBeCloseTo(Math.round(r.profitBook), 6);
+        const feeRow = p.rows.find((x) => x.key === "pay.settlement");
+        expect(feeRow !== undefined).toBe(fee > 0 && Math.abs((r.l.bookNow - r.be) * r.l.miles * fee) >= 0.5);
+        // The rows add up to the profit, to a whole FD a row.
+        expect(Math.abs(p.rows.reduce((a, x) => a + num(x.value), 0) - r.profitBook)).toBeLessThanOrEqual(p.rows.length);
+      }
+    }
+  }, 180_000);
 });
 
 describe("the walkthrough's board step", () => {
