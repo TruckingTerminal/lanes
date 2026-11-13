@@ -11,6 +11,8 @@ import { Btn, Card, Kv, Panel } from "../bits.js";
 import { Fig } from "../Explain.js";
 import { PENDING } from "../../copy-pending.js";
 import { EconomyReport } from "../EconomyReport.js";
+import { WINDOWS } from "../../copy-windows.js";
+import { hubLosses } from "../../windowsui.js";
 
 /**
  * Intel (specs/intel.md, specs/intel-ux.md): every company, players and AI, carriers and brokers, by Miles; a card per
@@ -61,6 +63,19 @@ export function Intel(): JSX.Element {
       ) : null}
       {/* The public monthly report (Jeff's yes, 2026-11-13; econreport.ts): aggregates only, above the companies. */}
       <EconomyReport />
+      {/* Client batch W (the director's §5): the market's lost loads by hub this week, once windows are on. */}
+      {(() => {
+        const lost = hubLosses(w);
+        return lost.length ? (
+          <Card title={WINDOWS.hubLostTitle}>
+            {lost.map((x) => (
+              <p key={x.hub} class="small">
+                {WINDOWS.hubLost(w.net.hubs[x.hub]!.name, x.lost, x.liftPct)}
+              </p>
+            ))}
+          </Card>
+        ) : null;
+      })()}
       <input type="search" class="intelfind" placeholder={INTEL.find} aria-label={INTEL.find} value={f.q} onInput={(e) => set({ q: (e.target as HTMLInputElement).value })} />
       <div class="row chips">
         {me ? chip(f.myHub, INTEL.myHub, () => set({ myHub: !f.myHub, hub: null })) : null}

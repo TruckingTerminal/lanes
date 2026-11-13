@@ -16,6 +16,9 @@ import { Iuliia } from "./Walkthrough.js";
 import { kindInView } from "../companies.js";
 import { leaseMinFor } from "../ledger.js";
 import { leasedNo, orderedFirstTruck } from "../figures.js";
+import { whenLabel } from "@lanes/engine";
+import { WINDOWS } from "../copy-windows.js";
+import { askFigures, askLines, spanLabel } from "../windowsui.js";
 
 /**
  * What now? (specs/guidance.md section 1, guidance-ux.md section 1): a chip in Iuliia's caption, in its own button row, on
@@ -141,6 +144,12 @@ const when = (min: number): string => {
   const h = Math.max(0, (min - S.game!.w.t) / 60);
   return h < 24 ? `${Math.max(1, Math.round(h))} h` : plural(Math.round(h / 24), "day");
 };
+/** A truck's card on the Truck tab (client batch W: a load booked or under way isn't on the board). */
+const showTruck = (truckId: number) => {
+  selectTruck(truckId);
+  setTab("fleet");
+};
+
 export const openLoadOf = (truckId: number, loadId: number) => {
   selectTruck(truckId);
   S.openLoad = loadId;
@@ -225,8 +234,26 @@ function words(a: NextAction): { action: string; reason: string; button: string;
         go: () => (l ? openLoadOf(a.truckId, l.id) : t.status === "idle" ? sendHomePriced(t) : setTab("fleet")),
       };
     }
-    case "atRisk":
+    // Client batch W (the director's §3 and §4): the breakdown's ask in her figures, once windows are on.
+    case "atRisk": {
+      const l = load(a.loadId);
+      const ask = l ? askFigures(w, l) : null;
+      if (ask) {
+        const lines = askLines(w, ask, truckNo(a.truckId));
+        return { red: true, action: lines[0]!, reason: lines.slice(1).join(" "), button: PENDING.atRiskButton, go: () => showTruck(a.truckId) };
+      }
       return { red: true, action: PENDING.atRiskAction(truckNo(a.truckId)), reason: PENDING.atRiskReason(fd(a.claimFd), `${shortDate(Math.floor(a.byMin / 1440))} ${hhmm(a.byMin)}`), button: PENDING.atRiskButton, go: () => setTab("fleet") };
+    }
+    case "loadRisk":
+      return { red: true, action: (a.end === "pickup" ? WINDOWS.riskPickup : WINDOWS.riskDelivery)(truckNo(a.truckId), whenLabel(w, a.atMin), place(a.place), fd(Math.round(a.claimFd))), reason: "", button: WINDOWS.riskButton, go: () => showTruck(a.truckId) };
+    case "waitLong":
+      return { action: WINDOWS.waitingLong(truckNo(a.truckId), place(a.place), whenLabel(w, a.readyMin), fd(Math.round(a.costPerDayFd))), reason: "", button: WINDOWS.riskButton, go: () => showTruck(a.truckId) };
+    case "lateNote":
+      return { action: WINDOWS.lateStatement(truckNo(a.truckId), spanLabel(a.lateMin), place(a.place), fd(Math.round(a.claimFd))), reason: "", button: WINDOWS.riskButton, go: () => showTruck(a.truckId) };
+    case "waitNote":
+      return { action: WINDOWS.waitingReady(truckNo(a.truckId), place(a.place), whenLabel(w, a.readyMin)), reason: "", button: WINDOWS.riskButton, go: () => showTruck(a.truckId) };
+    case "nextNote":
+      return { action: WINDOWS.nextBooked(truckNo(a.truckId), whenLabel(w, a.deliversMin), place(a.place), hhmm(a.pickupByMin)), reason: "", button: WINDOWS.riskButton, go: () => showTruck(a.truckId) };
     case "lost": {
       const l = load(a.loadId);
       // The sheet's own call (board.ts suggestBid): "Bid on" only where it suggests a bid, else "Book" (client batch 5).

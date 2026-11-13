@@ -40,7 +40,7 @@ import { ARRIVAL, BROKERAGE, DEBT, DISPATCHER, FIRST_ENTRY, MOVE, NEEDS, SAFETY_
 import { cashDipAhead, debtCountdown } from "./figures.js";
 import { hasTwo, kindInView, switchCompany, type CompanyKind } from "./companies.js";
 import { act, bumpData, carrierCo, clockMin, dropKeyed, isPhone, markKey, me, myTrucks, onWorldReset, ownerOf, push, pushKeyed, S, setOnboard, setTab, selectTruck, toast, truckNo, visited, type Session } from "./state.js";
-import { iuliiaSay, iuliiaSayText } from "./iuliia.js";
+import { iuliiaOnce, iuliiaSay, iuliiaSayText } from "./iuliia.js";
 import { PENDING_RULES } from "./copy-pending-rules.js";
 import { tabOpen, teaserTabs, type Tab } from "./tabs.js";
 import { leaseMinFor } from "./ledger.js";
@@ -53,6 +53,9 @@ import { myTenders } from "./ui/panels/Contracts.js";
 import { dateLabel, fd, fdFull, hhmm, hoursLabel, pct, plural, realUntil, signedPct, TRAILER_NAME, weekday } from "./format.js";
 import { Btn } from "./ui/bits.js";
 import { economyConfig } from "@lanes/config";
+import { askFigures, brokerageClosing, claimCause, lostBidLine } from "./windowsui.js";
+import { moneyEvents } from "./books.js";
+import { WINDOWS } from "./copy-windows.js";
 
 /** Game reasoning the panels share: idle diagnoses, status lines, crew lines, reload and season reads. */
 
@@ -346,6 +349,20 @@ function needsInView(fleet: boolean): Need[] {
   const here = (place: number) => w.net.places[place]!.name;
   const trucks = fleet ? myTrucks() : [];
   const bal = w.ledger.balance(companyAccount(c.id));
+  // Client batch W (the director's §3): a breakdown's ask on a load booked ahead, tier 3, its card on the Truck tab
+  // with both answers; and (§5) a brokerage's posted load with no carrier and its pickup closing within the day.
+  if (fleet)
+    for (const l of w.loads.values()) {
+      if (l.carrierId !== c.id || !l.releaseAsk) continue;
+      const a = askFigures(w, l);
+      if (!a) continue;
+      out.push({ key: `ask:${l.id}`, text: WINDOWS.askTitle(truckNo(a.truck.id), here(l.originPlace), here(l.destPlace)), tab: "fleet", target: `[data-need="ask:${l.id}"]`, button: WINDOWS.riskButton, icon: "truck", dueMin: a.closesT });
+    }
+  if (!fleet)
+    for (const x of brokerageClosing(w, c)) {
+      const l = x.load;
+      out.push({ key: `closing:${l.id}`, text: WINDOWS.brokerageClosing(here(l.originPlace), here(l.destPlace), hhmm(l.latestPickupT!), fdFull(Math.round(x.fallOffFd))), tab: "brokerage", target: ".brokerage", button: WINDOWS.riskButton, icon: "money", dueMin: l.latestPickupT });
+    }
   // The money alarms: the debt countdown (the engine's weekly check, figures.ts debtCountdown) and low cash. What now?
   // is their button: it names the one move that helps most (nextstep.ts).
   if (bal < -w.cfg.insolvency.debtLimitFd) {
@@ -512,7 +529,11 @@ export function settleHandBids(s: Session): void {
       const key = markKey("lostBetween");
       if (!S.onboard.seen.includes(key)) setOnboard({ seen: [...S.onboard.seen, key] });
     }
-    S.result = { won: false, from: hb.from ?? "", to: hb.to ?? "", rate: hb.rate, winning: load ? load.clearedRate : null, be: hb.be, total: 0, seen: false, winnerId: load?.carrierId ?? undefined, why: load && load.carrierId !== null ? (hb.filed ? "local" : "outright") : null, lost: load && hb.truckId !== undefined ? { loadId, truckId: hb.truckId, profitAtWinningFd: profitOver(S.game!.w, S.game!.w.trucks[hb.truckId - 1], load.clearedRate, hb.be, load.miles), round: S.game!.w.round } : undefined };
+    // Client batch W (the director's §5): a load nobody took by its pickup's close is gone, said so, and its follow-up
+    // expires at once (nothing reposts it).
+    // The engine deletes a load given up (board.ts giveUp), so the bid keeps its pickup's close (handBids.closes).
+    const gone = !load && hb.closes !== undefined && w.t >= hb.closes ? WINDOWS.lostBid(hb.from ?? "", hb.to ?? "", hhmm(hb.closes)) : load && load.status === "expired" && load.carrierId === null ? lostBidLine(w, load) : null;
+    S.result = { won: false, from: hb.from ?? "", to: hb.to ?? "", rate: hb.rate, winning: load ? load.clearedRate : null, be: hb.be, total: 0, seen: false, winnerId: load?.carrierId ?? undefined, why: load && load.carrierId !== null ? (hb.filed ? "local" : "outright") : null, ...(gone ? { gone } : {}), lost: !gone && load && hb.truckId !== undefined ? { loadId, truckId: hb.truckId, profitAtWinningFd: profitOver(S.game!.w, S.game!.w.trucks[hb.truckId - 1], load.clearedRate, hb.be, load.miles), round: S.game!.w.round } : undefined };
     bumpData();
   }
 }
@@ -555,6 +576,12 @@ export function checkAttention(): void {
     attentionSeen.add(k);
     toast(a.text, a.tone === "bad");
     pushKeyed(g, `need:${a.key}`, a.text, a.tone === "bad" ? "bad" : "warn");
+  }
+  // Client batch W (the director's §7): Iuliia on the first claim paid, the cause in figures.
+  if (g.w.cfg.windows?.enabled) {
+    const ev = moneyEvents(g.w, g.player, g.w.t - g.w.cfg.time.gameMinutesPerDay, 0).find((e) => e.kind === "claim" && e.ref.startsWith("claim:"));
+    const line = ev ? claimCause(g.w, ev.ref, ev.fd) : null;
+    if (line) iuliiaOnce("win:claim", line);
   }
 }
 /** The player's trucks whose driver has been out past the fatigue line or is already tired. */

@@ -31,6 +31,8 @@ import { emptyRun } from "./rolling.js";
 import { cushion, debtCountdown, gapToTruck } from "./figures.js";
 import { buyPlan } from "./finance.js";
 import { TRAILER_NAME } from "./format.js";
+import { whenLabel } from "@lanes/engine";
+import { claimsAt, urgentFrom } from "./windowsui.js";
 
 /**
  * Help on every figure (specs/guidance.md section 2): one table keyed like copy.ts. The writer's what / how / moves are
@@ -126,7 +128,32 @@ function cashNowParts(w: World, c: Company, ctx: FigureCtx, total: "fee" | "land
 /** The money event a news figure names, as books.ts kept it. */
 const eventOf = (w: World, c: Company, ctx: FigureCtx): MoneyEvent | undefined => (ctx.news ? moneyEvents(w, c, ctx.news.t, 0).find((x) => x.ref === ctx.news!.ref && x.t === ctx.news!.t) : undefined);
 
+/** Client batch W: a claim's figures, at the rate Book now takes (the sheet's), or the rate it was booked at. */
+function claimParts(w: World, ctx: FigureCtx, kind: "noShow" | "late" | "lost"): Breakdown | null {
+  const l = ctx.loadId !== undefined ? w.loads.get(ctx.loadId) : undefined;
+  if (!l || !w.cfg.windows || l.latestPickupT === undefined) return null;
+  const rate = l.status === "open" ? l.bookNow : l.clearedRate;
+  const k = w.cfg.windows;
+  const cl = claimsAt(w, l, rate);
+  const rows: Row[] = [{ label: "The load's pay", value: fd(rate * l.miles) }];
+  if (kind === "noShow") return { rows: [...rows, { label: "No-show share", value: pct(k.noShowClaimShare) }], total: { label: "No-show claim", value: fd(cl.noShowFd) } };
+  if (kind === "late") return { rows: [...rows, { label: "Late share", value: pct(k.lateClaimShare) }], total: { label: "Late claim", value: fd(cl.lateFd) } };
+  return {
+    rows: [...rows, { label: `Before ${whenLabel(w, urgentFrom(w, l))}`, value: `${pct(k.cancelClaimShare.early)} · ${fd(cl.releaseEarlyFd)}` }, { label: "In its last rounds", value: `${pct(k.cancelClaimShare.urgent)} · ${fd(cl.releaseUrgentFd)}` }],
+    total: { label: "Release now", value: fd(w.t < urgentFrom(w, l) ? cl.releaseEarlyFd : cl.releaseUrgentFd) },
+  };
+}
+
 const BREAKDOWNS: Record<string, Fn> = {
+  // Client batch W: the windows' figures (the director's explain keys).
+  "load.window": (w, _c, ctx) => {
+    const l = ctx.loadId !== undefined ? w.loads.get(ctx.loadId) : undefined;
+    if (!l || l.latestPickupT === undefined || l.latestDeliveryT === undefined) return null;
+    return { rows: [{ label: "Ready", value: whenLabel(w, l.readyT ?? w.t) }, { label: "Pick up by", value: whenLabel(w, l.latestPickupT) }], total: { label: "Deliver by", value: whenLabel(w, l.latestDeliveryT) } };
+  },
+  "claim.noShow": (w, _c, ctx) => claimParts(w, ctx, "noShow"),
+  "claim.late": (w, _c, ctx) => claimParts(w, ctx, "late"),
+  "claim.lost": (w, _c, ctx) => claimParts(w, ctx, "lost"),
   // R9's money events. A breakdown: the terms of its odds as they stood when it was paid (wear.ts breakdownsPer1000Mi,
   // the grades of trips.ts), and the one that weighed most; under 1.25× all round, it was the base rate: bad luck.
   "news.breakdown": (w, c, ctx) => {

@@ -29,6 +29,8 @@ import { leaseMinFor } from "../../ledger.js";
 import { OrderOffers } from "../OrderOffers.js";
 import { expediteOn, expediteQuote, expediteWaitParts } from "@lanes/engine";
 import { expediteLines, waitSentence } from "../../expediteui.js";
+import { WINDOWS } from "../../copy-windows.js";
+import { askFigures, askLines, claimsAt, nowNext, urgentFrom } from "../../windowsui.js";
 
 
 
@@ -430,6 +432,48 @@ function HoursLines({ t }: { t: Truck }): JSX.Element | null {
   );
 }
 
+/**
+ * Client batch W (the director's §2 and §3): a truck with a load booked ahead shows now and next, with the release at
+ * today's price; a breakdown's ask on that load shows its figures and both answers.
+ */
+function WindowsLines({ t }: { t: Truck }): JSX.Element | null {
+  const w = S.game!.w;
+  const c = ownerOf(t);
+  const nn = nowNext(w, c, t);
+  const next = t.nextLoadId !== undefined ? w.loads.get(t.nextLoadId) : undefined;
+  if (!nn.next || !next) return null;
+  const ask = next.releaseAsk ? askFigures(w, next) : null;
+  const stop = (ev: MouseEvent) => ev.stopPropagation();
+  if (ask) {
+    const lines = askLines(w, ask, truckNo(t.id));
+    return (
+      <div class="stack small" onClick={stop} data-need={`ask:${next.id}`}>
+        <p class="bad">
+          <b>{lines[0]}</b>
+        </p>
+        {lines.slice(1).map((x, i) => (
+          <p key={i}>{x}</p>
+        ))}
+        <div class="row">
+          <Btn onClick={() => act({ type: "release_load", loadId: next.id }, WINDOWS.released)}>{WINDOWS.release(fdFull(Math.round(ask.releaseFd)))}</Btn>
+          <Btn onClick={() => act({ type: "keep_load", loadId: next.id }, WINDOWS.kept)}>{WINDOWS.askKeepButton}</Btn>
+        </div>
+      </div>
+    );
+  }
+  const cl = claimsAt(w, next, next.clearedRate);
+  const price = w.t < urgentFrom(w, next) ? cl.releaseEarlyFd : cl.releaseUrgentFd;
+  return (
+    <div class="stack small" onClick={stop}>
+      {nn.now ? <p>{nn.now}</p> : null}
+      <p>{nn.next}</p>
+      <div class="row">
+        <Btn sm onClick={() => act({ type: "release_load", loadId: next.id }, WINDOWS.released)}>{WINDOWS.release(fdFull(Math.round(price)))}</Btn>
+      </div>
+    </div>
+  );
+}
+
 function TruckCard({ t, idx }: { t: Truck; idx: number }): JSX.Element {
   const w = S.game!.w;
   // Client batch 8a item 29: the truck's own company, whichever company is in view.
@@ -519,6 +563,7 @@ function TruckCard({ t, idx }: { t: Truck; idx: number }): JSX.Element {
         <StatusLine t={t} />
         {t.breakdownMin > 0 && t.status !== "loaded" ? <span class="bad"> · stopped</span> : null}
       </p>
+      <WindowsLines t={t} />
       <HoursLines t={t} />
       <p>
         <CrewLine t={t} />

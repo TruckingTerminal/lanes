@@ -1,5 +1,5 @@
 import type { EconomyConfig } from "@lanes/config";
-import { cashNowRate, companyAccount, crewed, hubMiles, MANUAL_BID_MAX_DEADHEAD_MI, resting, truckValue, type Company, type Staff, type StandingOrder, type Truck, type World } from "@lanes/engine";
+import { cashNowRate, companyAccount, crewed, hubMiles, MANUAL_BID_MAX_DEADHEAD_MI, resting, truckValue, windowsOn, type Company, type Staff, type StandingOrder, type Truck, type World } from "@lanes/engine";
 import { boardRows, clearsNear, profitOver, type BoardRow } from "./board.js";
 import { bestLoad, cushion, debtCountdown, freeTrucks, gapToTruck, nextEvent, nextWeeklyCheckDay, orderedFirstTruck, owed, type NextEvent } from "./figures.js";
 import { truckDayCostFd } from "./logic.js";
@@ -7,6 +7,7 @@ import { exitsFor, type Exit } from "./exits.js";
 import { invoices } from "./ledger.js";
 import { walkProgress } from "./walkthrough.js";
 import type { Tab } from "./tabs.js";
+import { windowStates } from "./windowsui.js";
 
 /**
  * What now? (specs/guidance.md, section 1): an ordered list of rules over the world and the company, first match wins,
@@ -39,6 +40,14 @@ export type NextAction =
   | { rule: 2; kind: "stranded"; truckId: number; exits: Exit[] }
   /** A breakdown's ask on a load booked ahead (windows.ts afterBreakdown): release it or keep it, by the pickup. */
   | { rule: 3; kind: "atRisk"; loadId: number; truckId: number; claimFd: number; byMin: number }
+  /** Client batch W (the director's §4): a pickup or a delivery at risk, ranked by the claim at stake. */
+  | { rule: 3; kind: "loadRisk"; end: "pickup" | "delivery"; loadId: number; truckId: number; atMin: number; place: number; claimFd: number }
+  /** Waiting at a shipper before ready for over a day: money bleeding, with its cost a day. */
+  | { rule: 2; kind: "waitLong"; loadId: number; truckId: number; place: number; readyMin: number; costPerDayFd: number }
+  /** Statements, not tasks (no action): a late delivery nothing changes now, a wait before ready, a next load booked. */
+  | { rule: 8; kind: "lateNote"; loadId: number; truckId: number; lateMin: number; place: number; claimFd: number }
+  | { rule: 8; kind: "waitNote"; loadId: number; truckId: number; place: number; readyMin: number }
+  | { rule: 8; kind: "nextNote"; loadId: number; truckId: number; deliversMin: number; place: number; pickupByMin: number }
   /** The home rule (the company's homeTime order) with the dispatcher off: from five days ahead, and on the day. `loadId`: a load toward home. */
   | { rule: 2 | 4; kind: "homeDue"; truckId: number; day: number; days: number; loadId: number | null; profitFd: number }
   | { rule: 5; kind: "tender"; loadId: number; untilMin: number; shipperId: number | null }
@@ -200,11 +209,22 @@ export function nextAction(cfg: EconomyConfig, w: World, c: Company, lost?: Lost
     }
   }
 
-  // 3. A load at risk: a breakdown's ask on a load booked ahead, by its pickup.
+  // 3. A load at risk: a breakdown's ask on a load booked ahead, by its pickup. Client batch W (the director's §4): with
+  // the pickups and deliveries at risk beside it, the tier ranks by the claim at stake, the dearest first.
   for (const l of w.loads.values()) {
     if (l.carrierId !== c.id || !l.releaseAsk) continue;
     const by = l.latestPickupT ?? l.releaseAsk.t;
-    cands.push({ a: { rule: 3, kind: "atRisk", loadId: l.id, truckId: l.releaseAsk.truckId, claimFd: l.releaseAsk.fd, byMin: by }, key: by });
+    cands.push({ a: { rule: 3, kind: "atRisk", loadId: l.id, truckId: l.releaseAsk.truckId, claimFd: l.releaseAsk.fd, byMin: by }, key: windowsOn(w) ? -l.releaseAsk.fd : by });
+  }
+  // Client batch W: the windows' states (windowsui.ts), only with windows on. The statements rank after every task.
+  for (const s of windowStates(w, c)) {
+    if (s.kind === "risk") cands.push({ a: { rule: 3, kind: "loadRisk", end: s.end, loadId: s.loadId, truckId: s.truckId, atMin: s.atT, place: s.place, claimFd: s.claimFd }, key: -s.claimFd });
+    else if (s.kind === "late") cands.push({ a: { rule: 8, kind: "lateNote", loadId: s.loadId, truckId: s.truckId, lateMin: s.lateMin, place: s.place, claimFd: s.claimFd }, key: -3e15 });
+    else if (s.kind === "waiting") {
+      const t = w.trucks[s.truckId - 1]!;
+      if (s.readyT - w.t > perDay) cands.push({ a: { rule: 2, kind: "waitLong", loadId: s.loadId, truckId: s.truckId, place: s.place, readyMin: s.readyT, costPerDayFd: truckDayCostFd(w, c, t) }, key: -truckDayCostFd(w, c, t) });
+      else cands.push({ a: { rule: 8, kind: "waitNote", loadId: s.loadId, truckId: s.truckId, place: s.place, readyMin: s.readyT }, key: -2e15 + s.readyT });
+    } else cands.push({ a: { rule: 8, kind: "nextNote", loadId: s.loadId, truckId: s.truckId, deliversMin: s.deliversT, place: s.place, pickupByMin: s.pickupByT }, key: -1e15 + s.deliversT });
   }
 
   // 4. Due home (the director's C): the home rule turns a truck for home at its driver's days out; with the dispatcher off

@@ -1,6 +1,6 @@
 import type { JSX } from "preact";
 import { useEffect, useState } from "preact/hooks";
-import { crewed, hubMiles, MANUAL_BID_MAX_DEADHEAD_MI, VETTING_NAMES, type Truck } from "@lanes/engine";
+import { crewed, hubMiles, MANUAL_BID_MAX_DEADHEAD_MI, VETTING_NAMES, windowsOn, type Truck } from "@lanes/engine";
 import { COMMODITIES } from "@lanes/data";
 import { allInRate, bidCeiling, bidRange, boardRows, typedRate, clampToCeiling, chipCash, chipPair, clearsNear, clearsNearSource, dockWaits, overCeiling, posterOf, profitOver, rateShown, sortRows, type BoardRow, type BoardSort, type ChipPair } from "../../board.js";
 import { DockWarning, ProfitChip } from "../ProfitChip.js";
@@ -10,7 +10,9 @@ import { nextRoundHour, nextRoundLabel, nextRoundWait, reloadLabel, roundProgres
 import { bumpData, isPhone, markVisited, me, myTrucks, openIntel, order, S, selectTruck, setTab, toast, truckNo, useData, visited } from "../../state.js";
 import { deliveryEtaMin, etaMin } from "../../rolling.js";
 import { tabOpen } from "../../tabs.js";
-import { iuliiaFirst, iuliiaOnChange, iuliiaSay, iuliiaSayText } from "../../iuliia.js";
+import { iuliiaFirst, iuliiaOnce, iuliiaOnChange, iuliiaSay, iuliiaSayText } from "../../iuliia.js";
+import { WINDOWS } from "../../copy-windows.js";
+import { aheadable, agreement, boardable, freeAt, windowLine } from "../../windowsui.js";
 import { PENDING_RULES } from "../../copy-pending-rules.js";
 import { Btn, Card, Kv } from "../bits.js";
 import { LoadsTable } from "./Loads.js";
@@ -38,7 +40,8 @@ export function Loads(): JSX.Element {
   const [sort, setSort] = useState<BoardSort>(() => {
     const once = S.boardSortOnce;
     S.boardSortOnce = null;
-    return once ?? "nearest";
+    // Client batch W: the pickup's close first once windows are on (the director).
+    return once ?? (S.game && windowsOn(S.game.w) ? "pickup" : "nearest");
   });
   const [filterOpen, setFilterOpen] = useState(false);
   const [dest, setDest] = useState("");
@@ -66,7 +69,8 @@ export function Loads(): JSX.Element {
   const c = me();
   const trucks = myTrucks();
   const idle = trucks.filter((t) => t.status === "idle");
-  const truck = trucks.find((t) => t.id === S.selTruck && t.status === "idle") ?? idle[0];
+  // Client batch W: with windows on, a truck on a job books its next load here too (the director's §2: no separate screen).
+  const truck = trucks.find((t) => t.id === S.selTruck && boardable(w, t)) ?? idle[0] ?? trucks.find((t) => aheadable(w, t));
   const name = (i: number) => w.net.hubs[i]!.name;
   if (S.result) S.result.seen = true;
 
@@ -92,7 +96,11 @@ export function Loads(): JSX.Element {
   const pinned = pending ? rows.find((r) => r.l.id === pending.loadId) : undefined;
   const sorted = sortRows(rows, sort, firstVisit).filter((r) => r !== pinned);
   const takeable = rows.filter((r) => !r.block).length;
-  const hub = w.net.places[truck.place]!.name;
+  // A truck on a job: the board reads from where it will be free (board.ts boardRows).
+  const busyFree = truck.status !== "idle" ? freeAt(w, truck) : null;
+  const hub = busyFree ? busyFree.placeName : w.net.places[truck.place]!.name;
+  if (trucks.some((t) => aheadable(w, t))) queueMicrotask(() => iuliiaOnce("win:busy", WINDOWS.iuliiaFirstBusy(truckNo(trucks.find((t) => aheadable(w, t))!.id))));
+  const shownSorts: BoardSort[] = windowsOn(w) ? ["pickup", "nearest", "pay", "hot"] : ["nearest", "pay", "hot"];
   // The ways-out sheet: the exits head the board while the truck it was opened for stands idle here.
   const out = S.waysOut === truck.id;
   if (S.waysOut !== null && !out) S.waysOut = null;
@@ -104,13 +112,15 @@ export function Loads(): JSX.Element {
       {!crewed(truck) ? <p class="bad small">{PENDING.boardNeedsDriver(truckNo(truck.id))}</p> : null}
       <ResultCard onBidAgain={() => setSort("clears")} />
       {pinned && pending ? <PinnedBid r={pinned} rate={pending.rate} truck={truck} /> : null}
+      {busyFree ? <p class="small">{WINDOWS.boardAhead(truckNo(truck.id), busyFree.label, busyFree.placeName)}</p> : null}
       <div class="boardhead">
         <b>{BOARD.header(hub, takeable, nextRoundLabel())}</b>
         {trucks.length >= 2 ? (
           <select value={truck.id} onChange={(ev) => selectTruck(Number((ev.currentTarget as HTMLSelectElement).value))} aria-label="Truck">
             {trucks.map((t) => (
-              <option value={t.id} key={t.id} disabled={t.status !== "idle"}>
-                {BOARD.truck(truckNo(t.id), TRAILER_NAME[t.trailer])}
+              <option value={t.id} key={t.id} disabled={!boardable(w, t)}>
+                {/* Client batch W: a busy truck that may book ahead, with when and where it's free. */}
+                {aheadable(w, t) ? WINDOWS.pickerBusy(truckNo(t.id), TRAILER_NAME[t.trailer], freeAt(w, t).label, freeAt(w, t).placeName) : BOARD.truck(truckNo(t.id), TRAILER_NAME[t.trailer])}
               </option>
             ))}
           </select>
@@ -122,9 +132,9 @@ export function Loads(): JSX.Element {
       {posterName !== null && !rows.length ? <p class="muted small">{BOARD.noneFromPoster(posterName)}</p> : null}
       <div class="row">
         <div class="seg" role="group" aria-label="Sort">
-          {(["nearest", "pay", "hot"] as const).map((k) => (
+          {shownSorts.map((k) => (
             <Btn key={k} sm on={sort === k} onClick={() => setSort(k)}>
-              {BOARD.sorts[k]}
+              {k === "pickup" ? WINDOWS.sortPickup : BOARD.sorts[k as "nearest" | "pay" | "hot"]}
             </Btn>
           ))}
         </div>
@@ -243,10 +253,22 @@ function Chips({ r }: { r: BoardRow; truck: Truck }): JSX.Element {
 
 function LoadCard({ r, truck, name }: { r: BoardRow; truck: Truck; name: (i: number) => string }): JSX.Element {
   const { l } = r;
+  // Client batch W (the director's §1): the windows under the lane, in the order the player meets them.
+  const win = windowLine(S.game!.w, l);
+  if (win?.closing) queueMicrotask(() => iuliiaOnce("win:closing", WINDOWS.iuliiaFirstClosing));
   return (
     <button type="button" class={cls("loadcard", r.block && "blocked")} onClick={() => openLoad(l.id)} title={`${name(l.origin)} → ${name(l.dest)}`}>
       <span class="l1">{BOARD.line1(place(l.originPlace), place(l.destPlace), Math.round(l.miles).toLocaleString("en-US"))}</span>
-      <span class="l2 small">{BOARD.line2(fdFull(r.total), rateShown(l, l.bookNow), allInRate(r.total, l.miles, r.dh), Math.round(r.dh))}</span>
+      <span class="l2 small">
+        {BOARD.line2(fdFull(r.total), rateShown(l, l.bookNow), allInRate(r.total, l.miles, r.dh), Math.round(r.dh))}
+        {win?.sameDay ? ` · ${WINDOWS.sameDay(win.sameDay)}` : ""}
+      </span>
+      {win ? (
+        <span class="l3 small">
+          {win.today ? <span class="chip">{WINDOWS.readyToday}</span> : null} {WINDOWS.cardLine(win.ready, win.pickupBy, win.deliverBy)}
+        </span>
+      ) : null}
+      {win?.closing ? <span class="l3 small warn">{WINDOWS.closing(win.closing)}</span> : null}
       <span class="chips">
         <Chips r={r} truck={truck} />
         {r.heat >= 1.5 ? <span class="chip good">{BOARD.hotTo(name(l.dest))}</span> : r.heat >= 1.1 ? <span class="chip">{BOARD.tightTo(name(l.dest))}</span> : null}
@@ -300,7 +322,7 @@ function ResultCard({ onBidAgain }: { onBidAgain?: () => void }): JSX.Element | 
           ? ROUND.won(res.from, res.to, res.rate.toFixed(2), fdFull(res.total))
           : res.winning !== null
             ? ROUND.lost(res.winning.toFixed(2), res.rate.toFixed(2), res.be.toFixed(2))
-            : ROUND.nobody(res.rate.toFixed(2))}
+            : res.gone ?? ROUND.nobody(res.rate.toFixed(2))}
       </p>
       {/* Client batch 8c item 69: what beat it, when a higher bid won or the load went before the round. */}
       {!res.won && res.why ? <p class="small">{PENDING.lostWhy(res.why)}</p> : null}
@@ -376,6 +398,8 @@ function LoadSheet({ r, truck }: { r: BoardRow; truck: Truck }): JSX.Element {
   const [bidText, setBidText] = useState<string | null>(null);
   // R20: a refusal in the writer's words where the engine's reason is a vetting block; otherwise the engine's own.
   const refusal = (reason: string): string => {
+    // Client batch W: the two-deep limit, in the director's words.
+    if (/already has its next load booked/.test(reason)) return WINDOWS.twoDeep(truckNo(truck.id));
     // board.refuseOverCeiling: the engine's "above the ceiling, {rate}/mi", in the writer's words (R20).
     if (/above the ceiling/i.test(reason)) return ANSWER.ceiling(bidCeiling(l).toFixed(2));
     if (!/vetting rules you out|won't load a carrier with/.test(reason) || !/authority|loads delivered/.test(reason)) return reason;
@@ -414,7 +438,7 @@ function LoadSheet({ r, truck }: { r: BoardRow; truck: Truck }): JSX.Element {
     // Filed for a locals-first load's opening round: the director's line, with its hub and hour.
     if (r.files) iuliiaSayText(PENDING_RULES.bidFiled(w.net.hubs[l.origin]!.name, nextRoundHour()));
     else iuliiaSay("load:bid");
-    S.handBids.set(l.id, { rate: bid, be: r.be, truckId: truck.id, from: w.net.places[l.originPlace]!.name, to: w.net.places[l.destPlace]!.name, ...(r.files ? { filed: true } : {}) });
+    S.handBids.set(l.id, { rate: bid, be: r.be, truckId: truck.id, from: w.net.places[l.originPlace]!.name, to: w.net.places[l.destPlace]!.name, ...(r.files ? { filed: true } : {}), ...(windowsOn(w) && l.latestPickupT !== undefined ? { closes: l.latestPickupT } : {}) });
     S.handLoads.add(l.id);
     S.result = null;
     toast(answer);
@@ -433,6 +457,23 @@ function LoadSheet({ r, truck }: { r: BoardRow; truck: Truck }): JSX.Element {
   // What this sheet's figures were computed from, for their explain sheets (explain.ts).
   const fx = { loadId: l.id, truckId: truck.id };
   const swing = seasonSwing(l.origin, l.equipment);
+  // Client batch W (the director's §1): the windows, then what the booking agrees to in FD, at the rate Book now takes.
+  const win = windowLine(w, l);
+  const agree = agreement(w, truck, l, l.bookNow, truckNo(truck.id));
+  useEffect(() => {
+    if (win) iuliiaOnce("win:sheet", WINDOWS.iuliiaFirstSheet);
+  }, []);
+  const routeRows: [string, string | JSX.Element][] = win
+    ? [
+        [WINDOWS.ready, <Fig k="load.window" label={WINDOWS.ready} ctx={fx}>{`${win.ready} · ${op.name}, ${op.state}`}</Fig>],
+        [WINDOWS.pickupBy, win.pickupBy],
+        [WINDOWS.deliverBy, `${win.deliverBy} · ${place(l.destPlace)}`],
+      ]
+    : [
+        [LOAD.pickUp, `${op.name}, ${op.state} · ${pickupWhen}`],
+        [LOAD.deliverBy, `${deliverBy} · ${place(l.destPlace)}`],
+      ];
+  const claimKeys = ["claim.noShow", "claim.late", "claim.lost"];
   return (
     <div class="stack loadsheet">
       <div class="row">
@@ -444,14 +485,23 @@ function LoadSheet({ r, truck }: { r: BoardRow; truck: Truck }): JSX.Element {
       <Card title={LOAD.route}>
         <Kv
           rows={[
-            [LOAD.pickUp, `${op.name}, ${op.state} · ${pickupWhen}`],
-            [LOAD.deliverBy, `${deliverBy} · ${place(l.destPlace)}`],
+            ...routeRows,
             [LOAD.miles, <Fig k="board.deadhead" label={LOAD.miles} ctx={fx}>{LOAD.milesValue(Math.round(l.miles).toLocaleString("en-US"), Math.round(r.dh))}</Fig>],
             [LOAD.driving, `${l.routeHours.toFixed(1)} h`],
             [LOAD.reloadAt(w.net.hubs[l.dest]!.name), LOAD.reloadValue(reloadLabel(l.dest, l.equipment), Math.round(r.reloadMi))],
           ]}
         />
       </Card>
+      {agree ? (
+        <Card title={WINDOWS.agreeTitle}>
+          <ul class="agree small">
+            {agree.lines.map((line, i) => (
+              <li key={i}>{i < claimKeys.length && !(i === 2 && !aheadable(w, truck)) ? <Fig k={claimKeys[i]!} label={WINDOWS.agreeTitle} ctx={fx}>{line}</Fig> : line}</li>
+            ))}
+          </ul>
+          {agree.tight ? <p class="small warn">{agree.tight}</p> : null}
+        </Card>
+      ) : null}
       <Card title={LOAD.money}>
         <Kv
           rows={[

@@ -74,8 +74,9 @@ export const PLAYER_DISPATCHER_ORDERS: StandingOrder[] = DEFAULT_ORDERS.filter((
   o.kind === "bid" ? { ...o, price: { mode: "clearsNear", pct: 0 } } : o.kind === "floor" ? { ...o, breakEvenPlusPct: 0 } : o.kind === "contracts" ? { ...o, acceptOffers: false } : o,
 );
 
-export function newWorld(seed: number): World {
-  const net = buildNetwork(hubs, GAME_CONFIG);
+/** `cfg`: the rules (tests only: client batch W's run a world with windows on before the switch-on commit). */
+export function newWorld(seed: number, cfg: EconomyConfig = GAME_CONFIG): World {
+  const net = buildNetwork(hubs, cfg);
   // Client batch 8e item 71: one name for one place. A hub's own town is called by the hub's name ("Newark", not "New
   // York City" for the town the Newark hub sits in), so the truck card, the board and Iuliia agree. Names are only ever
   // read for words (no rule reads one), so the world is the same.
@@ -83,7 +84,7 @@ export function newWorld(seed: number): World {
     const p = PLACE_OF_HUB[i];
     if (p !== undefined && net.places[p] && net.places[p]!.name !== h.name) (net.places as { name: string }[])[p] = { ...net.places[p]!, name: h.name };
   });
-  const w = createWorld({ cfg: GAME_CONFIG, net, feeds: { ...neutralFeeds, cycle: syntheticCassCycle({ seed }) }, seed });
+  const w = createWorld({ cfg, net, feeds: { ...neutralFeeds, cycle: syntheticCassCycle({ seed }) }, seed });
   populate(w, POPULATION);
   // The month's books read every posting from here on (books.ts); they only read, so the replay is untouched.
   watchBooks(w);
@@ -217,8 +218,8 @@ export class TestGame {
    * minute.
    */
   /** `onHour` sees the world after each warm-up hour (the screen samples the hub readings there; it only reads). */
-  static async create(onProgress?: (share: number) => void, onHour?: (w: World) => void, seed = Math.floor(Math.random() * 1e9)): Promise<TestGame> {
-    const w = newWorld(seed);
+  static async create(onProgress?: (share: number) => void, onHour?: (w: World) => void, seed = Math.floor(Math.random() * 1e9), cfg?: EconomyConfig): Promise<TestGame> {
+    const w = newWorld(seed, cfg);
     await warmUp(w, WARM_HOURS, onProgress, onHour);
     return new TestGame({ v: 1, ruleset: RULESET, seed, name: "", start: "oo", hub: "", t: w.t, acts: [] }, w);
   }

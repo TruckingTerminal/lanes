@@ -689,9 +689,10 @@ export function drawMap(now: number): void {
     }
   }
   // The board's lanes (S3–S4): the open load's empty leg dotted and its lane solid; a bid in, its lane dashed.
-  const stroke = (pts: [number, number][] | null, dash: number[], color: string) => {
+  const stroke = (pts: [number, number][] | null, dash: number[], color: string, alpha = 1) => {
     if (!pts) return;
     ctx.save();
+    ctx.globalAlpha = alpha;
     ctx.strokeStyle = color;
     ctx.lineWidth = 2 * u;
     ctx.setLineDash(dash.map((d) => d * u));
@@ -717,6 +718,13 @@ export function drawMap(now: number): void {
       const bid = w.manualBids.get(t.id);
       const bl = bid ? w.loads.get(bid.loadId) : undefined;
       if (bl && bl.id !== openL?.id) stroke(routePoints(bl.origin, bl.dest), [6, 4], PAL.cyan);
+      // Client batch W (the director's §2): a load booked ahead, faint, after the current leg: the empty run from this
+      // job's receiver, then its lane.
+      const nx = t.nextLoadId !== undefined ? w.loads.get(t.nextLoadId) : undefined;
+      if (nx) {
+        stroke(routePoints(t.targetHub, nx.origin), [1, 3], PAL.white, 0.35);
+        stroke(routePoints(nx.origin, nx.dest), [], PAL.cyan, 0.35);
+      }
     }
   }
   // The player's brokerage (brokerage-ux.md section 1): a brokered load in motion is an amber dashed lane under its

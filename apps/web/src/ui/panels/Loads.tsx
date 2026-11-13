@@ -1,6 +1,6 @@
 import type { JSX } from "preact";
 import { useEffect, useRef, useState } from "preact/hooks";
-import { crewed, dispatchProfile, expectedReloadDeadheadMi, isLocal, operatingTrucks, localOnly, MANUAL_BID_MAX_DEADHEAD_MI, ownerDrawFd, placeMiles, placeToll, VETTING_NAMES, type Load, type Truck } from "@lanes/engine";
+import { crewed, dispatchProfile, expectedReloadDeadheadMi, isLocal, operatingTrucks, localOnly, MANUAL_BID_MAX_DEADHEAD_MI, ownerDrawFd, placeMiles, placeToll, VETTING_NAMES, windowsOn, type Load, type Truck } from "@lanes/engine";
 import { COMMODITIES } from "@lanes/data";
 import { allInRate, bidCeiling, bidFiles, bidRange, typedRate, blockReason, chipPair, clampToCeiling, clearsNear, overCeiling, profitOver, rateShown, suggestBid } from "../../board.js";
 import { ANSWER } from "../../copy.js";
@@ -11,6 +11,9 @@ import { cls, fd, fdFull, hhmm, pct, shortDate, TRAILER_CODE, TRAILER_NAME } fro
 import { nextRoundLabel, openLoadsAt, reloadClass, reloadLabel, SeasonNote, seasonSwing, statusText, withDaysOffWarning } from "../../logic.js";
 import { act, bumpData, me, myTrucks, S, selectTruck, toast, useData } from "../../state.js";
 import { PENDING } from "../../copy-pending.js";
+import { WINDOWS } from "../../copy-windows.js";
+import { reachChip, reachFor, windowLine } from "../../windowsui.js";
+import { truckNumber } from "../../trucknos.js";
 import { Btn, Card, Kv, Num, Panel } from "../bits.js";
 import { SCENES } from "../../assets.js";
 import { Portrait, Scene } from "../Loop.js";
@@ -144,10 +147,12 @@ export function LoadsTable(): JSX.Element {
     const tolls = placeToll(w, truck.place, l.originPlace) + l.routeTollFd;
     const be = trueBreakEven(w, truck, l, dh, placeToll(w, truck.place, l.originPlace), prof.foresightDays, prof.reloadWeight);
     const suggest = suggestBid(w, l, be);
-    const block = blockReason(w, me(), truck, l); // the board's one reason (R22), the same words as the cards
+    // The board's one reason (R22), the same words as the cards; client batch W: canMake's, once windows are on.
+    const reach = reachFor(w, truck, l);
+    const block = blockReason(w, me(), truck, l) ?? (reach ? reachChip(w, l, reach, truckNumber(w, truck)) : null);
     rows.push({ l, dh, be, suggest, profit: suggest === null ? null : profitOver(w, truck, suggest, be, l.miles), profitBook: profitOver(w, truck, l.bookNow, be, l.miles), reloadMi, tolls, highway: lane.highwayShare, hours: l.routeHours, total: l.bookNow * l.miles, ageH: l.roundsUnfilled * 12, block, files: bidFiles(w, me(), truck, l) });
   }
-  const key = (r: Row): number => (sort === "rate" ? r.total : sort === "permi" ? r.l.bookNow : sort === "age" ? r.ageH : sort === "trip" ? r.l.miles : sort === "dh" ? r.dh : r.l.appointmentT);
+  const key = (r: Row): number => (sort === "rate" ? r.total : sort === "permi" ? r.l.bookNow : sort === "age" ? r.ageH : sort === "trip" ? r.l.miles : sort === "dh" ? r.dh : (r.l.latestPickupT ?? r.l.appointmentT));
   rows.sort((a, b) => (desc ? key(b) - key(a) : key(a) - key(b)));
   const shown = rows.slice(0, 60);
 
@@ -176,7 +181,10 @@ export function LoadsTable(): JSX.Element {
               {th("trip", "Trip")}
               <th>Lane</th>
               {th("dh", "Empty")}
-              {th("pickup", "Deliver by")}
+              {/* Client batch W: Ready, Pick up by and Deliver by once windows are on. */}
+              {windowsOn(w) ? <th>{WINDOWS.colReady}</th> : null}
+              {th("pickup", windowsOn(w) ? WINDOWS.colPickupBy : "Deliver by")}
+              {windowsOn(w) ? <th>{WINDOWS.colDeliverBy}</th> : null}
               <th>Eq</th>
               <th>Load</th>
               <th>Profit</th>
@@ -248,9 +256,20 @@ function LoadRow({ r, truck, mine, pendingRate }: { r: Row; truck: Truck; mine: 
           </div>
         </td>
         <td class="num">{r.dh}</td>
-        <td class="num">
-          {shortDate(Math.floor(l.appointmentT / 1440))} {hhmm(l.appointmentT)}
-        </td>
+        {(() => {
+          const win = windowLine(w, l);
+          return win ? (
+            <>
+              <td class="num">{win.ready}</td>
+              <td class="num">{win.pickupBy}</td>
+              <td class="num">{win.deliverBy}</td>
+            </>
+          ) : (
+            <td class="num">
+              {shortDate(Math.floor(l.appointmentT / 1440))} {hhmm(l.appointmentT)}
+            </td>
+          );
+        })()}
         <td class="num">{TRAILER_CODE[l.equipment]}</td>
         <td>
           <div>{k.name}</div>
@@ -277,7 +296,7 @@ function LoadRow({ r, truck, mine, pendingRate }: { r: Row; truck: Truck; mine: 
       </tr>
       {open ? (
         <tr class="open">
-          <td colSpan={11}>
+          <td colSpan={windowsOn(w) ? 13 : 11}>
             <LoadDetail r={r} truck={truck} mine={mine} pendingRate={pendingRate} />
           </td>
         </tr>
@@ -315,7 +334,7 @@ function LoadDetail({ r, truck, mine, pendingRate }: { r: Row; truck: Truck; min
     act({ type: "place_bid", truckId: truck.id, loadId: l.id, rate }, `Bid in at ${rate.toFixed(2)}/mi. It clears at ${nextRoundLabel()}.${loss}`);
     // A hand bid from the table is a hand bid too: the round's result card (main.tsx, the lostBid and won events and the
     // load leaving the board) reads this record (the trucker's laptop bid lost with no word).
-    S.handBids.set(l.id, { rate, be: r.be, truckId: truck.id, from: op.name, to: dp.name, ...(r.files ? { filed: true } : {}) });
+    S.handBids.set(l.id, { rate, be: r.be, truckId: truck.id, from: op.name, to: dp.name, ...(r.files ? { filed: true } : {}), ...(windowsOn(w) && l.latestPickupT !== undefined ? { closes: l.latestPickupT } : {}) });
   };
   // Client batch 6 (QA, laptop at 1024×768): the actions sat at the foot of the third column, the bid field about 164 px
   // below the window. They lead now, one row under the heading, and the opened row brings them into view if it must.

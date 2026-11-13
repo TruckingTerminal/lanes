@@ -90,6 +90,25 @@ export function iuliiaOnChange(id: string, now: unknown, key: string | null): vo
   if (was !== undefined && was !== now && key) iuliiaSay(key);
 }
 
+/**
+ * A line said once ever in this browser (client batch W, the director's first lines on delivery windows): kept as said
+ * only once it could be shown (not on Quiet, the quiet time over), so a line held back comes again at its next trigger.
+ */
+const ONCE_KEY = "lanes.iuliia.once";
+let onceSaid: Set<string> = (() => {
+  try {
+    return new Set(JSON.parse(store.get(ONCE_KEY) ?? "[]") as string[]);
+  } catch {
+    return new Set<string>();
+  }
+})();
+export function iuliiaOnce(key: string, text: string): void {
+  if (onceSaid.has(key) || muted || performance.now() - lastShownAt < GAME_CONFIG.ui.iuliia.quietSeconds * 1000) return;
+  onceSaid = new Set([...onceSaid, key]);
+  store.set(ONCE_KEY, JSON.stringify([...onceSaid]));
+  iuliiaSayText(text);
+}
+
 /** Whether a new unasked line may start now (caption rule 3, the milestones): not on Quiet, and the quiet time is over. */
 export const iuliiaMayStart = (): boolean => !muted && performance.now() - lastShownAt >= GAME_CONFIG.ui.iuliia.quietSeconds * 1000;
 /** A milestone line started: the quiet time runs from now, as after her tab lines. */

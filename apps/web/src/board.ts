@@ -1,9 +1,11 @@
-import { canMakeHot, filesForOpening, homeBlock, homeEdge, resting, settlementShare, clearsNear as engineClearsNear, clearsNearParts, dayOf, dockHoursAt, dutyResetAt, nextOpen, dispatchProfile, EQUIPMENT, expectedReloadDeadheadMi, mayTake, operatingTrucks, ownerDrawFd, placeMiles, placeToll, planIndex, vettingBlock, type Company, type Load, type Truck, type World } from "@lanes/engine";
+import { canMakeHot, filesForOpening, freeOf, homeBlock, windowsOn, type Reach, homeEdge, resting, settlementShare, clearsNear as engineClearsNear, clearsNearParts, dayOf, dockHoursAt, dutyResetAt, nextOpen, dispatchProfile, EQUIPMENT, expectedReloadDeadheadMi, mayTake, operatingTrucks, ownerDrawFd, placeMiles, placeToll, planIndex, vettingBlock, type Company, type Load, type Truck, type World } from "@lanes/engine";
 import { COMMODITIES } from "@lanes/data";
 import { trueBreakEven } from "./breakeven.js";
 import { WALL } from "./copy.js";
 import { hhmm, shortDate, weekday } from "./format.js";
 import { PENDING } from "./copy-pending.js";
+import { truckNumber } from "./trucknos.js";
+import { reachChip, reachFor } from "./windowsui.js";
 
 /**
  * The board's arithmetic (specs/first-ten-minutes.md, S2–S5), apart from the screen so it can be tested: each open load
@@ -36,10 +38,15 @@ export interface BoardRow {
   block: string | null;
   /** leverage.localHoldHandBids: the only block is a locals-first hold in its last round, so a bid by hand is filed for the opening. */
   files: boolean;
+  /** Delivery windows (client batch W): canMake's answer for this truck, from where it will be free; null with windows off. */
+  reach: Reach | null;
 }
 
-/** "hot" (Jeff, 2026-11-04, in place of "deliver"): loads bound for the hottest markets first. */
-export type BoardSort = "nearest" | "pay" | "hot" | "clears";
+/**
+ * "hot" (Jeff, 2026-11-04, in place of "deliver"): loads bound for the hottest markets first. "pickup" (client batch W, the
+ * director): the pickup's close first, the default once windows are on.
+ */
+export type BoardSort = "nearest" | "pay" | "hot" | "clears" | "pickup";
 
 /** A market's loads per truck for a trailer last round, as the Rates table reads it. */
 export const marketHeat = (w: World, hub: number, eq: Load["equipment"]): number => w.lastRatioEq[planIndex(hub, EQUIPMENT.indexOf(eq))] ?? 1;
@@ -333,10 +340,15 @@ export function boardRows(w: World, c: Company, truck: Truck, f: BoardFilter): B
   const prof = dispatchProfile(w, c, operatingTrucks(w, c.id));
   const q = f.query.trim().toLowerCase();
   const rows: BoardRow[] = [];
+  // Client batch W: a truck on a job books its next load from where it will be free (engine actions.ts book_load); once
+  // per truck, canMake's first half.
+  const free = windowsOn(w) ? freeOf(w, truck) : null;
+  const from = free && truck.status !== "idle" ? free.place : truck.place;
+  const no = truckNumber(w, truck);
   for (const l of w.loads.values()) {
     if (l.status !== "open" || l.equipment !== truck.trailer || l.brokerId === c.id) continue;
     if (l.tenderedTo !== 0 && l.tenderedTo !== c.id) continue; // someone else's contract tender
-    const dh = placeMiles(w, truck.place, l.originPlace);
+    const dh = placeMiles(w, from, l.originPlace);
     if (dh > f.maxDh) continue;
     if (!destMatch(w, l, f.dest)) continue;
     if (f.minRpm && l.bookNow < f.minRpm - 1e-9) continue;
@@ -347,8 +359,9 @@ export function boardRows(w: World, c: Company, truck: Truck, f: BoardFilter): B
       const dp = w.net.places[l.destPlace]!;
       if (![COMMODITIES[l.commodity]!.name, op.name, op.state, dp.name, dp.state].some((s) => s.toLowerCase().includes(q))) continue;
     }
-    const tolls = placeToll(w, truck.place, l.originPlace);
+    const tolls = placeToll(w, from, l.originPlace);
     const be = trueBreakEven(w, truck, l, dh, tolls, prof.foresightDays, prof.reloadWeight);
+    const reach = reachFor(w, truck, l, free);
     const suggest = suggestBid(w, l, be);
     rows.push({
       l,
@@ -364,8 +377,10 @@ export function boardRows(w: World, c: Company, truck: Truck, f: BoardFilter): B
       profitSuggest: suggest === null ? null : profitOver(w, truck, suggest, be, l.miles),
       heat: marketHeat(w, l.dest, l.equipment),
       draw: ownerDrawFd(w, truck, l.miles + dh),
-      block: blockReason(w, c, truck, l),
-      files: bidFiles(w, c, truck, l),
+      // Client batch W: a load this truck can't make is closed with canMake's reason as its chip (R22).
+      block: blockReason(w, c, truck, l) ?? (reach ? reachChip(w, l, reach, no) : null),
+      files: bidFiles(w, c, truck, l) && (!reach || reach.ok),
+      reach,
     });
   }
   return rows;
@@ -377,7 +392,7 @@ export function boardRows(w: World, c: Company, truck: Truck, f: BoardFilter): B
  */
 export function sortRows(rows: BoardRow[], sort: BoardSort, firstVisit: boolean): BoardRow[] {
   const key = (r: BoardRow): number =>
-    sort === "nearest" ? r.dh : sort === "pay" ? -r.total : sort === "hot" ? -r.heat : -(r.clears - r.be) * r.l.miles;
+    sort === "nearest" ? r.dh : sort === "pay" ? -r.total : sort === "hot" ? -r.heat : sort === "pickup" ? (r.l.latestPickupT ?? r.l.appointmentT) : -(r.clears - r.be) * r.l.miles;
   return [...rows].sort((a, b) => {
     if (!!a.block !== !!b.block) return a.block ? 1 : -1;
     if (firstVisit && a.profitBook >= 0 !== b.profitBook >= 0) return a.profitBook >= 0 ? -1 : 1;
