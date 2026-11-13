@@ -52,6 +52,7 @@ export const REPORT = {
   outTotal: "Went out, FD",
   net: "Net, FD",
   burned: "Burned this month, FD",
+  settlement: "Settlement fees, gone from the economy, FD",
   emission: "Freight pay against the published budget",
   inKind: (kind: string) => `In: ${kind}`,
   outKind: (kind: string) => `Out: ${kind}`,

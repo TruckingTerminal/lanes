@@ -474,6 +474,8 @@ export const DELIVERED = {
   driverHired: (name: string) => `Driver's pay · ${name}`,
   upkeep: "Truck upkeep",
   lessor: (share: string) => `The lessor's ${share}`,
+  // token.settlementFee (the director's name, director-eve.md §1): its own line on the pay card, never "burn".
+  settlement: (share: string) => `The settlement fee, ${share}`,
   held: "Held toward your own truck (kept)",
   yours: "Yours",
   /** Detention (cfg.detention; the producer's line, for the writer): hours past the free time at a closed dock. */
@@ -1175,6 +1177,7 @@ export const MONTH = {
     fuelTax: "Fuel tax",
     wages: "Wages and per diem",
     lessor: "The lessor's share",
+    settlement: "Settlement fees",
     maintenance: "Maintenance and repairs",
     insurance: "Insurance",
     tolls: "Tolls",
@@ -1278,6 +1281,8 @@ export const EXPLAIN = (cfg: EconomyConfig): Record<string, Ex> => ({
   "board.deadhead": { what: "Miles your truck drives empty to reach the pickup.", how: "Road miles from where your truck is to the load's origin.", moves: "Where your truck waits; nearer loads." },
   "truck.eta": { what: "When the truck should arrive, waiting included.", how: "Driving hours left, rest stops, and the dock's opening hours.", moves: "Hours of service, the weather, the road and the dock." },
   "truck.hosLeft": { what: "Hours the driver may still drive today.", how: `${cfg.hos.drivingHoursPerDay} hours a day, less what's driven since the last rest.`, moves: "Rest resets it; a team drives longer." },
+  // token.settlementFee: the director's explain words (director-eve.md §1).
+  "pay.settlement": { what: "The settlement fee on what a load or a sale pays.", how: `Every payment between companies clears through the freight payment network, which keeps ${pctOf(cfg.token.settlementFee?.share ?? 0)}. No company receives it: it leaves the economy, which keeps FD scarce.`, moves: "Everyone pays the same rate; it's published in the monthly report." },
   "pay.lessorShare": { what: "The lessor's cut of every load on a leased truck.", how: `${pctOf(cfg.costs.npcLeaseShareOfGross)} of what the load pays.`, moves: "It ends when you own the truck." },
   "pay.fuel": { what: "Diesel burned on this load, empty miles included.", how: "Miles divided by the truck's mpg, times the day's pump price.", moves: "Fewer empty miles, the make's mpg, the price of diesel." },
   "pay.tolls": { what: "Road tolls on this route.", how: "The tolled roads the route uses, at their rates.", moves: "The route; some lanes have none." },

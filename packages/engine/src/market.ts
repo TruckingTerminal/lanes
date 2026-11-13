@@ -1,6 +1,7 @@
 import { dayOf } from "./clock.js";
 import { fmtInt } from "./economics.js";
 import { econUsedSale } from "./econMonth.js";
+import { chargeSettlement } from "./settlement.js";
 import { chargeSalesTax, salesTaxOn } from "./salesTax.js";
 import { activeLoanOn, closeLoanFromPoolProceeds, POOL_ACCOUNT, settleLoanFromSale, writeOffLoan } from "./finance.js";
 import { companyAccount } from "./ledger.js";
@@ -154,6 +155,7 @@ export function buyListing(w: World, buyerId: number, listingId: number): string
     const carried = w.ledger.post(w.t, buyerAcct, sellerAcct, net, ref);
     lockedPaid += carried;
     w.ledger.lock(sellerAcct, Math.max(0, Math.min(net, basis) - carried)); // locked up to the basis in all, what the payment carried included
+    chargeSettlement(w, l.sellerId, buyerId, net, ref); // token.settlementFee, on the net to the seller
     if (loanOpen) settleLoanFromSale(w, loan, sellerAcct, net);
   }
   truck.lockedBasisFd = lockedPaid;
@@ -205,6 +207,7 @@ function buyTrailerListing(w: World, l: Listing, buyerId: number): string | null
   chargeSalesTax(w, buyerId, l.askFd, ref);
   const carried = w.ledger.post(w.t, buyerAcct, companyAccount(l.sellerId), l.askFd - fee, ref);
   lockedPaid += carried;
+  chargeSettlement(w, l.sellerId, buyerId, l.askFd - fee, ref); // token.settlementFee, on the net to the seller
   w.ledger.lock(companyAccount(l.sellerId), Math.max(0, Math.min(l.askFd - fee, tr.lockedBasisFd ?? 0) - carried)); // bought with spend-only FD: sold for the same
   tr.lockedBasisFd = lockedPaid;
   companyById(w, l.sellerId).usedSold++;

@@ -18,6 +18,7 @@ import { dayOf, MINUTES_PER_HOUR } from "./clock.js";
 import { clamp, fuelPrice, tripCost, ownerDrawFd } from "./economics.js";
 import { noteEmissionCommitment, npcPayKind } from "./emission.js";
 import { settleDoubleBroker } from "./fraud.js";
+import { chargeSettlement } from "./settlement.js";
 import { bill, factoringLog } from "./receivables.js";
 import { lockCost, stakeDiscount } from "./staking.js";
 import { creditMiles, creditDriving, homeArrival } from "./labor.js";
@@ -728,11 +729,13 @@ function deliver(w: World, truck: Truck, now: number): void {
   if (!spoiled) collectUpstream(w, load, db ?? carrier, upstream, factor, ref, !db && truck.lease === "npc");
   const own = load.shipperId === carrier.id;
   const paid = own || spoiled ? 0 : db ? settleDoubleBroker(w, load, carrier, gross, upstream) : gross;
+  // token.settlementFee: on what the carrier is paid, from the carrier (settlement.ts); none on its own brokerage's tender.
+  const settled = chargeSettlement(w, carrier.id, load.brokerId ?? db?.id ?? load.shipperId ?? null, paid, ref);
   // Detention, its own line in the settlement (cfg.detention), to the carrier that waited.
   const detained = spoiled || own ? 0 : payDetention(w, load, carrier);
   carrier.operating.revenueFd += detained;
 
-  let costs = payTripCosts(w, truck, ref);
+  let costs = payTripCosts(w, truck, ref) + settled;
   // An open deck in the weather (equipmentOps): a damage claim at the receiver.
   if (cfg.equipmentOps.enabled && load.equipment === "flatbed") costs += flatbedDamage(w, truck, carrier, load);
   if (spoiled) {

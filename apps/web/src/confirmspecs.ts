@@ -1,4 +1,4 @@
-import { activeLoanOn, condition, dayOf, leaseValueFd, purchaseLoanOn, effectiveMpg, fuelPrice, hubMiles, maintenancePerMile, rebuildable, rebuildCost, tractorLifeUsed, tractorScrapFd, truckValue, type Company, type Truck, type TruckSpec, type World } from "@lanes/engine";
+import { activeLoanOn, condition, dayOf, settlementShare, leaseValueFd, purchaseLoanOn, effectiveMpg, fuelPrice, hubMiles, maintenancePerMile, rebuildable, rebuildCost, tractorLifeUsed, tractorScrapFd, truckValue, type Company, type Truck, type TruckSpec, type World } from "@lanes/engine";
 import type { Equipment, TractorTier } from "@lanes/config";
 import { CONFIRM } from "./copy.js";
 import { MILES_PER_MONTH } from "./finance.js";
@@ -66,7 +66,10 @@ export function sell(w: World, t: Truck, n: number, askFd: number, floorShare = 
   const crew = [t.driverId, t.coDriverId].filter((id) => id > 0).map((id) => w.staff[id - 1]!);
   const hired = crew.filter((s) => !s.owner).map((s) => s.name);
   const crewLines = [...(hired.length ? [PENDING.sellCrew(hired, w.cfg.labor.morale.unseatedWeeks)] : []), ...(crew.some((s) => s.owner) ? [PENDING.sellOwnerOff] : [])];
-  const does = [CONFIRM.sell(n, fdFull(askFd)), ...crewLines, PENDING.sellPath(pct(stepShare), pct(floorShare), floor, weeks), PENDING.sellEnd(floor)];
+  // token.settlementFee: folded into the market's fee as one named line (the director: one fee, not a stack); off, unsaid.
+  const settle = settlementShare(w.cfg);
+  const feeLine = settle > 0 ? [PENDING.sellFees(pct(w.cfg.usedMarket.feePct + settle), fdFull(askFd * (w.cfg.usedMarket.feePct + settle)))] : [];
+  const does = [CONFIRM.sell(n, fdFull(askFd)), ...crewLines, ...feeLine, PENDING.sellPath(pct(stepShare), pct(floorShare), floor, weeks), PENDING.sellEnd(floor)];
   const risk = [PENDING.sellWaiting(fdFull(w.cfg.costs.idleFeePerDay))];
   if (askFd > STARTERS_BAND_FD) risk.push(PENDING.sellFewBuyers);
   const pl = purchaseLoanOn(w, t.id);

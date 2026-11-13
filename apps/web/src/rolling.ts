@@ -1,5 +1,5 @@
 import { dcos, greatCircleMiles } from "@lanes/data";
-import { drivingLimitMin, dutyResetAt, fuelPrice, hubMiles, hubToll, legRoute, legMile, mphFor, placeHours, placeLegMiles, placeOfHub, placeToll, planNight, tripCost, truckLatLon, type Company, type Load, type Receivable, type Truck, type World, ownerDrawFd } from "@lanes/engine";
+import { drivingLimitMin, dutyResetAt, fuelPrice, hubMiles, hubToll, legRoute, legMile, mphFor, placeHours, placeLegMiles, placeOfHub, placeToll, planNight, settlementShare, tripCost, truckLatLon, type Company, type Load, type Receivable, type Truck, type World, ownerDrawFd } from "@lanes/engine";
 import { DELIVERED, MOVE } from "./copy.js";
 import { shortDate } from "./format.js";
 
@@ -142,6 +142,8 @@ export interface TruckBefore {
 
 export interface PayLine {
   load: number;
+  /** token.settlementFee on what the load paid (0 off). */
+  settlement: number;
   fuel: number;
   tolls: number;
   driver: number;
@@ -166,7 +168,9 @@ export function payLine(w: World, t: Truck, load: Load, grossFd: number, costFd:
   const leased = t.lease !== "owned";
   const lessor = leased ? grossFd * w.cfg.costs.npcLeaseShareOfGross : 0;
   const held = Math.max(0, (t.depositFd ?? 0) - before.depositFd);
-  const trip = Math.max(0, costFd - lessor);
+  // token.settlementFee: charged on what the load paid (engine settlement.ts), inside the engine's cost; its own line.
+  const settlement = Math.min(Math.max(0, costFd - lessor), grossFd * settlementShare(w.cfg));
+  const trip = Math.max(0, costFd - lessor - settlement);
   const fuel = fuelPrice(w);
   const c = tripCost(w.cfg, t, fuel, before.emptyMi + load.miles, load.miles);
   const tr = w.cfg.roads.terrain;
@@ -184,6 +188,7 @@ export function payLine(w: World, t: Truck, load: Load, grossFd: number, costFd:
     driver: parts.driver * k,
     upkeep: parts.upkeep * k,
     lessor,
+    settlement,
     held,
     draw,
     detention: load.detention?.fd ?? 0,

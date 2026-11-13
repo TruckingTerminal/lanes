@@ -8,6 +8,7 @@ import { criminal, loseLoad, notice, record, restitute, revoke } from "./safety.
 import { abandonLeg, legKeyOf } from "./trips.js";
 import type { Company, FraudCase, Load, Truck } from "./types.js";
 import { companyById, staffById, type World } from "./world.js";
+import { chargeSettlement } from "./settlement.js";
 
 /**
  * Fraud (design proposal, Jeff 2026-10-28): double brokering and freight theft,
@@ -121,6 +122,7 @@ export function settleDoubleBroker(w: World, load: Load, hauler: Company | null,
   }
   // Since 0.13.1 the hauler's counter can clear above the rate the load was won at: then there's no spread to keep.
   const spread = Math.max(0, upstreamGross - paid - coveredCostFd);
+  broker.operating.costFd += chargeSettlement(w, broker.id, null, spread, `rebroker:${load.id}`); // token.settlementFee, on the re-poster's spread
   const unpaid = hauler !== null && !db.pays;
   if (unpaid) {
     broker.claims.push({ day: today(w), until: today(w) + w.cfg.fraud.theft.claimDays, kind: "unpaid" });

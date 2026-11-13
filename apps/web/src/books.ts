@@ -19,7 +19,7 @@ import { numberTrucks } from "./trucknos.js";
 /** Earned: what the month's work brought in. */
 export const EARNED = ["loads", "detention", "goods", "fees", "otherIn"] as const;
 /** Spent: what the month's work cost. */
-export const SPENT = ["fuel", "fuelTax", "wages", "lessor", "maintenance", "insurance", "tolls", "yard", "fines", "claims", "interest", "overhead", "idle", "carrierPay", "taxes", "otherOut"] as const;
+export const SPENT = ["fuel", "fuelTax", "wages", "lessor", "settlement", "maintenance", "insurance", "tolls", "yard", "fines", "claims", "interest", "overhead", "idle", "carrierPay", "taxes", "otherOut"] as const;
 /** Cash that moved for other reasons: why cash moved differently from what was kept. */
 export const MOVED = ["bought", "sold", "loansIn", "principal", "held", "setAside", "between", "capital", "token"] as const;
 export type BookLine = (typeof EARNED)[number] | (typeof SPENT)[number] | (typeof MOVED)[number];
@@ -149,6 +149,8 @@ export function lineOf(w: World, c: Company, other: string, ref: string, inflow:
       case "npc_lease":
       case "trailer_rent":
         return "lessor";
+      case "trade_burn":
+        return "settlement"; // token.settlementFee (the director: one row, "Settlement fees")
       case "parts":
       case "repairs":
       case "road_service":

@@ -17,6 +17,7 @@ import { listTruck } from "./market.js";
 import { chargeSalesTax, salesTaxOn } from "./salesTax.js";
 import type { Business, Company, Truck, TruckOrder } from "./types.js";
 import { detachTruck, type World } from "./world.js";
+import { chargeSettlement } from "./settlement.js";
 
 const TIERS: TractorTier[] = ["workhorse", "highwayPro", "flagship"];
 const TYPES: Equipment[] = ["van", "reefer", "flatbed"];
@@ -90,6 +91,7 @@ export function sellFromStock(w: World, buyer: Company, b: Business, kind: Truck
     const ref = `dealership:${b.id}:${buyer.id}`;
     b.lastSaleLockedFd = w.ledger.post(w.t, acct, companyAccount(b.ownerId), price, ref);
     chargeSalesTax(w, buyer.id, price, ref);
+    chargeSettlement(w, b.ownerId, buyer.id, price, ref); // token.settlementFee, from the dealership
     b.netFd += price;
     // Stock bought with spend-only FD (ledger.ts) sells for spend-only FD: the unit's share of the lot's locked basis.
     const units = Object.values(b.stock.tractor).reduce((s, n) => s + n, 0) + Object.values(b.stock.trailer).reduce((s, n) => s + n, 0);
@@ -204,6 +206,7 @@ export function tradeIn(w: World, seller: Company, truck: Truck, b: Business): s
   const sellerAcct = companyAccount(seller.id);
   const ref = `tradein:${b.id}:${truck.id}`;
   const lockedPaid = w.ledger.post(w.t, ownerAcct, sellerAcct, offer, ref);
+  chargeSettlement(w, seller.id, b.ownerId, offer, ref); // token.settlementFee, from the truck's owner
   w.ledger.lock(sellerAcct, Math.max(0, Math.min(offer, truck.lockedBasisFd ?? 0) - lockedPaid)); // bought with spend-only FD: traded in for the same
   truck.lockedBasisFd = lockedPaid;
   if (loan) settleLoanFromSale(w, loan, sellerAcct, offer);

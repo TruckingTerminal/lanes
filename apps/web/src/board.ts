@@ -1,4 +1,4 @@
-import { canMakeHot, filesForOpening, homeBlock, homeEdge, resting, clearsNear as engineClearsNear, clearsNearParts, dayOf, dockHoursAt, dutyResetAt, nextOpen, dispatchProfile, EQUIPMENT, expectedReloadDeadheadMi, mayTake, operatingTrucks, ownerDrawFd, placeMiles, placeToll, planIndex, vettingBlock, type Company, type Load, type Truck, type World } from "@lanes/engine";
+import { canMakeHot, filesForOpening, homeBlock, homeEdge, resting, settlementShare, clearsNear as engineClearsNear, clearsNearParts, dayOf, dockHoursAt, dutyResetAt, nextOpen, dispatchProfile, EQUIPMENT, expectedReloadDeadheadMi, mayTake, operatingTrucks, ownerDrawFd, placeMiles, placeToll, planIndex, vettingBlock, type Company, type Load, type Truck, type World } from "@lanes/engine";
 import { COMMODITIES } from "@lanes/data";
 import { trueBreakEven } from "./breakeven.js";
 import { WALL } from "./copy.js";
@@ -285,7 +285,8 @@ export function lostWhy(w: World, load: Load, mine: { truckId: number; rate: num
  * rows, a bid's profit, What now?'s and a lost bid's, the profit chip's sheet), so they agree; chipPair reads it.
  */
 export function profitOver(w: World, t: { lease: Truck["lease"] } | undefined, rate: number, be: number, miles: number): number {
-  return (rate - be) * miles * (t && t.lease !== "owned" ? 1 - w.cfg.costs.npcLeaseShareOfGross : 1);
+  // token.settlementFee: a share of gross like the lessor's (0 off), as break-even counts it (economics.ts).
+  return (rate - be) * miles * ((t && t.lease !== "owned" ? 1 - w.cfg.costs.npcLeaseShareOfGross : 1) - settlementShare(w.cfg));
 }
 /** A chip figure: whole FD up to 9,999, then thousands to one place ("12.4k"); no sign. */
 export function chipFd(x: number): string {

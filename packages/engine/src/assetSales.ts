@@ -15,6 +15,7 @@ import { facilityCap } from "./staking.js";
 import { ownedTrailers } from "./trailers.js";
 import type { Company } from "./types.js";
 import type { World } from "./world.js";
+import { chargeSettlement } from "./settlement.js";
 
 export type SaleKind = "business" | "facility" | "yard";
 
@@ -96,6 +97,7 @@ export function buyAssetSale(w: World, buyer: Company, s: AssetSale): string | n
   let lockedPaid = w.ledger.post(w.t, buyerAcct, "sink:market_fee", fee, ref);
   chargeSalesTax(w, buyer.id, s.askFd, ref);
   const carried = w.ledger.post(w.t, buyerAcct, sellerAcct, s.askFd - fee, ref);
+  chargeSettlement(w, seller.id, buyer.id, s.askFd - fee, ref); // token.settlementFee, from the seller
   lockedPaid += carried;
   // Bought with spend-only FD (ledger.ts): sold for the same, up to that basis; the buyer's locked payment is the new basis.
   const basis = s.kind === "business" ? (w.businesses[s.refId - 1]!.lockedBasisFd ?? 0) : s.kind === "facility" ? (w.facilities[s.refId - 1]!.lockedBasisFd ?? 0) : (seller.yardLockedBasisFd ?? 0);

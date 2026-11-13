@@ -2,6 +2,7 @@ import type { EconomyConfig, Equipment, TractorTier } from "@lanes/config";
 import { dayOf } from "./clock.js";
 import { effectiveMpg, expectedRepairPerMile, maintenancePerMile, type TruckSpec } from "./wear.js";
 import type { World } from "./world.js";
+import { settlementShare } from "./settlement.js";
 
 /** In-game diesel (§Rates — scaled fuel), times the rack-spread stabilizer. */
 export function fuelPrice(w: World): number {
@@ -53,7 +54,8 @@ export function breakEvenPerMile(cfg: EconomyConfig, truck: TruckSpec, fuel: num
   const driven = loadedMi + deadheadMi;
   const c = tripCost(cfg, truck, fuel, driven, loadedMi);
   const variable = c.fuel + c.wages + c.maintenance + c.insurance + expectedRepairPerMile(cfg, truck) * driven + tollFd;
-  const keep = truck.lease !== "owned" ? 1 - cfg.costs.npcLeaseShareOfGross : 1;
+  // token.settlementFee, a share of gross like the lessor's (0 off).
+  const keep = (truck.lease !== "owned" ? 1 - cfg.costs.npcLeaseShareOfGross : 1) - settlementShare(cfg);
   return variable / (loadedMi * keep);
 }
 

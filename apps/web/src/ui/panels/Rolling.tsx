@@ -9,6 +9,7 @@ import { bumpData, me, myTrucks, ownerOf, S, truckNo, useData } from "../../stat
 import { Bar, Btn, Card, Kv } from "../bits.js";
 import { Fig } from "../Explain.js";
 import { StepMoment } from "../Walkthrough.js";
+import { settlementShare } from "@lanes/engine";
 
 const when = (min: number): string => `${shortDate(Math.floor(min / 1440))} ${hhmm(min)}`;
 
@@ -68,6 +69,7 @@ export function DeliveredCard(): JSX.Element | null {
     ...(d.line.driver >= 0.5 ? [d.hiredDriver ? ([DELIVERED.driverHired(d.hiredDriver), minus(d.line.driver)] as [string, string]) : f("pay.ownerDraw", DELIVERED.driverOwner, minus(d.line.driver))] : []),
     ...(d.line.upkeep >= 0.5 ? [f("pay.maintenance", DELIVERED.upkeep, minus(d.line.upkeep))] : []),
     ...(d.line.lessor >= 0.5 ? [f("pay.lessorShare", DELIVERED.lessor(pct(GAME_CONFIG.costs.npcLeaseShareOfGross)), minus(d.line.lessor), d.line.load)] : []),
+    ...(d.line.settlement >= 0.5 ? [f("pay.settlement", DELIVERED.settlement(pct(settlementShare(GAME_CONFIG))), minus(d.line.settlement), d.line.load)] : []),
     ...(d.line.held >= 0.5 ? [f("truck.leaseDeposit", DELIVERED.held, minus(d.line.held))] : []),
   ];
   return (

@@ -459,6 +459,8 @@ export const PENDING = {
   cutDaysOff: (days: number) => `You'll go back out with ${days} ${days === 1 ? "day" : "days"} at home; your days-away count won't clear.`,
   cutDaysOffGo: "Go back out",
   cutDaysOffItem: "this load on your days off",
+  // token.settlementFee on a sale: the market's fee and the settlement fee as one named line (the director's rule).
+  sellFees: (pctShown: string, fd: string) => `The market's fee and the settlement fee, ${pctShown}: about ${fd} FD of the price.`,
   // Client batch 8d (QA's 8b replay, qa-8b-2026-11-13.md): placeholders for the writer.
   hireUnparks: (n: number) => `Truck ${n} goes back on the road with them.`,
   letGoDoes: (name: string, seated: boolean) => `${name} leaves your company today${seated ? ", and their truck stands empty" : ""}.`,

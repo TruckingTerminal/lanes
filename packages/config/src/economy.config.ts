@@ -1188,6 +1188,14 @@ export const economyConfig = {
   // token): FD itself becomes buyable and sellable for dollars after a beta. Every
   // number here is an assumption to tune; see TOKENOMICS.md.
   token: {
+    // The settlement fee (Jeff's yes, 2026-11-13; economy-settlement-fee-spec-2026-11-13.md; the director's name and words,
+    // studio/reviews/director-eve.md §1): `share` of every cleared load (on the carrier's pay, from the carrier; a
+    // double-broker's spread, from the re-poster) and every sale between companies (from the seller: a listing, a trade-in
+    // to a player dealership, a dealership's new stock, a business or facility, a player lease's weekly rent), burned as
+    // sink:trade_burn, outside the cap's refill (engine settlement.ts). Never on a purchase from the NPC, between one
+    // owner's two companies, or on a company's own freight. The break-even counts it as a share of gross, like the lessor's.
+    // Off: nothing posts to the tag, and every reading is as before.
+    settlementFee: { enabled: false, share: 0.01 },
     enabled: false,
     betaYears: 2, // launch at the end of in-game year 2 (≈6 real months at the live clock)
     // Design decision (Jeff, 2026-10-29): during beta the AI fleet may not grow past this multiple

@@ -154,6 +154,8 @@ export function econReport(w: World, trailer: Equipment | null, index?: number):
       ...top(outNow).map((k) => row(REPORT.outKind(tagLabel(k)), (m) => tags(m, "sinkByTag")[k] ?? 0, (x) => `${fdFull(x)} (${share(x / Math.max(1, outTotal(now)))})`)),
       row(REPORT.net, (m) => inTotal(m) - outTotal(m), fdFull),
       row(REPORT.burned, (m) => sum(m.days.map((d) => d.burnFd + sum(Object.values(d.burnByTag)))), fdFull),
+      // token.settlementFee: what it took, said as the total gone from the economy (the director, director-eve.md §1).
+      row(REPORT.settlement, (m) => (w.cfg.token.settlementFee?.enabled ? sum(m.days.map((d) => d.burnByTag.trade_burn ?? 0)) : null), fdFull),
       row(REPORT.emission, emission, pct),
     ),
   };

@@ -14,6 +14,7 @@ import type { Company, LeaseOffer, Truck } from "./types.js";
 import { freshPaperwork, staffById, syncTruck, unseatDriver, type World } from "./world.js";
 import { tractorOrdersOf } from "./dealer.js";
 import { truckCap } from "./staking.js";
+import { chargeSettlement } from "./settlement.js";
 
 export const openLeaseOffers = (w: World): LeaseOffer[] => w.leaseOffers.filter((o) => o.status === "open");
 
@@ -128,6 +129,7 @@ export function billPlayerLeases(w: World): void {
   for (const t of w.trucks) {
     if (!leasedOut(t) || t.status === "retired") continue;
     w.ledger.post(w.t, companyAccount(t.companyId), companyAccount(t.lessorId), t.leaseWeekFd, `lease:week:${t.id}`);
+    chargeSettlement(w, t.lessorId, t.companyId, t.leaseWeekFd, `lease:week:${t.id}`); // token.settlementFee, from the lessor
     w.companies[t.companyId - 1]!.operating.costFd += t.leaseWeekFd;
   }
 }
