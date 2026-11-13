@@ -10,7 +10,7 @@ import { vettingBlock } from "./fraud.js";
 import { homeEdge } from "./home.js";
 import { dispatchProfile, type DispatchProfile } from "./labor.js";
 import type { Bid, Company, Load, StandingOrder, Truck } from "./types.js";
-import { dispatchPlan, planLoads, planMakes, windowsOn } from "./windows.js";
+import { dispatchPlan, freeOf, planLoads, planMakes, windowsOn } from "./windows.js";
 import { crewed, hubMiles, hubToll, type World, placeMiles, placeToll } from "./world.js";
 
 /** A solo truck makes a hot load's window only on falsified logs; a team makes it legally. */
@@ -44,7 +44,10 @@ export function homeBlock(w: World, c: Company, truck: Truck, load: Load): strin
   }
   if (k.pastDueRefuses) {
     const hm = c.orders.find((o): o is Extract<StandingOrder, { kind: "homeTime" }> => o.kind === "homeTime");
-    if (hm && d.awayDays >= hm.afterDays && !homeward(w, c, truck, load)) return `${d.name} is past due home: loads toward home only, until you send them home`;
+    // The red team's bundle pass, finding 5: a truck on a job is measured from where it will be free, as the dispatcher
+    // measures it (dispatchPlan's `at`), not from its leg's origin.
+    const at = truck.status !== "idle" && windowsOn(w) ? { ...truck, hub: w.net.places[freeOf(w, truck).place]!.market } : truck;
+    if (hm && d.awayDays >= hm.afterDays && !homeward(w, c, at, load)) return `${d.name} is past due home: loads toward home only, until you send them home`;
   }
   return null;
 }

@@ -13,7 +13,7 @@ import { companyAccount } from "./ledger.js";
 import { bidsFromStandingOrders, boardKey, readyKey, canMakeHot, dockWaitCost, indexOpenLoads, scoreBid, desperation, estimateBreakEven, resting, trackingWouldShow, needsHome, homeward, hardCap, floorRate, lookaheadValue, ordersWaitForHand } from "./standingOrders.js";
 import { startJob } from "./trips.js";
 import { bookingCapBlock, brokerBooks, contractOn, type BrokerBook } from "./receivables.js";
-import { AHEAD_STATUSES, aiBroker, brokerKey, canMake, dispatchPlan, facilityKey, noteLost, noShow, pickupClosed, planLoads, planMakes, posterKind, readyToday, tally, urgencyStep, urgent, windowsOn } from "./windows.js";
+import { AHEAD_STATUSES, aiBroker, brokerKey, canMake, dispatchPlan, facilityKey, fallOffLineOn, noteLost, noShow, pickupClosed, planLoads, planMakes, posterKind, readyToday, tally, urgencyStep, urgent, windowsOn } from "./windows.js";
 import type { Bid, Company, Load, StandingOrder, Truck } from "./types.js";
 import { companyById, crewed, hubHours, hubMiles, truckById, type World, placeMiles, placeOfHub, placeLegMiles } from "./world.js";
 
@@ -204,13 +204,18 @@ function assign(w: World, load: Load, truck: Truck, bid: Bid, byHand = false): v
   load.status = "assigned";
   load.carrierId = bid.companyId;
   load.truckId = truck.id;
+  if (windowsOn(w) || fallOffLineOn(w)) load.booked = true; // the red team's bundle pass, finding 4 (giveUp)
   load.clearedRate = bid.rate;
   noteClear(w, load, bid.rate); // what loads really clear at (freight.ts clearsNear)
   econCleared(w, load, bid.rate, bid.companyId); // the monthly report's rate index by trailer (econMonth.ts)
   if (cfg.brokerage.enabled) onAssign(w, load, bid.companyId, bid.rate); // player brokerages: the rate flag, a passed load covered
   // Delivery windows (batch 2): won for a truck still on a job, it's booked ahead: nothing moves on it until the truck takes
-  // it (trips.ts takeNextLoad), which sets its due time and slot from then.
-  if (truck.status !== "idle" && windowsOn(w)) {
+  // it (trips.ts takeNextLoad), which sets its due time and slot from then. Rule H (labor.homeTimeHolds; the red team's
+  // bundle pass, finding 3): a hired driver home on days off keeps them, so a load booked past them is held the same way,
+  // and the truck sets out when they end, timed for the pickup (trips.ts departHeld).
+  const d = truck.driverId ? w.staff[truck.driverId - 1] : undefined;
+  const heldHome = truck.status === "idle" && windowsOn(w) && cfg.labor.homeTimeHolds && d !== undefined && !d.owner && resting(w, truck);
+  if ((truck.status !== "idle" && windowsOn(w)) || heldHome) {
     load.ahead = true;
     if (byHand) load.aheadByHand = true; // batch 4: a breakdown asks the player first about a load they booked themselves
     truck.nextLoadId = load.id;
@@ -242,7 +247,10 @@ export function raiseCeiling(w: World, load: Load): void {
     // The broker eats the raise. To keep its contract it will pay carriers up to the spot rate,
     // or up to the fall-off charge over what the contract brings in, whichever is more: past
     // that, losing the load is the cheaper way out.
-    const most = Math.max(load.shipperRate * (1 + w.cfg.brokerRisk.fallOffShare), load.spotShipperRate);
+    // brokerRisk.fallOffLine (the economy, economy-ai-brokers-2026-11-13.md §1): never past the fall-off line, where hauling
+    // the load costs as much as losing it; the spot branch only inside it.
+    const line = load.shipperRate * (1 + w.cfg.brokerRisk.fallOffShare);
+    const most = fallOffLineOn(w) ? line : Math.max(line, load.spotShipperRate);
     // A player's brokerage (QA's S4): the round never re-prices its load over what the shipper pays it. The owner sets
     // the pay; the AI brokers go on eating the raise.
     const broker = w.companies[load.brokerId - 1];
@@ -262,9 +270,11 @@ export function bookLoad(w: World, company: Company, truck: Truck, load: Load, d
   // Delivery windows (batch 2): a truck on a job books one load ahead (the caller has checked canMake), never a second.
   const ahead = truck.status !== "idle" && windowsOn(w) && AHEAD_STATUSES.has(truck.status);
   if ((truck.status !== "idle" && !ahead) || !crewed(truck)) return "the truck isn't idle with a driver";
-  if (ahead && truck.nextLoadId !== undefined) return "this truck already has its next load booked";
+  // Rule H's hold (the red team's finding 3): an idle truck holding a load past its driver's days off has its next load too.
+  if (truck.nextLoadId !== undefined) return "this truck already has its next load booked";
   if (truck.trailer !== load.equipment) return "wrong trailer";
   if (company.authority.status !== "active") return "your authority isn't active";
+  if (load.releasedBy?.includes(company.id)) return "you released that load: it's another carrier's now";
   if (!mayTake(w, company, load)) return load.tenderedTo ? "that load is tendered to another carrier" : "local shippers only for now";
   settleTender(w, company, load);
   if (!(rate > 0)) return "that load has no book-now price";
@@ -356,10 +366,13 @@ export function giveUp(w: World, load: Load, noShow = false): void {
   // (windows.ts noShow) is lost the same way: its carrier never reached the shipper.
   const closed = noShow || pickupClosed(w, load);
   if (closed) w.metrics.onLost(posterKind(w, load), load.shipperRate * load.miles);
-  if (closed) noteLost(w, load); // batch 4: unserved NPC demand prices the hub's next postings (freight.ts)
+  // Batch 4: unserved NPC demand prices the hub's next postings (freight.ts). The red team's bundle pass, finding 4: only
+  // freight nobody took; a load ever booked (a no-show, a release lost after) joins neither the memory nor the brokers' tally.
+  if (closed && !load.booked) noteLost(w, load);
   // Batch 6: lost at the close, against what was taken: the AI brokers' at the hub (batch 7: all of them together), a
   // facility's at its hub (windows.ts tally).
-  if (closed && load.brokerId !== null && aiBroker(w, load.brokerId)) tally(w, brokerKey(load.origin), "lost");
+  // brokerRisk.fallOffLine: with windows off, a brokered load given up is the AI brokers' loss at its hub (windows.ts tally).
+  if ((closed || (!windowsOn(w) && fallOffLineOn(w))) && !load.booked && load.brokerId !== null && aiBroker(w, load.brokerId)) tally(w, brokerKey(load.origin), "lost");
   if (closed && load.facilityId !== null) tally(w, facilityKey(load.origin), "lost");
   const unhauled = noShow ? "after its carrier failed to show at the pickup" : closed ? "before its pickup closed" : `in ${rounds} rounds`;
   load.status = "expired";
@@ -400,6 +413,7 @@ function maybeReposition(w: World, truck: Truck, surplus: Map<string, number>): 
   const company = companyById(w, truck.companyId);
   if (!crewed(truck) || company.authority.status !== "active") return;
   if (resting(w, truck)) return;
+  if (truck.nextLoadId !== undefined) return; // rule H's hold: it waits for the load it holds (trips.ts departHeld)
   if (ordersWaitForHand(w, company)) return; // the first bid by hand: the truck waits at home
   // Home time first: a driver due days off starts them if the truck is home. Otherwise the
   // truck keeps taking loads that head home (bids and book-now only consider those) and

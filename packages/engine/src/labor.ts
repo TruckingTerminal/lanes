@@ -509,6 +509,7 @@ export function seatPaidDrivers(w: World, c: Company): void {
   if (!empty.length) return;
   for (const s of driversOf(w, c.id)) {
     if (s.owner || s.status !== "employed" || s.truckId !== 0 || s.offer) continue;
+    if (s.homeUntilDay !== null && s.homeUntilDay > dayOf(w.t, w.cfg)) continue; // on days off (the red team's finding 8)
     const i = empty.findIndex((t) => s.lastHub === undefined || s.lastHub === t.hub);
     if (i < 0) continue;
     const t = empty.splice(i, 1)[0]!;

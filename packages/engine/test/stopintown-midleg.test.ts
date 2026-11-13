@@ -29,7 +29,7 @@ describe("the night in town reaching mid-leg", () => {
     expect(t).toBeDefined();
     const [lat, lon] = truckLatLon(w, t);
     const at = t.legMiles - t.remainingMi;
-    const { place, offMi } = nightInTown(w, t);
+    const { place, offMi } = nightInTown(w, t)!;
     // The same point on the leg, and both ways counted.
     expect(t.legMiles - t.remainingMi).toBeCloseTo(at, 9);
     expect(offMi).toBeGreaterThanOrEqual(0);
@@ -42,6 +42,40 @@ describe("the night in town reaching mid-leg", () => {
     const level = w.net.places.some((p) => toEnd(p) >= mine);
     if (level) expect(toEnd(picked)).toBeGreaterThanOrEqual(mine - 1e-12);
   }, 120_000);
+
+  it("adds the detour once a night, never past parking.stopInTownMaxMi (the red team's bundle pass, finding 2)", () => {
+    const cfg = parking(true);
+    const w = createWorld({ cfg, net, feeds: neutralFeeds, seed: 11 });
+    populate(w, { freeOwnerOperators: 40, fleets: 10, brokers: 4 });
+    for (const c of w.companies) if (c.role === "carrier") c.nightStop = "town";
+    const cap = cfg.businesses.parking.stopInTownMaxMi;
+    const prev = new Map<number, { leg: string; legMiles: number; driven: number }>();
+    const perNight = new Map<string, number>();
+    let grew = 0;
+    for (let h = 0; h < 7 * 24; h++) {
+      stepHour(w, ruleBotHook);
+      for (const t of w.trucks) {
+        const leg = `${t.place}>${t.targetPlace}:${t.loadId}`;
+        const p = prev.get(t.id);
+        // A detour lengthens the leg with nothing driven (the night); a new leg resets what's driven.
+        const driven = t.legMiles - t.remainingMi;
+        if (p && p.leg === leg && t.legMiles > p.legMiles + 1e-6 && Math.abs(driven - p.driven) < 1e-6) {
+          grew++;
+          expect(t.legMiles - p.legMiles).toBeLessThanOrEqual(2 * cap + 1e-6);
+          const key = `${t.id}:${t.shiftStartT}`;
+          perNight.set(key, (perNight.get(key) ?? 0) + 1);
+        }
+        prev.set(t.id, { leg, legMiles: t.legMiles, driven: t.legMiles - t.remainingMi });
+      }
+    }
+    expect(grew).toBeGreaterThan(0);
+    expect(Math.max(...perNight.values())).toBe(1);
+    // Too far a town: no detour at all.
+    const t = w.trucks.find((x) => (x.status === "loaded" || x.status === "repositioning") && x.legMiles - x.remainingMi > 20 && x.remainingMi > 50)!;
+    const before = t.legMiles;
+    expect(nightInTown(w, t, -1)).toBeNull();
+    expect(t.legMiles).toBe(before);
+  }, 240_000);
 
   it("with every carrier choosing the town, fewer nights end on the shoulder; with none choosing it, nothing moves", () => {
     const on = world(parking(true), true, 6);

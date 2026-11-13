@@ -236,6 +236,7 @@ function settleBrokerPaper(w: World, payer: Company, r: Receivable): void {
   const log = factoringLog(w);
   if (payer.liquidatingSince !== null) {
     if (npcHolder) log.uncoveredFd += rest;
+    refundSettlement(w, r, rest); // token.settlementFee: the fee back on the part past the bond that's written off
     w.metrics.onShipperDefault();
     return;
   }
@@ -561,8 +562,9 @@ export function settleReceivable(w: World, r: Receivable): void {
     } else if (r.holder === HOLDER_POOL) {
       w.pools.factoring.claimsFd += r.amountFd;
     }
-    // token.settlementFee: a player shipper's paper written off gives its carrier back the fee on the part lost.
-    if (r.shipperPaper) refundSettlement(w, r, r.amountFd - covered);
+    // token.settlementFee: paper written off (a player shipper's, or a wound-up broker's) gives its carrier back the fee on
+    // the part lost.
+    refundSettlement(w, r, r.amountFd - covered);
     w.metrics.onShipperDefault();
     return;
   }

@@ -43,6 +43,10 @@ import { companyById, crewed, placeHours, placeLegMiles, placeRoute, type World 
 
 /** windows.enabled; a config without the key (an older profile) reads as off. */
 export const windowsOn = (w: World): boolean => w.cfg.windows?.enabled === true;
+/** brokerRisk.fallOffLine: the AI brokers' cover rule with windows off too, and the walk's reach at the fall-off line. */
+export const fallOffLineOn = (w: World): boolean => w.cfg.brokerRisk.fallOffLine?.enabled === true;
+/** Whether the AI brokers' per-hub cover rule runs: with windows, or with the fall-off line on. */
+export const brokerCoverOn = (w: World): boolean => windowsOn(w) || (fallOffLineOn(w) && w.cfg.windows !== undefined);
 
 /** Minutes for `hours` of driving at `perDay` driving hours a day, with the rest between duty days (freight.ts, board.ts). */
 export function transitMinutes(cfg: EconomyConfig, hours: number, perDay: number): number {
@@ -421,10 +425,13 @@ export type ClaimKind = "cancel" | "noshow" | "late";
  * take the carrier under zero. Ref `claim:{kind}:{load id}`. Returns what it took.
  */
 export function claimOn(w: World, carrier: Company, load: Load, share: number, kind: ClaimKind): number {
-  const fd = share * load.clearedRate * load.miles;
+  // The red team's bundle pass, finding 1 (the blocker): no claim takes a carrier below zero (what it holds is the most it
+  // pays), and a cancel claim always goes to the sink: a released load is back on the board, so its poster has lost
+  // nothing, and a claim paid to another company was a transfer between players, repeatable with no haul.
+  const fd = Math.min(share * load.clearedRate * load.miles, Math.max(0, w.ledger.balance(companyAccount(carrier.id))));
   if (!(fd > 0.005)) return 0;
   const db = load.doubleBroker && load.doubleBroker.companyId !== carrier.id ? load.doubleBroker.companyId : null;
-  const payeeId = db ?? load.brokerId ?? load.shipperId;
+  const payeeId = kind === "cancel" ? null : db ?? load.brokerId ?? load.shipperId;
   const payee = payeeId !== null && payeeId !== carrier.id && !samePerson(w, carrier.id, payeeId) ? companyById(w, payeeId) : null;
   const ref = `claim:${kind}:${load.id}`;
   w.ledger.post(w.t, companyAccount(carrier.id), payee ? companyAccount(payee.id) : "sink:service_failure", fd, ref);
@@ -456,10 +463,13 @@ export function releaseLoad(w: World, company: Company, load: Load, breakdown = 
   }
   const k = w.cfg.windows!;
   // Batch 4: a release a breakdown forced (the dispatcher's at once, or the player's answer to the ask) is at the early
-  // share, wherever the pickup stands (the director): the carrier reported it, as carriers do.
-  const early = breakdown || load.releaseAsk !== undefined;
+  // share, wherever the pickup stands (the director): the carrier reported it, as carriers do. The red team's bundle pass,
+  // finding 7: the ask's early share lasts a board round from the ask; after that the usual shares apply.
+  const early = breakdown || (load.releaseAsk !== undefined && w.t - load.releaseAsk.t <= roundMinutes(w));
   claimOn(w, company, load, early || !urgent(w, load) ? k.cancelClaimShare.early : k.cancelClaimShare.urgent, "cancel");
   markFailed(w, company);
+  // Finding 1: the same carrier never books it again, so a load's claims can't repeat through rebooking.
+  load.releasedBy = [...(load.releasedBy ?? []), company.id];
   const truck = load.truckId !== null ? w.trucks[load.truckId - 1] : undefined;
   if (truck && truck.nextLoadId === load.id) delete truck.nextLoadId;
   delete load.ahead;
@@ -512,6 +522,8 @@ export interface Plan {
 }
 
 export function dispatchPlan(w: World, truck: Truck): Plan | null {
+  // Rule H's hold (the red team's finding 3): an idle truck holding its next load waits for it (trips.ts departHeld).
+  if (truck.status === "idle" && truck.nextLoadId !== undefined) return null;
   if (truck.status === "idle") return { at: truck, free: windowsOn(w) ? freeOf(w, truck) : null, ahead: false, startT: w.t };
   if (!windowsOn(w) || !AHEAD_STATUSES.has(truck.status) || truck.nextLoadId !== undefined || !crewed(truck)) return null;
   const free = freeOf(w, truck);
@@ -634,9 +646,12 @@ export const brokerKey = (hub: number): string => `b:${hub}`;
 export const facilityKey = (hub: number): string => `f:${hub}`;
 export const npcKey = (hub: number): string => `n:${hub}`;
 
-/** Counts a load taken (`taken`) or lost at its pickup's close (`lost`) under a key, on today's entry (windows on only). */
+/**
+ * Counts a load taken (`taken`) or lost at its pickup's close (`lost`) under a key, on today's entry (windows on only;
+ * with windows off, the AI brokers' hub keys alone while brokerRisk.fallOffLine is on, a fall-off counted as lost).
+ */
 export function tally(w: World, key: string, kind: "taken" | "lost"): void {
-  if (!windowsOn(w)) return;
+  if (!windowsOn(w) && !(key.startsWith("b:") && brokerCoverOn(w))) return;
   const day = dayOf(w.t, w.cfg);
   const keep = w.cfg.windows!.coverDays;
   const t = (w.winTally ??= {});
@@ -669,7 +684,7 @@ export const aiBroker = (w: World, id: number): boolean => !byPlayer(w, id);
  * another tender there (batch 7: the hub's tally across the AI brokers). A player's brokerage is never held by it.
  */
 export function brokerUncovered(w: World, brokerId: number, hub: number): boolean {
-  if (!windowsOn(w) || !aiBroker(w, brokerId)) return false;
+  if (!brokerCoverOn(w) || !aiBroker(w, brokerId)) return false;
   const s = lostShare(w, brokerKey(hub)).share;
   return s !== null && s >= w.cfg.windows!.brokerMaxLostShare;
 }

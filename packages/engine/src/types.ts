@@ -988,6 +988,14 @@ export interface Load {
    * no slot, no receivable) until the truck takes it.
    */
   ahead?: true;
+  /**
+   * The red team's bundle pass (finding 4): booked by a carrier at least once (set while windows or the brokers' fall-off
+   * line are on). Lost, such a load joins neither the hub's lost-load memory nor the brokers' cover tally: a carrier can't
+   * raise a hub's pay by booking and not showing.
+   */
+  booked?: true;
+  /** The red team's bundle pass (finding 1): the carriers that released this load; none of them may book it again. */
+  releasedBy?: number[];
   /** Batch 4: booked ahead by the player's own hand (a bid or Book now), not by the dispatcher: a breakdown asks first. */
   aheadByHand?: true;
   /**

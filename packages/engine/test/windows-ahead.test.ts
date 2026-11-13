@@ -229,12 +229,13 @@ describe("claims (test 7)", () => {
       return l;
     };
 
-    // Released early, a broker's load: the early share to the broker; back on the board; the record marked.
+    // Released early, a broker's load: the early share, to the sink (the red team's bundle pass, finding 1: a cancel claim
+    // never goes to another company); back on the board; the record marked.
     const b = ahead((l) => l.brokerId !== null, [a]);
     const rep = c.reputation;
     const early = k.cancelClaimShare.early * b.clearedRate * b.miles; // the pay as booked: the reopened load's rate is cleared
     ok(applyAction(w, c.id, { type: "release_load", loadId: b.id }));
-    expect(claims("cancel", b)).toEqual([expect.objectContaining({ from: companyAccount(c.id), to: companyAccount(b.brokerId!) })]);
+    expect(claims("cancel", b)).toEqual([expect.objectContaining({ from: companyAccount(c.id), to: "sink:service_failure" })]);
     expect(claims("cancel", b)[0]!.amount).toBeCloseTo(early, 2);
     expect(b.status).toBe("open");
     expect(b.ahead).toBeUndefined();

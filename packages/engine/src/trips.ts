@@ -243,10 +243,31 @@ const legKey = legKeyOf;
  * (§Events — breakdown): the truck stops 6–18 hours and, if owned, pays a tow
  * and repair bill. Trucks in the shop for a rebuild sit out until it's done.
  */
+/**
+ * Rule H (labor.homeTimeHolds; the red team's bundle pass, finding 3): a load booked for a truck whose hired driver is home
+ * on days off waits as its next load (board.ts assign). Once the days off are over, the truck sets out when the run to the
+ * shipper, by the HOS schedule as startJob counts it, plus windows.planMarginMinutes, would reach it as the load is ready.
+ */
+function departHeld(w: World, truck: Truck): void {
+  const load = truck.nextLoadId !== undefined ? w.loads.get(truck.nextLoadId) : undefined;
+  if (!load) return;
+  const d = truck.driverId ? w.staff[truck.driverId - 1] : undefined;
+  if (d && d.homeUntilDay !== null && d.homeUntilDay > dayOf(w.t, w.cfg)) return; // still on days off
+  if (load.readyT !== undefined) {
+    const perDay = w.cfg.hos.drivingHoursPerDay;
+    const drivingH = placeHours(w, truck.place, load.originPlace);
+    const fullDays = Math.max(0, Math.ceil(drivingH / perDay) - 1);
+    const runMin = (fullDays * w.cfg.hos.dutyDayHours + (drivingH - fullDays * perDay)) * 60 + (w.cfg.windows?.planMarginMinutes ?? 0);
+    if (w.t + MINUTES_PER_HOUR + runMin < load.readyT) return; // not yet: leaving now only waits at the shipper
+  }
+  takeNextLoad(w, truck);
+}
+
 export function moveTrucks(w: World): void {
   const { cfg } = w;
   for (const truck of w.trucks) {
     if (truck.status === "retired" || truck.status === "listed") continue;
+    if (truck.status === "idle" && truck.nextLoadId !== undefined) departHeld(w, truck);
     // Assets: a truck standing at a hub meets the end of its life (or its trailer's) there.
     if (cfg.assets.enabled && truck.status === "idle" && truck.companyId && truck.lease === "owned") {
       endOfLife(w, companyById(w, truck.companyId), truck);
@@ -319,10 +340,13 @@ export function moveTrucks(w: World): void {
           // A truck already in a space here keeps it (R12's restart runs several duty days without a drive).
           const site = here && (here.parked < here.spaces || truck.restSite === here.id) ? here : null;
           // businesses.parking.stopInTownMidLeg: no site, mid-leg, a company that chose the town: the night in a town.
-          if (!site && cfg.businesses.enabled && cfg.businesses.parking.stopInTown && cfg.businesses.parking.stopInTownMidLeg && truck.companyId && legMile(truck) > 1e-6 && companyById(w, truck.companyId).nightStop === "town") {
-            nightInTown(w, truck);
-            parkForTheNight(w, truck, null, true);
-            break;
+          // The red team's bundle pass, finding 2: once a night (the branch runs every off-duty hour; parkForTheNight's own
+          // guard came after the detour), and only to a town within parking.stopInTownMaxMi.
+          if (!site && truck.restShiftT !== truck.shiftStartT && cfg.businesses.enabled && cfg.businesses.parking.stopInTown && cfg.businesses.parking.stopInTownMidLeg && truck.companyId && legMile(truck) > 1e-6 && companyById(w, truck.companyId).nightStop === "town") {
+            if (nightInTown(w, truck, cfg.businesses.parking.stopInTownMaxMi ?? Infinity)) {
+              parkForTheNight(w, truck, null, true);
+              break;
+            }
           }
           parkForTheNight(w, truck, site);
           break;
@@ -526,7 +550,7 @@ export function startEmptyRun(w: World, truck: Truck, hub: number): void {
  * truck. The miles there and back count as driven: the leg's miles grow by both, so the trip settles them like any other
  * (fuel, pay, wear) and the truck resumes from the same point.
  */
-export function nightInTown(w: World, truck: Truck): { place: number; offMi: number } {
+export function nightInTown(w: World, truck: Truck, maxMi = Infinity): { place: number; offMi: number } | null {
   const [lat, lon] = truckLatLon(w, truck);
   const cosLat = dcos((lat * Math.PI) / 180);
   const sq = (p: { lat: number; lon: number }) => {
@@ -558,6 +582,7 @@ export function nightInTown(w: World, truck: Truck): { place: number; offMi: num
   });
   const pick = toEnd(w.net.places[best]!) >= mine || short < 0 ? best : short;
   const offMi = Math.round(greatCircleMiles({ lat, lon }, w.net.places[pick]!) * 1.2);
+  if (offMi > maxMi) return null; // too far off the leg: the shoulder, as before (the red team's finding 2)
   // There and back: the leg is that much longer, on the trip's own settlement.
   truck.remainingMi += 2 * offMi;
   truck.legMiles += 2 * offMi;
@@ -684,7 +709,11 @@ function collectUpstream(w: World, load: Load, payee: Company, gross: number, fa
     } else {
       w.metrics.onShipperDefault();
     }
+    const before = w.receivables.length;
     bill(w, { payer: broker.id, payee, amountFd: gross, ref, leased, truckId });
+    // The broker's paper the payee waits on, for the fee's refund if the broker is wound up before it pays (receivables.ts).
+    const last = w.receivables.length > before ? w.receivables[w.receivables.length - 1]! : null;
+    paper = last && last.payer === broker.id && last.payeeId === payee.id ? last : null;
     broker.operating.costFd += gross;
     broker.openBrokerLoads--;
     if (!ownHaul) broker.loadsThisWeek++;
@@ -736,7 +765,10 @@ function deliver(w: World, truck: Truck, now: number): void {
   const own = load.shipperId === carrier.id;
   const paid = own || spoiled ? 0 : db ? settleDoubleBroker(w, load, carrier, gross, upstream) : gross;
   // token.settlementFee: on what the carrier is paid, from the carrier (settlement.ts); none on its own brokerage's tender.
-  const settled = chargeSettlement(w, carrier.id, load.brokerId ?? db?.id ?? load.shipperId ?? null, paid, ref, db ? null : paper);
+  // The red team's bundle pass, finding 6: freight an NPC shipper pays for is charged once on the carrier's pay, whoever
+  // tendered it (a carrier's own brokerage included); the exemption between one owner's companies stays for a player
+  // shipper's own goods.
+  const settled = chargeSettlement(w, carrier.id, load.shipperId, paid, ref, db ? null : paper);
   // Detention, its own line in the settlement (cfg.detention), to the carrier that waited.
   const detained = spoiled || own ? 0 : payDetention(w, load, carrier);
   carrier.operating.revenueFd += detained;

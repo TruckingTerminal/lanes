@@ -939,12 +939,13 @@ export function applyAction(w: World, companyId: number, action: Action): Action
       // Delivery windows (batch 2): a truck on a job may bid for the load after it, one ahead, never two.
       const ahead = windowsOn(w) && truck.status !== "idle" && AHEAD_STATUSES.has(truck.status);
       if (truck.status !== "idle" && !ahead) return { ok: false, reason: "truck must be idle at a hub" };
-      if (ahead && truck.nextLoadId !== undefined) return { ok: false, reason: "this truck already has its next load booked: release it first" };
+      if (truck.nextLoadId !== undefined) return { ok: false, reason: "this truck already has its next load booked: release it first" }; // ahead, or rule H's hold
       if (!crewed(truck)) return { ok: false, reason: "the truck has no driver" };
       if (company.authority.status !== "active") return { ok: false, reason: "your authority is suspended" };
       if (!load || load.status !== "open") return { ok: false, reason: "that load is no longer on the board" };
       if (load.equipment !== truck.trailer) return { ok: false, reason: `needs a ${load.equipment} trailer` };
       if (load.brokerId === company.id || load.doubleBroker?.companyId === company.id) return { ok: false, reason: "you posted that load" };
+      if (load.releasedBy?.includes(company.id)) return { ok: false, reason: "you released that load: it's another carrier's now" }; // the red team's finding 1
       const blocked = vettingBlock(w, company, load);
       if (blocked) return { ok: false, reason: `the poster won't load a carrier with ${blocked}` };
       if (load.hot > 0 && !canMakeHot(company, truck)) return { ok: false, reason: "a hot load's window takes a team" };

@@ -901,7 +901,9 @@ export const economyConfig = {
     // company that chose the town, a day whose hours run out mid-leg with no site with room ends at the town nearest the
     // truck's point (trips.ts nightInTown, the nearest place as a turn finds it), or the nearest one not ahead of it when
     // that one lies beyond the hours; the miles there and back count as driven. Off: such a night is on the shoulder.
-    parking: { spaces: [5, 40] as const, shoulderFineFd: 250, patrolOdds: 0.33, defaultPriceFd: 20, priceRange: [10, 40] as const, spacesPerPurchase: 25, spacePriceFd: 1_000, stopInTown: false, stopInTownMidLeg: false },
+    // stopInTownMaxMi (the red team's bundle pass, finding 2; engineering's placeholder for the economy): a town further
+    // than this, one way, and the night stays on the shoulder as before.
+    parking: { spaces: [5, 40] as const, shoulderFineFd: 250, patrolOdds: 0.33, defaultPriceFd: 20, priceRange: [10, 40] as const, spacesPerPurchase: 25, spacePriceFd: 1_000, stopInTown: false, stopInTownMidLeg: false, stopInTownMaxMi: 30 },
     // Truck-stop sites: one every so many interstate miles, ranked by the freight that passes (a gravity
     // model over the lanes), the busiest open for sale at the start, more opening as the fleet grows.
     // openPerBuilt: the open count follows coverage too — this many sites for sale per truck stop built.
@@ -984,6 +986,11 @@ export const economyConfig = {
     // of the contract as a fall-off charge, and will pay carriers up to that much over the contract
     // to avoid it (0.17.0: no NPC carrier covers it any more).
     fallOffShare: 0.15,
+    // The AI brokers hold to the fall-off line (economy-ai-brokers-2026-11-13.md; off until a ruleset): windows' per-hub
+    // cover rule runs with windows off too (windows.coverDays, coverMinLoads and brokerMaxLostShare, the same tally across
+    // the AI brokers, a fall-off counted as lost), and the walk never pays a carrier past contract × (1 + fallOffShare),
+    // the spot branch inside that cap. The 15% stays.
+    fallOffLine: { enabled: false },
   },
 
   // Item 4, delivery windows (engineering's proposal engineering-item4-delivery-windows.md; the director's calls, DECISIONS.md
