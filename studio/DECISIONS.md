@@ -1,5 +1,15 @@
 # Decisions (the producer's log for Jeff; newest first)
 
+- 2026-11-13 — Jeff: "1. B, 2. this bundle, 3. done, max effort". One bundled ruleset, 0.25.0, goes live once; delivery
+  windows are in it. It carries windows (batches 1 to 9), the settlement fee at 1% with its follow-ups, early
+  delivery for a fee, and the director's rules C, H and I with the night in town mid-leg. Not in it: the AI brokers'
+  fix, the trade-in, standing, the days-away rule and the listing at the next idle. Because the client shows almost
+  nothing of windows yet, the critical path is their screens: the director designs them, engineering builds them
+  (strings in a new copy-windows.ts), the writer words them. In parallel: the economy's combined gate with every
+  bundle key on (whether the fee and windows together keep the carriers' floor, which the fee alone left at 74%
+  against 72%), the red team's exploit pass on the bundle, and the writer's catch-up on every placeholder since
+  batch 8a. Then the producer's switch-on commit with engineering's test fixes, QA's replay, and the live rebuild and
+  restart at max effort. The plan: producer-bundle-0250-plan-2026-11-13.md in the shared folder.
 - 2026-11-13 — the economy's pair on the settlement fee as built (studio/reviews/economy-settlement-fee-pair.md; ten
   seeds, 0.24.1 on, off against 1%): ready for a ruleset at 1%. It burns 13.3M FD over four years, 96% of it on
   loads; FD in circulation ends 4.4% lower; cleared loads, the rate and bankruptcies stay inside the spread; loan
