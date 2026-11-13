@@ -8,7 +8,7 @@ import { CHIP, EXPLAIN, FIGURE_ACT } from "../src/copy.js";
 import { PENDING } from "../src/copy-pending.js";
 import { figureAct } from "../src/figureact.js";
 import { breakdown, FIRST_MONTH_KEYS } from "../src/explain.js";
-import { GAME_CONFIG, PLAYER_DISPATCHER_ORDERS, TestGame } from "../src/game.js";
+import { GAME_CONFIG, joinCompany, PLAYER_DISPATCHER_ORDERS, TestGame } from "../src/game.js";
 import { dueMilestone, history, milestones } from "../src/milestones.js";
 import { stepDo, stepText, walkSteps } from "../src/walkthrough.js";
 import { S } from "../src/state.js";
@@ -97,9 +97,10 @@ describe("the walkthrough's words for a fleet that owns its trucks", () => {
     // No lessor pays it, takes a share or holds anything back toward a truck.
     const wrong = /lessor sees|lessor's share|the hold/;
     for (const line of [stepText(paid, g.w, fleet).brief, ...stepText(paid, g.w, fleet).say, stepDo(paid, g.w, fleet)]) expect(line).not.toMatch(wrong);
-    const g1 = await TestGame.create();
-    const leased = g1.join("Lease Freight", "oo", "LAX")!;
-    expect(stepText(paid, g1.w, leased).brief).toMatch(/lessor.s share and the 30% held/);
+    // The leased starter beside it in the same world (joinCompany, as join does), not a second warm start: the producer's
+    // full web runs timed this test out at 68–78 s building two worlds.
+    const leased = joinCompany(g.w, "test-leased", "Lease Freight", "LAX", "oo")!;
+    expect(stepText(paid, g.w, leased).brief).toMatch(/lessor.s share and the 30% held/);
   }, 60_000);
 });
 
@@ -151,7 +152,9 @@ describe("milestone lines queue", () => {
       S.milestone = null;
       S.game = null;
     }
-  }, 60_000);
+    // Two warm starts by design (the second world is the point), so a full parallel run needs more than the 60 s default:
+    // it took 68–84 s on the producer's and engineering's runs (2026-11-13).
+  }, 180_000);
 });
 
 describe("a milestone line's hold", () => {

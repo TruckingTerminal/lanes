@@ -24,7 +24,7 @@ import { readdirSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import { economyConfig } from "@lanes/config";
-import type { DayMetrics, RatioReading, RunReport } from "@lanes/engine";
+import { balanceSinksFd, type DayMetrics, type RatioReading, type RunReport } from "@lanes/engine";
 
 export interface GateDefinition {
   band: { lo: number; hi: number; trailingQuarters: number; fromYear: number };
@@ -142,7 +142,7 @@ export function quarterReadings(run: GateRun): { quarters: ({ label: string } & 
       const slice = run.days.filter((d) => d.season === s && d.day - s * DAYS_PER_YEAR >= q * quarterLen && d.day - s * DAYS_PER_YEAR < (q + 1) * quarterLen);
       if (slice.length < quarterLen - 1) continue;
       const faucetFd = sum(slice.map((d) => d.faucetFd));
-      const sinkFd = sum(slice.map((d) => d.sinkFd));
+      const sinkFd = sum(slice.map((d) => balanceSinksFd(d))); // the settlement fee's burn counts (0 on reports before its tag)
       const repaidFd = sum(slice.map((d) => d.sinkByTag?.npc_factor ?? 0));
       quarters.push({ label: `S${s + 1}Q${q + 1}`, raw: faucetFd > 0 ? sinkFd / faucetFd : 0, corrected: faucetFd - repaidFd > 0 ? (sinkFd - repaidFd) / (faucetFd - repaidFd) : 0, faucetFd, sinkFd, advanceFd: repaidFd, repaidFd });
     }

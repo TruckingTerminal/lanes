@@ -1,6 +1,7 @@
 import { noteBooks } from "./expedite.js";
 import { dailyAssets } from "./assets.js";
 import { monthlyIntel } from "./intel.js";
+import { balanceSinksFd } from "./metrics.js";
 import { monthlyEconomy } from "./econMonth.js";
 import { monthlyFactory } from "./dealerships.js";
 import { billPlayerLeases } from "./playerLeases.js";
@@ -246,7 +247,7 @@ export function monthlyStabilizers(w: World): void {
   const { stabilizers } = w.cfg;
   const month = w.metrics.days.slice(-w.cfg.time.daysPerMonth);
   const faucets = month.reduce((s, d) => s + d.faucetFd, 0);
-  const sinks = month.reduce((s, d) => s + d.sinkFd, 0);
+  const sinks = month.reduce((s, d) => s + balanceSinksFd(d), 0); // the settlement fee's burn counts (metrics.ts)
   if (faucets <= 0) return;
   const ratio = sinks / faucets;
   const [lo, hi] = tokenLive(w)
@@ -263,7 +264,7 @@ export function monthlyStabilizers(w: World): void {
   if (w.cfg.token.circular.enabled && rs.enabled && !ceilingOn(w)) {
     const window = w.metrics.days.slice(-rs.windowDays);
     const f = window.reduce((s, d) => s + d.faucetFd, 0);
-    const r = f > 0 ? window.reduce((s, d) => s + d.sinkFd, 0) / f : ratio;
+    const r = f > 0 ? window.reduce((s, d) => s + balanceSinksFd(d), 0) / f : ratio;
     const p = clamp((r - mid) / ((hi - lo) / 2), -1, 1);
     w.stab.rateMult = dialMayMoveTo(w, w.stab.rateMult, clamp(w.stab.rateMult * (1 + p * rs.stepPerMonth), rs.range[0], rs.range[1]));
   }

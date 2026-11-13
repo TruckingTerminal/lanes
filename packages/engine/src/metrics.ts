@@ -12,7 +12,17 @@ import type { World } from "./world.js";
  * exchange fees, the launch reset, forfeited airdrops). Kept out of the operating
  * sink ratio, so the stabilizer doesn't add freight to make up for them.
  */
-export const BURN_TAGS = new Set(["sink:season_close", "sink:buyback", "sink:exchange_fee", "sink:launch_reset", "sink:airdrop_forfeit", "sink:unstake_haircut", "sink:profit_tax_burn", "sink:asset_burn", "sink:lock_slash", "sink:expedite"]);
+export const BURN_TAGS = new Set(["sink:season_close", "sink:buyback", "sink:exchange_fee", "sink:launch_reset", "sink:airdrop_forfeit", "sink:unstake_haircut", "sink:profit_tax_burn", "sink:asset_burn", "sink:lock_slash", "sink:expedite", "sink:trade_burn"]);
+
+/**
+ * What the balance readers count as leaving the economy on a day (economy-settlement-fee-spec-2026-11-13.md): the
+ * operating sinks and the settlement fee's burn (sink:trade_burn, token.settlementFee). The fee counts wherever the game
+ * asks whether money is leaving as fast as it comes in (the report's ratios and quarters, the gate's proxy, the monthly
+ * stabilizers and the balance dial), and never where it decides how much to pay next month: the cap's refill reads
+ * `sinkFd` alone (emission.ts trailingSinksPerMonthFd), so the fee never refills the NPC budget. With the fee off nothing
+ * posts to the tag, and this is `sinkFd`.
+ */
+export const balanceSinksFd = (d: { sinkFd: number; burnByTag?: Record<string, number> }): number => d.sinkFd + (d.burnByTag?.trade_burn ?? 0);
 /** One-time mints outside operations: starting grants, the airdrop, launch liquidity and the opening auction's tranche. */
 export const MINT_TAGS = new Set(["faucet:starting_grant", "faucet:airdrop", "faucet:launch_liquidity", "faucet:auction"]);
 

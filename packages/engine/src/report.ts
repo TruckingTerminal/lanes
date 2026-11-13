@@ -3,7 +3,7 @@ import { facilitiesOf } from "./demand.js";
 import { depositorValue } from "./finance.js";
 import { companyAccount } from "./ledger.js";
 import { companyWealthFd, gini } from "./econMonth.js";
-import type { DayMetrics } from "./metrics.js";
+import { balanceSinksFd, type DayMetrics } from "./metrics.js";
 import type { BrokerageLog, LaunchRecord } from "./types.js";
 import { creditScore } from "./credit.js";
 import { riskStats } from "./purchaseLoans.js";
@@ -55,7 +55,7 @@ export function ratioOf(slice: readonly DayMetrics[]): RatioReading {
   let repaidFd = 0;
   for (const d of slice) {
     faucetFd += d.faucetFd;
-    sinkFd += d.sinkFd;
+    sinkFd += balanceSinksFd(d); // the settlement fee's burn counts as a sink here (metrics.ts)
     advanceFd += d.faucetByTag?.npc_advance ?? 0;
     repaidFd += d.sinkByTag?.npc_factor ?? 0;
   }
@@ -492,7 +492,7 @@ export function buildReport(w: World): RunReport {
       const slice = seasonDays.filter((d) => d.day - s * perSeason >= q * quarterLen && d.day - s * perSeason < (q + 1) * quarterLen);
       if (slice.length < quarterLen - 1) continue; // only score complete quarters
       const faucetFd = sum(slice.map((d) => d.faucetFd));
-      const sinkFd = sum(slice.map((d) => d.sinkFd));
+      const sinkFd = sum(slice.map(balanceSinksFd));
       const ratio = faucetFd > 0 ? sinkFd / faucetFd : 0;
       quarters.push({
         season: s + 1,
