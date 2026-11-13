@@ -105,6 +105,43 @@ So with 0.25.0 live, the switch changes one thing: an AI broker's walk stops at 
 for the spot rate. The bundle's own pair (the switch on against the gate's bundle run, ten seeds with twins) is
 queued at 1919cc3 behind the days-off pair.
 
+## The pair on the 0.25.0 bundle (added 08:20): inert
+
+The bundle at 1919cc3 with `brokerRisk.fallOffLine` on, against the gate's bundle run (off): ten seeds, 1,460 days,
+cap-off twins.
+
+**The switch changes nothing measurable under windows. It is harmless to ride, and it buys nothing.**
+
+| The 0.25.0 bundle | Off (the gate's run) | **On** |
+|---|---|---|
+| Gate | 10 of 10; worst carriers 84·85 | **10 of 10; worst 82·80** (seed 7) |
+| AI brokers liquidated, of 60 | 26.5 [24–29] | **28.1** [25–30] |
+| Mean operating result a broker, four years (M) | 0.013 | **0.018** |
+| Fall-off charges (M) | 18.0 | **18.4** |
+| Tenders held by the cover rule · sent to the board (thousands) | (not tapped) · 329 | **203 · 331** |
+| Brokered share of loads · of the cap's pay | 15.0% · 15.8% | **15.2% · 16.1%** |
+| Carriers' pay per mile: brokered · direct | 3.451 · 3.543 | **3.449 · 3.541** |
+| Owner-operators' · fleets' profit per truck-week | 1,735 · 1,654 | **1,726 · 1,647** |
+| Cleared loads | 416,514 | **414,061** |
+
+Every other gate line is within the spread too. The reach cap does nothing here: under windows the urgency walk never
+reaches past contract × 1.15 for a brokered load (brokered pay per mile is the same to the third decimal).
+
+**A finding the pair turns up, for the producer to place.** Under windows the AI brokers fail as often as they do
+without windows:
+- 26.5 of 60 are liquidated over four years, against 27.1 in 0.24.1. They fail steadily, not in one collapse:
+  1.4 / 9.8 / 10.8 / 13.4 failures a year, still rising in year 4.
+- Their mean operating result over four years is about zero (0.013M a broker).
+- Fall-off charges take about 11% of what they bill (18M of 165M), against a 6–12% margin.
+- The cover rule does fire under windows: it holds about 200,000 tenders a run. But it doesn't bring the fall-offs
+  down enough.
+
+My 11-13 brokers note said the cover rule "never fires" under windows, because the pricing keeps the brokers small.
+That held for batch 7's windows; under the full bundle it is wrong. The fix this pair tests addresses the windows-off
+case only. If the AI brokers should be viable under windows, that is a new question: the cover rule's sizes under
+windows (`brokerMaxLostShare` 0.25, `coverMinLoads` 4), or the fall-off share under windows. It is not a gate problem.
+The gate passes, and the market feels the brokers' failures only as tenders going to the board as direct freight.
+
 ## How it ran
 
 - **The worktree:** a scratch worktree at 1919cc3 (lanes-g16), from one gated script, 06:45 to 07:36. The vitest wait
