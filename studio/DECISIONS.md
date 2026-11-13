@@ -1,5 +1,16 @@
 # Decisions (the producer's log for Jeff; newest first)
 
+- 2026-11-13 — the economy's pair on the settlement fee as built (studio/reviews/economy-settlement-fee-pair.md; ten
+  seeds, 0.24.1 on, off against 1%): ready for a ruleset at 1%. It burns 13.3M FD over four years, 96% of it on
+  loads; FD in circulation ends 4.4% lower; cleared loads, the rate and bankruptcies stay inside the spread; loan
+  defaults rise 11%; the gate passes 10 of 10. It reads harder than the prototype in two places: carriers' profit per
+  truck-week is 5–6% lower, not 3% (the fee alone is 3.7% of an owner-operator's profit), and the carriers' floor
+  against the twin is now the closest line (worst seed 74% against the 72% floor), because carriers spend less on
+  operating sinks and the refill pays the cap less on top of what is burned. 1% is the rate; 2% would need a fresh
+  pair and would likely break that floor. Also: the mid-leg night in town leaves a bot world identical day for day,
+  so like rules C, H and I it acts for players only and needs no pair. The producer's proposal: one next ruleset
+  carrying the settlement fee at 1%, rules C, H and I, the night in town mid-leg, and delivery windows if Jeff says
+  yes, then QA's replay and a single live rebuild and restart. OPEN FOR JEFF.
 - 2026-11-13 — the economy on three commits. (1) The director's rules C, H and I (home, home time, the owner's seat)
   cannot move the bots, who book through their dispatchers and staff themselves: a four-year world on two seeds is
   identical day for day with all three on, so they ride in a ruleset with no economy pair; their test is a player's.

@@ -98,3 +98,52 @@ the market purchases, the band), then the ruleset; nothing else needs a rerun.
 Three arms of ten seeds at 1460 days (batch 8 on, cap on; its cap-off twin; windows off), the gate (`gate-win8.json`),
 and the newcomer's month, with batch 7's runner, in a scratch worktree at 51d0a1d. Nothing in the shared checkout changed
 and nothing is staged; for the producer to place as studio/reviews/economy-delivery-windows-batch8.md.
+
+## Batch 9's two-seed check (9ee4743, added 2026-11-13)
+
+**Verdict: as expected; windows are ready on my side for a ruleset, pending Jeff's word.** With the bots pricing a
+facility's haul at the hub's lift, they buy 7 and 4 facilities over four years instead of 352 and 261, none stand at the
+end, and the goods' share of the cap's pay falls from 2.5–3.3% to under a tenth of a percent: the off world's level
+(24 bought, 0.2 standing). The gate passes on both seeds. What else moved follows from the facilities' losses ending,
+and all of it is welcome: the fleets were the buyers (any company with a warehouse's price spare), so fleet bankruptcies
+fall from 52 to 20 a run and loan defaults by a quarter to a third, which takes back most of what batch 8 cost the
+imprudent bots. The one figure to watch is the rate, 1.5–2.5% under batch 8's on these seeds (the facilities' loads at
+the lifted rate go, and more fleets survive to bid).
+
+**Attribution:** the same two seeds with windows on at bda1380, the commit before batch 9 (rules C, H and I off, client
+batch 8d), are batch 8's figure for figure, so every difference below is batch 9's rule.
+
+| Seeds 1 · 2, windows on, cap on, 1460 days | Batch 8 (51d0a1d; bda1380 identical) | Batch 9 (9ee4743) |
+|---|---|---|
+| **Facilities bought · standing at the end** | 352 · 2, 261 · 1 | **7 · 0, 4 · 0** |
+| **Closed** (bought less standing) | 350, 260 | 7, 4 |
+| Facility purchases · upkeep, M | 20.0 · 6.5, 13.9 · 4.5 | 0.4 · 0.1, 0.3 · 0.1 |
+| **Market purchases (the goods), M · share of the cap's pay** | 40.0 · 3.3%, 31.2 · 2.5% | **1.2 · 0.10%, 0.7 · 0.06%** |
+| The cap's paid freight, M | 1,227 · 1,226 | 1,222 · 1,231 |
+| … spot · brokered · contract, M | 987 · 197 · 7, 1,000 · 188 · 10 | 1,011 · 203 · 10, 1,005 · 217 · 13 |
+| The carriers' share of the cap's pay | 94.6% · 94.7% | 94.5% · 94.5% |
+| Posted · cleared | 908,952 · 415,153, 901,912 · 419,308 | 873,660 · 421,775, 889,066 · 421,195 |
+| Mean cleared rate | 3.72 · 3.69 | 3.62 · 3.64 |
+| On time · booked ahead | 0.757 · 81%, 0.763 · 81% | 0.761 · 80%, 0.763 · 80% |
+| The fall-off, M | 21.8 · 18.7 | 19.3 · 20.8 |
+| Companies bankrupt (oo · fleet · broker) | 213 (110 · 52 · 30), 192 (81 · 52 · 30) | **145 (80 · 21 · 25), 142 (77 · 19 · 22)** |
+| Fleets liquidated: greedy · random · conservative | .58 · .35 · .38, .55 · .48 · .28 | **.15 · .15 · .23, .15 · .18 · .15** |
+| Owner-operators liquidated: greedy · random · conservative | .28 · .31 · .24, .19 · .27 · .14 | .25 · .20 · .15, .21 · .23 · .14 |
+| Loan defaults · trucks seized | 308 · 200, 314 · 210 | 203 · 141, 232 · 165 |
+| Claims: late · no-show · cancel | 296 · 574 · 1,271, 282 · 566 · 1,161 | 315 · 596 · 1,366, 301 · 552 · 1,331 |
+| FD in circulation at the end, M | 81.1 · 79.4 | 79.6 · 84.8 |
+
+**The gate (against batch 9's own cap-off twin at 9ee4743, which buys no facilities): 2 of 2.**
+
+| Seed | Band, year 4 | Twin's own | Gap | Carriers Y3 · Y4, % of twin | Cleared/day Y3 · Y4, % of twin | Debt, % of held | Month 1 ÷ budget |
+|---|---|---|---|---|---|---|---|
+| 1 | .903 .896 .903 .909 (batch 8: .892 .887 .898 .901) | .908 .909 .920 .927 | −.013 | 89 · 90 (88 · 88) | 116 · 111 (104 · 100) | 0.2 | 105% |
+| 2 | .887 .892 .888 .887 (batch 8: .898 .900 .898 .904) | .902 .906 .910 .904 | −.017 | 95 · 91 (95 · 92) | 122 · 106 (108 · 106) | 0.3 | 79% |
+
+Supply, the spread and the free path pass on both; the market tripwire reads 0.06–0.10%. Two seeds settle the facility
+rule, which is the change; the side effects (fewer failures, the rate a little lower) are in the direction batch 8
+wanted and inside what ten seeds would spread, so nothing needs a rerun before the ruleset. If Jeff wants the ruleset's
+own ten-seed figures for the record, that is twenty sims (on and its twin), an hour.
+
+Runs: batch 9 on (seeds 1–2) and its cap-off twin in a scratch worktree at 9ee4743, the attribution arm in one at
+bda1380, all from gated script files; nothing in the shared checkout changed and nothing is staged.
