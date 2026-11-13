@@ -1,7 +1,7 @@
 import type { Equipment, FacilityType, TractorTier } from "@lanes/config";
 import { dcos, dexp, dlog, dpow } from "@lanes/data";
 import { chopBoardPrice, fenceBoardPrice, heatOf, lotFeeFd, lotOn } from "@lanes/engine";
-import { blockFacilityHub, closeFacility, facilityBlocked, facilityCovered, windowsOn } from "@lanes/engine";
+import { blockFacilityHub, closeFacility, facilityBlocked, facilityCovered, memoryLift, windowsOn } from "@lanes/engine";
 import { expeditable, expediteOn, expediteQuote, expediteWaitCostFd } from "@lanes/engine";
 import {
   addTruck,
@@ -1601,7 +1601,7 @@ function outlookFor(w: World, cache: Outlooks, type: FacilityType, hub: number) 
  * gets covered before the owner would give up (public board fill rate over
  * giveUpAfterRounds); the rest goes unsold.
  */
-function chooseFacility(w: World, budget: number, maxPaybackWeeks: number, cache: Outlooks): { type: FacilityType; hub: number } | null {
+export function chooseFacility(w: World, budget: number, maxPaybackWeeks: number, cache: Outlooks = new Map()): { type: FacilityType; hub: number } | null {
   const { cfg } = w;
   let best: { type: FacilityType; hub: number; payback: number } | null = null;
   for (const type of FACILITY_TYPES) {
@@ -1614,7 +1614,10 @@ function chooseFacility(w: World, budget: number, maxPaybackWeeks: number, cache
       // Windows batch 6: under windows a facility load lives two to four rounds, not giveUpAfterRounds, and the hub's own
       // facility freight says how much of it is lost (engine windows.ts facilityCovered).
       const covered = windowsOn(w) ? facilityCovered(w, hub, o.equipment) : 1 - dpow(1 - w.fillRate[o.equipment], cfg.board.giveUpAfterRounds);
-      const hauled = spec.saleValueOfRef * (1 - cfg.board.posterFeePct) - ASSUMED_CLEARED_OF_REF;
+      // Windows batch 9 (economy-delivery-windows-batch8-2026-11-13.md): a facility's goods sell on the memory-free
+      // reference while its loads pay carriers the memory-lifted rate, so the haul's share reads the hub's lift, and bots
+      // buy only where the memory is quiet (the 26-week block stays the backstop). 1 with windows off: as before.
+      const hauled = spec.saleValueOfRef * (1 - cfg.board.posterFeePct) - ASSUMED_CLEARED_OF_REF * memoryLift(w, hub, o.equipment);
       const margin = covered * hauled * ref * TYPICAL_LANE_MI;
       const weeklyNet = o.loadsPerRound * 14 * margin - spec.upkeepPerWeekFd;
       if (weeklyNet <= 0) continue;

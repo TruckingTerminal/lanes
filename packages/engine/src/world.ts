@@ -99,6 +99,11 @@ export interface World {
   contractIndex: Float64Array;
   /** Last round's load-to-truck ratio per hub and trailer type (planIndex order). */
   lastRatioEq: Float64Array;
+  /**
+   * Windows batch 9: the last posting's ratio by hub and trailer without the lost-load memory (freight.ts), beside
+   * lastRatioEq's with it; set only with windows on. The bots read the memory's lift from the two (windows.ts memoryLift).
+   */
+  lastRatioEqBase?: Float64Array;
   /** Smoothed load-to-truck ratio per hub and trailer type: how easily a truck reloads after delivering there. */
   reloadIndex: Float64Array;
   /** National average of reloadIndex per trailer type. */

@@ -695,6 +695,18 @@ export function noteNpcPosted(w: World, load: Load): void {
 }
 
 /**
+ * Windows batch 9 (economy-delivery-windows-batch8-2026-11-13.md): how far the lost-load memory lifts the hub's reference
+ * for a trailer: the last posting's ratio with the memory over the ratio without it, to the windows exponent (the one
+ * the reference reads, freight.ts). 1 with a quiet memory, or with windows off.
+ */
+export function memoryLift(w: World, hub: number, eq: Equipment): number {
+  if (!windowsOn(w) || !w.lastRatioEqBase) return 1;
+  const k = planIndex(hub, EQUIPMENT.indexOf(eq));
+  const base = w.lastRatioEqBase[k]!;
+  return base > 0 ? dpow(w.lastRatioEq[k]! / base, w.cfg.windows!.ratioExponent) : 1;
+}
+
+/**
  * windows.facilityCloseWeeks: a facility closed by its owner. It stops posting and its upkeep stops (step.ts skips a
  * facility with no owner), its slot goes back to the supply, and nothing is paid back, as at a liquidation; the loads it
  * posted stay its owner's to sell. The smallest honest sale: no bot buys a facility on the asset market, so a listing

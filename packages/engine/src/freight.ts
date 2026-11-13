@@ -255,6 +255,7 @@ export function generateRoundFreight(w: World): RoundFreight {
   }
   w.lastRatio = ratio;
   w.lastRatioEq = ratioEq;
+  if (ratioEqBase) w.lastRatioEqBase = ratioEqBase; // windows batch 9: the bots' memory lift (windows.ts memoryLift)
   // How easily a truck reloads after delivering at each hub, smoothed so one round doesn't swing prices.
   const beta = 1 / cfg.rates.reloadSmoothingRounds;
   // Batch 5: the same index without the memory and under rates.ratioClamp, for a facility's goods (facilityRef); it starts
