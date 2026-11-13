@@ -1,5 +1,16 @@
 # Decisions (the producer's log for Jeff; newest first)
 
+- 2026-11-13 — the economy's baseline gate on the whole 0.25.0 bundle (windows, the 1% settlement fee, early delivery,
+  rules C, H and I and the mid-leg night; ten seeds, cap-off twins), before the red team's fixes: the gate passes 10 of
+  10, and the carriers' floor is wider with windows than with the fee alone (worst seed 80% and 79% of the twin
+  against the 72% and 75% lines). A CORRECTION for Jeff: carriers' profit per truck-week with the bundle is about 19%
+  lower than today (owner-operators 1,736 against 2,134 FD, fleets 1,632 against 2,032); windows alone account for
+  about 15% and the fee for 4–6%. Batch 8's reading of windows as level on profit leaned on the bots' facility churn
+  (carriers paid at lifted rates out of the fleets' capital), which batch 9 ended. The cap pays carriers the same
+  total; bankruptcies fall (147 against 179); the free path reaches a first truck sooner (39 days against 46); the
+  economy is smaller (cleared loads 7% fewer, the rate 3.64 against 3.76, FD in circulation 79M against 118M at year
+  4, and the cap releasing 158M of its 276M schedule). Not a gate line; put to Jeff before the live step. The decisive
+  rerun on the red team's fix commit follows.
 - 2026-11-13 — Jeff: "Since this is mostly a menu screen game/sim, let's make the menus as beautiful and interactive
   as graphically possible… beautiful and animated." Also: use every remaining PixelLab generation before he cancels
   the plan (5,743 left of 19,672 on Tier 3, resetting in about a week), on assets the game will use. The producer's
