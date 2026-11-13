@@ -1,4 +1,7 @@
-import type { EconomyConfig } from "@lanes/config";
+import { economyConfig, withLiveLevers, type EconomyConfig } from "@lanes/config";
+
+/** The live levers, for lines that get no config (the first-load beats on Loads): the same windows and settlement fee as GAME_CONFIG. */
+const LIVE = withLiveLevers(economyConfig);
 /**
  * The first ten minutes' words (studio/specs/copy-first-ten-minutes.md, draft 4), in one place so the writer's next
  * pass is one file. Numbers come in as arguments from the config or the world; none is typed here.
@@ -588,10 +591,10 @@ export const TUTORIAL = {
   showBoard: "Show me the board",
   /** On Loads: the cards, the chip, Book now and Bid, the sorts, and what a first load looks like. */
   loads: (trailer: string, r1: string, r2: string): string[] => [
-    `The board: every open ${trailer} load within reach of your truck, nearest first. Each card is one load. The top line is where it loads, where it delivers and the loaded miles; the second is what it pays in all, the rate per mile, and the empty miles to reach it.`,
-    `The chip on the right is the number that matters: your profit at the posted rate, after fuel, tolls, the lessor's share if you have one, and those empty miles. Green pays. Red loses money however handsome the rate looks. A grey chip names why you can't take that load yet.`,
+    `The board: every open ${trailer} load within reach of your truck, ${LIVE.windows.enabled ? "the pickups closing soonest first" : "nearest first"}. Each card is one load. The top line is where it loads, where it delivers and the loaded miles; the second is what it pays in all, the rate per mile, and the empty miles to reach it.`,
+    `The chip on the right is the number that matters: your profit at the posted rate, after fuel, tolls, the lessor's share if you have one${LIVE.token.settlementFee?.enabled ? `, the ${pctOf(LIVE.token.settlementFee.share)} settlement fee` : ""}, and those empty miles. Green pays. Red loses money however handsome the rate looks. A grey chip names why you can't take that load yet.`,
     `Two ways to take one. Book now pays the posted rate and the load is yours this minute. Bid asks for more and waits for the round, ${r1} or ${r2}; the shipper takes the best bid under its ceiling, so bid too high and you watch someone else haul it.`,
-    `Nearest and Best pay sort the cards. Hot markets puts first the loads bound for cities where loads outnumber trucks, which is where the next load finds you instead of the other way round. Filter narrows by destination, empty miles or commodity.`,
+    `${LIVE.windows.enabled ? "Pickup, Nearest and Best pay sort the cards; Pickup, the first, puts the pickups closing soonest on top." : "Nearest and Best pay sort the cards."} Hot markets puts first the loads bound for cities where loads outnumber trucks, which is where the next load finds you instead of the other way round. Filter narrows by destination, empty miles or commodity.`,
     `For a first load: a green chip, few empty miles, and a destination that reloads easily, which the load's page tells you. Tap a card, read the money, then Book now or Bid. I'll be right here. The rest of the game waits behind this one load, so take your time, but not all of it.`,
   ],
   gotIt: "Got it",
@@ -1273,7 +1276,7 @@ export const EXPLAIN = (cfg: EconomyConfig): Record<string, Ex> => ({
   "money.trend": { what: "Your cash at each day's end, for the last weeks.", how: "One point a day from the ledger.", moves: "The same as cash, seen over time." },
   "money.owed": { what: "Invoices shippers owe you, and the day each is due.", how: `Each delivered load on an owned truck, paid ${cfg.token.payment.termsDays} days later.`, moves: "More deliveries; quick pay or factoring brings them in sooner." },
   "board.profitChip": { what: "What this load leaves you after your costs, at that price.", how: "Rate times miles, less break-even times all the miles you'd drive.", moves: "The rate, the empty miles, and your own costs per mile." },
-  "truck.breakEven": { what: "The rate per mile that just covers this truck's costs on this load.", how: "Fuel, maintenance, insurance, tolls and pay per mile, empty miles included, plus the lessor's share.", moves: "Fewer empty miles, cheaper fuel, a better-kept truck, owning instead of leasing." },
+  "truck.breakEven": { what: "The rate per mile that just covers this truck's costs on this load.", how: `Fuel, maintenance, insurance, tolls and pay per mile, empty miles included${cfg.token.settlementFee?.enabled ? ", plus the settlement fee" : ""}, and on a leased truck the lessor's share.`, moves: "Fewer empty miles, cheaper fuel, a better-kept truck, owning instead of leasing." },
   "board.ceiling": { what: "The most this shipper will pay per mile.", how: "Set by the shipper from the lane's market when the load is posted.", moves: "The lane, the season, and how long the load has waited." },
   "board.clearsNear": { what: "Where loads like this one usually go.", how: "Recent winning rates on this lane and trailer. With too few, this market's loads of that trailer, then the load's reference rate.", moves: "The market: more trucks push it down, more freight pushes it up." },
   "board.bookNow": { what: "The price that takes the load at once, with no round.", how: "The shipper's posted offer, below its ceiling.", moves: "It rises the longer the load sits unbooked." },

@@ -72,7 +72,7 @@ export function growthPages(cfg: EconomyConfig): GuidePage[] {
       section: S,
       title: "The used market",
       html:
-        p(`List an idle owned truck at an asking price, a floor, and a weekly price cut; a buyer gets it today, where it stands. The seller gets ${pct(1 - cfg.usedMarket.feePct)} and ${pct(cfg.usedMarket.feePct)} is burned.`) +
+        p(`List an idle owned truck at an asking price, a floor, and a weekly price cut; a buyer gets it today, where it stands. The seller gets ${pct(1 - cfg.usedMarket.feePct)} and the ${pct(cfg.usedMarket.feePct)} fee is gone for good.`) +
         p(`A truck's value falls with mileage (to ${pct(cfg.depreciation.floorPct)} of new at ${n(cfg.depreciation.lifetimeMiles)} miles), ${pct(cfg.depreciation.perYear)} a year with age, and up to ${pct(cfg.depreciation.conditionWeight)} more for wear, all against what the same truck costs new today.`),
     },
     {

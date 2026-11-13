@@ -36,7 +36,7 @@ export function marketPages(cfg: EconomyConfig): GuidePage[] {
         ]) +
         p(`Posters pay a ${pct(b.posterFeePct)} board fee on what the freight pays them. Carriers pay nothing to bid.`) +
         (cfg.token.settlementFee?.enabled
-          ? p(`<b>The settlement fee:</b> ${pct(cfg.token.settlementFee.share)} of a carrier's pay for each load, taken at delivery (never on a company's own freight), and ${pct(cfg.token.settlementFee.share)} of every sale between companies, taken from the seller. It's gone from the economy for good.`)
+          ? p(`<b>The settlement fee:</b> ${pct(cfg.token.settlementFee.share)} of a carrier's pay for each load, taken at delivery (never on a company's own freight), and ${pct(cfg.token.settlementFee.share)} of every sale between companies, taken from the seller. It's gone for good.`)
           : ""),
     },
     {

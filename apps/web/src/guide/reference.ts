@@ -44,7 +44,14 @@ export function referencePages(cfg: EconomyConfig): GuidePage[] {
           ["Backhaul", "The return trip out of a market that takes in more than it ships: cheap freight"],
           ["Break-even", "The rate per mile that just covers a load's costs, including the empty miles before and after"],
           ["Ceiling", "The most a poster will pay per mile for a load"],
+          [
+            "Claim",
+            cfg.windows.enabled
+              ? `What a carrier pays when a load goes wrong: to its poster, a share of its pay for a late delivery (${pct(cfg.windows.lateClaimShare)}), a no-show (${pct(cfg.windows.noShowClaimShare)}) or a release (${pct(cfg.windows.cancelClaimShare.early)} or ${pct(cfg.windows.cancelClaimShare.urgent)}), with a mark on the record; for a spoiled load, ${pct(cfg.commodities.spoilClaimShare)} of its value`
+              : `What a carrier pays for a spoiled load: ${pct(cfg.commodities.spoilClaimShare)} of its value`,
+          ],
           ["Deadhead", "Miles driven empty"],
+          ...(cfg.windows.enabled ? [["Delivery window", "A load's times: when it's ready, when its pickup closes, and the deadline to deliver it"]] : []),
           ["Duty day", "The 24 hours from when a truck first rolls; driving hours reset after it"],
           ["FD", "Freight Dollars, the game's money"],
           ["FSC", "Fuel surcharge, paid on top of the linehaul rate"],
@@ -55,6 +62,7 @@ export function referencePages(cfg: EconomyConfig): GuidePage[] {
           ["Miles", "Points earned for hauling well, converted to the airdrop at launch"],
           ["Out of service", "Ordered off the road at an inspection until a problem is fixed"],
           ["Reload odds", "How easily a truck finds its next load after delivering at a hub"],
+          ...(cfg.token.settlementFee?.enabled ? [["Settlement fee", `${pct(cfg.token.settlementFee.share)} of a carrier's pay for each load, and of every sale between companies; gone for good`]] : []),
           ["Span", "How many trucks a dispatcher can run"],
           ["Standing orders", "Your dispatcher's rules for bidding and moving trucks"],
           ["Vetting", "A poster's requirements for who may haul its freight"],

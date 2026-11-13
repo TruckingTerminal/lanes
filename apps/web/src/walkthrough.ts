@@ -91,7 +91,7 @@ export function walkSteps(cfg: EconomyConfig, hub = "your home hub"): WalkStep[]
       mood: "point",
       brief: "Each card is a load; its chip is your profit. Open a green one near your truck, then Book now or Bid.",
       say: [
-        `The Loads tab is the whole game in one list, so sit up straight. Each line is a lane, the miles, and a rate per mile. The shipper has a ceiling it won't pay above; your truck has a break-even it can't run below; the board shows you both, because I prefer my students to lose for interesting reasons. Loads near your truck first: an empty mile pays nothing and burns fuel. One doesn't drive to Vladivostok to say hello.`,
+        `The Loads tab is the whole game in one list, so sit up straight. Each line is a lane, the miles, and a rate per mile. The shipper has a ceiling it won't pay above; your truck has a break-even it can't run below; the board shows you both, because I prefer my students to lose for interesting reasons. Loads near your truck first: an empty mile pays nothing and costs fuel. One doesn't drive to Vladivostok to say hello.`,
         `Bids clear twice a day, at ${round(r1)} and ${round(r2)} game time. The lowest rate that still covers the shipper wins, so bidding high is a way to watch other people haul. Bid once and let it clear. If you bid nothing, your dispatcher bids for you, and for now your dispatcher is you, standing beside me, holding nothing. Go on.`,
       ],
       do: `Open a load near ${hub}, read the money, then Book now or Bid.`,
@@ -179,10 +179,10 @@ export function walkSteps(cfg: EconomyConfig, hub = "your home hub"): WalkStep[]
       mood: "idle",
       brief: "Empty trailer, far end of the country. Nearest load first: driving home empty turns a good load into a bad week.",
       say: [
-        `Your truck is at the far end of the country with an empty trailer and a driver asking what's next. The Find loads list on the truck's card is sorted by distance for exactly this moment. A load from the hub you're in is best; a short hop to a strong hub is acceptable; driving home empty is how a good load becomes a bad week.`,
+        `Your truck is at the far end of the country with an empty trailer and a driver asking what's next. The Loads tab's Nearest sort is for exactly this moment. A load from the hub you're in is best; a short hop to a strong hub is acceptable; driving home empty is how a good load becomes a bad week.`,
         `Hubs have characters. Strong ones have freight piling up and pay to leave; weak ones have trucks piling up and pay to arrive, thinly. Your home hub likes you a little: its shippers hold some loads for locals first. Everyone's home is like that. We have a saying: a guest is good when he leaves. A truck is good when it leaves loaded.`,
       ],
-      do: "Pick the next load from Find loads, nearest first.",
+      do: "Pick the next load on the Loads tab, sorted Nearest.",
       why: "Loaded miles against total miles is the number that separates a fleet from a hobby.",
       done: (w, c) => c.delivered >= 4,
     },

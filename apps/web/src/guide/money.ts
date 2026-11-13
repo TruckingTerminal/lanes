@@ -16,10 +16,10 @@ export function moneyPages(cfg: EconomyConfig): GuidePage[] {
         p(`Freight Dollars (FD) are the game's money. Every FD movement is double-entry: it comes from somewhere and goes somewhere.`) +
         ul([
           `<b>In:</b> NPC shippers paying for freight, the NPC market buying facility goods, starting grants, and (after launch) FD bought with dollars.`,
-          `<b>Out (burned):</b> fuel, wages, maintenance and repairs, insurance, yard rent, overhead, dispatcher pay, lease shares, the dealer, fines and judgments, board fees${cfg.token.settlementFee?.enabled ? ", the settlement fee" : ""}, the holding cost, the profit tax after launch.`,
+          `<b>Out, gone for good:</b> fuel, wages, maintenance and repairs, insurance, yard rent, overhead, dispatcher pay, lease shares, the dealer, fines and judgments, board fees${cfg.token.settlementFee?.enabled ? ", the settlement fee" : ""}, the holding cost, the profit tax after launch.`,
           `<b>Between companies:</b> brokers and shippers paying carriers, used-truck sales, loans and deposits.`,
         ]) +
-        p(`The Company tab's market report shows the freight cycle and rates; stabilizers keep what's burned close to what's created (${see("cycle", "Booms, busts and stabilizers")}).`),
+        p(`The Company tab's market report shows the freight cycle and rates; stabilizers keep what's gone for good close to what's created (${see("cycle", "Booms, busts and stabilizers")}).`),
     },
     {
       id: "insurance",
@@ -53,7 +53,7 @@ export function moneyPages(cfg: EconomyConfig): GuidePage[] {
       section: S,
       title: "The holding cost",
       html: p(
-        `Cash isn't free to sit on. Each week ${pct(cfg.holdingCost.weeklyRate)} of any cash above your working capital is burned. Working capital is the larger of ${n(cfg.holdingCost.minProtectedFd)} FD and what you spent in the last four weeks, so a buffer for a bust is free and a hoard isn't. Put spare FD to work: trucks, facilities, or Equipment Finance loans to others.`,
+        `Cash isn't free to sit on. Each week ${pct(cfg.holdingCost.weeklyRate)} of any cash above your working capital is taken, and it's gone for good. Working capital is the larger of ${n(cfg.holdingCost.minProtectedFd)} FD and what you spent in the last four weeks, so a buffer for a bust is free and a hoard isn't. Put spare FD to work: trucks, facilities, or Equipment Finance loans to others.`,
       ),
     },
     {
@@ -89,16 +89,16 @@ export function moneyPages(cfg: EconomyConfig): GuidePage[] {
         p(`The first ${t.betaYears} game years are the beta: FD is play money and Miles pile up.`) +
         h("Launch") +
         ul([
-          `FD above each company's working capital is burned; what's kept is locked: it can be spent in the game, not sold.`,
-          `Stakes, bonds and contract stakes are beta FD too: they are burned with the rest, and every licence gets its grace period to be re-posted with real FD.`,
+          `FD above each company's working capital is gone for good; what's kept is locked: it can be spent in the game, not sold.`,
+          `Stakes, bonds and contract stakes are beta FD too: they go with the rest, and every licence gets its grace period to be re-posted with real FD.`,
           `An FD/USDC pool opens with the farming season's dollars on one side and the pool allocation's FD on the other, as deep as the FD that survives the reset: the launch price is what those dollars support.`,
           `<b>Airdrop:</b> ${n(t.airdrop.fd)} FD shared by Miles, at most ${pct(t.airdrop.capShare)} to any one company. ${pct(t.airdrop.atLaunch)} unlocks at launch; the rest over ${t.airdrop.unlockWeeks} weeks, a slice each week you handle at least ${t.airdrop.loadsPerWeek} loads (a missed week's slice is forfeited). Or claim the rest at once for ${pct(1 - t.airdrop.instantClaimHaircut)} of it.`,
         ]) +
         h("After launch") +
         ul([
-          `Buy FD with dollars (${pct(t.exchange.buyFeePct)} fee) or sell unlocked FD (${pct(t.exchange.sellFeePct)} fee, burned) on the Money tab.`,
-          `<b>Profit tax:</b> ${pct(t.profitTaxRate)} of each week's operating profit above ${n(t.profitTaxAllowanceFd)} FD is burned. The rate moves ${pct(t.taxStabilizer.stepPerMonth)} a month within ${pct(t.taxStabilizer.range[0])}–${pct(t.taxStabilizer.range[1])} to keep the money supply steady.`,
-          `Half of the game's revenue buys FD back from the pool and burns it.`,
+          `Buy FD with dollars (${pct(t.exchange.buyFeePct)} fee) or sell unlocked FD (${pct(t.exchange.sellFeePct)} fee, gone for good) on the Money tab.`,
+          `<b>Profit tax:</b> ${pct(t.profitTaxRate)} of each week's operating profit above ${n(t.profitTaxAllowanceFd)} FD is taken, gone for good. The rate moves ${pct(t.taxStabilizer.stepPerMonth)} a month within ${pct(t.taxStabilizer.range[0])}–${pct(t.taxStabilizer.range[1])} to keep the money supply steady.`,
+          `Half of the game's revenue buys FD back from the pool, and that FD is gone for good.`,
         ]),
     },
   ];

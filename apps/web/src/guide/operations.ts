@@ -53,7 +53,9 @@ export function operationsPages(cfg: EconomyConfig): GuidePage[] {
         ul([
           `A driver gets ${hos.drivingHoursPerDay} driving hours in a 24-hour duty day that opens when the truck first rolls: about ${hos.drivingHoursPerDay * hos.avgMph} miles at ${hos.avgMph} mph (your driver's skill moves speed ±${pct(lab.driver.mphRange / 2)}). A team of two drivers gets ${cfg.safety.hos.teamHours}.`,
           `Loading and unloading take ${cfg.dwell.loadMinutes[0] / 60}–${cfg.dwell.loadMinutes[1] / 60} hours each, on duty but not driving.`,
-          `A load is due after the drive at the legal pace, the worst-case dock time and ${cfg.freight.deliverySlackMinutes / 60} hours of slack. ${cfg.freight.earlyThresholdMinutes / 60} hours early or more counts as early; past due is late.`,
+          cfg.windows.enabled
+            ? `Your on-time record counts from its own due time: the drive at the legal pace from when the truck starts the job (or the load is ready), the worst-case dock time and ${cfg.freight.deliverySlackMinutes / 60} hours of slack, and never later than the delivery deadline (below). ${cfg.freight.earlyThresholdMinutes / 60} hours early or more counts as early; past that due time is late on your record, but the poster claims only past the delivery deadline.`
+            : `A load is due after the drive at the legal pace, the worst-case dock time and ${cfg.freight.deliverySlackMinutes / 60} hours of slack. ${cfg.freight.earlyThresholdMinutes / 60} hours early or more counts as early; past due is late.`,
           `A breakdown stops the truck ${bd.delayHours[0]}–${bd.delayHours[1]} hours and can make it late.`,
           ...(cfg.businesses.parking.stopInTown
             ? [`<b>Nights.</b> When a driver's hours run out, the truck stops at a truck stop with room; with none in reach it sleeps on the shoulder, where a patrol can ticket it ${n(cfg.businesses.parking.shoulderFineFd)} FD. On your dispatcher's card you can choose towns instead: a truck that has already driven today won't leave a town on a leg it can't finish without a shoulder night${cfg.businesses.parking.stopInTownMidLeg ? `, and a day that runs out mid-leg ends in the nearest town within ${cfg.businesses.parking.stopInTownMaxMi} miles, the miles there and back counted as driven` : ""}.`]
@@ -101,7 +103,7 @@ export function operationsPages(cfg: EconomyConfig): GuidePage[] {
       title: "Wear, breakdowns and rebuilds",
       html:
         ul([
-          `An owned truck's condition falls from 100% to 0 over ${n(wear.lifeMiles)} miles since its last rebuild. Fully worn, it burns ${pct(1 / (1 - wear.mpgLossWorn) - 1)} more fuel and doubles maintenance.`,
+          `An owned truck's condition falls from 100% to 0 over ${n(wear.lifeMiles)} miles since its last rebuild. Fully worn, it uses ${pct(1 / (1 - wear.mpgLossWorn) - 1)} more fuel and doubles maintenance.`,
           `Breakdowns: a new Workhorse about once every ${n(1000 / bd.per1000MiNew)} miles, ×(1 + ${bd.wornMultiplier}·wear²) as it wears and more as it ages; a Highway Pro breaks down ${pct(1 - cfg.tractors.highwayPro.breakdownMult)} less, a Flagship ${pct(1 - cfg.tractors.flagship.breakdownMult)} less. Each costs ${n(bd.repairFd[0])}–${n(bd.repairFd[1])} FD on an owned truck; the lessor pays on a leased one. A skilled driver means fewer.`,
           `<b>Rebuild</b> an idle owned truck at ${pct(wear.rebuildMaxCondition)} condition or worse: ${wear.rebuildDays} days in the shop, back to 100%. It costs ${n(wear.rebuildFd.workhorse)} FD for a Workhorse (${n(wear.rebuildFd.highwayPro)} Highway Pro, ${n(wear.rebuildFd.flagship)} Flagship), more the higher the odometer: double at ${n(wear.rebuildAgeMi)} miles.`,
           `A worn truck's break-even is higher, so it loses bids to fresher trucks. That, not a rule, is the reason to rebuild.`,
