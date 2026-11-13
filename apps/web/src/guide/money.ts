@@ -16,7 +16,7 @@ export function moneyPages(cfg: EconomyConfig): GuidePage[] {
         p(`Freight Dollars (FD) are the game's money. Every FD movement is double-entry: it comes from somewhere and goes somewhere.`) +
         ul([
           `<b>In:</b> NPC shippers paying for freight, the NPC market buying facility goods, starting grants, and (after launch) FD bought with dollars.`,
-          `<b>Out (burned):</b> fuel, wages, maintenance and repairs, insurance, yard rent, overhead, dispatcher pay, lease shares, the dealer, fines and judgments, board fees, the holding cost, the profit tax after launch.`,
+          `<b>Out (burned):</b> fuel, wages, maintenance and repairs, insurance, yard rent, overhead, dispatcher pay, lease shares, the dealer, fines and judgments, board fees${cfg.token.settlementFee?.enabled ? ", the settlement fee" : ""}, the holding cost, the profit tax after launch.`,
           `<b>Between companies:</b> brokers and shippers paying carriers, used-truck sales, loans and deposits.`,
         ]) +
         p(`The Company tab's market report shows the freight cycle and rates; stabilizers keep what's burned close to what's created (${see("cycle", "Booms, busts and stabilizers")}).`),

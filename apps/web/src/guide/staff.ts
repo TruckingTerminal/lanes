@@ -35,7 +35,7 @@ export function staffPages(cfg: EconomyConfig): GuidePage[] {
         ul([
           `<b>Weeks out:</b> past ${cfg.fatigue.roadDays} consecutive days away from the home hub, fatigue builds every day, faster the longer they're out.`,
           `<b>Long days:</b> a day over ${cfg.fatigue.longDayHours} driving hours builds it too, and each consecutive long day builds more than the last. Running over hours on falsified logs makes long days routine.`,
-          `<b>Days off:</b> ${cfg.fatigue.resetDays} straight days off at home reset fatigue to zero. Each extra day off banks a buffer (up to ${cfg.fatigue.bufferMax} days' worth) that absorbs the next stretch before fatigue starts climbing. A day off on the road takes a little off but doesn't reset the clock.`,
+          `<b>Days off:</b> ${cfg.fatigue.resetDays} straight days off at home reset fatigue to zero. Each extra day off banks a buffer (up to ${cfg.fatigue.bufferMax} days' worth) that absorbs the next stretch before fatigue starts climbing. A day off on the road takes a little off but doesn't reset the clock.${cfg.labor.daysOffFull ? ` Days off are kept whole: give a hired driver ${cfg.fatigue.resetDays} and they get all ${cfg.fatigue.resetDays}.` : ""}`,
           `<b>What it does:</b> crash odds ×${1 + cfg.fatigue.crashMult} at full fatigue, the truck runs up to ${pct(cfg.fatigue.paceLoss)} slower, and a tired hire's morale drops every day until they quit.`,
         ]) +
         h("Home time") +

@@ -5,7 +5,7 @@
  * says about it, where to click, and why; the player can read ahead.
  */
 import type { EconomyConfig } from "@lanes/config";
-import { condition, crewed, dayOf, ordersWaitForHand, type Company, type World } from "@lanes/engine";
+import { condition, crewed, dayOf, ordersWaitForHand, settlementShare, type Company, type World } from "@lanes/engine";
 import { firstTruckLine } from "./figures.js";
 import type { Tab } from "./tabs.js";
 import { STEP9 } from "./copy.js";
@@ -155,10 +155,10 @@ export function walkSteps(cfg: EconomyConfig, hub = "your home hub"): WalkStep[]
       brief: PENDING.walkPaidBrief(pct(cfg.freeEntry.leases.byValue.escrowShareOfPay)),
       say: [
         `Delivered, and paid the same day. That's the lease: the lessor holds the paper and pays you on delivery, less its share. When you haul with a truck of your own, you'll invoice the shipper yourself, and shippers pay net-30: thirty game days after the work. Quick pay brings that forward for ${pct(cfg.token.payment.quickPayPct)}; an instrument for emergencies, not a policy. Companies that live on quick pay receive a goodbye note from me. Handwritten. Fountain pen.`,
-        `What arrives is net of the lessor's ${pct(cfg.costs.npcLeaseShareOfGross)}. The lease also holds ${pct(cfg.freeEntry.leases.byValue.escrowShareOfPay)} of each load back toward a truck of your own; you'll see it again when you buy, so don't mourn it. Money shows both. Watch the cash line at the top of the screen every day, the way my grandmother watched the samovar. Trust, and verify. Mostly verify.`,
+        `What arrives is net of the lessor's ${pct(cfg.costs.npcLeaseShareOfGross)}${settlementShare(cfg) > 0 ? ` and the ${pct(settlementShare(cfg))} settlement fee` : ""}. The lease also holds ${pct(cfg.freeEntry.leases.byValue.escrowShareOfPay)} of each load back toward a truck of your own; you'll see it again when you buy, so don't mourn it. Money shows both. Watch the cash line at the top of the screen every day, the way my grandmother watched the samovar. Trust, and verify. Mostly verify.`,
       ],
       do: "On Money, find the lessor's share and the hold. Invoices come with a truck of your own.",
-      why: "On a lease, pay lands on delivery and costs land as they come; what shrinks the pay is the lessor's share and the hold toward your own truck.",
+      why: `On a lease, pay lands on delivery and costs land as they come; what shrinks the pay is the lessor's share${settlementShare(cfg) > 0 ? ", the settlement fee" : ""} and the hold toward your own truck.`,
       // A small fleet owns its trucks, so no lessor pays it on delivery (QA).
       owned: {
         brief: `Delivered. With no lessor, you invoice the shipper, who pays in ${cfg.token.payment.termsDays} days. Money shows what's owed and when.`,

@@ -127,7 +127,7 @@ export const PENDING = {
   // Pass 2b, the bid (the director, 2026-11-09). Under a bid above Book now on the load sheet (Board.tsx LoadSheet):
   // `fd` the bid's gross less Book now's, `hh` the round it clears at, `rate` Book now's per mile. Keep "A gamble" and the
   // order: what it pays, then what beats it. No odds: the engine computes none from real clears.
-  bidGamble: (fd: string, hh: string, rate: string) => `A gamble: pays ${fd} FD more than Book now if it wins at ${hh}. Until then anyone can book it at ${rate}/mi, and at ${hh} a lower bid, a nearer truck or a better record can beat yours.`,
+  bidGamble: (fd: string, hh: string, rate: string) => `A gamble: pays ${fd} FD more than Book now, before shares and fees, if it wins at ${hh}. Until then anyone can book it at ${rate}/mi, and at ${hh} a lower bid, a nearer truck or a better record can beat yours.`,
   // Iuliia's line when nothing above Book now is worth betting on (the usual-clears figure at or under Book now, or under
   // break-even): no suggested bid, an empty field. Also the laptop table's "Profit at your bid" then.
   bidBookBetter: "I wouldn't bid on this one: loads like it usually clear at or under Book now, or under your break-even.",

@@ -24,15 +24,20 @@ export function marketPages(cfg: EconomyConfig): GuidePage[] {
           `Every bid gets a score: ${pct(b.scoreWeights.price)} for price (how far under the ceiling), ${pct(b.scoreWeights.reputation)} for reputation (your on-time record), ${pct(b.scoreWeights.deadhead)} for empty miles to the pickup (none is best; at ${b.deadheadScaleMi} it scores zero and past that it counts against you).`,
           `Bids clear best score first. A truck wins at most one load a round, and a load goes to one truck.`,
           cfg.board.refuseOverCeiling ? PENDING.guideCeilingRefused : `A bid above the ceiling, up to ${cfg.board.overCeilingMax} times it, wins only if nobody bids within the ceiling, cheapest first: in a hot market the poster pays over its ceiling rather than leave the load.`,
-          `A load nobody takes rolls to the next round with its ceiling up ${pct(b.rolloverCeilingStep)} and its appointment moved back a round. Nobody but a carrier ever hauls it: it rolls until a truck takes it or, after ${b.giveUpAfterRounds} rounds, the shipper gives up and the freight is lost. Open loads piling up where trucks are scarce lift that market's load-to-truck ratio, and so every new rate posted there.`,
+          cfg.windows.enabled
+            ? `A load nobody takes keeps its price while its pickup is more than ${cfg.windows.urgencyRounds / cfg.time.boardRoundHours.length} days off. In those last ${cfg.windows.urgencyRounds / cfg.time.boardRoundHours.length} days its poster raises the ceiling ${pct(b.rolloverCeilingStep)} a round and book-now climbs toward it (a player's posted load keeps its price). A load still untaken when its pickup closes is lost, never reposted (${see("hours", "delivery windows")}). NPC freight lost in a market lifts the rates posted there next.`
+            : `A load nobody takes rolls to the next round with its ceiling up ${pct(b.rolloverCeilingStep)} and its appointment moved back a round. Nobody but a carrier ever hauls it: it rolls until a truck takes it or, after ${b.giveUpAfterRounds} rounds, the shipper gives up and the freight is lost. Open loads piling up where trucks are scarce lift that market's load-to-truck ratio, and so every new rate posted there.`,
         ]) +
         h("Bidding by hand") +
         ul([
           `Pick an idle truck and a load up to ${MANUAL_BID_MAX_DEADHEAD_MI} miles away with the right trailer. One bid per truck per round; you can rebid or withdraw until it clears.`,
           `A hand bid replaces your dispatcher's bids for that truck that round.`,
-          `The board shows your break-even for each load: fuel, wages, maintenance, insurance, expected repairs, the lessor's cut, the empty miles to the pickup, and the empty miles you'll likely run after delivering (${see("reload", "reload odds")}).`,
+          `The board shows your break-even for each load: fuel, wages, maintenance, insurance, expected repairs, the lessor's cut${cfg.token.settlementFee?.enabled ? ", the settlement fee" : ""}, the empty miles to the pickup, and the empty miles you'll likely run after delivering (${see("reload", "reload odds")}).`,
         ]) +
-        p(`Posters pay a ${pct(b.posterFeePct)} board fee on what the freight pays them. Carriers pay nothing to bid.`),
+        p(`Posters pay a ${pct(b.posterFeePct)} board fee on what the freight pays them. Carriers pay nothing to bid.`) +
+        (cfg.token.settlementFee?.enabled
+          ? p(`<b>The settlement fee:</b> ${pct(cfg.token.settlementFee.share)} of a carrier's pay for each load, taken at delivery (never on a company's own freight), and ${pct(cfg.token.settlementFee.share)} of every sale between companies, taken from the seller. It's gone from the economy for good.`)
+          : ""),
     },
     {
       id: "booknow",
@@ -47,7 +52,9 @@ export function marketPages(cfg: EconomyConfig): GuidePage[] {
         h("How posters set it") +
         ul([
           `It opens as a share of the reference rate set by the load-to-truck ratio at the origin: about ${pct(cfg.bookNow.openAtRatio[0][1])} where trucks pile up (ratio ${cfg.bookNow.openAtRatio[0][0]}), ${pct(cfg.bookNow.openAtRatio[1][1])} at a balanced ${cfg.bookNow.openAtRatio[1][0]}, ${pct(cfg.bookNow.openAtRatio[2][1])} when trucks are scarce (ratio ${cfg.bookNow.openAtRatio[2][0]}), never above the ceiling.`,
-          `Each round a load sits unfilled the poster raises it ${pct(cfg.bookNow.stepPerRound)}, up to the ceiling (which rises ${pct(cfg.board.rolloverCeilingStep)} a round). Brokers fish: they open low where they can and pay up when nobody bites.`,
+          cfg.windows.enabled
+            ? `It holds while the load's pickup is more than ${cfg.windows.urgencyRounds / cfg.time.boardRoundHours.length} days off. In the last ${cfg.windows.urgencyRounds / cfg.time.boardRoundHours.length} days it climbs a step each round to the ceiling, which rises ${pct(cfg.board.rolloverCeilingStep)} a round. Brokers fish: they open low where they can and pay up as the pickup nears.`
+            : `Each round a load sits unfilled the poster raises it ${pct(cfg.bookNow.stepPerRound)}, up to the ceiling (which rises ${pct(cfg.board.rolloverCeilingStep)} a round). Brokers fish: they open low where they can and pay up when nobody bites.`,
           `So a carrier that can wait makes the poster come up, and a carrier that has to move takes what's posted. In a truck-heavy market the book-now is cheap and rising; in a tight one it opens near the ceiling.`,
         ]) +
         h("Your dispatcher and book-now") +
@@ -63,9 +70,9 @@ export function marketPages(cfg: EconomyConfig): GuidePage[] {
         p(`Every load is a <b>commodity</b>, and the commodity sets the trailer, what the load is worth, how long the shipper gives before the <b>delivery appointment</b>, and whether it spoils:`) +
         table(
           ["Commodity", "Trailer", "Appointment", "Spoils"],
-          COMMODITIES.map((c) => [c.name, c.equipment, `${c.windowHours} h after posting, plus the drive`, c.spoilHours === null ? "no" : `${c.spoilHours} h after the appointment`]),
+          COMMODITIES.map((c) => [c.name, c.equipment, cfg.windows.enabled ? `${c.windowHours} h after the pickup closes, plus the drive` : `${c.windowHours} h after posting, plus the drive`, c.spoilHours === null ? "no" : `${c.spoilHours} h after the appointment`]),
         ) +
-        p(`A load is due by the usual hours-of-service schedule or the appointment, whichever comes first. A perishable delivered past its spoil time is rejected: no pay, and a cargo claim of ${pct(cfg.commodities.spoilClaimShare)} of its value on the carrier. Produce follows its region's calendar (South Florida, the Rio Grande Valley and Yuma in winter; the Central Valley spring to fall; the Southeast, Michigan and the Northwest in summer), so where the reefer loads are moves with the months.`),
+        p(`${cfg.windows.enabled ? `A load must be delivered by its deadline (${see("hours", "delivery windows")}).` : "A load is due by the usual hours-of-service schedule or the appointment, whichever comes first."} A perishable delivered past its spoil time is rejected: no pay, and a cargo claim of ${pct(cfg.commodities.spoilClaimShare)} of its value on the carrier. Produce follows its region's calendar (South Florida, the Rio Grande Valley and Yuma in winter; the Central Valley spring to fall; the Southeast, Michigan and the Northwest in summer), so where the reefer loads are moves with the months.`),
     },
     {
       id: "leverage",

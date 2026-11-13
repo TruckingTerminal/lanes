@@ -55,7 +55,22 @@ export function operationsPages(cfg: EconomyConfig): GuidePage[] {
           `Loading and unloading take ${cfg.dwell.loadMinutes[0] / 60}–${cfg.dwell.loadMinutes[1] / 60} hours each, on duty but not driving.`,
           `A load is due after the drive at the legal pace, the worst-case dock time and ${cfg.freight.deliverySlackMinutes / 60} hours of slack. ${cfg.freight.earlyThresholdMinutes / 60} hours early or more counts as early; past due is late.`,
           `A breakdown stops the truck ${bd.delayHours[0]}–${bd.delayHours[1]} hours and can make it late.`,
+          ...(cfg.businesses.parking.stopInTown
+            ? [`<b>Nights.</b> When a driver's hours run out, the truck stops at a truck stop with room; with none in reach it sleeps on the shoulder, where a patrol can ticket it ${n(cfg.businesses.parking.shoulderFineFd)} FD. On your dispatcher's card you can choose towns instead: a truck that has already driven today won't leave a town on a leg it can't finish without a shoulder night${cfg.businesses.parking.stopInTownMidLeg ? `, and a day that runs out mid-leg ends in the nearest town within ${cfg.businesses.parking.stopInTownMaxMi} miles, the miles there and back counted as driven` : ""}.`]
+            : []),
         ]) +
+        (cfg.windows.enabled
+          ? h("Delivery windows") +
+            ul([
+              `<b>Ready.</b> About ${pct(cfg.windows.leadDays[0]![2])} of loads are ready the day they're posted; the rest are posted a day or more ahead, up to ${cfg.windows.leadDays[cfg.windows.leadDays.length - 1]![1]} days. A load ready the same day pays ${pct(cfg.windows.sameDayPremium - 1)} more.`,
+              `<b>Pick up by.</b> The pickup closes ${cfg.windows.pickupHours.appointment} hours after the load is ready at a shipper with appointments, ${cfg.windows.pickupHours.firstCome} at a first-come dock. Waiting at the shipper before the load is ready pays no detention.`,
+              `<b>Deliver by.</b> The deadline is the pickup's close, plus the drive at the legal hours, plus the commodity's own hours (${see("commodities", "Places, commodities and appointments")}). A hot load's is counted from when it's ready, at the hot pace.`,
+              `<b>The pay in the last days.</b> A load's price holds until the last ${cfg.windows.urgencyRounds / cfg.time.boardRoundHours.length} days before its pickup closes, then climbs each round (not on a player's posted load). Wait too long and someone else books it, or nobody does.`,
+              `<b>Claims.</b> Whoever posted the load claims a share of its pay as booked: ${pct(cfg.windows.lateClaimShare)} for a late delivery, ${pct(cfg.windows.noShowClaimShare)} for a no-show (your truck not at the shipper when the pickup closes). Each is a mark on your record too.`,
+              `<b>Booking ahead.</b> A truck on a job can book its next load: one ahead, never two. Releasing it costs ${pct(cfg.windows.cancelClaimShare.early)} of its pay, or ${pct(cfg.windows.cancelClaimShare.urgent)} in the last ${cfg.windows.urgencyRounds / cfg.time.boardRoundHours.length} days before its pickup closes, and marks your record. When a breakdown puts it out of reach, your dispatcher releases a load it booked itself at ${pct(cfg.windows.cancelClaimShare.early)}; one you booked by hand waits for you: release it at ${pct(cfg.windows.cancelClaimShare.early)} within a round, or keep it and let the pickup's close decide.`,
+              `<b>Lost loads.</b> A load nobody books by its pickup's close is lost. A broker whose load is lost pays a fall-off charge of ${pct(cfg.brokerRisk.fallOffShare)} of what the shipper agreed to pay; a shipper's goods go unsold.`,
+            ])
+          : "") +
         h("Hot loads") +
         p(`About ${pct(hl.share)} of long-haul freight (${hl.minMiles} miles or more) is hot: it pays ${hl.premium[0]}–${hl.premium[1]}× for a window that assumes ${hl.hoursPerDay} driving hours a day with only ${hl.slackMinutes / 60} hours of slack. A solo driver can't make it legally; a team can. Delivered late, a hot load pays only ${pct(hl.lateKeepsPremium)} of its premium. Hot loads are at least standard-vetted.`),
     },

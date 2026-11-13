@@ -61,6 +61,9 @@ export function growthPages(cfg: EconomyConfig): GuidePage[] {
         ul([
           `You pay when you order. The truck arrives ${d.baseDays} days later, plus a day for every ${n(1 / d.daysPerPendingOrder)} trucks already on order nationally (up to ${d.maxDays}). Orders placed in a boom often land as it turns.`,
           `Supply is capped: ${n(cfg.tractors.workhorse.pocCap)} Workhorses, ${n(cfg.tractors.highwayPro.pocCap)} Highway Pros and ${n(cfg.tractors.flagship.pocCap)} Flagships in the whole world. ${pct(cfg.starterReserveShare)} of Workhorses and dry vans are held for companies buying their first truck.`,
+          ...(cfg.assets.expedite.enabled
+            ? [`<b>Early delivery.</b> A new truck or trailer on order from the dealer can be brought forward to its earliest open slot, for a fee: ${(cfg.assets.expedite.feePerWeekSaved * 100).toFixed(1)}% of its price for each week saved, at least ${n(cfg.assets.expedite.minFeeFd)} FD and at most ${pct(cfg.assets.expedite.maxFeeShare)} of the price. You pay at once and it's never refunded. It's never sooner than ${cfg.assets.expedite.floorDays} days from paying, and slots each week are limited, so nobody else's date moves.`]
+            : []),
           `Ordering a first truck while on the NPC lease replaces the lease when it arrives. A company can run up to ${cfg.company.maxTrucks} trucks.`,
         ]),
     },
@@ -106,7 +109,7 @@ export function growthPages(cfg: EconomyConfig): GuidePage[] {
             return [t === "coldStorage" ? "Cold storage" : t[0]!.toUpperCase() + t.slice(1), `${n(f.priceFd)} FD`, `${n(f.upkeepPerWeekFd)} FD`, f.loadsPerRound, f.equipment === "bySector" ? "by the hub's industry" : f.equipment];
           }),
         ) +
-        p(`Your freight takes over part of the hub's NPC demand (NPCs always keep at least ${pct(1 - cfg.facilities.maxPlayerShareOfHub)}). A load nobody hauls rolls with its ceiling up ${pct(cfg.board.rolloverCeilingStep)} a round, at your cost; after ${cfg.board.giveUpAfterRounds} rounds the goods go unsold. Up to ${cfg.facilities.maxPerCompany} facilities per company.`),
+        p(`Your freight takes over part of the hub's NPC demand (NPCs always keep at least ${pct(1 - cfg.facilities.maxPlayerShareOfHub)}). ${cfg.windows.enabled ? "A load nobody hauls by its pickup's close is lost and its goods go unsold; the pay you post never rises on its own." : `A load nobody hauls rolls with its ceiling up ${pct(cfg.board.rolloverCeilingStep)} a round, at your cost; after ${cfg.board.giveUpAfterRounds} rounds the goods go unsold.`} Up to ${cfg.facilities.maxPerCompany} facilities per company.`),
     },
   ];
 }
