@@ -1869,6 +1869,10 @@ export const economyConfig = {
     // driver with no truck takes an empty one where they stand each day, idle before in the shop; a parked truck is the
     // player's to restart, so it's left (What now? names it). Off: as today.
     seatPaidDrivers: false,
+    // The days off kept whole (the economy's ruling, studio/reviews/economy-bundle-0250-gate.md): the daily check frees a
+    // driver at home once the day the days off end has come (today >= homeUntilDay), as every other reader reads it, so a
+    // 5-day order gives 5 days and fatigue resets at fatigue.resetDays. Off: as today, freed a day early (today + 1).
+    daysOffFull: false,
   },
 
   // The guards (the director's triage of the player's second diary, studio/reviews/director-player2.md): limits on what

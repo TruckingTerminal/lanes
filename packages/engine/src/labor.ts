@@ -451,8 +451,12 @@ export function dailyDrivers(w: World): void {
     if (s.status !== "employed" || s.kind !== "driver") continue;
     const c = companyById(w, s.companyId);
     const t = s.truckId ? truckById(w, s.truckId) : null;
-    const home = !t || standingAtHome(w, c, t);
     const hours = s.drivenMinToday / 60;
+    // labor.daysOffFull: the day just ended was one of the days off (today <= homeUntilDay), undriven, is a day off at home
+    // whatever the truck is doing now: the hour's dispatch can take the truck at the very midnight the days off end, before
+    // this check, and the last day off would go uncounted (and fatigue never reset).
+    const dayOff = w.cfg.labor.daysOffFull && s.homeUntilDay !== null && today <= s.homeUntilDay && hours === 0;
+    const home = !t || dayOff || standingAtHome(w, c, t);
     s.drivenMinToday = 0;
     if (home && hours === 0) {
       // A day off at home.
@@ -462,7 +466,8 @@ export function dailyDrivers(w: World): void {
         s.fatigue = 0;
         if (s.restDays > f.resetDays) s.buffer = Math.min(f.bufferMax, s.buffer + f.bufferPerExtraDay);
       } else s.fatigue = Math.max(0, s.fatigue - f.recoverAtHome);
-      if (s.homeUntilDay !== null && today + 1 >= s.homeUntilDay) s.homeUntilDay = null;
+      // labor.daysOffFull (the economy's ruling): free once the end day has come, as resting() reads it; off, a day early.
+      if (s.homeUntilDay !== null && (w.cfg.labor.daysOffFull ? today : today + 1) >= s.homeUntilDay) s.homeUntilDay = null;
       continue;
     }
     s.restDays = 0;
