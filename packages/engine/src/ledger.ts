@@ -179,6 +179,30 @@ export class Ledger {
     else this.lockDebtCents.delete(to);
   }
 
+  /**
+   * Gives back FD the settlement fee burned (its refund on a player shipper's paper written off, settlement.ts): the
+   * burn's account, its tag's total and the sink total fall by it, so the tag reads net, and the company's outflows with
+   * it. Never more than the tag holds; `lockedFd` of it comes back spend-only, as it left. Returns what it gave back.
+   */
+  unburn(t: number, to: string, amountFd: number, lockedFd: number, ref: string): number {
+    const sink = "sink:trade_burn";
+    const held = Math.min(this.balances.get(sink) ?? 0, this.totals.get(sink) ?? 0);
+    const cents = Math.min(toCents(amountFd), held);
+    if (!(cents > 0)) return 0;
+    if (!to.startsWith("co:")) throw new Error(`A burn goes back to a company, not ${to}`);
+    const lockedBack = Math.min(cents, Math.max(0, toCents(lockedFd)));
+    this.balances.set(sink, (this.balances.get(sink) ?? 0) - cents);
+    this.balances.set(to, (this.balances.get(to) ?? 0) + cents);
+    this.totals.set(sink, (this.totals.get(sink) ?? 0) - cents);
+    this.sinkCents -= cents;
+    const out = this.outflows.get(to);
+    if (out !== undefined) this.outflows.set(to, Math.max(0, out - cents));
+    // The entry as the fee's own, negative, so a sum over the entries nets it.
+    if (this.keepEntries) this.entries.push({ t, from: to, to: sink, amount: -cents / 100, kind: "sink", ref });
+    if (carriesLock(to)) this.settleLocks(to, lockedBack, cents - lockedBack);
+    return cents / 100;
+  }
+
   /** Spend-only FD an account owes (it landed in the red, see lockDebtCents). */
   lockDebt(account: string): number {
     return (this.lockDebtCents.get(account) ?? 0) / 100;

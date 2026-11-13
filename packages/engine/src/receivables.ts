@@ -554,17 +554,40 @@ export function settleReceivable(w: World, r: Receivable): void {
     if (!own) recordPayment(payer, r.amountFd, true);
     // The payer is being wound up: a broker's bond covers its carrier, as far as the surety pool goes; otherwise the holder loses.
     const bondLeft = Math.max(0, w.cfg.token.staking.roles.broker - payer.suretyClaimedFd);
+    let covered = 0;
     if (payer.role === "broker" && payer.suretyWriter === "pool" && r.holder !== HOLDER_NPC_FACTOR && bondLeft > 0.01) {
-      payer.suretyClaimedFd += payClaim(w, "surety", toAcct, Math.min(r.amountFd, bondLeft), `surety:${r.id}`);
+      covered = payClaim(w, "surety", toAcct, Math.min(r.amountFd, bondLeft), `surety:${r.id}`);
+      payer.suretyClaimedFd += covered;
     } else if (r.holder === HOLDER_POOL) {
       w.pools.factoring.claimsFd += r.amountFd;
     }
+    // token.settlementFee: a player shipper's paper written off gives its carrier back the fee on the part lost.
+    if (r.shipperPaper) refundSettlement(w, r, r.amountFd - covered);
     w.metrics.onShipperDefault();
     return;
   }
   // Paid with cash in hand, or from an overdraft: the difference is the credit record.
   if (!own) recordPayment(payer, r.amountFd, w.ledger.balance(companyAccount(payer.id)) < r.amountFd);
   w.ledger.post(w.t, companyAccount(payer.id), toAcct, r.amountFd, `receivable:${r.id}`);
+}
+
+/**
+ * The fee back on paper written off (the economy's follow-up, economy-settlement-fee-pair-2026-11-13.md §1): the load fee
+ * is booked at delivery on gross, so a carrier whose player shipper is wound up before it pays had paid the fee on money
+ * it never got. The share of the fee on the part lost comes back out of the burn, under the same tag (ledger.unburn), to
+ * the payee, but only while the payee still holds the paper: paper sold to a factor was paid, and the loss is the factor's.
+ * Here, not in settlement.ts, so this module takes no new import (safety.ts reads economics.ts's fmtInt at load).
+ */
+export function refundSettlement(w: World, r: Receivable, lostFd: number): number {
+  const f = r.fee;
+  if (!f || r.holder !== r.payeeId || !(lostFd > 0) || !(f.onFd > 0) || !(f.fd > 0)) return 0;
+  const part = Math.min(1, lostFd / f.onFd);
+  const back = w.ledger.unburn(w.t, companyAccount(r.payeeId), f.fd * part, f.lockedFd * part, `fee:refund:receivable:${r.id}`);
+  companyById(w, r.payeeId).operating.costFd -= back; // the fee was a cost of the trip (trips.ts deliver)
+  f.fd -= back;
+  f.lockedFd = Math.max(0, f.lockedFd * (1 - part));
+  f.onFd = Math.max(0, f.onFd - lostFd);
+  return back;
 }
 
 /** A company's open paper as payer, paid now (a retirement, solvency.ts settleRetired), as it would be at the due day. */

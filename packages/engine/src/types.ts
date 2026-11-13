@@ -484,6 +484,11 @@ export interface Receivable {
   holder: number;
   /** A player shipper's paper for its facility freight (receivables.ts Bill.shipperPaper): never treated as bonded. */
   shipperPaper?: boolean;
+  /**
+   * The settlement fee its payee paid at delivery on this paper (token.settlementFee; settlement.ts): the fee, the
+   * spend-only part of it, and the amount it was charged on. Refunded on the part written off if the payer defaults.
+   */
+  fee?: { fd: number; lockedFd: number; onFd: number };
 }
 export interface Pool {
   shares: Map<number, number>;

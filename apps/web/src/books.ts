@@ -356,6 +356,18 @@ export function watchBooks(w: World): void {
       }
     return r;
   };
+  // token.settlementFee's refund (ledger.unburn): it nets the settlement line, as the fee's own entry.
+  const unburn = ledger.unburn.bind(ledger);
+  ledger.unburn = (t, to, amountFd, lockedFd, ref) => {
+    const r = unburn(t, to, amountFd, lockedFd, ref);
+    if (r > 0)
+      try {
+        note(w, to, "sink:trade_burn", -Math.round(r * 100) / 100, ref, false);
+      } catch (e) {
+        console.error(e);
+      }
+    return r;
+  };
 }
 
 /** After each game hour (TestGame.stepHour, LiveWorld.advance): the miles, and the month close once the engine has written it. */

@@ -18,7 +18,7 @@ export interface QuarterReport {
   quarter: number;
   label: string;
   faucetFd: number;
-  /** Operating sinks; the season-close burn is reported per season instead. */
+  /** Operating sinks and the settlement fee's burn (metrics.ts balanceSinksFd); the season-close burn is reported per season instead. */
   sinkFd: number;
   sinkFaucetRatio: number;
   pass: boolean;
@@ -27,9 +27,10 @@ export interface QuarterReport {
 export interface SeasonReport {
   season: number;
   faucetFd: number;
+  /** Operating sinks and the settlement fee's burn (balanceSinksFd), as the quarters read them. */
   sinkFd: number;
   sinkFaucetRatio: number;
-  /** (Operating sinks + the season-close burn) ÷ faucets, for completed seasons. */
+  /** (Those sinks + the season-close burn) ÷ faucets, for completed seasons. */
   ratioWithBurn: number | null;
   burnedFd: number | null;
   supplyBeforeCloseFd: number | null;
@@ -301,6 +302,7 @@ export interface RunReport {
     trucksDelivered: number;
     repossessions: number;
     usedSales: number;
+    /** Operating sinks and the settlement fee's burn (balanceSinksFd) over faucets. */
     sinkFaucetRatio: number;
   }[];
   faucetsByTag: Record<string, number>;
@@ -506,7 +508,7 @@ export function buildReport(w: World): RunReport {
     }
     const close = w.seasonCloses.find((c) => c.season === s);
     const faucetFd = sum(seasonDays.map((d) => d.faucetFd));
-    const sinkFd = sum(seasonDays.map((d) => d.sinkFd));
+    const sinkFd = sum(seasonDays.map(balanceSinksFd)); // the settlement fee's burn counts, as in the quarters (metrics.ts)
     seasons.push({
       season: s + 1,
       faucetFd,
@@ -889,7 +891,7 @@ export function buildReport(w: World): RunReport {
       trucksDelivered: sum(slice.map((d) => d.trucksDelivered)),
       repossessions: sum(slice.map((d) => d.repossessions)),
       usedSales: sum(slice.map((d) => d.usedSales)),
-      sinkFaucetRatio: faucet > 0 ? sum(slice.map((d) => d.sinkFd)) / faucet : 0,
+      sinkFaucetRatio: faucet > 0 ? sum(slice.map(balanceSinksFd)) / faucet : 0, // the settlement fee's burn counts (metrics.ts)
     });
   }
 

@@ -24,7 +24,7 @@ import { lockCost, stakeDiscount } from "./staking.js";
 import { creditMiles, creditDriving, homeArrival } from "./labor.js";
 import { companyAccount } from "./ledger.js";
 import { closeDutyDay, drivingLimitMin, legalDrivingMin, mphFor, safetyTick } from "./safety.js";
-import type { Company, Load, Truck } from "./types.js";
+import type { Company, Load, Receivable, Truck } from "./types.js";
 import { breakdownsPer1000Mi } from "./wear.js";
 import { companyById, crewed, hubRoute, type World, placeHours, placeLegMiles, placeMiles, placeOfHub, placeRoute } from "./world.js";
 
@@ -652,10 +652,11 @@ export function abandonLeg(w: World, truck: Truck): void {
  * market for the goods), or the NPC shipper directly. `factor` is what a late hot
  * load still pays of the full amount.
  */
-function collectUpstream(w: World, load: Load, payee: Company, gross: number, factor: number, ref: string, leased = false): void {
+function collectUpstream(w: World, load: Load, payee: Company, gross: number, factor: number, ref: string, leased = false): Receivable | null {
   const { cfg } = w;
   const payeeAcct = companyAccount(payee.id);
   const truckId = load.truckId ?? undefined;
+  let paper: Receivable | null = null;
   // The factoring log: brokered and direct NPC freight, and what it paid the carrier.
   if (cfg.token.payment.enabled && load.shipperId === null) {
     const side = factoringLog(w)[load.brokerId !== null ? "brokered" : "direct"];
@@ -695,7 +696,11 @@ function collectUpstream(w: World, load: Load, payee: Company, gross: number, fa
     const shipperAcct = companyAccount(shipper.id);
     const fee = lockCost(w, shipper, cfg.board.posterFeePct * load.saleValue, () => cfg.board.posterFeePct * load.saleValue * (1 - stakeDiscount(w, shipper)));
     bill(w, { payer: 0, faucet: "faucet:npc_market", payee: shipper, amountFd: load.saleValue, ref, npcKind: "market" }); // drawn on the emission budget (receivables.ts bill)
+    const before = w.receivables.length;
     if (shipper.id !== payee.id) bill(w, { payer: shipper.id, payee, amountFd: gross, ref, leased, truckId, shipperPaper: true });
+    // The paper the payee waits on, if it waits (token.settlementFee's refund reads it).
+    const last = w.receivables.length > before ? w.receivables[w.receivables.length - 1]! : null;
+    paper = last && last.shipperPaper && last.payer === shipper.id && last.payeeId === payee.id ? last : null;
     w.ledger.post(w.t, shipperAcct, "sink:board_fee", fee, ref);
     const facility = w.facilities[load.facilityId! - 1];
     // Self-hauled freight's carrier side is the owner's own cost, so only the goods margin counts here.
@@ -707,6 +712,7 @@ function collectUpstream(w: World, load: Load, payee: Company, gross: number, fa
   } else {
     bill(w, { payer: 0, faucet: "faucet:npc_shipper", payee, amountFd: gross, ref, leased, truckId, npcKind: npcPayKind(load) });
   }
+  return paper;
 }
 
 function deliver(w: World, truck: Truck, now: number): void {
@@ -726,11 +732,11 @@ function deliver(w: World, truck: Truck, now: number): void {
   // A company hauling its own freight pays itself nothing: no revenue, no lease share on it.
   const db = load.doubleBroker ? companyById(w, load.doubleBroker.companyId) : null;
   const upstream = db ? load.doubleBroker!.upstreamRate * load.miles * factor : gross;
-  if (!spoiled) collectUpstream(w, load, db ?? carrier, upstream, factor, ref, !db && truck.lease === "npc");
+  const paper = spoiled ? null : collectUpstream(w, load, db ?? carrier, upstream, factor, ref, !db && truck.lease === "npc");
   const own = load.shipperId === carrier.id;
   const paid = own || spoiled ? 0 : db ? settleDoubleBroker(w, load, carrier, gross, upstream) : gross;
   // token.settlementFee: on what the carrier is paid, from the carrier (settlement.ts); none on its own brokerage's tender.
-  const settled = chargeSettlement(w, carrier.id, load.brokerId ?? db?.id ?? load.shipperId ?? null, paid, ref);
+  const settled = chargeSettlement(w, carrier.id, load.brokerId ?? db?.id ?? load.shipperId ?? null, paid, ref, db ? null : paper);
   // Detention, its own line in the settlement (cfg.detention), to the carrier that waited.
   const detained = spoiled || own ? 0 : payDetention(w, load, carrier);
   carrier.operating.revenueFd += detained;

@@ -56,6 +56,8 @@ export interface GateDay {
   trucksInService: number;
   faucetByTag: Record<string, number>;
   sinkByTag: Record<string, number>;
+  /** Burns by tag (the settlement fee's trade_burn among them); absent on reports from before the fee. */
+  burnByTag?: Record<string, number>;
   inDebt?: number;
   debtFd?: number;
   retiredDebtFd?: number;
@@ -116,7 +118,10 @@ export interface GateResult {
     /** The npc_market faucet's share of the last year's faucets, for the record: under the cap most facility sales are advanced by the factor and post under its tag. */
     marketFaucetShareLastYear: number;
     marketTripped: boolean;
+    /** Faucets less operating sinks: what the reserve paid out net (the settlement fee's burn never refills it). */
     netEmittedFd: number;
+    /** The settlement fee's burn over the run (token.settlementFee), net of refunds; 0 off. */
+    tradeBurnFd: number;
     plannedFd: number;
     overshootFd: number;
     reserveDrawdownFd: number;
@@ -255,7 +260,9 @@ export function evaluateGate(cap: GateRun, twin: GateRun, def: GateDefinition = 
   const marketShareOfPay = pay && payTotal > 0 ? (pay.market?.fd ?? 0) / payTotal : null;
   const months = r.emission?.months ?? [];
   const plannedFd = months.length ? months[0]!.budgetFd + sum(months.slice(1).map((m) => m.subsidyFd)) : 0;
+  // Faucets less operating sinks (the reserve's net draw: a burn never refills it); the settlement fee's burn beside it.
   const netEmittedFd = sum(cap.days.map((d) => d.faucetFd - d.sinkFd));
+  const tradeBurnFd = sum(cap.days.map((d) => d.burnByTag?.trade_burn ?? 0));
   const last = cap.days[cap.days.length - 1]!;
   const genesisReserve = r.emission?.reserve.genesisReserveFd ?? 0;
   const reserveDrawdownFd = genesisReserve > 0 ? genesisReserve - last.reserveFd : 0;
@@ -270,7 +277,7 @@ export function evaluateGate(cap: GateRun, twin: GateRun, def: GateDefinition = 
     firstTruckDay: r.byStrategy?.oo?.conservative?.firstTruck?.medianDay ?? null,
     twinFirstTruckDay: twin.report.byStrategy?.oo?.conservative?.firstTruck?.medianDay ?? null,
     marketShareOfPay, marketFaucetShareLastYear, marketTripped: (marketShareOfPay ?? marketFaucetShareLastYear) > def.marketTripwire,
-    netEmittedFd, plannedFd, overshootFd: netEmittedFd - plannedFd, reserveDrawdownFd, curveHeadroomFd,
+    netEmittedFd, tradeBurnFd, plannedFd, overshootFd: netEmittedFd - plannedFd, reserveDrawdownFd, curveHeadroomFd,
     rawQuartersInOldBand: r.quarters.filter((q) => q.pass).length, quarters: r.quarters.length,
   };
 
@@ -297,7 +304,7 @@ export function formatGate(g: GateResult, label = ""): string {
   const s = g.standing;
   lines.push(`(d) supply ${mark(s.supply)} (warm ${s.afterWarmup.toFixed(2)}×, yoy ${s.yearOverYear?.toFixed(2) ?? "–"}×) · spread ${mark(s.spread)} (${s.crossSegmentTop.toFixed(2)}×) · free path ${mark(s.freePath)} (${s.freeWithin}/${s.freeCompanies} within the limit, median ${s.freeMedianDays ?? "–"} d)`);
   const p = g.reported;
-  lines.push(`    reported: prudent OO first truck d${p.firstTruckDay ?? "–"} (twin d${p.twinFirstTruckDay ?? "–"}) · NPC market purchases ${p.marketShareOfPay !== null ? `${pct(p.marketShareOfPay)} of NPC pay committed` : "not in this report"}${p.marketTripped ? " TRIPPED" : ""} (by faucet tag, last year ${pct(p.marketFaucetShareLastYear)}, record only) · net emitted ${M(p.netEmittedFd)} vs planned ${M(p.plannedFd)} (${p.overshootFd >= 0 ? "+" : ""}${M(p.overshootFd)}) · reserve drawdown ${M(p.reserveDrawdownFd)}${p.curveHeadroomFd !== null ? ` · headroom under the first sizing's curve ${M(p.curveHeadroomFd)} (record only)` : ""} · raw quarters in the old band ${p.rawQuartersInOldBand}/${p.quarters}`);
+  lines.push(`    reported: prudent OO first truck d${p.firstTruckDay ?? "–"} (twin d${p.twinFirstTruckDay ?? "–"}) · NPC market purchases ${p.marketShareOfPay !== null ? `${pct(p.marketShareOfPay)} of NPC pay committed` : "not in this report"}${p.marketTripped ? " TRIPPED" : ""} (by faucet tag, last year ${pct(p.marketFaucetShareLastYear)}, record only) · net emitted (faucets less operating sinks) ${M(p.netEmittedFd)} vs planned ${M(p.plannedFd)} (${p.overshootFd >= 0 ? "+" : ""}${M(p.overshootFd)})${p.tradeBurnFd ? ` · settlement fee burned ${M(p.tradeBurnFd)}` : ""} · reserve drawdown ${M(p.reserveDrawdownFd)}${p.curveHeadroomFd !== null ? ` · headroom under the first sizing's curve ${M(p.curveHeadroomFd)} (record only)` : ""} · raw quarters in the old band ${p.rawQuartersInOldBand}/${p.quarters}`);
   return lines.join("\n");
 }
 

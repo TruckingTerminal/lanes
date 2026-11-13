@@ -79,7 +79,7 @@ for (let y = 0; y < years; y++) {
   rows.push([`Avg rate, year ${y + 1} (FD/mi)`, (rs) => range(rs.map((r) => r.inflation.years[y]?.avgRate ?? NaN).filter(Number.isFinite), (x) => x.toFixed(2))]);
 }
 rows.push(
-  ["Operating sinks/faucets, all quarters", (rs) => range(rs.flatMap((r) => r.cycleQuarters.map((q) => q.sinkFaucetRatio)), pct)],
+  ["Sinks/faucets (operating and the settlement fee), all quarters", (rs) => range(rs.flatMap((r) => r.cycleQuarters.map((q) => q.sinkFaucetRatio)), pct)],
   ["Sinks incl. burn / faucets, whole run", (rs) => range(rs.map((r) => {
     const f = r.seasons.reduce((s, x) => s + x.faucetFd, 0);
     const k = r.seasons.reduce((s, x) => s + x.sinkFd + (x.burnedFd ?? 0), 0);
@@ -428,7 +428,7 @@ function populationRows(): Row[] {
       rs.some((r) => r.population)
         ? `${n0(mean(rs.map((r) => r.population?.daysUnder ?? 0)))} / ${n0(mean(rs.map((r) => r.population?.daysOver ?? 0)))}; ${n0(mean(rs.map((r) => r.population?.retired ?? 0)))} / ${n0(mean(rs.map((r) => r.population?.woundDown ?? 0)))} / ${n0(mean(rs.map((r) => r.population?.entered ?? 0)))}`
         : "off"],
-    ["Sinks/faucets by quarter (operating)", (rs) => {
+    ["Sinks/faucets by quarter (operating and the settlement fee)", (rs) => {
       const n = Math.min(...rs.map((r) => r.cycleQuarters.length));
       return Array.from({ length: n }, (_, i) => pct(mean(rs.map((r) => r.cycleQuarters[i]!.sinkFaucetRatio)))).join(" ");
     }],

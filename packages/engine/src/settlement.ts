@@ -1,6 +1,7 @@
 import type { EconomyConfig } from "@lanes/config";
 import { samePerson } from "./brokerage.js";
 import { companyAccount } from "./ledger.js";
+import type { Receivable } from "./types.js";
 import type { World } from "./world.js";
 
 /**
@@ -15,12 +16,16 @@ import type { World } from "./world.js";
  */
 export const settlementShare = (cfg: EconomyConfig): number => (cfg.token.settlementFee?.enabled ? cfg.token.settlementFee.share : 0);
 
-/** Charges the fee on `amountFd` to `sellerId` (`buyerId` the other side, null when it's no company), and returns it (0 off). */
-export function chargeSettlement(w: World, sellerId: number, buyerId: number | null, amountFd: number, ref: string): number {
+/**
+ * Charges the fee on `amountFd` to `sellerId` (`buyerId` the other side, null when it's no company), and returns it (0 off).
+ * `paper`: the receivable the seller is paid by (a player shipper's, trips.ts), which keeps the fee for its refund.
+ */
+export function chargeSettlement(w: World, sellerId: number, buyerId: number | null, amountFd: number, ref: string, paper?: Receivable | null): number {
   const share = settlementShare(w.cfg);
   if (!(share > 0) || sellerId <= 0 || !(amountFd > 0)) return 0;
   if (buyerId !== null && buyerId > 0 && (buyerId === sellerId || samePerson(w, sellerId, buyerId))) return 0;
   const fee = amountFd * share;
-  w.ledger.post(w.t, companyAccount(sellerId), "sink:trade_burn", fee, `fee:${ref}`);
+  const lockedFd = w.ledger.post(w.t, companyAccount(sellerId), "sink:trade_burn", fee, `fee:${ref}`);
+  if (paper && paper.payeeId === sellerId) paper.fee = { fd: fee, lockedFd, onFd: amountFd };
   return fee;
 }

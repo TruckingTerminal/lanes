@@ -104,7 +104,7 @@ function printReport(r: RunReport, secs: string): void {
   const mark = (ok: boolean) => (ok ? "PASS" : "FAIL");
   console.log(`\n== Seed ${r.seed} · ${r.days} days · ${r.companies} companies · ${r.trucks} trucks · ${secs}s ==`);
   for (const q of r.quarters) {
-    console.log(`  ${q.label} operating sinks/faucets ${(q.sinkFaucetRatio * 100).toFixed(1)}%  (in ${fd(q.faucetFd)}, out ${fd(q.sinkFd)})  ${mark(q.pass)}`);
+    console.log(`  ${q.label} sinks/faucets ${(q.sinkFaucetRatio * 100).toFixed(1)}%  (in ${fd(q.faucetFd)}, out ${fd(q.sinkFd)}, operating sinks and the settlement fee)  ${mark(q.pass)}`);
   }
   for (const s of r.seasons) {
     if (s.burnedFd !== null) {
