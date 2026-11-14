@@ -1,3 +1,4 @@
+import { MENUS } from "./copy-menus.js";
 import { AHEAD_STATUSES, canMake, clearsWhen, companyAccount, crewed, hubMiles, dayOf, freeOf, lostShare, memoryLift, npcKey, resting, urgent, whenLabel, windowsOn, type Company, type Free, type Load, type Reach, type Truck, type World } from "@lanes/engine";
 import { WINDOWS } from "./copy-windows.js";
 import { fdFull, hhmm, shortDate } from "./format.js";
@@ -330,7 +331,11 @@ export function homeMarketLine(w: World, c: Company, t: Truck): string | null {
   if (d.homeUntilDay === null || d.homeUntilDay <= today) return null;
   const tomorrow = d.drivenMinToday > 0;
   const left = Math.max(1, d.homeUntilDay - today - (tomorrow ? 1 : 0));
-  return WINDOWS.homeInMarket(d.owner ? "You're" : `${d.name} is`, place(w, t.place), w.net.hubs[c.homeHub]!.name, left, tomorrow);
+  const who = d.owner ? "You're" : `${d.name} is`;
+  // Batch M2 (QA: "N days off, starting now" every day): "starting" only on the days off's first day (no day off counted
+  // yet, labor.ts restDays), then a count of the days left.
+  if (!tomorrow && d.restDays > 0) return MENUS.homeDaysLeft(who, place(w, t.place), w.net.hubs[c.homeHub]!.name, left);
+  return WINDOWS.homeInMarket(who, place(w, t.place), w.net.hubs[c.homeHub]!.name, left, tomorrow);
 }
 /**
  * labor.homeNeedsDispatcher (the director's ruling 3): with the dispatcher off (no bidding order), the home rule never

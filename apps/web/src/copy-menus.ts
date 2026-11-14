@@ -31,4 +31,7 @@ export const MENUS = {
   // suggested bid because this lane has too few clears of its own, the bid line points at the market's figure the sheet
   // shows rather than seeming to deny it.
   bidMarketGuide: (rate: string) => `Too few loads have cleared on this lane to suggest a bid. Loads like it in this market clear near ${rate}/mi; Book now is the sure price.`,
+  // Engineering's placeholder, batch M2 (QA: the home-time line said "starting now" every day): after the days off's
+  // first day, the line counts down.
+  homeDaysLeft: (who: string, place: string, market: string, days: number) => `${who} home (${place}, ${market} market): ${days} ${days === 1 ? "day" : "days"} off left.`,
 };

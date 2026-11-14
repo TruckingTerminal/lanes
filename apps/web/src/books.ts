@@ -328,7 +328,7 @@ function moneyEvent(w: World, b: CompanyBooks, other: string, ref: string, fd: n
 }
 
 /** The menu system §2.4: told of each cost that leaves a watched company's cash (a SPENT line), for the cost chip. */
-let costHook: ((w: World, c: Company, fd: number, line: (typeof SPENT)[number]) => void) | null = null;
+let costHook: ((w: World, c: Company, fd: number, line: (typeof SPENT)[number], ref: string) => void) | null = null;
 export function onCost(f: typeof costHook): void {
   costHook = f;
 }
@@ -341,7 +341,7 @@ function note(w: World, acct: string, other: string, fd: number, ref: string, in
   const line = lineOf(w, c, other, ref, inflow);
   b.open.flows[line] = (b.open.flows[line] ?? 0) + (inflow ? fd : -fd);
   if (!inflow) moneyEvent(w, b, other, ref, fd);
-  if (!inflow && fd > 0 && costHook && (SPENT as readonly string[]).includes(line)) costHook(w, c, fd, line as (typeof SPENT)[number]);
+  if (!inflow && fd > 0 && costHook && (SPENT as readonly string[]).includes(line)) costHook(w, c, fd, line as (typeof SPENT)[number], ref);
 }
 
 /**

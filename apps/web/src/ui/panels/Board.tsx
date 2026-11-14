@@ -605,9 +605,18 @@ function LoadSheet({ r, truck }: { r: BoardRow; truck: Truck }): JSX.Element {
           ]}
         />
       </details>
+      {/* Batch M2 (QA: the gamble line appeared as a rate was typed and the pinned block grew 21 px upward, moving Book
+          now, the field and BID under the finger; rule 4.4): the lines that change as the player types, or only inform,
+          sit here in the sheet, above the pinned block, so the block holds the controls at one height. On the laptop it
+          is shorter too, so the route above stays in view. */}
+      {!r.files && !r.block ? <DockWarning w={w} t={truck} l={l} dh={r.dh} /> : null}
+      {betLine && !bidShut ? <p class="small muted betline">{betLine}</p> : null}
+      {bidOut && !bidShut ? <p class="small muted">{PENDING.bidReach(MANUAL_BID_MAX_DEADHEAD_MI)}</p> : null}
       <div class="actions pinned">
         {/* leverage.localHoldHandBids: the hold's last round files a bid for the opening instead of the first-call wall. */}
-        {r.files ? <p class="small">{PENDING_RULES.bidFilesFor(nextRoundHour())}</p> : r.block ? <p class="bad small">{LOAD.blocked(r.block.replace(/\.\s*$/, ""))}</p> : <DockWarning w={w} t={truck} l={l} dh={r.dh} />}
+        {r.files ? <p class="small">{PENDING_RULES.bidFilesFor(nextRoundHour())}</p> : r.block ? <p class="bad small">{LOAD.blocked(r.block.replace(/\.\s*$/, ""))}</p> : null}
+        {/* A refusal or an answer, at the block's top: it grows upward from there, so nothing below it moves. */}
+        {note ? <p class={cls("small", note.bad && "bad")}>{note.text}</p> : null}
         {/* Client batch 8a item 46: shut with its reason when the truck has no driver, never refused after the tap. */}
         {!crewed(truck) ? <p class="bad small">{PENDING.bookNeedsDriver}</p> : null}
         <Btn primary={bookUp} disabled={!!r.block || !crewed(truck)} onClick={(ev) => withDaysOffWarning(truck, "Book", PENDING.cutDaysOffItem, () => void book(), ev)}>
@@ -669,9 +678,6 @@ function LoadSheet({ r, truck }: { r: BoardRow; truck: Truck }): JSX.Element {
             </Btn>
           ) : null}
         </div>
-        {betLine && !bidShut ? <p class="small muted">{betLine}</p> : null}
-        {bidOut && !bidShut ? <p class="small muted">{PENDING.bidReach(MANUAL_BID_MAX_DEADHEAD_MI)}</p> : null}
-        {note ? <p class={cls("small", note.bad && "bad")}>{note.text}</p> : null}
       </div>
     </div>
   );

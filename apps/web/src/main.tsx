@@ -193,7 +193,11 @@ async function boot(): Promise<void> {
   loadTheme();
   initMotion(); // the Motion setting (the menu system §2.6): <html data-motion>, from the system until the player chooses
   // The menu system §2.4: a cost leaving the player's cash, as it happens, shows in the chip under the cash.
-  onCost((w, c, fd, line) => {
+  // Batch M2 (QA: "−1,953 FD · 8 costs" beside the toast's "1,533 FD yours" read as a second loss): a delivery's own
+  // deductions (fuel, tolls, upkeep, the lessor's share and the fee, all posted on the load's ref) stay out of the chip,
+  // since the toast and the pay card already net them; the chip is for costs that leave on their own.
+  onCost((w, c, fd, line, ref) => {
+    if (ref.startsWith("load:")) return;
     if (S.game?.w === w && S.game.player?.id === c.id) costLeft(fd, (MONTH.row[line] ?? line).toLowerCase());
   });
   loadOnboard();

@@ -2,6 +2,7 @@ import "./seed.js";
 import { describe, expect, it } from "vitest";
 import { dayOf, hubMiles, onTimeBy } from "@lanes/engine";
 import { WINDOWS } from "../src/copy-windows.js";
+import { MENUS } from "../src/copy-menus.js";
 import { GAME_CONFIG, TestGame } from "../src/game.js";
 import { atHomeMarket, homeMarketLine, homeNoDrive } from "../src/windowsui.js";
 
@@ -42,8 +43,13 @@ describe("the 0.25.1 rulings on the page", () => {
     t.hub = near;
     const d = w.staff[t.driverId - 1]!;
     d.drivenMinToday = 0;
+    d.restDays = 0; // the days off's first day
     d.homeUntilDay = dayOf(w.t, w.cfg) + 5;
     expect(homeMarketLine(w, c, t)).toBe(WINDOWS.homeInMarket(d.owner ? "You're" : `${d.name} is`, w.net.places[t.place]!.name, w.net.hubs[c.homeHub]!.name, 5, false));
+    // Batch M2: from the second day on, a count of the days left, not "starting now" again.
+    d.restDays = 2;
+    d.homeUntilDay = dayOf(w.t, w.cfg) + 3;
+    expect(homeMarketLine(w, c, t)).toBe(MENUS.homeDaysLeft(d.owner ? "You're" : `${d.name} is`, w.net.places[t.place]!.name, w.net.hubs[c.homeHub]!.name, 3));
     // Off: home is the home hub itself, and the old line stands.
     const off = await started(OFF);
     off.t.hub = near;

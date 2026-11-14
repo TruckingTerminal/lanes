@@ -1,5 +1,6 @@
 import type { JSX } from "preact";
-import { useEffect, useRef, useState } from "preact/hooks";
+import { useEffect, useLayoutEffect, useRef, useState } from "preact/hooks";
+import { motion } from "../motion.js";
 import { ordersWaitForHand } from "@lanes/engine";
 import { FEED } from "../copy.js";
 import { cls } from "../format.js";
@@ -103,6 +104,48 @@ function Sheet(): JSX.Element {
     if (S.sheet === "strip") el.current?.querySelector(".sheetbody")?.scrollTo({ top: 0 });
   }, [S.sheet]);
   useEffect(() => () => setMapInset(0), []);
+  // Batch M2 (QA: the sheet animated its height; the menu system §2.1 and §5.4: motion is transform and opacity only).
+  // A snap changes the sheet's height once, and the move is a translate: growing, it takes its new height at once and
+  // slides up from where it stood; shrinking, it keeps its old height while it slides down, then takes the new one. The
+  // part below the slide passes under the tab bar (z 15 over the sheet's 12). Full: 280 ms with the snap's overshoot;
+  // Calm: 120 ms without; Still: at once. A drag moves it by hand, as before.
+  const lastH = useRef<number | null>(null);
+  useLayoutEffect(() => {
+    const node = el.current;
+    const to = stopPx(S.sheet, room());
+    const from = lastH.current;
+    lastH.current = to;
+    const m = motion();
+    if (!node || from === null || Math.abs(from - to) < 1 || m === "still" || live !== null) return;
+    const ms = m === "full" ? 280 : 120;
+    const ease = m === "full" ? "var(--ease-snap, cubic-bezier(.3,1.25,.5,1))" : "ease-out";
+    node.style.transition = "none";
+    if (to > from) {
+      node.style.transform = `translateY(${to - from}px)`;
+      void node.offsetHeight;
+      node.style.transition = `transform ${ms}ms ${ease}`;
+      node.style.transform = "";
+    } else {
+      node.style.height = `${from}px`;
+      node.style.transform = "translateY(0)";
+      void node.offsetHeight;
+      node.style.transition = `transform ${ms}ms ${m === "full" ? "var(--ease-in, ease-in)" : "ease-out"}`;
+      node.style.transform = `translateY(${from - to}px)`;
+    }
+    // The end, or its timer: the transition is cut first, so the sheet lands at once even where frames don't run (a
+    // hidden tab freezes a transition mid-flight), and never stays offset.
+    const done = () => {
+      node.removeEventListener("transitionend", done);
+      node.style.transition = "none";
+      node.style.transform = "";
+      node.style.height = "";
+      void node.offsetHeight;
+      node.style.transition = "";
+    };
+    node.addEventListener("transitionend", done);
+    const t = setTimeout(done, ms + 80);
+    return () => clearTimeout(t);
+  }, [S.sheet]);
   const down = (ev: PointerEvent) => {
     try {
       (ev.currentTarget as HTMLElement).setPointerCapture(ev.pointerId);
