@@ -15,3 +15,15 @@ describe("batch M2", () => {
     expect(page).not.toMatch(/transition: height/);
   });
 });
+
+describe("batch M4: a delivery's settlement fee stays off the cost chip", () => {
+  it("keeps a delivery's deductions and its fee off the chip, and lets a sale's or a lease's fee through", async () => {
+    const { deliveryDeduction } = await import("../src/moneymotion.js");
+    expect(deliveryDeduction("load:812")).toBe(true);
+    expect(deliveryDeduction("fee:load:812")).toBe(true); // settlement.ts: `fee:${ref}`
+    expect(deliveryDeduction("fee:lease:week:3")).toBe(false);
+    expect(deliveryDeduction("fee:rebroker:812")).toBe(false);
+    expect(deliveryDeduction("fee:sale:7")).toBe(false);
+    expect(deliveryDeduction("perdiem:4")).toBe(false);
+  });
+});

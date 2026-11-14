@@ -1,5 +1,5 @@
 import { MENUS } from "./copy-menus.js";
-import { costLeft, payLanding } from "./moneymotion.js";
+import { costLeft, deliveryDeduction, payLanding } from "./moneymotion.js";
 import { onCost } from "./books.js";
 import { initMotion } from "./motion.js";
 import { render } from "preact";
@@ -197,7 +197,7 @@ async function boot(): Promise<void> {
   // deductions (fuel, tolls, upkeep, the lessor's share and the fee, all posted on the load's ref) stay out of the chip,
   // since the toast and the pay card already net them; the chip is for costs that leave on their own.
   onCost((w, c, fd, line, ref) => {
-    if (ref.startsWith("load:")) return;
+    if (deliveryDeduction(ref)) return;
     if (S.game?.w === w && S.game.player?.id === c.id) costLeft(fd, (MONTH.row[line] ?? line).toLowerCase());
   });
   loadOnboard();

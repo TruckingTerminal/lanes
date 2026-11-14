@@ -128,3 +128,11 @@ export function costLeft(fd: number, label: string): void {
   }, CHIP_STILL_MS + CHIP_FADE_MS);
   for (const f of listeners) f();
 }
+
+/**
+ * A delivery's own deduction: posted on the load's ref (`load:N`: the trip's fuel, tolls, upkeep, the lessor's share), or
+ * the settlement fee on it (settlement.ts posts `fee:` + the caller's ref, so a delivery's fee is `fee:load:N`). The toast's
+ * "yours" and the pay card already net these, so they stay off the cost chip (batches M2 and M4). A fee on a sale, a lease
+ * week or a re-post carries its own ref and still chips.
+ */
+export const deliveryDeduction = (ref: string): boolean => /^(fee:)?load:\d+$/.test(ref);
