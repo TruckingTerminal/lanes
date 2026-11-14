@@ -1,3 +1,4 @@
+import { AtlasCell } from "../Window.js";
 import type { JSX } from "preact";
 import { bridgeDelayDays, ceilingFd, EXCHANGE_ACCOUNT, fdPriceUsd, outstandingFd, queuedAirdropFd, tokenLive, valuation, vestAccount, type DayMetrics } from "@lanes/engine";
 import { fd, pct, usd } from "../../format.js";
@@ -75,6 +76,8 @@ export function Economy(): JSX.Element {
   const nights = sum((d) => d.siteNights ?? 0) + sum((d) => d.shoulderNights ?? 0);
   return (
     <Panel title="Economy">
+      {/* The menu system §3: the public report is a trade paper, under its masthead. */}
+      <AtlasCell family="screens" id="masthead" class="masthead" />
       <p class="muted small">{ECONOMY.lead(30)}</p>
       <Card title="Money in and out, last 30 days">
         <Kv

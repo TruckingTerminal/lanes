@@ -14,7 +14,24 @@ import { ASSETS } from "./mapart.js";
  * now and then, a smile on either side of it, and settles back to rest. At tMs 0, or whenever nothing is scheduled, she
  * is exactly the rest frame.
  */
-export type PortraitMood = "idle" | "wave" | "point" | "laugh";
+export type PortraitMood = "idle" | "wave" | "point" | "laugh" | "proud" | "concerned";
+
+/**
+ * The menu system §2.5 (UX's picks §2): two whole faces, painted on her backdrop as the portrait is, for a moment after
+ * a line: proud for good news, concerned for bad. They're drawn still (Jeff, 2026-11-01: her animations aren't loops),
+ * then she's back to her live portrait. Until a face decodes, the live portrait stands.
+ */
+const FACES: Partial<Record<PortraitMood, HTMLImageElement>> = {};
+function wholeFace(mood: PortraitMood): HTMLImageElement | null {
+  if (mood !== "proud" && mood !== "concerned") return null;
+  let img = FACES[mood];
+  if (!img) {
+    img = new Image();
+    img.src = `${ASSETS}people/iuliia-faces/${mood}.png`;
+    FACES[mood] = img;
+  }
+  return img.complete && img.naturalWidth > 0 ? img : null;
+}
 
 // <portrait> written by tools/portrait-sprites.py
 const CELLS: Record<string, readonly [number, number, number, number, number, number]> = {
@@ -147,6 +164,14 @@ function cell(c: CanvasRenderingContext2D, name: string): void {
  * people/iuliia.png, until then.
  */
 export function drawPortrait(ctx: CanvasRenderingContext2D, x: number, y: number, size: number, mood: PortraitMood, tMs: number): boolean {
+  const whole = wholeFace(mood);
+  if (whole) {
+    ctx.save();
+    ctx.imageSmoothingEnabled = size % whole.naturalWidth !== 0;
+    ctx.drawImage(whole, x, y, size, size);
+    ctx.restore();
+    return true;
+  }
   if (!ready()) return false;
   let s: number = 64;
   let k = 1;

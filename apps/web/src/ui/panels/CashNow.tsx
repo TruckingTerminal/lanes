@@ -1,3 +1,4 @@
+import { MENUS } from "../../copy-menus.js";
 import type { JSX } from "preact";
 import { useState } from "preact/hooks";
 import { cashNowRate, companyAccount, dayOf, type Company, type Receivable, type World } from "@lanes/engine";
@@ -42,6 +43,11 @@ export interface Cashed {
 }
 
 /** The company's invoice rows: line 1 the lane, the amount and the due day; line 2 what cashing it now lands, and the button. */
+/** The invoices Money has shown, by company, when it was last drawn, and when a held one was let in. */
+const invoicesSeen = new Map<number, Set<number>>();
+let invoicesDrawnAt = 0;
+const revealedAt = new Map<number, number>();
+
 export function InvoiceRows({ c }: { c: Company }): JSX.Element | null {
   useData();
   const w = S.game!.w;
@@ -52,6 +58,14 @@ export function InvoiceRows({ c }: { c: Company }): JSX.Element | null {
   // What now? chose these (rule 1): one opens its sheet; several get one button for them all.
   const [sheet, setSheet] = useState<number | null>(plan.length === 1 ? plan[0]! : null);
   if (!open.length && !cashed.length) return null;
+  // The menu system §2.4 and rule 4.4: an invoice that arrives while Money is open waits behind a pill rather than push
+  // the rows; a tap lets it in, its row lit from --sun for 1.2 s. Money opened afresh (not drawn for 2 s) shows them all.
+  const now = Date.now();
+  if (!invoicesSeen.has(c.id) || now - invoicesDrawnAt > 2000) invoicesSeen.set(c.id, new Set(open.map((r) => r.id)));
+  invoicesDrawnAt = now;
+  const seen = invoicesSeen.get(c.id)!;
+  const fresh = open.filter((r) => !seen.has(r.id));
+  const shownOpen = open.filter((r) => seen.has(r.id));
   const on = cashNowOn(w);
   // Client batch 8b item 36: a brokerage without a contract pays the spot rate plus aging, said beside the brokers' rate.
   const k = w.cfg.token.payment;
@@ -61,12 +75,27 @@ export function InvoiceRows({ c }: { c: Company }): JSX.Element | null {
     <div class="stack invoicerows">
       {brokerSpot ? <p class="muted small">{PENDING.brokerSpotRate(pc(k.cashNow.spotPct), pc(k.cashNow.agingPerDay), pc(k.cashNow.agingCap), pc(k.factoring.contract.brokerRate))}</p> : null}
       {on && plan.length > 1 ? <CashSeveral c={c} ids={plan} /> : null}
-      {open.map((inv) => {
+      {fresh.length ? (
+        <button
+          type="button"
+          class="newpill"
+          onClick={() => {
+            for (const r of fresh) {
+              seen.add(r.id);
+              revealedAt.set(r.id, Date.now());
+            }
+            bumpData();
+          }}
+        >
+          {MENUS.newEntries(fresh.length)}
+        </button>
+      ) : null}
+      {shownOpen.map((inv) => {
         const r = w.receivables.find((x) => x.id === inv.id)!;
         const lane = S.invoiceLanes.get(r.id) ?? `#${r.id}`;
         const rate = on ? cashNowRate(w, c, r) : null;
         return (
-          <div class="stack invoicerow" key={r.id}>
+          <div class={`stack invoicerow${now - (revealedAt.get(r.id) ?? -1e9) < 1200 ? " fresh" : ""}`} key={r.id}>
             <span class="small">
               {lane} · {fd(r.amountFd)} FD · due {CASHNOW.dueWhen(weekday(r.dueDay), r.dueDay - today)}
             </span>

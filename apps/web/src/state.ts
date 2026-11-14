@@ -118,7 +118,7 @@ export const S = {
   /** What now?'s answer while it shows, and the tab it was asked on (ui/WhatNow.tsx). */
   whatNow: null as null | { a: import("./nextstep.js").NextAction; tab: Tab },
   /** Iuliia's tab-and-card line waiting for, or in, the caption strip (iuliia.ts). */
-  iuliiaLine: null as null | { text: string; shownAt: number | null },
+  iuliiaLine: null as null | { text: string; shownAt: number | null; key?: string },
   intel: { card: null as number | null, back: null as Tab | null, q: "", myHub: false, hub: null as string | null, players: false, brokers: false, sort: "miles" as "miles" | "trucks" | "month", shown: 50 },
   homeNow: new Set<number>(),
   /** The last delivery, shown on the Truck tab until OK (S7); Money keeps a dot until it's opened. */

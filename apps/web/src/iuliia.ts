@@ -61,8 +61,27 @@ export function iuliiaSay(key: string): void {
   const n = turns[key] ?? 0;
   turns = { ...turns, [key]: n + 1 };
   store.set(TURN_KEY, JSON.stringify(turns));
-  S.iuliiaLine = { text: lines[n % lines.length]!, shownAt: null };
+  S.iuliiaLine = { text: lines[n % lines.length]!, shownAt: null, key };
   bumpData();
+}
+
+/**
+ * Her face for the first 2.5 s of a line (the menu system §2.5), by what the line is about: good news proud, bad news
+ * concerned, a laugh for a quip that has one; null after, or for a line without a key. Calm and Still change faces too.
+ */
+export const FACE_MS = 2500;
+const GOOD = /(:won|:onTime|delivered$|:bought|first|milestone)/;
+const BAD = /(:late|:lost|:nobody|blocked|breakdown|claim|:refused|:short)/;
+export function faceFor(key: string | undefined): "proud" | "concerned" | null {
+  if (!key) return null;
+  if (BAD.test(key)) return "concerned";
+  if (GOOD.test(key)) return "proud";
+  return null;
+}
+export function iuliiaFace(): "proud" | "concerned" | null {
+  const l = S.iuliiaLine;
+  if (!l || l.shownAt === null || performance.now() - l.shownAt > FACE_MS) return null;
+  return faceFor(l.key);
 }
 
 /** A line of hers worded at the moment, with its figures (a filed bid's hub and hour): said as a keyed line is. */
@@ -125,6 +144,7 @@ export function iuliiaNow(): string | null {
     l.shownAt = now;
     lastShownAt = now;
     setTimeout(bumpData, GAME_CONFIG.ui.iuliia.showSeconds * 1000 + 50);
+    setTimeout(bumpData, FACE_MS + 50); // her face goes back to the portrait
   }
   if (now - l.shownAt > GAME_CONFIG.ui.iuliia.showSeconds * 1000) {
     S.iuliiaLine = null;

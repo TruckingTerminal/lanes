@@ -375,7 +375,21 @@ html[data-motion="calm"] .stamp.landing { animation: stamp-fade 120ms ease-out b
 .cashwrap { position: relative; display: inline-flex; }
 .costchip { position: absolute; top: calc(100% + 6px); right: 0; z-index: 25; white-space: nowrap; padding: 3px 8px; border-radius: var(--radius); background: var(--bg-input); border: 1px solid var(--border); font: 600 12px/1.3 var(--font-mono); color: var(--accent-danger); cursor: pointer; animation: chip-out 300ms ease-in 1600ms 1 forwards; }
 @keyframes chip-out { to { opacity: 0; } }
+.invoicerow.fresh { animation: row-fresh 1.2s ease-out 1; }
+@keyframes row-fresh { from { background: color-mix(in srgb, var(--sun) 20%, transparent); } to { background: transparent; } }
 .newpill { align-self: center; padding: 4px 12px; border-radius: 14px; border: 1px solid var(--sun); background: var(--bg-input); color: var(--text-primary); font-size: 12px; cursor: pointer; }
+/* Hero moments (the menu system §1.3, §2.2): a 16:9 painting over a 60% dimmed screen, fading in; tap or OK to close. */
+.window.hero { height: auto; aspect-ratio: 16 / 9; }
+.window.crop { width: 64px; height: 36px; }
+.window.tint-winter canvas { filter: saturate(0.62) brightness(1.08) contrast(0.95); }
+.window.tint-autumn canvas { filter: sepia(0.2) saturate(1.2); }
+.window.tint-spring canvas { filter: saturate(1.08) hue-rotate(-6deg); }
+.window.crop::after { display: none; }
+.atlascell { width: 100%; background-repeat: no-repeat; image-rendering: pixelated; border-radius: var(--radius); }
+.heroscrim { position: fixed; inset: 0; z-index: 70; display: grid; place-items: center; padding: 16px; background: rgba(10, 6, 14, 0.6); animation: hero-in 300ms var(--ease-out) both; }
+.herocard { width: min(640px, 100%); display: grid; gap: 10px; padding: 12px; background: var(--bg-panel); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: 0 24px 60px rgba(0, 0, 0, 0.55); }
+html[data-kit] .herocard { image-rendering: pixelated; border-color: transparent; border-image: var(--frame-dialog) var(--frame-dialog-slice) / var(--frame-dialog-width) / 4px stretch; }
+@keyframes hero-in { from { opacity: 0; } }
 /* The Motion setting in the ≡ menu (the menu system §2.6): a label, three segments, a line of help. */
 .motionset { display: grid; gap: 6px; padding: 10px 14px 12px; border-bottom: 1px solid var(--border); max-width: 280px; }
 .motionset .seg { display: flex; gap: 4px; }

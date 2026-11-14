@@ -87,6 +87,8 @@ interface CompanyBooks {
   odo: Map<number, { odo: number; loaded: boolean; built: number; lease: Truck["lease"]; tier: Truck["tier"] }>;
   /** Each purchase loan's status and what it owed as the hour began (item 19: a loan closed by the lender taking its truck). */
   loans: Map<number, { status: string; owedFd: number; truckId: number; missed: number }>;
+  /** A brokerage's loads, by the game minute it paid the carrier (the menu system's brokerage stage, display only). */
+  brokered?: Map<string, number>;
 }
 interface WorldBooks {
   byCompany: Map<number, CompanyBooks>;
@@ -343,6 +345,28 @@ function note(w: World, acct: string, other: string, fd: number, ref: string, in
 }
 
 /**
+ * Each hour: the loads a player's brokerage has taken on (a load whose broker it is), by the game minute first seen, for
+ * the menu system's brokerage stage (the producer, 2026-11-14; display only). Kept 30 days.
+ */
+function brokeredOf(w: World, c: Company, b: CompanyBooks): void {
+  if (c.role !== "broker") return;
+  const m = (b.brokered ??= new Map());
+  for (const l of w.loads.values()) if (l.brokerId === c.id && !m.has(`load:${l.id}`)) m.set(`load:${l.id}`, w.t);
+  const keep = w.t - 30 * w.cfg.time.gameMinutesPerDay;
+  for (const [k, t] of m) if (t < keep) m.delete(k);
+}
+
+/** A brokerage's loads taken on in the trailing `days` game days (the menu system's brokerage stage). */
+export function brokeredLoads(w: World, c: Company, days = 30): number {
+  const m = BOOKS.get(w)?.byCompany.get(c.id)?.brokered;
+  if (!m) return 0;
+  const from = w.t - days * w.cfg.time.gameMinutesPerDay;
+  let n = 0;
+  for (const t of m.values()) if (t >= from) n++;
+  return n;
+}
+
+/**
  * Starts the books on a new world (game.ts newWorld): wraps the ledger's post with a reader. It never throws into the
  * engine: a fault in the books is the page's, never the world's.
  */
@@ -386,6 +410,7 @@ export function booksAfterHour(w: World): void {
     for (const [id, b] of wb.byCompany) {
       const c = w.companies[id - 1]!;
       for (const t of w.trucksByCompany.get(c.id) ?? []) milesOf(b, t);
+      brokeredOf(w, c, b);
       takenOf(w, c, b);
       const closed = c.lastMonth?.closedDay ?? null;
       if (closed === null || closed === b.mark) continue;

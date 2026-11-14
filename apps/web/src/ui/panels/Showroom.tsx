@@ -1,3 +1,4 @@
+import { Window } from "../Window.js";
 import type { JSX } from "preact";
 import type { Equipment, TractorTier } from "@lanes/config";
 import {
@@ -98,6 +99,8 @@ export function Showroom(): JSX.Element {
       </p>
       {w.cfg.usedMarket.npcLot.enabled ? (
         <>
+          {/* The menu system §3: the used row out back. */}
+          <Window name="mkt-usedrow" fallback="dealer" />
           <h3>The used lot</h3>
           <p class="muted small">
             Worn rigs at their used value: a Workhorse about {lotSpec(w, "van").odometer.toLocaleString("en-US")} miles and {Math.round((w.t / w.cfg.time.gameMinutesPerDay - lotSpec(w, "van").builtDay) / 365)} years old. {PENDING.lotCondition(pct(condition(w.cfg, { lease: "owned", milesSinceRebuild: lotSpec(w, "van").milesSinceRebuild })))}. {w.usedLot.stock} on the lot this week; {PENDING.lotReadyNote}.
@@ -125,6 +128,11 @@ export function Showroom(): JSX.Element {
           ))}
         </>
       ) : null}
+      {/* The menu system §3: the showroom under spotlights, a new rig on its stage; prices stay on paper below it. */}
+      <div class="rigstage showroom">
+        <Window name="showroom-floor" fallback="dealer" />
+        <Rig eq="van" alt="A new Workhorse on the showroom floor" />
+      </div>
       <h3>New rigs and tractors</h3>
       {TIERS.map((tier) =>
         TYPES.map((tr) => {

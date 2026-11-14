@@ -1,11 +1,12 @@
 import type { JSX } from "preact";
 import { useEffect, useRef, useState } from "preact/hooks";
 import { SCENES } from "../assets.js";
-import { ASSETS } from "../mapart.js";
+import { ASSETS, hasAsset } from "../mapart.js";
 import { cropOf, kitData, pickWindow, type LoopArt } from "../menuart.js";
 import { moving } from "../motion.js";
-import { clockMin, S, useData } from "../state.js";
+import { clockMin, isPhone, S, useData } from "../state.js";
 import { screenWindow } from "../screenwindows.js";
+import { brokeredLoads } from "../books.js";
 import { bandOf, gradeForBand, type Band } from "./CityPicture.js";
 import { seasonNow } from "./Loop.js";
 
@@ -40,9 +41,12 @@ interface Source {
 
 const SCENE_STILLS = SCENES as Record<string, string>;
 /** The painting a window shows now, or null (no picture: the box shows its colour). */
-export function windowSource(name: string, band: Band, fallback?: string): Source | null {
+export function windowSource(name: string, band: Band, fallback?: string, hero = false): Source | null {
   const k = kitData();
   const season = seasonNow();
+  // A hero (512 × 288, the laptop's load sheet): the painting's hero cell where one ships, else its window.
+  const h = hero ? k?.windows?.heroes?.cells?.[name] : undefined;
+  if (h && k && hasAsset(k.windows.heroes!.image)) return { key: `heroes:${name}`, still: ASSETS + k.windows.heroes!.image, cell: h, grade: true, loop: null, focalX: h.focalX, focalY: h.focalY, avg: h.avg };
   for (const n of fallback ? [name, fallback] : [name]) {
     const p = pickWindow(k, n, band, season, SCENE_STILLS[n]);
     if (p) return { key: p.key, still: p.url, cell: p.cell, grade: p.grade, loop: p.loop, focalX: p.focalX, focalY: p.focalY, avg: p.avg };
@@ -66,7 +70,7 @@ function image(url: string): Promise<HTMLImageElement> {
   return p;
 }
 
-/** The still graded for a band, one 256 × 144 canvas per source and band. */
+/** The still graded for a band, one canvas per source and band, at the painting's own size (256 × 144; a hero 512 × 288). */
 const stills = new Map<string, HTMLCanvasElement>();
 function gradedStill(src: Source, img: HTMLImageElement, band: Band): HTMLCanvasElement {
   const k = `${src.key}|${src.grade ? band : "painted"}`;
@@ -74,12 +78,12 @@ function gradedStill(src: Source, img: HTMLImageElement, band: Band): HTMLCanvas
   if (cv) return cv;
   if (stills.size > 24) stills.clear();
   cv = document.createElement("canvas");
-  cv.width = W;
-  cv.height = H;
+  cv.width = src.cell.w;
+  cv.height = src.cell.h;
   const ctx = cv.getContext("2d")!;
-  ctx.drawImage(img, src.cell.x, src.cell.y, src.cell.w, src.cell.h, 0, 0, W, H);
+  ctx.drawImage(img, src.cell.x, src.cell.y, src.cell.w, src.cell.h, 0, 0, src.cell.w, src.cell.h);
   if (src.grade) {
-    const id = ctx.getImageData(0, 0, W, H);
+    const id = ctx.getImageData(0, 0, src.cell.w, src.cell.h);
     gradeForBand(id.data, band);
     ctx.putImageData(id, 0, 0);
   }
@@ -91,7 +95,7 @@ const avgs = new Map<string, string>();
 function averageOf(key: string, cv: HTMLCanvasElement): string {
   let a = avgs.get(key);
   if (a) return a;
-  const d = cv.getContext("2d")!.getImageData(0, 0, W, H).data;
+  const d = cv.getContext("2d")!.getImageData(0, 0, cv.width, cv.height).data;
   let r = 0;
   let g = 0;
   let b = 0;
@@ -145,11 +149,13 @@ const saveData = (): boolean => (globalThis.navigator as unknown as { connection
 export function ScreenWindow({ tab, picking }: { tab: string; picking: boolean }): JSX.Element | null {
   useData();
   const g = S.game;
-  const win = screenWindow(tab, g?.w ?? null, S.openLoad, picking);
-  return win ? <Window key={win.name} name={win.name} night={win.night} fallback={win.fallback} /> : null;
+  const win = screenWindow(tab, g?.w ?? null, S.openLoad, picking, g?.brokerage ? brokeredLoads(g.w, g.brokerage) : 0);
+  // The menu system §3: on a laptop, a load sheet shows its facility's hero where one ships.
+  const hero = tab === "loads" && S.openLoad !== null && !isPhone();
+  return win ? <Window key={`${win.name}|${hero}`} name={win.name} night={win.night} fallback={win.fallback} hero={hero} /> : null;
 }
 
-export function Window({ name, night, fallback, class: extra }: { name: string; night?: string; fallback?: string; class?: string }): JSX.Element {
+export function Window({ name, night, fallback, hero = false, class: extra }: { name: string; night?: string; fallback?: string; hero?: boolean; class?: string }): JSX.Element {
   useData();
   const box = useRef<HTMLDivElement>(null);
   const cv = useRef<HTMLCanvasElement>(null);
@@ -161,7 +167,7 @@ export function Window({ name, night, fallback, class: extra }: { name: string; 
   const [onScreen, setOnScreen] = useState(true);
   const band = bandOf(Math.floor(clockMin() / 60) % 24);
   // A screen with its own night painting (the board's ops room) shows it in the night band.
-  const src = windowSource(band === "night" && night ? night : name, band, fallback);
+  const src = windowSource(band === "night" && night ? night : name, band, fallback, hero);
   const animate = moving() && !saveData();
 
   // The box's size in device pixels, kept current.
@@ -193,7 +199,7 @@ export function Window({ name, night, fallback, class: extra }: { name: string; 
       .then((img) => {
         if (!live || !cv.current) return;
         const g = gradedStill(src, img, band);
-        const c = cropOf(W, H, size.w, size.h, src.focalX, src.focalY);
+        const c = cropOf(src.cell.w, src.cell.h, size.w, size.h, src.focalX, src.focalY);
         const el = cv.current;
         el.width = size.w;
         el.height = size.h;
@@ -222,6 +228,10 @@ export function Window({ name, night, fallback, class: extra }: { name: string; 
   }, [src?.key, size?.w, size?.h, band, animate]);
 
   const fill = src?.avg ?? avg ?? "var(--bg-secondary)";
+  // UX's picks §3: the painted dusk and night stills are of the summer base, so in another season they carry the CSS
+  // season tint (as the city views do).
+  const season = seasonNow();
+  const tint = src && season !== "summer" && /^(dusk|night):|-night$/.test(src.key) ? season : null;
   let loopStyle: JSX.CSSProperties | null = null;
   // The loop belongs to the painting it was graded from: a stale one (the window moved to a painting without a loop,
   // or a painted hour) is never drawn.
@@ -240,9 +250,29 @@ export function Window({ name, night, fallback, class: extra }: { name: string; 
     } as JSX.CSSProperties;
   }
   return (
-    <div ref={box} class={`window ${extra ?? ""}`} style={{ backgroundColor: fill }} aria-hidden="true" data-window={src?.key ?? name}>
+    <div ref={box} class={`window ${hero ? "hero" : ""} ${tint ? `tint-${tint}` : ""} ${extra ?? ""}`} style={{ backgroundColor: fill }} aria-hidden="true" data-window={src?.key ?? name}>
       <canvas ref={cv} class={ready ? "ready" : ""} />
       {loopStyle ? <div class="winloop" style={loopStyle} /> : null}
     </div>
   );
+}
+
+/**
+ * One painted cell of a window atlas at the full width of its box, its own proportions kept (the Economy's masthead,
+ * 512 × 128). Nothing until the kit is in.
+ */
+export function AtlasCell({ family, id, class: extra }: { family: string; id: string; class?: string }): JSX.Element | null {
+  useData();
+  const k = kitData();
+  const F = k?.windows?.[family];
+  const c = F?.cells?.[id];
+  if (!F || !c || !hasAsset(F.image)) return null;
+  const style: JSX.CSSProperties = {
+    aspectRatio: `${c.w} / ${c.h}`,
+    backgroundColor: c.avg,
+    backgroundImage: `url("${ASSETS + F.image}")`,
+    backgroundSize: `${(F.w / c.w) * 100}% ${(F.h / c.h) * 100}%`,
+    backgroundPosition: `${F.w === c.w ? 0 : (c.x / (F.w - c.w)) * 100}% ${F.h === c.h ? 0 : (c.y / (F.h - c.h)) * 100}%`,
+  };
+  return <div class={`atlascell ${extra ?? ""}`} style={style} role="img" aria-label="" />;
 }

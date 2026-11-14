@@ -8,9 +8,9 @@ const DISPATCHER_LINE_DAYS = 2;
 import { settleShown, useSettled } from "../settle.js";
 import { GAME_CONFIG } from "../game.js";
 import { skippedSteps, stepDo, stepKey, stepText, walkProgress, walkSteps, type Mood, type WalkStep } from "../walkthrough.js";
-import { iuliiaMuted, iuliiaNow, setIuliiaMuted } from "../iuliia.js";
+import { iuliiaFace, iuliiaMuted, iuliiaNow, setIuliiaMuted } from "../iuliia.js";
 import { ASSETS, hasAsset } from "../mapart.js";
-import { drawPortrait } from "../portrait.js";
+import { drawPortrait, type PortraitMood } from "../portrait.js";
 import { bumpData, myTrucks, S, setOnboard, setTab, toast, useData } from "../state.js";
 import { ARRIVAL, CAPTION, DISPATCHER, INTEL, NOW, TUTORIAL } from "../copy.js";
 import { firstLoadLocked } from "../tutorial.js";
@@ -32,7 +32,7 @@ let poster: HTMLImageElement | null = null;
  * clock, so she blinks and glances on no cycle; the poster (people/iuliia.png, which is her rest frame) until her sheet
  * decodes, so there is no flash between them. 96 px in the sheet, 64 in a caption, 128 on her tab.
  */
-export function Iuliia({ mood, size = 128 }: { mood: Mood; size?: 64 | 96 | 128 }): JSX.Element {
+export function Iuliia({ mood, size = 128 }: { mood: Mood | PortraitMood; size?: 64 | 96 | 128 }): JSX.Element {
   const ref = useRef<HTMLCanvasElement>(null);
   useEffect(() => {
     const cv = ref.current!;
@@ -514,7 +514,7 @@ export function Caption(): JSX.Element | null {
     const text = iuliiaNow();
     return text ? (
       <div class="caption">
-        <Iuliia mood={mood} size={64} />
+        <Iuliia mood={iuliiaFace() ?? mood} size={64} />
         <span class="small">{text}</span>
         <WhatNowChip />
       </div>
@@ -600,7 +600,7 @@ export function IuliiaLine(): JSX.Element | null {
   const text = iuliiaNow();
   return text ? (
     <div class="caption iuliia">
-      <Iuliia mood="point" size={64} />
+      <Iuliia mood={iuliiaFace() ?? "point"} size={64} />
       <span class="small">{text}</span>
     </div>
   ) : null;

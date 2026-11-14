@@ -80,6 +80,12 @@ export function truckWindow(w: World, c: Company, t: Truck): { name: string; rig
   return { name: "yard", rig: true };
 }
 
+/**
+ * The brokerage's stage from its loads in the trailing 30 game days (the producer, 2026-11-14; display only, easy to
+ * tune): under 15 the kitchen, 15–59 the office, 60–179 the room, 180 and over the floor.
+ */
+export const STAGE_LOADS = [15, 60, 180] as const;
+export const brokerageStage = (loads30: number): number => 1 + STAGE_LOADS.filter((n) => loads30 >= n).length;
 /** The brokerage's stage, by its level (1–4; UX §3.1): the kitchen table to the floor. */
 export const brokerageWindow = (stage: number): string => ["brk-stage1-kitchen", "brk-stage2-office", "brk-stage3-room", "brk-stage4-floor"][Math.max(0, Math.min(3, stage - 1))]!;
 
@@ -94,7 +100,7 @@ export interface ScreenWin {
  * screen has none. Loads shows the open load's facility while a load sheet is open; the first entry (choosing a hub)
  * shows the skyline.
  */
-export function screenWindow(tab: string, w: World | null, openLoad: number | null, picking: boolean): ScreenWin | null {
+export function screenWindow(tab: string, w: World | null, openLoad: number | null, picking: boolean, brokerageLoads30 = 0): ScreenWin | null {
   if (picking) return { name: "plan-skyline", fallback: "office" };
   switch (tab) {
     case "fleet":
@@ -120,7 +126,7 @@ export function screenWindow(tab: string, w: World | null, openLoad: number | nu
     case "market":
       return { name: "dealer" };
     case "brokerage":
-      return { name: brokerageWindow(1), fallback: "office" };
+      return { name: brokerageWindow(brokerageStage(brokerageLoads30)), fallback: "office" };
     case "book":
       return { name: "brk-board", fallback: "office" };
     case "carriers":
@@ -129,3 +135,15 @@ export function screenWindow(tab: string, w: World | null, openLoad: number | nu
       return null;
   }
 }
+
+/**
+ * The screen a What now? answer leads to, for its small crop of that screen's window (the menu system §3: "so the
+ * choice reads as a place"); null where an answer leads nowhere in particular.
+ */
+const ANSWER_TAB: Record<string, string> = {
+  book: "loads", lost: "loads", idle: "loads", stranded: "loads", tender: "company",
+  driver: "staff", parkedCrew: "staff",
+  homeDue: "fleet", homeTime: "fleet", atRisk: "fleet", loadRisk: "fleet", waitLong: "fleet", lateNote: "fleet", waitNote: "fleet", nextNote: "fleet", hold: "fleet", sell: "market", lease: "market", ordered: "market",
+  cash: "money", collect: "money", cushion: "money", gap: "money", factoringEnds: "money", loanDefault: "money", danger: "money", liquidating: "money",
+};
+export const answerTab = (kind: string): string | null => ANSWER_TAB[kind] ?? null;

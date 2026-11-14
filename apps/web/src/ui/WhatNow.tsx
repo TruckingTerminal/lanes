@@ -1,3 +1,5 @@
+import { answerTab, screenWindow } from "../screenwindows.js";
+import { Window } from "./Window.js";
 import type { JSX } from "preact";
 import { ownerDrawFd, placeMiles, type Company, type World } from "@lanes/engine";
 import { NEEDS, NOW } from "../copy.js";
@@ -86,10 +88,14 @@ export function WhatNowAnswer(): JSX.Element | null {
     );
   }
   const view = words(shown);
+  // The menu system §3: the answer carries a 64 × 36 crop of the window of the screen it leads to.
+  const to = answerTab(shown.kind);
+  const crop = to ? screenWindow(to, g.w, null, false) : null;
   return (
     <div class="caption whatnow">
       <Iuliia mood="point" size={64} />
       <div class="stack">
+        {crop ? <Window key={crop.name} name={crop.name} night={crop.night} fallback={crop.fallback} class="crop" /> : null}
         <b class={view.red ? "bad" : ""}>{view.action}</b>
         <span class="small">{view.reason}</span>
         <div class="row">
