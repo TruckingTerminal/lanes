@@ -17,7 +17,9 @@ export function startPages(cfg: EconomyConfig): GuidePage[] {
         p(`You start as an owner-operator: one leased Workhorse with a dry van, ${n(cfg.company.startingGrantFd - cfg.permits.carrierAuthorityFd)} FD, and you behind the wheel. The lessor keeps ${pct(cfg.costs.npcLeaseShareOfGross)} of every load and maintains the truck.`) +
         ul([
           `<b>Day 1:</b> pick a home city, open Loads, choose a load near your truck, and bid or book it. Bids clear at ${hh(r1)} and ${hh(r2)} game time.`,
-          `<b>Every day:</b> after your first load by hand, your dispatcher bids for idle trucks you don't bid on yourself. Set its rules on the Truck tab.`,
+          cfg.guard.dispatcherDefaultOn
+            ? `<b>Every day:</b> after your first load by hand, your dispatcher bids for idle trucks you don't bid on yourself. Set its rules on the Truck tab.`
+            : `<b>Every day:</b> your dispatcher stays off until you switch it on, on the Truck tab; your first load by hand unlocks the switch. Once on, it bids for the idle trucks you don't bid on yourself, by the rules you set there.`,
           `<b>First goal:</b> your own truck. The used lot sells one for about a quarter of the ${n(cfg.dealerFd.tractor.workhorse + cfg.dealerFd.trailer.van)} FD a new rig costs; your lease deposit counts toward it and a purchase loan covers the rest. Owning ends the lessor's cut. See ${see("buying", "Buying trucks")}.`,
           `<b>Then:</b> more trucks, drivers to run them (${see("drivers", "Drivers")}), a dispatcher once you pass ${cfg.labor.owner.span} trucks (${see("dispatchers", "Dispatchers")}).`,
         ]) +

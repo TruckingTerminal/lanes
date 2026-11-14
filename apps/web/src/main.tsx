@@ -1,4 +1,3 @@
-import { showHero } from "./ui/HeroMoment.js";
 import { MENUS } from "./copy-menus.js";
 import { costLeft, payLanding } from "./moneymotion.js";
 import { onCost } from "./books.js";
@@ -174,8 +173,6 @@ function onEvent(s: Session, e: GameEvent): void {
     const t = w.trucks[e.truckId - 1];
     const needs = t && !crewed(t);
     push(s, `New truck delivered: truck ${truckNo(e.truckId)} is ready${needs ? " and needs a driver: hire one on the Staff tab" : ""}`, needs ? "warn" : "good");
-    // The menu system §1.3: a truck bought is a hero moment, the keys on the desk.
-    if (s === S.game && !rebuilding && e.companyId === s.player?.id) showHero({ name: "mkt-keys", title: MENUS.heroTruck(truckNo(e.truckId)) });
     if (s === S.game && needs) toast(`Truck ${truckNo(e.truckId)} was delivered with no driver. Hire one on the Staff tab or it earns nothing.`, true);
   }
   if (e.kind === "liquidated") push(s, FEED.woundUp, "bad");

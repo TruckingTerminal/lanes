@@ -61,13 +61,31 @@ function image(url: string): Promise<HTMLImageElement> {
   if (!p) {
     p = new Promise((ok, no) => {
       const img = new Image();
-      img.onload = () => ok(img);
+      // Batch M1: decoded before it's drawn, so the painting appears whole in one frame, never half-painted.
+      img.onload = () => (img.decode ? img.decode().then(() => ok(img), () => ok(img)) : ok(img));
       img.onerror = no;
       img.src = url;
     });
     images.set(url, p);
   }
   return p;
+}
+
+/**
+ * The menu system §5.3 (batch M1, the player's pass: paintings popping in 1–3 s late): on idle after the first minute,
+ * the window atlases a session will open next are fetched and decoded ahead (the base families, this season's and the
+ * hour's painted ones), so a screen opened later finds its painting ready. Once a page; the box and its average colour
+ * still hold the frame for anything not yet in.
+ */
+let prefetched = false;
+function prefetchAtlases(band: Band): void {
+  if (prefetched || saveData()) return;
+  const k = kitData();
+  if (!k?.windows) return;
+  prefetched = true;
+  const season = seasonNow();
+  const fams = ["truck", "screens", "shp", ...(season !== "summer" ? [season] : []), ...(band === "night" ? ["night"] : band === "dusk" ? ["dusk"] : [])];
+  setTimeout(() => idle(() => fams.forEach((f) => k.windows[f] && hasAsset(k.windows[f]!.image) && void image(ASSETS + k.windows[f]!.image).catch(() => undefined))), 60_000);
 }
 
 /** The still graded for a band, one canvas per source and band, at the painting's own size (256 × 144; a hero 512 × 288). */
@@ -150,6 +168,7 @@ export function ScreenWindow({ tab, picking }: { tab: string; picking: boolean }
   useData();
   const g = S.game;
   const win = screenWindow(tab, g?.w ?? null, S.openLoad, picking, g?.brokerage ? brokeredLoads(g.w, g.brokerage) : 0);
+  prefetchAtlases(bandOf(Math.floor(clockMin() / 60) % 24));
   // The menu system §3: on a laptop, a load sheet shows its facility's hero where one ships.
   const hero = tab === "loads" && S.openLoad !== null && !isPhone();
   return win ? <Window key={`${win.name}|${hero}`} name={win.name} night={win.night} fallback={win.fallback} hero={hero} /> : null;

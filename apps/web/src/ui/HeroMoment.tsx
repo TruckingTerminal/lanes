@@ -2,7 +2,7 @@ import type { JSX } from "preact";
 import { brokeredLoads } from "../books.js";
 import { MENUS } from "../copy-menus.js";
 import { brokerageStage, brokerageWindow } from "../screenwindows.js";
-import { bumpData, S, useData } from "../state.js";
+import { bumpData, S, truckNo, useData } from "../state.js";
 import { Btn } from "./bits.js";
 import { Window } from "./Window.js";
 
@@ -39,9 +39,33 @@ function watchStage(): void {
   if (was !== undefined && stage > was) showHero({ name: brokerageWindow(stage), title: MENUS.heroStage(stage) });
 }
 
+/**
+ * Batch M1 (the player's pass: BUY · 25,512 FD and no hero): a truck bought is a hero moment whichever way it came, an
+ * order delivered or a used rig handed over at once (which raises no delivery event), so the page watches the
+ * company's owned trucks and plays it for each new one. The fleet as first seen in a session plays nothing.
+ */
+const ownedSeen = new WeakMap<object, Set<number>>();
+function watchTrucks(): void {
+  const g = S.game;
+  const c = g?.player;
+  if (!g || !c) return;
+  const owned = (g.w.trucksByCompany.get(c.id) ?? []).filter((t) => t.lease === "owned" && t.status !== "retired" && t.status !== "listed").map((t) => t.id);
+  const seen = ownedSeen.get(g);
+  if (!seen) {
+    ownedSeen.set(g, new Set(owned));
+    return;
+  }
+  for (const id of owned) {
+    if (seen.has(id)) continue;
+    seen.add(id);
+    showHero({ name: "mkt-keys", title: MENUS.heroTruck(truckNo(id)) });
+  }
+}
+
 export function HeroMoment(): JSX.Element | null {
   useData();
   watchStage();
+  watchTrucks();
   if (!hero) return null;
   const h = hero;
   return (

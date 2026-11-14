@@ -154,7 +154,9 @@ export function RackBody(): JSX.Element {
         {/* The menu system §1.3: the screen's window, above everything in its panel. */}
         <ScreenWindow tab={tab} picking={picking} />
         <ReportCard key={S.reportKind} />
-        {open && !watching ? <><StepMoment /><FirstLoad /></> : null}
+        {/* Batch M1 (the player's pass): while What now?'s answer is open it stands in for her step card, one Iuliia card
+            at a time, never one over the other. */}
+        {open && !watching ? <>{S.whatNow ? null : <StepMoment />}<FirstLoad /></> : null}
         {under ? (
           <div class="row">
             <Btn sm ghost onClick={() => setTab("more")}>

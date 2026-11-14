@@ -14,7 +14,7 @@ import { stage, type AccentKind } from "../stage.js";
 export type Ink = "red" | "green" | "grey";
 /** Stamps that have landed this sitting, by id: one seen again (a screen reopened) is simply there, no accent. */
 const landedIds = new Set<string>();
-export function Stamp({ word, id, ink = "red", kind = "own", size = 64 }: { word: string; id: string; ink?: Ink; kind?: AccentKind; size?: number }): JSX.Element {
+export function Stamp({ word, id, ink = "red", kind = "own", size = 64, inline = false }: { word: string; id: string; ink?: Ink; kind?: AccentKind; size?: number; inline?: boolean }): JSX.Element {
   const [landed, setLanded] = useState<"waiting" | "landing" | "landed">(landedIds.has(id) ? "landed" : "waiting");
   useEffect(() => {
     if (landedIds.has(id)) return;
@@ -41,7 +41,7 @@ export function Stamp({ word, id, ink = "red", kind = "own", size = 64 }: { word
   const dust = k?.fx?.pieces?.dust;
   const ringStyle: JSX.CSSProperties = ring && k ? { backgroundImage: `url("${atlasUrl(k.kit.image)}")`, backgroundPosition: `${(-ring.x * size) / ring.w}px ${(-ring.y * size) / ring.h}px`, backgroundSize: `${(k.kit.w * size) / ring.w}px ${(k.kit.h * size) / ring.h}px` } : {};
   return (
-    <span class={`stamp ink-${ink} ${landed} ${ring ? "painted" : ""}`} style={{ width: `${size}px`, height: `${size}px`, ...ringStyle }} aria-label={word} role="img">
+    <span class={`stamp ink-${ink} ${landed} ${ring ? "painted" : ""} ${inline ? "inline" : ""}`} style={{ width: `${size}px`, height: `${size}px`, ...ringStyle }} aria-label={word} role="img">
       <span class="stampword">{word}</span>
       {dust && k && landed === "landing" && motion() === "full" ? <span class="stampdust" style={{ backgroundImage: `url("${atlasUrl(k.fx.image)}")`, "--dust-x": `${-dust.x}px`, "--dust-y": `${-dust.y}px`, "--dust-run": `${-(dust.x + (dust.frames ?? 6) * (dust.step ?? 48))}px` } as JSX.CSSProperties} /> : null}
     </span>

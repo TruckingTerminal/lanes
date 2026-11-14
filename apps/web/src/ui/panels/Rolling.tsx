@@ -76,9 +76,17 @@ export function DeliveredCard(): JSX.Element | null {
     ...(d.line.held >= 0.5 ? [f("truck.leaseDeposit", DELIVERED.held, minus(d.line.held))] : []),
   ];
   return (
-    <Card class="delivered stamped" title={DELIVERED.title(d.from, d.to)} right={<span class={cls("chip", d.lateH > 0 ? "bad" : "good")}>{d.lateH > 0 ? ROLLING.late(d.lateH) : ROLLING.onTime}</span>}>
-      {/* The menu system §2.4: the receipt, then PAID on its corner. */}
-      <Stamp word={MENUS.stampPaid} id={`paid:${d.from}:${d.to}:${Math.round(d.line.yours)}`} size={56} />
+    <Card
+      class="delivered"
+      title={DELIVERED.title(d.from, d.to)}
+      right={
+        <>
+          {/* The menu system §2.4: PAID, in the head beside the chip, where it covers no word (batch M1). */}
+          <Stamp word={MENUS.stampPaid} id={`paid:${d.from}:${d.to}:${Math.round(d.line.yours)}`} size={40} inline />
+          <span class={cls("chip", d.lateH > 0 ? "bad" : "good")}>{d.lateH > 0 ? ROLLING.late(d.lateH) : ROLLING.onTime}</span>
+        </>
+      }
+    >
       <Kv rows={rows} />
       <p class="payyours">
         <b>

@@ -27,4 +27,8 @@ export const MENUS = {
   heroTruck: (truck: number) => `Truck ${truck} has arrived. The keys are on the desk.`,
   heroStage: (stage: number) => ["Your brokerage: a phone at the kitchen table.", "Your brokerage has outgrown the kitchen table. It has an office now.", "Your brokerage fills a room: desks, phones, a board on the wall.", "Your brokerage runs a whole floor. Every phone is ringing."][Math.max(0, Math.min(3, stage - 1))]!,
   heroOk: "Back to work",
+  // Engineering's placeholder, batch M1 (the player's pass: "clear near 4.31" above "too few have cleared"): with no
+  // suggested bid because this lane has too few clears of its own, the bid line points at the market's figure the sheet
+  // shows rather than seeming to deny it.
+  bidMarketGuide: (rate: string) => `Too few loads have cleared on this lane to suggest a bid. Loads like it in this market clear near ${rate}/mi; Book now is the sure price.`,
 };

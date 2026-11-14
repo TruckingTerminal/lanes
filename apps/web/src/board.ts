@@ -327,7 +327,9 @@ export function dockWaits(w: World, t: Truck, l: Load, dhMi: number): { pickup: 
   // The day's hours left, read without opening a new duty day (trips.ts drivingMinutesLeft writes to the truck).
   const reset = dutyResetAt(w, t);
   const left = reset === null || w.t >= reset ? k.drivingHoursPerDay * 60 : Math.max(0, k.drivingHoursPerDay * 60 - t.shiftDrivenMin);
-  const toPickup = w.t + drive(dhMi, left);
+  // Batch M1 (the player's pass: "Ready Mon Jan 22" over "Dock opens Thu Jan 18"): a windowed load is loaded once it's
+  // ready, the truck waiting for it there (trips.ts startLoading), so the dock is read at the later of the two.
+  const toPickup = Math.max(w.t + drive(dhMi, left), l.readyT ?? -Infinity);
   const pickup = at("pickup", toPickup);
   const rolling = (pickup ? pickup.openT : toPickup) + ((w.cfg.dwell.loadMinutes[0] + w.cfg.dwell.loadMinutes[1]) / 2);
   const delivery = at("delivery", rolling + drive(l.miles, k.drivingHoursPerDay * 60));

@@ -103,17 +103,22 @@ export function Loads(): JSX.Element {
   const pinned = pending ? rows.find((r) => r.l.id === pending.loadId) : undefined;
   // The menu system §3 and rule 4.4: loads that arrive while the board is open wait behind a pill, so the list never
   // shifts under a finger; a tap lets them in. A board opened afresh (not drawn for 2 s) starts with everything shown.
-  const now = Date.now();
-  const seen = boardSeen.get(truck.id);
-  if (!seen || now - boardDrawnAt > 2000) boardSeen.set(truck.id, new Set(rows.map((r) => r.l.id)));
-  boardDrawnAt = now;
-  const shown = boardSeen.get(truck.id)!;
-  const waiting = rows.filter((r) => !shown.has(r.l.id)).length;
-  const sorted = sortRows(rows, sort, firstVisit).filter((r) => r !== pinned && shown.has(r.l.id));
-  const takeable = rows.filter((r) => !r.block).length;
   // A truck on a job: the board reads from where it will be free (board.ts boardRows).
   const busyFree = truck.status !== "idle" ? freeAt(w, truck) : null;
   const hub = busyFree ? busyFree.placeName : w.net.places[truck.place]!.name;
+  // Batch M1 (the player's pass: "66 new loads" over an empty board): the list it holds is this view's, the truck, the
+  // place the board reads from and the filters; a new view starts with everything shown, and a pill never stands over an
+  // empty list.
+  const now = Date.now();
+  const view = `${truck.id}|${hub}|${dest}|${maxDh}|${query}|${minRpm}|${maxMiles}|${S.boardPoster ?? ""}`;
+  const seen = boardSeen.get(view);
+  if (!seen || now - boardDrawnAt > 2000) boardSeen.set(view, new Set(rows.map((r) => r.l.id)));
+  boardDrawnAt = now;
+  const shown = boardSeen.get(view)!;
+  if (!rows.some((r) => shown.has(r.l.id))) for (const r of rows) shown.add(r.l.id);
+  const waiting = rows.filter((r) => !shown.has(r.l.id)).length;
+  const sorted = sortRows(rows, sort, firstVisit).filter((r) => r !== pinned && shown.has(r.l.id));
+  const takeable = rows.filter((r) => !r.block).length;
   if (trucks.some((t) => aheadable(w, t))) queueMicrotask(() => iuliiaOnce("win:busy", WINDOWS.iuliiaFirstBusy(truckNo(trucks.find((t) => aheadable(w, t))!.id))));
   const shownSorts: BoardSort[] = windowsOn(w) ? ["pickup", "nearest", "pay", "hot"] : ["nearest", "pay", "hot"];
   // The ways-out sheet: the exits head the board while the truck it was opened for stands idle here.
@@ -287,9 +292,9 @@ function LoadCard({ r, truck, name }: { r: BoardRow; truck: Truck; name: (i: num
   if (win?.closing) queueMicrotask(() => iuliiaOnce("win:closing", WINDOWS.iuliiaFirstClosing));
   return (
     <button type="button" class={cls("loadcard stamped", r.block && "blocked")} onClick={() => openLoad(l.id)} title={`${name(l.origin)} → ${name(l.dest)}`}>
-      {/* The menu system §2.3: a bid in on this load, stamped in the ticket's corner. */}
-      {S.game!.w.manualBids.get(truck.id)?.loadId === l.id ? <Stamp word={MENUS.stampBidIn} id={`bid:${truck.id}:${l.id}`} size={56} /> : null}
-      <span class="l1">{BOARD.line1(place(l.originPlace), place(l.destPlace), Math.round(l.miles).toLocaleString("en-US"))}</span>
+      <span class="l1">
+        {BOARD.line1(place(l.originPlace), place(l.destPlace), Math.round(l.miles).toLocaleString("en-US"))}
+      </span>
       <span class="l2 small">
         {BOARD.line2(fdFull(r.total), rateShown(l, l.bookNow), allInRate(r.total, l.miles, r.dh), Math.round(r.dh))}
         {win?.sameDay ? ` · ${WINDOWS.sameDay(win.sameDay)}` : ""}
@@ -316,6 +321,8 @@ function PinnedBid({ r, rate, truck }: { r: BoardRow; rate: number; truck: Truck
       <div class="row">
         <span class="ring" style={{ background: `conic-gradient(var(--accent) ${Math.round(p * 360)}deg, var(--border) 0deg)` }} aria-hidden="true" />
         <span class="small">{ROUND.pinned(rate.toFixed(2), nextRoundHour(), nextRoundWait())}</span>
+        {/* The menu system §2.3 (batch M1): BID IN lands here, on the bid's own card, beside its line, never over a word. */}
+        <Stamp word={MENUS.stampBidIn} id={`bid:${truck.id}:${r.l.id}`} size={40} inline />
       </div>
       <button type="button" class="loadcard" onClick={() => openLoad(r.l.id)}>
         <span class="l1">{BOARD.line1(place(r.l.originPlace), place(r.l.destPlace), Math.round(r.l.miles).toLocaleString("en-US"))}</span>
@@ -347,11 +354,13 @@ function ResultCard({ onBidAgain }: { onBidAgain?: () => void }): JSX.Element | 
     bumpData();
   };
   return (
-    <Card class={cls("resultcard stamped", res.won ? "won" : "lost")}>
+    <Card
+      class={cls("resultcard", res.won ? "won" : "lost")}
+      // The menu system §2.3: WON in green, LOST in grey, in the card's head where it covers no word (batch M1).
+      right={<Stamp word={res.won ? MENUS.stampWon : MENUS.stampLost} ink={res.won ? "green" : "grey"} kind="result" id={`result:${res.from}:${res.to}:${res.rate}:${res.won}`} size={40} inline />}
+    >
       {/* The menu system §3: a load lost at its pickup's close carries its picture. */}
       {!res.won && res.gone ? <Window name="shp-lost-gone" fallback="dock" /> : null}
-      {/* The menu system §2.3: WON in green, LOST in grey; no shake, no red flash. */}
-      <Stamp word={res.won ? MENUS.stampWon : MENUS.stampLost} ink={res.won ? "green" : "grey"} kind="result" id={`result:${res.from}:${res.to}:${res.rate}:${res.won}`} size={56} />
       <p>
         {res.won
           ? ROUND.won(res.from, res.to, res.rate.toFixed(2), fdFull(res.total))
@@ -388,7 +397,7 @@ function ResultCard({ onBidAgain }: { onBidAgain?: () => void }): JSX.Element | 
 }
 
 /** The loads each truck's board has shown (the new-loads pill), and when the board was last drawn. */
-const boardSeen = new Map<number, Set<number>>();
+const boardSeen = new Map<string, Set<number>>();
 let boardDrawnAt = 0;
 
 /** The load's sheet (S3): route, money, shipper, the fold, and Book now and the bid pinned at the bottom. */
@@ -409,7 +418,13 @@ function LoadSheet({ r, truck }: { r: BoardRow; truck: Truck }): JSX.Element {
   useEffect(() => iuliiaFirst(r.block ? "load:blocked" : "load:open", r.block ? "screen:loadBlocked" : "screen:load"), []);
   const k = COMMODITIES[l.commodity]!;
   const poster = l.brokerId !== null ? w.companies[l.brokerId - 1] : l.shipperId !== null ? w.companies[l.shipperId - 1] : null;
-  const bidProfit = bid === null ? 0 : profitOver(w, truck, bid, r.be, l.miles);
+  // The bid figure while it's being typed; null when it shows the bid.
+  const [bidText, setBidText] = useState<string | null>(null);
+  // Batch M1 (the player's pass): BID reads the figure as it's typed, not only once the field is left: a rate it would
+  // take (in range, not over the ceiling) is the bid the button prices and places.
+  const typedNow = bidText !== null ? typedRate(bidText) : null;
+  const liveBid = typedNow?.kind === "rate" && typedNow.rate > 0 && !overCeiling(l, typedNow.rate) ? Math.round(Math.min(hi, clampToCeiling(l, typedNow.rate)) * 100) / 100 : bid;
+  const bidProfit = liveBid === null ? 0 : profitOver(w, truck, liveBid, r.be, l.miles);
   // The bid's controls: shut with the load's wall, open through a locals-first hold's last round (filed for the opening).
   const bidShut = !!r.block && !r.files;
   // The engine's reach for a bid by hand is market to market (actions.ts place_bid, hubMiles), where Book now's is the
@@ -417,7 +432,7 @@ function LoadSheet({ r, truck }: { r: BoardRow; truck: Truck }): JSX.Element {
   // One rule for both is the engine's (the batch's report).
   const bidOut = !w.cfg.board.bidReachFromTown && hubMiles(w, truck.hub, l.origin) > MANUAL_BID_MAX_DEADHEAD_MI;
   // The bid's own pair (R14): the sheet's money rows are at book-now, so the button carries its cash itself.
-  const bidHeld = bid === null ? 0 : chipPair(w, truck, bidProfit, bid * l.miles, r.draw).held;
+  const bidHeld = liveBid === null ? 0 : chipPair(w, truck, bidProfit, liveBid * l.miles, r.draw).held;
   const bookUp = r.profitBook >= 0;
   const signed = (x: number) => `${x >= 0 ? "+" : "−"}${money(x)}`;
   // From an empty field the first step starts at the first rate above Book now in the range.
@@ -433,9 +448,7 @@ function LoadSheet({ r, truck }: { r: BoardRow; truck: Truck }): JSX.Element {
   // that in place of the gamble line. Client batch X (item 78): the gamble's figure is net of the lessor's share and the
   // settlement fee (profitOver), as the chip beside it is.
   const clears = clearsNear(w, l);
-  const betLine = bid !== null && bid < r.be - 0.005 ? PENDING.bidUnderBreakEven(fdFull((r.be - bid) * l.miles)) : clears < r.be ? PENDING.laneUnderBreakEven(rateShown(l, clears), r.be.toFixed(2)) : bid !== null && bid > l.bookNow + 0.005 ? PENDING.bidGambleNet(fdFull(bidProfit - r.profitBook), nextRoundHour(), rateShown(l, l.bookNow)) : r.suggest === null ? (clearsNearSource(w, l).from !== "lane" ? PENDING.bidThinLane : PENDING.bidBookBetter) : null;
-  // The bid figure while it's being typed; null when it shows the bid.
-  const [bidText, setBidText] = useState<string | null>(null);
+  const betLine = liveBid !== null && liveBid < r.be - 0.005 ? PENDING.bidUnderBreakEven(fdFull((r.be - liveBid) * l.miles)) : clears < r.be ? PENDING.laneUnderBreakEven(rateShown(l, clears), r.be.toFixed(2)) : liveBid !== null && liveBid > l.bookNow + 0.005 ? PENDING.bidGambleNet(fdFull(bidProfit - r.profitBook), nextRoundHour(), rateShown(l, l.bookNow)) : r.suggest === null ? (clearsNearSource(w, l).from !== "lane" ? MENUS.bidMarketGuide(rateShown(l, clears)) : PENDING.bidBookBetter) : null;
   // R20: a refusal in the writer's words where the engine's reason is a vetting block; otherwise the engine's own.
   const refusal = (reason: string): string => {
     // Client batch W: the two-deep limit, in the director's words.
@@ -638,8 +651,17 @@ function LoadSheet({ r, truck }: { r: BoardRow; truck: Truck }): JSX.Element {
           <Fig k="board.bid" label={LOAD.bidButton("")} ctx={{ ...fx, fd: bid ?? undefined }}><span class="muted small">{LOAD.range(lo.toFixed(2), hi.toFixed(2))}</span></Fig>
         </div>
         <div class="row">
-          <Btn primary={!bookUp && bid !== null} disabled={bidShut || bidOut || bid === null} onClick={(ev) => withDaysOffWarning(truck, "Bid", PENDING.cutDaysOffItem, () => void placeBid(), ev)}>
-            {bidHere ? LOAD.changeBid : bid === null ? PENDING.bidChipEmpty : bidHeld >= 0.5 ? CHIP.bidAlone(signed(bidProfit), chipCash(bidProfit - bidHeld + r.draw)) : CHIP.bid(signed(bidProfit))}
+          <Btn
+            primary={!bookUp && liveBid !== null}
+            disabled={bidShut || bidOut || liveBid === null}
+            // Batch M1: pressed while the field is being typed in, the field keeps its focus, so a phone's keyboard doesn't
+            // close and drop the pinned row under the finger before the tap ends (rule 4.4); the typed figure is the bid.
+            onPointerDown={(ev) => {
+              if ((document.activeElement as HTMLElement | null)?.classList.contains("bidinput")) ev.preventDefault();
+            }}
+            onClick={(ev) => withDaysOffWarning(truck, "Bid", PENDING.cutDaysOffItem, () => void placeBid(), ev)}
+          >
+            {bidHere ? LOAD.changeBid : liveBid === null ? PENDING.bidChipEmpty : bidHeld >= 0.5 ? CHIP.bidAlone(signed(bidProfit), chipCash(bidProfit - bidHeld + r.draw)) : CHIP.bid(signed(bidProfit))}
           </Btn>
           {bidHere ? (
             <Btn ghost onClick={() => void withdraw(truck)}>
