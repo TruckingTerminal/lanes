@@ -27,7 +27,8 @@ function wholeFace(mood: PortraitMood): HTMLImageElement | null {
   let img = FACES[mood];
   if (!img) {
     img = new Image();
-    img.src = `${ASSETS}people/iuliia-faces/${mood}.png`;
+    // Flat in people/ (batch M3: the build copies only a folder's own files, so a nested path never shipped).
+    img.src = `${ASSETS}people/iuliia-${mood}.png`;
     FACES[mood] = img;
   }
   return img.complete && img.naturalWidth > 0 ? img : null;
