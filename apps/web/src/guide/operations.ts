@@ -40,7 +40,7 @@ export function operationsPages(cfg: EconomyConfig): GuidePage[] {
             ["Max empty miles", "How far a truck will run empty to a pickup (up to 150)"],
             ["Move idle trucks", "After a number of idle rounds, sends the truck empty to the hub nearby with the most uncovered freight for its trailer"],
             ["Book loads between rounds", "Takes a load at its book-now price when it clears break-even plus your margin; the margin shrinks the longer the truck sits and the farther its driver is from home"],
-            ["Bring drivers home", "After so many days out, the truck heads for your home hub and its driver takes days off; the dispatcher leaves it alone until they're over"],
+            ["Bring drivers home", cfg.labor.homeAtOnce ? `After so many days out, the truck heads home and its driver takes days off, at once if it stops within ${cfg.map.nearbyRadiusMi} miles of your home hub; the dispatcher leaves it alone until they're over` : "After so many days out, the truck heads for your home hub and its driver takes days off; the dispatcher leaves it alone until they're over"],
           ],
         ) +
         p(`Each truck bids on up to ${cfg.board.maxBidsPerTruckPerRound} loads a round, most profitable first; it wins at most one. You get ${cfg.board.freeStandingOrders} standing orders plus a floor.`),
@@ -53,7 +53,9 @@ export function operationsPages(cfg: EconomyConfig): GuidePage[] {
         ul([
           `A driver gets ${hos.drivingHoursPerDay} driving hours in a 24-hour duty day that opens when the truck first rolls: about ${hos.drivingHoursPerDay * hos.avgMph} miles at ${hos.avgMph} mph (your driver's skill moves speed ±${pct(lab.driver.mphRange / 2)}). A team of two drivers gets ${cfg.safety.hos.teamHours}.`,
           `Loading and unloading take ${cfg.dwell.loadMinutes[0] / 60}–${cfg.dwell.loadMinutes[1] / 60} hours each, on duty but not driving.`,
-          cfg.windows.enabled
+          cfg.windows.enabled && cfg.windows.oneDeadline
+            ? `On time means at the receiver by the load's delivery deadline (below), for your record, your Miles and the claim alike; after it is late.`
+            : cfg.windows.enabled
             ? `Your on-time record counts from its own due time: the drive at the legal pace from when the truck starts the job (or the load is ready), the worst-case dock time and ${cfg.freight.deliverySlackMinutes / 60} hours of slack, and never later than the delivery deadline (below). ${cfg.freight.earlyThresholdMinutes / 60} hours early or more counts as early; past that due time is late on your record, but the poster claims only past the delivery deadline.`
             : `A load is due after the drive at the legal pace, the worst-case dock time and ${cfg.freight.deliverySlackMinutes / 60} hours of slack. ${cfg.freight.earlyThresholdMinutes / 60} hours early or more counts as early; past due is late.`,
           `A breakdown stops the truck ${bd.delayHours[0]}–${bd.delayHours[1]} hours and can make it late.`,

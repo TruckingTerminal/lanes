@@ -73,7 +73,9 @@ export function moneyPages(cfg: EconomyConfig): GuidePage[] {
       html:
         p(`Miles are points for hauling well, and they become the airdrop at launch. Each delivered load earns its loaded miles ×:`) +
         ul([
-          `<b>On time:</b> early (${cfg.freight.earlyThresholdMinutes / 60}+ hours) ×${m.onTime.early}, on time ×${m.onTime.onTime}, late ×${m.onTime.late};`,
+          cfg.windows.enabled && cfg.windows.oneDeadline
+            ? `<b>On time:</b> by the delivery deadline ×${m.onTime.onTime}, late ×${m.onTime.late};`
+            : `<b>On time:</b> early (${cfg.freight.earlyThresholdMinutes / 60}+ hours) ×${m.onTime.early}, on time ×${m.onTime.onTime}, late ×${m.onTime.late};`,
           `<b>Margin:</b> your margin ÷ ${pct(m.marginTarget)}, within ×${m.marginClamp[0]}–${m.marginClamp[1]};`,
           `<b>Reputation level:</b> ×${m.reputationRange[0]}–${m.reputationRange[1]};`,
           `<b>Every truck counts the same:</b> Miles are flat per loaded mile, however many trucks you run.`,
