@@ -47,7 +47,7 @@ export function referencePages(cfg: EconomyConfig): GuidePage[] {
           [
             "Claim",
             cfg.windows.enabled
-              ? `What a carrier pays when a load goes wrong: to its poster, a share of its pay for a late delivery (${pct(cfg.windows.lateClaimShare)}), a no-show (${pct(cfg.windows.noShowClaimShare)}) or a release (${pct(cfg.windows.cancelClaimShare.early)} or ${pct(cfg.windows.cancelClaimShare.urgent)}), with a mark on the record; for a spoiled load, ${pct(cfg.commodities.spoilClaimShare)} of its value`
+              ? `What a carrier pays when a load goes wrong. Late (${pct(cfg.windows.lateClaimShare)}) or a no-show (${pct(cfg.windows.noShowClaimShare)}): a share of the load's pay, to its broker or shipper when that's a company (a player's, or an AI brokerage); otherwise it leaves the game. Released (${pct(cfg.windows.cancelClaimShare.early)}, or ${pct(cfg.windows.cancelClaimShare.urgent)} in the last days): it always leaves the game, since the load goes back on the board. Each is a mark on the record too, and none is more than the carrier holds. A spoiled load: ${pct(cfg.commodities.spoilClaimShare)} of its value`
               : `What a carrier pays for a spoiled load: ${pct(cfg.commodities.spoilClaimShare)} of its value`,
           ],
           ["Deadhead", "Miles driven empty"],

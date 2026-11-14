@@ -91,16 +91,16 @@ export const WINDOWS = withGrammar({
   // Fail 1: a ready time already past ("Ready since Tue 07:00").
   readySince: (when: string) => `since ${when}`,
   // Fail 3: why a truck can't book, on every chip (the line) and beside its disabled option in the truck picker (short).
-  heldDaysOff: (truck: number, name: string, back: string) => `Truck ${truck} holds its next load while ${name} is home until ${back}. Release it to book another.`,
-  whyHeld: (back: string) => `days off until ${back}, next load held`,
-  whyHasNext: "has its next load",
+  heldDaysOff: (truck: number, name: string, back: string) => `Truck ${truck} already has its next load, held while ${name} is home until ${back}. Release that one to book another.`,
+  whyHeld: (back: string) => `next load held, driver home until ${back}`,
+  whyHasNext: "next load already booked",
   whyNoDriver: "no driver",
   whyBusy: "on a job",
   pickerWhy: (why: string) => ` · ${why}`,
   // Fail 2: Release asks first, on the confirm card ("Release load #12?").
   releaseItem: (id: number) => `load #${id}`,
-  releaseDoes: (from: string, to: string, truck: number) => `${from} → ${to} goes back on the board, and truck ${truck} no longer has a next load.`,
-  releaseRisk: "A mark on your record, which the Company page counts beside your reputation.",
+  releaseDoes: (from: string, to: string, truck: number) => `${from} → ${to} goes back on the board, and Truck ${truck} has no next load.`,
+  releaseRisk: "It's also a mark on your record: it lowers your reputation, and the Company page counts it.",
   // Fail 6: the marks behind Reputation, on the Company page.
   recordLabel: "Marks on your record",
   recordMarks: (late: number, failed: number) => `${late} late · ${failed} released or not picked up`,

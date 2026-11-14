@@ -55,9 +55,9 @@ export const CONFIRM = {
   itemRisk: { apu: (n: string) => `It pays back only on nights away: about ${n} weeks at this truck's pace.`, aero: (n: string) => `It pays back in about ${n} weeks at this truck's miles.`, tires: (n: string) => `It pays back in about ${n} weeks at this truck's miles.`, sleeper: (n: string) => `It pays back only if the truck sleeps away often: about ${n} weeks.` },
   paybackUnknown: "Payback unknown until it has run a few weeks.",
   /** Engineering's drafts for the writer: the yard, a business or a facility (the writer's table has none). */
-  yard: (trucks: number, bond: string) => `A yard for ${trucks} trucks, with a ${bond} FD bond you get back when you sell it.`,
+  yard: (trucks: number, bond: string) => `A yard for ${trucks} trucks, with a bond of ${bond} FD you get back when you sell it.`,
   space: (n: number) => `Room for ${n} more trailers of your own in your yard.`,
-  business: (kind: string, hub: string, bond: string) => `A ${kind} at ${hub}, with a ${bond} FD bond you get back when you sell it.`,
+  business: (kind: string, hub: string, bond: string) => `A ${kind} at ${hub}, with a bond of ${bond} FD you get back when you sell it.`,
   facility: (kind: string, hub: string) => `A ${kind} at ${hub}: it ships its own freight, and you earn the goods margin.`,
   upkeepRisk: (fd: string) => `It costs ${fd} FD a week in upkeep, earning or not.`,
 };
@@ -162,7 +162,7 @@ export const DOOR = {
   yardTrailer: (n: number, m: number) => `Your yard holds ${n} trailers: this makes ${m}.`,
   yard: (date: string) => `Yards open ${date}. Until then, make room: park a truck, sell one, or lease one out.`,
   yardButtons: ["Park", "Sell", "Offer for lease"] as const,
-  yardShort: (fd: string, bond: string, have: string) => `A small yard costs ${fd} FD plus a ${bond} FD bond: you have ${have}.`,
+  yardShort: (fd: string, bond: string, have: string) => `A small yard costs ${fd} FD plus a bond of ${bond} FD: you have ${have}.`,
 };
 
 /** Every move shows its price before the tap (the writer's copy-player5.md, R24): fuel, the driver's pay and tolls over the empty miles. */
@@ -211,7 +211,7 @@ export const HOURS = {
   week: (h: string, of: number) => `${h} h of ${of} this week`,
   fuelIn: (mi: number) => `Fuel stop in about ${mi} mi`,
   fueling: (min: number) => `At a fuel stop · ${min} min left`,
-  onBreak: (len: number, min: number) => `On a ${len}-min break · ${min} min left`,
+  onBreak: (len: number, min: number) => `On break (${len} min) · ${min} min left`,
   resting: (at: string) => `Resting until ${at}`,
 };
 
@@ -1295,7 +1295,9 @@ export const EXPLAIN = (cfg: EconomyConfig): Record<string, Ex> => ({
   // The writer's copy-player3.md "Your draw": shown only while the draw leaves the books (labor.owner.drawStays off).
   "pay.ownerDraw": { what: "Your draw: the living you take out of the business for driving.", how: `${cfg.labor.owner.driverPayPerMile} FD for each mile you drive, taken out of each load like a wage.`, moves: "The miles you drive yourself. It leaves the business; nothing arrives later." },
   "standing.miles": { what: "Your standing in the beta: loaded miles hauled this season.", how: "Every loaded mile delivered. Empty miles don't count.", moves: "Hauling, and hauling loaded." },
-  "standing.reputation": { what: "How shippers and brokers rate you.", how: `Your lifetime on-time share, smoothed by ${cfg.reputation.priorLoads} loads at the starting value so one load can't swing it.`, moves: "Delivering on time. Nothing else moves it." },
+  "standing.reputation": cfg.windows.enabled
+    ? { what: "How shippers and brokers rate you.", how: `Your loads delivered on time, out of every load you've delivered, released or not picked up, smoothed by ${cfg.reputation.priorLoads} loads at the starting value so one load can't swing it.`, moves: "Delivering on time. A late delivery, a released load or a no-show lowers it." }
+    : { what: "How shippers and brokers rate you.", how: `Your lifetime on-time share, smoothed by ${cfg.reputation.priorLoads} loads at the starting value so one load can't swing it.`, moves: "Delivering on time. Nothing else moves it." },
   "standing.onTime": { what: "The share of your loads delivered by the appointment.", how: "Loads on time, divided by loads delivered.", moves: "Plan for hours, docks and weather." },
   "intel.creditBand": { what: "Your credit, A best to E worst.", how: "Paying from cash in hand, authority age, open claims, bankruptcies, revocations, and cover for what you owe.", moves: "Pay from cash, not overdraft; time; no claims; keep cash and stake above what you owe." },
   "intel.safetyBand": { what: "Your safety rating from inspections and reviews.", how: "Violations at inspections and audits over two years, recent ones counting more, plus crashes per truck.", moves: "Rested drivers, maintained trucks, no speeding, no crashes." },
@@ -1483,7 +1485,7 @@ export const BROKERAGE = {
   postIt: "Post it",
   decline: "Decline",
   decideBy: (hh: string, h: number) => `Decide by ${hh} · ${h} h left`,
-  ifNotPost: (pct: string) => `If you don't decide: your standing order posts it at a ${pct} margin.`,
+  ifNotPost: (pct: string) => `If you don't decide: your standing order posts it with a margin of ${pct}.`,
   ifNotOwn: (carrier: string) => `If you don't decide: your standing order offers it to ${carrier} first.`,
   ifNotDecline: "If you don't decide: it goes to another broker or the open board.",
   fromChip: (carrier: string) => `Passed by ${carrier}`,
