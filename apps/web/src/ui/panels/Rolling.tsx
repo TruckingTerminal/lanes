@@ -9,7 +9,7 @@ import { bumpData, me, myTrucks, ownerOf, S, truckNo, useData } from "../../stat
 import { Bar, Btn, Card, Kv } from "../bits.js";
 import { Fig } from "../Explain.js";
 import { StepMoment } from "../Walkthrough.js";
-import { settlementShare } from "@lanes/engine";
+import { onTimeBy, settlementShare } from "@lanes/engine";
 
 const when = (min: number): string => `${shortDate(Math.floor(min / 1440))} ${hhmm(min)}`;
 
@@ -35,7 +35,8 @@ function RollingCard({ t }: { t: Truck }): JSX.Element | null {
   if (!l) return null;
   const place = (i: number) => w.net.places[i]!.name;
   const eta = etaMin(w, t, c);
-  const lateH = Math.ceil((eta - l.dueT) / 60);
+  // windows.oneDeadline (the director's ruling 1): late by the "Deliver by" the engine marks it on (onTimeBy).
+  const lateH = Math.ceil((eta - onTimeBy(w, l)) / 60);
   const done = t.legMiles > 0 ? 1 - t.remainingMi / t.legMiles : 0;
   const stop = nightStop(w, t, c);
   return (

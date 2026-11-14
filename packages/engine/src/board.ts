@@ -419,8 +419,17 @@ function maybeReposition(w: World, truck: Truck, surplus: Map<string, number>): 
   // truck keeps taking loads that head home (bids and book-now only consider those) and
   // runs empty only once it's near, or after a couple of days without a homeward load.
   if (needsHome(w, company, truck)) {
-    for (const id of [truck.driverId, truck.coDriverId]) if (id) w.staff[id - 1]!.wantsHome = true;
     const miles = hubMiles(w, truck.hub, company.homeHub);
+    // labor.homeNeedsDispatcher (the director's ruling 3): with the dispatcher off (no bidding order), the home rule moves no
+    // truck. Inside the radius the days off start, as they would; outside, nothing: the player's Send home runs it (a
+    // driver it was given to wants home already), rule C keeps a hired driver's loads toward home, an owner's fatigue
+    // builds. Every bot bids, so this is a player's company.
+    const crew = [truck.driverId, truck.coDriverId].filter((id) => id > 0).map((id) => w.staff[id - 1]!);
+    if (w.cfg.labor.homeNeedsDispatcher && !company.orders.some((o) => o.kind === "bid") && !crew.some((d) => d.wantsHome)) {
+      if (miles <= w.cfg.map.nearbyRadiusMi) startHomeTime(w, company, truck);
+      return;
+    }
+    for (const d of crew) d.wantsHome = true;
     const hw = w.cfg.fatigue.homeward;
     if (miles <= w.cfg.map.nearbyRadiusMi) {
       startHomeTime(w, company, truck);

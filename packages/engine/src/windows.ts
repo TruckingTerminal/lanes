@@ -404,6 +404,15 @@ export function whenLabel(w: World, t: number): string {
 }
 const DAY_NAMES = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
+/**
+ * windows.oneDeadline (the director's ruling 1): the time a load counts as on time by. While windows and the rule are on,
+ * its "Deliver by" (latestDeliveryT), the deadline its late claim reads; else the due time set at booking (trips.ts
+ * startJob). trips.ts deliver marks it, and the page's late chips read the same.
+ */
+export function onTimeBy(w: World, load: Load): number {
+  return windowsOn(w) && w.cfg.windows!.oneDeadline && load.latestDeliveryT !== undefined ? load.latestDeliveryT : load.dueT;
+}
+
 /** canMake's refusal, with its figures: when and where the truck is free, when it gets there, and the time it misses. */
 export function reachRefusal(w: World, load: Load, r: Reach): string {
   const place = (i: number) => w.net.places[i]!.name;

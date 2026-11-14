@@ -425,11 +425,25 @@ export function startHomeTime(w: World, c: Company, t: Truck): void {
   }
 }
 
-/** A truck just went idle: if it's home and a driver was heading there for days off, they start now. */
+/**
+ * A truck just went idle: if it's home and a driver was heading there for days off, they start now. labor.homeAtOnce (the
+ * director's ruling 2): a driver due home by the home rule's days out starts them now too, inside the radius that counts a
+ * night at home, rather than at the next round's look (board.ts maybeReposition), before the hour's dispatch can book the
+ * truck out again.
+ */
 export function homeArrival(w: World, t: Truck): void {
   if (!t.companyId) return;
   const c = companyById(w, t.companyId);
-  if (standingAtHome(w, c, t) && seatedDrivers(w, t).some((d) => d.wantsHome)) startHomeTime(w, c, t);
+  if (!standingAtHome(w, c, t)) return;
+  if (seatedDrivers(w, t).some((d) => d.wantsHome) || (w.cfg.labor.homeAtOnce && dueHomeNow(w, c, t))) startHomeTime(w, c, t);
+}
+/** standingOrders.ts needsHome by the home rule's days out, for a driver not already on days off (no import edge to it). */
+function dueHomeNow(w: World, c: Company, t: Truck): boolean {
+  if (!t.driverId) return false;
+  const d = w.staff[t.driverId - 1]!;
+  if (d.homeUntilDay !== null && d.homeUntilDay > dayOf(w.t, w.cfg)) return false;
+  const hm = c.orders.find((o): o is Extract<StandingOrder, { kind: "homeTime" }> => o.kind === "homeTime");
+  return hm !== undefined && d.awayDays >= hm.afterDays;
 }
 
 /** The driver fatigue a truck runs with: the average of its seated drivers'. */

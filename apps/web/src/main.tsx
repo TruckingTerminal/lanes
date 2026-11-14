@@ -1,5 +1,5 @@
 import { render } from "preact";
-import { companyAccount, condition, crewed, marketMood, resting, staffById, type Company, type GameEvent, type World } from "@lanes/engine";
+import { companyAccount, condition, crewed, marketMood, onTimeBy, resting, staffById, type Company, type GameEvent, type World } from "@lanes/engine";
 import { installTheme } from "./art.js";
 import { truckSheet, whenAssetsReady } from "./assets.js";
 import { fd, fdFull, hhmm, realUntil, shortDate } from "./format.js";
@@ -154,7 +154,7 @@ function onEvent(s: Session, e: GameEvent): void {
       const line = payLine(w, truck, load, e.grossFd, e.costFd, beforeDelivery.get(truck.id) ?? { emptyMi: 0, depositFd: truck.depositFd ?? 0 });
       if (fresh) S.invoiceLanes.set(fresh.id, ends(e.loadId, e.origin, e.dest).join(" → "));
       const driver = truck.driverId ? w.staff[truck.driverId - 1] : undefined;
-      S.delivered = { from: ends(e.loadId, e.origin, e.dest)[0], to: ends(e.loadId, e.origin, e.dest)[1], lateH: e.onTime ? 0 : Math.max(0, Math.ceil(((w.cfg.docks.lateFromArrival && load.arrivedT !== undefined ? load.arrivedT : w.t) - load.dueT) / 60)), line, paid, hiredDriver: driver && !driver.owner ? driver.name : null };
+      S.delivered = { from: ends(e.loadId, e.origin, e.dest)[0], to: ends(e.loadId, e.origin, e.dest)[1], lateH: e.onTime ? 0 : Math.max(0, Math.ceil(((w.cfg.docks.lateFromArrival && load.arrivedT !== undefined ? load.arrivedT : w.t) - onTimeBy(w, load)) / 60)), line, paid, hiredDriver: driver && !driver.owner ? driver.name : null };
       S.moneyDot = fresh ? "invoice" : "paid";
       iuliiaSay(e.onTime ? "delivered:onTime" : "delivered:late");
     }

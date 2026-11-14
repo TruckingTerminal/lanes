@@ -109,6 +109,14 @@ export const WINDOWS = withGrammar({
   repFailedRow: "Loads released or not picked up",
   // Item 3: a one-truck company's board, under "loads show when it's free", when the truck already has its next load.
   busyNextBooked: (truck: number, from: string, to: string, pickupBy: string) => `Truck ${truck} already has its next load: ${from} → ${to}, pick up by ${pickupBy}. To book a different one, release that one first.`,
+  // Engineering's placeholders for the writer (the 0.25.1 rulings' client half; engineering-rulings-0251-2026-11-13.md).
+  // Ruling 2 (labor.homeAtOnce): the truck card's line for a crew on days off inside the home radius.
+  homeInMarket: (who: string, place: string, market: string, days: number, tomorrow: boolean) => `${who} home (${place}, ${market} market): ${days} ${days === 1 ? "day" : "days"} off ${tomorrow ? "from tomorrow" : "from now"}.`,
+  // Ruling 3 (labor.homeNeedsDispatcher): What now?'s due-home reason with no load toward home, the dispatcher off. A hired
+  // driver past due takes only loads toward home (rule C); an owner-operator runs on, tiring.
+  homeDueNoDrive: (home: string, owner: boolean) => `With your dispatcher off, nobody drives it home but you: book it a load toward ${home}, or Send home. ${owner ? "Until then you keep driving, and the tiredness builds." : "Until then the driver takes only loads toward home."}`,
+  // Ruling 3: the truck card's line for a truck due home, idle away from home, the dispatcher off.
+  homeWaitsForYou: "Due home. With your dispatcher off it stays here until you Send home or book a load toward home.",
 });
 
 /** The explain sheets' words for the windows' figures (Explain.tsx reads these before copy.ts EXPLAIN). */

@@ -17,7 +17,7 @@ import { kindInView } from "../companies.js";
 import { leaseMinFor } from "../ledger.js";
 import { leasedNo, orderedFirstTruck } from "../figures.js";
 import { WINDOWS } from "../copy-windows.js";
-import { askFigures, askLines, spanLabel, whenAt } from "../windowsui.js";
+import { askFigures, askLines, homeNoDrive, spanLabel, whenAt } from "../windowsui.js";
 
 /**
  * What now? (specs/guidance.md section 1, guidance-ux.md section 1): a chip in Iuliia's caption, in its own button row, on
@@ -228,7 +228,8 @@ function words(a: NextAction): { action: string; reason: string; button: string;
       const t = w.trucks[a.truckId - 1]!;
       return {
         action: `${PENDING.lostForTruck(truckNo(a.truckId), PENDING.homeDueAction(shortDate(a.day), a.days))}`,
-        reason: PENDING.homeDueReason(home, l ? `${place(l.originPlace)} to ${place(l.destPlace)}, ${fd(a.profitFd)} FD over break-even` : null),
+        // labor.homeNeedsDispatcher (the director's ruling 3): with no load toward home, nobody drives it home but the player.
+        reason: !l && homeNoDrive(w, c) ? WINDOWS.homeDueNoDrive(home, !!t.driverId && w.staff[t.driverId - 1]!.owner) : PENDING.homeDueReason(home, l ? `${place(l.originPlace)} to ${place(l.destPlace)}, ${fd(a.profitFd)} FD over break-even` : null),
         button: PENDING.homeDueButton(!!l),
         go: () => (l ? openLoadOf(a.truckId, l.id) : t.status === "idle" ? sendHomePriced(t) : setTab("fleet")),
       };

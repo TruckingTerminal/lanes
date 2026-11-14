@@ -16,6 +16,7 @@ import {
   driverFatigue,
   hubMiles,
   marketPay,
+  needsHome,
   operatingTrucks,
   ordersWaitForHand,
   placeMiles,
@@ -53,7 +54,7 @@ import { myTenders } from "./ui/panels/Contracts.js";
 import { dateLabel, fd, fdFull, hhmm, hoursLabel, pct, plural, realUntil, signedPct, TRAILER_NAME, weekday } from "./format.js";
 import { Btn } from "./ui/bits.js";
 import { economyConfig } from "@lanes/config";
-import { askFigures, brokerageClosing, claimCause, lostBidLine } from "./windowsui.js";
+import { askFigures, atHomeMarket, brokerageClosing, claimCause, homeMarketLine, homeNoDrive, lostBidLine } from "./windowsui.js";
 import { moneyEvents } from "./books.js";
 import { WINDOWS } from "./copy-windows.js";
 
@@ -436,6 +437,8 @@ function needsInView(fleet: boolean): Need[] {
     if (d.wantsHome) continue;
     const idle = t.status === "idle";
     if (!idle && !sendHomeWhileMoving(w)) continue;
+    // labor.homeAtOnce (the director's ruling 2): no Send home inside the home radius; standing there is home.
+    if (idle && w.cfg.labor.homeAtOnce && atHomeMarket(w, c, t)) continue;
     // Send home on an idle truck is an empty run: priced, and R6's card past guard.confirmShareOfCash, as on the Truck card (QA item 8).
     out.push({ key: `tired:${t.id}`, text: NEEDS.tired(d.owner ? "You" : d.name, d.awayDays), tab: "fleet", target: `[data-need="tired:${t.id}"]`, button: idle ? NEEDS.sendHome : NEEDS.sendHomeWhenIdle, run: (ev) => (idle ? sendHomePriced(t, ev) : act({ type: "send_home", truckId: t.id }, TRUCK.goingHomeToast, "truck:sendHome")), icon: "staff" });
   }
@@ -618,6 +621,8 @@ export function idleWhy(t: Truck): IdleWhy {
     const d = w.staff[t.driverId - 1]!;
     return { why: TRUCK.homeTime(d.owner ? "you're" : `${d.name} is`, dateLabel(d.homeUntilDay!)), fixes: [] };
   }
+  // labor.homeNeedsDispatcher (the director's ruling 3): due home, away, the dispatcher off: it waits for the player.
+  if (homeNoDrive(w, c) && needsHome(w, c, t) && !atHomeMarket(w, c, t) && !w.staff[t.driverId - 1]!.wantsHome) return { why: WINDOWS.homeWaitsForYou, fixes: [] };
   const bid = w.manualBids.get(t.id);
   if (bid) return { why: `Your bid of ${bid.rate.toFixed(2)}/mi is in for the next round.`, fixes: [] };
   // The first bid by hand (S9): the dispatcher waits for the owner's first call, so the fix is the board, not the orders.
@@ -725,6 +730,9 @@ export function StatusLine({ t }: { t: Truck }): ComponentChildren {
       const bid = w.manualBids.get(t.id);
       if (!bid && ordersWaitForHand(w, ownerOf(t))) return <>{DISPATCHER.waitingCard(name(t.place))}</>;
       if (resting(w, t)) {
+        // labor.homeAtOnce (the director's ruling 2): home is the home market; the line names where and which market.
+        const market = homeMarketLine(w, ownerOf(t), t);
+        if (market) return <>{market}</>;
         const d = w.staff[t.driverId - 1]!;
         const left = d.homeUntilDay! - Math.floor(clockMin() / 1440) - (d.drivenMinToday > 0 ? 1 : 0);
         return (

@@ -1,4 +1,4 @@
-import { AHEAD_STATUSES, canMake, clearsWhen, companyAccount, crewed, dayOf, freeOf, lostShare, memoryLift, npcKey, resting, urgent, whenLabel, windowsOn, type Company, type Free, type Load, type Reach, type Truck, type World } from "@lanes/engine";
+import { AHEAD_STATUSES, canMake, clearsWhen, companyAccount, crewed, hubMiles, dayOf, freeOf, lostShare, memoryLift, npcKey, resting, urgent, whenLabel, windowsOn, type Company, type Free, type Load, type Reach, type Truck, type World } from "@lanes/engine";
 import { WINDOWS } from "./copy-windows.js";
 import { fdFull, hhmm, shortDate } from "./format.js";
 import { deliveryEtaMin, etaMin } from "./rolling.js";
@@ -313,3 +313,27 @@ export function clearsTiming(w: World, l: Load): { clause: string; share: string
   if (c.quick >= 0.5) return { clause: WINDOWS.clearsQuick, share: WINDOWS.clearsShareQuick(pct(c.quick), c.from, hub) };
   return null;
 }
+
+/**
+ * labor.homeAtOnce (the director's ruling 2): home is the home market, at the radius that counts a night at home
+ * (map.nearbyRadiusMi). Inside it, a driver due home starts the days off as the truck goes idle, and Send home isn't
+ * offered (it would mean nothing there). Off: home is the home hub itself, as the page had it.
+ */
+export function atHomeMarket(w: World, c: Company, t: Truck): boolean {
+  return w.cfg.labor.homeAtOnce ? hubMiles(w, t.hub, c.homeHub) <= w.cfg.map.nearbyRadiusMi : t.hub === c.homeHub;
+}
+/** Ruling 2's card line for a crew on days off inside the home radius: "Ana is home (Springfield, Columbus market): …". */
+export function homeMarketLine(w: World, c: Company, t: Truck): string | null {
+  if (!w.cfg.labor.homeAtOnce || !t.driverId || !atHomeMarket(w, c, t)) return null;
+  const d = w.staff[t.driverId - 1]!;
+  const today = dayOf(w.t, w.cfg);
+  if (d.homeUntilDay === null || d.homeUntilDay <= today) return null;
+  const tomorrow = d.drivenMinToday > 0;
+  const left = Math.max(1, d.homeUntilDay - today - (tomorrow ? 1 : 0));
+  return WINDOWS.homeInMarket(d.owner ? "You're" : `${d.name} is`, place(w, t.place), w.net.hubs[c.homeHub]!.name, left, tomorrow);
+}
+/**
+ * labor.homeNeedsDispatcher (the director's ruling 3): with the dispatcher off (no bidding order), the home rule never
+ * drives the truck home, so What now?'s due-home answer says so (the words of the old rule said it heads home empty).
+ */
+export const homeNoDrive = (w: World, c: Company): boolean => w.cfg.labor.homeNeedsDispatcher && !c.orders.some((o) => o.kind === "bid");

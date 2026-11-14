@@ -1087,6 +1087,14 @@ export const economyConfig = {
     lateClaimShare: 0.2,
     noShowClaimShare: 0.25,
     cancelClaimShare: { early: 0.1, urgent: 0.25 },
+    // The director's ruling 1 (director-0250-rulings-2026-11-13.md, "one deadline"): while windows are on, a load is on
+    // time when delivered by its "Deliver by" (latestDeliveryT), the time the late claim already reads. The on-time mark,
+    // the reputation, the standing's on-time share, the miles' late factor, a hot load's kept premium and the delivered
+    // event's on-time flag all read it, so the old due time (the legal drive, the worst-case dock, 12 hours of slack) no
+    // longer marks a load late. The miles' early tier is off while it's on (the producer's choice (c), 2026-11-13): on time
+    // or late only; a visible early bonus, with its time on the card, is the director's to design if wanted. Off: the old
+    // due time, with its early tier, as before.
+    oneDeadline: false,
   },
 
   // §Roles — carrier authority; broker license and bond. Renew each season.
@@ -1873,6 +1881,17 @@ export const economyConfig = {
     // driver at home once the day the days off end has come (today >= homeUntilDay), as every other reader reads it, so a
     // 5-day order gives 5 days and fatigue resets at fatigue.resetDays. Off: as today, freed a day early (today + 1).
     daysOffFull: false,
+    // The director's ruling 2 (director-0250-rulings-2026-11-13.md): home is the home market, at the radius that counts a
+    // night at home (map.nearbyRadiusMi). On, a driver due home (the home rule's days out, or sent home) whose truck goes
+    // idle inside the radius starts their days off at once (labor.ts homeArrival), not at the next round's look. Off: at
+    // the next round, as before.
+    homeAtOnce: false,
+    // The director's ruling 3: the home rule is the driver's, moving the truck is the dispatcher's. On, for a company with
+    // no bidding order (the dispatcher off), the home rule never runs a truck home empty (board.ts maybeReposition): inside
+    // the radius the days off start; outside, the truck waits for the player's Send home, rule C (pastDueRefuses) refuses a
+    // hired driver loads that lead away from home, and an owner-operator's fatigue builds. A Send home the player gave
+    // still runs. Every bot bids, so none is moved. Off: the rule runs the truck home, as before.
+    homeNeedsDispatcher: false,
   },
 
   // The guards (the director's triage of the player's second diary, studio/reviews/director-player2.md): limits on what

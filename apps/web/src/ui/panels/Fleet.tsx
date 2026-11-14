@@ -30,7 +30,7 @@ import { OrderOffers } from "../OrderOffers.js";
 import { expediteOn, expediteQuote, expediteWaitParts } from "@lanes/engine";
 import { expediteLines, waitSentence } from "../../expediteui.js";
 import { WINDOWS } from "../../copy-windows.js";
-import { askFigures, askLines, claimsAt, nowNext, releaseCard, urgentFrom } from "../../windowsui.js";
+import { askFigures, askLines, atHomeMarket, claimsAt, nowNext, releaseCard, urgentFrom } from "../../windowsui.js";
 
 
 
@@ -137,7 +137,8 @@ function SendHomeActions({ t, primary }: { t: Truck; primary?: boolean }): JSX.E
     );
   }
   if (t.status === "idle") {
-    if (t.hub === c.homeHub) return null;
+    // labor.homeAtOnce (the director's ruling 2): Send home only outside the home radius, where it means something.
+    if (atHomeMarket(w, c, t)) return null;
     const r = emptyRun(w, t, t.hub, c.homeHub);
     const price = MOVE.price(r.mi, r.fd, r.time);
     const home = () => act({ type: "send_home", truckId: t.id }, PENDING.homeTimeToast, "truck:sendHome");
