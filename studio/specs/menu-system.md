@@ -376,6 +376,12 @@ lights. One Do at a time, as the bible says.
 
 - **Per screen, first view:** ≤ 250 KB of new bytes (the window still, the screen's icons and plaques; the kit is
   cached). **Fully alive:** ≤ 700 KB (adding the loop and portraits).
+  - **Amended 2026-11-14 (UX's picks, ux-menu-picks-2026-11-14.md; the producer):** the windows' stills ship in
+    family atlases, not one file each, to fit the live page's file count. The first screen of a family loads its
+    family's atlas, up to 700 KB, once; that family's other screens then add only their own icons and plaques
+    (≤ 250 KB). The live pass adds 32 files (about 9 MB) and retires 39 (the old scenes' 27 season loops, whose
+    seasons become stills in the season atlases, and the 12 files in icons/, folded into the kit and icon atlases),
+    so the live version goes from 477 to 470 of its 511 files.
 - **Decoded memory on a phone:** ≤ 40 MB of live bitmaps per screen. A 1024 × 576 loop sheet decodes to 2.4 MB. Keep
   the loops of at most two screens alive (the current and the last); drop the rest's references.
 - **The whole menu system, new art only:** ≤ 16 MB on disk across all seasons and ≤ 90 files on the test site; on
