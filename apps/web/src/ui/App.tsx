@@ -1,3 +1,5 @@
+import { applyKitFrames } from "../kitcss.js";
+import { moving } from "../motion.js";
 import type { JSX } from "preact";
 import { useEffect, useRef, useState } from "preact/hooks";
 import { drawLoadingRoad, drawTitleScene, TITLE_H, TITLE_W } from "../art.js";
@@ -17,6 +19,8 @@ import { Btn } from "./bits.js";
 /** The whole screen: title, loading, or the game. */
 export function App(): JSX.Element {
   useData();
+  // The painted frames (the menu system, step 3): cut from the kit atlas into CSS once it's in; a no-op after.
+  applyKitFrames();
   const s = S.screen;
   if (s.kind === "title") return <TitleScreen />;
   if (s.kind === "loading") return <LoadingScreen />;
@@ -30,7 +34,7 @@ function TitleScene(): JSX.Element {
   useEffect(() => {
     const cv = ref.current!;
     const ctx = cv.getContext("2d")!;
-    const reduced = matchMedia("(prefers-reduced-motion: reduce)").matches;
+    const reduced = !moving();
     let raf = 0;
     let shown: HTMLImageElement | null | undefined;
     const frame = (t: number) => {

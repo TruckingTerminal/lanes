@@ -1,3 +1,4 @@
+import { moving } from "../motion.js";
 import type { JSX } from "preact";
 import { useEffect, useRef, useState } from "preact/hooks";
 import { dayOf } from "@lanes/engine";
@@ -36,7 +37,7 @@ export function Iuliia({ mood, size = 128 }: { mood: Mood; size?: 64 | 96 | 128 
   useEffect(() => {
     const cv = ref.current!;
     const ctx = cv.getContext("2d")!;
-    const reduced = matchMedia("(prefers-reduced-motion: reduce)").matches;
+    const reduced = !moving();
     if (!poster) {
       poster = new Image();
       poster.src = `${ASSETS}people/iuliia.png`;

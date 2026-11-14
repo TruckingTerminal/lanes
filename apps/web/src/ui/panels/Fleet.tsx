@@ -10,7 +10,8 @@ import { freeDriverFor, isFreeDriver } from "../../nextstep.js";
 import { focusTruck } from "../../mapview.js";
 import { act, describe, isPhone, me, myTrucks, ownerOf, S, selectTruck, truckNo, useData, todaysTicker } from "../../state.js";
 import { Bar, Btn, Card, Num, Panel, Pixel } from "../bits.js";
-import { Rig, Scene } from "../Loop.js";
+import { Rig } from "../Loop.js";
+import { Window } from "../Window.js";
 import { Fig } from "../Explain.js";
 import { TendersCard } from "./Contracts.js";
 import { MoneyEventRows } from "../MonthReport.js";
@@ -222,13 +223,12 @@ export function Fleet(): JSX.Element {
   const trucks = myTrucks();
   const pending = ordersOf(w, me().id);
   return (
-    <Panel title="Your fleet">
+    <Panel title="Your fleet" win={<Window name="yard" />}>
       <DeliveredCard />
       <RollingCards />
       {/* Client batch 8b item 63: a further standing order, offered once at its moment. */}
       <OrderOffers />
       <TodayCard />
-      <Scene name="yard" still={SCENES.yard} alt="Your yard at dusk" />
       <AttentionCard />
       <TendersCard c={me()} />
       <TiredAlerts />

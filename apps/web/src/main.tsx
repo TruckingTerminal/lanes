@@ -1,3 +1,4 @@
+import { initMotion } from "./motion.js";
 import { render } from "preact";
 import { companyAccount, condition, crewed, marketMood, onTimeBy, resting, staffById, type Company, type GameEvent, type World } from "@lanes/engine";
 import { installTheme } from "./art.js";
@@ -184,6 +185,7 @@ function onEvent(s: Session, e: GameEvent): void {
 async function boot(): Promise<void> {
   installTheme();
   loadTheme();
+  initMotion(); // the Motion setting (the menu system §2.6): <html data-motion>, from the system until the player chooses
   loadOnboard();
   whenAssetsReady(() => bumpData());
   truckSheet();

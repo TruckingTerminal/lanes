@@ -1,3 +1,4 @@
+import { moving } from "./motion.js";
 import type { ComponentChildren } from "preact";
 import type { Equipment } from "@lanes/config";
 import {
@@ -551,7 +552,7 @@ export function openNeed(n: Need): void {
     requestAnimationFrame(() => {
       const el = document.querySelector<HTMLElement>(n.target);
       if (!el) return;
-      el.scrollIntoView({ block: "start", behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" });
+      el.scrollIntoView({ block: "start", behavior: !moving() ? "auto" : "smooth" });
       el.classList.remove("flash");
       void el.offsetWidth;
       el.classList.add("flash");

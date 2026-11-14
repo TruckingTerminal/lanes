@@ -1,3 +1,4 @@
+import { moving } from "../motion.js";
 import type { JSX } from "preact";
 import { PENDING } from "../copy-pending.js";
 import { closedMonths, monthReport, moneyEvents, shownReport, type MoneyEvent, type MonthReport } from "../books.js";
@@ -150,7 +151,7 @@ export function openMonthReport(): void {
       if (!el) return;
       const fold = el.closest("details");
       if (fold) fold.open = true;
-      el.scrollIntoView({ block: "start", behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" });
+      el.scrollIntoView({ block: "start", behavior: !moving() ? "auto" : "smooth" });
     }),
   );
 }

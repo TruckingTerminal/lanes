@@ -113,9 +113,11 @@ export function Bar({ share, tone }: { share: number; tone?: string }): JSX.Elem
   );
 }
 
-export function Panel({ title, right, children }: { title: ComponentChildren; right?: ComponentChildren; children?: ComponentChildren }): JSX.Element {
+/** A screen's panel. `win`: its window (ui/Window.tsx, the menu system §1.3), above the title. */
+export function Panel({ title, right, win, children }: { title: ComponentChildren; right?: ComponentChildren; win?: ComponentChildren; children?: ComponentChildren }): JSX.Element {
   return (
     <div class="stack">
+      {win ?? null}
       <header class="panel-head">
         <h2>{title}</h2>
         {right ? <div class="row">{right}</div> : null}

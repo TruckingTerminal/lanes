@@ -43,20 +43,23 @@ let copied = 0;
 // strip keep their stills inside it and only their loops outside. Iuliia's stills and the welcome strip
 // ride outside too: the walkthrough finds them through the manifest (Walkthrough.tsx, hasAsset); so do the
 // title's head-on shot, its painting and the truck's sizes (title.ts).
-const RULES = { map: (f) => f !== "l0-summer.png", cities: () => true, towns: () => true, cityviews: () => true, icons: () => true, vfx: (f) => f.endsWith(".loop.png") || !f.includes("-"), scenes: (f) => f.endsWith(".loop.png") || f === "welcome.png", people: (f) => f.endsWith(".loop.png") || f.startsWith("iuliia") || /^[a-z-]+-[mf]\d*\.png$/.test(f), loading: (f) => f.endsWith(".loop.png"), title: (f) => f.endsWith(".loop.png") || f.startsWith("approach"), rigs: (f) => f.endsWith(".loop.png") };
+// The menu system (studio/specs/menu-system.md §5.2): the kit and fx atlases (ui/) and the windows (windows/) ride
+// outside the page whole, each atlas with its JSON.
+const WITH_JSON = new Set(["ui", "windows"]);
+const RULES = { ui: () => true, windows: () => true, map: (f) => f !== "l0-summer.png", cities: () => true, towns: () => true, cityviews: () => true, vfx: (f) => f.endsWith(".loop.png") || !f.includes("-"), scenes: (f) => f.endsWith(".loop.png") || f === "welcome.png", people: (f) => f.endsWith(".loop.png") || f.startsWith("iuliia") || /^[a-z-]+-[mf]\d*\.png$/.test(f), loading: (f) => f.endsWith(".loop.png"), title: (f) => f.endsWith(".loop.png") || f.startsWith("approach"), rigs: (f) => f.endsWith(".loop.png") };
 for (const [sub, keep] of Object.entries(RULES)) {
   const src = join(here, "assets", sub);
   if (!existsSync(src)) continue;
   mkdirSync(join(assetsOut, sub), { recursive: true });
   for (const f of readdirSync(src)) {
-    if (!f.endsWith(".png") || !keep(f)) continue;
+    if (!(f.endsWith(".png") || (WITH_JSON.has(sub) && f.endsWith(".json"))) || !keep(f)) continue;
     copyFileSync(join(src, f), join(assetsOut, sub, f));
     copied++;
   }
 }
 // The manifest tells the page which files exist, so it never asks for a sprite that was not painted yet.
 const manifest = {};
-for (const sub of Object.keys(RULES)) manifest[sub] = existsSync(join(assetsOut, sub)) ? readdirSync(join(assetsOut, sub)).filter((f) => f.endsWith(".png")) : [];
+for (const sub of Object.keys(RULES)) manifest[sub] = existsSync(join(assetsOut, sub)) ? readdirSync(join(assetsOut, sub)).filter((f) => f.endsWith(".png") || (WITH_JSON.has(sub) && f.endsWith(".json"))) : [];
 mkdirSync(assetsOut, { recursive: true });
 writeFileSync(join(assetsOut, "manifest.json"), JSON.stringify(manifest));
 console.log(`${assetsOut.replace(here + "/", "")}: ${copied} files`);

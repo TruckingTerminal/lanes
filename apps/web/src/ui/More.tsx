@@ -1,7 +1,7 @@
 import type { JSX } from "preact";
 import { firstLoadLocked } from "../tutorial.js";
 import { iconUrl } from "../art.js";
-import { ASSETS, hasAsset } from "../mapart.js";
+import { iconPiece, KitIcon } from "./KitIcon.js";
 import { bumpData, openIntel, S, setTab, useData, visited } from "../state.js";
 import { MORE, tabDef, tabOpen, teaserTabs, type Tab } from "../tabs.js";
 import { Btn, Panel } from "./bits.js";
@@ -12,10 +12,13 @@ import { FirstTruckVerdictBlock } from "./FirstTruckCard.js";
 import { fdFull } from "../format.js";
 import { Iuliia } from "./Walkthrough.js";
 
-/** A tab's icon: the painted one when it exists (assets/icons/<id>.png), else the code-drawn one. */
-export function TabIcon({ id, size }: { id: Tab; size: 24 | 48 }): JSX.Element {
-  const painted = hasAsset(`icons/${id}.png`);
-  return <img class="px tabpic" width={size} height={size} src={painted ? `${ASSETS}icons/${id}.png` : iconUrl(tabDef(id).icon, size === 48 ? 4 : 2)} alt="" />;
+/**
+ * A tab's icon: the painted one from the menu atlases (ui/kit.png for the four phone tabs, ui/icons.png for the rest;
+ * UX's picks, which retired assets/icons), else the code-drawn one until the atlas is in. `lit`: the active phone tab,
+ * which plays its lit loop once and rests lit (the menu system §1.5).
+ */
+export function TabIcon({ id, size, lit = false }: { id: Tab; size: 24 | 48; lit?: boolean }): JSX.Element {
+  return iconPiece(id, lit) ? <KitIcon name={id} size={size} lit={lit} class="tabpic" /> : <img class="px tabpic" width={size} height={size} src={iconUrl(tabDef(id).icon, size === 48 ? 4 : 2)} alt="" />;
 }
 
 /** An opened teaser this browser hasn't visited yet: "New" under More. */

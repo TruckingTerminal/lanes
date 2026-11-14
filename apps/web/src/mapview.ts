@@ -1,3 +1,4 @@
+import { moving } from "./motion.js";
 import type { Equipment } from "@lanes/config";
 import { hubMiles, hubRoute, type Truck } from "@lanes/engine";
 import { icon, PAL } from "./art.js";
@@ -244,7 +245,7 @@ export function flyTo(hub: number, instant = false): void {
 }
 function startFly(now: number): void {
   if (flyPending === null || !cv || !art) return;
-  const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  const reduced = !moving();
   fly = { hub: flyPending, t0: reduced || flyInstant ? now - FLY_MS : now, z0: zf, c0: toWorld(cv.width / 2, viewH() / 2) };
   flyPending = null;
   anchor = null;

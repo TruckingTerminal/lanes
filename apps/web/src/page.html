@@ -2,7 +2,7 @@
 <meta name="claude:viewport-fit-sides" content="cover">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Inter:wght@400;500;600;700&family=Space+Mono:wght@400;700&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Inter:wght@400;500;600;700&family=Space+Mono:wght@400;700&family=Pixelify+Sans:wght@500;600&display=swap">
 <style>
 /*
  * LANES in the Trucking Terminal skin: the same theme tokens and the same 34 themes
@@ -29,6 +29,8 @@ img.px { image-rendering: pixelated; vertical-align: middle; }
 a { color: var(--accent); }
 :focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
 h1, h2, h3, h4 { margin: 0; font-weight: 600; line-height: 1.3; }
+/* The menu system §1.1: display headings in Pixelify Sans; a figure inside one keeps its mono (.num), body Inter. */
+h2, h3 { font-family: var(--font-display, inherit); font-weight: 600; letter-spacing: 0.02em; }
 h2 { font-size: 15px; letter-spacing: 0.02em; }
 h3 { font-size: 13px; }
 p { margin: 0; }
@@ -76,7 +78,8 @@ table.mini tbody tr { cursor: default; }
 .badge { display: inline-flex; align-items: center; gap: 6px; padding: 3px 8px; border-radius: 3px; border: 1px solid var(--border); font-family: var(--font-mono); font-size: 10px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--text-secondary); white-space: nowrap; }
 .badge.live { border-color: var(--accent-danger); color: var(--accent-danger); }
 .badge.live::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: var(--accent-danger); }
-@media (prefers-reduced-motion: no-preference) { .badge.live::before { animation: blink 2s steps(2, end) infinite; } }
+/* The live badge blinks in Full motion only; Calm and Still show a steady dot (the menu system §2.6). */
+html[data-motion="full"] .badge.live::before { animation: blink 2s steps(2, end) infinite; }
 @keyframes blink { 50% { opacity: 0.25; } }
 .badge.test { border-color: var(--accent-warn); color: var(--accent-warn); }
 .badge.alert { background: var(--accent-danger); border-color: var(--accent-danger); color: #fff; }
@@ -135,22 +138,24 @@ canvas.portrait { display: block; }
 .scenebox { position: relative; width: 512px; max-width: 100%; margin: 0 auto; }
 .scenebox .loop, .scenebox .still { width: 100% !important; }
 .scenebox canvas.sky { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; border-radius: var(--radius); image-rendering: pixelated; }
-/* Motion in the menus: buttons gleam, the live tab breathes, ratings twinkle, the logo shines. */
+/*
+ * Motion in the menus (the menu system §2, rule 4.3: one accent at a time): a primary button gleams once when it appears
+ * and once on hover, the logo shines once; nothing loops forever on a screen being read. The live tab's breath, the
+ * icon's bob and the ratings' twinkle are gone. Every rule keys on <html data-motion> (motion.ts): Full plays them,
+ * Calm and Still don't.
+ */
 .btn { position: relative; overflow: hidden; }
 .btn::after { content: ""; position: absolute; top: -40%; bottom: -40%; width: 30%; left: -60%; background: linear-gradient(100deg, transparent, color-mix(in srgb, white 35%, transparent), transparent); transform: skewX(-20deg); pointer-events: none; }
-.btn:hover::after, .btn.primary::after { animation: btn-gleam 1.4s ease-in-out; }
-.btn.primary::after { animation: btn-gleam 3.6s ease-in-out infinite; }
-@keyframes btn-gleam { 0% { left: -60%; } 55% { left: 130%; } 100% { left: 130%; } }
-.btn.on { animation: tab-breathe 2.4s ease-in-out infinite; }
-@keyframes tab-breathe { 0%, 100% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--accent) 0%, transparent); } 50% { box-shadow: 0 0 10px 1px color-mix(in srgb, var(--accent) 45%, transparent); } }
-.btn.on img.px { animation: icon-bob 1.6s ease-in-out infinite; }
-@keyframes icon-bob { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-2px); } }
+html[data-motion="full"] .btn.primary::after { animation: btn-gleam 600ms ease-in-out 1; }
+html[data-motion="full"] .btn:hover::after { animation: btn-gleam-hover 600ms ease-in-out 1; }
+@keyframes btn-gleam { 0% { left: -60%; } 100% { left: 130%; } }
+@keyframes logo-gleam { 0% { left: -40%; } 100% { left: 130%; } }
+@keyframes btn-gleam-hover { 0% { left: -60%; } 100% { left: 130%; } }
 .stars { display: inline-block; letter-spacing: 1px; }
-.stars { animation: star-twinkle 3s ease-in-out infinite; }
-@keyframes star-twinkle { 0%, 100% { text-shadow: 0 0 0 transparent; } 50% { text-shadow: 0 0 6px color-mix(in srgb, var(--accent) 70%, transparent); } }
 .topbar .logo, .logo.hd { height: 32px; width: auto; image-rendering: auto; position: relative; }
 .logowrap { position: relative; display: inline-block; overflow: hidden; }
-.logowrap::after { content: ""; position: absolute; top: 0; bottom: 0; width: 24%; left: -40%; background: linear-gradient(100deg, transparent, color-mix(in srgb, white 55%, transparent), transparent); transform: skewX(-20deg); animation: btn-gleam 5s ease-in-out infinite; pointer-events: none; mix-blend-mode: screen; }
+html[data-motion="full"] .logowrap::after { animation: logo-gleam 1.4s ease-in-out 600ms 1 both; }
+.logowrap::after { content: ""; position: absolute; top: 0; bottom: 0; width: 24%; left: -40%; background: linear-gradient(100deg, transparent, color-mix(in srgb, white 55%, transparent), transparent); transform: skewX(-20deg);  pointer-events: none; mix-blend-mode: screen; }
 /* The city pane: a hub's big painting over the map with the live sky on it and a slow drift so it never sits still, then its market in tabs. */
 .cityview { position: absolute; inset: 0; z-index: 30; display: grid; place-items: center; padding: 14px; background: rgba(4, 10, 20, 0.62); animation: city-fade 0.2s ease-out; }
 .citybox { width: min(100%, 1120px); max-height: 100%; display: flex; flex-direction: column; background: var(--bg-panel); border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; box-shadow: 0 24px 60px rgba(0, 0, 0, 0.55); }
@@ -192,7 +197,9 @@ table.mini td:first-child { font-family: inherit; }
 .townhead .towntitle > div { margin-bottom: 6px; }
 @keyframes city-drift { from { transform: scale(1); } to { transform: scale(1.06) translate(-1.2%, -1%); } }
 @keyframes city-fade { from { opacity: 0; } }
-@media (prefers-reduced-motion: reduce) { .loop, .btn::after, .btn.on, .btn.on img.px, .stars, .logowrap::after, .citypic img, .citypic canvas.pic, .cityview { animation: none !important; } }
+/* Calm and Still: loops show their first frame, no drift, no gleam (the menu system §2.6). */
+html:not([data-motion="full"]) :is(.loop, .citypic img, .citypic canvas.pic) { animation: none !important; }
+html:not([data-motion="full"]) .btn::after, html:not([data-motion="full"]) .logowrap::after { animation: none !important; }
 .spark { display: block; width: 100%; height: 48px; }
 .guide h4 { margin-top: 6px; font-family: var(--font-mono); font-size: 10px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--accent); }
 .guide ul { margin: 0; padding-left: 20px; display: grid; gap: 4px; }
@@ -205,6 +212,10 @@ table.mini td:first-child { font-family: inherit; }
 /* The top strip (specs/first-ten-minutes.md): one 44 px row on every screen. */
 .topbar { display: flex; align-items: center; gap: 10px; flex-wrap: nowrap; height: 44px; padding: 0 12px; padding-top: env(safe-area-inset-top); box-sizing: content-box; background: var(--bg-secondary); border-bottom: 1px solid var(--border); position: sticky; top: 0; z-index: 10; }
 .topbar .grow { flex: 1; }
+/* The menu system §1.7: the bar at dusk, a 1 px sun line at its foot; the cash on its own dark chip, a place for the
+   money glow behind the figure (§2.4). */
+.topbar { background: linear-gradient(var(--horizon-top, var(--bg-secondary)), var(--horizon-foot, var(--bg-secondary))); box-shadow: inset 0 -1px 0 var(--sun, var(--border)); }
+.topbar .cash { padding: 2px 8px; border-radius: var(--radius); background: var(--bg-input); box-shadow: 0 0 0 1px color-mix(in srgb, var(--sun, var(--border)) 30%, transparent); }
 .econwrap { overflow-x: auto; }
 .econ { width: 100%; border-collapse: collapse; font-size: 13px; }
 .econ th, .econ td { padding: 2px 6px; text-align: right; white-space: nowrap; }
@@ -274,7 +285,7 @@ table.mini td:first-child { font-family: inherit; }
 .needrow .needact { flex: none; min-height: 44px; white-space: nowrap; }
 .flash { animation: needflash 1.2s ease-out 1; }
 @keyframes needflash { 0%, 30% { box-shadow: 0 0 0 3px var(--accent-danger); } 100% { box-shadow: 0 0 0 0 transparent; } }
-@media (prefers-reduced-motion: reduce) { .flash { animation: none; outline: 2px solid var(--accent-danger); } }
+html:not([data-motion="full"]) .flash { animation: none; outline: 2px solid var(--accent-danger); }
 .alertdot { min-width: 24px; height: 24px; padding: 0 6px; border-radius: 12px; border: 0; background: var(--accent-danger); color: #fff; font-family: var(--font-mono); font-size: 12px; font-weight: 700; cursor: pointer; }
 .menudd { position: relative; }
 .menudd > summary { list-style: none; font-size: 16px; min-width: 36px; }
@@ -283,6 +294,55 @@ table.mini td:first-child { font-family: inherit; }
 .menudd-list button { text-align: left; padding: 12px 14px; border: 0; border-bottom: 1px solid var(--border); background: transparent; cursor: pointer; }
 .menudd-list button:last-child { border-bottom: 0; }
 .menudd-list button:hover { background: color-mix(in srgb, var(--accent) 10%, transparent); }
+/*
+ * The painted frames and buttons (the menu system §1.2–1.6, step 3). kitcss.ts cuts each nine-slice piece out of the
+ * kit atlas into a custom property and sets html[data-kit] once they're in; until then, and wherever the kit is
+ * missing, today's 1 px borders stand. The rims lie 4 px outside the box (outset), over the gap between cards, so no
+ * line moves when the art decodes; a frame's interior is the CSS token, never a painting. Pixel art at 1 source px per
+ * CSS px.
+ */
+html[data-kit] :is(.card, .loadcard, .toast, .citybox, .menudd-list, .confirmsheet) { image-rendering: pixelated; border-color: transparent; }
+html[data-kit] .card { border-image: var(--frame-card) var(--frame-card-slice) / var(--frame-card-width) / 4px stretch; }
+html[data-kit] .loadcard { border-image: var(--frame-ticket) var(--frame-ticket-slice) / var(--frame-ticket-width) / 4px stretch; }
+html[data-kit] .loadcard.blocked { filter: grayscale(0.7); }
+html[data-kit] .toast { border-image: var(--frame-toast) var(--frame-toast-slice) / var(--frame-toast-width) / 4px stretch; }
+html[data-kit] :is(.citybox, .menudd-list) { border-image: var(--frame-panel) var(--frame-panel-slice) / var(--frame-panel-width) / 4px stretch; }
+html[data-kit] .confirmsheet { border-image: var(--frame-dialog) var(--frame-dialog-slice) / var(--frame-dialog-width) / 4px stretch; box-shadow: 0 24px 60px rgba(0, 0, 0, 0.55); }
+/* Receipts and the month report: the one light surface (§1.4), paper with ink; the tokens turn to ink inside it. */
+:is(.delivered, .monthcard) { --text-primary: var(--ink); --text-secondary: #4f3e52; --text-dim: #66546a; --accent: #1d6b60; --accent-success: var(--ink-green); --accent-danger: var(--ink-red); --accent-warn: #8a4b06; --border: #c9b79f; --bg-input: #e8d9c2; background: var(--paper); color: var(--ink); }
+html[data-kit] :is(.delivered, .monthcard) { image-rendering: pixelated; border-color: transparent; border-image: var(--frame-paper) var(--frame-paper-slice) / var(--frame-paper-width) / 4px stretch; }
+/* Buttons (§2.3): the painted enamel, its face stretched (fill); pressed at once, no shrink; disabled desaturated. Tabs,
+   segments and ghost buttons stay code. */
+html[data-kit] .btn:where(:not(.ghost, .tabs .btn, .seg .btn, .speeds .btn)) { image-rendering: pixelated; border-color: transparent; background: transparent; border-image: var(--button-secondary) var(--button-secondary-slice) fill / var(--button-secondary-width) / 0 stretch; }
+html[data-kit] .btn:where(:not(.ghost, .tabs .btn, .seg .btn, .speeds .btn)):active { border-image-source: var(--button-secondary-press); }
+html[data-kit] .btn.primary:where(:not(.ghost, .tabs .btn, .seg .btn, .speeds .btn)) { border-image: var(--button-primary) var(--button-primary-slice) fill / var(--button-primary-width) / 0 stretch; }
+html[data-kit] .btn.primary:where(:not(.ghost, .tabs .btn, .seg .btn, .speeds .btn)):active { border-image-source: var(--button-primary-press); }
+html[data-kit] .btn.danger:where(:not(.ghost, .tabs .btn, .seg .btn, .speeds .btn)) { color: var(--text-primary); border-image: var(--button-danger) var(--button-danger-slice) fill / var(--button-danger-width) / 0 stretch; }
+html[data-kit] .btn.danger:where(:not(.ghost, .tabs .btn, .seg .btn, .speeds .btn)):active { border-image-source: var(--button-danger-press); }
+.btn[disabled] { filter: saturate(0.3); opacity: 0.5; }
+/* The kit's icons (ui/KitIcon.tsx): smooth from 96 px; the active phone tab plays its lit loop once and rests lit. */
+.kicon { display: inline-block; flex: none; background-repeat: no-repeat; image-rendering: auto; vertical-align: middle; }
+html[data-motion="full"] .kicon.lit { animation: kit-lit var(--lit-ms, 625ms) steps(var(--lit-steps, 4), end) 1 forwards; }
+@keyframes kit-lit { from { background-position-x: var(--lit-x0); } to { background-position-x: var(--lit-x1); } }
+/*
+ * A screen's window (the menu system §1.3, ui/Window.tsx): a slice of its scene above the panel's title, 72 px on a
+ * phone and 96 on a laptop, hidden at the sheet's strip height. Its box is there before the art (the average colour);
+ * the painting fades in over 160 ms; a 16 px fade at its foot into the panel, so no text sits on the painting. The loop
+ * steps by CSS over the still (no JavaScript per frame).
+ */
+.window { position: relative; flex: none; width: 100%; height: 96px; overflow: hidden; border-radius: var(--radius); }
+.window canvas { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; transition: opacity 160ms var(--ease-out, ease-out); image-rendering: pixelated; }
+.window canvas.ready { opacity: 1; }
+.window .winloop { position: absolute; inset: 0; background-repeat: no-repeat; background-position-x: var(--x0); image-rendering: pixelated; }
+html[data-motion="full"] .window .winloop { animation-name: win-loop; animation-iteration-count: infinite; }
+@keyframes win-loop { from { background-position-x: var(--x0); } to { background-position-x: calc(var(--x0) - var(--sheetw)); } }
+.window::after { content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: 16px; background: linear-gradient(transparent, var(--bg-panel)); pointer-events: none; }
+:root { --t-quick: 120ms; --t-enter: 220ms; --t-sheet: 280ms; --t-morph: 300ms; --t-flight: 520ms; --ease-out: cubic-bezier(.2,.8,.2,1); --ease-in: cubic-bezier(.4,0,1,1); --ease-in-out: cubic-bezier(.45,0,.25,1); --ease-snap: cubic-bezier(.3,1.25,.5,1); }
+/* The Motion setting in the ≡ menu (the menu system §2.6): a label, three segments, a line of help. */
+.motionset { display: grid; gap: 6px; padding: 10px 14px 12px; border-bottom: 1px solid var(--border); max-width: 280px; }
+.motionset .seg { display: flex; gap: 4px; }
+.menudd-list .motionset .btn { flex: 1 1 0; padding: 4px 6px; border: 1px solid var(--border); border-bottom: 1px solid var(--border); text-align: center; }
+.menudd-list .motionset .btn.on { background: var(--accent); color: var(--text-on-accent); border-color: var(--accent); }
 .brand { display: flex; align-items: center; gap: 10px; }
 .brand img.px { height: 30px; width: auto; }
 .brand .sub { font-family: var(--font-mono); font-size: 10px; letter-spacing: 0.1em; color: var(--text-dim); text-transform: uppercase; }
@@ -420,7 +480,7 @@ details.fold > summary { cursor: pointer; padding: 6px 0; color: var(--text-seco
 .finding { position: absolute; inset: 0; z-index: 1; display: grid; place-content: center; justify-items: center; gap: 10px; background: #112640; }
 .finding img { max-width: min(90%, 520px); height: auto; border: 1px solid var(--border); border-radius: var(--radius); }
 .tabs .btn:hover { background: color-mix(in srgb, var(--accent) 8%, transparent); }
-.tabs .btn.on { background: transparent; color: var(--accent); border-bottom-color: var(--accent); }
+.tabs .btn.on { background: transparent; color: var(--accent); border-bottom-color: var(--sun, var(--accent)); }
 .tabs .btn img.px { width: 24px; height: 24px; }
 /* --boxtop: the box's own top on the page, measured (ui/Rack.tsx panelTop; client batch 6), so its bottom and what's pinned to it stay in the window. */
 .panelbox { max-height: clamp(240px, calc(100vh - var(--boxtop, 200px) - 8px), 1100px); overflow: auto; padding-right: 2px; scrollbar-color: var(--border) transparent; }
@@ -508,7 +568,7 @@ ul.timeline .linkish { background: none; border: 0; padding: 6px 0; min-height: 
   /* The nav is the bottom bar: four targets, icon over label, 56 px, fixed. */
   .tabs { position: fixed; left: 0; right: 0; bottom: 0; z-index: 15; gap: 0; height: calc(56px + env(safe-area-inset-bottom)); padding-bottom: env(safe-area-inset-bottom); background: var(--bg-secondary); border-top: 1px solid var(--border); border-bottom: 0; }
   .tabs .btn { flex: 1 1 0; min-height: 56px; padding: 4px; border-bottom: 0; border-top: 2px solid transparent; }
-  .tabs .btn.on { border-top-color: var(--accent); }
+  .tabs .btn.on { border-top-color: var(--sun, var(--accent)); }
   /* The explain sheet clears the tab bar: its buttons never sit under it (the player's first month). */
   .explainscrim { bottom: calc(56px + env(safe-area-inset-bottom)); }
   .explainsheet { bottom: calc(56px + env(safe-area-inset-bottom)); max-height: 60dvh; }
@@ -518,7 +578,11 @@ ul.timeline .linkish { background: none; border: 0; padding: 6px 0; min-height: 
   .phone-only { display: inline-flex !important; }
   .teaserrow { grid-auto-flow: column; grid-auto-columns: 240px; overflow-x: auto; scroll-snap-type: x mandatory; padding-bottom: 4px; }
   .teaserrow .card { scroll-snap-align: start; }
-  .toast { bottom: calc(64px + env(safe-area-inset-bottom)); }
+  /* §1.6: a phone toast drops from under the top bar, never over the tab bar or a pinned action row. */
+  .toast { top: calc(48px + env(safe-area-inset-top)); bottom: auto; left: 8px; right: 8px; max-width: none; }
+  .window { height: 72px; }
+  .sheet.strip .window { display: none; }
+  html[data-kit] .sheet { image-rendering: pixelated; border-image: var(--frame-sheet) var(--frame-sheet-slice) / var(--frame-sheet-width) / 0 stretch; }
   .topbar { gap: 8px; padding-left: 8px; padding-right: 8px; }
   .coswitch { padding-right: 2px; }
   .coswitch .coname { display: none; }
@@ -537,7 +601,9 @@ ul.timeline .linkish { background: none; border: 0; padding: 6px 0; min-height: 
   .tablewrap table { display: table; min-width: 520px; }
   .row { gap: 6px; }
 }
-@media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }
+/* The menu system §2.6: Calm moves by fades of 120 ms at most, without overshoot; Still moves nothing. */
+html[data-motion="calm"] *, html[data-motion="calm"] *::before, html[data-motion="calm"] *::after { transition-duration: 120ms !important; transition-timing-function: ease-out !important; animation-duration: 120ms !important; animation-iteration-count: 1 !important; }
+html[data-motion="still"] *, html[data-motion="still"] *::before, html[data-motion="still"] *::after { transition: none !important; animation: none !important; }
 </style>
 <div id="app"></div>
 <!--APP-->

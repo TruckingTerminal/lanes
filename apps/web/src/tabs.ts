@@ -39,7 +39,7 @@ export interface Teaser {
 export interface TabDef {
   id: Tab;
   label: string;
-  /** The code-drawn icon's name (art.ts), used until assets/icons/<id>.png is painted. */
+  /** The code-drawn icon's name (art.ts), used until the menu atlases (ui/kit.png, ui/icons.png) are in. */
   icon: string;
   /** A tab that opens on a trigger; until then it is a card in More (and on the laptop's teaser row). */
   teaser?: Teaser;

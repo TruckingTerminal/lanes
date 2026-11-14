@@ -37,16 +37,15 @@ export function seasonNow(): "summer" | "autumn" | "winter" | "spring" {
 }
 
 /**
- * A menu's location: a 256 × 144 scene at 2× in the season's own painting when it has one, with
- * the sky over it: the weather at the player's home hub, drawn the way the map draws it.
+ * A menu's location: a 256 × 144 scene at 2×, with the sky over it: the weather at the player's home hub, drawn the way
+ * the map draws it. (UX's picks retired the scenes' season loops; their seasons are stills in the season atlases, which
+ * the menu windows show, ui/Window.tsx.)
  */
 export function Scene({ name, still, alt }: { name: string; still: string; alt?: string }): JSX.Element {
   useData();
-  const season = seasonNow();
-  const seasonal = season !== "summer" && hasAsset(`scenes/${name}-${season}.loop.png`);
   return (
     <div class="scenebox">
-      <Loop name={`scenes/${seasonal ? `${name}-${season}` : name}`} still={still} w={256} h={144} scale={2} class="scene" alt={alt ?? ""} />
+      <Loop name={`scenes/${name}`} still={still} w={256} h={144} scale={2} class="scene" alt={alt ?? ""} />
       <Sky />
     </div>
   );

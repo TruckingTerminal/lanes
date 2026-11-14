@@ -81,7 +81,7 @@ export function Nav(): JSX.Element | null {
     <nav class="tabs" aria-label="Tabs">
       {navFor(g).map((id) => (
         <Btn key={id} on={id === on} class={locked(id) ? "locked" : undefined} title={locked(id) ? TUTORIAL.lockedTitle : tabLabel(id, g.w, g.player)} onClick={() => go(id)}>
-          <TabIcon id={id} size={24} />
+          <TabIcon id={id} size={24} lit={id === on} />
           <span>{tabLabel(id, g.w, g.player)}</span>
           {id === "more" && moreNew ? <span class="navdot" aria-label="something new" /> : null}
           {id === "loads" && S.result && !S.result.seen ? <span class="navdot" aria-label="a bid result" /> : null}

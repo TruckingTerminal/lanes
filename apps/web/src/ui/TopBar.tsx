@@ -1,3 +1,6 @@
+import { KitIcon } from "./KitIcon.js";
+import { MENUS } from "../copy-menus.js";
+import { motion, MOTIONS, setMotion } from "../motion.js";
 import type { JSX } from "preact";
 import { useEffect, useRef, useState } from "preact/hooks";
 import { companyAccount, type Company } from "@lanes/engine";
@@ -5,7 +8,6 @@ import { cls, fdFull, hhmm, shortDate, weekday } from "../format.js";
 import { BROKERAGE, FIRST_ENTRY, NEEDS } from "../copy.js";
 import { PENDING } from "../copy-pending.js";
 import { hasTwo, kindInView, switchCompany, type CompanyKind } from "../companies.js";
-import { ASSETS } from "../mapart.js";
 import { H } from "../handlers.js";
 import { needs as waiting, nextRoundHour, openNeed } from "../logic.js";
 import { bumpData, clockMin, fsActive, fsEnabled, S, SPEEDS, toggleFullscreen, useData, useTick } from "../state.js";
@@ -83,7 +85,7 @@ function CompanySwitch(): JSX.Element | null {
   return (
     <span class="needswrap" ref={wrap}>
       <button type="button" class={cls("coswitch", `co-${kind}`)} aria-label={BROKERAGE.chipLabel(c.name)} aria-expanded={open} onClick={() => setOpen(!open)}>
-        <img class="px" src={`${ASSETS}icons/switch16.png`} width={32} height={32} alt="" />
+        <KitIcon name="switch-32" size={32} />
         <span class="coname">{BROKERAGE.chipLaptop(c.name)}</span>
       </button>
       {open ? (
@@ -136,7 +138,7 @@ function NeedsButton(): JSX.Element {
         <div class="needslist" role="group" aria-label={NEEDS.title}>
           {list.map((n) => (
             <div class="needrow" key={n.key} data-key={n.key}>
-              <img class="px" src={`${ASSETS}icons/${n.company === "brokerage" ? "book" : n.icon}.png`} width={16} height={16} alt="" />
+              <KitIcon name={n.company === "brokerage" ? "book" : n.icon} size={16} />
               <button
                 type="button"
                 class="needline"
@@ -219,6 +221,7 @@ function Menu(): JSX.Element {
       <div class="menudd-list">
         {item("Title screen", H.showMenu)}
         {fsEnabled() ? item(fsActive() ? "Exit full screen" : "Full screen", toggleFullscreen) : null}
+        <MotionSetting />
         {item("Report a bug or an idea", () => {
           S.reportKind = "bug";
           S.reporting = true;
@@ -227,6 +230,37 @@ function Menu(): JSX.Element {
         {S.game?.kind === "test" && S.live ? item("Back to the live world", H.backToLive) : null}
       </div>
     </details>
+  );
+}
+
+/**
+ * The Motion setting (the menu system §2.6): Full · Calm · Still, defaulting from the system, kept on this device. It
+ * stays in the menu when a choice is made, so the player sees the page change under it.
+ */
+function MotionSetting(): JSX.Element {
+  useData();
+  const now = motion();
+  return (
+    <div class="motionset" role="group" aria-label={MENUS.motionLabel}>
+      <span class="label">{MENUS.motionLabel}</span>
+      <div class="seg">
+        {MOTIONS.map((m) => (
+          <button
+            type="button"
+            key={m}
+            class={cls("btn sm", now === m && "on")}
+            aria-pressed={now === m}
+            onClick={() => {
+              setMotion(m);
+              bumpData();
+            }}
+          >
+            {MENUS.motionChoice[m]}
+          </button>
+        ))}
+      </div>
+      <span class="muted small">{MENUS.motionHelp}</span>
+    </div>
   );
 }
 

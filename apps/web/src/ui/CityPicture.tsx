@@ -194,32 +194,39 @@ function graded(p: Painting, key: string, hour: Partial<Grade>, kind: WeatherKin
   const ctx = cv.getContext("2d")!;
   if (frame >= 0) ctx.drawImage(p.loop!, (frame % LOOP_COLS) * cv.width, Math.floor(frame / LOOP_COLS) * cv.height, cv.width, cv.height, 0, 0, cv.width, cv.height);
   else ctx.drawImage(p.img, 0, 0);
-  const g = gradeOf(hour, kind);
   if (Object.keys(hour).length || kind !== "clear") {
     const id = ctx.getImageData(0, 0, cv.width, cv.height);
-    const d = id.data;
-    for (let i = 0; i < d.length; i += 4) {
-      let r = d[i]!;
-      let gg = d[i + 1]!;
-      let b = d[i + 2]!;
-      // Lit windows, headlights and neon stay lit when the light goes.
-      if (g.lights && r > 180 && gg > 120 && b < 170 && r - b > 40) {
-        d[i] = Math.min(255, r * 1.08);
-        d[i + 1] = Math.min(255, gg * 1.04);
-        continue;
-      }
-      const l = 0.299 * r + 0.587 * gg + 0.114 * b;
-      r = (r + (l - r) * g.d) * g.m[0] * g.gain;
-      gg = (gg + (l - gg) * g.d) * g.m[1] * g.gain;
-      b = (b + (l - b) * g.d) * g.m[2] * g.gain;
-      d[i] = Math.min(255, r + (255 - r) * g.lift);
-      d[i + 1] = Math.min(255, gg + (255 - gg) * g.lift);
-      d[i + 2] = Math.min(255, b + (255 - b) * g.lift);
-    }
+    applyGrade(id.data, gradeOf(hour, kind));
     ctx.putImageData(id, 0, 0);
   }
   p.graded.set(k, cv);
   return cv;
+}
+/** A grade applied to RGBA pixels in place (the city pane's, and the menu windows' hour grade, menu-system §1.3). */
+function applyGrade(d: Uint8ClampedArray, g: Grade): void {
+  for (let i = 0; i < d.length; i += 4) {
+    let r = d[i]!;
+    let gg = d[i + 1]!;
+    let b = d[i + 2]!;
+    // Lit windows, headlights and neon stay lit when the light goes.
+    if (g.lights && r > 180 && gg > 120 && b < 170 && r - b > 40) {
+      d[i] = Math.min(255, r * 1.08);
+      d[i + 1] = Math.min(255, gg * 1.04);
+      continue;
+    }
+    const l = 0.299 * r + 0.587 * gg + 0.114 * b;
+    r = (r + (l - r) * g.d) * g.m[0] * g.gain;
+    gg = (gg + (l - gg) * g.d) * g.m[1] * g.gain;
+    b = (b + (l - b) * g.d) * g.m[2] * g.gain;
+    d[i] = Math.min(255, r + (255 - r) * g.lift);
+    d[i + 1] = Math.min(255, gg + (255 - gg) * g.lift);
+    d[i + 2] = Math.min(255, b + (255 - b) * g.lift);
+  }
+}
+/** The menu windows' hour grade (menu-system §1.3): a scene's pixels taken to an hour band, in clear weather. */
+export function gradeForBand(d: Uint8ClampedArray, band: Band): void {
+  if (band === "golden") return; // the paintings are golden hour already
+  applyGrade(d, gradeOf(BAND_GRADE[band], "clear"));
 }
 
 /** The sky for an hour (top, horizon), and the one the weather puts over it. */

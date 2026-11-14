@@ -155,7 +155,7 @@ export const S = {
   /** Test-world speeds only: the live clock can't be changed. */
   speed: 1,
   toast: null as { text: string; err: boolean; at: number } | null,
-  theme: "cyber-ops",
+  theme: "sunset",
   /** Success messages for this player's live orders, shown when each takes effect. */
   okText: new Map<number, string>(),
 };
@@ -731,8 +731,11 @@ export function toggleFullscreen(): void {
 
 // --- Theme ---------------------------------------------------------------------------
 
-/** One theme for now (Jeff, 2026-11-02: the picker goes); a theme stored by the old picker is ignored. */
+/**
+ * One theme (Jeff, 2026-11-02: the picker goes); a theme stored by the old picker is ignored. The menu system (§1.1):
+ * Sunset, from the title painting's colours.
+ */
 export function loadTheme(): void {
-  S.theme = "cyber-ops";
+  S.theme = "sunset";
   document.documentElement.setAttribute("data-theme", S.theme);
 }
