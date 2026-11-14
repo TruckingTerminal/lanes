@@ -39,10 +39,10 @@ or `/private/tmp/claude-501/…` are the old laptop's; the repo is wherever you 
 Append a dated line to the state log saying the studio now runs on the Mac Studio (use `date`, mark it REAL CLOCK).
 
 ## 4. Verify the world (read-only; change nothing)
-1. The public test page: `curl -s https://truckingterminal.github.io/lanes-play/ | grep -c "0.25.0-phase0.43"` should
+1. The public test page: `curl -s https://truckingterminal.github.io/lanes-play/ | grep -c "0.25.1-phase0.44"` should
    print 1 (the build that CI deployed from `main`). `gh run list --limit 3` shows the deploys. The live profile's
-   ten-day digest, `npx tsx apps/sim/src/determinism.ts` (behind the test gate), reads `3f845f443af9924f` at
-   0.25.0-phase0.43 on the Mac Studio's Node; CI's Node reads another value, so no test pins it. Anything new behind a
+   ten-day digest, `npx tsx apps/sim/src/determinism.ts` (behind the test gate), reads `995612c74cb2a3b7` at
+   0.25.1-phase0.44 on the Mac Studio's Node; CI's Node reads another value, so no test pins it. Anything new behind a
    switch must leave it unchanged.
 2. The live page is the artifact https://claude.ai/artifact/SRYhczap5Lpcr8AucRf9wy (v51 at 60f9464, ruleset
    lanes-live-1/0.25.0-phase0.43, published 2026-11-13). With the ArtifactData tool, `get` collection `world` doc `meta`:

@@ -29,7 +29,10 @@ const homeRule = (c: Company) => (c.orders = [...c.orders.filter((o) => o.kind !
 
 describe("the 0.25.1 rulings, all off", () => {
   it("leave a three-day world byte-identical with the keys false and with them absent", () => {
-    const absent = world(LIVE, 72);
+    // On in the live levers since 0.25.1: the base here has the three keys removed, not live's.
+    const { oneDeadline: _a, ...windows } = LIVE.windows as typeof LIVE.windows & { oneDeadline?: boolean };
+    const { homeAtOnce: _b, homeNeedsDispatcher: _c, ...labor } = LIVE.labor as typeof LIVE.labor & { homeAtOnce?: boolean; homeNeedsDispatcher?: boolean };
+    const absent = world({ ...LIVE, windows, labor } as EconomyConfig, 72);
     const off = world(cfgOf({ oneDeadline: false, homeAtOnce: false, homeNeedsDispatcher: false }), 72);
     expect(snapshot(off)).toBe(snapshot(absent));
   }, 240_000);

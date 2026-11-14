@@ -80,8 +80,10 @@ describe("client batch W: delivery windows on the page", () => {
     expect(truck.nextLoadId).toBe(next.l.id);
     expect(aheadable(w, truck)).toBe(false);
     // A third: the engine refuses it, in the words the sheet turns into the director's.
-    const third = ahead.find((x) => x.l.id !== next.l.id && x.l.status === "open")!;
-    const res = g.act({ type: "book_load", truckId: truck.id, loadId: third.l.id });
+    // Any open load of its trailer: the limit refuses it whether or not the truck could make it (the world the live
+    // levers draw since 0.25.1 can leave only one reachable load ahead).
+    const third = [...w.loads.values()].find((l) => l.status === "open" && l.id !== next.l.id && l.equipment === truck.trailer)!;
+    const res = g.act({ type: "book_load", truckId: truck.id, loadId: third.id });
     expect(res.ok).toBe(false);
     expect(!res.ok && res.reason).toMatch(/already has its next load booked/);
     expect(WINDOWS.twoDeep(1)).toBe("Truck 1 already has a next load. Release it, or book this for another truck.");

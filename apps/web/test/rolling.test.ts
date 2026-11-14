@@ -13,7 +13,8 @@ async function rolling() {
   const row = boardRows(g.w, c, truck, { dest: "any", maxDh: 300, query: "" }).find((r) => !r.block && r.l.miles > 600);
   expect(row).toBeTruthy();
   expect(g.act({ type: "book_load", truckId: truck.id, loadId: row!.l.id }).ok).toBe(true);
-  for (let h = 0; h < 48 && truck.status !== "loaded"; h++) g.stepHour();
+  // Eight days: under delivery windows a load can be ready days after its booking.
+  for (let h = 0; h < 24 * 8 && truck.status !== "loaded"; h++) g.stepHour();
   return { g, c, truck, load: row!.l };
 }
 

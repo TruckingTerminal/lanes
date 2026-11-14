@@ -268,6 +268,13 @@ export const LIVE_LEVERS: Record<string, unknown> = {
   "freight.clearsNear.ratio": true,
   "labor.daysOffFull": true,
   "brokerRisk.fallOffShare": 0.1,
+  // 0.25.1 (Jeff, 2026-11-14: "push everything"): the director's three rulings from the 0.25.0 replays
+  // (studio/reviews/director-0250-rulings.md), paired within the spread (economy-rulings-0251-pair.md): one deadline, on
+  // time means by "Deliver by"; a driver due home inside the home market starts the days off at once; with the dispatcher
+  // off, the game never drives a truck home.
+  "windows.oneDeadline": true,
+  "labor.homeAtOnce": true,
+  "labor.homeNeedsDispatcher": true,
 };
 
 /** A config with the levers applied by path; throws on a path the config doesn't have. */
