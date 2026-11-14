@@ -8,7 +8,7 @@ import { GAME_CONFIG } from "../../game.js";
 import { AttentionCard, CrewLine, goLoads, goStaff, idleLabel, idleWhy, seatBack, StatusLine, stuckTrucks, tiredTrucks, truckName, truckWhere, wallLine, wallTrucks, waysOut } from "../../logic.js";
 import { freeDriverFor, isFreeDriver } from "../../nextstep.js";
 import { focusTruck } from "../../mapview.js";
-import { act, describe, isPhone, me, myTrucks, ownerOf, S, selectTruck, truckNo, useData, tickerInView } from "../../state.js";
+import { act, describe, isPhone, me, myTrucks, ownerOf, S, selectTruck, truckNo, useData, todaysTicker } from "../../state.js";
 import { Bar, Btn, Card, Num, Panel, Pixel } from "../bits.js";
 import { Rig, Scene } from "../Loop.js";
 import { Fig } from "../Explain.js";
@@ -283,8 +283,8 @@ function TodayCard(): JSX.Element | null {
   const midnight = Math.floor(w.t / w.cfg.time.gameMinutesPerDay) * w.cfg.time.gameMinutesPerDay;
   const money = <MoneyEventRows sinceT={midnight} />;
   // Client batch 8b item 37: the company in view's lines.
-  const lines = tickerInView()
-    .filter((l) => !l.cls.split(" ").includes("money") && (l.t === undefined || l.t >= midnight))
+  const lines = todaysTicker()
+    .filter((l) => !l.cls.split(" ").includes("money"))
     .slice(0, 8);
   if (!lines.length && !MoneyEventRows({ sinceT: midnight })) return null;
   return (

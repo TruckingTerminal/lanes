@@ -22,6 +22,7 @@ import {
   type Collateral,
   settlementShare,
   type World,
+  windowsOn,
 } from "@lanes/engine";
 import { clearsNear, clearsNearSource, profitOver } from "./board.js";
 import { PENDING_RULES } from "./copy-pending-rules.js";
@@ -375,6 +376,9 @@ const BREAKDOWNS: Record<string, Fn> = {
       rows: [
         { label: "Loads on time", value: String(c.onTime) },
         { label: "Loads delivered", value: String(c.delivered) },
+        // Client batch X2 (QA's batch X re-check, item 6): a release or a no-show counts against it (Company.failed), so the
+        // rows reach the figure shown: (on time + smoothing) ÷ (delivered + released or not picked up + smoothing).
+        ...(windowsOn(w) || (c.failed ?? 0) > 0 ? [{ label: WINDOWS.repFailedRow, value: String(c.failed ?? 0) }] : []),
         { label: `Smoothed by ${k.priorLoads} loads at`, value: pct(k.start) },
       ],
       total: { label: "Reputation", value: pct(c.reputation) },

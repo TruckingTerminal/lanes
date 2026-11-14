@@ -1027,7 +1027,7 @@ export const IULIIA_SAY: Record<string, readonly string[]> = {
   "dispatcher:off": ["Off. Every load is yours to bid by hand, then.", "Off. Brave, or tired of its taste. Either way, I'm watching."],
   "dispatcher:rules": ["The fine print. Set it once, then read what it did."],
   // Loads.
-  "loads:first": ["The board. Read the ceiling before you fall in love with a rate.", "Nearest first. An empty mile pays nothing.", "Every load here is somebody's emergency. Price it accordingly."],
+  "loads:first": ["The board. Read the ceiling before you fall in love with a rate.", LIVE.windows.enabled ? "Soonest pickups on top. Nearest is one tap away, and an empty mile still pays nothing." : "Nearest first. An empty mile pays nothing.", "Every load here is somebody's emergency. Price it accordingly."],
   "board:empty": ["Nothing near you this round. Widen the search, or wait for the next."],
   "load:open": ["Book now if the profit is green. Bid if you're patient.", "The break-even is yours; the ceiling is theirs. Live between them."],
   "load:blocked": ["Not yours yet. Brokers want a record before they want you."],

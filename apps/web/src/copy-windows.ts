@@ -104,6 +104,11 @@ export const WINDOWS = withGrammar({
   // Fail 6: the marks behind Reputation, on the Company page.
   recordLabel: "Marks on your record",
   recordMarks: (late: number, failed: number) => `${late} late · ${failed} released or not picked up`,
+  // Engineering's placeholders for the writer (client batch X2, QA's batch X re-check; engineering-client-batchX2-2026-11-13.md).
+  // Item 6: the reputation sheet's row for loads released or not picked up (Company.failed), so its rows reach the figure.
+  repFailedRow: "Loads released or not picked up",
+  // Item 3: a one-truck company's board, under "loads show when it's free", when the truck already has its next load.
+  busyNextBooked: (truck: number, from: string, to: string, pickupBy: string) => `Truck ${truck} already has its next load: ${from} → ${to}, pick up by ${pickupBy}. To book a different one, release that one first.`,
 });
 
 /** The explain sheets' words for the windows' figures (Explain.tsx reads these before copy.ts EXPLAIN). */

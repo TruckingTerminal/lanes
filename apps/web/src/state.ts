@@ -281,6 +281,17 @@ export function tickerInView(s: Session | null = S.game): Feed["ticker"] {
   return feed(s).ticker.filter((l) => (l.co === undefined || l.co === id) && !(l.key?.startsWith("booked:") && id !== undefined && s!.w.loads.get(Number(l.key.slice(7)))?.releasedBy?.includes(id)));
 }
 /**
+ * Client batch X2 (QA's batch X re-check, item 9): today's lines, from midnight, for the Today card and the bottom ticker
+ * alike; the ticker scrolled Thursday's lines on Saturday. A line from before lines carried their minute stays.
+ */
+export function todaysTicker(s: Session | null = S.game): Feed["ticker"] {
+  if (!s) return [];
+  const day = s.w.cfg.time.gameMinutesPerDay;
+  const midnight = Math.floor(s.w.t / day) * day;
+  return tickerInView(s).filter((l) => l.t === undefined || l.t >= midnight);
+}
+
+/**
  * One line per key, kept current (client batch 8a item 48, the stubborn specialist: a truck standing idle wrote a new
  * "idle N d" line into Today every day and buried everything else): the key's earlier line goes, and the new one leads.
  */

@@ -7,8 +7,9 @@ import { WINDOWS } from "../src/copy-windows.js";
 import { grammar } from "../src/format.js";
 import { GAME_CONFIG, TestGame } from "../src/game.js";
 import { nightStop, restingUntil } from "../src/rolling.js";
-import { feed, push, pushKeyed, tickerInView } from "../src/state.js";
-import { agreement, boardable, bookBar, readyAt, releaseCard, whenAt, windowLine } from "../src/windowsui.js";
+import { feed, push, pushKeyed, tickerInView, todaysTicker } from "../src/state.js";
+import { agreement, boardable, bookBar, busyNextLine, reachChip, readyAt, releaseCard, whenAt, windowLine } from "../src/windowsui.js";
+import { breakdown } from "../src/explain.js";
 
 /** Client batch X: QA's 0.25.0 replay (qa-0250-2026-11-13.md, "Fails and findings"), the client's half. */
 const WIN = { ...GAME_CONFIG, windows: { ...GAME_CONFIG.windows, enabled: true } };
@@ -145,5 +146,46 @@ describe("client batch X: QA's 0.25.0 replay", () => {
     // The copy objects pass their lines through it, the engine's notices through the feed.
     expect(WINDOWS.agreeNoShow("Mon 07:00", "804")).toContain("an 804 FD claim");
     expect(PENDING.atRiskReason("884", "Mon 07:00")).toContain("an 884 FD claim");
+  });
+
+  describe("batch X2: QA's re-check (qa-0250-batchX-2026-11-13.md)", () => {
+    it("item 6: the reputation sheet's rows reach the figure, with the loads released or not picked up", async () => {
+      const { w, c } = await started();
+      c.onTime = 6;
+      c.delivered = 7;
+      c.failed = 1;
+      const k = w.cfg.reputation;
+      c.reputation = (c.onTime + k.priorLoads * k.start) / (c.delivered + c.failed + k.priorLoads);
+      const sheet = breakdown(w, c, "standing.reputation", {})!;
+      expect(sheet.rows.find((r) => r.label === WINDOWS.repFailedRow)?.value).toBe("1");
+      const n = (label: string) => Number(sheet.rows.find((r) => r.label === label)!.value);
+      expect((n("Loads on time") + k.priorLoads * k.start) / (n("Loads delivered") + n(WINDOWS.repFailedRow) + k.priorLoads)).toBeCloseTo(c.reputation, 9);
+      expect(sheet.total.value).toBe(`${Math.round(c.reputation * 100)}%`);
+    }, 120_000);
+
+    it("item 3: a busy truck holding its next load says which", async () => {
+      const { w, truck } = await started();
+      const l = windowed(w)[0]!;
+      truck.nextLoadId = l.id;
+      expect(busyNextLine(w, truck, 1)).toBe(WINDOWS.busyNextBooked(1, w.net.places[l.originPlace]!.name, w.net.places[l.destPlace]!.name, whenAt(w, l.latestPickupT)));
+    }, 120_000);
+
+    it("the ticker rolls at midnight as Today does", async () => {
+      const { g, w } = await started();
+      push(g, "Yesterday's line");
+      feed(g).ticker[0]!.t = Math.floor(w.t / 1440) * 1440 - 1;
+      push(g, "Today's line");
+      expect(todaysTicker(g).map((x) => x.text)).toContain("Today's line");
+      expect(todaysTicker(g).map((x) => x.text)).not.toContain("Yesterday's line");
+    }, 120_000);
+
+    it("the reach chip's close has its day, dated 6 or more days out", async () => {
+      const { w, c, truck } = await started();
+      const l = windowed(w)[0]!;
+      const chip = reachChip(w, l, { ok: false, why: "pickup", freeT: w.t, freePlace: truck.place, pickupT: l.latestPickupT + 60, deliverT: l.latestDeliveryT }, 1)!;
+      expect(chip).toContain(`after the ${whenAt(w, l.latestPickupT)} pickup`);
+      expect(whenAt(w, l.latestPickupT)).toMatch(/^(Mon|Tue|Wed|Thu|Fri|Sat|Sun) /);
+      void c;
+    }, 120_000);
   });
 });

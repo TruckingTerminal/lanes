@@ -64,7 +64,7 @@ describe("client batch W: delivery windows on the page", () => {
     row.l.latestPickupT = w.t + 5; // closes before the truck could get there
     const again = boardRows(w, c, truck, any).find((x) => x.l.id === row.l.id)!;
     expect(again.reach?.ok).toBe(false);
-    expect(again.block).toMatch(/^Truck 1 reaches .+, after the \d\d:\d\d pickup\.$/);
+    expect(again.block).toMatch(/^Truck 1 reaches .+, after the (Mon|Tue|Wed|Thu|Fri|Sat|Sun)( [A-Z][a-z]{2} \d{1,2})? \d\d:\d\d pickup\.$/);
   }, 120_000);
 
   it("books ahead from where the truck will be free, one deep and never two, and the card shows now and next", async () => {

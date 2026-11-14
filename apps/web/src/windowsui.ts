@@ -97,9 +97,20 @@ export function freeAt(w: World, t: Truck): { t: number; place: number; label: s
 export function reachChip(w: World, l: Load, r: Reach, truckNo: number): string | null {
   if (r.ok) return null;
   if (r.why === "ahead") return WINDOWS.twoDeep(truckNo);
-  if (r.why === "pickup") return WINDOWS.cantPickup(truckNo, place(w, l.originPlace), whenAt(w, r.pickupT), hhmm(l.latestPickupT!));
-  if (r.why === "delivery") return WINDOWS.cantDeliver(truckNo, place(w, l.destPlace), whenAt(w, r.deliverT), hhmm(l.latestDeliveryT!));
+  // Client batch X2 (QA's batch X re-check, item 1): the close carries its day too, by fail 1's rule ("after the Fri 18:00
+  // pickup"; dated 6 or more days out).
+  if (r.why === "pickup") return WINDOWS.cantPickup(truckNo, place(w, l.originPlace), whenAt(w, r.pickupT), whenAt(w, l.latestPickupT!));
+  if (r.why === "delivery") return WINDOWS.cantDeliver(truckNo, place(w, l.destPlace), whenAt(w, r.deliverT), whenAt(w, l.latestDeliveryT!));
   return null;
+}
+
+/**
+ * Client batch X2 (QA's batch X re-check, item 3): a one-truck company's board while its truck is on a job and already holds
+ * its next load: which load, and its pickup's close.
+ */
+export function busyNextLine(w: World, t: Truck, truckNo: number): string {
+  const l = w.loads.get(t.nextLoadId!)!;
+  return WINDOWS.busyNextBooked(truckNo, place(w, l.originPlace), place(w, l.destPlace), whenAt(w, l.latestPickupT ?? l.appointmentT));
 }
 
 /** canMake for the board: only while windows are on, and only where it applies (a busy truck, or a windowed load). */
@@ -190,7 +201,7 @@ export function askLines(w: World, a: AskFigures, truckNo: number): string[] {
   const l = a.load;
   const fd = (x: number) => fdFull(Math.round(x));
   const out = [WINDOWS.askTitle(truckNo, place(w, l.originPlace), place(w, l.destPlace))];
-  if (a.lateMin > 0) out.push(WINDOWS.askFigures(whenAt(w, a.repairedT), place(w, l.originPlace), whenAt(w, a.reachT), spanLabel(a.lateMin), hhmm(a.closesT)));
+  if (a.lateMin > 0) out.push(WINDOWS.askFigures(whenAt(w, a.repairedT), place(w, l.originPlace), whenAt(w, a.reachT), spanLabel(a.lateMin), whenAt(w, a.closesT)));
   out.push(WINDOWS.askRelease(fd(a.releaseFd)));
   out.push(a.lateMin > 0 ? WINDOWS.askKeep(fd(a.noShowFd)) : WINDOWS.askKeepLikely(spanLabel(-a.lateMin)));
   out.push(WINDOWS.askNoAnswer(whenAt(w, a.closesT)));

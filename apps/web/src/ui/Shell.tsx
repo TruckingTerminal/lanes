@@ -5,7 +5,7 @@ import { FEED } from "../copy.js";
 import { cls } from "../format.js";
 import { sheetLine } from "../logic.js";
 import { setMapInset } from "../mapview.js";
-import { PHONE_QUERY, S, setSheet, useData, type SheetStop, tickerInView } from "../state.js";
+import { PHONE_QUERY, S, setSheet, useData, type SheetStop, todaysTicker } from "../state.js";
 import { MapView } from "./MapRegion.js";
 import { Nav, RackBody, SideRack } from "./Rack.js";
 import { TopBar } from "./TopBar.js";
@@ -171,8 +171,8 @@ function quiet(): string {
 
 function Ticker(): JSX.Element {
   useData();
-  // Client batch 8b item 37: the company in view's lines.
-  const items = tickerInView().slice(0, 8);
+  // Client batch 8b item 37: the company in view's lines. Client batch X2: today's, from midnight, as Today's are.
+  const items = todaysTicker().slice(0, 8);
   return (
     <footer class="ticker" aria-live="polite">
       {items.length ? items.map((t, i) => <span class={t.cls} key={i}>{t.text}</span>) : <span class="muted">{quiet()}</span>}

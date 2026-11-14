@@ -12,7 +12,7 @@ import { deliveryEtaMin, etaMin } from "../../rolling.js";
 import { tabOpen } from "../../tabs.js";
 import { iuliiaFirst, iuliiaOnce, iuliiaOnChange, iuliiaSay, iuliiaSayText } from "../../iuliia.js";
 import { WINDOWS } from "../../copy-windows.js";
-import { aheadable, agreement, boardable, bookBar, clearsTiming, freeAt, windowLine } from "../../windowsui.js";
+import { aheadable, agreement, boardable, bookBar, busyNextLine, clearsTiming, freeAt, windowLine } from "../../windowsui.js";
 import { PENDING_RULES } from "../../copy-pending-rules.js";
 import { Btn, Card, Kv } from "../bits.js";
 import { LoadsTable } from "./Loads.js";
@@ -82,6 +82,8 @@ export function Loads(): JSX.Element {
       <div class="stack">
         <ResultCard />
         <p class="muted">{BOARD.busy(eta ?? "—")}</p>
+        {/* Client batch X2 (QA's batch X re-check, item 3): its next load is booked already; which one. */}
+        {t && t.nextLoadId !== undefined && w.loads.get(t.nextLoadId) ? <p class="small">{busyNextLine(w, t, truckNo(t.id))}</p> : null}
         {S.boardPoster ? <PosterLoads poster={S.boardPoster} /> : null}
       </div>
     );
