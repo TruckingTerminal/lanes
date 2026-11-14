@@ -1,10 +1,13 @@
+import { MENUS } from "./copy-menus.js";
+import { costLeft, payLanding } from "./moneymotion.js";
+import { onCost } from "./books.js";
 import { initMotion } from "./motion.js";
 import { render } from "preact";
 import { companyAccount, condition, crewed, marketMood, onTimeBy, resting, staffById, type Company, type GameEvent, type World } from "@lanes/engine";
 import { installTheme } from "./art.js";
 import { truckSheet, whenAssetsReady } from "./assets.js";
 import { fd, fdFull, hhmm, realUntil, shortDate } from "./format.js";
-import { DELIVERED, FEED, LOADING, MARKET, ROUND } from "./copy.js";
+import { DELIVERED, FEED, LOADING, MARKET, MONTH, ROUND } from "./copy.js";
 import { iuliiaOnChange, iuliiaSay, iuliiaSayText } from "./iuliia.js";
 import { RULESET, TestGame, type StartKind } from "./game.js";
 import { H } from "./handlers.js";
@@ -157,6 +160,9 @@ function onEvent(s: Session, e: GameEvent): void {
       const driver = truck.driverId ? w.staff[truck.driverId - 1] : undefined;
       S.delivered = { from: ends(e.loadId, e.origin, e.dest)[0], to: ends(e.loadId, e.origin, e.dest)[1], lateH: e.onTime ? 0 : Math.max(0, Math.ceil(((w.cfg.docks.lateFromArrival && load.arrivedT !== undefined ? load.arrivedT : w.t) - onTimeBy(w, load)) / 60)), line, paid, hiredDriver: driver && !driver.owner ? driver.name : null };
       S.moneyDot = fresh ? "invoice" : "paid";
+      // The menu system §2.4: the pay landing: the toast with what reached you, then the spark to the cash.
+      toast(MENUS.paidToast(S.delivered.from, S.delivered.to, fdFull(line.yours)));
+      payLanding(() => document.querySelector(".toast"));
       iuliiaSay(e.onTime ? "delivered:onTime" : "delivered:late");
     }
   }
@@ -186,6 +192,10 @@ async function boot(): Promise<void> {
   installTheme();
   loadTheme();
   initMotion(); // the Motion setting (the menu system §2.6): <html data-motion>, from the system until the player chooses
+  // The menu system §2.4: a cost leaving the player's cash, as it happens, shows in the chip under the cash.
+  onCost((w, c, fd, line) => {
+    if (S.game?.w === w && S.game.player?.id === c.id) costLeft(fd, (MONTH.row[line] ?? line).toLowerCase());
+  });
   loadOnboard();
   whenAssetsReady(() => bumpData());
   truckSheet();

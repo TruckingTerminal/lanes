@@ -3,11 +3,10 @@ import { useEffect, useState } from "preact/hooks";
 import type { Equipment, FacilityType, TractorTier } from "@lanes/config";
 import { assetPriceUsd, availableSupply, collateralOf, listingBlock, companyAccount, condition, dealerPrice, deliveryDays, dealerBacklog, facilityOutlook, lessorTrucksOf, newPrice, openListings, ordersOf, tokenLive, truckCap, truckValue } from "@lanes/engine";
 import { facilityUrl } from "../../art.js";
-import { SCENES } from "../../assets.js";
 import { FAC_NAME, fd, hhmm, pct, signedPct, TIER_NAME, TRAILER_NAME, usd, plural, fdFull } from "../../format.js";
 import { act, me, myTrucks, order, S, useData } from "../../state.js";
 import { Btn, Card, Num, Panel, Pixel } from "../bits.js";
-import { Rig, Scene } from "../Loop.js";
+import { Rig } from "../Loop.js";
 import { Buy, Showroom } from "./Showroom.js";
 import { confirmAct } from "../Confirm.js";
 import { leaseDepositNow, leaseTruck, leaseWeeklyMin, newTruck, usedTruck } from "../../confirmspecs.js";
@@ -61,7 +60,6 @@ export function Dealer(): JSX.Element {
   const first = fleet.some((t) => t.lease === "owned") ? null : firstTruckLine(w, c);
   return (
     <Panel title="Dealer">
-      <Scene name="dealer" still={SCENES.dealer} alt="The dealership lot" />
       {/* Client batch 8a item 57 (the director's A): the Dealer opens on the first-truck card's one verdict. */}
       {first ? (
         <Card>

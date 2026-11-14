@@ -1,3 +1,7 @@
+import { DockClock } from "../DockClock.js";
+import { Window } from "../Window.js";
+import { markStamp, Stamp } from "../Stamp.js";
+import { MENUS } from "../../copy-menus.js";
 import type { JSX } from "preact";
 import { useEffect, useState } from "preact/hooks";
 import { crewed, hubMiles, MANUAL_BID_MAX_DEADHEAD_MI, VETTING_NAMES, windowsOn, type Truck } from "@lanes/engine";
@@ -97,7 +101,15 @@ export function Loads(): JSX.Element {
   if (open) return <LoadSheet r={open} truck={truck} />;
   const pending = w.manualBids.get(truck.id);
   const pinned = pending ? rows.find((r) => r.l.id === pending.loadId) : undefined;
-  const sorted = sortRows(rows, sort, firstVisit).filter((r) => r !== pinned);
+  // The menu system §3 and rule 4.4: loads that arrive while the board is open wait behind a pill, so the list never
+  // shifts under a finger; a tap lets them in. A board opened afresh (not drawn for 2 s) starts with everything shown.
+  const now = Date.now();
+  const seen = boardSeen.get(truck.id);
+  if (!seen || now - boardDrawnAt > 2000) boardSeen.set(truck.id, new Set(rows.map((r) => r.l.id)));
+  boardDrawnAt = now;
+  const shown = boardSeen.get(truck.id)!;
+  const waiting = rows.filter((r) => !shown.has(r.l.id)).length;
+  const sorted = sortRows(rows, sort, firstVisit).filter((r) => r !== pinned && shown.has(r.l.id));
   const takeable = rows.filter((r) => !r.block).length;
   // A truck on a job: the board reads from where it will be free (board.ts boardRows).
   const busyFree = truck.status !== "idle" ? freeAt(w, truck) : null;
@@ -194,6 +206,18 @@ export function Loads(): JSX.Element {
         </Card>
       ) : null}
       {sort === "hot" && sorted.length && !sorted.some((r) => r.heat >= 1.5) ? <p class="muted small">{BOARD.noHot}</p> : null}
+      {waiting > 0 ? (
+        <button
+          type="button"
+          class="newpill"
+          onClick={() => {
+            for (const r of rows) shown.add(r.l.id);
+            bumpData();
+          }}
+        >
+          {MENUS.newLoads(waiting)}
+        </button>
+      ) : null}
       {sorted.length ? (
         <div class="loadcards">
           {sorted.slice(0, 60).map((r) => (
@@ -262,7 +286,9 @@ function LoadCard({ r, truck, name }: { r: BoardRow; truck: Truck; name: (i: num
   const win = windowLine(S.game!.w, l);
   if (win?.closing) queueMicrotask(() => iuliiaOnce("win:closing", WINDOWS.iuliiaFirstClosing));
   return (
-    <button type="button" class={cls("loadcard", r.block && "blocked")} onClick={() => openLoad(l.id)} title={`${name(l.origin)} → ${name(l.dest)}`}>
+    <button type="button" class={cls("loadcard stamped", r.block && "blocked")} onClick={() => openLoad(l.id)} title={`${name(l.origin)} → ${name(l.dest)}`}>
+      {/* The menu system §2.3: a bid in on this load, stamped in the ticket's corner. */}
+      {S.game!.w.manualBids.get(truck.id)?.loadId === l.id ? <Stamp word={MENUS.stampBidIn} id={`bid:${truck.id}:${l.id}`} size={56} /> : null}
       <span class="l1">{BOARD.line1(place(l.originPlace), place(l.destPlace), Math.round(l.miles).toLocaleString("en-US"))}</span>
       <span class="l2 small">
         {BOARD.line2(fdFull(r.total), rateShown(l, l.bookNow), allInRate(r.total, l.miles, r.dh), Math.round(r.dh))}
@@ -321,7 +347,11 @@ function ResultCard({ onBidAgain }: { onBidAgain?: () => void }): JSX.Element | 
     bumpData();
   };
   return (
-    <Card class={cls("resultcard", res.won ? "won" : "lost")}>
+    <Card class={cls("resultcard stamped", res.won ? "won" : "lost")}>
+      {/* The menu system §3: a load lost at its pickup's close carries its picture. */}
+      {!res.won && res.gone ? <Window name="shp-lost-gone" fallback="dock" /> : null}
+      {/* The menu system §2.3: WON in green, LOST in grey; no shake, no red flash. */}
+      <Stamp word={res.won ? MENUS.stampWon : MENUS.stampLost} ink={res.won ? "green" : "grey"} kind="result" id={`result:${res.from}:${res.to}:${res.rate}:${res.won}`} size={56} />
       <p>
         {res.won
           ? ROUND.won(res.from, res.to, res.rate.toFixed(2), fdFull(res.total))
@@ -356,6 +386,10 @@ function ResultCard({ onBidAgain }: { onBidAgain?: () => void }): JSX.Element | 
     </Card>
   );
 }
+
+/** The loads each truck's board has shown (the new-loads pill), and when the board was last drawn. */
+const boardSeen = new Map<number, Set<number>>();
+let boardDrawnAt = 0;
 
 /** The load's sheet (S3): route, money, shipper, the fold, and Book now and the bid pinned at the bottom. */
 function LoadSheet({ r, truck }: { r: BoardRow; truck: Truck }): JSX.Element {
@@ -420,6 +454,7 @@ function LoadSheet({ r, truck }: { r: BoardRow; truck: Truck }): JSX.Element {
     const res = await order({ type: "book_load", truckId: truck.id, loadId: l.id }, ROUND.toastBooked);
     if (!res.ok) return setNote({ text: refusal(res.reason), bad: true });
     iuliiaSay("load:book");
+    markStamp(`booked:${truck.id}`); // the menu system §2.3: BOOKED lands on the truck card
     sent(res.at);
     toast(res.at === null ? ROUND.toastBooked : ROUND.booked(w.net.places[l.originPlace]!.name, w.net.places[l.destPlace]!.name, fdFull(r.total)));
     S.openLoad = null;
@@ -474,7 +509,8 @@ function LoadSheet({ r, truck }: { r: BoardRow; truck: Truck }): JSX.Element {
     ? [
         [WINDOWS.ready, <Fig k="load.window" label={WINDOWS.ready} ctx={fx}>{`${win.ready} · ${op.name}, ${op.state}`}</Fig>],
         [WINDOWS.pickupBy, win.pickupBy],
-        [WINDOWS.deliverBy, `${win.deliverBy} · ${place(l.destPlace)}`],
+        // The menu system §2.5: the dock clock beside the deadline, its hands set to it; amber when it's tight.
+        [WINDOWS.deliverBy, <span class="row">{`${win.deliverBy} · ${place(l.destPlace)}`}<DockClock at={l.latestDeliveryT!} tight={!!agree?.tight} size={40} /></span>],
       ]
     : [
         [LOAD.pickUp, `${op.name}, ${op.state} · ${pickupWhen}`],

@@ -15,8 +15,7 @@ import { WINDOWS } from "../../copy-windows.js";
 import { bookBar, reachChip, reachFor, windowLine } from "../../windowsui.js";
 import { truckNumber } from "../../trucknos.js";
 import { Btn, Card, Kv, Num, Panel } from "../bits.js";
-import { SCENES } from "../../assets.js";
-import { Portrait, Scene } from "../Loop.js";
+import { Portrait } from "../Loop.js";
 
 /**
  * The load board as a table, laid out like DAT One (the laptop's "Table" toggle on the board, ui/panels/Board.tsx):
@@ -118,7 +117,6 @@ export function LoadsTable(): JSX.Element {
   if (!truck) {
     return (
       <Panel title="Load board">
-      <Scene name="truckstop" still={SCENES.truckstop} alt="The truck stop" />
         {search}
         <p class="muted">No idle trucks right now. Loads show here when a truck is free at a hub.</p>
         {S.selHub !== null ? <HubLoadsTable hub={S.selHub} /> : null}
@@ -159,7 +157,6 @@ export function LoadsTable(): JSX.Element {
 
   return (
     <Panel title="Load board" right={pending ? <Btn sm onClick={() => act({ type: "cancel_bid", truckId: truck.id }, "Bid withdrawn")}>Withdraw bid {pending.rate.toFixed(2)}/mi</Btn> : null}>
-      <Scene name="truckstop" still={SCENES.truckstop} alt="The truck stop" />
       {search}
       <div class="results-head">
         <b>{rows.length} results</b>

@@ -10,8 +10,6 @@ import { weekCosts } from "../../ledger.js";
 import { Fig } from "../Explain.js";
 import { Btn, Card, Kv, Label, Num, Panel } from "../bits.js";
 import { ContractsCard } from "./Contracts.js";
-import { SCENES } from "../../assets.js";
-import { Scene } from "../Loop.js";
 import { CapsLine } from "../Caps.js";
 import { WINDOWS } from "../../copy-windows.js";
 
@@ -35,7 +33,6 @@ export function Company(): JSX.Element {
   const rankMiles = c ? [...carriers].sort((a, b) => miles(b) - miles(a)).indexOf(c) + 1 : 0;
   return (
     <Panel title={c ? c.name : "The live world"}>
-      <Scene name="office" still={SCENES.office} alt="The dispatch office" />
       {c ? <CapsLine /> : null}
       {c ? (
         <Card>

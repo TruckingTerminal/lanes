@@ -6,8 +6,8 @@ import { GAME_CONFIG } from "../../game.js";
 import { atHub, marketPayOf, moraleClass, moraleWord, staffPay, Stars } from "../../logic.js";
 import { act, me, myTrucks, order, S, truckNo, useData } from "../../state.js";
 import { Btn, Card, Kv, Panel } from "../bits.js";
-import { SCENES, staffFace } from "../../assets.js";
-import { Portrait, Scene } from "../Loop.js";
+import { staffFace } from "../../assets.js";
+import { Portrait } from "../Loop.js";
 import { PendingCard } from "./Fleet.js";
 import { confirmAct } from "../Confirm.js";
 import { hire as hireLines, weeklyKept } from "../../confirmspecs.js";
@@ -299,7 +299,6 @@ export function Staff(): JSX.Element {
 
   return (
     <Panel title="Staff">
-      <Scene name="lounge" still={SCENES.lounge} alt="The drivers' lounge" />
       <PendingCard />
       <Card title="You">
         <div class="row">

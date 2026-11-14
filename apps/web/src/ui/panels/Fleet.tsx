@@ -1,7 +1,8 @@
+import { recentStamp, Stamp } from "../Stamp.js";
+import { MENUS } from "../../copy-menus.js";
 import type { JSX } from "preact";
 import { useState } from "preact/hooks";
 import { condition, crewed, hubMiles, ordersOf, rebuildable, rebuildCost, resting, truckValue, type Company, type Staff, type StandingOrder, type Truck, type World } from "@lanes/engine";
-import { SCENES } from "../../assets.js";
 import { cls, dateLabel, fd, fdFull, pct, plural, shortDate, TIER_NAME, TRAILER_NAME, hhmm, realUntil } from "../../format.js";
 import { HOURS, MOVE, NEEDS, TRUCK } from "../../copy.js";
 import { GAME_CONFIG } from "../../game.js";
@@ -12,6 +13,7 @@ import { act, describe, isPhone, me, myTrucks, ownerOf, S, selectTruck, truckNo,
 import { Bar, Btn, Card, Num, Panel, Pixel } from "../bits.js";
 import { Rig } from "../Loop.js";
 import { Window } from "../Window.js";
+import { truckWindow } from "../../screenwindows.js";
 import { Fig } from "../Explain.js";
 import { TendersCard } from "./Contracts.js";
 import { MoneyEventRows } from "../MonthReport.js";
@@ -223,7 +225,7 @@ export function Fleet(): JSX.Element {
   const trucks = myTrucks();
   const pending = ordersOf(w, me().id);
   return (
-    <Panel title="Your fleet" win={<Window name="yard" />}>
+    <Panel title="Your fleet">
       <DeliveredCard />
       <RollingCards />
       {/* Client batch 8b item 63: a further standing order, offered once at its moment. */}
@@ -482,6 +484,20 @@ function WindowsLines({ t }: { t: Truck }): JSX.Element | null {
   );
 }
 
+function TruckStage({ t, c }: { t: Truck; c: Company }): JSX.Element {
+  const w = S.game!.w;
+  const win = truckWindow(w, c, t);
+  const rolling = (t.status === "loaded" || t.status === "toPickup" || t.status === "repositioning") && win.name === "road-golden";
+  const booked = recentStamp(`booked:${t.id}`);
+  return (
+    <div class={cls("rigstage stamped", !rolling && "parked")}>
+      {booked ? <Stamp word={MENUS.stampBooked} id={booked} size={56} /> : null}
+      <Window name={win.name} fallback="yard" />
+      {win.rig ? <Rig eq={t.trailer} alt={`${TIER_NAME[t.tier]} with ${TRAILER_NAME[t.trailer]}`} /> : null}
+    </div>
+  );
+}
+
 function TruckCard({ t, idx }: { t: Truck; idx: number }): JSX.Element {
   const w = S.game!.w;
   // Client batch 8a item 29: the truck's own company, whichever company is in view.
@@ -559,7 +575,9 @@ function TruckCard({ t, idx }: { t: Truck; idx: number }): JSX.Element {
       }}
     >
       <div class="truckhead">
-        <Rig eq={t.trailer} alt={`${TIER_NAME[t.tier]} with ${TRAILER_NAME[t.trailer]}`} />
+        {/* The menu system §3: the truck alive where it is, its window by what it's doing (screenwindows.ts truckWindow);
+            the rig lies over the road and the yard, and rolls only while the truck rolls. */}
+        <TruckStage t={t} c={c} />
         <div>
           <h3>
             Truck {idx + 1} · {TIER_NAME[t.tier]} · {TRAILER_NAME[t.trailer]}

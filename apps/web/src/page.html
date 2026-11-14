@@ -118,6 +118,12 @@ tbody tr.open td { background: color-mix(in srgb, var(--accent) 10%, transparent
 .truckhead { display: grid; grid-template-columns: auto 1fr; gap: 12px; align-items: center; }
 .truckhead img.px { width: 172px; height: auto; }
 .truckhead img.rig { width: 320px; max-width: 100%; }
+/* The truck card's stage (the menu system §3): its window, the rig laid along its foot; the rig rolls only on the road. */
+.rigstage { position: relative; flex: none; width: 256px; max-width: 100%; }
+.rigstage .window { height: auto; aspect-ratio: 16 / 9; }
+.rigstage .window::after { display: none; }
+.rigstage .rig { position: absolute; left: 0; right: 0; bottom: 4px; margin: 0 auto; max-width: 100%; }
+.rigstage.parked .rig.loop { animation-play-state: paused; }
 .rig { image-rendering: pixelated; }
 /* A rig's cab repainted by hue: the cyan paint turns red, lime or grey; the white trailer keeps its colour. */
 .paint-red { filter: hue-rotate(165deg) saturate(1.1); }
@@ -336,8 +342,40 @@ html[data-motion="full"] .kicon.lit { animation: kit-lit var(--lit-ms, 625ms) st
 .window .winloop { position: absolute; inset: 0; background-repeat: no-repeat; background-position-x: var(--x0); image-rendering: pixelated; }
 html[data-motion="full"] .window .winloop { animation-name: win-loop; animation-iteration-count: infinite; }
 @keyframes win-loop { from { background-position-x: var(--x0); } to { background-position-x: calc(var(--x0) - var(--sheetw)); } }
+.monthcard .window::after { background: linear-gradient(transparent, var(--paper)); }
+.dockclock { flex: none; image-rendering: auto; }
 .window::after { content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: 16px; background: linear-gradient(transparent, var(--bg-panel)); pointer-events: none; }
 :root { --t-quick: 120ms; --t-enter: 220ms; --t-sheet: 280ms; --t-morph: 300ms; --t-flight: 520ms; --ease-out: cubic-bezier(.2,.8,.2,1); --ease-in: cubic-bezier(.4,0,1,1); --ease-in-out: cubic-bezier(.45,0,.25,1); --ease-snap: cubic-bezier(.3,1.25,.5,1); }
+/*
+ * The stamps (the menu system §2.3, ui/Stamp.tsx): the kit's ink ring with the word over it, in a corner clear of
+ * every figure. Red for the player's own acts, green WON, grey LOST (the ring tinted by filter). Full: lands with scale
+ * 1.25 → 1 over 160 ms, then the dust; Calm: a 120 ms fade; Still: there.
+ */
+.stamped { position: relative; }
+.stamp { position: absolute; top: -6px; left: -6px; z-index: 2; display: grid; place-items: center; pointer-events: none; border-radius: 50%; background-repeat: no-repeat; image-rendering: auto; transform: rotate(-12deg); }
+.stamp:not(.painted) { border: 3px double currentColor; }
+.stamp.waiting { visibility: hidden; }
+.stamp .stampword { font: 600 13px/1 var(--font-display, var(--font-mono)); letter-spacing: 0.04em; }
+.stamp.ink-red { color: #c4363a; }
+.stamp.ink-green { color: #2e9a52; filter: hue-rotate(120deg) saturate(0.9); }
+.stamp.ink-green .stampword { filter: hue-rotate(-120deg); }
+.stamp.ink-grey { color: #8f8696; filter: grayscale(1); }
+html[data-motion="full"] .stamp.landing { animation: stamp-land 160ms var(--ease-snap) both; }
+html[data-motion="calm"] .stamp.landing { animation: stamp-fade 120ms ease-out both; }
+@keyframes stamp-land { from { transform: rotate(-12deg) scale(1.25); opacity: 0.4; } to { transform: rotate(-12deg) scale(1); opacity: 1; } }
+@keyframes stamp-fade { from { opacity: 0; } }
+.stampdust { position: absolute; left: 50%; top: 50%; width: 48px; height: 48px; margin: -24px 0 0 -24px; background-repeat: no-repeat; background-position: var(--dust-x) var(--dust-y); image-rendering: pixelated; animation: stamp-dust 500ms steps(6) 160ms 1 both; }
+@keyframes stamp-dust { from { background-position-x: var(--dust-x); } to { background-position-x: var(--dust-run); } }
+/* Money (§2.4): the spark's flight, the cash chip's glow (Full) or steady ring (Calm, Still), the cost chip under it. */
+.spark-fx { position: fixed; z-index: 90; pointer-events: none; background-repeat: no-repeat; image-rendering: pixelated; animation: spark-run 520ms steps(8) 1; }
+@keyframes spark-run { from { background-position-x: var(--spark-x); } to { background-position-x: var(--spark-run); } }
+.topbar .cash.cashglow { animation: cash-glow 600ms var(--ease-out) 1; }
+@keyframes cash-glow { 0%, 100% { box-shadow: 0 0 0 1px color-mix(in srgb, var(--sun) 30%, transparent); } 50% { box-shadow: 0 0 12px 2px var(--sun); } }
+.topbar .cash.cashring { box-shadow: 0 0 0 2px var(--sun); }
+.cashwrap { position: relative; display: inline-flex; }
+.costchip { position: absolute; top: calc(100% + 6px); right: 0; z-index: 25; white-space: nowrap; padding: 3px 8px; border-radius: var(--radius); background: var(--bg-input); border: 1px solid var(--border); font: 600 12px/1.3 var(--font-mono); color: var(--accent-danger); cursor: pointer; animation: chip-out 300ms ease-in 1600ms 1 forwards; }
+@keyframes chip-out { to { opacity: 0; } }
+.newpill { align-self: center; padding: 4px 12px; border-radius: 14px; border: 1px solid var(--sun); background: var(--bg-input); color: var(--text-primary); font-size: 12px; cursor: pointer; }
 /* The Motion setting in the ≡ menu (the menu system §2.6): a label, three segments, a line of help. */
 .motionset { display: grid; gap: 6px; padding: 10px 14px 12px; border-bottom: 1px solid var(--border); max-width: 280px; }
 .motionset .seg { display: flex; gap: 4px; }

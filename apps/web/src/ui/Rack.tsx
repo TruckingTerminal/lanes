@@ -1,3 +1,4 @@
+import { ScreenWindow } from "./Window.js";
 import type { JSX } from "preact";
 import { useEffect, useLayoutEffect, useRef } from "preact/hooks";
 import { iuliiaFirst } from "../iuliia.js";
@@ -148,6 +149,8 @@ export function RackBody(): JSX.Element {
       <ExplainSheet />
       <ConfirmSheet />
       <div class="panelbox" ref={box}>
+        {/* The menu system §1.3: the screen's window, above everything in its panel. */}
+        <ScreenWindow tab={tab} picking={picking} />
         <ReportCard key={S.reportKind} />
         {open && !watching ? <><StepMoment /><FirstLoad /></> : null}
         {under ? (

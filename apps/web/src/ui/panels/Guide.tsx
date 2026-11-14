@@ -3,8 +3,6 @@ import { GAME_CONFIG } from "../../game.js";
 import { guidePages } from "../../guide.js";
 import { bumpData, S, TEST_BUILD, useData } from "../../state.js";
 import { Btn, Panel } from "../bits.js";
-import { SCENES } from "../../assets.js";
-import { Scene } from "../Loop.js";
 
 const DOCS_URL = TEST_BUILD ? "docs.html" : "https://truckingterminal.github.io/lanes-play/docs.html";
 
@@ -30,7 +28,6 @@ export function Guide(): JSX.Element {
   };
   return (
     <Panel title="Help">
-      <Scene name="guide" still={SCENES.guide} alt="A diner booth with the road atlas" />
       <section class="card guide" onClick={onClick}>
         <span class="label">{page.section}</span>
         <h3>{page.title}</h3>

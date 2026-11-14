@@ -1,3 +1,4 @@
+import { costChip, onCostChip } from "../moneymotion.js";
 import { KitIcon } from "./KitIcon.js";
 import { MENUS } from "../copy-menus.js";
 import { motion, MOTIONS, setMotion } from "../motion.js";
@@ -10,7 +11,7 @@ import { PENDING } from "../copy-pending.js";
 import { hasTwo, kindInView, switchCompany, type CompanyKind } from "../companies.js";
 import { H } from "../handlers.js";
 import { needs as waiting, nextRoundHour, openNeed } from "../logic.js";
-import { bumpData, clockMin, fsActive, fsEnabled, S, SPEEDS, toggleFullscreen, useData, useTick } from "../state.js";
+import { bumpData, clockMin, fsActive, fsEnabled, S, setTab, SPEEDS, toggleFullscreen, useData, useTick } from "../state.js";
 import { Badge, Btn } from "./bits.js";
 import { choosing } from "./ChooseHub.js";
 
@@ -41,7 +42,13 @@ export function TopBar(): JSX.Element {
     <header class={cls("topbar", hasTwo(g) && `co-${kindInView(g)}`)}>
       <CompanySwitch />
       <Clock />
-      {c ? <span class={cls("cash num", bal < 0 && "bad")}>{fdFull(bal)} FD</span> : choosing() ? null : <Badge>Watching</Badge>}
+      {c ? (
+        <span class="cashwrap">
+          {/* The figure has a fixed box (rule 4.1) and swaps in place; the glow happens behind it, the chip under it. */}
+          <span class={cls("cash num", bal < 0 && "bad")} style={{ minWidth: "9ch" }}>{fdFull(bal)} FD</span>
+          <CostChip />
+        </span>
+      ) : choosing() ? null : <Badge>Watching</Badge>}
       {needs.length ? <NeedsButton /> : null}
       {c && c.authority.status !== "active" ? <Badge tone="alert">{c.authority.status === "revoked" ? "Authority revoked" : "Suspended"}</Badge> : null}
       {g.kind === "live" && g.broken ? <Badge tone="alert" title={g.broken.reason}>World stopped</Badge> : null}
@@ -230,6 +237,23 @@ function Menu(): JSX.Element {
         {S.game?.kind === "test" && S.live ? item("Back to the live world", H.backToLive) : null}
       </div>
     </details>
+  );
+}
+
+/**
+ * The chip under the cash when costs leave (the menu system §2.4): "−41 FD · settlement fee", or merged "−212 FD · 3
+ * costs"; still for 1.6 s, then it fades. A tap opens Money.
+ */
+function CostChip(): JSX.Element | null {
+  const [, redraw] = useState(0);
+  useEffect(() => onCostChip(() => redraw((n) => n + 1)), []);
+  const chip = costChip();
+  if (!chip) return null;
+  const fd = fdFull(Math.round(chip.fd));
+  return (
+    <button type="button" class="costchip" key={chip.at} onClick={() => setTab("money")}>
+      {chip.n === 1 && chip.label ? MENUS.costChipOne(fd, chip.label) : MENUS.costChipMany(fd, chip.n)}
+    </button>
   );
 }
 

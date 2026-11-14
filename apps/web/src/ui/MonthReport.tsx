@@ -1,3 +1,4 @@
+import { Window } from "./Window.js";
 import { moving } from "../motion.js";
 import type { JSX } from "preact";
 import { PENDING } from "../copy-pending.js";
@@ -64,6 +65,8 @@ export function MonthCard({ r, title, first }: { r: MonthReport; title?: string;
   const payLabel = r.payChange >= 0 ? MONTH.payUp : MONTH.payDown;
   return (
     <Card class="monthcard" title={title ?? MONTH.header(monthName(midDay(r)), fdFull(r.keptFd))}>
+      {/* The menu system §3: the cover, your own ledger on the desk under the lamp; then the report on paper. */}
+      <Window name="ledger-desk" fallback="office" />
       {title ? <p class="small"><b>{MONTH.header(monthName(midDay(r)), fdFull(r.keptFd))}</b></p> : null}
       <table class="books" data-month={r.closedDay}>
         <tbody>

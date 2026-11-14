@@ -4,7 +4,8 @@ import { SCENES } from "../assets.js";
 import { ASSETS } from "../mapart.js";
 import { cropOf, kitData, pickWindow, type LoopArt } from "../menuart.js";
 import { moving } from "../motion.js";
-import { clockMin, useData } from "../state.js";
+import { clockMin, S, useData } from "../state.js";
+import { screenWindow } from "../screenwindows.js";
 import { bandOf, gradeForBand, type Band } from "./CityPicture.js";
 import { seasonNow } from "./Loop.js";
 
@@ -140,7 +141,15 @@ const idle = (f: () => void): void => {
 };
 const saveData = (): boolean => (globalThis.navigator as unknown as { connection?: { saveData?: boolean } } | undefined)?.connection?.saveData === true;
 
-export function Window({ name, fallback, class: extra }: { name: string; fallback?: string; class?: string }): JSX.Element {
+/** The window for the screen in view (screenwindows.ts screenWindow), or nothing. */
+export function ScreenWindow({ tab, picking }: { tab: string; picking: boolean }): JSX.Element | null {
+  useData();
+  const g = S.game;
+  const win = screenWindow(tab, g?.w ?? null, S.openLoad, picking);
+  return win ? <Window key={win.name} name={win.name} night={win.night} fallback={win.fallback} /> : null;
+}
+
+export function Window({ name, night, fallback, class: extra }: { name: string; night?: string; fallback?: string; class?: string }): JSX.Element {
   useData();
   const box = useRef<HTMLDivElement>(null);
   const cv = useRef<HTMLCanvasElement>(null);
@@ -148,9 +157,11 @@ export function Window({ name, fallback, class: extra }: { name: string; fallbac
   const [ready, setReady] = useState(false);
   const [avg, setAvg] = useState<string | null>(null);
   const [loop, setLoop] = useState<string | null>(null);
+  const [loopKey, setLoopKey] = useState<string | null>(null);
   const [onScreen, setOnScreen] = useState(true);
   const band = bandOf(Math.floor(clockMin() / 60) % 24);
-  const src = windowSource(name, band, fallback);
+  // A screen with its own night painting (the board's ops room) shows it in the night band.
+  const src = windowSource(band === "night" && night ? night : name, band, fallback);
   const animate = moving() && !saveData();
 
   // The box's size in device pixels, kept current.
@@ -191,7 +202,17 @@ export function Window({ name, fallback, class: extra }: { name: string; fallbac
         ctx.drawImage(g, c.sx, c.sy, c.sw, c.sh, 0, 0, size.w, size.h);
         if (!src.avg) setAvg(averageOf(src.key, g));
         setReady(true);
-        if (src.loop && animate) idle(() => void gradedLoop(src, band).then((u) => live && setLoop(u)).catch(() => undefined));
+        if (src.loop && animate)
+          idle(
+            () =>
+              void gradedLoop(src, band)
+                .then((u) => {
+                  if (!live) return;
+                  setLoop(u);
+                  setLoopKey(`${src.key}|${band}`);
+                })
+                .catch(() => undefined),
+          );
         else setLoop(null);
       })
       .catch(() => undefined);
@@ -202,7 +223,9 @@ export function Window({ name, fallback, class: extra }: { name: string; fallbac
 
   const fill = src?.avg ?? avg ?? "var(--bg-secondary)";
   let loopStyle: JSX.CSSProperties | null = null;
-  if (src && loop && size && animate) {
+  // The loop belongs to the painting it was graded from: a stale one (the window moved to a painting without a loop,
+  // or a painted hour) is never drawn.
+  if (src?.loop && loop && loopKey === `${src.key}|${band}` && size && animate) {
     const c = cropOf(W, H, size.w, size.h, src.focalX, src.focalY);
     const k = c.scale / size.dpr; // CSS px per scene pixel
     loopStyle = {
@@ -217,7 +240,7 @@ export function Window({ name, fallback, class: extra }: { name: string; fallbac
     } as JSX.CSSProperties;
   }
   return (
-    <div ref={box} class={`window ${extra ?? ""}`} style={{ backgroundColor: fill }} aria-hidden="true">
+    <div ref={box} class={`window ${extra ?? ""}`} style={{ backgroundColor: fill }} aria-hidden="true" data-window={src?.key ?? name}>
       <canvas ref={cv} class={ready ? "ready" : ""} />
       {loopStyle ? <div class="winloop" style={loopStyle} /> : null}
     </div>
