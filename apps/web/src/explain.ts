@@ -21,6 +21,7 @@ import {
   type Company,
   type Collateral,
   settlementShare,
+  standingCard,
   type World,
   windowsOn,
 } from "@lanes/engine";
@@ -60,6 +61,8 @@ export interface FigureCtx {
   news?: { ref: string; t: number };
   /** R24: where an empty run goes (a hub's index). */
   toHub?: number;
+  /** Standing (standing.ts): the market whose scorecard the figure reads (a hub's index). */
+  hub?: number;
 }
 
 export interface Row {
@@ -148,6 +151,24 @@ function claimParts(w: World, ctx: FigureCtx, kind: "noShow" | "late" | "lost"):
 }
 
 const BREAKDOWNS: Record<string, Fn> = {
+  // Standing with a market's shippers (standing.ts): the scorecard's window, what it counts and what it nets.
+  "shipper.standing": (w, c, ctx) => {
+    const card = ctx.hub !== undefined ? standingCard(w, c, ctx.hub) : null;
+    if (!card) return null;
+    const h = w.cfg.standing.hits;
+    const n = (x: number) => (Number.isInteger(x) ? String(x) : x.toFixed(1));
+    const rows: Row[] = [
+      { label: "Loads delivered", value: String(card.loads) },
+      { label: "On contract (count double)", value: String(card.contractLoads) },
+      { label: "On time", value: card.onTimeShare === null ? "—" : pct(card.onTimeShare) },
+    ];
+    if (card.claims) rows.push({ label: `Claims (−${h.claim} each)`, value: String(card.claims) });
+    if (card.noShows) rows.push({ label: `No-shows (−${h.noShow} each)`, value: String(card.noShows) });
+    if (card.releases) rows.push({ label: `Released (−${h.release} each)`, value: String(card.releases) });
+    if (card.late) rows.push({ label: `Late (−${h.late} each)`, value: String(card.late) });
+    if (card.declined) rows.push({ label: `First calls turned down (−${h.declinedFirstCall} each)`, value: String(card.declined) });
+    return { rows, total: { label: `Loads as the tiers count them (tier ${card.tier} of 10)`, value: n(card.score) } };
+  },
   // Client batch W: the windows' figures (the director's explain keys).
   "load.window": (w, _c, ctx) => {
     const l = ctx.loadId !== undefined ? w.loads.get(ctx.loadId) : undefined;

@@ -7,6 +7,7 @@ import { monthlyFactory } from "./dealerships.js";
 import { billPlayerLeases } from "./playerLeases.js";
 import { billRentals } from "./trailers.js";
 import { weeklyContracts } from "./contracts.js";
+import { weeklyStanding } from "./standing.js";
 import { runBoardRound, autoBook } from "./board.js";
 import { clearBuyback } from "./buyback.js";
 import { chargeMinimumRent, monthlyCapacity } from "./capacity.js";
@@ -144,6 +145,7 @@ function endOfDay(w: World, day: number, agents?: DailyAgentHook): void {
     chargeYards(w);
     weeklyLabor(w);
     weeklySafety(w);
+    weeklyStanding(w); // standing.ts: each scorecard's review, before the contract offers read the tiers
     weeklyContracts(w);
     // Each company's spending this week, for the season-close working-capital carryover.
     for (const c of w.companies) {

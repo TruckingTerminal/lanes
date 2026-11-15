@@ -8,7 +8,7 @@ import { GAME_CONFIG, TestGame } from "../src/game.js";
 import { settleHandBids } from "../src/logic.js";
 import { nextAction } from "../src/nextstep.js";
 import { S } from "../src/state.js";
-import { aheadable, agreement, askFigures, askLines, brokerageClosing, claimCause, claimsAt, hubLosses, nowNext, readyAt, spanLabel, whenAt, windowLine, windowStates } from "../src/windowsui.js";
+import { aheadable, agreement, askFigures, askLines, brokerageClosing, claimCause, claimsAt, hubLosses, nowNext, readyAt, spanLabel, spoilAt, whenAt, windowLine, windowStates } from "../src/windowsui.js";
 
 /** Client batch W: the delivery windows' screens (director-windows-screens-2026-11-13.md), on a world with windows on. */
 const WIN = { ...GAME_CONFIG, windows: { ...GAME_CONFIG.windows, enabled: true } };
@@ -51,8 +51,11 @@ describe("client batch W: delivery windows on the page", () => {
     expect(cl.noShowFd).toBeCloseTo(WIN.windows.noShowClaimShare * r.l.bookNow * r.l.miles, 6);
     expect(a.lines[0]).toContain(Math.round(cl.noShowFd).toLocaleString("en-US"));
     expect(a.lines[1]).toContain(Math.round(cl.lateFd).toLocaleString("en-US"));
-    // An idle truck's booking isn't ahead: no release line; the projection's slack is canMake's.
-    expect(a.lines).toHaveLength(3);
+    // An idle truck's booking isn't ahead: no release line; the projection's slack is canMake's. A perishable under
+    // windows.spoilAfterDeadline adds its spoil line (the director's sprint ruling §10).
+    const spoil = spoilAt(w, r.l);
+    expect(a.lines).toHaveLength(spoil === null ? 3 : 4);
+    if (spoil !== null) expect(a.lines[2]).toBe(WINDOWS.agreeSpoil(whenAt(w, spoil, true), Math.round(WIN.commodities.spoilClaimShare * r.l.cargoValue).toLocaleString("en-US")));
     const reach = canMake(w, truck, r.l);
     expect(a.spareMin).toBeCloseTo(r.l.latestDeliveryT! - reach.deliverT, 6);
     expect(a.tight !== null).toBe(a.spareMin! < 240);

@@ -4,7 +4,8 @@ import { depositorValue } from "./finance.js";
 import { companyAccount } from "./ledger.js";
 import { companyWealthFd, gini } from "./econMonth.js";
 import { balanceSinksFd, type DayMetrics } from "./metrics.js";
-import type { BrokerageLog, LaunchRecord } from "./types.js";
+import type { BrokerageLog, LaunchRecord, StandingStats } from "./types.js";
+import { standingOn, standingStats, tierCounts } from "./standing.js";
 import { creditScore } from "./credit.js";
 import { riskStats } from "./purchaseLoans.js";
 import { reserveCapFd, reserveFd, reserveHeldFd } from "./cashReserve.js";
@@ -196,6 +197,12 @@ export interface RunReport {
     factoringBondPaidFd: number;
     uncoveredFd: number;
   };
+  /**
+   * Standing (standing.ts), when on: first calls offered, taken, declined and lost; tier moves and decays; dedicated lanes
+   * offered and running at the end; net-term bills and dock-priority stops; each quarter's tier counts; and at the end the
+   * best tier each operating carrier holds, counts for tiers 1 to 10, one-truck carriers and fleets apart.
+   */
+  standing?: StandingStats & { dedicatedActive: number; bestTier: { oneTruck: number[]; fleet: number[] } };
   /** The Reserve (cashReserve.ts), when on: held at the end in all, what it paid in holding cost and season burns, deposits and withdrawals, and by segment and strategy the mean held, its cap and how many hold any. */
   cashReserve?: { heldEndFd: number; holdingFd: number; burnedFd: number; depositFd: number; withdrawFd: number; byStrategy: Record<string, { companies: number; heldFd: number; capFd: number; holders: number }> };
   /** Staking locks (token.staking.lockDiscounts): locks made by term, what became of them, the discounts given and the slashes burned. */
@@ -961,6 +968,7 @@ export function buildReport(w: World): RunReport {
     emission,
     ratios,
     brokerage,
+    standing: standingOn(w) ? { ...standingStats(w), dedicatedActive: w.contracts.filter((k) => k.dedicated === true && k.status === "active").length, bestTier: tierCounts(w) } : undefined,
     cashReserve,
     wave,
     locks: w.lockStats ? { ...w.lockStats, lockedEndFd: w.companies.reduce((s, c) => s + (c.locks ?? []).filter((l) => l.endDay > (days.at(-1)?.day ?? 0)).reduce((a, l) => a + l.fd, 0), 0) } : undefined,

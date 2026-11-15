@@ -318,6 +318,47 @@ export const economyConfig = {
     closedToBadRating: false,
   },
 
+  // Standing with a shipper (the director's ten tiers, studio/reviews/director-standing-10.md and director-standing-final.md;
+  // the economy's sizes, economy-standing.md; standing.ts). One scorecard per carrier and origin market ("Standing with
+  // Dallas shippers"), from that market's NPC direct and contract loads only (a broker's, a player shipper's or a re-post
+  // build none). Reviewed weekly, one tier at most; decay after `decayWeeks` without a load. Off: no scorecard, no perk,
+  // the board and the docks as before.
+  standing: {
+    enabled: false,
+    windowDays: 180, // the scorecard's trailing window
+    // Loads in the window (each by its miles, min(1, miles / fullLoadMi), so a 50-mile hop counts a tenth: the red team's
+    // S2; a contract load `contractWeight` times that; net of the hits below) and the on-time share (as the game counts it:
+    // by onTimeBy) each tier needs, tiers 1 to 10; 0, none.
+    loadFloors: [0, 1, 2, 3, 5, 7, 10, 14, 20, 30] as const,
+    onTimeFloors: [0, 0, 0.7, 0.7, 0.75, 0.75, 0.8, 0.8, 0.85, 0.9] as const,
+    contractWeight: 2,
+    fullLoadMi: 500,
+    // Fixed hits in the window, in loads: a cargo claim (spoiled or damaged), a no-show and a release two, a late
+    // delivery one; a first call declined or let lapse (from tier 7) `declinedFirstCall` (the specs leave it unsized).
+    hits: { claim: 2, noShow: 2, release: 2, late: 1, declinedFirstCall: 1 },
+    decayWeeks: 8, // this long without a load costs a tier, and again each time after, down to tier 1
+    decayWarnWeeks: 7, // the warning a week before
+    trendReviews: 4, // rising, steady or slipping, from this many reviews
+    // The milestones (the tier each perk opens at) and their sizes.
+    perks: {
+      dockTier: 3,
+      dockMinutes: 30, // off the dwell at each of the market's docks
+      netTier: 5,
+      netDays: 15, // the market's direct paper falls due in this many days (the factor's discount scales with it)
+      firstCallTier: 7,
+      firstCallLifeHours: 24, // only loads with this much life left after the first call's round
+      firstCallReachMi: 150, // a truck within this of the market (and, under windows, one that can make the load)
+      // The most of a market's direct loads posted in a round that go to first call (the red team's S3: the locals-first
+      // hold protects newcomers; the pair reads a newcomer's month and turns this down if it falls). 1: every eligible one.
+      firstCallMaxShare: 1,
+      contractTier: 9, // contract offers at the market go to these carriers first
+      dedicatedTier: 10,
+      // The dedicated-lane offer: a contract on the carrier's busiest lane from the market, with the direct freight's
+      // stake and failure fee (contracts.direct) whether or not direct freight is on. Unsized by the economy: placeholders.
+      dedicated: { loadsPerWeek: 3, termDays: 182, reofferDays: 28 },
+    },
+  },
+
   // Places and commodities (DESIGN-PLACES.md): every load is a commodity between two places,
   // with a delivery appointment; perishables delivered past their spoil time are a total loss.
   commodities: {

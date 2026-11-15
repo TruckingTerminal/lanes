@@ -8,7 +8,7 @@ import { Ledger, companyAccount } from "./ledger.js";
 import { truckCap } from "./staking.js";
 import { newPool } from "./pools.js";
 import { Rng } from "./rng.js";
-import type { BuybackWeek, BrokerageLog, GameEvent, TokenState, Company, Business, DriverClock, EmissionState, Facility, TruckStopSite, FinancePool, FactoringLog, PopulationState, FraudCase, LeaseKind, Listing, Load, ManagerKind, Pool, PoolLine, PurchaseLoan, Receivable, Role, SeasonCloseRecord, Staff, StandingOrder, Trailer, Truck, TruckOrder, Contract, LeaseOffer } from "./types.js";
+import type { BuybackWeek, BrokerageLog, GameEvent, TokenState, Company, Business, DriverClock, EmissionState, Facility, TruckStopSite, FinancePool, FactoringLog, PopulationState, FraudCase, LeaseKind, Listing, Load, ManagerKind, Pool, PoolLine, PurchaseLoan, Receivable, Role, SeasonCloseRecord, Staff, StandingOrder, StandingStats, Trailer, Truck, TruckOrder, Contract, LeaseOffer } from "./types.js";
 import { newEmissionState } from "./emission.js";
 import { fitTrailer, handBack, hook, hookedTrailer, newTrailer } from "./trailers.js";
 import type { AssetSale } from "./assetSales.js";
@@ -173,6 +173,8 @@ export interface World {
   factoringLog?: FactoringLog;
   /** Player brokerages (brokerage.ts), made on first use. */
   brokerageLog?: BrokerageLog;
+  /** Standing (standing.ts): its tallies for the economy's pair, made on first use while standing.enabled. */
+  standingStats?: StandingStats;
   /** R11 and R1 (economy-player34.md stage 2): what loads really clear at, trailing, by lane and trailer and by origin market. */
   /** `ratio`: the table holds ratios to the reference (freight.clearsNear.ratio); absent, rates per mile. */
   clears?: { lane: Record<string, [number, number]>; hub: Record<string, [number, number]>; ratio?: true };

@@ -10,6 +10,8 @@ import { truckSheet, whenAssetsReady } from "./assets.js";
 import { fd, fdFull, hhmm, realUntil, shortDate } from "./format.js";
 import { DELIVERED, FEED, LOADING, MARKET, MONTH, ROUND } from "./copy.js";
 import { iuliiaOnChange, iuliiaSay, iuliiaSayText } from "./iuliia.js";
+import { milestoneAt, standingWords } from "./standingui.js";
+import { STANDING_UX } from "./copy-standing.js";
 import { RULESET, TestGame, type StartKind } from "./game.js";
 import { H } from "./handlers.js";
 import { createMeta, LiveWorld, readMeta, type DbLike, type WorldMeta } from "./live.js";
@@ -131,7 +133,7 @@ function onEvent(s: Session, e: GameEvent): void {
       const load = w.loads.get(e.loadId);
       const winning = e.kind === "won" ? e.rate : e.winningRate;
       iuliiaSay(e.kind === "won" ? "result:won" : e.winningRate === null ? "result:nobody" : "result:lost");
-      S.result = { won: e.kind === "won", from: ends(e.loadId, e.origin, e.dest)[0], to: ends(e.loadId, e.origin, e.dest)[1], rate: e.kind === "won" ? e.rate : mine.rate, winning, be: mine.be, total: e.kind === "won" && load ? e.rate * load.miles : 0, seen: false, winnerId: e.kind === "lostBid" && load && load.carrierId ? load.carrierId : undefined, lost: e.kind === "lostBid" && winning !== null && load ? { loadId: e.loadId, truckId: e.truckId, profitAtWinningFd: profitOver(w, w.trucks[e.truckId - 1], winning, mine.be, load.miles), round: w.round } : undefined, why: e.kind === "lostBid" && load ? lostWhy(w, load, { truckId: e.truckId, rate: mine.rate }) : null };
+      S.result = { won: e.kind === "won", loadId: e.loadId, from: ends(e.loadId, e.origin, e.dest)[0], to: ends(e.loadId, e.origin, e.dest)[1], rate: e.kind === "won" ? e.rate : mine.rate, winning, be: mine.be, total: e.kind === "won" && load ? e.rate * load.miles : 0, seen: false, winnerId: e.kind === "lostBid" && load && load.carrierId ? load.carrierId : undefined, lost: e.kind === "lostBid" && winning !== null && load ? { loadId: e.loadId, truckId: e.truckId, profitAtWinningFd: profitOver(w, w.trucks[e.truckId - 1], winning, mine.be, load.miles), round: w.round } : undefined, why: e.kind === "lostBid" && load ? lostWhy(w, load, { truckId: e.truckId, rate: mine.rate }) : null };
     }
   }
   if (e.kind === "won") {
@@ -186,6 +188,16 @@ function onEvent(s: Session, e: GameEvent): void {
     if (s === S.game && needs) toast(`Truck ${truckNo(e.truckId)} was delivered with no driver. Hire one on the Staff tab or it earns nothing.`, true);
   }
   if (e.kind === "liquidated") push(s, FEED.woundUp, "bad");
+  // Standing (standing.ts): a tier change, a first call, one turned down or lapsed, a decay ahead, the first notice. A
+  // milestone reached is the hero's (HeroMoment.tsx watchTiers), its line with it; the rest are Iuliia's.
+  if (e.kind === "standing") {
+    const byHand = e.what === "declined" && e.loadId !== undefined && S.declinedCalls.delete(e.loadId);
+    const words = standingWords(w, e, byHand);
+    if (words.feed) push(s, words.feed, words.tone);
+    const heroes = e.what === "tier" && e.to !== undefined && e.from !== undefined && e.to > e.from && milestoneAt(w, e.to) !== null;
+    if (s === S.game && !rebuilding && words.iuliia && !heroes) iuliiaSayText(words.iuliia);
+    if (s === S.game && !rebuilding && e.what === "firstCall") toast(STANDING_UX.callToast(w.net.hubs[e.hub]!.name));
+  }
   if (e.kind === "notice") {
     const text = s === S.game ? e.text.replace(/\bTruck (\d+)\b/g, (m, id: string) => (truckNo(Number(id)) ? `Truck ${truckNo(Number(id))}` : m)) : e.text;
     push(s, text, e.tone === "good" ? "good" : e.tone === "bad" ? "bad" : "", e.companyId);

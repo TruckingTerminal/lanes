@@ -84,6 +84,7 @@ export function startLiquidation(w: World, c: Company): void {
     factoringLog(w).liquidations.push({ companyId: c.id, day: dayOf(w.t, w.cfg), ownedTrucks: owned });
   }
   c.liquidatingSince = dayOf(w.t, w.cfg);
+  delete c.standing; // standing.ts: a company's standing with shippers goes with it
   if (reserveOn(w)) emptyReserve(w, c, `liquidation:${c.id}`); // the Reserve is the company's: it goes to its creditors with its cash
   c.suspendedOrders = c.orders;
   c.orders = [];
@@ -225,6 +226,7 @@ export function refile(w: World, c: Company): void {
   c.authority.since = day;
   c.authority.barredUntil = null;
   c.authority.record.push({ day, text: "Filed for new authority." });
+  delete c.standing; // standing.ts (the red team's S7): a new authority starts over with every market's shippers
   c.safety = newSafetyRecord();
   c.policy = { hos: "legal", speed: "legal", maintenance: "full" };
   c.judgmentFd = 0;

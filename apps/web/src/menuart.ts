@@ -99,7 +99,9 @@ export function setKitData(j: KitJson | null): void {
 export const atlasUrl = (image: string): string => ASSETS + image;
 
 /** The painted families that hold a window's base still, in the order looked at. */
-const BASE_FAMILIES = ["truck", "shp", "screens"];
+// UX next-screens §5 step 2 (the art drop of ec56928): the rooms, the lot's end and the report's pictures are looked up
+// by name like the rest; after-dark holds new paintings' own dusk and night cells (<id>-dusk, <id>-night).
+const BASE_FAMILIES = ["truck", "shp", "screens", "rooms", "lot", "report"];
 export type Band = "night" | "dawn" | "morning" | "midday" | "afternoon" | "golden" | "dusk";
 export type SeasonName = "summer" | "autumn" | "winter" | "spring";
 
@@ -135,11 +137,11 @@ export function pickWindow(k: KitJson | null, id: string, band: Band, season: Se
     return { url: atlasUrl(F.image), cell: c, focalX: c.focalX, focalY: c.focalY, avg: c.avg, grade: !(c.atNight && (band === "dusk" || band === "night")), loop: null, key: `${f}:${cellId}` };
   };
   if (band === "night") {
-    const n = inFamily("night", id) ?? BASE_FAMILIES.map((f) => inFamily(f, `${id}-night`)).find((x) => x) ?? null;
+    const n = inFamily("night", id) ?? inFamily("after-dark", `${id}-night`) ?? BASE_FAMILIES.map((f) => inFamily(f, `${id}-night`)).find((x) => x) ?? null;
     if (n) return { ...n, grade: false };
   }
   if (band === "dusk") {
-    const d = inFamily("dusk", id);
+    const d = inFamily("dusk", id) ?? inFamily("after-dark", `${id}-dusk`);
     if (d) return { ...d, grade: false };
   }
   if (season !== "summer") {

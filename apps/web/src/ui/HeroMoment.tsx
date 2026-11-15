@@ -7,6 +7,12 @@ import { FIXES } from "../copy-fixes.js";
 import { fdFull } from "../format.js";
 import { Btn } from "./bits.js";
 import { Window } from "./Window.js";
+import { standingMarkets } from "@lanes/engine";
+import { STANDING, STANDING_UX } from "../copy-standing.js";
+import { milestoneAt, standingShown } from "../standingui.js";
+import { TierBadge } from "./Standing.js";
+import { CityPicture } from "./CityPicture.js";
+import { Iuliia } from "./Walkthrough.js";
 
 /**
  * A hero moment (the menu system §1.3, §2.2): a 16:9 painting over a dimmed screen, only for moments, never a working
@@ -24,6 +30,10 @@ export interface Hero {
    */
   serious?: true;
   action?: { label: string; run: () => void };
+  /** Standing's moments (UX §1.6): the new tier's badge at 128, the market's own city in place of a painting, Iuliia's face. */
+  badge?: { tier: number; band: "approved" | "preferred" | "core" };
+  city?: number;
+  face?: "proud" | "concerned";
 }
 let hero: Hero | null = null;
 export function showHero(h: Hero): void {
@@ -68,6 +78,113 @@ function watchTrucks(): void {
     seen.add(id);
     showHero({ name: "mkt-keys", title: MENUS.heroTruck(truckNo(id)) });
   }
+}
+
+/**
+ * Standing's moments (UX next-screens §1.6), read from the scorecards whenever the page draws:
+ * - a milestone reached is a hero on the painting of what it opens (3 the appointment wall, 5 the bank, 7 the shipper's
+ *   office, 9 a rate confirmation, 10 the market's own city), its badge at 128 and Iuliia's line;
+ * - any other step up is a toast, and a step down a toast with its cause (Iuliia's falling line comes with the engine's
+ *   event, main.tsx);
+ * - one per review: the highest milestone gets the hero, and the review's other changes one toast.
+ * The tiers as first seen in a session play nothing; a milestone reached while away plays once when the Standing screen
+ * opens (checkMissedMoments), from the tiers this browser last saw for this world and company.
+ */
+const MOMENT_PAINTING: Record<number, string> = { 3: "shp-appt-wall", 5: "bank", 7: "shp-office", 9: "brk-ratecon" };
+const tiersSeen = new WeakMap<object, Map<number, number>>();
+type Game = NonNullable<typeof S.game>;
+const seenKey = (g: Game) => `lanes.standing.seen.${g.kind}.${g.w.seed}.${g.player!.id}`;
+function storeSeen(g: Game, now: Map<number, number>): void {
+  try {
+    localStorage.setItem(seenKey(g), JSON.stringify([...now]));
+  } catch {
+    /* a private window: the moments last the sitting */
+  }
+}
+function readSeen(g: Game): Map<number, number> | null {
+  try {
+    const v = localStorage.getItem(seenKey(g));
+    return v ? new Map(JSON.parse(v) as [number, number][]) : null;
+  } catch {
+    return null;
+  }
+}
+const tiersNow = (g: Game): Map<number, number> => new Map(standingMarkets(g.w, g.player!).map((hub) => [hub, g.player!.standing![hub]!.tier]));
+
+function standingHero(g: Game, hub: number, tier: number): void {
+  const w = g.w;
+  const market = w.net.hubs[hub]!.name;
+  const band = tier >= 9 ? "core" : tier >= 5 ? "preferred" : "approved";
+  showHero({
+    name: MOMENT_PAINTING[tier] ?? "shp-office",
+    ...(tier === 10 ? { city: hub } : {}),
+    title: STANDING_UX.heroPaper(market, STANDING.band[band], tier),
+    line: STANDING.iuliiaMilestone(market, tier) ?? undefined,
+    badge: { tier, band },
+    face: "proud",
+    action: {
+      label: STANDING_UX.heroLadder,
+      run: () => {
+        S.ladder = hub;
+        setTab("standing");
+      },
+    },
+  });
+}
+
+/** The moments between two readings of the tiers; `downs` false for a check after time away (rises only). */
+function tierMoments(g: Game, before: Map<number, number>, now: Map<number, number>, downs: boolean): void {
+  const w = g.w;
+  const ups: { hub: number; tier: number }[] = [];
+  const falls: { hub: number; tier: number }[] = [];
+  for (const [hub, tier] of now) {
+    const was = before.get(hub) ?? 1;
+    if (tier > was) ups.push({ hub, tier });
+    else if (tier < was) falls.push({ hub, tier });
+  }
+  for (const [hub, was] of before) if (!now.has(hub) && was > 1) falls.push({ hub, tier: 1 });
+  const hero = ups.filter((u) => milestoneAt(w, u.tier) !== null).sort((a, b) => b.tier - a.tier || a.hub - b.hub)[0];
+  if (hero) standingHero(g, hero.hub, hero.tier);
+  const rest = [...ups.filter((u) => u !== hero), ...(downs ? falls : [])];
+  if (rest.length === 0) return;
+  if (rest.length > 1 || hero) {
+    if (rest.length > 1) toast(STANDING_UX.moved(rest.length + (hero ? 1 : 0)));
+    else toast(stepWords(g, rest[0]!, before));
+    return;
+  }
+  toast(stepWords(g, rest[0]!, before));
+}
+function stepWords(g: Game, x: { hub: number; tier: number }, before: Map<number, number>): string {
+  const market = g.w.net.hubs[x.hub]!.name;
+  if (x.tier > (before.get(x.hub) ?? 1)) return STANDING_UX.stepUp(market, x.tier);
+  const cause = g.player!.standing?.[x.hub]?.log.at(-1)?.cause ?? "aged";
+  return STANDING_UX.stepDown(market, x.tier, STANDING.cause[cause]);
+}
+
+function watchTiers(): void {
+  const g = S.game;
+  const c = g?.player;
+  if (!g || !c || !standingShown(g.w, c)) return;
+  const now = tiersNow(g);
+  const seen = tiersSeen.get(g);
+  tiersSeen.set(g, now);
+  if (!seen) return;
+  let changed = now.size !== seen.size;
+  for (const [hub, tier] of now) if (seen.get(hub) !== tier) changed = true;
+  if (!changed) return;
+  tierMoments(g, seen, now, true);
+  storeSeen(g, now);
+}
+
+/** §1.6: a milestone reached while away plays once, when the player opens Standing (never on the title or first screen). */
+export function checkMissedMoments(): void {
+  const g = S.game;
+  const c = g?.player;
+  if (!g || !c || !standingShown(g.w, c)) return;
+  const now = tiersNow(g);
+  const before = readSeen(g);
+  if (before) tierMoments(g, before, now, false);
+  storeSeen(g, now);
 }
 
 /**
@@ -136,6 +253,7 @@ export function HeroMoment(): JSX.Element | null {
   useData();
   watchStage();
   watchTrucks();
+  watchTiers();
   watchHires();
   watchLoans();
   if (!hero) return null;
@@ -143,9 +261,25 @@ export function HeroMoment(): JSX.Element | null {
   return (
     <div class={h.serious ? "heroscrim serious" : "heroscrim"} role="dialog" aria-label={h.title} onClick={dismiss}>
       <div class="herocard" onClick={(ev) => ev.stopPropagation()}>
-        <Window key={h.name} name={h.name} fallback="yard" class="hero" still={h.serious === true} />
+        {h.city !== undefined ? <CityPicture hub={h.city} /> : <Window key={h.name} name={h.name} fallback="yard" class="hero" still={h.serious === true} />}
+        {h.badge ? (
+          <div class="herobadge">
+            <TierBadge tier={h.badge.tier} band={h.badge.band} size={128} />
+          </div>
+        ) : null}
         <h2>{h.title}</h2>
-        {h.line ? <p class={h.serious ? "paperline" : "muted"}>{h.line}</p> : null}
+        {h.line ? (
+          h.face ? (
+            <div class="row paperline herosay">
+              <span class="heroface">
+                <Iuliia mood={h.face} size={64} />
+              </span>
+              <p>{h.line}</p>
+            </div>
+          ) : (
+            <p class={h.serious ? "paperline" : "muted"}>{h.line}</p>
+          )
+        ) : null}
         <div class="row">
           <span class="grow" />
           {h.action ? (

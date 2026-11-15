@@ -9,6 +9,7 @@ import { COMMODITIES, dcos, dexp, greatCircleMiles, NO_TERRAIN, routeTerrain, ty
 import { deliveryWait, pickupWait, setSlot } from "./docks.js";
 import { afterBreakdown, claimOn, noShow, onTimeBy, windowsOn } from "./windows.js";
 import { swapAtIdle } from "./dealer.js";
+import { dockPriority, standingDelivered, standingTerms } from "./standing.js";
 import { flatbedDamage, reeferUnit } from "./equipment.js";
 import { winterNow } from "./safety.js";
 import { payLegFuel, roadService, serviceBill } from "./businesses.js";
@@ -124,6 +125,9 @@ export function startLoading(w: World, truck: Truck, load: Load, now: number = w
   truck.targetPlace = load.destPlace;
   truck.remainingMi = load.miles;
   let dwell = w.rng.ops.int(lo, hi);
+  // Standing (standing.ts): a carrier at the dock tier with the market's shippers goes ahead of the queue at its docks.
+  const ahead = dockPriority(w, truck.companyId, load.origin);
+  if (ahead > 0) dwell = Math.max(0, dwell - ahead);
   const ops = w.cfg.equipmentOps;
   if (ops.enabled && load.equipment === "flatbed") dwell += w.rng.ops.int(ops.flatbedSecureMinutes[0], ops.flatbedSecureMinutes[1]); // chains, straps and tarps
   // Delivery windows (windows.ts): at the shipper before the load is ready, the truck waits for it. Dwell, not detention, and
@@ -148,6 +152,9 @@ function startUnloading(w: World, truck: Truck, now: number): void {
   const [lo, hi] = w.cfg.dwell.unloadMinutes;
   const load = truck.loadId !== null ? w.loads.get(truck.loadId) : undefined;
   let dwell = w.rng.ops.int(lo, hi);
+  // Standing: the same at the receiving market's docks.
+  const ahead = load ? dockPriority(w, truck.companyId, load.dest) : 0;
+  if (ahead > 0) dwell = Math.max(0, dwell - ahead);
   const ops = w.cfg.equipmentOps;
   if (load && ops.enabled && load.equipment === "flatbed") dwell += w.rng.ops.int(ops.flatbedUntarpMinutes[0], ops.flatbedUntarpMinutes[1]);
   if (load) {
@@ -739,7 +746,9 @@ function collectUpstream(w: World, load: Load, payee: Company, gross: number, fa
       shipper.loadsThisWeek++;
     }
   } else {
-    bill(w, { payer: 0, faucet: "faucet:npc_shipper", payee, amountFd: gross, ref, leased, truckId, npcKind: npcPayKind(load) });
+    // Standing: the market's paper falls due sooner for a carrier at the net tier there (receivables.ts bill).
+    const termsDays = standingTerms(w, payee, load);
+    bill(w, { payer: 0, faucet: "faucet:npc_shipper", payee, amountFd: gross, ref, leased, truckId, npcKind: npcPayKind(load), ...(termsDays !== undefined ? { termsDays } : {}) });
   }
   return paper;
 }
@@ -786,7 +795,8 @@ function deliver(w: World, truck: Truck, now: number): void {
 
   let costs = payTripCosts(w, truck, ref) + settled;
   // An open deck in the weather (equipmentOps): a damage claim at the receiver.
-  if (cfg.equipmentOps.enabled && load.equipment === "flatbed") costs += flatbedDamage(w, truck, carrier, load);
+  const damage = cfg.equipmentOps.enabled && load.equipment === "flatbed" ? flatbedDamage(w, truck, carrier, load) : 0;
+  costs += damage;
   if (spoiled) {
     const claim = cfg.commodities.spoilClaimShare * load.cargoValue;
     w.ledger.post(w.t, carrierAcct, "sink:cargo_claims", claim, ref);
@@ -836,6 +846,8 @@ function deliver(w: World, truck: Truck, now: number): void {
   const prior = cfg.reputation.priorLoads;
   // Delivery windows: loads booked and never hauled (Company.failed) count as late ones; absent, the same arithmetic.
   carrier.reputation = (carrier.onTime + prior * cfg.reputation.start) / (carrier.delivered + (carrier.failed ?? 0) + prior);
+  // Standing (standing.ts): the market's scorecard, on time as counted above; a spoiled or damaged load is a claim.
+  standingDelivered(w, carrier, load, !late, spoiled || damage > 0);
 
   // Miles (§Points): loaded miles × on-time × margin factor × reputation × truck ladder.
   // Miles are earned on what the haul was worth, own freight included.

@@ -79,8 +79,12 @@ export const S = {
   idleFrom: new Map<number, number>(),
   /** Loads the player bid on or booked by hand, so the Truck card can tell the dispatcher's loads from the player's own. */
   handLoads: new Set<number>(),
+  /** Standing: first calls the player turned down by hand, so the feed says so rather than that the call lapsed. */
+  declinedCalls: new Set<number>(),
   /** Staff the player hired or offered a job by hand, so a hire the page announces is auto-staff's alone (the long runs, 6). */
   handHires: new Set<number>(),
+  /** Standing (UX next-screens §1.2): the market whose ladder sheet is open. */
+  ladder: null as number | null,
   /** Intel (specs/intel-ux.md): the open card, where it was opened from, and the list's filters and sort. */
   /** The board filtered to one poster's loads (Intel's "Their loads on the board"), until cleared. */
   boardPoster: null as number | null,
@@ -132,7 +136,7 @@ export const S = {
   /** The map follows your moving truck until you pan it (S6); "Follow" turns it back on. */
   following: true,
   /** The last round's result for a hand bid, shown on the board until OK or the next bid (S5); `seen` clears the Loads dot. */
-  result: null as null | { won: boolean; from: string; to: string; rate: number; winning: number | null; be: number; total: number; seen: boolean; winnerId?: number; lost?: import("./nextstep.js").LostBid; why?: import("./board.js").LostWhy | null; gone?: string },
+  result: null as null | { won: boolean; from: string; to: string; rate: number; winning: number | null; be: number; total: number; seen: boolean; winnerId?: number; loadId?: number; lost?: import("./nextstep.js").LostBid; why?: import("./board.js").LostWhy | null; gone?: string },
   /** The truck-stop site selected on the map (an id into w.sites), shown on the Business tab. */
   selSite: null as number | null,
   /** The market view's trailer type. */
@@ -173,7 +177,7 @@ export const PER_WORLD = [
   "boardPoster", "boardSortOnce", "waysOut", "milestone", "confirm", "lastAct", "returnCard", "lastReturn", "poachResults",
   "gapSeen", "cashPlan", "cashed", "brokerSwitch", "lastDriver", "listedCrew", "explain", "whatNow", "iuliiaLine", "intel", "homeNow",
   "delivered", "moneyDot", "invoiceLanes", "following", "result", "selSite", "walkView", "okText", "dealerFocus",
-  "handHires",
+  "declinedCalls", "handHires", "ladder",
 ] as const satisfies readonly (keyof typeof S)[];
 export const KEPT_ACROSS_WORLDS = [
   "platform", "live", "test", "game", "screen", "loadShare", "tab", "layout", "sheet", "ratesEq", "guidePage", "savedTest",

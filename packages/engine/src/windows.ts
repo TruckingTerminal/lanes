@@ -37,6 +37,7 @@ import { fmtInt } from "./economics.js";
 import { companyAccount } from "./ledger.js";
 import { driverFatigue } from "./labor.js";
 import { legalDrivingMin, reopenLoad } from "./safety.js";
+import { standingHit } from "./standing.js";
 import { reserveHeldFd } from "./cashReserve.js";
 import { cycleLimitMin, dutyResetAt, legKeyOf } from "./trips.js";
 import type { Company, Facility, Load, Truck } from "./types.js";
@@ -491,6 +492,7 @@ export function releaseLoad(w: World, company: Company, load: Load, breakdown = 
   const early = breakdown || (load.releaseAsk !== undefined && w.t - load.releaseAsk.t <= roundMinutes(w));
   claimOn(w, company, load, early || !urgent(w, load) ? k.cancelClaimShare.early : k.cancelClaimShare.urgent, "cancel");
   markFailed(w, company);
+  standingHit(w, company, load, "release"); // standing.ts: a hit with the market's shippers
   // Finding 1: the same carrier never books it again, so a load's claims can't repeat through rebooking.
   load.releasedBy = [...(load.releasedBy ?? []), company.id];
   const truck = load.truckId !== null ? w.trucks[load.truckId - 1] : undefined;
@@ -513,6 +515,7 @@ export function noShow(w: World, load: Load): void {
   if (carrier) {
     claimOn(w, carrier, load, w.cfg.windows!.noShowClaimShare, "noshow");
     markFailed(w, carrier);
+    standingHit(w, carrier, load, "noShow"); // standing.ts: a hit with the market's shippers
   }
   const truck = load.truckId !== null ? w.trucks[load.truckId - 1] : undefined;
   if (truck && truck.nextLoadId === load.id) delete truck.nextLoadId;

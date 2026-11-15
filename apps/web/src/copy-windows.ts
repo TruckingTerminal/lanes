@@ -24,6 +24,8 @@ export const WINDOWS = withGrammar({
   agreeTitle: "What you're agreeing to",
   agreeNoShow: (by: string, fd: string) => `Pick up by ${by}, or it's a no-show: a ${fd} FD claim and a mark on your record.`,
   agreeLate: (by: string, fd: string) => `Deliver by ${by}, or it's late: a ${fd} FD claim and a mark on your record.`,
+  // A perishable under windows.spoilAfterDeadline (the director's sprint ruling §10): when it's spoiled, and what that costs.
+  agreeSpoil: (at: string, fd: string) => `Past ${at} it's spoiled: no pay, and a ${fd} FD cargo claim.`,
   agreeRelease: (before: string, early: string, urgent: string) => `Release it before ${before}: a ${early} FD claim; after that, ${urgent} FD. Either way, a mark on your record.`,
   agreeReleaseLate: (urgent: string) => `Release it now: a ${urgent} FD claim and a mark on your record.`,
   agreeTruck: (truck: number, free: string, place: string, at: string, pickupT: string, delivers: string, spare: string) =>

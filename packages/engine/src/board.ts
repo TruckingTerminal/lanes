@@ -11,6 +11,7 @@ import { homeEdge, updateHomeCrowding } from "./home.js";
 import { creditDispatch, dispatchProfile, startHomeTime } from "./labor.js";
 import { companyAccount } from "./ledger.js";
 import { bidsFromStandingOrders, boardKey, readyKey, canMakeHot, dockWaitCost, indexOpenLoads, scoreBid, desperation, estimateBreakEven, resting, trackingWouldShow, needsHome, homeward, hardCap, floorRate, lookaheadValue, ordersWaitForHand } from "./standingOrders.js";
+import { firstCallLost, firstCallRound, firstCallTaken } from "./standing.js";
 import { startJob } from "./trips.js";
 import { bookingCapBlock, brokerBooks, contractOn, type BrokerBook } from "./receivables.js";
 import { AHEAD_STATUSES, aiBroker, brokerKey, canMake, dispatchPlan, facilityKey, fallOffLineOn, noteLost, noShow, pickupClosed, planLoads, planMakes, posterKind, readyToday, tally, urgencyStep, urgent, windowsOn } from "./windows.js";
@@ -153,6 +154,7 @@ export function runBoardRound(w: World): RoundResult {
   }
 
   const freight = generateRoundFreight(w);
+  firstCallRound(w, freight.loads); // standing.ts: last round's first calls settle; the market's new direct loads go to its first-call carriers
   // Loads booked at their book-now price since the last round count as cleared, at what they paid.
   cleared += w.booked.n;
   clearedRateSum += w.booked.rateSum;
@@ -206,6 +208,7 @@ function assign(w: World, load: Load, truck: Truck, bid: Bid, byHand = false): v
   load.truckId = truck.id;
   if (windowsOn(w) || fallOffLineOn(w)) load.booked = true; // the red team's bundle pass, finding 4 (giveUp)
   load.clearedRate = bid.rate;
+  if (load.firstCall) firstCallTaken(w, load, bid.companyId); // standing.ts: a first call booked or won by its carrier
   noteClear(w, load, bid.rate); // what loads really clear at (freight.ts clearsNear)
   econCleared(w, load, bid.rate, bid.companyId); // the monthly report's rate index by trailer (econMonth.ts)
   if (cfg.brokerage.enabled) onAssign(w, load, bid.companyId, bid.rate); // player brokerages: the rate flag, a passed load covered
@@ -375,6 +378,7 @@ export function giveUp(w: World, load: Load, noShow = false): void {
   if ((closed || (!windowsOn(w) && fallOffLineOn(w))) && !load.booked && load.brokerId !== null && aiBroker(w, load.brokerId)) tally(w, brokerKey(load.origin), "lost");
   if (closed && load.facilityId !== null) tally(w, facilityKey(load.origin), "lost");
   const unhauled = noShow ? "after its carrier failed to show at the pickup" : closed ? "before its pickup closed" : `in ${rounds} rounds`;
+  if (load.firstCall) firstCallLost(w, load); // standing.ts: lost after its first call was turned down
   load.status = "expired";
   if (w.cfg.brokerage.enabled) onFallOff(w, load);
   if (load.brokerId !== null) {

@@ -8,7 +8,9 @@ import { cls, fdFull, monthName, pct } from "../format.js";
 import { isPhone, me, S, setTab, truckNo } from "../state.js";
 import { Card } from "./bits.js";
 import { Fig } from "./Explain.js";
+import { STANDING } from "../copy-standing.js";
 import { FIXES } from "../copy-fixes.js";
+import { standingMoves } from "../standingui.js";
 
 /** The report's month (client batch 8b item 14): the calendar month of its middle day, where most of its 30 days fall. */
 const midDay = (r: { fromDay: number; closedDay: number }): number => Math.floor((r.fromDay + r.closedDay - 1) / 2);
@@ -114,6 +116,7 @@ export function MonthCard({ r, title, first }: { r: MonthReport; title?: string;
       </table>
       {r.taken > 0 ? <p class="small bad">{PENDING.monthTaken(r.taken, fdFull(r.takenLoansFd))}</p> : null}
       <p class="small muted">{r.loads > 0 ? MONTH.lines(r.loads, pct(r.onTimePct ?? 0), Math.round(r.loadedMi).toLocaleString("en-US"), Math.round(r.allMi).toLocaleString("en-US"), pct(r.allMi > 0 ? r.loadedMi / r.allMi : 0)) : MONTH.noLoads}</p>
+      <StandingMoves r={r} />
       <MonthClaims r={r} />
     </Card>
   );
@@ -135,6 +138,25 @@ function MonthClaims({ r }: { r: MonthReport }): JSX.Element | null {
       {claims.reverse().map((e, i) => (
         <p key={i} class="small">
           {e.loadId !== undefined ? PENDING.newsServiceClaim(e.sub ?? "", String(e.loadId), fdFull(e.fd)) : NEWS.claim(fdFull(e.fd))}
+        </p>
+      ))}
+    </div>
+  );
+}
+
+/** Standing (standing.ts): every tier change in the month, with its cause (the director: the month report lists them). */
+function StandingMoves({ r }: { r: MonthReport }): JSX.Element | null {
+  const g = S.game;
+  if (!g?.player) return null;
+  const day = g.w.cfg.time.gameMinutesPerDay;
+  const moves = standingMoves(g.w, me(), r.fromDay * day, r.closedDay * day);
+  if (moves.length === 0) return null;
+  return (
+    <div class="standingmoves small">
+      <b>{STANDING.reportTitle}</b>
+      {moves.map((m, i) => (
+        <p key={i} class="small">
+          {m}
         </p>
       ))}
     </div>

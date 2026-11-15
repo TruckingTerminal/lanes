@@ -1,4 +1,5 @@
 import { HeroMoment } from "./HeroMoment.js";
+import { LadderSheet, StandingScreen } from "./Standing.js";
 import { ScreenWindow } from "./Window.js";
 import type { JSX } from "preact";
 import { useEffect, useLayoutEffect, useRef } from "preact/hooks";
@@ -43,6 +44,7 @@ const PANELS: Record<Tab, () => JSX.Element> = {
   guide: () => <Guide />,
   company: () => <Company />,
   intel: () => <Intel />,
+  standing: () => <StandingScreen />,
   staff: () => <Staff />,
   market: () => <Dealer />,
   rates: () => <Rates />,
@@ -150,6 +152,7 @@ export function RackBody(): JSX.Element {
       <ExplainSheet />
       <ConfirmSheet />
       <HeroMoment />
+      <LadderSheet />
       <div class="panelbox" ref={box}>
         {/* The menu system §1.3: the screen's window, above everything in its panel. */}
         <ScreenWindow tab={tab} picking={picking} />

@@ -346,6 +346,13 @@ export interface Company {
   localBanUntilDay: number;
   /** Moving average of contract tenders accepted, across contracts (offers go to the reliable). */
   tenderAcceptance: number;
+  /**
+   * Standing with each origin market's shippers (standing.ts), keyed by the market's hub; set only while standing.enabled,
+   * from the company's first load there. Kept at the company: never sold or shared, and gone at a liquidation.
+   */
+  standing?: Record<number, Scorecard>;
+  /** Standing: the first on-time load for a market's shippers was noticed (Iuliia's first line, once). */
+  standingNoticed?: true;
   /** Open claims against this company (theft, unpaid carriers), by the day each expires. */
   claims: { day: number; until: number; kind: "theft" | "unpaid" }[];
   /**
@@ -1005,6 +1012,12 @@ export interface Load {
   releaseAsk?: { truckId: number; fd: number; t: number };
   /** Batch 4: posted for pickup the same day, with windows.sameDayPremium on its reference. */
   sameDay?: true;
+  /**
+   * Standing (standing.ts): a first call, the market's direct load held for one carrier at the first-call tier through the
+   * clearing of `round`, ahead of any locals-first hold (`localUntil`, put back a round later if the call lapses). `state`:
+   * open; taken (booked by the carrier); declined (turned down, or let lapse).
+   */
+  firstCall?: { companyId: number; round: number; localUntil: number; state: "open" | "taken" | "declined" };
 }
 
 /** A contract lane a local shipper gives a carrier: a weekly volume at a fixed rate for a term (contracts.ts). */
@@ -1031,6 +1044,8 @@ export interface Contract {
   status: "offered" | "active" | "ended";
   /** Direct freight (contracts.direct): the performance stake locked against it while it's active. */
   stakeFd: number;
+  /** Standing's dedicated lane (standing.ts, the top tier): the direct freight's stake and failure fee, direct freight on or off. */
+  dedicated?: true;
 }
 
 export interface Bid {
@@ -1430,6 +1445,47 @@ export interface TokenState {
 }
 
 /** What happened, for a player's screen (the engine emits these for every company; a UI filters to its own). */
+/** What moved a standing tier (standing.ts): the month report's cause and Iuliia's line. */
+export type StandingCause = "rise" | "decay" | "aged" | "onTime" | "claim" | "noShow" | "release" | "late" | "declined";
+
+/**
+ * Standing with one origin market's shippers (standing.ts). `days` holds the window's loads by day, oldest first, each
+ * [day, weight, loads, contract loads, delivered, on time, claims, late, no-shows, releases, declined first calls]
+ * (weight: a contract load double, a short hop half; the hits are counted apart and netted at the review).
+ */
+export interface Scorecard {
+  tier: number;
+  days: number[][];
+  /** The last load delivered for the market (game minutes); -1 before the first. */
+  lastLoadT: number;
+  /** The last decay, and the last warning of one (game minutes). */
+  decayedT?: number;
+  warnedT?: number;
+  /** The last reviews' steps (-1, 0 or 1), newest last. */
+  trend: number[];
+  /** The last hit, the cause a fall names. */
+  lastHit?: { t: number; cause: StandingCause };
+  /** Tier changes with their cause, newest last (the window's). */
+  log: { t: number; from: number; to: number; cause: StandingCause }[];
+  /** The game day of the last dedicated-lane offer. */
+  dedicatedDay?: number;
+  /** The lanes of the last loads delivered (laneId × 4 + the trailer's index), oldest first: the dedicated lane's pick. */
+  lanes?: number[];
+  /** First calls offered and taken here (the red team's S4: their own acceptance, apart from the contract tenders'). */
+  calls?: [number, number];
+}
+
+/** Standing's tallies for the economy's pair (World.standingStats, made on first use while standing.enabled). */
+export interface StandingStats {
+  firstCalls: { offered: number; taken: number; declined: number; lost: number };
+  moves: { up: number; down: number; decays: number };
+  dedicatedOffered: number;
+  netBills: number;
+  dockStops: number;
+  /** Each quarter's first review: the best tier each operating carrier holds, counts for tiers 1 to 10, one truck and fleets. */
+  quarters: { day: number; oneTruck: number[]; fleet: number[] }[];
+}
+
 export type GameEvent =
   | { kind: "won"; companyId: number; truckId: number; loadId: number; origin: number; dest: number; miles: number; rate: number; manual: boolean }
   | { kind: "delivered"; companyId: number; truckId: number; loadId: number; origin: number; dest: number; grossFd: number; costFd: number; onTime: boolean }
@@ -1439,4 +1495,9 @@ export type GameEvent =
   | { kind: "liquidated"; companyId: number }
   | { kind: "launched" }
   /** Staff, safety and fraud news for a company's feed. */
-  | { kind: "notice"; companyId: number; topic: "staff" | "safety" | "crash" | "fraud" | "authority" | "contracts" | "board" | "fleet" | "airdrop"; text: string; tone: "good" | "bad" | "info"; truckId?: number };
+  | { kind: "notice"; companyId: number; topic: "staff" | "safety" | "crash" | "fraud" | "authority" | "contracts" | "board" | "fleet" | "airdrop"; text: string; tone: "good" | "bad" | "info"; truckId?: number }
+  /**
+   * Standing (standing.ts), for the page's words: a tier change (`from`, `to`, `cause`); a first call held for the company
+   * (`loadId`, `truckId`), or one it declined or let lapse; a decay a week ahead; the first on-time load noticed.
+   */
+  | { kind: "standing"; companyId: number; hub: number; what: "tier" | "firstCall" | "declined" | "decayAhead" | "noticed"; from?: number; to?: number; cause?: StandingCause; loadId?: number; truckId?: number };

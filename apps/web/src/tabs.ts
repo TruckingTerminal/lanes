@@ -15,7 +15,7 @@ import { skippedSteps, stepScope, walkSteps } from "./walkthrough.js";
  * Money · More. More lists Iuliia, Help and Company, then the teasers: each a tab that opens on its trigger and
  * until then shows a card saying what it is and when it opens.
  */
-export const TAB_IDS = ["fleet", "loads", "money", "more", "iuliia", "guide", "company", "intel", "staff", "market", "rates", "logbook", "finance", "economy", "business", "backlot", "brokerage", "book", "carriers"] as const;
+export const TAB_IDS = ["fleet", "loads", "money", "more", "iuliia", "guide", "company", "intel", "standing", "staff", "market", "rates", "logbook", "finance", "economy", "business", "backlot", "brokerage", "book", "carriers"] as const;
 export type Tab = (typeof TAB_IDS)[number];
 
 export interface Teaser {
@@ -97,6 +97,8 @@ export const TABS: readonly TabDef[] = [
   { id: "guide", label: "Help", icon: "book" },
   { id: "company", label: "Company", icon: "building" },
   { id: "intel", label: "Intel", icon: "people" },
+  // Standing with shippers (UX next-screens §1.3): under More, shown from the first on-time direct delivery (§1.0).
+  { id: "standing", label: "Standing", icon: "standing" },
   {
     id: "staff",
     label: "Staff",
@@ -217,7 +219,7 @@ export const NAV: readonly Tab[] = ["fleet", "loads", "money", "more"];
 /** The brokerage's four (specs/brokerage-ux.md section 2): the same places as the carrier's, so the thumb learns one bar. */
 export const BROKER_NAV: readonly Tab[] = ["book", "carriers", "money", "more"];
 /** Under More, before the teasers. */
-export const MORE: readonly Tab[] = ["iuliia", "guide", "company", "intel"];
+export const MORE: readonly Tab[] = ["iuliia", "guide", "company", "intel", "standing"];
 
 /** A tab's label for this company: "Truck" reads "Trucks" from the second truck. */
 export function tabLabel(id: Tab, w: World | null, c: Company | null): string {

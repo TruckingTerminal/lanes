@@ -277,6 +277,8 @@ export function passTender(w: World, carrier: Company, load: Load, atWindowEnd =
   const b = partnerOf(w, carrier);
   if (!b || carrier.role !== "carrier") return refuse(w, "the carrier has no brokerage");
   if (load.status !== "open" || load.tenderedTo !== carrier.id || load.contractId === 0 || load.brokerId !== null) return refuse(w, "only a direct contract tender held for you");
+  // Standing's dedicated lane (the red team's S5): its tenders are the carrier's own to haul.
+  if (w.contracts.some((k) => k.id === load.contractId && k.dedicated === true)) return refuse(w, "a dedicated lane's tender is yours to haul");
   if (!atWindowEnd && w.t >= load.tenderUntil) return refuse(w, "the tender's window has closed");
   const contract = w.contracts.find((k) => k.id === load.contractId);
   if (!contract || contract.status !== "active") return refuse(w, "the contract is gone");

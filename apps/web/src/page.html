@@ -524,6 +524,51 @@ html[data-kit] .herocard { image-rendering: pixelated; border-color: transparent
 .chip.muted { color: var(--text-secondary); }
 /* R14: the profit chip is one line at any width; a bid chip beside it moves to the next line instead. */
 .chip.profitchip { white-space: nowrap; }
+/* Standing with a market's shippers (ui/Standing.tsx): the tier badge (the kit's tier piece, the band's plaque with the
+   numeral over it, or a pill), the card's lines, a first call, the perks a load meets, the month report's tier changes. */
+.tierbadge { position: relative; display: inline-flex; align-items: center; justify-content: center; flex: none; }
+.tierbadge .tiernum { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-family: var(--font-mono); font-weight: 700; font-size: 13px; color: var(--text-primary); text-shadow: 0 1px 0 rgba(0, 0, 0, 0.45); }
+.tierbadge.pill { min-width: 28px; height: 28px; padding: 0 6px; border-radius: 14px; border: 1px solid var(--accent); font-family: var(--font-mono); font-weight: 700; }
+.tierbadge.pill[data-band="preferred"] { border-color: var(--accent-success); color: var(--accent-success); }
+.tierbadge.pill[data-band="core"] { border-width: 2px; border-color: var(--accent-warn); color: var(--accent-warn); }
+.standing { gap: 10px; align-items: flex-start; flex-wrap: nowrap; }
+.standing > .stack { min-width: 0; }
+.standing .fig { text-align: left; align-self: flex-start; }
+.standing + .standing { margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--border); }
+.standing.compact strong { font-size: 13px; }
+.standingsheet { gap: 6px; margin-top: 8px; }
+.standingsheet .perkline { color: var(--accent-success); }
+.firstcall { gap: 8px; align-items: center; padding: 6px 8px; border: 1px solid var(--accent-success); border-radius: var(--radius); }
+.firstcall p { margin: 0; }
+.chip.firstcallchip { color: var(--accent-success); }
+.standingcard .linkish { background: none; border: 0; padding: 6px 0; min-height: 44px; color: var(--accent); font: inherit; cursor: pointer; text-decoration: underline; }
+.standingmoves { margin-top: 6px; }
+/* UX next-screens part 1 (ui/Standing.tsx): the placeholder badge's dots, the card's next block, the ladder, the first-call
+   card, the moment's badge and Iuliia's face. No motion on any of it (rule 4.4). */
+.tierdots { display: flex; gap: 3px; justify-content: center; margin-top: 2px; }
+.tierdots i { width: 4px; height: 4px; border-radius: 2px; background: var(--text-secondary); opacity: 0.45; }
+.tierdots i.lit { background: var(--sun, #e0a83a); opacity: 1; }
+.standingcard { cursor: pointer; }
+.standingnext { gap: 2px; margin-top: 6px; }
+.standingnext .row { gap: 6px; align-items: center; }
+.standingrecord { margin: 6px 0 0; }
+.standingline { gap: 6px; align-items: center; }
+.standinglink { background: none; border: 0; padding: 6px 0; min-height: 44px; color: var(--accent); font: inherit; cursor: pointer; text-decoration: underline; }
+.laddersheet { max-height: 90vh; overflow-y: auto; width: min(480px, 100%); }
+.laddersheet .window.ladderwin { height: 72px; }
+.ladderrow { display: flex; align-items: center; gap: 8px; min-height: 48px; padding: 0 8px; border-left: 3px solid transparent; color: var(--text-secondary); }
+.ladderrow .tiernum { width: 2ch; text-align: right; font-family: var(--font-mono); }
+.ladderrow.reached, .ladderrow.you { color: var(--text-primary); }
+.ladderrow.reached[data-band="approved"], .ladderrow.you[data-band="approved"] { border-left-color: var(--text-secondary); }
+.ladderrow.reached[data-band="preferred"], .ladderrow.you[data-band="preferred"] { border-left-color: var(--accent); }
+.ladderrow.reached[data-band="core"], .ladderrow.you[data-band="core"] { border-left-color: var(--sun, #e0a83a); }
+.ladderrow.you { box-shadow: inset 0 0 0 1px var(--accent); background: var(--bg-input); }
+.ladderrow.next { outline: 1px dashed var(--border); outline-offset: -1px; }
+.firstcallcard { gap: 6px; border-color: var(--accent-success); }
+.herobadge { display: flex; justify-content: center; margin-top: -72px; position: relative; }
+.herosay { gap: 8px; align-items: center; }
+.herosay p { margin: 0; }
+.heroface canvas { width: 32px !important; height: 32px !important; }
 button.badge.authpill { cursor: pointer; }
 /* The player's long runs, item 8: the month's claims by load, under the month card. */
 .monthlist { margin-top: 6px; }
@@ -531,6 +576,7 @@ button.badge.authpill { cursor: pointer; }
 /* A serious sheet (UX next-screens §3.3, the repossession): calm whatever the setting, its facts on paper. */
 .heroscrim.serious, .heroscrim.serious * { animation: none !important; }
 .heroscrim.serious .paperline { margin: 0; padding: 8px 10px; background: var(--paper); color: var(--ink); border-radius: var(--radius); }
+.standingmoves p { margin: 2px 0 0; }
 .bidinput { width: 5.5em; text-align: center; }
 .pinned-bid { border-color: var(--accent); }
 .pinned-bid .loadcard { min-height: 0; }

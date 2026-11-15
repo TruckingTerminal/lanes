@@ -10,6 +10,7 @@ import { weekCosts } from "../../ledger.js";
 import { Fig } from "../Explain.js";
 import { Btn, Card, Kv, Label, Num, Panel } from "../bits.js";
 import { ContractsCard } from "./Contracts.js";
+import { CompanyStandingCard } from "../Standing.js";
 import { CapsLine } from "../Caps.js";
 import { WINDOWS } from "../../copy-windows.js";
 
@@ -51,6 +52,7 @@ export function Company(): JSX.Element {
         </Card>
       ) : null}
       {c ? <RecordCard c={c} /> : null}
+      {c ? <CompanyStandingCard c={c} /> : null}
       {c ? <ContractsCard c={c} /> : null}
       {c ? <HomeAndInsurance c={c} /> : null}
       {/* Every company lives on Intel now (specs/intel-ux.md): by Miles, in counts and bands, never worth. */}

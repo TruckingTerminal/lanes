@@ -431,7 +431,8 @@ export function applyAction(w: World, companyId: number, action: Action): Action
       const load = w.loads.get(action.loadId);
       if (!load || load.status !== "open" || load.tenderedTo !== company.id) return { ok: false, reason: "that tender isn't open to you" };
       const contract = w.contracts.find((k) => k.id === load.contractId);
-      const rate = load.ownTenderRate ?? contract?.ratePerMile; // Rule B: the own brokerage's tender carries its pay
+      // Rule B: the own brokerage's tender carries its pay. Standing's first call (standing.ts) is the board's book-now.
+      const rate = load.ownTenderRate ?? contract?.ratePerMile ?? (load.firstCall?.state === "open" ? load.bookNow : undefined);
       if (rate === undefined) return { ok: false, reason: "that contract is gone" };
       const home = homeBlock(w, company, truck, load); // the director's rules H and C
       if (home) return { ok: false, reason: home };

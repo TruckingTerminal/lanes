@@ -9,6 +9,7 @@ import { laneDestWeights, reloadFactor } from "./freight.js";
 import { dispatchProfile, salesContracts, salesRatePremium } from "./labor.js";
 import { companyAccount } from "./ledger.js";
 import { resting } from "./standingOrders.js";
+import { busiestLane, declineFirstCall, scorecard, standingIndex, standingOn, standingStats } from "./standing.js";
 import { canMake, windowsOn } from "./windows.js";
 import type { Company, Contract, Load, StandingOrder, Truck } from "./types.js";
 import { crewed, hubMiles, placeMiles, type World } from "./world.js";
@@ -62,11 +63,12 @@ export function mayTake(w: World, c: Company, load: Load): boolean {
 }
 
 /** What a local shipper offers per mile on a lane: the market's trailing contract level, like the brokers get. */
-export function contractRate(w: World, origin: number, dest: number, eq: Equipment): number {
+export function contractRate(w: World, origin: number, dest: number, eq: Equipment, memoryFree = false): number {
   const { cfg, net } = w;
   const lane = net.lanesFrom[origin]!.find((l) => l.dest === dest);
   if (!lane) return 0;
-  const idx = w.contractIndex[planIndex(origin, EQUIPMENT.indexOf(eq))];
+  // `memoryFree` (standing's dedicated lane, the red team's S5): the index without the lost-load memory, where it's kept.
+  const idx = (memoryFree && w.contractIndexBase ? w.contractIndexBase : w.contractIndex)[planIndex(origin, EQUIPMENT.indexOf(eq))];
   const level = idx === undefined || Number.isNaN(idx) ? 1 : idx;
   const fsc = fscPerMile(cfg, fuelPrice(w));
   const toll = cfg.roads.tollsInRates ? lane.tollFd / lane.miles : 0;
@@ -140,7 +142,7 @@ export function weeklyContracts(w: World): void {
       if (rated) note(w, carrier.id, `Your ${w.net.hubs[c.origin]!.id}→${w.net.hubs[c.dest]!.id} ${c.equipment} contract ended; the shipper isn't renewing with ${rated}.`, "bad");
       else if (c.acceptance >= k.renewAbove) {
         const rate = contractRate(w, c.origin, c.dest, c.equipment);
-        offer(w, carrier, c.origin, c.dest, c.equipment, c.originPlace, c.destPlace, c.loadsPerWeek, rate);
+        offer(w, carrier, c.origin, c.dest, c.equipment, c.originPlace, c.destPlace, c.loadsPerWeek, rate, c.dedicated === true);
         note(w, carrier.id, `Your ${w.net.hubs[c.origin]!.id}→${w.net.hubs[c.dest]!.id} ${c.equipment} contract ended with ${Math.round(c.acceptance * 100)}% acceptance; the shipper offers a new term at ${rate.toFixed(2)}/mi.`, "good");
       } else note(w, carrier.id, `Your ${w.net.hubs[c.origin]!.id}→${w.net.hubs[c.dest]!.id} ${c.equipment} contract ended; at ${Math.round(c.acceptance * 100)}% acceptance the shipper isn't renewing.`, "bad");
       continue;
@@ -160,8 +162,13 @@ export function weeklyContracts(w: World): void {
 
   // New offers: at each market, shippers pick local carriers in good standing, more of them where trucks pile up.
   const month = Math.floor(((day % cfg.time.daysPerSeason) / cfg.time.daysPerSeason) * 12);
+  // Standing (standing.ts): carriers at the contract tier with a market's shippers are offered its contracts first, local
+  // or not, the higher tier first; the rest as before. Off, nobody.
+  const callers = standingOn(w) ? standingIndex(w, cfg.standing.perks.contractTier) : null;
   for (let m = 0; m < w.net.hubs.length; m++) {
-    const locals = w.companies.filter((c) => c.role === "carrier" && c.authority.status === "active" && c.liquidatingSince === null && isLocal(w, c, m) && activeContracts(w, c.id).length + offeredContracts(w, c.id).length < contractSlots(w, c) && contractRatingBlock(w, c) === null);
+    const top = callers?.get(m);
+    const tierOf = top ? new Map(top.map((x) => [x.c.id, x.tier])) : null;
+    const locals = w.companies.filter((c) => c.role === "carrier" && c.authority.status === "active" && c.liquidatingSince === null && (isLocal(w, c, m) || (tierOf?.has(c.id) === true && c.localBanUntilDay <= day)) && activeContracts(w, c.id).length + offeredContracts(w, c.id).length < contractSlots(w, c) && contractRatingBlock(w, c) === null);
     if (locals.length === 0) continue;
     for (const eq of EQUIPMENT) {
       // Only carriers that run this trailer.
@@ -175,7 +182,7 @@ export function weeklyContracts(w: World): void {
       // Standing: reputation and how they've treated tenders before; a carrier with no contract yet gets a look first; a seeded draw breaks ties.
       const ranked = fit
         .map((c) => ({ c, s: c.reputation * (0.5 + 0.5 * c.tenderAcceptance) * (activeContracts(w, c.id).length === 0 ? k.newcomerBoost : 1) + rng.next() * 0.1 }))
-        .sort((a, b) => b.s - a.s || a.c.id - b.c.id)
+        .sort((a, b) => (tierOf ? (tierOf.get(b.c.id) ?? 0) - (tierOf.get(a.c.id) ?? 0) : 0) || b.s - a.s || a.c.id - b.c.id)
         .slice(0, n);
       const weights = laneDestWeights(cfg, w.net, m, eq);
       const lanes = w.net.lanesFrom[m]!;
@@ -199,9 +206,40 @@ export function weeklyContracts(w: World): void {
       }
     }
   }
+  if (standingOn(w)) dedicatedOffers(w, day);
 }
 
-function offer(w: World, c: Company, origin: number, dest: number, eq: Equipment, originPlace: number, destPlace: number, loadsPerWeek: number, rate: number): Contract {
+/**
+ * Standing's top milestone (standing.ts): a carrier at the dedicated tier with a market's shippers is offered a dedicated
+ * lane there, on the lane its last loads from the market ran most: the market's contract rate, standing's term and
+ * volume (up to what its trucks can haul), and the direct freight's performance stake and failure fee whether or not
+ * direct freight is on. One open at a time a market, offered again after reofferDays. No draws.
+ */
+function dedicatedOffers(w: World, day: number): void {
+  const p = w.cfg.standing.perks;
+  for (const [hub, list] of standingIndex(w, p.dedicatedTier)) {
+    for (const { c } of list) {
+      const s = scorecard(w, c, hub);
+      if (!s || (s.dedicatedDay !== undefined && day - s.dedicatedDay < p.dedicated.reofferDays)) continue;
+      if (w.contracts.some((k) => k.carrierId === c.id && k.dedicated === true && k.origin === hub && (k.status === "active" || k.status === "offered"))) continue;
+      if (activeContracts(w, c.id).length + offeredContracts(w, c.id).length >= contractSlots(w, c) || contractRatingBlock(w, c) !== null) continue;
+      const pick = busiestLane(s);
+      const lane = pick ? w.net.lanesFrom[hub]!.find((l) => l.id === pick.laneId) : undefined;
+      if (!pick || !lane) continue;
+      const eq = pick.equipment;
+      if (!w.trucksByCompany.get(c.id)!.some((t) => t.trailer === eq && t.status !== "retired" && t.status !== "listed")) continue;
+      const room = contractRoom(w, c, eq);
+      if (room < 1) continue;
+      const rate = contractRate(w, hub, lane.dest, eq, true) * (w.cfg.contracts.direct.enabled ? 1 + salesRatePremium(w, c) : 1);
+      if (!(rate > 0)) continue;
+      offer(w, c, hub, lane.dest, eq, PLACE_OF_HUB[hub]!, PLACE_OF_HUB[lane.dest]!, Math.min(p.dedicated.loadsPerWeek, room), rate, true);
+      s.dedicatedDay = day;
+      standingStats(w).dedicatedOffered++;
+    }
+  }
+}
+
+function offer(w: World, c: Company, origin: number, dest: number, eq: Equipment, originPlace: number, destPlace: number, loadsPerWeek: number, rate: number, dedicated = false): Contract {
   const k = w.cfg.contracts;
   const day = today(w);
   const lane = w.net.lanesFrom[origin]!.find((l) => l.dest === dest)!;
@@ -225,9 +263,11 @@ function offer(w: World, c: Company, origin: number, dest: number, eq: Equipment
     cut: false,
     status: "offered",
     stakeFd: 0,
+    ...(dedicated ? { dedicated: true as const } : {}),
   };
   w.contracts.push(contract);
-  note(w, c.id, `${w.net.places[originPlace]!.name} shipper offers a contract: ${w.net.hubs[origin]!.id}→${w.net.hubs[dest]!.id} ${eq}, ${loadsPerWeek} a week at ${rate.toFixed(2)}/mi for ${k.termDays} days.`, "info");
+  if (dedicated) note(w, c.id, `${w.net.hubs[origin]!.name} shippers offer you a dedicated lane: ${w.net.hubs[origin]!.id}→${w.net.hubs[dest]!.id} ${eq}, ${loadsPerWeek} a week at ${rate.toFixed(2)}/mi for ${w.cfg.standing.perks.dedicated.termDays} days, with a performance stake.`, "info");
+  else note(w, c.id, `${w.net.places[originPlace]!.name} shipper offers a contract: ${w.net.hubs[origin]!.id}→${w.net.hubs[dest]!.id} ${eq}, ${loadsPerWeek} a week at ${rate.toFixed(2)}/mi for ${k.termDays} days.`, "info");
   return contract;
 }
 
@@ -247,7 +287,7 @@ export function acceptOffer(w: World, c: Company, contract: Contract): string | 
   if (activeContracts(w, c.id).length >= slots) return w.cfg.contracts.direct.enabled ? `your sales reps carry ${slots} contracts` : `you can hold ${slots} contracts at a time`;
   // Direct freight: a performance stake against the contract, slashed to make the shipper whole when a tender is turned down.
   const d = w.cfg.contracts.direct;
-  if (d.enabled) {
+  if (d.enabled || contract.dedicated) {
     const stake = d.stakeWeeks * weeklyValue(w, contract);
     if (w.ledger.balance(companyAccount(c.id)) < stake) return "not enough FD for the contract's performance stake";
     if (stake > 0.005) w.ledger.post(w.t, companyAccount(c.id), contractStakeAccount(contract.id), stake, `contract:${contract.id}`);
@@ -256,7 +296,7 @@ export function acceptOffer(w: World, c: Company, contract: Contract): string | 
   const day = today(w);
   contract.status = "active";
   contract.startDay = day;
-  contract.endDay = day + w.cfg.contracts.termDays;
+  contract.endDay = day + (contract.dedicated ? w.cfg.standing.perks.dedicated.termDays : w.cfg.contracts.termDays);
   return null;
 }
 
@@ -294,14 +334,15 @@ function record(w: World, c: Contract, accepted: boolean): void {
 /** Tenders nobody accepted in time go to the open board at spot (or, Rule A, to the carrier's brokerage when it passes them). */
 export function expireTenders(w: World): void {
   for (const load of w.loads.values()) {
-    if (load.tenderedTo === 0 || load.status !== "open" || w.t < load.tenderUntil) continue;
+    if (load.tenderedTo === 0 || load.status !== "open" || w.t < load.tenderUntil || load.firstCall?.state === "open") continue; // a first call settles after its clearing (standing.ts)
     // Player brokerages (brokerage.ts): a carrier that passes what its trucks don't take hands a direct tender to its
     // brokerage at the window's end, when the contract pays at least the board's book-now (a load posted under the
     // going rate falls off, and the fall-off charge costs more than the turned-down tender's slash).
     if (load.contractId !== 0 && load.ownTenderRate === undefined) {
       const carrier = w.companies[load.tenderedTo - 1]!;
       const c = carrier.passTenders ? w.contracts.find((k) => k.id === load.contractId) : undefined;
-      if (c && c.ratePerMile >= load.bookNow && partnerOf(w, carrier) && passTender(w, carrier, load, true) === null) continue;
+      // Standing's dedicated lane (the red team's S5) is the carrier's own to haul: never passed to its brokerage.
+      if (c && !c.dedicated && c.ratePerMile >= load.bookNow && partnerOf(w, carrier) && passTender(w, carrier, load, true) === null) continue;
     }
     rejectTender(w, load);
   }
@@ -314,6 +355,10 @@ export function coverPassed(w: World, load: Load, covered: boolean): void {
 }
 
 export function rejectTender(w: World, load: Load): void {
+  if (load.firstCall?.state === "open") {
+    declineFirstCall(w, load); // standing.ts: a first call turned down
+    return;
+  }
   if (load.ownTenderRate !== undefined) {
     // Rule B: the own carrier let its brokerage's tender lapse (or left it); the load is the brokerage's on the board
     // again, at the rate the carrier was offered (QA's S4): posted this round, and the card says so.
@@ -335,7 +380,7 @@ export function rejectTender(w: World, load: Load): void {
     record(w, c, false);
     // Direct freight: the stake makes the shipper whole, what moving it at spot costs over the contract plus a fee.
     const d = w.cfg.contracts.direct;
-    if (d.enabled && c.stakeFd > 0.005) {
+    if ((d.enabled || c.dedicated) && c.stakeFd > 0.005) {
       const owed = (Math.max(0, load.bookNow - c.ratePerMile) + d.failFee * c.ratePerMile) * load.miles;
       const slash = Math.min(owed, w.ledger.balance(contractStakeAccount(c.id)));
       if (slash > 0.005) w.ledger.post(w.t, contractStakeAccount(c.id), "sink:contract_failure", slash, `contract:${c.id}`);
@@ -368,7 +413,8 @@ export function settleTender(w: World, company: Company, load: Load): void {
 export function acceptTender(w: World, company: Company, load: Load, truck: Truck): string | null {
   const c = w.contracts.find((k) => k.id === load.contractId);
   const own = load.ownTenderRate !== undefined; // Rule B: the own brokerage's tender, no contract behind it
-  if ((!c && !own) || load.tenderedTo !== company.id || load.status !== "open") return "that tender isn't open to you";
+  const first = load.firstCall?.state === "open"; // standing.ts: a first call, taken at the board's book-now
+  if ((!c && !own && !first) || load.tenderedTo !== company.id || load.status !== "open") return "that tender isn't open to you";
   if (truck.companyId !== company.id || truck.status !== "idle" || !crewed(truck)) return "the truck isn't idle with a driver";
   if (truck.trailer !== load.equipment) return "wrong trailer";
   // Assignment is the board's job (bookLoad with the contract rate); the caller passes it on.

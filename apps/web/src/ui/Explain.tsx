@@ -4,6 +4,7 @@ import { useRef, useState } from "preact/hooks";
 import { EXPLAIN, EXPLAIN_HEAD, FIGURE_ACT } from "../copy.js";
 import { PENDING_EXPLAIN } from "../copy-pending.js";
 import { WINDOWS_EXPLAIN } from "../copy-windows.js";
+import { STANDING_EXPLAIN } from "../copy-standing.js";
 import { breakdown, type FigureCtx } from "../explain.js";
 import { GAME_CONFIG } from "../game.js";
 import { bumpData, isPhone, S, useData } from "../state.js";
@@ -105,7 +106,7 @@ export function ExplainSheet(): JSX.Element | null {
     return null;
   }
   const c = g.player;
-  const entry = WINDOWS_EXPLAIN[e.key] ?? PENDING_EXPLAIN[e.key] ?? EXPLAIN(GAME_CONFIG)[e.key];
+  const entry = STANDING_EXPLAIN[e.key] ?? WINDOWS_EXPLAIN[e.key] ?? PENDING_EXPLAIN[e.key] ?? EXPLAIN(GAME_CONFIG)[e.key];
   if (!entry) return null;
   const b = c ? breakdown(g.w, c, e.key, e.ctx) : null;
   const other = e.key.endsWith(".other");

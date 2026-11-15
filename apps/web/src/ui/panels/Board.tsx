@@ -23,6 +23,9 @@ import { LoadsTable } from "./Loads.js";
 import { Fig } from "../Explain.js";
 import { PENDING } from "../../copy-pending.js";
 import { WaysOutCard } from "../WaysOut.js";
+import { FirstCallCards, FirstCallLine, SheetStandingLine } from "../Standing.js";
+import { claimCosts, perkChips, wonLine } from "../../standingui.js";
+import { STANDING_UX } from "../../copy-standing.js";
 import { FIXES } from "../../copy-fixes.js";
 
 /**
@@ -118,7 +121,7 @@ export function Loads(): JSX.Element {
   const shown = boardSeen.get(view)!;
   if (!rows.some((r) => shown.has(r.l.id))) for (const r of rows) shown.add(r.l.id);
   const waiting = rows.filter((r) => !shown.has(r.l.id)).length;
-  const sorted = sortRows(rows, sort, firstVisit).filter((r) => r !== pinned && shown.has(r.l.id));
+  const sorted = sortRows(rows, sort, firstVisit).filter((r) => r !== pinned && shown.has(r.l.id) && !(r.l.firstCall?.state === "open" && r.l.firstCall.companyId === me().id));
   const takeable = rows.filter((r) => !r.block).length;
   if (trucks.some((t) => aheadable(w, t))) queueMicrotask(() => iuliiaOnce("win:busy", WINDOWS.iuliiaFirstBusy(truckNo(trucks.find((t) => aheadable(w, t))!.id))));
   const shownSorts: BoardSort[] = windowsOn(w) ? ["pickup", "nearest", "pay", "hot"] : ["nearest", "pay", "hot"];
@@ -132,6 +135,7 @@ export function Loads(): JSX.Element {
       {/* Client batch 8a item 46: a truck with no driver can't book; its board says so first. */}
       {!crewed(truck) ? <p class="bad small">{PENDING.boardNeedsDriver(truckNo(truck.id))}</p> : null}
       <ResultCard onBidAgain={() => setSort("clears")} />
+      <FirstCallCards c={me()} />
       {pinned && pending ? <PinnedBid r={pinned} rate={pending.rate} truck={truck} /> : null}
       {busyFree ? <p class="small">{WINDOWS.boardAhead(truckNo(truck.id), busyFree.label, busyFree.placeName)}</p> : null}
       <div class="boardhead">
@@ -369,6 +373,8 @@ function ResultCard({ onBidAgain }: { onBidAgain?: () => void }): JSX.Element | 
             ? ROUND.lost(res.winning.toFixed(2), res.rate.toFixed(2), res.be.toFixed(2))
             : res.gone ?? ROUND.nobody(res.rate.toFixed(2))}
       </p>
+      {/* UX next-screens §1.4: a WON direct load says what it counts toward, once delivered on time. */}
+      {res.won && res.loadId !== undefined && S.game!.w.loads.get(res.loadId) && wonLine(S.game!.w, me(), S.game!.w.loads.get(res.loadId)!) ? <p class="small">{wonLine(S.game!.w, me(), S.game!.w.loads.get(res.loadId)!)}</p> : null}
       {/* Client batch 8c item 69: what beat it, when a higher bid won or the load went before the round. */}
       {!res.won && res.why ? <p class="small">{PENDING.lostWhy(res.why)}</p> : null}
       {!res.won && res.winnerId ? (
@@ -519,9 +525,12 @@ function LoadSheet({ r, truck }: { r: BoardRow; truck: Truck }): JSX.Element {
   useEffect(() => {
     if (win) iuliiaOnce("win:sheet", WINDOWS.iuliiaFirstSheet);
   }, []);
+  // Standing (UX next-screens §1.4): the claim lines' standing cost and the perks in force on this load.
+  const costs = claimCosts(w, me(), l);
+  const chips = perkChips(w, me(), l);
   const routeRows: [string, string | JSX.Element][] = win
     ? [
-        [WINDOWS.ready, <Fig k="load.window" label={WINDOWS.ready} ctx={fx}>{`${win.ready} · ${op.name}, ${op.state}`}</Fig>],
+        [WINDOWS.ready, <span class="row"><Fig k="load.window" label={WINDOWS.ready} ctx={fx}>{`${win.ready} · ${op.name}, ${op.state}`}</Fig>{chips.dock ? <span class="chip">{STANDING_UX.dockChip}</span> : null}</span>],
         [WINDOWS.pickupBy, win.pickupBy],
         // The menu system §2.5: the dock clock beside the deadline, its hands set to it; amber when it's tight.
         [WINDOWS.deliverBy, <span class="row">{`${win.deliverBy} · ${place(l.destPlace)}`}<DockClock at={l.latestDeliveryT!} tight={!!agree?.tight} size={40} /></span>],
@@ -539,6 +548,7 @@ function LoadSheet({ r, truck }: { r: BoardRow; truck: Truck }): JSX.Element {
         </Btn>
       </div>
       <h3>{BOARD.line1(place(l.originPlace), place(l.destPlace), Math.round(l.miles).toLocaleString("en-US"))}</h3>
+      <FirstCallLine c={me()} l={l} />
       <Card title={LOAD.route}>
         <Kv
           rows={[
@@ -552,9 +562,13 @@ function LoadSheet({ r, truck }: { r: BoardRow; truck: Truck }): JSX.Element {
       {agree ? (
         <Card title={WINDOWS.agreeTitle}>
           <ul class="agree small">
-            {agree.lines.map((line, i) => (
-              <li key={i}>{i < claimKeys.length && !(i === 2 && !aheadable(w, truck)) ? <Fig k={claimKeys[i]!} label={WINDOWS.agreeTitle} ctx={fx}>{line}</Fig> : line}</li>
-            ))}
+            {agree.lines.map((line, i) => {
+              // UX next-screens §1.4: a load that builds standing says what each claim costs there too.
+              // The third line is the release claim only when the truck can book ahead (as its explain key reads).
+              const cost = costs ? (i === 0 ? costs.noShow : i === 1 ? costs.late : i === 2 && aheadable(w, truck) ? costs.release : undefined) : undefined;
+              const said = cost ? line.replace(/\.\s*$/, `${cost}.`) : line;
+              return <li key={i}>{i < claimKeys.length && !(i === 2 && !aheadable(w, truck)) ? <Fig k={claimKeys[i]!} label={WINDOWS.agreeTitle} ctx={fx}>{said}</Fig> : said}</li>;
+            })}
           </ul>
           {agree.tight ? <p class="small warn">{agree.tight}</p> : null}
         </Card>
@@ -577,6 +591,7 @@ function LoadSheet({ r, truck }: { r: BoardRow; truck: Truck }): JSX.Element {
             // Client batch 8e item 76: the lane's own figure, or the market's said as the market's.
             [clearsNearSource(w, l).from === "lane" ? LOAD.clearsNear : PENDING.clearsNearMarket, <Fig k="board.clearsNear" label={LOAD.clearsNear} ctx={fx}>{`${rateShown(l, clearsNear(w, l))}/mi${clearsTiming(w, l)?.clause ?? ""}`}</Fig>],
             [LOAD.ceiling, <Fig k="board.ceiling" label={LOAD.ceiling} ctx={fx}>{`${bidCeiling(l).toFixed(2)}/mi`}</Fig>],
+            ...(chips.net !== null ? ([["", <span class="chip">{STANDING_UX.netChip(chips.net)}</span>]] as [string, JSX.Element][]) : []),
           ]}
         />
       </Card>
@@ -592,6 +607,7 @@ function LoadSheet({ r, truck }: { r: BoardRow; truck: Truck }): JSX.Element {
             [LOAD.vetting, VETTING_NAMES[l.vet].toLowerCase()],
           ]}
         />
+        <SheetStandingLine c={me()} l={l} />
       </Card>
       <details class="fold">
         <summary>{LOAD.more}</summary>

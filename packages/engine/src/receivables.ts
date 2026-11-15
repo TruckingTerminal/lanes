@@ -59,6 +59,11 @@ export interface Bill {
   shipperPaper?: boolean;
   /** An NPC shipper's bill: who posted the load, for the emission cap's tally (emission.ts npcPayKind); spot when unsaid. */
   npcKind?: NpcPayKind;
+  /**
+   * Standing (standing.ts, the net tier): the paper falls due in these days, not token.payment.termsDays, and a factor's
+   * discount on it scales with the shorter wait. Unsaid, the usual terms.
+   */
+  termsDays?: number;
 }
 
 /** The factoring contract (token.payment.factoring.contract) is the rule: payment terms on and the switch on. */
@@ -360,7 +365,10 @@ export function bill(w: World, b: Bill): void {
     return;
   }
   const payee = b.payee;
-  const dueDay = dayOf(w.t, w.cfg) + k.termsDays;
+  const termsDays = b.termsDays !== undefined ? Math.min(b.termsDays, k.termsDays) : k.termsDays;
+  const dueDay = dayOf(w.t, w.cfg) + termsDays;
+  // Standing's net terms: the factor waits that much less for its money, so its discount is that much smaller.
+  const sooner = b.termsDays !== undefined && k.termsDays > 0 ? termsDays / k.termsDays : 1;
   // Player brokerages (brokerage.ts): paper between an owner's own two companies waits net, never factored or quick-paid.
   if (b.payer !== 0 && samePerson(w, b.payer, payee.id)) {
     w.receivables.push({ ...(b.shipperPaper ? { shipperPaper: true } : {}), id: w.nextReceivableId++, payer: b.payer, faucet: b.faucet, payeeId: payee.id, amountFd: b.amountFd, dueDay, holder: payee.id });
@@ -381,7 +389,7 @@ export function bill(w: World, b: Bill): void {
     const bought = b.payer === 0 || (!b.shipperPaper && companyById(w, b.payer).role === "broker");
     const covered = !f.truckIds || b.truckId === undefined || f.truckIds.includes(b.truckId);
     if (bought && covered) {
-      const fee = b.amountFd * f.rate;
+      const fee = b.amountFd * f.rate * sooner;
       w.ledger.post(w.t, b.payer === 0 ? "faucet:npc_factor" : NPC_ADVANCE, companyAccount(payee.id), b.amountFd, b.ref);
       // The discount is a sink that refills the reserve, as the lessor's share does (never a burn).
       w.ledger.post(w.t, companyAccount(payee.id), "sink:factoring_fee", fee, b.ref);
@@ -412,7 +420,7 @@ export function bill(w: World, b: Bill): void {
     const markup = poolsOn(w) ? poolMarkup(w, "factoring") : null;
     // A player's paper is priced by its credit: strong paper at the base, weak paper up to premiumMax over it.
     const rate = b.payer === 0 ? f.discountNpc : f.discountPlayer * (1 + loadCreditPremium(w, b.payer));
-    const discount = b.amountFd * rate * (markup ?? w.cfg.token.pools.factoring.backstopMarkup);
+    const discount = b.amountFd * rate * (markup ?? w.cfg.token.pools.factoring.backstopMarkup) * sooner;
     const advance = b.amountFd - discount;
     if (markup !== null && poolLineCash(w, "factoring") >= advance) {
       w.ledger.post(w.t, poolAccount("factoring"), companyAccount(payee.id), advance, b.ref);

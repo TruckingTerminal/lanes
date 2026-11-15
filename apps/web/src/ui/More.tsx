@@ -4,6 +4,7 @@ import { iconUrl } from "../art.js";
 import { iconPiece, KitIcon } from "./KitIcon.js";
 import { bumpData, openIntel, S, setTab, useData, visited } from "../state.js";
 import { MORE, tabDef, tabOpen, teaserTabs, type Tab } from "../tabs.js";
+import { standingShown } from "../standingui.js";
 import { Btn, Panel } from "./bits.js";
 import { BROKERAGE } from "../copy.js";
 import { PENDING } from "../copy-pending.js";
@@ -41,7 +42,8 @@ export function More(): JSX.Element {
   return (
     <Panel title="More">
       <nav class="morelist" aria-label="More">
-        {MORE.map((id) => row(id))}
+        {/* Standing (UX §1.0): no row, and no teaser, before the first on-time direct delivery. */}
+        {MORE.filter((id) => id !== "standing" || standingShown(g.w, g.player)).map((id) => row(id))}
         {opened.map((t) => row(t.id, isNew(t.id)))}
       </nav>
       {coming.length ? (

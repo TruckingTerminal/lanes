@@ -1,5 +1,7 @@
 import type { JSX } from "preact";
 import { PassToBrokerage } from "./Brokerage.js";
+import { offerTierLine } from "../../standingui.js";
+import { OfferBadge } from "../Standing.js";
 import { activeContracts, crewed, localShare, MANUAL_BID_MAX_DEADHEAD_MI, offeredContracts, placeMiles, type Company, type Contract, type Load } from "@lanes/engine";
 import { COMMODITIES } from "@lanes/data";
 import { cls, dateLabel, fd, hhmm, pct } from "../../format.js";
@@ -91,17 +93,31 @@ export function ContractsCard({ c }: { c: Company }): JSX.Element {
         {offers.length ? (
           <>
             <h3>Offers</h3>
-            {offers.map((k) => (
-              <div class="row" key={k.id} data-need={`offer:${k.id}`}>
-                <span>
-                  {lane(k)} · {k.loadsPerWeek}/wk at <Num>{k.ratePerMile.toFixed(2)}</Num>/mi · expires {dateLabel(k.offerExpiresDay)}
-                </span>
-                <Btn primary onClick={(ev) => confirmAct({ verb: "Sign", item: "this contract", costFd: null, costLine: CONFIRM.contractCost(k.loadsPerWeek, k.ratePerMile.toFixed(2), w.cfg.contracts.termDays), ...contractLines(w.net.places[k.originPlace]!.name, w.net.places[k.destPlace]!.name, k.loadsPerWeek, k.ratePerMile, Math.round(w.cfg.contracts.termDays / 7)), go: `Sign for ${w.cfg.contracts.termDays} days`, run: () => act({ type: "accept_contract", contractId: k.id }, "Contract signed. Tenders start this week") }, ev)}>
-                  Sign
-                </Btn>
-                <Btn onClick={() => act({ type: "decline_contract", contractId: k.id }, "Offer declined")}>Decline</Btn>
-              </div>
-            ))}
+            {offers.map((k) => {
+              // Standing (standing.ts): a dedicated lane runs standing's term; the tier that brought the offer, beside it.
+              const term = k.dedicated ? w.cfg.standing.perks.dedicated.termDays : w.cfg.contracts.termDays;
+              const tier = offerTierLine(w, c, k);
+              return (
+                <div class="row" key={k.id} data-need={`offer:${k.id}`}>
+                  <span>
+                    {lane(k)} · {k.loadsPerWeek}/wk at <Num>{k.ratePerMile.toFixed(2)}</Num>/mi · expires {dateLabel(k.offerExpiresDay)}
+                    {tier ? (
+                      <>
+                        <br />
+                        <span class="row small good">
+                          <OfferBadge hub={k.origin} />
+                          {tier}
+                        </span>
+                      </>
+                    ) : null}
+                  </span>
+                  <Btn primary onClick={(ev) => confirmAct({ verb: "Sign", item: "this contract", costFd: null, costLine: CONFIRM.contractCost(k.loadsPerWeek, k.ratePerMile.toFixed(2), term), ...contractLines(w.net.places[k.originPlace]!.name, w.net.places[k.destPlace]!.name, k.loadsPerWeek, k.ratePerMile, Math.round(term / 7)), go: `Sign for ${term} days`, run: () => act({ type: "accept_contract", contractId: k.id }, "Contract signed. Tenders start this week") }, ev)}>
+                    Sign
+                  </Btn>
+                  <Btn onClick={() => act({ type: "decline_contract", contractId: k.id }, "Offer declined")}>Decline</Btn>
+                </div>
+              );
+            })}
           </>
         ) : null}
         {active.length ? (

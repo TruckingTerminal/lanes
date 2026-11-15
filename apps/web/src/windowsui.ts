@@ -1,5 +1,6 @@
 import { MENUS } from "./copy-menus.js";
 import { AHEAD_STATUSES, canMake, clearsWhen, companyAccount, crewed, hubMiles, dayOf, freeOf, lostShare, memoryLift, npcKey, resting, urgent, whenLabel, windowsOn, type Company, type Free, type Load, type Reach, type Truck, type World } from "@lanes/engine";
+import { COMMODITIES } from "@lanes/data";
 import { WINDOWS } from "./copy-windows.js";
 import { fdFull, hhmm, shortDate } from "./format.js";
 import { deliveryEtaMin, etaMin } from "./rolling.js";
@@ -135,6 +136,12 @@ export const urgentFrom = (w: World, l: Load): number => (l.latestPickupT ?? w.t
  * two prices (only for a booking ahead: the engine releases only those), and the truck's own projection (canMake) with its
  * slack; under four hours of slack, the tight line.
  */
+/** When a perishable spoils under windows.spoilAfterDeadline: its spoil hours past Deliver by; null for freight that keeps, or with the rule off. */
+export function spoilAt(w: World, l: Load): number | null {
+  const h = COMMODITIES[l.commodity]?.spoilHours ?? null;
+  return h !== null && windowsOn(w) && w.cfg.windows.spoilAfterDeadline && l.latestDeliveryT !== undefined ? l.latestDeliveryT + h * 60 : null;
+}
+
 export function agreement(w: World, t: Truck, l: Load, rate: number, truckNo: number): { lines: string[]; tight: string | null; spareMin: number | null } | null {
   if (!windowsOn(w) || l.latestPickupT === undefined || l.latestDeliveryT === undefined) return null;
   const cl = claimsAt(w, l, rate);
@@ -143,6 +150,10 @@ export function agreement(w: World, t: Truck, l: Load, rate: number, truckNo: nu
   // Jan 12 07:00" with no day of its own.
   const at = (x: number) => whenAt(w, x, true);
   const lines = [WINDOWS.agreeNoShow(at(l.latestPickupT), fd(cl.noShowFd)), WINDOWS.agreeLate(at(l.latestDeliveryT), fd(cl.lateFd))];
+  // windows.spoilAfterDeadline (the director's sprint ruling §10): a perishable spoils its hours past Deliver by, read at the
+  // arrival, and the cargo claim is the commodity's share of its value (trips.ts deliver).
+  const spoil = spoilAt(w, l);
+  if (spoil !== null) lines.push(WINDOWS.agreeSpoil(at(spoil), fd(w.cfg.commodities.spoilClaimShare * l.cargoValue)));
   if (aheadable(w, t)) {
     const from = urgentFrom(w, l);
     lines.push(w.t < from ? WINDOWS.agreeRelease(at(from), fd(cl.releaseEarlyFd), fd(cl.releaseUrgentFd)) : WINDOWS.agreeReleaseLate(fd(cl.releaseUrgentFd)));

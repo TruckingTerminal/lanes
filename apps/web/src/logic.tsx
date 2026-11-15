@@ -1,4 +1,7 @@
 import { moving } from "./motion.js";
+import { cardsUx, firstCallsFor, standingShown } from "./standingui.js";
+import { STANDING_UX } from "./copy-standing.js";
+import { hhmm as hhmmOf } from "./format.js";
 import type { ComponentChildren } from "preact";
 import type { Equipment } from "@lanes/config";
 import {
@@ -349,6 +352,12 @@ function needsInView(fleet: boolean): Need[] {
   const w = g.w;
   const out: Need[] = fleet ? safetyNeeds(w, c) : [];
   const here = (place: number) => w.net.places[place]!.name;
+  // Standing (UX next-screens §1.5, §1.3): a first call to answer by its round; a market a week from a decay.
+  if (fleet && standingShown(w, c)) {
+    for (const l of firstCallsFor(w, c))
+      out.push({ key: `firstcall:${l.id}`, text: STANDING_UX.needCall(w.net.hubs[l.origin]!.name, hhmmOf(l.tenderUntil)), tab: "loads", target: `[data-firstcall="${l.id}"]`, button: STANDING_UX.callOpen, icon: "standing" });
+    for (const x of cardsUx(w, c)) if (x.decay) out.push({ key: `standing:decay:${x.hub}`, text: x.decay, tab: "standing", target: ".standingcard", button: STANDING_UX.tab, icon: "standing" });
+  }
   const trucks = fleet ? myTrucks() : [];
   const bal = w.ledger.balance(companyAccount(c.id));
   // Client batch W (the director's §3): a breakdown's ask on a load booked ahead, tier 3, its card on the Truck tab

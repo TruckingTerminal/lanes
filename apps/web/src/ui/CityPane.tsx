@@ -1,4 +1,5 @@
 import type { JSX } from "preact";
+import { CityStandingLine } from "./Standing.js";
 import { useEffect, useRef, useState } from "preact/hooks";
 import type { Equipment } from "@lanes/config";
 import type { Sector } from "@lanes/data";
@@ -110,7 +111,11 @@ export function CityPane(): JSX.Element | null {
             Close
           </Btn>
         </div>
-        <div class="citybody">{tab === "market" ? <MarketTab hub={i} /> : tab === "seasons" ? <SeasonsTab hub={i} /> : <HubLoadsTable hub={i} />}</div>
+        <div class="citybody">
+          {/* UX next-screens §1.3: the player's standing with this market, when it keeps a scorecard on them. */}
+          {tab === "market" ? <CityStandingLine hub={i} /> : null}
+          {tab === "market" ? <MarketTab hub={i} /> : tab === "seasons" ? <SeasonsTab hub={i} /> : <HubLoadsTable hub={i} />}
+        </div>
       </div>
     </div>
   );
