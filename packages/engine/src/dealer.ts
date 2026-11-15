@@ -146,10 +146,13 @@ export function trailerOrdersOf(w: World, companyId: number): TruckOrder[] {
   return w.orders.filter((o) => o.companyId === companyId && o.kind !== "tractor");
 }
 
-/** Records a paid order; supply and payment are the caller's. */
-export function placeOrder(w: World, company: Company, tier: TractorTier, trailer: Equipment, replaceNpcLease: boolean, kind: TruckOrder["kind"] = "rig", days = deliveryDays(w)): TruckOrder {
+/** assets.handOverAtTruck (the director's sprint §6): a bought truck is handed over where it waits (TruckOrder.hub). */
+export const handOverOn = (w: World): boolean => w.cfg.assets.handOverAtTruck === true;
+
+/** Records a paid order; supply and payment are the caller's. `hub`: where the truck waits (the dealer; with handOverAtTruck on). */
+export function placeOrder(w: World, company: Company, tier: TractorTier, trailer: Equipment, replaceNpcLease: boolean, kind: TruckOrder["kind"] = "rig", days = deliveryDays(w), hub = company.homeHub): TruckOrder {
   const day = dayOf(w.t, w.cfg);
-  const order: TruckOrder = { id: w.nextOrderId++, companyId: company.id, kind, tier, trailer, replaceNpcLease, orderedDay: day, dueDay: day + days };
+  const order: TruckOrder = { id: w.nextOrderId++, companyId: company.id, kind, tier, trailer, replaceNpcLease, orderedDay: day, dueDay: day + days, ...(handOverOn(w) && kind !== "trailer" ? { hub } : {}) };
   w.orders.push(order);
   w.metrics.onOrder();
   return order;
@@ -179,7 +182,8 @@ export function deliverOrders(w: World): void {
     }
     const fleet = w.trucksByCompany.get(company.id)!;
     const npc = o.replaceNpcLease ? fleet.find((t) => t.lease === "npc") : undefined;
-    if (npc && npc.status !== "idle") {
+    // §6: the hand-over happens where the truck waits; the leased truck must stand idle there.
+    if (npc && (npc.status !== "idle" || (o.hub !== undefined && npc.hub !== o.hub))) {
       waiting.push(o);
       continue;
     }
@@ -228,7 +232,7 @@ function handOver(w: World, company: Company, o: TruckOrder, npc: Truck | null):
     }
     syncTruck(w, npc);
   }
-  const delivered = npc ?? createTruck(w, company, "owned", o.tier, o.trailer, o.used, company.homeHub, o.kind === "tractor" ? "fit" : "new");
+  const delivered = npc ?? createTruck(w, company, "owned", o.tier, o.trailer, o.used, o.hub ?? company.homeHub, o.kind === "tractor" ? "fit" : "new");
   // The spend-only FD it was paid with is its locked basis (ledger.ts), shared with a rig's own trailer by list price.
   const basis = o.lockedPaidFd ?? 0;
   const tr = w.cfg.assets.enabled && o.kind === "rig" ? hookedTrailer(w, delivered) : null;
@@ -254,7 +258,7 @@ export function swapAtIdle(w: World, truck: Truck): boolean {
   if (!w.cfg.assets.swapAtNextIdle || truck.lease !== "npc" || truck.status !== "idle" || !truck.companyId) return false;
   const day = dayOf(w.t, w.cfg);
   const o = w.orders.find((x) => x.companyId === truck.companyId && x.replaceNpcLease && x.kind !== "trailer" && x.dueDay <= day);
-  if (!o) return false;
+  if (!o || (o.hub !== undefined && truck.hub !== o.hub)) return false; // §6: only where the new truck waits
   if (truck.nextLoadId !== undefined) {
     const next = w.loads.get(truck.nextLoadId);
     if (next && next.equipment !== o.trailer) return false;

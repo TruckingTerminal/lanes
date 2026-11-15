@@ -652,6 +652,13 @@ export const economyConfig = {
     // before a dispatcher or a hand booking takes it), and at the day's close as today if it's idle then. The driver's
     // duty clocks carry over that swap. Off (and absent), only at the day's close (dealer.ts deliverOrders).
     swapAtNextIdle: false,
+    // The director's sprint §6 (the driver moved 143 miles with no run): every bought truck has a place, the dealer at
+    // the company's home hub (the NPC dealer and the used lot) or a player dealership's own hub, and the hand-over happens
+    // there. A leased truck it replaces is turned in there: the lease runs, and its lessor's cut with it, until the leased
+    // truck stands idle at that hub; a truck that adds to the fleet waits there for a driver. Bots and the dispatcher book
+    // a leased truck no new load once its replacement is ready elsewhere, and run it there empty when it's idle; with the
+    // dispatcher off the game never moves it (What now? offers the run). Off: handed over wherever the leased truck is.
+    handOverAtTruck: false,
     // Early delivery for a fee (Jeff's sink; the director's design, studio/reviews/director-early-delivery.md; the
     // economy's sizes, economy-early-delivery.md): a new rig, tractor or trailer on order in the NPC dealer's queue (not the
     // used lot's, not a player dealership's) may have its ready day brought forward, at the order or later, to the

@@ -141,7 +141,7 @@ export function screenWindow(tab: string, w: World | null, openLoad: number | nu
  * choice reads as a place"); null where an answer leads nowhere in particular.
  */
 const ANSWER_TAB: Record<string, string> = {
-  book: "loads", lost: "loads", idle: "loads", stranded: "loads", tender: "company",
+  book: "loads", lost: "loads", idle: "loads", stranded: "loads", tender: "company", handOver: "fleet",
   driver: "staff", parkedCrew: "staff",
   homeDue: "fleet", homeTime: "fleet", atRisk: "fleet", loadRisk: "fleet", waitLong: "fleet", lateNote: "fleet", waitNote: "fleet", nextNote: "fleet", hold: "fleet", sell: "market", lease: "market", ordered: "market",
   cash: "money", collect: "money", cushion: "money", gap: "money", factoringEnds: "money", loanDefault: "money", danger: "money", liquidating: "money",

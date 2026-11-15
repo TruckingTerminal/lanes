@@ -578,7 +578,7 @@ export function applyAction(w: World, companyId: number, action: Action): Action
           if (loan) cancelPurchaseLoan(w, loan);
           return { ok: false, reason: why };
         }
-        const order = placeOrder(w, company, action.tier, action.trailer, replacing, kind, cfg.businesses.kinds.dealership.deliveryDays);
+        const order = placeOrder(w, company, action.tier, action.trailer, replacing, kind, cfg.businesses.kinds.dealership.deliveryDays, b.hub);
         order.lockedPaidFd = lockedPaid;
         if (expediteOn(w)) order.dealershipId = b.id; // assets.expedite: its own stock and week, not the NPC queue
         if (loan) loan.orderId = order.id;

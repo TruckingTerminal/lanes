@@ -31,13 +31,14 @@ import {
   lotDeliveryDays,
 } from "@lanes/engine";
 import { fd, fdFull, pct, shortDate, TIER_NAME, TRAILER_NAME, plural } from "../../format.js";
-import { act, me, myTrucks, order, S, toast } from "../../state.js";
+import { act, me, myTrucks, order, S, toast, truckNo } from "../../state.js";
+import { FIXES } from "../../copy-fixes.js";
 import { iuliiaSay } from "../../iuliia.js";
 import { DEALER } from "../../copy.js";
 import { PENDING_RULES } from "../../copy-pending-rules.js";
 import { buyPlan } from "../../finance.js";
 import { useEffect, useRef, useState } from "preact/hooks";
-import type { Action } from "@lanes/engine";
+import { hubMiles, type Action, type Company, type World } from "@lanes/engine";
 import { Btn, Card, Kv, Num } from "../bits.js";
 import { Rig } from "../Loop.js";
 import { Fig } from "../Explain.js";
@@ -296,6 +297,21 @@ export function Showroom(): JSX.Element {
 /** The used lot's confirm lines with the order's day and, for a starter, the lease's end at the hand-over (client batch 7). */
 const orderLines = (base: Lines, date: string, replacing: boolean, swap = false, n: number | null = null): Lines => ({ ...base, does: `${base.does} ${PENDING.lotOrderNote(date, replacing, swap, n)}` });
 
+/**
+ * assets.handOverAtTruck (the director's sprint §6): where the bought truck waits (a player dealership's hub, the dealer at
+ * home for the NPC dealer and the used lot, a listing's own town) and how far it is from the truck that goes to it (the
+ * leased one it replaces, else the nearest of the company's), for the Confirm; null with the switch off.
+ */
+export function handOverAt(w: World, c: Company, a: Extract<Action, { type: "buy_asset" }> | Extract<Action, { type: "buy_listing" }>): string | null {
+  if (w.cfg.assets.handOverAtTruck !== true) return null;
+  const hub = a.type === "buy_asset" ? (a.dealershipId ? w.businesses[a.dealershipId - 1]?.hub : c.homeHub) : w.trucks[(w.listings.find((l) => l.id === a.listingId)?.truckId ?? 0) - 1]?.hub;
+  if (hub === undefined) return null;
+  const mine = (w.trucksByCompany.get(c.id) ?? []).filter((t) => t.status !== "retired" && t.status !== "listed");
+  const lease = a.type === "buy_asset" && a.replaceNpcLease ? mine.find((t) => t.lease === "npc") : undefined;
+  const from = lease ?? [...mine].sort((x, y) => hubMiles(w, x.hub, hub) - hubMiles(w, y.hub, hub) || x.id - y.id)[0];
+  return from ? FIXES.handOverAt(w.net.hubs[hub]!.name, Math.round(hubMiles(w, from.hub, hub)), truckNo(from.id)) : null;
+}
+
 /** `ordered`: the truck comes on a later day (the dealer's queue or the lot's wait), so it's an order, not a truck owned today. */
 export function Buy({ what, label, verb = "Buy", price, replacing, block, action, ok, lines, when, truck, ordered = false }: { what: string; label?: string; verb?: string; price: number; replacing: boolean; block: string | null; action: Extract<Action, { type: "buy_asset" }> | Extract<Action, { type: "buy_listing" }>; ok: string; lines: Lines; when?: string; truck?: Collateral; ordered?: boolean }): JSX.Element {
   const w = S.game!.w;
@@ -321,8 +337,10 @@ export function Buy({ what, label, verb = "Buy", price, replacing, block, action
   const first = !(myTrucks().some((t) => t.lease === "owned") || ordersOf(w, c.id).length);
   const said = ordered ? (first ? null : "dealer:buyLater") : first ? "dealer:buyFirst" : "dealer:buyLater";
   // R6: every truck bought asks first, on the card: what leaves cash now, what's left, what it is and its one risk.
+  // assets.handOverAtTruck (the director's sprint §6): before buying, where the truck is and how far from yours.
+  const at = handOverAt(w, c, action);
   const ask = (a: typeof action, ev: MouseEvent) =>
-    confirmAct({ verb, item: what, costFd: a.finance ? p.loanNowFd ?? 0 : p.cashNowFd, ...lines, run: () => void go(a) }, ev);
+    confirmAct({ verb, item: what, costFd: a.finance ? p.loanNowFd ?? 0 : p.cashNowFd, ...lines, ...(at ? { does: `${lines.does} ${at}` } : {}), run: () => void go(a) }, ev);
   const go = async (a: typeof action) => {
     const r = await order(a, ok);
     if (!r.ok) return setRefused(r.reason);

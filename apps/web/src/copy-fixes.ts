@@ -57,6 +57,12 @@ export const FIXES = {
   releaseCurrentDoes: (from: string, to: string, truck: number, town: string, sunkMi: string | null) =>
     `${from} → ${to} goes back on the board, and Truck ${truck} stops at ${town}${sunkMi ? `: its ${sunkMi} empty miles so far are sunk` : ""}.`,
   releaseCurrentRisk: "It's also a mark on your record, and you can't book this load again.",
+  // Engineering's placeholders for the writer: the bought truck's hand-over (assets.handOverAtTruck; the director's sprint §6).
+  handOverAt: (town: string, mi: number, truck: number) => (mi < 1 ? `At ${town}, where Truck ${truck} is.` : `At ${town}, ${mi.toLocaleString("en-US")} mi from Truck ${truck}.`),
+  handOverReady: (town: string, mi: string) => `Your new truck is ready at ${town}, ${mi} mi.`,
+  handOverWhy: (truck: number) => `Bring Truck ${truck} to the hand-over: the lease and the lessor's cut run until it's turned in there.`,
+  handOverGo: (fd: string, time: string) => `Go to the hand-over · about ${fd} FD · ${time}`,
+  handOverSent: "On the way to the hand-over",
   // Engineering's placeholders for the writer: the bus home (ruleset 0.25.3, labor.busHome; the director's sprint §9).
   onBus: (day: string) => `on the bus home · home ${day}`,
   awayBus: (who: string, from: string, hours: number, fd: string, day: string) => `No truck for ${who} at ${from}: the bus home, about ${hours} h and ${fd} FD, home ${day}.`,

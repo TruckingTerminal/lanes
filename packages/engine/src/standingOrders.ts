@@ -52,6 +52,17 @@ export function homeBlock(w: World, c: Company, truck: Truck, load: Load): strin
   return null;
 }
 
+/**
+ * assets.handOverAtTruck (the director's sprint §6): the order whose ready truck waits at another hub for this leased
+ * truck to be turned in there, or null. Reads w.orders only (no edge to dealer.ts).
+ */
+export function handOverWaiting(w: World, c: Company, t: Truck): { hub: number; orderId: number } | null {
+  if (t.lease !== "npc") return null;
+  const day = dayOf(w.t, w.cfg);
+  const o = w.orders.find((x) => x.companyId === c.id && x.replaceNpcLease && x.kind !== "trailer" && x.hub !== undefined && x.dueDay <= day);
+  return o && o.hub !== t.hub ? { hub: o.hub!, orderId: o.id } : null;
+}
+
 /** The truck's driver is due home: a send-home order, or the home-time rule's days out are up. */
 export function needsHome(w: World, c: Company, t: Truck): boolean {
   if (!t.driverId) return false;
@@ -178,6 +189,7 @@ export function bidsFromStandingOrders(w: World, company: Company, idx: BoardInd
     if (team.coverage < 1 && rng.next() >= team.coverage) continue;
     const home = homePlan(w, company, truck, plan);
     if (home.none) continue; // labor.dueHomePlan: due, and home: nothing leaves home
+    if (handOverWaiting(w, company, truck)) continue; // §6: its replacement is ready elsewhere; it goes there next
     const goHome = home.homewardOnly;
     const desperate = desperation(w, company, at);
     const candidates: { bid: Bid; profit: number }[] = [];

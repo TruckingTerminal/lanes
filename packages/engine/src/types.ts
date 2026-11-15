@@ -1162,6 +1162,8 @@ export interface TruckOrder {
   trailer: Equipment;
   /** Free-path order: the new truck replaces the NPC lease on delivery. */
   replaceNpcLease: boolean;
+  /** assets.handOverAtTruck (the director's sprint §6): the hub where the truck waits and is handed over; set only with it on. */
+  hub?: number;
   orderedDay: number;
   dueDay: number;
   /** Spend-only FD the order was paid with: the delivered asset's locked basis (ledger.ts). */

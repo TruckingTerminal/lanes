@@ -1,5 +1,5 @@
 import type { EconomyConfig } from "@lanes/config";
-import { cashNowRate, companyAccount, crewed, hubMiles, MANUAL_BID_MAX_DEADHEAD_MI, resting, truckValue, windowsOn, type Company, type Staff, type StandingOrder, type Truck, type World } from "@lanes/engine";
+import { cashNowRate, companyAccount, crewed, handOverWaiting, hubMiles, MANUAL_BID_MAX_DEADHEAD_MI, resting, truckValue, windowsOn, type Company, type Staff, type StandingOrder, type Truck, type World } from "@lanes/engine";
 import { boardRows, clearsNear, profitOver, type BoardRow } from "./board.js";
 import { bestLoad, cushion, debtCountdown, freeTrucks, gapToTruck, nextEvent, nextWeeklyCheckDay, orderedFirstTruck, owed, type NextEvent } from "./figures.js";
 import { truckDayCostFd } from "./logic.js";
@@ -38,6 +38,8 @@ export type NextAction =
   /** `suggest`: the board's suggested bid on it (board.ts suggestBid), null when booking is the call (client batch 4). */
   | { rule: 2; kind: "idle"; truckId: number; loadId: number; profitFd: number; suggest: number | null }
   | { rule: 2; kind: "stranded"; truckId: number; exits: Exit[] }
+  /** assets.handOverAtTruck (the director's sprint §6), the dispatcher off: the leased truck's replacement is ready at `hub`; the run there. */
+  | { rule: 2; kind: "handOver"; truckId: number; hub: number }
   /** A breakdown's ask on a load booked ahead (windows.ts afterBreakdown): release it or keep it, by the pickup. */
   | { rule: 3; kind: "atRisk"; loadId: number; truckId: number; claimFd: number; byMin: number }
   /** Client batch W (the director's §4): a pickup or a delivery at risk, ranked by the claim at stake. */
@@ -190,6 +192,12 @@ export function nextAction(cfg: EconomyConfig, w: World, c: Company, lost?: Lost
     if (hd) {
       dueAtIdle.add(t.id);
       cands.push({ a: { ...hd, rule: 2 }, key: -cost - hd.profitFd / 1e6 });
+      continue;
+    }
+    // §6: with the dispatcher off the game never drives the leased truck to its replacement; What now? offers the run.
+    const ho = c.orders.some((o) => o.kind === "bid") ? null : handOverWaiting(w, c, t);
+    if (ho) {
+      cands.push({ a: { rule: 2, kind: "handOver", truckId: t.id, hub: ho.hub }, key: -cost });
       continue;
     }
     const r = bestLoad(w, c, t);

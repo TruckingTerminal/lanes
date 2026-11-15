@@ -10,9 +10,9 @@ import { rebrokerLoad, vettingBlock } from "./fraud.js";
 import { homeEdge, updateHomeCrowding } from "./home.js";
 import { creditDispatch, dispatchProfile, startHomeTime } from "./labor.js";
 import { companyAccount } from "./ledger.js";
-import { bidsFromStandingOrders, boardKey, readyKey, canMakeHot, dockWaitCost, indexOpenLoads, scoreBid, desperation, estimateBreakEven, resting, trackingWouldShow, needsHome, homePlan, homeward, hardCap, floorRate, lookaheadValue, ordersWaitForHand } from "./standingOrders.js";
+import { bidsFromStandingOrders, boardKey, readyKey, canMakeHot, dockWaitCost, indexOpenLoads, scoreBid, desperation, estimateBreakEven, resting, trackingWouldShow, needsHome, handOverWaiting, homePlan, homeward, hardCap, floorRate, lookaheadValue, ordersWaitForHand } from "./standingOrders.js";
 import { firstCallLost, firstCallRound, firstCallTaken } from "./standing.js";
-import { startJob } from "./trips.js";
+import { startEmptyRun, startJob } from "./trips.js";
 import { bookingCapBlock, brokerBooks, contractOn, type BrokerBook } from "./receivables.js";
 import { AHEAD_STATUSES, aiBroker, brokerKey, canMake, dispatchPlan, facilityKey, fallOffLineOn, noteLost, noShow, pickupClosed, planLoads, planMakes, posterKind, readyToday, tally, urgencyStep, urgent, windowsOn } from "./windows.js";
 import type { Bid, Company, Load, StandingOrder, Truck } from "./types.js";
@@ -328,6 +328,7 @@ export function autoBook(w: World): void {
       const want = order.breakEvenPlusPct * (1 - desperate);
       const home = homePlan(w, company, truck, plan);
       if (home.none) continue; // labor.dueHomePlan: due, and home: nothing leaves home
+      if (handOverWaiting(w, company, truck)) continue; // §6: its replacement is ready elsewhere; it goes there next
       const goHome = home.homewardOnly;
       let best: { load: Load; dh: number; profit: number } | null = null;
       for (const hub of w.net.nearby[at.hub]!) {
@@ -449,6 +450,13 @@ function maybeReposition(w: World, truck: Truck, surplus: Map<string, number>): 
       truck.remainingMi = placeLegMiles(w, truck.place, truck.targetPlace);
       truck.idleRounds = 0;
     }
+    return;
+  }
+  // assets.handOverAtTruck (the director's sprint §6): a leased truck whose replacement is ready elsewhere runs there
+  // empty, for a company whose dispatcher bids (every bot); with the dispatcher off the game never moves it.
+  const ho = handOverWaiting(w, company, truck);
+  if (ho && company.orders.some((o) => o.kind === "bid")) {
+    startEmptyRun(w, truck, ho.hub);
     return;
   }
   const foresight = company.orders.some((o) => o.kind === "reposition" && typeof o.to === "object" && "openLoadsWithinMi" in o.to)

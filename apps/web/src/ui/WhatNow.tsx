@@ -19,6 +19,8 @@ import { kindInView } from "../companies.js";
 import { leaseMinFor } from "../ledger.js";
 import { leasedNo, orderedFirstTruck } from "../figures.js";
 import { WINDOWS } from "../copy-windows.js";
+import { FIXES } from "../copy-fixes.js";
+import { emptyRun } from "../rolling.js";
 import { askFigures, askLines, homeNoDrive, spanLabel, whenAt } from "../windowsui.js";
 
 /**
@@ -276,6 +278,12 @@ function words(a: NextAction): { action: string; reason: string; button: string;
         button: NOW.idleButton,
         go: () => openLoadOf(a.truckId, a.loadId),
       };
+    }
+    case "handOver": {
+      // §6: the run to the hand-over, priced as the engine drives it (rolling.ts emptyRun).
+      const t = w.trucks[a.truckId - 1]!;
+      const run = emptyRun(w, t, t.hub, a.hub);
+      return { action: FIXES.handOverReady(w.net.hubs[a.hub]!.name, run.mi), reason: FIXES.handOverWhy(truckNo(t.id)), button: FIXES.handOverGo(run.fd, run.time), go: () => act({ type: "reposition_truck", truckId: t.id, hubId: w.net.hubs[a.hub]!.id }, FIXES.handOverSent) };
     }
     case "stranded": {
       const t = w.trucks[a.truckId - 1]!;
