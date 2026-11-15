@@ -19,6 +19,7 @@ import { facilitiesOf } from "./demand.js";
 import { isManager } from "./labor.js";
 import type { Company, Logbook, Role } from "./types.js";
 import type { World } from "./world.js";
+import { failuresSince } from "./reputation.js";
 
 type Path = "honest" | "criminal";
 
@@ -58,7 +59,14 @@ export const MILESTONES: Milestone[] = [
     weight: 6,
     roles: ["carrier"],
     text: "100 loads delivered at 95% on time",
-    reached: (w, c, lb) => c.delivered - lb.base.delivered >= need(w, lb, "onTime", 100) && (c.onTime - lb.base.onTime) / (c.delivered - lb.base.delivered) >= 0.95,
+    // logbook.serviceMilestones (the red team's L3): under one deadline the on-time share is automatic, so it reads
+    // service failures instead: no-shows, releases and deliveries past Deliver by (with spoiled and stolen loads) under
+    // 5% of the loads booked since the book opened.
+    reached: (w, c, lb) =>
+      c.delivered - lb.base.delivered >= need(w, lb, "onTime", 100) &&
+      (w.cfg.token.airdrop.logbook.serviceMilestones === true
+        ? ((c.failed ?? 0) - (lb.base.failed ?? 0) + (c.late - (lb.base.late ?? 0))) / (c.delivered - lb.base.delivered + (c.failed ?? 0) - (lb.base.failed ?? 0)) < 0.05
+        : (c.onTime - lb.base.onTime) / (c.delivered - lb.base.delivered) >= 0.95),
   },
   { id: "profit100k", path: "honest", weight: 6, roles: ["carrier", "broker"], text: "100,000 FD of operating profit", reached: (w, c, lb) => operating(w, c) - lb.base.profitFd >= need(w, lb, "profit100k", 100_000) },
   { id: "profit1m", path: "honest", weight: 10, roles: ["carrier", "broker"], text: "1,000,000 FD of operating profit", reached: (w, c, lb) => operating(w, c) - lb.base.profitFd >= need(w, lb, "profit1m", 1_000_000) },
@@ -74,7 +82,9 @@ export const MILESTONES: Milestone[] = [
     text: "a quarter with no at-fault crash and no claim, 25 loads handled",
     reached: (w, c, lb) => {
       const d = day(w);
-      return d - lb.startDay >= QUARTER && lb.handled >= need(w, lb, "cleanQuarter", 25) && !c.safety.crashes.some((k) => k.atFault && d - k.day < QUARTER) && !c.claims.some((k) => d - k.day < QUARTER);
+      // logbook.serviceMilestones (L3): the quarter's windows failures and cargo claims count too, not only fraud claims.
+      const serviceClean = w.cfg.token.airdrop.logbook.serviceMilestones !== true || failuresSince(c, d - QUARTER) === 0;
+      return d - lb.startDay >= QUARTER && lb.handled >= need(w, lb, "cleanQuarter", 25) && !c.safety.crashes.some((k) => k.atFault && d - k.day < QUARTER) && !c.claims.some((k) => d - k.day < QUARTER) && serviceClean;
     },
   },
   { id: "year1", path: "honest", weight: 8, roles: ["carrier", "broker"], text: "a game year on the road, 100 loads handled", reached: (w, _c, lb) => tenure(w, lb, 1, need(w, lb, "year1", 100)) },
@@ -117,7 +127,7 @@ export function openLogbook(w: World, c: Company, allocationFd: number): Logbook
     deadlineDay: d + w.cfg.token.airdrop.logbook.deadlineDays,
     allocationFd,
     done: [],
-    base: { onTime: c.onTime, delivered: c.delivered, profitFd: operating(w, c), ownedTrucks: ownedTrucks(w, c) },
+    base: { onTime: c.onTime, delivered: c.delivered, profitFd: operating(w, c), ownedTrucks: ownedTrucks(w, c), ...(w.cfg.token.airdrop.logbook.serviceMilestones === true ? { failed: c.failed ?? 0, late: c.late } : {}) },
     handled: 0,
     contractsKept: 0,
     hits: 0,

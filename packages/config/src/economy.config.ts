@@ -1422,7 +1422,10 @@ export const economyConfig = {
       // `boost` (Jeff, 2026-10-31: milestones unlock "through achievements, items"): a shop item that brings a milestone
       // forward, bought once per milestone for `share` of the allocation (at least `minFd`, a sink), cutting what the
       // milestone asks (loads, profit, hits...) to `factor` of it.
-      logbook: { enabled: false, atLaunch: 0.01, deadlineDays: 1460, criminalShare: 0.6, paidLocked: false, boost: { enabled: false, share: 0.03, minFd: 1_000, factor: 0.75 } },
+      // serviceMilestones (the red team's L3): "100 loads at 95% on time" reads service failures (no-shows, releases,
+      // late deliveries, claims) under 5% instead of the on-time share, automatic under one deadline; and "a clean
+      // quarter" counts those failures too, not only fraud claims (logbook.ts). Off: as before.
+      logbook: { enabled: false, atLaunch: 0.01, deadlineDays: 1460, criminalShare: 0.6, paidLocked: false, boost: { enabled: false, share: 0.03, minFd: 1_000, factor: 0.75 }, serviceMilestones: false },
     },
     // Buying pays 1% in dollars to the treasury; selling pays 5% in FD, burned (the
     // spec's 5% protocol cut on secondary sales, §Two ledgers).
@@ -1747,6 +1750,31 @@ export const economyConfig = {
     priorLoads: 10, // a new company counts as 10 loads at `start`
     maxLevel: 20,
     loadsPerLevelSq: 5, // level = floor(sqrt(delivered / 5))
+    // Reputation in three parts (the director's ruling of 2026-11-14; the economy's sizes, economy-reputation-2026-11-15.md;
+    // the red team's R1–R3; reputation.ts): 1 − safety × s − service × f − experience × e, each part 0 (clean) to 1.
+    // s: (hos + unsafe + maintenance) / safetyPoints + crash / crashPoints, at least `floors` for a conditional rating or
+    // an open alert, 1 when unsatisfactory, and for refileLookbackDays after a refile no less than before it. f: failures
+    // (no-shows, releases, deliveries past "Deliver by", cargo claims) over loads delivered plus priorLoads, both halving
+    // in serviceHalfLifeDays, against serviceWorstShare; kept through a bankruptcy. e: 1 − loads delivered for an NPC
+    // payer (by their miles, a run of fullLoadMi whole; never the company's own freight), halving in
+    // experienceHalfLifeDays, over experienceCap. The page names the failures of the last displayDays. Off: the on-time
+    // rate, as before.
+    threeParts: {
+      enabled: false,
+      safety: 0.132,
+      service: 0.066,
+      experience: 0.055,
+      safetyPoints: 1,
+      crashPoints: 3,
+      floors: { conditional: 0.5, alert: 0.75 },
+      serviceHalfLifeDays: 45,
+      serviceWorstShare: 0.1,
+      experienceHalfLifeDays: 90,
+      experienceCap: 30,
+      fullLoadMi: 500,
+      refileLookbackDays: 365,
+      displayDays: 90,
+    },
   },
 
   // §Circular economy — targets and stabilizers

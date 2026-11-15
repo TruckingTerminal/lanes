@@ -178,6 +178,12 @@ export interface Company {
   freePath: boolean;
   orders: StandingOrder[];
   reputation: number; // 0–1, used in bid scoring
+  /**
+   * reputation.threeParts (reputation.ts): the decayed counters at `day` (x experience, l loads delivered, f service
+   * failures), the dated failures of the last 120 days, and for a year after a refile the safety part it had (R3).
+   * Kept through a bankruptcy and a refile (R2). Also kept for the logbook's service milestones.
+   */
+  rep3?: { day: number; x: number; l: number; f: number; log: { day: number; kind: "late" | "release" | "noShow" | "claim" }[]; priorS?: number; priorUntil?: number };
   delivered: number;
   onTime: number;
   late: number;
@@ -678,7 +684,8 @@ export interface Logbook {
   /** Milestones reached, in order. */
   done: string[];
   /** Where the company stood when it opened: progress counts from here. */
-  base: { onTime: number; delivered: number; profitFd: number; ownedTrucks: number };
+  /** `failed` and `late` (logbook.serviceMilestones, the red team's L3): the service record when the book opened. */
+  base: { onTime: number; delivered: number; profitFd: number; ownedTrucks: number; failed?: number; late?: number };
   /** Counted since it opened: loads handled (delivered, brokered or shipped), contract terms kept, crew hits and rigs, the criminal take, cases gone cold. */
   handled: number;
   contractsKept: number;

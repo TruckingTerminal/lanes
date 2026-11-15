@@ -13,6 +13,7 @@ import { ContractsCard } from "./Contracts.js";
 import { CompanyStandingCard } from "../Standing.js";
 import { CapsLine } from "../Caps.js";
 import { WINDOWS } from "../../copy-windows.js";
+import { reputationLine } from "../../reputationui.js";
 
 const crowdWord = (r: number): string => (r >= 1.5 ? "crowded" : r >= 1.1 ? "busy" : r >= 0.75 ? "fair share" : "wide open");
 
@@ -42,6 +43,8 @@ export function Company(): JSX.Element {
               ["Home hub", w.net.hubs[c.homeHub]!.name],
               ["Loads delivered", <Fig k="standing.onTime" label="On time"><Num>{Math.round(c.delivered)} · {c.delivered ? pct(c.onTime / c.delivered) : "–"} on time</Num></Fig>],
               ["Reputation", <Fig k="standing.reputation" label="Reputation"><Num>{pct(c.reputation)} · level {level}</Num></Fig>],
+              // reputation.threeParts: its three parts in the writer's one-line form.
+              ...(reputationLine(w, c) ? ([["", <span class="muted small">{reputationLine(w, c)}</span>]] as [string, JSX.Element][]) : []),
               // Client batch X (QA's 0.25.0 replay, fail 6): what counts against it, by kind (Company.failed: a release or a no-show).
               ...(windowsOn(w) || c.delivered > c.onTime ? ([[WINDOWS.recordLabel, <Num>{WINDOWS.recordMarks(Math.round(c.delivered - c.onTime), c.failed ?? 0)}</Num>]] as [string, JSX.Element][]) : []),
               ["Miles", <Fig k="standing.miles" label="Miles"><Num>{fd(miles(c))} · #{rankMiles} of {carriers.length} carriers</Num></Fig>],

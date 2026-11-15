@@ -18,6 +18,7 @@ import type { Basic, Company, CrashSeverity, Load, Truck } from "./types.js";
 import { condition } from "./wear.js";
 import { payTripCosts } from "./trips.js";
 import { companyById, detachTruck, hubRoute, staffById, syncFleet, type World, placeRoute } from "./world.js";
+import { setThreeParts, threePartsOn } from "./reputation.js";
 
 /**
  * Safety and compliance (design proposal, Jeff 2026-10-28). Owners pick how legal
@@ -653,6 +654,7 @@ export function weeklySafety(w: World): void {
     s.hidden = s.hidden.filter((h) => h.day > day - 365);
     s.measures = measures(w, c);
     s.alerts = (Object.keys(s.measures) as Basic[]).filter((b) => s.measures[b] >= score.thresholds[b]);
+    if (threePartsOn(w)) setThreeParts(w, c); // reputation.threeParts: the record as of this week, the parts aged
 
     const age = day - c.authority.since;
     // Alerts call in an auditor at most twice a year.

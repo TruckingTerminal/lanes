@@ -652,7 +652,8 @@ export function formCompany(w: World, c: NewCompany): Company {
     human: c.human ?? false,
     freePath: c.freePath,
     orders: c.orders,
-    reputation: w.cfg.reputation.start,
+    // reputation.threeParts: a new company starts with no experience (1 − the experience part's weight), else at `start`.
+    reputation: w.cfg.reputation.threeParts?.enabled === true ? 1 - w.cfg.reputation.threeParts.experience : w.cfg.reputation.start,
     delivered: 0,
     onTime: 0,
     late: 0,

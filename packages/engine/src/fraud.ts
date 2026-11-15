@@ -9,6 +9,7 @@ import { abandonLeg, legKeyOf } from "./trips.js";
 import type { Company, FraudCase, Load, Truck } from "./types.js";
 import { companyById, staffById, type World } from "./world.js";
 import { chargeSettlement } from "./settlement.js";
+import { repFailed } from "./reputation.js";
 
 /**
  * Fraud (design proposal, Jeff 2026-10-28): double brokering and freight theft,
@@ -204,6 +205,7 @@ export function stealLoad(w: World, c: Company, truck: Truck): string | null {
   c.late++;
   const prior = w.cfg.reputation.priorLoads;
   c.reputation = (c.onTime + prior * w.cfg.reputation.start) / (c.delivered + (c.failed ?? 0) + prior);
+  repFailed(w, c, "claim"); // reputation.threeParts: the theft's cargo claim, a dated service failure
   const [lo, hi] = t.investigationDays;
   newCase(w, {
     kind: "theft",

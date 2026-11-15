@@ -36,6 +36,8 @@ import { buyPlan } from "./finance.js";
 import { TRAILER_NAME } from "./format.js";
 import { claimsAt, clearsTiming, readyAt, urgentFrom, whenAt } from "./windowsui.js";
 import { WINDOWS } from "./copy-windows.js";
+import { reputationRows } from "./reputationui.js";
+import { threePartsOn } from "@lanes/engine";
 
 /**
  * Help on every figure (specs/guidance.md section 2): one table keyed like copy.ts. The writer's what / how / moves are
@@ -393,6 +395,8 @@ const BREAKDOWNS: Record<string, Fn> = {
   "standing.onTime": (_w, c) => ({ rows: [{ label: "Loads on time", value: String(c.onTime) }, { label: "Loads delivered", value: String(c.delivered) }], total: { label: "On time", value: c.delivered ? pct(c.onTime / c.delivered) : "—" } }),
   "standing.reputation": (w, c) => {
     const k = w.cfg.reputation;
+    // reputation.threeParts: the three parts, each with what it takes off.
+    if (threePartsOn(w)) return { rows: reputationRows(w, c), total: { label: "Reputation", value: pct(c.reputation) } };
     return {
       rows: [
         { label: "Loads on time", value: String(c.onTime) },

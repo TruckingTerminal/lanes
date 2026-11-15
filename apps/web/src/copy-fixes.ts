@@ -74,6 +74,23 @@ export const FIXES = {
   handOverWhy: (truck: number) => `Bring Truck ${truck} to the hand-over: the lease and the lessor's cut run until it's turned in there.`,
   handOverGo: (fd: string, time: string) => `Go to the hand-over · about ${fd} FD · ${time}`,
   handOverSent: "On the way to the hand-over",
+  // Engineering's placeholders for the writer: reputation in three parts (reputation.threeParts; the writer's drafts in
+  // writer-sprint-2026-11-15.md §1, the director's display). The order of failures is fixed; only the non-zero are named.
+  repLine: (rep: string, safety: string, service: string, experience: string) => `Reputation ${rep}: ${safety} · ${service} · ${experience}`,
+  repSafetyClean: "safety record clean",
+  repRated: (rating: string) => `rated ${rating}`,
+  repAlert: (basic: string) => `an alert in ${basic}`,
+  repRecord: (violations: number, crashes: number) =>
+    [violations ? `${violations === 1 ? "1 violation" : `${violations} violations`}` : "", crashes ? (crashes === 1 ? "a crash" : `${crashes} crashes`) : ""].filter(Boolean).join(" and ") + " in two years",
+  repService: (late: number, releases: number, noShows: number, claims: number, days: number) => {
+    const parts = [late ? (late === 1 ? "1 late delivery" : `${late} late deliveries`) : "", releases ? (releases === 1 ? "1 release" : `${releases} releases`) : "", noShows ? (noShows === 1 ? "a no-show" : `${noShows} no-shows`) : "", claims ? (claims === 1 ? "a claim" : `${claims} claims`) : ""].filter(Boolean);
+    const said = parts.length <= 1 ? parts.join("") : `${parts.slice(0, -1).join(", ")} and ${parts.at(-1)}`;
+    return parts.length ? `${said} in ${days} days` : `no failures in ${days} days`;
+  },
+  repExperience: (loads: number, cap: number) => (loads >= cap ? `${cap}+ loads delivered: full experience` : `${loads} ${loads === 1 ? "load" : "loads"} delivered`),
+  repPartSafety: (words: string) => `Safety record: ${words}`,
+  repPartService: (words: string) => `Service: ${words}`,
+  repPartExperience: (words: string) => `Experience: ${words}`,
   // Engineering's placeholders for the writer: the bus home (ruleset 0.25.3, labor.busHome; the director's sprint §9).
   onBus: (day: string) => `on the bus home · home ${day}`,
   awayBus: (who: string, from: string, hours: number, fd: string, day: string) => `No truck for ${who} at ${from}: the bus home, about ${hours} h and ${fd} FD, home ${day}.`,

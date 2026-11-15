@@ -28,6 +28,7 @@ import { closeDutyDay, drivingLimitMin, legalDrivingMin, mphFor, safetyTick } fr
 import type { Company, Load, Receivable, Truck } from "./types.js";
 import { breakdownsPer1000Mi } from "./wear.js";
 import { companyById, crewed, hubRoute, type World, placeHours, placeLegMiles, placeMiles, placeOfHub, placeRoute } from "./world.js";
+import { repDelivered } from "./reputation.js";
 
 /** Detention (cfg.detention): the hours of a closed-dock wait past the free time, capped per stop, priced. */
 function addDetention(w: World, load: Load, stop: "pickupH" | "deliveryH", waitMin: number): void {
@@ -905,6 +906,9 @@ function deliver(w: World, truck: Truck, now: number): void {
   const prior = cfg.reputation.priorLoads;
   // Delivery windows: loads booked and never hauled (Company.failed) count as late ones; absent, the same arithmetic.
   carrier.reputation = (carrier.onTime + prior * cfg.reputation.start) / (carrier.delivered + (carrier.failed ?? 0) + prior);
+  // reputation.threeParts (reputation.ts): the parts in place of the on-time rate; a delivery past "Deliver by" and a
+  // cargo claim are dated service failures.
+  repDelivered(w, carrier, load, late, spoiled || damage > 0);
   // Standing (standing.ts): the market's scorecard, on time as counted above; a spoiled or damaged load is a claim.
   standingDelivered(w, carrier, load, !late, spoiled || damage > 0, paid);
 

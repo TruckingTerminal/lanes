@@ -4,6 +4,7 @@ import { returnPoolCashToDepositors } from "./finance.js";
 import { companyAccount } from "./ledger.js";
 import type { SeasonCloseRecord } from "./types.js";
 import { payPermits, type World } from "./world.js";
+import { setThreeParts, threePartsOn } from "./reputation.js";
 
 /** The last 30 in-game days of a season: permanent purchases are locked (§Circular economy — season close). */
 export function inCloseWindow(w: World, day = dayOf(w.t, w.cfg)): boolean {
@@ -62,7 +63,9 @@ export function closeSeason(w: World, season: number, day: number): SeasonCloseR
     c.late *= keepRecord;
     if (c.failed !== undefined) c.failed *= keepRecord; // delivery windows: loads booked and never hauled
     const prior = w.cfg.reputation.priorLoads;
-    c.reputation = c.delivered + (c.failed ?? 0) > 0 ? (c.onTime + prior * w.cfg.reputation.start) / (c.delivered + (c.failed ?? 0) + prior) : w.cfg.reputation.start;
+    // reputation.threeParts: the parts age on their own (reputation.ts); the record above still sets the Miles level.
+    if (threePartsOn(w)) setThreeParts(w, c);
+    else c.reputation = c.delivered + (c.failed ?? 0) > 0 ? (c.onTime + prior * w.cfg.reputation.start) / (c.delivered + (c.failed ?? 0) + prior) : w.cfg.reputation.start;
 
     c.milesHistory.push(c.milesTotal);
     c.milesTotal = 0;

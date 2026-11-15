@@ -32,6 +32,7 @@ export * from "./season.js";
 export * from "./solvency.js";
 export * from "./standingOrders.js";
 export * from "./standing.js";
+export * from "./reputation.js";
 export * from "./step.js";
 export * from "./token.js";
 export * from "./ceiling.js";

@@ -42,6 +42,7 @@ import { reserveHeldFd } from "./cashReserve.js";
 import { cycleLimitMin, dutyResetAt, legKeyOf, standAtTown } from "./trips.js";
 import type { Company, Facility, Load, Truck } from "./types.js";
 import { companyById, crewed, placeHours, placeLegMiles, placeRoute, type World } from "./world.js";
+import { repFailed } from "./reputation.js";
 
 /** windows.enabled; a config without the key (an older profile) reads as off. */
 export const windowsOn = (w: World): boolean => w.cfg.windows?.enabled === true;
@@ -494,10 +495,11 @@ export function claimOn(w: World, carrier: Company, load: Load, share: number, k
 }
 
 /** A load booked and never hauled marks the carrier's record (Company.failed), as a late delivery does, without counting as delivered. */
-function markFailed(w: World, c: Company): void {
+function markFailed(w: World, c: Company, kind: "release" | "noShow"): void {
   c.failed = (c.failed ?? 0) + 1;
   const prior = w.cfg.reputation.priorLoads;
   c.reputation = (c.onTime + prior * w.cfg.reputation.start) / (c.delivered + c.failed + prior);
+  repFailed(w, c, kind); // reputation.threeParts: a dated service failure, in place of the on-time rate
 }
 
 /**
@@ -523,7 +525,7 @@ export function releaseLoad(w: World, company: Company, load: Load, breakdown = 
   // finding 7: the ask's early share lasts a board round from the ask; after that the usual shares apply.
   const early = breakdown || (load.releaseAsk !== undefined && w.t - load.releaseAsk.t <= roundMinutes(w));
   claimOn(w, company, load, early || !urgent(w, load) ? k.cancelClaimShare.early : k.cancelClaimShare.urgent, "cancel");
-  markFailed(w, company);
+  markFailed(w, company, "release");
   standingHit(w, company, load, "release"); // standing.ts: a hit with the market's shippers
   // Finding 1: the same carrier never books it again, so a load's claims can't repeat through rebooking.
   load.releasedBy = [...(load.releasedBy ?? []), company.id];
@@ -607,7 +609,7 @@ export function noShow(w: World, load: Load): void {
   const carrier = load.carrierId !== null ? companyById(w, load.carrierId) : null;
   if (carrier) {
     claimOn(w, carrier, load, w.cfg.windows!.noShowClaimShare, "noshow");
-    markFailed(w, carrier);
+    markFailed(w, carrier, "noShow");
     standingHit(w, carrier, load, "noShow"); // standing.ts: a hit with the market's shippers
   }
   const truck = load.truckId !== null ? w.trucks[load.truckId - 1] : undefined;

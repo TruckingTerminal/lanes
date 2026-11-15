@@ -21,6 +21,7 @@ import { settlePayables } from "./receivables.js";
 import { releaseYard } from "./items.js";
 import { releaseBusinesses } from "./businesses.js";
 import { createTruck, freshPaperwork, newSafetyRecord, type World } from "./world.js";
+import { repRefile, repRestart, safetyPart, setThreeParts, threePartsOn } from "./reputation.js";
 
 /**
  * Without seasons the holding cost replaces the year-end burn; with seasons it's
@@ -229,7 +230,9 @@ export function refile(w: World, c: Company): void {
   c.authority.record.push({ day, text: "Filed for new authority." });
   delete c.standing; // standing.ts (the red team's S7): a new authority starts over with every market's shippers
   delete c.standingOwed;
+  if (threePartsOn(w)) repRefile(w, c, safetyPart(w, c)); // the red team's R3: the old record's part, kept a year
   c.safety = newSafetyRecord();
+  if (threePartsOn(w)) setThreeParts(w, c);
   c.policy = { hos: "legal", speed: "legal", maintenance: "full" };
   c.judgmentFd = 0;
   c.claims = [];
@@ -265,6 +268,7 @@ export function restart(w: World, c: Company): void {
   c.onTime = 0;
   c.late = 0;
   if (c.failed !== undefined) c.failed = 0;
+  repRestart(w, c); // reputation.threeParts: experience starts over; the dated service failures stay (the red team's R2)
   const fleet = w.trucksByCompany.get(c.id)!;
   if (c.role === "carrier" && !fleet.some((t) => t.lease === "npc")) createTruck(w, c, "npc", "workhorse", "van");
   c.suretyClaimedFd = 0;
