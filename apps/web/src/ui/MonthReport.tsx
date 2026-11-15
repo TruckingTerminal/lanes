@@ -137,7 +137,7 @@ function MonthClaims({ r }: { r: MonthReport }): JSX.Element | null {
       <b>{FIXES.monthClaims}</b>
       {claims.reverse().map((e, i) => (
         <p key={i} class="small">
-          {e.loadId !== undefined ? PENDING.newsServiceClaim(e.sub ?? "", String(e.loadId), fdFull(e.fd)) : NEWS.claim(fdFull(e.fd))}
+          {claimLine(e, fdFull(e.fd))}
         </p>
       ))}
     </div>
@@ -229,11 +229,20 @@ export function openMonthReport(): void {
   );
 }
 
+/**
+ * A claim's line: a windows claim by its kind; a release's (QA's 0.25.2 replay) without "to the poster", since a
+ * release's claim goes to no one (windows.ts claimOn: the load is back on the board).
+ */
+export function claimLine(e: Pick<MoneyEvent, "loadId" | "sub">, fd: string): string {
+  if (e.loadId === undefined) return NEWS.claim(fd);
+  return e.sub === "cancel" ? FIXES.newsReleaseClaim(String(e.loadId), fd) : PENDING.newsServiceClaim(e.sub ?? "", String(e.loadId), fd);
+}
+
 /** A money event's line, the writer's, with its amount bold and red (the money style). */
 function newsLine(e: MoneyEvent): { before: string; amount: string; after: string } {
   const n = e.truckId !== null ? truckNo(e.truckId) || e.truckId : 0;
   const fd = fdFull(e.fd);
-  const line = e.kind === "breakdown" ? NEWS.breakdown(n, fd) : e.kind === "crash" ? NEWS.crash(n, fd) : e.kind === "claim" ? (e.loadId !== undefined ? PENDING.newsServiceClaim(e.sub ?? "", String(e.loadId), fd) : NEWS.claim(fd)) : (FIXES.fine[e.sub ?? ""] ?? NEWS.fine[e.sub ?? ""] ?? NEWS.fine.other!)(n, fd);
+  const line = e.kind === "breakdown" ? NEWS.breakdown(n, fd) : e.kind === "crash" ? NEWS.crash(n, fd) : e.kind === "claim" ? claimLine(e, fd) : (FIXES.fine[e.sub ?? ""] ?? NEWS.fine[e.sub ?? ""] ?? NEWS.fine.other!)(n, fd);
   const amt = `−${fd} FD`;
   const i = line.indexOf(amt);
   return i < 0 ? { before: line, amount: "", after: "" } : { before: line.slice(0, i), amount: amt, after: line.slice(i + amt.length) };

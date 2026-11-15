@@ -28,9 +28,18 @@ export interface ConfirmSpec {
   risk: string | null;
   /** The confirm button's words, when not "{verb} · {fd} FD". */
   go?: string;
+  /**
+   * A bill the engine takes even into the red (a release's claim under windows.claimsInFull, the producer's call: a
+   * player always has a priced way out of a commitment). The act stays on when the cost passes the cash, "Left after"
+   * reads the true result, and this line, given the FD it goes under, says so in place of the short line.
+   */
+  intoDebt?: (fd: string) => string;
   destructive?: boolean;
   run: () => void;
 }
+
+/** What a Confirm's cost passes the cash by, when that turns its act off (R7): 0 for a bill the engine takes into the red (intoDebt). */
+export const shortOf = (s: Pick<ConfirmSpec, "costFd" | "intoDebt">, cash: number): number => (s.costFd !== null && !s.intoDebt && cash - s.costFd < 0 ? s.costFd - cash : 0);
 
 /** Opens the card for an act that always asks (the list in player2-ux.md section 1). `ev` is the opening tap. */
 export function confirmAct(spec: ConfirmSpec, ev?: MouseEvent): void {
@@ -95,8 +104,9 @@ export function ConfirmSheet(): JSX.Element | null {
   const avg = cushion(w, c).avgWeeklyFd;
   const weeks = avg > 0.5 ? Math.max(0, after) / avg : null;
   const tone = after < 0 || (weeks !== null && weeks < 1) ? "bad" : weeks !== null && weeks < 2 ? "warn" : "";
-  // Nothing offers what it won't give (R7): a spend cash can't cover says so, and its confirm is off.
-  const short = s.costFd !== null && after < 0 ? -after : 0;
+  // Nothing offers what it won't give (R7): a spend cash can't cover says so, and its confirm is off; a bill taken into
+  // the red (intoDebt) stays on, and says so.
+  const short = shortOf(s, cash);
   const settle = GAME_CONFIG.ui.tapSettleMs;
   const confirm = () => {
     // Inert for the settle time, and for a touch that began before the card opened.
@@ -132,6 +142,8 @@ export function ConfirmSheet(): JSX.Element | null {
           {s.costFd !== null ? <p class={`small ${tone}`}>{weeks === null ? CONFIRM.afterNoWeeks(fdFull(after)) : CONFIRM.after(fdFull(after), weeks.toFixed(1))}</p> : null}
           {short > 0 ? (
             <p class="small bad">{CONFIRM.short(fdFull(s.costFd ?? 0), fdFull(cash))}</p>
+          ) : s.intoDebt && after < 0 ? (
+            <p class="small bad">{s.intoDebt(fdFull(-after))}</p>
           ) : weeks !== null && weeks < w.cfg.guide.gapCushionWeeks && s.costFd !== null ? (
             <p class="small bad">{CONFIRM.lowCushion(w.cfg.guide.gapCushionWeeks)}</p>
           ) : null}

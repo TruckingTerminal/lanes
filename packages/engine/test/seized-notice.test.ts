@@ -27,6 +27,10 @@ describe("the lender's notice when it takes a truck (purchaseLoans.ts seize)", (
     expect(notices[0]!.text).toBe(seizedNotice(a!.id, 2, va + 5_000, va, 0));
     expect(notices[1]!.text).toBe(seizedNotice(b!.id, 2, vb - 4_000, vb - 4_000, 4_000));
     expect(notices[1]!.text).toContain("worth 4,000 FD more than the loan");
+    // QA's 0.25.2 replay: both are marked taken, the one the truck covered ("repaid") as well as the one it didn't.
+    const [l1, l2] = [901, 902].map((id) => w.purchaseLoans.find((l) => l.id === id)!);
+    expect([l1!.seized, l2!.seized]).toEqual([true, true]);
+    expect([l1!.status, l2!.status]).toEqual(["closed", "repaid"]);
     // Taken once: the next week says nothing more.
     weeklyPurchaseLoans(w);
     expect(notices).toHaveLength(2);

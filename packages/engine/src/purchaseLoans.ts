@@ -289,6 +289,7 @@ function seize(w: World, loan: PurchaseLoan): void {
   const covered = Math.min(value, loan.principalFd);
   loan.principalFd -= covered;
   if (value - covered > 0.01) w.ledger.post(w.t, "faucet:npc_finance", companyAccount(loan.borrowerId), value - covered, `seized:${loan.id}`);
+  loan.seized = true;
   closePurchaseLoan(w, loan, true);
   // Off the borrower's books; the lender sells it on away from this market.
   detachTruck(w, truck);

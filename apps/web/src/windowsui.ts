@@ -2,6 +2,7 @@ import { MENUS } from "./copy-menus.js";
 import { AHEAD_STATUSES, canMake, clearsWhen, companyAccount, crewed, hubMiles, dayOf, freeOf, lostShare, memoryLift, npcKey, resting, urgent, whenLabel, windowsOn, type Company, type Free, type Load, type Reach, type Truck, type World } from "@lanes/engine";
 import { COMMODITIES } from "@lanes/data";
 import { WINDOWS } from "./copy-windows.js";
+import { FIXES } from "./copy-fixes.js";
 import { fdFull, hhmm, shortDate } from "./format.js";
 import { deliveryEtaMin, etaMin } from "./rolling.js";
 
@@ -180,12 +181,17 @@ export function nowNext(w: World, c: Company, t: Truck): { now: string | null; n
 
 /**
  * Client batch X (QA's 0.25.0 replay, fail 2): Release asks first, on the confirm card letting a driver go uses. Its
- * figures: the claim in FD as the engine takes it (never more than the cash, windows.ts claimOn), what it does, and the
- * mark on the record. Fleet.tsx adds the run.
+ * figures: the claim in FD as the engine takes it (windows.ts claimOn), what it does, and the mark on the record.
+ * Fleet.tsx adds the run. QA's 0.25.2 replay (the producer's call): under windows.claimsInFull the engine takes the claim
+ * in full, into the red like any bill, so the card names it in full and the release stays on past the cash, saying it
+ * puts the company into debt; off, the claim is held to the cash as before.
  */
-export function releaseCard(w: World, c: Company, l: Load, claimFd: number, truckNo: number): { verb: string; item: string; costFd: number; does: string; risk: string; destructive: true } {
-  const cash = w.ledger.balance(companyAccount(c.id));
-  return { verb: "Release", item: WINDOWS.releaseItem(l.id), costFd: Math.round(Math.min(claimFd, Math.max(0, cash))), does: WINDOWS.releaseDoes(place(w, l.originPlace), place(w, l.destPlace), truckNo), risk: WINDOWS.releaseRisk, destructive: true };
+export function releaseCard(w: World, c: Company, l: Load, claimFd: number, truckNo: number): { verb: string; item: string; costFd: number; does: string; risk: string; destructive: true; intoDebt?: (fd: string) => string } {
+  return { verb: "Release", item: WINDOWS.releaseItem(l.id), costFd: releaseCostFd(w, c, claimFd), does: WINDOWS.releaseDoes(place(w, l.originPlace), place(w, l.destPlace), truckNo), risk: WINDOWS.releaseRisk, destructive: true, ...(w.cfg.windows?.claimsInFull === true ? { intoDebt: FIXES.releaseIntoDebt } : {}) };
+}
+/** The claim as the engine takes it (windows.ts claimOn): in full under windows.claimsInFull, else never more than the cash. */
+export function releaseCostFd(w: World, c: Company, claimFd: number): number {
+  return Math.round(w.cfg.windows?.claimsInFull === true ? claimFd : Math.min(claimFd, Math.max(0, w.ledger.balance(companyAccount(c.id)))));
 }
 
 /** A breakdown's ask on a load booked ahead (§3): the repair, the projected arrival, the two prices, the close. */

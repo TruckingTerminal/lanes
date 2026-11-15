@@ -3,7 +3,7 @@ import type { Equipment } from "@lanes/config";
 import { companyAccount, depositCredit, fuelPrice, homeCrowding, homeEdge, lossRatio, operatingTrucks, PERMANENT_BAR, ratingLabel, seasonality, truckValue, windowsOn, yardPerTruck, type Basic, type Company as CompanyT, type CompliancePolicy } from "@lanes/engine";
 import { cls, dateLabel, fd, pct, signedPct, TRAILER_NAME } from "../../format.js";
 import { H } from "../../handlers.js";
-import { act, clockMin, openIntel, S, useData } from "../../state.js";
+import { act, clockMin, openIntel, S, truckWords, useData } from "../../state.js";
 import { INTEL, POLICY } from "../../copy.js";
 import { confirmAct } from "../Confirm.js";
 import { weekCosts } from "../../ledger.js";
@@ -208,7 +208,7 @@ function RecordCard({ c }: { c: CompanyT }): JSX.Element {
         <ul class="muted small">
           {history.map((r, i) => (
             <li key={i}>
-              {dateLabel(r.day)}: {r.text}
+              {dateLabel(r.day)}: {truckWords(r.text)}
             </li>
           ))}
         </ul>

@@ -1186,6 +1186,11 @@ export interface PurchaseLoan {
   stakeFd: number;
   missed: number;
   status: "active" | "repaid" | "defaulted" | "closed";
+  /**
+   * The lender took its truck (purchaseLoans.ts seize). The status alone can't say it: a truck worth what the loan owed
+   * closes it "repaid" (QA's 0.25.2 replay: the repossession sheet stayed silent in that, the common, case).
+   */
+  seized?: true;
 }
 
 /** A truck for sale on the used market. sellerId 0 = Equipment Finance selling a repossession. */

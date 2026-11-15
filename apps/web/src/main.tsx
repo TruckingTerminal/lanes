@@ -21,7 +21,7 @@ import { nightStop, paidLine, payLine, type TruckBefore } from "./rolling.js";
 import { sampleStarters } from "./hubcard.js";
 import { drawMap, fitMap, flyTo, resetArt, setZoom, zoomIndex } from "./mapview.js";
 import { MemoryDb } from "./memdb.js";
-import { bumpData, bumpTick, feed, holdStill, loadOnboard, onWorldReset, resetWorldState, setOnboard, loadTheme, claimTestLock, markPersisted, persistTest, push, pushKeyed, readTest, S, setLayout, setTab, SPEEDS, TEST_BUILD, toast, toggleFullscreen, truckNo, type Session, type TitleMenu } from "./state.js";
+import { bumpData, bumpTick, feed, holdStill, loadOnboard, onWorldReset, resetWorldState, setOnboard, loadTheme, claimTestLock, markPersisted, persistTest, push, pushKeyed, readTest, S, setLayout, setTab, SPEEDS, TEST_BUILD, toast, toggleFullscreen, truckNo, truckWords, type Session, type TitleMenu } from "./state.js";
 import { App } from "./ui/App.js";
 import { askWhatNow } from "./ui/WhatNow.js";
 import { poachResult } from "./ui/panels/Staff.js";
@@ -199,7 +199,7 @@ function onEvent(s: Session, e: GameEvent): void {
     if (s === S.game && !rebuilding && e.what === "firstCall") toast(STANDING_UX.callToast(w.net.hubs[e.hub]!.name));
   }
   if (e.kind === "notice") {
-    const text = s === S.game ? e.text.replace(/\bTruck (\d+)\b/g, (m, id: string) => (truckNo(Number(id)) ? `Truck ${truckNo(Number(id))}` : m)) : e.text;
+    const text = s === S.game ? truckWords(e.text) : e.text;
     push(s, text, e.tone === "good" ? "good" : e.tone === "bad" ? "bad" : "", e.companyId);
     if (other) return;
     if (s === S.game && (e.topic === "crash" || e.topic === "authority")) toast(text, e.tone === "bad");

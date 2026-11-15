@@ -12,6 +12,7 @@ import { nextRoundLabel, openLoadsAt, reloadClass, reloadLabel, SeasonNote, seas
 import { act, bumpData, me, myTrucks, S, selectTruck, toast, truckNo, useData } from "../../state.js";
 import { PENDING } from "../../copy-pending.js";
 import { WINDOWS } from "../../copy-windows.js";
+import { FIXES } from "../../copy-fixes.js";
 import { bookBar, reachChip, reachFor, windowLine } from "../../windowsui.js";
 import { truckNumber } from "../../trucknos.js";
 import { Btn, Card, Kv, Num, Panel } from "../bits.js";
@@ -412,7 +413,8 @@ function LoadDetail({ r, truck, mine, pendingRate }: { r: Row; truck: Truck; min
             rows={[
               ["Usually clears near", <Num>{rateShown(l, clearsNear(w, l))}/mi</Num>],
               ["Ceiling", <Num>{bidCeiling(l).toFixed(2)}/mi</Num>],
-              ["Bid range", <Num>{bidRange(w, l, r.be).map((x) => x.toFixed(2)).join(" – ")}</Num>],
+              // QA's 0.25.2 replay: as the sheet does (Board.tsx), no one-cent range when the break-even is at or over the ceiling.
+              ["Bid range", ((lo: number, hi: number) => (hi - lo < 0.005 ? <span class="muted small">{FIXES.noBidPays(r.be.toFixed(2), hi.toFixed(2))}</span> : <Num>{lo.toFixed(2)} – {hi.toFixed(2)}</Num>))(...bidRange(w, l, r.be))],
               ["Profit at your bid", r.profit === null ? PENDING.bidBookBetter : <Num class={r.profit > 0 ? "good" : "bad"}>{fd(r.profit)} FD</Num>],
             ]}
           />

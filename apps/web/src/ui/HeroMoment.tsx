@@ -200,7 +200,7 @@ function watchLoans(): void {
   if (!g || !c) return;
   const w = g.w;
   const now = new Map<string, string>();
-  for (const l of w.purchaseLoans) if (l.borrowerId === c.id) now.set(`p${l.id}`, l.status);
+  for (const l of w.purchaseLoans) if (l.borrowerId === c.id) now.set(`p${l.id}`, l.seized ? "seized" : l.status);
   for (const l of w.finance.loans) if (l.borrowerId === c.id) now.set(`e${l.id}`, l.status);
   const seen = loansSeen.get(g);
   loansSeen.set(g, now);
@@ -208,8 +208,9 @@ function watchLoans(): void {
   for (const l of w.purchaseLoans) {
     const was = seen.get(`p${l.id}`);
     const t = l.truckId ? w.trucks[l.truckId - 1] : undefined;
-    // Seized: closed after missed payments, its truck off the books (purchaseLoans.ts seize).
-    if (l.borrowerId === c.id && was !== undefined && was !== "closed" && l.status === "closed" && l.missed > 0 && t && t.companyId === 0) {
+    // Seized: the lender took its truck (purchaseLoans.ts seize marks it), whether the truck covered the loan ("repaid")
+    // or not ("closed"; QA's 0.25.2 replay: the common case was silent).
+    if (l.borrowerId === c.id && was !== undefined && was !== "seized" && l.seized === true && t) {
       showHero({ name: "mkt-repo", title: FIXES.repoTitle(truckNo(t.id)), line: FIXES.repoSeized(truckNo(t.id), l.missed), serious: true, action: { label: FIXES.repoSeeLoans, run: () => setTab("finance") } });
       return;
     }
@@ -243,7 +244,9 @@ function watchHires(): void {
     if (seen.has(s.id)) continue;
     seen.add(s.id);
     if (S.handHires.delete(s.id)) continue;
-    const line = FIXES.autoHired(s.name, FIXES.staffKind[s.kind] ?? s.kind, fdFull(s.pay));
+    // QA's 0.25.2 replay: a driver's pay is per mile (0.61 FD/mi), so a weekly figure read "1 FD a week".
+    const kind = FIXES.staffKind[s.kind] ?? s.kind;
+    const line = s.kind === "driver" ? FIXES.autoHiredPerMile(s.name, kind, s.pay.toFixed(2)) : FIXES.autoHired(s.name, kind, fdFull(s.pay));
     push(g, line, "warn");
     toast(line);
   }

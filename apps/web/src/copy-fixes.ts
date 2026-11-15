@@ -37,6 +37,11 @@ export const FIXES = {
   } as Record<string, (n: number, fd: string) => string>,
   monthClaims: "Claims this month",
   monthSoFar: "This month so far",
+  // Engineering's placeholders for the writer (QA's 0.25.2 replay): a release past the cash under claims in full, and a
+  // release's claim in the month card, which goes to no one (the load is back on the board).
+  releaseIntoDebt: (fd: string) => `This puts the company ${fd} FD into debt: the claim is paid in full, like any bill.`,
+  newsReleaseClaim: (load: string, fd: string) => `Released load #${load}: −${fd} FD claim.`,
+  autoHiredPerMile: (name: string, kind: string, rate: string) => `Auto-staff hired ${name}, ${kind}, at ${rate} FD a mile.`,
   // The player's long runs, item 2: why a brokerage gets no new loads, by how much, and what restarts it.
   underStake: (short: string, need: string, have: string, when: string, over: boolean) =>
     `No new loads while this brokerage is under its licence stake: the licence needs ${need} FD staked and it has ${have} FD, ${short} FD short. Cash moved in doesn't count; staking the difference does. ${over ? `Its grace ended ${when}, so new loads start again the day after you stake.` : `Stake it by ${when} and new loads start again at once; after that, the day after you stake.`}`,

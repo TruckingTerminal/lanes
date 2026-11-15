@@ -11,7 +11,7 @@ import { PENDING } from "../copy-pending.js";
 import { hasTwo, kindInView, switchCompany, type CompanyKind } from "../companies.js";
 import { H } from "../handlers.js";
 import { needs as waiting, nextRoundHour, openNeed } from "../logic.js";
-import { bumpData, clockMin, fsActive, fsEnabled, S, setTab, SPEEDS, toggleFullscreen, useData, useTick } from "../state.js";
+import { bumpData, clockMin, fsActive, fsEnabled, S, setTab, SPEEDS, toggleFullscreen, truckWords, useData, useTick } from "../state.js";
 import { Badge, Btn } from "./bits.js";
 import { FIXES } from "../copy-fixes.js";
 import { choosing } from "./ChooseHub.js";
@@ -20,6 +20,12 @@ import { choosing } from "./ChooseHub.js";
  * The top strip (specs/first-ten-minutes.md, Layout): the clock, cash, a dot counting what needs you, and "≡". The test
  * build adds its speeds: four buttons on a laptop, one that cycles on a phone. One row, 44 px, on both.
  */
+/** The authority record's last line, its trucks by the player's numbers (truckWords). */
+const authorityLast = (c: Company): string | null => {
+  const text = c.authority.record.at(-1)?.text;
+  return text ? truckWords(text) : null;
+};
+
 export function TopBar(): JSX.Element {
   useData();
   const g = S.game!;
@@ -54,7 +60,7 @@ export function TopBar(): JSX.Element {
       {/* The player's long runs, item 9 (a bare "AUTHORITY REVOKED"): the pill says why (the authority's own record, its
           last line) and opens Company, where the record is. */}
       {c && c.authority.status !== "active" ? (
-        <button type="button" class="badge alert authpill" title={FIXES.authorityWhy(c.authority.record.at(-1)?.text ?? null)} aria-label={FIXES.authorityWhy(c.authority.record.at(-1)?.text ?? null)} onClick={() => setTab("company")}>
+        <button type="button" class="badge alert authpill" title={FIXES.authorityWhy(authorityLast(c))} aria-label={FIXES.authorityWhy(authorityLast(c))} onClick={() => setTab("company")}>
           {c.authority.status === "revoked" ? "Authority revoked" : "Suspended"}
         </button>
       ) : null}

@@ -47,7 +47,7 @@ describe("client batch X: QA's 0.25.0 replay", () => {
     expect(a.lines.at(-1)).toContain(`delivers about ${whenAt(w, reach.deliverT, true)}`);
   }, 120_000);
 
-  it("fail 2: Release's confirm card carries the claim in FD, never more than the cash, and the mark", async () => {
+  it("fail 2: Release's confirm card carries the claim in FD as the engine takes it, and the mark", async () => {
     const { g, w, c, truck } = await started();
     const first = boardRows(w, c, truck, any).find((x) => !x.block && x.reach?.ok)!;
     expect(g.act({ type: "book_load", truckId: truck.id, loadId: first.l.id }).ok).toBe(true);
@@ -57,7 +57,11 @@ describe("client batch X: QA's 0.25.0 replay", () => {
     const card = releaseCard(w, c, next.l, 402.4, 1);
     expect(card).toMatchObject({ verb: "Release", item: WINDOWS.releaseItem(next.l.id), costFd: 402, risk: WINDOWS.releaseRisk, destructive: true });
     expect(card.does).toBe(WINDOWS.releaseDoes(w.net.places[next.l.originPlace]!.name, w.net.places[next.l.destPlace]!.name, 1));
-    expect(releaseCard(w, c, next.l, cash + 5_000, 1).costFd).toBe(Math.round(cash));
+    // QA's 0.25.2 replay: under windows.claimsInFull (the live levers since 0.25.2) the claim in full, and the release
+    // stays on past the cash (release-confirm.test.ts); off, held to the cash as before.
+    expect(releaseCard(w, c, next.l, cash + 5_000, 1).costFd).toBe(Math.round(cash + 5_000));
+    const off = { ...w, cfg: { ...w.cfg, windows: { ...w.cfg.windows, claimsInFull: false } } } as typeof w;
+    expect(releaseCard(off, c, next.l, cash + 5_000, 1).costFd).toBe(Math.round(cash));
   }, 120_000);
 
   it("fail 3: a truck holding its next load says so on every chip and in the picker, and isn't the board's pick", async () => {

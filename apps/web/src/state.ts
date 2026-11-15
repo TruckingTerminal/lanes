@@ -341,6 +341,8 @@ export function myTrucks(): Truck[] {
   const c = g?.carrier ?? g?.player;
   return g && c ? (g.w.trucksByCompany.get(c.id) ?? []).filter((t) => t.status !== "retired") : [];
 }
+/** An engine line with each "Truck {id}" named by the player's number, where the truck has one (QA's 0.25.2 replay: the authority record said "Truck 878"). */
+export const truckWords = (text: string): string => text.replace(/\bTruck (\d+)\b/g, (m, id: string) => (truckNo(Number(id)) ? `Truck ${truckNo(Number(id))}` : m));
 /** The number the player knows a truck by: given once and never changed (trucknos.ts, client batch 8a items 1 and 19). */
 export function truckNo(id: number): number {
   const g = S.game;
