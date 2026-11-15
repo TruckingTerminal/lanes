@@ -517,7 +517,7 @@ function CurrentLines({ t }: { t: Truck }): JSX.Element | null {
   }
   return (
     <div class="row small" onClick={stop}>
-      <span>{FIXES.headingTo(w.net.places[l.originPlace]!.name, whenAt(w, l.latestPickupT ?? l.appointmentT))}</span>
+      <span>{t.status === "loading" && l.readyT !== undefined ? FIXES.waitingAtDock(w.net.places[l.originPlace]!.name, whenAt(w, l.readyT)) : FIXES.headingTo(w.net.places[l.originPlace]!.name, whenAt(w, l.latestPickupT ?? l.appointmentT))}</span>
       <Btn sm onClick={(ev) => release(x.priceFd, ev)}>{WINDOWS.release(fdFull(Math.round(x.priceFd)))}</Btn>
     </div>
   );

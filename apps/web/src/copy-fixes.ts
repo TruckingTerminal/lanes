@@ -54,6 +54,8 @@ export const FIXES = {
   // Engineering's placeholders for the writer: releasing the current load before pickup (windows.releaseCurrent; the
   // director's sprint §1), on the truck card's Now line and its Confirm.
   headingTo: (town: string, by: string) => `Heading to ${town} · pick up by ${by}`,
+  // The red team's 0.25.3 pass, finding 3: waiting at the shipper's dock before the load is ready, still releasable.
+  waitingAtDock: (town: string, ready: string) => `At the dock in ${town} · the load is ready ${ready}`,
   releaseCurrentDoes: (from: string, to: string, truck: number, town: string, sunkMi: string | null) =>
     `${from} → ${to} goes back on the board, and Truck ${truck} stops at ${town}${sunkMi ? `: its ${sunkMi} empty miles so far are sunk` : ""}.`,
   releaseCurrentRisk: "It's also a mark on your record, and you can't book this load again.",

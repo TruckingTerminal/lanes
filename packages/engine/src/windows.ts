@@ -484,8 +484,9 @@ function markFailed(w: World, c: Company): void {
 export function releaseLoad(w: World, company: Company, load: Load, breakdown = false): string | null {
   const truck = load.truckId !== null ? w.trucks[load.truckId - 1] : undefined;
   const onCurrent = w.cfg.windows?.releaseCurrent === true;
-  const current = onCurrent && load.ahead !== true && truck !== undefined && truck.loadId === load.id && truck.status === "toPickup";
-  if (load.status !== "assigned" || (load.ahead !== true && !current) || load.carrierId !== company.id) return onCurrent ? "only a load not yet picked up can be released" : "only a load booked ahead can be released";
+  const waiting = truck !== undefined && waitingAtDock(w, truck, load);
+  const current = onCurrent && load.ahead !== true && truck !== undefined && truck.loadId === load.id && (truck.status === "toPickup" || waiting);
+  if ((load.status !== "assigned" && !(current && waiting)) || (load.ahead !== true && !current) || load.carrierId !== company.id) return onCurrent ? "only a load not yet picked up can be released" : "only a load booked ahead can be released";
   if (pickupClosed(w, load)) {
     noShow(w, load);
     return null;
@@ -506,6 +507,7 @@ export function releaseLoad(w: World, company: Company, load: Load, breakdown = 
   delete load.byHand;
   delete load.releaseAsk;
   const stop = current ? standAtTown(w, truck!) : null;
+  if (current) delete load.detention; // a dock's wait was this carrier's, not the next one's
   reopenLoad(w, load);
   if (stop && truck) {
     const town = w.net.places[stop.place]!.name;
@@ -513,6 +515,15 @@ export function releaseLoad(w: World, company: Company, load: Load, breakdown = 
     recheckAfterRelease(w, truck, `Truck ${truck.id} stops at ${town}, so`);
   }
   return null;
+}
+
+/**
+ * At the shipper before the load is ready (the red team's 0.25.3 pass, finding 3): the truck waits at the dock as `loading`
+ * and the load reads in transit, but nothing is in the trailer yet, so with windows.releaseCurrent it may be released as on
+ * the way. Reads only.
+ */
+export function waitingAtDock(w: World, truck: Truck, load: Load): boolean {
+  return truck.loadId === load.id && truck.status === "loading" && load.readyT !== undefined && w.t < load.readyT;
 }
 
 /**

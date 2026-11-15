@@ -469,7 +469,10 @@ export function dailyDrivers(w: World): void {
     // labor.daysOffFull: the day just ended was one of the days off (today <= homeUntilDay), undriven, is a day off at home
     // whatever the truck is doing now: the hour's dispatch can take the truck at the very midnight the days off end, before
     // this check, and the last day off would go uncounted (and fatigue never reset).
-    const dayOff = w.cfg.labor.daysOffFull && s.homeUntilDay !== null && today <= s.homeUntilDay && hours === 0;
+    // labor.truckLessHomeByHub (the red team's 0.25.3 pass, finding 6): the days-off credit counts only where the driver
+    // is home (the truck at home, or off it inside the home radius), so a window cut by driving out isn't rest anywhere.
+    const homeNow = !w.cfg.labor.truckLessHomeByHub || (t ? standingAtHome(w, c, t) : s.lastHub === undefined || hubMiles(w, s.lastHub, c.homeHub) <= w.cfg.map.nearbyRadiusMi);
+    const dayOff = w.cfg.labor.daysOffFull && s.homeUntilDay !== null && today <= s.homeUntilDay && hours === 0 && homeNow;
     // labor.busHome (0.25.3): a driver with no truck away from home rides the bus home, or arrives.
     const onBus = busOn(w) && busHome(w, c, s, t, today);
     // labor.truckLessHomeByHub (the sprint pass): off the truck, home only inside the home radius of where they stepped off.
@@ -536,7 +539,7 @@ export const onTheBus = (s: Staff): boolean => s.bus !== undefined && s.bus.done
 function busHome(w: World, c: Company, s: Staff, t: Truck | null, today: number): boolean {
   if (t) {
     if (s.trucklessDays) s.trucklessDays = 0;
-    if (s.bus && !s.bus.done) s.bus.done = true; // seated on the way (auto-staff seats anywhere until the bus to a truck)
+    if (s.bus && !s.bus.done) s.bus.done = true; // seated on the way, by hand (auto-staff seats a rider only once home)
     return false;
   }
   const k = w.cfg.labor.busHome;
@@ -630,10 +633,15 @@ export function autoStaff(w: World, c: Company, minDriverSkill = 0, minDispatche
     return false;
   };
   const fleet = w.trucksByCompany.get(c.id)!;
+  // labor.busHome (the red team's 0.25.3 pass, findings 4 and 5): with the bus, a driver with no truck is seated only where
+  // they stand (lastHub; a new hire from the pool anywhere) and never while riding the bus home, until the bus to a truck
+  // is built, so the bus home and a seat anywhere aren't a free ride back; and an owner beside an empty truck of theirs takes it.
+  const here = (s: Staff, t: Truck): boolean => !busOn(w) || (!onTheBus(s) && (s.lastHub === undefined || s.lastHub === t.hub));
   // The owner drives for free: if they have no truck, they take over from a hire at a hub.
   const owner = fleet.length ? w.staffByCompany.get(c.id)!.find((s) => s.owner && s.status === "employed" && s.truckId === 0) : undefined;
   if (owner) {
-    const seat = fleet.find((t) => (t.status === "idle" || t.status === "parked" || t.status === "repair") && crewed(t) && t.coDriverId === 0 && !staffById(w, t.driverId).owner);
+    const open = busOn(w) ? fleet.find((t) => !crewed(t) && (t.status === "idle" || t.status === "parked" || t.status === "repair") && here(owner, t)) : undefined;
+    const seat = open ?? fleet.find((t) => (t.status === "idle" || t.status === "parked" || t.status === "repair") && crewed(t) && t.coDriverId === 0 && !staffById(w, t.driverId).owner && here(owner, t));
     if (seat) seatDriver(w, owner, seat);
   }
   // Seats to fill: trucks on the road first, parked ones last; a seat promised to someone we're hiring away is kept for them.
@@ -644,7 +652,13 @@ export function autoStaff(w: World, c: Company, minDriverSkill = 0, minDispatche
     .sort((a, b) => Number(a.status === "parked") - Number(b.status === "parked") || a.id - b.id);
   if (empty.length > 0) {
     const spare = driversOf(w, c.id).filter((s) => s.truckId === 0 && !s.offer);
-    while (empty.length > 0 && spare.length > 0) seatDriver(w, spare.shift()!, empty.shift()!);
+    if (busOn(w)) {
+      // Each spare driver onto an empty truck where they stand (or anywhere, fresh from the pool), the trucks in order.
+      for (const s of spare) {
+        const i = empty.findIndex((t) => here(s, t));
+        if (i >= 0) seatDriver(w, s, empty.splice(i, 1)[0]!);
+      }
+    } else while (empty.length > 0 && spare.length > 0) seatDriver(w, spare.shift()!, empty.shift()!);
     // Parked trucks don't need a driver until they're back on the road.
     const needed = empty.filter((t) => t.status !== "parked");
     if (needed.length > 0) {

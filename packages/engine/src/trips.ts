@@ -642,6 +642,7 @@ function nearestTown(w: World, truck: Truck): { place: number; offMi: number } {
 
 /** Where standAtTown would stop the truck now, and the empty miles it would sink (reads only; the release's Confirm). */
 export function releaseStopOf(w: World, truck: Truck): { place: number; sunkMi: number } {
+  if (truck.status === "loading") return { place: truck.place, sunkMi: truck.emptyMi > 0 ? truck.emptyMi : 0 }; // at the dock (finding 3)
   return truck.emptyMi > 0 ? { place: nearestTown(w, truck).place, sunkMi: truck.emptyMi } : { place: truck.place, sunkMi: 0 };
 }
 
@@ -654,6 +655,13 @@ export function releaseStopOf(w: World, truck: Truck): { place: number; sunkMi: 
 export function standAtTown(w: World, truck: Truck): { place: number; sunkMi: number } {
   const sunkMi = truck.emptyMi;
   truck.loadId = null;
+  if (truck.status === "loading") {
+    // Waiting at the shipper's dock before the load is ready (the red team's 0.25.3 pass, finding 3): it stands in the
+    // shipper's town, the empty miles there paid and sunk.
+    truck.dwellMin = 0;
+    abandonLeg(w, truck);
+    return { place: truck.place, sunkMi: sunkMi > 0 ? sunkMi : 0 };
+  }
   if (!(sunkMi > 0)) {
     abandonLeg(w, truck);
     return { place: truck.place, sunkMi: 0 };

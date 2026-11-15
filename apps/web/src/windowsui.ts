@@ -1,5 +1,5 @@
 import { MENUS } from "./copy-menus.js";
-import { AHEAD_STATUSES, canMake, clearsWhen, companyAccount, crewed, hubMiles, dayOf, freeOf, lostShare, memoryLift, npcKey, pickupReachT, releaseStopOf, resting, urgent, whenLabel, windowsOn, type Company, type Free, type Load, type Reach, type Truck, type World } from "@lanes/engine";
+import { AHEAD_STATUSES, canMake, clearsWhen, companyAccount, crewed, hubMiles, dayOf, freeOf, lostShare, memoryLift, npcKey, pickupReachT, releaseStopOf, resting, urgent, waitingAtDock, whenLabel, windowsOn, type Company, type Free, type Load, type Reach, type Truck, type World } from "@lanes/engine";
 import { COMMODITIES } from "@lanes/data";
 import { WINDOWS } from "./copy-windows.js";
 import { FIXES } from "./copy-fixes.js";
@@ -195,13 +195,14 @@ export function releaseCostFd(w: World, c: Company, claimFd: number): number {
 }
 
 /**
- * windows.releaseCurrent (the director's sprint §1): the load a truck is heading to, while it can still be released: the
- * claim at today's share, the town the truck would stop at and the empty miles it would sink, and a breakdown's ask on it.
+ * windows.releaseCurrent (the director's sprint §1): the load a truck is heading to, or waits for at the dock before it's
+ * ready (the red team's 0.25.3 pass, finding 3), while it can still be released: the claim at today's share, the town the
+ * truck would stop at and the empty miles it would sink, and a breakdown's ask on it.
  */
 export function currentRelease(w: World, t: Truck): { load: Load; priceFd: number; town: string; sunkMi: number; ask: AskFigures | null } | null {
-  if (!windowsOn(w) || w.cfg.windows?.releaseCurrent !== true || t.status !== "toPickup" || t.loadId === null) return null;
+  if (!windowsOn(w) || w.cfg.windows?.releaseCurrent !== true || t.loadId === null || (t.status !== "toPickup" && t.status !== "loading")) return null;
   const l = w.loads.get(t.loadId);
-  if (!l || l.status !== "assigned") return null;
+  if (!l || (t.status === "toPickup" ? l.status !== "assigned" : !waitingAtDock(w, t, l))) return null;
   const cl = claimsAt(w, l, l.clearedRate);
   const stop = releaseStopOf(w, t);
   return { load: l, priceFd: w.t < urgentFrom(w, l) ? cl.releaseEarlyFd : cl.releaseUrgentFd, town: place(w, stop.place), sunkMi: stop.sunkMi, ask: l.releaseAsk ? askFigures(w, l) : null };

@@ -194,7 +194,10 @@ function manualRoundBids(w: World): Bid[] {
     if (reach && !reach.ok) continue;
     const deadheadMi = placeMiles(w, reach ? reach.freePlace : truck.place, load.originPlace);
     // A counter can go past the ceiling (taken only if nobody offers within it), up to the hard cap.
-    const rate = Math.min(mb.rate, hardCap(w, load));
+    // Standing's first call (the red team's 0.25.3 pass, finding 1): while the call is open only its holder may bid, and a
+    // lone bid clears at its own rate, so the holder's bid clears at no more than Book now ("a fresh posting's price").
+    const held = load.firstCall?.state === "open" && load.firstCall.companyId === company.id;
+    const rate = Math.min(mb.rate, hardCap(w, load), held ? load.bookNow : Infinity);
     out.push({ loadId: load.id, truckId, companyId: company.id, rate, deadheadMi, score: scoreBid(w, load.ceiling, rate, company.reputation, deadheadMi, homeEdge(w, company, load.origin)), tiebreak: 0 });
   }
   w.manualBids.clear();
