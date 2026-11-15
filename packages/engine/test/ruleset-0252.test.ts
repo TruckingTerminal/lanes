@@ -69,6 +69,23 @@ describe("claims in full (windows.claimsInFull)", () => {
   });
 });
 
+describe("claims in full: the poster's cap over several claims", () => {
+  it("on: claims past what a carrier held, its FD all in the Reserve, pay the poster no more than it held in all", () => {
+    const w = world(withWindows({ claimsInFull: true }), 2);
+    const c = w.companies.find((x) => x.role === "carrier")!;
+    const broker = w.companies.find((x) => x.role === "broker")!;
+    // The carrier holds 300 FD, all of it in the Reserve.
+    move(w, companyAccount(c.id), "sink:test", Math.max(0, cash(w, c)));
+    w.ledger.post(w.t, "faucet:starting_grant", companyAccount(c.id), 300, "test");
+    move(w, companyAccount(c.id), reserveAccount(c.id), 300);
+    const before = w.ledger.balance(companyAccount(broker.id));
+    claimOn(w, c, booked(c, 4_000, broker.id), 0.25, "noshow");
+    claimOn(w, c, { ...booked(c, 4_000, broker.id), id: 990_002 }, 0.25, "noshow");
+    expect(w.ledger.balance(companyAccount(broker.id)) - before).toBeCloseTo(300, 6);
+    expect(cash(w, c)).toBeCloseTo(-2000, 6);
+  });
+});
+
 describe("a driver off the truck (labor.truckLessHomeByHub)", () => {
   /** A company's own driver taken off its truck, standing `far` from home or not, 25 days out. */
   function offTheTruck(cfg: EconomyConfig, far: boolean) {

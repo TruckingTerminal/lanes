@@ -449,7 +449,8 @@ export function claimOn(w: World, carrier: Company, load: Load, share: number, k
   const ref = `claim:${kind}:${load.id}`;
   // In full, the poster's part is at most what the carrier held (cash, the Reserve and what's settling out of it), so a
   // claim never pays one company FD another never had; the rest goes to the sink, which mints nothing.
-  const toPayee = payee && inFull ? Math.min(fd, Math.max(0, w.ledger.balance(companyAccount(carrier.id))) + reserveHeldFd(w, carrier.id)) : payee ? fd : 0;
+  // Signed cash: a carrier already below zero has that much less to cover a poster's part (the red team's re-probe).
+  const toPayee = payee && inFull ? Math.min(fd, Math.max(0, w.ledger.balance(companyAccount(carrier.id)) + reserveHeldFd(w, carrier.id))) : payee ? fd : 0;
   if (!inFull) w.ledger.post(w.t, companyAccount(carrier.id), payee ? companyAccount(payee.id) : "sink:service_failure", fd, ref);
   else {
     if (payee && toPayee > 0.005) w.ledger.post(w.t, companyAccount(carrier.id), companyAccount(payee.id), toPayee, ref);
