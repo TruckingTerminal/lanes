@@ -5,7 +5,7 @@ import { WINDOWS } from "./copy-windows.js";
 import { FIXES } from "./copy-fixes.js";
 import { fdFull, hhmm, shortDate } from "./format.js";
 import { deliveryEtaMin, etaMin } from "./rolling.js";
-import { releaseStanding } from "./standingui.js";
+import { claimCosts, releaseStanding } from "./standingui.js";
 
 /**
  * Delivery windows on the page (client batch W; the director's design, director-windows-screens-2026-11-13.md): every
@@ -145,7 +145,10 @@ export function spoilAt(w: World, l: Load): number | null {
   return h !== null && windowsOn(w) && w.cfg.windows.spoilAfterDeadline && l.latestDeliveryT !== undefined ? l.latestDeliveryT + h * 60 : null;
 }
 
-export function agreement(w: World, t: Truck, l: Load, rate: number, truckNo: number): { lines: string[]; tight: string | null; spareMin: number | null } | null {
+/** What each agreement line is, so its standing cost and explain key follow it wherever it sits (agreeShown). */
+export type AgreeKind = "noShow" | "late" | "spoil" | "release" | "truck" | "due";
+
+export function agreement(w: World, t: Truck, l: Load, rate: number, truckNo: number): { lines: string[]; kinds: AgreeKind[]; tight: string | null; spareMin: number | null } | null {
   if (!windowsOn(w) || l.latestPickupT === undefined || l.latestDeliveryT === undefined) return null;
   const cl = claimsAt(w, l, rate);
   const fd = (x: number) => fdFull(Math.round(x));
@@ -153,13 +156,18 @@ export function agreement(w: World, t: Truck, l: Load, rate: number, truckNo: nu
   // Jan 12 07:00" with no day of its own.
   const at = (x: number) => whenAt(w, x, true);
   const lines = [WINDOWS.agreeNoShow(at(l.latestPickupT), fd(cl.noShowFd)), WINDOWS.agreeLate(at(l.latestDeliveryT), fd(cl.lateFd))];
+  const kinds: AgreeKind[] = ["noShow", "late"];
   // windows.spoilAfterDeadline (the director's sprint ruling §10): a perishable spoils its hours past Deliver by, read at the
   // arrival, and the cargo claim is the commodity's share of its value (trips.ts deliver).
   const spoil = spoilAt(w, l);
-  if (spoil !== null) lines.push(WINDOWS.agreeSpoil(at(spoil), fd(w.cfg.commodities.spoilClaimShare * l.cargoValue)));
+  if (spoil !== null) {
+    lines.push(WINDOWS.agreeSpoil(at(spoil), fd(w.cfg.commodities.spoilClaimShare * l.cargoValue)));
+    kinds.push("spoil");
+  }
   if (aheadable(w, t)) {
     const from = urgentFrom(w, l);
     lines.push(w.t < from ? WINDOWS.agreeRelease(at(from), fd(cl.releaseEarlyFd), fd(cl.releaseUrgentFd)) : WINDOWS.agreeReleaseLate(fd(cl.releaseUrgentFd)));
+    kinds.push("release");
   }
   const r = canMake(w, t, l);
   let spareMin: number | null = null;
@@ -167,10 +175,30 @@ export function agreement(w: World, t: Truck, l: Load, rate: number, truckNo: nu
     spareMin = l.latestDeliveryT - r.deliverT;
     const free = r.freeT > w.t ? at(r.freeT) : "";
     lines.push(WINDOWS.agreeTruck(truckNo, free, place(w, r.freePlace), place(w, l.originPlace), at(r.pickupT), at(r.deliverT), spanLabel(spareMin)));
+    kinds.push("truck");
   }
   const due = dueFirstLine(w, t, r.ok ? r.pickupT : l.latestPickupT);
-  if (due) lines.push(due);
-  return { lines, tight: spareMin !== null && spareMin < 4 * 60 ? WINDOWS.tight(spanLabel(spareMin)) : null, spareMin };
+  if (due) {
+    lines.push(due);
+    kinds.push("due");
+  }
+  return { lines, kinds, tight: spareMin !== null && spareMin < 4 * 60 ? WINDOWS.tight(spanLabel(spareMin)) : null, spareMin };
+}
+
+/**
+ * The agreement's lines as the load sheet shows them (UX next-screens §1.4): the no-show, late and release lines gain the
+ * standing each costs, for a load that builds it (as the release Confirms say it), and their explain keys, found by kind.
+ * QA's 0.25.4 re-check: by place, a perishable's spoil line in third took the release's cost and key, and the release
+ * line, fourth, lost both.
+ */
+export function agreeShown(w: World, c: Company, l: Load, a: NonNullable<ReturnType<typeof agreement>>): { text: string; key: string | null }[] {
+  const costs = claimCosts(w, c, l);
+  const KEY: Partial<Record<AgreeKind, string>> = { noShow: "claim.noShow", late: "claim.late", release: "claim.lost" };
+  return a.lines.map((line, i) => {
+    const kind = a.kinds[i]!;
+    const cost = costs && (kind === "noShow" || kind === "late" || kind === "release") ? costs[kind] : undefined;
+    return { text: cost ? line.replace(/\.\s*$/, `${cost}.`) : line, key: KEY[kind] ?? null };
+  });
 }
 
 /**

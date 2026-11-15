@@ -16,7 +16,7 @@ import { deliveryEtaMin, etaMin } from "../../rolling.js";
 import { tabOpen } from "../../tabs.js";
 import { iuliiaFirst, iuliiaOnce, iuliiaOnChange, iuliiaSay, iuliiaSayText } from "../../iuliia.js";
 import { WINDOWS } from "../../copy-windows.js";
-import { aheadable, agreement, boardable, bookBar, busyNextLine, clearsTiming, freeAt, windowLine } from "../../windowsui.js";
+import { aheadable, agreement, agreeShown, boardable, bookBar, busyNextLine, clearsTiming, freeAt, windowLine } from "../../windowsui.js";
 import { PENDING_RULES } from "../../copy-pending-rules.js";
 import { Btn, Card, Kv } from "../bits.js";
 import { LoadsTable } from "./Loads.js";
@@ -24,7 +24,7 @@ import { Fig } from "../Explain.js";
 import { PENDING } from "../../copy-pending.js";
 import { WaysOutCard } from "../WaysOut.js";
 import { FirstCallCards, FirstCallLine, SheetStandingLine } from "../Standing.js";
-import { claimCosts, perkChips, wonLine } from "../../standingui.js";
+import { perkChips, wonLine } from "../../standingui.js";
 import { STANDING_UX } from "../../copy-standing.js";
 import { FIXES } from "../../copy-fixes.js";
 
@@ -525,8 +525,7 @@ function LoadSheet({ r, truck }: { r: BoardRow; truck: Truck }): JSX.Element {
   useEffect(() => {
     if (win) iuliiaOnce("win:sheet", WINDOWS.iuliiaFirstSheet);
   }, []);
-  // Standing (UX next-screens §1.4): the claim lines' standing cost and the perks in force on this load.
-  const costs = claimCosts(w, me(), l);
+  // Standing (UX next-screens §1.4): the perks in force on this load (the claim lines' standing cost is agreeShown's).
   const chips = perkChips(w, me(), l);
   const routeRows: [string, string | JSX.Element][] = win
     ? [
@@ -539,7 +538,6 @@ function LoadSheet({ r, truck }: { r: BoardRow; truck: Truck }): JSX.Element {
         [LOAD.pickUp, `${op.name}, ${op.state} · ${pickupWhen}`],
         [LOAD.deliverBy, `${deliverBy} · ${place(l.destPlace)}`],
       ];
-  const claimKeys = ["claim.noShow", "claim.late", "claim.lost"];
   return (
     <div class="stack loadsheet">
       <div class="row">
@@ -562,13 +560,9 @@ function LoadSheet({ r, truck }: { r: BoardRow; truck: Truck }): JSX.Element {
       {agree ? (
         <Card title={WINDOWS.agreeTitle}>
           <ul class="agree small">
-            {agree.lines.map((line, i) => {
-              // UX next-screens §1.4: a load that builds standing says what each claim costs there too.
-              // The third line is the release claim only when the truck can book ahead (as its explain key reads).
-              const cost = costs ? (i === 0 ? costs.noShow : i === 1 ? costs.late : i === 2 && aheadable(w, truck) ? costs.release : undefined) : undefined;
-              const said = cost ? line.replace(/\.\s*$/, `${cost}.`) : line;
-              return <li key={i}>{i < claimKeys.length && !(i === 2 && !aheadable(w, truck)) ? <Fig k={claimKeys[i]!} label={WINDOWS.agreeTitle} ctx={fx}>{said}</Fig> : said}</li>;
-            })}
+            {agreeShown(w, me(), l, agree).map((x, i) => (
+              <li key={i}>{x.key ? <Fig k={x.key} label={WINDOWS.agreeTitle} ctx={fx}>{x.text}</Fig> : x.text}</li>
+            ))}
           </ul>
           {agree.tight ? <p class="small warn">{agree.tight}</p> : null}
         </Card>
