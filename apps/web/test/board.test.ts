@@ -91,7 +91,11 @@ describe("the board", () => {
     const { g, c, truck } = await world();
     const all = boardRows(g.w, c, truck, { dest: "any", maxDh: 300, query: "" });
     const dest = g.w.net.hubs[all[0]!.l.dest]!.id;
-    expect(boardRows(g.w, c, truck, { dest, maxDh: 300, query: "" }).every((r) => g.w.net.hubs[r.l.dest]!.id === dest)).toBe(true);
+    // Free text: a hub's id, a state, a zone, or a city's first letters, so "LAS" reads Las Vegas and Las Cruces both.
+    const term = dest.toLowerCase();
+    const to = boardRows(g.w, c, truck, { dest, maxDh: 300, query: "" });
+    expect(to.some((r) => g.w.net.hubs[r.l.dest]!.id === dest)).toBe(true);
+    expect(to.every((r) => g.w.net.hubs[r.l.dest]!.id === dest || g.w.net.hubs[r.l.dest]!.name.toLowerCase().startsWith(term) || g.w.net.places[r.l.destPlace]!.name.toLowerCase().startsWith(term))).toBe(true);
     expect(boardRows(g.w, c, truck, { dest: "any", maxDh: 0, query: "" }).every((r) => r.dh === 0)).toBe(true);
     expect(boardRows(g.w, c, truck, { dest: "any", maxDh: 300, query: "zzzz-nowhere" })).toHaveLength(0);
   }, 60_000);

@@ -11,9 +11,11 @@ import { applyAction, companyAccount, createWorld, dayOf, formCompany, hookedTra
  */
 const LIVE = withLiveLevers();
 const net = buildNetwork(hubs, LIVE);
-const ON: EconomyConfig = { ...LIVE, assets: { ...LIVE.assets, swapAtNextIdle: true } };
+// The §6 hand-over (assets.handOverAtTruck, on in the live levers from 0.25.3) waits for the leased truck at the dealer's
+// hub; this file is the swap at the next idle on its own, so it's off here (handover's tests have it on).
+const ON: EconomyConfig = { ...LIVE, assets: { ...LIVE.assets, swapAtNextIdle: true, handOverAtTruck: false } };
 // Off by its own key (0.24.1 switched it on in the live levers).
-const OFF: EconomyConfig = { ...LIVE, assets: { ...LIVE.assets, swapAtNextIdle: false } };
+const OFF: EconomyConfig = { ...LIVE, assets: { ...LIVE.assets, swapAtNextIdle: false, handOverAtTruck: false } };
 
 function digest(cfg: EconomyConfig): string {
   const w = createWorld({ cfg, net, feeds: neutralFeeds, seed: 20_261_109 });

@@ -104,7 +104,7 @@ describe("a driver off the truck (labor.truckLessHomeByHub)", () => {
   }
 
   it("on: away from home, an undriven day is a day away, with a layover's per diem", () => {
-    const { w, s, c } = offTheTruck({ ...LIVE, labor: { ...LIVE.labor, truckLessHomeByHub: true } } as EconomyConfig, true);
+    const { w, s, c } = offTheTruck({ ...LIVE, labor: { ...LIVE.labor, truckLessHomeByHub: true, busHome: { ...LIVE.labor.busHome, enabled: false } } } as EconomyConfig, true);
     expect(s.truckId).toBe(0);
     const before = cash(w, c);
     dailyDrivers(w);

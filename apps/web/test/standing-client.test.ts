@@ -341,7 +341,7 @@ describe("the director's sprint §13 and §14 on the page", () => {
     deliver(w, c, hub, 6);
     const x = cardUx(w, c, hub)!;
     expect(x.notice).toBe(STANDING_UX.onNoticeLoads("6", 6, 7, reviewWhen(w).day, m));
-    expect(x.notice).toBe(`On notice: 6 loads against tier 6's 7. Still under at next ${reviewWhen(w).day}'s review, and ${m} drops to tier 5.`);
+    expect(x.notice).toBe(`On notice: 6 counted loads against the 7 tier 6 needs. Still under at ${reviewWhen(w).day}'s review, and your ${m} standing drops to tier 5.`);
     expect(x.noticeNeed).toBe(false); // 6 → 5 keeps every perk
     c.standing[hub]!.tier = 5;
     expect(cardUx(w, c, hub)!.noticeNeed).toBe(true); // 5 → 4 loses net-15
@@ -414,7 +414,7 @@ describe("0.25.3's client polish for standing (UX next-screens §1.3a, §13, §1
     expect(standingListed(w, c, cc)).toBe(true);
     c.standing = { [cc]: { ...c.standing![cc]!, lastLoadT: w.t - 10 * WEEK } };
     expect(standingScreen(w, c)).toMatchObject({ cards: [], markets: 1 });
-    expect(STANDING_UX.listEmpty(8)).toBe("No market where you hold a perk or hauled in the last 8 weeks.");
+    expect(STANDING_UX.listEmpty(8)).toBe("No market yet where you hold a perk or have hauled in the last 8 weeks.");
   }, 120_000);
 
   it("§1.3a: moments follow the list: a folded market's step is untold, but a step up to a perk and a lost milestone are told", async () => {
@@ -447,7 +447,7 @@ describe("0.25.3's client polish for standing (UX next-screens §1.3a, §13, §1
     const both = cardUx(w, c, hub)!;
     expect(both.notice).not.toBeNull();
     expect(both.decay).toBeNull();
-    expect(ladderFoot(w)).toContain(" one tier at most. A step down comes after two reviews under the floor. A load counts");
+    expect(ladderFoot(w)).toContain(" one tier at most. A step down comes only after two reviews in a row under the floor; until then you're on notice. A load counts");
     const none = await started({ ...ON, standing: { ...ON.standing, noticeReviews: 0 } });
     expect(ladderFoot(none.w)).not.toContain("A step down comes after");
   }, 120_000);

@@ -281,6 +281,18 @@ export const LIVE_LEVERS: Record<string, unknown> = {
   "windows.claimsInFull": true,
   "windows.spoilAfterDeadline": true,
   "safety.hotLoads.premiumFromArrival": true,
+  // 0.25.3 (the director's sprint rulings, studio/reviews/director-sprint-2026-11-15.md once filed): standing with a
+  // shipper (ten tiers, with §13 and §14); the bus home for a driver with no truck, with the truckless driver home only
+  // inside the home market; releasing the current load before pickup (§1); the dispatcher bringing a due driver home,
+  // a load booked ahead first (§5, §17); a bought truck handed over where it stands (§6); and the home rules reading
+  // a co-driver too. Paired within the spread (economy-ruleset-0253-pair-2026-11-15.md).
+  "standing.enabled": true,
+  "labor.busHome.enabled": true,
+  "labor.truckLessHomeByHub": true,
+  "windows.releaseCurrent": true,
+  "labor.dueHomePlan.enabled": true,
+  "assets.handOverAtTruck": true,
+  "labor.coDriversCount": true,
 };
 
 /** A config with the levers applied by path; throws on a path the config doesn't have. */

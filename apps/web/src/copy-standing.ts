@@ -76,7 +76,7 @@ export const STANDING = {
               : null,
   iuliiaFell: (market: string, tier: number, cause: string, perk: string, perkTier: number) => `Your ${market} standing fell to tier ${tier} after ${cause}. ${perk} is gone until you're back at ${perkTier}.`,
   // The director's sprint §13: on notice, when the step down would lose a perk (her line; the writer polishes).
-  iuliiaOnNotice: (market: string, day: string, perk: string) => `Your ${market} standing is on notice. A ${market} load before ${day} keeps ${perk}.`,
+  iuliiaOnNotice: (market: string, day: string, perk: string) => `Your ${market} standing is on notice. Get back over the floor by ${day}'s review and you keep ${perk.charAt(0).toLowerCase()}${perk.slice(1)}.`,
   iuliiaDecayAhead: (market: string) => `No ${market} load in seven weeks. Another week without one and your standing there drops a tier.`,
   iuliiaNoticed: (market: string) => `${market} shippers noticed. Keep delivering on time and they'll start calling you first.`,
   // The hero at a milestone (the kit's hero component).
@@ -112,7 +112,7 @@ export const STANDING_UX = {
   foldHead: (n: number) => `Other markets · ${n}`,
   foldLine: (weeks: number) => `No perk, and no load in the last ${weeks} weeks.`,
   foldRow: (market: string, tier: number, last: string | null) => `${market} · tier ${tier} of 10${last ? ` · last load ${last}` : ""}`,
-  listEmpty: (weeks: number) => `No market where you hold a perk or hauled in the last ${weeks} weeks.`,
+  listEmpty: (weeks: number) => `No market yet where you hold a perk or have hauled in the last ${weeks} weeks.`,
   // §1.1 the card.
   line2: (tier: number, trend: string) => `tier ${tier} of 10 · ${trend}`,
   next: (tier: number, loads: number, onTime: string | null) => `Next: tier ${tier} at ${loads} counted ${loads === 1 ? "load" : "loads"}${onTime ? ` and ${onTime} on time` : ""}.`,
@@ -120,8 +120,8 @@ export const STANDING_UX = {
   topTier: (loads: number, onTime: string) => `The top tier. To hold it: ${loads} counted loads and ${onTime} on time.`,
   unlocks: (perk: string, tier: number) => `${perk} at tier ${tier}.`,
   // Engineering's placeholders for the writer (the director's sprint §13 and §14).
-  onNoticeLoads: (have: string, tier: number, need: number, day: string, market: string) => `On notice: ${have} ${have === "1" ? "load" : "loads"} against tier ${tier}'s ${need}. Still under at next ${day}'s review, and ${market} drops to tier ${tier - 1}.`,
-  onNoticeOnTime: (have: string, tier: number, need: string, day: string, market: string) => `On notice: ${have} on time against tier ${tier}'s ${need}. Still under at next ${day}'s review, and ${market} drops to tier ${tier - 1}.`,
+  onNoticeLoads: (have: string, tier: number, need: number, day: string, market: string) => `On notice: ${have} counted ${have === "1" ? "load" : "loads"} against the ${need} tier ${tier} needs. Still under at ${day}'s review, and your ${market} standing drops to tier ${tier - 1}.`,
+  onNoticeOnTime: (have: string, tier: number, need: string, day: string, market: string) => `On notice: ${have} on time against the ${need} tier ${tier} needs. Still under at ${day}'s review, and your ${market} standing drops to tier ${tier - 1}.`,
   callsLine: (taken: number, of: number, days: number, market: string) => `First calls: you took ${taken} of ${of} in ${days} days. ${market} shippers call first the carriers who take them.`,
   decayChip: (market: string, weeks: number, day: string) => `No ${market} load in ${weeks} weeks · a tier off ${day}`,
   // §1.2 the ladder.
@@ -132,7 +132,7 @@ export const STANDING_UX = {
   ladderFoot: (day: string, hour: string, late: number, hit: number, weeks: number, stepDown: string | null) =>
     `How it moves: reviewed every ${day} at ${hour}, one tier at most.${stepDown ? ` ${stepDown}` : ""} A load counts in full from 500 miles and by its miles below that; a contract load counts double. A late delivery takes off ${late === 1 ? "one load" : `${late} loads`}; a claim, a no-show or a release ${hit === 2 ? "two" : hit}. ${weeks === 8 ? "Eight" : weeks} weeks without a load from the market costs a tier.`,
   // Engineering's placeholder for the writer (the director's §13, UX §1.2's foot).
-  ladderStepDown: (reviews: number) => `A step down comes after ${reviews === 2 ? "two" : reviews} reviews under the floor.`,
+  ladderStepDown: (reviews: number) => `A step down comes only after ${reviews === 2 ? "two" : reviews} reviews in a row under the floor; until then you're on notice.`,
   ladderClose: "Close",
   // §1.4 the load sheet.
   countsToward: (market: string, band: string, tier: number) => `Counts toward your ${market} standing: ${band}, tier ${tier} of 10.`,

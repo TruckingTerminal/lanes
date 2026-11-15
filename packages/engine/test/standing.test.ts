@@ -49,6 +49,8 @@ import {
 const LIVE = withLiveLevers();
 const net = buildNetwork(hubs, LIVE);
 const ON = { ...LIVE, standing: { ...LIVE.standing, enabled: true } } as EconomyConfig;
+/** Off by its own key: on in the live levers from 0.25.3. */
+const OFF = { ...LIVE, standing: { ...LIVE.standing, enabled: false } } as EconomyConfig;
 /** The step down at once, as before the director's sprint §13 (noticeReviews 0): the tests of the floors' arithmetic. */
 const AT_ONCE = { ...ON, standing: { ...ON.standing, noticeReviews: 0 } } as EconomyConfig;
 const DAY = LIVE.time.gameMinutesPerDay;
@@ -83,14 +85,14 @@ const setTier = (c: Company, hub: number, tier: number, w: World, lanes?: number
 
 describe("standing, off", () => {
   it("makes no state, and a three-day world is byte-identical with the switch off and with the section absent", () => {
-    const { standing: _s, ...absentCfg } = LIVE as EconomyConfig & { standing?: unknown };
+    const { standing: _s, ...absentCfg } = OFF as EconomyConfig & { standing?: unknown };
     const run = (cfg: EconomyConfig) => {
       const w = createWorld({ cfg, net, feeds: neutralFeeds, seed: 13 });
       populate(w, { freeOwnerOperators: 20, fleets: 6, brokers: 2 });
       for (let h = 0; h < 72; h++) stepHour(w, ruleBotHook);
       return w;
     };
-    const off = run(LIVE);
+    const off = run(OFF);
     const absent = run(absentCfg as EconomyConfig);
     expect(off.companies.some((c) => c.standing !== undefined)).toBe(false);
     expect([...off.loads.values()].some((l) => l.firstCall !== undefined)).toBe(false);
@@ -378,7 +380,7 @@ describe("the tier-reached moments (UX next-screens §1.6)", () => {
     expect(applyAction(w, c.id, { type: "standing_seen", tier: 11 }).ok).toBe(false);
     expect(applyAction(w, c.id, { type: "standing_seen", tier: 2.5 }).ok).toBe(false);
     expect(applyAction(w, c.id, { type: "standing_seen", tier: 5 }).ok).toBe(true);
-    const off = bare(LIVE);
+    const off = bare(OFF);
     const d = carriers(off)[0]!;
     d.standingOwed = [{ tier: 3, hub: d.homeHub, t: 0 }];
     expect(standingOwed(off, d)).toEqual([]);
@@ -501,7 +503,7 @@ describe("the card", () => {
     expect(card.nextPerk).toEqual({ tier: 7, perk: "firstCall" });
     expect(card.perks).toEqual(["dock", "net"]);
     expect([card.loads, card.contractLoads, card.score]).toEqual([7, 1, 8]);
-    expect(standingCard(bare(LIVE), c, hub)).toBeNull();
+    expect(standingCard(bare(OFF), c, hub)).toBeNull();
   });
 });
 
@@ -514,7 +516,7 @@ describe("the perks", () => {
     setTier(c, c.homeHub, 3, w);
     expect(dockPriority(w, c.id, c.homeHub)).toBe(30);
     expect(dockPriority(w, c.id, (c.homeHub + 1) % w.net.hubs.length)).toBe(0);
-    const off = bare(LIVE);
+    const off = bare(OFF);
     const oc = carriers(off)[0]!;
     setTier(oc, oc.homeHub, 10, off);
     expect(dockPriority(off, oc.id, oc.homeHub)).toBe(0);

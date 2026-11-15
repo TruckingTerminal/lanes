@@ -39,7 +39,7 @@ or `/private/tmp/claude-501/…` are the old laptop's; the repo is wherever you 
 Append a dated line to the state log saying the studio now runs on the Mac Studio (use `date`, mark it REAL CLOCK).
 
 ## 4. Verify the world (read-only; change nothing)
-1. The public test page: `curl -s https://truckingterminal.github.io/lanes-play/ | grep -c "0.25.2-phase0.45"` should
+1. The public test page: `curl -s https://truckingterminal.github.io/lanes-play/ | grep -c "0.25.3-phase0.46"` should
    print 1 (the build that CI deployed from `main`). `gh run list --limit 3` shows the deploys. The live profile's
    ten-day digest, `npx tsx apps/sim/src/determinism.ts` (behind the test gate), reads `995612c74cb2a3b7` at
    0.25.2-phase0.45 on the Mac Studio's Node; CI's Node reads another value, so no test pins it. Anything new behind a

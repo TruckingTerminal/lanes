@@ -77,7 +77,9 @@ export function growthPages(cfg: EconomyConfig): GuidePage[] {
           ...(cfg.assets.expedite.enabled
             ? [`<b>Early delivery.</b> A new truck or trailer on order from the dealer can be brought forward to its earliest open slot, for a fee: ${(cfg.assets.expedite.feePerWeekSaved * 100).toFixed(1)}% of its price for each week saved, at least ${n(cfg.assets.expedite.minFeeFd)} FD and at most ${pct(cfg.assets.expedite.maxFeeShare)} of the price. You pay at once and it's never refunded. It's never sooner than ${cfg.assets.expedite.floorDays} days from paying, and slots each week are limited, so nobody else's date moves.`]
             : []),
-          `Ordering a first truck while on the NPC lease replaces the lease when it arrives. A company can run up to ${cfg.company.maxTrucks} trucks.`,
+          cfg.assets.handOverAtTruck
+            ? `<b>The hand-over.</b> A truck you buy waits at your home hub (at a player's dealership, at its hub). Ordering a first truck while on the NPC lease replaces the lease at the hand-over: the leased truck must stand idle at that hub, and the lease and its cut run until then. With your dispatcher on, the leased truck takes no new load once its replacement is ready and runs there empty; with it off, you drive it there. A company can run up to ${cfg.company.maxTrucks} trucks.`
+            : `Ordering a first truck while on the NPC lease replaces the lease when it arrives. A company can run up to ${cfg.company.maxTrucks} trucks.`,
         ]),
     },
     {

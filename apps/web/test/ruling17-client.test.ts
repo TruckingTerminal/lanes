@@ -22,7 +22,7 @@ describe("ruling 17 on the page", () => {
     const l = [...w.loads.values()].find((x) => x.latestPickupT !== undefined)!;
     const r: Reach = { ok: false, why: "daysOff", freeT: l.latestPickupT! + 6 * 60, freePlace: l.originPlace, pickupT: l.latestPickupT! + 6 * 60, deliverT: l.latestPickupT! + 6 * 60 };
     const chip = reachChip(w, l, r, 3)!;
-    expect(chip).toMatch(/^Truck 3 is on days off until .+, after the .+ pickup\.$/);
+    expect(chip).toMatch(/^Truck 3's days off run to .+, past this load's .+ pickup\.$/);
   });
 
   it("the sheet's line when the driver comes due by the pickup's day; none with the switch off or on days off", () => {
@@ -38,7 +38,7 @@ describe("ruling 17 on the page", () => {
     d.awayDays = hm.afterDays - 1; // due tomorrow
     const line = dueFirstLine(w, t, (today + 2) * D + 9 * 60)!;
     expect(line).toBe(FIXES.dueFirst(d.owner ? null : d.name, weekdayName((today + 1) * D, w.cfg)));
-    expect(line).toMatch(/due home \w+day\. This load comes first; (your|their) days off wait until (you're|they're) home with nothing booked\.$/);
+    expect(line).toMatch(/due home \w+day\. This load comes first; (your days off start once you're|the days off start once the truck is) home with nothing booked\.$/);
     expect(dueFirstLine(w, t, today * D + 9 * 60)).toBeNull(); // the pickup comes before they're due
     d.awayDays = hm.afterDays + 3;
     expect(dueFirstLine(w, t, today * D + 9 * 60)).toBe(FIXES.dueFirst(d.owner ? null : d.name, FIXES.dueToday));

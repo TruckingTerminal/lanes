@@ -12,7 +12,8 @@ import { applyAction, companyAccount, createWorld, dailyDrivers, dayOf, hubMiles
 const LIVE = withLiveLevers();
 const net = buildNetwork(hubs, LIVE);
 const DAY = LIVE.time.gameMinutesPerDay;
-const labor = (o: Record<string, unknown>) => ({ ...LIVE, labor: { ...LIVE.labor, truckLessHomeByHub: true, ...o } }) as EconomyConfig;
+// The bus off unless a test turns it on (on in the live levers from 0.25.3).
+const labor = (o: Record<string, unknown>) => ({ ...LIVE, labor: { ...LIVE.labor, truckLessHomeByHub: true, busHome: { ...LIVE.labor.busHome, enabled: false }, ...o } }) as EconomyConfig;
 const BUS = labor({ busHome: { ...LIVE.labor.busHome, enabled: true } });
 const cash = (w: World, companyId: number) => w.ledger.balance(companyAccount(companyId));
 

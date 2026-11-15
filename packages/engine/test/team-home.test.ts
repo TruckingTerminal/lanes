@@ -11,6 +11,8 @@ import { createWorld, dayOf, homeBlock, needsHome, resting, seatDriver, type Loa
 const LIVE = withLiveLevers();
 const net = buildNetwork(hubs, LIVE);
 const ON = { ...LIVE, labor: { ...LIVE.labor, coDriversCount: true } } as EconomyConfig;
+/** Off by its own key: on in the live levers from 0.25.3. */
+const OFF = { ...LIVE, labor: { ...LIVE.labor, coDriversCount: false } } as EconomyConfig;
 
 /** A fleet's truck with a hired lead and a hired co-driver, both clean, and a load to try. */
 function team(cfg: EconomyConfig) {
@@ -32,7 +34,7 @@ const today = (w: World) => dayOf(w.t, w.cfg);
 
 describe("team trucks and the home rules (labor.coDriversCount)", () => {
   it("off: a co-driver on days off or past due isn't read, as before", () => {
-    const { w, c, truck, co, load } = team(LIVE);
+    const { w, c, truck, co, load } = team(OFF);
     co.homeUntilDay = today(w) + 3;
     expect(resting(w, truck)).toBe(false);
     co.homeUntilDay = null;

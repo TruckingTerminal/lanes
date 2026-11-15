@@ -22,7 +22,8 @@ describe("the bought truck's hand-over on the page", () => {
       Object.assign(t, { hub: far, targetHub: far, place: placeOfHub(far), targetPlace: placeOfHub(far) });
       const line = handOverAt(w, c, { type: "buy_asset", tier: "workhorse", trailer: "van", replaceNpcLease: t.lease === "npc" })!;
       expect(line).toBe(FIXES.handOverAt(w.net.hubs[c.homeHub]!.name, Math.round(hubMiles(w, far, c.homeHub)), 1));
-      expect(handOverAt({ ...w, cfg: GAME_CONFIG } as never, c, { type: "buy_asset", tier: "workhorse", trailer: "van", replaceNpcLease: true })).toBeNull();
+      const off = { ...GAME_CONFIG, assets: { ...GAME_CONFIG.assets, handOverAtTruck: false } }; // on in the live levers from 0.25.3
+      expect(handOverAt({ ...w, cfg: off } as never, c, { type: "buy_asset", tier: "workhorse", trailer: "van", replaceNpcLease: true })).toBeNull();
     } finally {
       S.game = null;
     }
@@ -40,6 +41,6 @@ describe("the bought truck's hand-over on the page", () => {
     placeOrder(w, c, "workhorse", t.trailer, true, "rig", 0);
     expect(nextAction(w.cfg, w, c)).toMatchObject({ kind: "handOver", truckId: t.id, hub: c.homeHub });
     expect(FIXES.handOverGo("185", "3 h")).toBe("Go to the hand-over · about 185 FD · 3 h");
-    expect(FIXES.handOverReady("Columbus", "143")).toBe("Your new truck is ready at Columbus, 143 mi.");
+    expect(FIXES.handOverReady("Columbus", "143")).toBe("Your new truck is ready at Columbus, 143 mi away.");
   }, 120_000);
 });

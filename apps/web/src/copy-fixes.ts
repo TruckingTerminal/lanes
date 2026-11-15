@@ -57,20 +57,20 @@ export const FIXES = {
   // Engineering's placeholders for the writer: the director's ruling 17 (labor.dueHomePlan), a load booked ahead goes before
   // a due driver's days off. The board's chip when a booking would be held for days off that end after the pickup closes,
   // and the booking sheet's line, in "What you're agreeing to", when the driver comes due by the pickup's day.
-  cantDaysOff: (truck: number, until: string, pickup: string) => `Truck ${truck} is on days off until ${until}, after the ${pickup} pickup.`,
+  cantDaysOff: (truck: number, until: string, pickup: string) => `Truck ${truck}'s days off run to ${until}, past this load's ${pickup} pickup.`,
   dueFirst: (name: string | null, day: string) =>
     name === null
-      ? `You're due home ${day}. This load comes first; your days off wait until you're home with nothing booked.`
-      : `${name} is due home ${day}. This load comes first; their days off wait until they're home with nothing booked.`,
+      ? `You're due home ${day}. This load comes first; your days off start once you're home with nothing booked.`
+      : `${name} is due home ${day}. This load comes first; the days off start once the truck is home with nothing booked.`,
   dueToday: "today",
   // The red team's 0.25.3 pass, finding 3: waiting at the shipper's dock before the load is ready, still releasable.
   waitingAtDock: (town: string, ready: string) => `At the dock in ${town} · the load is ready ${ready}`,
   releaseCurrentDoes: (from: string, to: string, truck: number, town: string, sunkMi: string | null) =>
-    `${from} → ${to} goes back on the board, and Truck ${truck} stops at ${town}${sunkMi ? `: its ${sunkMi} empty miles so far are sunk` : ""}.`,
+    `${from} → ${to} goes back on the board, and Truck ${truck} stops at ${town}, the nearest town${sunkMi ? `; its ${sunkMi} empty miles so far earn nothing` : ""}.`,
   releaseCurrentRisk: "It's also a mark on your record, and you can't book this load again.",
   // Engineering's placeholders for the writer: the bought truck's hand-over (assets.handOverAtTruck; the director's sprint §6).
   handOverAt: (town: string, mi: number, truck: number) => (mi < 1 ? `At ${town}, where Truck ${truck} is.` : `At ${town}, ${mi.toLocaleString("en-US")} mi from Truck ${truck}.`),
-  handOverReady: (town: string, mi: string) => `Your new truck is ready at ${town}, ${mi} mi.`,
+  handOverReady: (town: string, mi: string) => `Your new truck is ready at ${town}, ${mi} mi away.`,
   handOverWhy: (truck: number) => `Bring Truck ${truck} to the hand-over: the lease and the lessor's cut run until it's turned in there.`,
   handOverGo: (fd: string, time: string) => `Go to the hand-over · about ${fd} FD · ${time}`,
   handOverSent: "On the way to the hand-over",
@@ -93,5 +93,5 @@ export const FIXES = {
   repPartExperience: (words: string) => `Experience: ${words}`,
   // Engineering's placeholders for the writer: the bus home (ruleset 0.25.3, labor.busHome; the director's sprint §9).
   onBus: (day: string) => `on the bus home · home ${day}`,
-  awayBus: (who: string, from: string, hours: number, fd: string, day: string) => `No truck for ${who} at ${from}: the bus home, about ${hours} h and ${fd} FD, home ${day}.`,
+  awayBus: (who: string, from: string, hours: number, fd: string, day: string) => `${who} had no truck at ${from} and took the bus home: about ${hours} h and ${fd} FD, home ${day}.`,
 };

@@ -121,7 +121,7 @@ describe("the red team's 0.25.3 pass", () => {
     s.drivenMinToday = 0;
     dailyDrivers(w);
     expect(s.awayDays).toBe(6); // away from home: the window's day isn't rest here
-    const off = createWorld({ cfg: LIVE, net, feeds: neutralFeeds, seed: 13 });
+    const off = createWorld({ cfg: { ...LIVE, labor: { ...LIVE.labor, truckLessHomeByHub: false } } as EconomyConfig, net, feeds: neutralFeeds, seed: 13 });
     populate(off, { freeOwnerOperators: 6, fleets: 0, brokers: 1 });
     const s0 = off.staff.find((x) => x.owner && x.status === "employed" && x.truckId > 0)!;
     const t0 = off.trucks[s0.truckId - 1]!;
