@@ -54,6 +54,16 @@ export const FIXES = {
   // Engineering's placeholders for the writer: releasing the current load before pickup (windows.releaseCurrent; the
   // director's sprint §1), on the truck card's Now line and its Confirm.
   headingTo: (town: string, by: string) => `Heading to ${town} · pick up by ${by}`,
+  // Engineering's placeholders for the writer: the bus to a truck (labor.busToTruck; the director's sprint §19 and §20).
+  sendByBus: "Send by bus",
+  sendSelect: "Truck to send them to",
+  sendOption: (truck: number, town: string, time: string, fd: string) => `Truck ${truck} at ${town} · ${time} · ${fd} FD`,
+  sendButton: (name: string | null, from: string, time: string, fd: string) => `Send ${name ?? "yourself"} from ${from} · ${time} · ${fd} FD`,
+  rideDays: (n: number) => (n <= 1 ? "about a day" : `about ${n} days`),
+  sentToast: (name: string | null, town: string) => `${name === null ? "You're" : `${name} is`} on the bus to ${town}`,
+  riderOnWay: (name: string | null, day: string) => `${name === null ? "You're" : `${name} is`} on the bus here, arriving ${day}.`,
+  hireAt: (town: string) => `Hire at ${town}`,
+  hireRides: (name: string, from: string, time: string, fd: string) => `${name} is at ${from}: the bus here first, ${time}, ${fd} FD on you.`,
   // Engineering's placeholders for the writer: QA's 0.25.3 replay (qa-0253-2026-11-15.md, fix soon and lower).
   // A load this company released, back on the board: the card's chip and the sheet's reason.
   releasedByYou: "You released this load, so you can't book it again.",

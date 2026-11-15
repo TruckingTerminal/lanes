@@ -171,6 +171,8 @@ export function offerStaff(w: World, c: Company, s: Staff, pay: number, truckId:
     if (!truck || truck.companyId !== c.id) return "not your truck";
     if (crewed(truck)) return "that truck already has a driver";
     if (truck.status === "retired" || truck.status === "listed" || truck.status === "parked") return "that truck isn't on the road";
+    const held = heldFor(w, truck);
+    if (held) return `that seat is held for ${held.name}, on the bus`;
   }
   const ask = askOf(w, c, s);
   const floor = payFloor(w, s);
@@ -228,7 +230,18 @@ function hire(w: World, c: Company, s: Staff, pay: number, truck: Truck | null, 
   // Starting happy if paid well over market, less so if barely.
   s.morale = clamp(0.6 + w.cfg.labor.morale.payWeight * (pay / marketPay(w, s.kind, s.skill) - 1), 0.3, 0.95);
   w.staffByCompany.get(c.id)!.push(s);
-  if (truck) seatDriver(w, s, truck);
+  // labor.busToTruck (§20): a driver let go within poolWeeks stands where they were let go; for a truck at another hub, the
+  // bus there first, at the hirer's cost. After that, they've moved on, and a hire starts at the truck.
+  const kept = poolRide(w, s, truck);
+  if (s.pooledDay !== undefined) {
+    delete s.pooledDay;
+    if (!kept && (truck || !busToTruckOn(w))) {
+      s.lastHub = undefined;
+      delete s.lastPlace;
+    }
+  }
+  if (truck && kept) startRide(w, c, s, truck);
+  else if (truck) seatDriver(w, s, truck);
   if (s.kind === "opsManager") for (const t of w.trucksByCompany.get(c.id) ?? []) syncTruck(w, t); // the drivers' bonus
 }
 
@@ -248,8 +261,14 @@ export function releaseStaff(w: World, s: Staff): void {
   if (s.unhappyNotice) s.unhappyNotice = false;
   if (s.unhappyHeld) s.unhappyHeld = undefined;
   if (s.underFloor) s.underFloor = undefined;
-  if (s.lastHub !== undefined) s.lastHub = undefined; // in the pool, a driver is no longer anywhere in particular
-  if (s.lastPlace !== undefined) delete s.lastPlace;
+  if (busToTruckOn(w)) {
+    // labor.busToTruck (§20): they keep the hub where they were let go for poolWeeks; a ride under way ends there.
+    if (s.bus && !s.bus.done) s.bus.done = true;
+    s.pooledDay = dayOf(w.t, w.cfg);
+  } else {
+    if (s.lastHub !== undefined) s.lastHub = undefined; // in the pool, a driver is no longer anywhere in particular
+    if (s.lastPlace !== undefined) delete s.lastPlace;
+  }
   s.morale = w.cfg.labor.morale.start;
 }
 
@@ -493,11 +512,13 @@ export function dailyDrivers(w: World): void {
     // is home (the truck at home, or off it inside the home radius), so a window cut by driving out isn't rest anywhere.
     const homeNow = !w.cfg.labor.truckLessHomeByHub || (t ? standingAtHome(w, c, t) : s.lastHub === undefined || hubMiles(w, s.lastHub, c.homeHub) <= w.cfg.map.nearbyRadiusMi);
     const dayOff = w.cfg.labor.daysOffFull && s.homeUntilDay !== null && today <= s.homeUntilDay && hours === 0 && homeNow;
+    // labor.busToTruck (§19): on the bus to a truck, days away with no rest, wherever they left from.
+    const ridingOut = s.bus !== undefined && s.bus.done !== true && s.bus.to !== undefined;
     // labor.busHome (0.25.3): a driver with no truck away from home rides the bus home, or arrives.
     const onBus = busOn(w) && busHome(w, c, s, t, today);
     // labor.truckLessHomeByHub (the sprint pass): off the truck, home only inside the home radius of where they stepped off.
     const strayed = !t && w.cfg.labor.truckLessHomeByHub === true && s.lastHub !== undefined && hubMiles(w, s.lastHub, c.homeHub) > w.cfg.map.nearbyRadiusMi;
-    const home = (!t && !strayed) || dayOff || (t !== null && standingAtHome(w, c, t));
+    const home = !ridingOut && ((!t && !strayed) || dayOff || (t !== null && standingAtHome(w, c, t)));
     s.drivenMinToday = 0;
     if (home && hours === 0) {
       // A day off at home.
@@ -548,6 +569,95 @@ const busOn = (w: World): boolean => w.cfg.labor.busHome?.enabled === true && w.
 /** A driver on the bus home now (labor.busHome): a trip under way, and no truck. */
 export const onTheBus = (s: Staff): boolean => s.bus !== undefined && s.bus.done !== true && s.truckId === 0;
 
+/** labor.busToTruck (the director's sprint §19 and §20), which runs only with the bus home it mirrors. */
+export const busToTruckOn = (w: World): boolean => busOn(w) && w.cfg.labor.busToTruck?.enabled === true;
+
+/** The bus from hub to hub, priced as the bus home's: miles a day, a fare of fareDays' per diem plus a day's for each day on it. */
+export function busRide(w: World, fromHub: number, toHub: number): { miles: number; days: number; fareFd: number; arriveDays: number } {
+  const k = w.cfg.labor.busHome;
+  const miles = hubMiles(w, fromHub, toHub);
+  const days = miles / k.miPerDay;
+  return { miles, days, fareFd: w.cfg.labor.driver.perDiemFd * (k.fareDays + days), arriveDays: Math.ceil(days) };
+}
+
+/** §19: the rider a truck's empty seat is held for while they're on the bus to it, if any. */
+export function heldFor(w: World, t: Truck): Staff | undefined {
+  if (!t.companyId) return undefined;
+  return (w.staffByCompany.get(t.companyId) ?? []).find((s) => s.bus !== undefined && s.bus.done !== true && s.bus.to === t.id);
+}
+
+/** §19: due for days off by the home rule (or sent home): the home rule is the driver's, so no bus to a truck first. */
+function dueHome(c: Company, s: Staff): boolean {
+  const hm = c.orders.find((o): o is Extract<StandingOrder, { kind: "homeTime" }> => o.kind === "homeTime");
+  return s.wantsHome || (hm !== undefined && s.awayDays >= hm.afterDays);
+}
+
+/**
+ * §19: why `s` can't be sent by bus to `truck`, or null. A driver with no truck, hired or the owner, standing at another
+ * hub, not on days off nor due for them, not on a bus already; the truck the company's, at a hub, its seat empty and not
+ * held for another rider. Reads only (the page offers only what this allows).
+ */
+export function sendBlock(w: World, c: Company, s: Staff, truck: Truck): string | null {
+  if (!busToTruckOn(w)) return "there's no bus to a truck";
+  if (s.companyId !== c.id || s.status !== "employed" || s.kind !== "driver") return "not one of your drivers";
+  const who = s.owner ? "you" : s.name;
+  if (s.truckId) return `${s.owner ? "you have" : `${s.name} has`} a truck`;
+  if (onTheBus(s)) return `${s.owner ? "you're" : "they're"} on the bus already`;
+  if (s.homeUntilDay !== null && s.homeUntilDay > dayOf(w.t, w.cfg)) return `${s.owner ? "you're" : `${s.name} is`} on days off`;
+  if (dueHome(c, s)) return `${s.owner ? "you're" : `${s.name} is`} due for days off first`;
+  if (truck.companyId !== c.id) return "not your truck";
+  if (s.lastHub === undefined || s.lastHub === truck.hub) return `${who} can take that seat now`;
+  if (crewed(truck)) return "that truck already has a driver";
+  if (!(truck.status === "idle" || truck.status === "parked" || truck.status === "repair")) return "the truck must be at a hub";
+  const held = heldFor(w, truck);
+  if (held && held.id !== s.id) return `that seat is held for ${held.name}, on the bus`;
+  return null;
+}
+
+/** §19: starts the ride to `truck` from where `s` stands, the fare paid by `c` now, the seat held while they ride. */
+function startRide(w: World, c: Company, s: Staff, truck: Truck): void {
+  const from = s.lastHub!;
+  const r = busRide(w, from, truck.hub);
+  w.ledger.post(w.t, companyAccount(c.id), "sink:per_diem", r.fareFd, `bus:${s.id}`);
+  c.operating.costFd += r.fareFd;
+  s.bus = { from, miles: r.miles, fareFd: r.fareFd, leftT: w.t, arriveDay: dayOf(w.t, w.cfg) + r.arriveDays, to: truck.id, toHub: truck.hub, toPlace: truck.place };
+  s.trucklessDays = 0;
+  const who = s.owner ? "You take" : `${label(s)} takes`;
+  notice(w, c.id, `${who} the bus from ${whereOff(w, s)} to Truck ${truck.id} at ${w.net.places[truck.place]!.name}: about ${Math.round(r.days * 24)} h, ${fmtInt(r.fareFd)} FD.`, "info", truck.id);
+}
+
+/** §19: the player's Send (send_driver), or auto-staff's. */
+export function sendByBus(w: World, c: Company, s: Staff, truck: Truck): string | null {
+  const why = sendBlock(w, c, s, truck);
+  if (why) return why;
+  startRide(w, c, s, truck);
+  return null;
+}
+
+/** §20: the ride a pool driver let go within poolWeeks needs before a seat in `truck` at another hub (at the hirer's cost), or null. */
+export function poolRide(w: World, s: Staff, truck: Truck | null): ReturnType<typeof busRide> | null {
+  if (!busToTruckOn(w) || !truck || s.pooledDay === undefined || s.lastHub === undefined) return null;
+  if (dayOf(w.t, w.cfg) - s.pooledDay >= w.cfg.labor.busToTruck.poolWeeks * 7) return null;
+  return s.lastHub === truck.hub ? null : busRide(w, s.lastHub, truck.hub);
+}
+
+/** §19: arriving, the rider takes the held seat if the truck still stands there empty; else they stand there with none. */
+function arriveAtTruck(w: World, c: Company, s: Staff, today: number): boolean {
+  const b = s.bus!;
+  if (today < b.arriveDay) return true;
+  b.done = true;
+  s.lastHub = b.toHub!;
+  s.lastPlace = b.toPlace!;
+  s.trucklessDays = 0;
+  const t = w.trucks[b.to! - 1];
+  const town = w.net.places[b.toPlace!]!.name;
+  if (t && t.companyId === c.id && !crewed(t) && t.hub === b.toHub && (t.status === "idle" || t.status === "parked" || t.status === "repair")) {
+    seatDriver(w, s, t);
+    notice(w, c.id, `${s.owner ? "You're" : `${label(s)} is`} off the bus at ${town} and in Truck ${t.id}.`, "good", t.id);
+  } else notice(w, c.id, `${s.owner ? "You're" : `${label(s)} is`} off the bus at ${town}, but the truck there has gone: no truck for ${s.owner ? "you" : "them"} now.`, "bad");
+  return true; // the fare covers the day they arrive
+}
+
 /** Where a driver with no truck stands, by its town (QA's 0.25.3 replay: towns, never codes or a market's hub for a town in it). */
 export const whereOff = (w: World, s: Staff): string => (s.lastPlace !== undefined ? w.net.places[s.lastPlace]!.name : s.lastHub !== undefined ? w.net.hubs[s.lastHub]!.name : "");
 
@@ -556,7 +666,7 @@ export const whereOff = (w: World, s: Staff): string => (s.lastPlace !== undefin
  * clocks, off a truck where they left it), they can't. The refusal names towns. Reads only.
  */
 export function seatReach(w: World, s: Staff, truck: Truck): string | null {
-  if (onTheBus(s)) return "they're on the bus home";
+  if (onTheBus(s)) return s.bus!.to !== undefined ? `they're on the bus to ${w.net.places[s.bus!.toPlace!]!.name}` : "they're on the bus home";
   if (!clocksFollowDriver(w)) return null;
   const town = (t: Truck) => w.net.places[t.place]!.name;
   if (s.truckId && s.truckId !== truck.id && truckById(w, s.truckId).hub !== truck.hub) return `their truck is at ${town(truckById(w, s.truckId))}, and that one is at ${town(truck)}`;
@@ -576,6 +686,8 @@ export function seatBlock(w: World, c: Company, s: Staff, truck: Truck, team: bo
   if (!atHub(truck.status)) return "the truck must be at a hub";
   const reach = seatReach(w, s, truck);
   if (reach) return reach;
+  const held = heldFor(w, truck);
+  if (held && held.id !== s.id) return `that seat is held for ${held.name}, on the bus`;
   if (team) {
     if (!crewed(truck)) return "that truck needs a driver before a co-driver";
     if (truck.coDriverId) return "that truck already runs as a team";
@@ -599,6 +711,7 @@ function busHome(w: World, c: Company, s: Staff, t: Truck | null, today: number)
     return false;
   }
   const k = w.cfg.labor.busHome;
+  if (s.bus && !s.bus.done && s.bus.to !== undefined) return arriveAtTruck(w, c, s, today); // labor.busToTruck (§19)
   if (s.bus && !s.bus.done) {
     if (today < s.bus.arriveDay) return true;
     s.bus.done = true;
@@ -644,6 +757,7 @@ export function seatPaidDrivers(w: World, c: Company): void {
   if (c.authority.status === "revoked" || c.liquidatingSince !== null) return;
   const promised = new Set<number>();
   for (const s of w.staff) if (s.offer && s.offer.companyId === c.id && s.offer.truckId) promised.add(s.offer.truckId);
+  if (busToTruckOn(w)) for (const t of w.trucksByCompany.get(c.id) ?? []) if (heldFor(w, t)) promised.add(t.id); // §19: held for a rider
   const empty = w.trucksByCompany
     .get(c.id)!
     .filter((t) => !crewed(t) && (t.status === "idle" || t.status === "repair") && !promised.has(t.id))
@@ -704,6 +818,7 @@ export function autoStaff(w: World, c: Company, minDriverSkill = 0, minDispatche
   // Seats to fill: trucks on the road first, parked ones last; a seat promised to someone we're hiring away is kept for them.
   const promised = new Set<number>();
   for (const s of w.staff) if (s.offer && s.offer.companyId === c.id && s.offer.truckId) promised.add(s.offer.truckId);
+  if (busToTruckOn(w)) for (const t of fleet) if (heldFor(w, t)) promised.add(t.id); // §19: held for a rider
   const empty = fleet
     .filter((t) => !crewed(t) && (t.status === "idle" || t.status === "parked" || t.status === "repair") && !promised.has(t.id))
     .sort((a, b) => Number(a.status === "parked") - Number(b.status === "parked") || a.id - b.id);
@@ -716,6 +831,24 @@ export function autoStaff(w: World, c: Company, minDriverSkill = 0, minDispatche
         if (i >= 0) seatDriver(w, s, empty.splice(i, 1)[0]!);
       }
     } else while (empty.length > 0 && spare.length > 0) seatDriver(w, spare.shift()!, empty.shift()!);
+    // labor.busToTruck (§19): before a hire, a driver of theirs with no truck rides to an empty seat on the road: the
+    // nearest who can go, within maxDays on the bus (the fare and the days counted against a hire's).
+    if (busToTruckOn(w)) {
+      const riders = [...spare, ...(owner ? [owner] : [])].filter((s) => s.truckId === 0);
+      for (const t of [...empty]) {
+        if (t.status === "parked") continue;
+        let best: { s: Staff; days: number } | null = null;
+        for (const s of riders) {
+          if (sendBlock(w, c, s, t) !== null) continue;
+          const days = busRide(w, s.lastHub!, t.hub).days;
+          if (days <= w.cfg.labor.busToTruck.maxDays && (!best || days < best.days)) best = { s, days };
+        }
+        if (!best) continue;
+        startRide(w, c, best.s, t);
+        riders.splice(riders.indexOf(best.s), 1);
+        empty.splice(empty.indexOf(t), 1);
+      }
+    }
     // Parked trucks don't need a driver until they're back on the road.
     const needed = empty.filter((t) => t.status !== "parked");
     if (needed.length > 0) {
@@ -725,7 +858,25 @@ export function autoStaff(w: World, c: Company, minDriverSkill = 0, minDispatche
         .filter((s) => s.skill >= minDriverSkill)
         .sort((a, b) => value(a) - value(b) || a.id - b.id);
       for (const t of needed) {
-        const s = pool.shift();
+        let s: Staff | undefined;
+        if (busToTruckOn(w)) {
+          // labor.busToTruck (§20): a driver let go at another hub within poolWeeks rides here first, at this company's
+          // cost: the fare, over a week's miles, counts against their ask, and a ride past maxDays rules them out.
+          const cost = (x: Staff): number => {
+            const r = poolRide(w, x, t);
+            return r === null ? value(x) : r.days > w.cfg.labor.busToTruck.maxDays ? Infinity : value(x) + r.fareFd / w.cfg.labor.hiring.milesPerWeek;
+          };
+          let at = -1;
+          let best = Infinity;
+          pool.forEach((x, i) => {
+            const v = cost(x);
+            if (v < best) {
+              best = v;
+              at = i;
+            }
+          });
+          s = at >= 0 ? pool.splice(at, 1)[0] : undefined;
+        } else s = pool.shift();
         if (!s || !affordable(s)) break;
         hire(w, c, s, askOf(w, c, s), t);
       }

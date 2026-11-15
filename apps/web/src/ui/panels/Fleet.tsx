@@ -34,6 +34,8 @@ import { expediteOn, expediteQuote, expediteWaitParts } from "@lanes/engine";
 import { expediteLines, waitSentence } from "../../expediteui.js";
 import { WINDOWS } from "../../copy-windows.js";
 import { FIXES } from "../../copy-fixes.js";
+import { nearestRider, riderLine } from "../../busui.js";
+import { busToTruckOn } from "@lanes/engine";
 import { askFigures, askLines, atHomeMarket, claimsAt, currentRelease, nowNext, releaseCard, releaseCurrentCard, urgentFrom, whenAt } from "../../windowsui.js";
 
 
@@ -192,6 +194,27 @@ function offSale(w: World, t: Truck, listingId: number): void {
   act({ type: "withdraw_listing", listingId }, ok);
   seatBack(t.id, s.id, ok, co && isFreeDriver(c, co) ? co.id : undefined);
   S.listedCrew.delete(t.id);
+}
+
+/**
+ * A truck with no driver: Hire a driver; with labor.busToTruck (the director's sprint §19) the nearest driver of the
+ * company who can ride here goes first ("Send Jake from Chicago · about a day · 60 FD"), and Hire names the town; while
+ * one is on the way, the card says who and when, and the seat is held.
+ */
+function NoDriverActions({ t }: { t: Truck }): JSX.Element {
+  const w = S.game!.w;
+  const onWay = riderLine(w, t);
+  if (onWay) return <span class="small">{onWay}</span>;
+  const rider = nearestRider(w, ownerOf(t), t);
+  const town = w.net.places[t.place]!.name;
+  return (
+    <>
+      {rider ? <Btn onClick={() => act({ type: "send_driver", staffId: rider.s.id, truckId: t.id }, FIXES.sentToast(rider.s.owner ? null : rider.s.name, town))}>{rider.label}</Btn> : null}
+      <Btn primary onClick={goStaff}>
+        {busToTruckOn(w) ? FIXES.hireAt(town) : TRUCK.hireDriver}
+      </Btn>
+    </>
+  );
 }
 
 function SendEmpty({ t, nearby }: { t: Truck; nearby: { i: number }[] }): JSX.Element | null {
@@ -650,9 +673,7 @@ function TruckCard({ t, idx }: { t: Truck; idx: number }): JSX.Element {
         {!crewed(t) ? (
           <>
             <span class="bad small">{TRUCK.noDriver(truckNo(t.id))}</span>
-            <Btn primary onClick={goStaff}>
-              {TRUCK.hireDriver}
-            </Btn>
+            <NoDriverActions t={t} />
           </>
         ) : null}
         {/* Send home on any truck, whenever the player asks (the director, 2026-11-09); the tired card has its own. */}

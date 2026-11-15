@@ -626,7 +626,9 @@ export interface Staff {
    * day's start), and whether it's done (arrived, or the driver seated on the way).
    */
   trucklessDays?: number;
-  bus?: { from: number; miles: number; fareFd: number; leftT: number; arriveDay: number; done?: true };
+  bus?: { from: number; miles: number; fareFd: number; leftT: number; arriveDay: number; done?: true; to?: number; toHub?: number; toPlace?: number };
+  /** labor.busToTruck (§20): the day a driver let go went to the pool, keeping the hub they left from for poolWeeks. */
+  pooledDay?: number;
   /** Career record any employer can see. */
   violations: number;
   crashes: number;
@@ -1340,6 +1342,7 @@ export type Action =
   /** The Reserve (cashReserve.ts): cash in at once; out, free, in cash after the settle. */
   | { type: "reserve_deposit"; fd: number }
   | { type: "reserve_withdraw"; fd: number }
+  | { type: "send_driver"; staffId: number; truckId: number }
   /** Player brokerages (brokerage.ts): a carrier forms its brokerage with this much capital (the bond and the licence come out of it). */
   | { type: "form_brokerage"; name: string; capitalFd: number }
   /** The owner's capital moved to its other company (equity, never revenue), less the transfer fee. */

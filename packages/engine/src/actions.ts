@@ -27,7 +27,7 @@ import { rebrokerLoad, stealLoad, vettingBlock } from "./fraud.js";
 import { declineHeld, formBrokerage, partnerOf, passTender, postHeld, tenderOwn, transferCapital } from "./brokerage.js";
 import { depositReserve, withdrawReserve } from "./cashReserve.js";
 import { finiteIn } from "./economics.js";
-import { offerStaff, payFloor, releaseStaff, seatBlock, setPay, severance, startHomeTime } from "./labor.js";
+import { offerStaff, payFloor, releaseStaff, seatBlock, sendByBus, setPay, severance, startHomeTime } from "./labor.js";
 import { buyListing, listingBlock, listTrailer, listTruck, withdrawListing } from "./market.js";
 import { canRefile, notice } from "./safety.js";
 import { canMakeHot, homeBlock } from "./standingOrders.js";
@@ -106,6 +106,8 @@ export function badInput(cfg: EconomyConfig, a: Action): string | null {
     case "reserve_deposit":
     case "reserve_withdraw":
       return isFd(a.fd) && a.fd > 0 ? null : "bad amount";
+    case "send_driver":
+      return isId(a.staffId) && isId(a.truckId) ? null : "bad driver or truck";
     case "cash_invoice":
       return isId(a.receivableId) ? null : "bad invoice";
     case "form_brokerage":
@@ -316,6 +318,14 @@ export function applyAction(w: World, companyId: number, action: Action): Action
       if (block) return { ok: false, reason: block };
       seatDriver(w, s, truck, action.team === true);
       return { ok: true };
+    }
+
+    // labor.busToTruck (the director's sprint §19): a driver with no truck rides the bus to an empty seat at another hub.
+    case "send_driver": {
+      const s = staffById(w, action.staffId);
+      const truck = truckById(w, action.truckId);
+      if (!s || !truck) return { ok: false, reason: "no such driver or truck" };
+      return result(sendByBus(w, company, s, truck));
     }
 
     case "set_auto_staff":

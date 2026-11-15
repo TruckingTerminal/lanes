@@ -2011,6 +2011,13 @@ export const economyConfig = {
     // truck. On the bus: days away, no rest, no layover besides the fare. Arriving: home, the last hub the home hub, the
     // days off started if due. Off (or with truckLessHomeByHub off): nothing here runs.
     busHome: { enabled: false, miPerDay: 800, fareDays: 1, waitDays: 1 },
+    // The bus to a truck (the director's sprint §19 and §20; it mirrors the bus home and runs only with it): a driver with no
+    // truck, hired or the owner, unless on days off or past due, rides to an empty seat on a company truck at another hub,
+    // at the bus home's fare and miles a day, days away with no rest, the seat held while they ride and taken on arrival.
+    // The player sends them (the truck's card, Staff); auto-staff sends one before it hires, the nearest within maxDays of
+    // riding. §20: a driver let go keeps the hub where they were let go for poolWeeks in the pool, and a hire for a truck
+    // at another hub in that time rides there first, at the hirer's cost. Off: nothing here runs.
+    busToTruck: { enabled: false, maxDays: 2, poolWeeks: 4 },
     // The director's sprint §5 (the dispatcher working a due driver through home; it clarifies ruling C and 0.25.1 ruling
     // 2): from leadDays before the home rule's days out, read at the plan's start (booked-ahead loads included), the
     // dispatcher books only loads that end nearer home; at or past due inside the home radius it books nothing out of

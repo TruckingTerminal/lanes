@@ -1,6 +1,6 @@
 import { Fragment, type JSX } from "preact";
 import { useState } from "preact/hooks";
-import { askingPay, askOf, crewed, onTheBus, payFloor, dispatchProfile, poolOf, seatBlock, severance, spanOf, weeklyWage, type Company, type Staff as StaffT, type Truck, type World } from "@lanes/engine";
+import { askingPay, askOf, crewed, onTheBus, payFloor, dispatchProfile, poolOf, poolRide, seatBlock, severance, spanOf, weeklyWage, type Company, type Staff as StaffT, type Truck, type World } from "@lanes/engine";
 import { fd, hhmm, pct, shortDate, TRAILER_NAME, weekdayDate } from "../../format.js";
 import { GAME_CONFIG } from "../../game.js";
 import { atHub, marketPayOf, moraleClass, moraleWord, staffPay, Stars } from "../../logic.js";
@@ -15,6 +15,7 @@ import { ANSWER, CONFIRM } from "../../copy.js";
 import { MILES_PER_MONTH } from "../../finance.js";
 import { PENDING } from "../../copy-pending.js";
 import { FIXES } from "../../copy-fixes.js";
+import { rideWords, sendTargets } from "../../busui.js";
 
 const num = (id: string): number => Number((document.getElementById(id) as HTMLInputElement | null)?.value);
 const sel = (id: string): string | undefined => (document.getElementById(id) as HTMLSelectElement | null)?.value;
@@ -128,7 +129,10 @@ export function Staff(): JSX.Element {
     const kept = weeklyKept(w, me());
     if (kind === "hire") {
       const lines = hireLines(s.name, weekly, kept, s.kind === "driver");
-      const does = parked ? `${lines.does} ${PENDING.hireUnparks(truckNo(Number(v)))}` : lines.does;
+      // labor.busToTruck (§20): let go at another hub within the weeks, they ride here first, at this company's cost.
+      const ride = v ? poolRide(w, s, w.trucks[Number(v) - 1] ?? null) : null;
+      const rideLine = ride && s.lastHub !== undefined ? ` ${FIXES.hireRides(s.name, s.lastPlace !== undefined ? w.net.places[s.lastPlace]!.name : w.net.hubs[s.lastHub]!.name, FIXES.rideDays(ride.arriveDays), fd(ride.fareFd))}` : "";
+      const does = `${parked ? `${lines.does} ${PENDING.hireUnparks(truckNo(Number(v)))}` : lines.does}${rideLine}`;
       confirmAct({ verb: "Hire", item: s.name, costFd: null, costLine: CONFIRM.hireCost(fd(weekly)), does, risk: weekly > kept ? lines.risk : null, go: `Hire ${s.name}`, run }, ev);
     } else run();
   };
@@ -161,6 +165,9 @@ export function Staff(): JSX.Element {
     const teamFor = (t: Truck) => teamSeat(t) && t.driverId !== s.id && seatBlock(w, c, s, t, true) === null;
     const canSeat = s.kind === "driver" && trucks.some(seatFor);
     const canTeam = s.kind === "driver" && trucks.some(teamFor);
+    // labor.busToTruck (§19): where DRIVE IT would reach a truck at another hub, Send by bus, with the fare and the time,
+    // only where the engine allows it (labor.ts sendBlock).
+    const sendable = s.kind === "driver" ? sendTargets(w, c, s, trucks) : [];
     return (
       <Card key={s.id} need={s.unhappyNotice ? `notice:${s.id}` : undefined}>
         <div class="row">
@@ -208,6 +215,28 @@ export function Staff(): JSX.Element {
                 <TruckOptions pick={teamFor} />
               </select>
               <Btn onClick={() => seat(s, true)}>Co-drive</Btn>
+            </>
+          ) : null}
+          {sendable.length ? (
+            <>
+              <select id={`send-${s.id}`} aria-label={FIXES.sendSelect}>
+                {sendable.map((t) => {
+                  const r = rideWords(w, s, t);
+                  return (
+                    <option value={t.id} key={t.id}>
+                      {FIXES.sendOption(truckNo(t.id), w.net.places[t.place]!.name, r.time, r.fare)}
+                    </option>
+                  );
+                })}
+              </select>
+              <Btn
+                onClick={() => {
+                  const t = w.trucks[Number(sel(`send-${s.id}`)) - 1]!;
+                  act({ type: "send_driver", staffId: s.id, truckId: t.id }, FIXES.sentToast(s.owner ? null : s.name, w.net.places[t.place]!.name));
+                }}
+              >
+                {FIXES.sendByBus}
+              </Btn>
             </>
           ) : null}
           <Btn
