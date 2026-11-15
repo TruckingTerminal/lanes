@@ -23,6 +23,7 @@ import { LoadsTable } from "./Loads.js";
 import { Fig } from "../Explain.js";
 import { PENDING } from "../../copy-pending.js";
 import { WaysOutCard } from "../WaysOut.js";
+import { FIXES } from "../../copy-fixes.js";
 
 /**
  * The board (specs/first-ten-minutes.md, S2–S5): load cards with the profit chip, three sorts and a filter, blocked
@@ -657,7 +658,8 @@ function LoadSheet({ r, truck }: { r: BoardRow; truck: Truck }): JSX.Element {
           <Btn sm disabled={bidShut || (bid !== null && bid >= hi)} onClick={() => step(0.05)} title="Bid 0.05 higher">
             +
           </Btn>
-          <Fig k="board.bid" label={LOAD.bidButton("")} ctx={{ ...fx, fd: bid ?? undefined }}><span class="muted small">{LOAD.range(lo.toFixed(2), hi.toFixed(2))}</span></Fig>
+          {/* QA's M4.5: no "range 2.52–2.52" when the break-even is at or over the ceiling; say no bid pays. */}
+          {hi - lo < 0.005 ? <span class="muted small">{FIXES.noBidPays(r.be.toFixed(2), hi.toFixed(2))}</span> : <Fig k="board.bid" label={LOAD.bidButton("")} ctx={{ ...fx, fd: bid ?? undefined }}><span class="muted small">{LOAD.range(lo.toFixed(2), hi.toFixed(2))}</span></Fig>}
         </div>
         <div class="row">
           <Btn

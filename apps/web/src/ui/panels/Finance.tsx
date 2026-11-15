@@ -163,7 +163,7 @@ function GettingPaid({ stateA, open, orders }: { stateA: boolean; open: (s: Shee
           : FINANCE.headNet(k.termsDays);
   const pick = (terms: "net" | "quick") => void orders.go(`terms-${terms}`, { type: "set_pay_terms", terms }, terms === "net" ? FINANCE.stateNet(k.termsDays) : FINANCE.stateQuick);
   const row = (id: "net" | "quick" | "factor", lines: (string | null)[], onClick: () => void) => (
-    <button type="button" key={id} class={cls("optrow", !stateA && c.payTerms === id && "on")} disabled={stateA} onClick={onClick}>
+    <button type="button" key={id} class={cls("optrow", !stateA && c.payTerms === id && "on")} aria-pressed={!stateA && c.payTerms === id} disabled={stateA} onClick={onClick}>
       <b>{lines[0]}</b>
       {lines.slice(1).map((l, i) => (l ? <span key={i} class={i === 2 ? "small" : "muted small"}>{l}</span> : null))}
     </button>

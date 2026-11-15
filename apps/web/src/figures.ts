@@ -90,6 +90,26 @@ export function cashDipAhead(w: World, c: Company, horizonDays = 30): { day: num
   const inv = invoices(w, c);
   const start = cash(w, c);
   if (!inv.length || start < 0) return null;
+  // The player's long runs, item 5 (a brokerage told it would go to −44k with its books nearly square): a brokerage's
+  // spending is mostly carrier pay that is already owed and dated, and the shipper pay the same loads bring is owed to it,
+  // dated too; an average of past spending against only today's invoices counted the one and not the other. Its forecast
+  // walks what it owes and what it's owed, by due day.
+  if (c.role === "broker") {
+    const flows = [...inv.map((i) => ({ day: i.dueDay, fd: i.amountFd })), ...w.receivables.filter((r) => r.payer === c.id && r.amountFd > 0.005).map((r) => ({ day: r.dueDay, fd: -r.amountFd }))].sort((a, b) => a.day - b.day);
+    const today = day(w);
+    let bal = start;
+    let under = -1;
+    let low = 0;
+    for (const f of flows) {
+      if (f.day > today + horizonDays) break;
+      bal += f.fd;
+      if (bal < 0 && under < 0) under = Math.max(today + 1, f.day);
+      if (under >= 0) low = Math.min(low, bal);
+    }
+    if (under < 0) return null;
+    const lands = inv.find((i) => i.dueDay > under);
+    return lands ? { day: under, lowFd: -low, landsDay: lands.dueDay } : null;
+  }
   const perDay = dailySpendFd(w, c);
   if (!(perDay > 0)) return null;
   const today = day(w);

@@ -45,6 +45,8 @@ export interface Cell {
   focalX: number;
   focalY: number;
   avg: string;
+  /** Painted at night already (the art role, UX next-screens §7): no hour grade over it at dusk or night. */
+  atNight?: boolean;
 }
 export interface Family {
   image: string;
@@ -129,7 +131,8 @@ export function pickWindow(k: KitJson | null, id: string, band: Band, season: Se
     const F = fam(f);
     const c = F?.cells?.[cellId];
     if (!F || !c || !has(F.image)) return null;
-    return { url: atlasUrl(F.image), cell: c, focalX: c.focalX, focalY: c.focalY, avg: c.avg, grade: true, loop: null, key: `${f}:${cellId}` };
+    // UX next-screens §7: a night painting with no night cell isn't darkened again by the night grade.
+    return { url: atlasUrl(F.image), cell: c, focalX: c.focalX, focalY: c.focalY, avg: c.avg, grade: !(c.atNight && (band === "dusk" || band === "night")), loop: null, key: `${f}:${cellId}` };
   };
   if (band === "night") {
     const n = inFamily("night", id) ?? BASE_FAMILIES.map((f) => inFamily(f, `${id}-night`)).find((x) => x) ?? null;

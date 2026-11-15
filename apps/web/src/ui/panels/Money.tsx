@@ -13,7 +13,9 @@ import { PENDING } from "../../copy-pending.js";
 import { GUIDE_LABEL } from "../../copy.js";
 import { iuliiaFirst } from "../../iuliia.js";
 import { GAME_CONFIG } from "../../game.js";
-import { act, feed, markKey, me, S, setOnboard, useData } from "../../state.js";
+import { act, feed, markKey, me, S, setOnboard, truckNo, useData } from "../../state.js";
+import { loanRows } from "../../finance.js";
+import { FIXES } from "../../copy-fixes.js";
 import { Btn, Card, Kv, Num, Panel, Sparkline } from "../bits.js";
 import { MonthReports, ThisWeekCard } from "../MonthReport.js";
 import { depositWhole } from "../../board.js";
@@ -51,6 +53,15 @@ export function Money(): JSX.Element {
   const live = tokenLive(w);
   const owed = invoices(w, c);
   const week = weekCosts(w, c);
+  const loans = loanRows(w, c);
+  const loanWeek = loans.reduce((s, l) => s + l.weeklyFd, 0);
+  const ef = w.cfg.equipmentFinance;
+  const arrears = loans
+    .filter((l) => l.missed > 0)
+    .map((l) => {
+      const left = Math.max(1, (l.kind === "purchase" ? ef.purchase.missedToDefault : ef.missedPaymentsToRepossess) - l.missed);
+      return l.truckId ? FIXES.loanArrears(truckNo(l.truckId), l.missed, left) : FIXES.loanArrearsOnOrder(l.missed, left);
+    });
   const day = Math.floor(w.t / 1440);
   const cashHist = feed().history.map((h) => h.cash);
   // The hold toward the player's own truck (row 2): its total under Cash, with a note on the first visit that shows it.
@@ -205,8 +216,15 @@ export function Money(): JSX.Element {
             [MONEY.insurance, <Fig k="pay.insurance" label={MONEY.insurance}>{`${fdFull(week.insurance)} FD`}</Fig>],
             [MONEY.yard, `${fdFull(week.yard)} FD`],
             [MONEY.perDiem, MONEY.perDiemValue(fdFull(week.perDiemPerDay))],
+            // The player's long runs, item 1: the loans' payments are a week's cost too, and missed ones say what follows.
+            ...(loanWeek > 0.5 ? ([[FIXES.loanPayments, `${fdFull(loanWeek)} FD`]] as [string, string][]) : []),
           ]}
         />
+        {arrears.map((x) => (
+          <p key={x} class="warn small">
+            {x}
+          </p>
+        ))}
       </Card>
       {/* R9: the week's breakdowns, fines and claims over guard.newsFd, in the money style. */}
       <ThisWeekCard />

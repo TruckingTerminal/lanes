@@ -27,7 +27,8 @@ import { dateLabel, fd, pct, TRAILER_NAME, fdFull } from "../../format.js";
 import { act, me, myTrucks, ownerOf, S, setTab, truckNo, useData } from "../../state.js";
 import { Btn, Card, Kv, Num } from "../bits.js";
 import { confirmAct } from "../Confirm.js";
-import { scrap as scrapLines } from "../../confirmspecs.js";
+import { scrap as scrapLines, tradeIn as tradeInLines } from "../../confirmspecs.js";
+import { FIXES } from "../../copy-fixes.js";
 import { CONFIRM } from "../../copy.js";
 import { DOOR } from "../../copy.js";
 import { layerDay } from "../../tabs.js";
@@ -111,7 +112,12 @@ export function TruckAssetActions({ t }: { t: Truck }): JSX.Element | null {
         </>
       ) : null}
       {trade ? (
-        <Btn onClick={() => act({ type: "trade_in", truckId: t.id, dealershipId: trade.b.id }, `Traded in for ${fd(trade.offer)} FD`)}>Trade in · {fd(trade.offer)} FD</Btn>
+        // UX next-screens §3.1 (the producer, 2026-11-15): a trade-in can't be undone, so it asks first, as Scrap does.
+        <Btn onClick={(ev) => {
+          const dealer = w.companies[trade.b.ownerId - 1]?.name ?? "the dealership";
+          const town = w.net.hubs[trade.b.hub]?.name ?? "";
+          confirmAct({ verb: FIXES.tradeInVerb, item: `truck ${truckNo(t.id)}`, costFd: null, costLine: "", ...tradeInLines(w, t, truckNo(t.id), dealer, town, trade.offer), go: FIXES.tradeInGo(fdFull(trade.offer)), destructive: true, run: () => act({ type: "trade_in", truckId: t.id, dealershipId: trade.b.id }, FIXES.tradeInDone(truckNo(t.id), fdFull(trade.offer), dealer)) }, ev);
+        }}>Trade in · {fd(trade.offer)} FD</Btn>
       ) : null}
       {standing && !leasedIn && myTrucks().length > 1 ? (
         <>

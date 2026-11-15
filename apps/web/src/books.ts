@@ -310,7 +310,10 @@ function moneyEvent(w: World, b: CompanyBooks, other: string, ref: string, fd: n
     last.fd += fd;
     return;
   }
-  const truckId = kind === "claim" ? null : truckOfRef(w, ref.startsWith("fine:") ? ref.slice(5) : ref);
+  // A company-wide fine (the compliance review, double brokering) is no truck's (the player's long runs, item 8: the
+  // audit was filed under "truck 2", from the company's id in its ref).
+  const companyWide = ref.startsWith("fine:review:") || ref.startsWith("fine:doublebroker:");
+  const truckId = kind === "claim" || companyWide ? null : truckOfRef(w, ref.startsWith("fine:") ? ref.slice(5) : ref);
   const e: MoneyEvent = { t: w.t, kind, fd, truckId, ref };
   if (kind === "fine") e.sub = ref.split(":")[1];
   // A delivery windows claim names its kind and its load (ref claim:{kind}:{load id}).
@@ -351,7 +354,9 @@ function note(w: World, acct: string, other: string, fd: number, ref: string, in
 function brokeredOf(w: World, c: Company, b: CompanyBooks): void {
   if (c.role !== "broker") return;
   const m = (b.brokered ??= new Map());
-  for (const l of w.loads.values()) if (l.brokerId === c.id && !m.has(`load:${l.id}`)) m.set(`load:${l.id}`, w.t);
+  // The player's long runs, item 4 (the office at 0 loads moved, 31 offers waiting): a load counts once a carrier has
+  // booked it, not while it's an offer held for the brokerage or a posting nobody took.
+  for (const l of w.loads.values()) if (l.brokerId === c.id && l.status !== "open" && !l.hold && !m.has(`load:${l.id}`)) m.set(`load:${l.id}`, w.t);
   const keep = w.t - 30 * w.cfg.time.gameMinutesPerDay;
   for (const [k, t] of m) if (t < keep) m.delete(k);
 }

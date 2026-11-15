@@ -1,4 +1,5 @@
 import { MENUS } from "./copy-menus.js";
+import { FIXES } from "./copy-fixes.js";
 import { costLeft, deliveryDeduction, payLanding } from "./moneymotion.js";
 import { onCost } from "./books.js";
 import { initMotion } from "./motion.js";
@@ -101,6 +102,9 @@ function showGame(s: Session): void {
 
 // --- Events --------------------------------------------------------------------------------
 
+/** A delivery's own deductions (load:N, fee:load:N), held until its event says whether its pay was invoiced (QA's M4.4). */
+const deductions = new Map<number, number>();
+
 function onEvent(s: Session, e: GameEvent): void {
   const w = s.w;
   // The feed names cities, never airport codes (copy-audit.md), and a load by its own places, the ones its card showed
@@ -160,9 +164,15 @@ function onEvent(s: Session, e: GameEvent): void {
       const driver = truck.driverId ? w.staff[truck.driverId - 1] : undefined;
       S.delivered = { from: ends(e.loadId, e.origin, e.dest)[0], to: ends(e.loadId, e.origin, e.dest)[1], lateH: e.onTime ? 0 : Math.max(0, Math.ceil(((w.cfg.docks.lateFromArrival && load.arrivedT !== undefined ? load.arrivedT : w.t) - onTimeBy(w, load)) / 60)), line, paid, hiredDriver: driver && !driver.owner ? driver.name : null };
       S.moneyDot = fresh ? "invoice" : "paid";
-      // The menu system §2.4: the pay landing: the toast with what reached you, then the spark to the cash.
-      toast(MENUS.paidToast(S.delivered.from, S.delivered.to, fdFull(line.yours)));
-      payLanding(() => document.querySelector(".toast"));
+      // The menu system §2.4: the pay landing: the toast with what reached you, then the spark to the cash. QA's M4.4: on
+      // terms that leave the pay waiting (the invoice the player holds), the toast says when it's due, and the costs that
+      // left now are chipped; paid now (a lease, the factor), as before.
+      const owed = fresh && fresh.holder === s.player!.id ? fresh : null;
+      const ded = deductions.get(e.loadId) ?? 0;
+      deductions.delete(e.loadId);
+      toast(owed ? FIXES.paidToastDue(S.delivered.from, S.delivered.to, fdFull(line.yours), shortDate(owed.dueDay)) : MENUS.paidToast(S.delivered.from, S.delivered.to, fdFull(line.yours)));
+      if (owed && ded > 0.5) costLeft(ded, FIXES.deliveryCosts);
+      if (!owed) payLanding(() => document.querySelector(".toast"));
       iuliiaSay(e.onTime ? "delivered:onTime" : "delivered:late");
     }
   }
@@ -197,8 +207,16 @@ async function boot(): Promise<void> {
   // deductions (fuel, tolls, upkeep, the lessor's share and the fee, all posted on the load's ref) stay out of the chip,
   // since the toast and the pay card already net them; the chip is for costs that leave on their own.
   onCost((w, c, fd, line, ref) => {
-    if (deliveryDeduction(ref)) return;
-    if (S.game?.w === w && S.game.player?.id === c.id) costLeft(fd, (MONTH.row[line] ?? line).toLowerCase());
+    if (!(S.game?.w === w && S.game.player?.id === c.id)) return;
+    // A delivery's own deductions wait for its event: they chip only when its pay is invoiced (QA's M4.4), since then
+    // the toast's "yours" isn't cash now.
+    if (deliveryDeduction(ref)) {
+      const id = Number(ref.replace(/^(fee:)?load:/, ""));
+      if (deductions.size > 64) deductions.clear();
+      deductions.set(id, (deductions.get(id) ?? 0) + fd);
+      return;
+    }
+    costLeft(fd, (MONTH.row[line] ?? line).toLowerCase());
   });
   loadOnboard();
   whenAssetsReady(() => bumpData());

@@ -2,12 +2,13 @@ import { Window } from "./Window.js";
 import { moving } from "../motion.js";
 import type { JSX } from "preact";
 import { PENDING } from "../copy-pending.js";
-import { closedMonths, monthReport, moneyEvents, shownReport, type MoneyEvent, type MonthReport } from "../books.js";
+import { closedMonths, monthReport, moneyEvents, openMonth, shownReport, type MoneyEvent, type MonthReport } from "../books.js";
 import { MONTH, NEWS } from "../copy.js";
 import { cls, fdFull, monthName, pct } from "../format.js";
 import { isPhone, me, S, setTab, truckNo } from "../state.js";
 import { Card } from "./bits.js";
 import { Fig } from "./Explain.js";
+import { FIXES } from "../copy-fixes.js";
 
 /** The report's month (client batch 8b item 14): the calendar month of its middle day, where most of its 30 days fall. */
 const midDay = (r: { fromDay: number; closedDay: number }): number => Math.floor((r.fromDay + r.closedDay - 1) / 2);
@@ -113,6 +114,53 @@ export function MonthCard({ r, title, first }: { r: MonthReport; title?: string;
       </table>
       {r.taken > 0 ? <p class="small bad">{PENDING.monthTaken(r.taken, fdFull(r.takenLoansFd))}</p> : null}
       <p class="small muted">{r.loads > 0 ? MONTH.lines(r.loads, pct(r.onTimePct ?? 0), Math.round(r.loadedMi).toLocaleString("en-US"), Math.round(r.allMi).toLocaleString("en-US"), pct(r.allMi > 0 ? r.loadedMi / r.allMi : 0)) : MONTH.noLoads}</p>
+      <MonthClaims r={r} />
+    </Card>
+  );
+}
+
+/**
+ * The player's long runs, item 8 ("Claims … 405 FD" and nothing says which load or why): the month's claims one by one,
+ * whatever their size, each by its load and kind.
+ */
+function MonthClaims({ r }: { r: MonthReport }): JSX.Element | null {
+  const g = S.game;
+  if (!g?.player) return null;
+  const day = g.w.cfg.time.gameMinutesPerDay;
+  const claims = moneyEvents(g.w, me(), r.fromDay * day, 0).filter((e) => e.kind === "claim" && e.t < r.closedDay * day);
+  if (claims.length === 0) return null;
+  return (
+    <div class="monthlist small">
+      <b>{FIXES.monthClaims}</b>
+      {claims.reverse().map((e, i) => (
+        <p key={i} class="small">
+          {e.loadId !== undefined ? PENDING.newsServiceClaim(e.sub ?? "", String(e.loadId), fdFull(e.fd)) : NEWS.claim(fdFull(e.fd))}
+        </p>
+      ))}
+    </div>
+  );
+}
+
+/**
+ * The player's long runs, item 3 (a brokerage 16k down in a month with nothing on its Money page to say where): the month
+ * so far by line, out and in, largest first.
+ */
+export function MonthSoFar(): JSX.Element | null {
+  const g = S.game;
+  if (!g?.player) return null;
+  const open = openMonth(g.w, me());
+  if (!open) return null;
+  const lines = (Object.entries(open.flows) as [string, number][]).filter(([, fd]) => Math.abs(fd) >= 0.5).sort((a, b) => Math.abs(b[1]) - Math.abs(a[1]));
+  if (!lines.length) return null;
+  return (
+    <Card title={FIXES.monthSoFar}>
+      <table class="books">
+        <tbody>
+          {lines.map(([line, fd]) => (
+            <Row key={line} label={rowName(line) || line} value={signed(fd)} bad={fd < 0} />
+          ))}
+        </tbody>
+      </table>
     </Card>
   );
 }
@@ -163,7 +211,7 @@ export function openMonthReport(): void {
 function newsLine(e: MoneyEvent): { before: string; amount: string; after: string } {
   const n = e.truckId !== null ? truckNo(e.truckId) || e.truckId : 0;
   const fd = fdFull(e.fd);
-  const line = e.kind === "breakdown" ? NEWS.breakdown(n, fd) : e.kind === "crash" ? NEWS.crash(n, fd) : e.kind === "claim" ? (e.loadId !== undefined ? PENDING.newsServiceClaim(e.sub ?? "", String(e.loadId), fd) : NEWS.claim(fd)) : (NEWS.fine[e.sub ?? ""] ?? NEWS.fine.other!)(n, fd);
+  const line = e.kind === "breakdown" ? NEWS.breakdown(n, fd) : e.kind === "crash" ? NEWS.crash(n, fd) : e.kind === "claim" ? (e.loadId !== undefined ? PENDING.newsServiceClaim(e.sub ?? "", String(e.loadId), fd) : NEWS.claim(fd)) : (FIXES.fine[e.sub ?? ""] ?? NEWS.fine[e.sub ?? ""] ?? NEWS.fine.other!)(n, fd);
   const amt = `−${fd} FD`;
   const i = line.indexOf(amt);
   return i < 0 ? { before: line, amount: "", after: "" } : { before: line.slice(0, i), amount: amt, after: line.slice(i + amt.length) };

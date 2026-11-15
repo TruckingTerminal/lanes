@@ -54,9 +54,10 @@ function MoveBtn({ t, toHub, label, full, does, primary, run }: { t: Truck; toHu
   const w = S.game!.w;
   const r = emptyRun(w, t, t.hub, toHub);
   const press = (ev: MouseEvent) => confirmSpend({ verb: label, item: `truck ${truckNo(t.id)}`, costFd: r.costFd, does, risk: MOVE.confirmRisk, run }, ev);
+  // QA's sprint pass (M4.2): on a laptop the whole line is the button, and a long one wraps rather than clip both ends.
   if (!isPhone())
     return (
-      <Btn primary={primary} onClick={press}>
+      <Btn primary={primary} onClick={press} class="wrapbtn">
         {full}
       </Btn>
     );
@@ -528,7 +529,7 @@ function TruckCard({ t, idx }: { t: Truck; idx: number }): JSX.Element {
           {/* labor.turnWhileEmpty: Send to also turns a truck running empty, from where it is. */}
           {(t.status === "idle" && !resting(w, t)) || (t.status === "repositioning" && w.cfg.labor.turnWhileEmpty) ? <SendEmpty t={t} nearby={nearby} /> : null}
           {mine && t.status === "idle" && cond <= w.cfg.wear.rebuildMaxCondition && rebuildable(w.cfg, t) ? (
-            <Btn onClick={(ev) => confirmAct({ verb: "Rebuild", item: `truck ${idx + 1}`, costFd: rebuildCost(w.cfg, t), ...rebuildLines(w, t), run: () => act({ type: "rebuild_truck", truckId: t.id }, "Truck is in the shop for two days", "truck:rebuild") }, ev)}>Rebuild · {fd(rebuildCost(w.cfg, t))} FD</Btn>
+            <Btn onClick={(ev) => confirmAct({ verb: "Rebuild", item: `truck ${truckNo(t.id)}`, costFd: rebuildCost(w.cfg, t), ...rebuildLines(w, t), run: () => act({ type: "rebuild_truck", truckId: t.id }, "Truck is in the shop for two days", "truck:rebuild") }, ev)}>Rebuild · {fd(rebuildCost(w.cfg, t))} FD</Btn>
           ) : null}
           {mine && t.status === "idle" ? <Btn onClick={() => act({ type: "park_truck", truckId: t.id }, "Truck parked", "truck:park")}>Park</Btn> : null}
           {t.status === "parked" ? <Btn onClick={() => act({ type: "unpark_truck", truckId: t.id }, "Truck back on the road")}>Back on the road</Btn> : null}
@@ -580,7 +581,9 @@ function TruckCard({ t, idx }: { t: Truck; idx: number }): JSX.Element {
         <TruckStage t={t} c={c} />
         <div>
           <h3>
-            Truck {idx + 1} · {TIER_NAME[t.tier]} · {TRAILER_NAME[t.trailer]}
+            {/* QA's sprint pass (M4.3) and the player's long runs: the truck's own number (trucknos.ts), as the heroes, What
+                now?, Staff and the log say it, never its place in the list. */}
+            Truck {truckNo(t.id)} · {TIER_NAME[t.tier]} · {TRAILER_NAME[t.trailer]}
           </h3>
           <p class="muted">{kind}</p>
         </div>
@@ -607,7 +610,7 @@ function TruckCard({ t, idx }: { t: Truck; idx: number }): JSX.Element {
         {t.status === "idle" ? <Btn onClick={() => goLoads(t.id)}>{TRUCK.bidByHand}</Btn> : null}
         {!crewed(t) ? (
           <>
-            <span class="bad small">{TRUCK.noDriver(idx + 1)}</span>
+            <span class="bad small">{TRUCK.noDriver(truckNo(t.id))}</span>
             <Btn primary onClick={goStaff}>
               {TRUCK.hireDriver}
             </Btn>

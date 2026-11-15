@@ -24,7 +24,7 @@ function TruckOptions({ pick }: { pick: (t: Truck) => boolean }): JSX.Element {
       {myTrucks().map((t, i) =>
         pick(t) ? (
           <option value={t.id} key={t.id}>
-            Truck {i + 1} · {TRAILER_NAME[t.trailer]}
+            Truck {truckNo(t.id)} · {TRAILER_NAME[t.trailer]}
           </option>
         ) : null,
       )}
@@ -101,6 +101,7 @@ export function Staff(): JSX.Element {
   const [poachAnswer, setPoachAnswer] = useState<{ text: string; bad: boolean } | null>(null);
   const poach = async (s: StaffT, pay: number) => {
     const v = sel(`poach-${s.id}`);
+    S.handHires.add(s.id);
     const r = await order({ type: "offer_staff", staffId: s.id, pay, truckId: v ? Number(v) : undefined }, "Offer made");
     const by = shortDate(Math.floor(w.t / w.cfg.time.gameMinutesPerDay) + w.cfg.labor.morale.noticeDays);
     setPoachAnswer(r.ok ? { text: r.at === null ? ANSWER.poach(s.name, by) : `Sent · in effect ${hhmm(r.at)}`, bad: false } : { text: /would move for/.test(r.reason) ? ANSWER.poachLow(s.name, s.pay.toFixed(2)) : r.reason, bad: true });
@@ -118,7 +119,7 @@ export function Staff(): JSX.Element {
       if (parked) act({ type: "unpark_truck", truckId: Number(v) }, "Back on the road");
       hireNow();
     };
-    const hireNow = () => act({ type: "offer_staff", staffId: s.id, pay, truckId: v ? Number(v) : undefined }, kind === "hire" ? "Hired" : "Offer made: their employer has two days to match", kind === "hire" ? (s.kind === "driver" ? "staff:hireDriver" : s.kind === "dispatcher" ? "staff:hireDispatcher" : "staff:hireManager") : undefined);
+    const hireNow = () => S.handHires.add(s.id) && act({ type: "offer_staff", staffId: s.id, pay, truckId: v ? Number(v) : undefined }, kind === "hire" ? "Hired" : "Offer made: their employer has two days to match", kind === "hire" ? (s.kind === "driver" ? "staff:hireDriver" : s.kind === "dispatcher" ? "staff:hireDispatcher" : "staff:hireManager") : undefined);
     // Client batch 8a item 24 (the borrower: a driver confirmed in one session and not the next, a dispatcher never, and a
     // second tap on a shifting list hired a second dispatcher): every hire asks first, with its weekly cost (a driver's
     // per-mile pay at a month's miles). The risk line, what the company kept in a week lately, only when the wage passes it.

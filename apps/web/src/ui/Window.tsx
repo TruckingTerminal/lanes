@@ -174,7 +174,7 @@ export function ScreenWindow({ tab, picking }: { tab: string; picking: boolean }
   return win ? <Window key={`${win.name}|${hero}`} name={win.name} night={win.night} fallback={win.fallback} hero={hero} /> : null;
 }
 
-export function Window({ name, night, fallback, hero = false, class: extra }: { name: string; night?: string; fallback?: string; hero?: boolean; class?: string }): JSX.Element {
+export function Window({ name, night, fallback, hero = false, still = false, class: extra }: { name: string; night?: string; fallback?: string; hero?: boolean; still?: boolean; class?: string }): JSX.Element {
   useData();
   const box = useRef<HTMLDivElement>(null);
   const cv = useRef<HTMLCanvasElement>(null);
@@ -187,7 +187,8 @@ export function Window({ name, night, fallback, hero = false, class: extra }: { 
   const band = bandOf(Math.floor(clockMin() / 60) % 24);
   // A screen with its own night painting (the board's ops room) shows it in the night band.
   const src = windowSource(band === "night" && night ? night : name, band, fallback, hero);
-  const animate = moving() && !saveData();
+  // `still`: a serious sheet's painting (UX next-screens §3.3) holds its still, whatever the Motion setting.
+  const animate = !still && moving() && !saveData();
 
   // The box's size in device pixels, kept current.
   useEffect(() => {

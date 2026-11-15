@@ -4,6 +4,8 @@ import { apCapBlock, brokerageLog, brokerBooks, brokerLicensed, canFormBrokerage
 import { BROKERAGE } from "../../copy.js";
 import { hasTwo, kindInView, switchCompany } from "../../companies.js";
 import { fdFull, hhmm, pct, shortDate, TRAILER_NAME } from "../../format.js";
+import { FIXES } from "../../copy-fixes.js";
+import { MonthReports, MonthSoFar } from "../MonthReport.js";
 import { PENDING } from "../../copy-pending.js";
 import { nextRoundHour } from "../../logic.js";
 import { clearsNear } from "../../board.js";
@@ -339,6 +341,28 @@ function marginThisMonth(c: Company): number {
 }
 
 /** Book (brokerage-ux.md section 2): its loads on the board, moving, and waiting for pay. */
+/**
+ * The player's long runs, item 2 (no freight for six rounds and nothing said; 20,000 FD moved in and still nothing): a
+ * brokerage under its licence stake (staking.ts brokerLicensed) takes no new loads once its grace is over. Where the
+ * loads would be, it says by how much and from when, and stakes the difference; cash moved in isn't the stake.
+ */
+function UnderStakeCard({ c }: { c: Company }): JSX.Element | null {
+  const w = S.game!.w;
+  if (c.tierGraceDay === null || brokerLicensed(w, c)) return null;
+  const need = w.cfg.token.staking.roles.broker;
+  const short = Math.max(0, need - c.stakedFd);
+  const over = dayOf(w.t, w.cfg) >= c.tierGraceDay;
+  const can = w.ledger.balance(companyAccount(c.id)) >= short;
+  return (
+    <Card alert>
+      <p class="small">{FIXES.underStake(fdFull(short), fdFull(need), fdFull(c.stakedFd), shortDate(c.tierGraceDay), over)}</p>
+      <Btn primary disabled={!can || short <= 0} onClick={() => void order({ type: "stake_fd", fd: Math.ceil(short) }, FIXES.underStakeDone)}>
+        {FIXES.underStakeGo(fdFull(Math.ceil(short)))}
+      </Btn>
+    </Card>
+  );
+}
+
 export function Book(): JSX.Element {
   useData();
   const g = S.game!;
@@ -354,6 +378,7 @@ export function Book(): JSX.Element {
   const [tendering, setTendering] = useState<number | null>(S.openLoad);
   return (
     <Panel title={BROKERAGE.bookHeader(c.name, tendered.length + onBoard.length + moving.length, fd(marginThisMonth(c)))}>
+      <UnderStakeCard c={c} />
       {held.length ? (
         <Card title={BROKERAGE.offered}>
           {held.map((l) => (
@@ -652,6 +677,10 @@ export function BrokerMoney(): JSX.Element {
         {partner && owedBy.some((r) => r.payeeId === partner.id) ? <p class="muted small">{BROKERAGE.ownPaper(w.cfg.token.payment.termsDays)}</p> : null}
       </Card>
       {partner ? <MoveMoneyLink /> : null}
+      {/* The player's long runs, item 3: where the brokerage's money went, this month by line, then its month reports. */}
+      <MonthSoFar />
+      <MonthReports part="top" />
+      <MonthReports part="past" />
       {partner && pair ? (
         <details class="fold">
           <summary>{BROKERAGE.transfersFold}</summary>
@@ -681,7 +710,7 @@ function moveRefusal(w: World, from: Company, fdAmount: number): string | null {
   const fee = fdAmount * w.cfg.brokerage.transferFeePct;
   const paper = from.role === "broker" && (from.openBrokerLoads > 0 || w.receivables.some((r) => r.payer === from.id));
   if (from.liquidatingSince !== null) return BROKERAGE.refuseMoveWinding(from.name);
-  if (from.tierGraceDay !== null && (dayOf(w.t, w.cfg) < from.tierGraceDay || paper || from.role !== "broker")) return BROKERAGE.refuseMoveStake(from.name);
+  if (from.tierGraceDay !== null && (dayOf(w.t, w.cfg) < from.tierGraceDay || paper || from.role !== "broker")) return from.role === "broker" && !brokerLicensed(w, from) ? FIXES.refuseMoveStakeBy(from.name, fdFull(Math.max(0, w.cfg.token.staking.roles.broker - from.stakedFd))) : BROKERAGE.refuseMoveStake(from.name);
   if (from.role === "broker" && !brokerLicensed(w, from) && paper) return BROKERAGE.refuseMoveBond(fd(0));
   if (from.weeksInDebt > 0) return BROKERAGE.refuseMoveOverdue(from.name);
   if (cash(w, from) < fdAmount + fee) return BROKERAGE.refuseMoveNegative(from.name);

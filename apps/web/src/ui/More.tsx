@@ -121,7 +121,7 @@ export function TeaserRow(): JSX.Element | null {
   return (
     <div class="teaserbar" role="group" aria-label="Coming soon">
       {coming.map((t) => (
-        <button key={t.id} type="button" class={S.tab === t.id ? "teaserseg on" : "teaserseg"} title={`${t.label}: opens ${t.teaser!.opens(g.w)}`} onClick={() => setTab(t.id)}>
+        <button key={t.id} type="button" class={S.tab === t.id ? "teaserseg on" : "teaserseg"} aria-pressed={S.tab === t.id} title={`${t.label}: opens ${t.teaser!.opens(g.w)}`} onClick={() => setTab(t.id)}>
           {t.label}
         </button>
       ))}

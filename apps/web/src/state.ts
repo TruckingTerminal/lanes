@@ -79,6 +79,8 @@ export const S = {
   idleFrom: new Map<number, number>(),
   /** Loads the player bid on or booked by hand, so the Truck card can tell the dispatcher's loads from the player's own. */
   handLoads: new Set<number>(),
+  /** Staff the player hired or offered a job by hand, so a hire the page announces is auto-staff's alone (the long runs, 6). */
+  handHires: new Set<number>(),
   /** Intel (specs/intel-ux.md): the open card, where it was opened from, and the list's filters and sort. */
   /** The board filtered to one poster's loads (Intel's "Their loads on the board"), until cleared. */
   boardPoster: null as number | null,
@@ -171,6 +173,7 @@ export const PER_WORLD = [
   "boardPoster", "boardSortOnce", "waysOut", "milestone", "confirm", "lastAct", "returnCard", "lastReturn", "poachResults",
   "gapSeen", "cashPlan", "cashed", "brokerSwitch", "lastDriver", "listedCrew", "explain", "whatNow", "iuliiaLine", "intel", "homeNow",
   "delivered", "moneyDot", "invoiceLanes", "following", "result", "selSite", "walkView", "okText", "dealerFocus",
+  "handHires",
 ] as const satisfies readonly (keyof typeof S)[];
 export const KEPT_ACROSS_WORLDS = [
   "platform", "live", "test", "game", "screen", "loadShare", "tab", "layout", "sheet", "ratesEq", "guidePage", "savedTest",

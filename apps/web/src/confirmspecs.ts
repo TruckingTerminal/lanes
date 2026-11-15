@@ -1,6 +1,7 @@
-import { activeLoanOn, condition, dayOf, settlementShare, leaseValueFd, purchaseLoanOn, effectiveMpg, fuelPrice, hubMiles, maintenancePerMile, rebuildable, rebuildCost, tractorLifeUsed, tractorScrapFd, truckValue, type Company, type Truck, type TruckSpec, type World } from "@lanes/engine";
+import { activeLoanOn, hookedTrailer, condition, dayOf, settlementShare, leaseValueFd, purchaseLoanOn, effectiveMpg, fuelPrice, hubMiles, maintenancePerMile, rebuildable, rebuildCost, tractorLifeUsed, tractorScrapFd, truckValue, type Company, type Truck, type TruckSpec, type World } from "@lanes/engine";
 import type { Equipment, TractorTier } from "@lanes/config";
 import { CONFIRM } from "./copy.js";
+import { FIXES } from "./copy-fixes.js";
 import { MILES_PER_MONTH } from "./finance.js";
 import { fdFull, pct, shortDate, TIER_NAME, TRAILER_NAME } from "./format.js";
 import { PENDING } from "./copy-pending.js";
@@ -53,6 +54,23 @@ export const trailer = (type: Equipment): Lines => ({ does: CONFIRM.trailer(TRAI
 export const rebuild = (w: World, t: Truck): Lines => ({ does: CONFIRM.rebuild, risk: CONFIRM.rebuildRisk(Math.max(0, w.cfg.assets.tractor.maxRebuilds - t.rebuilds - 1), w.cfg.assets.tractor.maxRebuilds) });
 
 export const scrap = (w: World, t: Truck, n: number): Lines => ({ does: CONFIRM.scrap(n, fdFull(tractorScrapFd(w, t))), risk: CONFIRM.scrapRisk(fdFull(truckValue(w, t))) });
+
+/**
+ * The trade-in (UX next-screens §3.1; the producer, 2026-11-15: it acted on one tap): the dealership, its town and the
+ * offer; what goes with the truck by the engine's rules (dealerships.ts tradeIn, world.ts detachTruck: an owned trailer
+ * with the rig, a rented or leased one back to its lessor, the crew off and kept, a loan paid first); that it can't be
+ * undone.
+ */
+export function tradeIn(w: World, t: Truck, n: number, dealer: string, town: string, offerFd: number): Lines {
+  const tr = hookedTrailer(w, t);
+  const trailer = tr ? (tr.lease === "owned" ? FIXES.tradeInTrailerGoes(TRAILER_NAME[tr.type].toLowerCase()) : FIXES.tradeInTrailerBack(TRAILER_NAME[tr.type].toLowerCase())) : null;
+  const crew = [t.driverId, t.coDriverId].filter((id) => id > 0).map((id) => w.staff[id - 1]!).filter((s) => !s.owner).map((s) => s.name);
+  const loan = activeLoanOn(w, t.id) !== undefined || purchaseLoanOn(w, t.id) !== undefined;
+  return {
+    does: FIXES.tradeInDoes(n, dealer, town, fdFull(offerFd), trailer),
+    risk: FIXES.tradeInRisk(fdFull(truckValue(w, t)), pct(w.cfg.businesses.kinds.dealership.tradeInShare), loan, crew.length ? FIXES.tradeInCrew(crew) : null),
+  };
+}
 
 /**
  * The sell sheet (client batch 8b items 8 and 18, the director's order): what it does, then the price's path to its

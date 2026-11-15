@@ -9,7 +9,7 @@ import { DockWarning, ProfitChip } from "../ProfitChip.js";
 import { trueBreakEven } from "../../breakeven.js";
 import { cls, fd, fdFull, hhmm, pct, shortDate, TRAILER_CODE, TRAILER_NAME } from "../../format.js";
 import { nextRoundLabel, openLoadsAt, reloadClass, reloadLabel, SeasonNote, seasonSwing, statusText, withDaysOffWarning } from "../../logic.js";
-import { act, bumpData, me, myTrucks, S, selectTruck, toast, useData } from "../../state.js";
+import { act, bumpData, me, myTrucks, S, selectTruck, toast, truckNo, useData } from "../../state.js";
 import { PENDING } from "../../copy-pending.js";
 import { WINDOWS } from "../../copy-windows.js";
 import { bookBar, reachChip, reachFor, windowLine } from "../../windowsui.js";
@@ -63,7 +63,7 @@ export function LoadsTable(): JSX.Element {
     }
   };
   const th = (k: SortKey, label: string) => (
-    <th class={cls("sortable", sort === k && "sorted")} onClick={() => sortBy(k)}>
+    <th class={cls("sortable", sort === k && "sorted")} aria-sort={sort === k ? (desc ? "descending" : "ascending") : "none"} onClick={() => sortBy(k)}>
       {label}
       {sort === k ? (desc ? " ↓" : " ↑") : ""}
     </th>
@@ -77,7 +77,7 @@ export function LoadsTable(): JSX.Element {
           <select value={truck?.id ?? ""} onChange={(ev) => selectTruck(Number((ev.currentTarget as HTMLSelectElement).value))}>
             {trucks.map((t, i) => (
               <option value={t.id} key={t.id} disabled={t.status !== "idle"}>
-                Truck {i + 1} · {TRAILER_NAME[t.trailer]}
+                Truck {truckNo(t.id)} · {TRAILER_NAME[t.trailer]}
                 {t.status === "idle" ? "" : ` · ${statusText(t)}`}
               </option>
             ))}
@@ -306,6 +306,7 @@ function LoadRow({ r, truck, mine, pendingRate }: { r: Row; truck: Truck; mine: 
 function LoadDetail({ r, truck, mine, pendingRate }: { r: Row; truck: Truck; mine: boolean; pendingRate: number | undefined }): JSX.Element {
   const w = S.game!.w;
   const { l } = r;
+  const win = windowLine(w, l, true); // L6: the row's own window times, dated as the sheet's are
   const op = w.net.places[l.originPlace]!;
   const dp = w.net.places[l.destPlace]!;
   const o = w.net.hubs[l.origin]!;
@@ -370,14 +371,16 @@ function LoadDetail({ r, truck, mine, pendingRate }: { r: Row; truck: Truck; min
               </b>{" "}
               <span class="muted">({r.dh} mi empty first)</span>
             </div>
-            <div class="muted small">pick up now · {o.id} market</div>
+            {/* The red team's sprint pass (L6): under windows, the row's own times (ready, pick up by, "Deliver by"), as the board's
+                sheet says them; the appointment isn't a deadline. Off, as before. */}
+            <div class="muted small">{win ? `${WINDOWS.ready} ${win.ready} · ${WINDOWS.pickupBy.toLowerCase()} ${win.pickupBy}` : "pick up now"} · {o.id} market</div>
             <div>
               <b>
                 {dp.name}, {dp.state}
               </b>
             </div>
             <div class="muted small">
-              deliver by {shortDate(Math.floor(l.appointmentT / 1440))} {hhmm(l.appointmentT)} · {d.id} market
+              {win ? `${WINDOWS.deliverBy} ${win.deliverBy}` : `deliver by ${shortDate(Math.floor(l.appointmentT / 1440))} ${hhmm(l.appointmentT)}`} · {d.id} market
             </div>
           </div>
           <Kv

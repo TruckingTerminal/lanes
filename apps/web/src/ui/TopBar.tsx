@@ -13,6 +13,7 @@ import { H } from "../handlers.js";
 import { needs as waiting, nextRoundHour, openNeed } from "../logic.js";
 import { bumpData, clockMin, fsActive, fsEnabled, S, setTab, SPEEDS, toggleFullscreen, useData, useTick } from "../state.js";
 import { Badge, Btn } from "./bits.js";
+import { FIXES } from "../copy-fixes.js";
 import { choosing } from "./ChooseHub.js";
 
 /**
@@ -50,7 +51,13 @@ export function TopBar(): JSX.Element {
         </span>
       ) : choosing() ? null : <Badge>Watching</Badge>}
       {needs.length ? <NeedsButton /> : null}
-      {c && c.authority.status !== "active" ? <Badge tone="alert">{c.authority.status === "revoked" ? "Authority revoked" : "Suspended"}</Badge> : null}
+      {/* The player's long runs, item 9 (a bare "AUTHORITY REVOKED"): the pill says why (the authority's own record, its
+          last line) and opens Company, where the record is. */}
+      {c && c.authority.status !== "active" ? (
+        <button type="button" class="badge alert authpill" title={FIXES.authorityWhy(c.authority.record.at(-1)?.text ?? null)} aria-label={FIXES.authorityWhy(c.authority.record.at(-1)?.text ?? null)} onClick={() => setTab("company")}>
+          {c.authority.status === "revoked" ? "Authority revoked" : "Suspended"}
+        </button>
+      ) : null}
       {g.kind === "live" && g.broken ? <Badge tone="alert" title={g.broken.reason}>World stopped</Badge> : null}
       <span class="grow" />
       {g.kind === "test" ? <Speeds /> : null}
