@@ -51,6 +51,12 @@ export const FIXES = {
   // The player's long runs, item 9: the authority pill says why, from the authority's own record.
   authorityWhy: (last: string | null) => (last ? `${last} Tap to see the record on the Company page.` : "Tap to see the record on the Company page."),
   staffKind: { driver: "driver", dispatcher: "dispatcher", opsManager: "operations manager", maintManager: "maintenance manager", ceo: "chief executive", securityManager: "security manager", salesRep: "sales rep" } as Record<string, string>,
+  // Engineering's placeholders for the writer: releasing the current load before pickup (windows.releaseCurrent; the
+  // director's sprint §1), on the truck card's Now line and its Confirm.
+  headingTo: (town: string, by: string) => `Heading to ${town} · pick up by ${by}`,
+  releaseCurrentDoes: (from: string, to: string, truck: number, town: string, sunkMi: string | null) =>
+    `${from} → ${to} goes back on the board, and Truck ${truck} stops at ${town}${sunkMi ? `: its ${sunkMi} empty miles so far are sunk` : ""}.`,
+  releaseCurrentRisk: "It's also a mark on your record, and you can't book this load again.",
   // Engineering's placeholders for the writer: the bus home (ruleset 0.25.3, labor.busHome; the director's sprint §9).
   onBus: (day: string) => `on the bus home · home ${day}`,
   awayBus: (who: string, from: string, hours: number, fd: string, day: string) => `No truck for ${who} at ${from}: the bus home, about ${hours} h and ${fd} FD, home ${day}.`,

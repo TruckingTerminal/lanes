@@ -1,5 +1,5 @@
 import { MENUS } from "./copy-menus.js";
-import { AHEAD_STATUSES, canMake, clearsWhen, companyAccount, crewed, hubMiles, dayOf, freeOf, lostShare, memoryLift, npcKey, resting, urgent, whenLabel, windowsOn, type Company, type Free, type Load, type Reach, type Truck, type World } from "@lanes/engine";
+import { AHEAD_STATUSES, canMake, clearsWhen, companyAccount, crewed, hubMiles, dayOf, freeOf, lostShare, memoryLift, npcKey, pickupReachT, releaseStopOf, resting, urgent, whenLabel, windowsOn, type Company, type Free, type Load, type Reach, type Truck, type World } from "@lanes/engine";
 import { COMMODITIES } from "@lanes/data";
 import { WINDOWS } from "./copy-windows.js";
 import { FIXES } from "./copy-fixes.js";
@@ -194,6 +194,24 @@ export function releaseCostFd(w: World, c: Company, claimFd: number): number {
   return Math.round(w.cfg.windows?.claimsInFull === true ? claimFd : Math.min(claimFd, Math.max(0, w.ledger.balance(companyAccount(c.id)))));
 }
 
+/**
+ * windows.releaseCurrent (the director's sprint §1): the load a truck is heading to, while it can still be released: the
+ * claim at today's share, the town the truck would stop at and the empty miles it would sink, and a breakdown's ask on it.
+ */
+export function currentRelease(w: World, t: Truck): { load: Load; priceFd: number; town: string; sunkMi: number; ask: AskFigures | null } | null {
+  if (!windowsOn(w) || w.cfg.windows?.releaseCurrent !== true || t.status !== "toPickup" || t.loadId === null) return null;
+  const l = w.loads.get(t.loadId);
+  if (!l || l.status !== "assigned") return null;
+  const cl = claimsAt(w, l, l.clearedRate);
+  const stop = releaseStopOf(w, t);
+  return { load: l, priceFd: w.t < urgentFrom(w, l) ? cl.releaseEarlyFd : cl.releaseUrgentFd, town: place(w, stop.place), sunkMi: stop.sunkMi, ask: l.releaseAsk ? askFigures(w, l) : null };
+}
+/** The current load's release Confirm: the claim, the mark, where the truck stops, that it can't be booked again; into debt as releaseCard's. */
+export function releaseCurrentCard(w: World, c: Company, x: NonNullable<ReturnType<typeof currentRelease>>, claimFd: number, truckNo: number): { verb: string; item: string; costFd: number; does: string; risk: string; destructive: true; intoDebt?: (fd: string) => string } {
+  const l = x.load;
+  return { ...releaseCard(w, c, l, claimFd, truckNo), does: FIXES.releaseCurrentDoes(place(w, l.originPlace), place(w, l.destPlace), truckNo, x.town, x.sunkMi >= 0.5 ? Math.round(x.sunkMi).toLocaleString("en-US") : null), risk: FIXES.releaseCurrentRisk };
+}
+
 /** A breakdown's ask on a load booked ahead (§3): the repair, the projected arrival, the two prices, the close. */
 export interface AskFigures {
   load: Load;
@@ -210,9 +228,10 @@ export function askFigures(w: World, l: Load): AskFigures | null {
   if (!windowsOn(w) || !l.releaseAsk || l.latestPickupT === undefined) return null;
   const t = w.trucks[l.releaseAsk.truckId - 1];
   if (!t) return null;
-  const r = canMake(w, t, l);
+  // windows.releaseCurrent: the load the truck is heading to reads the rest of its leg; a load ahead, canMake.
+  const reachT = t.loadId === l.id ? pickupReachT(w, t) : canMake(w, t, l).pickupT;
   const repairedT = t.status === "repair" && t.repairUntilT !== null ? t.repairUntilT : w.t + t.breakdownMin;
-  return { load: l, truck: t, repairedT, reachT: r.pickupT, lateMin: r.pickupT - l.latestPickupT, releaseFd: l.releaseAsk.fd, noShowFd: claimsAt(w, l, l.clearedRate).noShowFd, closesT: l.latestPickupT };
+  return { load: l, truck: t, repairedT, reachT, lateMin: reachT - l.latestPickupT, releaseFd: l.releaseAsk.fd, noShowFd: claimsAt(w, l, l.clearedRate).noShowFd, closesT: l.latestPickupT };
 }
 /** The ask's words, in order: the title, the figures, the two choices, the close (or "likely to make it"). */
 export function askLines(w: World, a: AskFigures, truckNo: number): string[] {

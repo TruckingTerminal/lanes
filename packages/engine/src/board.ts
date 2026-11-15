@@ -216,6 +216,7 @@ function assign(w: World, load: Load, truck: Truck, bid: Bid, byHand = false): v
   // it (trips.ts takeNextLoad), which sets its due time and slot from then. Rule H (labor.homeTimeHolds; the red team's
   // bundle pass, finding 3): a hired driver home on days off keeps them, so a load booked past them is held the same way,
   // and the truck sets out when they end, timed for the pickup (trips.ts departHeld).
+  if (byHand && cfg.windows?.releaseCurrent === true) load.byHand = true; // a breakdown on the way to it asks the player first
   const d = truck.driverId ? w.staff[truck.driverId - 1] : undefined;
   const heldHome = truck.status === "idle" && windowsOn(w) && cfg.labor.homeTimeHolds && d !== undefined && !d.owner && resting(w, truck);
   if ((truck.status !== "idle" && windowsOn(w)) || heldHome) {

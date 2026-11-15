@@ -33,7 +33,8 @@ import { OrderOffers } from "../OrderOffers.js";
 import { expediteOn, expediteQuote, expediteWaitParts } from "@lanes/engine";
 import { expediteLines, waitSentence } from "../../expediteui.js";
 import { WINDOWS } from "../../copy-windows.js";
-import { askFigures, askLines, atHomeMarket, claimsAt, nowNext, releaseCard, urgentFrom } from "../../windowsui.js";
+import { FIXES } from "../../copy-fixes.js";
+import { askFigures, askLines, atHomeMarket, claimsAt, currentRelease, nowNext, releaseCard, releaseCurrentCard, urgentFrom, whenAt } from "../../windowsui.js";
 
 
 
@@ -485,6 +486,43 @@ function WindowsLines({ t }: { t: Truck }): JSX.Element | null {
   );
 }
 
+/**
+ * windows.releaseCurrent (the director's sprint §1): on the way to a pickup, the Now line with the release at today's
+ * price; a breakdown's ask on the load shows its figures and both answers, as for a load booked ahead.
+ */
+function CurrentLines({ t }: { t: Truck }): JSX.Element | null {
+  const w = S.game!.w;
+  const c = ownerOf(t);
+  const x = currentRelease(w, t);
+  if (!x) return null;
+  const l = x.load;
+  const stop = (ev: MouseEvent) => ev.stopPropagation();
+  const release = (fdAsked: number, ev: MouseEvent) => confirmAct({ ...releaseCurrentCard(w, c, x, fdAsked, truckNo(t.id)), run: () => act({ type: "release_load", loadId: l.id }, WINDOWS.released) }, ev);
+  if (x.ask) {
+    const lines = askLines(w, x.ask, truckNo(t.id));
+    return (
+      <div class="stack small" onClick={stop} data-need={`ask:${l.id}`}>
+        <p class="bad">
+          <b>{lines[0]}</b>
+        </p>
+        {lines.slice(1).map((s, i) => (
+          <p key={i}>{s}</p>
+        ))}
+        <div class="row">
+          <Btn onClick={(ev) => release(x.ask!.releaseFd, ev)}>{WINDOWS.release(fdFull(Math.round(x.ask!.releaseFd)))}</Btn>
+          <Btn onClick={() => act({ type: "keep_load", loadId: l.id }, WINDOWS.kept)}>{WINDOWS.askKeepButton}</Btn>
+        </div>
+      </div>
+    );
+  }
+  return (
+    <div class="row small" onClick={stop}>
+      <span>{FIXES.headingTo(w.net.places[l.originPlace]!.name, whenAt(w, l.latestPickupT ?? l.appointmentT))}</span>
+      <Btn sm onClick={(ev) => release(x.priceFd, ev)}>{WINDOWS.release(fdFull(Math.round(x.priceFd)))}</Btn>
+    </div>
+  );
+}
+
 function TruckStage({ t, c }: { t: Truck; c: Company }): JSX.Element {
   const w = S.game!.w;
   const win = truckWindow(w, c, t);
@@ -592,6 +630,7 @@ function TruckCard({ t, idx }: { t: Truck; idx: number }): JSX.Element {
         <StatusLine t={t} />
         {t.breakdownMin > 0 && t.status !== "loaded" ? <span class="bad"> · stopped</span> : null}
       </p>
+      <CurrentLines t={t} />
       <WindowsLines t={t} />
       <HoursLines t={t} />
       <p>

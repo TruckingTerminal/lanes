@@ -510,8 +510,9 @@ function breakDown(w: World, truck: Truck): void {
   }
   w.listener?.({ kind: "breakdown", companyId: truck.companyId, truckId: truck.id, repairFd: bill });
   w.metrics.onBreakdown();
-  // Delivery windows, batch 4: a breakdown that breaks the plan for the load booked ahead (windows.ts afterBreakdown).
-  if (truck.nextLoadId !== undefined && windowsOn(w)) afterBreakdown(w, truck);
+  // Delivery windows, batch 4: a breakdown that breaks the plan for the load booked ahead (windows.ts afterBreakdown);
+  // windows.releaseCurrent: or for the load it's heading to.
+  if (windowsOn(w) && (truck.nextLoadId !== undefined || (w.cfg.windows?.releaseCurrent === true && truck.status === "toPickup"))) afterBreakdown(w, truck);
 }
 
 function setIdle(w: World, truck: Truck): void {
@@ -602,6 +603,20 @@ export function nightInTown(w: World, truck: Truck, maxMi = Infinity): { place: 
  * and starts the new run from there.
  */
 export function turnTruck(w: World, truck: Truck, hub: number): void {
+  const { place: best, offMi: off } = nearestTown(w, truck);
+  companyById(w, truck.companyId).operating.costFd += payTripCosts(w, truck, `turn:${truck.id}`);
+  truck.place = best;
+  truck.hub = w.net.places[best]!.market;
+  // businesses.parking.stopInTown: this leg began at a turn, so tonight's town rule doesn't apply to it (moveTrucks).
+  if (w.cfg.businesses.parking.stopInTown) truck.turnedToday = true;
+  startEmptyRun(w, truck, hub);
+  truck.remainingMi += off;
+  truck.legMiles = truck.remainingMi;
+  truck.legKey = -1;
+}
+
+/** The town nearest a moving truck's point on its leg (risk.ts truckLatLon), and the road miles to it at 1.2 × the great circle. */
+function nearestTown(w: World, truck: Truck): { place: number; offMi: number } {
   const [lat, lon] = truckLatLon(w, truck);
   let best = truck.place;
   let bd = Infinity;
@@ -615,16 +630,40 @@ export function turnTruck(w: World, truck: Truck, hub: number): void {
       best = i;
     }
   });
-  const off = Math.round(greatCircleMiles({ lat, lon }, w.net.places[best]!) * 1.2);
-  companyById(w, truck.companyId).operating.costFd += payTripCosts(w, truck, `turn:${truck.id}`);
-  truck.place = best;
-  truck.hub = w.net.places[best]!.market;
-  // businesses.parking.stopInTown: this leg began at a turn, so tonight's town rule doesn't apply to it (moveTrucks).
-  if (w.cfg.businesses.parking.stopInTown) truck.turnedToday = true;
-  startEmptyRun(w, truck, hub);
-  truck.remainingMi += off;
-  truck.legMiles = truck.remainingMi;
+  return { place: best, offMi: Math.round(greatCircleMiles({ lat, lon }, w.net.places[best]!) * 1.2) };
+}
+
+/** Where standAtTown would stop the truck now, and the empty miles it would sink (reads only; the release's Confirm). */
+export function releaseStopOf(w: World, truck: Truck): { place: number; sunkMi: number } {
+  return truck.emptyMi > 0 ? { place: nearestTown(w, truck).place, sunkMi: truck.emptyMi } : { place: truck.place, sunkMi: 0 };
+}
+
+/**
+ * windows.releaseCurrent (the director's sprint §1): a truck whose load was released before pickup stops at the town
+ * nearest its point on the leg, as a turn finds it: the miles so far are paid (sunk, and the release's notice says them),
+ * and it runs empty to the town and stands there. One that hasn't rolled yet stands where it is. A load booked ahead
+ * comes first once it stands (setIdle). Returns the town and the empty miles sunk.
+ */
+export function standAtTown(w: World, truck: Truck): { place: number; sunkMi: number } {
+  const sunkMi = truck.emptyMi;
+  truck.loadId = null;
+  if (!(sunkMi > 0)) {
+    abandonLeg(w, truck);
+    return { place: truck.place, sunkMi: 0 };
+  }
+  const { place, offMi } = nearestTown(w, truck);
+  companyById(w, truck.companyId).operating.costFd += payTripCosts(w, truck, `release:${truck.id}`);
+  truck.place = place;
+  truck.hub = w.net.places[place]!.market;
+  truck.status = "repositioning";
+  truck.targetPlace = place;
+  truck.targetHub = truck.hub;
+  truck.remainingMi = offMi;
+  truck.legMiles = offMi;
   truck.legKey = -1;
+  truck.idleRounds = 0;
+  if (w.cfg.businesses.parking.stopInTown) truck.turnedToday = true; // the leg began at a stop, as a turn's does
+  return { place, sunkMi };
 }
 
 /** Pays operating costs for the miles driven since the last settlement. Returns their total. */

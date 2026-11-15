@@ -39,7 +39,7 @@ import { driverFatigue } from "./labor.js";
 import { legalDrivingMin, reopenLoad } from "./safety.js";
 import { standingHit } from "./standing.js";
 import { reserveHeldFd } from "./cashReserve.js";
-import { cycleLimitMin, dutyResetAt, legKeyOf } from "./trips.js";
+import { cycleLimitMin, dutyResetAt, legKeyOf, standAtTown } from "./trips.js";
 import type { Company, Facility, Load, Truck } from "./types.js";
 import { companyById, crewed, placeHours, placeLegMiles, placeRoute, type World } from "./world.js";
 
@@ -475,12 +475,17 @@ function markFailed(w: World, c: Company): void {
 }
 
 /**
- * release_load: the carrier drops a load booked ahead. The cancel claim (windows.cancelClaimShare: early, or in the urgency
+ * release_load: the carrier drops a load booked ahead, or with windows.releaseCurrent (the director's sprint §1) the load
+ * its truck is heading to, until it's picked up. The cancel claim (windows.cancelClaimShare: early, or in the urgency
  * rounds), the mark on its record, and the load back on the board as it stands (safety.ts reopenLoad), for anyone who can
- * still make it. Past its pickup's close it's a no-show instead.
+ * still make it but the releasing carrier. Past its pickup's close it's a no-show instead. A truck released from the load
+ * it was heading to stops at the next town (trips.ts standAtTown), and a load booked ahead moves up, checked again.
  */
 export function releaseLoad(w: World, company: Company, load: Load, breakdown = false): string | null {
-  if (load.status !== "assigned" || load.ahead !== true || load.carrierId !== company.id) return "only a load booked ahead can be released";
+  const truck = load.truckId !== null ? w.trucks[load.truckId - 1] : undefined;
+  const onCurrent = w.cfg.windows?.releaseCurrent === true;
+  const current = onCurrent && load.ahead !== true && truck !== undefined && truck.loadId === load.id && truck.status === "toPickup";
+  if (load.status !== "assigned" || (load.ahead !== true && !current) || load.carrierId !== company.id) return onCurrent ? "only a load not yet picked up can be released" : "only a load booked ahead can be released";
   if (pickupClosed(w, load)) {
     noShow(w, load);
     return null;
@@ -495,13 +500,64 @@ export function releaseLoad(w: World, company: Company, load: Load, breakdown = 
   standingHit(w, company, load, "release"); // standing.ts: a hit with the market's shippers
   // Finding 1: the same carrier never books it again, so a load's claims can't repeat through rebooking.
   load.releasedBy = [...(load.releasedBy ?? []), company.id];
-  const truck = load.truckId !== null ? w.trucks[load.truckId - 1] : undefined;
   if (truck && truck.nextLoadId === load.id) delete truck.nextLoadId;
   delete load.ahead;
   delete load.aheadByHand;
+  delete load.byHand;
   delete load.releaseAsk;
+  const stop = current ? standAtTown(w, truck!) : null;
   reopenLoad(w, load);
+  if (stop && truck) {
+    const town = w.net.places[stop.place]!.name;
+    w.listener?.({ kind: "notice", companyId: company.id, topic: "board", text: `Truck ${truck.id} stops at ${town}: load #${load.id} released before pickup${stop.sunkMi >= 0.5 ? `, its ${fmtInt(stop.sunkMi)} empty miles so far sunk` : ""}.`, tone: "bad", truckId: truck.id });
+    recheckAfterRelease(w, truck, `Truck ${truck.id} stops at ${town}, so`);
+  }
   return null;
+}
+
+/**
+ * windows.releaseCurrent: after a release, the load the truck holds next is checked again. A load booked ahead moves up
+ * once the truck stands (canMake reads it from the town); one that already moved up (the truck hadn't rolled) is the
+ * truck's load, read as the breakdown's ask reads it. One the truck can't make is the breakdown's ask again.
+ */
+function recheckAfterRelease(w: World, truck: Truck, why: string): void {
+  const next = truck.nextLoadId !== undefined ? w.loads.get(truck.nextLoadId) : undefined;
+  if (next && next.status === "assigned" && next.ahead === true && !next.releaseAsk) {
+    if (!canMake(w, truck, next).ok) loadAsk(w, truck, next, why, !next.aheadByHand);
+    return;
+  }
+  const cur = truck.status === "toPickup" && truck.loadId !== null ? w.loads.get(truck.loadId) : undefined;
+  if (cur && cur.status === "assigned" && !cur.releaseAsk && !currentMakes(w, truck, cur)) loadAsk(w, truck, cur, why, !cur.byHand);
+}
+
+/** windows.releaseCurrent: when a truck heading to its load reaches the pickup (the rest of the leg, after a stop or the shop), as canMake's clock runs. Reads only. */
+export function pickupReachT(w: World, truck: Truck): number {
+  const r = Run.start(w, truck);
+  if (truck.status === "repair") r.until(Math.max(r.t, truck.repairUntilT ?? r.t));
+  r.stop(truck.breakdownMin + (truck.pauseMin ?? 0));
+  r.legLeft(truck);
+  return r.t;
+}
+const currentMakes = (w: World, truck: Truck, load: Load): boolean => load.latestPickupT === undefined || pickupReachT(w, truck) + (w.cfg.windows?.planMarginMinutes ?? 0) <= load.latestPickupT;
+
+/**
+ * The breakdown's ask on a load (batch 4's rule, windows.releaseCurrent's reach): a bot, or a player's dispatcher on a load
+ * it booked itself (`dispatchers`), releases it at once at the early share; otherwise the player is asked, release or
+ * keep, and unanswered the close makes it a no-show. True when it was released.
+ */
+function loadAsk(w: World, truck: Truck, load: Load, why: string, dispatchers: boolean): boolean {
+  const c = companyById(w, truck.companyId);
+  const fd = w.cfg.windows!.cancelClaimShare.early * load.clearedRate * load.miles;
+  const where = `${w.net.places[load.originPlace]!.name} by ${whenLabel(w, load.latestPickupT ?? w.t)}`;
+  if (!c.human || (dispatcherOn(c) && dispatchers)) {
+    const id = load.id;
+    releaseLoad(w, c, load, true);
+    w.listener?.({ kind: "notice", companyId: c.id, topic: "board", text: `${why} it can't reach ${where}: your dispatcher released load #${id}, a ${fmtInt(fd)} FD claim.`, tone: "bad", truckId: truck.id });
+    return true;
+  }
+  load.releaseAsk = { truckId: truck.id, fd, t: w.t };
+  w.listener?.({ kind: "notice", companyId: c.id, topic: "board", text: `${why} it can't reach ${where}. Release load #${load.id} now (−${fmtInt(fd)} FD) or keep it.`, tone: "bad", truckId: truck.id });
+  return false;
 }
 
 /**
@@ -637,6 +693,11 @@ const dispatcherOn = (c: Company): boolean => c.orders.some((o) => o.kind === "b
  * no-show at its share, as today.
  */
 export function afterBreakdown(w: World, truck: Truck): void {
+  // windows.releaseCurrent (the director's sprint §1): the load it's heading to first; released, the load ahead was checked with it.
+  if (w.cfg.windows?.releaseCurrent === true && truck.status === "toPickup" && truck.loadId !== null) {
+    const cur = w.loads.get(truck.loadId);
+    if (cur && cur.status === "assigned" && !cur.releaseAsk && !currentMakes(w, truck, cur) && loadAsk(w, truck, cur, `Truck ${truck.id}'s breakdown means`, !cur.byHand)) return;
+  }
   const load = truck.nextLoadId !== undefined ? w.loads.get(truck.nextLoadId) : undefined;
   if (!load || load.status !== "assigned" || load.ahead !== true || load.releaseAsk) return;
   const r = canMake(w, truck, load);

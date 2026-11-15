@@ -1145,6 +1145,13 @@ export const economyConfig = {
     // clock runs from its "Deliver by" (latestDeliveryT), the guide's "24 h after", read at arrival as the mark is; a
     // spoiled load is never on time. Off: from the appointment, at the end of unloading, as before.
     spoilAfterDeadline: false,
+    // The director's sprint §1 (releasing the current load before pickup): the load a truck is heading to may be released
+    // until it's picked up, at a load booked ahead's shares (cancelClaimShare: the early share outside the urgency rounds
+    // and after a breakdown, the urgent share inside them; past the pickup's close a no-show), with the same mark, and it
+    // goes back on the board, never to the releasing carrier. The truck stops at the town nearest its point on the leg (the
+    // miles so far sunk), and a load booked ahead moves up, checked again. A breakdown's ask covers the current load too.
+    // Once loaded, never. Off: only a load booked ahead can be released, as before.
+    releaseCurrent: false,
   },
 
   // §Roles — carrier authority; broker license and bond. Renew each season.

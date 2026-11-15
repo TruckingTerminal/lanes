@@ -1020,6 +1020,8 @@ export interface Load {
   releasedBy?: number[];
   /** Batch 4: booked ahead by the player's own hand (a bid or Book now), not by the dispatcher: a breakdown asks first. */
   aheadByHand?: true;
+  /** windows.releaseCurrent: booked by the player's own hand, ahead or not, kept once it's the truck's load: a breakdown asks first. */
+  byHand?: true;
   /**
    * Batch 4: a breakdown broke canMake for this load booked ahead, on a company that books by hand: the player is asked to
    * release it (at the early share, `fd`) or keep it (windows.ts afterBreakdown). Unanswered, the close makes it a no-show.
