@@ -1,7 +1,7 @@
 import { Fragment, type JSX } from "preact";
 import { useState } from "preact/hooks";
-import { askingPay, askOf, crewed, payFloor, dispatchProfile, poolOf, spanOf, weeklyWage, type Company, type Staff as StaffT, type Truck, type World } from "@lanes/engine";
-import { fd, hhmm, pct, shortDate, TRAILER_NAME } from "../../format.js";
+import { askingPay, askOf, crewed, onTheBus, payFloor, dispatchProfile, poolOf, spanOf, weeklyWage, type Company, type Staff as StaffT, type Truck, type World } from "@lanes/engine";
+import { fd, hhmm, pct, shortDate, TRAILER_NAME, weekdayDate } from "../../format.js";
 import { GAME_CONFIG } from "../../game.js";
 import { atHub, marketPayOf, moraleClass, moraleWord, staffPay, Stars } from "../../logic.js";
 import { act, me, myTrucks, order, S, truckNo, useData } from "../../state.js";
@@ -14,6 +14,7 @@ import { hire as hireLines, weeklyKept } from "../../confirmspecs.js";
 import { ANSWER, CONFIRM } from "../../copy.js";
 import { MILES_PER_MONTH } from "../../finance.js";
 import { PENDING } from "../../copy-pending.js";
+import { FIXES } from "../../copy-fixes.js";
 
 const num = (id: string): number => Number((document.getElementById(id) as HTMLInputElement | null)?.value);
 const sel = (id: string): string | undefined => (document.getElementById(id) as HTMLSelectElement | null)?.value;
@@ -147,6 +148,8 @@ export function Staff(): JSX.Element {
           truck {truckNo(s.truckId)}
           {w.trucks[s.truckId - 1]!.coDriverId === s.id ? " (co-driver)" : ""}
         </>
+      ) : onTheBus(s) ? (
+        <span class="warn">{FIXES.onBus(weekdayDate(s.bus!.arriveDay))}</span>
       ) : (
         <span class="bad">no truck</span>
       );

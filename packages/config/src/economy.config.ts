@@ -1946,6 +1946,13 @@ export const economyConfig = {
     // is inside the home radius (map.nearbyRadiusMi); anywhere else the undriven day is a day away: road rest, and a
     // layover's per diem. Off: a driver with no truck is home wherever they stand, as before.
     truckLessHomeByHub: false,
+    // The bus home (ruleset 0.25.3, the director's sprint §9; the economy's sizes, economy-bus-home-2026-11-15.md): with
+    // truckLessHomeByHub on, a driver with no truck outside the home radius rides home at miPerDay, hub to hub, for a fare
+    // of fareDays of per diem plus the per diem for each day on the bus. Bots and an auto-staffed company send them at once,
+    // unless an empty truck of theirs at that hub needs a driver; a company that staffs by hand, after waitDays without a
+    // truck. On the bus: days away, no rest, no layover besides the fare. Arriving: home, the last hub the home hub, the
+    // days off started if due. Off (or with truckLessHomeByHub off): nothing here runs.
+    busHome: { enabled: false, miPerDay: 800, fareDays: 1, waitDays: 1 },
   },
 
   // The guards (the director's triage of the player's second diary, studio/reviews/director-player2.md): limits on what

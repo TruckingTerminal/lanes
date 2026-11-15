@@ -11,6 +11,7 @@ import { Iuliia } from "./Walkthrough.js";
 import { WhatNowChip, whatNowWords } from "./WhatNow.js";
 import { hasMonthReport, openMonthReport } from "./MonthReport.js";
 import { awayIsHere } from "../returncard.js";
+import { FIXES } from "../copy-fixes.js";
 
 /**
  * The return card (the director's R21, player5-ux.md section 2; the writer's copy-player5.md): after a long absence,
@@ -119,6 +120,12 @@ export function ReturnCard(): JSX.Element | null {
     lines.push({ text: wrong.length ? PENDING.awayWrong(wrong.join(", ")) : PENDING.awayNothingWrong });
     lines.push({ text: PENDING.awayMoney(away.delivered, fdFull(away.inFd), fdFull(e.keptFd), fdFull(e.cashThen), fdFull(e.cashNow)), go: seeToday, button: RETURN.seeToday });
     if (away.delivered > 0) lines.push({ text: PENDING.awayOnTime(pct(Math.max(0, away.delivered - away.late) / away.delivered)) });
+    // labor.busHome (the director's §9): a driver who took the bus home while the player was away.
+    for (const s of w.staffByCompany.get(c.id) ?? []) {
+      const b = s.bus;
+      if (!b || b.leftT <= away.backT - e.awayMin || b.leftT > away.backT) continue;
+      lines.push({ text: FIXES.awayBus(s.owner ? "you" : s.name, w.net.hubs[b.from]!.name, Math.round((b.miles / w.cfg.labor.busHome.miPerDay) * 24), fdFull(b.fareFd), weekdayDate(b.arriveDay)) });
+    }
   }
   if (trucks.length === 1) lines.push(...truckLines(w, c, trucks[0]!).map((text) => ({ text })));
   else if (trucks.length > 1) {

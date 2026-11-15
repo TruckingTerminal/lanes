@@ -596,6 +596,13 @@ export interface Staff {
   clock?: DriverClock;
   /** R12 (its hos keys on): the hub where the driver last left a truck; they're seated only on a truck there. */
   lastHub?: number;
+  /**
+   * labor.busHome (labor.ts dailyDrivers): daily passes without a truck outside the home radius (the wait before the bus),
+   * and the latest bus home: from where, the miles, the fare, when it left, the game day it arrives at (home from that
+   * day's start), and whether it's done (arrived, or the driver seated on the way).
+   */
+  trucklessDays?: number;
+  bus?: { from: number; miles: number; fareFd: number; leftT: number; arriveDay: number; done?: true };
   /** Career record any employer can see. */
   violations: number;
   crashes: number;

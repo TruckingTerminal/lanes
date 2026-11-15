@@ -470,6 +470,8 @@ export function dailyDrivers(w: World): void {
     // whatever the truck is doing now: the hour's dispatch can take the truck at the very midnight the days off end, before
     // this check, and the last day off would go uncounted (and fatigue never reset).
     const dayOff = w.cfg.labor.daysOffFull && s.homeUntilDay !== null && today <= s.homeUntilDay && hours === 0;
+    // labor.busHome (0.25.3): a driver with no truck away from home rides the bus home, or arrives.
+    const onBus = busOn(w) && busHome(w, c, s, t, today);
     // labor.truckLessHomeByHub (the sprint pass): off the truck, home only inside the home radius of where they stepped off.
     const strayed = !t && w.cfg.labor.truckLessHomeByHub === true && s.lastHub !== undefined && hubMiles(w, s.lastHub, c.homeHub) > w.cfg.map.nearbyRadiusMi;
     const home = (!t && !strayed) || dayOff || (t !== null && standingAtHome(w, c, t));
@@ -495,8 +497,8 @@ export function dailyDrivers(w: World): void {
         const due = perDiem * (t.mods.sleeper ? 0.5 : 1); // a sleeper halves the layover (items.ts)
         w.ledger.post(w.t, companyAccount(c.id), "sink:per_diem", due, `perdiem:${s.id}`);
         c.operating.costFd += due;
-      } else if (strayed && hours === 0) {
-        // labor.truckLessHomeByHub: off the truck away from home, a layover with no cab to sleep in.
+      } else if (strayed && hours === 0 && !onBus) {
+        // labor.truckLessHomeByHub: off the truck away from home, a layover with no cab to sleep in (on the bus, the fare holds it).
         w.ledger.post(w.t, companyAccount(c.id), "sink:per_diem", perDiem, `perdiem:${s.id}`);
         c.operating.costFd += perDiem;
       }
@@ -515,6 +517,61 @@ export function dailyDrivers(w: World): void {
     if (before < f.tiredAt && s.fatigue >= f.tiredAt) notice(w, c.id, `${label(s)} is running tired: ${s.awayDays} days out${s.longDays > 1 ? `, ${s.longDays} long days in a row` : ""}. Crash odds are up and they're slowing down.`, "bad", t?.id);
     if (!s.owner && s.fatigue > 0.5) s.morale = clamp(s.morale - f.moralePerDay * (s.fatigue - 0.5) * 2, 0, 1);
   }
+}
+
+/** labor.busHome, which runs only with labor.truckLessHomeByHub (a config without the key reads as off). */
+const busOn = (w: World): boolean => w.cfg.labor.busHome?.enabled === true && w.cfg.labor.truckLessHomeByHub === true;
+
+/** A driver on the bus home now (labor.busHome): a trip under way, and no truck. */
+export const onTheBus = (s: Staff): boolean => s.bus !== undefined && s.bus.done !== true && s.truckId === 0;
+
+/**
+ * labor.busHome (ruleset 0.25.3; the director's sprint §9, the economy's sizes), from dailyDrivers for each employed
+ * driver before the day is read: true while the driver rides. Seated, the wait and any trip end. Off the truck outside
+ * the home radius, the driver waits a day if the company staffs by hand (a seat swap or a same-day relay at that hub),
+ * or none for a bot or an auto-staffed company, unless an empty truck of theirs at that hub needs a driver; then rides
+ * home hub to hub at miPerDay, for fareDays of per diem plus the per diem of each day on the bus, told as they leave.
+ * Arriving (from the start of the arrival day): the last hub is the home hub, and the days off start if due.
+ */
+function busHome(w: World, c: Company, s: Staff, t: Truck | null, today: number): boolean {
+  if (t) {
+    if (s.trucklessDays) s.trucklessDays = 0;
+    if (s.bus && !s.bus.done) s.bus.done = true; // seated on the way (auto-staff seats anywhere until the bus to a truck)
+    return false;
+  }
+  const k = w.cfg.labor.busHome;
+  if (s.bus && !s.bus.done) {
+    if (today < s.bus.arriveDay) return true;
+    s.bus.done = true;
+    s.lastHub = c.homeHub;
+    s.trucklessDays = 0;
+    // Home: the days off start if due (the company's home-time order, or a Send home that was waiting).
+    const hm = c.orders.find((o): o is Extract<StandingOrder, { kind: "homeTime" }> => o.kind === "homeTime");
+    const off = s.homeUntilDay === null || s.homeUntilDay <= today;
+    if (off && (s.wantsHome || (hm !== undefined && s.awayDays >= hm.afterDays))) {
+      const days = hm?.restDays ?? w.cfg.fatigue.resetDays;
+      s.wantsHome = false;
+      s.homeUntilDay = today + days;
+      notice(w, c.id, `${s.owner ? "You're" : `${label(s)} is`} home off the bus, for ${days} days off${s.fatigue >= w.cfg.fatigue.tiredAt ? " (and need them)" : ""}.`, "info");
+    }
+    return false;
+  }
+  if (s.lastHub === undefined || s.lastHub === c.homeHub || (s.homeUntilDay !== null && s.homeUntilDay > today)) return false;
+  const miles = hubMiles(w, s.lastHub, c.homeHub);
+  if (miles <= w.cfg.map.nearbyRadiusMi) return false;
+  s.trucklessDays = (s.trucklessDays ?? 0) + 1;
+  const automatic = !c.human || c.autoStaff;
+  const wait = automatic ? 0 : k.waitDays;
+  if (s.trucklessDays <= wait) return false;
+  if (automatic && (w.trucksByCompany.get(c.id) ?? []).some((x) => !crewed(x) && x.hub === s.lastHub && (x.status === "idle" || x.status === "repair"))) return false;
+  const days = miles / k.miPerDay;
+  const fareFd = w.cfg.labor.driver.perDiemFd * (k.fareDays + days);
+  w.ledger.post(w.t, companyAccount(c.id), "sink:per_diem", fareFd, `bus:${s.id}`);
+  c.operating.costFd += fareFd;
+  s.bus = { from: s.lastHub, miles, fareFd, leftT: w.t, arriveDay: today + Math.ceil(days) };
+  const who = s.owner ? "you" : label(s);
+  notice(w, c.id, `No truck for ${who} at ${w.net.hubs[s.lastHub]!.name}, so ${s.owner ? "you're" : "they're"} taking the bus home: about ${Math.round(days * 24)} h, ${fmtInt(fareFd)} FD.`, "info");
+  return true;
 }
 
 /**

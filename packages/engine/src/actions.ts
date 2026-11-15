@@ -27,7 +27,7 @@ import { rebrokerLoad, stealLoad, vettingBlock } from "./fraud.js";
 import { declineHeld, formBrokerage, partnerOf, passTender, postHeld, tenderOwn, transferCapital } from "./brokerage.js";
 import { depositReserve, withdrawReserve } from "./cashReserve.js";
 import { finiteIn } from "./economics.js";
-import { offerStaff, payFloor, releaseStaff, setPay, severance, startHomeTime } from "./labor.js";
+import { offerStaff, onTheBus, payFloor, releaseStaff, setPay, severance, startHomeTime } from "./labor.js";
 import { buyListing, listingBlock, listTrailer, listTruck, withdrawListing } from "./market.js";
 import { canRefile, notice } from "./safety.js";
 import { canMakeHot, homeBlock } from "./standingOrders.js";
@@ -307,6 +307,8 @@ export function applyAction(w: World, companyId: number, action: Action): Action
       const truck = truckById(w, action.truckId);
       if (!truck || truck.companyId !== company.id) return { ok: false, reason: "not your truck" };
       if (!atHub(truck.status)) return { ok: false, reason: "the truck must be at a hub" };
+      // labor.busHome: on the bus home, they're seated once they're there.
+      if (onTheBus(s)) return { ok: false, reason: "they're on the bus home" };
       // R12 (its hos keys on): a driver moves between trucks at the same hub only (red team pass 3).
       // Off a truck, they stand where they left it (red team re-read).
       if (clocksFollowDriver(w) && s.truckId && s.truckId !== truck.id && truckById(w, s.truckId).hub !== truck.hub) return { ok: false, reason: `their truck is at ${w.net.hubs[truckById(w, s.truckId).hub]!.id}, and that one is at ${w.net.hubs[truck.hub]!.id}` };
