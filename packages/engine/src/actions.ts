@@ -31,6 +31,7 @@ import { offerStaff, onTheBus, payFloor, releaseStaff, setPay, severance, startH
 import { buyListing, listingBlock, listTrailer, listTruck, withdrawListing } from "./market.js";
 import { canRefile, notice } from "./safety.js";
 import { canMakeHot, homeBlock } from "./standingOrders.js";
+import { standingSeen } from "./standing.js";
 import { inCloseWindow } from "./season.js";
 import { refile } from "./solvency.js";
 import { facilityCap, locksOn, noteDiscount, peekDiscount, stakeDiscount, stakeFd, truckCap, unstakeFd } from "./staking.js";
@@ -197,6 +198,8 @@ export function badInput(cfg: EconomyConfig, a: Action): string | null {
       return isId(a.staffId) && isId(a.truckId) && (a.team === undefined || typeof a.team === "boolean") ? null : "bad assignment";
     case "set_auto_staff":
       return typeof a.on === "boolean" ? null : "bad setting";
+    case "standing_seen":
+      return Number.isInteger(a.tier) && a.tier >= 1 && a.tier <= 10 ? null : "bad tier";
     case "set_compliance":
       return a.policy && typeof a.policy === "object" ? null : "bad policy";
     case "set_night_stop":
@@ -214,7 +217,7 @@ export function badInput(cfg: EconomyConfig, a: Action): string | null {
 const LIQUIDATING_BLOCKED = new Set<Action["type"]>(["place_bid", "book_load", "reposition_truck", "buy_asset", "buy_trailer", "rent_trailer", "buy_facility", "lease_truck", "borrow", "buy_listing", "unpark_truck", "offer_staff", "take_lease", "buy_asset_sale", "list_asset_sale", "expedite_order"]);
 
 /** What a company whose authority was revoked can still do: wait out the bar, file again, and handle its money. */
-const ALLOWED_REVOKED = new Set<Action["type"]>(["wait", "transfer_capital", "reserve_withdraw", "cash_invoice", "refile_authority", "buy_fd", "bid_auction", "sell_fd", "cancel_withdrawal", "offer_fd", "claim_airdrop_now", "withdraw_finance", "withdraw_listing", "set_compliance", "set_vetting", "set_auto_staff"]);
+const ALLOWED_REVOKED = new Set<Action["type"]>(["wait", "transfer_capital", "reserve_withdraw", "cash_invoice", "refile_authority", "buy_fd", "bid_auction", "sell_fd", "cancel_withdrawal", "offer_fd", "claim_airdrop_now", "withdraw_finance", "withdraw_listing", "set_compliance", "set_vetting", "set_auto_staff", "standing_seen"]);
 const SCOPES: RuleScope[] = ["legal", "hot", "always"];
 /**
  * The bad-actor actions: an illegal policy, re-brokering and theft. Players may
@@ -327,6 +330,10 @@ export function applyAction(w: World, companyId: number, action: Action): Action
 
     case "set_auto_staff":
       company.autoStaff = action.on;
+      return { ok: true };
+
+    case "standing_seen":
+      standingSeen(company, action.tier);
       return { ok: true };
 
     case "set_night_stop": {

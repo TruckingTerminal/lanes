@@ -2,14 +2,16 @@ import type { JSX } from "preact";
 import { brokeredLoads } from "../books.js";
 import { MENUS } from "../copy-menus.js";
 import { brokerageStage, brokerageWindow } from "../screenwindows.js";
-import { bumpData, push, S, setTab, toast, truckNo, useData } from "../state.js";
+import { bumpData, order, push, S, setTab, toast, toastRich, truckNo, useData } from "../state.js";
 import { FIXES } from "../copy-fixes.js";
 import { fdFull } from "../format.js";
 import { Btn } from "./bits.js";
 import { Window } from "./Window.js";
-import { standingMarkets } from "@lanes/engine";
+import { standingMarkets, standingOwed } from "@lanes/engine";
 import { STANDING, STANDING_UX } from "../copy-standing.js";
-import { milestoneAt, standingShown } from "../standingui.js";
+import { atlasUrl, kitData } from "../menuart.js";
+import { motion } from "../motion.js";
+import { bandAt, milestoneAt, momentPerk, stampLine, standingShown, troubleOpen } from "../standingui.js";
 import { TierBadge } from "./Standing.js";
 import { CityPicture } from "./CityPicture.js";
 import { Iuliia } from "./Walkthrough.js";
@@ -30,8 +32,13 @@ export interface Hero {
    */
   serious?: true;
   action?: { label: string; run: () => void };
-  /** Standing's moments (UX §1.6): the new tier's badge at 128, the market's own city in place of a painting, Iuliia's face. */
+  /**
+   * Standing's moments (UX §1.6): the new tier's badge at 128 with the fx glint once at its corner (Full motion only), the
+   * market's own city in place of a painting, the paper's lines under the title, Iuliia's face.
+   */
   badge?: { tier: number; band: "approved" | "preferred" | "core" };
+  glint?: true;
+  paper?: string[];
   city?: number;
   face?: "proud" | "concerned";
 }
@@ -44,6 +51,9 @@ const dismiss = (): void => {
   hero = null;
   bumpData();
 };
+/** The hero up now, and closing it (for the tests). */
+export const heroNow = (): Hero | null => hero;
+export const closeHero = (): void => dismiss();
 
 /** The stage each brokerage was last seen at, so reaching the next one is a moment once. */
 const stageSeen = new Map<number, number>();
@@ -81,47 +91,53 @@ function watchTrucks(): void {
 }
 
 /**
- * Standing's moments (UX next-screens §1.6), read from the scorecards whenever the page draws:
- * - a milestone reached is a hero on the painting of what it opens (3 the appointment wall, 5 the bank, 7 the shipper's
- *   office, 9 a rate confirmation, 10 the market's own city), its badge at 128 and Iuliia's line;
- * - any other step up is a toast, and a step down a toast with its cause (Iuliia's falling line comes with the engine's
- *   event, main.tsx);
- * - one per review: the highest milestone gets the hero, and the review's other changes one toast.
- * The tiers as first seen in a session play nothing; a milestone reached while away plays once when the Standing screen
- * opens (checkMissedMoments), from the tiers this browser last saw for this world and company.
+ * Standing's moments (UX next-screens §1.6, the director's §8):
+ * - a hero only the first time the company reaches a milestone in any market (3 the appointment wall, 5 the bank, 7 the
+ *   shipper's office, 9 a rate confirmation, 10 the market's own city), one a review at most: the engine keeps the best
+ *   tier ever and the heroes owed (standing.ts standingOwed), and seeing one clears it (standing_seen), so a reload or a
+ *   second device never plays it twice and a missed one waits;
+ * - at a review the player is here for, it plays when no sheet, Confirm or tier-1 item is open; missed while away, it
+ *   plays once the next time the player opens Standing or the Company card, never on the title or the first screen;
+ * - a milestone reached again (a later market, or back after a fall) is a stamp: the badge at 32, the tier, the perk with
+ *   its figure and Iuliia's line in her strip; a step between milestones is a toast, and so is a fall, with its cause
+ *   (Iuliia's falling line comes with the engine's event, main.tsx);
+ * - the review's other changes are one toast: one change, its own toast or stamp; more, "Standing moved in n markets".
  */
 const MOMENT_PAINTING: Record<number, string> = { 3: "shp-appt-wall", 5: "bank", 7: "shp-office", 9: "brk-ratecon" };
 const tiersSeen = new WeakMap<object, Map<number, number>>();
 type Game = NonNullable<typeof S.game>;
-const seenKey = (g: Game) => `lanes.standing.seen.${g.kind}.${g.w.seed}.${g.player!.id}`;
-function storeSeen(g: Game, now: Map<number, number>): void {
-  try {
-    localStorage.setItem(seenKey(g), JSON.stringify([...now]));
-  } catch {
-    /* a private window: the moments last the sitting */
-  }
-}
-function readSeen(g: Game): Map<number, number> | null {
-  try {
-    const v = localStorage.getItem(seenKey(g));
-    return v ? new Map(JSON.parse(v) as [number, number][]) : null;
-  } catch {
-    return null;
-  }
-}
+/** Per sitting and company: the heroes owed when it was first read (missed while away), and those played since. */
+const owedAtOpen = new WeakMap<object, Map<number, Set<number>>>();
+const owedPlayed = new WeakMap<object, Map<number, Set<number>>>();
+const perCompany = (m: WeakMap<object, Map<number, Set<number>>>, g: Game): Map<number, Set<number>> => {
+  let x = m.get(g);
+  if (!x) m.set(g, (x = new Map()));
+  return x;
+};
+const playedOf = (g: Game): Set<number> => {
+  const m = perCompany(owedPlayed, g);
+  let x = m.get(g.player!.id);
+  if (!x) m.set(g.player!.id, (x = new Set()));
+  return x;
+};
 const tiersNow = (g: Game): Map<number, number> => new Map(standingMarkets(g.w, g.player!).map((hub) => [hub, g.player!.standing![hub]!.tier]));
+/** §1.6: no other hero, no sheet or Confirm open, and no tier-1 item. */
+const heroFree = (g: Game): boolean => hero === null && S.openLoad === null && S.confirm === null && S.ladder === null && S.waysOut === null && !troubleOpen(g.w, g.player!);
 
 function standingHero(g: Game, hub: number, tier: number): void {
   const w = g.w;
   const market = w.net.hubs[hub]!.name;
-  const band = tier >= 9 ? "core" : tier >= 5 ? "preferred" : "approved";
+  const band = bandAt(tier);
+  const perk = momentPerk(w, g.player!, hub, tier);
   showHero({
     name: MOMENT_PAINTING[tier] ?? "shp-office",
     ...(tier === 10 ? { city: hub } : {}),
-    title: STANDING_UX.heroPaper(market, STANDING.band[band], tier),
+    title: STANDING.heroTitle(market, tier, STANDING.band[band]),
+    paper: [STANDING_UX.heroPaper(market, STANDING.band[band], tier), ...(perk ? [perk] : [])],
     line: STANDING.iuliiaMilestone(market, tier) ?? undefined,
     badge: { tier, band },
     face: "proud",
+    glint: true,
     action: {
       label: STANDING_UX.heroLadder,
       run: () => {
@@ -132,8 +148,27 @@ function standingHero(g: Game, hub: number, tier: number): void {
   });
 }
 
-/** The moments between two readings of the tiers; `downs` false for a check after time away (rises only). */
-function tierMoments(g: Game, before: Map<number, number>, now: Map<number, number>, downs: boolean): void {
+/** Plays an owed hero and tells the engine it was seen (no toast: the hero is the answer). */
+function playOwed(g: Game, o: { tier: number; hub: number }): void {
+  playedOf(g).add(o.tier);
+  standingHero(g, o.hub, o.tier);
+  void order({ type: "standing_seen", tier: o.tier }, "");
+}
+
+/** A milestone reached again: the stamp (§1.6), a toast with the badge, the perk with its figure and Iuliia's line. */
+function stampToast(g: Game, hub: number, tier: number): void {
+  const w = g.w;
+  const market = w.net.hubs[hub]!.name;
+  toastRich({
+    text: stampLine(w, g.player!, hub, tier),
+    badge: { tier, band: bandAt(tier) },
+    sub: momentPerk(w, g.player!, hub, tier) ?? undefined,
+    say: STANDING.iuliiaMilestone(market, tier) ?? undefined,
+  });
+}
+
+/** The moments between two readings of the tiers: a hero the engine owes for one of them is watchOwed's; the rest, one toast. */
+function tierMoments(g: Game, before: Map<number, number>, now: Map<number, number>): void {
   const w = g.w;
   const ups: { hub: number; tier: number }[] = [];
   const falls: { hub: number; tier: number }[] = [];
@@ -143,22 +178,21 @@ function tierMoments(g: Game, before: Map<number, number>, now: Map<number, numb
     else if (tier < was) falls.push({ hub, tier });
   }
   for (const [hub, was] of before) if (!now.has(hub) && was > 1) falls.push({ hub, tier: 1 });
-  const hero = ups.filter((u) => milestoneAt(w, u.tier) !== null).sort((a, b) => b.tier - a.tier || a.hub - b.hub)[0];
-  if (hero) standingHero(g, hero.hub, hero.tier);
-  const rest = [...ups.filter((u) => u !== hero), ...(downs ? falls : [])];
-  if (rest.length === 0) return;
-  if (rest.length > 1 || hero) {
-    if (rest.length > 1) toast(STANDING_UX.moved(rest.length + (hero ? 1 : 0)));
-    else toast(stepWords(g, rest[0]!, before));
+  const owed = standingOwed(w, g.player!);
+  const heroUp = ups.find((u) => owed.some((o) => o.tier === u.tier && o.hub === u.hub));
+  const rest = [...ups.filter((u) => u !== heroUp), ...falls];
+  if (rest.length > 1) return toastRich({ text: STANDING_UX.moved(rest.length + (heroUp ? 1 : 0)), go: () => setTab("standing") });
+  const x = rest[0];
+  if (!x) return;
+  const market = w.net.hubs[x.hub]!.name;
+  const badge = { tier: x.tier, band: bandAt(x.tier) };
+  if (x.tier > (before.get(x.hub) ?? 1)) {
+    if (milestoneAt(w, x.tier) !== null) stampToast(g, x.hub, x.tier);
+    else toastRich({ text: STANDING_UX.stepUp(market, x.tier), badge });
     return;
   }
-  toast(stepWords(g, rest[0]!, before));
-}
-function stepWords(g: Game, x: { hub: number; tier: number }, before: Map<number, number>): string {
-  const market = g.w.net.hubs[x.hub]!.name;
-  if (x.tier > (before.get(x.hub) ?? 1)) return STANDING_UX.stepUp(market, x.tier);
   const cause = g.player!.standing?.[x.hub]?.log.at(-1)?.cause ?? "aged";
-  return STANDING_UX.stepDown(market, x.tier, STANDING.cause[cause]);
+  toastRich({ text: STANDING_UX.stepDown(market, x.tier, STANDING.cause[cause]), badge });
 }
 
 function watchTiers(): void {
@@ -171,20 +205,33 @@ function watchTiers(): void {
   if (!seen) return;
   let changed = now.size !== seen.size;
   for (const [hub, tier] of now) if (seen.get(hub) !== tier) changed = true;
-  if (!changed) return;
-  tierMoments(g, seen, now, true);
-  storeSeen(g, now);
+  if (changed) tierMoments(g, seen, now);
 }
 
-/** §1.6: a milestone reached while away plays once, when the player opens Standing (never on the title or first screen). */
+/** §1.6: a hero owed at a review the player is here for plays at the first free moment. */
+function watchOwed(): void {
+  const g = S.game;
+  const c = g?.player;
+  if (!g || !c || !standingShown(g.w, c)) return;
+  const owed = standingOwed(g.w, c);
+  const atOpen = perCompany(owedAtOpen, g);
+  const missed = atOpen.get(c.id);
+  if (!missed) {
+    atOpen.set(c.id, new Set(owed.map((o) => o.tier)));
+    return;
+  }
+  const next = owed.find((o) => !missed.has(o.tier) && !playedOf(g).has(o.tier));
+  if (next && heroFree(g)) playOwed(g, next);
+}
+
+/** §1.6: a hero missed while away plays once, when the player opens Standing or the Company card (never the title or the first screen). */
 export function checkMissedMoments(): void {
   const g = S.game;
   const c = g?.player;
   if (!g || !c || !standingShown(g.w, c)) return;
-  const now = tiersNow(g);
-  const before = readSeen(g);
-  if (before) tierMoments(g, before, now, false);
-  storeSeen(g, now);
+  const missed = perCompany(owedAtOpen, g).get(c.id);
+  const next = standingOwed(g.w, c).find((o) => (!missed || missed.has(o.tier)) && !playedOf(g).has(o.tier));
+  if (next && heroFree(g)) playOwed(g, next);
 }
 
 /**
@@ -257,6 +304,7 @@ export function HeroMoment(): JSX.Element | null {
   watchStage();
   watchTrucks();
   watchTiers();
+  watchOwed();
   watchHires();
   watchLoans();
   if (!hero) return null;
@@ -268,9 +316,17 @@ export function HeroMoment(): JSX.Element | null {
         {h.badge ? (
           <div class="herobadge">
             <TierBadge tier={h.badge.tier} band={h.badge.band} size={128} />
+            {h.glint ? <Glint /> : null}
           </div>
         ) : null}
         <h2>{h.title}</h2>
+        {h.paper ? (
+          <div class="heropaper">
+            {h.paper.map((p, i) => (
+              <p key={i}>{p}</p>
+            ))}
+          </div>
+        ) : null}
         {h.line ? (
           h.face ? (
             <div class="row paperline herosay">
@@ -303,4 +359,12 @@ export function HeroMoment(): JSX.Element | null {
       </div>
     </div>
   );
+}
+
+/** §1.6: the fx glint, once, at the badge's corner; none in Calm or Still. */
+function Glint(): JSX.Element | null {
+  const k = kitData();
+  const p = k?.fx?.pieces?.shine;
+  if (!k || !p || motion() !== "full") return null;
+  return <span class="heroglint" aria-hidden="true" style={{ backgroundImage: `url("${atlasUrl(k.fx.image)}")`, "--glint-x": `${-p.x}px`, "--glint-y": `${-p.y}px`, "--glint-run": `${-(p.x + (p.frames ?? 9) * (p.step ?? 64))}px` } as JSX.CSSProperties} />;
 }

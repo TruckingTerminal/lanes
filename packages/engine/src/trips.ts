@@ -851,7 +851,7 @@ function deliver(w: World, truck: Truck, now: number): void {
   // Delivery windows: loads booked and never hauled (Company.failed) count as late ones; absent, the same arithmetic.
   carrier.reputation = (carrier.onTime + prior * cfg.reputation.start) / (carrier.delivered + (carrier.failed ?? 0) + prior);
   // Standing (standing.ts): the market's scorecard, on time as counted above; a spoiled or damaged load is a claim.
-  standingDelivered(w, carrier, load, !late, spoiled || damage > 0);
+  standingDelivered(w, carrier, load, !late, spoiled || damage > 0, paid);
 
   // Miles (§Points): loaded miles × on-time × margin factor × reputation × truck ladder.
   // Miles are earned on what the haul was worth, own freight included.

@@ -1,10 +1,14 @@
 import "./seed.js";
 import { describe, expect, it } from "vitest";
-import { standingDelivered, standingHit, weeklyStanding, type Company, type GameEvent, type Load, type World } from "@lanes/engine";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
+import { companyAccount, standingDelivered, standingHit, weeklyStanding, type Company, type GameEvent, type Load, type World } from "@lanes/engine";
+import { S } from "../src/state.js";
+import { checkMissedMoments, closeHero, heroNow } from "../src/ui/HeroMoment.js";
 import { STANDING, STANDING_UX } from "../src/copy-standing.js";
 import { weekdayDate } from "../src/format.js";
 import { GAME_CONFIG, TestGame } from "../src/game.js";
-import { cardUx, claimCosts, firstCallFor, firstCallsFor, ladderRows, milestoneAt, milestoneLost, offerTierLine, perkChips, perksOnLoad, sheetLine, standingLines, standingList, standingMoves, standingShown, standingWords, wonLine } from "../src/standingui.js";
+import { awayStanding, momentPerk, stampLine, troubleOpen, cardUx, claimCosts, firstCallFor, firstCallsFor, ladderRows, milestoneAt, milestoneLost, offerTierLine, perkChips, perksOnLoad, sheetLine, standingLines, standingList, standingMoves, standingShown, standingWords, wonLine } from "../src/standingui.js";
 
 /**
  * Standing with a market's shippers on the page (standingui.ts, copy-standing.ts; the director's card in
@@ -226,4 +230,101 @@ describe("standing to UX's spec (ux-next-screens part 1)", () => {
     }
     expect(firstCallsFor(w, c).map((l) => l.id)).toEqual([b.id, a.id]);
   }, 120_000);
+});
+
+describe("the tier-reached moments (UX next-screens §1.6)", () => {
+  const atTier = (w: World, c: Company, hub: number, tier: number, log: { t: number; from: number; to: number; cause: "rise" | "late" }[] = []) => {
+    c.standingNoticed = true;
+    c.standing = { ...(c.standing ?? {}), [hub]: { tier, days: [], lastLoadT: w.t, trend: [], log } };
+  };
+
+  it("the perk line's figure is from the player's own books: net-15 from what the market's loads paid, first call and contracts from the scorecard", async () => {
+    const { w, c } = await started();
+    const hub = c.homeHub;
+    const m = w.net.hubs[hub]!.name;
+    for (let i = 0; i < 3; i++) standingDelivered(w, c, fake(w, hub), true, false, 2_100);
+    expect(momentPerk(w, c, hub, 5)).toBe(`Your ${m} invoices now pay in 15 days, not 30. On last month's loads that's 6,300 FD two weeks sooner.`);
+    expect(momentPerk(w, c, hub, 7)).toBe(`${m} shippers will call you first, a round before the board. You hauled 3 of their loads to get here.`);
+    expect(momentPerk(w, c, hub, 9)).toBe(`${m} shippers will offer you their contracts first. 3 loads, 100% on time, brought you here.`);
+    // No dock time by market in the engine, and no lane before it's offered: the perk alone, never an estimate.
+    expect(momentPerk(w, c, hub, 3)).toBe(`Your trucks go to the front of the line at ${m} docks.`);
+    expect(momentPerk(w, c, hub, 10)).toBe(`A lane of your own out of ${m}.`);
+    w.t += 31 * GAME_CONFIG.time.gameMinutesPerDay;
+    expect(momentPerk(w, c, hub, 5)).toBe(`Your ${m} invoices now pay in 15 days, not 30.`);
+  }, 120_000);
+
+  it("a stamp names the tier, and says back after a fall in that market", async () => {
+    const { w, c } = await started();
+    const hub = c.homeHub;
+    const m = w.net.hubs[hub]!.name;
+    atTier(w, c, hub, 5, [{ t: 1, from: 4, to: 5, cause: "rise" }]);
+    expect(stampLine(w, c, hub, 5)).toBe(`${m} standing: Preferred, tier 5 of 10.`);
+    atTier(w, c, hub, 5, [{ t: 1, from: 5, to: 4, cause: "late" }, { t: 2, from: 4, to: 5, cause: "rise" }]);
+    expect(stampLine(w, c, hub, 5)).toBe(`Back to Preferred, tier 5 of 10, in ${m}.`);
+  }, 120_000);
+
+  it("a hero missed while away plays once when Standing or the Company card opens, waits over a tier-1 item, and the engine clears it", async () => {
+    const { g, w, c } = await started();
+    const hub = c.homeHub;
+    const m = w.net.hubs[hub]!.name;
+    S.game = g as never;
+    try {
+      atTier(w, c, hub, 5);
+      c.standingOwed = [{ tier: 5, hub, t: w.t }];
+      // In the red past the debt line: it waits.
+      const acct = companyAccount(c.id);
+      const cash = w.ledger.balance(acct);
+      w.ledger.post(w.t, acct, "sink:test", cash + w.cfg.insolvency.debtLimitFd + 100, "test");
+      expect(troubleOpen(w, c)).toBe(true);
+      checkMissedMoments();
+      expect(heroNow()).toBeNull();
+      expect(c.standingOwed?.length).toBe(1);
+      w.ledger.post(w.t, "faucet:starting_grant", acct, cash + w.cfg.insolvency.debtLimitFd + 100, "test");
+      expect(troubleOpen(w, c)).toBe(false);
+      // Over an open load sheet: it waits too.
+      S.openLoad = 1;
+      checkMissedMoments();
+      expect(heroNow()).toBeNull();
+      S.openLoad = null;
+      checkMissedMoments();
+      const h = heroNow()!;
+      expect(h.name).toBe("bank");
+      expect(h.title).toBe(STANDING.heroTitle(m, 5, "Preferred"));
+      expect(h.paper).toEqual([STANDING_UX.heroPaper(m, "Preferred", 5), `Your ${m} invoices now pay in 15 days, not 30.`]);
+      expect(h.badge).toEqual({ tier: 5, band: "preferred" });
+      expect(h.glint).toBe(true);
+      // Seen: the test world applies standing_seen at once, so a reload or another device has nothing to play.
+      expect(c.standingOwed).toBeUndefined();
+      closeHero();
+      checkMissedMoments();
+      expect(heroNow()).toBeNull();
+    } finally {
+      closeHero();
+      S.openLoad = null;
+      S.game = null;
+    }
+  }, 120_000);
+
+  it("the return card: a line for each market that moved while away, with its badge, and See it for an owed hero, never over trouble", async () => {
+    const { w, c } = await started();
+    const hub = c.homeHub;
+    const m = w.net.hubs[hub]!.name;
+    atTier(w, c, hub, 5, [{ t: 100, from: 4, to: 5, cause: "rise" }]);
+    c.standingOwed = [{ tier: 5, hub, t: 100 }];
+    expect(awayStanding(w, c, 50, 200)).toEqual([{ text: STANDING_UX.returnLine(m, 4, 5), badge: { tier: 5, band: "preferred" }, seeIt: true }]);
+    // Nothing moved in the span: the owed hero still gets its line.
+    expect(awayStanding(w, c, 150, 200)).toEqual([{ text: STANDING_UX.returnOwed(m, "Preferred", 5), badge: { tier: 5, band: "preferred" }, seeIt: true }]);
+    const acct = companyAccount(c.id);
+    w.ledger.post(w.t, acct, "sink:test", w.ledger.balance(acct) + w.cfg.insolvency.debtLimitFd + 100, "test");
+    expect(awayStanding(w, c, 50, 200)[0]!.seeIt).toBe(false);
+    c.standingOwed = undefined;
+    expect(awayStanding(w, c, 150, 200)).toEqual([]);
+  }, 120_000);
+
+  it("the hero is the engine's to owe: no browser memory of tiers, and seeing it sends standing_seen", () => {
+    const src = readFileSync(join(__dirname, "..", "src", "ui", "HeroMoment.tsx"), "utf8");
+    expect(src).not.toContain("lanes.standing.seen");
+    expect(src).not.toContain("localStorage");
+    expect(src).toContain('order({ type: "standing_seen", tier: o.tier }, "")');
+  });
 });

@@ -19,6 +19,8 @@ import {
   standingCard,
   standingDelivered,
   standingHit,
+  standingOwed,
+  standingPaid,
   standingTerms,
   startLiquidation,
   refile,
@@ -265,6 +267,112 @@ describe("the weekly review", () => {
     expect(c.standing).toBeUndefined();
     deliverN(w, c, c.homeHub, 1);
     expect(c.standing).toBeUndefined();
+  });
+});
+
+describe("the tier-reached moments (UX next-screens §1.6)", () => {
+  const two = (w: World, c: Company): [number, number] => {
+    const other = w.net.hubs.find((h) => h.id !== w.net.hubs[c.homeHub]!.id)!;
+    return [c.homeHub, w.net.hubs.indexOf(other)];
+  };
+
+  it("owes a hero only the first time a milestone is reached in any market, one a review, until it's seen", () => {
+    const w = bare();
+    const c = carriers(w)[0]!;
+    const [h1, h2] = two(w, c);
+    setTier(c, h1, 2, w);
+    setTier(c, h2, 2, w);
+    deliverN(w, c, h1, 2); // tier 3's floor, in both markets
+    deliverN(w, c, h2, 2);
+    reviews(w, 1);
+    expect([c.standing![h1]!.tier, c.standing![h2]!.tier]).toEqual([3, 3]);
+    // One hero for the review, though two markets reached it; the best tier ever is 3.
+    expect(standingOwed(w, c)).toEqual([{ tier: 3, hub: Math.min(h1, h2), t: w.t }]);
+    expect(c.standingBest).toBe(3);
+    expect(applyAction(w, c.id, { type: "standing_seen", tier: 3 }).ok).toBe(true);
+    expect(c.standingOwed).toBeUndefined();
+    // A third market at tier 3 later is a stamp: nothing owed. Tier 4 is no milestone; 5, the next first, is owed.
+    const h3 = w.net.hubs.findIndex((_h, i) => i !== h1 && i !== h2);
+    setTier(c, h3, 2, w);
+    deliverN(w, c, h3, 2);
+    deliverN(w, c, h1, 3);
+    reviews(w, 1);
+    expect([c.standing![h3]!.tier, c.standing![h1]!.tier]).toEqual([3, 4]);
+    expect(c.standingOwed).toBeUndefined();
+    reviews(w, 1);
+    expect(c.standing![h1]!.tier).toBe(5);
+    expect(standingOwed(w, c).map((o) => [o.tier, o.hub])).toEqual([[5, h1]]);
+    expect(c.standingBest).toBe(5);
+  });
+
+  it("drops an owed hero whose market falls below it before it's seen; the best tier stays, so the climb back owes none", () => {
+    const w = bare();
+    const c = carriers(w)[0]!;
+    const hub = c.homeHub;
+    setTier(c, hub, 4, w);
+    deliverN(w, c, hub, 5);
+    reviews(w, 1);
+    expect(standingOwed(w, c).map((o) => o.tier)).toEqual([5]);
+    for (let i = 0; i < 2; i++) standingHit(w, c, fake(w, hub), "noShow"); // 5 - 4: under tier 5's floor
+    reviews(w, 1);
+    expect(c.standing![hub]!.tier).toBe(4);
+    expect(c.standingOwed).toBeUndefined();
+    expect(c.standingBest).toBe(5);
+    deliverN(w, c, hub, 6);
+    reviews(w, 1);
+    expect(c.standing![hub]!.tier).toBe(5);
+    expect(c.standingOwed).toBeUndefined();
+  });
+
+  it("a company from before the best tier was kept starts from the tiers it holds: no hero for what it already has", () => {
+    const w = bare();
+    const c = carriers(w)[0]!;
+    setTier(c, c.homeHub, 7, w);
+    deliverN(w, c, c.homeHub, 10);
+    reviews(w, 1);
+    expect(c.standingBest).toBe(7);
+    expect(c.standingOwed).toBeUndefined();
+  });
+
+  it("an owed hero goes with a liquidation and a refile; the best tier ever stays", () => {
+    for (const end of ["liquidation", "refile"] as const) {
+      const w = bare();
+      const c = carriers(w)[0]!;
+      setTier(c, c.homeHub, 2, w);
+      deliverN(w, c, c.homeHub, 2);
+      reviews(w, 1);
+      expect(standingOwed(w, c).length).toBe(1);
+      if (end === "liquidation") startLiquidation(w, c);
+      else refile(w, c);
+      expect(c.standingOwed).toBeUndefined();
+      expect(c.standingBest).toBe(3);
+    }
+  });
+
+  it("keeps what the market's loads paid, for the net-15 moment's figure; a row from before reads none", () => {
+    const w = bare();
+    const c = carriers(w)[0]!;
+    const hub = c.homeHub;
+    standingDelivered(w, c, fake(w, hub), true, false, 1_200);
+    standingDelivered(w, c, fake(w, hub), false, false, 800);
+    expect(standingPaid(w, c, hub, 30)).toBe(2_000);
+    w.t += 31 * DAY;
+    expect(standingPaid(w, c, hub, 30)).toBe(0);
+    c.standing![hub]!.days.push([dayOf(w.t, w.cfg), 1, 1, 0, 1, 1, 0, 0, 0, 0, 0]);
+    expect(standingPaid(w, c, hub, 30)).toBe(0);
+    expect(tallyOf(w, c.standing![hub]!).loads).toBe(3);
+  });
+
+  it("standing_seen takes a tier from 1 to 10; with standing off nothing is owed", () => {
+    const w = bare();
+    const c = carriers(w)[0]!;
+    expect(applyAction(w, c.id, { type: "standing_seen", tier: 11 }).ok).toBe(false);
+    expect(applyAction(w, c.id, { type: "standing_seen", tier: 2.5 }).ok).toBe(false);
+    expect(applyAction(w, c.id, { type: "standing_seen", tier: 5 }).ok).toBe(true);
+    const off = bare(LIVE);
+    const d = carriers(off)[0]!;
+    d.standingOwed = [{ tier: 3, hub: d.homeHub, t: 0 }];
+    expect(standingOwed(off, d)).toEqual([]);
   });
 });
 

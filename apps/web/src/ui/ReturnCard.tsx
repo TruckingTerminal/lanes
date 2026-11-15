@@ -12,6 +12,9 @@ import { WhatNowChip, whatNowWords } from "./WhatNow.js";
 import { hasMonthReport, openMonthReport } from "./MonthReport.js";
 import { awayIsHere } from "../returncard.js";
 import { FIXES } from "../copy-fixes.js";
+import { STANDING_UX } from "../copy-standing.js";
+import { awayStanding } from "../standingui.js";
+import { TierBadge } from "./Standing.js";
 
 /**
  * The return card (the director's R21, player5-ux.md section 2; the writer's copy-player5.md): after a long absence,
@@ -102,7 +105,7 @@ export function ReturnCard(): JSX.Element | null {
   const trucks = (w.trucksByCompany.get(c.id) ?? []).filter((t) => t.status !== "retired");
   const ranked = rankedTrucks(trucks);
   const day = Math.floor(away.backT / w.cfg.time.gameMinutesPerDay);
-  const lines: { text: string; go?: () => void; button?: string }[] = [{ text: RETURN.helloAt(`${weekdayDate(day)}, ${hhmm(away.backT)}`) }];
+  const lines: { text: string; go?: () => void; button?: string; badge?: { tier: number; band: "approved" | "preferred" | "core" } }[] = [{ text: RETURN.helloAt(`${weekdayDate(day)}, ${hhmm(away.backT)}`) }];
   // Client batch 8b item 60 (the director's E): the time away, then what went wrong, the money, on time; the next step is
   // What now?'s, below. Iuliia's line from the worst item, else the best, never the same twice running.
   const e = away.e;
@@ -120,6 +123,8 @@ export function ReturnCard(): JSX.Element | null {
     lines.push({ text: wrong.length ? PENDING.awayWrong(wrong.join(", ")) : PENDING.awayNothingWrong });
     lines.push({ text: PENDING.awayMoney(away.delivered, fdFull(away.inFd), fdFull(e.keptFd), fdFull(e.cashThen), fdFull(e.cashNow)), go: seeToday, button: RETURN.seeToday });
     if (away.delivered > 0) lines.push({ text: PENDING.awayOnTime(pct(Math.max(0, away.delivered - away.late) / away.delivered)) });
+    // UX §1.3: standing's tier changes while away, a line each with the badge at 24; a hero owed adds "See it" (§1.6).
+    for (const x of awayStanding(w, c, away.backT - e.awayMin, away.backT)) lines.push({ text: x.text, badge: x.badge, ...(x.seeIt ? { go: () => setTab("standing"), button: STANDING_UX.returnSeeIt } : {}) });
     // labor.busHome (the director's §9): a driver who took the bus home while the player was away.
     for (const s of w.staffByCompany.get(c.id) ?? []) {
       const b = s.bus;
@@ -154,6 +159,7 @@ export function ReturnCard(): JSX.Element | null {
         {e ? <i class="small">{awayLine(away)}</i> : null}
         {lines.map((l, i) => (
           <span class="small" key={i}>
+            {l.badge ? <TierBadge tier={l.badge.tier} band={l.badge.band} size={24} /> : null}
             {l.text}
             {l.go ? (
               <>

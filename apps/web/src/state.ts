@@ -160,7 +160,16 @@ export const S = {
   reportKind: "bug" as "bug" | "idea",
   /** Test-world speeds only: the live clock can't be changed. */
   speed: 1,
-  toast: null as { text: string; err: boolean; at: number } | null,
+  toast: null as {
+    text: string;
+    err: boolean;
+    at: number;
+    /** A richer toast (UX next-screens §1.6's stamp): a tier badge at 32, a second line, Iuliia's line in her strip, a tap that goes. */
+    badge?: { tier: number; band: "approved" | "preferred" | "core" };
+    sub?: string;
+    say?: string;
+    go?: () => void;
+  } | null,
   theme: "sunset",
   /** Success messages for this player's live orders, shown when each takes effect. */
   okText: new Map<number, string>(),
@@ -351,6 +360,16 @@ export function truckNo(id: number): number {
 }
 
 let toastTimer = 0;
+/** A toast with a badge, a second line, Iuliia's line or a tap (UX §1.6's stamps and toasts); a little longer with more to read. */
+export function toastRich(t: { text: string; badge?: { tier: number; band: "approved" | "preferred" | "core" }; sub?: string; say?: string; go?: () => void }): void {
+  S.toast = { ...t, err: false, at: Date.now() };
+  clearTimeout(toastTimer);
+  toastTimer = window.setTimeout(() => {
+    S.toast = null;
+    bumpData();
+  }, t.sub || t.say ? 6500 : 4200);
+  bumpData();
+}
 export function toast(text: string, err = false): void {
   S.toast = { text, err, at: Date.now() };
   clearTimeout(toastTimer);

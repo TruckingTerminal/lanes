@@ -151,6 +151,9 @@ export const STANDING_UX = {
   cityLine: (band: string, tier: number) => `Your standing here: ${band}, tier ${tier} of 10.`,
   reportMove: (market: string, from: number, to: number, cause: string, day: string) => `${market}: ${from} → ${to}${to > from ? "" : ` after ${cause}`}, ${day}`,
   returnLine: (market: string, from: number, to: number) => `${market} standing: tier ${from} → ${to}.`,
+  // Engineering's placeholders for the writer (UX §1.3, the return card; the writer's draft in writer-sprint §8).
+  returnOwed: (market: string, band: string, tier: number) => `Your ${market} standing reached ${band}, tier ${tier} of 10.`,
+  returnSeeIt: "See it",
 };
 
 /** The card's explain sheet (ui/Explain.tsx): what the figure is, how it's built, what moves it. */

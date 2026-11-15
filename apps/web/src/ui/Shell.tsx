@@ -6,7 +6,9 @@ import { FEED } from "../copy.js";
 import { cls } from "../format.js";
 import { sheetLine } from "../logic.js";
 import { setMapInset } from "../mapview.js";
-import { PHONE_QUERY, S, setSheet, useData, type SheetStop, todaysTicker } from "../state.js";
+import { bumpData, PHONE_QUERY, S, setSheet, useData, type SheetStop, todaysTicker } from "../state.js";
+import { TierBadge } from "./Standing.js";
+import { Iuliia } from "./Walkthrough.js";
 import { MapView } from "./MapRegion.js";
 import { Nav, RackBody, SideRack } from "./Rack.js";
 import { TopBar } from "./TopBar.js";
@@ -227,5 +229,36 @@ function Toast(): JSX.Element | null {
   useData();
   const t = S.toast;
   if (!t) return null;
-  return <div class={cls("toast", t.err && "err")}>{t.text}</div>;
+  if (!t.badge && !t.sub && !t.say && !t.go) return <div class={cls("toast", t.err && "err")}>{t.text}</div>;
+  // UX §1.6: a stamp or a standing toast, the badge at 32 and Iuliia in her 32 px strip; one that taps goes.
+  const body = (
+    <>
+      {t.badge ? <TierBadge tier={t.badge.tier} band={t.badge.band} size={32} /> : null}
+      <span class="stack">
+        <span>{t.text}</span>
+        {t.sub ? <span class="small">{t.sub}</span> : null}
+        {t.say ? (
+          <span class="row small toastsay">
+            <Iuliia mood="proud" size={64} />
+            <span>{t.say}</span>
+          </span>
+        ) : null}
+      </span>
+    </>
+  );
+  if (!t.go) return <div class="toast rich">{body}</div>;
+  const go = t.go;
+  return (
+    <button
+      type="button"
+      class="toast rich"
+      onClick={() => {
+        S.toast = null;
+        go();
+        bumpData();
+      }}
+    >
+      {body}
+    </button>
+  );
 }

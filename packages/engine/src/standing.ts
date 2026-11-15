@@ -40,7 +40,9 @@ const LATE = 7;
 const NO_SHOW = 8;
 const RELEASE = 9;
 const DECLINED = 10;
-const ROW = 11;
+/** The carrier's pay for the day's loads (a row from before it was kept has none). */
+const FD = 11;
+const ROW = 12;
 /** The lanes a scorecard remembers (its last loads, laneId × 4 + trailer), for the dedicated lane. */
 const LANES_KEPT = 20;
 const TRAILERS = ["van", "reefer", "flatbed"] as const;
@@ -173,8 +175,11 @@ export function tierFor(w: World, t: StandingTally): number {
 
 // --- What builds and costs standing -------------------------------------------------------------------------------
 
-/** trips.ts deliver: a load delivered for its origin market's shippers, on time or not, with a cargo claim or not. */
-export function standingDelivered(w: World, c: Company, load: Load, onTime: boolean, claimed: boolean): void {
+/**
+ * trips.ts deliver: a load delivered for its origin market's shippers, on time or not, with a cargo claim or not, and
+ * what the carrier was paid for it.
+ */
+export function standingDelivered(w: World, c: Company, load: Load, onTime: boolean, claimed: boolean, paidFd = 0): void {
   if (!standingOn(w) || !standingLoad(load) || c.liquidatingSince !== null) return;
   const k = w.cfg.standing;
   const s = card(c, load.origin);
@@ -185,6 +190,7 @@ export function standingDelivered(w: World, c: Company, load: Load, onTime: bool
   row[LOADS]!++;
   if (contract) row[CONTRACT]!++;
   row[DELIVERED]!++;
+  row[FD] = (row[FD] ?? 0) + paidFd;
   if (onTime) row[ON_TIME]!++;
   else {
     row[LATE]!++;
@@ -418,8 +424,12 @@ export function weeklyStanding(w: World): void {
     if (!c.standing) continue;
     if (c.liquidatingSince !== null) {
       delete c.standing;
+      delete c.standingOwed;
       continue;
     }
+    // UX §1.6: a hero only the first time a milestone is reached in any market, one a review (the highest).
+    const bestBefore = (c.standingBest ??= heldBest(c));
+    let hero: { tier: number; hub: number } | null = null;
     for (const key of Object.keys(c.standing)) {
       const hub = Number(key);
       const s = c.standing[hub]!;
@@ -451,6 +461,9 @@ export function weeklyStanding(w: World): void {
         else stats.moves.down++;
         s.log.push({ t: w.t, from: was, to: s.tier, cause });
         w.listener?.({ kind: "standing", companyId: c.id, hub, what: "tier", from: was, to: s.tier, cause });
+        if (s.tier > bestBefore && isMilestone(w, s.tier) && (!hero || s.tier > hero.tier)) hero = { tier: s.tier, hub };
+        if (s.tier < was && c.standingOwed) c.standingOwed = c.standingOwed.filter((o) => o.hub !== hub || o.tier <= s.tier);
+        c.standingBest = Math.max(c.standingBest, s.tier);
       } else if (s.tier > 1 && s.lastLoadT >= 0 && w.t - since >= warnMin && w.t - since < decayMin && (s.warnedT ?? -1) < since) {
         s.warnedT = w.t;
         w.listener?.({ kind: "standing", companyId: c.id, hub, what: "decayAhead" });
@@ -459,7 +472,40 @@ export function weeklyStanding(w: World): void {
       while (s.log.length > 0 && s.log[0]!.t <= logFrom) s.log.shift();
       if (s.tier === 1 && s.days.length === 0 && s.log.length === 0) delete c.standing[hub];
     }
+    if (hero) (c.standingOwed ??= []).push({ ...hero, t: w.t });
+    if (c.standingOwed?.length === 0) delete c.standingOwed;
   }
+}
+
+/** The best tier a company's scorecards hold now (1 with none): its best ever, for a company from before that was kept. */
+function heldBest(c: Company): number {
+  let best = 1;
+  for (const key of Object.keys(c.standing ?? {})) best = Math.max(best, c.standing![Number(key)]!.tier);
+  return best;
+}
+
+const isMilestone = (w: World, tier: number): boolean => STANDING_PERKS.some((p) => perkTier(w, p) === tier);
+
+/** The tier-reached heroes a company is owed, oldest first (UX §1.6); none with standing off. */
+export function standingOwed(w: World, c: Company): readonly { tier: number; hub: number; t: number }[] {
+  return standingOn(w) ? (c.standingOwed ?? []) : [];
+}
+
+/** The standing_seen action: the player saw the hero owed at this tier, and it clears. */
+export function standingSeen(c: Company, tier: number): void {
+  if (!c.standingOwed) return;
+  c.standingOwed = c.standingOwed.filter((o) => o.tier !== tier);
+  if (c.standingOwed.length === 0) delete c.standingOwed;
+}
+
+/** What a market's loads paid the company in the last `days` days (the scorecard's FD column), for the net-15 moment. */
+export function standingPaid(w: World, c: Company, hub: number, days: number): number {
+  const s = c.standing?.[hub];
+  if (!standingOn(w) || !s) return 0;
+  const from = dayOf(w.t, w.cfg) - days;
+  let fd = 0;
+  for (const r of s.days) if (r[DAY]! > from) fd += r[FD] ?? 0;
+  return fd;
 }
 
 /**

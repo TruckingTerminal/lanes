@@ -1,6 +1,6 @@
-import { hasPerk, perkTier, standingCard, standingLoad, standingMarkets, standingOn, tierAt, type Company, type GameEvent, type Load, type StandingPerk, type World } from "@lanes/engine";
+import { companyAccount, dayOf, hasPerk, perkTier, standingCard, standingLoad, standingMarkets, standingOn, standingOwed, standingPaid, tallyOf, tierAt, type Company, type GameEvent, type Load, type StandingPerk, type World } from "@lanes/engine";
 import { STANDING, STANDING_UX } from "./copy-standing.js";
-import { hhmm, pct, weekdayDate } from "./format.js";
+import { fdFull, hhmm, pct, TRAILER_NAME, weekdayDate } from "./format.js";
 
 /**
  * Standing with a market's shippers on the page (standing.ts): the card's lines in the director's words, the perks
@@ -296,4 +296,77 @@ export function wonLine(w: World, c: Company, l: Load): string | null {
 export function firstCallsFor(w: World, c: Company): Load[] {
   if (!standingOn(w)) return [];
   return [...w.loads.values()].filter((l) => l.firstCall?.state === "open" && l.firstCall.companyId === c.id && l.status === "open").sort((a, b) => a.tenderUntil - b.tenderUntil || a.id - b.id);
+}
+
+// --- §1.6 the tier-reached moments ------------------------------------------------------------------------------------
+
+export const bandAt = bandOfTier;
+
+/**
+ * The figures for a moment's perk line, from the player's own books (UX §1.6): what the market's loads paid in the last
+ * 30 days (the scorecard's FD column) for net-15, the scorecard's loads and on-time share for first call and contract
+ * offers, the dedicated lane's own lane once it's offered. The engine doesn't count dock time by market, so dock
+ * priority names the perk alone; a figure it has none for is null and its clause drops.
+ */
+export function momentFigures(w: World, c: Company, hub: number, tier: number): Parameters<typeof STANDING.heroPerk>[2] {
+  const s = c.standing?.[hub];
+  const t = s ? tallyOf(w, s) : null;
+  const perk = milestoneAt(w, tier);
+  if (perk === "net") {
+    const paid = w.cfg.token.payment.enabled ? standingPaid(w, c, hub, 30) : 0;
+    return { netDays: w.cfg.standing.perks.netDays, termsDays: w.cfg.token.payment.termsDays, soonerFd: paid >= 0.5 ? fdFull(paid) : null };
+  }
+  if (perk === "firstCall") return { loads: t && t.loads > 0 ? t.loads : null };
+  if (perk === "contracts") return { loads: t && t.loads > 0 ? t.loads : null, onTime: t && t.onTimeShare !== null ? pct(t.onTimeShare) : null };
+  if (perk === "dedicated") {
+    const k = w.contracts.find((x) => x.carrierId === c.id && x.dedicated === true && x.origin === hub && (x.status === "offered" || x.status === "active"));
+    return { lane: k ? `${market(w, k.origin)} → ${market(w, k.dest)}, ${TRAILER_NAME[k.equipment].toLowerCase()}` : null };
+  }
+  return { dockHours: null };
+}
+
+/** The perk line of a hero or a stamp (UX §1.6), with its figure. */
+export const momentPerk = (w: World, c: Company, hub: number, tier: number): string | null => STANDING.heroPerk(market(w, hub), tier, momentFigures(w, c, hub, tier));
+
+/** A stamp's head line: a milestone in a later market, or back to it after a fall there (the scorecard's log). */
+export function stampLine(w: World, c: Company, hub: number, tier: number): string {
+  const log = c.standing?.[hub]?.log ?? [];
+  const back = log.slice(0, -1).some((x) => x.to < x.from && x.from >= tier);
+  return STANDING.stamp(market(w, hub), STANDING.band[bandOfTier(tier)], tier, back);
+}
+
+/**
+ * UX §1.6, never over trouble: a tier-1 item is open, so an owed hero waits. The company in the red past its line
+ * (the debt countdown), its authority lost or a bad rating with a revocation or probation running, or a loan payment
+ * already missed with the truck next. A repossession is its own serious hero, which holds the frame anyway.
+ */
+export function troubleOpen(w: World, c: Company): boolean {
+  if (w.ledger.balance(companyAccount(c.id)) < -w.cfg.insolvency.debtLimitFd) return true;
+  if (c.authority.status !== "active") return true;
+  const s = c.safety;
+  if ((s.rating === "conditional" || s.rating === "unsatisfactory") && (s.revokeDay !== null || (s.probationUntil ?? -1) >= dayOf(w.t, w.cfg))) return true;
+  return w.purchaseLoans.some((l) => l.borrowerId === c.id && (l.status === "active" || l.status === "defaulted") && l.missed > 0) || w.finance.loans.some((l) => l.borrowerId === c.id && l.status === "active" && l.missed > 0);
+}
+
+/**
+ * The return card's standing lines (UX §1.3): each market whose tier moved while the player was away, one line with its
+ * badge (from the first tier to the last); a hero owed adds "See it", which opens Standing to play it, except while a
+ * tier-1 item is open. A hero owed from before the time away, on a market that didn't move, gets its own line.
+ */
+export function awayStanding(w: World, c: Company, from: number, to: number): { text: string; badge: { tier: number; band: "approved" | "preferred" | "core" }; seeIt: boolean }[] {
+  if (!standingShown(w, c) || !c.standing) return [];
+  const owed = standingOwed(w, c);
+  const can = !troubleOpen(w, c);
+  const out: { hub: number; text: string; badge: { tier: number; band: "approved" | "preferred" | "core" }; seeIt: boolean }[] = [];
+  for (const hub of standingMarkets(w, c)) {
+    const log = c.standing[hub]!.log.filter((x) => x.t > from && x.t <= to);
+    if (log.length === 0 || log[0]!.from === log.at(-1)!.to) continue;
+    const tier = log.at(-1)!.to;
+    out.push({ hub, text: STANDING_UX.returnLine(market(w, hub), log[0]!.from, tier), badge: { tier, band: bandOfTier(tier) }, seeIt: can && owed.some((o) => o.hub === hub) });
+  }
+  for (const o of owed) {
+    if (out.some((x) => x.hub === o.hub)) continue;
+    out.push({ hub: o.hub, text: STANDING_UX.returnOwed(market(w, o.hub), STANDING.band[bandOfTier(o.tier)], o.tier), badge: { tier: o.tier, band: bandOfTier(o.tier) }, seeIt: can });
+  }
+  return out.map(({ hub: _h, ...x }) => x);
 }

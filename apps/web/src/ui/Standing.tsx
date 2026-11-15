@@ -110,8 +110,8 @@ export function StandingScreen(): JSX.Element {
   useData();
   const g = S.game!;
   const c = me();
-  // §1.6: a moment missed while away plays once, here.
-  useEffect(() => checkMissedMoments(), []);
+  // §1.6: a moment missed while away plays once, here, at the first free moment while the screen is open.
+  useEffect(() => checkMissedMoments());
   const cards = standingShown(g.w, c) ? cardsUx(g.w, c) : [];
   return (
     <Panel title={STANDING_UX.tab} win={<Window name="shp-office" fallback="office" />}>
@@ -128,6 +128,8 @@ export function CompanyStandingCard({ c }: { c: Company }): JSX.Element | null {
   useData();
   const w = S.game!.w;
   const top = cardsUx(w, c)[0];
+  // §1.6: or here, on the Company card.
+  useEffect(() => checkMissedMoments());
   if (!top) return null;
   return (
     <>

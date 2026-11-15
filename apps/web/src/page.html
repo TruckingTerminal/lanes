@@ -566,6 +566,12 @@ html[data-kit] .herocard { image-rendering: pixelated; border-color: transparent
 .ladderrow.next { outline: 1px dashed var(--border); outline-offset: -1px; }
 .firstcallcard { gap: 6px; border-color: var(--accent-success); }
 .herobadge { display: flex; justify-content: center; margin-top: -72px; position: relative; }
+/* §1.6: the fx glint once at the badge's corner (Full only), and the paper's lines under the title. */
+.heroglint { position: absolute; left: calc(50% + 24px); top: -6px; width: 64px; height: 64px; background-repeat: no-repeat; background-position: var(--glint-x) var(--glint-y); image-rendering: pixelated; pointer-events: none; animation: hero-glint 750ms steps(9) 450ms 1 both; }
+@keyframes hero-glint { from { background-position-x: var(--glint-x); } to { background-position-x: var(--glint-run); } }
+.heropaper { margin: 0; padding: 8px 10px; background: var(--paper); color: var(--ink); border-radius: var(--radius); }
+.heropaper p { margin: 0; }
+.heropaper p + p { margin-top: 4px; }
 .herosay { gap: 8px; align-items: center; }
 .herosay p { margin: 0; }
 .heroface canvas { width: 32px !important; height: 32px !important; }
@@ -610,6 +616,12 @@ details.fold > summary { cursor: pointer; padding: 6px 0; color: var(--text-seco
 .ticker .good { color: var(--accent-success); } .ticker .bad { color: var(--accent-danger); } .ticker .warn { color: var(--accent-warn); }
 .toast { position: fixed; right: 16px; bottom: 44px; z-index: 20; max-width: min(400px, calc(100vw - 32px)); padding: 10px 12px; background: var(--bg-panel); border: 1px solid var(--accent); border-left-width: 4px; border-radius: var(--radius); box-shadow: 0 8px 24px rgba(0,0,0,0.35); }
 .toast.err { border-color: var(--accent-danger); }
+/* Standing's stamps and toasts (UX next-screens §1.6): the badge at 32, the tier and the perk, Iuliia in her 32 px strip. */
+.toast.rich { display: flex; gap: 10px; align-items: flex-start; text-align: left; font: inherit; color: inherit; cursor: default; }
+button.toast.rich { cursor: pointer; }
+.toast.rich .stack { gap: 4px; }
+.toastsay { gap: 6px; align-items: center; }
+.toastsay canvas { width: 32px !important; height: 32px !important; flex: none; }
 .loads-table td { font-size: 12px; }
 .loads-table .num { font-size: 12px; }
 .lane { font-family: var(--font-mono); font-size: 12px; }

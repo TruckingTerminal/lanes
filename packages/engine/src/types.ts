@@ -353,6 +353,14 @@ export interface Company {
   standing?: Record<number, Scorecard>;
   /** Standing: the first on-time load for a market's shippers was noticed (Iuliia's first line, once). */
   standingNoticed?: true;
+  /**
+   * Standing (UX next-screens §1.6): the best tier the company has held with any market's shippers; it never goes down.
+   * A milestone reached above it is a tier-reached hero, owed (oldest first) until the player has seen it (the
+   * standing_seen action), so a reload or a second device never plays it twice and a missed one waits. At most one a
+   * review, and five in a company's life. An owed hero goes if its market falls below its tier before it is seen.
+   */
+  standingBest?: number;
+  standingOwed?: { tier: number; hub: number; t: number }[];
   /** Open claims against this company (theft, unpaid carriers), by the day each expires. */
   claims: { day: number; until: number; kind: "theft" | "unpaid" }[];
   /**
@@ -1351,6 +1359,8 @@ export type Action =
   /** Seat a driver: as the driver, or as co-driver to make a team. truckId 0 takes them off their truck. */
   | { type: "assign_driver"; staffId: number; truckId: number; team?: boolean }
   | { type: "set_auto_staff"; on: boolean }
+  /** Standing (standing.ts): the player saw the tier-reached hero owed at this tier; it clears. */
+  | { type: "standing_seen"; tier: number }
   | { type: "set_compliance"; policy: CompliancePolicy }
   /** businesses.parking.stopInTown: where a truck sleeps when no site with room is within its hours. */
   | { type: "set_night_stop"; choice: "town" | "shoulder" }
@@ -1462,8 +1472,9 @@ export type StandingCause = "rise" | "decay" | "aged" | "onTime" | "claim" | "no
 
 /**
  * Standing with one origin market's shippers (standing.ts). `days` holds the window's loads by day, oldest first, each
- * [day, weight, loads, contract loads, delivered, on time, claims, late, no-shows, releases, declined first calls]
- * (weight: a contract load double, a short hop half; the hits are counted apart and netted at the review).
+ * [day, weight, loads, contract loads, delivered, on time, claims, late, no-shows, releases, declined first calls, FD paid]
+ * (weight: a contract load double, a short hop half; the hits are counted apart and netted at the review; FD paid: the
+ * carrier's pay for the day's loads, a figure for the net-15 moment, absent on a row from before it was kept).
  */
 export interface Scorecard {
   tier: number;
