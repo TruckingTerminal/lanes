@@ -2,7 +2,7 @@ import { dayOf, dayOfSeason } from "./clock.js";
 import { reserveAccount, reserveFd, reserveOn, reserveStats, shelteredFd } from "./cashReserve.js";
 import { returnPoolCashToDepositors } from "./finance.js";
 import { companyAccount } from "./ledger.js";
-import type { SeasonCloseRecord } from "./types.js";
+import type { Company, SeasonCloseRecord } from "./types.js";
 import { payPermits, type World } from "./world.js";
 import { setThreeParts, threePartsOn } from "./reputation.js";
 
@@ -16,6 +16,16 @@ export function inCloseWindow(w: World, day = dayOf(w.t, w.cfg)): boolean {
 export function daysUntilLock(w: World, day = dayOf(w.t, w.cfg)): number {
   if (!w.cfg.seasonClose.enabled) return Infinity;
   return Math.max(0, w.cfg.time.daysPerSeason - w.cfg.seasonClose.lockDays - dayOfSeason(day, w.cfg));
+}
+
+/**
+ * What the year-end close lets a company keep of a cash `balance` above zero: 10% capped at 25,000 FD, or its last four
+ * weeks of spending if more, never more than the balance (closeSeason; the Reserve card reads the same, UX §3.8).
+ */
+export function closeKeepFd(w: World, c: Company, balance: number): number {
+  const { seasonClose } = w.cfg;
+  const workingCapital = c.weeklySpend.reduce((a, b) => a + b, 0);
+  return Math.min(balance, Math.max(Math.min(balance * seasonClose.carryoverPct, seasonClose.carryoverCapFd), workingCapital));
 }
 
 /**
@@ -47,8 +57,7 @@ export function closeSeason(w: World, season: number, day: number): SeasonCloseR
       }
     }
     if (balance > 0 && seasonClose.burn) {
-      const workingCapital = c.weeklySpend.reduce((a, b) => a + b, 0);
-      const keep = Math.min(balance, Math.max(Math.min(balance * seasonClose.carryoverPct, seasonClose.carryoverCapFd), workingCapital));
+      const keep = closeKeepFd(w, c, balance);
       if (keep >= seasonClose.carryoverCapFd) companiesAtCap++;
       // Round the burn up to the cent so no one keeps more than the cap.
       const burn = Math.ceil((balance - keep) * 100) / 100;

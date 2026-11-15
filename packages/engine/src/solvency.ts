@@ -1,5 +1,5 @@
 import { dayOf } from "./clock.js";
-import { emptyReserve, reserveAccount, reserveFd, reserveOn, reserveStats, shelteredFd } from "./cashReserve.js";
+import { emptyReserve, reserveAccount, reserveFd, reserveHeldFd, reserveOn, reserveStats, shelteredFd } from "./cashReserve.js";
 import { returnLease } from "./capacity.js";
 import { ordersOf } from "./dealer.js";
 import { facilitiesOf } from "./demand.js";
@@ -62,12 +62,22 @@ export function chargeHoldingCost(w: World): void {
   if (idle > 0) w.ledger.post(w.t, POOL_ACCOUNT, "sink:holding_cost", idle * rate, "holding:pool");
 }
 
+/**
+ * The figure the weekly winding-up check reads. With insolvency.countReserve (the director's sprint §15) it's cash plus
+ * the Reserve and what's settling out of it, the claims cap's own figure: what turns into cash within a day, for free,
+ * is cash in another drawer. Off, it's cash alone, as before. The page's debt lines read this, never their own.
+ */
+export function windUpFd(w: World, c: Company): number {
+  const cash = w.ledger.balance(companyAccount(c.id));
+  return w.cfg.insolvency.countReserve === true && reserveOn(w) ? cash + reserveHeldFd(w, c.id) : cash;
+}
+
 /** Weekly: a company too far in the red for too long goes into liquidation. */
 export function checkSolvency(w: World): void {
   const { insolvency } = w.cfg;
   for (const c of w.companies) {
     if (c.liquidatingSince !== null || c.retiredDay !== undefined) continue; // a carrier the population dial retired has left the market
-    c.weeksInDebt = w.ledger.balance(companyAccount(c.id)) < -insolvency.debtLimitFd ? c.weeksInDebt + 1 : 0;
+    c.weeksInDebt = windUpFd(w, c) < -insolvency.debtLimitFd ? c.weeksInDebt + 1 : 0;
     if (c.weeksInDebt >= insolvency.weeksInDebt) startLiquidation(w, c);
   }
 }

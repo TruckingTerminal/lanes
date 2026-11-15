@@ -1020,6 +1020,10 @@ export const economyConfig = {
   insolvency: {
     debtLimitFd: 2_000,
     weeksInDebt: 4,
+    // The director's sprint §15 (solvency.ts windUpFd): the weekly check reads cash plus the Reserve and what's settling
+    // out of it (the claims cap's own figure), so a company with the money in its other drawer isn't wound up. Bills
+    // still post to cash, purchases and hires still need it, and receivables and pool deposits don't count. Off: cash.
+    countReserve: false,
     restartAfterDays: 14, // a bankrupt sits out this long after its fleet is gone before the free-path restart
     fireSaleStartPctOfValue: 0.7,
     fireSaleStepPctOfValue: 0.1,
