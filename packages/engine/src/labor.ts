@@ -470,7 +470,9 @@ export function dailyDrivers(w: World): void {
     // whatever the truck is doing now: the hour's dispatch can take the truck at the very midnight the days off end, before
     // this check, and the last day off would go uncounted (and fatigue never reset).
     const dayOff = w.cfg.labor.daysOffFull && s.homeUntilDay !== null && today <= s.homeUntilDay && hours === 0;
-    const home = !t || dayOff || standingAtHome(w, c, t);
+    // labor.truckLessHomeByHub (the sprint pass): off the truck, home only inside the home radius of where they stepped off.
+    const strayed = !t && w.cfg.labor.truckLessHomeByHub === true && s.lastHub !== undefined && hubMiles(w, s.lastHub, c.homeHub) > w.cfg.map.nearbyRadiusMi;
+    const home = (!t && !strayed) || dayOff || (t !== null && standingAtHome(w, c, t));
     s.drivenMinToday = 0;
     if (home && hours === 0) {
       // A day off at home.
@@ -493,6 +495,10 @@ export function dailyDrivers(w: World): void {
         const due = perDiem * (t.mods.sleeper ? 0.5 : 1); // a sleeper halves the layover (items.ts)
         w.ledger.post(w.t, companyAccount(c.id), "sink:per_diem", due, `perdiem:${s.id}`);
         c.operating.costFd += due;
+      } else if (strayed && hours === 0) {
+        // labor.truckLessHomeByHub: off the truck away from home, a layover with no cab to sleep in.
+        w.ledger.post(w.t, companyAccount(c.id), "sink:per_diem", perDiem, `perdiem:${s.id}`);
+        c.operating.costFd += perDiem;
       }
     }
     let accrual = 0;

@@ -752,13 +752,20 @@ function deliver(w: World, truck: Truck, now: number): void {
   const ref = `load:${load.id}`;
   // A perishable past its spoil time is a total loss: no freight pay, and a cargo claim on the carrier.
   const k = COMMODITIES[load.commodity]!;
-  const spoiled = k.spoilHours !== null && now > load.appointmentT + k.spoilHours * MINUTES_PER_HOUR;
+  // When the truck reached the receiver (docks.lateFromArrival), as the mark below reads it.
+  const arrived = cfg.docks.lateFromArrival && load.arrivedT !== undefined ? load.arrivedT : now;
+  // windows.spoilAfterDeadline (the sprint pass): with windows on, the spoil clock runs from "Deliver by" and reads the
+  // arrival, so nothing spoils before the card's one deadline; off, from the appointment at the end of unloading.
+  const spoilAfter = windowsOn(w) && cfg.windows!.spoilAfterDeadline === true && load.latestDeliveryT !== undefined;
+  const spoiled = k.spoilHours !== null && (spoilAfter ? arrived > load.latestDeliveryT! + k.spoilHours * MINUTES_PER_HOUR : now > load.appointmentT + k.spoilHours * MINUTES_PER_HOUR);
   // windows.oneDeadline (the director's ruling 1): while windows are on, on time means by the load's "Deliver by", the
   // deadline its late claim reads; off, the due time set at booking (startJob), as before.
   const oneDeadline = windowsOn(w) && cfg.windows!.oneDeadline && load.latestDeliveryT !== undefined;
   const deadline = onTimeBy(w, load);
-  // A hot load delivered late pays only part of its premium.
-  const factor = spoiled ? 0 : load.hot > 0 && now > deadline ? (1 + cfg.safety.hotLoads.lateKeepsPremium * (load.hot - 1)) / load.hot : 1;
+  // A hot load delivered late pays only part of its premium. safety.hotLoads.premiumFromArrival (the sprint pass): late
+  // means arrived late, as the mark and the claim read it; off, the end of unloading.
+  const hotAt = cfg.safety.hotLoads.premiumFromArrival === true ? arrived : now;
+  const factor = spoiled ? 0 : load.hot > 0 && hotAt > deadline ? (1 + cfg.safety.hotLoads.lateKeepsPremium * (load.hot - 1)) / load.hot : 1;
   const gross = load.clearedRate * load.miles * factor;
 
   // A double-brokered load pays the company that re-posted it, which then pays the hauler — or doesn't.
@@ -809,15 +816,17 @@ function deliver(w: World, truck: Truck, now: number): void {
 
   // On-time and reputation. docks.lateFromArrival: from the truck's arrival at the receiver, so a wait for its dock
   // isn't the carrier's lateness.
-  const at = cfg.docks.lateFromArrival && load.arrivedT !== undefined ? load.arrivedT : now;
+  const at = arrived;
+  // windows.spoilAfterDeadline: a spoiled load is never on time.
+  const late = at > deadline || (spoilAfter && spoiled);
   let onTime: number = cfg.miles.onTime.onTime;
   // windows.oneDeadline: no early tier (the producer's choice (c), 2026-11-13): the old due time retires entirely, and the
   // deadline's 35 to 168 hours of slack would make nearly every load "early". On time or late only.
-  if (!oneDeadline && at <= load.dueT - cfg.freight.earlyThresholdMinutes) onTime = cfg.miles.onTime.early;
-  else if (at > deadline) onTime = cfg.miles.onTime.late;
+  if (!oneDeadline && !late && at <= load.dueT - cfg.freight.earlyThresholdMinutes) onTime = cfg.miles.onTime.early;
+  else if (late) onTime = cfg.miles.onTime.late;
   carrier.delivered++;
   carrier.loadsThisWeek++;
-  if (at <= deadline) carrier.onTime++;
+  if (!late) carrier.onTime++;
   else carrier.late++;
   // Delivery windows (batch 2; the director's call 1): past the hard deadline it is delivered and paid, and claimed
   // (windows.lateClaimShare of the pay as booked), with today's late rules above and below. A spoiled load is refused, with
@@ -841,7 +850,7 @@ function deliver(w: World, truck: Truck, now: number): void {
   awardMiles(w, carrier, amount, load.laneId);
 
   w.metrics.onDelivery(w, carrier, load, earned, costs, onTime);
-  w.listener?.({ kind: "delivered", companyId: carrier.id, truckId: truck.id, loadId: load.id, origin: load.origin, dest: load.dest, grossFd: paid, costFd: costs, onTime: at <= deadline });
+  w.listener?.({ kind: "delivered", companyId: carrier.id, truckId: truck.id, loadId: load.id, origin: load.origin, dest: load.dest, grossFd: paid, costFd: costs, onTime: !late });
   load.status = "delivered";
   w.loads.delete(load.id);
   setIdle(w, truck);

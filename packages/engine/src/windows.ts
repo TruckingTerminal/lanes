@@ -37,6 +37,7 @@ import { fmtInt } from "./economics.js";
 import { companyAccount } from "./ledger.js";
 import { driverFatigue } from "./labor.js";
 import { legalDrivingMin, reopenLoad } from "./safety.js";
+import { reserveHeldFd } from "./cashReserve.js";
 import { cycleLimitMin, dutyResetAt, legKeyOf } from "./trips.js";
 import type { Company, Facility, Load, Truck } from "./types.js";
 import { companyById, crewed, placeHours, placeLegMiles, placeRoute, type World } from "./world.js";
@@ -437,18 +438,30 @@ export function claimOn(w: World, carrier: Company, load: Load, share: number, k
   // The red team's bundle pass, finding 1 (the blocker): no claim takes a carrier below zero (what it holds is the most it
   // pays), and a cancel claim always goes to the sink: a released load is back on the board, so its poster has lost
   // nothing, and a claim paid to another company was a transfer between players, repeatable with no haul.
-  const fd = Math.min(share * load.clearedRate * load.miles, Math.max(0, w.ledger.balance(companyAccount(carrier.id))));
+  // windows.claimsInFull (the sprint pass): the claim in full, as any bill; only a player poster's part is capped, at
+  // what the carrier held (below).
+  const inFull = w.cfg.windows?.claimsInFull === true;
+  const fd = inFull ? share * load.clearedRate * load.miles : Math.min(share * load.clearedRate * load.miles, Math.max(0, w.ledger.balance(companyAccount(carrier.id))));
   if (!(fd > 0.005)) return 0;
   const db = load.doubleBroker && load.doubleBroker.companyId !== carrier.id ? load.doubleBroker.companyId : null;
   const payeeId = kind === "cancel" ? null : db ?? load.brokerId ?? load.shipperId;
   const payee = payeeId !== null && payeeId !== carrier.id && !samePerson(w, carrier.id, payeeId) ? companyById(w, payeeId) : null;
   const ref = `claim:${kind}:${load.id}`;
-  w.ledger.post(w.t, companyAccount(carrier.id), payee ? companyAccount(payee.id) : "sink:service_failure", fd, ref);
+  // In full, the poster's part is at most what the carrier held (cash, the Reserve and what's settling out of it), so a
+  // claim never pays one company FD another never had; the rest goes to the sink, which mints nothing.
+  const toPayee = payee && inFull ? Math.min(fd, Math.max(0, w.ledger.balance(companyAccount(carrier.id))) + reserveHeldFd(w, carrier.id)) : payee ? fd : 0;
+  if (!inFull) w.ledger.post(w.t, companyAccount(carrier.id), payee ? companyAccount(payee.id) : "sink:service_failure", fd, ref);
+  else {
+    if (payee && toPayee > 0.005) w.ledger.post(w.t, companyAccount(carrier.id), companyAccount(payee.id), toPayee, ref);
+    if (fd - toPayee > 0.005) w.ledger.post(w.t, companyAccount(carrier.id), "sink:service_failure", fd - toPayee, ref);
+  }
   carrier.operating.costFd += fd;
-  if (payee) payee.operating.revenueFd += fd;
+  if (payee) payee.operating.revenueFd += toPayee;
   const what = kind === "late" ? `delivered after its ${whenLabel(w, load.latestDeliveryT ?? w.t)} deadline` : kind === "noshow" ? "not picked up before its pickup closed" : "released before its pickup";
-  w.listener?.({ kind: "notice", companyId: carrier.id, topic: "board", text: `Load #${load.id} ${what}: a ${fmtInt(fd)} FD claim${payee ? ` to ${payee.name}` : ""}.`, tone: "bad", truckId: load.truckId ?? undefined });
-  if (payee) w.listener?.({ kind: "notice", companyId: payee.id, topic: "board", text: `Load #${load.id} ${what} by its carrier: ${fmtInt(fd)} FD paid to you as a claim.`, tone: "info" });
+  // In full with the poster's part capped: the carrier's line says how much of it the poster got.
+  const split = payee !== null && fd - toPayee > 0.005;
+  w.listener?.({ kind: "notice", companyId: carrier.id, topic: "board", text: `Load #${load.id} ${what}: a ${fmtInt(fd)} FD claim${payee ? (split ? ` (${fmtInt(toPayee)} FD of it to ${payee.name})` : ` to ${payee.name}`) : ""}.`, tone: "bad", truckId: load.truckId ?? undefined });
+  if (payee && toPayee > 0.005) w.listener?.({ kind: "notice", companyId: payee.id, topic: "board", text: `Load #${load.id} ${what} by its carrier: ${fmtInt(toPayee)} FD paid to you as a claim.`, tone: "info" });
   return fd;
 }
 

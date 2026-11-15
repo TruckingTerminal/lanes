@@ -1095,6 +1095,15 @@ export const economyConfig = {
     // or late only; a visible early bonus, with its time on the card, is the director's to design if wanted. Off: the old
     // due time, with its early tier, as before.
     oneDeadline: false,
+    // The red team's sprint pass (ruleset 0.25.2): claims in full. On, a claim posts in full from the carrier, as any bill,
+    // and may take it below zero; only the part paid to a player poster (a broker, a shipper or a re-post that's a
+    // company) is capped, at what the carrier held (cash, the Reserve and what's settling out of it); the rest goes to the
+    // sink, which mints nothing. Off: capped at the cash account, as the bundle pass had it.
+    claimsInFull: false,
+    // The red team's sprint pass (ruleset 0.25.2): spoilage after the deadline. On, with windows on, a perishable's spoil
+    // clock runs from its "Deliver by" (latestDeliveryT), the guide's "24 h after", read at arrival as the mark is; a
+    // spoiled load is never on time. Off: from the appointment, at the end of unloading, as before.
+    spoilAfterDeadline: false,
   },
 
   // §Roles — carrier authority; broker license and bond. Renew each season.
@@ -1892,6 +1901,10 @@ export const economyConfig = {
     // hired driver loads that lead away from home, and an owner-operator's fatigue builds. A Send home the player gave
     // still runs. Every bot bids, so none is moved. Off: the rule runs the truck home, as before.
     homeNeedsDispatcher: false,
+    // The red team's sprint pass (ruleset 0.25.2): a driver off the truck is home only where they stepped off (Staff.lastHub)
+    // is inside the home radius (map.nearbyRadiusMi); anywhere else the undriven day is a day away: road rest, and a
+    // layover's per diem. Off: a driver with no truck is home wherever they stand, as before.
+    truckLessHomeByHub: false,
   },
 
   // The guards (the director's triage of the player's second diary, studio/reviews/director-player2.md): limits on what
@@ -2008,6 +2021,9 @@ export const economyConfig = {
       hoursPerDay: 15, // the window assumes 15 driving hours a day: illegal solo, easy for a team
       slackMinutes: 120,
       lateKeepsPremium: 0.5, // late, the shipper pays half the premium
+      // The red team's sprint pass (ruleset 0.25.2): a hot load's premium reads the arrival at the receiver, as the mark and
+      // the late claim do (docks.lateFromArrival), not the end of unloading. Off: the end of unloading, as before.
+      premiumFromArrival: false,
       equipmentShare: { van: 0.3, reefer: 0.5, flatbed: 0.2 } satisfies Record<Equipment, number>,
     },
   },
