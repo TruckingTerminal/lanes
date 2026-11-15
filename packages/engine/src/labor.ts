@@ -4,7 +4,7 @@ import { clamp, finiteIn, fmtInt } from "./economics.js";
 import { companyAccount } from "./ledger.js";
 import type { Company, Load, ManagerKind, Staff, Truck, StandingOrder } from "./types.js";
 import { condition } from "./wear.js";
-import { askingPay, companyById, crewed, marketPay, newStaff, seatDriver, staffById, syncTruck, truckById, unseatDriver, type World, hubMiles } from "./world.js";
+import { askingPay, companyById, crewed, crewOf, marketPay, newStaff, seatDriver, staffById, syncTruck, truckById, unseatDriver, type World, hubMiles } from "./world.js";
 
 /**
  * Staff (design proposal, Jeff 2026-10-28). Every truck needs a driver; the owner
@@ -459,11 +459,10 @@ export function homeArrival(w: World, t: Truck): void {
 }
 /** standingOrders.ts needsHome by the home rule's days out, for a driver not already on days off (no import edge to it). */
 function dueHomeNow(w: World, c: Company, t: Truck): boolean {
-  if (!t.driverId) return false;
-  const d = w.staff[t.driverId - 1]!;
-  if (d.homeUntilDay !== null && d.homeUntilDay > dayOf(w.t, w.cfg)) return false;
+  const day = dayOf(w.t, w.cfg);
   const hm = c.orders.find((o): o is Extract<StandingOrder, { kind: "homeTime" }> => o.kind === "homeTime");
-  return hm !== undefined && d.awayDays >= hm.afterDays;
+  // L5: any seated driver (crewOf) past the home rule's days out and not already on days off.
+  return hm !== undefined && crewOf(w, t).some((d) => !(d.homeUntilDay !== null && d.homeUntilDay > day) && d.awayDays >= hm.afterDays);
 }
 
 /** The driver fatigue a truck runs with: the average of its seated drivers'. */

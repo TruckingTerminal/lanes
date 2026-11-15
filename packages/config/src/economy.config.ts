@@ -2014,6 +2014,10 @@ export const economyConfig = {
     // delivery there, or arriving empty), a load booked ahead held for them (rule H's hold). A loaded truck passing
     // through home doesn't stop. Bots and an owner with the dispatcher on alike. Off: as 0.25.1 left it.
     dueHomePlan: { enabled: false, leadDays: 5 },
+    // The red team's L5 (team trucks): the home rules read every seated driver, not the lead alone (world.ts crewOf). A
+    // co-driver on days off holds the truck as the lead's would (resting, rule H, a load held for the days off), and one
+    // past due turns it for home (rule C, the dispatcher's home rule, home time at once). Off: the lead driver only.
+    coDriversCount: false,
   },
 
   // The guards (the director's triage of the player's second diary, studio/reviews/director-player2.md): limits on what

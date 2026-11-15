@@ -27,7 +27,7 @@ import { companyAccount } from "./ledger.js";
 import { closeDutyDay, drivingLimitMin, legalDrivingMin, mphFor, safetyTick } from "./safety.js";
 import type { Company, Load, Receivable, Truck } from "./types.js";
 import { breakdownsPer1000Mi } from "./wear.js";
-import { companyById, crewed, hubRoute, type World, placeHours, placeLegMiles, placeMiles, placeOfHub, placeRoute } from "./world.js";
+import { companyById, crewed, crewOf, hubRoute, type World, placeHours, placeLegMiles, placeMiles, placeOfHub, placeRoute } from "./world.js";
 import { repDelivered } from "./reputation.js";
 
 /** Detention (cfg.detention): the hours of a closed-dock wait past the free time, capped per stop, priced. */
@@ -259,8 +259,8 @@ const legKey = legKeyOf;
 function departHeld(w: World, truck: Truck): void {
   const load = truck.nextLoadId !== undefined ? w.loads.get(truck.nextLoadId) : undefined;
   if (!load) return;
-  const d = truck.driverId ? w.staff[truck.driverId - 1] : undefined;
-  if (d && d.homeUntilDay !== null && d.homeUntilDay > dayOf(w.t, w.cfg)) return; // still on days off
+  const today = dayOf(w.t, w.cfg);
+  if (crewOf(w, truck).some((d) => d.homeUntilDay !== null && d.homeUntilDay > today)) return; // still on days off (L5: any seated driver)
   if (load.readyT !== undefined) {
     const perDay = w.cfg.hos.drivingHoursPerDay;
     const drivingH = placeHours(w, truck.place, load.originPlace);

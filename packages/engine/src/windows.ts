@@ -41,7 +41,7 @@ import { standingHit } from "./standing.js";
 import { reserveHeldFd } from "./cashReserve.js";
 import { cycleLimitMin, dutyResetAt, legKeyOf, standAtTown } from "./trips.js";
 import type { Company, Facility, Load, Truck } from "./types.js";
-import { companyById, crewed, placeHours, placeLegMiles, placeRoute, type World } from "./world.js";
+import { companyById, crewed, crewOf, placeHours, placeLegMiles, placeRoute, type World } from "./world.js";
 import { repFailed } from "./reputation.js";
 
 /** windows.enabled; a config without the key (an older profile) reads as off. */
@@ -211,9 +211,13 @@ export interface Free {
  * The minute they end, or null when a booking now isn't held. Reads only.
  */
 export function daysOffHold(w: World, truck: Truck): number | null {
-  if (truck.status !== "idle" || !windowsOn(w) || !w.cfg.labor.homeTimeHolds || !truck.driverId) return null;
-  const d = w.staff[truck.driverId - 1]!;
-  return !d.owner && d.homeUntilDay !== null && d.homeUntilDay > dayOf(w.t, w.cfg) ? d.homeUntilDay * w.cfg.time.gameMinutesPerDay : null;
+  if (truck.status !== "idle" || !windowsOn(w) || !w.cfg.labor.homeTimeHolds) return null;
+  const day = dayOf(w.t, w.cfg);
+  // L5 (labor.coDriversCount): a hired driver seated on days off, the co-driver too, until the last of them ends; off, the
+  // lead (crewOf).
+  let end: number | null = null;
+  for (const d of crewOf(w, truck)) if (!d.owner && d.homeUntilDay !== null && d.homeUntilDay > day) end = Math.max(end ?? 0, d.homeUntilDay * w.cfg.time.gameMinutesPerDay);
+  return end;
 }
 
 /**

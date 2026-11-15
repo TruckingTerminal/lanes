@@ -629,6 +629,9 @@ export function freshPaperwork(truck: Truck): void {
 /** A truck with a driver can run; one without sits until someone is hired. */
 export const crewed = (t: Truck) => t.driverId !== 0;
 
+/** The drivers the home rules read (labor.coDriversCount, the red team's L5): every seated driver; off, the lead alone. */
+export const crewOf = (w: World, t: Truck): Staff[] => (w.cfg.labor.coDriversCount === true ? [t.driverId, t.coDriverId] : [t.driverId]).filter((id) => id > 0).map((id) => w.staff[id - 1]!);
+
 /** The owner takes the wheel of a new truck if they aren't driving one. */
 function seatOwnerIfFree(w: World, truck: Truck): void {
   const owner = ownerOf(w, truck.companyId);

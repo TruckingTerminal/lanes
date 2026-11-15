@@ -11,7 +11,7 @@ import { homeEdge } from "./home.js";
 import { dispatchProfile, type DispatchProfile } from "./labor.js";
 import type { Bid, Company, Load, StandingOrder, Truck } from "./types.js";
 import { dispatchPlan, freeOf, planLoads, planMakes, windowsOn } from "./windows.js";
-import { crewed, hubMiles, hubToll, type World, placeMiles, placeToll } from "./world.js";
+import { crewed, crewOf, hubMiles, hubToll, type World, placeMiles, placeToll } from "./world.js";
 
 /** A solo truck makes a hot load's window only on falsified logs; a team makes it legally. */
 export const canMakeHot = (c: Company, t: Truck) => t.coDriverId !== 0 || c.policy.hos !== "legal";
@@ -21,9 +21,8 @@ export const trackingWouldShow = (c: Company, load: Load) => load.vet === 2 && (
 
 /** A driver on home time (labor.ts): the dispatcher leaves the truck alone until it's over. */
 export function resting(w: World, t: Truck): boolean {
-  if (!t.driverId) return false;
-  const d = w.staff[t.driverId - 1]!;
-  return d.homeUntilDay !== null && d.homeUntilDay > dayOf(w.t, w.cfg);
+  const day = dayOf(w.t, w.cfg);
+  return crewOf(w, t).some((d) => d.homeUntilDay !== null && d.homeUntilDay > day); // L5: any seated driver (crewOf)
 }
 
 /**
@@ -36,18 +35,21 @@ export function resting(w: World, t: Truck): boolean {
 export function homeBlock(w: World, c: Company, truck: Truck, load: Load): string | null {
   const k = w.cfg.labor;
   if (!truck.driverId || !(k.homeTimeHolds || k.pastDueRefuses)) return null;
-  const d = w.staff[truck.driverId - 1]!;
-  if (d.owner) return null;
-  if (k.homeTimeHolds && resting(w, truck)) {
-    const back = d.homeUntilDay! * w.cfg.time.gameMinutesPerDay;
-    if (Math.max(w.t, load.readyT ?? w.t) < back) return `${d.name} is home until the days off end; this pickup comes before them`;
-  }
-  if (k.pastDueRefuses) {
-    const hm = c.orders.find((o): o is Extract<StandingOrder, { kind: "homeTime" }> => o.kind === "homeTime");
-    // The red team's bundle pass, finding 5: a truck on a job is measured from where it will be free, as the dispatcher
-    // measures it (dispatchPlan's `at`), not from its leg's origin.
-    const at = truck.status !== "idle" && windowsOn(w) ? { ...truck, hub: w.net.places[freeOf(w, truck).place]!.market } : truck;
-    if (hm && d.awayDays >= hm.afterDays && !homeward(w, c, at, load)) return `${d.name} is past due home: loads toward home only, until you send them home`;
+  const day = dayOf(w.t, w.cfg);
+  // L5 (labor.coDriversCount): every hired driver seated, the co-driver too; off, the lead (crewOf).
+  for (const d of crewOf(w, truck)) {
+    if (d.owner) continue;
+    if (k.homeTimeHolds && d.homeUntilDay !== null && d.homeUntilDay > day) {
+      const back = d.homeUntilDay * w.cfg.time.gameMinutesPerDay;
+      if (Math.max(w.t, load.readyT ?? w.t) < back) return `${d.name} is home until the days off end; this pickup comes before them`;
+    }
+    if (k.pastDueRefuses) {
+      const hm = c.orders.find((o): o is Extract<StandingOrder, { kind: "homeTime" }> => o.kind === "homeTime");
+      // The red team's bundle pass, finding 5: a truck on a job is measured from where it will be free, as the dispatcher
+      // measures it (dispatchPlan's `at`), not from its leg's origin.
+      const at = truck.status !== "idle" && windowsOn(w) ? { ...truck, hub: w.net.places[freeOf(w, truck).place]!.market } : truck;
+      if (hm && d.awayDays >= hm.afterDays && !homeward(w, c, at, load)) return `${d.name} is past due home: loads toward home only, until you send them home`;
+    }
   }
   return null;
 }
@@ -65,11 +67,9 @@ export function handOverWaiting(w: World, c: Company, t: Truck): { hub: number; 
 
 /** The truck's driver is due home: a send-home order, or the home-time rule's days out are up. */
 export function needsHome(w: World, c: Company, t: Truck): boolean {
-  if (!t.driverId) return false;
-  const d = w.staff[t.driverId - 1]!;
-  if (d.wantsHome) return true;
   const hm = c.orders.find((o): o is Extract<StandingOrder, { kind: "homeTime" }> => o.kind === "homeTime");
-  return hm !== undefined && d.awayDays >= hm.afterDays;
+  // L5: any seated driver (crewOf) sent home, or past the home rule's days out.
+  return crewOf(w, t).some((d) => d.wantsHome || (hm !== undefined && d.awayDays >= hm.afterDays));
 }
 
 /**
