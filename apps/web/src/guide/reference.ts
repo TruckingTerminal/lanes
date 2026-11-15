@@ -68,6 +68,7 @@ export function referencePages(cfg: EconomyConfig): GuidePage[] {
           ["Reload odds", "How easily a truck finds its next load after delivering at a hub"],
           ...(cfg.token.settlementFee?.enabled ? [["Settlement fee", `${pct(cfg.token.settlementFee.share)} of a carrier's pay for each load, and of every sale between companies; gone for good`]] : []),
           ["Span", "How many trucks a dispatcher can run"],
+          ...(cfg.standing.enabled ? [["Standing", `A market's scorecard on you, tier 1 to ${cfg.standing.loadFloors.length}, from its own loads you've hauled (${see("standing", "Standing with shippers")})`]] : []),
           ["Standing orders", "Your dispatcher's rules for bidding and moving trucks"],
           ["Vetting", "A poster's requirements for who may haul its freight"],
         ],

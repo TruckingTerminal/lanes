@@ -91,6 +91,38 @@ export function marketPages(cfg: EconomyConfig): GuidePage[] {
             )) +
         p(`${cfg.windows.enabled ? `A load must be delivered by its deadline${cfg.docks.enabled ? ", and each kind of dock keeps its own hours" : ""} (${see("hours", "Hours, dock time and delivery windows")}).` : "A load is due by the usual hours-of-service schedule or the appointment, whichever comes first."} A perishable ${cfg.windows.enabled && cfg.windows.spoilAfterDeadline ? "that reaches its receiver past its spoil time" : "delivered past its spoil time"} is rejected: no pay, and a cargo claim of ${pct(cfg.commodities.spoilClaimShare)} of its value on the carrier${cfg.windows.enabled && cfg.windows.spoilAfterDeadline ? ", and it counts as late" : ""}. Produce follows its region's calendar (South Florida, the Rio Grande Valley and Yuma in winter; the Central Valley spring to fall; the Southeast, Michigan and the Northwest in summer), so where the reefer loads are moves with the months.`),
     },
+    ...(cfg.standing.enabled
+      ? [
+          {
+            id: "standing",
+            section: S,
+            title: "Standing with shippers",
+            html: (() => {
+              const k = cfg.standing;
+              const q = k.perks;
+              const perkAt = (t: number) =>
+                t === q.dockTier ? "Dock priority" : t === q.netTier ? `Net-${q.netDays}` : t === q.firstCallTier ? "First call" : t === q.contractTier ? "Contract offers first" : t === q.dedicatedTier ? "A dedicated lane" : "";
+              const band = (t: number) => (t >= 9 ? "Core" : t >= 5 ? "Preferred" : "Approved");
+              return (
+                p(`Shippers in a market talk, and the services that rate carriers pool what they report, so every market keeps one scorecard on you: your standing with its shippers, tier 1 to ${k.loadFloors.length}. Approved runs 1–4, Preferred 5–8, Core 9–10. The Standing row under More shows each market's.`) +
+                ul([
+                  `<b>What counts:</b> that market's own loads, direct or on contract, over the last ${k.windowDays} days. A load counts in full from ${n(k.fullLoadMi)} miles and by its miles below that, so a ${n(k.fullLoadMi / 2)}-mile run counts half; a contract load counts ${k.contractWeight === 2 ? "double" : `${k.contractWeight} times`}. Loads through a broker build nothing with the shipper: the broker keeps that relationship.`,
+                  `<b>What counts against it:</b> a claim, a no-show or a release takes off ${k.hits.claim} loads, a late delivery ${k.hits.late}${q.firstCallTier ? `, and from tier ${q.firstCallTier} a first call you pass or let lapse ${k.hits.declinedFirstCall}` : ""}.`,
+                ]) +
+                table(
+                  ["Tier", "Counted loads", "On time", "Brings"],
+                  k.loadFloors.map((loads, i) => [`${band(i + 1)} · ${i + 1}`, loads === 0 ? "—" : String(loads), k.onTimeFloors[i]! > 0 ? pct(k.onTimeFloors[i]!) : "—", perkAt(i + 1)]),
+                ) +
+                ul([
+                  `<b>How it moves:</b> reviewed once a week, a tier at most up or down, so one bad week never drops you far, and a no-show keeps pulling for weeks until the record recovers. ${k.decayWeeks} weeks without a load from a market costs a tier there, and again after each ${k.decayWeeks} more.`,
+                  `<b>What it brings:</b> at tier ${q.dockTier}, your trucks go ahead of the queue at the market's docks (about ${q.dockMinutes} minutes less a stop); at ${q.netTier}, its invoices pay in ${q.netDays} days, not ${cfg.token.payment.termsDays}; at ${q.firstCallTier}, first call on its direct loads that still have ${q.firstCallLifeHours} hours or more to run, ahead of the board and the locals, for a truck within ${q.firstCallReachMi} miles that can make the load; at ${q.contractTier}, its contract offers come to you first; at ${q.dedicatedTier}, a dedicated lane, ${q.dedicated.loadsPerWeek} loads a week on your busiest lane from the market at a fixed rate for ${q.dedicated.termDays} days. Between them, a higher tier is first in line.`,
+                  `<b>It belongs to the company:</b> never sold or shared, and a new company starts at tier 1 everywhere.`,
+                ])
+              );
+            })(),
+          },
+        ]
+      : []),
     {
       id: "leverage",
       section: S,

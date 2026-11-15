@@ -47,7 +47,7 @@ describe("standing on the page", () => {
     const lines = standingLines(w, c, hub)!;
     expect(lines.tier).toBe(5);
     expect(lines.head).toBe(`Standing with ${m} shippers · Preferred, tier 5 of 10 · rising`);
-    expect(lines.next).toBe("Next: tier 6 at 7 loads in 180 days, 75% on time; you have 6. First call at tier 7.");
+    expect(lines.next).toBe("Next: tier 6 at 7 counted loads in 180 days and 75% on time; you have 6. First call at tier 7.");
     expect(lines.detail).toBe("83% on time over 180 days · 6 loads (1 on contract) · 0 claims");
     expect(lines.marks).toBe("1 late");
     standingDelivered(w, c, fake(w, hub, { miles: 200 }), true, false); // 200 miles of 500: 6.4, still tier 5, and not away
@@ -98,8 +98,8 @@ describe("standing on the page", () => {
     const fell = standingWords(w, ev({ from: 7, to: 6, cause: "noShow" }));
     expect(fell.iuliia).toBe(`Your ${m} standing fell to tier 6 after a no-show. First call is gone until you're back at 7.`);
     expect(fell.tone).toBe("bad");
-    expect(standingWords(w, ev({ what: "decayAhead" })).iuliia).toBe(`No ${m} load in seven weeks. One more and your standing there drops a tier.`);
-    expect(standingWords(w, ev({ what: "noticed" })).iuliia).toBe(`${m} shippers noticed. Keep delivering on time and they'll call you first.`);
+    expect(standingWords(w, ev({ what: "decayAhead" })).iuliia).toBe(`No ${m} load in seven weeks. Another week without one and your standing there drops a tier.`);
+    expect(standingWords(w, ev({ what: "noticed" })).iuliia).toBe(`${m} shippers noticed. Keep delivering on time and they'll start calling you first.`);
     expect(standingWords(w, ev({ what: "declined", loadId: -1 }), true).feed).toBe(STANDING.firstCallDeclined(m));
     expect(standingWords(w, ev({ what: "declined", loadId: -1 })).feed).toContain("lapsed");
   }, 120_000);
@@ -161,15 +161,15 @@ describe("standing to UX's spec (ux-next-screens part 1)", () => {
     reviews(w, 6); // score 6 at 100%: tier 5
     const x = cardUx(w, c, hub)!;
     expect([x.tier, x.band, x.bandWord]).toEqual([5, "preferred", "Preferred"]);
-    expect(x.next).toBe("Next: tier 6 at 7 loads, 75% on time.");
-    expect(x.have).toBe("You have 6 loads, 100%.");
+    expect(x.next).toBe("Next: tier 6 at 7 counted loads and 75% on time.");
+    expect(x.have).toBe("You have 6 counted loads, 100% on time.");
     expect(x.bars).toEqual({ loads: [6, 7], onTime: [1, 0.75] });
     expect(x.unlocks).toBe("First call at tier 7.");
     expect(x.top).toBeNull();
     c.standing![hub]!.tier = 10;
     const top = cardUx(w, c, hub)!;
     expect(top.next).toBeNull();
-    expect(top.top).toBe("Top tier. Keep the floors: 30 loads, 90% on time.");
+    expect(top.top).toBe("The top tier. To hold it: 30 counted loads and 90% on time.");
     expect(top.unlocks).toBeNull();
   }, 120_000);
 
@@ -180,7 +180,7 @@ describe("standing to UX's spec (ux-next-screens part 1)", () => {
     reviews(w, 4); // tier 4
     expect(cardUx(w, c, hub)!.decay).toBeNull();
     reviews(w, 3); // seven weeks since the last load
-    expect(cardUx(w, c, hub)!.decay).toContain(`No ${w.net.hubs[hub]!.name} load in 7 weeks · drops a tier`);
+    expect(cardUx(w, c, hub)!.decay).toContain(`No ${w.net.hubs[hub]!.name} load in 7 weeks · a tier off`);
   }, 120_000);
 
   it("§1.2: the ladder runs 10 to 1 with its bands, the player's row and the next", async () => {
