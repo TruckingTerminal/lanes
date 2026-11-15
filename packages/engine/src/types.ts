@@ -184,6 +184,8 @@ export interface Company {
    * Kept through a bankruptcy and a refile (R2). Also kept for the logbook's service milestones.
    */
   rep3?: { day: number; x: number; l: number; f: number; log: { day: number; kind: "late" | "release" | "noShow" | "claim" }[]; priorS?: number; priorUntil?: number };
+  /** brokerRisk.windUpDormant: weekly checks running that found this AI broker unable to trade (population.ts). */
+  dormantWeeks?: number;
   delivered: number;
   onTime: number;
   late: number;
@@ -437,6 +439,12 @@ export interface StakeLock {
 }
 
 /** The population dial's state (population.ts), kept while it is on. */
+/** brokerRisk.windUpDormant: an AI broker wound up as it could no longer trade (population.ts windUpDormantBrokers). */
+export interface BrokerWoundUp {
+  day: number;
+  companyId: number;
+}
+
 export interface PopulationState {
   /** The last `windowDays` days' loads posted per truck in service. */
   daily: number[];

@@ -21,6 +21,7 @@ import { detachTruck, type World } from "./world.js";
 import { ordersOf } from "./dealer.js";
 import { endPlayerLease, leasedOut } from "./playerLeases.js";
 import { settleRetired } from "./solvency.js";
+import { companyAccount } from "./ledger.js";
 
 export const dialOn = (w: World) => w.cfg.population.dial.enabled;
 
@@ -67,7 +68,7 @@ export const holdsRestart = (w: World, c: Company) => dialState(w) === "under" &
  * and is retired with it. Then everything else it holds or owes is settled as a liquidation settles it (solvency.ts
  * settleRetired), so nothing posts to its account again (the red team's leak, 2026-11-08).
  */
-export function retireCompany(w: World, c: Company, why: "held" | "wound down"): void {
+export function retireCompany(w: World, c: Company, why: "held" | "wound down" | "dormant"): void {
   for (const t of [...(w.trucksByCompany.get(c.id) ?? [])]) {
     if (t.lease === "npc") {
       detachTruck(w, t); // the lease's deposit comes back with it (world.ts)
@@ -85,8 +86,38 @@ export function retireCompany(w: World, c: Company, why: "held" | "wound down"):
   c.retiredDay = dayOf(w.t, w.cfg);
   c.windingDownDay = undefined;
   if (why === "held") state(w).retired++;
-  else state(w).woundDown++;
+  else if (why === "wound down") state(w).woundDown++;
   w.listener?.({ kind: "notice", companyId: c.id, topic: "board", text: `${c.name} has left the market.`, tone: "info" });
+}
+
+/**
+ * brokerRisk.windUpDormant (the economy's condition, economy-broker-windup-2026-11-15.md), weekly: an AI broker that can
+ * no longer trade, under its licence stake with nothing open (no loads, no paper it owes) and its cash short of the
+ * stake the licence needs, for dormantWeeks checks running, is wound up as a retired bot (retireCompany: its paper paid,
+ * its stake back if no bond is held, its debts written off as a bankruptcy's), counted once in w.brokersWoundUp. A
+ * transient dip (the bond paying a carrier, refilled while its books are busy) resets the count. A player's brokerage
+ * never is: it has its own lapse (brokerage.ts lapsedBrokerage).
+ */
+export function windUpDormantBrokers(w: World): void {
+  const k = w.cfg.brokerRisk;
+  if (!k.windUpDormant) return;
+  const staking = w.cfg.token.staking;
+  const licence = staking.roles.broker;
+  for (const c of w.companies) {
+    if (c.role !== "broker" || c.human || c.retiredDay !== undefined || c.liquidatingSince !== null) continue;
+    // staking.ts brokerLicensed, read here (no edge to staking.ts).
+    const licensed = !staking.enabled || c.stakedFd + 1e-9 >= licence;
+    const dormant = !licensed && c.openBrokerLoads === 0 && !w.receivables.some((r) => r.payer === c.id) && w.ledger.balance(companyAccount(c.id)) < licence - c.stakedFd;
+    if (!dormant) {
+      if (c.dormantWeeks !== undefined) delete c.dormantWeeks;
+      continue;
+    }
+    c.dormantWeeks = (c.dormantWeeks ?? 0) + 1;
+    if (c.dormantWeeks < k.dormantWeeks) continue;
+    delete c.dormantWeeks;
+    retireCompany(w, c, "dormant");
+    (w.brokersWoundUp ??= []).push({ day: dayOf(w.t, w.cfg), companyId: c.id });
+  }
 }
 
 /** A bot carrier starts to wind down: no more orders, so its trucks come home idle and go (population.ts windDownStep). */

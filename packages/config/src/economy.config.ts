@@ -1044,6 +1044,13 @@ export const economyConfig = {
     // the AI brokers, a fall-off counted as lost), and the walk never pays a carrier past contract × (1 + fallOffShare),
     // the spot branch inside that cap. The 15% stays.
     fallOffLine: { enabled: false },
+    // The AI brokers that can no longer trade (the economy's condition, economy-broker-windup-2026-11-15.md): weekly, an
+    // AI broker under its licence stake, holding nothing open (no loads, no paper it owes) and with too little cash to
+    // restore the licence, for dormantWeeks checks running, is wound up as a retired bot (population.ts retireCompany:
+    // its paper paid, its stake back if no bond is held, its debts written off), and the surety premium stops. A
+    // player's brokerage never is; it has its own lapse. Off: such a broker pays the premium until it is liquidated.
+    windUpDormant: false,
+    dormantWeeks: 8,
   },
 
   // Item 4, delivery windows (engineering's proposal engineering-item4-delivery-windows.md; the director's calls, DECISIONS.md

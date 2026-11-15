@@ -33,7 +33,7 @@ import { dailyLabor, hourlyLabor, monthlyLabor, payDispatchers, weeklyLabor } fr
 import { dailyStaking, lockCost, stakeDiscount } from "./staking.js";
 import { dailyPools, poolAccount, poolMarkup, poolsOn } from "./pools.js";
 import { dailyReceivables } from "./receivables.js";
-import { dailyPopulationDial } from "./population.js";
+import { dailyPopulationDial, windUpDormantBrokers } from "./population.js";
 import { creditScore } from "./credit.js";
 import { dailySafety, monthlySafety, weeklySafety } from "./safety.js";
 import { repossessDefaults, stepListings } from "./market.js";
@@ -118,6 +118,7 @@ function endOfDay(w: World, day: number, agents?: DailyAgentHook): void {
   if ((day + 1) % 7 === 0) {
     restockUsedLot(w); // the NPC used lot (dealer.ts)
     weeklyBusinesses(w);
+    windUpDormantBrokers(w); // brokerRisk.windUpDormant: the AI brokers that can no longer trade
     for (const f of w.facilities) {
       if (f.ownerId === 0) continue;
       const upkeep = cfg.facilities.types[f.type].upkeepPerWeekFd;
@@ -187,6 +188,7 @@ function endOfDay(w: World, day: number, agents?: DailyAgentHook): void {
   for (const c of w.companies) {
     if (c.role !== "broker") continue;
     if (lapsedBrokerage(w, c)) continue; // a player's brokerage wound down: its licence lapsed with its stake (brokerage.ts)
+    if (cfg.brokerRisk.windUpDormant && c.retiredDay !== undefined) continue; // a broker wound up: no licence, no bond
     const pct = worstPct - (worstPct - bestPct) * (creditScore(w, c) / 100); // the bond priced by credit (credit.ts)
     const premium = (cfg.permits.brokerBondFd * pct) / cfg.time.daysPerSeason;
     if (suretyMarkup !== null) {

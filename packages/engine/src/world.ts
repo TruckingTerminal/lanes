@@ -8,7 +8,7 @@ import { Ledger, companyAccount } from "./ledger.js";
 import { truckCap } from "./staking.js";
 import { newPool } from "./pools.js";
 import { Rng } from "./rng.js";
-import type { BuybackWeek, BrokerageLog, GameEvent, TokenState, Company, Business, DriverClock, EmissionState, Facility, TruckStopSite, FinancePool, FactoringLog, PopulationState, FraudCase, LeaseKind, Listing, Load, ManagerKind, Pool, PoolLine, PurchaseLoan, Receivable, Role, SeasonCloseRecord, Staff, StandingOrder, StandingStats, Trailer, Truck, TruckOrder, Contract, LeaseOffer } from "./types.js";
+import type { BrokerWoundUp, BuybackWeek, BrokerageLog, GameEvent, TokenState, Company, Business, DriverClock, EmissionState, Facility, TruckStopSite, FinancePool, FactoringLog, PopulationState, FraudCase, LeaseKind, Listing, Load, ManagerKind, Pool, PoolLine, PurchaseLoan, Receivable, Role, SeasonCloseRecord, Staff, StandingOrder, StandingStats, Trailer, Truck, TruckOrder, Contract, LeaseOffer } from "./types.js";
 import { newEmissionState } from "./emission.js";
 import { fitTrailer, handBack, hook, hookedTrailer, newTrailer } from "./trailers.js";
 import type { AssetSale } from "./assetSales.js";
@@ -193,6 +193,8 @@ export interface World {
   reserveStats?: { holdingFd: number; burnedFd: number; depositFd: number; withdrawFd: number };
   /** The population dial (population.ts), made on first use while it is on. */
   population?: PopulationState;
+  /** brokerRisk.windUpDormant: the AI brokers wound up as they could no longer trade, oldest first (population.ts). */
+  brokersWoundUp?: BrokerWoundUp[];
   /** The emission cap (emission.ts): its budget, pacing and levers; kept with the cap off too, so a baseline reports what it would have capped. */
   emission: EmissionState;
   /** Staking locks' tally (staking.ts lockStats), made on first use while they are on. */
