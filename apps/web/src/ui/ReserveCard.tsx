@@ -5,7 +5,7 @@ import { fdFull, weekday } from "../format.js";
 import { depositLines, depositSheet, reserveCard, withdrawAfterLine, withdrawSheet } from "../reserveui.js";
 import { act, bumpData, me, S, toast, useData } from "../state.js";
 import { Fig } from "./Explain.js";
-import { Bar, Btn, Card } from "./bits.js";
+import { Btn, Card } from "./bits.js";
 
 /**
  * The Reserve on Money (UX next-screens §3.8): the card, its two half sheets, and the toast when a withdrawal lands. The
@@ -46,10 +46,11 @@ export function ReserveCardView({ c }: { c: Company }): JSX.Element | null {
               {RESERVE.sheltered(fdFull(x.sheltered), fdFull(x.cap))}
             </Fig>
           </p>
-          <Bar share={x.sheltered / x.cap} />
+          <ReserveBar x={x} />
         </>
       ) : null}
       <p class="small muted">{x.shelterLine}</p>
+      {x.waitingLine ? <p class="small muted">{x.waitingLine}</p> : null}
       {x.overLine ? <p class="small warn">{x.overLine}</p> : null}
       {x.phaseLine ? <p class="small">{x.phaseLine}</p> : null}
       {x.roomLine ? <p class="small">{x.roomLine}</p> : null}
@@ -74,6 +75,22 @@ export function ReserveCardView({ c }: { c: Company }): JSX.Element | null {
         </p>
       ))}
     </Card>
+  );
+}
+
+/**
+ * UX §3.8's bar, static, full at the cap: what's sheltered; put in this week and waiting for its first full week (hatched
+ * grey); over the cap (amber). Past the cap, the bar is the balance.
+ */
+function ReserveBar({ x }: { x: NonNullable<ReturnType<typeof reserveCard>> }): JSX.Element {
+  const total = Math.max(x.cap, x.balance, 1);
+  const w = (fd: number) => `${Math.round((Math.max(0, fd) / total) * 1000) / 10}%`;
+  return (
+    <span class="bar reservebar" aria-hidden="true">
+      <i style={{ width: w(x.sheltered) }} />
+      {x.waiting >= 0.5 ? <i class="waiting" style={{ width: w(x.waiting) }} /> : null}
+      {x.overCap >= 0.5 ? <i class="over" style={{ width: w(x.overCap) }} /> : null}
+    </span>
   );
 }
 

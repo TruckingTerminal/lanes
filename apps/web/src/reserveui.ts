@@ -1,6 +1,6 @@
-import { closeKeepFd, companyAccount, dayOf, holdingCostApplies, inCloseWindow, reserveCapFd, reserveFd, reserveOn, shelteredFd, windUpFd, workingCapital, type Company, type World } from "@lanes/engine";
+import { closeKeepFd, companyAccount, dayOf, holdingCostApplies, inCloseWindow, reserveCapFd, reserveFd, reserveOn, shelteredFd, weekdayName, windUpFd, workingCapital, type Company, type World } from "@lanes/engine";
 import { RESERVE } from "./copy-reserve.js";
-import { debtCountdown, cashDipAhead } from "./figures.js";
+import { debtCountdown, cashDipAhead, nextWeeklyCheckDay } from "./figures.js";
 import { loanRows } from "./finance.js";
 import { dateLabel, fdFull, pct, shortDate, weekday } from "./format.js";
 import { invoices, weekCosts } from "./ledger.js";
@@ -50,10 +50,17 @@ export interface ReserveCardFigures {
   balance: number;
   sheltered: number;
   cap: number;
-  /** What the charge reads as unsheltered: the balance over what's sheltered this week. */
-  over: number;
+  /** Over the cap: charged as cash is (UX §3.8: the bar's amber segment). */
+  overCap: number;
+  /**
+   * Put in this week, not yet in a week's lowest balance (UX §3.8's first week: the hatched segment): the balance less
+   * what's sheltered and what's over the cap. The week's check charges it once where the holding cost applies, then resets
+   * the low, so it's sheltered from then.
+   */
+  waiting: number;
   shelterLine: string;
   overLine: string | null;
+  waitingLine: string | null;
   phaseLine: string | null;
   roomLine: string | null;
   settling: { fd: number; day: number; text: string }[];
@@ -66,7 +73,10 @@ export function reserveCard(w: World, c: Company): ReserveCardFigures | null {
   const balance = reserveFd(w, c.id);
   const sheltered = shelteredFd(w, c);
   const cap = reserveCapFd(w, c);
-  const over = Math.max(0, balance - sheltered);
+  const overCap = Math.max(0, balance - cap);
+  const waiting = Math.max(0, balance - sheltered - overCap);
+  // The next weekly check's day (it runs at the start of the day after nextWeeklyCheckDay), by name.
+  const checkDay = weekdayName((nextWeeklyCheckDay(w) + 1) * w.cfg.time.gameMinutesPerDay, w.cfg);
   const phase = reservePhase(w);
   const free = overFreeFd(w, c);
   const room = Math.max(0, cap - balance);
@@ -78,9 +88,13 @@ export function reserveCard(w: World, c: Company): ReserveCardFigures | null {
     balance,
     sheltered,
     cap,
-    over,
+    overCap,
+    waiting,
     shelterLine: cap >= 0.5 ? RESERVE.shelterIs(weeks) : RESERVE.shelterNone(weeks),
-    overLine: over >= 0.5 ? RESERVE.overShelter(fdFull(over)) : null,
+    overLine: overCap >= 0.5 ? RESERVE.overShelter(fdFull(overCap)) : null,
+    // UX §3.8, keyed on the engine's own test: where the weekly holding cost applies (the live world, before launch too),
+    // this week's check charges it once; elsewhere (a world with seasons) nothing weekly does.
+    waitingLine: waiting >= 0.5 ? (holdingCostApplies(w) ? RESERVE.firstWeekHolding(fdFull(waiting), checkDay) : RESERVE.firstWeekClose(fdFull(waiting), checkDay)) : null,
     phaseLine: phase === "holding" ? RESERVE.phaseHolding(pct(w.cfg.holdingCost.weeklyRate)) : phase === "close" ? RESERVE.phaseClose(shortDate(closeDay(w))) : null,
     roomLine: free >= 0.5 && room >= 0.5 && charge >= 0.5 ? (phase === "close" ? RESERVE.roomClose(fdFull(charge), fdFull(room)) : RESERVE.roomHolding(fdFull(charge), fdFull(room))) : null,
     settling,

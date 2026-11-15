@@ -48,10 +48,19 @@ describe("the Reserve card (UX next-screens §3.8)", () => {
     expect(x.foot).toEqual([RESERVE.foot, RESERVE.footLaunch]);
     // Put in this week, it's sheltered from the next full week: until then the charge reads it as cash.
     expect(applyAction(w, c.id, { type: "reserve_deposit", fd: 100_000 })).toEqual({ ok: true });
-    expect(reserveCard(w, c)!.overLine).toBe(RESERVE.overShelter("100,000"));
+    // UX §3.8's first week: waiting, not over the cap (the cap is 130,000), and the line keyed on the holding cost.
+    const wk = reserveCard(w, c)!;
+    expect([wk.overCap, wk.waiting, wk.overLine]).toEqual([0, 100_000, null]);
+    expect(wk.waitingLine).toBe(RESERVE.firstWeekHolding("100,000", "Monday"));
     weeklyReserve(w);
     const y = reserveCard(w, c)!;
-    expect([y.balance, y.sheltered, y.overLine]).toEqual([100_000, 100_000, null]);
+    expect([y.balance, y.sheltered, y.overLine, y.waitingLine]).toEqual([100_000, 100_000, null, null]);
+    // Over the cap: only that part is amber.
+    expect(applyAction(w, c.id, { type: "reserve_deposit", fd: 50_000 })).toEqual({ ok: true });
+    weeklyReserve(w);
+    const z = reserveCard(w, c)!;
+    expect([z.overCap, z.waiting]).toEqual([20_000, 0]);
+    expect(z.overLine).toBe(RESERVE.overShelter("20,000"));
     // A withdrawal settles: its row, the day it lands, and a toast when it does.
     S.game = { w, player: c } as never;
     try {
