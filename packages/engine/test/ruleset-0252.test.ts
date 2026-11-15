@@ -30,7 +30,8 @@ function booked(c: Company, pay: number, brokerId: number | null = null): Load {
 
 describe("claims in full (windows.claimsInFull)", () => {
   it("off: a claim is held to the cash account, as before", () => {
-    const w = world(LIVE, 2);
+    // The key named false: since the 0.25.2 switch-on it's on in the live levers.
+    const w = world(withWindows({ claimsInFull: false }), 2);
     const c = w.companies.find((x) => x.role === "carrier")!;
     move(w, companyAccount(c.id), "sink:test", Math.max(0, cash(w, c)));
     expect(claimOn(w, c, booked(c, 10_000), 0.1, "cancel")).toBe(0);
@@ -120,7 +121,7 @@ describe("a driver off the truck (labor.truckLessHomeByHub)", () => {
   });
 
   it("off: home wherever they stand, as before", () => {
-    const { w, s, c } = offTheTruck(LIVE, true);
+    const { w, s, c } = offTheTruck({ ...LIVE, labor: { ...LIVE.labor, truckLessHomeByHub: false } } as EconomyConfig, true);
     const before = cash(w, c);
     dailyDrivers(w);
     expect(s.awayDays).toBe(0);
@@ -160,7 +161,8 @@ describe("spoilage after the deadline (windows.spoilAfterDeadline) and a hot loa
   }, 240_000);
 
   it("off: the same load spoils on the old clock, as before", () => {
-    const { ev } = deliverWith(LIVE, perishable, pastAppointment);
+    // The key named false: since the 0.25.2 switch-on it's on in the live levers.
+    const { ev } = deliverWith(withWindows({ spoilAfterDeadline: false }), perishable, pastAppointment);
     expect(ev.grossFd).toBe(0);
   }, 240_000);
 

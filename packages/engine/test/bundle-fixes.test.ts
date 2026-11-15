@@ -57,7 +57,10 @@ const makeable = (w: World, t: Truck, npc = false): Load =>
 
 describe("the red team's bundle fixes", () => {
   it("finding 1: a release claim goes to the sink, never repeats on one load, and never takes a carrier under zero", () => {
-    const w = world(bundle());
+    // Held to the cash account with windows.claimsInFull off, the key named: since the 0.25.2 switch-on claims post in
+    // full, and may take a carrier under zero by design (ruleset-0252.test.ts).
+    const base = bundle();
+    const w = world({ ...base, windows: { ...base.windows, claimsInFull: false } });
     const t = busyTruck(w);
     const c = w.companies[t.companyId - 1]!;
     const l = makeable(w, t);

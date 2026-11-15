@@ -275,6 +275,12 @@ export const LIVE_LEVERS: Record<string, unknown> = {
   "windows.oneDeadline": true,
   "labor.homeAtOnce": true,
   "labor.homeNeedsDispatcher": true,
+  // 0.25.2 (the red team's sprint pass; the director's sprint ruling §10): every windows claim posted in full from the
+  // carrier, a player poster's part held to what the carrier had; a perishable's spoil clock run from "Deliver by"; and a
+  // hot load's kept premium read from the arrival. Paired within the spread (economy-ruleset-0252-pair-2026-11-15.md).
+  "windows.claimsInFull": true,
+  "windows.spoilAfterDeadline": true,
+  "safety.hotLoads.premiumFromArrival": true,
 };
 
 /** A config with the levers applied by path; throws on a path the config doesn't have. */
