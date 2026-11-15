@@ -63,7 +63,7 @@ export const FIXES = {
   sentToast: (name: string | null, town: string) => `${name === null ? "You're" : `${name} is`} on the bus to ${town}`,
   riderOnWay: (name: string | null, day: string) => `${name === null ? "You're" : `${name} is`} on the bus here, arriving ${day}.`,
   hireAt: (town: string) => `Hire at ${town}`,
-  hireRides: (name: string, from: string, time: string, fd: string) => `${name} is at ${from}: the bus here first, ${time}, ${fd} FD on you.`,
+  hireRides: (name: string, from: string, time: string, fd: string) => `${name} is at ${from}, so the bus here comes first: ${time} and ${fd} FD, which you pay.`,
   // Engineering's placeholders for the writer: QA's 0.25.3 replay (qa-0253-2026-11-15.md, fix soon and lower).
   // A load this company released, back on the board: the card's chip and the sheet's reason.
   releasedByYou: "You released this load, so you can't book it again.",
@@ -119,13 +119,13 @@ export const FIXES = {
   // Engineering's placeholders for the writer: QA's 0.25.4 replay. The reputation sheet with three parts on, after the
   // guide's Reputation page: what it is, how it's computed, what moves it.
   repExplain: (safety: string, service: string, experience: string, cap: number) => ({
-    what: "How shippers and brokers rate you.",
+    what: "How brokers and shippers rate you when they choose a carrier.",
     how: `It starts from 100% and loses up to three parts: the safety record, up to ${safety}; service failures, up to ${service}; and experience, up to ${experience}, until ${cap} recent loads give full experience.`,
     moves: "A clean safety record: violations per inspection and at-fault crashes per truck. Service: no-shows, releases, deliveries past Deliver by and cargo claims, fading over weeks. Experience: loads paid by NPC shippers and brokers (never your own freight), fading over months.",
   }),
   // The Deposit sheet: the room chip stops at the cash; an amount over the cash says why DEPOSIT is grey.
   chipAllCash: (fd: string) => `All your cash · ${fd}`,
-  depositOverCash: (fd: string) => `That's more than your cash, ${fd} FD.`,
+  depositOverCash: (fd: string) => `That's more than your cash: you have ${fd} FD.`,
   // A release Confirm, booked ahead or current: the standing it costs, as the booking sheet's line says it.
   releaseStanding: (n: number, market: string) => `It also takes ${n === 1 ? "one load" : n === 2 ? "two loads" : `${n} loads`} off your ${market} standing.`,
   // A weekly day named on that day itself means the next one ("next Monday's review").

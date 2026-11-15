@@ -60,7 +60,7 @@ describe("QA's 0.25.4 replay: the lower items", () => {
     const s = depositSheet(w, c);
     expect(s.chips[0]).toEqual({ label: FIXES.chipAllCash("9,440"), fd: 9_440 });
     expect(s.chips.some((x) => x.label === RESERVE.chipRoom("130,000"))).toBe(false);
-    expect(FIXES.depositOverCash("9,440")).toBe("That's more than your cash, 9,440 FD.");
+    expect(FIXES.depositOverCash("9,440")).toBe("That's more than your cash: you have 9,440 FD.");
     // With the cash over the room, the room chip as before.
     toCash(w, c, 300_000);
     expect(depositSheet(w, c).chips[0]).toEqual({ label: RESERVE.chipRoom("130,000"), fd: 130_000 });
