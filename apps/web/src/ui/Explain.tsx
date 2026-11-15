@@ -7,6 +7,7 @@ import { WINDOWS_EXPLAIN } from "../copy-windows.js";
 import { STANDING_EXPLAIN } from "../copy-standing.js";
 import { RESERVE_EXPLAIN } from "../copy-reserve.js";
 import { reservePhase } from "../reserveui.js";
+import { reputationExplain } from "../reputationui.js";
 import { breakdown, type FigureCtx } from "../explain.js";
 import { GAME_CONFIG } from "../game.js";
 import { bumpData, isPhone, S, useData } from "../state.js";
@@ -109,7 +110,9 @@ export function ExplainSheet(): JSX.Element | null {
   }
   const c = g.player;
   const reserve = e.key.startsWith("money.reserve") ? RESERVE_EXPLAIN({ close: reservePhase(g.w) === "close", launched: g.w.token.launchDay !== null, weeks: g.w.cfg.cashReserve.capWeeks })[e.key] : undefined;
-  const entry = reserve ?? STANDING_EXPLAIN[e.key] ?? WINDOWS_EXPLAIN[e.key] ?? PENDING_EXPLAIN[e.key] ?? EXPLAIN(GAME_CONFIG)[e.key];
+  // QA's 0.25.4 replay: with three parts on, the reputation sheet's words follow them.
+  const rep = e.key === "standing.reputation" ? reputationExplain(g.w) : undefined;
+  const entry = reserve ?? rep ?? STANDING_EXPLAIN[e.key] ?? WINDOWS_EXPLAIN[e.key] ?? PENDING_EXPLAIN[e.key] ?? EXPLAIN(GAME_CONFIG)[e.key];
   if (!entry) return null;
   const b = c ? breakdown(g.w, c, e.key, e.ctx) : null;
   const other = e.key.endsWith(".other");

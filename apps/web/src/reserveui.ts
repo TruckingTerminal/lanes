@@ -1,5 +1,6 @@
 import { closeKeepFd, companyAccount, dayOf, holdingCostApplies, inCloseWindow, reserveCapFd, reserveFd, reserveOn, shelteredFd, weekdayName, windUpFd, workingCapital, type Company, type World } from "@lanes/engine";
 import { RESERVE } from "./copy-reserve.js";
+import { FIXES } from "./copy-fixes.js";
 import { debtCountdown, cashDipAhead, nextWeeklyCheckDay } from "./figures.js";
 import { loanRows } from "./finance.js";
 import { dateLabel, fdFull, pct, shortDate, weekday } from "./format.js";
@@ -75,8 +76,11 @@ export function reserveCard(w: World, c: Company): ReserveCardFigures | null {
   const cap = reserveCapFd(w, c);
   const overCap = Math.max(0, balance - cap);
   const waiting = Math.max(0, balance - sheltered - overCap);
-  // The next weekly check's day (it runs at the start of the day after nextWeeklyCheckDay), by name.
-  const checkDay = weekdayName((nextWeeklyCheckDay(w) + 1) * w.cfg.time.gameMinutesPerDay, w.cfg);
+  // The next weekly check's day (it runs at the start of the day after nextWeeklyCheckDay), by name; on that weekday
+  // itself, just after the check, it's "next Monday" (QA's 0.25.4 replay).
+  const checkAt = nextWeeklyCheckDay(w) + 1;
+  const checkName = weekdayName(checkAt * w.cfg.time.gameMinutesPerDay, w.cfg);
+  const checkDay = checkAt - dayOf(w.t, w.cfg) >= 7 ? FIXES.nextDay(checkName) : checkName;
   const phase = reservePhase(w);
   const free = overFreeFd(w, c);
   const room = Math.max(0, cap - balance);
@@ -118,7 +122,10 @@ export function depositSheet(w: World, c: Company): { cash: number; chips: Chip[
   const cash = cashOf(w, c);
   const room = Math.max(0, reserveCapFd(w, c) - reserveFd(w, c.id));
   const free = Math.min(overFreeFd(w, c), Math.max(0, cash));
-  const chips = [...(room >= 0.5 ? [{ label: RESERVE.chipRoom(fdFull(room)), fd: room }] : []), ...(free >= 0.5 ? [{ label: RESERVE.chipOver(fdFull(free)), fd: free }] : [])];
+  // QA's 0.25.4 replay: the room chip stops at what can go in, the cash, and says so when the cash is the less.
+  const can = Math.max(0, cash);
+  const roomChip = room < 0.5 ? null : room <= can + 0.005 ? { label: RESERVE.chipRoom(fdFull(room)), fd: room } : can >= 0.5 ? { label: FIXES.chipAllCash(fdFull(can)), fd: can } : null;
+  const chips = [...(roomChip ? [roomChip] : []), ...(free >= 0.5 ? [{ label: RESERVE.chipOver(fdFull(free)), fd: free }] : [])];
   // The engine refuses these (actions.ts: a revoked authority; cashReserve.ts: winding up, no cash).
   const disabled = c.authority.status === "revoked" ? RESERVE.revoked : c.liquidatingSince !== null ? RESERVE.windingUp : cash < 0.5 ? RESERVE.noCash : null;
   return { cash, chips, dflt: room >= 0.5 && free >= 0.5 ? Math.floor(Math.min(room, free)) : null, disabled };

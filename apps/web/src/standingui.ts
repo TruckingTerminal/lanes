@@ -1,5 +1,6 @@
 import { companyAccount, dayOf, hasPerk, perkTier, standingCard, standingLoad, standingMarkets, standingOn, standingOwed, standingPaid, tallyOf, tierAt, type Company, type GameEvent, type Load, type Scorecard, type StandingPerk, type World } from "@lanes/engine";
 import { STANDING, STANDING_UX } from "./copy-standing.js";
+import { FIXES } from "./copy-fixes.js";
 import { fdFull, hhmm, pct, shortDate, TRAILER_NAME, weekdayDate } from "./format.js";
 
 /**
@@ -116,7 +117,7 @@ export function standingWords(w: World, e: StandingEvent, byHand = false): { fee
   // §13: on notice; Iuliia speaks only when the step down would lose a perk, and nothing is toasted.
   if (e.what === "onNotice" && e.from !== undefined && e.to !== undefined) {
     const lost = milestoneLost(w, e.from, e.to);
-    return { feed: null, iuliia: lost ? STANDING.iuliiaOnNotice(m, reviewWhen(w).day, STANDING.perk[lost]) : null, tone: "" };
+    return { feed: null, iuliia: lost ? STANDING.iuliiaOnNotice(m, nextReviewDay(w), STANDING.perk[lost]) : null, tone: "" };
   }
   if (e.what === "noticed") return { feed: null, iuliia: STANDING.iuliiaNoticed(m), tone: "" };
   return { feed: null, iuliia: null, tone: "" };
@@ -148,6 +149,11 @@ export function reviewAtOrAfter(w: World, t: number): number {
 /** The review's weekday and hour, for the ladder's foot. */
 export function reviewWhen(w: World): { day: string; hour: string } {
   return { day: DAY_NAMES[weekdayOf(w, 7)]!, hour: "00:00" };
+}
+/** The next review's day for a sentence: on the review's weekday itself, after it ran at 00:00, "next Monday" (QA's 0.25.4 replay). */
+export function nextReviewDay(w: World): string {
+  const day = reviewWhen(w).day;
+  return dayOf(w.t, w.cfg) % 7 === 0 ? FIXES.nextDay(day) : day;
 }
 
 /** A load's weight on a scorecard, as the engine counts it (standing.ts standingDelivered). */
@@ -235,7 +241,7 @@ const noticeAndDecay = (n: { notice: string | null; noticeNeed: boolean }, decay
 function noticeOf(w: World, card: NonNullable<ReturnType<typeof standingCard>>, m: string): { notice: string | null; noticeNeed: boolean } {
   if (!card.notice) return { notice: null, noticeNeed: false };
   const k = w.cfg.standing;
-  const day = reviewWhen(w).day;
+  const day = nextReviewDay(w);
   const needL = k.loadFloors[card.tier - 1]!;
   const needT = k.onTimeFloors[card.tier - 1]!;
   const notice = card.score < needL ? STANDING_UX.onNoticeLoads(loadsSaid(Math.max(0, card.score)), card.tier, needL, day, m) : STANDING_UX.onNoticeOnTime(pct(card.onTimeShare ?? 0), card.tier, pct(needT), day, m);
@@ -350,6 +356,12 @@ export function sheetLine(w: World, c: Company, l: Load): { text: string; tier: 
   const m = market(w, l.origin);
   if (!s) return { text: STANDING_UX.countsNew(m), tier: null, band: "approved" };
   return { text: STANDING_UX.countsToward(m, STANDING.band[bandOfTier(s.tier)], s.tier), tier: s.tier, band: bandOfTier(s.tier) };
+}
+
+/** A release Confirm's standing line (QA's 0.25.4 replay), for a load that builds standing; null where it builds none. */
+export function releaseStanding(w: World, c: Company, l: Load): string | null {
+  if (!standingShown(w, c) || !standingLoad(l)) return null;
+  return FIXES.releaseStanding(w.cfg.standing.hits.release, market(w, l.origin));
 }
 
 /** §1.4 line 2: the standing cost each claim line of "What you're agreeing to" gains, for a load that builds standing. */

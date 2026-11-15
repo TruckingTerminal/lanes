@@ -1,6 +1,6 @@
 import "./seed.js";
 import { describe, expect, it } from "vitest";
-import { hubMiles, placeOfHub, placeOrder } from "@lanes/engine";
+import { hubMiles, placeMiles, placeOfHub, placeOrder } from "@lanes/engine";
 import { FIXES } from "../src/copy-fixes.js";
 import { GAME_CONFIG, TestGame } from "../src/game.js";
 import { nextAction } from "../src/nextstep.js";
@@ -21,7 +21,8 @@ describe("the bought truck's hand-over on the page", () => {
       const far = w.net.hubs.findIndex((_h, i) => hubMiles(w, i, c.homeHub) > 120 && hubMiles(w, i, c.homeHub) < 300);
       Object.assign(t, { hub: far, targetHub: far, place: placeOfHub(far), targetPlace: placeOfHub(far) });
       const line = handOverAt(w, c, { type: "buy_asset", tier: "workhorse", trailer: "van", replaceNpcLease: t.lease === "npc" })!;
-      expect(line).toBe(FIXES.handOverAt(w.net.hubs[c.homeHub]!.name, Math.round(hubMiles(w, far, c.homeHub)), 1));
+      // QA's 0.25.4 replay: the town it waits in and the miles from the truck's own town.
+      expect(line).toBe(FIXES.handOverAt(w.net.places[placeOfHub(c.homeHub)]!.name, Math.round(placeMiles(w, placeOfHub(far), placeOfHub(c.homeHub))), 1));
       const off = { ...GAME_CONFIG, assets: { ...GAME_CONFIG.assets, handOverAtTruck: false } }; // on in the live levers from 0.25.3
       expect(handOverAt({ ...w, cfg: off } as never, c, { type: "buy_asset", tier: "workhorse", trailer: "van", replaceNpcLease: true })).toBeNull();
     } finally {

@@ -1,6 +1,7 @@
 import type { JSX } from "preact";
 import { reserveOn, type Company } from "@lanes/engine";
 import { RESERVE } from "../copy-reserve.js";
+import { FIXES } from "../copy-fixes.js";
 import { fdFull, weekday } from "../format.js";
 import { depositLines, depositSheet, reserveCard, withdrawAfterLine, withdrawSheet } from "../reserveui.js";
 import { act, bumpData, me, S, toast, useData } from "../state.js";
@@ -29,11 +30,12 @@ export function openReserveSheet(k: "deposit" | "withdraw" | null): void {
 }
 
 /** §3.8, the card: the balance, the shelter and its bar, the phase and room lines, what's settling, the buttons and the foot. */
-export function ReserveCardView({ c }: { c: Company }): JSX.Element | null {
+export function ReserveCardView({ c, titled = true }: { c: Company; titled?: boolean }): JSX.Element | null {
   const x = reserveCard(S.game!.w, c);
   if (!x) return null;
+  // `titled` false inside Money's fold, whose summary already says "The Reserve" (QA's 0.25.4 replay).
   return (
-    <Card class="reservecard" title={RESERVE.title}>
+    <Card class="reservecard" title={titled ? RESERVE.title : undefined}>
       <p class="bigcash">
         <Fig k="money.reserve" label={RESERVE.title}>
           {RESERVE.balance(fdFull(x.balance))}
@@ -163,7 +165,7 @@ export function ReserveSheet(): JSX.Element | null {
               {l}
             </p>
           ))}
-          {s.disabled ? <p class="small muted">{s.disabled}</p> : null}
+          {s.disabled ? <p class="small muted">{s.disabled}</p> : tooMuch ? <p class="small warn">{FIXES.depositOverCash(fdFull(s.cash))}</p> : null}
           <Btn
             primary
             disabled={s.disabled !== null || !valid || tooMuch}

@@ -106,6 +106,20 @@ export const FIXES = {
   repPartSafety: (words: string) => `Safety record: ${words}`,
   repPartService: (words: string) => `Service: ${words}`,
   repPartExperience: (words: string) => `Experience: ${words}`,
+  // Engineering's placeholders for the writer: QA's 0.25.4 replay. The reputation sheet with three parts on, after the
+  // guide's Reputation page: what it is, how it's computed, what moves it.
+  repExplain: (safety: string, service: string, experience: string, cap: number) => ({
+    what: "How shippers and brokers rate you.",
+    how: `It starts from 100% and loses up to three parts: the safety record, up to ${safety}; service failures, up to ${service}; and experience, up to ${experience}, until ${cap} recent loads give full experience.`,
+    moves: "A clean safety record: violations per inspection and at-fault crashes per truck. Service: no-shows, releases, deliveries past Deliver by and cargo claims, fading over weeks. Experience: loads paid by NPC shippers and brokers (never your own freight), fading over months.",
+  }),
+  // The Deposit sheet: the room chip stops at the cash; an amount over the cash says why DEPOSIT is grey.
+  chipAllCash: (fd: string) => `All your cash · ${fd}`,
+  depositOverCash: (fd: string) => `That's more than your cash, ${fd} FD.`,
+  // A release Confirm, booked ahead or current: the standing it costs, as the booking sheet's line says it.
+  releaseStanding: (n: number, market: string) => `It also takes ${n === 1 ? "one load" : n === 2 ? "two loads" : `${n} loads`} off your ${market} standing.`,
+  // A weekly day named on that day itself means the next one ("next Monday's review").
+  nextDay: (day: string) => `next ${day}`,
   // Engineering's placeholders for the writer: the bus home (ruleset 0.25.3, labor.busHome; the director's sprint §9).
   onBus: (day: string) => `on the bus home · home ${day}`,
   awayBus: (who: string, from: string, hours: number, fd: string, day: string) => `${who} had no truck at ${from} and took the bus home: about ${hours} h and ${fd} FD, home ${day}.`,

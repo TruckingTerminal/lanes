@@ -5,6 +5,7 @@ import { WINDOWS } from "./copy-windows.js";
 import { FIXES } from "./copy-fixes.js";
 import { fdFull, hhmm, shortDate } from "./format.js";
 import { deliveryEtaMin, etaMin } from "./rolling.js";
+import { releaseStanding } from "./standingui.js";
 
 /**
  * Delivery windows on the page (client batch W; the director's design, director-windows-screens-2026-11-13.md): every
@@ -207,8 +208,13 @@ export function nowNext(w: World, c: Company, t: Truck): { now: string | null; n
  * puts the company into debt; off, the claim is held to the cash as before.
  */
 export function releaseCard(w: World, c: Company, l: Load, claimFd: number, truckNo: number): { verb: string; item: string; costFd: number; does: string; risk: string; destructive: true; intoDebt?: (fd: string) => string } {
-  return { verb: "Release", item: WINDOWS.releaseItem(l.id), costFd: releaseCostFd(w, c, claimFd), does: WINDOWS.releaseDoes(place(w, l.originPlace), place(w, l.destPlace), truckNo), risk: WINDOWS.releaseRisk, destructive: true, ...(w.cfg.windows?.claimsInFull === true ? { intoDebt: FIXES.releaseIntoDebt } : {}) };
+  return { verb: "Release", item: WINDOWS.releaseItem(l.id), costFd: releaseCostFd(w, c, claimFd), does: WINDOWS.releaseDoes(place(w, l.originPlace), place(w, l.destPlace), truckNo), risk: withStanding(w, c, l, WINDOWS.releaseRisk), destructive: true, ...(w.cfg.windows?.claimsInFull === true ? { intoDebt: FIXES.releaseIntoDebt } : {}) };
 }
+/** QA's 0.25.4 replay: a release's risk with the standing it costs (windows.ts releaseLoad's standingHit), as the booking sheet says it. */
+const withStanding = (w: World, c: Company, l: Load, risk: string): string => {
+  const s = releaseStanding(w, c, l);
+  return s ? `${risk} ${s}` : risk;
+};
 /** The claim as the engine takes it (windows.ts claimOn): in full under windows.claimsInFull, else never more than the cash. */
 export function releaseCostFd(w: World, c: Company, claimFd: number): number {
   return Math.round(w.cfg.windows?.claimsInFull === true ? claimFd : Math.min(claimFd, Math.max(0, w.ledger.balance(companyAccount(c.id)))));
@@ -230,7 +236,7 @@ export function currentRelease(w: World, t: Truck): { load: Load; priceFd: numbe
 /** The current load's release Confirm: the claim, the mark, where the truck stops, that it can't be booked again; into debt as releaseCard's. */
 export function releaseCurrentCard(w: World, c: Company, x: NonNullable<ReturnType<typeof currentRelease>>, claimFd: number, truckNo: number): { verb: string; item: string; costFd: number; does: string; risk: string; destructive: true; intoDebt?: (fd: string) => string } {
   const l = x.load;
-  return { ...releaseCard(w, c, l, claimFd, truckNo), does: FIXES.releaseCurrentDoes(place(w, l.originPlace), place(w, l.destPlace), truckNo, x.town, x.sunkMi >= 0.5 ? Math.round(x.sunkMi).toLocaleString("en-US") : null), risk: FIXES.releaseCurrentRisk };
+  return { ...releaseCard(w, c, l, claimFd, truckNo), does: FIXES.releaseCurrentDoes(place(w, l.originPlace), place(w, l.destPlace), truckNo, x.town, x.sunkMi >= 0.5 ? Math.round(x.sunkMi).toLocaleString("en-US") : null), risk: withStanding(w, c, l, FIXES.releaseCurrentRisk) };
 }
 
 /** A breakdown's ask on a load booked ahead (§3): the repair, the projected arrival, the two prices, the close. */

@@ -1,7 +1,7 @@
 import { canMakeHot, filesForOpening, freeOf, homeBlock, windowsOn, type Reach, homeEdge, resting, settlementShare, clearsNear as engineClearsNear, clearsNearParts, dayOf, dockHoursAt, dutyResetAt, nextOpen, dispatchProfile, EQUIPMENT, expectedReloadDeadheadMi, mayTake, operatingTrucks, ownerDrawFd, placeMiles, placeToll, planIndex, vettingBlock, type Company, type Load, type Truck, type World } from "@lanes/engine";
 import { COMMODITIES } from "@lanes/data";
 import { trueBreakEven } from "./breakeven.js";
-import { WALL } from "./copy.js";
+import { LOAD, WALL } from "./copy.js";
 import { grammar, shortDate } from "./format.js";
 import { PENDING } from "./copy-pending.js";
 import { FIXES } from "./copy-fixes.js";
@@ -181,6 +181,9 @@ function nextRoundHH(w: World): string {
   const h = w.cfg.time.boardRoundHours.find((x) => x > hour) ?? w.cfg.time.boardRoundHours[0]!;
   return `${String(h).padStart(2, "0")}:00`;
 }
+
+/** The load sheet's line for a block: "Not yet: …", except a released load's, which is a sentence of its own (QA's 0.25.4 replay). */
+export const blockLine = (block: string): string => (block === FIXES.releasedByYou ? block : LOAD.blocked(block.replace(/\.\s*$/, "")));
 
 /** The chip's words for a load this company can't take (copy-first-ten-minutes.md, S2 "Blocked chips"). */
 export function blockReason(w: World, c: Company, truck: Truck, l: Load, reachLine: string | null = null): string | null {

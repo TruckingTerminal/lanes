@@ -38,7 +38,7 @@ import { DEALER } from "../../copy.js";
 import { PENDING_RULES } from "../../copy-pending-rules.js";
 import { buyPlan } from "../../finance.js";
 import { useEffect, useRef, useState } from "preact/hooks";
-import { hubMiles, type Action, type Company, type World } from "@lanes/engine";
+import { hubMiles, placeMiles, placeOfHub, type Action, type Company, type World } from "@lanes/engine";
 import { Btn, Card, Kv, Num } from "../bits.js";
 import { Rig } from "../Loop.js";
 import { Fig } from "../Explain.js";
@@ -304,12 +304,16 @@ const orderLines = (base: Lines, date: string, replacing: boolean, swap = false,
  */
 export function handOverAt(w: World, c: Company, a: Extract<Action, { type: "buy_asset" }> | Extract<Action, { type: "buy_listing" }>): string | null {
   if (w.cfg.assets.handOverAtTruck !== true) return null;
-  const hub = a.type === "buy_asset" ? (a.dealershipId ? w.businesses[a.dealershipId - 1]?.hub : c.homeHub) : w.trucks[(w.listings.find((l) => l.id === a.listingId)?.truckId ?? 0) - 1]?.hub;
+  const listed = a.type === "buy_listing" ? w.trucks[(w.listings.find((l) => l.id === a.listingId)?.truckId ?? 0) - 1] : undefined;
+  const hub = a.type === "buy_asset" ? (a.dealershipId ? w.businesses[a.dealershipId - 1]?.hub : c.homeHub) : listed?.hub;
   if (hub === undefined) return null;
+  // QA's 0.25.4 replay: the town it waits in (a listing's own, else the hub's), as the sentence before names it, and the
+  // miles from the truck's own town.
+  const at = listed ? listed.place : placeOfHub(hub);
   const mine = (w.trucksByCompany.get(c.id) ?? []).filter((t) => t.status !== "retired" && t.status !== "listed");
   const lease = a.type === "buy_asset" && a.replaceNpcLease ? mine.find((t) => t.lease === "npc") : undefined;
   const from = lease ?? [...mine].sort((x, y) => hubMiles(w, x.hub, hub) - hubMiles(w, y.hub, hub) || x.id - y.id)[0];
-  return from ? FIXES.handOverAt(w.net.hubs[hub]!.name, Math.round(hubMiles(w, from.hub, hub)), truckNo(from.id)) : null;
+  return from ? FIXES.handOverAt(w.net.places[at]!.name, Math.round(placeMiles(w, from.place, at)), truckNo(from.id)) : null;
 }
 
 /** `ordered`: the truck comes on a later day (the dealer's queue or the lot's wait), so it's an order, not a truck owned today. */

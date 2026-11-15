@@ -260,7 +260,7 @@ export function Money(): JSX.Element {
       {rv && !rv.open ? (
         <details class="fold">
           <summary>{RESERVE.fold}</summary>
-          <ReserveCardView c={c} />
+          <ReserveCardView c={c} titled={false} />
         </details>
       ) : null}
       <details class="fold">

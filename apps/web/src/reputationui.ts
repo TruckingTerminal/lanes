@@ -25,14 +25,41 @@ export function reputationLine(w: World, c: Company): string | null {
   return FIXES.repLine(pct(c.reputation), safetyWords(c), FIXES.repService(p.failures.late, p.failures.release, p.failures.noShow, p.failures.claim, k.displayDays), FIXES.repExperience(Math.round(p.loads), k.experienceCap));
 }
 
-/** The explain sheet's rows: each part's words and what it takes off, of the score's 1. */
+/**
+ * The explain sheet's rows: each part's words and what it takes off, in whole points that add up to the figure shown
+ * (QA's 0.25.4 replay: a new company read Experience −6% over Reputation 95%, 0.945). The points are 100 less the
+ * rounded reputation, shared out by the parts' exact sizes, the largest remainders first.
+ */
 export function reputationRows(w: World, c: Company): { label: string; value: string }[] {
   const p = reputationParts(w, c);
   const k = w.cfg.reputation.threeParts;
-  const off = (x: number) => (x > 0.0005 ? `−${pct(x)}` : "0");
+  const [s, f, e] = wholePoints([k.safety * p.s, k.service * p.f, k.experience * p.e], 100 - Math.round(c.reputation * 100));
+  const off = (n: number) => (n > 0 ? `−${n}%` : "0");
   return [
-    { label: FIXES.repPartSafety(safetyWords(c)), value: off(k.safety * p.s) },
-    { label: FIXES.repPartService(FIXES.repService(p.failures.late, p.failures.release, p.failures.noShow, p.failures.claim, k.displayDays)), value: off(k.service * p.f) },
-    { label: FIXES.repPartExperience(FIXES.repExperience(Math.round(p.loads), k.experienceCap)), value: off(k.experience * p.e) },
+    { label: FIXES.repPartSafety(safetyWords(c)), value: off(s!) },
+    { label: FIXES.repPartService(FIXES.repService(p.failures.late, p.failures.release, p.failures.noShow, p.failures.claim, k.displayDays)), value: off(f!) },
+    { label: FIXES.repPartExperience(FIXES.repExperience(Math.round(p.loads), k.experienceCap)), value: off(e!) },
   ];
+}
+
+/** `total` whole points shared by `parts` (shares of 1) in proportion, the largest remainders taking what's left. */
+export function wholePoints(parts: number[], total: number): number[] {
+  const sum = parts.reduce((a, b) => a + b, 0);
+  if (sum <= 0 || total <= 0) return parts.map(() => 0);
+  const exact = parts.map((x) => (x / sum) * total);
+  const out = exact.map((x) => Math.floor(x));
+  let left = total - out.reduce((a, b) => a + b, 0);
+  for (const i of exact.map((x, i) => ({ i, r: x - Math.floor(x) })).sort((a, b) => b.r - a.r || a.i - b.i).map((x) => x.i)) {
+    if (left <= 0) break;
+    out[i]!++;
+    left--;
+  }
+  return out;
+}
+
+/** The sheet's words with three parts on (QA's 0.25.4 replay, fix soon 1), or undefined off: the sheet keeps today's. */
+export function reputationExplain(w: World): { what: string; how: string; moves: string } | undefined {
+  if (!threePartsOn(w)) return undefined;
+  const k = w.cfg.reputation.threeParts;
+  return FIXES.repExplain(pct(k.safety), pct(k.service), pct(k.experience), k.experienceCap);
 }
