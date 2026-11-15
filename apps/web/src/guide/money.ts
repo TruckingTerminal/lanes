@@ -1,5 +1,6 @@
 import type { EconomyConfig } from "@lanes/config";
 import { type GuidePage, h, n, p, pct, see, table, ul } from "./util.js";
+import { equipmentFinanceLends } from "./growth.js";
 
 const S = "Money";
 
@@ -21,6 +22,29 @@ export function moneyPages(cfg: EconomyConfig): GuidePage[] {
         ]) +
         p(`The Company tab's market report shows the freight cycle and rates; stabilizers keep what's gone for good close to what's created (${see("cycle", "Booms, busts and stabilizers")}).`),
     },
+    ...(cfg.token.payment.enabled
+      ? [
+          {
+            id: "paid",
+            section: S,
+            title: "Getting paid",
+            html: (() => {
+              const k = cfg.token.payment;
+              const fc = k.factoring.contract;
+              const [lo, hi] = [fc.rateByTrucks[0]!, fc.rateByTrucks[fc.rateByTrucks.length - 1]!];
+              return ul([
+                ...(k.lessorPaysOnDelivery ? [`<b>On the lessor's truck</b> you're paid the day you deliver.`] : []),
+                `<b>On a truck of your own</b>, shippers and brokers pay ${k.termsDays} days after delivery: the invoice waits under Money while your costs land as they come. Before you buy, have a month of costs in cash.`,
+                `<b>Quick pay</b>: each new load paid on delivery, less ${pct(k.quickPayPct)}. No contract; change back any time. Invoices already open keep their dates.`,
+                ...(k.cashNow.enabled ? [`<b>Cash now</b>: sell one open invoice for cash today. The fee is ${pct(k.cashNow.spotPct)} of it, plus ${(k.cashNow.agingPerDay * 100).toFixed(1)}% for each day since the delivery, up to ${pct(k.cashNow.agingCap)} more.`] : []),
+                ...(fc.enabled
+                  ? [`<b>Factoring</b>: an outside company pays every invoice on delivery, ${fc.wholeFleet ? "for every truck you run, " : ""}for ${fc.months} game months, with no early exit. It keeps ${pct(lo[1])} of each load for a one-truck company, falling to ${(hi[1] * 100).toFixed(1)}% at ${hi[0]} trucks.${k.cashNow.enabled ? " Under a contract, cash now starts from the contract's rate instead." : ""}`]
+                  : []),
+              ]);
+            })(),
+          },
+        ]
+      : []),
     {
       id: "insurance",
       section: S,
@@ -53,7 +77,7 @@ export function moneyPages(cfg: EconomyConfig): GuidePage[] {
       section: S,
       title: "The holding cost",
       html: p(
-        `Cash isn't free to sit on. Each week ${pct(cfg.holdingCost.weeklyRate)} of any cash above your working capital is taken, and it's gone for good. Working capital is the larger of ${n(cfg.holdingCost.minProtectedFd)} FD and what you spent in the last four weeks, so a buffer for a bust is free and a hoard isn't. Put spare FD to work: trucks, facilities, or Equipment Finance loans to others.`,
+        `Cash isn't free to sit on. Each week ${pct(cfg.holdingCost.weeklyRate)} of any cash above your working capital is taken, and it's gone for good. Working capital is the larger of ${n(cfg.holdingCost.minProtectedFd)} FD and what you spent in the last four weeks, so a buffer for a bust is free and a hoard isn't. Put spare FD to work: ${equipmentFinanceLends(cfg) ? "trucks, facilities, or Equipment Finance loans to others" : "trucks or facilities"}.`,
       ),
     },
     {

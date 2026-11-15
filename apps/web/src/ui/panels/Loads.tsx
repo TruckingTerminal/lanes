@@ -386,7 +386,7 @@ function LoadDetail({ r, truck, mine, pendingRate }: { r: Row; truck: Truck; min
           <Kv
             rows={[
               ["Equipment", TRAILER_NAME[l.equipment]],
-              ["Commodity", <>{k.name}{k.spoilHours !== null ? <span class="warn"> · spoils {k.spoilHours} h after</span> : null}</>],
+              ["Commodity", <>{k.name}{k.spoilHours !== null ? <span class="warn"> · {windowsOn(w) && w.cfg.windows.spoilAfterDeadline ? WINDOWS.spoilsAfterDeadline(k.spoilHours) : `spoils ${k.spoilHours} h after`}</span> : null}</>],
               ["Cargo value", <Num>{fd(l.cargoValue)} FD</Num>],
               ["Driving", <>{r.hours.toFixed(1)} h{r.highway >= 0.05 ? <span class="warn"> · {pct(r.highway)} two-lane</span> : " · interstate"}</>],
               ["Tolls", r.tolls > 0 ? <span class="warn">{fd(r.tolls)} FD</span> : "none"],

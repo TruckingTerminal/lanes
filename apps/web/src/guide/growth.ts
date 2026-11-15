@@ -4,6 +4,10 @@ import { type GuidePage, h, n, p, pct, see, table, ul } from "./util.js";
 
 const S = "Growing the company";
 
+/** Whether Equipment Finance writes loans (pools.ts poolsOn and equipmentFinance.closedWithPools): the pools stand down while factoring contracts run. */
+export const equipmentFinanceLends = (cfg: EconomyConfig): boolean =>
+  !cfg.equipmentFinance.closedWithPools || (cfg.token.pools.enabled && !(cfg.token.payment.enabled && cfg.token.payment.factoring.contract.enabled));
+
 export function growthPages(cfg: EconomyConfig): GuidePage[] {
   const L = cfg.freeEntry.leases;
   const d = cfg.dealerDelivery;
@@ -34,8 +38,16 @@ export function growthPages(cfg: EconomyConfig): GuidePage[] {
       section: S,
       title: "Leasing",
       html: ul([
-        `<b>Your first truck</b> is an NPC lease: a Workhorse with a dry van. The lessor takes ${pct(cfg.costs.npcLeaseShareOfGross)} of every load's pay and pays for major repairs.`,
-        `<b>Extra leases</b>, once you own a truck: any trailer, no money down, the same ${pct(cfg.costs.npcLeaseShareOfGross)}, at least ${n(L.minWeeklyFd)} FD a week, a ${L.minTermDays}-day minimum term, up to ${L.maxPerCompany} at a time. You hire a driver for each.`,
+        ...(L.byValue.enabled
+          ? [
+              `<b>Your first truck</b> is an NPC lease: a Workhorse with a dry van, which the lease values at ${pct(L.byValue.starterValueShare)} of a new rig (about ${n(L.byValue.starterValueShare * (cfg.dealerFd.tractor.workhorse + cfg.dealerFd.trailer.van))} FD at list). The lessor takes ${pct(cfg.costs.npcLeaseShareOfGross)} of every load's pay and pays for major repairs. A week whose shares come to less than ${(L.byValue.weeklyShareOfValue * 100).toFixed(1)}% of the truck's value pays the difference.`,
+              `<b>The deposit.</b> The lessor holds back ${pct(L.byValue.escrowShareOfPay)} of each load's pay until it holds ${pct(L.byValue.depositShare)} of the truck's value (about ${n(L.byValue.depositShare * L.byValue.starterValueShare * (cfg.dealerFd.tractor.workhorse + cfg.dealerFd.trailer.van))} FD). It isn't a cost: it's yours${L.byValue.depositToPurchase ? ", and it counts toward your first truck of your own, released into your account when you buy" : ", paid back when the truck goes back"}.`,
+              `<b>Extra leases</b>, once you own a truck: a new Workhorse with any trailer, a deposit of ${pct(L.byValue.depositShare)} of its value paid up front and refunded when it goes back, the same ${pct(cfg.costs.npcLeaseShareOfGross)}, at least ${(L.byValue.weeklyShareOfValue * 100).toFixed(1)}% of its value a week (and never under ${n(L.minWeeklyFd)} FD), a ${L.minTermDays}-day minimum term, up to ${L.maxPerCompany} at a time. You hire a driver for each.`,
+            ]
+          : [
+              `<b>Your first truck</b> is an NPC lease: a Workhorse with a dry van. The lessor takes ${pct(cfg.costs.npcLeaseShareOfGross)} of every load's pay and pays for major repairs.`,
+              `<b>Extra leases</b>, once you own a truck: any trailer, no money down, the same ${pct(cfg.costs.npcLeaseShareOfGross)}, at least ${n(L.minWeeklyFd)} FD a week, a ${L.minTermDays}-day minimum term, up to ${L.maxPerCompany} at a time. You hire a driver for each.`,
+            ]),
         `The lessor's fleet grows when nearly all of it is out and freight is going uncovered, and shrinks when leases come back, so in a boom you may find none left.`,
       ]),
     },
@@ -59,6 +71,7 @@ export function growthPages(cfg: EconomyConfig): GuidePage[] {
         p(`Each tractor tier and trailer type has its own price index. Every month it moves a third of the way toward a target: up ${pct(cfg.dealerPrices.backlogWeight)} as the dealer's backlog doubles the wait, up as supply runs short (fewer than ${pct(cfg.dealerPrices.scarceBelow)} of the cap left) and down when there's plenty, within ×${cfg.dealerPrices.range[0]}–${cfg.dealerPrices.range[1]} of list. Used values move with new prices. Buying into a boom costs more.`) +
         h("Delivery and supply") +
         ul([
+          ...(cfg.costs.salesTax.enabled ? [`<b>Sales tax</b> of ${pct(cfg.costs.salesTax.pct)} is added to every truck, trailer and facility you buy, new or used.`] : []),
           `You pay when you order. The truck arrives ${d.baseDays} days later, plus a day for every ${n(1 / d.daysPerPendingOrder)} trucks already on order nationally (up to ${d.maxDays}). Orders placed in a boom often land as it turns.`,
           `Supply is capped: ${n(cfg.tractors.workhorse.pocCap)} Workhorses, ${n(cfg.tractors.highwayPro.pocCap)} Highway Pros and ${n(cfg.tractors.flagship.pocCap)} Flagships in the whole world. ${pct(cfg.starterReserveShare)} of Workhorses and dry vans are held for companies buying their first truck.`,
           ...(cfg.assets.expedite.enabled
@@ -78,11 +91,28 @@ export function growthPages(cfg: EconomyConfig): GuidePage[] {
     {
       id: "finance",
       section: S,
-      title: "Equipment Finance",
-      html: ul([
-        `<b>Borrow</b> up to ${pct(ef.maxLoanToValue)} of an owned truck's value at ${pct(ef.weeklyRate)} a week, repaid over ${ef.termWeeks} weeks.`,
-        `<b>Miss ${ef.missedPaymentsToRepossess} payments</b> and the truck is repossessed and sold.`,
-      ]),
+      title: ef.purchase.enabled ? "Loans" : "Equipment Finance",
+      html:
+        (ef.purchase.enabled
+          ? h("Buying on credit") +
+            ul([
+              `<b>A purchase loan</b> buys a truck, new or used, with the lender paying what you don't put down. You put down ${pct(ef.purchase.downShare[0])}–${pct(ef.purchase.downShare[1])} of the price, lock a stake of ${pct(ef.purchase.stakeShare)} of the loan until it's repaid, and pay it back weekly at ${(ef.purchase.weeklyRate[0] * 100).toFixed(1)}–${(ef.purchase.weeklyRate[1] * 100).toFixed(1)}% interest over ${ef.purchase.termWeeks} weeks. The cash at signing is the down payment, the stake${cfg.costs.salesTax.enabled ? " and the sales tax" : ""}.`,
+              `<b>Your credit score</b> (0–100) sets the down payment, the rate and how many loans you may carry: ${ef.purchase.maxLoans[0]} at the strongest, ${ef.purchase.maxLoans[1]} at the weakest. It rises as you pay on time and as your authority ages, and falls with open claims, a bankruptcy, a revocation, or thin cash against what you owe.`,
+              ...(ef.purchase.collateral.enabled
+                ? [
+                    `<b>The truck matters too.</b> One over ${ef.purchase.collateral.freeYears} years old needs ${pct(ef.purchase.collateral.downPerYear)} more down for each year past that, and one past ${n(ef.purchase.collateral.freeMiles)} miles ${pct(ef.purchase.collateral.downPer100kMi)} more for each 100,000 miles, up to ${pct(ef.purchase.collateral.maxDownShare)} down in all; an older truck's rate is a little higher and its loan shorter, paid off by the time it's ${ef.purchase.collateral.payoffYears} years old. Over ${ef.purchase.collateral.declineOverYears} years or ${n(ef.purchase.collateral.declineOverMiles)} miles, it's cash only. A company under ${ef.purchase.collateral.newBusiness.years === 1 ? "a year" : `${ef.purchase.collateral.newBusiness.years} years`} old puts ${pct(ef.purchase.collateral.newBusiness.downAdd)} more down.`,
+                  ]
+                : []),
+              `<b>Miss ${ef.purchase.missedToDefault} payments</b> and the loan defaults: the lender takes the truck the next time it's idle at a hub, at its market value, and your stake covers what that doesn't.`,
+            ])
+          : "") +
+        (equipmentFinanceLends(cfg)
+          ? h("Equipment Finance") +
+            ul([
+              `<b>Borrow</b> up to ${pct(ef.maxLoanToValue)} of an owned truck's value${ef.netOfPurchaseLoans ? ", less what you still owe on it," : ""} at ${pct(ef.weeklyRate)} a week, repaid over ${ef.termWeeks} weeks.`,
+              `<b>Miss ${ef.missedPaymentsToRepossess} payments</b> and the truck is repossessed and sold.`,
+            ])
+          : p("Equipment Finance, which lends against a truck you already own, writes no new loans in this world for now.")),
     },
     {
       id: "overhead",

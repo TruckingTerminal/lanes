@@ -47,12 +47,14 @@ export function referencePages(cfg: EconomyConfig): GuidePage[] {
           [
             "Claim",
             cfg.windows.enabled
-              ? `What a carrier pays when a load goes wrong. Late (${pct(cfg.windows.lateClaimShare)}) or a no-show (${pct(cfg.windows.noShowClaimShare)}): a share of the load's pay, to its broker or shipper when that's a company (a player's, or an AI brokerage); otherwise it leaves the game. Released (${pct(cfg.windows.cancelClaimShare.early)}, or ${pct(cfg.windows.cancelClaimShare.urgent)} in the last days): it always leaves the game, since the load goes back on the board. Each is a mark on the record too, and none is more than the carrier holds. A spoiled load: ${pct(cfg.commodities.spoilClaimShare)} of its value`
+              ? `What a carrier pays when a load goes wrong. Late (${pct(cfg.windows.lateClaimShare)}) or a no-show (${pct(cfg.windows.noShowClaimShare)}): a share of the load's pay, to its broker or shipper when that's a company (a player's, or an AI brokerage); otherwise it leaves the game. Released (${pct(cfg.windows.cancelClaimShare.early)}, or ${pct(cfg.windows.cancelClaimShare.urgent)} in the last days): it always leaves the game, since the load goes back on the board. Each is a mark on the record too, ${cfg.windows.claimsInFull ? "and is paid in full, like any bill, even into the red (a company receiving one gets at most what the carrier held; the rest leaves the game)" : "and none is more than the carrier holds"}. A spoiled load: ${pct(cfg.commodities.spoilClaimShare)} of its value`
               : `What a carrier pays for a spoiled load: ${pct(cfg.commodities.spoilClaimShare)} of its value`,
           ],
           ["Deadhead", "Miles driven empty"],
+          ...(cfg.detention.enabled ? [["Detention", `Pay for waiting at a closed dock: ${n(cfg.detention.fdPerHour)} FD an hour past ${cfg.detention.freeHours} free hours, from the load's poster`]] : []),
           ...(cfg.windows.enabled ? [["Delivery window", "A load's times: when it's ready, when its pickup closes, and the deadline to deliver it"]] : []),
           ["Duty day", "The 24 hours from when a truck first rolls; driving hours reset after it"],
+          ...(cfg.token.payment.enabled && cfg.token.payment.factoring.contract.enabled ? [["Factoring", `A contract with an outside company that pays every invoice on delivery and keeps a share (${see("paid", "Getting paid")})`]] : []),
           ["FD", "Freight Dollars, the game's money"],
           ["FSC", "Fuel surcharge, paid on top of the linehaul rate"],
           ["Garaging", "Where a carrier is based, for insurance"],
@@ -60,7 +62,9 @@ export function referencePages(cfg: EconomyConfig): GuidePage[] {
           ["Hot load", "Freight with a tight window, at a premium"],
           ["Load-to-truck ratio", "Loads posted against trucks available nearby; higher means tighter, better-paying"],
           ["Miles", "Points earned for hauling well, converted to the airdrop at launch"],
+          ...(cfg.token.payment.enabled ? [[`Net ${cfg.token.payment.termsDays}`, `Paid ${cfg.token.payment.termsDays} days after delivery, as shippers pay a truck you own`]] : []),
           ["Out of service", "Ordered off the road at an inspection until a problem is fixed"],
+          ...(cfg.token.payment.enabled ? [["Quick pay", `Each load paid on delivery, less ${pct(cfg.token.payment.quickPayPct)}`]] : []),
           ["Reload odds", "How easily a truck finds its next load after delivering at a hub"],
           ...(cfg.token.settlementFee?.enabled ? [["Settlement fee", `${pct(cfg.token.settlementFee.share)} of a carrier's pay for each load, and of every sale between companies; gone for good`]] : []),
           ["Span", "How many trucks a dispatcher can run"],
@@ -75,7 +79,7 @@ export function referencePages(cfg: EconomyConfig): GuidePage[] {
       title: "Questions",
       html:
         p(`<b>Why did I lose a bid at a lower rate than the winner?</b> Price is ${pct(cfg.board.scoreWeights.price)} of the score; reputation, empty miles and the home-market edge make up the rest.`) +
-        p(`<b>Why are my trucks sitting idle?</b> No freight in range that clears your floor, no driver, or your fleet is past your dispatch team's span (the Staff tab says which).`) +
+        p(`<b>Why are my trucks sitting idle?</b> ${cfg.guard.dispatcherDefaultOn ? "" : "Your dispatcher may be off: it stays off until you switch it on, on the Truck tab. Otherwise: "}${cfg.guard.dispatcherDefaultOn ? "No" : "no"} freight in range that clears your floor, no driver, a driver on days off, or your fleet is past your dispatch team's span (the Staff tab says which).`) +
         p(`<b>Why did my insurance go up?</b> A renewal re-prices it: check the Company tab for your record, garaging and the market. A serious crash or a bad rating re-writes it at once.`) +
         p(`<b>Can I pause the live world?</b> No. Only test worlds pause. See ${see("worlds", "The live world and test worlds")}.`) +
         p(`<b>Is a hired dispatcher better than me?</b> Never better than your own bids by hand. See ${see("dispatch", "You against your dispatcher")}.`),

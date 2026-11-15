@@ -24,11 +24,11 @@ describe("the trade-in asks first", () => {
     const t = w.trucksByCompany.get(c.id)![0]!;
     const lines = tradeIn(w, t, 2, "Dallas Truck Center", "Dallas", 48_200);
     const tr = hookedTrailer(w, t);
-    expect(lines.does).toContain("Trade truck 2 in to Dallas Truck Center at Dallas for 48,200 FD.");
+    expect(lines.does).toContain("Trade Truck 2 in to Dallas Truck Center at Dallas for 48,200 FD.");
     if (tr) expect(lines.does).toMatch(tr.lease === "owned" ? /goes with it\./ : /goes back to the lessor\./);
-    expect(lines.risk).toContain("It can't be undone.");
-    expect(lines.risk).toContain(`worth ${fdFull(truckValue(w, t))} FD; the dealership pays ${pct(w.cfg.businesses.kinds.dealership.tradeInShare)} of that.`);
-    expect(FIXES.tradeInDone(2, "48,200", "Dallas Truck Center")).toBe("Traded in: Truck 2 · +48,200 FD · Dallas Truck Center");
+    expect(lines.risk).toContain("This can't be undone.");
+    expect(lines.risk).toContain(`worth ${fdFull(truckValue(w, t))} FD, and the dealership pays ${pct(w.cfg.businesses.kinds.dealership.tradeInShare)} of that.`);
+    expect(FIXES.tradeInDone(2, "48,200", "Dallas Truck Center")).toBe("Truck 2 traded in to Dallas Truck Center for 48,200 FD.");
   }, 120_000);
 
   it("the Yard's Trade in button opens the Confirm; nothing trades in on the tap itself", () => {
@@ -66,7 +66,7 @@ describe("QA's M4 and the player's long runs (client)", () => {
     const l = { ceiling: 2.52 } as unknown as Load;
     const [lo, hi] = bidRange(null as never, l, 2.6);
     expect(hi - lo).toBeLessThan(0.005);
-    expect(FIXES.noBidPays("2.60", "2.52")).toBe("No bid pays: your break-even 2.60/mi is at or over the ceiling 2.52/mi.");
+    expect(FIXES.noBidPays("2.60", "2.52")).toBe("No bid pays here: your break-even, 2.60/mi, is at or over the ceiling, 2.52/mi.");
     expect(src("ui", "panels", "Board.tsx")).toContain("hi - lo < 0.005 ? <span class=\"muted small\">{FIXES.noBidPays(");
   });
 
@@ -91,7 +91,7 @@ describe("QA's M4 and the player's long runs (client)", () => {
     const e = moneyEvents(g.w, c, 0, 0).find((x) => x.kind === "fine")!;
     expect(e.sub).toBe("review");
     expect(e.truckId).toBeNull();
-    expect(FIXES.fine.review!(0, "24,201")).toBe("Compliance review fine: −24,201 FD for what the auditor found in the company's records.");
+    expect(FIXES.fine.review!(0, "24,201")).toBe("Compliance review fine: −24,201 FD for what the auditor found in your records.");
     for (const k of ["tracking", "defect", "review", "doublebroker"]) expect(FIXES.fine[k]).toBeDefined();
   }, 120_000);
 

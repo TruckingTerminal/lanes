@@ -19,6 +19,8 @@ export const WINDOWS = withGrammar({
   ready: "Ready",
   pickupBy: "Pick up by",
   deliverBy: "Deliver by",
+  // The load sheet's commodity row under windows.spoilAfterDeadline (0.25.2): the spoil clock runs from Deliver by.
+  spoilsAfterDeadline: (h: number) => `spoils ${h} h after its Deliver by`,
   agreeTitle: "What you're agreeing to",
   agreeNoShow: (by: string, fd: string) => `Pick up by ${by}, or it's a no-show: a ${fd} FD claim and a mark on your record.`,
   agreeLate: (by: string, fd: string) => `Deliver by ${by}, or it's late: a ${fd} FD claim and a mark on your record.`,

@@ -3,6 +3,7 @@ import { type GuidePage, h, n, p, pct, see, table, ul } from "./util.js";
 import { PENDING } from "../copy-pending.js";
 
 const S = "Running trucks";
+const hh = (h: number) => `${String(h).padStart(2, "0")}:00`;
 
 export function operationsPages(cfg: EconomyConfig): GuidePage[] {
   const lab = cfg.labor;
@@ -16,12 +17,12 @@ export function operationsPages(cfg: EconomyConfig): GuidePage[] {
       section: S,
       title: "You against your dispatcher",
       html:
-        p(`Standing orders are your dispatcher's rules. Whoever dispatches (you as owner, plus any dispatchers you hire) runs them every round for every idle truck you didn't bid on by hand. Their skill decides how well:`) +
+        p(`Standing orders are your dispatcher's rules. ${cfg.guard.dispatcherDefaultOn ? "Whoever dispatches" : "Once you switch your dispatcher on (on the Truck tab), whoever dispatches"} (you as owner, plus any dispatchers you hire) runs them every round for every idle truck you didn't bid on by hand. Their skill decides how well:`) +
         ul([
           `<b>Pricing:</b> they misjudge their own costs by about ${pct(lab.dispatcher.noise[0])} when green and ${pct(lab.dispatcher.noise[1])} at their best. The loads they win are disproportionately the ones they underpriced.`,
           `<b>Reload awareness:</b> they price in ${lab.dispatcher.reloadAware[0]}× to ${lab.dispatcher.reloadAware[1]}× of the empty run out of a destination.`,
           `<b>Foresight:</b> they look 0 to ${lab.dispatcher.foresightDays[1]} days ahead on each market's season when pricing loads and moving idle trucks.`,
-          `<b>Span:</b> you can run ${lab.owner.span} trucks; a hired dispatcher ${lab.dispatcher.span[0]}–${lab.dispatcher.span[1]}. Past the team's span, some idle trucks sit out each round.`,
+          `<b>Span:</b> you can run ${lab.owner.span} trucks; a hired dispatcher ${lab.dispatcher.span[0] === lab.dispatcher.span[1] ? `up to ${lab.dispatcher.span[0]}` : `${lab.dispatcher.span[0]}–${lab.dispatcher.span[1]}`}. Past the team's span, some idle trucks sit out each round.`,
         ]) +
         p(`<b>You can always beat the best of them by hand.</b> You see everything they see: exact ceilings, reload odds, every market's season a year out, and where the AI is crowding. You aren't held to their rule set or their mistakes. The Staff tab shows your team's numbers.`),
     },
@@ -53,6 +54,14 @@ export function operationsPages(cfg: EconomyConfig): GuidePage[] {
         ul([
           `A driver gets ${hos.drivingHoursPerDay} driving hours in a 24-hour duty day that opens when the truck first rolls: about ${hos.drivingHoursPerDay * hos.avgMph} miles at ${hos.avgMph} mph (your driver's skill moves speed ±${pct(lab.driver.mphRange / 2)}). A team of two drivers gets ${cfg.safety.hos.teamHours}.`,
           `Loading and unloading take ${cfg.dwell.loadMinutes[0] / 60}–${cfg.dwell.loadMinutes[1] / 60} hours each, on duty but not driving.`,
+          ...(cfg.docks.enabled
+            ? [
+                `<b>Docks.</b> Every load's docks are one of three kinds, set by its commodity (${see("commodities", "Places, commodities and appointments")}). An <b>appointment</b> dock loads at any hour and unloads by slot: the receiver gives your truck a slot when it starts the job; more than ${cfg.docks.appointment.earlyMinutes / 60} hours before it the truck waits, and more than ${cfg.docks.appointment.graceMinutes / 60} hours after it, it waits ${cfg.docks.appointment.nextSlotHours[0]}–${cfg.docks.appointment.nextSlotHours[1]} hours for the next one. A <b>first-come</b> dock is open ${hh(cfg.docks.hours.fcfs.open)}–${hh(cfg.docks.hours.fcfs.close)}, ${cfg.docks.hours.fcfs.days.length} days a week, though the busiest places never close; a <b>daylight</b> dock ${hh(cfg.docks.hours.daylight.open)}–${hh(cfg.docks.hours.daylight.close)}, ${cfg.docks.hours.daylight.days.length} days a week. A truck that reaches a closed dock waits for it to open.${cfg.docks.lateFromArrival ? " Lateness counts from when the truck reaches the receiver, so waiting at its dock never makes a load late." : ""}`,
+              ]
+            : []),
+          ...(cfg.detention.enabled
+            ? [`<b>Detention.</b> A wait at a closed dock past ${cfg.detention.freeHours} free hours earns ${n(cfg.detention.fdPerHour)} FD an hour, up to ${cfg.detention.maxHours} hours a stop, paid by the load's poster with the load. Waiting for a slot earns none, and neither does waiting for a load that isn't ready.`]
+            : []),
           cfg.windows.enabled && cfg.windows.oneDeadline
             ? `On time means at the receiver by the load's delivery deadline (below), for your record, your Miles and the claim alike; after it is late.`
             : cfg.windows.enabled
@@ -70,13 +79,13 @@ export function operationsPages(cfg: EconomyConfig): GuidePage[] {
               `<b>Pick up by.</b> The pickup closes ${cfg.windows.pickupHours.appointment} hours after the load is ready at a shipper with appointments, ${cfg.windows.pickupHours.firstCome} at a first-come dock. Waiting at the shipper before the load is ready pays no detention.`,
               `<b>Deliver by.</b> The deadline is the pickup's close, plus the drive at the legal hours, plus the commodity's own hours (${see("commodities", "Places, commodities and appointments")}). A hot load's is counted from when it's ready, at the hot pace.`,
               `<b>The pay in the last days.</b> A load's price holds until the last ${cfg.windows.urgencyRounds / cfg.time.boardRoundHours.length} days before its pickup closes, then climbs each round (not on a player's posted load). Wait too long and someone else books it, or nobody does.`,
-              `<b>Claims.</b> Whoever posted the load claims a share of its pay as booked: ${pct(cfg.windows.lateClaimShare)} for a late delivery, ${pct(cfg.windows.noShowClaimShare)} for a no-show (your truck not at the shipper when the pickup closes). Each is a mark on your record too.`,
+              `<b>Claims.</b> Whoever posted the load claims a share of its pay as booked: ${pct(cfg.windows.lateClaimShare)} for a late delivery, ${pct(cfg.windows.noShowClaimShare)} for a no-show (your truck not at the shipper when the pickup closes). Each is a mark on your record too.${cfg.windows.claimsInFull ? " A claim, a release's included, is paid in full like any bill, even if it takes your cash below zero." : ""}`,
               `<b>Booking ahead.</b> A truck on a job can book its next load: one ahead, never two. Releasing it costs ${pct(cfg.windows.cancelClaimShare.early)} of its pay, or ${pct(cfg.windows.cancelClaimShare.urgent)} in the last ${cfg.windows.urgencyRounds / cfg.time.boardRoundHours.length} days before its pickup closes, and marks your record. When a breakdown puts it out of reach, your dispatcher releases a load it booked itself at ${pct(cfg.windows.cancelClaimShare.early)}; one you booked by hand waits for you: release it at ${pct(cfg.windows.cancelClaimShare.early)} within a round, or keep it and let the pickup's close decide.`,
               `<b>Lost loads.</b> A load nobody books by its pickup's close is lost. A broker whose load is lost pays a fall-off charge of ${pct(cfg.brokerRisk.fallOffShare)} of what the shipper agreed to pay; a shipper's goods go unsold.`,
             ])
           : "") +
         h("Hot loads") +
-        p(`About ${pct(hl.share)} of long-haul freight (${hl.minMiles} miles or more) is hot: it pays ${hl.premium[0]}–${hl.premium[1]}× for a window that assumes ${hl.hoursPerDay} driving hours a day with only ${hl.slackMinutes / 60} hours of slack. A solo driver can't make it legally; a team can. Delivered late, a hot load pays only ${pct(hl.lateKeepsPremium)} of its premium. Hot loads are at least standard-vetted.`),
+        p(`About ${pct(hl.share)} of long-haul freight (${hl.minMiles} miles or more) is hot: it pays ${hl.premium[0]}–${hl.premium[1]}× for a window that assumes ${hl.hoursPerDay} driving hours a day with only ${hl.slackMinutes / 60} hours of slack. A solo driver can't make it legally; a team can. ${hl.premiumFromArrival ? "Reaching its receiver late" : "Delivered late"}, a hot load pays only ${pct(hl.lateKeepsPremium)} of its premium. Hot loads are at least standard-vetted.`),
     },
     {
       id: "roads",
@@ -96,7 +105,11 @@ export function operationsPages(cfg: EconomyConfig): GuidePage[] {
       section: S,
       title: "Reputation and on-time",
       html:
-        p(`Your reputation is your smoothed on-time rate: a new company counts as ${cfg.reputation.priorLoads} loads at ${pct(cfg.reputation.start)}, then every delivery moves it. It's ${pct(cfg.board.scoreWeights.reputation)} of every bid's score, so a good record wins loads at higher rates.`) +
+        p(
+          cfg.windows.enabled
+            ? `Your reputation is your smoothed on-time rate: a new company counts as ${cfg.reputation.priorLoads} loads at ${pct(cfg.reputation.start)}. Every load delivered on time${cfg.windows.oneDeadline ? " (by its Deliver by)" : ""} lifts it; a late one pulls it down, and so does every load you release or don't pick up, as a late delivery would. It's ${pct(cfg.board.scoreWeights.reputation)} of every bid's score, so a good record wins loads at higher rates. The Company page shows the figure and the marks behind it.`
+            : `Your reputation is your smoothed on-time rate: a new company counts as ${cfg.reputation.priorLoads} loads at ${pct(cfg.reputation.start)}, then every delivery moves it. It's ${pct(cfg.board.scoreWeights.reputation)} of every bid's score, so a good record wins loads at higher rates.`,
+        ) +
         p(`Your level is the square root of loads delivered ÷ ${cfg.reputation.loadsPerLevelSq}, up to ${cfg.reputation.maxLevel}, and it multiplies the Miles you earn (×${cfg.miles.reputationRange[0]}–${cfg.miles.reputationRange[1]}). Going broke resets both.`),
     },
     {
