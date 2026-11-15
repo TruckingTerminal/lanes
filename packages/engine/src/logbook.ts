@@ -29,6 +29,11 @@ interface Milestone {
   weight: number;
   roles: Role[];
   text: string;
+  /**
+   * What it reads with logbook.serviceMilestones on (the red team's L3), where `reached` reads service failures, not the
+   * on-time share alone (the writer's words, writer-sprint-2026-11-15.md §13).
+   */
+  textService?: string;
   /** Whether the feature it needs is on in this world. */
   open?: (w: World) => boolean;
   reached: (w: World, c: Company, lb: Logbook) => boolean;
@@ -59,6 +64,7 @@ export const MILESTONES: Milestone[] = [
     weight: 6,
     roles: ["carrier"],
     text: "100 loads delivered at 95% on time",
+    textService: "100 loads delivered, with fewer than 5 in 100 failed or late",
     // logbook.serviceMilestones (the red team's L3): under one deadline the on-time share is automatic, so it reads
     // service failures instead: no-shows, releases and deliveries past Deliver by (with spoiled and stolen loads) under
     // 5% of the loads booked since the book opened.
@@ -80,6 +86,7 @@ export const MILESTONES: Milestone[] = [
     weight: 8,
     roles: ["carrier", "broker"],
     text: "a quarter with no at-fault crash and no claim, 25 loads handled",
+    textService: "a quarter with no at-fault crash, no claim and no failed or late load, 25 loads handled",
     reached: (w, c, lb) => {
       const d = day(w);
       // logbook.serviceMilestones (L3): the quarter's windows failures and cargo claims count too, not only fraud claims.
@@ -109,8 +116,13 @@ export const MILESTONES: Milestone[] = [
   { id: "coldCase", path: "criminal", weight: 8, roles: ["carrier", "broker"], text: "a case gone cold", reached: (_w, _c, lb) => lb.coldCases >= 1 },
 ];
 
-/** A milestone's plain-language name. */
-export const milestoneText = (id: string): string => MILESTONES.find((m) => m.id === id)?.text ?? id;
+/** A milestone's words as `reached` reads it in this world: with logbook.serviceMilestones on, the service words. */
+const textOf = (w: World | undefined, m: Milestone): string => (w !== undefined && w.cfg.token.airdrop.logbook.serviceMilestones === true && m.textService) || m.text;
+/** A milestone's plain-language name (in `w`, by its switches). */
+export const milestoneText = (id: string, w?: World): string => {
+  const m = MILESTONES.find((x) => x.id === id);
+  return m ? textOf(w, m) : id;
+};
 
 const applies = (w: World, m: Milestone, role: Role) => m.roles.includes(role) && (m.open?.(w) ?? true);
 
@@ -231,7 +243,7 @@ export function logbookCatalogue(w: World, role: Role): { id: string; path: Path
   return MILESTONES.filter((m) => applies(w, m, role)).map((m) => ({
     id: m.id,
     path: m.path,
-    text: m.text,
+    text: textOf(w, m),
     share: (1 - k.atLaunch) * (m.path === "honest" ? m.weight / honest : (k.criminalShare * m.weight) / criminal),
   }));
 }

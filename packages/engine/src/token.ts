@@ -783,7 +783,7 @@ function logbookPay(w: World, c: Company): void {
     st.reached[r.id] = (st.reached[r.id] ?? 0) + 1;
     if (r.path === "honest") st.honestFd += r.fd;
     else st.criminalFd += r.fd;
-    w.listener?.({ kind: "notice", companyId: c.id, topic: "airdrop", text: `Logbook: ${milestoneText(r.id)}. ${Math.round(r.fd).toLocaleString("en-US")} FD of your airdrop unlocked.`, tone: "good" });
+    w.listener?.({ kind: "notice", companyId: c.id, topic: "airdrop", text: `Logbook: ${milestoneText(r.id, w)}. ${Math.round(r.fd).toLocaleString("en-US")} FD of your airdrop unlocked.`, tone: "good" });
   }
   if (lostFd > 0.005) {
     // Paid locked (logbook.paidLocked): what's still locked and unspent at the deadline burns.

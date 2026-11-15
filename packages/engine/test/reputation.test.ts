@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { withLiveLevers, type EconomyConfig } from "@lanes/config";
 import { buildNetwork, hubs, neutralFeeds } from "@lanes/data";
 import { populate } from "@lanes/agents";
-import { createWorld, formCompany, MILESTONES, openLogbook, refile, repDelivered, repFailed, reputationParts, restart, safetyPart, scoreBid, startLiquidation, type Company, type Load, type World } from "@lanes/engine";
+import { createWorld, formCompany, logbookCatalogue, milestoneText, MILESTONES, openLogbook, refile, repDelivered, repFailed, reputationParts, restart, safetyPart, scoreBid, startLiquidation, type Company, type Load, type World } from "@lanes/engine";
 
 /**
  * Reputation in three parts (reputation.threeParts, off by default; the director's ruling of 2026-11-14, the economy's
@@ -112,6 +112,18 @@ describe("the logbook's service milestones (token.airdrop.logbook.serviceMilesto
   const SERVICE = { ...LIVE, token: { ...LIVE.token, airdrop: { ...LIVE.token.airdrop, logbook: { ...LIVE.token.airdrop.logbook, serviceMilestones: true } } } } as EconomyConfig;
   const onTime = MILESTONES.find((m) => m.id === "onTime")!;
   const clean = MILESTONES.find((m) => m.id === "cleanQuarter")!;
+
+  it("the two milestones read as they're reached: the service words with the switch on, as before with it off", () => {
+    const on = world(SERVICE);
+    const off = world(OFF);
+    const text = (w: World, id: string) => logbookCatalogue(w, "carrier").find((m) => m.id === id)!.text;
+    expect(text(on.w, "onTime")).toBe("100 loads delivered, with fewer than 5 in 100 failed or late");
+    expect(text(on.w, "cleanQuarter")).toBe("a quarter with no at-fault crash, no claim and no failed or late load, 25 loads handled");
+    expect(milestoneText("onTime", on.w)).toBe(text(on.w, "onTime"));
+    expect(text(off.w, "onTime")).toBe("100 loads delivered at 95% on time");
+    expect(text(off.w, "cleanQuarter")).toBe("a quarter with no at-fault crash and no claim, 25 loads handled");
+    expect(milestoneText("onTime")).toBe("100 loads delivered at 95% on time");
+  });
 
   it("100 loads at 95% reads service failures: releases and no-shows count against it, as late deliveries do", () => {
     const { w, c } = world(SERVICE);
