@@ -10,7 +10,7 @@ import { rebrokerLoad, vettingBlock } from "./fraud.js";
 import { homeEdge, updateHomeCrowding } from "./home.js";
 import { creditDispatch, dispatchProfile, startHomeTime } from "./labor.js";
 import { companyAccount } from "./ledger.js";
-import { bidsFromStandingOrders, boardKey, readyKey, canMakeHot, dockWaitCost, indexOpenLoads, scoreBid, desperation, estimateBreakEven, resting, trackingWouldShow, needsHome, homeward, hardCap, floorRate, lookaheadValue, ordersWaitForHand } from "./standingOrders.js";
+import { bidsFromStandingOrders, boardKey, readyKey, canMakeHot, dockWaitCost, indexOpenLoads, scoreBid, desperation, estimateBreakEven, resting, trackingWouldShow, needsHome, homePlan, homeward, hardCap, floorRate, lookaheadValue, ordersWaitForHand } from "./standingOrders.js";
 import { firstCallLost, firstCallRound, firstCallTaken } from "./standing.js";
 import { startJob } from "./trips.js";
 import { bookingCapBlock, brokerBooks, contractOn, type BrokerBook } from "./receivables.js";
@@ -326,7 +326,9 @@ export function autoBook(w: World): void {
       if (team.coverage < 1 && rng.next() >= team.coverage) continue;
       const desperate = desperation(w, company, at);
       const want = order.breakEvenPlusPct * (1 - desperate);
-      const goHome = needsHome(w, company, truck);
+      const home = homePlan(w, company, truck, plan);
+      if (home.none) continue; // labor.dueHomePlan: due, and home: nothing leaves home
+      const goHome = home.homewardOnly;
       let best: { load: Load; dh: number; profit: number } | null = null;
       for (const hub of w.net.nearby[at.hub]!) {
         if (hubMiles(w, at.hub, hub) > order.maxDeadheadMi + w.cfg.commodities.placeSlackMi) break; // nearby is sorted nearest first

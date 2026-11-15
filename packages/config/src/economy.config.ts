@@ -1960,6 +1960,13 @@ export const economyConfig = {
     // truck. On the bus: days away, no rest, no layover besides the fare. Arriving: home, the last hub the home hub, the
     // days off started if due. Off (or with truckLessHomeByHub off): nothing here runs.
     busHome: { enabled: false, miPerDay: 800, fareDays: 1, waitDays: 1 },
+    // The director's sprint §5 (the dispatcher working a due driver through home; it clarifies ruling C and 0.25.1 ruling
+    // 2): from leadDays before the home rule's days out, read at the plan's start (booked-ahead loads included), the
+    // dispatcher books only loads that end nearer home; at or past due inside the home radius it books nothing out of
+    // home; and the days off start at the first moment the driver is inside the home radius with no load on (after a
+    // delivery there, or arriving empty), a load booked ahead held for them (rule H's hold). A loaded truck passing
+    // through home doesn't stop. Bots and an owner with the dispatcher on alike. Off: as 0.25.1 left it.
+    dueHomePlan: { enabled: false, leadDays: 5 },
   },
 
   // The guards (the director's triage of the player's second diary, studio/reviews/director-player2.md): limits on what

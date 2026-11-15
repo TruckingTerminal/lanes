@@ -529,6 +529,13 @@ function setIdle(w: World, truck: Truck): void {
   truck.legKey = -1;
   // assets.swapAtNextIdle: a due truck ordered to replace this lease takes over now, before anything books it (dealer.ts).
   swapAtIdle(w, truck);
+  // labor.dueHomePlan (the director's sprint §5): inside the home radius with no load on, a due driver's days off start
+  // first, and the load booked ahead is held for them (departHeld takes it once they end).
+  if (truck.nextLoadId !== undefined && w.cfg.labor.dueHomePlan?.enabled === true) {
+    homeArrival(w, truck);
+    const d = truck.driverId ? w.staff[truck.driverId - 1] : undefined;
+    if (d && d.homeUntilDay !== null && d.homeUntilDay > dayOf(w.t, w.cfg)) return; // on days off, as departHeld reads it
+  }
   // Delivery windows: the load booked ahead comes first; home time and a queued run home wait for the job after it.
   if (truck.nextLoadId !== undefined && takeNextLoad(w, truck)) return;
   homeArrival(w, truck);

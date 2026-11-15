@@ -61,6 +61,23 @@ export function needsHome(w: World, c: Company, t: Truck): boolean {
   return hm !== undefined && d.awayDays >= hm.afterDays;
 }
 
+/**
+ * The dispatcher's home rules for a planned truck (the switch off: needsHome, as before). labor.dueHomePlan (the
+ * director's sprint §5): from leadDays before the home rule's days out, read at the plan's start, only loads toward home;
+ * at or past due where the plan stands inside the home radius, nothing at all (the days off start there).
+ */
+export function homePlan(w: World, c: Company, t: Truck, plan: { at: Truck; startT: number }): { homewardOnly: boolean; none: boolean } {
+  const goHome = needsHome(w, c, t);
+  const k = w.cfg.labor.dueHomePlan;
+  if (!k?.enabled || !t.driverId) return { homewardOnly: goHome, none: false };
+  const d = w.staff[t.driverId - 1]!;
+  const hm = c.orders.find((o): o is Extract<StandingOrder, { kind: "homeTime" }> => o.kind === "homeTime");
+  const days = d.awayDays + Math.max(0, Math.floor((plan.startT - w.t) / w.cfg.time.gameMinutesPerDay));
+  const due = d.wantsHome || (hm !== undefined && days >= hm.afterDays);
+  const atHome = hubMiles(w, plan.at.hub, c.homeHub) <= w.cfg.map.nearbyRadiusMi;
+  return { homewardOnly: goHome || due || (hm !== undefined && days >= hm.afterDays - k.leadDays), none: due && atHome };
+}
+
 /** A load that brings a truck due home closer: delivers within the home radius, or well on the way. */
 export function homeward(w: World, c: Company, t: Truck, load: Load): boolean {
   const toHome = hubMiles(w, load.dest, c.homeHub);
@@ -159,7 +176,9 @@ export function bidsFromStandingOrders(w: World, company: Company, idx: BoardInd
     if (!plan || !crewed(truck) || resting(w, truck)) continue;
     const at = plan.at;
     if (team.coverage < 1 && rng.next() >= team.coverage) continue;
-    const goHome = needsHome(w, company, truck);
+    const home = homePlan(w, company, truck, plan);
+    if (home.none) continue; // labor.dueHomePlan: due, and home: nothing leaves home
+    const goHome = home.homewardOnly;
     const desperate = desperation(w, company, at);
     const candidates: { bid: Bid; profit: number }[] = [];
     let inRange = 0;
