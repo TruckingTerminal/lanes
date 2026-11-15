@@ -12,7 +12,11 @@ export const RESERVE = {
   sheltered: (sheltered: string, cap: string) => `Sheltered ${sheltered} of ${cap} FD`,
   shelterIs: (weeks: number) => `The shelter is ${weeks} weeks of your spending.`,
   shelterNone: (weeks: number) => `Nothing is sheltered yet: the shelter is ${weeks} weeks of your spending.`,
-  overShelter: (over: string) => `${over} FD over the shelter is charged as cash is.`,
+  overShelter: (over: string) => `${over} FD over the shelter's cap is charged as cash is.`,
+  // UX §3.8's first-week line: FD put in this week, not yet in a week's lowest balance. By the phase, not by launch: the live
+  // world charges the weekly holding cost before launch too, so this week's check still charges it once.
+  firstWeekHolding: (fd: string, day: string) => `${fd} FD put in this week pays ${day}'s holding cost once. It's sheltered after that.`,
+  firstWeekClose: (fd: string, day: string) => `${fd} FD put in this week counts toward the shelter from ${day}.`,
   // The phase line: what it keeps FD from.
   phaseHolding: (rate: string) => `It keeps FD from the weekly holding cost, ${rate} of cash over your working capital.`,
   phaseClose: (date: string) => `It keeps FD from the year-end close, ${date}.`,
@@ -22,7 +26,7 @@ export const RESERVE = {
   settling: (fd: string, day: string) => `Settling ${fd} FD · in cash ${day}`,
   // The foot, every time; the director's §15 line with the winding-up check counting the Reserve; the launch line before launch.
   foot: "Bills are paid from cash only. A withdrawal reaches cash the next day.",
-  footCounts: "If cash runs short, the Reserve still counts as yours: the winding-up line reads cash and the Reserve together.",
+  footCounts: "If cash runs short, the Reserve still counts: the winding-up check reads cash and the Reserve together.",
   footLaunch: "At FD's launch it goes back into cash, so it keeps nothing from the launch's reset.",
   // The cash card's line.
   cashLine: (fd: string) => `+ ${fd} FD in the Reserve`,
@@ -55,14 +59,14 @@ export const RESERVE = {
   // Needs you: cash under zero while the Reserve holds FD. With the countdown running (§15 off, or the sum under the line),
   // ranked with it; with the Reserve covering it (§15 on), the director's tier-2 line.
   needCount: (cash: string, reserve: string) => `Cash is ${cash} FD and the weeks-in-debt count is running. ${reserve} FD sits in the Reserve.`,
-  needCovers: (cash: string) => `Cash is ${cash} FD. The Reserve covers it, but bills and purchases need cash.`,
+  needCovers: (cash: string) => `Cash is ${cash} FD. Your Reserve covers it, but bills and purchases are paid from cash.`,
   needWithdraw: (fd: string) => `Withdraw ${fd} FD`,
   needAfter: (fd: string, day: string) => `${fd} FD reaches cash ${day}.`,
   // Needs you: the close window (a world with seasons, before launch, once per close).
   needClose: (date: string, fd: string, room: string) => `The year-end close on ${date} would burn ${fd} FD of today's cash. The Reserve can keep ${room} FD of it.`,
   // The director's §15: the weeks-in-debt warning reads cash and the Reserve together.
   debtTogether: (under: string, limit: string, n: number, of: number, day: string) =>
-    `Cash and the Reserve together are ${under} FD under the −${limit} line: week ${n} of ${of}. The company is wound up after ${day} unless they're back over it.`,
+    `Cash and the Reserve together are ${under} FD under the −${limit} line: week ${n} of ${of}. The company is wound up after ${day} unless the two together are back over it.`,
 };
 
 /** The card's explain sheets (ui/Explain.tsx): what the figure is, how it's built, what moves it; the phase from the world. */

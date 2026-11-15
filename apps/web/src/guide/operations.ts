@@ -106,7 +106,12 @@ export function operationsPages(cfg: EconomyConfig): GuidePage[] {
       title: "Reputation and on-time",
       html:
         p(
-          cfg.windows.enabled
+          cfg.reputation.threeParts?.enabled
+            ? (() => {
+                const r = cfg.reputation.threeParts;
+                return `Your reputation is how brokers and shippers rate you when they choose a carrier, and it's ${pct(cfg.board.scoreWeights.reputation)} of every bid's score. It starts from 100% and loses up to three parts. <b>The safety record</b>, up to ${pct(r.safety)}: violations per inspection and at-fault crashes per truck, as your safety record counts them; an open alert or a poor rating holds it down until it clears. <b>Service failures</b>, up to ${pct(r.service)}: no-shows, releases, deliveries past Deliver by and cargo claims, against the loads you deliver, fading over weeks. <b>Experience</b>, up to ${pct(r.experience)}: a new company starts with all of it off and earns it back with loads paid by NPC shippers and brokers (never your own freight), each counted by its miles, fading over months, until ${r.experienceCap} recent loads give full experience. A clean, experienced carrier wins at a price a corner-cutter can't. The Company page shows your figure and its three parts.`;
+              })()
+            : cfg.windows.enabled
             ? `Your reputation is your smoothed on-time rate: a new company counts as ${cfg.reputation.priorLoads} loads at ${pct(cfg.reputation.start)}. Every load delivered on time${cfg.windows.oneDeadline ? " (by its Deliver by)" : ""} lifts it; a late one pulls it down, and so does every load you release or don't pick up, as a late delivery would. It's ${pct(cfg.board.scoreWeights.reputation)} of every bid's score, so a good record wins loads at higher rates. The Company page shows the figure and the marks behind it.`
             : `Your reputation is your smoothed on-time rate: a new company counts as ${cfg.reputation.priorLoads} loads at ${pct(cfg.reputation.start)}, then every delivery moves it. It's ${pct(cfg.board.scoreWeights.reputation)} of every bid's score, so a good record wins loads at higher rates.`,
         ) +

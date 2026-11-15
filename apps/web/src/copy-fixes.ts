@@ -87,7 +87,7 @@ export const FIXES = {
     const said = parts.length <= 1 ? parts.join("") : `${parts.slice(0, -1).join(", ")} and ${parts.at(-1)}`;
     return parts.length ? `${said} in ${days} days` : `no failures in ${days} days`;
   },
-  repExperience: (loads: number, cap: number) => (loads >= cap ? `${cap}+ loads delivered: full experience` : `${loads} ${loads === 1 ? "load" : "loads"} delivered`),
+  repExperience: (loads: number, cap: number) => (loads >= cap ? `full experience, ${cap}+ recent loads` : `${loads} of ${cap} recent loads`),
   repPartSafety: (words: string) => `Safety record: ${words}`,
   repPartService: (words: string) => `Service: ${words}`,
   repPartExperience: (words: string) => `Experience: ${words}`,

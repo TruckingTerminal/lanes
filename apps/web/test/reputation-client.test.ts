@@ -15,12 +15,12 @@ describe("reputation in three parts on the page", () => {
     const c = g.join("Record Freight", "oo", "CMH")!;
     const w = g.w;
     expect(c.reputation).toBeCloseTo(0.945, 9); // no experience yet
-    expect(reputationLine(w, c)).toBe(`Reputation ${pct(c.reputation)}: safety record clean · no failures in 90 days · 0 loads delivered`);
+    expect(reputationLine(w, c)).toBe(`Reputation ${pct(c.reputation)}: safety record clean · no failures in 90 days · 0 of 30 recent loads`);
     for (let i = 0; i < 46; i++) repDelivered(w, c, { miles: 600, shipperId: null } as unknown as Load, false, false);
     repFailed(w, c, "release");
     repFailed(w, c, "release");
-    expect(reputationLine(w, c)).toMatch(/^Reputation \d+%: safety record clean · 2 releases in 90 days · 30\+ loads delivered: full experience$/);
-    expect(reputationRows(w, c).map((r) => r.label)).toEqual([FIXES.repPartSafety(FIXES.repSafetyClean), FIXES.repPartService("2 releases in 90 days"), FIXES.repPartExperience("30+ loads delivered: full experience")]);
+    expect(reputationLine(w, c)).toMatch(/^Reputation \d+%: safety record clean · 2 releases in 90 days · full experience, 30\+ recent loads$/);
+    expect(reputationRows(w, c).map((r) => r.label)).toEqual([FIXES.repPartSafety(FIXES.repSafetyClean), FIXES.repPartService("2 releases in 90 days"), FIXES.repPartExperience("full experience, 30+ recent loads")]);
     const off = await TestGame.create(undefined, undefined, 41, GAME_CONFIG);
     const d = off.join("Record Freight", "oo", "CMH")!;
     expect(reputationLine(off.w, d)).toBeNull();
@@ -31,6 +31,6 @@ describe("reputation in three parts on the page", () => {
     expect(FIXES.repService(0, 0, 0, 1, 90)).toBe("a claim in 90 days");
     expect(FIXES.repService(0, 0, 0, 0, 90)).toBe("no failures in 90 days");
     expect(FIXES.repRecord(2, 1)).toBe("2 violations and a crash in two years");
-    expect(FIXES.repExperience(1, 30)).toBe("1 load delivered");
+    expect(FIXES.repExperience(1, 30)).toBe("1 of 30 recent loads");
   });
 });
