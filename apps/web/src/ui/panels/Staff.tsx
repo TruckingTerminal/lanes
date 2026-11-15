@@ -1,6 +1,6 @@
 import { Fragment, type JSX } from "preact";
 import { useState } from "preact/hooks";
-import { askingPay, askOf, crewed, onTheBus, payFloor, dispatchProfile, poolOf, spanOf, weeklyWage, type Company, type Staff as StaffT, type Truck, type World } from "@lanes/engine";
+import { askingPay, askOf, crewed, onTheBus, payFloor, dispatchProfile, poolOf, seatBlock, severance, spanOf, weeklyWage, type Company, type Staff as StaffT, type Truck, type World } from "@lanes/engine";
 import { fd, hhmm, pct, shortDate, TRAILER_NAME, weekdayDate } from "../../format.js";
 import { GAME_CONFIG } from "../../game.js";
 import { atHub, marketPayOf, moraleClass, moraleWord, staffPay, Stars } from "../../logic.js";
@@ -127,7 +127,7 @@ export function Staff(): JSX.Element {
     const weekly = s.kind === "driver" ? (pay * MILES_PER_MONTH) / (w.cfg.time.daysPerMonth / 7) : pay;
     const kept = weeklyKept(w, me());
     if (kind === "hire") {
-      const lines = hireLines(s.name, weekly, kept);
+      const lines = hireLines(s.name, weekly, kept, s.kind === "driver");
       const does = parked ? `${lines.does} ${PENDING.hireUnparks(truckNo(Number(v)))}` : lines.does;
       confirmAct({ verb: "Hire", item: s.name, costFd: null, costLine: CONFIRM.hireCost(fd(weekly)), does, risk: weekly > kept ? lines.risk : null, go: `Hire ${s.name}`, run }, ev);
     } else run();
@@ -155,8 +155,12 @@ export function Staff(): JSX.Element {
       );
     // Client batch 8b item 27: a driver paid with no truck is said plainly, with the wage.
     const idlePay = s.kind === "driver" && !s.truckId ? PENDING.paidNoTruck(fd(weeklyWage(w, s, s.pay))) : null;
-    const canSeat = s.kind === "driver" && trucks.some(openSeat);
-    const canTeam = s.kind === "driver" && trucks.some((t) => teamSeat(t) && t.driverId !== s.id);
+    // QA's 0.25.3 replay (R7): only the seats the engine would give (labor.ts seatBlock): not a truck at another hub, nor
+    // while they ride the bus home.
+    const seatFor = (t: Truck) => openSeat(t) && seatBlock(w, c, s, t, false) === null;
+    const teamFor = (t: Truck) => teamSeat(t) && t.driverId !== s.id && seatBlock(w, c, s, t, true) === null;
+    const canSeat = s.kind === "driver" && trucks.some(seatFor);
+    const canTeam = s.kind === "driver" && trucks.some(teamFor);
     return (
       <Card key={s.id} need={s.unhappyNotice ? `notice:${s.id}` : undefined}>
         <div class="row">
@@ -193,7 +197,7 @@ export function Staff(): JSX.Element {
           {canSeat ? (
             <>
               <select id={`seat-${s.id}`} aria-label="Truck to drive">
-                <TruckOptions pick={openSeat} />
+                <TruckOptions pick={seatFor} />
               </select>
               <Btn onClick={() => seat(s, false)}>Drive it</Btn>
             </>
@@ -201,14 +205,15 @@ export function Staff(): JSX.Element {
           {canTeam ? (
             <>
               <select id={`team-${s.id}`} aria-label="Truck to co-drive">
-                <TruckOptions pick={(t) => teamSeat(t) && t.driverId !== s.id} />
+                <TruckOptions pick={teamFor} />
               </select>
               <Btn onClick={() => seat(s, true)}>Co-drive</Btn>
             </>
           ) : null}
           <Btn
             onClick={(ev) =>
-              confirmAct({ verb: "Let go", item: s.name, costFd: null, does: PENDING.letGoDoes(s.name, s.truckId > 0), risk: PENDING.letGoRisk, go: PENDING.letGoGo(s.name), destructive: true, run: () => act({ type: "release_staff", staffId: s.id }, "Let go") }, ev)
+              // QA's 0.25.3 replay: let go within the hiring month, the engine charges severance (labor.ts severance); the Confirm says it.
+              confirmAct({ verb: "Let go", item: s.name, costFd: severance(w, s) >= 0.5 ? severance(w, s) : null, ...(severance(w, s) >= 0.5 ? { costLine: FIXES.letGoSeverance(fd(severance(w, s)), w.cfg.labor.hiring.severanceWeeks, w.cfg.labor.hiring.severanceWithinDays) } : {}), does: PENDING.letGoDoes(s.name, s.truckId > 0), risk: PENDING.letGoRisk, go: PENDING.letGoGo(s.name), destructive: true, run: () => act({ type: "release_staff", staffId: s.id }, "Let go") }, ev)
             }
           >
             Let go

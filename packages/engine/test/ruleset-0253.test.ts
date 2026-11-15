@@ -28,6 +28,7 @@ function stranded(cfg: EconomyConfig, hire = false) {
   unseatDriver(w, s);
   const far = w.net.hubs.findIndex((_, i) => hubMiles(w, i, c.homeHub) > 1000 && i !== truck.hub);
   s.lastHub = far;
+  delete s.lastPlace; // standing at that hub, not in the town it stepped off in
   s.awayDays = 10;
   s.restDays = 0;
   s.drivenMinToday = 0;

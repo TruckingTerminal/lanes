@@ -21,7 +21,7 @@ import { nightStop, paidLine, payLine, type TruckBefore } from "./rolling.js";
 import { sampleStarters } from "./hubcard.js";
 import { drawMap, fitMap, flyTo, resetArt, setZoom, zoomIndex } from "./mapview.js";
 import { MemoryDb } from "./memdb.js";
-import { bumpData, bumpTick, feed, holdStill, loadOnboard, onWorldReset, resetWorldState, setOnboard, loadTheme, claimTestLock, markPersisted, persistTest, push, pushKeyed, readTest, S, setLayout, setTab, SPEEDS, TEST_BUILD, toast, toggleFullscreen, truckNo, truckWords, type Session, type TitleMenu } from "./state.js";
+import { bumpData, bumpTick, feed, holdStill, loadOnboard, onWorldReset, resetWorldState, setOnboard, loadTheme, claimTestLock, markPersisted, persistTest, push, pushKeyed, readTest, S, setLayout, setTab, SPEEDS, TEST_BUILD, toast, toastHeld, toggleFullscreen, truckNo, truckWords, type Session, type TitleMenu } from "./state.js";
 import { App } from "./ui/App.js";
 import { askWhatNow } from "./ui/WhatNow.js";
 import { poachResult } from "./ui/panels/Staff.js";
@@ -198,7 +198,8 @@ function onEvent(s: Session, e: GameEvent): void {
     // UX §1.3a: a folded market's decay waits in the fold (a step from tier 2 to 1 loses nothing), so Iuliia leaves it.
     const folded = e.what === "decayAhead" && s.player !== null && s.player !== undefined && !standingListed(w, s.player, e.hub);
     if (s === S.game && !rebuilding && words.iuliia && !heroes && !folded) iuliiaSayText(words.iuliia);
-    if (s === S.game && !rebuilding && e.what === "firstCall") toast(STANDING_UX.callToast(w.net.hubs[e.hub]!.name));
+    // UX §1.5: said once in the toast lane, held so a delivery's toast in the same frame doesn't push it out (QA's 0.25.3 replay).
+    if (s === S.game && !rebuilding && e.what === "firstCall") toastHeld(STANDING_UX.callToast(w.net.hubs[e.hub]!.name));
   }
   if (e.kind === "notice") {
     const text = s === S.game ? truckWords(e.text) : e.text;

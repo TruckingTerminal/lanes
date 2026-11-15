@@ -142,6 +142,8 @@ export const STANDING_UX = {
   dockChip: "Dock priority",
   netChip: (days: number) => `Paid in ${days} days (net-${days})`,
   won: (market: string, have: string, need: number, tier: number) => `Delivered on time, it counts toward your ${market} standing: ${have} of the ${need} counted loads tier ${tier} needs.`,
+  // Engineering's placeholder for the writer (QA's 0.25.3 replay: "16.1 of the 14 counted loads tier 8 needs"): past the floor.
+  wonPast: (market: string, have: string, need: number, tier: number) => `Delivered on time, it counts toward your ${market} standing: ${have} counted loads, past the ${need} tier ${tier} needs.`,
   // §1.5 first call.
   callHead: (market: string, until: string) => `FIRST CALL · ${market} shippers · answer by ${until}`,
   callLane: (from: string, to: string, miles: string, fd: string, pickupBy: string | null) => `${from} → ${to} · ${miles} mi · ${fd} FD${pickupBy ? ` · pick up by ${pickupBy}` : ""}`,

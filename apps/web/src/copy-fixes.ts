@@ -54,6 +54,21 @@ export const FIXES = {
   // Engineering's placeholders for the writer: releasing the current load before pickup (windows.releaseCurrent; the
   // director's sprint §1), on the truck card's Now line and its Confirm.
   headingTo: (town: string, by: string) => `Heading to ${town} · pick up by ${by}`,
+  // Engineering's placeholders for the writer: QA's 0.25.3 replay (qa-0253-2026-11-15.md, fix soon and lower).
+  // A load this company released, back on the board: the card's chip and the sheet's reason.
+  releasedByYou: "You released this load, so you can't book it again.",
+  // The sell Confirm with the bus home on, the truck away from home: the crew takes the bus home (at once with auto-staff,
+  // else after a day), so off sale puts them back in it only before then.
+  sellCrewAway: (names: string[], weeks: number, atOnce: boolean) => {
+    const who = names.join(" and ");
+    const one = names.length === 1;
+    return `Listing it takes ${who} off the truck, away from home, so ${one ? `${who} takes` : "they take"} the bus home${atOnce ? "" : " after a day"}. ${one ? `${who} stays` : "They stay"} on your payroll and quit${one ? "s" : ""} after ${weeks} weeks with no truck unless you seat ${one ? "them" : "them"} on another.${atOnce ? "" : ` Taking it off sale before then puts ${one ? who : "them"} back in it.`}`;
+  },
+  sellOwnerAway: (atOnce: boolean) => `Listing it takes you off the truck, away from home, so you take the bus home${atOnce ? "" : " after a day"}.${atOnce ? "" : " Taking it off sale before then puts you back in it."}`,
+  // The hire Confirm for a dispatcher or a manager: a weekly wage, not per mile.
+  hireWeekly: (name: string, fd: string) => `Hires ${name}: a weekly wage, ${fd} FD a week.`,
+  // The let-go Confirm within the hiring month: the engine's severance (labor.hiring).
+  letGoSeverance: (fd: string, weeks: number, days: number) => `${fd} FD of severance: ${weeks} weeks' pay, let go within ${days} days of hiring.`,
   // Engineering's placeholders for the writer: the director's ruling 17 (labor.dueHomePlan), a load booked ahead goes before
   // a due driver's days off. The board's chip when a booking would be held for days off that end after the pickup closes,
   // and the booking sheet's line, in "What you're agreeing to", when the driver comes due by the pickup's day.

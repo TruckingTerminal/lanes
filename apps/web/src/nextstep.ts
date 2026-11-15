@@ -1,5 +1,5 @@
 import type { EconomyConfig } from "@lanes/config";
-import { cashNowRate, companyAccount, crewed, handOverWaiting, hubMiles, MANUAL_BID_MAX_DEADHEAD_MI, resting, truckValue, windowsOn, type Company, type Staff, type StandingOrder, type Truck, type World } from "@lanes/engine";
+import { cashNowRate, companyAccount, crewed, handOverWaiting, hubMiles, seatReach, MANUAL_BID_MAX_DEADHEAD_MI, resting, truckValue, windowsOn, type Company, type Staff, type StandingOrder, type Truck, type World } from "@lanes/engine";
 import { boardRows, clearsNear, profitOver, type BoardRow } from "./board.js";
 import { bestLoad, cushion, debtCountdown, freeTrucks, gapToTruck, nextEvent, nextWeeklyCheckDay, orderedFirstTruck, owed, type NextEvent } from "./figures.js";
 import { truckDayCostFd } from "./logic.js";
@@ -305,11 +305,14 @@ export const isFreeDriver = (c: Company, s: Staff): boolean => s.companyId === c
  * where they left it).
  */
 export function freeDriverFor(w: World, c: Company, t: Truck, own: readonly number[] = [], name?: string): Staff | null {
+  // QA's 0.25.3 replay: only a driver who can reach the truck now (labor.ts seatReach): not one the bus took home, nor one
+  // standing at another hub, so the off-sale toast never promises a driver who isn't there.
+  const can = (s: Staff) => isFreeDriver(c, s) && seatReach(w, s, t) === null;
   for (const id of own) {
     const s = w.staff[id - 1];
-    if (s && isFreeDriver(c, s)) return s;
+    if (s && can(s)) return s;
   }
-  const free = w.staff.filter((s) => isFreeDriver(c, s) && (s.lastHub === undefined || s.lastHub === t.hub));
+  const free = w.staff.filter(can);
   return free.find((s) => s.name === name) ?? free[0] ?? null;
 }
 

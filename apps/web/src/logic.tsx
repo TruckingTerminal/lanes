@@ -1,5 +1,6 @@
 import { moving } from "./motion.js";
 import { cardsUx, firstCallsFor, standingShown } from "./standingui.js";
+import { passFirstCall } from "./ui/Standing.js";
 import { STANDING_UX } from "./copy-standing.js";
 import { hhmm as hhmmOf } from "./format.js";
 import type { ComponentChildren } from "preact";
@@ -295,6 +296,8 @@ export interface Need {
   riskFdPerDay?: number;
   /** When it lapses or lands, as a game minute. */
   dueMin?: number;
+  /** A second action beside the first (UX §1.5: a first call's Open and Pass). */
+  second?: { button: string; run: (ev?: MouseEvent) => void };
 }
 
 /** R9's order: what's at stake first, then FD at risk a day, then the soonest deadline; ties keep the list's order. */
@@ -360,7 +363,7 @@ function needsInView(fleet: boolean): Need[] {
   // Standing (UX next-screens §1.5, §1.3): a first call to answer by its round; a market a week from a decay.
   if (fleet && standingShown(w, c)) {
     for (const l of firstCallsFor(w, c))
-      out.push({ key: `firstcall:${l.id}`, text: STANDING_UX.needCall(w.net.hubs[l.origin]!.name, hhmmOf(l.tenderUntil)), tab: "loads", target: `[data-firstcall="${l.id}"]`, button: STANDING_UX.callOpen, icon: "standing" });
+      out.push({ key: `firstcall:${l.id}`, text: STANDING_UX.needCall(w.net.hubs[l.origin]!.name, hhmmOf(l.tenderUntil)), tab: "loads", target: `[data-firstcall="${l.id}"]`, button: STANDING_UX.callOpen, icon: "standing", second: { button: STANDING_UX.callPass, run: (ev) => passFirstCall(c, l, ev) } });
     for (const x of cardsUx(w, c)) if (x.decay) out.push({ key: `standing:decay:${x.hub}`, text: x.decay, tab: "standing", target: ".standingcard", button: STANDING_UX.tab, icon: "standing" });
     // The director's sprint §13: on notice, as the decay warning, only when the step down would lose a perk.
     for (const x of cardsUx(w, c)) if (x.noticeNeed && x.notice) out.push({ key: `standing:notice:${x.hub}`, text: x.notice, tab: "standing", target: ".standingcard", button: STANDING_UX.tab, icon: "standing" });

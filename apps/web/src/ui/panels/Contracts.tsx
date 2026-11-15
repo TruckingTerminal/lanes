@@ -14,7 +14,8 @@ import { PENDING } from "../../copy-pending.js";
 import { contractStanding } from "../../figures.js";
 
 /** Contract tenders waiting for the player's company. */
-export const myTenders = (c: Company): Load[] => [...S.game!.w.loads.values()].filter((l) => l.status === "open" && l.tenderedTo === c.id);
+/** Contract tenders held for this company; never a first call, which holds the load the same way (QA's 0.25.3 replay: listed twice). */
+export const myTenders = (c: Company): Load[] => [...S.game!.w.loads.values()].filter((l) => l.status === "open" && l.tenderedTo === c.id && l.firstCall === undefined);
 
 /** Pending contract tenders: the load, the contract rate against spot, the clock, and a truck to put on it. */
 export function TendersCard({ c }: { c: Company }): JSX.Element | null {

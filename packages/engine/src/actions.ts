@@ -27,7 +27,7 @@ import { rebrokerLoad, stealLoad, vettingBlock } from "./fraud.js";
 import { declineHeld, formBrokerage, partnerOf, passTender, postHeld, tenderOwn, transferCapital } from "./brokerage.js";
 import { depositReserve, withdrawReserve } from "./cashReserve.js";
 import { finiteIn } from "./economics.js";
-import { offerStaff, onTheBus, payFloor, releaseStaff, setPay, severance, startHomeTime } from "./labor.js";
+import { offerStaff, payFloor, releaseStaff, seatBlock, setPay, severance, startHomeTime } from "./labor.js";
 import { buyListing, listingBlock, listTrailer, listTruck, withdrawListing } from "./market.js";
 import { canRefile, notice } from "./safety.js";
 import { canMakeHot, homeBlock } from "./standingOrders.js";
@@ -41,7 +41,7 @@ import { cashInvoice, contractOn, endFactoring, setContractTerms, signFactoring 
 import type { Action, Load, RuleScope, Truck } from "./types.js";
 import { AHEAD_STATUSES, canMake, keepLoad, reachRefusal, releaseLoad, windowsOn, type Reach } from "./windows.js";
 import { condition, rebuildable, rebuildCost } from "./wear.js";
-import { availableSupplyFor, clocksFollowDriver, companyById, crewed, depositCredit, hubMiles, invalidOrders, releaseDepositFor, seatDriver, staffById, syncFleet, takeSupplyFor, truckById, unseatDriver, type World, placeMiles, placeOfHub, placeLegMiles } from "./world.js";
+import { availableSupplyFor, companyById, crewed, depositCredit, hubMiles, invalidOrders, releaseDepositFor, seatDriver, staffById, syncFleet, takeSupplyFor, truckById, unseatDriver, type World, placeMiles, placeOfHub, placeLegMiles } from "./world.js";
 import type { EconomyConfig } from "@lanes/config";
 
 const TIERS = new Set(["workhorse", "highwayPro", "flagship"]);
@@ -309,22 +309,12 @@ export function applyAction(w: World, companyId: number, action: Action): Action
       }
       const truck = truckById(w, action.truckId);
       if (!truck || truck.companyId !== company.id) return { ok: false, reason: "not your truck" };
-      if (!atHub(truck.status)) return { ok: false, reason: "the truck must be at a hub" };
-      // labor.busHome: on the bus home, they're seated once they're there.
-      if (onTheBus(s)) return { ok: false, reason: "they're on the bus home" };
-      // R12 (its hos keys on): a driver moves between trucks at the same hub only (red team pass 3).
-      // Off a truck, they stand where they left it (red team re-read).
-      if (clocksFollowDriver(w) && s.truckId && s.truckId !== truck.id && truckById(w, s.truckId).hub !== truck.hub) return { ok: false, reason: `their truck is at ${w.net.hubs[truckById(w, s.truckId).hub]!.id}, and that one is at ${w.net.hubs[truck.hub]!.id}` };
-      if (clocksFollowDriver(w) && !s.truckId && s.lastHub !== undefined && s.lastHub !== truck.hub) return { ok: false, reason: `they're at ${w.net.hubs[s.lastHub]!.id}, and that truck is at ${w.net.hubs[truck.hub]!.id}` };
-      if (action.team) {
-        if (!crewed(truck)) return { ok: false, reason: "that truck needs a driver before a co-driver" };
-        if (truck.coDriverId) return { ok: false, reason: "that truck already runs as a team" };
-        if (truck.driverId === s.id) return { ok: false, reason: "they already drive it" };
-        seatDriver(w, s, truck, true);
-      } else {
-        if (crewed(truck) && truck.driverId !== s.id) return { ok: false, reason: "that truck already has a driver" };
-        seatDriver(w, s, truck);
-      }
+      // labor.ts seatBlock (QA's 0.25.3 replay): the page offers only the seats it allows. labor.busHome: on the bus home,
+      // they're seated once they're there. R12 (its hos keys on): a driver moves between trucks at the same hub only (red
+      // team pass 3); off a truck, they stand where they left it (red team re-read). Refusals name towns, never codes.
+      const block = seatBlock(w, company, s, truck, action.team === true);
+      if (block) return { ok: false, reason: block };
+      seatDriver(w, s, truck, action.team === true);
       return { ok: true };
     }
 

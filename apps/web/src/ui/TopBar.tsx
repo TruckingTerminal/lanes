@@ -184,6 +184,19 @@ function NeedsButton(): JSX.Element {
               >
                 {n.button}
               </Btn>
+              {n.second ? (
+                <Btn
+                  sm
+                  class="needact"
+                  onClick={(ev: MouseEvent) => {
+                    setOpen(false);
+                    if (n.company && S.game && kindInView(S.game) !== n.company) switchCompany(n.company);
+                    n.second!.run(ev);
+                  }}
+                >
+                  {n.second.button}
+                </Btn>
+              ) : null}
             </div>
           ))}
         </div>

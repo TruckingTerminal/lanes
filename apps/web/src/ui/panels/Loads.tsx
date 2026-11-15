@@ -414,7 +414,7 @@ function LoadDetail({ r, truck, mine, pendingRate }: { r: Row; truck: Truck; min
               ["Usually clears near", <Num>{rateShown(l, clearsNear(w, l))}/mi</Num>],
               ["Ceiling", <Num>{bidCeiling(l).toFixed(2)}/mi</Num>],
               // QA's 0.25.2 replay: as the sheet does (Board.tsx), no one-cent range when the break-even is at or over the ceiling.
-              ["Bid range", ((lo: number, hi: number) => (hi - lo < 0.005 ? <span class="muted small">{FIXES.noBidPays(r.be.toFixed(2), hi.toFixed(2))}</span> : <Num>{lo.toFixed(2)} – {hi.toFixed(2)}</Num>))(...bidRange(w, l, r.be))],
+              ["Bid range", ((lo: number, hi: number) => (hi - lo < 0.005 ? <span class="muted small">{FIXES.noBidPays(r.be.toFixed(2), hi.toFixed(2))}</span> : <Num>{lo.toFixed(2)} – {hi.toFixed(2)}</Num>))(...bidRange(w, l, r.be, me()))],
               ["Profit at your bid", r.profit === null ? PENDING.bidBookBetter : <Num class={r.profit > 0 ? "good" : "bad"}>{fd(r.profit)} FD</Num>],
             ]}
           />

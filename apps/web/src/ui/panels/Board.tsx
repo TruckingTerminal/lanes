@@ -413,7 +413,7 @@ function LoadSheet({ r, truck }: { r: BoardRow; truck: Truck }): JSX.Element {
   const g = S.game!;
   const w = g.w;
   const { l } = r;
-  const [lo, hi] = bidRange(w, l, r.be);
+  const [lo, hi] = bidRange(w, l, r.be, w.companies[truck.companyId - 1]);
   const mine = w.manualBids.get(truck.id);
   const bidHere = mine?.loadId === l.id;
   // The field holds the player's bid in, else the suggestion, else nothing (pass 2b): never a bid placed for them.

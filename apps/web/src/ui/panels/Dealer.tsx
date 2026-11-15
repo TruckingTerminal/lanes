@@ -99,7 +99,7 @@ export function Dealer(): JSX.Element {
               action={{ type: "buy_listing", listingId: l.id }}
               // Client batch 7b: while the leased truck isn't idle, the listing isn't ready today either.
               when={leaseOnRun(w, c) ? PENDING.readyWhenIdle(leaseOnRun(w, c)!.no) : DEALER.deliversToday}
-              lines={usedTruck(w, c, t, t.hub)}
+              lines={usedTruck(w, c, t, t.hub, t.place)}
               truck={collateralOf(w, t)}
               ok="Bought. It's yours, idle where it stands"
             />

@@ -4,7 +4,7 @@ import { clamp, finiteIn, fmtInt } from "./economics.js";
 import { companyAccount } from "./ledger.js";
 import type { Company, Load, ManagerKind, Staff, Truck, StandingOrder } from "./types.js";
 import { condition } from "./wear.js";
-import { askingPay, companyById, crewed, crewOf, marketPay, newStaff, seatDriver, staffById, syncTruck, truckById, unseatDriver, type World, hubMiles } from "./world.js";
+import { askingPay, clocksFollowDriver, companyById, crewed, crewOf, marketPay, newStaff, seatDriver, staffById, syncTruck, truckById, unseatDriver, type World, hubMiles } from "./world.js";
 
 /**
  * Staff (design proposal, Jeff 2026-10-28). Every truck needs a driver; the owner
@@ -249,6 +249,7 @@ export function releaseStaff(w: World, s: Staff): void {
   if (s.unhappyHeld) s.unhappyHeld = undefined;
   if (s.underFloor) s.underFloor = undefined;
   if (s.lastHub !== undefined) s.lastHub = undefined; // in the pool, a driver is no longer anywhere in particular
+  if (s.lastPlace !== undefined) delete s.lastPlace;
   s.morale = w.cfg.labor.morale.start;
 }
 
@@ -547,6 +548,42 @@ const busOn = (w: World): boolean => w.cfg.labor.busHome?.enabled === true && w.
 /** A driver on the bus home now (labor.busHome): a trip under way, and no truck. */
 export const onTheBus = (s: Staff): boolean => s.bus !== undefined && s.bus.done !== true && s.truckId === 0;
 
+/** Where a driver with no truck stands, by its town (QA's 0.25.3 replay: towns, never codes or a market's hub for a town in it). */
+export const whereOff = (w: World, s: Staff): string => (s.lastPlace !== undefined ? w.net.places[s.lastPlace]!.name : s.lastHub !== undefined ? w.net.hubs[s.lastHub]!.name : "");
+
+/**
+ * Whether a driver can reach a truck to sit in it now (assign_driver): on the bus home, or standing at another hub (R12's
+ * clocks, off a truck where they left it), they can't. The refusal names towns. Reads only.
+ */
+export function seatReach(w: World, s: Staff, truck: Truck): string | null {
+  if (onTheBus(s)) return "they're on the bus home";
+  if (!clocksFollowDriver(w)) return null;
+  const town = (t: Truck) => w.net.places[t.place]!.name;
+  if (s.truckId && s.truckId !== truck.id && truckById(w, s.truckId).hub !== truck.hub) return `their truck is at ${town(truckById(w, s.truckId))}, and that one is at ${town(truck)}`;
+  if (!s.truckId && s.lastHub !== undefined && s.lastHub !== truck.hub) return `they're at ${whereOff(w, s)}, and that truck is at ${town(truck)}`;
+  return null;
+}
+
+/**
+ * Why a driver of `c` can't take this seat (assign_driver; `team`, the co-driver's), or null. QA's 0.25.3 replay (R7): the
+ * page offers only the seats this allows, and every refusal names towns, never codes. Reads only.
+ */
+export function seatBlock(w: World, c: Company, s: Staff, truck: Truck, team: boolean): string | null {
+  const atHub = (st: string) => st === "idle" || st === "parked" || st === "repair";
+  if (s.companyId !== c.id || s.status !== "employed" || s.kind !== "driver") return "not one of your drivers";
+  if (s.truckId && !atHub(truckById(w, s.truckId).status)) return "their truck is on the road";
+  if (truck.companyId !== c.id) return "not your truck";
+  if (!atHub(truck.status)) return "the truck must be at a hub";
+  const reach = seatReach(w, s, truck);
+  if (reach) return reach;
+  if (team) {
+    if (!crewed(truck)) return "that truck needs a driver before a co-driver";
+    if (truck.coDriverId) return "that truck already runs as a team";
+    if (truck.driverId === s.id) return "they already drive it";
+  } else if (crewed(truck) && truck.driverId !== s.id) return "that truck already has a driver";
+  return null;
+}
+
 /**
  * labor.busHome (ruleset 0.25.3; the director's sprint §9, the economy's sizes), from dailyDrivers for each employed
  * driver before the day is read: true while the driver rides. Seated, the wait and any trip end. Off the truck outside
@@ -566,6 +603,7 @@ function busHome(w: World, c: Company, s: Staff, t: Truck | null, today: number)
     if (today < s.bus.arriveDay) return true;
     s.bus.done = true;
     s.lastHub = c.homeHub;
+    delete s.lastPlace; // home: the home market's own name
     s.trucklessDays = 0;
     // Home: the days off start if due (the company's home-time order, or a Send home that was waiting).
     const hm = c.orders.find((o): o is Extract<StandingOrder, { kind: "homeTime" }> => o.kind === "homeTime");
@@ -592,7 +630,7 @@ function busHome(w: World, c: Company, s: Staff, t: Truck | null, today: number)
   c.operating.costFd += fareFd;
   s.bus = { from: s.lastHub, miles, fareFd, leftT: w.t, arriveDay: today + Math.ceil(days) };
   const who = s.owner ? "you" : label(s);
-  notice(w, c.id, `No truck for ${who} at ${w.net.hubs[s.lastHub]!.name}, so ${s.owner ? "you're" : "they're"} taking the bus home: about ${Math.round(days * 24)} h, ${fmtInt(fareFd)} FD.`, "info");
+  notice(w, c.id, `No truck for ${who} at ${whereOff(w, s)}, so ${s.owner ? "you're" : "they're"} taking the bus home: about ${Math.round(days * 24)} h, ${fmtInt(fareFd)} FD.`, "info");
   return true;
 }
 

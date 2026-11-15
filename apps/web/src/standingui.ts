@@ -29,7 +29,7 @@ export function standingLines(w: World, c: Company, hub: number): StandingLines 
   const days = w.cfg.standing.windowDays;
   const m = market(w, hub);
   const next = card.next
-    ? `${STANDING.next(card.next.tier, card.next.loads, card.next.onTime > 0 ? pct(card.next.onTime) : null, loadsSaid(card.score), days)}${card.nextPerk ? ` ${STANDING.nextPerk(STANDING.perk[card.nextPerk.perk], card.nextPerk.tier)}` : ""}`
+    ? `${STANDING.next(card.next.tier, card.next.loads, card.next.onTime > 0 ? pct(card.next.onTime) : null, loadsSaid(Math.max(0, card.score)), days)}${card.nextPerk ? ` ${STANDING.nextPerk(STANDING.perk[card.nextPerk.perk], card.nextPerk.tier)}` : ""}`
     : STANDING.top;
   return {
     hub,
@@ -209,14 +209,23 @@ export function cardUx(w: World, c: Company, hub: number): CardUx | null {
     bandWord: STANDING.band[card.band],
     line2: STANDING_UX.line2(card.tier, STANDING.trend[card.trend]),
     next: top ? null : STANDING_UX.next(card.next!.tier, card.next!.loads, card.next!.onTime > 0 ? pct(card.next!.onTime) : null),
-    have: STANDING_UX.have(loadsSaid(card.score), card.onTimeShare === null ? null : pct(card.onTimeShare)),
+    // QA's 0.25.3 replay: a hit can take the count under zero (a release is two loads off); it reads 0, and the record line names it.
+    have: STANDING_UX.have(loadsSaid(Math.max(0, card.score)), card.onTimeShare === null ? null : pct(card.onTimeShare)),
     bars: { loads: [Math.max(0, card.score), floorL], onTime: floorT > 0 ? [card.onTimeShare ?? 0, floorT] : null },
     top: top ? STANDING_UX.topTier(floorL, pct(floorT)) : null,
     unlocks: card.nextPerk && card.nextPerk.tier >= card.tier + 1 ? STANDING_UX.unlocks(STANDING.perk[card.nextPerk.perk], card.nextPerk.tier) : null,
-    record: STANDING.detail(card.onTimeShare === null ? STANDING.noOnTime : pct(card.onTimeShare), k.windowDays, card.loads, card.contractLoads, card.claims),
+    record: recordLine(w, card),
     ...noticeAndDecay(noticeOf(w, card, m), decay),
     calls: card.tier >= perkTier(w, "firstCall") && card.callsTaken + card.declined > 0 ? STANDING_UX.callsLine(card.callsTaken, card.callsTaken + card.declined, k.windowDays, m) : null,
   };
+}
+
+/** §1.1's record line: on time, loads and claims, and the other marks in the window when there are any (a release, a no-show, a late). */
+function recordLine(w: World, card: NonNullable<ReturnType<typeof standingCard>>): string {
+  const k = w.cfg.standing;
+  const base = STANDING.detail(card.onTimeShare === null ? STANDING.noOnTime : pct(card.onTimeShare), k.windowDays, card.loads, card.contractLoads, card.claims);
+  const marks = STANDING.marks(card.noShows, card.releases, card.late, k.hits.declinedFirstCall > 0 ? card.declined : 0);
+  return marks ? `${base} · ${marks}` : base;
 }
 
 /** §1.1: on notice shows in the decay chip's place, since it comes first; one chip at most. */
@@ -362,7 +371,9 @@ export function wonLine(w: World, c: Company, l: Load): string | null {
   if (!standingShown(w, c) || !standingLoad(l)) return null;
   const card = standingCard(w, c, l.origin);
   if (!card || !card.next) return null;
-  return STANDING_UX.won(market(w, l.origin), loadsSaid(Math.max(0, card.score) + loadWeight(w, l)), card.next.loads, card.next.tier);
+  const have = Math.max(0, card.score) + loadWeight(w, l);
+  // QA's 0.25.3 replay: past the floor already (the review steps it up, or the on-time share holds it), it says so.
+  return (have > card.next.loads + 1e-9 ? STANDING_UX.wonPast : STANDING_UX.won)(market(w, l.origin), loadsSaid(have), card.next.loads, card.next.tier);
 }
 
 /** §1.5: the first calls held for the player, soonest deadline first. */

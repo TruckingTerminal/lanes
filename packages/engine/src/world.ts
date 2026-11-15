@@ -607,7 +607,10 @@ export function unseatDriver(w: World, s: Staff): void {
     truck.driverId = truck.coDriverId;
     truck.coDriverId = 0;
   } else if (truck.coDriverId === s.id) truck.coDriverId = 0;
-  if (clocksFollowDriver(w)) s.lastHub = truck.hub;
+  if (clocksFollowDriver(w)) {
+    s.lastHub = truck.hub;
+    s.lastPlace = truck.place;
+  }
   s.truckId = 0;
   syncTruck(w, truck);
 }

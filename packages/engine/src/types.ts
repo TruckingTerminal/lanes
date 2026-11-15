@@ -618,6 +618,8 @@ export interface Staff {
   clock?: DriverClock;
   /** R12 (its hos keys on): the hub where the driver last left a truck; they're seated only on a truck there. */
   lastHub?: number;
+  /** The town where they left it (QA's 0.25.3 replay: the page names towns, never a market's hub for a truck elsewhere in it). */
+  lastPlace?: number;
   /**
    * labor.busHome (labor.ts dailyDrivers): daily passes without a truck outside the home radius (the wait before the bus),
    * and the latest bus home: from where, the miles, the fare, when it left, the game day it arrives at (home from that

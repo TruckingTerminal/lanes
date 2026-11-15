@@ -19,7 +19,7 @@ const make = (tier: TractorTier, trailer: Equipment): string => `${TIER_NAME[tie
 const rebuildsLeft = (w: World, t: Pick<TruckSpec, "odometer" | "rebuilds">): number => (rebuildable(w.cfg, t) ? Math.max(0, w.cfg.assets.tractor.maxRebuilds - (t.rebuilds ?? 0)) : 0);
 
 /** A used truck: worn with rebuilds left, or past its last; and, standing away from home, where (a listing). */
-export function usedTruck(w: World, c: Company, t: TruckSpec & { tier: TractorTier; trailer: Equipment }, at?: number): Lines {
+export function usedTruck(w: World, c: Company, t: TruckSpec & { tier: TractorTier; trailer: Equipment }, at?: number, place?: number): Lines {
   const left = rebuildsLeft(w, t);
   const scrap = w.cfg.assets.tractor.scrapShare * w.cfg.dealerFd.tractor[t.tier];
   const base: Lines =
@@ -29,7 +29,10 @@ export function usedTruck(w: World, c: Company, t: TruckSpec & { tier: TractorTi
         { does: PENDING.usedLastNamed(make(t.tier, t.trailer), pct(condition(w.cfg, t)), pct(1 - tractorLifeUsed(w.cfg, t))), risk: CONFIRM.usedLastRisk(fdFull(scrap)) };
   if (at === undefined || at === c.homeHub) return base;
   const mi = Math.round(hubMiles(w, c.homeHub, at)).toLocaleString("en-US");
-  return { does: `${base.does} ${CONFIRM.usedAway(w.net.hubs[at]!.name, mi)}`, risk: `${base.risk} ${CONFIRM.usedAwayRisk}` };
+  // QA's 0.25.3 replay: the truck's own town, as the listing says it ("Sherman (Dallas market)"), not the market's hub.
+  const hub = w.net.hubs[at]!.name;
+  const town = place !== undefined ? w.net.places[place]!.name : hub;
+  return { does: `${base.does} ${CONFIRM.usedAway(town === hub ? hub : PENDING.townInMarket(town, hub), mi)}`, risk: `${base.risk} ${CONFIRM.usedAwayRisk}` };
 }
 
 export const newTruck = (w: World, tier: TractorTier, trailer: Equipment, days: number): Lines => ({ does: CONFIRM.newTruck(make(tier, trailer), shortDate(dayOf(w.t, w.cfg) + days)), risk: CONFIRM.newRisk });
@@ -83,7 +86,15 @@ export function sell(w: World, t: Truck, n: number, askFd: number, floorShare = 
   // listed (market.ts listTruck), right after what the sale is.
   const crew = [t.driverId, t.coDriverId].filter((id) => id > 0).map((id) => w.staff[id - 1]!);
   const hired = crew.filter((s) => !s.owner).map((s) => s.name);
-  const crewLines = [...(hired.length ? [PENDING.sellCrew(hired, w.cfg.labor.morale.unseatedWeeks)] : []), ...(crew.some((s) => s.owner) ? [PENDING.sellOwnerOff] : [])];
+  // QA's 0.25.3 replay: with the bus home on, a crew taken off a truck away from home rides the bus home (at once with
+  // auto-staff, else after a day's wait), so off sale puts them back in it only before they've gone (labor.ts busHome).
+  const c = w.companies[t.companyId - 1];
+  const away = c !== undefined && w.cfg.labor.busHome?.enabled === true && w.cfg.labor.truckLessHomeByHub === true && hubMiles(w, t.hub, c.homeHub) > w.cfg.map.nearbyRadiusMi;
+  const atOnce = c?.autoStaff === true;
+  const weeksOff = w.cfg.labor.morale.unseatedWeeks;
+  const crewLines = away
+    ? [...(hired.length ? [FIXES.sellCrewAway(hired, weeksOff, atOnce)] : []), ...(crew.some((s) => s.owner) ? [FIXES.sellOwnerAway(atOnce)] : [])]
+    : [...(hired.length ? [PENDING.sellCrew(hired, weeksOff)] : []), ...(crew.some((s) => s.owner) ? [PENDING.sellOwnerOff] : [])];
   // token.settlementFee: folded into the market's fee as one named line (the director: one fee, not a stack); off, unsaid.
   const settle = settlementShare(w.cfg);
   const feeLine = settle > 0 ? [PENDING.sellFees(pct(w.cfg.usedMarket.feePct + settle), fdFull(askFd * (w.cfg.usedMarket.feePct + settle)))] : [];
@@ -106,7 +117,8 @@ export function sellsFor(bookFd: number): string {
   return PENDING.sellsFew(k(bookFd * 0.6), k(bookFd * 0.8));
 }
 
-export const hire = (name: string, weeklyFd: number, keptFd: number): Lines => ({ does: CONFIRM.hire(name, fdFull(weeklyFd)), risk: CONFIRM.hireRisk(fdFull(keptFd)) });
+/** A hire: a driver by the mile, a dispatcher or manager on a weekly wage (QA's 0.25.3 replay: "paid by the mile" for a dispatcher). */
+export const hire = (name: string, weeklyFd: number, keptFd: number, perMile = true): Lines => ({ does: perMile ? CONFIRM.hire(name, fdFull(weeklyFd)) : FIXES.hireWeekly(name, fdFull(weeklyFd)), risk: CONFIRM.hireRisk(fdFull(keptFd)) });
 
 /**
  * What the company kept in a week lately: last month's result over its weeks, else its result so far over its weeks

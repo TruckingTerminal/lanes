@@ -169,6 +169,8 @@ export const S = {
     sub?: string;
     say?: string;
     go?: () => void;
+    /** Not pushed out by a later toast while it shows (toastHeld). */
+    held?: boolean;
   } | null,
   theme: "sunset",
   /** Success messages for this player's live orders, shown when each takes effect. */
@@ -360,8 +362,33 @@ export function truckNo(id: number): number {
 }
 
 let toastTimer = 0;
+/** A toast raised while a held one shows: it waits and shows after it (the latest only). */
+let deferred: (() => void) | null = null;
+const heldNow = (): boolean => S.toast?.held === true && Date.now() - S.toast.at < 4200;
+/**
+ * A toast a later one doesn't push out while it shows (UX next-screens §1.5: a first call's arrival is said once in the toast
+ * lane; QA's 0.25.3 replay: on a fast clock a delivery's toast in the same frame took its place before it was ever seen). A
+ * toast raised meanwhile waits and shows after it, the latest only; an error shows at once.
+ */
+export function toastHeld(text: string, go?: () => void): void {
+  S.toast = { text, err: false, at: Date.now(), held: true, ...(go ? { go } : {}) };
+  clearTimeout(toastTimer);
+  toastTimer = window.setTimeout(() => {
+    S.toast = null;
+    const next = deferred;
+    deferred = null;
+    if (next) next();
+    else bumpData();
+  }, 4200);
+  bumpData();
+}
 /** A toast with a badge, a second line, Iuliia's line or a tap (UX §1.6's stamps and toasts); a little longer with more to read. */
 export function toastRich(t: { text: string; badge?: { tier: number; band: "approved" | "preferred" | "core" }; sub?: string; say?: string; go?: () => void }): void {
+  if (heldNow()) {
+    deferred = () => toastRich(t);
+    return;
+  }
+  deferred = null;
   S.toast = { ...t, err: false, at: Date.now() };
   clearTimeout(toastTimer);
   toastTimer = window.setTimeout(() => {
@@ -371,6 +398,11 @@ export function toastRich(t: { text: string; badge?: { tier: number; band: "appr
   bumpData();
 }
 export function toast(text: string, err = false): void {
+  if (!err && heldNow()) {
+    deferred = () => toast(text, err);
+    return;
+  }
+  deferred = null; // the slot moves on: a toast that was waiting for a held one is moot
   S.toast = { text, err, at: Date.now() };
   clearTimeout(toastTimer);
   toastTimer = window.setTimeout(() => {

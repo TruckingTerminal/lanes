@@ -4,6 +4,7 @@ import { trueBreakEven } from "./breakeven.js";
 import { WALL } from "./copy.js";
 import { grammar, shortDate } from "./format.js";
 import { PENDING } from "./copy-pending.js";
+import { FIXES } from "./copy-fixes.js";
 import { truckNumber } from "./trucknos.js";
 import { bookBar, reachChip, reachFor, whenAt } from "./windowsui.js";
 
@@ -166,8 +167,11 @@ export const clampToCeiling = (l: Load, rate: number): number => (rate > bidCeil
  * Client batch 8a item 61 (the director's G; the stubborn specialist's 2.32 floor above the 2.28 that won): the stepper's
  * floor is break-even itself, to the cent; a bid typed under it is allowed, with the loss said.
  */
-export function bidRange(_w: World, l: Load, be: number): [number, number] {
-  const top = bidCeiling(l);
+export function bidRange(_w: World, l: Load, be: number, c?: Company): [number, number] {
+  // Standing's first call (QA's 0.25.3 replay; the red team's 0.25.3 pass, finding 1): while the call is open, its holder's
+  // bid clears at no more than Book now (engine board.ts manualRoundBids), so the range stops there.
+  const held = c !== undefined && l.firstCall?.state === "open" && l.firstCall.companyId === c.id;
+  const top = held ? Math.min(bidCeiling(l), Math.floor(l.bookNow * 100 + 1e-6) / 100) : bidCeiling(l);
   return [Math.min(top, Math.max(0.01, Math.ceil(be * 100 - 1e-6) / 100)), top];
 }
 
@@ -180,6 +184,9 @@ function nextRoundHH(w: World): string {
 
 /** The chip's words for a load this company can't take (copy-first-ten-minutes.md, S2 "Blocked chips"). */
 export function blockReason(w: World, c: Company, truck: Truck, l: Load, reachLine: string | null = null): string | null {
+  // QA's 0.25.3 replay: a load this company released comes back to the board, never to it (the red team's finding 1). Said
+  // first, so the locals-first line doesn't read as the reason.
+  if (l.releasedBy?.includes(c.id)) return FIXES.releasedByYou;
   const v = vettingBlock(w, c, l);
   if (v) {
     const k = w.cfg.fraud.vetting;
@@ -221,6 +228,8 @@ export function cutsDaysOff(w: World, truck: Truck): number | null {
  * round, so Book now stays shut but a bid by hand is filed for the opening clearing (engine contracts.ts filesForOpening).
  */
 export function bidFiles(w: World, c: Company, truck: Truck, l: Load): boolean {
+  // QA's 0.25.3 replay: a load this company released is never its again, so no bid files for it either.
+  if (l.releasedBy?.includes(c.id)) return false;
   return vettingBlock(w, c, l) === null && !(l.hot > 0 && !canMakeHot(c, truck)) && filesForOpening(w, c, l);
 }
 
