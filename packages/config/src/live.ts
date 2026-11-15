@@ -293,6 +293,12 @@ export const LIVE_LEVERS: Record<string, unknown> = {
   "labor.dueHomePlan.enabled": true,
   "assets.handOverAtTruck": true,
   "labor.coDriversCount": true,
+  // 0.25.4 (the director's reputation ruling of 2026-11-14 and the red team's L3): reputation in three parts (the safety
+  // record, service failures and experience, with the red team's R1 to R3), and the logbook's service milestones (the
+  // on-time milestone reads service failures, and a clean quarter counts windows claims). Paired within the spread
+  // (economy-reputation-pair-2026-11-15.md).
+  "reputation.threeParts.enabled": true,
+  "token.airdrop.logbook.serviceMilestones": true,
 };
 
 /** A config with the levers applied by path; throws on a path the config doesn't have. */

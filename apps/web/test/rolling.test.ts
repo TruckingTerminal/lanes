@@ -73,7 +73,8 @@ describe("the truck on the road", () => {
     expect(p.load).toBe(d.grossFd);
     expect(p.lessor).toBeCloseTo(d.grossFd * g.w.cfg.costs.npcLeaseShareOfGross, 6);
     // The settlement fee's own line (on in the live levers since 0.25.0) is in the sum.
-    expect(p.load - p.fuel - p.tolls - p.driver - p.upkeep - p.lessor - p.settlement - p.held).toBeCloseTo(p.yours, 6);
-    expect(p.yours).toBeCloseTo(d.grossFd - d.costFd - p.held, 6);
+    // Detention at a closed dock is the poster's pay to the carrier (rolling.ts payLine), in "yours" as well.
+    expect(p.load - p.fuel - p.tolls - p.driver - p.upkeep - p.lessor - p.settlement - p.held + p.detention).toBeCloseTo(p.yours, 6);
+    expect(p.yours).toBeCloseTo(d.grossFd - d.costFd - p.held + p.detention, 6);
   }, 120_000);
 });

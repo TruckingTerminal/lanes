@@ -11,6 +11,8 @@ import { createWorld, formCompany, MILESTONES, openLogbook, refile, repDelivered
 const LIVE = withLiveLevers();
 const net = buildNetwork(hubs, LIVE);
 const ON = { ...LIVE, reputation: { ...LIVE.reputation, threeParts: { ...LIVE.reputation.threeParts, enabled: true } } } as EconomyConfig;
+/** Off by their own keys: three parts and the logbook's service milestones are on in the live levers from 0.25.4. */
+const OFF = { ...LIVE, reputation: { ...LIVE.reputation, threeParts: { ...LIVE.reputation.threeParts, enabled: false } }, token: { ...LIVE.token, airdrop: { ...LIVE.token.airdrop, logbook: { ...LIVE.token.airdrop.logbook, serviceMilestones: false } } } } as EconomyConfig;
 const DAY = LIVE.time.gameMinutesPerDay;
 
 function world(cfg: EconomyConfig): { w: World; c: Company } {
@@ -27,7 +29,7 @@ const deliver = (w: World, c: Company, n: number, o: { miles?: number; shipper?:
 
 describe("reputation in three parts (reputation.threeParts)", () => {
   it("off: no state, and the on-time rate as before", () => {
-    const { w, c } = world(LIVE);
+    const { w, c } = world(OFF);
     expect(c.reputation).toBe(LIVE.reputation.start);
     deliver(w, c, 5);
     repFailed(w, c, "release");
@@ -119,7 +121,7 @@ describe("the logbook's service milestones (token.airdrop.logbook.serviceMilesto
     expect(onTime.reached(w, c, lb)).toBe(true);
     c.failed = (c.failed ?? 0) + 6; // six releases and no-shows: 6 of 106
     expect(onTime.reached(w, c, lb)).toBe(false);
-    const off = world(LIVE);
+    const off = world(OFF);
     const lb0 = openLogbook(off.w, off.c, 1_000);
     off.c.delivered += 100;
     off.c.onTime += 100;

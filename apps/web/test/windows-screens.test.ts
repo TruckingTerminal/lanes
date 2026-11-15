@@ -1,6 +1,6 @@
 import "./seed.js";
 import { describe, expect, it } from "vitest";
-import { canMake, npcKey, tally, type Load, type World } from "@lanes/engine";
+import { canMake, npcKey, tally, vettingBlock, type Load, type World } from "@lanes/engine";
 import { boardRows } from "../src/board.js";
 import { WINDOWS } from "../src/copy-windows.js";
 import { hhmm } from "../src/format.js";
@@ -85,7 +85,8 @@ describe("client batch W: delivery windows on the page", () => {
     // A third: the engine refuses it, in the words the sheet turns into the director's.
     // Any open load of its trailer: the limit refuses it whether or not the truck could make it (the world the live
     // levers draw since 0.25.1 can leave only one reachable load ahead).
-    const third = [...w.loads.values()].find((l) => l.status === "open" && l.id !== next.l.id && l.equipment === truck.trailer)!;
+    // One the poster's vetting doesn't refuse first (book_load checks the vetting before the limit).
+    const third = [...w.loads.values()].find((l) => l.status === "open" && l.id !== next.l.id && l.equipment === truck.trailer && vettingBlock(w, c, l) === null)!;
     const res = g.act({ type: "book_load", truckId: truck.id, loadId: third.id });
     expect(res.ok).toBe(false);
     expect(!res.ok && res.reason).toMatch(/already has its next load booked/);

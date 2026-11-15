@@ -154,7 +154,8 @@ describe("client batch X: QA's 0.25.0 replay", () => {
 
   describe("batch X2: QA's re-check (qa-0250-batchX-2026-11-13.md)", () => {
     it("item 6: the reputation sheet's rows reach the figure, with the loads released or not picked up", async () => {
-      const { w, c } = await started();
+      // The on-time formula's sheet: three parts off by its own key (on in the live levers from 0.25.4; reputation-client tests theirs).
+      const { w, c } = await started(41, { ...WIN, reputation: { ...WIN.reputation, threeParts: { ...WIN.reputation.threeParts, enabled: false } } });
       c.onTime = 6;
       c.delivered = 7;
       c.failed = 1;

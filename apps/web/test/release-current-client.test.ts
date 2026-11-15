@@ -2,7 +2,7 @@ import "./seed.js";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { mayTake, placeMiles, type Load } from "@lanes/engine";
+import { mayTake, placeMiles, vettingBlock, type Load } from "@lanes/engine";
 import { FIXES } from "../src/copy-fixes.js";
 import { GAME_CONFIG, TestGame } from "../src/game.js";
 import { claimsAt, currentRelease, releaseCurrentCard, urgentFrom } from "../src/windowsui.js";
@@ -18,7 +18,7 @@ async function heading(cfg: typeof GAME_CONFIG) {
   const c = g.join("Release Freight", "oo", "CMH")!;
   const w = g.w;
   const t = w.trucksByCompany.get(c.id)![0]!;
-  const ok = (l: Load) => l.status === "open" && l.equipment === t.trailer && l.hot === 0 && l.contractId === 0 && !l.hold && mayTake(w, c, l) && placeMiles(w, t.place, l.originPlace) > 60 && placeMiles(w, t.place, l.originPlace) < 300;
+  const ok = (l: Load) => l.status === "open" && l.equipment === t.trailer && l.hot === 0 && l.contractId === 0 && !l.hold && mayTake(w, c, l) && vettingBlock(w, c, l) === null && placeMiles(w, t.place, l.originPlace) > 60 && placeMiles(w, t.place, l.originPlace) < 300;
   const l = [...w.loads.values()].find(ok);
   return { g, w, c, t, l };
 }

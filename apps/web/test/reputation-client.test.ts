@@ -8,6 +8,8 @@ import { reputationLine, reputationRows } from "../src/reputationui.js";
 
 /** Reputation in three parts on the page (reputation.threeParts): the one-line form and the explain sheet's rows. */
 const ON = { ...GAME_CONFIG, reputation: { ...GAME_CONFIG.reputation, threeParts: { ...GAME_CONFIG.reputation.threeParts, enabled: true } } };
+/** Off by its own key: on in the live levers from 0.25.4. */
+const OFF = { ...GAME_CONFIG, reputation: { ...GAME_CONFIG.reputation, threeParts: { ...GAME_CONFIG.reputation.threeParts, enabled: false } } };
 
 describe("reputation in three parts on the page", () => {
   it("the one-line form: the safety record, the service failures in order, the loads toward the cap", async () => {
@@ -21,7 +23,7 @@ describe("reputation in three parts on the page", () => {
     repFailed(w, c, "release");
     expect(reputationLine(w, c)).toMatch(/^Reputation \d+%: safety record clean · 2 releases in 90 days · full experience, 30\+ recent loads$/);
     expect(reputationRows(w, c).map((r) => r.label)).toEqual([FIXES.repPartSafety(FIXES.repSafetyClean), FIXES.repPartService("2 releases in 90 days"), FIXES.repPartExperience("full experience, 30+ recent loads")]);
-    const off = await TestGame.create(undefined, undefined, 41, GAME_CONFIG);
+    const off = await TestGame.create(undefined, undefined, 41, OFF);
     const d = off.join("Record Freight", "oo", "CMH")!;
     expect(reputationLine(off.w, d)).toBeNull();
   }, 120_000);
