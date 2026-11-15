@@ -303,7 +303,8 @@ export function dailyStaking(w: World): void {
           ? `Past ${m.requiredAbove} trucks you need an operations manager, one for every ${m.span}: hire within ${k.graceDays} days or the extra trucks park.`
           : over > 0
             ? `Your stake covers ${truckCap(w, c)} trucks and you run ${running}: stake more within ${k.graceDays} days or the extra trucks park.`
-            : `Your broker licence needs a ${k.roles.broker} FD stake: stake it within ${k.graceDays} days or you take no loads.`;
+            : // A brokerage under its licence stake takes no new loads at once (freight.ts, brokerage.ts); the grace is how soon they resume.
+              `Your broker licence needs a ${Math.round(k.roles.broker).toLocaleString("en-US")} FD stake: no new loads until it's staked. Stake it within ${k.graceDays} days and they start again at once; after that, the day after you stake.`;
       w.listener?.({ kind: "notice", companyId: c.id, topic: "authority", text, tone: "bad" });
       continue;
     }

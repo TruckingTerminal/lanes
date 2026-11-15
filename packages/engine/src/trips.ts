@@ -7,7 +7,7 @@ import { endOfLife } from "./assets.js";
 import { addTrailerMiles } from "./trailers.js";
 import { COMMODITIES, dcos, dexp, greatCircleMiles, NO_TERRAIN, routeTerrain, type Route } from "@lanes/data";
 import { deliveryWait, pickupWait, setSlot } from "./docks.js";
-import { afterBreakdown, claimOn, noShow, onTimeBy, windowsOn } from "./windows.js";
+import { afterBreakdown, claimOn, noShow, onTimeBy, whenLabel, windowsOn } from "./windows.js";
 import { swapAtIdle } from "./dealer.js";
 import { dockPriority, standingDelivered, standingTerms } from "./standing.js";
 import { flatbedDamage, reeferUnit } from "./equipment.js";
@@ -16,7 +16,7 @@ import { payLegFuel, roadService, serviceBill } from "./businesses.js";
 import { leaveParking, legMile, parkForTheNight, planNight, siteHere, siteInReach } from "./sites.js";
 import { managerBreakdownMult, managerMaintenanceMult } from "./labor.js";
 import { dayOf, MINUTES_PER_HOUR } from "./clock.js";
-import { clamp, fuelPrice, tripCost, ownerDrawFd } from "./economics.js";
+import { clamp, fmtInt, fuelPrice, tripCost, ownerDrawFd } from "./economics.js";
 import { noteEmissionCommitment, npcPayKind } from "./emission.js";
 import { settleDoubleBroker } from "./fraud.js";
 import { chargeSettlement } from "./settlement.js";
@@ -801,7 +801,11 @@ function deliver(w: World, truck: Truck, now: number): void {
     const claim = cfg.commodities.spoilClaimShare * load.cargoValue;
     w.ledger.post(w.t, carrierAcct, "sink:cargo_claims", claim, ref);
     costs += claim;
-    w.listener?.({ kind: "notice", companyId: carrier.id, topic: "safety", text: `Load #${load.id} (${k.name.toLowerCase()}) arrived ${Math.round((now - load.appointmentT) / MINUTES_PER_HOUR)} h past its appointment and was rejected as spoiled: no pay, and a ${Math.round(claim)} FD cargo claim.`, tone: "bad", truckId: truck.id });
+    // windows.spoilAfterDeadline: the clock ran from "Deliver by", so the notice reads from it (the director's sprint §10).
+    const text = spoilAfter
+      ? `Load #${load.id} (${k.name.toLowerCase()}) arrived ${Math.round((arrived - load.latestDeliveryT!) / MINUTES_PER_HOUR)} h past its Deliver by (${whenLabel(w, load.latestDeliveryT!)}) and was refused as spoiled: no pay, and a ${fmtInt(claim)} FD cargo claim.`
+      : `Load #${load.id} (${k.name.toLowerCase()}) arrived ${Math.round((now - load.appointmentT) / MINUTES_PER_HOUR)} h past its appointment and was rejected as spoiled: no pay, and a ${Math.round(claim)} FD cargo claim.`;
+    w.listener?.({ kind: "notice", companyId: carrier.id, topic: "safety", text, tone: "bad", truckId: truck.id });
   }
   if (truck.lease !== "owned") {
     const lease = paid * cfg.costs.npcLeaseShareOfGross;
