@@ -1,7 +1,8 @@
-**Two live holes on 0.25.1, both sent at once, plus a smaller live one; standing and reputation each have holes to fix in the build.**
+**Two live holes on 0.25.1, both sent at once, plus two smaller live ones; standing and reputation each have holes to fix in the build.**
 1. Every windows claim can be dodged by moving cash into the Reserve first. The cause is the cap I asked for in the bundle pass.
 2. A driver taken off a truck counts as "home" wherever they stand. That defeats the home rule, rule C, and rule 3's "an owner's fatigue builds", with no trip home and no per diem.
-3. A perishable can spoil before its "Deliver by", which the guide says can't happen.
+3. Under one deadline the logbook's "100 loads at 95% on time" milestone is automatic.
+4. A perishable can spoil before its "Deliver by", which the guide says can't happen.
 
 The rest are build notes: the top one for standing is a player's own facility building standing, and for reputation, laundering a record by refiling or going bankrupt.
 
@@ -17,8 +18,8 @@ The rest are build notes: the top one for standing is a player's own facility bu
 - **How they ran:** gated, one at a time, with the repo's own tsx, seed 11.
 - **The state they set directly:** where a probe needed a driver "25 days out and tired" or a hired driver, it set that state directly rather than play weeks of game. Each such line says so.
 
-**Not touched:** the live page, its store and the checkout. Nothing is staged, and the worktree is removed. Filed in the repo once holes 1 and 2 were fixed on the live page (0.25.2 and 0.25.3, 2026-11-15). A finding whose fix
-isn't live yet is held back until it is.
+**Not touched:** the live page, its store and the checkout. Nothing is staged, and the worktree is removed. Filed in the repo once holes 1 and 2 were fixed on the live page (0.25.2 and 0.25.3); L3 was added when its fix went
+live in 0.25.4 (2026-11-15).
 
 ## Ranked
 
@@ -26,6 +27,7 @@ isn't live yet is held back until it is.
 |---|---|---|---|---|---|
 | **L1** | **Every windows claim dodged through the Reserve** | releases, no-shows and late deliveries cost no FD, so booking ahead becomes a free option on the best loads | **yes** | certain: code and probe | post every claim in full; cap only the part paid to a player |
 | **L2** | **A driver off the truck is home anywhere** | full rest (fatigue 0.6 → 0 in 5 days) and days away reset 1,380 mi from home, no per diem; rule C stops refusing | **yes** | certain: probe, owner and hired | a truckless driver is home only inside the home radius |
+| L3 | **The logbook's on-time milestone is automatic under one deadline** | 41 of 41 carriers with 100+ loads in 60 days reach it (0 of 39 under the old rule): an airdrop slice (weight 6) for volume alone; "a clean quarter" ignores windows claims | yes | certain: probe | read service failures, not the on-time share |
 | L4 | **Perishables can spoil before "Deliver by"** | nothing for anyone: an honest carrier loses the pay and pays a claim of half the cargo, on a load marked on time | yes | probe: 3 of 862 perishable deliveries in 20 days | start the spoil clock at "Deliver by" |
 | L5 | **H, C and home-at-once read only the lead driver** | a resting or past-due co-driver is called out | yes | code | read every seated driver |
 | L6 | **The laptop board table's open row prints the old appointment as "deliver by"** | a second deadline on screen | yes | code | the row reads the windows line |
@@ -97,6 +99,24 @@ Both got the same mark (failed 1, reputation 0.773).
 An owner-operator does it alone. A fleet needs one relief driver at the hub, where rule I's guard otherwise puts the driver back.
 
 **Fix, one line in `dailyDrivers`:** a truckless driver is home only when `s.lastHub` is inside the home radius (`hubMiles(s.lastHub, c.homeHub) ≤ map.nearbyRadiusMi`). Anywhere else the day counts as away: road rest, and the layover's per diem. Getting a driver home without the truck is then a Send home, which isn't built.
+
+## L3. The logbook's on-time milestone is automatic under one deadline (live)
+
+**"100 loads delivered at 95% on time"** (weight 6 on the honest path) was calibrated on the old due time. The probe ran 60 days from the warm start (case MILESTONE):
+
+| | carriers with 100+ loads | of those at 95%+ on time | on time overall |
+|---|---|---|---|
+| one deadline (live) | 41 | **41 (100%)** | 100.0% |
+| old due rule (`oneDeadline` off, this process only) | 39 | 0 | 81.7% |
+
+**What follows:**
+- **The airdrop slice** is now earned by volume alone, and short loads farm it.
+- **"A quarter with no at-fault crash and no claim"** (weight 8) reads `c.claims`, which holds only fraud claims (theft, unpaid). A carrier with fifty windows claims in the quarter still qualifies.
+
+**Fix:**
+- The on-time milestone reads service failures: 100 loads with releases, no-shows and late deliveries under 5%, or none.
+- "A clean quarter" counts windows claims.
+- This needs a dated record of failures, which reputation's build needs anyway (R4).
 
 ## L4. A perishable can spoil before its "Deliver by" (live)
 
@@ -219,10 +239,10 @@ An owner-operator does it alone. A fleet needs one relief driver at the hub, whe
 
 ## Files
 
-- **The probe:** `s15/probe_wsim.ts` in the red team's scratchpad, run with `--root <worktree> --case HOME|DODGE|SPOIL|LANES [--swap] [--off 1]`.
+- **The probe:** `s15/probe_wsim.ts` in the red team's scratchpad, run with `--root <worktree> --case HOME|DODGE|SPOIL|MILESTONE|LANES [--swap] [--off 1]`.
 - **The gated runner:** `run.sh`, beside it.
 - **The logs**, beside it:
-  - `p1.log`: HOME and SPOIL, on and off;
+  - `p1.log`: HOME, SPOIL, MILESTONE on and off;
   - `p2.log`: DODGE;
   - `p3.log`: LANES;
   - `p4.log`: HOME with `--swap`.
