@@ -8,6 +8,11 @@ exist: every picture below is in the bank already, or is a hand edit of one.
 **Order:** Part 1 (standing) went to engineering first. Parts 2–4 follow in this note. The build order for all
 four is §5, the live budget §6.
 
+**Ruled (director, `director-sprint-2026-11-15.md` §7 and §8), amended in place:**
+- §1.6, the tier moments: five heroes, each the first time anywhere, with the director's guards.
+- §1.7, the badges: approved.
+- Part 4: approved with four changes (its head lists them), and Channel 19 moves into the Back Lot.
+
 ---
 
 ## Part 1. Standing with a market's shippers
@@ -54,12 +59,13 @@ the words are the director's.
 - **Line 1:** "Standing with {market} shippers": the market's name, never a shipper's (the director's ruling).
 - **Line 2:** band · "tier N of 10" · the trend word (rising / steady / slipping, from the last four reviews), in
   text with no arrow animation. Band words are coloured: Approved `--text-secondary`, Preferred `--accent`, Core
-  `--sun`.
+  `--sun`. At tier 10 the band reads "Core · dedicated" (the director's name, 11-15 §2).
 - **"Next" block:** the next tier's two floors and the player's two figures, each with a static code bar (`.bar`),
   full when met. Both figures are in mono and both have explain keys (how the score is built, what moves it: the
   director's ask). At tier 10 the block reads "Top tier. Keep the floors: 30 loads, 90% on time." with the
   player's figures against them, because tier 10 can still fall.
-- **"Unlocks" line:** the next milestone at or above the next tier ("First call at tier 7."). It's absent at 10.
+- **The next-milestone line:** the next milestone at or above the next tier ("First call at tier 7."). It's absent
+  at 10. (No string anywhere in standing says "unlock", "level up" or "achievement": the director's rule.)
 - **The record line:** on time over the window · loads (on contract) · claims. These are the director's words.
 - **The decay chip** shows from a week before decay (amber, steady, never blinking; rule 4.1). It disappears on
   the next load from that market.
@@ -124,7 +130,7 @@ ruled, on time interpolated by the engine.)
 | **Needs you** | A first call (§1.5); a decay a week away. |
 | **Money** | The contract offer at tier 9 and the dedicated lane at 10 are offers in Money, as Iuliia's line says. Their cards carry the badge at 32. |
 | **The month report** | A **Standing** section: every tier change that month with its cause ("Dallas: 6 → 5 after a no-show, Mon 12"), as the director asks. No section when nothing moved. |
-| **The return card** | A tier change while away is one line with the badge at 24; the moment (§1.6) waits for the Standing screen. |
+| **The return card** ("While you were away") | A tier change while away is one line with the badge at 24. A hero owed (§1.6) adds "See it", which opens Standing and plays it; with a tier-1 item open, the line shows without "See it". |
 
 ### 1.4 On the load sheet and the bid
 
@@ -174,42 +180,81 @@ or more of life after the round: the rule).
 - **Open question for engineering:** can a first call be bid on, or only booked at its rate? This spec assumes
   "only booked". If a bid is allowed, "Book it" becomes "Open", and the sheet keeps its bid row.
 
-### 1.6 The tier-reached moment (the director rules which tiers get a hero)
+### 1.6 The tier-reached moments (ruled: director 2026-11-15 §8, which amends §2; §2's other guards stand)
 
-**My proposal:** a hero for each milestone tier, each on the painting of what it unlocks; a toast for the other
-steps up; nothing loud for a step down.
+**A hero is earned once in a company's life.** Each milestone tier gets a hero the first time the company reaches
+it in any market. In a later market, or on climbing back after a fall, the same tier is a stamp. At most five
+heroes ever.
 
-| Tier reached (up) | Moment | The hero's painting |
+| Tier reached (up) | The first time anywhere | Later markets, or back after a fall |
 |---|---|---|
-| 3 · dock priority | hero | `shp-appt-wall` (the dock appointment board) |
-| 5 · Preferred, net-15 | hero | `bank` (existing scene) |
-| 7 · first call | hero | `shp-office` (the shipper's traffic office) |
-| 9 · Core, contract offers | hero | `brk-ratecon` (a contract signed) |
-| 10 · a dedicated lane | hero | the market's own city view (CityPicture: the painted hub at the hour and the weather, live already for every hub) |
-| 2, 4, 6, 8 | toast only: "[badge 32] Dallas standing: tier 6 of 10." | — |
+| 3 · dock priority | **hero** on `shp-appt-wall` (the dock appointment board) | stamp |
+| 5 · Preferred, net-15 | **hero** on `bank` (existing scene) | stamp |
+| 7 · first call | **hero** on `shp-office` (the shipper's traffic office) | stamp |
+| 9 · Core, contract offers | **hero** on `brk-ratecon` (a contract signed) | stamp |
+| 10 · Core · dedicated, a lane | **hero** on the market's own live city view (CityPicture: the painted hub at the hour and the weather) | stamp |
+| 2, 4, 6, 8 | toast: "[badge 32] Dallas standing: tier 6 of 10." | toast |
+
+**"The first time anywhere," for engineering:** a hero plays only when the new tier is a milestone and higher than
+the best tier the company has ever held in any market. That takes one figure per company, its best tier ever. It
+never goes down. The owed hero is kept in the engine's company record, not in the client, so a reload or a second
+device never replays it and a missed one is never lost. Seeing it clears it.
 
 **The hero** is spec §1.3's hero frame. It runs, in order (one accent):
 1. the painting fades in, dimmed 40%;
 2. the new tier's badge sits at 128, centre-top;
 3. the fx glint plays once at the badge's corner;
-4. under it, on `frame-paper`: "Standing with Dallas shippers · Preferred · tier 5 of 10", the perk in one line, and
-   Iuliia's line at 32 px with her proud face;
+4. under it, on `frame-paper`: "Standing with Dallas shippers · Preferred · tier 5 of 10", then the perk in one line
+   with its figure (below), then Iuliia's line at 32 px with her proud face;
 5. one button: "OK", plus "See the ladder" for the sheet.
 
-**Rules for the moments:**
-- **One per review:** if a weekly review moves several markets, the highest milestone gets the hero. The rest
-  become one toast: "Standing moved in 3 markets", which taps to Standing.
-- **Missed while away:** the moment plays once, the next time the player opens Standing (or the card in Company).
-  It is never queued into the title or the first screen.
-- **A step down:**
-  - no hero, no glint, no red flash;
-  - the badge swaps;
-  - Iuliia's concerned face with the director's falling line, if a milestone was lost;
-  - otherwise a toast: "Dallas standing: tier 6 of 10, after a late delivery."
-  - The cause always shows, in words.
+**The stamp** is a toast: the badge at 32, "Dallas standing: Preferred, tier 5 of 10", the perk in one line (with
+its figure), and Iuliia's line in her 32 px strip. It has no painting and no glint. A stamp is the mark on a
+scorecard, not a trophy.
+
+**Every hero and stamp says what changed, in figures, from the player's own books** (§2's guard). The figure comes
+from the scorecard or the ledger. If the engine has no figure for a perk, the line names the perk alone, never an
+estimate. The writer drafts; these show the shape:
+- 3: "Your trucks go to the front of the line at Dallas docks." Add the dock hours Dallas cost the player last
+  month, if the engine counts them by market.
+- 5: "Your Dallas invoices now pay in 15 days, not 30. On last month's loads that's 6,200 FD two weeks sooner." (The
+  director's line.)
+- 7: "Dallas shippers will call you first, a round before the board. You hauled 10 of their loads to get here."
+- 9: "Dallas shippers will offer you contracts. 20 loads, 87% on time, brought you here."
+- 10: "A lane of your own out of Dallas." Add the lane's name, if the engine names it at the offer.
+
+**When a moment shows:**
+- **One hero per review at most.** If a weekly review moves several markets, the hero goes to the highest tier that
+  is a first. Everything else in that review is one toast:
+  - with one other change, that change's own toast or stamp;
+  - with more, "Standing moved in 3 markets", which taps to Standing.
+- **Present at the review:** the hero plays when no sheet or Confirm is open. It never covers an open load sheet or
+  bid.
+- **Missed while away:** the hero plays once, the next time the player opens Standing or the card in Company. The
+  return card also gets one line with "See it" (§1.3). It is never queued into the title or the first screen.
+- **Never over trouble:** while a tier-1 item is open (a payment about to miss, a repossession), an owed hero waits.
+  It plays at the first chance after the item closes, by the rules above. Stamps and toasts aren't held.
+- **A step down** (as UX specified; the director's §8 adopts it). A fall is never a moment:
+  - no hero, no glint, no red flash; the badge swaps;
+  - **a lost milestone** is a plain notice with its cause, and Iuliia's falling line with her concerned face. It
+    goes in the return card if it happened while the player was away;
+  - **a fall between milestones** is a toast with its cause: "Dallas standing: tier 6 of 10, after a late
+    delivery."
+  - The cause always shows, in words. Every fall also goes in the month report's Standing section (§1.3).
 - **Reduced motion (Calm, Still):** the hero shows without the fade and the glint, as the spec's §2.6 says.
 
-### 1.7 The tier badges (art, by hand from the existing three)
+**How the names feel** (the director's words, for the writer). The voice is the market's, through Iuliia, never the
+game's:
+- **Approved (1–4):** you're on the list. Plain, matter-of-fact; a door open, nothing more.
+- **Preferred (5–8):** they know your name. Warmer: the first sign of a relationship.
+- **Core (9):** they plan around you. Weight and trust.
+- **Core · dedicated (10):** a lane that's yours. A partnership, said quietly.
+- **Within a band,** a step is a notch, "tier 6 of 10", with no name of its own.
+
+### 1.7 The tier badges (art, by hand from the existing three; approved, director 2026-11-15 §8)
+
+**Shipped in bb2469f** (set 1, with set 2's tier 10 for its halo: §7 call 1). The director's conditions, all met:
+no digit on any badge, marks lit in order, and the tier always in words beside it.
 
 Ten badges, one per tier, at 128 × 128 on transparency. They are made from the three band masters already in
 `ui/badges.png` (`std/master-approved.png`, `master-preferred.png`, `master-core.png`), keeping each master's
@@ -234,12 +279,19 @@ badge, a band's tiers read as marks lit in order:
 ### 1.8 Strings to the writer (new; the director's words kept as written)
 
 - The More row "Standing" and the screen's header line.
-- The card's "Next…", "You have…", "Top tier. Keep the floors…", "Unlocks…" lines and the decay chip.
+- The card's "Next…", "You have…", "Top tier. Keep the floors…" and next-milestone lines, and the decay chip.
+- The band names as the director has them, "Core · dedicated" at 10 included. The voice is §1.6's "How the names
+  feel". No "unlock", "level up" or "achievement" anywhere.
 - The ladder's foot (the four rules sentences).
 - The load-sheet lines: counts toward / brokered / the three claim lines with standing / the two perk chips.
 - WON's extra line.
 - First call: the card, its foot line, Pass's Confirm, the Needs you line, the toast.
-- The moments: the hero's paper lines, the toast for 2/4/6/8, "Standing moved in {n} markets", the step-down toast.
+- The moments:
+  - the hero's paper lines, and the five perk lines with their figures (§1.6);
+  - the stamp, Iuliia's five milestone lines, and the "Back to Preferred in Dallas" form for a climb back;
+  - the toast for 2/4/6/8 and "Standing moved in {n} markets";
+  - the lost-milestone notice with Iuliia's falling line, and the step-down toast;
+  - the return card's line and "See it".
 - The month report's Standing section and its row.
 - The city pane's line.
 
@@ -456,7 +508,7 @@ order row.
 
 ## Part 4. The Back Lot
 
-Kept out of the public repo with the rest of the bad-actor design (the shared notes folder holds it, for the director's review).
+Kept out of the public repo with the rest of the bad-actor design (the shared notes folder holds it; the director approved it with four changes on 2026-11-15).
 
 ## 5. Build order for engineering
 
@@ -477,9 +529,20 @@ Kept out of the public repo with the rest of the bad-actor design (the shared no
    - Business's Shipping section and the facility sheets;
    - the truck card's unloading interiors;
    - the report's spots, lead photo and laptop photos.
-5. **Part 4, §4.2:** the theft notice pictures and the Security row, if the director approves. They're live-relevant
-   now.
-6. **Part 4, §4.1:** the Back Lot screen, after the director's review, behind `robbery.lot`, test site only.
+5. **Part 4, §4.2, live-relevant now (approved):**
+   - the theft notice as a Needs-you and return card, tier 2, carrying the place;
+   - `blt-hit-shoulder` as its shoulder picture, and text at a rest area or truck stop until the aftermath edits
+     land;
+   - Iuliia's next step, by §4.2's order;
+   - the atNight line in `pickWindow` (already asked for).
+6. **Part 4, §4.1 and the switch-on half of §4.2 (approved), behind `robbery.lot`, test site only:**
+   - the Back Lot screen, with Channel 19 moved in from the Logbook;
+   - the three files loaded only with the switch on (rule 8);
+   - the `backlot` family's own dusk lookup;
+   - the Security row and the yard's rows;
+   - the engine's two notice fixes: the hirer's results go to the lot's feed (rule 3), and the victim gets the
+     theft notice only, never the Channel 19 line (§4.1).
+   No Part 4 string goes in before the director has seen it (rule 9).
 
 ## 6. The live budget
 
@@ -490,9 +553,58 @@ Kept out of the public repo with the rest of the bad-actor design (the shared no
 | `windows/lot.png` (5 cells) | +1 | 160 KB |
 | `windows/report.png` (9 cells) | +1 | 280 KB |
 | `windows/after-dark.png` (the dusk and night stills of the new *windows* only: shp-office, brk-headset, shp-own-1…4, the four interiors; about 22 cells) | +1 | ≤ 800 KB |
-| re-packs: `shp.png` (+4), `screens.png` (+1), `truck.png` (+3 if approved), the three season atlases (+3 each), `badges.png` (+10 tiers), `icons.png` (+9 spots, +3 security) | 0 | +≈ 600 KB |
+| re-packs: `shp.png` (+4), `screens.png` (+1, `blt-logbook`), `truck.png` (+1 `blt-hit-shoulder` now, +2 aftermath edits later), the three season atlases (+3 each), `badges.png` (+10 tiers), `icons.png` (+9 spots, +3 security); `heroes.png` unchanged (no Back Lot hero, §4.4) | 0 | +≈ 600 KB |
 | **Live after parts 1–3 (and 4.2)** | **469 of 511, 42 spare** | **≈ +2.2 MB** |
-| The Back Lot's day (its three files) | 472 of 511, 39 spare | ≈ +1.1 MB |
+| The Back Lot's day (its three files: `windows/backlot.png`, `ui/backlot.png`, `ui/backlot-people.png`) | 472 of 511, 39 spare | ≈ +1.1 MB |
 
 No new loop goes live: every new loop is test-only, so live stays well clear of 511. The test site gains about 35
 loops (≤ 180 KB each, about 6 MB) and the four new atlases.
+
+---
+
+## 7. The art sprint's three calls (ux, 2026-11-15, answering `art-sprint-2026-11-15.md`)
+
+**1. The tier badges: set 1, with set 2's tier 10.** The bible wants three bands so ten steps read at a glance, and
+set 1 keeps exactly three metals. Set 2 changes the metal at every tier:
+- Its tier 1 is a dark brown iron, the badge every new company starts with, and it reads as rust on our dark
+  panels.
+- Its tier 4 takes a gilded edge, which borrows Core's gold one band early.
+- At 32 px, where the marks no longer count, set 2's within-band steps don't read either. Its 5–8 silver-to-platinum
+  steps are barely visible even at 128.
+
+The one place a change of silhouette earns its keep is the top: tier 10's halo of rays tells it from tier 9 at 32 px,
+where the two stars can't. So ship `tier-1` … `tier-9` from set 1 and `tier-10` from set 2. (Approved by the
+director, 11-15 §8, and shipped in bb2469f.)
+
+**2. The 25 dusk stand-ins.** Dusk stills are for *windows* only (§2): a moment uses its base painting with the hour
+grade.
+- **Ship 7, live, in `windows/dusk.png`** (cells named by the painting's id, so today's dusk lookup finds them with
+  no code change): `plan-breakdown`, `plan-hiring`, `plan-hometime`, `plan-skyline`, `bg-iuliia-s2`,
+  `road-golden`, `ledger-desk`. That takes `dusk.png` from 373 KB to about 580 KB, under its cap.
+- **Hold 3** in the bank and pack them with the Back Lot, in its own atlas: `blt-chop-out`, `blt-fence`,
+  `blt-bountyboard`.
+- **Cut 7:** `bg-dealer-s1`, `bg-dealer-s2` and `bg-iuliia-s1` aren't shipped at all; `blt-stash`,
+  `blt-hit-truckstop`, `blt-hit-shoulder` and `blt-recovered` are moments, or unshipped.
+- **The 8 night paintings: agreed, the base serves as its own dusk, and its own night too.**
+  - **Implementation:** no duplicate cells. Instead, a flag on the painting's `kit.json` cell, `atNight: true`, which
+    `pickWindow` reads as "no hour grade at dusk or night" (today a night painting with no night cell gets the night
+    grade on top, which makes it too dark).
+  - **Where it matters now:** `bg-board-s2` (the board's night window, live), `showroom-floor` (live), and
+    `blt-logbook` (live with this drop). Then `blt-nightlot`, `blt-hit-reststop`, `blt-arrest` and `blt-chop-in`
+    when they ship. `bg-board-s1` isn't shipped.
+  - **The split:** the art role writes the flags; engineering adds the one line in `menuart.ts`.
+- **The +4 cells offered for `after-dark`** (`brk-ratecon`'s and `shp-appt-wall`'s dusk and night): not needed. Both
+  are moments (standing's heroes), so they keep the base with the grade.
+
+**3. Placement: confirmed.** `shp-office`, `shp-appt-wall` and `brk-ratecon` go in `rooms.png`, as §6 has it and as
+the corrected §1.9 says. `screens.png` and `night.png` stay unchanged.
+
+**Path changes accepted (art, 2026-11-15):**
+- The Back Lot faces' atlas ships as `ui/backlot-people.png`, not `people/backlot.png`, because `build.mjs`'s people
+  rule drops other names.
+- Face loops ship as `people/<id>.loop.png`.
+- These loops failed the gate and ship as stills:
+  - the report's: fuel, capacity, seasons, settlement (they never loop anyway, §2.4);
+  - the Back Lot's: stash, fence, bountyboard, chop-out, nightlot;
+  - the faces': robber-5, robber-7, blt-biz-2, blt-biz-5;
+  - and shp-appt-wall, brk-fellthrough, shp-own-2, mkt-clearing, mkt-early.
