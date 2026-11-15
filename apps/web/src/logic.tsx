@@ -357,6 +357,8 @@ function needsInView(fleet: boolean): Need[] {
     for (const l of firstCallsFor(w, c))
       out.push({ key: `firstcall:${l.id}`, text: STANDING_UX.needCall(w.net.hubs[l.origin]!.name, hhmmOf(l.tenderUntil)), tab: "loads", target: `[data-firstcall="${l.id}"]`, button: STANDING_UX.callOpen, icon: "standing" });
     for (const x of cardsUx(w, c)) if (x.decay) out.push({ key: `standing:decay:${x.hub}`, text: x.decay, tab: "standing", target: ".standingcard", button: STANDING_UX.tab, icon: "standing" });
+    // The director's sprint §13: on notice, as the decay warning, only when the step down would lose a perk.
+    for (const x of cardsUx(w, c)) if (x.noticeNeed && x.notice) out.push({ key: `standing:notice:${x.hub}`, text: x.notice, tab: "standing", target: ".standingcard", button: STANDING_UX.tab, icon: "standing" });
   }
   const trucks = fleet ? myTrucks() : [];
   const bal = w.ledger.balance(companyAccount(c.id));

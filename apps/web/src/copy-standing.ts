@@ -35,11 +35,12 @@ export const STANDING = {
   sheetNone: "A broker's load: it builds no standing with the shipper.",
   // First call (tier 7): the board's chip, the sheet's line, the feed, and turning it down.
   firstCallChip: (until: string) => `First call · until ${until}`,
-  firstCallLine: (market: string, until: string) => `${market} shippers call you first on this load. Book it or bid it before the ${until} round, or it goes to the board. Passing, or letting it lapse, counts against you.`,
+  firstCallLine: (market: string, until: string) => `${market} shippers call you first on this load. Book it or bid it before the ${until} round, or it goes to the board.`,
   firstCallFeed: (market: string, from: string, to: string, until: string) => `First call: ${market} shippers offer you ${from} → ${to} before the board, until ${until}.`,
   firstCallDecline: "Pass",
-  firstCallDeclined: (market: string) => `You passed on a first call. It counts against your standing with ${market} shippers.`,
-  firstCallLapsed: (market: string, from: string, to: string) => `The first call on ${from} → ${to} lapsed and went to the board. It counts against your standing with ${market} shippers.`,
+  // The director's sprint §14: a pass or a lapse costs nothing; the load goes on to the board, where you can still bid.
+  firstCallDeclined: (market: string) => `You passed on a first call from ${market} shippers. The load goes to the board, where you can still bid on it.`,
+  firstCallLapsed: (market: string, from: string, to: string) => `The first call from ${market} shippers on ${from} → ${to} lapsed and went to the board.`,
   // Contract offers (tier 9) and the dedicated lane (tier 10), on the offer's card.
   offeredFirst: (market: string, tier: number) => `Offered first · tier ${tier} with ${market} shippers`,
   dedicatedOffer: (market: string) => `A dedicated lane · Core with ${market} shippers`,
@@ -67,13 +68,15 @@ export const STANDING = {
       : tier === 5
         ? `${market} shippers pay you in 15 days now, not 30. Your money, two weeks sooner.`
         : tier === 7
-          ? `${market} shippers call you first now, before the board and before the locals. Pass on one, or let it lapse, and it counts against you.`
+          ? `${market} shippers call you first now, before the board and before the locals. Take the ones that pay: they call first the carriers who say yes.`
           : tier === 9
             ? `${market} shippers plan around you now. Their contract offers come to you first, in Money.`
             : tier === 10
               ? `You're a core carrier in ${market} now. A lane of your own is on offer: steady freight at a fixed rate.`
               : null,
   iuliiaFell: (market: string, tier: number, cause: string, perk: string, perkTier: number) => `Your ${market} standing fell to tier ${tier} after ${cause}. ${perk} is gone until you're back at ${perkTier}.`,
+  // The director's sprint §13: on notice, when the step down would lose a perk (her line; the writer polishes).
+  iuliiaOnNotice: (market: string, day: string, perk: string) => `Your ${market} standing is on notice. A ${market} load before ${day} keeps ${perk}.`,
   iuliiaDecayAhead: (market: string) => `No ${market} load in seven weeks. Another week without one and your standing there drops a tier.`,
   iuliiaNoticed: (market: string) => `${market} shippers noticed. Keep delivering on time and they'll start calling you first.`,
   // The hero at a milestone (the kit's hero component).
@@ -111,6 +114,10 @@ export const STANDING_UX = {
   have: (loads: string, onTime: string | null) => `You have ${loads} counted ${loads === "1" ? "load" : "loads"}${onTime ? `, ${onTime} on time` : ""}.`,
   topTier: (loads: number, onTime: string) => `The top tier. To hold it: ${loads} counted loads and ${onTime} on time.`,
   unlocks: (perk: string, tier: number) => `${perk} at tier ${tier}.`,
+  // Engineering's placeholders for the writer (the director's sprint §13 and §14).
+  onNoticeLoads: (have: string, tier: number, need: number, day: string, market: string) => `On notice: ${have} ${have === "1" ? "load" : "loads"} against tier ${tier}'s ${need}. Still under at next ${day}'s review, and ${market} drops to tier ${tier - 1}.`,
+  onNoticeOnTime: (have: string, tier: number, need: string, day: string, market: string) => `On notice: ${have} on time against tier ${tier}'s ${need}. Still under at next ${day}'s review, and ${market} drops to tier ${tier - 1}.`,
+  callsLine: (taken: number, of: number, days: number, market: string) => `First calls: you took ${taken} of ${of} in ${days} days. ${market} shippers call first the carriers who take them.`,
   decayChip: (market: string, weeks: number, day: string) => `No ${market} load in ${weeks} weeks · a tier off ${day}`,
   // §1.2 the ladder.
   ladderBand: { core: "CORE", preferred: "PREFERRED", approved: "APPROVED" } as const,
@@ -160,7 +167,7 @@ export const STANDING_UX = {
 export const STANDING_EXPLAIN: Record<string, { what: string; how: string; moves: string }> = {
   "shipper.standing": {
     what: "How a market's shippers rate you: one scorecard from their own direct and contract loads (a broker's loads don't count), over the last 180 days.",
-    how: "Loads delivered, each counted in full from 500 miles and by its miles below that (a 250-mile run counts half), a contract load double, less fixed hits: a claim, a no-show or a release two loads, a late delivery one, and from tier 7 a first call turned down one. Each tier needs its loads and its on-time share.",
+    how: "Loads delivered, each counted in full from 500 miles and by its miles below that (a 250-mile run counts half), a contract load double, less fixed hits: a claim, a no-show or a release two loads, a late delivery one. Each tier needs its loads and its on-time share.",
     moves: "Reviewed once a week, one tier at most. Eight weeks without a load from the market costs a tier, and loads older than 180 days fall away.",
   },
 };

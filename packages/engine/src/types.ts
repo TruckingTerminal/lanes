@@ -1474,7 +1474,8 @@ export type StandingCause = "rise" | "decay" | "aged" | "onTime" | "claim" | "no
 
 /**
  * Standing with one origin market's shippers (standing.ts). `days` holds the window's loads by day, oldest first, each
- * [day, weight, loads, contract loads, delivered, on time, claims, late, no-shows, releases, declined first calls, FD paid]
+ * [day, weight, loads, contract loads, delivered, on time, claims, late, no-shows, releases, declined first calls, FD paid,
+ * first calls taken]
  * (weight: a contract load double, a short hop half; the hits are counted apart and netted at the review; FD paid: the
  * carrier's pay for the day's loads, a figure for the net-15 moment, absent on a row from before it was kept).
  */
@@ -1498,6 +1499,8 @@ export interface Scorecard {
   lanes?: number[];
   /** First calls offered and taken here (the red team's S4: their own acceptance, apart from the contract tenders'). */
   calls?: [number, number];
+  /** standing.noticeReviews (the director's sprint §13): reviews so far found below the tier's floors, on notice; gone once back at them or stepped down. */
+  notice?: number;
 }
 
 /** Standing's tallies for the economy's pair (World.standingStats, made on first use while standing.enabled). */
@@ -1525,4 +1528,4 @@ export type GameEvent =
    * Standing (standing.ts), for the page's words: a tier change (`from`, `to`, `cause`); a first call held for the company
    * (`loadId`, `truckId`), or one it declined or let lapse; a decay a week ahead; the first on-time load noticed.
    */
-  | { kind: "standing"; companyId: number; hub: number; what: "tier" | "firstCall" | "declined" | "decayAhead" | "noticed"; from?: number; to?: number; cause?: StandingCause; loadId?: number; truckId?: number };
+  | { kind: "standing"; companyId: number; hub: number; what: "tier" | "firstCall" | "declined" | "decayAhead" | "noticed" | "onNotice"; from?: number; to?: number; cause?: StandingCause; loadId?: number; truckId?: number };

@@ -8,7 +8,7 @@ import { checkMissedMoments, closeHero, heroNow } from "../src/ui/HeroMoment.js"
 import { STANDING, STANDING_UX } from "../src/copy-standing.js";
 import { weekdayDate } from "../src/format.js";
 import { GAME_CONFIG, TestGame } from "../src/game.js";
-import { awayStanding, momentPerk, stampLine, troubleOpen, cardUx, claimCosts, firstCallFor, firstCallsFor, ladderRows, milestoneAt, milestoneLost, offerTierLine, perkChips, perksOnLoad, sheetLine, standingLines, standingList, standingMoves, standingShown, standingWords, wonLine } from "../src/standingui.js";
+import { awayStanding, momentPerk, reviewWhen, stampLine, troubleOpen, cardUx, claimCosts, firstCallFor, firstCallsFor, ladderRows, milestoneAt, milestoneLost, offerTierLine, perkChips, perksOnLoad, sheetLine, standingLines, standingList, standingMoves, standingShown, standingWords, wonLine } from "../src/standingui.js";
 
 /**
  * Standing with a market's shippers on the page (standingui.ts, copy-standing.ts; the director's card in
@@ -116,7 +116,7 @@ describe("standing on the page", () => {
     deliver(w, c, hub, 3);
     reviews(w, 3); // tiers 2, 3, 4
     standingHit(w, c, fake(w, hub), "noShow");
-    reviews(w, 1); // 3 after the no-show
+    reviews(w, 2); // on notice at the first (the director's §13), 3 after the no-show at the second
     const moves = standingMoves(w, c, t0, w.t + 1);
     const D = w.cfg.time.gameMinutesPerDay;
     const on = (k: number) => weekdayDate(Math.floor((t0 + k * WEEK) / D));
@@ -124,9 +124,9 @@ describe("standing on the page", () => {
       STANDING_UX.reportMove(m, 1, 2, STANDING.cause.rise, on(1)),
       STANDING_UX.reportMove(m, 2, 3, STANDING.cause.rise, on(2)),
       STANDING_UX.reportMove(m, 3, 4, STANDING.cause.rise, on(3)),
-      STANDING_UX.reportMove(m, 4, 3, STANDING.cause.noShow, on(4)),
+      STANDING_UX.reportMove(m, 4, 3, STANDING.cause.noShow, on(5)),
     ]);
-    expect(moves[3]).toBe(`${m}: 4 → 3 after a no-show, ${on(4)}`);
+    expect(moves[3]).toBe(`${m}: 4 → 3 after a no-show, ${on(5)}`);
     expect(standingMoves(w, c, t0 + 2 * WEEK + 1, w.t + 1)).toHaveLength(2);
   }, 120_000);
 
@@ -327,4 +327,50 @@ describe("the tier-reached moments (UX next-screens §1.6)", () => {
     expect(src).not.toContain("localStorage");
     expect(src).toContain('order({ type: "standing_seen", tier: o.tier }, "")');
   });
+});
+
+describe("the director's sprint §13 and §14 on the page", () => {
+  it("§13: on notice, the card says the figure under the floor and the review that steps it down; a Need only when a perk would go", async () => {
+    const { w, c } = await started();
+    const hub = c.homeHub;
+    const m = w.net.hubs[hub]!.name;
+    c.standingNoticed = true;
+    c.standing = { [hub]: { tier: 6, days: [], lastLoadT: w.t, trend: [], log: [], notice: 1 } };
+    deliver(w, c, hub, 6);
+    const x = cardUx(w, c, hub)!;
+    expect(x.notice).toBe(STANDING_UX.onNoticeLoads("6", 6, 7, reviewWhen(w).day, m));
+    expect(x.notice).toBe(`On notice: 6 loads against tier 6's 7. Still under at next ${reviewWhen(w).day}'s review, and ${m} drops to tier 5.`);
+    expect(x.noticeNeed).toBe(false); // 6 → 5 keeps every perk
+    c.standing[hub]!.tier = 5;
+    expect(cardUx(w, c, hub)!.noticeNeed).toBe(true); // 5 → 4 loses net-15
+    // Iuliia: only when a perk would go, and the engine's event carries no toast.
+    const ev = (from: number, to: number) => ({ kind: "standing", companyId: c.id, hub, what: "onNotice", from, to }) as Extract<GameEvent, { kind: "standing" }>;
+    expect(standingWords(w, ev(5, 4))).toEqual({ feed: null, iuliia: STANDING.iuliiaOnNotice(m, reviewWhen(w).day, STANDING.perk.net), tone: "" });
+    expect(standingWords(w, ev(6, 5)).iuliia).toBeNull();
+    c.standing[hub]!.notice = undefined;
+    expect(cardUx(w, c, hub)!.notice).toBeNull();
+  }, 120_000);
+
+  it("§14: a pass costs nothing (no Confirm, no mark), the card counts the calls taken from tier 7, and Iuliia's tier-7 line says so", async () => {
+    const { w, c } = await started();
+    const hub = c.homeHub;
+    const m = w.net.hubs[hub]!.name;
+    c.standingNoticed = true;
+    c.standing = { [hub]: { tier: 7, days: [], lastLoadT: w.t, trend: [], log: [] } };
+    deliver(w, c, hub, 10);
+    const row = c.standing[hub]!.days.at(-1)!;
+    row[10] = 4; // declined first calls
+    row[12] = 3; // first calls taken
+    const x = cardUx(w, c, hub)!;
+    expect(x.calls).toBe(STANDING_UX.callsLine(3, 7, w.cfg.standing.windowDays, m));
+    expect(x.calls).toBe(`First calls: you took 3 of 7 in 180 days. ${m} shippers call first the carriers who take them.`);
+    expect(standingLines(w, c, hub)!.marks).toBeNull();
+    expect(STANDING.iuliiaMilestone(m, 7)).toBe(`${m} shippers call you first now, before the board and before the locals. Take the ones that pay: they call first the carriers who say yes.`);
+    expect(STANDING.firstCallDeclined(m)).not.toMatch(/counts against/);
+    const src = readFileSync(join(__dirname, "..", "src", "ui", "Standing.tsx"), "utf8");
+    const pass = src.slice(src.indexOf("export function passFirstCall"), src.indexOf("/** Opens a first call on the board's sheet"));
+    expect(pass).not.toContain("confirmAct(");
+    expect(pass).toContain('order({ type: "decline_tender", loadId: l.id }');
+    expect(w.cfg.standing.hits.declinedFirstCall).toBe(0);
+  }, 120_000);
 });

@@ -334,8 +334,13 @@ export const economyConfig = {
     contractWeight: 2,
     fullLoadMi: 500,
     // Fixed hits in the window, in loads: a cargo claim (spoiled or damaged), a no-show and a release two, a late
-    // delivery one; a first call declined or let lapse (from tier 7) `declinedFirstCall` (the specs leave it unsized).
-    hits: { claim: 2, noShow: 2, release: 2, late: 1, declinedFirstCall: 1 },
+    // delivery one. A first call passed or let lapse is none (the director's sprint §14: shippers call first the carriers
+    // who take their calls, by the share they took, instead); a figure here would net it again.
+    hits: { claim: 2, noShow: 2, release: 2, late: 1, declinedFirstCall: 0 },
+    // The director's sprint §13 (the flicker): a review that finds a scorecard below its tier's floors puts it on notice
+    // for this many reviews before the step down; back at the floors, it comes off. 0: a step down at once. A step up
+    // still comes at the first review that meets the next floor, and the eight-week decay keeps its own rule.
+    noticeReviews: 1,
     decayWeeks: 8, // this long without a load costs a tier, and again each time after, down to tier 1
     decayWarnWeeks: 7, // the warning a week before
     trendReviews: 4, // rising, steady or slipping, from this many reviews

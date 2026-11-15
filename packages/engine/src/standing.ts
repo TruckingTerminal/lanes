@@ -42,7 +42,9 @@ const RELEASE = 9;
 const DECLINED = 10;
 /** The carrier's pay for the day's loads (a row from before it was kept has none). */
 const FD = 11;
-const ROW = 12;
+/** First calls taken that day (the director's sprint §14: the take share that orders who is called first). */
+const CALL_TAKEN = 12;
+const ROW = 13;
 /** The lanes a scorecard remembers (its last loads, laneId × 4 + trailer), for the dedicated lane. */
 const LANES_KEPT = 20;
 const TRAILERS = ["van", "reefer", "flatbed"] as const;
@@ -129,6 +131,8 @@ export interface StandingTally {
   noShows: number;
   releases: number;
   declined: number;
+  /** First calls taken in the window (declined holds those passed or let lapse). */
+  callsTaken: number;
 }
 
 export function tallyOf(w: World, s: Scorecard): StandingTally {
@@ -144,6 +148,7 @@ export function tallyOf(w: World, s: Scorecard): StandingTally {
   let noShows = 0;
   let releases = 0;
   let declined = 0;
+  let callsTaken = 0;
   for (const r of s.days) {
     if (r[DAY]! <= from) continue;
     weight += r[WEIGHT]!;
@@ -156,11 +161,18 @@ export function tallyOf(w: World, s: Scorecard): StandingTally {
     noShows += r[NO_SHOW]!;
     releases += r[RELEASE]!;
     declined += r[DECLINED]!;
+    callsTaken += r[CALL_TAKEN] ?? 0;
   }
   const h = k.hits;
   const score = weight - (claims * h.claim + late * h.late + noShows * h.noShow + releases * h.release + declined * h.declinedFirstCall);
-  return { score, loads, contractLoads: contract, onTimeShare: delivered > 0 ? onTime / delivered : null, claims, late, noShows, releases, declined };
+  return { score, loads, contractLoads: contract, onTimeShare: delivered > 0 ? onTime / delivered : null, claims, late, noShows, releases, declined, callsTaken };
 }
+
+/**
+ * The director's sprint §14: the share of its first calls a carrier took in the window (passed and lapsed ones the
+ * rest). No call yet counts as answering.
+ */
+export const takeShare = (t: Pick<StandingTally, "callsTaken" | "declined">): number => (t.callsTaken + t.declined > 0 ? t.callsTaken / (t.callsTaken + t.declined) : 1);
 
 /** The highest tier whose floors a tally meets. */
 export function tierFor(w: World, t: StandingTally): number {
@@ -315,6 +327,7 @@ export function firstCallRound(w: World, posted: readonly Load[]): void {
   const roundMin = w.cfg.time.gameMinutesPerDay / w.cfg.time.boardRoundHours.length;
   const roundsLife = (w.cfg.board.giveUpAfterRounds - 1) * roundMin >= life;
   const used = new Set<number>();
+  const shares = new Map<number, Map<number, number>>();
   const eligible = (load: Load) => load.status === "open" && load.contractId === 0 && load.tenderedTo === 0 && !load.hold && load.hot === 0 && standingLoad(load) && callers.has(load.origin) && (win ? load.latestPickupT !== undefined && load.latestPickupT - clearT >= life : roundsLife);
   // firstCallMaxShare (the red team's S3): at most that share of a market's eligible loads this round go to first call.
   const room = new Map<number, number>();
@@ -327,7 +340,9 @@ export function firstCallRound(w: World, posted: readonly Load[]): void {
     if (!eligible(load)) continue;
     const list = callers.get(load.origin)!;
     if (room.has(load.origin) && room.get(load.origin)! <= 0) continue;
-    const ranked = [...list].sort((a, b) => b.tier - a.tier || mix(load.id, a.c.id) - mix(load.id, b.c.id) || a.c.id - b.c.id);
+    let share = shares.get(load.origin);
+    if (!share) shares.set(load.origin, (share = new Map()));
+    const ranked = callOrder(w, list, load, share);
     for (const { c } of ranked) {
       const truck = callTruck(w, c, load, used);
       if (!truck) continue;
@@ -347,6 +362,16 @@ export function firstCallRound(w: World, posted: readonly Load[]): void {
   }
 }
 
+/**
+ * The order a market's first-call holders are tried in for a load: the higher tier first; among a tier, the director's
+ * sprint §14, the one that took the larger share of its first calls in the window (takeShare; none yet counts as
+ * taking them); then a hash of the load and the company, so no draw is made. `share` caches the shares by company.
+ */
+export function callOrder(w: World, list: readonly { c: Company; tier: number }[], load: Load, share = new Map<number, number>()): { c: Company; tier: number }[] {
+  for (const x of list) if (!share.has(x.c.id)) share.set(x.c.id, takeShare(tallyOf(w, x.c.standing![load.origin]!)));
+  return [...list].sort((a, b) => b.tier - a.tier || share.get(b.c.id)! - share.get(a.c.id)! || mix(load.id, a.c.id) - mix(load.id, b.c.id) || a.c.id - b.c.id);
+}
+
 /** board.ts assign: a first call booked or won by its carrier (taken by another, it lapses at its round's end). */
 export function firstCallTaken(w: World, load: Load, companyId: number): void {
   const fc = load.firstCall;
@@ -359,12 +384,18 @@ export function firstCallTaken(w: World, load: Load, companyId: number): void {
   load.localUntilRound = fc.localUntil;
   const s = companyById(w, fc.companyId).standing?.[load.origin];
   if (s?.calls) s.calls[1]!++;
+  if (s && standingOn(w)) {
+    const row = today(w, s);
+    row[CALL_TAKEN] = (row[CALL_TAKEN] ?? 0) + 1;
+  }
   standingStats(w).firstCalls.taken++;
 }
 
 /**
- * A first call turned down (contracts.ts rejectTender, the decline) or let lapse (firstCallRound): a hit in the window,
- * the load to the locals-first hold it had (a round later once the call has run its clearing) or the board.
+ * A first call turned down (contracts.ts rejectTender, the decline) or let lapse (firstCallRound): counted in the window
+ * against the take share (a hit only with hits.declinedFirstCall above 0, none since the director's §14), the load to
+ * the locals-first hold it had (a round later once the call has run its clearing) or the board, where the carrier may
+ * still bid like anyone.
  */
 export function declineFirstCall(w: World, load: Load): void {
   const fc = load.firstCall;
@@ -381,7 +412,7 @@ export function declineFirstCall(w: World, load: Load): void {
   if (c.liquidatingSince !== null) return;
   const s = card(c, load.origin);
   today(w, s)[DECLINED]!++;
-  s.lastHit = { t: w.t, cause: "declined" };
+  if (w.cfg.standing.hits.declinedFirstCall > 0) s.lastHit = { t: w.t, cause: "declined" }; // a fall names it only as a hit
   w.listener?.({ kind: "standing", companyId: c.id, hub: load.origin, what: "declined", loadId: load.id });
 }
 
@@ -441,10 +472,15 @@ export function weeklyStanding(w: World): void {
       const decayDue = s.tier > 1 && s.lastLoadT >= 0 && w.t - since >= decayMin;
       const was = s.tier;
       let cause: StandingCause | null = null;
-      if (target < s.tier) {
+      // §13 (the flicker): below the floors, on notice for noticeReviews reviews first; the decay keeps its own rule.
+      const below = target < s.tier;
+      const onNotice = below && (s.notice ?? 0) < (k.noticeReviews ?? 0);
+      if (!below && s.notice !== undefined) delete s.notice; // back at the floors: off notice, no word
+      if (below && !onNotice) {
         s.tier--;
         cause = fallCause(w, s, t);
         if (decayDue) s.decayedT = w.t; // one step serves both
+        delete s.notice;
       } else if (decayDue) {
         s.tier--;
         cause = "decay";
@@ -454,6 +490,10 @@ export function weeklyStanding(w: World): void {
         s.tier++;
         cause = "rise";
       }
+      if (onNotice && cause === null) {
+        s.notice = (s.notice ?? 0) + 1;
+        w.listener?.({ kind: "standing", companyId: c.id, hub, what: "onNotice", from: s.tier, to: s.tier - 1 });
+      } else if (cause !== null) delete s.notice;
       s.trend.push(s.tier - was);
       if (s.trend.length > k.trendReviews) s.trend.shift();
       if (cause !== null) {
@@ -538,6 +578,8 @@ export interface StandingCard extends StandingTally {
   /** The last load for the market (game minutes), -1 for none; and the tier changes in the window, newest last. */
   lastLoadT: number;
   log: Scorecard["log"];
+  /** §13: on notice (below the tier's floors at a review; the next review below steps it down). */
+  notice: boolean;
 }
 
 /** The card for a company's standing with a market's shippers, or null with standing off. */
@@ -546,7 +588,7 @@ export function standingCard(w: World, c: Company, hub: number): StandingCard | 
   const k = w.cfg.standing;
   const s = c.standing?.[hub];
   const tier = s?.tier ?? 1;
-  const tally: StandingTally = s ? tallyOf(w, s) : { score: 0, loads: 0, contractLoads: 0, onTimeShare: null, claims: 0, late: 0, noShows: 0, releases: 0, declined: 0 };
+  const tally: StandingTally = s ? tallyOf(w, s) : { score: 0, loads: 0, contractLoads: 0, onTimeShare: null, claims: 0, late: 0, noShows: 0, releases: 0, declined: 0, callsTaken: 0 };
   const moved = (s?.trend ?? []).reduce((a, b) => a + b, 0);
   const perks = STANDING_PERKS.filter((p) => tier >= perkTier(w, p));
   const ahead = STANDING_PERKS.map((p) => ({ tier: perkTier(w, p), perk: p })).filter((x) => x.tier > tier).sort((a, b) => a.tier - b.tier)[0] ?? null;
@@ -561,6 +603,7 @@ export function standingCard(w: World, c: Company, hub: number): StandingCard | 
     perks,
     lastLoadT: s?.lastLoadT ?? -1,
     log: s?.log ?? [],
+    notice: (s?.notice ?? 0) > 0,
   };
 }
 

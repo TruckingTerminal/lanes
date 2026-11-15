@@ -7,6 +7,9 @@ import {
   applyAction,
   bill,
   buildReport,
+  callOrder,
+  declineFirstCall,
+  firstCallTaken,
   companyAccount,
   createWorld,
   dayOf,
@@ -28,6 +31,7 @@ import {
   contractRate,
   stepHour,
   tallyOf,
+  takeShare,
   tierFor,
   weeklyContracts,
   weeklyStanding,
@@ -45,6 +49,8 @@ import {
 const LIVE = withLiveLevers();
 const net = buildNetwork(hubs, LIVE);
 const ON = { ...LIVE, standing: { ...LIVE.standing, enabled: true } } as EconomyConfig;
+/** The step down at once, as before the director's sprint §13 (noticeReviews 0): the tests of the floors' arithmetic. */
+const AT_ONCE = { ...ON, standing: { ...ON.standing, noticeReviews: 0 } } as EconomyConfig;
 const DAY = LIVE.time.gameMinutesPerDay;
 const WEEK = 7 * DAY;
 
@@ -158,8 +164,8 @@ describe("the score", () => {
 });
 
 describe("the weekly review", () => {
-  it("moves a tier a week at most, up to the floors and down after a heavy hit, naming the cause", () => {
-    const w = bare();
+  it("moves a tier a week at most, up to the floors and down after a heavy hit, naming the cause (a step down at once: noticeReviews 0)", () => {
+    const w = bare(AT_ONCE);
     const c = carriers(w)[0]!;
     const hub = c.homeHub;
     const seen: GameEvent[] = [];
@@ -233,8 +239,8 @@ describe("the weekly review", () => {
     expect(scorecard(w, c, c.homeHub)).toBeUndefined();
   });
 
-  it("enforces the floors downward (the red team's S6): one load every seven weeks stops the decay, not the slide as loads age out", () => {
-    const w = bare();
+  it("enforces the floors downward (the red team's S6): one load every seven weeks stops the decay, not the slide as loads age out (noticeReviews 0)", () => {
+    const w = bare(AT_ONCE);
     const c = carriers(w)[0]!;
     const hub = c.homeHub;
     deliverN(w, c, hub, 10);
@@ -314,6 +320,9 @@ describe("the tier-reached moments (UX next-screens §1.6)", () => {
     reviews(w, 1);
     expect(standingOwed(w, c).map((o) => o.tier)).toEqual([5]);
     for (let i = 0; i < 2; i++) standingHit(w, c, fake(w, hub), "noShow"); // 5 - 4: under tier 5's floor
+    reviews(w, 1); // on notice (§13): the hero still owed
+    expect(c.standing![hub]!.tier).toBe(5);
+    expect(standingOwed(w, c).map((o) => o.tier)).toEqual([5]);
     reviews(w, 1);
     expect(c.standing![hub]!.tier).toBe(4);
     expect(c.standingOwed).toBeUndefined();
@@ -373,6 +382,107 @@ describe("the tier-reached moments (UX next-screens §1.6)", () => {
     const d = carriers(off)[0]!;
     d.standingOwed = [{ tier: 3, hub: d.homeHub, t: 0 }];
     expect(standingOwed(off, d)).toEqual([]);
+  });
+});
+
+describe("on notice before a step down (the director's sprint §13)", () => {
+  /** A market at tier 6 with its floor's 7 loads, and the events about it. */
+  function atSix() {
+    const w = bare();
+    const c = carriers(w)[0]!;
+    const hub = c.homeHub;
+    setTier(c, hub, 6, w);
+    deliverN(w, c, hub, 7);
+    const seen: Extract<GameEvent, { kind: "standing" }>[] = [];
+    w.listener = (e) => {
+      if (e.kind === "standing" && e.companyId === c.id && e.hub === hub) seen.push(e);
+    };
+    return { w, c, hub, s: c.standing![hub]!, seen };
+  }
+
+  it("the first review under the floors puts it on notice, said once; the next one still under steps it down, naming the hit", () => {
+    const { w, c, hub, s, seen } = atSix();
+    standingHit(w, c, fake(w, hub), "noShow"); // 7 - 2: under tier 6's floor of 7
+    reviews(w, 1);
+    expect(s.tier).toBe(6);
+    expect(s.notice).toBe(1);
+    expect(standingCard(w, c, hub)!.notice).toBe(true);
+    expect(seen.map((e) => [e.what, e.from, e.to])).toEqual([["onNotice", 6, 5]]);
+    reviews(w, 1);
+    expect(s.tier).toBe(5);
+    expect(s.notice).toBeUndefined();
+    expect(s.log.at(-1)).toMatchObject({ from: 6, to: 5, cause: "noShow" });
+    expect(seen.map((e) => e.what)).toEqual(["onNotice", "tier"]);
+  });
+
+  it("back at the floors by the next review, it comes off notice with no step and no word", () => {
+    const { w, c, hub, s, seen } = atSix();
+    standingHit(w, c, fake(w, hub), "noShow");
+    reviews(w, 1);
+    expect(s.notice).toBe(1);
+    deliverN(w, c, hub, 2); // 9 - 2: back at 7
+    reviews(w, 1);
+    expect(s.tier).toBe(6);
+    expect(s.notice).toBeUndefined();
+    expect(standingCard(w, c, hub)!.notice).toBe(false);
+    expect(seen.map((e) => e.what)).toEqual(["onNotice"]);
+  });
+
+  it("a step up still comes at the first review that meets the next floor; and with noticeReviews 0, a step down at once", () => {
+    const { w, c, hub, s } = atSix();
+    deliverN(w, c, hub, 3); // 10: tier 7's floor
+    reviews(w, 1);
+    expect(s.tier).toBe(7);
+    const o = bare(AT_ONCE);
+    const d = carriers(o)[0]!;
+    setTier(d, d.homeHub, 6, o);
+    deliverN(o, d, d.homeHub, 7);
+    standingHit(o, d, fake(o, d.homeHub), "noShow");
+    reviews(o, 1);
+    expect(d.standing![d.homeHub]!.tier).toBe(5);
+    expect(d.standing![d.homeHub]!.notice).toBeUndefined();
+  });
+});
+
+describe("first calls after the director's sprint §14", () => {
+  /** A first call open for `c` on a load of its market's. */
+  function called(w: World, c: Company, hub: number): Load {
+    const l = fake(w, hub);
+    Object.assign(l, { firstCall: { companyId: c.id, round: w.round + 1, localUntil: 0, state: "open" }, tenderedTo: c.id, tenderUntil: w.t + DAY, localUntilRound: 0 });
+    return l;
+  }
+
+  it("a pass or a lapse is no hit: the score stands and no fall will name it, but it counts against the share of calls taken", () => {
+    const w = bare();
+    const c = carriers(w)[0]!;
+    const hub = c.homeHub;
+    setTier(c, hub, 7, w);
+    deliverN(w, c, hub, 10);
+    const s = c.standing![hub]!;
+    const score = tallyOf(w, s).score;
+    declineFirstCall(w, called(w, c, hub));
+    expect(tallyOf(w, s).score).toBe(score);
+    expect(tallyOf(w, s).declined).toBe(1);
+    expect(s.lastHit).toBeUndefined();
+    const taken = called(w, c, hub);
+    firstCallTaken(w, taken, c.id);
+    expect(tallyOf(w, s).callsTaken).toBe(1);
+    expect(takeShare(tallyOf(w, s))).toBe(0.5);
+    expect(takeShare({ callsTaken: 0, declined: 0 })).toBe(1); // none yet counts as answering
+  });
+
+  it("among holders of a tier, the one that took the larger share of its calls is tried first; a higher tier before both", () => {
+    const w = bare();
+    const [a, b, d] = carriers(w);
+    const hub = a!.homeHub;
+    for (const c of [a!, b!]) setTier(c, hub, 7, w);
+    setTier(d!, hub, 8, w);
+    declineFirstCall(w, called(w, a!, hub)); // a: 0 of 1
+    const list = [a!, b!, d!].map((c) => ({ c, tier: c.standing![hub]!.tier }));
+    for (let i = 0; i < 5; i++) {
+      const order = callOrder(w, list, fake(w, hub)).map((x) => x.c.id);
+      expect(order).toEqual([d!.id, b!.id, a!.id]);
+    }
   });
 });
 
@@ -474,15 +584,18 @@ describe("the perks", () => {
     const trucks = offered.map((e) => e.truckId);
     expect(new Set(trucks).size).toBe(trucks.length);
 
-    // A first call turned down: a hit with the market, and the load to the board (or its locals-first hold).
+    // A first call turned down: no hit since the director's §14, counted against the take share, and the load to the
+    // board (or its locals-first hold).
     const turned = calls[0]!;
     const holder = w.companies[turned.firstCall!.companyId - 1]!;
     const had = turned.firstCall!.localUntil;
+    const score = tallyOf(w, scorecard(w, holder, turned.origin)!).score;
     rejectTender(w, turned);
     expect(turned.firstCall!.state).toBe("declined");
     expect(turned.tenderedTo).toBe(0);
     expect(turned.localUntilRound).toBe(had);
     expect(tallyOf(w, scorecard(w, holder, turned.origin)!).declined).toBe(1);
+    expect(tallyOf(w, scorecard(w, holder, turned.origin)!).score).toBe(score);
 
     // The rest, through the next round: each one taken by its carrier, or lapsed with a hit and the hold back a round later.
     const rest = calls.slice(1).map((l) => ({ l, had: l.firstCall!.localUntil }));

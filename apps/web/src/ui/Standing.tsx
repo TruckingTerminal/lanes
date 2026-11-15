@@ -8,7 +8,6 @@ import { cardsUx, cardUx, firstCallFor, firstCallsFor, ladderFoot, ladderRows, s
 import { whenAt } from "../windowsui.js";
 import { bumpData, me, order, S, setTab, toast, useData } from "../state.js";
 import { openLoadOf } from "./WhatNow.js";
-import { confirmAct } from "./Confirm.js";
 import { Fig } from "./Explain.js";
 import { Bar, Btn, Card, Muted, Panel } from "./bits.js";
 import { cellStyle } from "./KitIcon.js";
@@ -94,6 +93,8 @@ export function StandingCardView({ x, size = 64 }: { x: CardUx; size?: number })
         {x.unlocks ? <span class="small">{x.unlocks}</span> : null}
       </div>
       <p class="muted small standingrecord">{x.record}</p>
+      {x.calls ? <p class="muted small">{x.calls}</p> : null}
+      {x.notice ? <span class="chip warn">{x.notice}</span> : null}
       {x.decay ? <span class="chip warn">{x.decay}</span> : null}
     </Card>
   );
@@ -203,30 +204,16 @@ export function SheetStandingLine({ c, l }: { c: Company; l: Load }): JSX.Elemen
 }
 
 /** §1.5: Pass, after its Confirm: the engine's decline, a hit with the market, the load to the board. */
-export function passFirstCall(c: Company, l: Load, ev?: MouseEvent): void {
-  const w = S.game!.w;
-  const m = w.net.hubs[l.origin]!.name;
-  confirmAct(
-    {
-      verb: STANDING_UX.callPass,
-      item: STANDING_UX.passItem,
-      costFd: null,
-      costLine: STANDING_UX.passCost(m, w.cfg.standing.hits.declinedFirstCall),
-      does: STANDING_UX.passConfirm(m, w.cfg.standing.hits.declinedFirstCall),
-      risk: null,
-      go: STANDING_UX.callPass,
-      destructive: true,
-      run: () => {
-        S.declinedCalls.add(l.id);
-        void order({ type: "decline_tender", loadId: l.id }, STANDING.firstCallDeclined(m)).then((r) => {
-          if (!r.ok) S.declinedCalls.delete(l.id);
-          else toast(STANDING.firstCallDeclined(m));
-          bumpData();
-        });
-      },
-    },
-    ev,
-  );
+/** §1.5's Pass. The director's sprint §14: it costs nothing and the load stays bookable on the board, so it needs no Confirm. */
+export function passFirstCall(c: Company, l: Load, _ev?: MouseEvent): void {
+  const m = S.game!.w.net.hubs[l.origin]!.name;
+  void c;
+  S.declinedCalls.add(l.id);
+  void order({ type: "decline_tender", loadId: l.id }, STANDING.firstCallDeclined(m)).then((r) => {
+    if (!r.ok) S.declinedCalls.delete(l.id);
+    else toast(STANDING.firstCallDeclined(m));
+    bumpData();
+  });
 }
 
 /** Opens a first call on the board's sheet, for the player's idle truck of its trailer nearest the market. */

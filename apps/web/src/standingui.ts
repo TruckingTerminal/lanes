@@ -38,7 +38,8 @@ export function standingLines(w: World, c: Company, hub: number): StandingLines 
     head: STANDING.head(m, STANDING.band[card.band], card.tier, STANDING.trend[card.trend]),
     next,
     detail: STANDING.detail(card.onTimeShare === null ? STANDING.noOnTime : pct(card.onTimeShare), days, card.loads, card.contractLoads, card.claims),
-    marks: STANDING.marks(card.noShows, card.releases, card.late, card.declined) || null,
+    // The director's sprint §14: a first call passed is no mark while it's no hit.
+    marks: STANDING.marks(card.noShows, card.releases, card.late, w.cfg.standing.hits.declinedFirstCall > 0 ? card.declined : 0) || null,
   };
 }
 
@@ -112,6 +113,11 @@ export function standingWords(w: World, e: StandingEvent, byHand = false): { fee
   if (e.what === "firstCall") return { feed: STANDING.firstCallFeed(m, places[0]!, places[1]!, l ? hhmm(l.tenderUntil) : "the next round"), iuliia: null, tone: "good" };
   if (e.what === "declined") return { feed: byHand ? STANDING.firstCallDeclined(m) : STANDING.firstCallLapsed(m, places[0]!, places[1]!), iuliia: null, tone: "bad" };
   if (e.what === "decayAhead") return { feed: null, iuliia: STANDING.iuliiaDecayAhead(m), tone: "" };
+  // §13: on notice; Iuliia speaks only when the step down would lose a perk, and nothing is toasted.
+  if (e.what === "onNotice" && e.from !== undefined && e.to !== undefined) {
+    const lost = milestoneLost(w, e.from, e.to);
+    return { feed: null, iuliia: lost ? STANDING.iuliiaOnNotice(m, reviewWhen(w).day, STANDING.perk[lost]) : null, tone: "" };
+  }
   if (e.what === "noticed") return { feed: null, iuliia: STANDING.iuliiaNoticed(m), tone: "" };
   return { feed: null, iuliia: null, tone: "" };
 }
@@ -167,6 +173,11 @@ export interface CardUx {
   record: string;
   /** From a week before a decay: the amber chip. */
   decay: string | null;
+  /** §13: on notice, the line with the figure under the floor and the review that steps it down; `noticeNeed` when that would lose a perk. */
+  notice: string | null;
+  noticeNeed: boolean;
+  /** §14, from the first-call tier: the calls taken of those made in the window. */
+  calls: string | null;
 }
 
 /** §1.1: a market's card in UX's form, or null (standing off, or not yet shown). */
@@ -204,7 +215,20 @@ export function cardUx(w: World, c: Company, hub: number): CardUx | null {
     unlocks: card.nextPerk && card.nextPerk.tier >= card.tier + 1 ? STANDING_UX.unlocks(STANDING.perk[card.nextPerk.perk], card.nextPerk.tier) : null,
     record: STANDING.detail(card.onTimeShare === null ? STANDING.noOnTime : pct(card.onTimeShare), k.windowDays, card.loads, card.contractLoads, card.claims),
     decay,
+    ...noticeOf(w, card, m),
+    calls: card.tier >= perkTier(w, "firstCall") && card.callsTaken + card.declined > 0 ? STANDING_UX.callsLine(card.callsTaken, card.callsTaken + card.declined, k.windowDays, m) : null,
   };
+}
+
+/** §13: the card's on-notice line, from the floor it's under (loads first, then the on-time share), and whether it would lose a perk. */
+function noticeOf(w: World, card: NonNullable<ReturnType<typeof standingCard>>, m: string): { notice: string | null; noticeNeed: boolean } {
+  if (!card.notice) return { notice: null, noticeNeed: false };
+  const k = w.cfg.standing;
+  const day = reviewWhen(w).day;
+  const needL = k.loadFloors[card.tier - 1]!;
+  const needT = k.onTimeFloors[card.tier - 1]!;
+  const notice = card.score < needL ? STANDING_UX.onNoticeLoads(loadsSaid(Math.max(0, card.score)), card.tier, needL, day, m) : STANDING_UX.onNoticeOnTime(pct(card.onTimeShare ?? 0), card.tier, pct(needT), day, m);
+  return { notice, noticeNeed: milestoneLost(w, card.tier, card.tier - 1) !== null };
 }
 
 /** §1.3: the cards the Standing screen lists: highest tier first, then the nearest next tier; tier 1 with nothing in the window drops out. */
