@@ -1,6 +1,6 @@
-import { companyAccount, dayOf, hasPerk, perkTier, standingCard, standingLoad, standingMarkets, standingOn, standingOwed, standingPaid, tallyOf, tierAt, type Company, type GameEvent, type Load, type StandingPerk, type World } from "@lanes/engine";
+import { companyAccount, dayOf, hasPerk, perkTier, standingCard, standingLoad, standingMarkets, standingOn, standingOwed, standingPaid, tallyOf, tierAt, type Company, type GameEvent, type Load, type Scorecard, type StandingPerk, type World } from "@lanes/engine";
 import { STANDING, STANDING_UX } from "./copy-standing.js";
-import { fdFull, hhmm, pct, TRAILER_NAME, weekdayDate } from "./format.js";
+import { fdFull, hhmm, pct, shortDate, TRAILER_NAME, weekdayDate } from "./format.js";
 
 /**
  * Standing with a market's shippers on the page (standing.ts): the card's lines in the director's words, the perks
@@ -214,11 +214,13 @@ export function cardUx(w: World, c: Company, hub: number): CardUx | null {
     top: top ? STANDING_UX.topTier(floorL, pct(floorT)) : null,
     unlocks: card.nextPerk && card.nextPerk.tier >= card.tier + 1 ? STANDING_UX.unlocks(STANDING.perk[card.nextPerk.perk], card.nextPerk.tier) : null,
     record: STANDING.detail(card.onTimeShare === null ? STANDING.noOnTime : pct(card.onTimeShare), k.windowDays, card.loads, card.contractLoads, card.claims),
-    decay,
-    ...noticeOf(w, card, m),
+    ...noticeAndDecay(noticeOf(w, card, m), decay),
     calls: card.tier >= perkTier(w, "firstCall") && card.callsTaken + card.declined > 0 ? STANDING_UX.callsLine(card.callsTaken, card.callsTaken + card.declined, k.windowDays, m) : null,
   };
 }
+
+/** §1.1: on notice shows in the decay chip's place, since it comes first; one chip at most. */
+const noticeAndDecay = (n: { notice: string | null; noticeNeed: boolean }, decay: string | null): { notice: string | null; noticeNeed: boolean; decay: string | null } => ({ ...n, decay: n.notice ? null : decay });
 
 /** §13: the card's on-notice line, from the floor it's under (loads first, then the on-time share), and whether it would lose a perk. */
 function noticeOf(w: World, card: NonNullable<ReturnType<typeof standingCard>>, m: string): { notice: string | null; noticeNeed: boolean } {
@@ -231,17 +233,62 @@ function noticeOf(w: World, card: NonNullable<ReturnType<typeof standingCard>>, 
   return { notice, noticeNeed: milestoneLost(w, card.tier, card.tier - 1) !== null };
 }
 
-/** §1.3: the cards the Standing screen lists: highest tier first, then the nearest next tier; tier 1 with nothing in the window drops out. */
-export function cardsUx(w: World, c: Company): CardUx[] {
-  if (!standingShown(w, c)) return [];
+/**
+ * §1.3a (0.25.3's client polish): a scorecard is listed when it holds a perk, at dock priority's tier or above (a perk in
+ * force is never folded away), or when a load from its market was delivered within the decay window, the weeks without
+ * one that cost a tier. The rest fold under "Other markets". Listing moves no money and changes no rule.
+ */
+export function standingListed(w: World, c: Company, hub: number): boolean {
+  const s = c.standing?.[hub];
+  if (!s) return false;
+  if (s.tier >= perkTier(w, "dock")) return true;
+  return s.lastLoadT >= 0 && w.t - s.lastLoadT < w.cfg.standing.decayWeeks * 7 * w.cfg.time.gameMinutesPerDay;
+}
+/** A scorecard with anything to show: above tier 1, or a load in its window (§1.1). */
+const hasCard = (s: Scorecard): boolean => s.tier > 1 || s.days.length > 0;
+
+/** §1.3a: a folded market's compact row, a tap target opening its ladder. */
+export interface FoldRow {
+  hub: number;
+  tier: number;
+  band: "approved" | "preferred" | "core";
+  text: string;
+  lastLoadT: number;
+}
+
+/**
+ * §1.3 and §1.3a, the Standing screen: the listed cards, highest tier first, then the nearest next tier; the fold's compact
+ * rows, highest tier first, then the latest load; and how many markets both hold, for the header.
+ */
+export function standingScreen(w: World, c: Company): { cards: CardUx[]; fold: FoldRow[]; markets: number } {
+  if (!standingShown(w, c)) return { cards: [], fold: [], markets: 0 };
+  const hubs = standingMarkets(w, c).filter((hub) => hasCard(c.standing![hub]!));
   const gap = (x: CardUx) => (x.bars.loads[1] > 0 ? Math.max(0, x.bars.loads[1] - x.bars.loads[0]) : 0);
-  return standingMarkets(w, c)
-    .filter((hub) => {
-      const s = c.standing![hub]!;
-      return s.tier > 1 || s.days.length > 0;
-    })
+  const cards = hubs
+    .filter((hub) => standingListed(w, c, hub))
     .map((hub) => cardUx(w, c, hub)!)
     .sort((a, b) => b.tier - a.tier || gap(a) - gap(b) || a.hub - b.hub);
+  const D = w.cfg.time.gameMinutesPerDay;
+  const fold = hubs
+    .filter((hub) => !standingListed(w, c, hub))
+    .map((hub): FoldRow => {
+      const s = c.standing![hub]!;
+      return { hub, tier: s.tier, band: bandOfTier(s.tier), text: STANDING_UX.foldRow(market(w, hub), s.tier, s.lastLoadT >= 0 ? shortDate(Math.floor(s.lastLoadT / D)) : null), lastLoadT: s.lastLoadT };
+    })
+    .sort((a, b) => b.tier - a.tier || b.lastLoadT - a.lastLoadT || a.hub - b.hub);
+  return { cards, fold, markets: hubs.length };
+}
+
+/** §1.3a: the listed cards (the Company card's top one, and Needs you's decay and notice lines). */
+export const cardsUx = (w: World, c: Company): CardUx[] => standingScreen(w, c).cards;
+
+/**
+ * §1.3a, moments follow the list: of a review's tier steps, the page tells a listed market's (a step up to a perk's tier
+ * lists the market by itself) and a lost milestone, which is still the plain notice (§1.6). A folded market's other steps
+ * go to the feed and the month report only, and don't count in "Standing moved in n markets".
+ */
+export function stepShown(w: World, c: Company, hub: number, from: number, to: number): boolean {
+  return standingListed(w, c, hub) || (to < from && milestoneLost(w, from, to) !== null);
 }
 
 export interface LadderRow {
@@ -281,7 +328,9 @@ const bandOfTier = (tier: number): "approved" | "preferred" | "core" => (tier >=
 export function ladderFoot(w: World): string {
   const k = w.cfg.standing;
   const r = reviewWhen(w);
-  return STANDING_UX.ladderFoot(r.day, r.hour, k.hits.late, k.hits.noShow, k.decayWeeks);
+  // The director's §13: a step down after the reviews on notice and the one that steps it down.
+  const notice = k.noticeReviews ?? 0;
+  return STANDING_UX.ladderFoot(r.day, r.hour, k.hits.late, k.hits.noShow, k.decayWeeks, notice > 0 ? STANDING_UX.ladderStepDown(notice + 1) : null);
 }
 
 /** §1.4 line 1: under the poster line, what the load builds, or that a broker's builds none. */

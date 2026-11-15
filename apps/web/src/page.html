@@ -554,6 +554,8 @@ html[data-kit] .herocard { image-rendering: pixelated; border-color: transparent
 .standingrecord { margin: 6px 0 0; }
 .standingline { gap: 6px; align-items: center; }
 .standinglink { background: none; border: 0; padding: 6px 0; min-height: 44px; color: var(--accent); font: inherit; cursor: pointer; text-decoration: underline; }
+/* UX §1.3a: the "Other markets" fold's compact rows, 44 px, the whole row a tap target opening the market's ladder. */
+.standingfold .foldrow { display: flex; width: 100%; align-items: center; gap: 8px; min-height: 44px; padding: 0 4px; background: none; border: 0; border-top: 1px solid var(--border); color: inherit; font: inherit; text-align: left; cursor: pointer; }
 .laddersheet { max-height: 90vh; overflow-y: auto; width: min(480px, 100%); }
 .laddersheet .window.ladderwin { height: 72px; }
 .ladderrow { display: flex; align-items: center; gap: 8px; min-height: 48px; padding: 0 8px; border-left: 3px solid transparent; color: var(--text-secondary); }

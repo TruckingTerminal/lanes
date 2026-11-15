@@ -108,6 +108,11 @@ export const STANDING_UX = {
   tab: "Standing",
   header: (n: number) => `Your standing with shippers in ${n} ${n === 1 ? "market" : "markets"}.`,
   allMarkets: "All markets",
+  // Engineering's placeholders for the writer (UX §1.3a, the fold; the weeks are the decay window's, from the config).
+  foldHead: (n: number) => `Other markets · ${n}`,
+  foldLine: (weeks: number) => `No perk, and no load in the last ${weeks} weeks.`,
+  foldRow: (market: string, tier: number, last: string | null) => `${market} · tier ${tier} of 10${last ? ` · last load ${last}` : ""}`,
+  listEmpty: (weeks: number) => `No market where you hold a perk or hauled in the last ${weeks} weeks.`,
   // §1.1 the card.
   line2: (tier: number, trend: string) => `tier ${tier} of 10 · ${trend}`,
   next: (tier: number, loads: number, onTime: string | null) => `Next: tier ${tier} at ${loads} counted ${loads === 1 ? "load" : "loads"}${onTime ? ` and ${onTime} on time` : ""}.`,
@@ -124,8 +129,10 @@ export const STANDING_UX = {
   ladderFloors: (loads: number, onTime: string | null) => (loads === 0 ? "—" : `${loads} ${loads === 1 ? "load" : "loads"}${onTime ? ` · ${onTime}` : ""}`),
   ladderNext: "next",
   ladderYou: "you",
-  ladderFoot: (day: string, hour: string, late: number, hit: number, weeks: number) =>
-    `How it moves: reviewed every ${day} at ${hour}, one tier at most. A load counts in full from 500 miles and by its miles below that; a contract load counts double. A late delivery takes off ${late === 1 ? "one load" : `${late} loads`}; a claim, a no-show or a release ${hit === 2 ? "two" : hit}. ${weeks === 8 ? "Eight" : weeks} weeks without a load from the market costs a tier.`,
+  ladderFoot: (day: string, hour: string, late: number, hit: number, weeks: number, stepDown: string | null) =>
+    `How it moves: reviewed every ${day} at ${hour}, one tier at most.${stepDown ? ` ${stepDown}` : ""} A load counts in full from 500 miles and by its miles below that; a contract load counts double. A late delivery takes off ${late === 1 ? "one load" : `${late} loads`}; a claim, a no-show or a release ${hit === 2 ? "two" : hit}. ${weeks === 8 ? "Eight" : weeks} weeks without a load from the market costs a tier.`,
+  // Engineering's placeholder for the writer (the director's §13, UX §1.2's foot).
+  ladderStepDown: (reviews: number) => `A step down comes after ${reviews === 2 ? "two" : reviews} reviews under the floor.`,
   ladderClose: "Close",
   // §1.4 the load sheet.
   countsToward: (market: string, band: string, tier: number) => `Counts toward your ${market} standing: ${band}, tier ${tier} of 10.`,
@@ -140,11 +147,8 @@ export const STANDING_UX = {
   callLane: (from: string, to: string, miles: string, fd: string, pickupBy: string | null) => `${from} → ${to} · ${miles} mi · ${fd} FD${pickupBy ? ` · pick up by ${pickupBy}` : ""}`,
   callOpen: "Open",
   callPass: "Pass",
-  callFoot: (until: string) => `No answer by ${until} counts as a pass.`,
-  passConfirm: (market: string, cost: number) => `Pass on this first call? It takes ${cost === 1 ? "one load" : `${cost} loads`} off your ${market} standing, and the load goes to the board.`,
-  passKeep: "Keep it",
-  passItem: "this first call",
-  passCost: (market: string, cost: number) => `${cost === 1 ? "one load" : `${cost} loads`} off your ${market} standing`,
+  // The director's §14 (UX §1.5): a pass costs nothing, a lapse is a pass, and shippers call first those who take their calls.
+  callFoot: (until: string, market: string) => `Passing costs nothing, and no answer by ${until} is a pass. ${market} shippers call first the carriers who take their calls.`,
   needCall: (market: string, until: string) => `First call from ${market} shippers · answer by ${until}`,
   needDecay: (market: string, day: string) => `No ${market} load in seven weeks: your standing there drops a tier ${day} unless you haul one.`,
   callToast: (market: string) => `First call from ${market} shippers`,

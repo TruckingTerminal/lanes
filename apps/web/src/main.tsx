@@ -10,7 +10,7 @@ import { truckSheet, whenAssetsReady } from "./assets.js";
 import { fd, fdFull, hhmm, realUntil, shortDate } from "./format.js";
 import { DELIVERED, FEED, LOADING, MARKET, MONTH, ROUND } from "./copy.js";
 import { iuliiaOnChange, iuliiaSay, iuliiaSayText } from "./iuliia.js";
-import { milestoneAt, standingWords } from "./standingui.js";
+import { milestoneAt, standingListed, standingWords } from "./standingui.js";
 import { STANDING_UX } from "./copy-standing.js";
 import { RULESET, TestGame, type StartKind } from "./game.js";
 import { H } from "./handlers.js";
@@ -195,7 +195,9 @@ function onEvent(s: Session, e: GameEvent): void {
     const words = standingWords(w, e, byHand);
     if (words.feed) push(s, words.feed, words.tone);
     const heroes = e.what === "tier" && e.to !== undefined && e.from !== undefined && e.to > e.from && milestoneAt(w, e.to) !== null;
-    if (s === S.game && !rebuilding && words.iuliia && !heroes) iuliiaSayText(words.iuliia);
+    // UX §1.3a: a folded market's decay waits in the fold (a step from tier 2 to 1 loses nothing), so Iuliia leaves it.
+    const folded = e.what === "decayAhead" && s.player !== null && s.player !== undefined && !standingListed(w, s.player, e.hub);
+    if (s === S.game && !rebuilding && words.iuliia && !heroes && !folded) iuliiaSayText(words.iuliia);
     if (s === S.game && !rebuilding && e.what === "firstCall") toast(STANDING_UX.callToast(w.net.hubs[e.hub]!.name));
   }
   if (e.kind === "notice") {

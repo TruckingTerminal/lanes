@@ -11,7 +11,7 @@ import { standingMarkets, standingOwed } from "@lanes/engine";
 import { STANDING, STANDING_UX } from "../copy-standing.js";
 import { atlasUrl, kitData } from "../menuart.js";
 import { motion } from "../motion.js";
-import { bandAt, milestoneAt, momentPerk, stampLine, standingShown, troubleOpen } from "../standingui.js";
+import { bandAt, milestoneAt, momentPerk, stampLine, standingShown, stepShown, troubleOpen } from "../standingui.js";
 import { TierBadge } from "./Standing.js";
 import { CityPicture } from "./CityPicture.js";
 import { Iuliia } from "./Walkthrough.js";
@@ -101,7 +101,8 @@ function watchTrucks(): void {
  * - a milestone reached again (a later market, or back after a fall) is a stamp: the badge at 32, the tier, the perk with
  *   its figure and Iuliia's line in her strip; a step between milestones is a toast, and so is a fall, with its cause
  *   (Iuliia's falling line comes with the engine's event, main.tsx);
- * - the review's other changes are one toast: one change, its own toast or stamp; more, "Standing moved in n markets".
+ * - the review's other changes are one toast: one change, its own toast or stamp; more, "Standing moved in n markets";
+ * - moments follow the list (§1.3a): a folded market's steps make no toast and aren't counted, save a lost milestone.
  */
 const MOMENT_PAINTING: Record<number, string> = { 3: "shp-appt-wall", 5: "bank", 7: "shp-office", 9: "brk-ratecon" };
 const tiersSeen = new WeakMap<object, Map<number, number>>();
@@ -180,7 +181,7 @@ function tierMoments(g: Game, before: Map<number, number>, now: Map<number, numb
   for (const [hub, was] of before) if (!now.has(hub) && was > 1) falls.push({ hub, tier: 1 });
   const owed = standingOwed(w, g.player!);
   const heroUp = ups.find((u) => owed.some((o) => o.tier === u.tier && o.hub === u.hub));
-  const rest = [...ups.filter((u) => u !== heroUp), ...falls];
+  const rest = [...ups.filter((u) => u !== heroUp), ...falls].filter((x) => stepShown(w, g.player!, x.hub, before.get(x.hub) ?? 1, x.tier));
   if (rest.length > 1) return toastRich({ text: STANDING_UX.moved(rest.length + (heroUp ? 1 : 0)), go: () => setTab("standing") });
   const x = rest[0];
   if (!x) return;

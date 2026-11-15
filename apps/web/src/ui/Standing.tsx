@@ -4,7 +4,7 @@ import { crewed, hubMiles, tierAt, type Company, type Load } from "@lanes/engine
 import { STANDING, STANDING_UX } from "../copy-standing.js";
 import { fdFull, hhmm, pct } from "../format.js";
 import { kitData } from "../menuart.js";
-import { cardsUx, cardUx, firstCallFor, firstCallsFor, ladderFoot, ladderRows, sheetLine, standingShown, type CardUx } from "../standingui.js";
+import { cardsUx, cardUx, firstCallFor, firstCallsFor, ladderFoot, ladderRows, sheetLine, standingScreen, standingShown, type CardUx } from "../standingui.js";
 import { whenAt } from "../windowsui.js";
 import { bumpData, me, order, S, setTab, toast, useData } from "../state.js";
 import { openLoadOf } from "./WhatNow.js";
@@ -106,20 +106,34 @@ export function openLadder(hub: number): void {
   bumpData();
 }
 
-/** §1.3: More → Standing, the cards highest first, under the shipper's office. */
+/**
+ * §1.3: More → Standing, under the shipper's office: the markets that matter as cards, highest first, and the rest in the
+ * "Other markets" fold (§1.3a), closed every visit, as compact rows that open the market's ladder. The header counts both.
+ */
 export function StandingScreen(): JSX.Element {
   useData();
   const g = S.game!;
   const c = me();
   // §1.6: a moment missed while away plays once, here, at the first free moment while the screen is open.
   useEffect(() => checkMissedMoments());
-  const cards = standingShown(g.w, c) ? cardsUx(g.w, c) : [];
+  const { cards, fold, markets } = standingScreen(g.w, c);
+  const weeks = g.w.cfg.standing.decayWeeks;
   return (
     <Panel title={STANDING_UX.tab} win={<Window name="shp-office" fallback="office" />}>
-      <p class="small">{STANDING_UX.header(cards.length)}</p>
-      {cards.map((x) => (
-        <StandingCardView key={x.hub} x={x} />
-      ))}
+      <p class="small">{STANDING_UX.header(markets)}</p>
+      {cards.length ? cards.map((x) => <StandingCardView key={x.hub} x={x} />) : <Muted small>{STANDING_UX.listEmpty(weeks)}</Muted>}
+      {fold.length ? (
+        <details class="fold standingfold">
+          <summary>{STANDING_UX.foldHead(fold.length)}</summary>
+          <p class="muted small">{STANDING_UX.foldLine(weeks)}</p>
+          {fold.map((r) => (
+            <button type="button" key={r.hub} class="foldrow small" onClick={() => openLadder(r.hub)}>
+              <TierBadge tier={r.tier} band={r.band} size={24} />
+              <span>{r.text}</span>
+            </button>
+          ))}
+        </details>
+      ) : null}
     </Panel>
   );
 }
@@ -203,7 +217,6 @@ export function SheetStandingLine({ c, l }: { c: Company; l: Load }): JSX.Elemen
   );
 }
 
-/** §1.5: Pass, after its Confirm: the engine's decline, a hit with the market, the load to the board. */
 /** §1.5's Pass. The director's sprint §14: it costs nothing and the load stays bookable on the board, so it needs no Confirm. */
 export function passFirstCall(c: Company, l: Load, _ev?: MouseEvent): void {
   const m = S.game!.w.net.hubs[l.origin]!.name;
@@ -248,11 +261,11 @@ export function FirstCallCards({ c }: { c: Company }): JSX.Element | null {
               <Btn primary sm onClick={() => openCall(c, l)}>
                 {STANDING_UX.callOpen}
               </Btn>
-              <Btn sm danger onClick={(ev) => passFirstCall(c, l, ev)}>
+              <Btn sm onClick={(ev) => passFirstCall(c, l, ev)}>
                 {STANDING_UX.callPass}
               </Btn>
             </div>
-            <span class="muted small">{STANDING_UX.callFoot(until)}</span>
+            <span class="muted small">{STANDING_UX.callFoot(until, m)}</span>
           </div>
         );
       })}

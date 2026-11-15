@@ -8,6 +8,8 @@ import { checkMissedMoments, closeHero, heroNow } from "../src/ui/HeroMoment.js"
 import { STANDING, STANDING_UX } from "../src/copy-standing.js";
 import { weekdayDate } from "../src/format.js";
 import { GAME_CONFIG, TestGame } from "../src/game.js";
+import { cardsUx, ladderFoot, standingListed, standingScreen, stepShown } from "../src/standingui.js";
+import { shortDate } from "../src/format.js";
 import { awayStanding, momentPerk, reviewWhen, stampLine, troubleOpen, cardUx, claimCosts, firstCallFor, firstCallsFor, ladderRows, milestoneAt, milestoneLost, offerTierLine, perkChips, perksOnLoad, sheetLine, standingLines, standingList, standingMoves, standingShown, standingWords, wonLine } from "../src/standingui.js";
 
 /**
@@ -373,4 +375,90 @@ describe("the director's sprint §13 and §14 on the page", () => {
     expect(pass).toContain('order({ type: "decline_tender", loadId: l.id }');
     expect(w.cfg.standing.hits.declinedFirstCall).toBe(0);
   }, 120_000);
+});
+
+describe("0.25.3's client polish for standing (UX next-screens §1.3a, §13, §14)", () => {
+  /** A scorecard as the review leaves it: its tier, loads in its window, the last load so many weeks back (null: never). */
+  const card = (w: World, c: Company, hub: number, tier: number, loads: number, weeksAgo: number | null) => {
+    c.standing = { ...(c.standing ?? {}), [hub]: { tier, days: [], lastLoadT: -1, trend: [], log: [] } };
+    deliver(w, c, hub, loads);
+    c.standing[hub]!.lastLoadT = weeksAgo === null ? -1 : w.t - weeksAgo * WEEK;
+  };
+
+  it("§1.3a: listed with a perk (tier 3 up) or a load in the decay window; the rest fold as compact rows; the header counts both", async () => {
+    const { w, c } = await started();
+    w.t += 30 * WEEK;
+    c.standingNoticed = true;
+    const [a, b, f, cc, d, e] = [1, 2, 3, 4, 5, 6].map((i) => (c.homeHub + i) % w.net.hubs.length) as [number, number, number, number, number, number];
+    card(w, c, a, 5, 5, 12); // a perk, no recent load: listed
+    card(w, c, f, 3, 2, 20); // dock priority, no recent load: listed
+    card(w, c, b, 2, 1, 1); // no perk, a load a week ago: listed
+    card(w, c, cc, 2, 1, 10); // no perk, the last load ten weeks back: folded
+    card(w, c, d, 1, 1, 9); // tier 1 with a load in its window, nine weeks back: folded
+    card(w, c, e, 1, 0, null); // tier 1, nothing in the window: no card anywhere
+    expect([a, f, b].map((h) => standingListed(w, c, h))).toEqual([true, true, true]);
+    expect([cc, d, e].map((h) => standingListed(w, c, h))).toEqual([false, false, false]);
+    const scr = standingScreen(w, c);
+    expect(scr.cards.map((x) => x.hub)).toEqual([a, f, b]);
+    expect(cardsUx(w, c)).toEqual(scr.cards);
+    expect(scr.fold.map((x) => x.hub)).toEqual([cc, d]);
+    const day = (weeks: number) => shortDate(Math.floor((w.t - weeks * WEEK) / w.cfg.time.gameMinutesPerDay));
+    expect(scr.fold[0]!.text).toBe(STANDING_UX.foldRow(w.net.hubs[cc]!.name, 2, day(10)));
+    expect(scr.fold[0]!.text).toBe(`${w.net.hubs[cc]!.name} · tier 2 of 10 · last load ${day(10)}`);
+    expect(scr.markets).toBe(5);
+    expect(STANDING_UX.header(scr.markets)).toBe("Your standing with shippers in 5 markets.");
+    expect(STANDING_UX.foldHead(2)).toBe("Other markets · 2");
+    expect(STANDING_UX.foldLine(w.cfg.standing.decayWeeks)).toBe("No perk, and no load in the last 8 weeks.");
+    // A load hauled there lists it again; nothing listed: the screen's empty line, the fold under it.
+    c.standing![cc]!.lastLoadT = w.t;
+    expect(standingListed(w, c, cc)).toBe(true);
+    c.standing = { [cc]: { ...c.standing![cc]!, lastLoadT: w.t - 10 * WEEK } };
+    expect(standingScreen(w, c)).toMatchObject({ cards: [], markets: 1 });
+    expect(STANDING_UX.listEmpty(8)).toBe("No market where you hold a perk or hauled in the last 8 weeks.");
+  }, 120_000);
+
+  it("§1.3a: moments follow the list: a folded market's step is untold, but a step up to a perk and a lost milestone are told", async () => {
+    const { w, c } = await started();
+    w.t += 30 * WEEK;
+    c.standingNoticed = true;
+    const [b, cc, g] = [1, 2, 3].map((i) => (c.homeHub + i) % w.net.hubs.length) as [number, number, number];
+    card(w, c, b, 2, 1, 1);
+    card(w, c, cc, 1, 1, 10);
+    card(w, c, g, 3, 2, 12);
+    expect(stepShown(w, c, b, 1, 2)).toBe(true); // listed by its recent load
+    expect(stepShown(w, c, cc, 2, 1)).toBe(false); // folded, and tier 2 to 1 loses nothing
+    expect(stepShown(w, c, g, 2, 3)).toBe(true); // tier 3 holds dock priority: listed by it
+    c.standing![cc]!.tier = 2;
+    expect(stepShown(w, c, cc, 3, 2)).toBe(true); // folded now, but dock priority lost: still the plain notice
+    const src = readFileSync(join(__dirname, "..", "src", "ui", "HeroMoment.tsx"), "utf8");
+    expect(src).toContain(".filter((x) => stepShown(w, g.player!, x.hub, before.get(x.hub) ?? 1, x.tier))");
+  }, 120_000);
+
+  it("§13: on notice takes the decay chip's place; the ladder's foot says a step down comes after two reviews under the floor", async () => {
+    const { w, c } = await started();
+    w.t += 30 * WEEK;
+    c.standingNoticed = true;
+    const hub = c.homeHub;
+    card(w, c, hub, 4, 2, 7.5);
+    const near = cardUx(w, c, hub)!;
+    expect(near.decay).not.toBeNull();
+    expect(near.notice).toBeNull();
+    c.standing![hub]!.notice = 1;
+    const both = cardUx(w, c, hub)!;
+    expect(both.notice).not.toBeNull();
+    expect(both.decay).toBeNull();
+    expect(ladderFoot(w)).toContain(" one tier at most. A step down comes after two reviews under the floor. A load counts");
+    const none = await started({ ...ON, standing: { ...ON.standing, noticeReviews: 0 } });
+    expect(ladderFoot(none.w)).not.toContain("A step down comes after");
+  }, 120_000);
+
+  it("§14: Pass is a plain button with no Confirm, and the first call's foot says a pass costs nothing", () => {
+    expect(STANDING_UX.callFoot("18:00", "Dallas")).toBe("Passing costs nothing, and no answer by 18:00 is a pass. Dallas shippers call first the carriers who take their calls.");
+    const src = readFileSync(join(__dirname, "..", "src", "ui", "Standing.tsx"), "utf8");
+    const cards = src.slice(src.indexOf("export function FirstCallCards"), src.indexOf("/** The load sheet's first-call line"));
+    expect(cards).not.toContain("danger");
+    expect(cards).toContain("STANDING_UX.callFoot(until, m)");
+    expect(src).not.toContain("confirmAct(");
+    expect(Object.keys(STANDING_UX)).not.toContain("passConfirm");
+  });
 });
