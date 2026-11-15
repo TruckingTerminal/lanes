@@ -54,6 +54,15 @@ export const FIXES = {
   // Engineering's placeholders for the writer: releasing the current load before pickup (windows.releaseCurrent; the
   // director's sprint §1), on the truck card's Now line and its Confirm.
   headingTo: (town: string, by: string) => `Heading to ${town} · pick up by ${by}`,
+  // Engineering's placeholders for the writer: the director's ruling 17 (labor.dueHomePlan), a load booked ahead goes before
+  // a due driver's days off. The board's chip when a booking would be held for days off that end after the pickup closes,
+  // and the booking sheet's line, in "What you're agreeing to", when the driver comes due by the pickup's day.
+  cantDaysOff: (truck: number, until: string, pickup: string) => `Truck ${truck} is on days off until ${until}, after the ${pickup} pickup.`,
+  dueFirst: (name: string | null, day: string) =>
+    name === null
+      ? `You're due home ${day}. This load comes first; your days off wait until you're home with nothing booked.`
+      : `${name} is due home ${day}. This load comes first; their days off wait until they're home with nothing booked.`,
+  dueToday: "today",
   // The red team's 0.25.3 pass, finding 3: waiting at the shipper's dock before the load is ready, still releasable.
   waitingAtDock: (town: string, ready: string) => `At the dock in ${town} · the load is ready ${ready}`,
   releaseCurrentDoes: (from: string, to: string, truck: number, town: string, sunkMi: string | null) =>

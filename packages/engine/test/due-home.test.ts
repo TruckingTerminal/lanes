@@ -60,7 +60,7 @@ describe("the dispatcher and a due driver (labor.dueHomePlan)", () => {
     expect(homePlan(w, c, t, plan(t, w.t)).none).toBe(true);
   });
 
-  it("on: arriving home empty with a load booked ahead, a due driver's days off start and the load waits for them; off, the truck takes it", () => {
+  it("arriving home empty with a load booked ahead, a due driver hauls it first, told on, and the days off wait (ruling 17); off, the same, untold", () => {
     const run = (cfg: EconomyConfig) => {
       const { w, c, t, d } = company(cfg, 83, 0);
       toNextRound(w);
@@ -73,14 +73,19 @@ describe("the dispatcher and a due driver (labor.dueHomePlan)", () => {
       Object.assign(b, { readyT: w.t + DAY, latestPickupT: w.t + 6 * DAY, latestDeliveryT: w.t + 12 * DAY });
       expect(applyAction(w, c.id, { type: "book_load", truckId: t.id, loadId: b.id })).toEqual({ ok: true });
       expect(t.nextLoadId).toBe(b.id);
+      const notes: string[] = [];
+      w.listener = (e) => void (e.kind === "notice" && notes.push(e.text));
       for (let h = 0; h < 6 && t.status === "repositioning"; h++) stepHour(w);
-      return { t, d, b };
+      return { t, d, b, notes };
     };
+    // The director's ruling 17 (amending §5): a load booked ahead is freight on, so it goes first; the days off wait until
+    // the driver is home with nothing on and nothing booked.
     const on = run(ON);
-    expect(on.d.homeUntilDay).not.toBeNull();
-    expect(on.t.status).toBe("idle");
-    expect(on.t.nextLoadId).toBe(on.b.id);
+    expect(on.d.homeUntilDay).toBeNull();
+    expect(on.t.loadId).toBe(on.b.id);
+    expect(on.notes.some((x) => /due for days off, but .+ is booked for \w+day\. It goes first/.test(x))).toBe(true);
     const off = run(OFF);
     expect(off.t.loadId).toBe(off.b.id);
+    expect(off.notes.some((x) => /due for days off, but/.test(x))).toBe(false);
   }, 60_000);
 });

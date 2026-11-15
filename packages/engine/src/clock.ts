@@ -13,6 +13,12 @@ export function dayOf(t: GameMinutes, cfg: EconomyConfig): number {
   return Math.floor(t / cfg.time.gameMinutesPerDay);
 }
 
+const WEEKDAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
+/** The weekday's full name ("Monday"), counted from time.weekdayOfDay0 (the calendar's day 0). */
+export function weekdayName(t: GameMinutes, cfg: EconomyConfig): string {
+  return WEEKDAYS[(dayOf(t, cfg) + cfg.time.weekdayOfDay0) % 7]!;
+}
+
 export function hourOf(t: GameMinutes, cfg: EconomyConfig): number {
   return Math.floor((t % cfg.time.gameMinutesPerDay) / MINUTES_PER_HOUR);
 }

@@ -14,7 +14,7 @@ import { bidsFromStandingOrders, boardKey, readyKey, canMakeHot, dockWaitCost, i
 import { firstCallLost, firstCallRound, firstCallTaken } from "./standing.js";
 import { startEmptyRun, startJob } from "./trips.js";
 import { bookingCapBlock, brokerBooks, contractOn, type BrokerBook } from "./receivables.js";
-import { AHEAD_STATUSES, aiBroker, brokerKey, canMake, dispatchPlan, facilityKey, fallOffLineOn, noteLost, noShow, pickupClosed, planLoads, planMakes, posterKind, readyToday, tally, urgencyStep, urgent, windowsOn } from "./windows.js";
+import { AHEAD_STATUSES, aiBroker, brokerKey, canMake, daysOffHold, dispatchPlan, facilityKey, fallOffLineOn, noteLost, noShow, pickupClosed, planLoads, planMakes, posterKind, readyToday, tally, urgencyStep, urgent, windowsOn } from "./windows.js";
 import type { Bid, Company, Load, StandingOrder, Truck } from "./types.js";
 import { companyById, crewed, hubHours, hubMiles, truckById, type World, placeMiles, placeOfHub, placeLegMiles } from "./world.js";
 
@@ -220,8 +220,7 @@ function assign(w: World, load: Load, truck: Truck, bid: Bid, byHand = false): v
   // bundle pass, finding 3): a hired driver home on days off keeps them, so a load booked past them is held the same way,
   // and the truck sets out when they end, timed for the pickup (trips.ts departHeld).
   if (byHand && cfg.windows?.releaseCurrent === true) load.byHand = true; // a breakdown on the way to it asks the player first
-  const d = truck.driverId ? w.staff[truck.driverId - 1] : undefined;
-  const heldHome = truck.status === "idle" && windowsOn(w) && cfg.labor.homeTimeHolds && d !== undefined && !d.owner && resting(w, truck);
+  const heldHome = daysOffHold(w, truck) !== null;
   if ((truck.status !== "idle" && windowsOn(w)) || heldHome) {
     load.ahead = true;
     if (byHand) load.aheadByHand = true; // batch 4: a breakdown asks the player first about a load they booked themselves

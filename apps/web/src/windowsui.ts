@@ -1,5 +1,5 @@
 import { MENUS } from "./copy-menus.js";
-import { AHEAD_STATUSES, canMake, clearsWhen, companyAccount, crewed, hubMiles, dayOf, freeOf, lostShare, memoryLift, npcKey, pickupReachT, releaseStopOf, resting, urgent, waitingAtDock, whenLabel, windowsOn, type Company, type Free, type Load, type Reach, type Truck, type World } from "@lanes/engine";
+import { AHEAD_STATUSES, canMake, clearsWhen, companyAccount, crewed, hubMiles, dayOf, freeOf, lostShare, memoryLift, npcKey, pickupReachT, releaseStopOf, resting, urgent, waitingAtDock, weekdayName, whenLabel, windowsOn, type Company, type Free, type Load, type Reach, type Truck, type World } from "@lanes/engine";
 import { COMMODITIES } from "@lanes/data";
 import { WINDOWS } from "./copy-windows.js";
 import { FIXES } from "./copy-fixes.js";
@@ -104,6 +104,7 @@ export function reachChip(w: World, l: Load, r: Reach, truckNo: number): string 
   // pickup"; dated 6 or more days out).
   if (r.why === "pickup") return WINDOWS.cantPickup(truckNo, place(w, l.originPlace), whenAt(w, r.pickupT), whenAt(w, l.latestPickupT!));
   if (r.why === "delivery") return WINDOWS.cantDeliver(truckNo, place(w, l.destPlace), whenAt(w, r.deliverT), whenAt(w, l.latestDeliveryT!));
+  if (r.why === "daysOff") return FIXES.cantDaysOff(truckNo, whenAt(w, r.freeT), whenAt(w, l.latestPickupT!)); // the director's ruling 17
   return null;
 }
 
@@ -166,7 +167,26 @@ export function agreement(w: World, t: Truck, l: Load, rate: number, truckNo: nu
     const free = r.freeT > w.t ? at(r.freeT) : "";
     lines.push(WINDOWS.agreeTruck(truckNo, free, place(w, r.freePlace), place(w, l.originPlace), at(r.pickupT), at(r.deliverT), spanLabel(spareMin)));
   }
+  const due = dueFirstLine(w, t, r.ok ? r.pickupT : l.latestPickupT);
+  if (due) lines.push(due);
   return { lines, tight: spareMin !== null && spareMin < 4 * 60 ? WINDOWS.tight(spanLabel(spareMin)) : null, spareMin };
+}
+
+/**
+ * labor.dueHomePlan (the director's ruling 17): the sheet's line when the truck's driver comes due home by the pickup's day.
+ * The load goes first, and the days off wait until they're home with nothing booked. Null when the driver is on days off.
+ */
+export function dueFirstLine(w: World, t: Truck, pickupT: number): string | null {
+  if (w.cfg.labor.dueHomePlan?.enabled !== true || !t.driverId || !t.companyId) return null;
+  const d = w.staff[t.driverId - 1]!;
+  const today = dayOf(w.t, w.cfg);
+  if (d.homeUntilDay !== null && d.homeUntilDay > today) return null;
+  const hm = w.companies[t.companyId - 1]!.orders.find((o) => o.kind === "homeTime");
+  if (!hm || hm.kind !== "homeTime") return null;
+  const dueDay = today + Math.max(0, hm.afterDays - d.awayDays);
+  if (dueDay > dayOf(pickupT, w.cfg)) return null;
+  const day = dueDay <= today ? FIXES.dueToday : weekdayName(dueDay * w.cfg.time.gameMinutesPerDay, w.cfg);
+  return FIXES.dueFirst(d.owner ? null : d.name, day);
 }
 
 /** The truck card's two lines (§2): the job in hand and the load booked after it. */
@@ -279,7 +299,7 @@ export function windowStates(w: World, c: Company): WindowState[] {
     const nxt = t.nextLoadId !== undefined ? w.loads.get(t.nextLoadId) : undefined;
     if (nxt && nxt.latestPickupT !== undefined && !nxt.releaseAsk) {
       const r = canMake(w, t, nxt);
-      if (!r.ok && r.why === "pickup") out.push({ kind: "risk", end: "pickup", truckId: t.id, loadId: nxt.id, atT: nxt.latestPickupT, place: nxt.originPlace, claimFd: claimsAt(w, nxt, nxt.clearedRate).noShowFd });
+      if (!r.ok && (r.why === "pickup" || r.why === "daysOff")) out.push({ kind: "risk", end: "pickup", truckId: t.id, loadId: nxt.id, atT: nxt.latestPickupT, place: nxt.originPlace, claimFd: claimsAt(w, nxt, nxt.clearedRate).noShowFd });
       else if (!r.ok && r.why === "delivery") out.push({ kind: "risk", end: "delivery", truckId: t.id, loadId: nxt.id, atT: nxt.latestDeliveryT!, place: nxt.destPlace, claimFd: claimsAt(w, nxt, nxt.clearedRate).lateFd });
       else if (r.ok) out.push({ kind: "next", truckId: t.id, loadId: nxt.id, deliversT: r.freeT, place: nxt.originPlace, pickupByT: nxt.latestPickupT });
     }

@@ -1,8 +1,8 @@
-import { dayOf } from "./clock.js";
+import { dayOf, weekdayName } from "./clock.js";
 import { managersOf, managerSkill } from "./world.js";
 import { clamp, finiteIn, fmtInt } from "./economics.js";
 import { companyAccount } from "./ledger.js";
-import type { Company, ManagerKind, Staff, Truck, StandingOrder } from "./types.js";
+import type { Company, Load, ManagerKind, Staff, Truck, StandingOrder } from "./types.js";
 import { condition } from "./wear.js";
 import { askingPay, companyById, crewed, marketPay, newStaff, seatDriver, staffById, syncTruck, truckById, unseatDriver, type World, hubMiles } from "./world.js";
 
@@ -423,6 +423,26 @@ export function startHomeTime(w: World, c: Company, t: Truck): void {
     d.homeUntilDay = (d.drivenMinToday > 0 ? today + 1 : today) + days;
     notice(w, c.id, `${d.owner ? "You're" : `${label(d)} is`} home for ${days} days off${d.fatigue >= w.cfg.fatigue.tiredAt ? " (and need them)" : ""}.`, "info", t.id);
   }
+}
+
+/** homeArrival's test, reading only: the truck stands at home, and its days off would start now. */
+export function homeTimeDue(w: World, t: Truck): boolean {
+  if (!t.companyId) return false;
+  const c = companyById(w, t.companyId);
+  return standingAtHome(w, c, t) && (seatedDrivers(w, t).some((d) => d.wantsHome) || (w.cfg.labor.homeAtOnce && dueHomeNow(w, c, t)));
+}
+
+/**
+ * labor.dueHomePlan (the director's ruling 17, amending §5 and 0.25.1 ruling 2): a load booked ahead is freight on, so a due
+ * driver home with one hauls it first, as freight in the trailer is delivered first; the days off start when they're home
+ * with nothing on and nothing booked ahead. Told as the load goes (trips.ts setIdle).
+ */
+export function homeTimeWaits(w: World, t: Truck, load: Load): void {
+  const d = t.driverId ? w.staff[t.driverId - 1] : undefined;
+  if (!d || !t.companyId) return;
+  const lane = `${w.net.places[load.originPlace]!.name} → ${w.net.places[load.destPlace]!.name}`;
+  const day = weekdayName(Math.max(w.t, load.readyT ?? w.t), w.cfg);
+  notice(w, t.companyId, d.owner ? `You're due for days off, but ${lane} is booked for ${day}. It goes first; your days off start when you're home with nothing booked.` : `${label(d)} is due for days off, but ${lane} is booked for ${day}. It goes first; their days off start when they're home with nothing booked.`, "info", t.id);
 }
 
 /**

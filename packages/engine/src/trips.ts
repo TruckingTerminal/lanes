@@ -22,7 +22,7 @@ import { settleDoubleBroker } from "./fraud.js";
 import { chargeSettlement } from "./settlement.js";
 import { bill, factoringLog } from "./receivables.js";
 import { lockCost, stakeDiscount } from "./staking.js";
-import { creditMiles, creditDriving, homeArrival } from "./labor.js";
+import { creditMiles, creditDriving, homeArrival, homeTimeDue, homeTimeWaits } from "./labor.js";
 import { companyAccount } from "./ledger.js";
 import { closeDutyDay, drivingLimitMin, legalDrivingMin, mphFor, safetyTick } from "./safety.js";
 import type { Company, Load, Receivable, Truck } from "./types.js";
@@ -529,15 +529,16 @@ function setIdle(w: World, truck: Truck): void {
   truck.legKey = -1;
   // assets.swapAtNextIdle: a due truck ordered to replace this lease takes over now, before anything books it (dealer.ts).
   swapAtIdle(w, truck);
-  // labor.dueHomePlan (the director's sprint §5): inside the home radius with no load on, a due driver's days off start
-  // first, and the load booked ahead is held for them (departHeld takes it once they end).
-  if (truck.nextLoadId !== undefined && w.cfg.labor.dueHomePlan?.enabled === true) {
-    homeArrival(w, truck);
-    const d = truck.driverId ? w.staff[truck.driverId - 1] : undefined;
-    if (d && d.homeUntilDay !== null && d.homeUntilDay > dayOf(w.t, w.cfg)) return; // on days off, as departHeld reads it
-  }
   // Delivery windows: the load booked ahead comes first; home time and a queued run home wait for the job after it.
-  if (truck.nextLoadId !== undefined && takeNextLoad(w, truck)) return;
+  // labor.dueHomePlan (the director's ruling 17, amending §5 and 0.25.1 ruling 2): a load booked ahead is freight on, so a
+  // due driver's days off wait for it as well, and start once they're home with nothing on and nothing booked; told as it goes.
+  if (truck.nextLoadId !== undefined) {
+    const told = w.cfg.labor.dueHomePlan?.enabled === true && homeTimeDue(w, truck) ? w.loads.get(truck.nextLoadId) : undefined;
+    if (takeNextLoad(w, truck)) {
+      if (told) homeTimeWaits(w, truck, told);
+      return;
+    }
+  }
   homeArrival(w, truck);
   // labor.sendHomeToWork: the job in hand is done, so home to work now, no days off (unless the crew is going home for
   // days off anyway, which the home-time rules see to).

@@ -153,8 +153,11 @@ export const AHEAD_STATUSES: ReadonlySet<Truck["status"]> = new Set(["toPickup",
 /** canMake's answer: whether, and the figures a refusal names. */
 export interface Reach {
   ok: boolean;
-  /** Why not: the truck can't take loads now, it already has one booked ahead, it misses the pickup, or the deadline. */
-  why: "busy" | "ahead" | "pickup" | "delivery" | null;
+  /**
+   * Why not: the truck can't take loads now, it already has one booked ahead, it misses the pickup, or the deadline; or
+   * (labor.dueHomePlan, the director's ruling 17) the days off a booking now would be held for end after the pickup closes.
+   */
+  why: "busy" | "ahead" | "pickup" | "delivery" | "daysOff" | null;
   /** When and where the truck is free of its job in hand (now and here when idle). */
   freeT: number;
   freePlace: number;
@@ -178,6 +181,8 @@ export function canMake(w: World, truck: Truck, load: Load, free: Free = freeOf(
   const r = free.run.copy();
   const freeT = r.t;
   const answer = (why: Reach["why"], pickupT: number, deliverT: number): Reach => ({ ok: why === null, why, freeT, freePlace: free.place, pickupT, deliverT });
+  // labor.dueHomePlan (the director's ruling 17's guard): held for days off that end after the pickup closes.
+  if (free.daysOffUntil !== undefined && load.latestPickupT !== undefined && free.daysOffUntil > load.latestPickupT) return answer("daysOff", freeT, freeT);
   // To this load's shipper, before its pickup closes; then on to its receiver, by its deadline.
   if (free.place !== load.originPlace) r.leg(free.place, load.originPlace);
   const pickupT = r.t;
@@ -195,6 +200,19 @@ export interface Free {
   run: Run;
   place: number;
   why: "busy" | null;
+  /** labor.dueHomePlan (the director's ruling 17): an idle truck a booking would be held for days off is free when they end. */
+  daysOffUntil?: number;
+}
+
+/**
+ * Rule H's hold (labor.homeTimeHolds; the red team's bundle pass, finding 3): a load booked now for an idle truck whose hired
+ * driver is home on days off waits for them, and the truck sets out once they end (board.ts assign, trips.ts departHeld).
+ * The minute they end, or null when a booking now isn't held. Reads only.
+ */
+export function daysOffHold(w: World, truck: Truck): number | null {
+  if (truck.status !== "idle" || !windowsOn(w) || !w.cfg.labor.homeTimeHolds || !truck.driverId) return null;
+  const d = w.staff[truck.driverId - 1]!;
+  return !d.owner && d.homeUntilDay !== null && d.homeUntilDay > dayOf(w.t, w.cfg) ? d.homeUntilDay * w.cfg.time.gameMinutesPerDay : null;
 }
 
 /**
@@ -227,6 +245,13 @@ export function freeOf(w: World, truck: Truck): Free {
       r.stop(truck.dwellMin);
     }
     place = cur.destPlace;
+  }
+  // labor.dueHomePlan (the director's ruling 17's guard): the days off a booking now would be held for are time the truck
+  // isn't free, so canMake refuses a pickup the hold would turn into a no-show.
+  const off = w.cfg.labor.dueHomePlan?.enabled === true ? daysOffHold(w, truck) : null;
+  if (off !== null && off > r.t) {
+    r.until(off);
+    return { run: r, place, why: null, daysOffUntil: off };
   }
   return { run: r, place, why: null };
 }
@@ -420,6 +445,7 @@ export function reachRefusal(w: World, load: Load, r: Reach): string {
   const place = (i: number) => w.net.places[i]!.name;
   if (r.why === "ahead") return "this truck already has its next load booked: release it first";
   if (r.why === "busy") return "this truck can't take a load now";
+  if (r.why === "daysOff") return `this truck is on days off until ${whenLabel(w, r.freeT)}, after the ${whenLabel(w, load.latestPickupT!)} pickup`;
   const free = r.freeT > w.t ? `The truck is free ${whenLabel(w, r.freeT)} at ${place(r.freePlace)}` : `From ${place(r.freePlace)}, the truck`;
   const verb = r.freeT > w.t ? ": it" : "";
   if (r.why === "pickup") return `${free}${verb} reaches ${place(load.originPlace)} ${whenLabel(w, r.pickupT)}, after the pickup closes ${whenLabel(w, load.latestPickupT!)}`;
