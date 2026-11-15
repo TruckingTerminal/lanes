@@ -42,20 +42,20 @@ Append a dated line to the state log saying the studio now runs on the Mac Studi
 1. The public test page: `curl -s https://truckingterminal.github.io/lanes-play/ | grep -c "0.25.2-phase0.45"` should
    print 1 (the build that CI deployed from `main`). `gh run list --limit 3` shows the deploys. The live profile's
    ten-day digest, `npx tsx apps/sim/src/determinism.ts` (behind the test gate), reads `995612c74cb2a3b7` at
-   0.25.1-phase0.44 on the Mac Studio's Node; CI's Node reads another value, so no test pins it. Anything new behind a
+   0.25.2-phase0.45 on the Mac Studio's Node; CI's Node reads another value, so no test pins it. Anything new behind a
    switch must leave it unchanged.
-2. The live page is the artifact https://claude.ai/artifact/SRYhczap5Lpcr8AucRf9wy (v53 at e87d249, ruleset
-   lanes-live-1/0.25.1-phase0.44 with the menu redesign, published 2026-11-14). With the ArtifactData tool, `get`
-   collection `world` doc `meta`: it should read `{v 1, seed 330625448, epochMs 1794431958000, msPerGameHour 900000,
-   ruleset "lanes-live-1/0.25.1-phase0.44"}` at version 31. `list` the `players` collection; it was empty on
-   2026-11-14. Do not write either. The page's db rules (restate all five on any publish that passes capabilities):
-   players read view, write owner; players/{self} write interact; reports read admin, write owner; reports/{self} read
-   and write interact; world read view, write owner. The live version holds 465 of its 511 files: the page, a filtered
+2. The live page is the artifact https://claude.ai/artifact/SRYhczap5Lpcr8AucRf9wy (v54 at 43de791, ruleset
+   lanes-live-1/0.25.2-phase0.45, published 2026-11-15). With the ArtifactData tool, `get` collection `world` doc `meta`:
+   it should read `{v 1, seed 795220222, epochMs 1794519634000, msPerGameHour 900000, ruleset
+   "lanes-live-1/0.25.2-phase0.45"}` at version 32. `list` the `players` collection; it was empty on 2026-11-15. Do not
+   write either. The page's db rules (restate all five on any publish that passes capabilities): players read view,
+   write owner; players/{self} write interact; reports read admin, write owner; reports/{self} read and write
+   interact; world read view, write owner. The live version holds 469 of its 511 files: the page, a filtered
    assets/manifest.json (the client loads only what it lists, one folder deep), and the art the live page carries
-   (kit.json's loops marked live: false, Iuliia's unused breathing loop, the city weather loops and city stills stay
-   on the test site only).
+   (kit.json entries marked live: false, Iuliia's unused breathing loop, the Back Lot's files, the city weather loops
+   and city stills stay on the test site only).
 3. The studio board is https://claude.ai/artifact/2kmePVzETFib467bWP2J34.
-4. Build the live page once to prove the recipe, without publishing: `git worktree add ../lanes-live e87d249`, then in
+4. Build the live page once to prove the recipe, without publishing: `git worktree add ../lanes-live 43de791`, then in
    it `node apps/web/build.mjs` → `apps/web/dist/lanes.html` (about 4.3 MB). Publishing is only ever by Jeff's word.
 
 ## 5. Things that could not travel in git
