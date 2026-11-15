@@ -30,6 +30,7 @@ import {
   seasonality,
   stars,
   vettingBlock,
+  windUpFd,
   type Company,
   type Load,
   type Staff,
@@ -43,6 +44,9 @@ import { boardRows, cutsDaysOff, profitOver } from "./board.js";
 import { PENDING } from "./copy-pending.js";
 import { ARRIVAL, BROKERAGE, DEBT, DISPATCHER, FIRST_ENTRY, MOVE, NEEDS, SAFETY_NEWS, TRUCK } from "./copy.js";
 import { cashDipAhead, debtCountdown } from "./figures.js";
+import { RESERVE } from "./copy-reserve.js";
+import { reserveCloseNeed, reserveDebtLine, reserveNeed } from "./reserveui.js";
+import { openReserveSheet, withdrawShort } from "./ui/ReserveCard.js";
 import { hasTwo, kindInView, switchCompany, type CompanyKind } from "./companies.js";
 import { act, bumpData, carrierCo, clockMin, dropKeyed, isPhone, markKey, me, myTrucks, onWorldReset, ownerOf, push, pushKeyed, S, setOnboard, setTab, selectTruck, toast, truckNo, visited, type Session } from "./state.js";
 import { iuliiaOnce, iuliiaSay, iuliiaSayText } from "./iuliia.js";
@@ -226,12 +230,13 @@ export function attentionItems(): Attention[] {
   const running = trucks.filter((t) => t.status !== "parked" && t.status !== "listed");
   const weeklyFixed = running.length * (c.insurance.annualPerTruck / 52) + fleetOverheadPerWeek(w.cfg, running.length) + lessorTrucksOf(w, c.id).length * 250 + yardPerTruck(w, c) * Math.max(0, trucks.length - 1);
   const money = <Btn onClick={() => setTab("money")}>Money</Btn>;
-  if (bal < -w.cfg.insolvency.debtLimitFd) {
-    // The figures the engine's weekly check reads (solvency.ts checkSolvency: this ledger balance against the line, at
-    // the week's close), from figures.ts debtCountdown, the same as What now? and Money. The key carries the count, so
-    // the toast and the ticker say it again when a check moves it rather than keeping the first line's figure.
+  if (windUpFd(w, c) < -w.cfg.insolvency.debtLimitFd) {
+    // The figures the engine's weekly check reads (solvency.ts checkSolvency: windUpFd against the line, at the week's
+    // close; cash, or with the director's §15 cash and the Reserve together), from figures.ts debtCountdown, the same as
+    // What now? and Money. The key carries the count, so the toast and the ticker say it again when a check moves it
+    // rather than keeping the first line's figure.
     const d = debtCountdown(w, c);
-    out.push({ key: `debt:${d.n}`, text: DEBT.line(fdFull(-bal), fdFull(w.cfg.insolvency.debtLimitFd), d.n, d.of, dateLabel(d.nextDay)), tone: "bad", fix: money });
+    out.push({ key: `debt:${d.n}`, text: reserveDebtLine(w, c) ?? DEBT.line(fdFull(-bal), fdFull(w.cfg.insolvency.debtLimitFd), d.n, d.of, dateLabel(d.nextDay)), tone: "bad", fix: money });
   } else if (weeklyFixed > 0 && bal < 2 * weeklyFixed) {
     out.push({ key: "cash", text: `Cash is low: ${fd(bal)} FD against about ${fd(weeklyFixed)} FD a week of insurance, overhead, leases and yard before a wheel turns.`, tone: "warn", fix: money });
   }
@@ -378,10 +383,28 @@ function needsInView(fleet: boolean): Need[] {
     }
   // The money alarms: the debt countdown (the engine's weekly check, figures.ts debtCountdown) and low cash. What now?
   // is their button: it names the one move that helps most (nextstep.ts).
-  if (bal < -w.cfg.insolvency.debtLimitFd) {
+  if (windUpFd(w, c) < -w.cfg.insolvency.debtLimitFd) {
     const d = debtCountdown(w, c);
-    out.push({ key: `debt:${d.n}`, text: DEBT.badge(fdFull(-bal), d.n, d.of, dateLabel(d.nextDay)), tab: "money", target: ".cashcard", button: NEEDS.whatNow, run: askWhatNow, icon: "money", first: true, dueMin: d.nextDay * w.cfg.time.gameMinutesPerDay });
+    out.push({ key: `debt:${d.n}`, text: reserveDebtLine(w, c) ?? DEBT.badge(fdFull(-bal), d.n, d.of, dateLabel(d.nextDay)), tab: "money", target: ".cashcard", button: NEEDS.whatNow, run: askWhatNow, icon: "money", first: true, dueMin: d.nextDay * w.cfg.time.gameMinutesPerDay });
   }
+  // The Reserve (UX next-screens §3.8): cash under zero while it holds FD, its button withdrawing what cash is short (with
+  // the count running, ranked with it; the Reserve covering it, the director's §15 tier-2 line); and the close window.
+  const rn = reserveNeed(w, c);
+  if (rn) out.push({ key: rn.key, text: rn.text, tab: "money", target: ".cashcard", button: rn.button, run: () => withdrawShort(rn.shortFd, rn.after), icon: "money", ...(rn.first ? { first: true } : {}) });
+  const rc = reserveCloseNeed(w, c);
+  if (rc)
+    out.push({
+      key: rc.key,
+      text: rc.text,
+      tab: "money",
+      target: ".reservecard",
+      button: RESERVE.deposit,
+      run: () => {
+        setTab("money");
+        openReserveSheet("deposit");
+      },
+      icon: "money",
+    });
   // The net-30 warning, before it happens (the diaries, 2026-11-09): cash under zero ahead of the invoices due.
   const dip = bal >= 0 ? cashDipAhead(w, c) : null;
   if (dip) out.push({ key: `net30:${dip.day}`, text: PENDING.net30Warn(dateLabel(dip.day), fdFull(dip.lowFd), dateLabel(dip.landsDay)), tab: "money", target: ".net30", button: PENDING.net30WarnButton, run: () => setTab("money"), icon: "money", dueMin: dip.day * w.cfg.time.gameMinutesPerDay });

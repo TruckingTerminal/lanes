@@ -1,6 +1,6 @@
 import { economyConfig, type Equipment } from "@lanes/config";
 import { contractRatingBlock, contractRoom, contractSlots, isLocal, localShare } from "@lanes/engine";
-import { breakdownsPer1000Mi, collateralOf, companyAccount, condition, crewed, lotDeliveryDays, lotSpec, NEW_TRUCK, type Collateral, fuelPrice, layerOpen, locksOn, lotPrice, maintenancePerMile, npcDealerMult, opsCap, ordersOf, ownerDrawFd, resting, tripCost, truckValue, yardTrucks, type Company, type Listing, type Truck, type TruckSpec, type World } from "@lanes/engine";
+import { breakdownsPer1000Mi, collateralOf, companyAccount, condition, crewed, lotDeliveryDays, lotSpec, NEW_TRUCK, type Collateral, fuelPrice, layerOpen, locksOn, lotPrice, maintenancePerMile, npcDealerMult, opsCap, ordersOf, ownerDrawFd, resting, tripCost, truckValue, windUpFd, yardTrucks, type Company, type Listing, type Truck, type TruckSpec, type World } from "@lanes/engine";
 import { boardRows, type BoardRow } from "./board.js";
 import { buyPlan, cheapestNewRig, MILES_PER_MONTH } from "./finance.js";
 import { invoices, weekCosts } from "./ledger.js";
@@ -84,11 +84,12 @@ export function dailySpendFd(w: World, c: Company): number {
  * before): cash today, less what the company spends a day, plus each invoice on its due day, over the next
  * `horizonDays`. When that goes under zero before an invoice due later would bring it back, the day it does, how far
  * under it goes, and the next invoice's day. Null while it holds, with no invoices, or once already under (What now?'s
- * danger rule says that). New deliveries' invoices aren't counted: they land after the horizon anyway.
+ * danger rule says that). New deliveries' invoices aren't counted: they land after the horizon anyway. `startFd`: from a
+ * cash other than today's (the Reserve's deposit sheet: cash after the deposit, UX next-screens §3.8).
  */
-export function cashDipAhead(w: World, c: Company, horizonDays = 30): { day: number; lowFd: number; landsDay: number } | null {
+export function cashDipAhead(w: World, c: Company, horizonDays = 30, startFd?: number): { day: number; lowFd: number; landsDay: number } | null {
   const inv = invoices(w, c);
-  const start = cash(w, c);
+  const start = startFd ?? cash(w, c);
   if (!inv.length || start < 0) return null;
   // The player's long runs, item 5 (a brokerage told it would go to −44k with its books nearly square): a brokerage's
   // spending is mostly carrier pay that is already owed and dated, and the shipper pay the same loads bring is owed to it,
@@ -137,10 +138,13 @@ export function cushion(w: World, c: Company): { weeks: number | null; avgWeekly
   return { weeks: avg > 0.5 ? Math.max(0, fd) / avg : null, avgWeeklyFd: avg, cashFd: fd };
 }
 
-/** guide.debtCountdown: weekly checks in a row under the line, the next check's day, and how far under the line cash is now. */
+/**
+ * guide.debtCountdown: weekly checks in a row under the line, the next check's day, and how far under the line the figure
+ * the engine checks is now (solvency.ts windUpFd: cash, or with the director's §15 cash and the Reserve together).
+ */
 export function debtCountdown(w: World, c: Company): { n: number; of: number; nextDay: number; under: boolean; shortFd: number } {
   const k = w.cfg.insolvency;
-  const fd = cash(w, c);
+  const fd = windUpFd(w, c);
   return { n: c.weeksInDebt, of: k.weeksInDebt, nextDay: nextWeeklyCheckDay(w), under: fd < -k.debtLimitFd, shortFd: Math.max(0, -k.debtLimitFd - fd) };
 }
 

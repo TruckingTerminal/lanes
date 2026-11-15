@@ -15,6 +15,7 @@ import { bandAt, milestoneAt, momentPerk, stampLine, standingShown, stepShown, t
 import { TierBadge } from "./Standing.js";
 import { CityPicture } from "./CityPicture.js";
 import { Iuliia } from "./Walkthrough.js";
+import { watchReserveLanding } from "./ReserveCard.js";
 
 /**
  * A hero moment (the menu system §1.3, §2.2): a 16:9 painting over a dimmed screen, only for moments, never a working
@@ -308,6 +309,7 @@ export function HeroMoment(): JSX.Element | null {
   watchOwed();
   watchHires();
   watchLoans();
+  watchReserveLanding(); // UX next-screens §3.8: a withdrawal landing in cash is a toast, once
   if (!hero) return null;
   const h = hero;
   return (

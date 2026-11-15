@@ -19,6 +19,9 @@ import { FIXES } from "../../copy-fixes.js";
 import { Btn, Card, Kv, Num, Panel, Sparkline } from "../bits.js";
 import { MonthReports, ThisWeekCard } from "../MonthReport.js";
 import { depositWhole } from "../../board.js";
+import { RESERVE } from "../../copy-reserve.js";
+import { reserveCard, reserveDebtLine, reserveNeed } from "../../reserveui.js";
+import { ReserveCardView, ReserveSheet, withdrawShort } from "../ReserveCard.js";
 
 /** On a lease with no truck of its own, the lessor pays on delivery: nothing is ever owed (R25). */
 const myTruckLeased = (w: World, c: Company): boolean => {
@@ -66,6 +69,11 @@ export function Money(): JSX.Element {
   const cashHist = feed().history.map((h) => h.cash);
   // The hold toward the player's own truck (row 2): its total under Cash, with a note on the first visit that shows it.
   const held = depositCredit(w, c);
+  // The Reserve (UX next-screens §3.8): open as a card when it holds FD, something is settling or cash is over the free
+  // line; otherwise a fold at the foot. The director's §15: the debt line reads what the engine's check reads.
+  const rv = reserveCard(w, c);
+  const rvNeed = reserveNeed(w, c);
+  const together = reserveDebtLine(w, c);
   const heldKey = markKey("money:held");
   const heldNote = held >= 0.5 && !S.onboard.seen.includes(heldKey);
   useEffect(() => () => {
@@ -186,6 +194,13 @@ export function Money(): JSX.Element {
         {/* Client batch 8b item 40: a whole deposit is said to be full, and what happens to it. */}
         {held >= 0.5 && (w.trucksByCompany.get(c.id) ?? []).some(depositWhole) ? <p class="muted small">{PENDING.heldFull(fdFull(held))}</p> : null}
         {heldNote ? <p class="muted small">{MONEY.heldNote(`${Math.round(w.cfg.freeEntry.leases.byValue.escrowShareOfPay * 100)}%`)}</p> : null}
+        {rv && rv.balance >= 0.5 ? (
+          <p class="small">
+            <button type="button" class="linkish" onClick={() => document.querySelector(".reservecard")?.scrollIntoView({ block: "center" })}>
+              {RESERVE.cashLine(fdFull(rv.balance))}
+            </button>
+          </p>
+        ) : null}
         {/* Iuliia's figures (figures.ts): the cushion, and the countdown once cash is under the line. */}
         <p class="small">
           <Fig k="guide.cushion" label={GUIDE_LABEL.cushion}>{GUIDE_LABEL.cushionValue(cushion(w, c).weeks)}</Fig>
@@ -195,10 +210,19 @@ export function Money(): JSX.Element {
             <Fig k="guide.debtCountdown" label={GUIDE_LABEL.debt}>{GUIDE_LABEL.debtValue(c.weeksInDebt, w.cfg.insolvency.weeksInDebt)}</Fig>
           </p>
         ) : null}
-        {bal < 0 ? (
+        {bal < 0 && together ? <p class="bad">{together}</p> : null}
+        {bal < 0 && !together && rvNeed && !rvNeed.first ? <p class="warn">{rvNeed.text}</p> : null}
+        {bal < 0 && !together && !(rvNeed && !rvNeed.first) ? (
           <p class="bad">
             {MONEY.red(w.cfg.insolvency.weeksInDebt, fdFull(w.cfg.insolvency.debtLimitFd))} {DEBT.count(debtCountdown(w, c).n, w.cfg.insolvency.weeksInDebt, dateLabel(debtCountdown(w, c).nextDay))}
           </p>
+        ) : null}
+        {rvNeed ? (
+          <div class="row">
+            <Btn sm onClick={() => withdrawShort(rvNeed.shortFd, rvNeed.after)}>
+              {rvNeed.button}
+            </Btn>
+          </div>
         ) : null}
         <Net30Line />
       </Card>
@@ -209,6 +233,7 @@ export function Money(): JSX.Element {
         <FinanceLinks />
         <MoveMoneyLink />
       </Card>
+      {rv?.open ? <ReserveCardView c={c} /> : null}
       <Card title={MONEY.week}>
         <Kv
           rows={[
@@ -232,10 +257,17 @@ export function Money(): JSX.Element {
         <p>{MONEY.miles(fdFull(milesOf(c)))}</p>
       </Card>
       <MonthReports part="past" />
+      {rv && !rv.open ? (
+        <details class="fold">
+          <summary>{RESERVE.fold}</summary>
+          <ReserveCardView c={c} />
+        </details>
+      ) : null}
       <details class="fold">
         <summary onClick={() => iuliiaFirst("money:token")}>{MONEY.token}</summary>
         {token}
       </details>
+      <ReserveSheet />
     </Panel>
   );
 }

@@ -554,6 +554,14 @@ html[data-kit] .herocard { image-rendering: pixelated; border-color: transparent
 .standingrecord { margin: 6px 0 0; }
 .standingline { gap: 6px; align-items: center; }
 .standinglink { background: none; border: 0; padding: 6px 0; min-height: 44px; color: var(--accent); font: inherit; cursor: pointer; text-decoration: underline; }
+/* UX next-screens §3.8 (ui/ReserveCard.tsx): the Reserve's sheets and chips; a settling row fades in once (Full only). */
+.reservesheet { width: min(420px, 100%); }
+.reservesheet .reservefield input { width: 12ch; font-family: var(--font-mono); }
+.reservechips { flex-wrap: wrap; gap: 6px; }
+.reservechips .chip { cursor: pointer; min-height: 44px; background: none; border: 1px solid var(--border); border-radius: var(--radius); color: inherit; font: inherit; padding: 0 10px; }
+.reservesheet .btn { min-height: 44px; }
+html[data-motion="full"] .reservesettle { animation: reserve-in 160ms ease-out 1 both; }
+@keyframes reserve-in { from { opacity: 0; } to { opacity: 1; } }
 /* UX §1.3a: the "Other markets" fold's compact rows, 44 px, the whole row a tap target opening the market's ladder. */
 .standingfold .foldrow { display: flex; width: 100%; align-items: center; gap: 8px; min-height: 44px; padding: 0 4px; background: none; border: 0; border-top: 1px solid var(--border); color: inherit; font: inherit; text-align: left; cursor: pointer; }
 .laddersheet { max-height: 90vh; overflow-y: auto; width: min(480px, 100%); }
