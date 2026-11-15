@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import { describe, expect, it } from "vitest";
 import { withLiveLevers, type EconomyConfig } from "@lanes/config";
-import { buildNetwork, COMMODITIES, hubs, neutralFeeds } from "@lanes/data";
+import { buildNetwork, hubs, neutralFeeds } from "@lanes/data";
 import { populate, ruleBotHook } from "@lanes/agents";
 import {
   boardKey,
@@ -18,6 +18,7 @@ import {
   readyKey,
   stepHour,
   transitMinutes,
+  windowHoursOf,
   type Load,
   type World,
 } from "@lanes/engine";
@@ -130,9 +131,9 @@ describe("delivery windows on: posting (test 2)", () => {
         const ops = w.cfg.equipmentOps;
         const dwell = w.cfg.dwell.loadMinutes[1] + w.cfg.dwell.unloadMinutes[1] + (ops.enabled && l.equipment === "flatbed" ? ops.flatbedSecureMinutes[1] + ops.flatbedUntarpMinutes[1] : 0);
         expect(latestDeliveryT).toBeCloseTo(readyT + transitMinutes(w.cfg, l.routeHours, hl.hoursPerDay) + dwell + hl.slackMinutes, 6);
-        expect(latestDeliveryT).toBeLessThan(latestPickupT + legal + COMMODITIES[l.commodity]!.windowHours * 60);
+        expect(latestDeliveryT).toBeLessThan(latestPickupT + legal + windowHoursOf(w.cfg, l.commodity) * 60);
       } else {
-        expect(latestDeliveryT - latestPickupT).toBeCloseTo(legal + COMMODITIES[l.commodity]!.windowHours * 60, 6);
+        expect(latestDeliveryT - latestPickupT).toBeCloseTo(legal + windowHoursOf(w.cfg, l.commodity) * 60, 6);
         expect(latestDeliveryT - latestPickupT).toBeGreaterThanOrEqual(legal);
       }
     }

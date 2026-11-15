@@ -57,6 +57,17 @@ export function transitMinutes(cfg: EconomyConfig, hours: number, perDay: number
   return (fullDays * cfg.hos.dutyDayHours + (hours - fullDays * perDay)) * 60;
 }
 
+/**
+ * A commodity's delivery window in hours: its windowHours (packages/data commodities.ts) times windows.windowScale, to the
+ * hour (the director's sprint §18). Every read of windowHours goes through this: openWindow's deadline and appointment,
+ * freight.ts's appointment with windows off, and the guide's table. At 1, or with no key, it's the table's hours.
+ */
+export function windowHoursOf(cfg: EconomyConfig, commodity: number): number {
+  const hours = COMMODITIES[commodity]!.windowHours;
+  const scale = cfg.windows?.windowScale ?? 1;
+  return scale === 1 ? hours : Math.round(hours * scale);
+}
+
 /** A lead in days from windows.leadDays: a bucket by weight, then a day inside it. Draws only from w.rng.windows. */
 export function drawLeadDays(w: World): number {
   const buckets = w.cfg.windows!.leadDays;
@@ -79,7 +90,7 @@ export function openWindow(w: World, load: Load, leadDays: number): void {
   const readyT = readyAt(w, load, leadDays);
   const latestPickupT = readyT + (dockRule(w, load) === "appointment" ? k.pickupHours.appointment : k.pickupHours.firstCome) * 60;
   const legal = transitMinutes(cfg, load.routeHours, cfg.hos.drivingHoursPerDay);
-  const windowMin = COMMODITIES[load.commodity]!.windowHours * 60;
+  const windowMin = windowHoursOf(cfg, load.commodity) * 60;
   let latestDeliveryT = latestPickupT + legal + windowMin;
   if (load.hot > 0) {
     // The director's call 4: a hot load keeps its draw, and its deadline is today's hot rule (safety.hotLoads, the due time

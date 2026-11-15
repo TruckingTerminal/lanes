@@ -1076,6 +1076,11 @@ export const economyConfig = {
     // Hours from readyT to the pickup's close: an appointment shipper's slot, a first-come (or daylight) dock's day. Batch 4
     // (the economy's sizing, the director's amendment): 24 / 48, from 12 / 24, which brought the loads back.
     pickupHours: { appointment: 24, firstCome: 48 },
+    // The director's sprint §18 (economy-deadline-gate-2026-11-15.md, passed): "Deliver by" tightens by a multiplier on
+    // every commodity's windowHours, read where the hours are read (windows.ts windowHoursOf: the deadline and appointment
+    // in openWindow, freight.ts's appointment with windows off, the guide's table), to the hour. The table in
+    // packages/data commodities.ts stays as it is. 1 reads as today; the gate's arm is 0.25, every commodity alike.
+    windowScale: 1,
     // The urgency walk (the director's call 3): flat while more than this many rounds of slack remain before the pickup
     // closes; in these last rounds the ceiling steps as a rollover does (board.rolloverCeilingStep) and book-now walks to
     // it, one step a round, at most this many steps. A player poster's pay never walks. Batch 4: 4 (from 2), the same walk

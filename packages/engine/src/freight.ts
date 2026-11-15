@@ -186,7 +186,7 @@ export function reserveFactor(w: World): number {
 }
 import type { Load } from "./types.js";
 import { startHold } from "./brokerage.js";
-import { aiBroker, brokerKey, brokerUncovered, drawLeadDays, facilityKey, lostMemory, noteNpcPosted, openWindow, readyToday, sameDayMult, tally, windowsOn } from "./windows.js";
+import { aiBroker, brokerKey, brokerUncovered, drawLeadDays, facilityKey, lostMemory, noteNpcPosted, openWindow, readyToday, sameDayMult, tally, windowHoursOf, windowsOn } from "./windows.js";
 import type { World } from "./world.js";
 
 /** Destination weights per origin hub and equipment; static, so cached per network. */
@@ -433,7 +433,7 @@ export function generateRoundFreight(w: World): RoundFreight {
     const perDay = cfg.hos.drivingHoursPerDay;
     const fullDays = Math.max(0, Math.ceil(load.routeHours / perDay) - 1);
     const transitMin = (fullDays * cfg.hos.dutyDayHours + (load.routeHours - fullDays * perDay)) * 60;
-    load.appointmentT = w.t + COMMODITIES[load.commodity]!.windowHours * 60 + transitMin;
+    load.appointmentT = w.t + windowHoursOf(cfg, load.commodity) * 60 + transitMin;
   };
   /** Draws what ships and between which places: the market's mix this month, then a shipper and a receiver by weight. */
   const placeLoad = (load: Load, lane: Lane, eq: Equipment) => {

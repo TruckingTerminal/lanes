@@ -2,7 +2,7 @@ import { COMMODITIES, hubs as HUBS, PLACE_ROWS } from "@lanes/data";
 const PLACE_COUNT = PLACE_ROWS.length;
 const HUB_COUNT = HUBS.length;
 import type { EconomyConfig } from "@lanes/config";
-import { MANUAL_BID_MAX_DEADHEAD_MI } from "@lanes/engine";
+import { MANUAL_BID_MAX_DEADHEAD_MI, windowHoursOf } from "@lanes/engine";
 import { type GuidePage, h, n, p, pct, see, table, ul } from "./util.js";
 import { PENDING } from "../copy-pending.js";
 
@@ -73,7 +73,7 @@ export function marketPages(cfg: EconomyConfig): GuidePage[] {
           ? p(`Every load is a <b>commodity</b>, and the commodity sets the trailer, ${cfg.docks.enabled ? "the kind of dock it loads and unloads at, " : ""}what the load is worth, how long its delivery deadline runs past the pickup's close, and whether it spoils:`) +
             table(
               ["Commodity", "Trailer", ...(cfg.docks.enabled ? ["Dock"] : []), "Deliver by", "Spoils"],
-              COMMODITIES.map((c) => {
+              COMMODITIES.map((c, i) => {
                 // The engine's dock rule (docks.ts dockRule) and the pickup window it sets (windows.ts openWindow): a perishable
                 // spoils its spoil hours after the appointment, which sits the pickup window before the deadline.
                 const rule = (cfg.docks.appointmentCommodities as readonly string[]).includes(c.id) ? "appointment" : cfg.docks.byEquipment[c.equipment as keyof typeof cfg.docks.byEquipment];
@@ -81,13 +81,13 @@ export function marketPages(cfg: EconomyConfig): GuidePage[] {
                 // windows.spoilAfterDeadline (0.25.2): the clock runs from Deliver by itself, read at the truck's arrival.
                 const d = c.spoilHours === null ? null : cfg.windows.spoilAfterDeadline ? c.spoilHours : c.spoilHours - pickH;
                 const spoils = d === null ? "no" : d === 0 ? "at the deadline" : d > 0 ? `${d} h after the deadline` : `${-d} h before the deadline`;
-                return [c.name, c.equipment, ...(cfg.docks.enabled ? [DOCK_WORD[rule as keyof typeof DOCK_WORD] ?? rule] : []), `${c.windowHours} h after the pickup closes, plus the drive`, spoils];
+                return [c.name, c.equipment, ...(cfg.docks.enabled ? [DOCK_WORD[rule as keyof typeof DOCK_WORD] ?? rule] : []), `${windowHoursOf(cfg, i)} h after the pickup closes, plus the drive`, spoils];
               }),
             )
           : p(`Every load is a <b>commodity</b>, and the commodity sets the trailer, what the load is worth, how long the shipper gives before the <b>delivery appointment</b>, and whether it spoils:`) +
             table(
               ["Commodity", "Trailer", "Appointment", "Spoils"],
-              COMMODITIES.map((c) => [c.name, c.equipment, `${c.windowHours} h after posting, plus the drive`, c.spoilHours === null ? "no" : `${c.spoilHours} h after the appointment`]),
+              COMMODITIES.map((c, i) => [c.name, c.equipment, `${windowHoursOf(cfg, i)} h after posting, plus the drive`, c.spoilHours === null ? "no" : `${c.spoilHours} h after the appointment`]),
             )) +
         p(`${cfg.windows.enabled ? `A load must be delivered by its deadline${cfg.docks.enabled ? ", and each kind of dock keeps its own hours" : ""} (${see("hours", "Hours, dock time and delivery windows")}).` : "A load is due by the usual hours-of-service schedule or the appointment, whichever comes first."} A perishable ${cfg.windows.enabled && cfg.windows.spoilAfterDeadline ? "that reaches its receiver past its spoil time" : "delivered past its spoil time"} is rejected: no pay, and a cargo claim of ${pct(cfg.commodities.spoilClaimShare)} of its value on the carrier${cfg.windows.enabled && cfg.windows.spoilAfterDeadline ? ", and it counts as late" : ""}. Produce follows its region's calendar (South Florida, the Rio Grande Valley and Yuma in winter; the Central Valley spring to fall; the Southeast, Michigan and the Northwest in summer), so where the reefer loads are moves with the months.`),
     },
