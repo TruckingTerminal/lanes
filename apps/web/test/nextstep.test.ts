@@ -9,7 +9,8 @@ import { item, itemSaving, usedTruck } from "../src/confirmspecs.js";
 import { confirmAct, confirmSpend } from "../src/ui/Confirm.js";
 import { S } from "../src/state.js";
 import { breakdown } from "../src/explain.js";
-import { dateLabel, shortDate } from "../src/format.js";
+import { dateLabel, fdFull, shortDate } from "../src/format.js";
+import { RESERVE } from "../src/copy-reserve.js";
 import { emptyRun, paidLine } from "../src/rolling.js";
 import { cushion, debtCountdown, fleetCaps, gapToTruck, nextEvent, nextWeeklyCheckDay } from "../src/figures.js";
 import { GAME_CONFIG, TestGame } from "../src/game.js";
@@ -438,8 +439,12 @@ describe("the five diaries: a driver's notice and the debt line read the engine"
       // Under the line: the badge's line quotes debtCountdown, the figure checkSolvency reads.
       w.ledger.post(w.t, companyAccount(c.id), "sink:test", w.ledger.balance(companyAccount(c.id)) + 30_000, "test");
       const debt = needs().find((n) => n.key.startsWith("debt:"))!;
-      expect(debt.text).toContain(`${c.weeksInDebt} of ${w.cfg.insolvency.weeksInDebt} weekly checks in debt`);
-      expect(debt.text).toContain(`You're 30,000 FD in the red`);
+      // insolvency.countReserve, live since 0.25.5: the line reads cash and the Reserve together (here an empty Reserve, so
+      // the cash), 28,000 under the 2,000 line, with the weekly check's own count and the check that would wind it up.
+      expect(w.cfg.insolvency.countReserve).toBe(true);
+      const d = debtCountdown(w, c);
+      expect(d.shortFd).toBeCloseTo(30_000 - w.cfg.insolvency.debtLimitFd, 6);
+      expect(debt.text).toBe(RESERVE.debtTogether(fdFull(d.shortFd), fdFull(w.cfg.insolvency.debtLimitFd), c.weeksInDebt, w.cfg.insolvency.weeksInDebt, dateLabel(d.nextDay + 7 * (w.cfg.insolvency.weeksInDebt - c.weeksInDebt - 1))));
     } finally {
       S.game = null;
     }

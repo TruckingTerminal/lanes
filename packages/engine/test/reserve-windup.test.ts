@@ -55,8 +55,8 @@ describe("the winding-up check and the Reserve (insolvency.countReserve)", () =>
     expect(windUpFd(w, c)).toBeCloseTo(-3_000, 6);
     checkSolvency(w);
     expect(c.weeksInDebt).toBe(1);
-    // In the live levers it's off (the economy pairs it before it goes on).
-    expect(withLiveLevers().insolvency.countReserve).toBe(false);
+    // On in the live levers since 0.25.5 (economy-ruleset-0255-gate-2026-11-15.md).
+    expect(withLiveLevers().insolvency.countReserve).toBe(true);
   });
 
   it("the close's keep, exported for the Reserve card, is what the close keeps", () => {

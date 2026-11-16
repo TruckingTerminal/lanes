@@ -8,6 +8,8 @@ import { GAME_CONFIG, TestGame } from "../src/game.js";
 
 /** The bus to a truck on the page (labor.busToTruck; the director's sprint §19): the card's Send, Staff's targets, who's on the way. */
 const ON = { ...GAME_CONFIG, labor: { ...GAME_CONFIG.labor, busToTruck: { ...GAME_CONFIG.labor.busToTruck, enabled: true } } };
+// Off by its own key: on in the live levers since 0.25.5.
+const OFF = { ...GAME_CONFIG, labor: { ...GAME_CONFIG.labor, busToTruck: { ...GAME_CONFIG.labor.busToTruck, enabled: false } } };
 
 async function stranded(cfg: typeof GAME_CONFIG) {
   const g = await TestGame.create(undefined, undefined, 41, cfg);
@@ -36,7 +38,7 @@ describe("the bus to a truck on the page", () => {
   }, 120_000);
 
   it("off, nothing is offered", async () => {
-    const { w, c, t, me } = await stranded(GAME_CONFIG);
+    const { w, c, t, me } = await stranded(OFF);
     expect(nearestRider(w, c, t)).toBeNull();
     expect(sendTargets(w, c, me, [t])).toEqual([]);
     expect(riderLine(w, t)).toBeNull();

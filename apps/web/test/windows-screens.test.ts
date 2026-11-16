@@ -150,8 +150,9 @@ describe("client batch W: delivery windows on the page", () => {
     expect(closing.find((x) => x.load.id === l.id)!.fallOffFd).toBeCloseTo(WIN.brokerRisk.fallOffShare * l.shipperRate * l.miles, 6);
     l.brokerId = was;
     // The hubs' lost loads this week (the engine's tally).
+    // Every hub, not the top five: under the quarter deadline (0.25.5) more loads are lost, and hub 7 may sit below five others.
     for (let i = 0; i < 3; i++) tally(w, npcKey(7), "lost");
-    expect(hubLosses(w).find((x) => x.hub === 7)?.lost).toBeGreaterThanOrEqual(3);
+    expect(hubLosses(w, w.net.hubs.length).find((x) => x.hub === 7)?.lost).toBeGreaterThanOrEqual(3);
     // The first claim's cause, in figures.
     l.arrivedT = l.latestDeliveryT + 180;
     expect(claimCause(w, `claim:late:${l.id}`, 690)).toBe(WINDOWS.claimCauseLate(w.net.places[l.destPlace]!.name, spanLabel(180), "690"));

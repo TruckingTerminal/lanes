@@ -13,6 +13,8 @@ const LIVE = withLiveLevers(); // the bus home and home by hub on
 const net = buildNetwork(hubs, LIVE);
 const DAY = LIVE.time.gameMinutesPerDay;
 const ON = { ...LIVE, labor: { ...LIVE.labor, busToTruck: { ...LIVE.labor.busToTruck, enabled: true } } } as EconomyConfig;
+// Off by its own key: on in the live levers since 0.25.5.
+const OFF = { ...LIVE, labor: { ...LIVE.labor, busToTruck: { ...LIVE.labor.busToTruck, enabled: false } } } as EconomyConfig;
 const cash = (w: World, c: Company) => w.ledger.balance(companyAccount(c.id));
 const park = (t: Truck, hub: number) => Object.assign(t, { status: "idle", loadId: null, hub, targetHub: hub, place: placeOfHub(hub), targetPlace: placeOfHub(hub), remainingMi: 0 });
 
@@ -75,7 +77,7 @@ describe("the bus to a truck (labor.busToTruck)", () => {
     s.awayDays = 0;
     expect(sendBlock(w, c, s, a)).toMatch(/can take that seat now$/);
     expect(sendBlock(w, c, s, b)).toBeNull();
-    const off = fleet(LIVE);
+    const off = fleet(OFF);
     expect(sendByBus(off.w, off.c, off.s, off.b)).toBe("there's no bus to a truck");
   });
 
@@ -112,7 +114,7 @@ describe("the bus to a truck (labor.busToTruck)", () => {
   });
 
   it("off: a driver let go leaves no hub behind, as before", () => {
-    const { w, s } = fleet(LIVE);
+    const { w, s } = fleet(OFF);
     releaseStaff(w, s);
     expect(s.lastHub).toBeUndefined();
     expect(s.pooledDay).toBeUndefined();

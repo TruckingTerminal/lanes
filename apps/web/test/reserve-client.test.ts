@@ -13,6 +13,8 @@ import { reserveLanded } from "../src/ui/ReserveCard.js";
 
 /** The Reserve on Money (UX next-screens §3.8) and the director's §15 on the page: every figure the engine's own. */
 const COUNTS = { ...GAME_CONFIG, insolvency: { ...GAME_CONFIG.insolvency, countReserve: true } };
+// Cash alone by its own key: countReserve is on in the live levers since 0.25.5.
+const CASH = { ...GAME_CONFIG, insolvency: { ...GAME_CONFIG.insolvency, countReserve: false } };
 const fund = (w: World, c: Company, fd: number) => w.ledger.post(w.t, "faucet:starting_grant", companyAccount(c.id), fd, "test");
 const take = (w: World, c: Company, fd: number) => w.ledger.post(w.t, companyAccount(c.id), "sink:test", fd, "test");
 const cash = (w: World, c: Company) => w.ledger.balance(companyAccount(c.id));
@@ -45,7 +47,7 @@ describe("the Reserve card (UX next-screens §3.8)", () => {
     expect(x.shelterLine).toBe(RESERVE.shelterIs(13));
     expect(x.phaseLine).toBe(RESERVE.phaseHolding("2%"));
     expect(x.roomLine).toBe(RESERVE.roomHolding(fdFull((300_000 - 40_000) * 0.02), fdFull(130_000)));
-    expect(x.foot).toEqual([RESERVE.foot, RESERVE.footLaunch]);
+    expect(x.foot).toEqual([RESERVE.foot, RESERVE.footCounts, RESERVE.footLaunch]); // footCounts: countReserve, live since 0.25.5
     // Put in this week, it's sheltered from the next full week: until then the charge reads it as cash.
     expect(applyAction(w, c.id, { type: "reserve_deposit", fd: 100_000 })).toEqual({ ok: true });
     // UX §3.8's first week: waiting, not over the cap (the cap is 130,000), and the line keyed on the holding cost.
@@ -145,12 +147,12 @@ describe("the director's §15 on the page (insolvency.countReserve)", () => {
   }, 120_000);
 
   it("off: cash alone, as before; the Reserve's item ranks with the count when cash is under the line", async () => {
-    const { w, c } = await short(GAME_CONFIG, -3_000);
+    const { w, c } = await short(CASH, -3_000);
     expect(debtCountdown(w, c).under).toBe(true);
     expect(reserveDebtLine(w, c)).toBeNull();
     expect(reserveNeed(w, c)).toMatchObject({ key: "reserve:count", first: true });
     expect(reserveCard(w, c)!.foot).not.toContain(RESERVE.footCounts);
-    const small = await short(GAME_CONFIG, -500);
+    const small = await short(CASH, -500);
     expect(reserveNeed(small.w, small.c)).toMatchObject({ key: "reserve:covers", first: false });
   }, 120_000);
 

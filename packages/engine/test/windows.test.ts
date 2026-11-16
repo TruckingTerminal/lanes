@@ -29,8 +29,9 @@ import {
  */
 const LIVE = withLiveLevers();
 const ON: EconomyConfig = { ...LIVE, windows: { ...LIVE.windows, enabled: true } };
-// Windows off by its own key: on in the live levers since 0.25.0.
-const OFF: EconomyConfig = { ...LIVE, windows: { ...LIVE.windows, enabled: false } };
+// Windows off by its own key: on in the live levers since 0.25.0. And windowScale at 1 (0.25 in the live levers since
+// 0.25.5): it scales the appointment with windows off too (freight.ts), so the world before windows has the table's hours.
+const OFF: EconomyConfig = { ...LIVE, windows: { ...LIVE.windows, enabled: false, windowScale: 1 } };
 const net = buildNetwork(hubs, LIVE);
 const DAY = LIVE.time.gameMinutesPerDay;
 const ROUND = DAY / LIVE.time.boardRoundHours.length;

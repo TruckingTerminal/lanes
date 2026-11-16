@@ -299,6 +299,13 @@ export const LIVE_LEVERS: Record<string, unknown> = {
   // (economy-reputation-pair-2026-11-15.md).
   "reputation.threeParts.enabled": true,
   "token.airdrop.logbook.serviceMilestones": true,
+  // 0.25.5 (the director's sprint §15, §18, §19 and §20): the weekly insolvency check reads cash plus the Reserve (§15);
+  // "Deliver by" at a quarter of every commodity's hours (§18); and the bus to a truck, a driver with no truck riding to
+  // an empty seat at another hub, with a driver let go kept at their hub in the pool (§19, §20). Passed as one ruleset,
+  // the gate ten of ten and the newcomer's month better on 24 seeds (economy-ruleset-0255-gate-2026-11-15.md).
+  "insolvency.countReserve": true,
+  "windows.windowScale": 0.25,
+  "labor.busToTruck.enabled": true,
 };
 
 /** A config with the levers applied by path; throws on a path the config doesn't have. */

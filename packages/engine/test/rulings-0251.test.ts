@@ -39,7 +39,11 @@ describe("the 0.25.1 rulings, all off", () => {
 });
 
 describe("one deadline (windows.oneDeadline, the director's ruling 1)", () => {
-  /** A loaded truck whose load's old due time is already past, delivered: the event, and its carrier's counts before. */
+  /**
+   * A loaded truck whose load's old due time is already past, delivered: the event, its carrier's counts before, and its
+   * carrier's other deliveries in the same hours (under the quarter deadline, 0.25.5, a fleet's other trucks often land in
+   * the hour this one does), so the counts are checked against every delivery, not this one alone.
+   */
   function deliverPastDue(cfg: EconomyConfig) {
     const w = world(cfg);
     const t = w.trucks.find((x) => x.status === "loaded" && x.loadId !== null && w.loads.get(x.loadId)?.latestDeliveryT !== undefined)!;
@@ -48,13 +52,16 @@ describe("one deadline (windows.oneDeadline, the director's ruling 1)", () => {
     const c = w.companies[t.companyId - 1]!;
     const before = { onTime: c.onTime, late: c.late };
     let ev: Extract<GameEvent, { kind: "delivered" }> | null = null;
+    const others = { onTime: 0, late: 0 };
     w.listener = (e) => {
-      if (e.kind === "delivered" && e.loadId === l.id) ev = e;
+      if (e.kind !== "delivered" || e.companyId !== c.id) return;
+      if (e.loadId === l.id) ev = e;
+      else others[e.onTime ? "onTime" : "late"]++;
     };
     for (let h = 0; h < 24 * 6 && !ev; h++) stepHour(w);
     expect(ev).not.toBeNull();
     expect(w.t).toBeLessThanOrEqual(l.latestDeliveryT! + 60); // delivered inside its window
-    return { c, before, ev: ev! as Extract<GameEvent, { kind: "delivered" }>, l };
+    return { c, before: { onTime: before.onTime + others.onTime, late: before.late + others.late }, ev: ev! as Extract<GameEvent, { kind: "delivered" }>, l };
   }
 
   it("on: a load inside its \"Deliver by\" is on time, whatever the old due time said", () => {
