@@ -1,6 +1,6 @@
-import { busRide, busToTruckOn, heldFor, sendBlock, type Company, type Staff, type Truck, type World } from "@lanes/engine";
+import { busRide, busToTruckOn, heldFor, onTheBus, sendBlock, type Company, type Staff, type Truck, type World } from "@lanes/engine";
 import { FIXES } from "./copy-fixes.js";
-import { fdFull, weekday } from "./format.js";
+import { fdFull, weekday, weekdayDate } from "./format.js";
 
 /**
  * The bus to a truck on the page (labor.busToTruck; the director's sprint §19 and §20): who can ride to an empty seat, at
@@ -37,3 +37,26 @@ export function riderLine(w: World, t: Truck): string | null {
   const s = busToTruckOn(w) ? heldFor(w, t) : undefined;
   return s ? FIXES.riderOnWay(s.owner ? null : s.name, weekday(s.bus!.arriveDay)) : null;
 }
+
+/**
+ * QA's 0.25.5 replay (items 1 and 2): a seat held for a rider on the bus to it (labor.ts heldFor). The engine refuses a hire
+ * or another driver for it (offerStaff, seatBlock), so Staff's hire and seat rows and Needs you don't offer it (R7).
+ */
+export const seatHeld = (w: World, t: Truck): boolean => busToTruckOn(w) && heldFor(w, t) !== undefined;
+
+/**
+ * QA's 0.25.5 replay (item 3): a driver's Staff row while they ride: to a truck, the town it waits in and the arrival; home,
+ * the bus home's line as before. Null when they aren't on the bus.
+ */
+export function busRowLine(w: World, s: Staff): string | null {
+  if (!onTheBus(s)) return null;
+  const b = s.bus!;
+  if (b.to === undefined) return FIXES.onBus(weekdayDate(b.arriveDay));
+  const t = w.trucks[b.to - 1];
+  const place = b.toPlace ?? t?.place;
+  const town = place !== undefined ? w.net.places[place]!.name : t ? w.net.hubs[t.hub]!.name : "";
+  return FIXES.onBusTo(town, weekdayDate(b.arriveDay));
+}
+
+/** QA's 0.25.5 replay (item 3): riding to a truck whose seat is held for them, not paid with no truck waiting for a seat. */
+export const ridingToSeat = (s: Staff): boolean => onTheBus(s) && s.bus!.to !== undefined;

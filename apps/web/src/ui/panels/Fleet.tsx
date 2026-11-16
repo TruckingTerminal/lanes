@@ -34,7 +34,7 @@ import { expediteOn, expediteQuote, expediteWaitParts } from "@lanes/engine";
 import { expediteLines, waitSentence } from "../../expediteui.js";
 import { WINDOWS } from "../../copy-windows.js";
 import { FIXES } from "../../copy-fixes.js";
-import { nearestRider, riderLine } from "../../busui.js";
+import { nearestRider, riderLine, seatHeld } from "../../busui.js";
 import { busToTruckOn } from "@lanes/engine";
 import { askFigures, askLines, atHomeMarket, claimsAt, currentRelease, nowNext, releaseCard, releaseCurrentCard, urgentFrom, whenAt } from "../../windowsui.js";
 
@@ -672,7 +672,8 @@ function TruckCard({ t, idx }: { t: Truck; idx: number }): JSX.Element {
         {t.status === "idle" ? <Btn onClick={() => goLoads(t.id)}>{TRUCK.bidByHand}</Btn> : null}
         {!crewed(t) ? (
           <>
-            <span class="bad small">{TRUCK.noDriver(truckNo(t.id))}</span>
+            {/* QA's 0.25.5 replay (item 2): with the seat held for a rider, the rider's line says it all. */}
+            {seatHeld(w, t) ? null : <span class="bad small">{TRUCK.noDriver(truckNo(t.id))}</span>}
             <NoDriverActions t={t} />
           </>
         ) : null}

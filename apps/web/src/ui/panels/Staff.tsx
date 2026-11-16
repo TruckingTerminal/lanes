@@ -4,7 +4,7 @@ import { askingPay, askOf, crewed, onTheBus, payFloor, dispatchProfile, poolOf, 
 import { fd, hhmm, pct, shortDate, TRAILER_NAME, weekdayDate } from "../../format.js";
 import { GAME_CONFIG } from "../../game.js";
 import { atHub, marketPayOf, moraleClass, moraleWord, staffPay, Stars } from "../../logic.js";
-import { act, me, myTrucks, order, S, truckNo, useData } from "../../state.js";
+import { act, me, myTrucks, order, S, toast, truckNo, useData } from "../../state.js";
 import { Btn, Card, Kv, Panel } from "../bits.js";
 import { staffFace } from "../../assets.js";
 import { Portrait } from "../Loop.js";
@@ -15,7 +15,7 @@ import { ANSWER, CONFIRM } from "../../copy.js";
 import { MILES_PER_MONTH } from "../../finance.js";
 import { PENDING } from "../../copy-pending.js";
 import { FIXES } from "../../copy-fixes.js";
-import { rideWords, sendTargets } from "../../busui.js";
+import { busRowLine, rideWords, riderLine, ridingToSeat, seatHeld, sendTargets } from "../../busui.js";
 
 const num = (id: string): number => Number((document.getElementById(id) as HTMLInputElement | null)?.value);
 const sel = (id: string): string | undefined => (document.getElementById(id) as HTMLSelectElement | null)?.value;
@@ -61,7 +61,9 @@ export function Staff(): JSX.Element {
   const team = w.staffByCompany.get(c.id) ?? [];
   const owner = team.find((s) => s.owner);
   const hired = team.filter((s) => !s.owner);
-  const openSeat = (t: Truck) => !crewed(t) && atHub(t);
+  // QA's 0.25.5 replay (item 1): a seat held for a rider on the bus to it isn't open: the engine refuses a hire or another
+  // driver for it (labor.ts offerStaff, seatBlock).
+  const openSeat = (t: Truck) => !crewed(t) && atHub(t) && !seatHeld(w, t);
   const teamSeat = (t: Truck) => crewed(t) && t.coDriverId === 0 && atHub(t);
   const seatsOpen = trucks.some(openSeat);
   const value = (s: StaffT) => askingPay(w, s) - (s.kind === "driver" ? 0.35 * s.skill : 0);
@@ -118,6 +120,10 @@ export function Staff(): JSX.Element {
     // (the engine seats a hire only in a truck on the road), so What now?'s "Hire a driver" for a parked truck works.
     const parked = kind === "hire" && v ? w.trucks[Number(v) - 1]?.status === "parked" : false;
     const run = () => {
+      // QA's 0.25.5 replay (item 1): a seat held for a rider since the Confirm opened (auto-staff's send, say) takes no hire,
+      // so nothing runs: not the unpark, which would put the truck back on the road for a hire the engine refuses.
+      const target = v ? w.trucks[Number(v) - 1] : undefined;
+      if (kind === "hire" && target && seatHeld(w, target)) return void toast(riderLine(w, target)!, true);
       if (parked) act({ type: "unpark_truck", truckId: Number(v) }, "Back on the road");
       hireNow();
     };
@@ -153,12 +159,13 @@ export function Staff(): JSX.Element {
           {w.trucks[s.truckId - 1]!.coDriverId === s.id ? " (co-driver)" : ""}
         </>
       ) : onTheBus(s) ? (
-        <span class="warn">{FIXES.onBus(weekdayDate(s.bus!.arriveDay))}</span>
+        <span class="warn">{busRowLine(w, s)}</span>
       ) : (
         <span class="bad">no truck</span>
       );
     // Client batch 8b item 27: a driver paid with no truck is said plainly, with the wage.
-    const idlePay = s.kind === "driver" && !s.truckId ? PENDING.paidNoTruck(fd(weeklyWage(w, s, s.pay))) : null;
+    // QA's 0.25.5 replay (item 3): not while they ride to a seat held for them; the row says where and when instead.
+    const idlePay = s.kind === "driver" && !s.truckId && !ridingToSeat(s) ? PENDING.paidNoTruck(fd(weeklyWage(w, s, s.pay))) : null;
     // QA's 0.25.3 replay (R7): only the seats the engine would give (labor.ts seatBlock): not a truck at another hub, nor
     // while they ride the bus home.
     const seatFor = (t: Truck) => openSeat(t) && seatBlock(w, c, s, t, false) === null;
@@ -178,7 +185,7 @@ export function Staff(): JSX.Element {
           <span class={moraleClass(s.morale)}>{moraleWord(s.morale)}</span>
           {s.kind === "driver" ? (
             <span class="muted">
-              {s.homeUntilDay !== null ? "on home time" : s.awayDays ? `${s.awayDays} d out` : "home"}
+              {s.homeUntilDay !== null ? "on home time" : s.awayDays ? `${s.awayDays} d out` : ridingToSeat(s) ? FIXES.busChip : "home"}
               {s.fatigue >= GAME_CONFIG.fatigue.tiredAt / 2 ? (
                 <>
                   {" · "}

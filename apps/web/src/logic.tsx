@@ -1,4 +1,5 @@
 import { moving } from "./motion.js";
+import { seatHeld } from "./busui.js";
 import { cardsUx, firstCallsFor, standingShown } from "./standingui.js";
 import { passFirstCall } from "./ui/Standing.js";
 import { STANDING_UX } from "./copy-standing.js";
@@ -224,7 +225,8 @@ export function attentionItems(): Attention[] {
   // R9: before the first load, Staff is locked (tutorial.ts), so the empty seat waits; the first load is the next step.
   const locked = firstLoadLocked(w, c);
   for (const t of trucks) {
-    if (crewed(t) || t.status === "listed" || locked) continue;
+    // QA's 0.25.5 replay (item 2): a seat held for a rider on the bus to it needs nobody; the truck's card says who's coming.
+    if (crewed(t) || t.status === "listed" || locked || seatHeld(w, t)) continue;
     out.push({ key: `driver:${t.id}`, text: `Truck ${truckNo(t.id)} has no driver and earns nothing.`, tone: "bad", fix: <Btn primary onClick={goStaff}>Hire a driver</Btn> });
   }
   const bal = w.ledger.balance(companyAccount(c.id));
@@ -427,6 +429,8 @@ function needsInView(fleet: boolean): Need[] {
     // R9: before the first load Staff is locked (tutorial.ts), so the empty seat isn't something to act on yet.
     if (!crewed(t) && t.status !== "listed" && locked) {
       /* the first load is the next step; the seat's item comes with it */
+    } else if (!crewed(t) && t.status !== "listed" && seatHeld(w, t)) {
+      /* QA's 0.25.5 replay (item 2): the seat is held for a rider on the bus to it; the truck's card says who and when */
     } else if (!crewed(t) && t.status !== "listed")
       out.push({ key: `driver:${t.id}`, text: NEEDS.noDriver(n, fd(truckDayCostFd(w, c, t))), ...at, target: `[data-need="driver:${t.id}"]`, button: NEEDS.hire, run: goStaff, icon: "staff", riskFdPerDay: truckDayCostFd(w, c, t) });
     else if (t.breakdownMin > 0)

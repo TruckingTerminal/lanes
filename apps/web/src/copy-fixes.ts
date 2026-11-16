@@ -62,6 +62,11 @@ export const FIXES = {
   rideDays: (n: number) => (n <= 1 ? "about a day" : `about ${n} days`),
   sentToast: (name: string | null, town: string) => `${name === null ? "You're" : `${name} is`} on the bus to ${town}`,
   riderOnWay: (name: string | null, day: string) => `${name === null ? "You're" : `${name} is`} on the bus here, arriving ${day}.`,
+  // Engineering's placeholder for the writer (QA's 0.25.5 replay, item 3): the Staff row of a driver riding the bus to a
+  // truck (labor.busToTruck): the town the truck waits in, and the day they arrive.
+  onBusTo: (town: string, day: string) => `on the bus to ${town} · arriving ${day}`,
+  // …and its status chip, in place of "home" (the rider is on the road to the truck, not home).
+  busChip: "on the bus",
   hireAt: (town: string) => `Hire at ${town}`,
   hireRides: (name: string, from: string, time: string, fd: string) => `${name} is at ${from}, so the bus here comes first: ${time} and ${fd} FD, which you pay.`,
   // Engineering's placeholders for the writer: QA's 0.25.3 replay (qa-0253-2026-11-15.md, fix soon and lower).
