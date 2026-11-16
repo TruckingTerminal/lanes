@@ -3,7 +3,8 @@
 //   node apps/web/build.mjs [entry]      (entry defaults to main)
 //   node apps/web/build.mjs --site       the test build for GitHub Pages → dist/site/index.html, plus docs.html
 import { build } from "esbuild";
-import { copyFileSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { createHash } from "node:crypto";
+import { copyFileSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -12,6 +13,25 @@ const site = process.argv.includes("--site");
 // The site build's id (version.ts): CI's commit, or LANES_BUILD; "local" never checks for a newer deploy.
 const buildId = site ? (process.env.LANES_BUILD ?? process.env.GITHUB_SHA?.slice(0, 7) ?? "local") : "local";
 const entry = process.argv.slice(2).find((a) => !a.startsWith("--")) ?? "main";
+// The replay build (apps/web/src/cuts.ts REPLAY_BUILD; the red team's checkpoint review, finding 10): a content hash of every
+// source module the live replay runs, so a page never starts from a cut another replay wrote, even after a page-only
+// republish that changed the replay.
+const replay = (() => {
+  const root = join(here, "..", "..");
+  const files = [];
+  const walk = (dir) => {
+    for (const f of readdirSync(dir).sort()) {
+      const p = join(dir, f);
+      if (statSync(p).isDirectory()) walk(p);
+      else if (f.endsWith(".ts")) files.push(p);
+    }
+  };
+  for (const pkg of ["engine", "agents", "config", "data"]) walk(join(root, "packages", pkg, "src"));
+  for (const f of ["game.ts", "live.ts", "books.ts", "trucknos.ts", "cuts.ts"]) files.push(join(here, "src", f));
+  const h = createHash("sha256");
+  for (const f of files) h.update(f.slice(root.length)).update("\0").update(readFileSync(f)).update("\0");
+  return h.digest("hex").slice(0, 16);
+})();
 const result = await build({
   entryPoints: [join(here, "src", existsSync(join(here, "src", `${entry}.tsx`)) ? `${entry}.tsx` : `${entry}.ts`)],
   jsx: "automatic",
@@ -25,7 +45,7 @@ const result = await build({
   target: "es2020",
   write: false,
   legalComments: "none",
-  define: { __LANES_TEST__: site ? "true" : "false", __LANES_BUILD__: JSON.stringify(buildId) },
+  define: { __LANES_TEST__: site ? "true" : "false", __LANES_BUILD__: JSON.stringify(buildId), __LANES_REPLAY__: JSON.stringify(replay) },
 });
 const js = result.outputFiles[0].text.replace(/<\/script/gi, "<\\/script");
 // A replacer function, so `$&`, `$'` and `$$` in the bundle are kept as written.

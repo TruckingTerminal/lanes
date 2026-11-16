@@ -1,8 +1,12 @@
 import { describe, expect, it } from "vitest";
+import * as config from "@lanes/config";
 import { withLiveLevers } from "@lanes/config";
+import * as data from "@lanes/data";
 import { buildNetwork, hubs, neutralFeeds } from "@lanes/data";
+import * as agents from "@lanes/agents";
 import { botState, populate, restoreBotState, ruleBotHook, type BotState } from "@lanes/agents";
-import { applyAction, checkpointHash, companyAccount, createWorld, creditCacheState, dayOf, decodeWorld, encodeWorld, formCompany, stepHour, type World } from "@lanes/engine";
+import * as engine from "@lanes/engine";
+import { applyAction, checkpointHash, companyAccount, createWorld, creditCacheState, dayOf, decodeWorld, encodeWorld, formCompany, outsideRefs, stepHour, type World } from "@lanes/engine";
 
 /**
  * The world checkpoint, step 1 (engineering-checkpoint-design-2026-11-16.md §4): the encoding round-trips, and a world
@@ -129,6 +133,21 @@ describe("the world checkpoint's encoding (step 1)", () => {
       { n: 10n },
     ];
     for (const b of bad) expect(() => encodeWorld(w, b)).toThrow(/checkpoint: can't write/);
+  });
+
+  // Step 2a: a world must hold no object a module, the config, the network or the feeds also holds. A restored world has
+  // copies there, so one handed in again later would be shared in one world and not the other (apps/web game.ts
+  // joinCompany's default orders were): the encodings would differ with no figure different.
+  it("holds no object a module, the config, the network or the feeds also holds", () => {
+    const w = world(11);
+    formCompany(w, { name: "Outside Check", role: "carrier", homeHubId: "DAL", strategy: "player:test", orders: [], freePath: true, human: true });
+    hours(w, 6 * 24);
+    expect(outsideRefs(w, [engine, agents, config, data, w.cfg, w.net, w.feeds])).toEqual([]);
+    // It finds one: an order of the world's handed the same object as a module's.
+    const shared = w.companies[0]!.orders[0]!;
+    const found = outsideRefs(w, [{ shared }]);
+    expect(found).toHaveLength(1);
+    expect(found[0]).toMatch(/\.orders\[0\]$/);
   });
 
   it("the hash: equal worlds hash alike; an hour apart, they don't", async () => {

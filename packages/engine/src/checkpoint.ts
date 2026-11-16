@@ -229,3 +229,43 @@ export async function checkpointHash(text: string): Promise<string> {
   const d = await globalThis.crypto.subtle.digest("SHA-256", bytes);
   return Array.from(new Uint8Array(d).slice(0, 8), (b) => b.toString(16).padStart(2, "0")).join("");
 }
+
+/**
+ * Where the world holds an object that something outside it also holds (a module's constant, the config, the network):
+ * the paths, at most `limit`. A restored world has its own copy there, so an object handed in later from the same outside
+ * source (a company formed with a shared default order) is shared in the world played from the seed and not in the
+ * restored one: the encodings differ, and so would the checkpoint's hashes, though no figure does. Tests call this; any
+ * path it names is a bug to fix where the object is handed in (give the world its own copy).
+ */
+export function outsideRefs(w: World, roots: unknown[], limit = 20): string[] {
+  const kids = (v: object): [string, unknown][] => {
+    if (v instanceof Map) return [...v].flatMap(([k, x], i): [string, unknown][] => [[`<key ${i}>`, k], [`<${String(k)}>`, x]]);
+    if (v instanceof Set) return [...v].map((x, i): [string, unknown] => [`<${i}>`, x]);
+    if (ArrayBuffer.isView(v) || v instanceof WeakMap || v instanceof WeakSet) return [];
+    return Object.keys(v).map((k): [string, unknown] => [Array.isArray(v) ? `[${k}]` : `.${k}`, (v as Record<string, unknown>)[k]]);
+  };
+  const outside = new Set<object>();
+  const stack: unknown[] = [...roots];
+  while (stack.length) {
+    const v = stack.pop();
+    if (!v || typeof v !== "object" || outside.has(v)) continue;
+    outside.add(v);
+    for (const [, x] of kids(v)) stack.push(x);
+  }
+  const found: string[] = [];
+  const seen = new Set<object>();
+  const todo: [string, unknown][] = Object.entries(w)
+    .filter(([k]) => !ATTACHED.has(k))
+    .map(([k, x]): [string, unknown] => [`w.${k}`, x]);
+  while (todo.length && found.length < limit) {
+    const [path, v] = todo.pop()!;
+    if (!v || typeof v !== "object" || seen.has(v)) continue;
+    seen.add(v);
+    if (outside.has(v)) {
+      found.push(path);
+      continue;
+    }
+    for (const [k, x] of kids(v)) todo.push([path + k, x]);
+  }
+  return found;
+}

@@ -13,6 +13,17 @@ const NOS = new WeakMap<World, Map<number, { next: number; byTruck: Map<number, 
 /** Every number given in a world, by truck: a truck that left its company (taken, sold) keeps the number it had. */
 const BY_ID = new WeakMap<World, Map<number, number>>();
 
+/** The numbers given so far: what a local cut carries beside the world (cuts.ts cutExtras), so they're never given again. */
+export interface TruckNosState {
+  nos: Map<number, { next: number; byTruck: Map<number, number> }> | null;
+  byId: Map<number, number> | null;
+}
+export const truckNosState = (w: World): TruckNosState => ({ nos: NOS.get(w) ?? null, byId: BY_ID.get(w) ?? null });
+export function restoreTruckNos(w: World, s: TruckNosState): void {
+  if (s.nos) NOS.set(w, s.nos);
+  if (s.byId) BY_ID.set(w, s.byId);
+}
+
 function numbersFor(w: World, companyId: number): { next: number; byTruck: Map<number, number> } {
   let all = NOS.get(w);
   if (!all) NOS.set(w, (all = new Map()));

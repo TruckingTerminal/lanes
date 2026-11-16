@@ -94,6 +94,9 @@ interface WorldBooks {
   byCompany: Map<number, CompanyBooks>;
 }
 const BOOKS = new WeakMap<World, WorldBooks>();
+/** The books as the replay built them, hour by hour: what a local cut carries beside the world (cuts.ts cutExtras). */
+export type BooksState = WorldBooks;
+export const booksState = (w: World): BooksState | null => BOOKS.get(w) ?? null;
 
 /** Invoices the company holds, not yet paid: what it is owed. */
 /** The ids of the invoices owed to the company and held by it (item 15's split). */
@@ -375,9 +378,10 @@ export function brokeredLoads(w: World, c: Company, days = 30): number {
  * Starts the books on a new world (game.ts newWorld): wraps the ledger's post with a reader. It never throws into the
  * engine: a fault in the books is the page's, never the world's.
  */
-export function watchBooks(w: World): void {
+export function watchBooks(w: World, from: BooksState | null = null): void {
   if (BOOKS.has(w)) return;
-  BOOKS.set(w, { byCompany: new Map() });
+  // A world restored from a local cut (cuts.ts) takes back the books the replay had built to then.
+  BOOKS.set(w, from ?? { byCompany: new Map() });
   const ledger = w.ledger;
   const post = ledger.post.bind(ledger);
   ledger.post = (t, from, to, amountFd, ref, mode) => {

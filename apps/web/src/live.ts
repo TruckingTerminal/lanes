@@ -1,7 +1,8 @@
 import { ruleBotHook } from "@lanes/agents";
-import { applyAction, stepHour, type Action, type ActionResult, type Company, type GameEvent, type World } from "@lanes/engine";
+import { applyAction, decodeWorld, encodeWorld, stepHour, type Action, type ActionResult, type Company, type GameEvent, type World } from "@lanes/engine";
 import { joinCompany, newWorld, RULESET } from "./game.js";
 import { booksAfterHour } from "./books.js";
+import { cutExtras, CUTS_KEPT, REPLAY_BUILD, restoreCutExtras, sha256, type CutExtras, type CutStore } from "./cuts.js";
 import { PENDING } from "./copy-pending.js";
 
 /**
@@ -159,7 +160,12 @@ export interface LiveOptions {
   owner?: boolean;
   /** A monotonic clock (performance.now by default; tests move it apart from `now` to stand for a device clock changed). */
   mono?: () => number;
+  /** The checkpoint's step 2a (cuts.ts): this browser's own local cuts, to start a replay from. Absent: from the seed. */
+  cuts?: CutStore;
 }
+
+/** Step 2a: the day boundaries a page keeps a local cut of, the ones within this many game minutes of its clock. */
+const CUT_WINDOW_MIN = 2 * 24 * 60;
 
 /** A gap between the wall clock and the monotonic one this large since the last lease call means the wall clock moved. */
 const CLOCK_JUMP_MS = 5_000;
@@ -253,6 +259,9 @@ export class LiveWorld {
   private readonly holder: string;
   private readonly manualRenewal: boolean;
   private readonly owner: boolean;
+  private readonly cuts: CutStore | null;
+  /** Step 2a: the game minute of the local cut the last replay started from, or null from the seed. */
+  startedFrom: number | null = null;
   /** Past the first load: records ingested from here on arrived while this page watched. */
   private loaded = false;
   /** Half the round trip of the lease call that set this page's clock, in game minutes; null until it's set. */
@@ -271,6 +280,7 @@ export class LiveWorld {
     this.holder = o.holder ?? `tab-${Math.floor(Math.random() * 1e12).toString(36)}`;
     this.manualRenewal = o.manualRenewal === true;
     this.owner = o.owner === true;
+    this.cuts = o.cuts ?? null;
     this.w = this.fresh();
   }
 
@@ -344,6 +354,8 @@ export class LiveWorld {
       }
       // The screen's read of the hour, apart from the engine's try: a page's own error never marks the world broken.
       booksAfterHour(this.w);
+      // Step 2a: a recent day boundary, before any order stamped at its minute applies, becomes a local cut (cuts.ts).
+      if (this.cuts && this.w.t % (24 * 60) === 0 && !this.needRebuild && this.w.t >= now - CUT_WINDOW_MIN) this.captureCut();
       try {
         this.onHour?.(this.w);
       } catch (e) {
@@ -353,17 +365,36 @@ export class LiveWorld {
     return false;
   }
 
-  /** Replays the whole log from the seed, a slice at a time. */
+  /**
+   * Replays the log, a slice at a time: from this browser's newest local cut whose records still match the store's (step
+   * 2a, cuts.ts), else from the seed.
+   */
   async rebuild(onProgress?: (share: number) => void): Promise<void> {
     this.needRebuild = false;
     this.replaying = true;
-    this.w = this.fresh();
+    this.startedFrom = null;
+    const cut = await this.bestCut();
     this.player = null;
     this.companies.clear();
     this.last = null;
     this.queue = [];
-    for (const [uid, log] of this.logs) for (const r of log.values()) this.queue.push({ uid, r });
-    this.queue.sort(before);
+    if (cut) {
+      this.w = cut.w;
+      this.startedFrom = cut.t;
+      for (const [uid, id] of cut.companies) {
+        this.companies.set(uid, id);
+        if (uid === this.uid) this.player = this.w.companies[id - 1] ?? null;
+      }
+    } else this.w = this.fresh();
+    // The records the cut had applied are behind it (the last of them, for the late check); the rest are to apply.
+    const from = cut ? cut.t : -Infinity;
+    const all: Entry[] = [];
+    for (const [uid, log] of this.logs) for (const r of log.values()) all.push({ uid, r });
+    all.sort(before);
+    for (const e of all) {
+      if (e.r.at < from) this.last = e;
+      else this.queue.push(e);
+    }
     const target = Math.max(1, this.gameMinute());
     while (!this.advance(30)) {
       onProgress?.(Math.min(1, this.w.t / target));
@@ -414,7 +445,80 @@ export class LiveWorld {
   // --- internals --------------------------------------------------------------------
 
   private fresh(): World {
-    const w = newWorld(this.meta.seed);
+    return this.attach(newWorld(this.meta.seed));
+  }
+
+  // --- Step 2a: local cuts (cuts.ts) -----------------------------------------------------------
+
+  /** Which world a cut belongs to: the seed, the epoch and the ruleset. */
+  private worldKey(): string {
+    return `${this.meta.seed}:${this.meta.epochMs}:${this.meta.ruleset}`;
+  }
+
+  /** Every record stamped before `t`, in the order the world applies them, as one text: what a cut at `t` had applied. */
+  private recordsBefore(t: number): string {
+    const out: Entry[] = [];
+    for (const [uid, log] of this.logs) for (const r of log.values()) if (r.at < t) out.push({ uid, r });
+    out.sort(before);
+    return out.map((e) => `${e.uid}\u0000${JSON.stringify(e.r)}`).join("\n");
+  }
+
+  /** The world now, at a day boundary, saved as a local cut with the digest of what it applied; the oldest pruned. */
+  private captureCut(): void {
+    const t = this.w.t;
+    let text: string;
+    try {
+      text = encodeWorld(this.w, cutExtras(this.w));
+    } catch (e) {
+      console.error(e);
+      return;
+    }
+    const list = this.recordsBefore(t);
+    const companies = [...this.companies];
+    const cuts = this.cuts!;
+    const world = this.worldKey();
+    void (async () => {
+      const digest = await sha256(list);
+      await cuts.put({ key: `${world}|${REPLAY_BUILD}|${t}`, world, build: REPLAY_BUILD, t, digest, text, companies });
+      const mine = (await cuts.list(world)).sort((a, b) => b.t - a.t);
+      for (const old of mine.slice(CUTS_KEPT)) await cuts.delete(old.key);
+    })().catch((e) => console.error(e));
+  }
+
+  /**
+   * The newest local cut of this world, this replay build, at or before the clock, whose applied records are exactly the
+   * store's records before it: restored, with what it carries beside the world (cuts.ts cutExtras) back on. Null when
+   * there's none.
+   */
+  private async bestCut(): Promise<{ t: number; w: World; companies: [string, number][] } | null> {
+    if (!this.cuts) return null;
+    const target = this.gameMinute();
+    let heads: Awaited<ReturnType<CutStore["list"]>>;
+    try {
+      heads = (await this.cuts.list(this.worldKey())).filter((h) => h.build === REPLAY_BUILD && h.t <= target).sort((a, b) => b.t - a.t);
+    } catch {
+      return null;
+    }
+    for (const h of heads) {
+      const list = this.recordsBefore(h.t);
+      if ((await sha256(list)) !== h.digest) continue; // a late, rewritten or erased record before it
+      const cut = await this.cuts.get(h.key).catch(() => null);
+      if (!cut || cut.digest !== h.digest) continue;
+      if (this.recordsBefore(h.t) !== list) continue; // a record came in while the cut was read
+      try {
+        const base = newWorld(this.meta.seed);
+        const { w, extras } = decodeWorld(cut.text, { cfg: base.cfg, net: base.net, feeds: base.feeds });
+        restoreCutExtras(w, extras as CutExtras);
+        return { t: h.t, w: this.attach(w), companies: cut.companies };
+      } catch (e) {
+        console.error(e);
+      }
+    }
+    return null;
+  }
+
+  /** The page's listener on a world, a fresh one or one restored from a cut. */
+  private attach(w: World): World {
     w.listener = (e) => {
       if (this.replaying) return;
       // A screen's handler that throws must not abort the engine's hour (the red team, persistence §6): it would mark the

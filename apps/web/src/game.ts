@@ -104,7 +104,10 @@ export function joinCompany(w: World, key: string, name: string, hub: string, st
     human: true,
     // R1: with guard.dispatcherDefaultOn off, a player's company joins with no bid order, so nothing bids before the
     // player chooses (Iuliia's "Let the dispatcher bid", the idle card, or the switch). Home time stays. Bots keep theirs.
-    orders: w.cfg.guard.dispatcherDefaultOn ? DEFAULT_ORDERS : DEFAULT_ORDERS.filter((o) => !DISPATCHER_ORDERS.has(o.kind)),
+    // Its own copy, never the module's objects: a world restored from a checkpoint holds copies of the orders companies
+    // joined with before it, so one shared with the module would encode differently from the seed's (checkpoint.ts
+    // outsideRefs). The same values, so the same world.
+    orders: structuredClone(w.cfg.guard.dispatcherDefaultOn ? DEFAULT_ORDERS : DEFAULT_ORDERS.filter((o) => !DISPATCHER_ORDERS.has(o.kind))),
     freePath: start === "oo",
   });
   if (start === "fleet") {

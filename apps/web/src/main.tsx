@@ -31,6 +31,7 @@ import { lostWhy, profitOver } from "./board.js";
 import { firstTruckLine } from "./figures.js";
 import { PENDING } from "./copy-pending.js";
 import { panelsMoved } from "./panelclock.js";
+import { idbCuts, LOCAL_CUTS } from "./cuts.js";
 
 /**
  * Boot, sessions and the game loop. The screen itself is the Preact app in ui/;
@@ -263,7 +264,8 @@ async function enterLive(meta: WorldMeta): Promise<void> {
   if (meta.ruleset !== RULESET) return showTitle({ kind: "update", theirs: meta.ruleset });
   // The replay runs behind the title, the button reading "Connecting…" (S0), so the title is the login and nothing else.
   showTitle({ kind: "connecting" });
-  const lw = await LiveWorld.open(S.platform.db!, meta, S.platform.uid, { owner: S.platform.owner });
+  // The checkpoint's step 2a: this browser's own local cuts, when the page switch is on (cuts.ts LOCAL_CUTS).
+  const lw = await LiveWorld.open(S.platform.db!, meta, S.platform.uid, { owner: S.platform.owner, ...(LOCAL_CUTS ? { cuts: idbCuts() } : {}) });
   S.live = lw;
   // The owner's page only (persistence §2, the marker): orders that arrived stamped in the past, read in the console as
   // lanesOwner.earlyStamps(). Never shown to players; each one also logs a console warning as it lands.
