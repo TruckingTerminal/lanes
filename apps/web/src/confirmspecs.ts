@@ -92,9 +92,10 @@ export function sell(w: World, t: Truck, n: number, askFd: number, floorShare = 
   const away = c !== undefined && w.cfg.labor.busHome?.enabled === true && w.cfg.labor.truckLessHomeByHub === true && hubMiles(w, t.hub, c.homeHub) > w.cfg.map.nearbyRadiusMi;
   const atOnce = c?.autoStaff === true;
   const weeksOff = w.cfg.labor.morale.unseatedWeeks;
+  const bus = w.cfg.labor.busToTruck?.enabled === true;
   const crewLines = away
-    ? [...(hired.length ? [FIXES.sellCrewAway(hired, weeksOff, atOnce)] : []), ...(crew.some((s) => s.owner) ? [FIXES.sellOwnerAway(atOnce)] : [])]
-    : [...(hired.length ? [PENDING.sellCrew(hired, weeksOff)] : []), ...(crew.some((s) => s.owner) ? [PENDING.sellOwnerOff] : [])];
+    ? [...(hired.length ? [FIXES.sellCrewAway(hired, weeksOff, atOnce, bus)] : []), ...(crew.some((s) => s.owner) ? [FIXES.sellOwnerAway(atOnce)] : [])]
+    : [...(hired.length ? [PENDING.sellCrew(hired, weeksOff, bus)] : []), ...(crew.some((s) => s.owner) ? [PENDING.sellOwnerOff] : [])];
   // token.settlementFee: folded into the market's fee as one named line (the director: one fee, not a stack); off, unsaid.
   const settle = settlementShare(w.cfg);
   const feeLine = settle > 0 ? [PENDING.sellFees(pct(w.cfg.usedMarket.feePct + settle), fdFull(askFd * (w.cfg.usedMarket.feePct + settle)))] : [];

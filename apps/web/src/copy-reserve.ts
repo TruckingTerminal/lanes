@@ -64,9 +64,20 @@ export const RESERVE = {
   needAfter: (fd: string, day: string) => `${fd} FD reaches cash ${day}.`,
   // Needs you: the close window (a world with seasons, before launch, once per close).
   needClose: (date: string, fd: string, room: string) => `The year-end close on ${date} would burn ${fd} FD of today's cash. The Reserve can keep ${room} FD of it.`,
-  // The director's §15: the weeks-in-debt warning reads cash and the Reserve together.
-  debtTogether: (under: string, limit: string, n: number, of: number, day: string) =>
-    `Cash and the Reserve together are ${under} FD under the −${limit} line: week ${n} of ${of}. The company is wound up after ${day} unless the two together are back over it.`,
+  // The director's §15: the weeks-in-debt warning reads cash and the Reserve together. `under` is how far under the line
+  // the two are, null when they're back over it with the count still standing; `next` the next weekly check, `day` the
+  // check that would wind the company up (QA's 0.25.5 replay: "week 0 of 4" read like a counter that hadn't started).
+  debtTogether: (under: string | null, limit: string, n: number, of: number, next: string, day: string) => {
+    const line = `the −${limit} FD line`;
+    if (under === null) return `Cash and the Reserve together are back over ${line}. ${n} of ${of} weekly checks counted them under it; if they stay over, the next check, ${next}, clears the count.`;
+    const head = `Cash and the Reserve together are ${under} FD under ${line}.`;
+    if (n === 0) return `${head} No weekly check has counted it yet: the first is ${next}, and ${of === 4 ? "four" : of} in a row under the line wind the company up on ${day}.`;
+    if (n >= of - 1) return `${head} ${n} of ${of} weekly checks have counted it. Unless the two together are back over the line by the next check, ${next}, it winds the company up.`;
+    return `${head} ${n} of ${of} weekly checks have counted it; the next is ${next}. Unless the two together are back over the line, the company is wound up on ${day}.`;
+  },
+  // Its move, on the Needs you card (What now?'s badge row gives it as a button): moving FD between cash and the Reserve
+  // changes nothing, since the check counts both.
+  debtMoves: "Get loads moving, sell or park a truck, or put money in. Moving FD between cash and the Reserve doesn't change the sum.",
 };
 
 /** The card's explain sheets (ui/Explain.tsx): what the figure is, how it's built, what moves it; the phase from the world. */

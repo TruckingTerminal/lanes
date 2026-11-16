@@ -237,7 +237,8 @@ export function attentionItems(): Attention[] {
     // What now? and Money. The key carries the count, so the toast and the ticker say it again when a check moves it
     // rather than keeping the first line's figure.
     const d = debtCountdown(w, c);
-    out.push({ key: `debt:${d.n}`, text: reserveDebtLine(w, c) ?? DEBT.line(fdFull(-bal), fdFull(w.cfg.insolvency.debtLimitFd), d.n, d.of, dateLabel(d.nextDay)), tone: "bad", fix: money });
+    const together = reserveDebtLine(w, c);
+    out.push({ key: `debt:${d.n}`, text: together ? `${together} ${RESERVE.debtMoves}` : DEBT.line(fdFull(-bal), fdFull(w.cfg.insolvency.debtLimitFd), d.n, d.of, dateLabel(d.nextDay)), tone: "bad", fix: money });
   } else if (weeklyFixed > 0 && bal < 2 * weeklyFixed) {
     out.push({ key: "cash", text: `Cash is low: ${fd(bal)} FD against about ${fd(weeklyFixed)} FD a week of insurance, overhead, leases and yard before a wheel turns.`, tone: "warn", fix: money });
   }

@@ -444,7 +444,7 @@ describe("the five diaries: a driver's notice and the debt line read the engine"
       expect(w.cfg.insolvency.countReserve).toBe(true);
       const d = debtCountdown(w, c);
       expect(d.shortFd).toBeCloseTo(30_000 - w.cfg.insolvency.debtLimitFd, 6);
-      expect(debt.text).toBe(RESERVE.debtTogether(fdFull(d.shortFd), fdFull(w.cfg.insolvency.debtLimitFd), c.weeksInDebt, w.cfg.insolvency.weeksInDebt, dateLabel(d.nextDay + 7 * (w.cfg.insolvency.weeksInDebt - c.weeksInDebt - 1))));
+      expect(debt.text).toBe(RESERVE.debtTogether(fdFull(d.shortFd), fdFull(w.cfg.insolvency.debtLimitFd), c.weeksInDebt, w.cfg.insolvency.weeksInDebt, dateLabel(d.nextDay), dateLabel(d.nextDay + 7 * (w.cfg.insolvency.weeksInDebt - c.weeksInDebt - 1))));
     } finally {
       S.game = null;
     }

@@ -142,7 +142,9 @@ describe("the director's §15 on the page (insolvency.countReserve)", () => {
     const d = debtCountdown(w, c);
     expect(d.under).toBe(true);
     expect(d.shortFd).toBeCloseTo(1_000, 6); // −3,000 together, 1,000 under the −2,000 line
-    expect(reserveDebtLine(w, c)).toBe(RESERVE.debtTogether("1,000", "2,000", 0, 4, dateLabel(d.nextDay + 21)));
+    expect(reserveDebtLine(w, c)).toBe(RESERVE.debtTogether("1,000", "2,000", 0, 4, dateLabel(d.nextDay), dateLabel(d.nextDay + 21)));
+    // QA's 0.25.5 replay: before the first weekly check, no "week 0 of 4"; the first check and the one that winds it up.
+    expect(reserveDebtLine(w, c)).toBe(`Cash and the Reserve together are 1,000 FD under the −2,000 FD line. No weekly check has counted it yet: the first is ${dateLabel(d.nextDay)}, and four in a row under the line wind the company up on ${dateLabel(d.nextDay + 21)}.`);
     expect(reserveNeed(w, c)).toMatchObject({ key: "reserve:count", first: true, text: RESERVE.needCount("−13,000", "10,000") });
   }, 120_000);
 

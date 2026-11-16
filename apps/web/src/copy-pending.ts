@@ -536,9 +536,9 @@ export const PENDING = withGrammar({
   // driver sitting in a parked one.
   // The producer (2026-11-12): said plainly, before listing, that the driver leaves the truck, and quits after the weeks
   // with no truck unless seated on another.
-  sellCrew: (names: string[], weeks: number) => {
+  sellCrew: (names: string[], weeks: number, bus = false) => {
     const who = names.join(" and ");
-    return `Listing it takes ${who} off the truck. ${names.length === 1 ? `${who} stays` : "They stay"} on your payroll, and quit${names.length === 1 ? "s" : ""} after ${weeks} weeks with no truck unless you seat ${names.length === 1 ? "them" : "them"} on another. Taking it off sale puts ${names.length === 1 ? who : "them"} back in it.`;
+    return `Listing it takes ${who} off the truck. ${names.length === 1 ? `${who} stays` : "They stay"} on your payroll, and quit${names.length === 1 ? "s" : ""} after ${weeks} weeks with no truck unless you seat them on another${bus ? " or send them by bus to one" : ""}. Taking it off sale puts ${names.length === 1 ? who : "them"} back in it.`;
   },
   sellOwnerOff: "Listing it takes you off the truck, free to drive another. Taking it off sale puts you back in it.",
   offSaleBack: (n: number, name: string) => `Off sale: Truck ${n} is back on the road, with ${name} driving`,

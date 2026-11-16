@@ -207,5 +207,5 @@ export function reserveDebtLine(w: World, c: Company): string | null {
   const d = debtCountdown(w, c);
   if (!d.under && c.weeksInDebt === 0) return null;
   const windDay = d.nextDay + 7 * Math.max(0, d.of - d.n - 1);
-  return RESERVE.debtTogether(fdFull(d.shortFd), fdFull(w.cfg.insolvency.debtLimitFd), d.n, d.of, dateLabel(windDay));
+  return RESERVE.debtTogether(d.under ? fdFull(d.shortFd) : null, fdFull(w.cfg.insolvency.debtLimitFd), d.n, d.of, dateLabel(d.nextDay), dateLabel(windDay));
 }

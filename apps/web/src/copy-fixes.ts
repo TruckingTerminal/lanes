@@ -69,10 +69,10 @@ export const FIXES = {
   releasedByYou: "You released this load, so you can't book it again.",
   // The sell Confirm with the bus home on, the truck away from home: the crew takes the bus home (at once with auto-staff,
   // else after a day), so off sale puts them back in it only before then.
-  sellCrewAway: (names: string[], weeks: number, atOnce: boolean) => {
+  sellCrewAway: (names: string[], weeks: number, atOnce: boolean, bus = false) => {
     const who = names.join(" and ");
     const one = names.length === 1;
-    return `Listing it takes ${who} off the truck, away from home, so ${one ? `${who} takes` : "they take"} the bus home${atOnce ? "" : " after a day"}. ${one ? `${who} stays` : "They stay"} on your payroll and quit${one ? "s" : ""} after ${weeks} weeks with no truck unless you seat ${one ? "them" : "them"} on another.${atOnce ? "" : ` Taking it off sale before then puts ${one ? who : "them"} back in it.`}`;
+    return `Listing it takes ${who} off the truck, away from home, so ${one ? `${who} takes` : "they take"} the bus home${atOnce ? "" : " after a day"}. ${one ? `${who} stays` : "They stay"} on your payroll and quit${one ? "s" : ""} after ${weeks} weeks with no truck unless you seat them on another${bus ? " or send them by bus to one" : ""}.${atOnce ? "" : ` Taking it off sale before then puts ${one ? who : "them"} back in it.`}`;
   },
   sellOwnerAway: (atOnce: boolean) => `Listing it takes you off the truck, away from home, so you take the bus home${atOnce ? "" : " after a day"}.${atOnce ? "" : " Taking it off sale before then puts you back in it."}`,
   // The hire Confirm for a dispatcher or a manager: a weekly wage, not per mile.

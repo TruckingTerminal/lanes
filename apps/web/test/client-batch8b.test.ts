@@ -189,7 +189,7 @@ describe("QA's 0.24.1 replay (qa-0241-8a-2026-11-12.md), folded into 8b", () => 
     expect(truck.driverId).toBe(s.id);
     const value = truckValue(w, truck);
     // Said plainly before listing, right after what the sale is (the producer, 2026-11-12).
-    expect(sellLines(w, truck, 2, value).does).toContain(PENDING.sellCrew([s.name], w.cfg.labor.morale.unseatedWeeks));
+    expect(sellLines(w, truck, 2, value).does).toContain(PENDING.sellCrew([s.name], w.cfg.labor.morale.unseatedWeeks, w.cfg.labor.busToTruck.enabled));
     expect(g.act({ type: "list_truck", truckId: truck.id, askFd: value, floorFd: value * 0.6, stepFd: value * 0.05 }).ok).toBe(true);
     expect(truck.driverId).toBe(0); // the engine's rule (market.ts listTruck): the crew stays with the company, off the truck
     const listing = w.listings.find((l) => l.truckId === truck.id && l.status === "open")!;
