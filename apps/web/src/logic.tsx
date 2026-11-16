@@ -44,6 +44,7 @@ import { DISPATCHER_ORDERS, GAME_CONFIG, PLAYER_DISPATCHER_ORDERS } from "./game
 import { trueBreakEven } from "./breakeven.js";
 import { boardRows, cutsDaysOff, profitOver } from "./board.js";
 import { PENDING } from "./copy-pending.js";
+import { FIXES } from "./copy-fixes.js";
 import { ARRIVAL, BROKERAGE, DEBT, DISPATCHER, FIRST_ENTRY, MOVE, NEEDS, SAFETY_NEWS, TRUCK } from "./copy.js";
 import { cashDipAhead, debtCountdown } from "./figures.js";
 import { RESERVE } from "./copy-reserve.js";
@@ -64,7 +65,7 @@ import { myTenders } from "./ui/panels/Contracts.js";
 import { dateLabel, fd, fdFull, hhmm, hoursLabel, pct, plural, realUntil, signedPct, TRAILER_NAME, weekday } from "./format.js";
 import { Btn } from "./ui/bits.js";
 import { economyConfig } from "@lanes/config";
-import { askFigures, atHomeMarket, brokerageClosing, claimCause, homeMarketLine, homeNoDrive, lostBidLine } from "./windowsui.js";
+import { askFigures, atHomeMarket, brokerageClosing, claimCause, homeMarketLine, homeNoDrive, lostBidLine, shutDockOpens, whenAt } from "./windowsui.js";
 import { moneyEvents } from "./books.js";
 import { WINDOWS } from "./copy-windows.js";
 
@@ -749,8 +750,11 @@ export function statusText(t: Truck): string {
       return `Loading at ${name(t.place)}`;
     case "loaded":
       return `Loaded ${name(t.place)} → ${name(t.targetPlace)} · ${Math.round(t.remainingMi)} mi to go`;
-    case "unloading":
-      return `Unloading at ${name(t.targetPlace)}`;
+    case "unloading": {
+      // QA's 0.25.6 pass: at a receiver shut when it arrived, the truck waits for the opening before it unloads.
+      const opens = shutDockOpens(w, t);
+      return opens !== null ? FIXES.waitingForDock(name(t.targetPlace), whenAt(w, opens)) : `Unloading at ${name(t.targetPlace)}`;
+    }
     case "repositioning":
       return `Running empty to ${name(t.targetPlace)} · ${Math.round(t.remainingMi)} mi`;
     case "repair":

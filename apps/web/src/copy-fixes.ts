@@ -100,6 +100,9 @@ export const FIXES = {
   dueToday: "today",
   // The red team's 0.25.3 pass, finding 3: waiting at the shipper's dock before the load is ready, still releasable.
   waitingAtDock: (town: string, ready: string) => `At the dock in ${town} · the load is ready ${ready}`,
+  // QA's 0.25.6 pass: at a receiver that was shut when the truck arrived, the card said "Unloading at Provo" for the whole
+  // 11 h wait. It waits for the opening first (windowsui.ts shutDockOpens).
+  waitingForDock: (town: string, opens: string) => `Waiting at ${town} for the dock to open ${opens}`,
   releaseCurrentDoes: (from: string, to: string, truck: number, town: string, sunkMi: string | null) =>
     `${from} → ${to} goes back on the board, and Truck ${truck} stops at ${town}, the nearest town${sunkMi ? `; its ${sunkMi} empty miles so far earn nothing` : ""}.`,
   releaseCurrentRisk: "It's also a mark on your record, and you can't book this load again.",

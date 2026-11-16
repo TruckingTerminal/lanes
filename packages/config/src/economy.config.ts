@@ -1208,6 +1208,12 @@ export const economyConfig = {
     // to spare ends this much early, as a truck stops at the last site within its hours (sites.ts planNight); and the pickup
     // and the deadline must be made with this much to spare.
     planMarginMinutes: 60,
+    // QA's 0.25.6 pass, item 2: the margin at the shipper's dock counts from the truck's arrival, not from the ready time it
+    // already waits for. A truck there before the ready time by the margin is sure to be at the dock when it's ready, so a
+    // load ready Fri 18:00 at a dock that shuts at 19:00 plans its loading at 18:00, as trips.ts loads it, not on Monday.
+    // An arrival within the margin of the close still counts it closed. Off: the margin counts from the ready time, as before
+    // (the page's sheet reads it on either way for its "delivers about", windowsui.ts agreement).
+    marginFromArrival: false,
     // Claims, as shares (the economy's sizes, 2026-11-09), read by the booking-ahead batch: a late delivery (after
     // latestDeliveryT) of the load's pay as booked; a no-show (booked, not picked up by latestPickupT); a cancellation
     // (release_load) before, and in, the urgency rounds. Kept in order: cancel early < late < no-show = cancel urgent.

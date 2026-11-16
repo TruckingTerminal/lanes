@@ -320,8 +320,8 @@ export function daysOffHold(w: World, truck: Truck): number | null {
  * when idle; else the rest of its job in hand (the leg, the wait for readyT and the docks, the dwell at its longest, the haul
  * and the unloading), an empty run's arrival, or the shop's end. Reads only.
  */
-export function freeOf(w: World, truck: Truck): Free {
-  const r = Run.start(w, truck);
+export function freeOf(w: World, truck: Truck, fromArrival?: boolean): Free {
+  const r = Run.start(w, truck, fromArrival);
   if (truck.status === "parked" || truck.status === "listed" || truck.status === "retired") return { run: r, place: truck.place, why: "busy" };
   if (truck.status === "repair") r.until(Math.max(r.t, truck.repairUntilT ?? r.t));
   r.stop(truck.breakdownMin + (truck.pauseMin ?? 0));
@@ -379,10 +379,15 @@ export class Run {
     /** The weekly clock's driving minutes left, and a full week's (Infinity with the clock off). */
     private cycleLeft: number,
     private readonly cycleFull: number,
+    /** windows.marginFromArrival: the margin at the shipper's dock counts from the arrival, not the ready time (haul). */
+    private readonly fromArrival: boolean,
   ) {}
 
-  /** From now: the day's hours left read without opening a new duty day (dutyResetAt), a fresh day once it has reset. */
-  static start(w: World, truck: Truck): Run {
+  /**
+   * From now: the day's hours left read without opening a new duty day (dutyResetAt), a fresh day once it has reset.
+   * `fromArrival`: windows.marginFromArrival for this plan (the page's sheet asks for it whatever the switch).
+   */
+  static start(w: World, truck: Truck, fromArrival: boolean = w.cfg.windows?.marginFromArrival === true): Run {
     const limit = legalDrivingMin(w, truck);
     const reset = dutyResetAt(w, truck);
     const fresh = reset === null || w.t >= reset;
@@ -392,11 +397,11 @@ export class Run {
     const cycleFull = hos.cycleHours > 0 ? cycleLimitMin(w, truck) : Infinity;
     const restarted = truck.cycleLastT !== undefined && w.t - truck.cycleLastT >= hos.restartHours * MINUTES_PER_HOUR;
     const cycleLeft = hos.cycleHours > 0 ? cycleFull - (restarted ? 0 : (truck.cycleMin ?? 0)) : Infinity;
-    return new Run(w, limit, 1 / Math.max(0.5, skill * tired), w.t, fresh ? limit : Math.max(0, limit - truck.shiftDrivenMin), fresh ? 0 : truck.shiftDrivenMin, cycleLeft, cycleFull);
+    return new Run(w, limit, 1 / Math.max(0.5, skill * tired), w.t, fresh ? limit : Math.max(0, limit - truck.shiftDrivenMin), fresh ? 0 : truck.shiftDrivenMin, cycleLeft, cycleFull, fromArrival);
   }
 
   copy(): Run {
-    return new Run(this.w, this.limit, this.pace, this.t, this.left, this.shift, this.cycleLeft, this.cycleFull);
+    return new Run(this.w, this.limit, this.pace, this.t, this.left, this.shift, this.cycleLeft, this.cycleFull, this.fromArrival);
   }
 
   private get restart(): number {
@@ -486,13 +491,16 @@ export class Run {
     this.stop(this.unloadDwell(l));
   }
 
-  /** When the dock is open for this arrival: now, its next opening, or, closing within the margin, the opening after. */
-  dockOpen(l: Load, end: "pickup" | "delivery"): number {
+  /**
+   * When the dock is open for this arrival: now, its next opening, or, closing within the margin, the opening after.
+   * `arrival`: when the truck got there, if before now (it waited for the ready time); the margin counts from it.
+   */
+  dockOpen(l: Load, end: "pickup" | "delivery", arrival: number = this.t): number {
     const h = this.w.cfg.docks.enabled ? dockHoursAt(this.w, l, end) : null;
     if (!h) return this.t;
     const open = nextOpen(this.w, this.t, h);
     if (open > this.t) return open;
-    const edge = this.t + this.margin;
+    const edge = Math.max(this.t, arrival + this.margin);
     const after = nextOpen(this.w, edge, h);
     return after > edge ? after : this.t;
   }
@@ -513,8 +521,9 @@ export class Run {
 
   /** From the shipper's dock to the receiver: ready, open, loaded, driven; the arrival, and when the unloading is done. */
   haul(l: Load): { arrive: number; done: number } {
+    const arrival = this.t;
     this.until(Math.max(this.t, l.readyT ?? this.t));
-    this.until(this.dockOpen(l, "pickup"));
+    this.until(this.dockOpen(l, "pickup", this.fromArrival ? arrival : this.t));
     this.stop(this.loadDwell(l));
     this.drive(l.routeHours * MINUTES_PER_HOUR, l.miles);
     const arrive = this.t;

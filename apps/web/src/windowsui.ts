@@ -33,6 +33,21 @@ export function whenAt(w: World, t: number, dated = false): string {
   const [wd, hm] = whenLabel(w, t).split(" ");
   return `${wd} ${shortDate(day)} ${hm}`;
 }
+/**
+ * QA's 0.25.6 pass: a truck at a first-come receiver that was shut when it arrived waits as `unloading` until the dock
+ * opens (trips.ts startUnloading; docks.ts deliveryWait). The opening it waits for, while it waits; else null. It reads
+ * only the engine's own figures, the arrival (load.arrivedT) and the dock's hours, never deliveryWait itself, which draws
+ * a missed slot's wait.
+ */
+export function shutDockOpens(w: World, t: Truck): number | null {
+  if (t.status !== "unloading" || t.loadId === null || !w.cfg.docks.enabled) return null;
+  const l = w.loads.get(t.loadId);
+  if (!l || l.arrivedT === undefined) return null;
+  const h = dockHoursAt(w, l, "delivery");
+  if (!h) return null;
+  const opens = nextOpen(w, l.arrivedT, h);
+  return opens > l.arrivedT && w.t < opens ? opens : null;
+}
 /** A ready time: one already past reads as past ("since Tue 07:00"), never as a bare weekday that could be next week's. */
 export const readyAt = (w: World, ready: number, dated = false): string => (ready < w.t ? WINDOWS.readySince(whenAt(w, ready, dated)) : whenAt(w, ready, dated));
 
@@ -172,9 +187,15 @@ export function agreement(w: World, t: Truck, l: Load, rate: number, truckNo: nu
   const r = canMake(w, t, l);
   let spareMin: number | null = null;
   if (r.ok) {
-    spareMin = l.latestDeliveryT - r.deliverT;
-    const free = r.freeT > w.t ? at(r.freeT) : "";
-    lines.push(WINDOWS.agreeTruck(truckNo, free, place(w, r.freePlace), place(w, l.originPlace), at(r.pickupT), at(r.deliverT), spanLabel(spareMin)));
+    // QA's 0.25.6 pass, item 2: the figures as the truck runs them. The plan's margin at the shipper's dock counts from the
+    // arrival (windows.marginFromArrival), so a load ready Fri 18:00 at a dock that shuts at 19:00 delivers as trips.ts
+    // loads it, at 18:00, not days later from a Monday loading. The booking's yes or no stays the engine's own (r.ok): with
+    // the switch off this plan only ever delivers earlier, so it never shows a truck line the booking would refuse.
+    const run = w.cfg.windows!.marginFromArrival ? r : canMake(w, t, l, freeOf(w, t, true));
+    const shown = run.ok ? run : r;
+    spareMin = l.latestDeliveryT - shown.deliverT;
+    const free = shown.freeT > w.t ? at(shown.freeT) : "";
+    lines.push(WINDOWS.agreeTruck(truckNo, free, place(w, shown.freePlace), place(w, l.originPlace), at(shown.pickupT), at(shown.deliverT), spanLabel(spareMin)));
     kinds.push("truck");
   }
   const due = dueFirstLine(w, t, r.ok ? r.pickupT : l.latestPickupT);
