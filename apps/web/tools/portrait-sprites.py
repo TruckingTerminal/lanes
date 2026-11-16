@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
-"""Iuliia's portrait sheet (Jeff, 2026-11-01: "She has 3 arms. This is slop. Don't make her animations loops").
+"""Julia's portrait sheet (Jeff, 2026-11-01: "She has 3 arms. This is slop. Don't make her animations loops").
 
 Her body never moves: one portrait (assets/people/iuliia-faces/portrait.png), two hands, one on the folder and one with
 the pen. Her rest frame and poster, assets/people/iuliia.png, is that portrait with a composed, closed mouth painted on
-here (Jeff, 2026-11-02: "Why does Iuliia have a creepy smile on all the time?"), and the portrait's own half smile is
+here (Jeff, 2026-11-02: "Why does Julia have a creepy smile on all the time?"), and the portrait's own half smile is
 one of her moments. Everything she does is a change to her face pasted over the rest frame: the source faces in
 assets/people/iuliia-faces (frames of PixelLab animations of that same portrait) are aligned to her face, and only the
 eye, mouth or face area where they differ is kept. src/portrait.ts plays them on a seeded schedule, with the nod, the

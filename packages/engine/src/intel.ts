@@ -6,7 +6,7 @@ import type { World } from "./world.js";
  * and loads on time, a month behind and never live (Jeff: live cash stays private; financials show a month behind).
  * Read from the counters the rules already keep (operating revenue, delivered, on time), so no rule reads or changes
  * anything here: it is state for the screens, taken at the month close. It also keeps what the month spent (operating
- * costs, fleet overhead and the fines outside operating costs), and the company's first record whole, for Iuliia's
+ * costs, fleet overhead and the fines outside operating costs), and the company's first record whole, for Julia's
  * first-month milestone (the director).
  */
 export function monthlyIntel(w: World): void {

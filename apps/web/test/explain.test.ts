@@ -344,7 +344,7 @@ describe("the next-truck gap says what moved it (row 4)", () => {
     S.gapSeen = null;
     expect(gapNotes(g.w, c, "lot")).toEqual([]);
     expect(gapNotes(g.w, c, "new")).toEqual([PENDING.gapWhyCheapestSince]);
-    // Client pass 2: the cushion is Iuliia's advice, not the gap's, so a closed week adds no note.
+    // Client pass 2: the cushion is Julia's advice, not the gap's, so a closed week adds no note.
     c.weeklySpend.push(5_000);
     expect(gapNotes(g.w, c, "new")).toEqual([PENDING.gapWhyCheapestSince]);
     S.gapSeen!.why = []; // what closing its explanation does

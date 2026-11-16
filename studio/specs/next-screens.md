@@ -128,7 +128,7 @@ ruled, on time interpolated by the engine.)
 | **The load sheet** | §1.4. |
 | **The board** | The first-call card (§1.5); the load cards gain nothing (they stay lean). |
 | **Needs you** | A first call (§1.5); a decay a week away. |
-| **Money** | The contract offer at tier 9 and the dedicated lane at 10 are offers in Money, as Iuliia's line says. Their cards carry the badge at 32. |
+| **Money** | The contract offer at tier 9 and the dedicated lane at 10 are offers in Money, as Julia's line says. Their cards carry the badge at 32. |
 | **The month report** | A **Standing** section: every tier change that month with its cause ("Dallas: 6 → 5 after a no-show, Mon 12"), as the director asks. No section when nothing moved. |
 | **The return card** ("While you were away") | A tier change while away is one line with the badge at 24. A hero owed (§1.6) adds "See it", which opens Standing and plays it; with a tier-1 item open, the line shows without "See it". |
 
@@ -205,11 +205,11 @@ device never replays it and a missed one is never lost. Seeing it clears it.
 2. the new tier's badge sits at 128, centre-top;
 3. the fx glint plays once at the badge's corner;
 4. under it, on `frame-paper`: "Standing with Dallas shippers · Preferred · tier 5 of 10", then the perk in one line
-   with its figure (below), then Iuliia's line at 32 px with her proud face;
+   with its figure (below), then Julia's line at 32 px with her proud face;
 5. one button: "OK", plus "See the ladder" for the sheet.
 
 **The stamp** is a toast: the badge at 32, "Dallas standing: Preferred, tier 5 of 10", the perk in one line (with
-its figure), and Iuliia's line in her 32 px strip. It has no painting and no glint. A stamp is the mark on a
+its figure), and Julia's line in her 32 px strip. It has no painting and no glint. A stamp is the mark on a
 scorecard, not a trophy.
 
 **Every hero and stamp says what changed, in figures, from the player's own books** (§2's guard). The figure comes
@@ -236,14 +236,14 @@ estimate. The writer drafts; these show the shape:
   It plays at the first chance after the item closes, by the rules above. Stamps and toasts aren't held.
 - **A step down** (as UX specified; the director's §8 adopts it). A fall is never a moment:
   - no hero, no glint, no red flash; the badge swaps;
-  - **a lost milestone** is a plain notice with its cause, and Iuliia's falling line with her concerned face. It
+  - **a lost milestone** is a plain notice with its cause, and Julia's falling line with her concerned face. It
     goes in the return card if it happened while the player was away;
   - **a fall between milestones** is a toast with its cause: "Dallas standing: tier 6 of 10, after a late
     delivery."
   - The cause always shows, in words. Every fall also goes in the month report's Standing section (§1.3).
 - **Reduced motion (Calm, Still):** the hero shows without the fade and the glint, as the spec's §2.6 says.
 
-**How the names feel** (the director's words, for the writer). The voice is the market's, through Iuliia, never the
+**How the names feel** (the director's words, for the writer). The voice is the market's, through Julia, never the
 game's:
 - **Approved (1–4):** you're on the list. Plain, matter-of-fact; a door open, nothing more.
 - **Preferred (5–8):** they know your name. Warmer: the first sign of a relationship.
@@ -288,9 +288,9 @@ badge, a band's tiers read as marks lit in order:
 - First call: the card, its foot line, Pass's Confirm, the Needs you line, the toast.
 - The moments:
   - the hero's paper lines, and the five perk lines with their figures (§1.6);
-  - the stamp, Iuliia's five milestone lines, and the "Back to Preferred in Dallas" form for a climb back;
+  - the stamp, Julia's five milestone lines, and the "Back to Preferred in Dallas" form for a climb back;
   - the toast for 2/4/6/8 and "Standing moved in {n} markets";
-  - the lost-milestone notice with Iuliia's falling line, and the step-down toast;
+  - the lost-milestone notice with Julia's falling line, and the step-down toast;
   - the return card's line and "See it".
 - The month report's Standing section and its row.
 - The city pane's line.
@@ -463,7 +463,7 @@ Missed payments past `missedPaymentsToRepossess` and Equipment Finance takes the
   - the facts on `frame-paper`: "Equipment Finance repossessed Truck 2 on Tue 12 after 3 missed payments. It goes to
     the used lot; what it sells for pays the loan, and anything over comes to you.";
   - the buttons "OK" and "See the loan".
-  - It always plays in Calm motion, whatever the setting: fade only, no glint, no stamp. Iuliia's concerned face is
+  - It always plays in Calm motion, whatever the setting: fade only, no glint, no stamp. Julia's concerned face is
     at 32 with her line (the writer's).
   - If it happened while the player was away, the return card carries one line and the sheet shows at the next
     open of Money.
@@ -492,7 +492,7 @@ order row.
 - Trade-in's Confirm lines.
 - The trade-in and scrap toasts.
 - The arrears line.
-- The repossession sheet's lines and Iuliia's line.
+- The repossession sheet's lines and Julia's line.
 - The repossession chip.
 
 ### 3.7 Art and budget for part 3
@@ -533,7 +533,7 @@ Kept out of the public repo with the rest of the bad-actor design (the shared no
    - the theft notice as a Needs-you and return card, tier 2, carrying the place;
    - `blt-hit-shoulder` as its shoulder picture, and text at a rest area or truck stop until the aftermath edits
      land;
-   - Iuliia's next step, by §4.2's order;
+   - Julia's next step, by §4.2's order;
    - the atNight line in `pickWindow` (already asked for).
 6. **Part 4, §4.1 and the switch-on half of §4.2 (approved), behind `robbery.lot`, test site only:**
    - the Back Lot screen, with Channel 19 moved in from the Logbook;

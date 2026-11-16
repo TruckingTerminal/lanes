@@ -91,6 +91,6 @@ Same rows, same order, titled "How others see you". Under each band, one muted l
 | (brokerage) | the brokerage teaser's action | See what brokers earned last month (as in `brokerage-strings.md`) |
 | (no string) | a company's name on a load card or the load sheet | the name itself becomes the link |
 
-## Iuliia
+## Julia
 
 One line, on the first visit to Intel, in `iuliia-lines.md`. None on a card.

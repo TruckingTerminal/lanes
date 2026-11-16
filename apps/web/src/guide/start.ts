@@ -43,7 +43,7 @@ export function startPages(cfg: EconomyConfig): GuidePage[] {
         ul([
           `<b>The map</b> shows every hub, the lanes between them, and the trucks on them: yours, other players', and the AI's. Tap a hub to see its open loads; tap your truck to select it.`,
           `<b>Today</b> on the Truck tab (and the ticker along the bottom on a laptop) lists what just happened to your company: loads won and delivered, breakdowns, inspections, staff news.`,
-          `<b>The tabs:</b> Truck (your trucks and the dispatcher), Loads (the board), Money (cash, what's owed, this week's costs, loans), and More: Iuliia, this Help, Company (your record, the leaderboard), and the tabs still to come, each opening when it's useful.`,
+          `<b>The tabs:</b> Truck (your trucks and the dispatcher), Loads (the board), Money (cash, what's owed, this week's costs, loans), and More: Julia, this Help, Company (your record, the leaderboard), and the tabs still to come, each opening when it's useful.`,
         ]) +
         table(
           ["Control", "What it does"],

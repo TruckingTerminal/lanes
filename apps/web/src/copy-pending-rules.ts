@@ -33,7 +33,7 @@ export const PENDING_RULES = {
 
   // leverage.localHoldHandBids (the economy's locals-first look, 2026-11-09): in the last round of a locals-first hold a
   // bid by hand is filed for the opening clearing. The load sheet's line in place of the first-call wall (`hh` the opening
-  // round's hour); Iuliia's line when it's filed (the director's), and when a local carrier books it first.
+  // round's hour); Julia's line when it's filed (the director's), and when a local carrier books it first.
   bidFilesFor: (hh: string) => `Local carriers have first call until ${hh}. Bid now and it's filed for that round, when the load opens to everyone.`,
   bidFiled: (hub: string, hh: string) => `Your bid is filed. The shipper gives ${hub}'s own carriers first call until ${hh}; if none takes it, yours is in that round.`,
   localTook: "A local carrier took it. Here's what's next.",
@@ -46,6 +46,6 @@ export const PENDING_RULES = {
     const reason = why.replace(/:\s*cash only\.?$/i, "");
     return `${reason.charAt(0).toUpperCase()}${reason.slice(1)}. Cash only: ${fd} FD when you sign.`;
   },
-  // Under the first-truck figure (the Dealer's card, Iuliia's page) when the truck it prices is cash only.
+  // Under the first-truck figure (the Dealer's card, Julia's page) when the truck it prices is cash only.
   cashOnlyFigure: "The lender won't finance that one for its age or miles, so the figure counts its full price and sales tax in cash.",
 } as const;

@@ -1188,7 +1188,7 @@ Two rule changes on top of the 0.19.0 package, both live levers:
 
 Everything else of 0.19.0 stands: the sinks and the dial, the trucks at mid prices with the used lot, loans and
 the deposit credit, the staff ladder, docks, weather, parking, the supply path, the logbook paid locked at the
-TGE, the bridge, the auction and the team vest for the day the token launches. The page carries Iuliia's
+TGE, the bridge, the auction and the team vest for the day the token launches. The page carries Julia's
 walkthrough, the roadmap, the Report button and the teaser tabs. The public test site runs it as a private,
 pausable world; the live world restarts on it when Jeff says.
 
@@ -1250,7 +1250,7 @@ share and either tax); operating sinks rose 8% and the whole-run sink ratio from
 157 to 93 (mostly brokers' repeat ones), companies in debt at the end from 45 to 20, and the debt written off at
 restarts (a faucet) from 525k to 184k; one-truck owners still went under at 6%, contract or not. The free path ran 16
 days faster (the old bots locked a 15k stake on the lease). Brokers' bonds paid 2.4M FD of factor and lessor paper,
-none unpaid; the cap sent 52.6k tenders to the open board and brokered deliveries fell 17%. Review and Iuliia's
+none unpaid; the cap sent 52.6k tenders to the open board and brokered deliveries fell 17%. Review and Julia's
 capital note: `studio/reviews/economy-factoring.md`.
 
 ## The population dial (Jeff, 2026-11-02; built, config `population.dial`, off)

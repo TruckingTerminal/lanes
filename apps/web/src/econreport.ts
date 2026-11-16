@@ -27,7 +27,7 @@ export interface ReportSection {
 }
 export interface EconReport {
   title: string;
-  /** Iuliia's one line above it, on this player's freight (null with no figure to read). */
+  /** Julia's one line above it, on this player's freight (null with no figure to read). */
   iuliia: string | null;
   /** The director's players-first §2 (brokerRisk.entry.playersFirst.signal): the brokers' market in the trade paper's voice; null off. */
   brokers: string | null;
@@ -182,7 +182,7 @@ export function econReport(w: World, trailer: Equipment | null, index?: number):
   };
   const announced: ReportSection = { title: REPORT.secAnnounced, rows: [{ label: REPORT.noneAnnounced, now: "", prior: null, year: null }] };
 
-  // Iuliia's line: this player's trailer, this month against the last.
+  // Julia's line: this player's trailer, this month against the last.
   let iuliia: string | null = null;
   if (trailer && prior) {
     const a = now.rec.rateByTrailer[trailer].perMi;

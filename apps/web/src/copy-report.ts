@@ -1,7 +1,7 @@
 /**
  * The public monthly report's words ("The freight economy" on Intel; the director's order and voice, studio/reviews/
  * director-eve.md §2): placeholders for the writer, who words them in one pass. A plain trade-paper voice, figures first,
- * no jokes; it's a publication, not Iuliia. Her one line above it is hers.
+ * no jokes; it's a publication, not Julia. Her one line above it is hers.
  */
 export const REPORT = {
   title: (month: string, year: number) => `The freight economy · ${month}, Year ${year}`,
@@ -62,7 +62,7 @@ export const REPORT = {
   top10: "Held by the top 10%",
   median: (segment: string) => `The median ${segment}'s holdings, FD`,
   segment: { ownerOperator: "owner-operator", fleet: "fleet", broker: "broker" } as Record<string, string>,
-  // Iuliia's line above it, for this player's freight.
+  // Julia's line above it, for this player's freight.
   iuliia: (trailer: string, dir: "up" | "down" | "flat", pct: string) =>
     dir === "flat" ? `${trailer} rates held level on last month; that's your freight.` : `${trailer} rates are ${dir} ${pct} on last month; that's your freight.`,
 };

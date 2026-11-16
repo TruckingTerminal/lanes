@@ -7,7 +7,7 @@ import { PENDING_RULES } from "../../copy-pending-rules.js";
 import { PENDING } from "../../copy-pending.js";
 import type { EconomyConfig } from "@lanes/config";
 import { Btn, Card, Label } from "../bits.js";
-import { Iuliia } from "../Walkthrough.js";
+import { Julia } from "../Walkthrough.js";
 import { iuliiaFirst } from "../../iuliia.js";
 import { formOf, ordersFrom } from "../../dispatcherform.js";
 
@@ -21,7 +21,7 @@ onWorldReset(() => setAside.clear());
 /**
  * The dispatcher (specs/first-ten-minutes.md, S9): before a one-truck company's first bid by hand, the switch shows the
  * saved orders and works (R1: the player's choice is never overridden; an "off" before the first load stays off, where a
- * disabled switch let the defaults take over at the first load), and Iuliia's line (freeEntry.firstBidByHand: the orders wait for the owner's first call). After
+ * disabled switch let the defaults take over at the first load), and Julia's line (freeEntry.firstBidByHand: the orders wait for the owner's first call). After
  * it, the switch, three rows and Save, with "More rules" folding the rest. No re-post rule: what the engine runs as
  * re-brokering is fraud, and no player screen offers it (the director's brokerage brief); saving drops one held from before.
  */
@@ -76,7 +76,7 @@ export function DispatcherCard(): JSX.Element {
       <Card class="dispatcher" title={DISPATCHER.title}>
         {switchRow}
         <div class="caption">
-          <Iuliia mood="idle" size={64} />
+          <Julia mood="idle" size={64} />
           <span class="small">{DISPATCHER.waiting}</span>
         </div>
       </Card>

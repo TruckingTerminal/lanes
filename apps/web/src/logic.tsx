@@ -624,7 +624,7 @@ export function checkAttention(): void {
     toast(a.text, a.tone === "bad");
     pushKeyed(g, `need:${a.key}`, a.text, a.tone === "bad" ? "bad" : "warn");
   }
-  // Client batch W (the director's §7): Iuliia on the first claim paid, the cause in figures.
+  // Client batch W (the director's §7): Julia on the first claim paid, the cause in figures.
   if (g.w.cfg.windows?.enabled) {
     const ev = moneyEvents(g.w, g.player, g.w.t - g.w.cfg.time.gameMinutesPerDay, 0).find((e) => e.kind === "claim" && e.ref.startsWith("claim:"));
     const line = ev ? claimCause(g.w, ev.ref, ev.fd) : null;

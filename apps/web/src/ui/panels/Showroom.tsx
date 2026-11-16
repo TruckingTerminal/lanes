@@ -337,7 +337,7 @@ export function Buy({ what, label, verb = "Buy", price, replacing, block, action
   const cashWhy = block ?? (p.cashOk ? null : p.deposit > 0.5 ? PENDING.whyCashAfterHold(fd(cash), fd(p.cashNowFd), fd(p.deposit)) : DEALER.whyCash(fd(cash), fd(p.cashNowFd)));
   const loanWhy = !p.loan ? null : block ?? (p.loan.why === "full" ? DEALER.whyLoans(purchaseTerms(w, c, truck).maxLoans) : p.loan.why === "short" ? DEALER.whyLoan(fd(p.loanNowFd ?? 0), fd(cash)) : null);
   const ef = w.cfg.equipmentFinance.purchase;
-  // Iuliia's line for the purchase: the first truck of its own, or one more (iuliia-lines.md, Dealer). Client batch 8a
+  // Julia's line for the purchase: the first truck of its own, or one more (iuliia-lines.md, Dealer). Client batch 8a
   // item 2 (QA): buyFirst ("Yours. The lessor's cut ends today…") is for a truck owned that day; an order gets the
   // "Truck ordered" caption alone.
   const first = !(myTrucks().some((t) => t.lease === "owned") || ordersOf(w, c.id).length);
@@ -400,7 +400,7 @@ export function Buy({ what, label, verb = "Buy", price, replacing, block, action
               [DEALER.now, <Fig k="loan.cashNow" label={DEALER.now} ctx={{ fd: price, replacing, truck }}>{`${fd(p.loanNowFd ?? 0)} FD`}</Fig>],
             ]}
           />
-          {/* The director's ruling 22: Iuliia, under the weekly payment, while the market is young. */}
+          {/* The director's ruling 22: Julia, under the weekly payment, while the market is young. */}
           {youngRatesLine(w) ? <p class="small">{youngRatesLine(w)}</p> : null}
           <p class="warn small">{DEALER.missed(ef.missedToDefault)}</p>
           <div class="row">

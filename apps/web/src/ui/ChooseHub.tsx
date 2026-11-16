@@ -11,13 +11,13 @@ import { hubFacts, moodLine, youngMarketLine, rankStarters, seasonReading } from
 import { iuliiaFirst } from "../iuliia.js";
 import { bumpData, S, TEST_BUILD, useData, type EntryStage } from "../state.js";
 import { Btn, Card } from "./bits.js";
-import { Iuliia, IuliiaLine } from "./Walkthrough.js";
+import { Julia, IuliiaLine } from "./Walkthrough.js";
 import { Portrait } from "./Loop.js";
 import type { PortraitMood } from "../portrait.js";
 
 /**
  * The first entry (specs/first-ten-minutes.md, S1, draft 4): the world before a home. No company exists yet, so
- * everything here reads the world alone (hubcard.ts); the sheet walks from Iuliia's welcome to the three ringed
+ * everything here reads the world alone (hubcard.ts); the sheet walks from Julia's welcome to the three ringed
  * starters, a hub's card and its board (read-only), then the company's name, and the company joins on Start.
  */
 
@@ -83,12 +83,12 @@ export function ChooseHub(): JSX.Element {
   return <Naming hub={hub} />;
 }
 
-/** Iuliia at 96 px with one line, and what to do about it. */
+/** Julia at 96 px with one line, and what to do about it. */
 function Say({ line, mood = "wave", children }: { line: string; mood?: PortraitMood; children?: JSX.Element | JSX.Element[] | null }): JSX.Element {
   return (
     <div class="stack">
       <div class="iuliiasay">
-        <Iuliia mood={mood} size={96} />
+        <Julia mood={mood} size={96} />
         <p>{line}</p>
       </div>
       {children}
@@ -169,7 +169,7 @@ function HubCard({ hub }: { hub: number }): JSX.Element {
   const w = S.game!.w;
   const f = hubFacts(w, hub);
   const starter = isStarter(w.net.hubs[hub]!.id);
-  // Iuliia on a card's first opening (iuliia-lines.md, first entry): a thin month first, else ringed, starter or neither.
+  // Julia on a card's first opening (iuliia-lines.md, first entry): a thin month first, else ringed, starter or neither.
   useEffect(() => {
     const thin = seasonReading(w, hub) < w.cfg.ui.season.thinUnder;
     iuliiaFirst(thin ? "hub:thin" : ringedHubs().includes(hub) ? "hub:ringed" : starter ? "hub:starter" : "hub:other", `hub:${hub}`);
@@ -272,7 +272,7 @@ function Naming({ hub }: { hub: number }): JSX.Element {
   return (
     <form class="stack namingform" onSubmit={submit}>
       <div class="iuliiasay">
-        <Iuliia mood="point" size={96} />
+        <Julia mood="point" size={96} />
         <p>{NAMING.line(h.name)}</p>
       </div>
       <div class="field">

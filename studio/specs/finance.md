@@ -37,7 +37,7 @@ needs a legend. Money is always "FD"; rates per load are percentages; dates are 
 
 ### Card 1: Before your first truck (state A only)
 
-The arithmetic Iuliia's step 9 asks for, done for the player. Four rows, label left, figure right:
+The arithmetic Julia's step 9 asks for, done for the player. Four rows, label left, figure right:
 
 | Row | Figure | Source |
 |---|---|---|
@@ -46,7 +46,7 @@ The arithmetic Iuliia's step 9 asks for, done for the player. Four rows, label l
 | "Your lease deposit" | "9,800 FD · counts toward the truck" | `depositCredit` |
 | "Your cash" | "21,400 FD" | the ledger |
 
-Under the rows, one verdict line, computed, never Iuliia's: green "You have the month." when cash ≥ the month,
+Under the rows, one verdict line, computed, never Julia's: green "You have the month." when cash ≥ the month,
 else amber "You're 2,600 FD short of a month. Quick pay, factoring or cashing an invoice would close it; all
 cost." Button: **Go to the Dealer**.
 
@@ -145,7 +145,7 @@ received". Cash moves at once; Money's sparkline shows it the next day. No toast
 brokerage's, for its paper) log the cashing.
 
 **Refusals,** in red under the button (a world that moved, or a modified client): "This invoice is already
-paid.", "In liquidation", and the three not-cashable lines above. No line from Iuliia on any of them.
+paid.", "In liquidation", and the three not-cashable lines above. No line from Julia on any of them.
 
 **Guidance:** What now?'s rule 1 "collect" lever offers the cashable invoice with the lowest rate first and its
 button opens this sheet (Jeff: her collect advice offers it first).
@@ -188,7 +188,7 @@ button opens this sheet (Jeff: her collect advice offers it first).
   lock** (red), **Keep it**.
 - Free stake (matured or broken) keeps the exit choice above.
 
-## Iuliia on Finance
+## Julia on Finance
 
 One line at most, in the caption strip, never over a card's figures (the sprint rule):
 - first visit in state A (writer's line; the long "count a month" paragraph is not hers to say here: card 1

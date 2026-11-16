@@ -5,7 +5,7 @@ import { GAME_CONFIG } from "../src/game.js";
 import { iuliiaFirst, iuliiaNow, iuliiaSay, setIuliiaMuted } from "../src/iuliia.js";
 import { S } from "../src/state.js";
 
-describe("Iuliia by tab and card", () => {
+describe("Julia by tab and card", () => {
   it("rotates variants, keeps her quiet time, shows a line for its seconds, and goes silent when muted", () => {
     const k = GAME_CONFIG.ui.iuliia;
     let now = 1_000_000;

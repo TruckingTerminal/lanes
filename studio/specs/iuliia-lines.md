@@ -1,12 +1,12 @@
-# Iuliia by tab and card, and the truck makes (writer, sprint 2 draft 2, 2026-11-03)
+# Julia by tab and card, and the truck makes (writer, sprint 2 draft 2, 2026-11-03)
 
 Sprint 2, item 5. Engineering wires it in sprint 3. Draft 2 covers every screen a player reaches in the first month: the first-entry hub screen, the four tabs and everything under More, the Dealer, Finance, Staff, Intel and the brokerage screens. The Intel and brokerage rows are drafted ahead of the director's page and brief, which land this week; they are marked **draft** and will be checked against both.
 
 ## The rules
 
-**Jeff's words, 2026-11-02.** "Iuliia should have a different dialogue depending on which tab you are on and which button or card you're pressing. Some humor is allowed." And: "Make sure that Iuliia explains factoring and quickpay to owner operators who want to buy their own truck. The risk is real and they need to be well capitalized to make it work."
+**Jeff's words, 2026-11-02.** "Julia should have a different dialogue depending on which tab you are on and which button or card you're pressing. Some humor is allowed." And: "Make sure that Julia explains factoring and quickpay to owner operators who want to buy their own truck. The risk is real and they need to be well capitalized to make it work."
 
-**The director's placement rule (sprint 2 plan).** "Iuliia says at most one line on a screen, on its first visit or when something on it changes, never over a number the player is reading; humor in her lines, never in the figures."
+**The director's placement rule (sprint 2 plan).** "Julia says at most one line on a screen, on its first visit or when something on it changes, never over a number the player is reading; humor in her lines, never in the figures."
 
 **What that means for engineering:**
 - **One line per screen at a time.** A screen is a tab, a sheet or a card opened full. A new line replaces the old one; two never stack.
@@ -16,7 +16,7 @@ Sprint 2, item 5. Engineering wires it in sprint 3. Draft 2 covers every screen 
 - **Rotation.** Variants are separated by " · ". She uses each once before any repeats.
 - **Quiet time.** Never two lines within `{iuliia.quietSeconds}` real seconds (proposed 60).
 - **Silence on bad news she can't help with:** no line on an error, a refused order, a crash, a theft, a revocation or a liquidation. Those get the plain string alone.
-- **"Quiet"** on the Iuliia tab mutes these lines; the walkthrough's lines stay. The setting is per browser.
+- **"Quiet"** on the Julia tab mutes these lines; the walkthrough's lines stay. The setting is per browser.
 
 **Her register.** An executive who ran a fleet of four hundred trucks in Moscow: poised, dry, warm underneath, sass by understatement. She names Russian things (her grandmother, the samovar, the Volga, Tolstoy, Chekhov) and never says a Russian word. Every line is under 20 words.
 
@@ -93,7 +93,7 @@ The sheet's two opening lines and the naming and arrival lines are in `copy-firs
 | Screen or card | Trigger | Lines |
 |---|---|---|
 | More | first visit | The rest of the house. Some rooms are still being painted. · Help is in here. So am I, which is better. |
-| Iuliia | first visit | My clipboard. Every step on it, ticked or not. · Read ahead if you like. I won't tell. |
+| Julia | first visit | My clipboard. Every step on it, ticked or not. · Read ahead if you like. I won't tell. |
 | Help | first visit | Every system, every number. I've read it twice; once was for pleasure. · The handbook. Dry, complete, occasionally right before I am. |
 | Company | first visit | Your record. Brokers read it before they read your rate. · Reputation is slow to build and quick to spend. |
 | Company › Safety and authority | the rating changes | Your rating moved. Read what's behind it before the insurer does. |

@@ -421,7 +421,7 @@ function LoadSheet({ r, truck }: { r: BoardRow; truck: Truck }): JSX.Element {
   const [bid, setBid] = useState<number | null>(start === null ? null : Math.min(hi, Math.max(lo, start)));
   const bidState = bid;
   const [note, setNote] = useState<{ text: string; bad: boolean } | null>(null);
-  // Iuliia on the sheet's first opening in a sitting: a blocked load has its own line (iuliia-lines.md, Loads).
+  // Julia on the sheet's first opening in a sitting: a blocked load has its own line (iuliia-lines.md, Loads).
   useEffect(() => iuliiaFirst(r.block ? "load:blocked" : "load:open", r.block ? "screen:loadBlocked" : "screen:load"), []);
   const k = COMMODITIES[l.commodity]!;
   const poster = l.brokerId !== null ? w.companies[l.brokerId - 1] : l.shipperId !== null ? w.companies[l.shipperId - 1] : null;
@@ -450,7 +450,7 @@ function LoadSheet({ r, truck }: { r: BoardRow; truck: Truck }): JSX.Element {
     setBid(Math.round(Math.min(hi, Math.max(lo, bid === null ? Math.max(lo, l.bookNow + 0.05) : bid + d)) * 100) / 100);
   };
   // Under a bid above Book now: what it pays over Book now if it wins at the round, and what beats it. With no suggestion
-  // and no such bid typed: Iuliia's word that booking is the better call here. No odds: the engine computes none.
+  // and no such bid typed: Julia's word that booking is the better call here. No odds: the engine computes none.
   // Client batch 8a item 61: under break-even the loss is said; where loads like this clear under the player's break-even,
   // that in place of the gamble line. Client batch X (item 78): the gamble's figure is net of the lessor's share and the
   // settlement fee (profitOver), as the chip beside it is.

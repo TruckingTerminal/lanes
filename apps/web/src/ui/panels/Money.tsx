@@ -201,7 +201,7 @@ export function Money(): JSX.Element {
             </button>
           </p>
         ) : null}
-        {/* Iuliia's figures (figures.ts): the cushion, and the countdown once cash is under the line. */}
+        {/* Julia's figures (figures.ts): the cushion, and the countdown once cash is under the line. */}
         <p class="small">
           <Fig k="guide.cushion" label={GUIDE_LABEL.cushion}>{GUIDE_LABEL.cushionValue(cushion(w, c).weeks)}</Fig>
         </p>

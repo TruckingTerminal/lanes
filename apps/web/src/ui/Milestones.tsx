@@ -17,7 +17,7 @@ import { tabOpen } from "../tabs.js";
 import { Btn, Card } from "./bits.js";
 import { Fig } from "./Explain.js";
 import { FirstTruckVerdictBlock } from "./FirstTruckCard.js";
-import { Iuliia } from "./Walkthrough.js";
+import { Julia } from "./Walkthrough.js";
 import { askWhatNow, WhatNowChip } from "./WhatNow.js";
 
 /**
@@ -80,7 +80,7 @@ export function MilestoneLine(): JSX.Element | null {
           ×
         </Btn>
       ) : null}
-      <Iuliia mood="point" size={64} />
+      <Julia mood="point" size={64} />
       <div class="stack">
         <span class="small">{v.line}</span>
         {v.reason ? <span class="small muted">{v.reason}</span> : null}
@@ -196,7 +196,7 @@ function words(w: World, c: Company, m: Milestone, phase: "before" | "at"): { li
   }
 }
 
-/** More › Iuliia, "Your company so far": what has happened, newest first, a tap re-reads her line; above it, the next figure. */
+/** More › Julia, "Your company so far": what has happened, newest first, a tap re-reads her line; above it, the next figure. */
 export function CompanySoFar(): JSX.Element | null {
   useData();
   const [open, setOpen] = useState<string | null>(null);
@@ -246,7 +246,7 @@ export function CompanySoFar(): JSX.Element | null {
 
 /**
  * What moved the next-truck gap since the player last opened its explanation (row 4): the cheapest route changed. Kept
- * in the page, per company. (The first week's close no longer moves it: the cushion is Iuliia's advice, not the gap's.)
+ * in the page, per company. (The first week's close no longer moves it: the cushion is Julia's advice, not the gap's.)
  */
 export function gapNotes(w: World, c: Company, route: string): string[] {
   const scope = milestoneScope(w, c);
@@ -262,7 +262,7 @@ export function gapNotes(w: World, c: Company, route: string): string[] {
 function nextOnRoad(w: World, c: Company): JSX.Element | string {
   const gap = gapToTruck(w, c);
   const notes = gapNotes(w, c, gap.route);
-  // The first truck: the one figure (figures.ts firstTruckLine), as on the Dealer's teaser and card, Iuliia's cushion
+  // The first truck: the one figure (figures.ts firstTruckLine), as on the Dealer's teaser and card, Julia's cushion
   // advice under it. "You can buy today" comes with the Dealer, which opens on the same figure.
   const first = (w.trucksByCompany.get(c.id) ?? []).some((t) => t.lease === "owned") ? null : firstTruckLine(w, c);
   // Client batch 4: each its own sentence on its own line (QA: they ran together with no full stop), the figure under

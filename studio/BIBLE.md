@@ -49,7 +49,7 @@ A name; a home hub as three choices. The map at your hub, your truck on it. The 
 your truck first, the profit on every card, the loads a newcomer can't take dimmed and saying why. One bid,
 and a mark where it was made. The truck rolling. The pay line in the open: rate × miles, less fuel, less the
 lessor's 15%, less the deposit, equals yours. Then "the next round is at 18:00; set your dispatcher before you
-go". Four tabs in a phone's bar: the truck, the board, Money, More (Iuliia, Help, Company inside); Iuliia's
+go". Four tabs in a phone's bar: the truck, the board, Money, More (Julia, Help, Company inside); Julia's
 line always in view.
 The walkthrough ticks only on the player's own acts and says one Do at a time. The token is not on the
 first hour's path: Money opens on cash, what's owed and when, costs, and Miles as "your standing"; the exchange,
@@ -80,7 +80,7 @@ company's screen. Equipment Finance's deposit side: yield on idle FD is a wallet
 **Teasers stay.** The tabs that matter come first; the rest stay visible as "coming soon" teasers, the Back Lot
 among them. The bible argued against them; Jeff overruled it, so the mitigation: a teaser is never a
 dead tap. Its card says what the layer is in one line, the day it opens as a
-date, one line from Iuliia, and one thing that works (the road ahead, or "tell us what you'd want here"). It
+date, one line from Julia, and one thing that works (the road ahead, or "tell us what you'd want here"). It
 sits after the live tabs, never among the first five on a phone, and on its day it becomes the real tab in the
 same place. The Back Lot's card says "a later beta" and nothing about crime, by the studio's own rule.
 

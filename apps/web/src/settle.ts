@@ -1,7 +1,7 @@
 import { useEffect, useState } from "preact/hooks";
 
 /**
- * A late card waits for a still hand (the gamer: Iuliia's card arrived mid-typing, the layout moved under the thumb and
+ * A late card waits for a still hand (the gamer: Julia's card arrived mid-typing, the layout moved under the thumb and
  * the next keys went into the wrong box). A card new to the screen shows only once the player has been idle
  * `SETTLE_MS` with no input, select or textarea focused; once shown it stays.
  */
@@ -25,7 +25,7 @@ function settled(): boolean {
 }
 
 /**
- * A card's next page is the same card, already on screen: it shows at once (the diaries, 2026-11-09: Iuliia's "1 of 3"
+ * A card's next page is the same card, already on screen: it shows at once (the diaries, 2026-11-09: Julia's "1 of 3"
  * went on Next and "2 of 3" turned up a moment later on another screen, since the tap on Next was input to settle on).
  */
 export function settleShown(key: string): void {

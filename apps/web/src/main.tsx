@@ -86,7 +86,7 @@ function showGame(s: Session): void {
   S.selTruck = truck?.id ?? null;
   setTab("fleet");
   S.sheet = "half";
-  // Before a company, the first entry starts at Iuliia's welcome; a returning player opens on their truck, no flight.
+  // Before a company, the first entry starts at Julia's welcome; a returning player opens on their truck, no flight.
   if (!s.player) S.entry = { stage: "welcome", beat: 0, hub: null, rings: null };
   else if (truck) flyTo(truck.hub, true);
   // R21: a return after RETURN_HOURS away opens on the return card; this visit is then kept for the next one.
@@ -190,13 +190,13 @@ function onEvent(s: Session, e: GameEvent): void {
   }
   if (e.kind === "liquidated") push(s, FEED.woundUp, "bad");
   // Standing (standing.ts): a tier change, a first call, one turned down or lapsed, a decay ahead, the first notice. A
-  // milestone reached is the hero's (HeroMoment.tsx watchTiers), its line with it; the rest are Iuliia's.
+  // milestone reached is the hero's (HeroMoment.tsx watchTiers), its line with it; the rest are Julia's.
   if (e.kind === "standing") {
     const byHand = e.what === "declined" && e.loadId !== undefined && S.declinedCalls.delete(e.loadId);
     const words = standingWords(w, e, byHand);
     if (words.feed) push(s, words.feed, words.tone);
     const heroes = e.what === "tier" && e.to !== undefined && e.from !== undefined && e.to > e.from && milestoneAt(w, e.to) !== null;
-    // UX §1.3a: a folded market's decay waits in the fold (a step from tier 2 to 1 loses nothing), so Iuliia leaves it.
+    // UX §1.3a: a folded market's decay waits in the fold (a step from tier 2 to 1 loses nothing), so Julia leaves it.
     const folded = e.what === "decayAhead" && s.player !== null && s.player !== undefined && !standingListed(w, s.player, e.hub);
     if (s === S.game && !rebuilding && words.iuliia && !heroes && !folded) iuliiaSayText(words.iuliia);
     // UX §1.5: said once in the toast lane, held so a delivery's toast in the same frame doesn't push it out (QA's 0.25.3 replay).
@@ -388,7 +388,7 @@ function choose(name: string, hub: string, start: StartKind, look: "m" | "f" = "
   const g = S.game;
   if (!g || g.player) return;
   const at = g.w.net.hubs.findIndex((h) => h.id === hub);
-  // A new company hears Iuliia's arrival line, even in a browser that heard it for an earlier one.
+  // A new company hears Julia's arrival line, even in a browser that heard it for an earlier one.
   setOnboard({ seen: S.onboard.seen.filter((x) => x !== "arrival") });
   if (g.kind === "test") {
     const c = g.join(name, start, hub, look);
@@ -399,7 +399,7 @@ function choose(name: string, hub: string, start: StartKind, look: "m" | "f" = "
     // A small fleet's dispatcher runs from the start (no first bid by hand to wait for), so it starts at Day a minute.
     S.speed = start === "fleet" ? 2 : 1;
     firstBidSped = start === "fleet";
-    // The arrival opens where the player lands (S1): the Truck tab, the sheet at half, Iuliia's arrival line.
+    // The arrival opens where the player lands (S1): the Truck tab, the sheet at half, Julia's arrival line.
     setTab("fleet");
     S.sheet = "half";
     persistTest(true);
@@ -553,7 +553,7 @@ onWorldReset(() => {
 
 /**
  * Client batch 8c item 70 (the director, director-qa-0241-2026-11-12.md §3), while the company owns no truck, read once a
- * game hour: Iuliia marks a quarter, half and three quarters of the way to a sound truck (the furthest reached this
+ * game hour: Julia marks a quarter, half and three quarters of the way to a sound truck (the furthest reached this
  * sitting, so a dip and a climb back say nothing twice), and keeps the listing watch: a sound used truck listed for less
  * than the one the card priced. The first look only sets a baseline, as her other change lines do.
  */
@@ -584,7 +584,7 @@ function observe(s: Session): void {
   }
   if (w.t === f.lastT) return;
   if (s === S.game) settleHandBids(s);
-  // Iuliia on named changes (iuliia-lines.md): a truck rolling or waiting for its first load, wear past the rebuild line,
+  // Julia on named changes (iuliia-lines.md): a truck rolling or waiting for its first load, wear past the rebuild line,
   // a shoulder night on a load of the player's own, the first thing waiting, cash below zero, the first invoice on an owned
   // truck, the safety rating moving, the policy renewing, a driver turning restless. The first look only sets a baseline.
   if (s === S.game && s.player) {

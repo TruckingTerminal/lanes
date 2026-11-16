@@ -1,5 +1,12 @@
 # Decisions (the producer's log for Jeff; newest first)
 
+- 2026-11-16 — Jeff: "Let's change Iuliia's name to Julia." Done the same day: every line a player reads, and the
+  studio's living docs (the bible, the roles, the specs, the handoff, the README), call her Julia. Her opening line's
+  joke on the spelling ("with two i's; my mother was thorough") is gone: she now says "Good morning. I'm Julia.", and
+  the writer may give her another joke in a later pass. Her code id keeps the old spelling (`apps/web/src/iuliia.ts`,
+  the `iuliia*` names, the tab id, `ui.iuliia`, her art's files and kit.json entries, the browser keys), so no saved
+  setting resets and the art bank's packer still matches; `apps/web/test/julia-name.test.ts` keeps the old name out of
+  the client's strings and comments. The playtests, reviews, sprints and this log keep the name as it was then.
 - 2026-11-15 — Jeff, on the director's §3 and §16 (studio/reviews/director-sprint-2026-11-15.md) with the economy's
   studies (economy-broker-entry, economy-broker-windup, economy-windup-pair and economy-fleet-entry, all 2026-11-15):
   "Let's do it for now, but ideally we want players to open brokerages." APPROVED for now: new AI brokerages enter by

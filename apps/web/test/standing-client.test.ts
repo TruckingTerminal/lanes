@@ -345,7 +345,7 @@ describe("the director's sprint §13 and §14 on the page", () => {
     expect(x.noticeNeed).toBe(false); // 6 → 5 keeps every perk
     c.standing[hub]!.tier = 5;
     expect(cardUx(w, c, hub)!.noticeNeed).toBe(true); // 5 → 4 loses net-15
-    // Iuliia: only when a perk would go, and the engine's event carries no toast.
+    // Julia: only when a perk would go, and the engine's event carries no toast.
     const ev = (from: number, to: number) => ({ kind: "standing", companyId: c.id, hub, what: "onNotice", from, to }) as Extract<GameEvent, { kind: "standing" }>;
     expect(standingWords(w, ev(5, 4))).toEqual({ feed: null, iuliia: STANDING.iuliiaOnNotice(m, reviewWhen(w).day, STANDING.perk.net), tone: "" });
     expect(standingWords(w, ev(6, 5)).iuliia).toBeNull();
@@ -353,7 +353,7 @@ describe("the director's sprint §13 and §14 on the page", () => {
     expect(cardUx(w, c, hub)!.notice).toBeNull();
   }, 120_000);
 
-  it("§14: a pass costs nothing (no Confirm, no mark), the card counts the calls taken from tier 7, and Iuliia's tier-7 line says so", async () => {
+  it("§14: a pass costs nothing (no Confirm, no mark), the card counts the calls taken from tier 7, and Julia's tier-7 line says so", async () => {
     const { w, c } = await started();
     const hub = c.homeHub;
     const m = w.net.hubs[hub]!.name;

@@ -7,7 +7,7 @@ import { truckNumber } from "./trucknos.js";
 /**
  * The early-delivery fee's words (client batch 8b, section D; the director's director-expedite-wait-cost ruling and its
  * re-ruling): the card's lines in her fixed order (the dates and days sooner; the fee, paid now, not refunded; what
- * waiting costs), and Iuliia's sentence from the wait's parts (engine expedite.ts expediteWaitParts), each figure named
+ * waiting costs), and Julia's sentence from the wait's parts (engine expedite.ts expediteWaitParts), each figure named
  * for what it is and never summed into a promise. Shown only behind assets.expedite.enabled.
  */
 
@@ -20,7 +20,7 @@ export function expediteLines(q: ExpediteQuote, wasDay: number): string[] {
 }
 
 /**
- * Iuliia's sentence (the director's shape): the certain costs first (payments, the lessor's share), then, where the
+ * Julia's sentence (the director's shape): the certain costs first (payments, the lessor's share), then, where the
  * term counts, what the trucks have kept "if this one does the same" with the fee last and the verdict on the freight;
  * otherwise "that's all I can count" and why (a truck standing empty, none seated, too few weeks of books).
  */

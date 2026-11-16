@@ -2,7 +2,7 @@
 
 Draft 3 applied Jeff's answers (`DECISIONS.md`, 2026-11-02). Draft 4 applies his ruling on the first two screens
 ("the title screen is only a login screen with nice animations"; the hub is chosen inside the world, with the
-map, the date and the freight in view, Iuliia guiding), the director's gate corrections and hub ruling, and the
+map, the date and the freight in view, Julia guiding), the director's gate corrections and hub ruling, and the
 economy's two approved proposals. Quoted strings are the writer's placeholders
 (`specs/copy-audit.md` wins); `{}` numbers come from config; other figures are one example load.
 
@@ -53,8 +53,8 @@ is your call". After that bid, `DEFAULT_ORDERS` apply (S9).
 - **"≡" menu:** "Title screen", "Full screen", "Report a bug or an idea".
 - **Bottom nav, 56 px, fixed, four items, icon over label:** **Truck · Board · Money · More**. "Truck" reads
   "Trucks" from the second truck. A dot when something waits: Board, a bid result; Money, an invoice; Truck, an
-  alert; More, a tab just opened or a new Iuliia step.
-- **Sheet** over a full-screen map: strip (88 px: Iuliia's line or one state line, e.g. "Truck 1 · Waiting at
+  alert; More, a tab just opened or a new Julia step.
+- **Sheet** over a full-screen map: strip (88 px: Julia's line or one state line, e.g. "Truck 1 · Waiting at
   Dallas · round 18:00"), half (50 %), full (to the top strip). Drag handle; a nav tap opens half, Board opens
   full; tapping the map drops it to strip.
 
@@ -80,13 +80,13 @@ row moves to More's open list with a "New" dot and the panel works.
 | Business | its layer's day (`layerBlock`, day 28) |
 | Back Lot | its layer (`layerBlock`); text unchanged |
 
-**More, top to bottom:** Iuliia (the thirteen steps, her full text), Help (the Guide), Company, the opened
+**More, top to bottom:** Julia (the thirteen steps, her full text), Help (the Guide), Company, the opened
 teasers, then "Coming soon".
 
 **Cut from the chrome:** the theme picker (one theme, `cyber-ops`), the legend, both Expand buttons, the rack's
 Report. Miles and "Beta · launch in 730d" move to Money's token group (S8).
 
-**Iuliia** (both layouts): portrait 96 px (the `iuliia` loop at 0.75), one or two sentences at a time (the
+**Julia** (both layouts): portrait 96 px (the `iuliia` loop at 0.75), one or two sentences at a time (the
 writer cuts lines to 25 words), "Next", then the step's Do, "Hide". Top of the sheet on a phone; at strip height
 her line is the strip. Never between a list's header and its first row. **The first in-game screen opens with
 the sheet's content scrolled to the top**, so her first line after **Start here** is the first thing the player
@@ -116,7 +116,7 @@ a cyan ring and their label: Dallas, Los Angeles, Phoenix (Los Angeles pending t
 every age and its theft; if it fails, Chicago takes the place, its card carrying its season). Every other hub is
 labelled and tappable.
 
-**Iuliia guides it.** The sheet opens at half (laptop: the panel), her portrait at 96 px:
+**Julia guides it.** The sheet opens at half (laptop: the panel), her portrait at 96 px:
 1. "Welcome. This is the market, live; nobody waits for us." **Next**
 2. "Before you have a truck, you need a home. Three good ones are ringed. Tap one, or any city you like." The
    three starter cards sit under her line; **All hubs** opens the full list, sorted by the day's freight.
@@ -137,7 +137,7 @@ already reports, read for a dry van:
   card.
 - **Start here**, pinned at the bottom.
 
-**Naming the company** (after **Start here**, same sheet): Iuliia, "Dallas. Good. Home is where this company
+**Naming the company** (after **Start here**, same sheet): Julia, "Dallas. Good. Home is where this company
 stays. What do we call it?"; a field "Company name" (default from the hub, the writer's list; 32 characters);
 test build only, "How you start": owner-operator (the live world's start) or a small fleet; **Start at Dallas**.
 Back returns to the hub card. Live: the button writes the company to the store and shows "Opening your
@@ -146,7 +146,7 @@ authority…" until the act is in effect (`LEAD_MIN`).
 **The fly-to-home** runs once, on the company's creation, never on a later session (later sessions open on the
 player's truck). The map flies from where the player left it to the home hub in 1.5 s (cut under reduced
 motion), to a zoom where the hub label, its roads and the cyan sprite labelled "You" read. AI carriers drop to
-35 % opacity; players full. The bottom nav and the cash appear. Sheet at half: Iuliia, "This is Dallas, your
+35 % opacity; players full. The bottom nav and the cash appear. Sheet at half: Julia, "This is Dallas, your
 home. One leased truck, a dry van, and you driving it. Let's find a load." and **Show me the board**.
 States: map not drawn yet → the hub's painting with "Finding Dallas…" until the first frame.
 
@@ -216,12 +216,12 @@ yet · your first invoice lands here"); "This week's costs" (lease minimum, insu
 
 ### S9 Before you go (9:00–10:00)
 **Before the first bid by hand** (a one-truck company only; a small fleet's dispatcher runs from the start):
-Truck › Dispatcher shows the switch "Bid for me while I'm away", off and disabled, with one line from Iuliia
+Truck › Dispatcher shows the switch "Bid for me while I'm away", off and disabled, with one line from Julia
 under it, "Your first load is your call. After that, your dispatcher can bid while you're away.", and nothing
 else: the rows stay hidden. The truck card reads "Waiting at Dallas · the first load is your call"; the strip
 "Truck 1 · Waiting at Dallas · round 18:00".
 
-**After it:** Iuliia: "From now on your dispatcher bids when you don't. Check the rules before
+**After it:** Julia: "From now on your dispatcher bids when you don't. Check the rules before
 you go." and **See the dispatcher** → Truck › Dispatcher: a switch "Bid for me while I'm away" (on), then three
 rows: "Bid at break-even plus" [25] %, "Send the truck empty up to" [150] mi, "Bring me home after" [21] days,
 **Save**. "More rules" folds the rest (floor, book-now, move idle trucks, contracts). The re-post row is hidden
@@ -230,7 +230,7 @@ until brokerage opens.
 ### The first load's lock (Jeff, 2026-11-04)
 A real tutorial: before a company the sheet is the hub choice whatever is tapped (the hub card no longer opens
 Intel), and from the company's creation until its first bid or booking by hand (or a load on a truck) only Truck
-and Loads open. Money, More and the teaser row dim; a tap says "First, a load…". Iuliia's beats play in cards
+and Loads open. Money, More and the teaser row dim; a tap says "First, a load…". Julia's beats play in cards
 over the screen they describe: three on Truck (home, the truck card, the dispatcher; "Show me the board"), five on
 Loads (the cards, the chip, Book now and Bid, the sorts, a first load; "Got it"), then the board step's Do line.
 Once the lock lifts she says what opened (`TUTORIAL.unlocked`). The rule is `apps/web/src/tutorial.ts`.
@@ -259,7 +259,7 @@ Once the lock lifts she says what opened (`TUTORIAL.unlocked`). The rule is `app
   Retry", "New test world", "This replaces {company}", "Starting the world…".
 - **S0, gone:** "Company name" and its default, the hub cards and table, the beta line, "Start hauling",
   "How you start" (moves to S1, test build only).
-- **S1, new:** Iuliia's two welcome lines; "All hubs"; the hub card's labels ("Freight now", "Who's here",
+- **S1, new:** Julia's two welcome lines; "All hubs"; the hub card's labels ("Freight now", "Who's here",
   "What it costs to live here", "Outbound by trailer", "See the board", "Start here to bid on these", "Start
   here"); the season lines per hub; one line of character per hub; the naming line ("Home is where this company
   stays. What do we call it?"); a default company name per hub; "Start at {hub}"; "Opening your authority…";
@@ -268,6 +268,6 @@ Once the lock lifts she says what opened (`TUTORIAL.unlocked`). The rule is `app
 - **S9, new:** "Your first load is your call. After that, your dispatcher can bid while you're away."; "Waiting
   at {hub} · the first load is your call".
 - **Money:** "272 Miles · your standing in the beta" in Standing.
-- **Hubs:** Dallas, Los Angeles, Phoenix (Chicago if Los Angeles fails its check). Iuliia names Russian things,
+- **Hubs:** Dallas, Los Angeles, Phoenix (Chicago if Los Angeles fails its check). Julia names Russian things,
   never Russian words.
 

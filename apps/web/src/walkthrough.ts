@@ -1,7 +1,7 @@
 /**
- * The walkthrough (Jeff, 2026-11-01): Iuliia, the dispatcher-trainer, walks a new player from one leased truck to a
+ * The walkthrough (Jeff, 2026-11-01): Julia, the dispatcher-trainer, walks a new player from one leased truck to a
  * fleet. A checklist that reads the world: each step is done when the company's own state says so, nothing is saved,
- * so it is right on every screen and after every reload. The card shows the first step not yet done, what Iuliia
+ * so it is right on every screen and after every reload. The card shows the first step not yet done, what Julia
  * says about it, where to click, and why; the player can read ahead.
  */
 import type { EconomyConfig } from "@lanes/config";
@@ -14,7 +14,7 @@ import { firstTruckRoute } from "./finance.js";
 import { worldScope } from "./onboard.js";
 import { shortDate, TIER_NAME as TIER_LABEL, TRAILER_NAME as TRAILER_LABEL } from "./format.js";
 
-/** Iuliia's mood for the step: her face at rest in the live portrait (portrait.ts). */
+/** Julia's mood for the step: her face at rest in the live portrait (portrait.ts). */
 export type Mood = "idle" | "wave" | "point" | "laugh";
 
 export interface WalkStep {
@@ -24,9 +24,9 @@ export interface WalkStep {
   /** The screen where the step's event happens, where its full line plays (the director's R5); `tab` when it's the same. */
   at?: Tab;
   mood: Mood;
-  /** What Iuliia says in the sheet, in 25 words or fewer (copy-first-ten-minutes.md). */
+  /** What Julia says in the sheet, in 25 words or fewer (copy-first-ten-minutes.md). */
   brief: string;
-  /** What Iuliia says on her tab, a paragraph each. */
+  /** What Julia says on her tab, a paragraph each. */
   say: string[];
   /** Where to click, in one line. */
   do: string;
@@ -76,7 +76,7 @@ export function walkSteps(cfg: EconomyConfig, hub = "your home hub"): WalkStep[]
       mood: "wave",
       brief: "The rings mark where a new carrier finds freight right now. You may start at any starter city; any city shows its freight.",
       say: [
-        `Good morning. Iuliia, with two i's; my mother was thorough. I've run operations for fleets a few hundred trucks bigger than this one, and now I run you, which the clipboard says is one leased Workhorse with a dry van. The lessor keeps ${pct(cfg.costs.npcLeaseShareOfGross)} of every load and does the maintenance; the rest is yours, and so is the driving, since the driver is you. A company of one. Lean. I approve.`,
+        `Good morning. I'm Julia. I've run operations for fleets a few hundred trucks bigger than this one, and now I run you, which the clipboard says is one leased Workhorse with a dry van. The lessor keeps ${pct(cfg.costs.npcLeaseShareOfGross)} of every load and does the maintenance; the rest is yours, and so is the driving, since the driver is you. A company of one. Lean. I approve.`,
         `The clock is real: one game day every ${cfg.time.realHoursPerGameDayLive} hours of your life, and the market does not sleep. Neither did I, in the nineties; it was that kind of decade. The map is everyone's trucks; the ringed cities are good homes. My grandmother said a person who doesn't know where home is will drive past it twice. She meant my uncle. It applies to fleets.`,
       ],
       do: "Choose your home: tap a ringed hub, then Start here.",

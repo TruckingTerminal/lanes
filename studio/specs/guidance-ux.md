@@ -11,8 +11,8 @@ The player can see three kinds of "next" today or soon. Each gets one job and on
 | Thing | Its job | Where | Speaks? |
 |---|---|---|---|
 | **The red badge** (top strip) | *What's waiting*, all of it, by deadline | top strip; a tap lists them | Never. A count and a list, no reasons, no advice |
-| **The walkthrough's Do line** | *The lesson*: the step being taught | Iuliia's caption, while a step is current | Her line, once per step, then the Do line rests there |
-| **What now?** | *The one best action now*, computed | a chip on Iuliia's caption, every screen | Only when tapped |
+| **The walkthrough's Do line** | *The lesson*: the step being taught | Julia's caption, while a step is current | Her line, once per step, then the Do line rests there |
+| **What now?** | *The one best action now*, computed | a chip on Julia's caption, every screen | Only when tapped |
 
 **What now? is not in the top strip.** The strip already holds the red badge; a second badge there would make two
 things shout for the same thumb. The caption is on every screen (in the sheet on a phone, under the tabs on a
@@ -23,7 +23,7 @@ danger, something waiting, an idle truck that could earn), the chip carries a sm
 something more urgent than this step" without a word. It's a state, not a line, so it survives Quiet. When
 What now? picks an item from the red badge's list, its answer says so: "(1 of 3 waiting ›)".
 
-## 1. Iuliia's caption: the one place she speaks
+## 1. Julia's caption: the one place she speaks
 
 One row in the page's flow, never an overlay, so nothing she says can sit on a figure.
 
@@ -55,7 +55,7 @@ never above them.
 accident under More). While a step is current, the caption's line starts with a link, **"Step 4 of 13 ›"**. A tap
 opens that step's full card in the sheet over the current tab (full height on a phone): her paragraphs, the Do,
 the Why, the step's **Go to …** button, and **Back**/**Read ahead** between steps. Closing it returns to the tab.
-More › Iuliia keeps the whole list, the timeline and Help, as the archive, not the way in.
+More › Julia keeps the whole list, the timeline and Help, as the archive, not the way in.
 
 **Where a step's moment plays** (the director's R5: on the screen and at the moment its event happens). Steps whose
 event engineering has attached play there. The ones that need a ruling:
@@ -206,7 +206,7 @@ due at once,** the *at* lines first, then by date; one per caption, the next aft
 **Each line's layout:** her line; the reason, one line; one button carrying What now?'s next action for it ("Keep
 it loaded: see the board"). A *before* line's button opens where to prepare ("See the month so far").
 
-**Where progress lives: More › Iuliia, "Your company so far".** A vertical timeline of milestones that have
+**Where progress lives: More › Julia, "Your company so far".** A vertical timeline of milestones that have
 happened, newest first: date, the milestone's name, and a tap to re-read her line and its reason. Under the
 timeline's top, one line from `guide.ts`: **"Next on the road:"** and the one figure that matters most now ("Your
 next truck: 18,400 FD away" / "The brokerage opens Apr 2" / "The season closes in 30 days").
@@ -220,14 +220,14 @@ day, the first payday). Engineering lists any milestone whose date can't be deri
 
 ## 5. Quiet and the one-line rule
 
-- **Quiet** lives where it is (More › Iuliia). On: caption rules 3 and 4 never fire; the resting line after the
+- **Quiet** lives where it is (More › Julia). On: caption rules 3 and 4 never fire; the resting line after the
   walkthrough is empty. Still on: the walkthrough's lines, every What now? answer, every explain sheet, the amber dot.
 - **One line per screen:** the caption is the only place she speaks unasked. The explain sheet and the What now?
   answer are asked, so they're outside the count, but they share the caption's place (What now?) or sit beside the
   figure (explain); never two of her voices on screen at once. Opening an explain sheet while a What now? answer
   shows keeps the answer in the caption; the sheet's foot answers about its own figure (section 3).
 - **Never over a figure:** the caption is in the flow; the explain sheet scrolls clear of its figure; the laptop
-  popover anchors beside it. QA's check: no Iuliia text box intersects a covered figure's box.
+  popover anchors beside it. QA's check: no Julia text box intersects a covered figure's box.
 
 ## 6. The silence rule
 

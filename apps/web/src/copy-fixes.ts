@@ -68,7 +68,7 @@ export const FIXES = {
   // …and its status chip, in place of "home" (the rider is on the road to the truck, not home).
   busChip: "on the bus",
   // Engineering's drafts for the writer: the director's ruling 22, a young market says so, by the world's age only (under
-  // 42 days from its day 0). Under the country line, on the hub list and a hub's page; and Iuliia's line, once on each
+  // 42 days from its day 0). Under the country line, on the hub list and a hub's page; and Julia's line, once on each
   // loan and lease sheet, under "Weekly payment". No figure for how far rates will fall.
   youngMarket: (days: number) => `This market opened ${days === 0 ? "today" : days === 1 ? "a day ago" : `${days} days ago`}. Opening rates run high while trucks catch up with the freight, and they fall back over the first six weeks.`,
   iuliiaYoungRates: "Rates are still in the market's opening weeks, and they run high. Check this payment against lower ones.",
@@ -175,7 +175,7 @@ export const FIXES = {
   brokersMarketOpen: (ratio: string, margin: string, pending: number, by: string | null) =>
     `Brokers' market: freight per broker ${ratio} the opening's, margins ${margin}.${pending > 0 && by ? ` ${pending === 1 ? "One new brokerage is" : `${cap(numberWord(pending))} new brokerages are`} being set up, opening by ${by}.` : ""}`,
   brokersMarketCrowded: (ratio: string, margin: string) => `Brokers' market: freight per broker ${ratio} the opening's, margins ${margin}: no room for a new brokerage.`,
-  // …and Iuliia's line under it (for her lines when the writer wires it).
+  // …and Julia's line under it (for her lines when the writer wires it).
   iuliiaNewBrokerage: "A new brokerage starts small. Shippers send it more as it pays carriers on time.",
   // §3: before the carrier can afford a brokerage.
   brokeragePath: (cost: string, bond: string, start: string, feePct: string, cash: string) => `Opening a brokerage takes about ${cost} FD: the ${bond} bond, the licence, ${start} to start trading and the ${feePct} fee. Your carrier has ${cash} FD.`,

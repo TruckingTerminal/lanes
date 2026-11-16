@@ -14,7 +14,7 @@ import { motion } from "../motion.js";
 import { bandAt, milestoneAt, momentPerk, stampLine, standingShown, stepShown, troubleOpen } from "../standingui.js";
 import { TierBadge } from "./Standing.js";
 import { CityPicture } from "./CityPicture.js";
-import { Iuliia } from "./Walkthrough.js";
+import { Julia } from "./Walkthrough.js";
 import { watchReserveLanding } from "./ReserveCard.js";
 
 /**
@@ -35,7 +35,7 @@ export interface Hero {
   action?: { label: string; run: () => void };
   /**
    * Standing's moments (UX §1.6): the new tier's badge at 128 with the fx glint once at its corner (Full motion only), the
-   * market's own city in place of a painting, the paper's lines under the title, Iuliia's face.
+   * market's own city in place of a painting, the paper's lines under the title, Julia's face.
    */
   badge?: { tier: number; band: "approved" | "preferred" | "core" };
   glint?: true;
@@ -100,8 +100,8 @@ function watchTrucks(): void {
  * - at a review the player is here for, it plays when no sheet, Confirm or tier-1 item is open; missed while away, it
  *   plays once the next time the player opens Standing or the Company card, never on the title or the first screen;
  * - a milestone reached again (a later market, or back after a fall) is a stamp: the badge at 32, the tier, the perk with
- *   its figure and Iuliia's line in her strip; a step between milestones is a toast, and so is a fall, with its cause
- *   (Iuliia's falling line comes with the engine's event, main.tsx);
+ *   its figure and Julia's line in her strip; a step between milestones is a toast, and so is a fall, with its cause
+ *   (Julia's falling line comes with the engine's event, main.tsx);
  * - the review's other changes are one toast: one change, its own toast or stamp; more, "Standing moved in n markets";
  * - moments follow the list (§1.3a): a folded market's steps make no toast and aren't counted, save a lost milestone.
  */
@@ -157,7 +157,7 @@ function playOwed(g: Game, o: { tier: number; hub: number }): void {
   void order({ type: "standing_seen", tier: o.tier }, "");
 }
 
-/** A milestone reached again: the stamp (§1.6), a toast with the badge, the perk with its figure and Iuliia's line. */
+/** A milestone reached again: the stamp (§1.6), a toast with the badge, the perk with its figure and Julia's line. */
 function stampToast(g: Game, hub: number, tier: number): void {
   const w = g.w;
   const market = w.net.hubs[hub]!.name;
@@ -334,7 +334,7 @@ export function HeroMoment(): JSX.Element | null {
           h.face ? (
             <div class="row paperline herosay">
               <span class="heroface">
-                <Iuliia mood={h.face} size={64} />
+                <Julia mood={h.face} size={64} />
               </span>
               <p>{h.line}</p>
             </div>

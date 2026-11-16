@@ -5,10 +5,10 @@ import { DEFAULT_ORDERS } from "../game.js";
 import { wallTrucks } from "../logic.js";
 import { act, bumpData, carrierCo, markKey, S, setOnboard, useData } from "../state.js";
 import { Btn } from "./bits.js";
-import { Iuliia } from "./Walkthrough.js";
+import { Julia } from "./Walkthrough.js";
 
 /**
- * The further standing orders, offered once each by Iuliia at its moment (client batch 8b item 63, the director's M): after
+ * The further standing orders, offered once each by Julia at its moment (client batch 8b item 63, the director's M): after
  * a second stranding, "move idle trucks" (reposition); at the first contract offer, "take contracts"; after a load lost
  * between rounds, "book between rounds" (bookNow). Each is offered once for the company in this world, whatever the
  * answer, and only while the dispatcher bids and the order is off. A stranding counts once per truck per idle spell.
@@ -54,7 +54,7 @@ export function OrderOffers(): JSX.Element | null {
   const text = k === "reposition" ? PENDING.offerReposition : k === "contracts" ? PENDING.offerContracts : PENDING.offerBookNow;
   return (
     <div class="caption iuliia">
-      <Iuliia mood="point" size={64} />
+      <Julia mood="point" size={64} />
       <div class="stack">
         <span class="small">{text}</span>
         <div class="row">

@@ -61,7 +61,7 @@ export const STANDING = {
   reportTitle: "Standing with shippers",
   reportMove: (market: string, from: number, to: number, cause: string) => `${market} shippers: tier ${from} → ${to} (${cause})`,
   reportNone: "No tier changed this month.",
-  // Iuliia (the director's lines; the writer polishes).
+  // Julia (the director's lines; the writer polishes).
   iuliiaMilestone: (market: string, tier: number): string | null =>
     tier === 3
       ? `${market} docks take you ahead of the queue now. Less waiting at their doors, more time driving.`

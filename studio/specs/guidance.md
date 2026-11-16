@@ -1,9 +1,9 @@
-# Guidance: Iuliia every step of the way (director's spec for UX, the writer and engineering; 2026-11-03; owner: the director)
+# Guidance: Julia every step of the way (director's spec for UX, the writer and engineering; 2026-11-03; owner: the director)
 
-Jeff (`DECISIONS.md`, 2026-11-02): "I need to make sure that Iuliia is guiding people every step of the way. As this is a true sim and very complex."
+Jeff (`DECISIONS.md`, 2026-11-02): "I need to make sure that Julia is guiding people every step of the way. As this is a true sim and very complex."
 
 **The standing rule.** On every screen, at every stage, the player has two things:
-- **a next step** from Iuliia;
+- **a next step** from Julia;
 - **an explanation one tap away** for anything they read.
 
 Three layers deliver it:
@@ -22,11 +22,11 @@ Three layers deliver it:
 2. **The figures she computes** (section 4). What now? and the milestones are only as good as these. **Sprint 3.**
 3. **Help on every figure** (section 2). **Sprint 3** for the figures a player meets in the first month. Every other screen is **later**, with a coverage test that keeps it honest.
 4. **Milestones after the walkthrough** (section 3). **Sprint 3** for what arrives by day 91. **Later** for the season close, the stake and the Reserve, which come when those land.
-5. **The guide bot in the sim** (section 6, economy). **Sprint 4.** It checks that following Iuliia is prudent play, which Jeff requires to win.
+5. **The guide bot in the sim** (section 6, economy). **Sprint 4.** It checks that following Julia is prudent play, which Jeff requires to win.
 
 ## 1. What now?
 
-**The button.** "What now?" sits on Iuliia's panel and her caption strip, always there, on every screen. A tap gives exactly three things:
+**The button.** "What now?" sits on Julia's panel and her caption strip, always there, on every screen. A tap gives exactly three things:
 - **one action;**
 - **one reason, with this company's figures;**
 - **one button that does it or opens where it's done.**
@@ -53,7 +53,7 @@ Both are behind the economy's switch and land with the brokerage bump. The lever
 
 - **Switch on.** Collect offers **cashing first**. Its reason names three figures: what lands, the fee, and that it lands before the deciding check ("{fd} FD lands today, {fee} FD in fees, before the check on {day}"). It names the invoices to cash. Under a factoring contract, it offers the **freshest invoices that clear the line**: the aging surcharge (the contract rate plus 0.1% a day of age, up to 3%; `studio/reviews/economy-brokerage.md`) makes the freshest the cheapest to cash. At the spot rate, with no contract, it offers the fewest invoices that clear the line. The spot rate carries the same aging (8% plus 0.1% a day of the invoice's age, up to 3%), so among equal choices the fresher invoice still costs less.
 - **Cashing wouldn't cover the line, or the switch is off.** Collect falls back to waiting for the dated invoices, and names those that are due before the check. If waiting won't clear the line either, rule 1 moves on to the next lever (return a lease, then sell). It never offers a lever that can't work.
-- **No joke here, and no word against the fee.** Iuliia states what it costs. The player decides whether now is worth it.
+- **No joke here, and no word against the fee.** Julia states what it costs. The player decides whether now is worth it.
 
 **Stuck: the ways out** (rule 3b). For each stuck truck, `guide.ts` prices four ways out. Each price is in FD over the next `{guide.stuckHorizonDays}` (3) game days, and each says where it leaves the truck:
 
@@ -88,7 +88,7 @@ Ties go to the earlier pickup. If no load passes, the lost bid drops out of rule
 
 ## 2. Help on every figure
 
-**The sheet.** Tap any number, band, chip or meter, anywhere, and a sheet opens with Iuliia's portrait and three parts:
+**The sheet.** Tap any number, band, chip or meter, anywhere, and a sheet opens with Julia's portrait and three parts:
 - **What it is.** One sentence, the writer's.
 - **How it's computed.** This company's actual inputs, from the engine. For example, a break-even of 2.36/mi: fuel 0.62, maintenance 0.18, insurance 0.21, the lessor's 15%, and so on.
 - **What moves it.** The levers the player holds, each a link where one exists.
@@ -122,7 +122,7 @@ Every component that renders a figure carries its key. **A coverage test fails i
 
 A milestone is an event in the company's life. It is not a step to tick.
 - **When it fires:** when the world says so, in any order.
-- **What it says:** Iuliia's own line, once.
+- **What it says:** Julia's own line, once.
 - **Why it matters:** one sentence of reason.
 - **What follows:** it hands What now? its next action.
 - **It saves nothing.** A milestone shows while its event is under {n} game days old, derived from state like the walkthrough.
@@ -211,4 +211,4 @@ One module, `guide.ts`, reads the world and saves nothing. Each figure below is 
 - Every first-month figure opens its explanation.
 - No line ever covers a figure.
 
-**The economy, sprint 4:** run `nextAction` as a bot (the guide bot) in the four-year pair beside the prudent and greedy bots. If following Iuliia does worse than the prudent bot, her advice is wrong, and the rule order changes before players follow it.
+**The economy, sprint 4:** run `nextAction` as a bot (the guide bot) in the four-year pair beside the prudent and greedy bots. If following Julia does worse than the prudent bot, her advice is wrong, and the rule order changes before players follow it.

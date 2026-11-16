@@ -4,7 +4,7 @@ Strings for R21 (the return card), R22 (one true reason at the wall), R24 (the p
 
 ## R21: the return card
 
-After `{guide.returnHours}` real hours away, Iuliia's first line is this card, built from the world. It replaces any tutorial line until the player acts or taps OK. Each part shows only where it applies, in this order.
+After `{guide.returnHours}` real hours away, Julia's first line is this card, built from the world. It replaces any tutorial line until the player acts or taps OK. Each part shows only where it applies, in this order.
 
 | Key | Part | String |
 |---|---|---|

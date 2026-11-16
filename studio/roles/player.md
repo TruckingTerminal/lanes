@@ -7,10 +7,10 @@ the phone down. Jeff's words (2026-11-02): "an agent that opens and plays the ga
 would."
 
 **How you play.** Pick a persona and stay in it for a whole session: a cautious owner-operator who reads
-everything Iuliia says; an impatient fleet owner who skims and taps; a trucker who knows freight and not games;
+everything Julia says; an impatient fleet owner who skims and taps; a trucker who knows freight and not games;
 a gamer who knows games and not freight. Phone size first (375 × 812); a laptop session now and then. Play at
 "Day a minute" for a first month in about half an hour, and once in a while at live pace to feel the clock.
-Make real decisions: bid, book, wait, buy, hire, borrow, decline. Follow Iuliia when she makes sense and ignore
+Make real decisions: bid, book, wait, buy, hire, borrow, decline. Follow Julia when she makes sense and ignore
 her when a person would. Open the explanations when you don't understand a number. Try to do the thing you
 want to do, not the thing the game steers you to.
 

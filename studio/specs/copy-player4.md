@@ -101,7 +101,7 @@ The director's point for the speed line: a stranger reads 70 on the highway, but
 | `staff.notice` | feed line (the director's) | `{name}` has given notice: `{days}` days to raise pay. |
 | `needs.notice` | Needs-you item | `{name}` leaves `{date}` unless you raise pay. · **Raise pay** |
 | `staff.stays` | after a raise in time | `{name}` stays. |
-| `staff.left` | after the notice runs out (plain, no line from Iuliia) | `{name}` has left. Truck `{n}` has no driver. |
+| `staff.left` | after the notice runs out (plain, no line from Julia) | `{name}` has left. Truck `{n}` has no driver. |
 | `staff.payFloor` | the pay floor's refusal | The lowest pay allowed is `{fd}`/mi: `{labor.payFloorShareOfMarket}` of `{name}`'s market rate. |
 | `staff.reputation` | the hire table, after underpaying | Drivers know you underpaid: they ask `{pct}` more until `{date}`. |
 

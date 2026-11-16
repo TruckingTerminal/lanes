@@ -95,7 +95,7 @@ export function milestoneLost(w: World, from: number, to: number): StandingPerk 
 type StandingEvent = Extract<GameEvent, { kind: "standing" }>;
 
 /**
- * The words an engine standing event gives the page: the feed's line, Iuliia's, and whether it's good or bad news.
+ * The words an engine standing event gives the page: the feed's line, Julia's, and whether it's good or bad news.
  * `byHand`: a first call the player turned down themself (else it lapsed).
  */
 export function standingWords(w: World, e: StandingEvent, byHand = false): { feed: string | null; iuliia: string | null; tone: "good" | "bad" | "" } {
@@ -114,7 +114,7 @@ export function standingWords(w: World, e: StandingEvent, byHand = false): { fee
   if (e.what === "firstCall") return { feed: STANDING.firstCallFeed(m, places[0]!, places[1]!, l ? hhmm(l.tenderUntil) : "the next round"), iuliia: null, tone: "good" };
   if (e.what === "declined") return { feed: byHand ? STANDING.firstCallDeclined(m) : STANDING.firstCallLapsed(m, places[0]!, places[1]!), iuliia: null, tone: "bad" };
   if (e.what === "decayAhead") return { feed: null, iuliia: STANDING.iuliiaDecayAhead(m), tone: "" };
-  // §13: on notice; Iuliia speaks only when the step down would lose a perk, and nothing is toasted.
+  // §13: on notice; Julia speaks only when the step down would lose a perk, and nothing is toasted.
   if (e.what === "onNotice" && e.from !== undefined && e.to !== undefined) {
     const lost = milestoneLost(w, e.from, e.to);
     return { feed: null, iuliia: lost ? STANDING.iuliiaOnNotice(m, nextReviewDay(w), STANDING.perk[lost]) : null, tone: "" };

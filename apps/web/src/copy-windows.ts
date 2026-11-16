@@ -71,7 +71,7 @@ export const WINDOWS = withGrammar({
   hubLost: (hub: string, n: number, rateUp: string | null) => `${hub} lost ${n} ${n === 1 ? "load" : "loads"} this week${rateUp ? `; rates there are up ${rateUp}` : ""}.`,
   hubLostTitle: "Lost loads this week",
   monthClaims: "Claims",
-  // §7 Iuliia's first lines, once each.
+  // §7 Julia's first lines, once each.
   iuliiaFirstSheet: "Every load has a pickup and a delivery deadline. Miss either and the poster claims against you; the sheet shows how much.",
   iuliiaFirstBusy: (truck: number) => `You can book truck ${truck}'s next load now, while it's still on this one. One ahead, never two.`,
   iuliiaFirstClosing: "This one's pickup is closing soon, so its rate climbs each round until then. Wait too long and nobody hauls it.",

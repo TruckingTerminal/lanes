@@ -4,7 +4,7 @@
  * Calm, else Full); a player's own choice is kept on this device (localStorage, a convenience, not world state), and
  * a page whose storage is blocked runs on the system's.
  *
- *   Full:  everything as designed: backdrop loops, Iuliia's breath and blink, gleams, ripples, stamps with their dust.
+ *   Full:  everything as designed: backdrop loops, Julia's breath and blink, gleams, ripples, stamps with their dust.
  *   Calm:  first frames only, no gleams or ripples; screens and sheets fade in 120 ms; stamps appear with a fade.
  *   Still: nothing moves; what changes, changes at once.
  */

@@ -57,7 +57,7 @@ export function Dealer(): JSX.Element {
     setLeaseAnswer(r.ok ? { text: r.at === null ? ANSWER.lease(`Workhorse with a ${TRAILER_NAME[tr].toLowerCase()}`, w.net.hubs[c.homeHub]!.name, fdFull(leaseDepositNow(w, tr))) : `Sent · in effect ${hhmm(r.at)}`, bad: false } : { text: r.reason, bad: true });
   };
   const facTypes: FacilityType[] = ["warehouse", "coldStorage", "factory"];
-  // The first truck's one figure (figures.ts firstTruckLine): the same number as the teaser and Iuliia's page.
+  // The first truck's one figure (figures.ts firstTruckLine): the same number as the teaser and Julia's page.
   const first = fleet.some((t) => t.lease === "owned") ? null : firstTruckLine(w, c);
   return (
     <Panel title="Dealer">
@@ -114,7 +114,7 @@ export function Dealer(): JSX.Element {
         {/* R7 and R20: the row says what a lease takes; a lease the rules won't give is off, with the binding reason; the
             answer lands under the row. */}
         <p class="muted small">{ANSWER.leaseRow(fdFull(leaseDepositNow(w, "van")), fdFull(leaseWeeklyMin(w, "van")))}. Needs one truck you own. Lessor has {w.lessor.fleet - w.lessor.out} free.</p>
-        {/* The director's ruling 22: Iuliia, under the lease's weekly figure, while the market is young. */}
+        {/* The director's ruling 22: Julia, under the lease's weekly figure, while the market is young. */}
         {youngRatesLine(w) ? <p class="small">{youngRatesLine(w)}</p> : null}
         <div class="row">
           {trailers.map((tr) => (

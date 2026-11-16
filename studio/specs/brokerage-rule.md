@@ -53,7 +53,7 @@ Player-facing words stay crime-free. Studio words such as "self-dealing" and "wa
 
 **Shared between the two:**
 - the login;
-- Iuliia's walkthrough and its progress;
+- Julia's walkthrough and its progress;
 - settings;
 - the person's logbook and airdrop standing (section 3, row 1).
 
@@ -201,14 +201,14 @@ Two things change:
 ## 7. The ladder and the teaser
 
 **Before day 91.**
-- **The card.** More → Coming soon: "Brokerage · opens {date}", one line on what a brokerage does, and one Iuliia line.
+- **The card.** More → Coming soon: "Brokerage · opens {date}", one line on what a brokerage does, and one Julia line.
 - **The working action:** **See what brokers earned last month**, which opens Intel's broker rows (AI brokers until players arrive).
 - **Renames.** The Logbook's ladder row and Help's roadmap say "Brokerage", never "Re-brokering". Help's promise becomes "your own brokerage: a licence, a bond, and freight to post".
 
 **From day 91.**
 - **If the player qualifies,** the card becomes **Start a brokerage**.
 - **If not,** it shows what it takes (an active carrier, 75,000 FD for the bond, 300 FD, the premium) and how far away the player is. No dead tap.
-- **Iuliia** says one line, once, when the layer opens.
+- **Julia** says one line, once, when the layer opens.
 
 **The engine's layer.** In the engine today, the `brokerage` layer also opens double brokering for carriers. Engineering took it off every player screen in 60d1a26, and it stays the Back Lot's. **Jeff, 2026-11-03: it closes to player carriers in the rules with the brokerage bump.** A player who wants to broker forms a brokerage. The AI's outlaws keep the action; for players it returns only if the Back Lot brings it back.
 

@@ -230,7 +230,7 @@ export interface Company {
   finesOffCostsFd?: number;
   /** `spentFd`: operating costs, fleet overhead and the fines outside operating costs over the month. */
   lastMonth?: MonthRecord;
-  /** The company's first month-close record, kept (Iuliia's first-month milestone). Screens only. */
+  /** The company's first month-close record, kept (Julia's first-month milestone). Screens only. */
   firstMonth?: MonthRecord;
   overheadPaidFd: number;
   /** Operating (unparked) truck-weeks, counted at each weekly overhead charge. */
@@ -366,7 +366,7 @@ export interface Company {
    * from the company's first load there. Kept at the company: never sold or shared, and gone at a liquidation.
    */
   standing?: Record<number, Scorecard>;
-  /** Standing: the first on-time load for a market's shippers was noticed (Iuliia's first line, once). */
+  /** Standing: the first on-time load for a market's shippers was noticed (Julia's first line, once). */
   standingNoticed?: true;
   /**
    * Standing (UX next-screens §1.6): the best tier the company has held with any market's shippers; it never goes down.
@@ -1545,7 +1545,7 @@ export interface TokenState {
 }
 
 /** What happened, for a player's screen (the engine emits these for every company; a UI filters to its own). */
-/** What moved a standing tier (standing.ts): the month report's cause and Iuliia's line. */
+/** What moved a standing tier (standing.ts): the month report's cause and Julia's line. */
 export type StandingCause = "rise" | "decay" | "aged" | "onTime" | "claim" | "noShow" | "release" | "late" | "declined";
 
 /**

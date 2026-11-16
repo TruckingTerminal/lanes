@@ -82,7 +82,7 @@ Labels (`.label`) stay mono caps.
 | **Badges and plaques** | Standing band plaques, milestone medallions, notoriety (Back Lot) at 128 px | Tier numerals and words drawn over them in code (PixelLab can't letter) |
 | **Stamps** | One empty ink-stamp ring, 128 px | The word (BID IN, BOOKED, WON, LOST, PAID) in Pixelify Sans, ink colour by CSS |
 | **Accent effects** | Spark trail (8 frames, 32 px), stamp dust (6 frames, 48 px), shine sweep (8 frames, 64 px) | Their paths and timing |
-| **Iuliia** | Faces exist (portrait, blink, blink-half, laugh1/2, side); add *proud* and *concerned*; an 8-frame breathing loop at 128 px | Which face, when; the blink timer |
+| **Julia** | Faces exist (portrait, blink, blink-half, laugh1/2, side); add *proud* and *concerned*; an 8-frame breathing loop at 128 px | Which face, when; the blink timer |
 | **Layout, type, motion, scrims, grain** | — | All code; a 64 × 64 grain tile at 4% over panels is code-generated noise |
 
 ### 1.3 The window: how a backdrop sits on a screen
@@ -214,7 +214,7 @@ the list's top; a tap scrolls to it and the row's background fades from `--sun` 
 
 - **Backdrop loops:** 16 frames at 8 fps (a 2 s loop), drawn by the existing stepped CSS (`.loop`), so they cost no
   JavaScript per frame. Small motions only: a light, steam, a flag, one figure.
-- **Iuliia:** at 96 px and up, the breathing loop (8 frames at 6 fps) and a blink every 4–7 s (random, from the
+- **Julia:** at 96 px and up, the breathing loop (8 frames at 6 fps) and a blink every 4–7 s (random, from the
   blink and blink-half faces); at 32 px in the strip, the blink only. A new line: the text fades in whole over 160 ms
   (no typing effect: typed text is text moving while it's read) and her face changes for 2.5 s (laugh for good news,
   concerned for bad, side for a question), then back to the portrait.
@@ -234,8 +234,8 @@ world state).
 
 | | Full | Calm (the system's reduce) | Still |
 |---|---|---|---|
-| Backdrop loops, Iuliia's breath | play | first frame only | first frame only |
-| Iuliia's blink and faces | yes | faces change, no blink | faces change, no blink |
+| Backdrop loops, Julia's breath | play | first frame only | first frame only |
+| Julia's blink and faces | yes | faces change, no blink | faces change, no blink |
 | Screen and sheet moves | as §2.2 | opacity only, 120 ms; sheet snaps 120 ms without overshoot | instant |
 | Stamps | land with scale and dust | appear, 120 ms fade | appear |
 | Money spark and glow | yes | no spark; a steady `--sun` ring on the cash chip for 1.2 s | the ring, no fade |
@@ -299,11 +299,11 @@ loops (exist) at 48 px, first frame only in a list (loops only in a person's own
 (`brk-stage1..4`, queued). Reaching a stage is a hero moment. The tender and the covered/fell-through scenes
 (queued) are the result cards' pictures.
 
-**What now?** *Iuliia leans in.* A sheet with her at 96 px (breathing), her line, and up to three choice cards; each
+**What now?** *Julia leans in.* A sheet with her at 96 px (breathing), her line, and up to three choice cards; each
 card carries a 64 × 36 crop of the screen it leads to (from that screen's window), so the choice reads as a place.
 No hero art of its own.
 
-**Iuliia's page.** *Her office.* Window: `guide` (exists). Her portrait at 128 px with the faces; her lines as a column
+**Julia's page.** *Her office.* Window: `guide` (exists). Her portrait at 128 px with the faces; her lines as a column
 of dated notes on paper.
 
 **The walkthrough.** *The road ahead.* The welcome hero (`welcome`, exists) on its first step; then a road strip
@@ -319,7 +319,7 @@ lights. One Do at a time, as the bible says.
 - **Standing with a shipper:** *a plaque on the dispatcher's wall.* The card's top shows the band's plaque (queued
   `std` masters, 128 px at 64 px on the card), the tier numeral drawn in code on it, the line "Standing with Dallas
   shippers · Preferred, tier 5 of 10 · steady" beside it. A tier reached is a hero moment: the plaque at 128 px, the
-  shine sweep once, Iuliia's line. A tier lost: no animation; the plaque shows its new tier and her line.
+  shine sweep once, Julia's line. A tier lost: no animation; the plaque shows its new tier and her line.
 - **The Back Lot** (a later beta): *the same world after dark.* Its screens swap the Sunset tokens for **Night**:
   `--accent` sodium amber #ffb454, `--sun` cold neon #6fd6ff, backgrounds a step darker and bluer. Window
   `blt-nightlot` (queued). Until its day, its teaser card is as the bible says: "a later beta", nothing about crime,
@@ -336,9 +336,9 @@ lights. One Do at a time, as the bible says.
    opaque), never on a backdrop. Accents (stamps, sparks, shines) land in corners and rims, clear of figures by at
    least 8 px; the spark's path avoids panels. Backdrops live only in windows and heroes.
 3. **One accent at a time per screen.** Accents go through one queue (the "stage"). Priority: pay landing > bid result
-   stamp > Iuliia's new line > tier or stage reached > a stamp on the player's own act > a gleam. A waiting accent
+   stamp > Julia's new line > tier or stage reached > a stamp on the player's own act > a gleam. A waiting accent
    older than 3 s is dropped (except pay landing, which always plays; its toast carries the news anyway). Ambient
-   loops are not accents, but a screen runs at most **two** ambient loops at once (its window and Iuliia); a third
+   loops are not accents, but a screen runs at most **two** ambient loops at once (its window and Julia); a third
    (a portrait in a card) shows its first frame.
 4. **Taps never move.** Nothing under a finger moves between touch and release, or for 500 ms after. Every image box
    is reserved before it loads (aspect-ratio). Lists never reorder or insert above what's on screen while a sheet is
@@ -371,7 +371,7 @@ lights. One Do at a time, as the bible says.
 | **A window's still** | 256 × 144 | ≤ 40 KB | 1 per scene per season | on the screen's first open |
 | **A window's loop** | 16 frames as a 4 × 4 sheet, 1024 × 576 | ≤ 180 KB | 1 per scene per season | after its still, if Motion is Full and `navigator.connection.saveData` is not set |
 | **A hero** | 512 × 288 still; loop 16 frames 2048 × 1152 only if under the cap | ≤ 120 KB still, ≤ 600 KB loop | 1–2 | on the moment, laptop and phone |
-| **Iuliia's breathing loop** | 8 frames at 128 px, one row | ≤ 50 KB | 1 | with the kit |
+| **Julia's breathing loop** | 8 frames at 128 px, one row | ≤ 50 KB | 1 | with the kit |
 | **Plaques, medallions** | 128 px | ≤ 15 KB each | in an atlas per family | on the screen's first open |
 
 - **Per screen, first view:** ≤ 250 KB of new bytes (the window still, the screen's icons and plaques; the kit is
@@ -397,7 +397,7 @@ lights. One Do at a time, as the bible says.
 
 | When | What |
 |---|---|
-| The title | the kit atlas, Iuliia's breathing loop, the fonts |
+| The title | the kit atlas, Julia's breathing loop, the fonts |
 | The first panel paints | the fx atlas; the current tab's window still |
 | A screen's first open | its window still at once; its loop on idle (`requestIdleCallback`, 300 ms fallback); its plaques/medallions |
 | On idle after the first minute | the stills (not loops) of the other three phone tabs' windows |
@@ -439,7 +439,7 @@ Small motions only in every loop; the sky, the light and the colours never chang
 5. `stamp-ring`, new, 128: an empty round ink stamp, no letters, slightly uneven ink.
 6. FX, new (VFX lite): `fx-spark` (a warm spark with a short trail, 8 frames, 32 px), `fx-dust` (stamp dust puff,
    6 frames, 48 px), `fx-shine` (a diagonal shine sweep, 8 frames, 64 px), all on transparency.
-7. Iuliia, new: `iuliia-proud` and `iuliia-concerned` at 128 with `portrait.png` as the style image; `iuliia-breathe`,
+7. Julia, new: `iuliia-proud` and `iuliia-concerned` at 128 with `portrait.png` as the style image; `iuliia-breathe`,
    an 8-frame loop of the portrait (2).
 
 **P2 — the first hour's windows (≈ 150)**

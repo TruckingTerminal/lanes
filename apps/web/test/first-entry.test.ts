@@ -2,8 +2,8 @@ import "./seed.js";
 import { describe, expect, it } from "vitest";
 import { FIRST_ENTRY, TUTORIAL } from "../src/copy.js";
 
-/** Iuliia's intro on the first screen (Jeff, 2026-11-03): a few beats in her register before the hub pick. */
-describe("Iuliia's intro", () => {
+/** Julia's intro on the first screen (Jeff, 2026-11-03): a few beats in her register before the hub pick. */
+describe("Julia's intro", () => {
   it("is brief: three to five beats, each at most 28 words (a card, not a caption), the last pointing at a home", () => {
     const beats = FIRST_ENTRY.intro;
     expect(beats.length).toBeGreaterThanOrEqual(3);
@@ -13,7 +13,7 @@ describe("Iuliia's intro", () => {
   });
 
   it("opens with her name and says what the world is before what to do", () => {
-    expect(FIRST_ENTRY.intro[0]).toMatch(/Iuliia/);
+    expect(FIRST_ENTRY.intro[0]).toMatch(/Julia/);
     expect(FIRST_ENTRY.intro.findIndex((b) => /freight market/.test(b))).toBeLessThan(FIRST_ENTRY.intro.findIndex((b) => /home/i.test(b)));
     expect(FIRST_ENTRY.welcomeTitle).toBeTruthy();
   });

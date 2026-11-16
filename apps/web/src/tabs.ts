@@ -12,7 +12,7 @@ import { skippedSteps, stepScope, walkSteps } from "./walkthrough.js";
  * walkthrough's "Go to" buttons all read it, so a tab is added, renamed, moved or opened here only.
  *
  * The first ten minutes (specs/first-ten-minutes.md, copy-first-ten-minutes.md): four in the nav, Truck · Loads ·
- * Money · More. More lists Iuliia, Help and Company, then the teasers: each a tab that opens on its trigger and
+ * Money · More. More lists Julia, Help and Company, then the teasers: each a tab that opens on its trigger and
  * until then shows a card saying what it is and when it opens.
  */
 export const TAB_IDS = ["fleet", "loads", "money", "more", "iuliia", "guide", "company", "intel", "standing", "staff", "market", "rates", "logbook", "finance", "economy", "business", "backlot", "brokerage", "book", "carriers"] as const;
@@ -21,7 +21,7 @@ export type Tab = (typeof TAB_IDS)[number];
 export interface Teaser {
   /** What it is, in one line. */
   what: string;
-  /** Iuliia's line about it. */
+  /** Julia's line about it. */
   iuliia: string;
   /** When it opens, as the card says it: "at your second truck", "on Jan 29, Year 1". */
   opens: (w: World) => string;
@@ -48,12 +48,12 @@ export interface TabDef {
 const trucksOf = (w: World, c: Company) => (w.trucksByCompany.get(c.id) ?? []).filter((t) => t.status !== "retired");
 /** The day a layer opens, as a date: its published day of the beta, or after launch. */
 export const layerDay = (w: World, layer: "businesses" | "brokerage"): string => dayDate((w.token.launchDay ?? 0) + w.cfg.unlockLadder.layers[layer].afterDays);
-/** The walkthrough step the Dealer and Finance wait for ("when Iuliia says so": buying your first truck). */
+/** The walkthrough step the Dealer and Finance wait for ("when Julia says so": buying your first truck). */
 const OWN_STEP = walkSteps(GAME_CONFIG).findIndex((s) => s.id === "own");
 /**
  * The first truck within reach (the director, 2026-11-09, ruled again after QA's replay): the one first-truck figure met
  * (figures.ts gapToTruck: the cheapest truck's cash on the day, less the player's cash), the same figure the teaser,
- * Iuliia's page and the Dealer's card show, so the opening and the number never disagree. The hold toward the lessor's
+ * Julia's page and the Dealer's card show, so the opening and the number never disagree. The hold toward the lessor's
  * truck counts inside it, not as a rule of its own. Kept for the game minute, since the nav and More read it every draw.
  */
 let affordMemo: { w: World | null; t: number; c: number; v: boolean } = { w: null, t: -1, c: -1, v: false };
@@ -67,7 +67,7 @@ export function firstTruckAffordable(w: World, c: Company): boolean {
 
 /**
  * When the Dealer and Finance open (the director, 2026-11-02, QA item 8 and 2026-11-09), whichever comes first:
- * - the first truck is within reach (firstTruckAffordable), whatever the walkthrough's step, so Iuliia's "you can afford
+ * - the first truck is within reach (firstTruckAffordable), whatever the walkthrough's step, so Julia's "you can afford
  *   your next truck now" never points at a closed tab;
  * - the walkthrough reaches the first-truck step, a skipped step counting as passed (a skipped step never keeps a tab
  *   closed: the gamer's diary skipped "The law" and the Dealer stayed shut);
@@ -93,7 +93,7 @@ export const TABS: readonly TabDef[] = [
   { id: "loads", label: "Loads", icon: "board" },
   { id: "money", label: "Money", icon: "money" },
   { id: "more", label: "More", icon: "star" },
-  { id: "iuliia", label: "Iuliia", icon: "people" },
+  { id: "iuliia", label: "Julia", icon: "people" },
   { id: "guide", label: "Help", icon: "book" },
   { id: "company", label: "Company", icon: "building" },
   { id: "intel", label: "Intel", icon: "people" },
@@ -152,7 +152,7 @@ export const TABS: readonly TabDef[] = [
     teaser: {
       what: "Getting paid on your own truck: quick pay, load by load, and the factoring contract.",
       iuliia: "Read it before you buy, not after. The wait for your money starts with your first load.",
-      // The director, 2026-11-02 (2b32a9d): Finance opens with the first-truck step, beside the Dealer, so Iuliia never
+      // The director, 2026-11-02 (2b32a9d): Finance opens with the first-truck step, beside the Dealer, so Julia never
       // points at a locked tab.
       opens: () => PENDING.financeOpens,
       open: (w, c) => !!c && firstTruckOpen(w, c),

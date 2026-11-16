@@ -20,7 +20,7 @@ Short key names used below:
 | `{exitDays}`, `{haircut}` | `token.staking.exitDays`, `.instantHaircut` |
 | `{minLock}`, `{slashMult}`, `{slashBase}` | `token.staking.lockDiscounts.minLockFd`, `.slash.discountMultiple`, `.slash.baseShare` |
 
-**Jeff's rules, 2026-11-02.** "Make sure that Iuliia explains factoring and quickpay to owner operators who want to buy their own truck. The risk is real and they need to be well capitalized to make it work." "For now, let's not use the pools. Factoring and insurance are NPC and sinks." So: every money explanation below is plain, with no joke; no string mentions a pool or a deposit desk.
+**Jeff's rules, 2026-11-02.** "Make sure that Julia explains factoring and quickpay to owner operators who want to buy their own truck. The risk is real and they need to be well capitalized to make it work." "For now, let's not use the pools. Factoring and insurance are NPC and sinks." So: every money explanation below is plain, with no joke; no string mentions a pool or a deposit desk.
 
 ## Money: the two link rows
 
@@ -197,7 +197,7 @@ Both ship (the producer, 2026-11-03). The stake tiers are the live rule, so thei
 | Sheet button | **Lock `{fd}` FD for `{n}` months** |
 | Break sheet | Break this lock early? · You get back `{fd}` FD · Burned: `{fd}` FD · Why: `{slashMult}` times the `{fd}` FD discount used, plus `{slashBase}` of the lock · **Break the lock** · Keep it |
 
-## Iuliia on Finance
+## Julia on Finance
 
 Moved here from `iuliia-lines.md`, which now points to this file. One line at most, in the caption strip, never over a card's figures. No joke in any of them: these are all money lines.
 

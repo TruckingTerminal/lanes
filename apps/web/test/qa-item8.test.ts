@@ -86,7 +86,7 @@ describe("the caption's precedence (QA item 8, failures 1 and 7)", () => {
   }, 60_000);
 });
 
-describe("the Dealer opens when Iuliia points at it (QA item 8, failure 2)", () => {
+describe("the Dealer opens when Julia points at it (QA item 8, failure 2)", () => {
   it("opens on day 28 for a company that hears the line, not before; the line before it has no button while it's locked", async () => {
     const g = await TestGame.create();
     const c = g.join("Dealer Freight", "oo", "LAX")!;

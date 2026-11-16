@@ -23,7 +23,7 @@ button answers under itself).
 **When:** the world opens after `{guide.returnHours}` (8) real hours since this browser's last visit (kept per
 browser, a convenience). It fires on every such return.
 
-**Where: Iuliia's caption, at the top of the Truck tab.** Not the Continue screen (its job is loading, and the card
+**Where: Julia's caption, at the top of the Truck tab.** Not the Continue screen (its job is loading, and the card
 needs the loaded world), and not over the map (an overlay covers the map the card talks about). On a phone the app
 opens on Truck with the sheet at **half**, scrolled to the top, whatever height it was left at, so the card is the
 first thing under the state line. In the caption's order (`guidance-ux.md` §1) it sits just below an asked answer:
@@ -45,7 +45,7 @@ the way the badge ranks them (`player2-ux.md` R9): the one with most at stake fi
 
 **It goes away** when the player taps row 5's button (its action runs), taps **Not now** or the card's **×**, or
 leaves the Truck tab (R10's rule for a line with a button). It never rotates out on a timer. Afterwards it's in
-More › Iuliia's timeline as "Back Fri Feb 2", where a tap reopens it as it was.
+More › Julia's timeline as "Back Fri Feb 2", where a tap reopens it as it was.
 
 **At strip height** (if the player drops the sheet while it shows): the 44 px caption row reads "Back · Truck 1
 idle at Jacksonville" with the What now? chip; a tap raises the sheet to half.

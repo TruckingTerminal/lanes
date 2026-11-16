@@ -110,7 +110,7 @@ export function SideRack(): JSX.Element {
 
 /**
  * Client batch 6 (QA, laptop at 1024×768): the panel box's height was the window less a fixed 200 px, but what sits above
- * it (the bar, the nav, the teaser row, Iuliia's caption) runs taller, so its bottom, and the load sheet's pinned Book now
+ * it (the bar, the nav, the teaser row, Julia's caption) runs taller, so its bottom, and the load sheet's pinned Book now
  * and Bid with it, sat about 164 px below the window until the page scrolled. Its top on the page, measured, sets
  * `--boxtop`, and page.html caps the box at the window less that: its bottom, and whatever is pinned to it, in view.
  */
@@ -121,7 +121,7 @@ function panelTop(el: HTMLDivElement | null): void {
   if (el.style.getPropertyValue("--boxtop") !== v) el.style.setProperty("--boxtop", v);
 }
 
-/** What the nav opens: the teaser row (laptop), Iuliia's caption, and the tab's panel or its teaser card. On a phone the sheet holds this. */
+/** What the nav opens: the teaser row (laptop), Julia's caption, and the tab's panel or its teaser card. On a phone the sheet holds this. */
 export function RackBody(): JSX.Element {
   useData();
   switchWhenFormed();
@@ -139,7 +139,7 @@ export function RackBody(): JSX.Element {
   const watching = !g.player && !WATCHABLE.includes(tab);
   const under = !picking && navOf(tab) === "more" && tab !== "more";
   const open = tabOpen(tab, g.w, g.player);
-  // Iuliia on a screen's first visit in a sitting (iuliia-lines.md): its own line, or the closed-teaser line.
+  // Julia on a screen's first visit in a sitting (iuliia-lines.md): its own line, or the closed-teaser line.
   useEffect(() => {
     if (watching || !g.player) return;
     if (open) iuliiaFirst(`${tab}:first`, `tab:${tab}`);
@@ -157,7 +157,7 @@ export function RackBody(): JSX.Element {
         {/* The menu system §1.3: the screen's window, above everything in its panel. */}
         <ScreenWindow tab={tab} picking={picking} />
         <ReportCard key={S.reportKind} />
-        {/* Batch M1 (the player's pass): while What now?'s answer is open it stands in for her step card, one Iuliia card
+        {/* Batch M1 (the player's pass): while What now?'s answer is open it stands in for her step card, one Julia card
             at a time, never one over the other. */}
         {open && !watching ? <>{S.whatNow ? null : <StepMoment />}<FirstLoad /></> : null}
         {under ? (

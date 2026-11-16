@@ -14,7 +14,7 @@ import { TAB_NAME, tabOpen } from "../tabs.js";
 import { skippedSteps, stepDo, stepText, walkSteps } from "../walkthrough.js";
 import { Btn } from "./bits.js";
 import { chipPair } from "../board.js";
-import { Iuliia } from "./Walkthrough.js";
+import { Julia } from "./Walkthrough.js";
 import { kindInView } from "../companies.js";
 import { leaseMinFor } from "../ledger.js";
 import { leasedNo, orderedFirstTruck } from "../figures.js";
@@ -25,7 +25,7 @@ import { emptyRun } from "../rolling.js";
 import { askFigures, askLines, homeNoDrive, spanLabel, whenAt } from "../windowsui.js";
 
 /**
- * What now? (specs/guidance.md section 1, guidance-ux.md section 1): a chip in Iuliia's caption, in its own button row, on
+ * What now? (specs/guidance.md section 1, guidance-ux.md section 1): a chip in Julia's caption, in its own button row, on
  * every screen; a tap answers with one action, one reason in this company's figures and one button, in the caption's
  * place (one caption, one portrait), until the player acts, taps Not now or changes tabs. An amber dot on the chip says a
  * rule above the walkthrough's step (danger, something waiting, an idle truck that could earn) outranks it; a state, not
@@ -82,7 +82,7 @@ export function WhatNowAnswer(): JSX.Element | null {
   if (!shown) {
     return (
       <div class="caption whatnow">
-        <Iuliia mood="idle" size={64} />
+        <Julia mood="idle" size={64} />
         <span class="small">{NOW.stale}</span>
         <Btn sm onClick={askWhatNow}>
           {NOW.chip}
@@ -96,7 +96,7 @@ export function WhatNowAnswer(): JSX.Element | null {
   const crop = to ? screenWindow(to, g.w, null, false) : null;
   return (
     <div class="caption whatnow">
-      <Iuliia mood="point" size={64} />
+      <Julia mood="point" size={64} />
       <div class="stack">
         {crop ? <Window key={crop.name} name={crop.name} night={crop.night} fallback={crop.fallback} class="crop" /> : null}
         <b class={view.red ? "bad" : ""}>{view.action}</b>

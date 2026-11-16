@@ -3,7 +3,7 @@ import type { JSX } from "preact";
 import { useEffect, useRef, useState } from "preact/hooks";
 import { dayOf } from "@lanes/engine";
 
-/** How long Iuliia's "your dispatcher bids when you don't" line stands after the first bid by hand, in game days (QA's 0.24.1 replay, item 12). */
+/** How long Julia's "your dispatcher bids when you don't" line stands after the first bid by hand, in game days (QA's 0.24.1 replay, item 12). */
 const DISPATCHER_LINE_DAYS = 2;
 import { settleShown, useSettled } from "../settle.js";
 import { GAME_CONFIG } from "../game.js";
@@ -28,11 +28,11 @@ import { kindInView } from "../companies.js";
 let poster: HTMLImageElement | null = null;
 
 /**
- * Iuliia, drawn live (portrait.ts, Graphics 2026-11-02): one canvas that draws her every animation frame on the page
+ * Julia, drawn live (portrait.ts, Graphics 2026-11-02): one canvas that draws her every animation frame on the page
  * clock, so she blinks and glances on no cycle; the poster (people/iuliia.png, which is her rest frame) until her sheet
  * decodes, so there is no flash between them. 96 px in the sheet, 64 in a caption, 128 on her tab.
  */
-export function Iuliia({ mood, size = 128 }: { mood: Mood | PortraitMood; size?: 64 | 96 | 128 }): JSX.Element {
+export function Julia({ mood, size = 128 }: { mood: Mood | PortraitMood; size?: 64 | 96 | 128 }): JSX.Element {
   const ref = useRef<HTMLCanvasElement>(null);
   useEffect(() => {
     const cv = ref.current!;
@@ -62,10 +62,10 @@ export function Iuliia({ mood, size = 128 }: { mood: Mood | PortraitMood; size?:
     poster.addEventListener("load", () => frame(performance.now()), { once: true });
     return () => cancelAnimationFrame(raf);
   }, [mood, size]);
-  return <canvas ref={ref} class={size === 64 ? "portrait md" : size === 96 ? "portrait lg" : "portrait xl"} role="img" aria-label="Iuliia" />;
+  return <canvas ref={ref} class={size === 64 ? "portrait md" : size === 96 ? "portrait lg" : "portrait xl"} role="img" aria-label="Julia" />;
 }
 
-/** The walkthrough card (walkthrough.ts), on the Iuliia tab: her current step in full, read from the world; the player can read ahead. */
+/** The walkthrough card (walkthrough.ts), on the Julia tab: her current step in full, read from the world; the player can read ahead. */
 export function Walkthrough(): JSX.Element | null {
   useData();
   const g = S.game;
@@ -74,7 +74,7 @@ export function Walkthrough(): JSX.Element | null {
   const steps = walkSteps(GAME_CONFIG, g.w.net.hubs[c.homeHub]?.name);
   const skipped = skippedSteps(S.onboard.seen, g.w, c);
   const { index, done, total } = walkProgress(GAME_CONFIG, g.w, c, skipped, (tab) => tabOpen(tab, g.w, c));
-  // "The truck rolls" waits for the load itself, as the caption does (QA's Iuliia replay): until then the board step stays current.
+  // "The truck rolls" waits for the load itself, as the caption does (QA's Julia replay): until then the board step stays current.
   const loaded = (g.w.trucksByCompany.get(c.id) ?? []).some((t) => t.loadId !== null) || c.delivered > 0;
   const current = index < 0 ? total : steps[index]!.id === "haul" && !loaded && index > 0 ? index - 1 : index;
   const view = S.walkView ?? current;
@@ -86,7 +86,7 @@ export function Walkthrough(): JSX.Element | null {
     return (
       <Card class="walk" title="You're running a fleet">
         <div class="walkbody">
-          <Iuliia mood="laugh" />
+          <Julia mood="laugh" />
           <div>
             <p class="small">Every step on my clipboard is ticked, in ink. Standing orders run the trucks while you sleep, the Guide has every system and every number, and the locked tabs are what comes next. I'll still be here when something breaks. Something always breaks; that isn't pessimism, that's maintenance.</p>
             <div class="row">
@@ -104,9 +104,9 @@ export function Walkthrough(): JSX.Element | null {
   const strip = step.id === "welcome" && hasAsset("scenes/welcome.png");
   return (
     <Card class="walk" title={`${view + 1} of ${total}: ${step.title}${isDone ? " ✓" : isSkipped ? ` · ${CAPTION.skipped}` : ""}`}>
-      {strip ? <Loop name="scenes/welcome" still={`${ASSETS}scenes/welcome.png`} w={256} h={128} scale={Math.max(1, Math.min(2, Math.floor(((window.innerWidth - 64) / 256) * 10) / 10))} class="welcome" alt="Iuliia's office" /> : null}
+      {strip ? <Loop name="scenes/welcome" still={`${ASSETS}scenes/welcome.png`} w={256} h={128} scale={Math.max(1, Math.min(2, Math.floor(((window.innerWidth - 64) / 256) * 10) / 10))} class="welcome" alt="Julia's office" /> : null}
       <div class="walkbody">
-        <Iuliia mood={step.mood} />
+        <Julia mood={step.mood} />
         <div class="walktext">
           {stepText(step, g.w, c).say.map((line, i) => (
             <p class="small" key={i}>
@@ -175,7 +175,7 @@ export function FirstLoad(): JSX.Element | null {
   return (
     <Card class="walk moment" title={b.screen === "truck" ? TUTORIAL.truckTitle : TUTORIAL.loadsTitle}>
       <div class="walkbody">
-        <Iuliia mood={moods[b.i] ?? "point"} size={96} />
+        <Julia mood={moods[b.i] ?? "point"} size={96} />
         <div class="walktext">
           <p class="small">{b.beats[b.i]}</p>
           <div class="row">
@@ -229,7 +229,7 @@ function currentStep(): WalkStep | null {
  * A step's full line on the screen where its event happens (the director's R5): "Getting paid" on the first settlement
  * card, "The law" on the Truck tab where the inspection shows, the rest on their own screens. It plays once, at the
  * moment the step becomes current, with Next and Skip; the caption keeps quiet about it meanwhile, and the list under
- * More › Iuliia stays for rereading. `only` places one step's moment inside its card (the settlement card).
+ * More › Julia stays for rereading. `only` places one step's moment inside its card (the settlement card).
  */
 export function StepMoment({ only }: { only?: string }): JSX.Element | null {
   useData();
@@ -252,7 +252,7 @@ export function StepMoment({ only }: { only?: string }): JSX.Element | null {
   return (
     <Card class="walk moment" title={step.title}>
       <div class="walkbody">
-        <Iuliia mood={step.mood} size={96} />
+        <Julia mood={step.mood} size={96} />
         <div class="walktext">
           {t.say.map((line, i) => (
             <p class="small" key={i}>
@@ -331,7 +331,7 @@ function lineStands(key: string, screen: string, retire: () => void): boolean {
 }
 
 /**
- * Iuliia's caption (specs/first-ten-minutes.md): her portrait at 32 px, the current step's Do line, and More, which
+ * Julia's caption (specs/first-ten-minutes.md): her portrait at 32 px, the current step's Do line, and More, which
  * opens her tab. It sits under the nav on every tab, so the full card never stands between a tab and its contents.
  */
 export function Caption(): JSX.Element | null {
@@ -350,7 +350,7 @@ export function Caption(): JSX.Element | null {
   // Only her face and the chip, when she has nothing to say: being wound up (U3), or no line now.
   const bare = (mood: Mood = "idle") => (
     <div class="caption">
-      <Iuliia mood={mood} size={64} />
+      <Julia mood={mood} size={64} />
       <span class="grow" />
       <WhatNowChip />
     </div>
@@ -407,7 +407,7 @@ export function Caption(): JSX.Element | null {
   }
   const say = (line: string, action: JSX.Element | null, mood: Mood = "point") => (
     <div class="caption iuliia">
-      <Iuliia mood={mood} size={96} />
+      <Julia mood={mood} size={96} />
       <span class="small">{line}</span>
       {action}
       <WhatNowChip />
@@ -514,7 +514,7 @@ export function Caption(): JSX.Element | null {
     const text = iuliiaNow();
     return text ? (
       <div class="caption">
-        <Iuliia mood={iuliiaFace() ?? mood} size={64} />
+        <Julia mood={iuliiaFace() ?? mood} size={64} />
         <span class="small">{text}</span>
         <WhatNowChip />
       </div>
@@ -555,7 +555,7 @@ export function Caption(): JSX.Element | null {
   if (!lineStands(`do:${step.id}`, step.tab, () => mark(`hide:${step.id}`))) return bare(step.mood);
   return (
     <div class="caption">
-      <Iuliia mood={step.mood} size={64} />
+      <Julia mood={step.mood} size={64} />
       <span class="small">{stepDo(step, g.w, c)}</span>
       <Btn sm ghost onClick={() => mark(`hide:${step.id}`)}>
         {CAPTION.hide}
@@ -600,13 +600,13 @@ export function IuliiaLine(): JSX.Element | null {
   const text = iuliiaNow();
   return text ? (
     <div class="caption iuliia">
-      <Iuliia mood={iuliiaFace() ?? "point"} size={64} />
+      <Julia mood={iuliiaFace() ?? "point"} size={64} />
       <span class="small">{text}</span>
     </div>
   ) : null;
 }
 
-/** The Iuliia tab: her current step in full, and the road ahead. */
+/** The Julia tab: her current step in full, and the road ahead. */
 export function IuliiaPanel(): JSX.Element {
   useData();
   return (

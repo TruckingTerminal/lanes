@@ -25,7 +25,7 @@ export function brokerMarketLine(w: World): string | null {
   return FIXES.brokersMarketOpen(times(r.flowRatio), pctOf(r.margin), pending.length, by === null ? null : shortDate(by));
 }
 
-/** §2: Iuliia's line under it, while the reading is over the lines; the director's §29: quiet under "no room". */
+/** §2: Julia's line under it, while the reading is over the lines; the director's §29: quiet under "no room". */
 export const brokerMarketIuliia = (w: World): string | null => {
   const r = brokerMarketLine(w) ? brokerEntrySignal(w) : null;
   return r && readingOver(w, r) ? FIXES.iuliiaNewBrokerage : null;

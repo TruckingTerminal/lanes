@@ -1723,7 +1723,7 @@ export const ruleBotHook: DailyAgentHook = (w) => {
         blockFacilityHub(w, f.hub); // batch 8: no bot rebuilds there for windows.facilityBlockWeeks
       }
     }
-    // assets.expedite: an order worth bringing forward, on Iuliia's rule (here, whatever else the bot does today).
+    // assets.expedite: an order worth bringing forward, on Julia's rule (here, whatever else the bot does today).
     if (expediteOn(w)) maybeExpedite(w, c, p);
     const acct = companyAccount(c.id);
     const fleet = w.trucksByCompany.get(c.id)!;

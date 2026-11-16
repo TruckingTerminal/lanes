@@ -12,7 +12,7 @@ import { breakdown, type FigureCtx } from "../explain.js";
 import { GAME_CONFIG } from "../game.js";
 import { bumpData, isPhone, S, useData } from "../state.js";
 import { Btn } from "./bits.js";
-import { Iuliia } from "./Walkthrough.js";
+import { Julia } from "./Walkthrough.js";
 import { askWhatNow, openLoadOf } from "./WhatNow.js";
 import { figureAct } from "../figureact.js";
 
@@ -137,7 +137,7 @@ export function ExplainSheet(): JSX.Element | null {
       <header class="explainhead" {...swipe}>
         <span class="grab" aria-hidden="true" />
         <div class="row">
-          <Iuliia mood="point" size={64} />
+          <Julia mood="point" size={64} />
           <div class="stack grow">
             <span class="label">{e.label}</span>
             <b class="bighead">{e.value}</b>

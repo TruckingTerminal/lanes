@@ -52,7 +52,7 @@ Append a dated line to the state log saying the studio now runs on the Mac Studi
    write owner; players/{self} write interact; reports read admin, write owner; reports/{self} read and write
    interact; world read view, write owner. The live version holds 469 of its 511 files: the page, a filtered
    assets/manifest.json (the client loads only what it lists, one folder deep), and the art the live page carries
-   (kit.json entries marked live: false, Iuliia's unused breathing loop, the Back Lot's files, the city weather loops
+   (kit.json entries marked live: false, Julia's unused breathing loop, the Back Lot's files, the city weather loops
    and city stills stay on the test site only).
 3. The studio board is https://claude.ai/artifact/2kmePVzETFib467bWP2J34.
 4. Build the live page once to prove the recipe, without publishing: `git worktree add ../lanes-live e202980`, then in

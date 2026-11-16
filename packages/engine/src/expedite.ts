@@ -124,7 +124,7 @@ export function expediteOrder(w: World, c: Company, orderId: number): string | n
   return null;
 }
 
-// --- What the wait costs (the bots' rule; the client's and Iuliia's figure to share) ---------------------------------
+// --- What the wait costs (the bots' rule; the client's and Julia's figure to share) ---------------------------------
 
 const MONTH_WEEKS = (w: World): number => w.cfg.time.daysPerMonth / DAYS_PER_WEEK;
 const weeksSinceStart = (w: World, c: Company): number => Math.max(1, (dayOf(w.t, w.cfg) - c.createdDay) / DAYS_PER_WEEK);
@@ -168,7 +168,7 @@ export function keptPerTruck(w: World, c: Company): { perWeekFd: number; weeks: 
  * stands without a driver, and at least one is seated. A parked or listed truck is off the road and needs no driver (the
  * day's staffing seats it last, labor.ts autoStaff). An owner who drives a truck doesn't count for a second. `emptyTruckNo`
  * is the first empty truck as the player numbers it (its place among the company's trucks not retired, as the client's
- * truckNo), for Iuliia's "Truck 3 has no driver today".
+ * truckNo), for Julia's "Truck 3 has no driver today".
  */
 export function staffsWhatItOwns(w: World, c: Company): { staffed: boolean; seated: number; emptyTruckNo: number | null } {
   const fleet = (w.trucksByCompany.get(c.id) ?? []).filter((t) => t.status !== "retired");
@@ -178,7 +178,7 @@ export function staffsWhatItOwns(w: World, c: Company): { staffed: boolean; seat
   return { staffed: !empty && seated > 0, seated, emptyTruckNo: empty ? fleet.indexOf(empty) + 1 : null };
 }
 
-/** What waiting costs over the days an expedite saves, in parts (the client and Iuliia say each for what it is). */
+/** What waiting costs over the days an expedite saves, in parts (the client and Julia say each for what it is). */
 export type ExpediteWaitParts = {
   readyDay: number;
   daysSaved: number;
@@ -192,7 +192,7 @@ export type ExpediteWaitParts = {
   /** The company staffs what it owns (staffsWhatItOwns): the truck it adds will be driven. */
   driver: boolean;
   /**
-   * Which of Iuliia's sentences (the director's re-ruling): "counts" (the term counts), "emptyTruck" (a truck on the road
+   * Which of Julia's sentences (the director's re-ruling): "counts" (the term counts), "emptyTruck" (a truck on the road
    * stands without a driver today: emptyTruckNo), "noTruckSeated" (none of its trucks is seated), "books" (under
    * keptMinHistoryWeeks of books), or "notApplicable" (the key off, a lease replacement or a trailer).
    */

@@ -268,12 +268,12 @@ export const FIRST_ENTRY = {
   /** The sheet's title while she gives the intro (then "Choose your home hub"). */
   welcomeTitle: "Welcome to LANES",
   /**
-   * Her intro, one beat per Next, before the hub pick (Jeff, 2026-11-03: the first screen is Iuliia introducing the game,
+   * Her intro, one beat per Next, before the hub pick (Jeff, 2026-11-03: the first screen is Julia introducing the game,
    * not "pick a home city"; and, 2026-11-03 again: dry humor, not a dry personality). Her register, on a card rather than a caption:
    * at most 28 words a beat, the joke by understatement, Russian things and never a Russian word.
    */
   intro: [
-    "Welcome. I'm Iuliia. I've helped start more carriers than I've had birthdays, and I'm not saying how many of either.",
+    "Welcome. I'm Julia. I've helped start more carriers than I've had birthdays, and I'm not saying how many of either.",
     "This is America's freight market, live. Every truck out there is real, and not one of them is waiting for us. Rude, but honest.",
     "Find a load, haul it, get paid, keep the truck alive. Then do it again, which is the part nobody puts on the poster.",
     "You start the way most do: one leased truck, a little money, and you driving. Small, but so was every fleet once. First, a home city.",
@@ -569,7 +569,7 @@ export const DISPATCHER = {
   waitingCard: (hub: string) => `Waiting at ${hub} · the first load is your call`,
 };
 
-/** Iuliia's caption (specs/first-ten-minutes.md, Layout): her line, then the step's Do. */
+/** Julia's caption (specs/first-ten-minutes.md, Layout): her line, then the step's Do. */
 /**
  * The first load's tutorial (Jeff, 2026-11-04: a real tutorial, no other menu until the first load is booked, and her
  * instructions in depth). Her beats on Truck, then on Loads, one Next each, in cards over the screen they describe; the
@@ -614,9 +614,9 @@ export const CAPTION = {
   /** UX's (guidance-ux.md section 1): The law's moment on Truck opens the safety record on Company. */
   seeRecord: "See your record",
   skipped: "skipped",
-  /** The Iuliia tab's switch: mutes her tab-and-card lines, not the walkthrough's (iuliia-lines.md; the writer's strings). */
+  /** The Julia tab's switch: mutes her tab-and-card lines, not the walkthrough's (iuliia-lines.md; the writer's strings). */
   quiet: "Quiet",
-  quietNote: "Mutes Iuliia's remarks on tabs and cards, in this browser. Her walkthrough steps and What now? stay.",
+  quietNote: "Mutes Julia's remarks on tabs and cards, in this browser. Her walkthrough steps and What now? stay.",
 };
 
 /** The Truck tab (copy-first-ten-minutes.md, S6; copy-audit.md's rewrites). */
@@ -884,7 +884,7 @@ export const FINANCE = {
   keepIt: "Keep it",
   later: "Later",
   laterLine: "Discounts for locking FD come with lock terms, later in the beta.",
-  // Iuliia on Finance: one line, never over a card's figures; no joke in any.
+  // Julia on Finance: one line, never over a card's figures; no joke in any.
   iuliiaA: "Before you buy, read the first card. On your own truck the money waits; the costs don't.",
   iuliiaB: "Your truck, your paper. Choose how you're paid before the month chooses for you.",
   iuliiaBroker: "You factor at a flat rate now. Your carriers still expect their money on time.",
@@ -961,7 +961,7 @@ export const INTEL = {
   netWorth: "Net worth",
   privateWorth: "Private: only you see this.",
   lostTo: (name: string, rate: string) => `Lost to ${name} at ${rate}/mi ›`,
-  /** Iuliia's one line on the first visit to Intel (iuliia-lines.md), in the caption strip. */
+  /** Julia's one line on the first visit to Intel (iuliia-lines.md), in the caption strip. */
   iuliia: "Every company in the world, by size and record. Nobody's cash is here, yours included.",
 };
 
@@ -999,7 +999,7 @@ export const DEALER = {
 };
 
 /**
- * Iuliia by tab and card (the writer's iuliia-lines.md): one line per screen at a time, on a first visit in a sitting or
+ * Julia by tab and card (the writer's iuliia-lines.md): one line per screen at a time, on a first visit in a sitting or
  * a named change there; variants rotate. Keys are `screen:trigger`. Finance's and Intel's own lines live with their blocks.
  */
 export const IULIIA_SAY: Record<string, readonly string[]> = {
@@ -1358,7 +1358,7 @@ export const EXPLAIN = (cfg: EconomyConfig): Record<string, Ex> => ({
   "news.claim": { what: "A cargo claim: the receiver's loss, paid by the carrier.", how: "A share of a spoiled load's value, or the deductible for damage.", moves: "Perishables on time; fewer crashes; an open deck in the weather." },
 });
 
-/** Labels for Iuliia's figures where they show on Money (figures.ts). Drafts for the writer. */
+/** Labels for Julia's figures where they show on Money (figures.ts). Drafts for the writer. */
 export const GUIDE_LABEL = {
   cushion: "Cushion",
   cushionValue: (weeks: number | null) => (weeks === null ? "Cushion: no spending yet" : `Cushion: ${weeks.toFixed(1)} weeks of your own spending`),
@@ -1450,7 +1450,7 @@ export const MILESTONE = {
     beforeButton: "What it takes",
     button: "What it takes",
   },
-  /** More › Iuliia (guidance-ux.md section 4): drafts. */
+  /** More › Julia (guidance-ux.md section 4): drafts. */
   timeline: "Your company so far",
   timelineNone: "Nothing yet. The company's firsts land here as they happen.",
   nextOnRoad: "Next on the road:",

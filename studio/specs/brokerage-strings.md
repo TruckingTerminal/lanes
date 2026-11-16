@@ -1,6 +1,6 @@
 # Brokerage strings (writer, draft 1, 2026-11-03; against `brokerage-rule.md` and UX's `brokerage-ux.md` draft 0)
 
-Every string on the brokerage path: the teaser before day 91, forming the brokerage, the company switch, the brokerage's four tabs, posting and the carrier's trail, Jeff's two direct-freight flows (Pass to `{brokerage}`; Tender to `{carrier}`), moving money between the two companies, and Intel's "same owner" line. Iuliia's brokerage lines are in `iuliia-lines.md`. `{key}` is read from `economy.config.ts`, never typed; `{x}` without a key is a value from the world. Sentence case; no string over 20 words. No crime words anywhere: the studio's words for the self-dealing rules stay in the director's brief.
+Every string on the brokerage path: the teaser before day 91, forming the brokerage, the company switch, the brokerage's four tabs, posting and the carrier's trail, Jeff's two direct-freight flows (Pass to `{brokerage}`; Tender to `{carrier}`), moving money between the two companies, and Intel's "same owner" line. Julia's brokerage lines are in `iuliia-lines.md`. `{key}` is read from `economy.config.ts`, never typed; `{x}` without a key is a value from the world. Sentence case; no string over 20 words. No crime words anywhere: the studio's words for the self-dealing rules stay in the director's brief.
 
 **Marked [size]:** waits on the economy's figures or a rule the brief leaves open. The string is drafted; its number or its existence may change.
 

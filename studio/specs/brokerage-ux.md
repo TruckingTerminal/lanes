@@ -22,7 +22,7 @@ only once the player has two companies.
 **Which company is in view, three ways, no legend:** the chip; a 3 px line in the company's colour under the top
 strip; the sheet's state line opening with the company's name ("Red River Logistics · 3 loads posted").
 
-**Shared:** the clock, the map, Iuliia and her progress, Help, Intel, settings, the ≡ menu. **Not shared:** cash,
+**Shared:** the clock, the map, Julia and her progress, Help, Intel, settings, the ≡ menu. **Not shared:** cash,
 ledger, credit, record, Miles, staff.
 
 **The needs dot counts both companies.** Each row in its list starts with the company's icon; a row for the other
@@ -93,7 +93,7 @@ round; yours start at 06:00."
 6. A fold, closed: "Transfers", every capital transfer in or out, private.
 
 ### More
-As the carrier's: Iuliia, Help, Company (this company's books), Intel, teasers.
+As the carrier's: Julia, Help, Company (this company's books), Intel, teasers.
 
 ## 3. Starting the brokerage at day 91
 
@@ -121,7 +121,7 @@ throughout; three steps, the costs and the funding on one (the director's "one s
 3. **Your terms.** Margin, cap on open loads, who may haul. Defaults filled.
 
 **Confirm:** a summary row per step and **Start Red River Logistics**. Live: "Sent · in effect 06:02". Then the app
-switches into the brokerage, the chip appears, Book shows its empty state, and Iuliia says the writer's one line.
+switches into the brokerage, the chip appears, Book shows its empty state, and Julia says the writer's one line.
 
 **Not eligible or short:** the sheet still opens. The blocking reason sits in red where it applies ("Your carrier's
 authority is suspended"; on step 2, "Red River Lines would be 31,000 FD short"), **Next** is disabled with the
@@ -136,7 +136,7 @@ Two rows, two cards, each with its own Miles, size, bands and month. Both carry 
 "Same owner as Red River Lines" as a link (the brief: public). Pinned at the top under "How others see you": both,
 the company in view first. The brokerage's row reads as any broker's: "Dallas · broker · credit C".
 
-## 5. Iuliia
+## 5. Julia
 
 The writer's lines, one each, under the placement rule: the seven-day card's first showing; starting; the first
 switch; the first pass; the first transfer. None on a refusal, a default or a fall-off.

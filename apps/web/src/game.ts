@@ -67,7 +67,7 @@ export const DEFAULT_ORDERS: StandingOrder[] = [
  * floor above break-even. It signs no contract offer: that's the player's own accept, or the rule they switch on. Joins keep DEFAULT_ORDERS: joinCompany is replayed, so its orders are the ruleset's.
  */
 // Client batch 8b item 63 (the director's M): turning the dispatcher on is the setup, bidding and its floor; the further
-// orders (move idle trucks, book between rounds, take contracts) stay off, each offered once by Iuliia at its moment
+// orders (move idle trucks, book between rounds, take contracts) stay off, each offered once by Julia at its moment
 // (ui/OrderOffers.tsx). Contracts stay in the list with acceptOffers false, as before.
 export const FURTHER_ORDERS = new Set<StandingOrder["kind"]>(["reposition", "bookNow"]);
 export const PLAYER_DISPATCHER_ORDERS: StandingOrder[] = DEFAULT_ORDERS.filter((o) => DISPATCHER_ORDERS.has(o.kind) && !FURTHER_ORDERS.has(o.kind)).map((o) =>
@@ -78,7 +78,7 @@ export const PLAYER_DISPATCHER_ORDERS: StandingOrder[] = DEFAULT_ORDERS.filter((
 export function newWorld(seed: number, cfg: EconomyConfig = GAME_CONFIG): World {
   const net = buildNetwork(hubs, cfg);
   // Client batch 8e item 71: one name for one place. A hub's own town is called by the hub's name ("Newark", not "New
-  // York City" for the town the Newark hub sits in), so the truck card, the board and Iuliia agree. Names are only ever
+  // York City" for the town the Newark hub sits in), so the truck card, the board and Julia agree. Names are only ever
   // read for words (no rule reads one), so the world is the same.
   hubs.forEach((h, i) => {
     const p = PLACE_OF_HUB[i];
@@ -103,7 +103,7 @@ export function joinCompany(w: World, key: string, name: string, hub: string, st
     strategy: `player:${key}`,
     human: true,
     // R1: with guard.dispatcherDefaultOn off, a player's company joins with no bid order, so nothing bids before the
-    // player chooses (Iuliia's "Let the dispatcher bid", the idle card, or the switch). Home time stays. Bots keep theirs.
+    // player chooses (Julia's "Let the dispatcher bid", the idle card, or the switch). Home time stays. Bots keep theirs.
     // Its own copy, never the module's objects: a world restored from a checkpoint holds copies of the orders companies
     // joined with before it, so one shared with the module would encode differently from the seed's (checkpoint.ts
     // outsideRefs). The same values, so the same world.

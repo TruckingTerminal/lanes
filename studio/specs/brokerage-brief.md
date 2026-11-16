@@ -35,11 +35,11 @@ Double brokering stays in the engine for the AI's outlaws. For players it belong
 ## What the player sees (assuming the desk)
 
 **1. Before day 91: the teaser** (the bible's rule, `BIBLE.md`, "Teasers stay").
-- It lives in More, under Coming soon. The card holds one line on what brokers do, the opening day as a date, and one Iuliia line.
+- It lives in More, under Coming soon. The card holds one line on what brokers do, the opening day as a date, and one Julia line.
 - Its one working action: **See what brokers earned last month**, which opens Intel's broker rows (`specs/intel.md`).
 - Rename the Logbook's ladder row and Help's roadmap from "Re-brokering" to "Brokerage". In the engine, "re-brokering" is the crime's word.
 
-**2. Day 91.** Iuliia says one line, once, and the card becomes the brokerage screen.
+**2. Day 91.** Julia says one line, once, and the card becomes the brokerage screen.
 - If the player can't afford the stake, the screen still works: it shows what the licence takes and how far away they are. There is no dead tap.
 - For scale: QA's small fleet held 216k on day 98. An owner-operator holds far less, so the licence is a fleet player's step, by design.
 
@@ -65,7 +65,7 @@ Every stage is a feed line in the writer's words. QA's expected line for B4 is t
 **6. The margin.**
 - Per load: the shipper's pay, less the carrier's, less the board fee, less any fall-off charge.
 - Per month: the total, the defaults, the fall-offs, the surety premium and the licence fee.
-- One risk line, in Iuliia's words or the card's: the contract rate trails the spot market by a month, so a boom squeezes a broker and a bust pads one.
+- One risk line, in Julia's words or the card's: the contract rate trails the spot market by a month, so a boom squeezes a broker and a bust pads one.
 
 **7. Money.**
 - Owed to you: each row shows a lane and a "brokered" tag, not a load number (QA B5).
@@ -95,7 +95,7 @@ Every stage is a feed line in the writer's words. QA's expected line for B4 is t
 3. **The book:** brokered loads by stage, one card each with the trail and the margin, and a monthly summary.
 4. **Owed by you, and the bond meter.**
 5. **Standing order or hand work.** The engine runs a broker on a standing order. For "I made a call", the bible's feeling, a player probably needs at least one call per load: take or pass a tender, or re-price a posting that isn't moving before it falls off. UX proposes, the economy prices it, and Jeff decides. It is a rule either way.
-6. **The teaser's working action and Iuliia's two lines** (with the writer, under the placement rule).
+6. **The teaser's working action and Julia's two lines** (with the writer, under the placement rule).
 
 ## Not in this brief
 

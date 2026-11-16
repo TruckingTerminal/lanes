@@ -11,7 +11,7 @@ import { PENDING } from "../copy-pending.js";
 import { firstTruckLine } from "../figures.js";
 import { FirstTruckVerdictBlock } from "./FirstTruckCard.js";
 import { fdFull } from "../format.js";
-import { Iuliia } from "./Walkthrough.js";
+import { Julia } from "./Walkthrough.js";
 
 /**
  * A tab's icon: the painted one from the menu atlases (ui/kit.png for the four phone tabs, ui/icons.png for the rest;
@@ -25,7 +25,7 @@ export function TabIcon({ id, size, lit = false }: { id: Tab; size: 24 | 48; lit
 /** An opened teaser this browser hasn't visited yet: "New" under More. */
 export const isNew = (id: Tab): boolean => !visited(id);
 
-/** More (copy-first-ten-minutes.md, Chrome): Iuliia, Help and Company, the teasers that have opened, then the ones coming. */
+/** More (copy-first-ten-minutes.md, Chrome): Julia, Help and Company, the teasers that have opened, then the ones coming. */
 export function More(): JSX.Element {
   useData();
   const g = S.game!;
@@ -61,7 +61,7 @@ export function More(): JSX.Element {
 }
 
 /**
- * A teaser's card (specs/first-ten-minutes.md, "The teasers"): what it is, when it opens, one line from Iuliia and one
+ * A teaser's card (specs/first-ten-minutes.md, "The teasers"): what it is, when it opens, one line from Julia and one
  * thing that works. Never a dead tap: the Back Lot asks what you'd want there, the others open the road ahead.
  */
 export function TeaserCard({ id }: { id: Tab }): JSX.Element {
@@ -81,7 +81,7 @@ export function TeaserCard({ id }: { id: Tab }): JSX.Element {
       <p class="small">{t.what}</p>
       {id === "market" && g.player ? <DealerPrice /> : null}
       <div class="caption">
-        <Iuliia mood="idle" size={64} />
+        <Julia mood="idle" size={64} />
         <span class="small">{t.iuliia}</span>
       </div>
       <div class="row">

@@ -140,7 +140,7 @@ export const youngMarket = (w: World): boolean => dayOf(w.t, w.cfg) < YOUNG_MARK
 /** Ruling 22: the second sentence under the country line, on the hub list and a hub's page; null from day 42. */
 export const youngMarketLine = (w: World): string | null => (youngMarket(w) ? FIXES.youngMarket(dayOf(w.t, w.cfg)) : null);
 
-/** Ruling 22: Iuliia's line on a loan or lease sheet, under "Weekly payment", once a sheet; null from day 42. */
+/** Ruling 22: Julia's line on a loan or lease sheet, under "Weekly payment", once a sheet; null from day 42. */
 export const youngRatesLine = (w: World): string | null => (youngMarket(w) ? FIXES.iuliiaYoungRates : null);
 
 const timesWord = (x: number): string => (Math.abs(x - 2) < 0.25 ? "twice" : Math.abs(x - 3) < 0.25 ? "three times" : `${x.toFixed(1)} times`);

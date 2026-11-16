@@ -62,7 +62,7 @@ describe("the last pieces", () => {
     expect(answerTab("calm")).toBeNull();
   });
 
-  it("Iuliia's face for a line: concerned for bad news, proud for good, else none", async () => {
+  it("Julia's face for a line: concerned for bad news, proud for good, else none", async () => {
     const { faceFor } = await import("../src/iuliia.js");
     expect(faceFor("result:won")).toBe("proud");
     expect(faceFor("delivered:late")).toBe("concerned");

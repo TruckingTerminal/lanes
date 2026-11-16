@@ -5,7 +5,7 @@ import { S } from "../state.js";
 import { Card } from "./bits.js";
 
 /**
- * "The freight economy" on Intel (econreport.ts): the latest closed month, its title and Iuliia's one line on this
+ * "The freight economy" on Intel (econreport.ts): the latest closed month, its title and Julia's one line on this
  * player's freight, the sections folded under it so the company list stays in reach. A publication: the same for every
  * player, figures first, frozen at the month's close.
  */

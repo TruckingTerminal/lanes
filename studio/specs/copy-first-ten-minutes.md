@@ -28,18 +28,18 @@ Nothing to read: the title loop and one button. Connection states live on the bu
 |---|---|
 | Strip | `{Tue 06:00}` · `{cash}` FD · alert dot, title "Needs you: `{n}`" · ≡ · test build: Paused · 1× · 10× · 30× |
 | Nav | Truck · Loads · Money · More ("Trucks" from the second truck) |
-| More | Iuliia · Help · Company · opened teasers, dot "New" · Coming soon |
-| Teaser row / card | `{name}` · Opens `{trigger}` / what it is · Iuliia's line · Opens `{trigger}` · **Tell us what you'd want here** · The road ahead |
+| More | Julia · Help · Company · opened teasers, dot "New" · Coming soon |
+| Teaser row / card | `{name}` · Opens `{trigger}` / what it is · Julia's line · Opens `{trigger}` · **Tell us what you'd want here** · The road ahead |
 
 ### The teasers
 
-| Teaser | What it is | Iuliia | Opens |
+| Teaser | What it is | Julia | Opens |
 |---|---|---|---|
 | Staff | Drivers and dispatchers: who you hire, what you pay, who stays. | You'll need one at the second truck, or sooner if a seat is empty. | at your second truck, or a truck without a driver |
-| Dealer | New, used and leased rigs, and trailers of your own. | I'll say when it's time to buy. The first one is arithmetic. | when Iuliia says so |
+| Dealer | New, used and leased rigs, and trailers of your own. | I'll say when it's time to buy. The first one is arithmetic. | when Julia says so |
 | Rates | What each hub pays, by trailer, and which way freight runs. | Useful once you've been paid and know what a rate is. | at your first delivery |
 | Logbook | What your Miles become, and when. | It opens with the token, and not before. | at the token's launch |
-| Finance | Getting paid on your own truck: quick pay, load by load, and the factoring contract. | Read it before you buy, not after. The wait for your money starts with your first load. | when Iuliia says it's time to buy, with the Dealer |
+| Finance | Getting paid on your own truck: quick pay, load by load, and the factoring contract. | Read it before you buy, not after. The wait for your money starts with your first load. | when Julia says it's time to buy, with the Dealer |
 | Economy | The market's own books: what comes in, what goes out. | A month in, you'll want it. | at the first monthly report |
 | Business | Yards, shops, truck stops, warehouses. | Nobody needs a warehouse in week one. | on day `{unlockLadder.layers.businesses.afterDays}` |
 | Back Lot | A later beta: player against player. Crews for hire, a gate and cameras for your yard, and a meter for how much attention you draw. | Someone will want your cargo one day; someone else's may tempt you. Lock the gate either way. | with a later beta (Jeff, 2026-11-02: this card may tease the layer) |
@@ -50,8 +50,8 @@ Nothing to read: the title loop and one button. Connection states live on the bu
 |---|---|
 | Strip, before a company | `{Wed Jan 3}` · `{08:14}` · Next round `{hh:00}` · ≡ |
 | Sheet title, before a company | Welcome to LANES (while she gives the intro) · Choose your home hub (from the rings on) |
-| Iuliia, 1 (four beats, one **Next** each; producer, 2026-11-03, on Jeff's notes that the old single line read dry and too direct, then that she wanted dry humor, not a dry personality; writer to review after the reset) | Welcome. I'm Iuliia. I've helped start more carriers than I've had birthdays, and I'm not saying how many of either. · This is America's freight market, live. Every truck out there is real, and not one of them is waiting for us. Rude, but honest. · Find a load, haul it, get paid, keep the truck alive. Then do it again, which is the part nobody puts on the poster. · You start the way most do: one leased truck, a little money, and you driving. Small, but so was every fleet once. First, a home city. |
-| Iuliia, 2 | The rings mark where a new carrier finds freight right now. You may start at any starter city; any city shows its freight. |
+| Julia, 1 (four beats, one **Next** each; producer, 2026-11-03, on Jeff's notes that the old single line read dry and too direct, then that she wanted dry humor, not a dry personality; writer to review after the reset) | Welcome. I'm Julia. I've helped start more carriers than I've had birthdays, and I'm not saying how many of either. · This is America's freight market, live. Every truck out there is real, and not one of them is waiting for us. Rude, but honest. · Find a load, haul it, get paid, keep the truck alive. Then do it again, which is the part nobody puts on the poster. · You start the way most do: one leased truck, a little money, and you driving. Small, but so was every fleet once. First, a home city. |
+| Julia, 2 | The rings mark where a new carrier finds freight right now. You may start at any starter city; any city shows its freight. |
 | Under her line | the three starter cards · **All hubs** (list header: All hubs · busiest first) |
 
 ### The hub card
@@ -102,14 +102,14 @@ Each character line is true to today's hub table; if the economy's figures move,
 
 | Where | String |
 |---|---|
-| Iuliia, naming | `{hub}`. Good. Home is where this company stays. What do we call it? |
+| Julia, naming | `{hub}`. Good. Home is where this company stays. What do we call it? |
 | Field | Company name (default per hub, above; 32 characters) |
 | Test build only | How you start · Owner-operator. The live world's start. / Small fleet. Two used trucks and `{startingGrantFd + 20_000}` FD, to test the fleet game. |
 | Buttons | **Start at `{hub}`** · Back |
 | Live, while the act lands | Opening your authority… |
 | Map not drawn | Finding `{hub}`… |
 | Your sprite | You |
-| Iuliia, arrival | This is `{hub}`, your home. One leased Workhorse, a dry van, and you driving. The lessor keeps `{costs.npcLeaseShareOfGross}` of every load. Let's find one. · **Show me the board** |
+| Julia, arrival | This is `{hub}`, your home. One leased Workhorse, a dry van, and you driving. The lessor keeps `{costs.npcLeaseShareOfGross}` of every load. Let's find one. · **Show me the board** |
 | Ticker, before the first bid | The first load is your call. Bids clear at `{r1}` and `{r2}`. |
 | Ticker, after the first bid, nothing new (kept) | Your dispatcher is watching the board. Bids clear at `{r1}` and `{r2}`. · if the switch is off: Your dispatcher is off. Bids clear at `{r1}` and `{r2}`. |
 
@@ -201,8 +201,8 @@ Each character line is true to today's hub table; if the economy's figures move,
 
 | Where | String |
 |---|---|
-| Before the first bid (one-truck company) | switch Bid for me while I'm away, off and disabled · Iuliia: Your first load is your call. After that, your dispatcher can bid while you're away. |
-| Iuliia, after the first bid | From now on your dispatcher bids when you don't. Check the rules before you go. · **See the dispatcher** |
+| Before the first bid (one-truck company) | switch Bid for me while I'm away, off and disabled · Julia: Your first load is your call. After that, your dispatcher can bid while you're away. |
+| Julia, after the first bid | From now on your dispatcher bids when you don't. Check the rules before you go. · **See the dispatcher** |
 | Card | Your dispatcher · switch: Bid for me while I'm away (on) · Bid at break-even plus `[ ]` % · Send the truck empty up to `[ ]` mi · Bring me home after `[ ]` days · **Save** · More rules |
 | More rules | Never below break-even plus `[ ]` % · Book loads between rounds at break-even plus `[ ]` % · Move idle trucks to busier hubs after `[ ]` idle rounds · Contracts: today's row, unchanged |
 | Ceiling mode row (replaces "Bid at this share of the posted ceiling") | Bid at `[ ]` % of the ceiling |
@@ -214,7 +214,7 @@ Each character line is true to today's hub table; if the economy's figures move,
 |---|---|
 | Your first week, Day 1 (kept, one word changed) | Day 1: pick a home city, open Loads, choose a load near your truck, and bid or book it. Bids clear at `{r1}` and `{r2}` game time. |
 | Your first week, Every day (kept) | Every day: after your first load by hand, your dispatcher bids for idle trucks you don't bid on yourself. Set its rules on the Truck tab. |
-| The screen, the tabs (kept) | Truck (your trucks and the dispatcher), Loads (the board), Money (cash, what's owed, this week's costs, loans), and More: Iuliia, this Help, Company (your record, the leaderboard), and the tabs still to come, each opening when it's useful. |
+| The screen, the tabs (kept) | Truck (your trucks and the dispatcher), Loads (the board), Money (cash, what's owed, this week's costs, loans), and More: Julia, this Help, Company (your record, the leaderboard), and the tabs still to come, each opening when it's useful. |
 | The screen, Today (kept) | Today on the Truck tab (and the ticker along the bottom on a laptop) lists what just happened to your company: loads won and delivered, breakdowns, inspections, staff news. |
 | Tell us what you think (kept) | "Report a bug or an idea", under ≡ at the top of the screen, sends it straight to us… (rest unchanged) |
 | The market, the board (guide/market.ts, the paragraph with "Everything else is a counter") | Every load shows a **book-now** price: take it and it's yours at once (Book-now prices). Or **bid** more than the posted price and wait: bids clear in rounds at `{r1}` and `{r2}`. Each load has a **ceiling**, the most its poster will pay per mile; nobody sees anyone else's bid. |
@@ -222,9 +222,9 @@ Each character line is true to today's hub table; if the economy's figures move,
 | Book-now prices (the "Want more? Counter above it" paragraph) | Every load shows a **book-now** price: what the poster is offering right now. Take it and the load is yours at once, no round to wait for. Want more? Bid above it and wait for the round: the poster takes the best bid within its ceiling or, if none is within it, the cheapest above (The load board). Anyone who'd take the posted price just books. |
 | Contracts, a tender (the "even counter for it at spot" sentence) | …or leave it: it goes to the spot board, where you can still bid for it at spot. |
 
-## Iuliia
+## Julia
 
-Say lines are 25 words or fewer; the sheet shows **Say**, the caption **Do**. The full paragraphs of `walkthrough.ts` stay on the Iuliia tab with these edits: "Davai" → "Go on"; "the Fleet tab" → "the Truck tab";  "the Company tab", "the Dealer tab", "the Staff tab", "the Business tab" → "Company / Dealer / Staff / Business, under More"; step 13's "the Logbook tab and at the top beside your cash" → "Money, under Standing". Step 1's full text keeps both old paragraphs, with "The Fleet tab is your truck; the map is everyone's trucks. Find your home hub on it." → "The map is everyone's trucks; the ringed cities are good homes." Step 1 ticks on **Start at `{hub}`**. Step 4's full text is replaced, both paragraphs:
+Say lines are 25 words or fewer; the sheet shows **Say**, the caption **Do**. The full paragraphs of `walkthrough.ts` stay on the Julia tab with these edits: "Davai" → "Go on"; "the Fleet tab" → "the Truck tab";  "the Company tab", "the Dealer tab", "the Staff tab", "the Business tab" → "Company / Dealer / Staff / Business, under More"; step 13's "the Logbook tab and at the top beside your cash" → "Money, under Standing". Step 1's full text keeps both old paragraphs, with "The Fleet tab is your truck; the map is everyone's trucks. Find your home hub on it." → "The map is everyone's trucks; the ringed cities are good homes." Step 1 ticks on **Start at `{hub}`**. Step 4's full text is replaced, both paragraphs:
 
 > Delivered, and paid the same day. That's the lease: the lessor holds the paper and pays you on delivery, less its share. When you haul with a truck of your own, you'll invoice the shipper yourself, and shippers pay net-30: thirty game days after the work. Quick pay brings that forward for `{token.payment.quickPayPct}`; an instrument for emergencies, not a policy. Companies that live on quick pay receive a goodbye note from me. Handwritten. Fountain pen.
 >

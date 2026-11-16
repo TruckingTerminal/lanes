@@ -7,7 +7,7 @@ import { Bar, Btn } from "./bits.js";
 /**
  * The first-truck verdict as one block (client batch 8a item 57, the director's ruling A): its name, the one verdict, the
  * figures folded under "Why", and "See it", which opens the Dealer on the truck's row. The Dealer's card, its teaser and
- * Iuliia's page all show it, so each says the same.
+ * Julia's page all show it, so each says the same.
  */
 export function FirstTruckVerdictBlock({ f, here = false }: { f: FirstTruckVerdict; here?: boolean }): JSX.Element {
   if (f.ordered) return <p class="small"><b>{`${f.figure}.`}</b></p>;

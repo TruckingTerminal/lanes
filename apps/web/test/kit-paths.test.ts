@@ -4,7 +4,7 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
 /**
- * Batch M3 (the producer: Iuliia's two new faces never loaded). Every path ui/kit.json names must be a file the build
+ * Batch M3 (the producer: Julia's two new faces never loaded). Every path ui/kit.json names must be a file the build
  * copies next to the page and lists in its manifest, or the page reads it as absent and falls back without a word.
  * build.mjs copies only the files directly inside each assets folder its RULES name, each kept by that folder's rule,
  * and mapart.ts reads a path as "folder/file": a nested path can never ship. This reads build.mjs's own RULES line, so

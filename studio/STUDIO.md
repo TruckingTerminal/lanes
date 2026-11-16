@@ -12,7 +12,7 @@ Jeff directly, and no role ships anything on its own.
 | Game director | `BIBLE.md`: the pitch, the pillars, the core loop, the first ten minutes, the cut list | briefs, approvals, the no |
 | UX designer | screens and flows, specified before code, phone first | `specs/*.md` with wireframes in words |
 | Art director | the look: palette, pixel art, animation, the title (the "Lanes Graphics" session) | assets on main, style notes |
-| Writer | one voice: Iuliia, the guide, every string | `specs/copy-*.md`, reviewed strings |
+| Writer | one voice: Julia, the guide, every string | `specs/copy-*.md`, reviewed strings |
 | Economy designer | the simulator, the batches, the token's rules (`TOKENOMICS.md`) | batch findings, rule proposals |
 | QA playtester | plays every build as a person would, on a phone and a laptop | `playtests/*.md`: friction, bugs, confusion |
 | Engineering | builds from approved specs, tests, no scope of its own | commits through the producer |
@@ -33,6 +33,6 @@ Jeff directly, and no role ships anything on its own.
 - Nothing goes live without Jeff: the live world, its page and its store are the producer's alone.
 - Write your deliverable to your own file under `studio/` and tell the producer. Don't commit, don't touch
   another role's file, never `git add -A`. The producer commits.
-- Fraud and crime stay out of the player guide. Russian flavour is Iuliia's, by bearing, never a costume.
+- Fraud and crime stay out of the player guide. Russian flavour is Julia's, by bearing, never a costume.
 - The PixelLab token stays out of chat and git.
 - Say what's wrong plainly. A review that only agrees is a review that failed.

@@ -1,6 +1,6 @@
 /**
  * The accent stage (studio/specs/menu-system.md §4, rule 3): one accent at a time per screen. Accents queue here and
- * play one after another, the highest priority first: a pay landing, a bid's result stamp, Iuliia's new line, a tier
+ * play one after another, the highest priority first: a pay landing, a bid's result stamp, Julia's new line, a tier
  * or stage reached, a stamp on the player's own act, a gleam. One waiting more than 3 s is dropped, except a pay
  * landing, which always plays (its toast carries the news either way). Ambient loops are not accents.
  *

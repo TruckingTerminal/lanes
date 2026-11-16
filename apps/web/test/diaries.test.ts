@@ -64,7 +64,7 @@ describe("the Dealer opens when the first truck is affordable (diaries item 2)",
       expect(firstTruckOpen(w, c, steps.slice(0, own).map((s) => s.id))).toBe(true);
       // As the skip marks read from the browser's record (walkthrough.ts skippedSteps).
       expect(stepKey(w, c, "skip:law")).toContain("|skip:law");
-      // Cash enough for the truck, the step untouched: open, and Iuliia's "you can afford it now" with it.
+      // Cash enough for the truck, the step untouched: open, and Julia's "you can afford it now" with it.
       const bal = w.ledger.balance(companyAccount(c.id));
       w.ledger.post(w.t, "faucet:test", companyAccount(c.id), 400_000, "test");
       w.t += 1; // a new minute for the memo

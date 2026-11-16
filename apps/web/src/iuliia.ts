@@ -3,13 +3,19 @@ import { GAME_CONFIG } from "./game.js";
 import { bumpData, S, setSaidHook } from "./state.js";
 
 /**
- * Iuliia by tab and card (the writer's iuliia-lines.md): one line per screen at a time, on a first visit in a sitting or a
+ * Julia by tab and card (the writer's iuliia-lines.md): one line per screen at a time, on a first visit in a sitting or a
  * named change there. She speaks in the caption strip for `ui.iuliia.showSeconds`, then the walkthrough's Do line returns;
  * never two lines within `ui.iuliia.quietSeconds` (real time); variants rotate, each used once before any repeats; the
- * walkthrough's own line comes first (the caption shows hers only when it's free). "Quiet" on the Iuliia tab mutes these,
+ * walkthrough's own line comes first (the caption shows hers only when it's free). "Quiet" on the Julia tab mutes these,
  * per browser; the walkthrough's lines stay. Silence on bad news is the callers' part: nothing calls her on an error.
  */
 
+/*
+ * Her code id is still `iuliia`, her name until 2026-11-16, when Jeff renamed her Julia: this file, the `iuliia*` names,
+ * the "iuliia" tab id, `ui.iuliia` in the config, her art's files and kit.json entries, and the browser keys below.
+ * Keeping them means no saved setting resets and the art bank's packer still matches. Players only ever read "Julia";
+ * test/julia-name.test.ts keeps the old name out of every string and comment.
+ */
 const QUIET_KEY = "lanes.iuliia.quiet";
 const TURN_KEY = "lanes.iuliia.turns";
 const store = {

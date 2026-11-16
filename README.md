@@ -535,7 +535,7 @@ world restarted on it (world/meta version 19).
 
 **Beta one (2026-11-01, ruleset 0.19.1).** The trucking sim opened in layers: the ladder runs from the world's
 first day (businesses and facilities on day 28, re-brokering on day 91), crews are off until the Back Lot leaves the
-simulator, and the page carries Iuliia's walkthrough, the locked teaser tabs, the Guide's road ahead and the Report
+simulator, and the page carries Julia's walkthrough, the locked teaser tabs, the Guide's road ahead and the Report
 button. TOKENOMICS.md "Beta one".
 
 **The package (2026-11-01, ruleset 0.19.0).** Jeff's "Go". Every switch of the combined test and the overnight

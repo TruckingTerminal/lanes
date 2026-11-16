@@ -9,7 +9,7 @@ import { hubFacts, YOUNG_MARKET_DAYS, youngMarketLine, youngRatesLine } from "..
 
 /**
  * The director's ruling 22 (director-sprint-2026-11-15.md §22): a young market says so, by the world's age only: under the
- * country line on the hub list and a hub's page, and Iuliia's line on the loan and lease sheets under "Weekly payment".
+ * country line on the hub list and a hub's page, and Julia's line on the loan and lease sheets under "Weekly payment".
  */
 const src = (...p: string[]) => readFileSync(join(__dirname, "..", "src", ...p), "utf8");
 

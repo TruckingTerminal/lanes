@@ -202,7 +202,7 @@ function StartBrokerage(): JSX.Element {
       {step <= 3 ? <p class="label">{BROKERAGE.stepCounter(step)}</p> : null}
       {blocked ? <p class="bad small">{startRefusal(w, blocked)}</p> : null}
       {/* The director's players-first ruling (brokerRisk.entry.playersFirst): §2, the brokers' market as the AI entrants
-          read it, and Iuliia's line under it; §3, what a brokerage takes while the carrier can't yet afford one. */}
+          read it, and Julia's line under it; §3, what a brokerage takes while the carrier can't yet afford one. */}
       {brokerMarketLine(w) ? <p class="small">{brokerMarketLine(w)}</p> : null}
       {brokerMarketIuliia(w) ? <p class="muted small">{brokerMarketIuliia(w)}</p> : null}
       {brokeragePathLine(w, carrier) ? <p class="small">{brokeragePathLine(w, carrier)}</p> : null}

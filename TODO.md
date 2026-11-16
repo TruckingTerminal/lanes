@@ -388,7 +388,7 @@ and off. What the batches settled, and what waits on Jeff:
   client's Logbook tab, the bridge and auction on Money, the used lot and the dollar window in the showroom.
 
 ## The beta's first hour (Jeff, 2026-11-01, afternoon: "let's create a guide, a tutorial")
-- **Built (client only, 2026-11-01):** Iuliia's walkthrough (`apps/web/src/walkthrough.ts`, `ui/Walkthrough.tsx`): thirteen
+- **Built (client only, 2026-11-01):** Julia's walkthrough (`apps/web/src/walkthrough.ts`, `ui/Walkthrough.tsx`): thirteen
   steps from the leased rig to a fleet, each done when the company's own state says so (nothing saved), her lines,
   where to click and why, read-ahead, hidden per browser; her portrait and loops requested from the Graphics session
   (`assets/people/iuliia*.png`, idle / wave / point / laugh; a placeholder until they land). Locked teaser tabs (the

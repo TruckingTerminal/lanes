@@ -382,7 +382,7 @@ export function brokerageClosing(w: World, c: Company): { load: Load; fallOffFd:
 }
 
 /**
- * Iuliia's line on the first claim paid (§7): the cause in figures, never a scold. From the claim's ledger ref
+ * Julia's line on the first claim paid (§7): the cause in figures, never a scold. From the claim's ledger ref
  * (windows.ts claimOn: claim:{kind}:{load id}) and the load as the engine kept it.
  */
 export function claimCause(w: World, ref: string, fd: number): string | null {

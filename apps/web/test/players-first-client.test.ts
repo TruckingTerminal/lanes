@@ -31,7 +31,7 @@ function reading(w: World, flowRatio: number, margin: number, pending: number[])
 }
 
 describe("players first on the page", () => {
-  it("§2: the brokerage screen's line over the lines and under them, Iuliia's under it; off, none", async () => {
+  it("§2: the brokerage screen's line over the lines and under them, Julia's under it; off, none", async () => {
     const g = await TestGame.create(undefined, undefined, 41, on({ signal: true }));
     const w = g.w;
     expect(brokerMarketLine(w)).toBeNull(); // no reading yet

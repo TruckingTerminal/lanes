@@ -2372,7 +2372,7 @@ export const economyConfig = {
   },
 
   // The hub card's season line (studio/reviews/economy-first-board.md): this block only feeds the hub card, never the sim.
-  // Guidance (specs/guidance.md, the writer's guidance-strings.md): Iuliia's figures and milestones read these, and so do
+  // Guidance (specs/guidance.md, the writer's guidance-strings.md): Julia's figures and milestones read these, and so do
   // her sentences, so the two can't drift apart. Screens and the guide bot only: no rule reads them.
   guide: {
     gapCushionWeeks: 4, // the gap to the next truck holds back this many weeks of the company's own spending
@@ -2388,7 +2388,7 @@ export const economyConfig = {
   // A hub reads its open dry-van loads whose ceiling clears a starter's break-even by `margin`, per round of its base van freight.
   ui: {
     season: { margin: 0.25, thinUnder: 0.15, fineFrom: 1.5, busyFrom: 4.5 },
-    // Iuliia by tab and card (the writer's iuliia-lines.md): never two of her lines within this many real seconds, and each
+    // Julia by tab and card (the writer's iuliia-lines.md): never two of her lines within this many real seconds, and each
     // shows this long before the walkthrough's Do line returns. Screens only: no rule reads it.
     // captionMinutes: a caption retires after this many real minutes (the producer's ask, R2's replay). Screens only.
     iuliia: { quietSeconds: 60, showSeconds: 6, captionMinutes: 5 },

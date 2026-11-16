@@ -106,7 +106,7 @@ Replaces the feed line that names "the Cass dial" and its number (`main.tsx:494`
 | Company, home market (`Company.tsx:242`) | Local edge · +`{x}` bid-score points on loads within `{mi}` mi of home | Local edge · your bids rank higher on loads within `{mi}` mi of home (explain key `company.localEdge` for the figure) |
 | Load card, vetting chip | Vetting open | Open vetting: any carrier |
 | On time, before any delivery | On time — | On time: no deliveries yet |
-| Iuliia, a ringed hub card (`copy.ts:567`) | A good place to start this month. Read the costs before the character. | A good place to start this month. Read what it costs to live here, too. |
+| Julia, a ringed hub card (`copy.ts:567`) | A good place to start this month. Read the costs before the character. | A good place to start this month. Read what it costs to live here, too. |
 
 ## Rows 27, 28 and 30
 

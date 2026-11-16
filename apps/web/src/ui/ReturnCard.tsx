@@ -7,7 +7,7 @@ import { PENDING } from "../copy-pending.js";
 import { drivingLeftMin, etaMin } from "../rolling.js";
 import { bumpData, S, setTab, truckNo } from "../state.js";
 import { Btn } from "./bits.js";
-import { Iuliia } from "./Walkthrough.js";
+import { Julia } from "./Walkthrough.js";
 import { WhatNowChip, whatNowWords } from "./WhatNow.js";
 import { hasMonthReport, openMonthReport } from "./MonthReport.js";
 import { awayIsHere } from "../returncard.js";
@@ -18,7 +18,7 @@ import { TierBadge } from "./Standing.js";
 
 /**
  * The return card (the director's R21, player5-ux.md section 2; the writer's copy-player5.md): after a long absence,
- * Iuliia's caption on the Truck tab says where the trucks are, what they're doing and why, what happened while the player
+ * Julia's caption on the Truck tab says where the trucks are, what they're doing and why, what happened while the player
  * was away, a month that closed, and What now?'s top action. It goes when that action runs, on OK, or when the player
  * leaves the Truck tab (R10's rule for a line with a button); never on a timer.
  */
@@ -100,14 +100,14 @@ export function ReturnCard(): JSX.Element | null {
     queueMicrotask(close);
     return null;
   }
-  // It stays in More › Iuliia's timeline as "Back {date}", where a tap reopens it as it was.
+  // It stays in More › Julia's timeline as "Back {date}", where a tap reopens it as it was.
   S.lastReturn = away;
   const trucks = (w.trucksByCompany.get(c.id) ?? []).filter((t) => t.status !== "retired");
   const ranked = rankedTrucks(trucks);
   const day = Math.floor(away.backT / w.cfg.time.gameMinutesPerDay);
   const lines: { text: string; go?: () => void; button?: string; badge?: { tier: number; band: "approved" | "preferred" | "core" } }[] = [{ text: RETURN.helloAt(`${weekdayDate(day)}, ${hhmm(away.backT)}`) }];
   // Client batch 8b item 60 (the director's E): the time away, then what went wrong, the money, on time; the next step is
-  // What now?'s, below. Iuliia's line from the worst item, else the best, never the same twice running.
+  // What now?'s, below. Julia's line from the worst item, else the best, never the same twice running.
   const e = away.e;
   if (e) {
     lines.push({ text: PENDING.awayFor(Math.floor(e.awayMin / 1440), Math.floor((e.awayMin % 1440) / 60)) });
@@ -154,7 +154,7 @@ export function ReturnCard(): JSX.Element | null {
   return (
     <div class="caption iuliia returncard">
       <span class="small stripline">{stripLine(w, c, ranked[0])}</span>
-      <Iuliia mood="wave" size={96} />
+      <Julia mood="wave" size={96} />
       <div class="stack full">
         {e ? <i class="small">{awayLine(away)}</i> : null}
         {lines.map((l, i) => (
@@ -196,7 +196,7 @@ export function ReturnCard(): JSX.Element | null {
 }
 
 /**
- * Iuliia's line for a return (the director's E): from the interval's worst item, else its best; never the line she said
+ * Julia's line for a return (the director's E): from the interval's worst item, else its best; never the line she said
  * last time (kept in this browser), so the next kind down speaks instead.
  */
 const AWAY_LINE_KEY = "lanes.awayLine";
@@ -234,7 +234,7 @@ function awayLine(a: NonNullable<typeof S.returnCard>): string {
   return line;
 }
 
-/** More › Iuliia's timeline: the last return's card, reopened as it was (the UX spec). */
+/** More › Julia's timeline: the last return's card, reopened as it was (the UX spec). */
 export function reopenReturn(): void {
   const g = S.game;
   if (!S.lastReturn || !g?.player || !awayIsHere(S.lastReturn, g.w, g.player)) return;

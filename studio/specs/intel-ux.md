@@ -9,7 +9,7 @@ can be derived** (no cash, net worth, FD balance, stake amount, loan or debt).
 
 1. **Where it lives: More › Intel.** Agreed. Intel is visited, not lived in; its traffic comes through the
    entry points below, every one of which lands on a filtered list or a single card, never on the full list
-   cold. More's order becomes: Iuliia, Help, Company, **Intel**, then the opened teasers. If QA's replay finds a
+   cold. More's order becomes: Julia, Help, Company, **Intel**, then the opened teasers. If QA's replay finds a
    player opening it daily from More, I'll come back with a case; a fifth target stays off the table.
 2. **List, not table, on a phone, and on the laptop too.** A two-line row holds the four fields at 375 px
    without hub codes: codes are what the first look found strangers can't read. One component for both layouts.
@@ -97,7 +97,7 @@ Then one link: "Your full books ›" to More › Company, where the player's own
 one row: "Every company, by Miles ›" opening Intel. The player's own net worth stays on their own Company card,
 labelled "Private: only you see this".
 
-## Iuliia
+## Julia
 
 One line on the first visit to Intel, the writer's (sprint rule: one line, never over a number). None on a card.
 

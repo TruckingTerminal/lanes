@@ -60,7 +60,7 @@ const assetsOut = join(here, "dist", site ? "site" : ".", "assets");
 rmSync(assetsOut, { recursive: true, force: true });
 let copied = 0;
 // The map layers and the sprites ride outside the page whole; the scenes, people and the loading
-// strip keep their stills inside it and only their loops outside. Iuliia's stills and the welcome strip
+// strip keep their stills inside it and only their loops outside. Julia's stills and the welcome strip
 // ride outside too: the walkthrough finds them through the manifest (Walkthrough.tsx, hasAsset); so do the
 // title's head-on shot, its painting and the truck's sizes (title.ts).
 // The menu system (studio/specs/menu-system.md §5.2): the kit and fx atlases (ui/) and the windows (windows/) ride

@@ -12,16 +12,16 @@ const PENDING_WHEN_IDLE = (truck: number): string => `once truck ${truck} is idl
 
 export const PENDING = withGrammar({
   // tabs.ts: the Dealer's and Finance's teaser card, after "Opens " (the director, 2026-11-09: they open the moment the
-  // first truck is affordable, whatever the walkthrough's step; firstTruckOpen also opens them at Iuliia's first-truck
+  // first truck is affordable, whatever the walkthrough's step; firstTruckOpen also opens them at Julia's first-truck
   // step and with the businesses layer).
-  dealerOpens: "the moment you can afford your first truck, or when Iuliia brings it up",
+  dealerOpens: "the moment you can afford your first truck, or when Julia brings it up",
   financeOpens: "with the Dealer",
   // ui/More.tsx TeaserCard (the Dealer, before it opens): the price of the goal, never a dead tap. figures.ts gapToTruck:
   // the cheapest route's cash on the day on a purchase loan (down payment, stake, tax, less the lease deposit). The
   // teaser then shows firstTruckToGo under it. (Client pass 2: the cushion left the figure; it is firstTruckCushion now.)
   dealerPrice: (needFd: string) => `Your first truck takes about ${needFd} FD in cash when you sign, with a loan for the rest.`,
   dealerPriceNone: "No truck is for sale anywhere right now.",
-  // The one first-truck figure (the director, 2026-11-09; figures.ts firstTruckLine): on the Dealer's teaser, Iuliia's
+  // The one first-truck figure (the director, 2026-11-09; figures.ts firstTruckLine): on the Dealer's teaser, Julia's
   // page ("Next on the road") and the Dealer's own card. The cheapest truck's cash on the day, less the player's cash.
   firstTruckToGo: (fd: string) => `To your first truck: ${fd} FD`,
   // Once met; the Dealer opens on the same figure. Client batch 6b (the director): only for a truck that delivers today.
@@ -37,14 +37,14 @@ export const PENDING = withGrammar({
   // Client batch 7: `hauls` names the company's freight when the sooner truck's trailer isn't it (as pricesLeastCash does),
   // and `date` can be whenIdle for a listing while the leased truck is on a run.
   soonerTruck: (trailer: string, fd: string, date: string | null, hauls: string | null = null) => `Or a truck with a ${trailer}${hauls ? ` (your company hauls ${hauls})` : ""}, ready ${date ?? "today"}: ${fd === "0" ? "your hold already covers it" : `${fd} FD in cash`}.`,
-  // Iuliia's page, under the figure, while the priced truck comes from the queue: what waiting keeps paying the lessor.
+  // Julia's page, under the figure, while the priced truck comes from the queue: what waiting keeps paying the lessor.
   // figures.ts waitCostFd: the lease's share of gross × the company's weekly gross lately (last month's revenue over its
   // weeks, else revenue so far over the weeks since it started) × the share of its fleet on the lease × days / 7, to 10 FD.
   // Client batch 7 (QA: "lately" read a month the truck sat idle): `basis` is figures.ts weeklyGross's, the basis that covers
   // more weeks: "start" (the company's gross since it started; nearly always) or "month" (last month's).
   waitCost: (date: string, share: string, days: number, fd: string, basis: "month" | "start" = "start") => `Waiting to ${date} keeps you paying the lessor ${share} of gross for ${days} ${days === 1 ? "day" : "days"}: about ${fd} FD at your average week ${basis === "month" ? "last month" : "since you started"}.`,
   // Once a truck is ordered to replace the lease (figures.ts orderedFirstTruck): the Dealer's card, the teaser and
-  // Iuliia's page say the wait in place of the figure; What now? says it too (whatNowOrdered).
+  // Julia's page say the wait in place of the figure; What now? says it too (whatNowOrdered).
   // The writer: "ready", not "arrives": the date is the earliest, and the hand-over waits for a day's close with the
   // leased truck idle (deliverOrders at endOfDay), so no line promises the day itself.
   truckOrdered: (date: string, days: number) => `Your truck is ready ${date}, in ${days} ${days === 1 ? "day" : "days"}; until then the leased one runs`,
@@ -57,7 +57,7 @@ export const PENDING = withGrammar({
   whatNowOrderedAction: (days: number, date: string | null = null, n = 1, swap = false) =>
     days > 0 ? `Your truck is ready in ${days} ${days === 1 ? "day" : "days"}; until then the leased one runs.` : `${date === null ? "Your truck is ready today" : `Your truck has been ready since ${date}`}; it's ${(swap ? `handed over when leased truck ${n} next stands idle` : `handed over at the first day's end with leased truck ${n} idle`)}.`,
   whatNowOrderedReason: (swap = false) => `The leased truck earns until it goes back, so keep it booked. ${swap ? "The swap comes the moment it's next idle." : "The swap comes at a day's end when it's idle."}`,
-  // Iuliia's advice under it, never part of it: guide.gapCushionWeeks of the company's own spending, rounded. Shown once a
+  // Julia's advice under it, never part of it: guide.gapCushionWeeks of the company's own spending, rounded. Shown once a
   // week of spending is known.
   firstTruckCushion: (fd: string) => `I'd keep about ${fd} FD back for fuel and repairs before you sign.`,
 
@@ -130,7 +130,7 @@ export const PENDING = withGrammar({
   // `fd` the bid's gross less Book now's, `hh` the round it clears at, `rate` Book now's per mile. Keep "A gamble" and the
   // order: what it pays, then what beats it. No odds: the engine computes none from real clears.
   bidGamble: (fd: string, hh: string, rate: string) => `A gamble: pays ${fd} FD more than Book now, before shares and fees, if it wins at ${hh}. Until then anyone can book it at ${rate}/mi, and at ${hh} a lower bid, a nearer truck or a better record can beat yours.`,
-  // Iuliia's line when nothing above Book now is worth betting on (the usual-clears figure at or under Book now, or under
+  // Julia's line when nothing above Book now is worth betting on (the usual-clears figure at or under Book now, or under
   // break-even): no suggested bid, an empty field. Also the laptop table's "Profit at your bid" then.
   bidBookBetter: "I wouldn't bid on this one: loads like it usually clear at or under Book now, or under your break-even.",
   // The laptop table's Bid pressed with the field empty.
@@ -145,7 +145,7 @@ export const PENDING = withGrammar({
   idleBookAction: (origin: string, dest: string) => `Book ${origin} to ${dest}.`,
   // What now? rule 5 after the first truck (NOW.gapAction says "your own truck").
   gapActionNext: "Keep hauling toward your next truck.",
-  // The figure's one name before the first truck: the label of its explanation and of Iuliia's figure (GUIDE_LABEL.gap
+  // The figure's one name before the first truck: the label of its explanation and of Julia's figure (GUIDE_LABEL.gap
   // and the explanation's total, "Gap to the next truck", stay for a company that owns one).
   firstTruckName: "To your first truck",
   // gapNotes' change note, with its reference point: since the player last opened the figure's explanation.
@@ -175,11 +175,11 @@ export const PENDING = withGrammar({
   // reefer, 480k miles, 48% condition; your company hauls dry van." Null when it matches.
   pricesLeastCash: (truck: string, arrives: string | null, hauls: string | null = null) => `That's for the truck that takes the least cash today: ${truck}${arrives ? `, ready ${arrives}` : ""}${hauls ? `; your company hauls ${hauls}` : ""}.`,
   pricesCovered: (truck: string, arrives: string | null, hauls: string | null = null) => `That's for the cheapest truck your hold already covers: ${truck}${arrives ? `, ready ${arrives}` : ""}${hauls ? `; your company hauls ${hauls}` : ""}.`,
-  // Iuliia's catch on a used truck under 60% condition (figures.ts WORN_BELOW): its repairs by the engine's own wear figures
+  // Julia's catch on a used truck under 60% condition (figures.ts WORN_BELOW): its repairs by the engine's own wear figures
   // (wear.ts: breakdowns at the average repair bill, and maintenance per mile, worn as it is). Per `per` miles, not a month:
   // the engine keeps no month's miles (the economy's figure, if wanted).
   // Client batch 6 (QA: it restated the miles and condition the Dealer's card had just given). Client batch 7 (QA: on
-  // Iuliia's page it follows "You can buy today", with no truck named): it stands alone, naming the truck and its
+  // Julia's page it follows "You can buy today", with no truck named): it stands alone, naming the truck and its
   // condition only; `kmi` is kept for the signature and unused.
   wornCatch: (kmi: string, cond: string, fd: string, per: string) => `The truck I've priced for your first is worn, at ${cond} condition: expect about ${fd} FD in breakdowns and upkeep every ${per} miles, and more as it wears. I'd wait for a sounder one.`,
   // Home time queued (Fleet.tsx): the engine sends a home-due truck home on a load headed that way, or empty once it's
@@ -218,7 +218,7 @@ export const PENDING = withGrammar({
   countryRatesUp: (pct: string) => `Across the country, rates over the last week are up ${pct} on the four weeks before.`,
   countryRatesDown: (pct: string) => `Across the country, rates over the last week are down ${pct} on the four weeks before.`,
   // Client batch 6 (QA: "most need a second truck… Your gap to the next truck is 0 FD" to a company that owns none, beside
-  // the card's "You can buy today"). Iuliia's day-28 line, before any truck is owned (ui/Milestones.tsx); copy.ts
+  // the card's "You can buy today"). Julia's day-28 line, before any truck is owned (ui/Milestones.tsx); copy.ts
   // MILESTONE.day28.at and .reason stay for a company that owns one.
   day28AtFirst: "Businesses are open. Nobody needs a warehouse in week four, and you need a truck of your own first.",
   // `figure` is firstTruckLine's: "To your first truck: N FD" or "You can buy today"; null with no truck for sale anywhere.
@@ -258,7 +258,7 @@ export const PENDING = withGrammar({
   // Client batch 7 (QA: "Your own truck" was logged when the truck was ordered, three months before it ran). The milestone
   // log's entry for the order (milestones.ts "truckOrdered"), on its day; "Your own truck" now dates the hand-over.
   msOrderedName: "Truck ordered",
-  // Its line while the truck waits at the dealer (Iuliia's caption on the order day, and the log), and once it's run.
+  // Its line while the truck waits at the dealer (Julia's caption on the order day, and the log), and once it's run.
   msOrderedAt: (date: string, n = 1, past = false, swap = false) =>
     past ? `Your first truck has been ready since ${date}. It's ${(swap ? `handed over when leased truck ${n} next stands idle` : `handed over at the first day's end with leased truck ${n} idle`)}; until then that one keeps running.` : `Your first truck is ordered, ready ${date}. Until it's handed over, the leased one keeps running.`,
   msOrderedDone: (swap = false) => (swap ? "Your first truck, ordered this day. It was handed over later, the moment the leased one stood idle." : "Your first truck, ordered this day. It was handed over later, at a day's end with the leased one idle."),
@@ -344,7 +344,7 @@ export const PENDING = withGrammar({
   heldFull: (fd: string) => `Full: the lease holds no more than ${fd} FD, so nothing more is held back from your loads. The ${fd} FD counts toward your own truck when you buy one.`,
   // Client batch 8b item 60 (the director's E): "while you were away", after a game day or more, in her order: the time
   // away; what went wrong (claims, late deliveries, empty miles, breakdowns, trucks the lender took, a missed payment,
-  // fines); the money (delivered, paid, kept, cash then and now); on time; one next step (What now?, as before). Iuliia's
+  // fines); the money (delivered, paid, kept, cash then and now); on time; one next step (What now?, as before). Julia's
   // line is drawn from the interval's worst item, else its best, never the same line twice running (awayLines).
   awayFor: (days: number, hours: number) => `You were away ${days > 0 ? `${days} ${days === 1 ? "day" : "days"}` : ""}${days > 0 && hours > 0 ? " and " : ""}${hours > 0 || days === 0 ? `${hours} ${hours === 1 ? "hour" : "hours"}` : ""} of game time.`,
   awayWrong: (items: string) => `What went wrong: ${items}.`,
@@ -370,7 +370,7 @@ export const PENDING = withGrammar({
     delivered: ["The trucks worked; the invoices are the proof."],
     quiet: ["Quiet. Quiet is fine. Quiet pays nothing, though."],
   } as Record<string, string[]>,
-  // Client batch 8b item 63 (the director's M): Iuliia offers each further standing order once, at its moment, on the
+  // Client batch 8b item 63 (the director's M): Julia offers each further standing order once, at its moment, on the
   // Truck tab: after a second stranding, at the first contract offer, after a load lost between rounds.
   offerReposition: "Twice now a truck has stood where nothing pays. I can have the dispatcher move an idle truck toward freight after two rounds. Want that?",
   offerContracts: "A shipper has offered you a contract. I can have the dispatcher take offers like it as they come. Want that?",
@@ -381,7 +381,7 @@ export const PENDING = withGrammar({
   // Client batch 8b section D, the early-delivery fee's screens (behind assets.expedite.enabled): the Dealer's second
   // button beside a new rig's order, the ordered truck's "Expedite" on Truck's order rows until the floor, and the confirm's
   // lines in the director's fixed order: the dates and days sooner; the fee, paid now, not refunded; what waiting costs
-  // (Iuliia's sentence from expediteWaitParts, its figures each named and never summed; the order and the "if" are the
+  // (Julia's sentence from expediteWaitParts, its figures each named and never summed; the order and the "if" are the
   // director's, the words the writer's). Item 65 (the director's L): the sentence when no truck is seated at all.
   expediteButton: (date: string, fee: string) => `Order early · ready ${date} · ${fee} FD`,
   expediteCardButton: (date: string, fee: string) => `Expedite · ready ${date} · ${fee} FD`,
@@ -431,7 +431,7 @@ export const PENDING = withGrammar({
   // the brokerage's name field, the limit and that it stays.
   nameLimit: (n: number) => `Up to ${n} characters. The name stays for the life of the brokerage.`,
   // Client batch 8a item 57 (the director's ruling A): the first-truck card's one verdict, on the Dealer's card (the Dealer
-  // opens on it), its teaser under More, Iuliia's page and What now?. The name says what it prices; the verdict is one of
+  // opens on it), its teaser under More, Julia's page and What now?. The name says what it prices; the verdict is one of
   // three; the figures sit under "Why" (whyLabel), never beside the verdict; "See it" brings the truck's row into view.
   soundTitle: "A sound first truck",
   soundName: (fd: string) => `To a sound first truck: ${fd} FD`,
@@ -448,7 +448,7 @@ export const PENDING = withGrammar({
   // only the first (lotReadyNote, lotButton).
   soundNone: (trailer: string) => `No sound ${trailer} truck for sale today; I'll tell you when one lists.`,
   // Client batch 8c item 70 (the director, director-qa-0241-2026-11-12.md §3): "Not yet" ties each load to the goal and says
-  // where the player stands; a bar shows it on the card and Iuliia's page; she marks the quarter points; the listing watch
+  // where the player stands; a bar shows it on the card and Julia's page; she marks the quarter points; the listing watch
   // stays. Never a word about buying FD to close the gap.
   soundNotYetPlan: (loads: number, span: string | null, perLoadFd: string, pct: string) =>
     `Not yet: a sound truck is about ${loads} ${loads === 1 ? "load" : "loads"} away at your recent average${span ? `, around ${span}` : ""}. Each load adds about ${perLoadFd} FD toward it. You're ${pct} of the way.`,

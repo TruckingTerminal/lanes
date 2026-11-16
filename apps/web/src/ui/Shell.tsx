@@ -8,7 +8,7 @@ import { sheetLine } from "../logic.js";
 import { setMapInset } from "../mapview.js";
 import { bumpData, PHONE_QUERY, S, setSheet, useData, type SheetStop, todaysTicker } from "../state.js";
 import { TierBadge } from "./Standing.js";
-import { Iuliia } from "./Walkthrough.js";
+import { Julia } from "./Walkthrough.js";
 import { MapView } from "./MapRegion.js";
 import { Nav, RackBody, SideRack } from "./Rack.js";
 import { TopBar } from "./TopBar.js";
@@ -89,7 +89,7 @@ function stopPx(stop: SheetStop, room: number): number {
 }
 
 /**
- * The sheet: a drag handle and the state line (all the strip shows), then Iuliia's caption and the panel. Drag the
+ * The sheet: a drag handle and the state line (all the strip shows), then Julia's caption and the panel. Drag the
  * handle to any height and it settles on the nearest stop; a tap on the handle toggles the strip and half.
  */
 function Sheet(): JSX.Element {
@@ -102,7 +102,7 @@ function Sheet(): JSX.Element {
   // The map keeps what it centres on above the sheet once the sheet settles (and nothing hidden when it goes).
   useEffect(() => {
     setMapInset(stopPx(S.sheet, room()));
-    // At strip height the sheet shows its top, Iuliia's caption, wherever the panel was scrolled to.
+    // At strip height the sheet shows its top, Julia's caption, wherever the panel was scrolled to.
     if (S.sheet === "strip") el.current?.querySelector(".sheetbody")?.scrollTo({ top: 0 });
   }, [S.sheet]);
   useEffect(() => () => setMapInset(0), []);
@@ -230,7 +230,7 @@ function Toast(): JSX.Element | null {
   const t = S.toast;
   if (!t) return null;
   if (!t.badge && !t.sub && !t.say && !t.go) return <div class={cls("toast", t.err && "err")}>{t.text}</div>;
-  // UX §1.6: a stamp or a standing toast, the badge at 32 and Iuliia in her 32 px strip; one that taps goes.
+  // UX §1.6: a stamp or a standing toast, the badge at 32 and Julia in her 32 px strip; one that taps goes.
   const body = (
     <>
       {t.badge ? <TierBadge tier={t.badge.tier} band={t.badge.band} size={32} /> : null}
@@ -239,7 +239,7 @@ function Toast(): JSX.Element | null {
         {t.sub ? <span class="small">{t.sub}</span> : null}
         {t.say ? (
           <span class="row small toastsay">
-            <Iuliia mood="proud" size={64} />
+            <Julia mood="proud" size={64} />
             <span>{t.say}</span>
           </span>
         ) : null}

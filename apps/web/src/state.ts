@@ -30,7 +30,7 @@ export type { Tab } from "./tabs.js";
 export type Layout = "split" | "panel" | "map";
 /** The phone's sheet over the map (specs/first-ten-minutes.md, Layout): a strip with the state line, half, or full. */
 export type SheetStop = "strip" | "half" | "full";
-/** The first entry, before a company (specs/first-ten-minutes.md, S1): where the hub-choosing sheet stands; `beat` is how far through Iuliia's intro the welcome stage is. */
+/** The first entry, before a company (specs/first-ten-minutes.md, S1): where the hub-choosing sheet stands; `beat` is how far through Julia's intro the welcome stage is. */
 export type EntryStage = "welcome" | "home" | "all" | "card" | "board" | "name";
 export type Platform = { db: DbLike | null; uid: string | null; owner: boolean; local: boolean };
 export type TitleMenu =
@@ -125,7 +125,7 @@ export const S = {
   explain: null as null | { key: string; ctx: import("./explain.js").FigureCtx; label: string; value: string; side?: "left" | "right"; tab?: string },
   /** What now?'s answer while it shows, and the tab it was asked on (ui/WhatNow.tsx). */
   whatNow: null as null | { a: import("./nextstep.js").NextAction; tab: Tab },
-  /** Iuliia's tab-and-card line waiting for, or in, the caption strip (iuliia.ts). */
+  /** Julia's tab-and-card line waiting for, or in, the caption strip (iuliia.ts). */
   iuliiaLine: null as null | { text: string; shownAt: number | null; key?: string },
   intel: { card: null as number | null, back: null as Tab | null, q: "", myHub: false, hub: null as string | null, players: false, brokers: false, sort: "miles" as "miles" | "trucks" | "month", shown: 50 },
   homeNow: new Set<number>(),
@@ -166,7 +166,7 @@ export const S = {
     text: string;
     err: boolean;
     at: number;
-    /** A richer toast (UX next-screens §1.6's stamp): a tier badge at 32, a second line, Iuliia's line in her strip, a tap that goes. */
+    /** A richer toast (UX next-screens §1.6's stamp): a tier badge at 32, a second line, Julia's line in her strip, a tap that goes. */
     badge?: { tier: number; band: "approved" | "preferred" | "core" };
     sub?: string;
     say?: string;
@@ -384,7 +384,7 @@ export function toastHeld(text: string, go?: () => void): void {
   }, 4200);
   bumpData();
 }
-/** A toast with a badge, a second line, Iuliia's line or a tap (UX §1.6's stamps and toasts); a little longer with more to read. */
+/** A toast with a badge, a second line, Julia's line or a tap (UX §1.6's stamps and toasts); a little longer with more to read. */
 export function toastRich(t: { text: string; badge?: { tier: number; band: "approved" | "preferred" | "core" }; sub?: string; say?: string; go?: () => void }): void {
   if (heldNow()) {
     deferred = () => toastRich(t);
@@ -701,13 +701,13 @@ export function describe(a: LiveAction): string {
  * Gives an order. In a test world it happens at once; in the live world it's sent
  * to everyone and takes effect half a minute later, at the same moment on every page.
  */
-/** Iuliia's line for an order that went through (iuliia.ts sets it; a hook, so state.ts needn't import her). */
+/** Julia's line for an order that went through (iuliia.ts sets it; a hook, so state.ts needn't import her). */
 let saidHook: (key: string) => void = () => {};
 export function setSaidHook(f: (key: string) => void): void {
   saidHook = f;
 }
 
-/** Gives an order with a toast; `said` is Iuliia's line for it, spoken only when it goes through (never on a refusal). */
+/** Gives an order with a toast; `said` is Julia's line for it, spoken only when it goes through (never on a refusal). */
 /**
  * Who an order acts for when the caller didn't say (client batch 8a item 29): an order about one of the carrier's trucks
  * is the carrier's, whichever company is in view; anything else, the company in view.

@@ -1,6 +1,6 @@
 # Guidance strings (writer, draft 3, 2026-11-03; the director's gate W1–W5 applied)
 
-Jeff, 2026-11-02: "I need to make sure that Iuliia is guiding people every step of the way. As this is a true sim and very complex."
+Jeff, 2026-11-02: "I need to make sure that Julia is guiding people every step of the way. As this is a true sim and very complex."
 
 Three tables: **What now?** (one per rule in the director's order), the **milestones** to day 91, and the **explain** table for the first month's figures. Keys are dotted like `copy.ts`, so engineering's `nextAction`, milestone and `explain.ts` coverage tests can read them. `{key}` is a config key; `{x}` without a key is a figure `guide.ts` computes for this company. No string over 20 words.
 
@@ -153,7 +153,7 @@ The caption stays silent, unasked. Asked, What now? answers with these.
 | `now.waitingMore` | after rule 2's reason | `{n}` of `{m}` waiting › |
 | `now.stale` | the answer, when the world moved | That's changed. Ask me again. |
 | `CAPTION.skip` | every step card (the director's R2) | Skip this step |
-| `CAPTION.skipped` | a skipped step in the list under More › Iuliia | · skipped (kept; it reads as a state beside the step's title, not a done tick) |
+| `CAPTION.skipped` | a skipped step in the list under More › Julia | · skipped (kept; it reads as a state beside the step's title, not a done tick) |
 | `explain.heading.what` · `.how` · `.moves` | the sheet's three headings | What it is · How it's computed · What moves it |
 
 ## 2. Milestones to day 91

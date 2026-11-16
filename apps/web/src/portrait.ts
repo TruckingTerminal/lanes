@@ -1,11 +1,11 @@
 import { ASSETS } from "./mapart.js";
 
 /**
- * Iuliia, drawn live (Jeff, 2026-11-01: "She has 3 arms. This is slop. Don't make her animations loops either").
+ * Julia, drawn live (Jeff, 2026-11-01: "She has 3 arms. This is slop. Don't make her animations loops either").
  *
  * Her body never moves: one portrait, two hands, the folder in one and the pen in the other (assets/people/iuliia.png,
  * which is also the rest frame and the poster). At rest her face is composed, lips closed, attentive (Jeff, 2026-11-02:
- * "Why does Iuliia have a creepy smile on all the time?"); a smile is a moment like a blink. What she does happens in
+ * "Why does Julia have a creepy smile on all the time?"); a smile is a moment like a blink. What she does happens in
  * her face, pasted over it from one small sheet (assets/people/iuliia-sheet.png, cut by tools/portrait-sprites.py),
  * with the nod, the breath and the pen's glint done here. When she does it comes from dice that are a pure function of
  * time, so nothing repeats on a cycle: a blink every few seconds, a breath, now and then a small nod, a glance down at
@@ -159,7 +159,7 @@ function cell(c: CanvasRenderingContext2D, name: string): void {
 }
 
 /**
- * Draws Iuliia in a size × size square at (x, y) of ctx, in `mood`, at time tMs (a page clock in milliseconds). She is
+ * Draws Julia in a size × size square at (x, y) of ctx, in `mood`, at time tMs (a page clock in milliseconds). She is
  * drawn from the stored size (128, 96 or 64) that fills the square best at a whole-number scale, so her pixels stay
  * square; a square smaller than 64 gets the 64 smoothed down. False until her sheet has decoded: draw the poster,
  * people/iuliia.png, until then.

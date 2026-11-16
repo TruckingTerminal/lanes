@@ -258,7 +258,7 @@ placesloops() {
   for s in truckstop lounge dealer bank guide; do python3 apps/web/tools/pack-loop.py apps/web/assets/scenes/$s-loop apps/web/assets/scenes/$s.loop.png --cols 16; done
 }
 
-# Iuliia, the walkthrough's trainer (Jeff, 2026-11-01): a Russian executive, class first and then the wit, long
+# Julia, the walkthrough's trainer (Jeff, 2026-11-01): a Russian executive, class first and then the wit, long
 # flowing blonde hair and brown eyes. The portrait in the staff's hand (Pro 128 × 128, the title as style, kept as
 # iuliia-faces/portrait.png), two hands, the folder in one and the pen in the other; her body never moves again (the
 # first moods animated her arms and one frame came out with three: Jeff, "This is slop"). Her rest frame and poster,

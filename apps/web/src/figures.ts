@@ -10,7 +10,7 @@ import { PENDING_RULES } from "./copy-pending-rules.js";
 import { fdFull, pct, shortDate, TIER_NAME, TRAILER_NAME } from "./format.js";
 
 /**
- * The figures Iuliia computes (specs/guidance.md, section 4): read from the world and the company, saving nothing, with
+ * The figures Julia computes (specs/guidance.md, section 4): read from the world and the company, saving nothing, with
  * no browser state, so What now? is right after every reload and the economy can run it as a bot. Each is also an
  * explain key (the writer's guidance-strings.md), and its parts are the breakdown that key's "how" describes.
  */
@@ -152,11 +152,11 @@ export function debtCountdown(w: World, c: Company): { n: number; of: number; ne
  * guide.gapToTruck, the one first-truck figure (the director, 2026-11-09): the cheapest open route to the next truck (the
  * used lot, a listing, or new at the cheapest source), as the cash it takes from the player on the day on a purchase
  * loan (the Dealer's own "Cash needed now": down payment, stake and tax, less the lease deposit when it replaces the
- * lessor's truck), less the cash the player has. The Dealer's teaser, Iuliia's page and the Dealer's card all read it
+ * lessor's truck), less the cash the player has. The Dealer's teaser, Julia's page and the Dealer's card all read it
  * (firstTruckLine), and the Dealer opens on it (tabs.ts firstTruckAffordable), so the number and the opening never
- * disagree. holdFd, guide.gapCushionWeeks of the company's spending, is Iuliia's advice under it, never in it.
+ * disagree. holdFd, guide.gapCushionWeeks of the company's spending, is Julia's advice under it, never in it.
  */
-/** The truck a first-truck figure prices (client batch 4): what the Dealer's card names, and its wear for Iuliia's catch. */
+/** The truck a first-truck figure prices (client batch 4): what the Dealer's card names, and its wear for Julia's catch. */
 export type PricedTruck = { route: "lot" | "listing" | "new"; spec: TruckSpec; place: number | null; arrivesDay?: number };
 
 export function gapToTruck(w: World, c: Company): { gapFd: number; route: "lot" | "listing" | "new"; needNowFd: number; grossNeedFd: number; depositFd: number; spareFd: number; holdFd: number; truck: PricedTruck | null; priceFd: number; cashOnly: string | null; routes: { truck: PricedTruck; needFd: number; price: number }[] } {
@@ -237,7 +237,7 @@ export function weeklyGross(w: World, c: Company): { fd: number; basis: "month" 
 }
 
 /**
- * What waiting for a queued truck keeps paying the lessor (client batch 6b, the director: Iuliia prices the wait): the
+ * What waiting for a queued truck keeps paying the lessor (client batch 6b, the director: Julia prices the wait): the
  * lease's share of gross (costs.npcLeaseShareOfGross) times the company's weekly gross lately (weeklyGross) times the
  * share of its fleet on the lessor's lease, over the days to the truck's delivery. 0 with nothing leased or no gross yet.
  */
@@ -248,7 +248,7 @@ export function waitCostFd(w: World, c: Company, days: number): number {
   return w.cfg.costs.npcLeaseShareOfGross * weeklyGross(w, c).fd * (leased / fleet.length) * (days / 7);
 }
 
-/** A used truck under this condition gets Iuliia's catch line (the director, client batch 4: a worn truck on day 2). */
+/** A used truck under this condition gets Julia's catch line (the director, client batch 4: a worn truck on day 2). */
 // Client batch 8b (the writer's flag 2a): one line for "sound" and "worn", the economy's guide.soundCondition, so a
 // truck is never neither.
 export const WORN_BELOW = economyConfig.guide.soundCondition;
@@ -316,11 +316,11 @@ function shownTrucks(w: World, c: Company, own: Equipment, replacing: boolean): 
  * named for what it prices ("To a sound first truck: N FD", N the cash still to find); every supporting figure under
  * "Why", never beside the verdict. With none listed: "No sound {trailer} truck on the lot today; I'll tell you when one
  * lists." `open` is the truck's row on the Dealer, so the card's truck is always one the player can open. One function
- * for the Dealer's card, its teaser, Iuliia's page and What now?. With a truck already ordered, its wait alone.
+ * for the Dealer's card, its teaser, Julia's page and What now?. With a truck already ordered, its wait alone.
  */
 /**
  * Client batch 8c item 70: `progress`, how far the company's cash is toward the cash the verdict needs (0–1; null with no
- * sound truck shown or one ordered); `watch`, the listing watch's line; `pick`, the truck it prices (Iuliia's watch reads
+ * sound truck shown or one ordered); `watch`, the listing watch's line; `pick`, the truck it prices (Julia's watch reads
  * its price).
  */
 export type FirstTruckVerdict = {

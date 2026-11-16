@@ -87,7 +87,7 @@ export function Finance(): JSX.Element {
 }
 
 /**
- * Iuliia's one line on Finance (specs/finance-strings.md): a contract's last week, a contract just signed, else the first
+ * Julia's one line on Finance (specs/finance-strings.md): a contract's last week, a contract just signed, else the first
  * visit by state. It speaks in the caption strip (Walkthrough.tsx Caption), in place of the walkthrough's step, until seen.
  */
 export function financeLine(): { key: string; line: string } | null {
@@ -479,7 +479,7 @@ function ConfirmSheet({ sheet, close, orders }: { sheet: NonNullable<Sheet>; clo
             [FINANCE.borrowWeekly, FINANCE.borrowWeeklyValue(fdFull(equipmentWeekly(w, sheet.fd)), ef.termWeeks)],
           ]}
         />
-        {/* The director's ruling 22: Iuliia, under the weekly payment, while the market is young. */}
+        {/* The director's ruling 22: Julia, under the weekly payment, while the market is young. */}
         {youngRatesLine(w) ? <p class="small">{youngRatesLine(w)}</p> : null}
         <p class="warn small">{FINANCE.borrowRepo(ef.missedPaymentsToRepossess)}</p>
         {actions("borrow", FINANCE.borrowGo(fdFull(sheet.fd)), { type: "borrow", truckId: sheet.truckId, amountFd: sheet.fd })}
