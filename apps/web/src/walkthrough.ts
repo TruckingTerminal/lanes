@@ -50,7 +50,20 @@ export const MILES_STEP_DONE = 2_500;
 const n = (x: number) => Math.round(x).toLocaleString("en-US");
 const pct = (x: number) => `${Math.round(x * 100)}%`;
 
+/**
+ * The steps for a config and a home hub's name, built once and kept: they read nothing else, and What now? and the
+ * walkthrough's card asked for them on every redraw (an eighth of the truck screen's first draw at the producer's 6×
+ * slowdown, 2026-11-15). The list and its steps are shared: read them, never change them.
+ */
+const STEPS = new WeakMap<EconomyConfig, Map<string, WalkStep[]>>();
 export function walkSteps(cfg: EconomyConfig, hub = "your home hub"): WalkStep[] {
+  let byHub = STEPS.get(cfg);
+  if (!byHub) STEPS.set(cfg, (byHub = new Map()));
+  let steps = byHub.get(hub);
+  if (!steps) byHub.set(hub, (steps = buildSteps(cfg, hub)));
+  return steps;
+}
+function buildSteps(cfg: EconomyConfig, hub: string): WalkStep[] {
   const [r1, r2] = cfg.time.boardRoundHours;
   const round = (h: number) => `${String(h).padStart(2, "0")}:00`;
   const trucksOf = (w: World, c: Company) => (w.trucksByCompany.get(c.id) ?? []).filter((t) => t.status !== "retired");

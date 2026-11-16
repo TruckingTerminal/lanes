@@ -517,6 +517,8 @@ html[data-kit] .herocard { image-rendering: pixelated; border-color: transparent
 .loadcards { display: grid; gap: 6px; }
 .loadcard { display: grid; gap: 3px; min-height: 88px; width: 100%; padding: 10px 12px; text-align: left; border: 1px solid var(--border); border-radius: var(--radius); background: var(--bg-panel); cursor: pointer; align-content: center; }
 .loadcard:hover { border-color: var(--accent); }
+/* FRAME.boardOffscreen (frame.ts; the producer's frame-rate pass): a card out of view skips layout and paint until it's scrolled to, its last height kept. */
+.loadcards.offscreen > .loadcard { content-visibility: auto; contain-intrinsic-size: auto 88px; }
 .loadcard.blocked { opacity: 0.55; }
 .loadcard .l1 { font-weight: 600; }
 .chips { display: flex; flex-wrap: wrap; gap: 6px; }

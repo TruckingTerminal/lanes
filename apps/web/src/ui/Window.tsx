@@ -9,6 +9,7 @@ import { screenWindow } from "../screenwindows.js";
 import { brokeredLoads } from "../books.js";
 import { bandOf, gradeForBand, type Band } from "./CityPicture.js";
 import { seasonNow } from "./Loop.js";
+import { LoopKeep } from "../loopkeep.js";
 
 /**
  * A screen's window (studio/specs/menu-system.md §1.3): a horizontal slice of its scene, full width, above the panel's
@@ -23,7 +24,7 @@ import { seasonNow } from "./Loop.js";
  * - **Before it decodes:** the box is already its size, filled with the painting's average colour; it fades in.
  * - **The loop:** on the base painting only, after the still, on idle, in Full motion and when the device hasn't asked
  *   to save data: graded once for the band into one row and stepped by CSS (no JavaScript per frame), paused off
- *   screen; at most two windows' loops are kept.
+ *   screen; two loops are kept, and more while windows still draw them (loopkeep.ts).
  */
 const W = 256;
 const H = 144;
@@ -125,15 +126,29 @@ function averageOf(key: string, cv: HTMLCanvasElement): string {
 }
 
 /**
- * The loop graded for a band as one row of frames, an object URL. At most two windows' loops are kept alive (the
- * current screen's and the last, §5.2); older ones are revoked.
+ * The loop graded for a band as one row of frames, an object URL, held for the window that asked (`release` lets it go).
+ * Two loops are kept (the current screen's and the last, §5.2), and more while windows still draw them; the oldest no
+ * window draws goes first (loopkeep.ts: QA's 0.25.6 item 3). Two windows asking for one loop at once share its making.
  */
-const loops = new Map<string, string>();
-const loopOrder: string[] = [];
-async function gradedLoop(src: Source, band: Band): Promise<string> {
+const loops = new LoopKeep(2, (u) => {
+  if (u.startsWith("blob:")) URL.revokeObjectURL(u);
+});
+const making = new Map<string, Promise<string>>();
+async function gradedLoop(src: Source, band: Band): Promise<{ url: string; release: () => void }> {
   const k = `${src.key}|${band}`;
-  const have = loops.get(k);
-  if (have) return have;
+  for (;;) {
+    const have = loops.get(k);
+    if (have) return { url: have, release: loops.hold(k) };
+    let p = making.get(k);
+    if (!p) {
+      p = makeLoop(src, band).finally(() => making.delete(k));
+      making.set(k, p);
+      void p.then((u) => loops.add(k, u), () => undefined);
+    }
+    await p;
+  }
+}
+async function makeLoop(src: Source, band: Band): Promise<string> {
   const L = src.loop!;
   const img = await image(ASSETS + L.image);
   const cv = document.createElement("canvas");
@@ -144,16 +159,7 @@ async function gradedLoop(src: Source, band: Band): Promise<string> {
   const id = ctx.getImageData(0, 0, cv.width, H);
   gradeForBand(id.data, band);
   ctx.putImageData(id, 0, 0);
-  const url = await new Promise<string>((ok) => cv.toBlob((b) => ok(b ? URL.createObjectURL(b) : cv.toDataURL())));
-  loops.set(k, url);
-  loopOrder.push(k);
-  while (loopOrder.length > 2) {
-    const old = loopOrder.shift()!;
-    const u = loops.get(old);
-    if (u?.startsWith("blob:")) URL.revokeObjectURL(u);
-    loops.delete(old);
-  }
-  return url;
+  return new Promise<string>((ok) => cv.toBlob((b) => ok(b ? URL.createObjectURL(b) : cv.toDataURL())));
 }
 
 const idle = (f: () => void): void => {
@@ -181,8 +187,9 @@ export function Window({ name, night, fallback, hero = false, still = false, cla
   const [size, setSize] = useState<{ w: number; h: number; dpr: number } | null>(null);
   const [ready, setReady] = useState(false);
   const [avg, setAvg] = useState<string | null>(null);
-  const [loop, setLoop] = useState<string | null>(null);
-  const [loopKey, setLoopKey] = useState<string | null>(null);
+  // The loop this window draws, held (gradedLoop) until the next one is drawn or the window goes: QA's 0.25.6 item 3.
+  const [loop, setLoop] = useState<{ url: string; key: string; release: () => void } | null>(null);
+  useEffect(() => (loop ? loop.release : undefined), [loop]);
   const [onScreen, setOnScreen] = useState(true);
   const band = bandOf(Math.floor(clockMin() / 60) % 24);
   // A screen with its own night painting (the board's ops room) shows it in the night band.
@@ -232,10 +239,9 @@ export function Window({ name, night, fallback, hero = false, still = false, cla
           idle(
             () =>
               void gradedLoop(src, band)
-                .then((u) => {
-                  if (!live) return;
-                  setLoop(u);
-                  setLoopKey(`${src.key}|${band}`);
+                .then((r) => {
+                  if (!live) return r.release();
+                  setLoop({ ...r, key: `${src.key}|${band}` });
                 })
                 .catch(() => undefined),
           );
@@ -255,11 +261,11 @@ export function Window({ name, night, fallback, hero = false, still = false, cla
   let loopStyle: JSX.CSSProperties | null = null;
   // The loop belongs to the painting it was graded from: a stale one (the window moved to a painting without a loop,
   // or a painted hour) is never drawn.
-  if (src?.loop && loop && loopKey === `${src.key}|${band}` && size && animate) {
+  if (src?.loop && loop && loop.key === `${src.key}|${band}` && size && animate) {
     const c = cropOf(W, H, size.w, size.h, src.focalX, src.focalY);
     const k = c.scale / size.dpr; // CSS px per scene pixel
     loopStyle = {
-      backgroundImage: `url(${loop})`,
+      backgroundImage: `url(${loop.url})`,
       backgroundSize: `${W * src.loop!.frames * k}px ${H * k}px`,
       backgroundPositionY: `${-c.sy * k}px`,
       "--x0": `${-c.sx * k}px`,

@@ -32,6 +32,7 @@ import { firstTruckLine } from "./figures.js";
 import { PENDING } from "./copy-pending.js";
 import { panelsMoved } from "./panelclock.js";
 import { idbCuts, LOCAL_CUTS } from "./cuts.js";
+import { backlogCap, FRAME, panelsMayRedraw } from "./frame.js";
 
 /**
  * Boot, sessions and the game loop. The screen itself is the Preact app in ui/;
@@ -526,6 +527,30 @@ let lastPanelAt = 0;
 let rebuilding = false;
 let brokenShown = false;
 let lastSpeed = -1;
+/** A moved world minute not yet redrawn (FRAME.panelBudget), the last redraw's cost, and a redraw queued apart (FRAME.panelsApart). */
+let panelsDue = false;
+let panelCost = 0;
+let apartTimer = 0;
+
+/** The panels' redraw, timed for FRAME.panelBudget: Preact renders in a microtask the bump queues, before this one runs. */
+function timedRedraw(): void {
+  const t0 = performance.now();
+  try {
+    bumpData();
+  } catch (e) {
+    console.error(e);
+  }
+  queueMicrotask(() => (panelCost = performance.now() - t0));
+}
+/** FRAME.panelsApart: the redraw in a task of its own, after the frame that drew the map (frame.ts). */
+function redrawPanels(): void {
+  if (!FRAME.panelsApart) return timedRedraw();
+  if (apartTimer) return;
+  apartTimer = window.setTimeout(() => {
+    apartTimer = 0;
+    timedRedraw();
+  }, 0);
+}
 
 function schedule(): void {
   if (!document.hidden) rafId = requestAnimationFrame(loop);
@@ -647,7 +672,10 @@ function loop(now: number): void {
     }
   }
   if (t && S.game === t) {
-    acc += (dt / 1000) * SPEEDS[S.speed]!.hoursPerSec;
+    const hoursPerSec = SPEEDS[S.speed]!.hoursPerSec;
+    acc += (dt / 1000) * hoursPerSec;
+    // FRAME.clockHolds (frame.ts): Paused holds at once, and no more than a real second's hours wait to step.
+    if (FRAME.clockHolds) acc = Math.min(acc, backlogCap(hoursPerSec));
     const budget = now + 10;
     while (acc >= 1 && performance.now() < budget && !t.broken) {
       // Persistence §6: the hour's step wrapped as the live page's is. The engine throwing stops this world's clock for
@@ -679,11 +707,14 @@ function loop(now: number): void {
       // Client batch 8a item 66 (QA's reload hunt): `before` was read after the hour's stepping, so the panels never saw
       // the clock move and redrew only on the one-second timer; at fast speeds a truck's card, its ETA and the cash sat
       // hours behind the clock. They redraw whenever the world's minute differs from the one last drawn.
-      if (panelsMoved(g.w.t) || now - lastPanelAt > 1000) {
+      // FRAME.panelBudget (frame.ts): at the fast test speeds a moved minute waits its turn; the one-second timer doesn't.
+      if (panelsMoved(g.w.t)) panelsDue = true;
+      if ((panelsDue && panelsMayRedraw(now, lastPanelAt, panelCost)) || now - lastPanelAt > 1000) {
+        panelsDue = false;
         lastPanelAt = now;
         checkIdleAlerts();
         checkAttention();
-        bumpData();
+        redrawPanels();
       }
     } catch (e) {
       console.error(e);

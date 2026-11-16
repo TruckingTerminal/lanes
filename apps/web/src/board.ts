@@ -2,7 +2,7 @@ import { newEntrant, canMakeHot, filesForOpening, freeOf, homeBlock, windowsOn, 
 import { COMMODITIES } from "@lanes/data";
 import { trueBreakEven } from "./breakeven.js";
 import { LOAD, WALL } from "./copy.js";
-import { grammar, shortDate } from "./format.js";
+import { grammar, grouped, shortDate } from "./format.js";
 import { PENDING } from "./copy-pending.js";
 import { FIXES } from "./copy-fixes.js";
 import { truckNumber } from "./trucknos.js";
@@ -315,7 +315,7 @@ export function profitOver(w: World, t: { lease: Truck["lease"] } | undefined, r
 /** A chip figure: whole FD up to 9,999, then thousands to one place ("12.4k"); no sign. */
 export function chipFd(x: number): string {
   const a = Math.abs(x);
-  return a < 9_999.5 ? Math.round(a).toLocaleString("en-US") : `${(Math.round(a / 100) / 10).toFixed(1)}k`;
+  return a < 9_999.5 ? grouped(Math.round(a)) : `${(Math.round(a / 100) / 10).toFixed(1)}k`;
 }
 /** The cash segment's figure: its sign kept ("−103", "504"). */
 export const chipCash = (x: number): string => `${x < -0.5 ? "−" : ""}${chipFd(x)}`;

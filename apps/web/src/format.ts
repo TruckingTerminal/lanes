@@ -2,14 +2,22 @@ import type { Equipment, FacilityType, TractorTier } from "@lanes/config";
 
 /** Number and label formatting shared by every screen. */
 
+/**
+ * A number with en-US thousands separators: `x.toLocaleString("en-US")` exactly (ECMA-402 defines that call as a new
+ * Intl.NumberFormat("en-US") formatting x), with one formatter kept instead of one built per call. The board's first draw
+ * spent about an eighth of its 6× task building them (the producer's frame-rate pass, 2026-11-15).
+ */
+const EN_US = new Intl.NumberFormat("en-US");
+export const grouped = (x: number): string => EN_US.format(x);
+
 export const fd = (x: number): string => {
   const a = Math.abs(x);
-  const s = a >= 1e6 ? `${(a / 1e6).toFixed(2)}M` : a >= 1e4 ? `${(a / 1e3).toFixed(1)}k` : Math.round(a).toLocaleString("en-US");
+  const s = a >= 1e6 ? `${(a / 1e6).toFixed(2)}M` : a >= 1e4 ? `${(a / 1e3).toFixed(1)}k` : grouped(Math.round(a));
   return `${x < 0 ? "−" : ""}${s}`;
 };
 /** Whole FD with thousands separators, for money columns. */
-export const fdFull = (x: number): string => `${x < 0 ? "−" : ""}${Math.round(Math.abs(x)).toLocaleString("en-US")}`;
-export const usd = (x: number): string => `$${x < 10 ? x.toFixed(2) : Math.round(x).toLocaleString("en-US")}`;
+export const fdFull = (x: number): string => `${x < 0 ? "−" : ""}${grouped(Math.round(Math.abs(x)))}`;
+export const usd = (x: number): string => `$${x < 10 ? x.toFixed(2) : grouped(Math.round(x))}`;
 export const pct = (x: number): string => `${Math.round(x * 100)}%`;
 export const signedPct = (x: number): string => `${x >= 0 ? "+" : "−"}${Math.round(Math.abs(x) * 100)}%`;
 export const plural = (n: number, word: string): string => `${n} ${word}${n === 1 ? "" : "s"}`;

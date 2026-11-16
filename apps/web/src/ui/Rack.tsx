@@ -113,9 +113,11 @@ export function SideRack(): JSX.Element {
  * it (the bar, the nav, the teaser row, Julia's caption) runs taller, so its bottom, and the load sheet's pinned Book now
  * and Bid with it, sat about 164 px below the window until the page scrolled. Its top on the page, measured, sets
  * `--boxtop`, and page.html caps the box at the window less that: its bottom, and whatever is pinned to it, in view.
+ * Not on a phone, whose box has no cap (page.html): the measure forced a layout in every redraw, about a sixth of the
+ * phone board's first draw at the producer's 6× slowdown (2026-11-15).
  */
 function panelTop(el: HTMLDivElement | null): void {
-  if (!el) return;
+  if (!el || isPhone()) return;
   const top = Math.max(0, Math.round(el.getBoundingClientRect().top + window.scrollY));
   const v = `${top}px`;
   if (el.style.getPropertyValue("--boxtop") !== v) el.style.setProperty("--boxtop", v);

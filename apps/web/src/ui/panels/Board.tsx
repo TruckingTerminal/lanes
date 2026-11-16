@@ -9,7 +9,8 @@ import { COMMODITIES } from "@lanes/data";
 import { allInRate, bidCeiling, bidRange, blockLine, boardRows, newBrokerLine, typedRate, clampToCeiling, chipCash, chipPair, clearsNear, clearsNearSource, dockWaits, overCeiling, posterOf, profitOver, rateShown, sortRows, type BoardRow, type BoardSort, type ChipPair } from "../../board.js";
 import { DockWarning, ProfitChip } from "../ProfitChip.js";
 import { ANSWER, BOARD, CHIP, DELIVERED, INTEL, LOAD, ROUND, WALL } from "../../copy.js";
-import { cls, fdFull, hhmm, pct, shortDate, TRAILER_NAME, weekdayDate } from "../../format.js";
+import { cls, fdFull, grouped, hhmm, pct, shortDate, TRAILER_NAME, weekdayDate } from "../../format.js";
+import { FRAME } from "../../frame.js";
 import { nextRoundHour, nextRoundLabel, nextRoundWait, reloadLabel, roundProgress, seasonSwing, withDaysOffWarning } from "../../logic.js";
 import { bumpData, isPhone, markVisited, me, myTrucks, openIntel, order, S, selectTruck, setTab, toast, truckNo, useData, visited } from "../../state.js";
 import { deliveryEtaMin, etaMin } from "../../rolling.js";
@@ -229,7 +230,8 @@ export function Loads(): JSX.Element {
         </button>
       ) : null}
       {sorted.length ? (
-        <div class="loadcards">
+        // FRAME.boardOffscreen (frame.ts): the cards out of view skip layout and paint until scrolled to (page.html).
+        <div class={cls("loadcards", FRAME.boardOffscreen && "offscreen")}>
           {sorted.slice(0, 60).map((r) => (
             <LoadCard key={r.l.id} r={r} truck={truck} name={name} />
           ))}
@@ -298,7 +300,7 @@ function LoadCard({ r, truck, name }: { r: BoardRow; truck: Truck; name: (i: num
   return (
     <button type="button" class={cls("loadcard stamped", r.block && "blocked")} onClick={() => openLoad(l.id)} title={`${name(l.origin)} → ${name(l.dest)}`}>
       <span class="l1">
-        {BOARD.line1(place(l.originPlace), place(l.destPlace), Math.round(l.miles).toLocaleString("en-US"))}
+        {BOARD.line1(place(l.originPlace), place(l.destPlace), grouped(Math.round(l.miles)))}
       </span>
       <span class="l2 small">
         {BOARD.line2(fdFull(r.total), rateShown(l, l.bookNow), allInRate(r.total, l.miles, r.dh), Math.round(r.dh))}
@@ -547,7 +549,7 @@ function LoadSheet({ r, truck }: { r: BoardRow; truck: Truck }): JSX.Element {
           ‹ {LOAD.back}
         </Btn>
       </div>
-      <h3>{BOARD.line1(place(l.originPlace), place(l.destPlace), Math.round(l.miles).toLocaleString("en-US"))}</h3>
+      <h3>{BOARD.line1(place(l.originPlace), place(l.destPlace), grouped(Math.round(l.miles)))}</h3>
       <FirstCallLine c={me()} l={l} />
       <Card title={LOAD.route}>
         <Kv
@@ -709,7 +711,7 @@ function PosterLoads({ poster }: { poster: number }): JSX.Element {
       <PosterChip name={name} />
       {loads.map((l) => (
         <p key={l.id} class="small">
-          {BOARD.line1(place(l.originPlace), place(l.destPlace), Math.round(l.miles).toLocaleString("en-US"))} · {rateShown(l, l.bookNow)}/mi
+          {BOARD.line1(place(l.originPlace), place(l.destPlace), grouped(Math.round(l.miles)))} · {rateShown(l, l.bookNow)}/mi
         </p>
       ))}
     </div>
