@@ -95,6 +95,7 @@ import {
 } from "@lanes/engine";
 import { businessesOf, businessPriceFd, sitePriceFd, type BusinessKind } from "@lanes/engine";
 import { companyName } from "@lanes/engine";
+import { brokerEntryOn, dueEntrants, openEntrant } from "@lanes/engine";
 import { brokerageLog, canFormBrokerage, formationCostFd, layerBlock, markPairs, ownBand, partnerOf } from "@lanes/engine";
 import { reserveCapFd, reserveFd, reserveOn } from "@lanes/engine";
 import { collateralOf, financedCashNeed, NEW_TRUCK, openPurchaseLoans, purchaseTerms, salesTaxOn, type Collateral } from "@lanes/engine";
@@ -617,6 +618,25 @@ function admitNewcomers(w: World): void {
  * The join wave (population.wave; a batch scenario): `perWeek` free-path newcomers a week for `weeks` weeks, standing in
  * for new players (strategy "wave:…", the normal grant; the population dial never touches them).
  */
+/**
+ * brokerRisk.entry (engine brokerEntry.ts): the brokerages the engine founded open when due, with the opening's kit (populate):
+ * a persona from the three and its vetting, a new name at a starter hub, the opening's broker orders, profile and wallet;
+ * the engine posts the grant and the stake on the cap's budget. Each draws from its own stream, forked for the company it
+ * becomes, so the other bots draw as they would.
+ */
+function openBrokerEntrants(w: World): void {
+  for (const e of dueEntrants(w)) {
+    const rng = w.rng.agents.fork(`brokerEntry:${w.companies.length + 1}`);
+    const strategy = STRATEGIES[rng.int(0, STRATEGIES.length - 1)]!;
+    const home = starterHub(w, rng);
+    const orders = brokerOrders(strategy, rng);
+    const vetting = rng.weighted(w.cfg.fraud.botBrokerVetting) as 0 | 1 | 2;
+    const c = openEntrant(w, e, { name: companyName(w, "broker", home), homeHubId: home, strategy: `broker:${strategy}`, orders, vetting });
+    profiles.set(c, brokerProfile(strategy, rng));
+    c.usd.wallet = WALLETS.broker(rng);
+  }
+}
+
 function admitWave(w: World, today: number): void {
   const k = w.cfg.population.wave;
   if (today < k.startDay || today >= k.startDay + 7 * k.weeks || (today - k.startDay) % 7 !== 0) return;
@@ -1663,6 +1683,7 @@ export const ruleBotHook: DailyAgentHook = (w) => {
   // The join wave (population.wave, a batch scenario) and the population dial (population.dial).
   if (cfg.population.wave.enabled) admitWave(w, dayOf(w.t, cfg));
   if (dialOn(w) && dayOf(w.t, cfg) % 7 === 0) runDial(w, dayOf(w.t, cfg));
+  if (brokerEntryOn(w)) openBrokerEntrants(w); // brokerRisk.entry: the brokerages founded lagDays ago open
   // Adversaries (config adversaries): the speculators' wallets come with the launch, then trade daily. With the
   // opening auction on (token.launch.auction) they come the day before it, and the crowd and the whale bid.
   if (!live && cfg.adversaries.enabled && cfg.token.enabled && cfg.token.launch.auction.enabled && !holdersOf.has(w) && dayOf(w.t, cfg) + 2 >= Math.round(cfg.token.betaYears * cfg.time.daysPerSeason)) {

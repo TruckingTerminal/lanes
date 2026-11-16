@@ -186,6 +186,8 @@ export interface Company {
   rep3?: { day: number; x: number; l: number; f: number; log: { day: number; kind: "late" | "release" | "noShow" | "claim" }[]; priorS?: number; priorUntil?: number };
   /** brokerRisk.windUpDormant: weekly checks running that found this AI broker unable to trade (population.ts). */
   dormantWeeks?: number;
+  /** brokerRisk.entry: an AI brokerage that entered by conditions (brokerEntry.ts): the day it was founded; it opened on createdDay. */
+  entrant?: { foundedDay: number };
   delivered: number;
   onTime: number;
   late: number;
@@ -445,6 +447,43 @@ export interface BrokerWoundUp {
   companyId: number;
 }
 
+/** One reading of brokerRisk.entry's signals (brokerEntry.ts): the flow over its reference and the margin, null until they read. */
+export interface BrokerEntryReading {
+  day: number;
+  /** Tenders a week per trading broker over flowWeeks, over the reference; null before the reference is taken. */
+  flowRatio: number | null;
+  /** The AI brokers' margin after costs over marginWeeks; null with no revenue in it. */
+  margin: number | null;
+  /** Trading brokers (AI and players'), and those founded and not open yet. */
+  trading: number;
+  pending: number;
+}
+
+/** brokerRisk.entry (brokerEntry.ts): the signals' weekly samples and the brokerages founded, kept while it is on. */
+export interface BrokerEntryState {
+  /** NPC tenders offered to brokers since the rule began (freight.ts tenderToBroker), running. */
+  tenders: number;
+  /**
+   * The weekly samples, the rule's check 0 (when it began) first: the running tenders, the AI brokers' running revenue and
+   * costs, and the brokers trading then. Kept whole to the reference, then to the longest window.
+   */
+  weeks: { check: number; day: number; tenders: number; revenueFd: number; costFd: number; trading: number }[];
+  /** Weekly checks run. */
+  checks: number;
+  /** The reference: NPC tenders a week per trading broker over the rule's weeks refFromWeek to refToWeek; null until then. */
+  ref: number | null;
+  /** The last check's reading, and every fourth check's, for the report and the director's seam (brokerEntrySignal). */
+  last: BrokerEntryReading | null;
+  readings: BrokerEntryReading[];
+  /**
+   * The brokerages founded, oldest first: the day founded and the day it opens; once open, its company and the day; or
+   * the day it was withdrawn before opening (yieldEntrant, the director's seam).
+   */
+  entrants: { founded: number; opens: number; companyId?: number; opened?: number; withdrawn?: number }[];
+  /** FD drawn on the emission cap's budget for the entrants' capital (faucet:broker_entry). */
+  capitalFd: number;
+}
+
 export interface PopulationState {
   /** The last `windowDays` days' loads posted per truck in service. */
   daily: number[];
@@ -492,6 +531,8 @@ export interface EmissionState {
   paidAtMonthStartFd: number;
   /** Closed months: the budget, what was committed and paid in cash against it, R's subsidy, the carry after it. */
   months: { month: number; budgetFd: number; committedFd: number; paidFd: number; subsidyFd: number; carryFd: number }[];
+  /** brokerRisk.entry: the entrants' capital drawn on the budget (faucet:broker_entry), lifetime; in committedFd too. Absent while none was. */
+  brokerEntryFd?: number;
   /** The last pacing reading, for the metrics: yesterday's commitments, the horizon's budget, the spend per unit of lever, the target. */
   lastDay: { committedFd: number; availableFd: number; spendPerLeverFd: number; target: number };
   /** NPC pay by kind at the invoice: spot board loads, loads tendered to brokers, contract tenders, the NPC market's purchases of facilities' goods. */

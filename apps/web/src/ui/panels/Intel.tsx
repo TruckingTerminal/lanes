@@ -4,7 +4,7 @@ import { hasTwo } from "../../companies.js";
 import { partnerOf, VETTING_NAMES, type Company } from "@lanes/engine";
 import { INTEL } from "../../copy.js";
 import { cls, fdFull, pct } from "../../format.js";
-import { posterOf } from "../../board.js";
+import { newBrokerLine, posterOf } from "../../board.js";
 import { insuranceBand, intelRows, monthKept, ownCosts, pastSeasons, ranked, safetyBand, type IntelRow } from "../../intel.js";
 import { bumpData, openIntel, S, setTab, useData } from "../../state.js";
 import { Btn, Card, Kv, Panel } from "../bits.js";
@@ -215,6 +215,7 @@ function CompanyCard({ row, own, rows }: { row: IntelRow; own: boolean; rows: In
         <p class="small">
           {row.player ? INTEL.player : INTEL.ai} · {row.broker ? INTEL.broker : INTEL.carrier} · {INTEL.home(w.net.hubs[c.homeHub]?.name ?? "")}
         </p>
+        {newBrokerLine(w, c) ? <p class="small">{newBrokerLine(w, c)}</p> : null}
         {row.broker ? <p class="bighead">{INTEL.brokerLine(row.credit, bonded, vetting)}</p> : null}
         {/* A player's carrier and brokerage: common ownership is public (brokerage-rule.md section 5). */}
         {partnerOf(w, c) ? (

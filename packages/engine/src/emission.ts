@@ -193,6 +193,22 @@ export function noteEmissionCommitment(w: World, fd: number, kind: NpcPayKind): 
   s.pay[kind].fd += fd;
 }
 
+/**
+ * brokerRisk.entry (brokerEntry.ts): an entrant's capital (faucet:broker_entry) drawn on the budget, as a commitment of the
+ * month's, so the carry and the horizon's budget pay for it and the schedule's total stands. It isn't the lever's spend, so
+ * the pacing's spend per unit of lever leaves it out (todayFd), and it isn't NPC freight pay (pay, the ledger's paid column).
+ */
+export function noteBudgetDraw(w: World, fd: number): void {
+  if (!(fd > 0)) return;
+  const s = w.emission;
+  s.committedFd += fd;
+  s.committedMonthFd += fd;
+  s.brokerEntryFd = (s.brokerEntryFd ?? 0) + fd;
+}
+
+/** The faucets drawn on the budget beside NPC freight pay (noteBudgetDraw), so the refill's "other faucets" leaves them out. */
+export const BUDGET_DRAWS = ["broker_entry"];
+
 /** The sinks of the trailing window, scaled to a month (R's refill base); 0 before the first closed day. */
 export function trailingSinksPerMonthFd(w: World, windowDays: number): number {
   const days = w.metrics.days.slice(-windowDays);
@@ -213,6 +229,7 @@ export function trailingOtherFaucetsPerMonthFd(w: World, windowDays: number): nu
   for (const d of days) {
     let freight = 0;
     for (const tag of FREIGHT_FAUCETS) freight += d.faucetByTag?.[tag] ?? 0;
+    for (const tag of BUDGET_DRAWS) freight += d.faucetByTag?.[tag] ?? 0; // brokerRisk.entry: on the budget already
     s += Math.max(0, d.faucetFd - freight);
   }
   return (s * w.cfg.time.daysPerMonth) / days.length;

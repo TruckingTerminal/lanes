@@ -16,7 +16,7 @@ import { trailerValue, truckValue } from "./dealer.js";
 import { forfeitAirdrop } from "./token.js";
 import { releaseStake } from "./staking.js";
 import { bondHeld, factoringLog, paperOpen, releaseContractStakes } from "./receivables.js";
-import { holdsRestart, retireCompany } from "./population.js";
+import { holdsRestart, retireCompany, windsUpFleet } from "./population.js";
 import { settlePayables } from "./receivables.js";
 import { releaseYard } from "./items.js";
 import { releaseBusinesses } from "./businesses.js";
@@ -218,8 +218,9 @@ export function processLiquidations(w: World): void {
     if (done && bondHeld(w, c) && paperOpen(w, c.id)) continue;
     if (done && bondHeld(w, c)) releaseStake(w, c);
     // The population dial (population.ts): under the floor a bot that went under leaves the market instead of restarting.
+    // insolvency.windUpNpcFleets (the director's §16): so does a failed NPC fleet, counted once as wound up.
     if (done && holdsRestart(w, c)) {
-      retireCompany(w, c, "held");
+      retireCompany(w, c, windsUpFleet(w, c) ? "failed fleet" : "held");
       continue;
     }
     // A revoked authority waits out its bar; new authority comes with the restart (dailySafety).

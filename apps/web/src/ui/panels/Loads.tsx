@@ -2,7 +2,7 @@ import type { JSX } from "preact";
 import { useEffect, useRef, useState } from "preact/hooks";
 import { crewed, dispatchProfile, expectedReloadDeadheadMi, isLocal, operatingTrucks, localOnly, MANUAL_BID_MAX_DEADHEAD_MI, ownerDrawFd, placeMiles, placeToll, VETTING_NAMES, windowsOn, type Load, type Truck } from "@lanes/engine";
 import { COMMODITIES } from "@lanes/data";
-import { allInRate, bidCeiling, bidFiles, bidRange, typedRate, blockReason, chipPair, clampToCeiling, clearsNear, overCeiling, profitOver, rateShown, suggestBid } from "../../board.js";
+import { allInRate, bidCeiling, bidFiles, bidRange, newBrokerLine, typedRate, blockReason, chipPair, clampToCeiling, clearsNear, overCeiling, profitOver, rateShown, suggestBid } from "../../board.js";
 import { ANSWER } from "../../copy.js";
 import { BOARD, LOAD } from "../../copy.js";
 import { DockWarning, ProfitChip } from "../ProfitChip.js";
@@ -212,7 +212,7 @@ function poster(l: Load): { name: string; kind: string; rep: number | null; onTi
   const w = S.game!.w;
   const c = l.brokerId !== null ? w.companies[l.brokerId - 1] : l.shipperId !== null ? w.companies[l.shipperId - 1] : null;
   if (!c) return { name: "Shipper", kind: "Shipper", rep: null, onTime: "—" };
-  return { name: c.name, kind: l.brokerId !== null ? "Broker" : "Player shipper", rep: c.reputation, onTime: c.delivered ? pct(c.onTime / c.delivered) : "—" };
+  return { name: c.name, kind: l.brokerId !== null ? (newBrokerLine(w, c) ?? "Broker") : "Player shipper", rep: c.reputation, onTime: c.delivered ? pct(c.onTime / c.delivered) : "—" };
 }
 
 function LoadRow({ r, truck, mine, pendingRate }: { r: Row; truck: Truck; mine: boolean; pendingRate: number | undefined }): JSX.Element {

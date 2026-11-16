@@ -6,7 +6,7 @@ import type { JSX } from "preact";
 import { useEffect, useState } from "preact/hooks";
 import { crewed, hubMiles, MANUAL_BID_MAX_DEADHEAD_MI, VETTING_NAMES, windowsOn, type Truck } from "@lanes/engine";
 import { COMMODITIES } from "@lanes/data";
-import { allInRate, bidCeiling, bidRange, blockLine, boardRows, typedRate, clampToCeiling, chipCash, chipPair, clearsNear, clearsNearSource, dockWaits, overCeiling, posterOf, profitOver, rateShown, sortRows, type BoardRow, type BoardSort, type ChipPair } from "../../board.js";
+import { allInRate, bidCeiling, bidRange, blockLine, boardRows, newBrokerLine, typedRate, clampToCeiling, chipCash, chipPair, clearsNear, clearsNearSource, dockWaits, overCeiling, posterOf, profitOver, rateShown, sortRows, type BoardRow, type BoardSort, type ChipPair } from "../../board.js";
 import { DockWarning, ProfitChip } from "../ProfitChip.js";
 import { ANSWER, BOARD, CHIP, DELIVERED, INTEL, LOAD, ROUND, WALL } from "../../copy.js";
 import { cls, fdFull, hhmm, pct, shortDate, TRAILER_NAME, weekdayDate } from "../../format.js";
@@ -595,6 +595,7 @@ function LoadSheet({ r, truck }: { r: BoardRow; truck: Truck }): JSX.Element {
             {poster.name} ›
           </button>
         ) : null}
+        {newBrokerLine(w, poster) ? <p class="muted small">{newBrokerLine(w, poster)}</p> : null}
         <Kv
           rows={[
             [LOAD.onTime, poster && poster.delivered ? pct(poster.onTime / poster.delivered) : "—"],

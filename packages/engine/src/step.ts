@@ -34,6 +34,7 @@ import { dailyStaking, lockCost, stakeDiscount } from "./staking.js";
 import { dailyPools, poolAccount, poolMarkup, poolsOn } from "./pools.js";
 import { dailyReceivables } from "./receivables.js";
 import { dailyPopulationDial, windUpDormantBrokers } from "./population.js";
+import { weeklyBrokerEntry } from "./brokerEntry.js";
 import { creditScore } from "./credit.js";
 import { dailySafety, monthlySafety, weeklySafety } from "./safety.js";
 import { repossessDefaults, stepListings } from "./market.js";
@@ -119,6 +120,7 @@ function endOfDay(w: World, day: number, agents?: DailyAgentHook): void {
     restockUsedLot(w); // the NPC used lot (dealer.ts)
     weeklyBusinesses(w);
     windUpDormantBrokers(w); // brokerRisk.windUpDormant: the AI brokers that can no longer trade
+    weeklyBrokerEntry(w); // brokerRisk.entry: the signals, and a brokerage founded when they call for it (after the wind-up)
     for (const f of w.facilities) {
       if (f.ownerId === 0) continue;
       const upkeep = cfg.facilities.types[f.type].upkeepPerWeekFd;

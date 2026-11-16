@@ -10,6 +10,7 @@ import { creditScore } from "./credit.js";
 import { riskStats } from "./purchaseLoans.js";
 import { reserveCapFd, reserveFd, reserveHeldFd } from "./cashReserve.js";
 import { subsidyFd } from "./emission.js";
+import { renewalReport, type RenewalReport } from "./brokerEntry.js";
 import { contractAccount } from "./receivables.js";
 import { exitAccount, stakeAccount } from "./staking.js";
 import { loanStakeAccount, operatingTrucks, type World } from "./world.js";
@@ -168,7 +169,8 @@ export interface RunReport {
     refill: number;
     firstMonthFd: number;
     months: { month: number; days: number; budgetFd: number; committedFd: number; paidFd: number; subsidyFd: number; carryFd: number; volMult: number; rateMult: number; product: number; daysAtVolFloor: number; daysAtRateFloor: number }[];
-    totals: { budgetedFd: number; committedFd: number; paidFd: number; subsidyFd: number; carryFd: number; daysAtVolFloor: number; daysAtRateFloor: number };
+    /** brokerEntryFd: brokerRisk.entry's entrants' capital drawn on the budget, inside committedFd (only once any was). */
+    totals: { budgetedFd: number; committedFd: number; paidFd: number; subsidyFd: number; carryFd: number; daysAtVolFloor: number; daysAtRateFloor: number; brokerEntryFd?: number };
     pay: Record<"spot" | "brokered" | "contract" | "market", { loads: number; fd: number }>;
     openByKind: { spot: number; contract: number };
     starterHubs: Record<string, { week: number; expectedPerDay: number; openPerDay: number; idlePerDay: number }[]>;
@@ -197,6 +199,8 @@ export interface RunReport {
     factoringBondPaidFd: number;
     uncoveredFd: number;
   };
+  /** The market's renewal (brokerEntry.ts renewalReport), with brokerRisk.entry, windUpDormant or insolvency.windUpNpcFleets on. */
+  renewal?: RenewalReport;
   /**
    * Standing (standing.ts), when on: first calls offered, taken, declined and lost; tier moves and decays; dedicated lanes
    * offered and running at the end; net-term bills and dock-priority stops; each quarter's tier counts; and at the end the
@@ -766,6 +770,7 @@ export function buildReport(w: World): RunReport {
       carryFd: months.at(-1)?.carryFd ?? 0,
       daysAtVolFloor: sum(months.map((m) => m.daysAtVolFloor)),
       daysAtRateFloor: sum(months.map((m) => m.daysAtRateFloor)),
+      ...(s.brokerEntryFd !== undefined ? { brokerEntryFd: s.brokerEntryFd } : {}),
     };
     const starterHubs: NonNullable<RunReport["emission"]>["starterHubs"] = {};
     // The director's fallback starter hubs (DECISIONS.md 2026-11-02): where a newcomer's first board must never be empty.
@@ -968,6 +973,7 @@ export function buildReport(w: World): RunReport {
     emission,
     ratios,
     brokerage,
+    renewal: renewalReport(w),
     standing: standingOn(w) ? { ...standingStats(w), dedicatedActive: w.contracts.filter((k) => k.dedicated === true && k.status === "active").length, bestTier: tierCounts(w) } : undefined,
     cashReserve,
     wave,

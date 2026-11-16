@@ -1,4 +1,4 @@
-import { canMakeHot, filesForOpening, freeOf, homeBlock, windowsOn, type Reach, homeEdge, resting, settlementShare, clearsNear as engineClearsNear, clearsNearParts, dayOf, dockHoursAt, dutyResetAt, nextOpen, dispatchProfile, EQUIPMENT, expectedReloadDeadheadMi, mayTake, operatingTrucks, ownerDrawFd, placeMiles, placeToll, planIndex, vettingBlock, type Company, type Load, type Truck, type World } from "@lanes/engine";
+import { newEntrant, canMakeHot, filesForOpening, freeOf, homeBlock, windowsOn, type Reach, homeEdge, resting, settlementShare, clearsNear as engineClearsNear, clearsNearParts, dayOf, dockHoursAt, dutyResetAt, nextOpen, dispatchProfile, EQUIPMENT, expectedReloadDeadheadMi, mayTake, operatingTrucks, ownerDrawFd, placeMiles, placeToll, planIndex, vettingBlock, type Company, type Load, type Truck, type World } from "@lanes/engine";
 import { COMMODITIES } from "@lanes/data";
 import { trueBreakEven } from "./breakeven.js";
 import { LOAD, WALL } from "./copy.js";
@@ -92,6 +92,9 @@ export function destMatch(w: World, l: Load, text: string): boolean {
 
 /** The company that posted a load: its broker, else its shipper (null for an NPC shipper's load). */
 export const posterOf = (l: Load): number | null => l.brokerId ?? l.shipperId ?? null;
+
+/** brokerRisk.entry: "New broker · since <date>" for an AI brokerage that entered by conditions, while it's new (engine newEntrant); else null. */
+export const newBrokerLine = (w: World, c: Company | null | undefined): string | null => (c && newEntrant(w, c) ? FIXES.newBroker(shortDate(c.authority.since)) : null);
 
 /**
  * What a load "usually clears near" on the board: the engine's figure (freight.ts clearsNear), the lane's trailing clears

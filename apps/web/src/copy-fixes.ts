@@ -138,4 +138,12 @@ export const FIXES = {
   // Engineering's placeholders for the writer: the bus home (ruleset 0.25.3, labor.busHome; the director's sprint §9).
   onBus: (day: string) => `on the bus home · home ${day}`,
   awayBus: (who: string, from: string, hours: number, fd: string, day: string) => `${who} had no truck at ${from} and took the bus home: about ${hours} h and ${fd} FD, home ${day}.`,
+  // Engineering's placeholders for the writer: the market's renewal (brokerRisk.entry and the wind-ups; the director's §3
+  // and §16). An AI brokerage that entered by conditions, on its loads and its card while it's new; and the monthly
+  // report's counts, in its Companies section.
+  newBroker: (since: string) => `New broker · since ${since}`,
+  reportFounded: "AI brokerages founded",
+  reportOpened: "AI brokerages opened",
+  reportBrokersWoundUp: "AI brokerages wound up",
+  reportFleetsWoundUp: "AI fleets wound up",
 };

@@ -8,7 +8,7 @@ import { Ledger, companyAccount } from "./ledger.js";
 import { truckCap } from "./staking.js";
 import { newPool } from "./pools.js";
 import { Rng } from "./rng.js";
-import type { BrokerWoundUp, BuybackWeek, BrokerageLog, GameEvent, TokenState, Company, Business, DriverClock, EmissionState, Facility, TruckStopSite, FinancePool, FactoringLog, PopulationState, FraudCase, LeaseKind, Listing, Load, ManagerKind, Pool, PoolLine, PurchaseLoan, Receivable, Role, SeasonCloseRecord, Staff, StandingOrder, StandingStats, Trailer, Truck, TruckOrder, Contract, LeaseOffer } from "./types.js";
+import type { BrokerEntryState, BrokerWoundUp, BuybackWeek, BrokerageLog, GameEvent, TokenState, Company, Business, DriverClock, EmissionState, Facility, TruckStopSite, FinancePool, FactoringLog, PopulationState, FraudCase, LeaseKind, Listing, Load, ManagerKind, Pool, PoolLine, PurchaseLoan, Receivable, Role, SeasonCloseRecord, Staff, StandingOrder, StandingStats, Trailer, Truck, TruckOrder, Contract, LeaseOffer } from "./types.js";
 import { newEmissionState } from "./emission.js";
 import { fitTrailer, handBack, hook, hookedTrailer, newTrailer } from "./trailers.js";
 import type { AssetSale } from "./assetSales.js";
@@ -195,6 +195,10 @@ export interface World {
   population?: PopulationState;
   /** brokerRisk.windUpDormant: the AI brokers wound up as they could no longer trade, oldest first (population.ts). */
   brokersWoundUp?: BrokerWoundUp[];
+  /** insolvency.windUpNpcFleets: the failed NPC fleets wound up instead of restarted, oldest first (population.ts). */
+  fleetsWoundUp?: BrokerWoundUp[];
+  /** brokerRisk.entry: the signals and the brokerages founded (brokerEntry.ts); absent while it is off. */
+  brokerEntry?: BrokerEntryState;
   /** The emission cap (emission.ts): its budget, pacing and levers; kept with the cap off too, so a baseline reports what it would have capped. */
   emission: EmissionState;
   /** Staking locks' tally (staking.ts lockStats), made on first use while they are on. */
@@ -364,6 +368,8 @@ export interface NewCompany {
   human?: boolean;
   /** The starting grant (default true); the population dial's entrants come without one, so they mint nothing. */
   grant?: boolean;
+  /** The grant's faucet (default faucet:starting_grant): brokerRisk.entry's entrants draw theirs on the cap's budget (brokerEntry.ts). */
+  grantFrom?: string;
 }
 
 export function newSafetyRecord(): Company["safety"] {
@@ -751,7 +757,7 @@ export function formCompany(w: World, c: NewCompany): Company {
   // A holder is a wallet, not a company: no grant, no permits.
   if (c.role !== "holder") {
     if (c.grant !== false) {
-      w.ledger.post(w.t, "faucet:starting_grant", companyAccount(company.id), w.cfg.company.startingGrantFd, `grant:${company.id}`);
+      w.ledger.post(w.t, c.grantFrom ?? "faucet:starting_grant", companyAccount(company.id), w.cfg.company.startingGrantFd, `grant:${company.id}`);
       // After launch a new company's grant is spend-only, so a fresh account can't be cashed out.
       if (w.token.launchDay !== null && w.cfg.token.lockGrants) w.ledger.lock(companyAccount(company.id), w.cfg.company.startingGrantFd);
     }

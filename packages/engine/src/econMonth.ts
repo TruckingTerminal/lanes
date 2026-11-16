@@ -1,6 +1,7 @@
 import type { Equipment } from "@lanes/config";
 import { reserveHeldFd } from "./cashReserve.js";
 import { dayOf } from "./clock.js";
+import { renewalCounts, renewalOn } from "./brokerEntry.js";
 import { orderPrice, ordersOf, trailerValue, truckValue } from "./dealer.js";
 import { facilitiesOf } from "./demand.js";
 import { depositorValue } from "./finance.js";
@@ -53,6 +54,11 @@ export interface EconMonth {
   newCompanies: number;
   /** The new-truck price index at the close (w.dealerIndex), by tier and by trailer. */
   dealerIndex: { tractor: Record<string, number>; trailer: Record<string, number> };
+  /**
+   * The market's renewal (brokerEntry.ts), with brokerRisk.entry, brokerRisk.windUpDormant or insolvency.windUpNpcFleets
+   * on: AI brokerages founded and opened this month, AI brokers wound up, and NPC fleets wound up.
+   */
+  renewal?: { founded: number; opened: number; brokersWoundUp: number; fleetsWoundUp: number };
 }
 
 export type Segment = "ownerOperator" | "fleet" | "broker";
@@ -176,6 +182,7 @@ export function monthlyEconomy(w: World, day = dayOf(w.t, w.cfg)): void {
     work: { driversEmployed: drivers.filter((s) => s.status === "employed").length, driversPool: drivers.filter((s) => s.status === "pool").length, wageIndex: w.labor.wageIndex },
     newCompanies: w.companies.filter((c) => c.role !== "holder" && c.createdDay > day - w.cfg.time.daysPerMonth && c.createdDay <= day).length,
     dealerIndex: { tractor: { ...w.dealerIndex.tractor }, trailer: { ...w.dealerIndex.trailer } },
+    ...(renewalOn(w) ? { renewal: renewalCounts(w, day + 1 - w.cfg.time.daysPerMonth, day) } : {}),
   });
   b.tally = emptyTally();
 }

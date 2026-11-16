@@ -1025,6 +1025,11 @@ export const economyConfig = {
     // still post to cash, purchases and hires still need it, and receivables and pool deposits don't count. Off: cash.
     countReserve: false,
     restartAfterDays: 14, // a bankrupt sits out this long after its fleet is gone before the free-path restart
+    // The director's §16 (Jeff, 2026-11-15, "for now"; the economy's study, economy-fleet-entry-2026-11-15.md): a failed
+    // NPC fleet (a fleet the opening founded) is wound up once its liquidation is done, as a retired bot (population.ts
+    // retireCompany: its paper paid, its debts written off), counted once in w.fleetsWoundUp, and never restarted. A
+    // player's restart on the free path, and every other company's, is untouched. Off: it restarts on the free path.
+    windUpNpcFleets: false,
     fireSaleStartPctOfValue: 0.7,
     fireSaleStepPctOfValue: 0.1,
     fireSaleFloorPctOfValue: 0.25,
@@ -1055,6 +1060,17 @@ export const economyConfig = {
     // player's brokerage never is; it has its own lapse. Off: such a broker pays the premium until it is liquidated.
     windUpDormant: false,
     dormantWeeks: 8,
+    // Entry by conditions (the director's §3; Jeff, 2026-11-15, "for now, but ideally we want players to open
+    // brokerages"; the economy's sizes, studio/reviews/economy-broker-entry-2026-11-15.md; brokerEntry.ts). Weekly and
+    // national: the flow signal, NPC tenders offered to brokers over the last flowWeeks per trading broker (licensed, not
+    // wound up, not liquidating; players' brokerages and the founded-but-not-open counted), against the same measure over
+    // the rule's own weeks refFromWeek to refToWeek; and the margin signal, the AI brokers' margin after costs over the last
+    // marginWeeks. With the flow over flowRatio × the reference and the margin over marginMin, one AI brokerage (at most
+    // maxPerWeek) is founded, to open lagDays later with the opening's kit (the starting grant and the licence stake, a
+    // persona, new authority and a new name, no payment history), its capital drawn on the emission cap's budget under
+    // faucet:broker_entry. Its loads and card say it's new for newLabelDays. Runs with windUpDormant. Off: no signal is
+    // kept and nothing enters.
+    entry: { enabled: false, flowWeeks: 8, refFromWeek: 5, refToWeek: 12, marginWeeks: 13, flowRatio: 1.5, marginMin: 0.05, maxPerWeek: 1, lagDays: 120, newLabelDays: 90 },
   },
 
   // Item 4, delivery windows (engineering's proposal engineering-item4-delivery-windows.md; the director's calls, DECISIONS.md

@@ -188,6 +188,7 @@ import type { Load } from "./types.js";
 import { startHold } from "./brokerage.js";
 import { aiBroker, brokerKey, brokerUncovered, drawLeadDays, facilityKey, lostMemory, noteNpcPosted, openWindow, readyToday, sameDayMult, tally, windowHoursOf, windowsOn } from "./windows.js";
 import type { World } from "./world.js";
+import { noteBrokerTender } from "./brokerEntry.js";
 
 /** Destination weights per origin hub and equipment; static, so cached per network. */
 const destWeightCache = new WeakMap<Network, Map<string, number[]>>();
@@ -640,6 +641,7 @@ export function openBookNow(w: World, ref: number, ceiling: number, ratio: numbe
 }
 
 function tenderToBroker(w: World, load: Load, brokers: Company[], contractShipperRate: number, books?: Map<number, BrokerBook>): void {
+  noteBrokerTender(w); // brokerRisk.entry's flow signal: every NPC tender offered, taken or not (brokerEntry.ts)
   const eligible: Company[] = [];
   const weights: number[] = [];
   // What the load would add to a broker's books if posted at its ceiling (the high-value lift lands after the tender).

@@ -58,8 +58,20 @@ export function dailyPopulationDial(w: World, day: number): void {
 /** The dial's reading now: "within" when it is off. */
 export const dialState = (w: World): PopulationState["state"] => (dialOn(w) ? (w.population?.state ?? "within") : "within");
 
-/** Under the floor a bot carrier that went under is not restarted: it leaves the market, its debt unwritten (no write-off faucet). */
-export const holdsRestart = (w: World, c: Company) => dialState(w) === "under" && dialBot(c);
+/** A fleet the opening founded (agents ruleBots.ts populate: "fleet:"), run by no person and paired with no brokerage. */
+export const npcFleet = (c: Company) => c.role === "carrier" && !c.human && c.strategy.startsWith("fleet:") && c.partnerId === undefined;
+
+/**
+ * insolvency.windUpNpcFleets (the director's §16): a failed NPC fleet is wound up once its liquidation is done, counted once
+ * in w.fleetsWoundUp, never restarted. A player's restart on the free path is untouched.
+ */
+export const windsUpFleet = (w: World, c: Company) => w.cfg.insolvency.windUpNpcFleets === true && npcFleet(c);
+
+/**
+ * Under the floor a bot carrier that went under is not restarted: it leaves the market, its debt unwritten (no write-off
+ * faucet). Nor is a failed NPC fleet with insolvency.windUpNpcFleets on.
+ */
+export const holdsRestart = (w: World, c: Company) => (dialState(w) === "under" && dialBot(c)) || windsUpFleet(w, c);
 
 /**
  * A simulated carrier leaves the market: what it still runs on a lease goes back (the NPC lease's deposit, the company's
@@ -68,7 +80,7 @@ export const holdsRestart = (w: World, c: Company) => dialState(w) === "under" &
  * and is retired with it. Then everything else it holds or owes is settled as a liquidation settles it (solvency.ts
  * settleRetired), so nothing posts to its account again (the red team's leak, 2026-11-08).
  */
-export function retireCompany(w: World, c: Company, why: "held" | "wound down" | "dormant"): void {
+export function retireCompany(w: World, c: Company, why: "held" | "wound down" | "dormant" | "failed fleet"): void {
   for (const t of [...(w.trucksByCompany.get(c.id) ?? [])]) {
     if (t.lease === "npc") {
       detachTruck(w, t); // the lease's deposit comes back with it (world.ts)
@@ -87,6 +99,7 @@ export function retireCompany(w: World, c: Company, why: "held" | "wound down" |
   c.windingDownDay = undefined;
   if (why === "held") state(w).retired++;
   else if (why === "wound down") state(w).woundDown++;
+  else if (why === "failed fleet") (w.fleetsWoundUp ??= []).push({ day: dayOf(w.t, w.cfg), companyId: c.id }); // counted once, here
   w.listener?.({ kind: "notice", companyId: c.id, topic: "board", text: `${c.name} has left the market.`, tone: "info" });
 }
 

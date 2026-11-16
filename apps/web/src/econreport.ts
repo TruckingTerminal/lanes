@@ -1,6 +1,7 @@
 import type { Equipment } from "@lanes/config";
-import type { DayMetrics, EconMonth, World } from "@lanes/engine";
+import { brokerEntryOn, type DayMetrics, type EconMonth, type World } from "@lanes/engine";
 import { REPORT } from "./copy-report.js";
+import { FIXES } from "./copy-fixes.js";
 import { fdFull, monthName, pct, TRAILER_NAME } from "./format.js";
 
 /**
@@ -117,6 +118,11 @@ export function econReport(w: World, trailer: Equipment | null, index?: number):
       row(REPORT.inDebt, (m) => last(m)?.inDebt ?? null, n),
       // What they owe in all: a total over the companies in debt, so only where ten or more stand behind it.
       row(REPORT.owed, (m) => ((last(m)?.inDebt ?? 0) >= 10 ? last(m)!.debtFd : null), fdFull),
+      // The market's renewal (brokerRisk.entry and the wind-ups): counts, no company named; left out while the rules are off.
+      row(FIXES.reportFounded, (m) => (brokerEntryOn(w) ? (m.rec.renewal?.founded ?? null) : null), n),
+      row(FIXES.reportOpened, (m) => (brokerEntryOn(w) ? (m.rec.renewal?.opened ?? null) : null), n),
+      row(FIXES.reportBrokersWoundUp, (m) => (w.cfg.brokerRisk.windUpDormant ? (m.rec.renewal?.brokersWoundUp ?? null) : null), n),
+      row(FIXES.reportFleetsWoundUp, (m) => (w.cfg.insolvency.windUpNpcFleets ? (m.rec.renewal?.fleetsWoundUp ?? null) : null), n),
     ),
   };
   const work: ReportSection = {
