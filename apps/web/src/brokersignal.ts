@@ -9,6 +9,8 @@ import { fdFull, shortDate } from "./format.js";
  */
 
 const times = (x: number) => `${x.toFixed(1)}×`;
+/** The director's §25 words: "about 93,000 FD", the figure to the thousand. */
+export const aboutFd = (x: number) => Math.round(x / 1000) * 1000;
 const pctOf = (x: number) => `${Math.round(x * 100)}%`;
 
 /** §2: the brokerage screen's line before forming; null with `signal` off or before entry has a reading. */
@@ -38,10 +40,11 @@ export const brokerageSheetFd = (w: World): number => formationCostFd(w, w.cfg.b
 /** §3: before the carrier can afford a brokerage, what it takes and what the carrier has; null with `path` off or once it can. */
 export function brokeragePathLine(w: World, carrier: Company): string | null {
   if (w.cfg.brokerRisk.entry?.playersFirst?.path !== true) return null;
-  const cost = brokerageCostFd(w);
+  // The director's §25: the sheet's prefilled figure, as the hint quotes it, rounded to the thousand in the words.
+  const cost = brokerageSheetFd(w);
   const cash = w.ledger.balance(companyAccount(carrier.id));
   if (cash >= cost) return null;
-  return FIXES.brokeragePath(fdFull(cost), fdFull(w.cfg.token.staking.roles.broker), pctOf(w.cfg.brokerage.transferFeePct), fdFull(Math.max(0, cash)));
+  return FIXES.brokeragePath(fdFull(aboutFd(cost)), fdFull(w.cfg.token.staking.roles.broker), fdFull(w.cfg.brokerage.startCashFd), pctOf(w.cfg.brokerage.transferFeePct), fdFull(Math.max(0, cash)));
 }
 
 /**

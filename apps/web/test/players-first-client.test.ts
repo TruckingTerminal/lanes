@@ -52,10 +52,12 @@ describe("players first on the page", () => {
     const g = await TestGame.create(undefined, undefined, 41, on({ path: true }));
     const c = g.join("Path Freight", "oo", "CMH")!;
     const w = g.w;
-    const cost = brokerageCostFd(w);
-    expect(cost).toBeCloseTo(formationCostFd(w), 6);
+    // The director's §25: the sheet's prefilled figure, as the hint quotes it (93,009 FD, "about 93,000").
+    expect(brokerageCostFd(w)).toBeCloseTo(formationCostFd(w), 6);
+    const cost = brokerageSheetFd(w);
     toCash(w, c.id, 41_000);
-    expect(brokeragePathLine(w, c)).toBe(FIXES.brokeragePath(fdFull(cost), fdFull(w.cfg.token.staking.roles.broker), "3%", fdFull(41_000)));
+    expect(brokeragePathLine(w, c)).toBe(FIXES.brokeragePath("93,000", fdFull(w.cfg.token.staking.roles.broker), "15,000", "3%", fdFull(41_000)));
+    expect(brokeragePathLine(w, c)).toBe("Opening a brokerage takes about 93,000 FD: the 75,000 bond, the licence, 15,000 to start trading and the 3% fee. Your carrier has 41,000.");
     toCash(w, c.id, cost + 1);
     expect(brokeragePathLine(w, c)).toBeNull();
     const off = await TestGame.create(undefined, undefined, 41, on({ path: false }));
@@ -76,6 +78,7 @@ describe("players first on the page", () => {
     expect(brokerageSheetFd(w)).toBeCloseTo(sheet, 6);
     expect(Math.round(brokerageSheetFd(w))).toBe(93_009);
     expect(brokerOpening(w, c)).toEqual({ costFd: brokerageSheetFd(w) });
+    expect(FIXES.hintBrokerAction("93,000", "15,000")).toBe("You could open a brokerage: about 93,000 FD from your carrier, 15,000 of it to start trading.");
     toCash(w, c.id, brokerageSheetFd(w) + 100); // it would leave the carrier under its working cash
     expect(brokerOpening(w, c)).toBeNull();
     toCash(w, c.id, 300_000);

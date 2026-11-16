@@ -35,9 +35,11 @@ describe("the sheet's dock line (ruling 21)", () => {
     expect(dockShutLine(fri.w, fri.l)).toBe(FIXES.dockShut(town, "Sat–Sun", "Mon", "07:00", "19:00"));
     expect(FIXES.dockShut("Xenia", "Sat–Sun", "Mon", "07:00", "19:00")).toBe("Xenia's dock is shut Sat–Sun: loading Mon 07:00–19:00.");
     expect(dockShutLine(vanAt(ON, at(2, 8)).w, vanAt(ON, at(2, 8)).l)).toBeNull();
-    // Ready Fri 08:00, Friday's hours still load it (the red team's 0.25.6 fix): that's the loading day named.
+    // §24, ready Fri 08:00: Friday's hours load it, so the window is clipped where the dock shuts.
     const morning = vanAt(ON, at(4, 8));
-    expect(dockShutLine(morning.w, morning.l)).toBe(FIXES.dockShut(town, "Sat–Sun", "Fri", "07:00", "19:00"));
+    expect(morning.l.latestPickupT).toBe(at(4, 19));
+    expect(dockShutLine(morning.w, morning.l)).toBe(FIXES.dockShuts(town, "Fri 19:00", "Mon 07:00"));
+    expect(FIXES.dockShuts("Xenia", "Fri 19:00", "Mon 07:00")).toBe("Xenia's dock shuts Fri 19:00 until Mon 07:00.");
     const off = vanAt(LIVE, at(4, 18));
     expect(dockShutLine(off.w, off.l)).toBeNull();
   }, 120_000);

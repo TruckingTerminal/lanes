@@ -1,5 +1,5 @@
 import { MENUS } from "./copy-menus.js";
-import { dockHoursAt, fullOpenDay, loadsOnReadyDay, AHEAD_STATUSES, canMake, clearsWhen, companyAccount, crewed, hubMiles, dayOf, freeOf, lostShare, memoryLift, npcKey, pickupReachT, releaseStopOf, resting, urgent, waitingAtDock, weekdayName, whenLabel, windowsOn, type Company, type Free, type Load, type Reach, type Truck, type World } from "@lanes/engine";
+import { dockHoursAt, nextOpen, AHEAD_STATUSES, canMake, clearsWhen, companyAccount, crewed, hubMiles, dayOf, freeOf, lostShare, memoryLift, npcKey, pickupReachT, releaseStopOf, resting, urgent, waitingAtDock, weekdayName, whenLabel, windowsOn, type Company, type Free, type Load, type Reach, type Truck, type World } from "@lanes/engine";
 import { COMMODITIES } from "@lanes/data";
 import { WINDOWS } from "./copy-windows.js";
 import { FIXES } from "./copy-fixes.js";
@@ -435,27 +435,23 @@ export function homeMarketLine(w: World, c: Company, t: Truck): string | null {
 export const homeNoDrive = (w: World, c: Company): boolean => w.cfg.labor.homeNeedsDispatcher && !c.orders.some((o) => o.kind === "bid");
 
 /**
- * The director's ruling 21 (windows.fullOpenDay): the sheet's one line when a load's pickup window spans whole days its
- * shipper's dock is shut: the town, the shut days ("Sat–Sun"), and the full open day the window holds, with its hours.
- * Null with the rule off, at a dock with no hours, or with no shut day inside the window.
+ * The director's ruling 21 as amended by §24 (windows.fullOpenDay): the sheet's one line when the window met the dock's
+ * shut hours. Clipped (the dock shuts inside the 24 or 48 hours): when it shuts and when it opens again, "Xenia's dock
+ * shuts Fri 19:00 until Mon 07:00". Moved (no loading's hours left): the whole days it's shut before the loading day and
+ * that day's hours, "Xenia's dock is shut Sat–Sun: loading Mon 07:00–19:00". Null otherwise, or with the rule off.
  */
 export function dockShutLine(w: World, l: Load): string | null {
-  if (l.readyT === undefined || l.latestPickupT === undefined) return null;
-  const full = fullOpenDay(w, l, l.readyT);
+  if (!l.windowShift || l.readyT === undefined || l.latestPickupT === undefined) return null;
   const h = dockHoursAt(w, l, "pickup");
-  if (!full || !h) return null;
+  if (!h) return null;
   const D = w.cfg.time.gameMinutesPerDay;
+  const town = w.net.places[l.originPlace]!.name;
+  const when = (t: number) => `${weekday(Math.floor(t / D))} ${hhmm(t)}`;
+  if (l.windowShift === "clip") return FIXES.dockShuts(town, when(l.latestPickupT), when(nextOpen(w, l.latestPickupT + 1, h)));
+  const loading = Math.floor(l.readyT / D);
   const shut: number[] = [];
-  for (let d = Math.ceil(l.readyT / D); (d + 1) * D <= l.latestPickupT; d++) if (!h.days.includes((d + w.cfg.time.weekdayOfDay0) % 7)) shut.push(d);
-  if (!shut.length) return null;
-  const name = (d: number) => weekday(d);
-  const days = shut.length === 1 ? name(shut[0]!) : `${name(shut[0]!)}–${name(shut.at(-1)!)}`;
-  // The red team's 0.25.6 fix: when the ready day still has a loading's hours, "Deliver by" counts from it, so that's the
-  // loading day the line names (with that day's hours); else the full open day the window holds.
-  const readyDay = Math.floor(l.readyT / D);
-  const onReady = loadsOnReadyDay(w, l, l.readyT);
-  const loading = onReady ? readyDay : Math.floor(full.open / D);
-  const open = onReady ? readyDay * D + h.open * 60 : full.open;
-  const close = onReady ? readyDay * D + h.close * 60 : full.close;
-  return FIXES.dockShut(w.net.places[l.originPlace]!.name, days, name(loading), hhmm(open), hhmm(close));
+  for (let d = loading - 1; d > loading - 8 && !h.days.includes((d + w.cfg.time.weekdayOfDay0) % 7); d--) shut.unshift(d);
+  if (!shut.length) return null; // a weekday evening's move: the card's own times say it
+  const days = shut.length === 1 ? weekday(shut[0]!) : `${weekday(shut[0]!)}–${weekday(shut.at(-1)!)}`;
+  return FIXES.dockShut(town, days, weekday(loading), hhmm(l.readyT), hhmm(l.latestPickupT));
 }

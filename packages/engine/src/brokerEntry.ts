@@ -66,10 +66,10 @@ export const pendingEntrants = (s: BrokerEntryState): number => s.entrants.filte
 export const carrierOwnedBroker = (c: Company): boolean => c.role === "broker" && c.partnerId !== undefined;
 
 /** The director's players-first switches, each needing entry on (`path` is read on its own, brokerage screen only). */
-export const playersFirst = (w: World): { yields: boolean; signal: boolean; hint: boolean; peopleOnly: boolean } => {
+export const playersFirst = (w: World): { yields: boolean; signal: boolean; hint: boolean } => {
   const p = w.cfg.brokerRisk.entry?.playersFirst;
   const on = brokerEntryOn(w);
-  return { yields: on && p?.yields === true, signal: on && p?.signal === true, hint: on && p?.hint === true, peopleOnly: p?.peopleOnly === true };
+  return { yields: on && p?.yields === true, signal: on && p?.signal === true, hint: on && p?.hint === true };
 };
 
 /** A reading over both lines: the flow over flowRatio × the reference and the margin over marginMin (what founds one). */

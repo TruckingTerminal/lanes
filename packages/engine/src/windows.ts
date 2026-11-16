@@ -29,7 +29,7 @@
 import { COMMODITIES, dpow } from "@lanes/data";
 import type { EconomyConfig, Equipment } from "@lanes/config";
 import { dayOf, MINUTES_PER_HOUR } from "./clock.js";
-import { dockHoursAt, dockRule, nextOpen } from "./docks.js";
+import { dockHoursAt, dockRule, nextOpen, type DockHours } from "./docks.js";
 import { EQUIPMENT, planIndex } from "./demand.js";
 import { giveUp } from "./board.js";
 import { samePerson } from "./brokerage.js";
@@ -83,13 +83,43 @@ export function readyAt(w: World, load: Load, leadDays: number): number {
   return hours ? nextOpen(w, t, hours) : t;
 }
 
-/**
- * windows.fullOpenDay (the director's ruling 21): the pickup dock's first full open day at or after `t`, its opening and its
- * close; null with the switch or the docks off, or at a dock with no hours (an appointment dock, one round the clock).
- */
-export function fullOpenDay(w: World, load: Load, t: number): { open: number; close: number } | null {
+/** windows.fullOpenDay's dock hours for this load's pickup: null with the rule or the docks off, or at a dock with no hours. */
+function ruledHours(w: World, load: Load): DockHours | null {
   if (w.cfg.windows?.fullOpenDay !== true || !w.cfg.docks.enabled) return null;
-  const h = dockHoursAt(w, load, "pickup");
+  return dockHoursAt(w, load, "pickup");
+}
+
+/**
+ * The director's §24 (ruling 21 amended), its one test: the dock keeps a loading's hours (dwell.loadMinutes[1]) open in one
+ * stretch between `from` and `to`, the ready time and the ready time plus pickupHours.
+ */
+export function loadableBetween(w: World, h: DockHours, from: number, to: number): boolean {
+  const D = w.cfg.time.gameMinutesPerDay;
+  const need = w.cfg.dwell.loadMinutes[1];
+  for (let day = Math.floor(from / D); day * D <= to; day++) {
+    if (!h.days.includes((day + w.cfg.time.weekdayOfDay0) % 7)) continue;
+    const open = Math.max(from, day * D + h.open * 60);
+    const close = Math.min(to, day * D + h.close * 60);
+    if (close - open >= need) return true;
+  }
+  return false;
+}
+
+/** §24: the end of the last open hours at or before `t`: `t` itself while the dock is open then, else the close before it. */
+export function lastOpenEnd(w: World, h: DockHours, t: number): number {
+  const D = w.cfg.time.gameMinutesPerDay;
+  for (let day = Math.floor(t / D); day > Math.floor(t / D) - 8; day--) {
+    if (!h.days.includes((day + w.cfg.time.weekdayOfDay0) % 7)) continue;
+    const open = day * D + h.open * 60;
+    const close = day * D + h.close * 60;
+    if (t >= open) return Math.min(t, close);
+  }
+  return t;
+}
+
+/** The pickup dock's first full open day at or after `t`, its opening and its close; null with the rule off or no hours. */
+export function fullOpenDay(w: World, load: Load, t: number): { open: number; close: number } | null {
+  const h = ruledHours(w, load);
   if (!h) return null;
   const D = w.cfg.time.gameMinutesPerDay;
   const first = Math.floor(t / D);
@@ -101,41 +131,36 @@ export function fullOpenDay(w: World, load: Load, t: number): { open: number; cl
   return null;
 }
 
-/**
- * The red team's 0.25.6 hole in ruling 21: the ready day itself still has a loading's hours open at the pickup dock (its
- * close at least dwell.loadMinutes[1] after `t`), so the load can be loaded that day. True at a dock with no hours.
- */
-export function loadsOnReadyDay(w: World, load: Load, t: number): boolean {
-  const h = w.cfg.docks.enabled ? dockHoursAt(w, load, "pickup") : null;
-  if (!h) return true;
-  const D = w.cfg.time.gameMinutesPerDay;
-  const day = Math.floor(t / D);
-  if (!h.days.includes((day + w.cfg.time.weekdayOfDay0) % 7)) return false;
-  return t + w.cfg.dwell.loadMinutes[1] <= day * D + h.close * 60;
-}
-
 /** Sets a just-posted load's window. Its appointment moves with the ready time and sits inside the window. */
 export function openWindow(w: World, load: Load, leadDays: number): void {
   const { cfg } = w;
   const k = cfg.windows!;
-  const readyT = readyAt(w, load, leadDays);
-  const readyClose = readyT + (dockRule(w, load) === "appointment" ? k.pickupHours.appointment : k.pickupHours.firstCome) * 60;
-  let latestPickupT = readyClose;
-  // Ruling 21: the window holds the dock's first full open day. The red team's 0.25.6 fix: the deadline (and a hot load's,
-  // and the appointment's) counts from that day only when the ready day leaves no loading's hours; otherwise from the
-  // ready time, as before, so a release a minute after the dock opens can't buy a weekend. The close itself moves by the
-  // ruling's letter either way (the director's call).
-  let loadsFrom = readyT;
-  let deliverFrom = readyClose;
-  const full = fullOpenDay(w, load, readyT);
-  if (full && full.close > latestPickupT) {
-    const loadable = loadsOnReadyDay(w, load, readyT);
-    if (!loadable || k.fullOpenDayKeepsClose !== true) latestPickupT = full.close; // the director's call: windows.fullOpenDayKeepsClose
-    if (!loadable) {
-      loadsFrom = full.open;
-      deliverFrom = full.close;
+  let readyT = readyAt(w, load, leadDays);
+  let latestPickupT = readyT + (dockRule(w, load) === "appointment" ? k.pickupHours.appointment : k.pickupHours.firstCome) * 60;
+  // windows.fullOpenDay, the director's ruling 21 as amended by §24: one test, a loading's hours open inside the window.
+  // Yes: nothing moves to another day; the close is the end of the last open hours inside it, never a time the dock is
+  // shut ("clip"). No: the window is the dock's next full open day, ready at its opening ("move"). "Deliver by" counts
+  // from the close, a hot load's deadline and the appointment from the ready time, in both cases.
+  if (load.windowShift !== undefined) delete load.windowShift;
+  const h = ruledHours(w, load);
+  if (h) {
+    if (loadableBetween(w, h, readyT, latestPickupT)) {
+      const close = lastOpenEnd(w, h, latestPickupT);
+      if (close < latestPickupT) {
+        latestPickupT = close;
+        load.windowShift = "clip";
+      }
+    } else {
+      const full = fullOpenDay(w, load, readyT);
+      if (full) {
+        readyT = full.open;
+        latestPickupT = full.close;
+        load.windowShift = "move";
+      }
     }
   }
+  const loadsFrom = readyT;
+  const deliverFrom = latestPickupT;
   const legal = transitMinutes(cfg, load.routeHours, cfg.hos.drivingHoursPerDay);
   const windowMin = windowHoursOf(cfg, load.commodity) * 60;
   let latestDeliveryT = deliverFrom + legal + windowMin;
@@ -151,7 +176,7 @@ export function openWindow(w: World, load: Load, leadDays: number): void {
   load.readyT = readyT;
   load.latestPickupT = latestPickupT;
   load.latestDeliveryT = latestDeliveryT;
-  load.appointmentT = Math.min(loadsFrom + windowMin + legal, latestDeliveryT); // ruling 21: from the opening, when the close moved
+  load.appointmentT = Math.min(loadsFrom + windowMin + legal, latestDeliveryT); // §24: from the ready time, moved or not
 }
 
 /** True when a load counts in today's work: no window, windows off, or ready by today's end. */

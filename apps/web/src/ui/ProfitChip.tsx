@@ -3,6 +3,7 @@ import type { Load, Truck, World } from "@lanes/engine";
 import { chipCash, chipFd, dockWaits, type ChipPair } from "../board.js";
 import { CHIP, DELIVERED, DOCK } from "../copy.js";
 import { cls, hhmm, weekdayDate } from "../format.js";
+import { FIXES } from "../copy-fixes.js";
 
 /**
  * R14's chip: "+607 · cash −103 · held 710" while the lease holds (the held part on a laptop only; on a phone it's on the
@@ -41,6 +42,13 @@ export function DockWarning({ w, t, l, dh }: { w: World; t: Truck; l: Load; dh: 
       {d.pickup ? DOCK.pickup(when(d.pickup.openT), Math.round(d.pickup.waitMin / 60)) : null}
       {d.pickup && d.delivery ? <br /> : null}
       {d.delivery ? DOCK.delivery(when(d.delivery.openT), Math.round(d.delivery.waitMin / 60)) : null}
+      {/* The director's §26 (detention.fromOpening): a wait at a shut dock is the carrier's, unpaid. */}
+      {w.cfg.detention.enabled && w.cfg.detention.fromOpening === true ? (
+        <>
+          <br />
+          {FIXES.dockWaitUnpaid(w.cfg.detention.freeHours)}
+        </>
+      ) : null}
     </p>
   );
 }

@@ -58,8 +58,8 @@ const form = (w: World, carrier: Company) => {
 
 describe("players first (brokerRisk.entry.playersFirst)", () => {
   it("is off by default and in the live levers", () => {
-    expect(LIVE.brokerRisk.entry.playersFirst).toEqual({ yields: false, signal: false, hint: false, path: false, peopleOnly: false });
-    expect(playersFirst(createWorld({ cfg: LIVE, net, feeds: neutralFeeds, seed: 1 }))).toEqual({ yields: false, signal: false, hint: false, peopleOnly: false });
+    expect(LIVE.brokerRisk.entry.playersFirst).toEqual({ yields: false, signal: false, hint: false, path: false });
+    expect(playersFirst(createWorld({ cfg: LIVE, net, feeds: neutralFeeds, seed: 1 }))).toEqual({ yields: false, signal: false, hint: false });
   });
 
   it("§1: a carrier's new brokerage withdraws the newest AI brokerage not yet open, one for one; off, none", () => {
@@ -110,22 +110,12 @@ describe("players first (brokerRisk.entry.playersFirst)", () => {
     expect(ob.brokerActiveDay).toBeUndefined();
   });
 
-  it("the director's pending call, peopleOnly: a bot carrier's pair yields only with it off; a person's either way", () => {
-    const people = (on: boolean): EconomyConfig => {
-      const c = entry(true);
-      return { ...c, brokerRisk: { ...c.brokerRisk, entry: { ...c.brokerRisk.entry, playersFirst: { ...c.brokerRisk.entry.playersFirst, peopleOnly: on } } } };
-    };
-    for (const on of [false, true]) {
-      const { w } = world(people(on));
-      const bot = formCompany(w, { name: "Bot Freight", role: "carrier", homeHubId: "DAL", strategy: "greedy", orders: [], freePath: false });
-      w.ledger.post(w.t, "faucet:starting_grant", companyAccount(bot.id), 200_000, "test");
-      w.brokerEntry!.entrants.push({ founded: 0, opens: 120 });
-      form(w, bot);
-      expect(w.brokerEntry!.entrants[0]!.withdrawn !== undefined).toBe(!on);
-    }
-    const { w, carrier } = world(people(true));
+  it("the director's §25: any carrier's new brokerage yields, a bot carrier's pair as a person's", () => {
+    const { w } = world(entry(true));
+    const bot = formCompany(w, { name: "Bot Freight", role: "carrier", homeHubId: "DAL", strategy: "greedy", orders: [], freePath: false });
+    w.ledger.post(w.t, "faucet:starting_grant", companyAccount(bot.id), 200_000, "test");
     w.brokerEntry!.entrants.push({ founded: 0, opens: 120 });
-    form(w, carrier); // a person's
+    form(w, bot);
     expect(w.brokerEntry!.entrants[0]!.withdrawn).toBeDefined();
   });
 

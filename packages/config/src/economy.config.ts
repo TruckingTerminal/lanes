@@ -1100,9 +1100,7 @@ export const economyConfig = {
       // off until the economy shows a player brokerage formed at the signal clearing its costs within 90 days. `path`
       // (§3): before the carrier can afford one, the brokerage screen says what it takes and what the carrier has (with
       // entry off too). All off until a ruleset.
-      // `peopleOnly` (the director's call, pending): the yield only for a brokerage a person's carrier forms (c.human), not a
-      // bot carrier's pair. Off: any carrier's formation yields, so the economy's sims can measure it.
-      playersFirst: { yields: false, signal: false, hint: false, path: false, peopleOnly: false },
+      playersFirst: { yields: false, signal: false, hint: false, path: false },
     },
   },
 
@@ -1137,10 +1135,6 @@ export const economyConfig = {
     // hours (an appointment dock, a first-come dock round the clock) and a window that already holds a full open day don't
     // change. Off: the ready time plus pickupHours, as before.
     fullOpenDay: false,
-    // The red team's 0.25.6 pass, the director's call (pending): with the ready day still able to load (a loading's hours
-    // before its close), true keeps the pickup close where it was (the ready time plus pickupHours), as the deadline is;
-    // false moves it by the ruling's letter to the full open day's close. Read only with fullOpenDay on.
-    fullOpenDayKeepsClose: false,
     // The urgency walk (the director's call 3): flat while more than this many rounds of slack remain before the pickup
     // closes; in these last rounds the ceiling steps as a rollover does (board.rolloverCeilingStep) and book-now walks to
     // it, one step a round, at most this many steps. A player poster's pay never walks. Batch 4: 4 (from 2), the same walk

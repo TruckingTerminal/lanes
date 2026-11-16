@@ -1074,6 +1074,8 @@ export interface Load {
   readyT?: number;
   latestPickupT?: number;
   latestDeliveryT?: number;
+  /** windows.fullOpenDay (§24): the window clipped to the dock's last open hours ("clip"), or moved to its next full open day ("move"). */
+  windowShift?: "clip" | "move";
   /** The urgency walk's steps taken in the last rounds before the pickup closes (windows.urgencyRounds at most). */
   urgentSteps?: number;
   /**

@@ -20,6 +20,7 @@ import { leaseMinFor } from "../ledger.js";
 import { leasedNo, orderedFirstTruck } from "../figures.js";
 import { WINDOWS } from "../copy-windows.js";
 import { FIXES } from "../copy-fixes.js";
+import { aboutFd } from "../brokersignal.js";
 import { emptyRun } from "../rolling.js";
 import { askFigures, askLines, homeNoDrive, spanLabel, whenAt } from "../windowsui.js";
 
@@ -308,7 +309,7 @@ function words(a: NextAction): { action: string; reason: string; button: string;
     case "brokerOpening":
       // The director's players-first §2: once; See how opens the brokerage screen, and the hint isn't offered again.
       return {
-        action: FIXES.hintBrokerAction(fd(a.costFd)),
+        action: FIXES.hintBrokerAction(fd(aboutFd(a.costFd)), fd(w.cfg.brokerage.startCashFd)),
         reason: FIXES.hintBrokerReason,
         button: FIXES.hintBrokerButton,
         go: () => {

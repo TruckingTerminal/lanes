@@ -187,9 +187,8 @@ export function formBrokerage(w: World, carrier: Company, name: string, capitalF
   brokerageLog(w).formed.find((f) => f.brokerId === b.id)!.toBrokerFd -= capitalFd;
   // The director's players-first §1 (brokerRisk.entry.playersFirst.yields): the newest AI brokerage founded and not yet
   // open yields to this one, one for one (brokerEntry.ts).
-  // With playersFirst.peopleOnly (the director's call, pending), only a person's carrier; else any carrier's, a bot pair too.
-  const pf = playersFirst(w);
-  if (pf.yields && (!pf.peopleOnly || carrier.human)) yieldEntrant(w, b.id);
+  // The director's §25: any carrier's new brokerage, a bot carrier's pair included.
+  if (playersFirst(w).yields) yieldEntrant(w, b.id);
   return b;
 }
 

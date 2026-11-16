@@ -146,6 +146,10 @@ export const FIXES = {
   // Engineering's placeholder for the writer: the director's ruling 21 (windows.fullOpenDay). The load sheet's one line when
   // the pickup window spans days the shipper's dock is shut: the town, the shut days, and the loading day and hours.
   dockShut: (town: string, days: string, day: string, open: string, close: string) => `${town}'s dock is shut ${days}: loading ${day} ${open}–${close}.`,
+  // …and §24's other case: the window clipped where the dock shuts inside it.
+  dockShuts: (town: string, shuts: string, opens: string) => `${town}'s dock shuts ${shuts} until ${opens}.`,
+  // The director's §26 (detention.fromOpening): under the booking's dock warning, the wait at a shut dock is unpaid.
+  dockWaitUnpaid: (freeHours: number) => `The wait is unpaid: detention starts ${freeHours === 1 ? "an hour" : freeHours === 2 ? "two hours" : `${freeHours} hours`} after the dock opens.`,
   // Engineering's placeholders for the writer: the bus home (ruleset 0.25.3, labor.busHome; the director's sprint §9).
   onBus: (day: string) => `on the bus home · home ${day}`,
   awayBus: (who: string, from: string, hours: number, fd: string, day: string) => `${who} had no truck at ${from} and took the bus home: about ${hours} h and ${fd} FD, home ${day}.`,
@@ -165,9 +169,9 @@ export const FIXES = {
   // …and Iuliia's line under it (for her lines when the writer wires it).
   iuliiaNewBrokerage: "A new brokerage starts small. Shippers send it more as it pays carriers on time.",
   // §3: before the carrier can afford a brokerage.
-  brokeragePath: (cost: string, bond: string, feePct: string, cash: string) => `Opening a brokerage takes ${cost} FD: the ${bond} bond, the licence and the ${feePct} fee. Your carrier has ${cash}.`,
+  brokeragePath: (cost: string, bond: string, start: string, feePct: string, cash: string) => `Opening a brokerage takes about ${cost} FD: the ${bond} bond, the licence, ${start} to start trading and the ${feePct} fee. Your carrier has ${cash}.`,
   // §2's hint in What now? (the opportunity, the lowest tier).
-  hintBrokerAction: (cost: string) => `You could open a brokerage: ${cost} FD from your carrier.`,
+  hintBrokerAction: (cost: string, start: string) => `You could open a brokerage: about ${cost} FD from your carrier, ${start} of it to start trading.`,
   hintBrokerReason: "Shippers have more freight than brokers to move it.",
   hintBrokerButton: "See how",
   // §2, the monthly report, in the trade paper's voice: the reading at the close, then the brokerages opened, a carrier's
