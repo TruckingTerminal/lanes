@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { companyAccount, dayOf, formationCostFd, noteBrokerTender, type EconMonth, type World } from "@lanes/engine";
-import { brokerageCostFd, brokeragePathLine, brokerMarketIuliia, brokerMarketLine, brokerOpening, reportBrokersLine } from "../src/brokersignal.js";
+import { brokerageCostFd, brokerageSheetFd, brokeragePathLine, brokerMarketIuliia, brokerMarketLine, brokerOpening, reportBrokersLine } from "../src/brokersignal.js";
 import { FIXES } from "../src/copy-fixes.js";
 import { fdFull, shortDate } from "../src/format.js";
 import { GAME_CONFIG, TestGame } from "../src/game.js";
@@ -71,8 +71,12 @@ describe("players first on the page", () => {
     if (w.ladder) w.ladder.brokerage = dayOf(w.t, w.cfg);
     reading(w, 1.7, 0.07, []);
     toCash(w, c.id, 300_000);
-    expect(brokerOpening(w, c)).toEqual({ costFd: brokerageCostFd(w) });
-    toCash(w, c.id, brokerageCostFd(w) + 100); // it would leave the carrier under its working cash
+    // The forming sheet's prefilled figure, fee included (the economy's 0.25.6 interim): 93,009 FD on the live profile.
+    const sheet = (w.cfg.token.staking.roles.broker + w.cfg.permits.brokerLicenseRenewalFd + w.cfg.brokerage.startCashFd) * (1 + w.cfg.brokerage.transferFeePct);
+    expect(brokerageSheetFd(w)).toBeCloseTo(sheet, 6);
+    expect(Math.round(brokerageSheetFd(w))).toBe(93_009);
+    expect(brokerOpening(w, c)).toEqual({ costFd: brokerageSheetFd(w) });
+    toCash(w, c.id, brokerageSheetFd(w) + 100); // it would leave the carrier under its working cash
     expect(brokerOpening(w, c)).toBeNull();
     toCash(w, c.id, 300_000);
     reading(w, 1.4, 0.07, []); // under the flow's line

@@ -28,6 +28,13 @@ export const brokerMarketIuliia = (w: World): string | null => (brokerMarketLine
 /** What forming a brokerage takes from the carrier: its bond, its licence and the transfer's fee (brokerage.ts formationCostFd). */
 export const brokerageCostFd = (w: World): number => formationCostFd(w);
 
+/**
+ * What the forming sheet moves from the carrier as it comes prefilled (Brokerage.tsx StartBrokerage): the bond, the licence
+ * and brokerage.startCashFd of working cash, and the transfer's fee on all of it. The hint quotes this, so the two agree
+ * (the economy's 0.25.6 interim: forming at the bare cost starts the brokerage with no cash).
+ */
+export const brokerageSheetFd = (w: World): number => formationCostFd(w, w.cfg.brokerage.startCashFd);
+
 /** §3: before the carrier can afford a brokerage, what it takes and what the carrier has; null with `path` off or once it can. */
 export function brokeragePathLine(w: World, carrier: Company): string | null {
   if (w.cfg.brokerRisk.entry?.playersFirst?.path !== true) return null;
@@ -38,14 +45,15 @@ export function brokeragePathLine(w: World, carrier: Company): string | null {
 }
 
 /**
- * §2's hint, for What now? (nextstep.ts): the cost, when all hold: the signal over its lines, the layer open, the carrier
- * able to form a brokerage today, and its cash after the cost still over its working capital (solvency.ts). Null otherwise.
+ * §2's hint, for What now? (nextstep.ts): the forming sheet's own figure (brokerageSheetFd), when all hold: the signal over
+ * its lines, the layer open, the carrier able to form a brokerage today, and its cash after that figure still over its
+ * working capital (solvency.ts). Null otherwise.
  */
 export function brokerOpening(w: World, c: Company): { costFd: number } | null {
   if (!playersFirst(w).hint || c.role !== "carrier") return null;
   if (!readingOver(w, brokerEntrySignal(w))) return null;
   if (layerBlock(w, "brokerage") !== null || canFormBrokerage(w, c) !== null) return null;
-  const cost = brokerageCostFd(w);
+  const cost = brokerageSheetFd(w);
   if (w.ledger.balance(companyAccount(c.id)) - cost < workingCapital(w, c)) return null;
   return { costFd: cost };
 }

@@ -600,6 +600,17 @@ export function refundSettlement(w: World, r: Receivable, lostFd: number): numbe
   return back;
 }
 
+/**
+ * insolvency.retireSettlesFully: the open paper a retiring company holds, paid to it now (solvency.ts settleRetired), as it
+ * would be at the due day; paper it sold to a factor stays with the factor.
+ */
+export function settleReceivablesHeld(w: World, c: Company): void {
+  const held = w.receivables.filter((r) => r.holder === c.id);
+  if (held.length === 0) return;
+  for (const r of held) settleReceivable(w, r);
+  w.receivables = w.receivables.filter((r) => r.holder !== c.id);
+}
+
 /** A company's open paper as payer, paid now (a retirement, solvency.ts settleRetired), as it would be at the due day. */
 export function settlePayables(w: World, c: Company): void {
   const mine = w.receivables.filter((r) => r.payer === c.id);

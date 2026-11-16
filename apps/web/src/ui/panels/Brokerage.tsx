@@ -149,7 +149,7 @@ function StartBrokerage(): JSX.Element {
   const [name, setName] = useState(fitName(BROKERAGE.defaultName(carrier.name), 32));
   // Prefilled with the engine's figure: the bond, the licence and brokerage.startCashFd of working cash (formationCostFd
   // adds the fee on top). Step 3 starts from the first order formBrokerage sets, and only a change is sent.
-  const [capital, setCapital] = useState(bond + licence + k.brokerage.startCashFd);
+  const [capital, setCapital] = useState(bond + licence + k.brokerage.startCashFd); // with the fee, brokersignal.ts brokerageSheetFd: What now?'s hint quotes it
   // Client batch 8a item 30 (the middleman): the field holds what's typed; the amount takes it only when it's one the
   // carrier can move, and otherwise the field says the range in words. It was a formatted controlled field ("90.3k"),
   // which turned -50000 into 0 and then ignored typing.

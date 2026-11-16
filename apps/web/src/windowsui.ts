@@ -1,5 +1,5 @@
 import { MENUS } from "./copy-menus.js";
-import { dockHoursAt, fullOpenDay, AHEAD_STATUSES, canMake, clearsWhen, companyAccount, crewed, hubMiles, dayOf, freeOf, lostShare, memoryLift, npcKey, pickupReachT, releaseStopOf, resting, urgent, waitingAtDock, weekdayName, whenLabel, windowsOn, type Company, type Free, type Load, type Reach, type Truck, type World } from "@lanes/engine";
+import { dockHoursAt, fullOpenDay, loadsOnReadyDay, AHEAD_STATUSES, canMake, clearsWhen, companyAccount, crewed, hubMiles, dayOf, freeOf, lostShare, memoryLift, npcKey, pickupReachT, releaseStopOf, resting, urgent, waitingAtDock, weekdayName, whenLabel, windowsOn, type Company, type Free, type Load, type Reach, type Truck, type World } from "@lanes/engine";
 import { COMMODITIES } from "@lanes/data";
 import { WINDOWS } from "./copy-windows.js";
 import { FIXES } from "./copy-fixes.js";
@@ -450,6 +450,12 @@ export function dockShutLine(w: World, l: Load): string | null {
   if (!shut.length) return null;
   const name = (d: number) => weekday(d);
   const days = shut.length === 1 ? name(shut[0]!) : `${name(shut[0]!)}–${name(shut.at(-1)!)}`;
-  const loading = Math.floor(full.open / D);
-  return FIXES.dockShut(w.net.places[l.originPlace]!.name, days, name(loading), hhmm(full.open), hhmm(full.close));
+  // The red team's 0.25.6 fix: when the ready day still has a loading's hours, "Deliver by" counts from it, so that's the
+  // loading day the line names (with that day's hours); else the full open day the window holds.
+  const readyDay = Math.floor(l.readyT / D);
+  const onReady = loadsOnReadyDay(w, l, l.readyT);
+  const loading = onReady ? readyDay : Math.floor(full.open / D);
+  const open = onReady ? readyDay * D + h.open * 60 : full.open;
+  const close = onReady ? readyDay * D + h.close * 60 : full.close;
+  return FIXES.dockShut(w.net.places[l.originPlace]!.name, days, name(loading), hhmm(open), hhmm(close));
 }

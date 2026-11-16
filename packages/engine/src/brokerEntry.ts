@@ -39,8 +39,25 @@ export const brokerEntryOn = (w: World): boolean => w.cfg.brokerRisk.entry?.enab
 /** An AI broker: a broker no person runs and no player's carrier owns (windows.ts byPlayer's complement). */
 export const aiBrokerCo = (c: Company): boolean => c.role === "broker" && !c.human && c.partnerId === undefined;
 
-/** A trading broker, AI or a player's: licensed, not wound up, not liquidating. */
-export const tradingBroker = (w: World, c: Company): boolean => c.role === "broker" && c.retiredDay === undefined && c.liquidatingSince === null && brokerLicensed(w, c);
+/**
+ * A trading broker, AI or a player's: licensed, not wound up, not liquidating. A brokerage a carrier owns must also be at
+ * work (the red team's 0.25.6 low item: "a dormant player brokerage stops counting"): loads open now, or a tender posted,
+ * tendered to its own carrier or taken from it in the last flowWeeks, its formation counting as its first day at work.
+ */
+export const tradingBroker = (w: World, c: Company): boolean =>
+  c.role === "broker" && c.retiredDay === undefined && c.liquidatingSince === null && brokerLicensed(w, c) && (c.partnerId === undefined || brokerAtWork(w, c));
+
+/** A brokerage a carrier owns at work: loads open, or active (or formed) within entry's flowWeeks. */
+export function brokerAtWork(w: World, c: Company): boolean {
+  if (c.openBrokerLoads > 0) return true;
+  const since = dayOf(w.t, w.cfg) - (c.brokerActiveDay ?? c.createdDay);
+  return since < w.cfg.brokerRisk.entry.flowWeeks * 7;
+}
+
+/** brokerage.ts: a carrier's brokerage did a tender's work today (posted, to its own carrier, or taken from it), with entry on. */
+export function noteBrokerAtWork(w: World, c: Company): void {
+  if (brokerEntryOn(w)) c.brokerActiveDay = dayOf(w.t, w.cfg);
+}
 
 /** The brokerages founded and not yet open (nor withdrawn). */
 export const pendingEntrants = (s: BrokerEntryState): number => s.entrants.filter((e) => e.companyId === undefined && e.withdrawn === undefined).length;
@@ -49,10 +66,10 @@ export const pendingEntrants = (s: BrokerEntryState): number => s.entrants.filte
 export const carrierOwnedBroker = (c: Company): boolean => c.role === "broker" && c.partnerId !== undefined;
 
 /** The director's players-first switches, each needing entry on (`path` is read on its own, brokerage screen only). */
-export const playersFirst = (w: World): { yields: boolean; signal: boolean; hint: boolean } => {
+export const playersFirst = (w: World): { yields: boolean; signal: boolean; hint: boolean; peopleOnly: boolean } => {
   const p = w.cfg.brokerRisk.entry?.playersFirst;
   const on = brokerEntryOn(w);
-  return { yields: on && p?.yields === true, signal: on && p?.signal === true, hint: on && p?.hint === true };
+  return { yields: on && p?.yields === true, signal: on && p?.signal === true, hint: on && p?.hint === true, peopleOnly: p?.peopleOnly === true };
 };
 
 /** A reading over both lines: the flow over flowRatio × the reference and the margin over marginMin (what founds one). */

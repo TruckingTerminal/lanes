@@ -17,7 +17,7 @@ import { forfeitAirdrop } from "./token.js";
 import { releaseStake } from "./staking.js";
 import { bondHeld, factoringLog, paperOpen, releaseContractStakes } from "./receivables.js";
 import { holdsRestart, retireCompany, windsUpFleet } from "./population.js";
-import { settlePayables } from "./receivables.js";
+import { settlePayables, settleReceivablesHeld } from "./receivables.js";
 import { releaseYard } from "./items.js";
 import { releaseBusinesses } from "./businesses.js";
 import { createTruck, freshPaperwork, newSafetyRecord, type World } from "./world.js";
@@ -133,6 +133,9 @@ export function startLiquidation(w: World, c: Company): void {
  */
 export function settleRetired(w: World, c: Company): void {
   settlePayables(w, c);
+  // insolvency.retireSettlesFully (the red team's 0.25.6 figures): the paper owed to it is paid now, as at its due day, so
+  // nothing posts to its account after the retirement.
+  if (w.cfg.insolvency.retireSettlesFully === true) settleReceivablesHeld(w, c);
   releaseContractStakes(w, c);
   releaseYard(w, c);
   releaseBusinesses(w, c);
@@ -164,6 +167,10 @@ export function settleRetired(w: World, c: Company): void {
       w.metrics.onBankruptcy();
     }
   }
+  // insolvency.retireSettlesFully: the cash it still holds goes back to circulation through a tagged sink (the reserve in
+  // circular mode), not left in an account nothing will spend.
+  const left = w.ledger.balance(acct);
+  if (w.cfg.insolvency.retireSettlesFully === true && left > 0.005) w.ledger.post(w.t, acct, "sink:retired_cash", left, `retire:cash:${c.id}`);
 }
 
 /**

@@ -101,22 +101,44 @@ export function fullOpenDay(w: World, load: Load, t: number): { open: number; cl
   return null;
 }
 
+/**
+ * The red team's 0.25.6 hole in ruling 21: the ready day itself still has a loading's hours open at the pickup dock (its
+ * close at least dwell.loadMinutes[1] after `t`), so the load can be loaded that day. True at a dock with no hours.
+ */
+export function loadsOnReadyDay(w: World, load: Load, t: number): boolean {
+  const h = w.cfg.docks.enabled ? dockHoursAt(w, load, "pickup") : null;
+  if (!h) return true;
+  const D = w.cfg.time.gameMinutesPerDay;
+  const day = Math.floor(t / D);
+  if (!h.days.includes((day + w.cfg.time.weekdayOfDay0) % 7)) return false;
+  return t + w.cfg.dwell.loadMinutes[1] <= day * D + h.close * 60;
+}
+
 /** Sets a just-posted load's window. Its appointment moves with the ready time and sits inside the window. */
 export function openWindow(w: World, load: Load, leadDays: number): void {
   const { cfg } = w;
   const k = cfg.windows!;
   const readyT = readyAt(w, load, leadDays);
-  let latestPickupT = readyT + (dockRule(w, load) === "appointment" ? k.pickupHours.appointment : k.pickupHours.firstCome) * 60;
-  // Ruling 21: the window holds the dock's first full open day; a hot load's deadline then counts from that day's opening.
+  const readyClose = readyT + (dockRule(w, load) === "appointment" ? k.pickupHours.appointment : k.pickupHours.firstCome) * 60;
+  let latestPickupT = readyClose;
+  // Ruling 21: the window holds the dock's first full open day. The red team's 0.25.6 fix: the deadline (and a hot load's,
+  // and the appointment's) counts from that day only when the ready day leaves no loading's hours; otherwise from the
+  // ready time, as before, so a release a minute after the dock opens can't buy a weekend. The close itself moves by the
+  // ruling's letter either way (the director's call).
   let loadsFrom = readyT;
+  let deliverFrom = readyClose;
   const full = fullOpenDay(w, load, readyT);
   if (full && full.close > latestPickupT) {
-    latestPickupT = full.close;
-    loadsFrom = full.open;
+    const loadable = loadsOnReadyDay(w, load, readyT);
+    if (!loadable || k.fullOpenDayKeepsClose !== true) latestPickupT = full.close; // the director's call: windows.fullOpenDayKeepsClose
+    if (!loadable) {
+      loadsFrom = full.open;
+      deliverFrom = full.close;
+    }
   }
   const legal = transitMinutes(cfg, load.routeHours, cfg.hos.drivingHoursPerDay);
   const windowMin = windowHoursOf(cfg, load.commodity) * 60;
-  let latestDeliveryT = latestPickupT + legal + windowMin;
+  let latestDeliveryT = deliverFrom + legal + windowMin;
   if (load.hot > 0) {
     // The director's call 4: a hot load keeps its draw, and its deadline is today's hot rule (safety.hotLoads, the due time
     // at booking: the hot pace, the dock time and the slack) counted from the moment it's ready, a window meant for a team

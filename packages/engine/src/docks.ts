@@ -119,6 +119,17 @@ export interface DockWait {
 
 const NONE: DockWait = { minutes: 0, missed: false, receiversHours: false };
 
+/**
+ * detention.fromOpening (the red team's 0.25.6 figures): of a wait at a shut first-come dock that began at `arrival`, the
+ * minutes past the dock's opening, which are the only ones detention may count; with the switch off, all of them.
+ */
+export function detentionMinutes(w: World, load: Load, end: "pickup" | "delivery", arrival: number, waitMin: number): number {
+  if (w.cfg.detention.fromOpening !== true) return waitMin;
+  const hours = dockHoursAt(w, load, end);
+  if (!hours) return waitMin;
+  return Math.max(0, arrival + waitMin - Math.max(arrival, nextOpen(w, arrival, hours)));
+}
+
 /** At the receiver: early for a slot waits for its window, late waits for the next slot; first come, first served waits for the dock to open. */
 export function deliveryWait(w: World, load: Load, now: number): DockWait {
   const k = w.cfg.docks;

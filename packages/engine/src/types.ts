@@ -188,6 +188,11 @@ export interface Company {
   dormantWeeks?: number;
   /** brokerRisk.entry: an AI brokerage that entered by conditions (brokerEntry.ts): the day it was founded; it opened on createdDay. */
   entrant?: { foundedDay: number };
+  /**
+   * brokerRisk.entry, a brokerage a carrier owns: the last day it posted a held tender, tendered a load to its own carrier
+   * or took one its carrier passed it (brokerage.ts), so an idle one stops counting as trading (brokerEntry.ts).
+   */
+  brokerActiveDay?: number;
   delivered: number;
   onTime: number;
   late: number;

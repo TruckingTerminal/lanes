@@ -16,7 +16,7 @@
  *   allowance and one airdrop share per person (token.ts).
  */
 import { dayOf } from "./clock.js";
-import { playersFirst, yieldEntrant } from "./brokerEntry.js";
+import { noteBrokerAtWork, playersFirst, yieldEntrant } from "./brokerEntry.js";
 import { coverPassed } from "./contracts.js";
 import { layerBlock } from "./ladder.js";
 import { companyAccount } from "./ledger.js";
@@ -187,7 +187,9 @@ export function formBrokerage(w: World, carrier: Company, name: string, capitalF
   brokerageLog(w).formed.find((f) => f.brokerId === b.id)!.toBrokerFd -= capitalFd;
   // The director's players-first §1 (brokerRisk.entry.playersFirst.yields): the newest AI brokerage founded and not yet
   // open yields to this one, one for one (brokerEntry.ts).
-  if (playersFirst(w).yields) yieldEntrant(w, b.id);
+  // With playersFirst.peopleOnly (the director's call, pending), only a person's carrier; else any carrier's, a bot pair too.
+  const pf = playersFirst(w);
+  if (pf.yields && (!pf.peopleOnly || carrier.human)) yieldEntrant(w, b.id);
   return b;
 }
 
@@ -304,6 +306,7 @@ export function passTender(w: World, carrier: Company, load: Load, atWindowEnd =
   load.tenderUntil = 0;
   load.localUntilRound = 0;
   b.openBrokerLoads++;
+  noteBrokerAtWork(w, b); // brokerRisk.entry: at work (brokerEntry.ts)
   const log = brokerageLog(w);
   log.passes++;
   log.holds.held++;
@@ -335,6 +338,7 @@ export function tenderOwn(w: World, broker: Company, load: Load, rate: number): 
   load.ownTenderRate = rate;
   load.localUntilRound = 0;
   brokerageLog(w).ownTenders++;
+  noteBrokerAtWork(w, broker); // brokerRisk.entry: at work (brokerEntry.ts)
   return null;
 }
 
@@ -384,6 +388,7 @@ export function postHeld(w: World, broker: Company, load: Load, marginPct?: numb
   const h = brokerageLog(w).holds;
   if (byHand) h.postedByHand++;
   else h.postedByOrder++;
+  noteBrokerAtWork(w, broker); // brokerRisk.entry: at work (brokerEntry.ts)
   return null;
 }
 

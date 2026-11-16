@@ -6,7 +6,7 @@ import { scaleDiscount } from "./scale.js";
 import { endOfLife } from "./assets.js";
 import { addTrailerMiles } from "./trailers.js";
 import { COMMODITIES, dcos, dexp, greatCircleMiles, NO_TERRAIN, routeTerrain, type Route } from "@lanes/data";
-import { deliveryWait, pickupWait, setSlot } from "./docks.js";
+import { deliveryWait, detentionMinutes, pickupWait, setSlot } from "./docks.js";
 import { afterBreakdown, claimOn, noShow, onTimeBy, whenLabel, windowsOn } from "./windows.js";
 import { swapAtIdle } from "./dealer.js";
 import { dockPriority, standingDelivered, standingTerms } from "./standing.js";
@@ -142,7 +142,7 @@ export function startLoading(w: World, truck: Truck, load: Load, now: number = w
     load.dueT += wait;
     if (load.latestDeliveryT !== undefined) load.dueT = Math.min(load.dueT, load.latestDeliveryT); // inside the window
     w.metrics.onDockWait(wait);
-    addDetention(w, load, "pickupH", wait);
+    addDetention(w, load, "pickupH", detentionMinutes(w, load, "pickup", now + early, wait));
   }
   truck.dwellMin = dwell;
   load.status = "inTransit";
@@ -161,7 +161,7 @@ function startUnloading(w: World, truck: Truck, now: number): void {
   if (load) {
     load.arrivedT = now;
     const d = deliveryWait(w, load, now);
-    if (d.receiversHours) addDetention(w, load, "deliveryH", d.minutes);
+    if (d.receiversHours) addDetention(w, load, "deliveryH", detentionMinutes(w, load, "delivery", now, d.minutes));
     if (d.minutes > 0) {
       dwell += d.minutes;
       if (d.receiversHours) load.dueT += d.minutes; // the receiver's hours aren't the carrier's fault; a missed slot is

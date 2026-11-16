@@ -100,7 +100,11 @@ export const economyConfig = {
   // receiver's own hours in deliveryWait; never an early arrival or a missed slot, which are the carrier's), the poster
   // pays the carrier `fdPerHour` an hour, at most `maxHours` a stop, settled with the load. An NPC shipper's or broker's
   // comes from where its freight pay does; a player's brokerage or shipper pays it. Sizes for the economy to set.
-  detention: { enabled: false, freeHours: 2, fdPerHour: 60, maxHours: 8 },
+  // `fromOpening` (the red team's 0.25.6 figures, outside the pass): the free and the paid hours count from the later of
+  // the arrival and the dock's opening, so a night at a shut first-come dock pays nothing ("never an early arrival"). Every
+  // detention wait the engine has is a shut first-come dock's, so on, detention pays only past an opening. Off: from the
+  // arrival, as before.
+  detention: { enabled: false, freeHours: 2, fdPerHour: 60, maxHours: 8, fromOpening: false },
 
   // Cargo theft (Jeff, 2026-10-30; the EVE plan's risk for reward). A loaded truck asleep is the target:
   // the night's odds, times where it sleeps (`parking`: the shoulder worst, a public rest area, a truck
@@ -1030,6 +1034,12 @@ export const economyConfig = {
     // retireCompany: its paper paid, its debts written off), counted once in w.fleetsWoundUp, and never restarted. A
     // player's restart on the free path, and every other company's, is untouched. Off: it restarts on the free path.
     windUpNpcFleets: false,
+    // The red team's 0.25.6 figures (redteam-0256-2026-11-16.md §4; older than 0.25.6): a retired bot (solvency.ts
+    // settleRetired: the dial's, windUpDormant's, windUpNpcFleets') leaves money behind: the invoices owed to it keep
+    // paying into the dead account, and its positive cash stays out of circulation. On: its receivables are settled at the
+    // retirement, as at their due day, and the cash it then holds goes to sink:retired_cash (back to the reserve in
+    // circular mode). Off: as before.
+    retireSettlesFully: false,
     fireSaleStartPctOfValue: 0.7,
     fireSaleStepPctOfValue: 0.1,
     fireSaleFloorPctOfValue: 0.25,
@@ -1090,7 +1100,9 @@ export const economyConfig = {
       // off until the economy shows a player brokerage formed at the signal clearing its costs within 90 days. `path`
       // (§3): before the carrier can afford one, the brokerage screen says what it takes and what the carrier has (with
       // entry off too). All off until a ruleset.
-      playersFirst: { yields: false, signal: false, hint: false, path: false },
+      // `peopleOnly` (the director's call, pending): the yield only for a brokerage a person's carrier forms (c.human), not a
+      // bot carrier's pair. Off: any carrier's formation yields, so the economy's sims can measure it.
+      playersFirst: { yields: false, signal: false, hint: false, path: false, peopleOnly: false },
     },
   },
 
@@ -1125,6 +1137,10 @@ export const economyConfig = {
     // hours (an appointment dock, a first-come dock round the clock) and a window that already holds a full open day don't
     // change. Off: the ready time plus pickupHours, as before.
     fullOpenDay: false,
+    // The red team's 0.25.6 pass, the director's call (pending): with the ready day still able to load (a loading's hours
+    // before its close), true keeps the pickup close where it was (the ready time plus pickupHours), as the deadline is;
+    // false moves it by the ruling's letter to the full open day's close. Read only with fullOpenDay on.
+    fullOpenDayKeepsClose: false,
     // The urgency walk (the director's call 3): flat while more than this many rounds of slack remain before the pickup
     // closes; in these last rounds the ceiling steps as a rollover does (board.rolloverCeilingStep) and book-now walks to
     // it, one step a round, at most this many steps. A player poster's pay never walks. Batch 4: 4 (from 2), the same walk

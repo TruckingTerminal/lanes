@@ -72,6 +72,35 @@ describe("the dock's first full open day (windows.fullOpenDay, the director's ru
     expect(win(windowAt(w, reefer, at(4, 18)))).toEqual(win(windowAt(off.w, off.reefer, at(4, 18))));
   });
 
+  it("the red team's 0.25.6 hole: ready Friday with a loading's hours left, the close moves but every deadline counts from the ready time", () => {
+    const { w, van } = loads(ON);
+    const off = loads(LIVE);
+    for (const hot of [0, 1.5]) {
+      for (const at8 of [at(4, 8), at(4, 7 + 5 / 60), at(4, 17)]) {
+        const on = windowAt(w, { ...van, hot }, at8);
+        const was = windowAt(off.w, { ...off.van, hot }, at8);
+        expect(on.latestPickupT).toBe(at(7, 19)); // the letter of the ruling: the director's call
+        expect(on.latestDeliveryT).toBeCloseTo(was.latestDeliveryT!, 6); // no weekend bought
+        expect(on.appointmentT).toBeCloseTo(was.appointmentT, 6);
+      }
+    }
+    // A release a minute either side of the opening buys nothing: 06:59 (no move at all) and 07:05 differ by their 6 minutes.
+    const early = windowAt(w, van, at(4, 6 + 59 / 60));
+    const late = windowAt(w, van, at(4, 7 + 5 / 60));
+    expect(late.latestDeliveryT! - early.latestDeliveryT!).toBeCloseTo(5, 6); // 07:00 (nextOpen) to 07:05
+    // 17:01 leaves under the 120-minute loading before 19:00: from Monday, as the director's 18:00.
+    expect(windowAt(w, van, at(4, 17 + 1 / 60)).latestDeliveryT! - at(7, 19)).toBeCloseTo(windowAt(w, van, at(4, 18)).latestDeliveryT! - at(7, 19), 6);
+  });
+
+  it("the director's pending call, fullOpenDayKeepsClose: on, a ready day that can load keeps its close too; a shut one still moves", () => {
+    const KEEP: EconomyConfig = { ...ON, windows: { ...ON.windows, fullOpenDayKeepsClose: true } };
+    expect(LIVE.windows.fullOpenDayKeepsClose).toBe(false);
+    const { w, van } = loads(KEEP);
+    const off = loads(LIVE);
+    expect(win(windowAt(w, van, at(4, 8)))).toEqual(win(windowAt(off.w, off.van, at(4, 8)))); // Friday loads: as with the rule off
+    expect(windowAt(w, van, at(4, 18)).latestPickupT).toBe(at(7, 19)); // the director's Fri 18:00: Monday, as before
+  });
+
   it("a hot load: the close moves the same way, and its deadline counts from Monday's opening", () => {
     const { w, van } = loads(ON);
     const off = loads(LIVE);
