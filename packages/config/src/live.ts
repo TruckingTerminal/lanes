@@ -306,6 +306,24 @@ export const LIVE_LEVERS: Record<string, unknown> = {
   "insolvency.countReserve": true,
   "windows.windowScale": 0.25,
   "labor.busToTruck.enabled": true,
+  // 0.25.6 (Jeff's call of 2026-11-15 on broker entry, "ideally we want players to open brokerages", and the director's
+  // §3, §16, §21–26 and players-first ruling): new AI brokerages enter by conditions, a carrier's own new brokerage
+  // takes a pending entrant's place, players see the brokers' market and the way in, dormant AI brokers and failed NPC
+  // fleets are wound up and counted once, a retired company's books settle in full, the credit score sets an overdraft
+  // against the Reserve, and detention counts from the dock's opening. Ruling 21 (windows.fullOpenDay) stays off: its
+  // pair raised bankruptcies and lost loads, and it goes back to the director.
+  // Passed as one ruleset, the gate ten of ten and the newcomer's month held at day 45
+  // (economy-ruleset-0256-gate-2026-11-16.md).
+  "brokerRisk.windUpDormant": true,
+  "brokerRisk.entry.enabled": true,
+  "brokerRisk.entry.playersFirst.yields": true,
+  "brokerRisk.entry.playersFirst.signal": true,
+  "brokerRisk.entry.playersFirst.hint": true,
+  "brokerRisk.entry.playersFirst.path": true,
+  "insolvency.windUpNpcFleets": true,
+  "insolvency.retireSettlesFully": true,
+  "token.credit.coverageNetsReserve": true,
+  "detention.fromOpening": true,
 };
 
 /** A config with the levers applied by path; throws on a path the config doesn't have. */

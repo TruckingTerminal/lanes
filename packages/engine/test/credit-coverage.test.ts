@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { withLiveLevers, type EconomyConfig } from "@lanes/config";
+import { economyConfig, withLiveLevers, type EconomyConfig } from "@lanes/config";
 import { buildNetwork, hubs, neutralFeeds } from "@lanes/data";
 import { applyAction, companyAccount, createWorld, creditScore, formCompany, type World } from "@lanes/engine";
 
@@ -44,9 +44,9 @@ describe("the credit score's coverage and the Reserve (token.credit.coverageNets
     expect(scored(withKey(true), 20_000, -50_000)).toBeCloseTo(on, 6);
   });
 
-  it("is off in the base config and the live levers, and absent reads as off", () => {
-    expect(base.token.credit.coverageNetsReserve).toBe(false);
-    expect(withLiveLevers().token.credit.coverageNetsReserve).toBe(false);
+  it("is off in the base config, on in the live levers since 0.25.6, and absent reads as off", () => {
+    expect(economyConfig.token.credit.coverageNetsReserve).toBe(false);
+    expect(withLiveLevers().token.credit.coverageNetsReserve).toBe(true);
     const { coverageNetsReserve: _, ...absent } = base.token.credit;
     const noKey = { ...base, token: { ...base.token, credit: absent } } as unknown as EconomyConfig;
     expect(scored(noKey, 60_000, -50_000)).toBeCloseTo(scored(withKey(false), 60_000, -50_000), 6);

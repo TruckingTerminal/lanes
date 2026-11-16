@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import { describe, expect, it } from "vitest";
-import { withLiveLevers, type EconomyConfig } from "@lanes/config";
+import { economyConfig, withLiveLevers, type EconomyConfig } from "@lanes/config";
 import { buildNetwork, hubs, neutralFeeds } from "@lanes/data";
 import { populate, ruleBotHook } from "@lanes/agents";
 import {
@@ -66,9 +66,11 @@ function playerBrokerage(w: World): Company {
 const spec = (name: string) => ({ name, homeHubId: "DAL", strategy: "broker:greedy", orders: [{ kind: "broker" as const, marginPct: 0.12, maxOpenLoads: 40 }], vetting: 1 as const });
 
 describe("AI broker entry by conditions (brokerRisk.entry)", () => {
-  it("is off by default and in the live levers, and the fleets' wind-up too", () => {
-    expect(LIVE.brokerRisk.entry.enabled).toBe(false);
-    expect(LIVE.insolvency.windUpNpcFleets).toBe(false);
+  it("is off by default, on in the live levers since 0.25.6, and the fleets' wind-up too", () => {
+    expect(economyConfig.brokerRisk.entry.enabled).toBe(false);
+    expect(economyConfig.insolvency.windUpNpcFleets).toBe(false);
+    expect(LIVE.brokerRisk.entry.enabled).toBe(true);
+    expect(LIVE.insolvency.windUpNpcFleets).toBe(true);
     expect([LIVE.brokerRisk.entry.flowRatio, LIVE.brokerRisk.entry.marginMin, LIVE.brokerRisk.entry.lagDays, LIVE.brokerRisk.entry.maxPerWeek]).toEqual([1.5, 0.05, 120, 1]);
   });
 
@@ -198,10 +200,12 @@ describe("AI broker entry by conditions (brokerRisk.entry)", () => {
       const s = JSON.stringify({ t: w.t, next: w.nextLoadId, supply: w.ledger.supply(), books: w.companies.map((c) => [c.id, w.ledger.balance(companyAccount(c.id)), c.delivered, c.onTime, c.operating]), days: w.metrics.days, loads: [...w.loads.values()], trucks: w.trucks, emission: { ...w.emission, hubExpectedToday: [...w.emission.hubExpectedToday] } });
       return createHash("sha256").update(s).digest("hex");
     };
-    const { entry: _e, ...brokerRisk } = LIVE.brokerRisk;
-    const { windUpNpcFleets: _f, ...insolvency } = LIVE.insolvency;
-    const absent = { ...LIVE, brokerRisk, insolvency } as unknown as EconomyConfig;
-    expect(run(absent)).toBe(run(LIVE));
+    // Off by their own keys (on in the live levers since 0.25.6), the brokers' wind-up too, against the keys absent.
+    const OFF = { ...LIVE, brokerRisk: { ...LIVE.brokerRisk, windUpDormant: false, entry: { ...LIVE.brokerRisk.entry, enabled: false } }, insolvency: { ...LIVE.insolvency, windUpNpcFleets: false } } as EconomyConfig;
+    const { entry: _e, ...brokerRisk } = OFF.brokerRisk;
+    const { windUpNpcFleets: _f, ...insolvency } = OFF.insolvency;
+    const absent = { ...OFF, brokerRisk, insolvency } as unknown as EconomyConfig;
+    expect(run(absent)).toBe(run(OFF));
   }, 240_000);
 });
 

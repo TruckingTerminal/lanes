@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { withLiveLevers, type EconomyConfig } from "@lanes/config";
+import { economyConfig, withLiveLevers, type EconomyConfig } from "@lanes/config";
 import { buildNetwork, hubs, neutralFeeds } from "@lanes/data";
 import { populate } from "@lanes/agents";
 import { aroundTheClock, companyAccount, createWorld, detentionMinutes, dockHoursAt, dockRule, formCompany, isRoundBoundary, nextOpen, pickupWait, retireCompany, stepHour, type World } from "@lanes/engine";
@@ -28,8 +28,9 @@ describe("a retired bot leaves nothing behind (insolvency.retireSettlesFully)", 
     return { w, acct, id: c.id };
   }
 
-  it("is off by default and in the live levers", () => {
-    expect(LIVE.insolvency.retireSettlesFully).toBe(false);
+  it("is off by default, on in the live levers since 0.25.6", () => {
+    expect(economyConfig.insolvency.retireSettlesFully).toBe(false);
+    expect(LIVE.insolvency.retireSettlesFully).toBe(true);
   });
 
   it("on: the invoice it holds is paid at the retirement, then its cash goes to sink:retired_cash; nothing posts after", () => {
@@ -63,12 +64,13 @@ describe("detention from the dock's opening (detention.fromOpening)", () => {
     return { w, l };
   }
 
-  it("is off by default and in the live levers", () => {
-    expect(LIVE.detention.fromOpening).toBe(false);
+  it("is off by default, on in the live levers since 0.25.6 (the director's §26)", () => {
+    expect(economyConfig.detention.fromOpening).toBe(false);
+    expect(LIVE.detention.fromOpening).toBe(true);
   });
 
   it("a truck at the shut dock at Mon 20:00 waits for Tue 07:00: off, all 11 h count; on, none, nor 2 h before a 07:00 opening", () => {
-    const off = vanLoad(LIVE);
+    const off = vanLoad({ ...LIVE, detention: { ...LIVE.detention, fromOpening: false } }); // off by its own key
     const wait = pickupWait(off.w, off.l, at(0, 20));
     expect(wait).toBe(11 * 60);
     expect(nextOpen(off.w, at(0, 20), off.w.cfg.docks.hours.fcfs)).toBe(at(1, 7));

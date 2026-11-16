@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { withLiveLevers, type EconomyConfig } from "@lanes/config";
+import { economyConfig, withLiveLevers, type EconomyConfig } from "@lanes/config";
 import { buildNetwork, hubs, neutralFeeds } from "@lanes/data";
 import { populate } from "@lanes/agents";
 import {
@@ -58,8 +58,10 @@ const form = (w: World, carrier: Company) => {
 
 describe("players first (brokerRisk.entry.playersFirst)", () => {
   it("is off by default and in the live levers", () => {
-    expect(LIVE.brokerRisk.entry.playersFirst).toEqual({ yields: false, signal: false, hint: false, path: false });
-    expect(playersFirst(createWorld({ cfg: LIVE, net, feeds: neutralFeeds, seed: 1 }))).toEqual({ yields: false, signal: false, hint: false });
+    expect(economyConfig.brokerRisk.entry.playersFirst).toEqual({ yields: false, signal: false, hint: false, path: false });
+    // On in the live levers since 0.25.6.
+    expect(LIVE.brokerRisk.entry.playersFirst).toEqual({ yields: true, signal: true, hint: true, path: true });
+    expect(playersFirst(createWorld({ cfg: LIVE, net, feeds: neutralFeeds, seed: 1 }))).toEqual({ yields: true, signal: true, hint: true });
   });
 
   it("§1: a carrier's new brokerage withdraws the newest AI brokerage not yet open, one for one; off, none", () => {
@@ -98,8 +100,8 @@ describe("players first (brokerRisk.entry.playersFirst)", () => {
     expect(b.brokerActiveDay).toBe(dayOf(w.t, w.cfg));
     b.openBrokerLoads = 0;
     expect(tradingBroker(w, b)).toBe(true);
-    // With entry off (the live levers), nothing is stamped.
-    const off = world(LIVE);
+    // With entry off (by its own key: on in the live levers since 0.25.6), nothing is stamped.
+    const off = world({ ...LIVE, brokerRisk: { ...LIVE.brokerRisk, entry: { ...LIVE.brokerRisk.entry, enabled: false } } } as EconomyConfig);
     toRound(off.w);
     const ob = form(off.w, off.carrier);
     const ol = [...off.w.loads.values()].find((x) => x.status === "open" && x.brokerId === null && !x.hold)!;

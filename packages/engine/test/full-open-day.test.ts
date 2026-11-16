@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { withLiveLevers, type EconomyConfig } from "@lanes/config";
+import { economyConfig, withLiveLevers, type EconomyConfig } from "@lanes/config";
 import { buildNetwork, hubs, neutralFeeds } from "@lanes/data";
 import { populate } from "@lanes/agents";
 import { aroundTheClock, createWorld, dockRule, fullOpenDay, isRoundBoundary, lastOpenEnd, loadableBetween, openWindow, stepHour, transitMinutes, windowHoursOf, type Load, type World } from "@lanes/engine";
@@ -14,6 +14,8 @@ const LIVE = withLiveLevers();
 const net = buildNetwork(hubs, LIVE);
 const D = LIVE.time.gameMinutesPerDay;
 const ON: EconomyConfig = { ...LIVE, windows: { ...LIVE.windows, fullOpenDay: true } };
+// Off by its own key, whatever the live levers hold (0.25.6 shipped without it: back with the director).
+const OFF: EconomyConfig = { ...LIVE, windows: { ...LIVE.windows, fullOpenDay: false } };
 const at = (day: number, hour: number) => day * D + Math.round(hour * 60); // day 0 is a Monday (time.weekdayOfDay0)
 
 /** A world's posted loads, one of each kind the test needs: a first-come van load at a dock with hours, a reefer (appointment). */
@@ -41,7 +43,8 @@ function windowAt(w: World, l: Load, t: number): Load {
 
 describe("ruling 21 as amended by §24 (windows.fullOpenDay)", () => {
   it("is off by default and in the live levers", () => {
-    expect(LIVE.windows.fullOpenDay).toBe(false);
+    expect(economyConfig.windows.fullOpenDay).toBe(false);
+    expect(LIVE.windows.fullOpenDay).toBe(false); // 0.25.6 shipped without it (the economy's pair): back with the director
   });
 
   it("the test and the clip, at a Mon–Fri 07:00–19:00 dock", () => {
@@ -58,7 +61,7 @@ describe("ruling 21 as amended by §24 (windows.fullOpenDay)", () => {
 
   it("yes, ready Fri 08:00: picks up by Fri 19:00, Deliver by from there; the hot deadline and the appointment as with the rule off", () => {
     const { w, van } = loads(ON);
-    const off = loads(LIVE);
+    const off = loads(OFF);
     const legal = transitMinutes(w.cfg, van.routeHours, w.cfg.hos.drivingHoursPerDay);
     const windowMin = windowHoursOf(w.cfg, van.commodity) * 60;
     const x = windowAt(w, van, at(4, 8));
@@ -70,7 +73,7 @@ describe("ruling 21 as amended by §24 (windows.fullOpenDay)", () => {
     expect(hot.latestDeliveryT).toBeCloseTo(windowAt(off.w, { ...off.van, hot: 1.5 }, at(4, 8)).latestDeliveryT!, 6); // from the ready time
     // Off: Sun 08:00, as before.
     const y = windowAt(off.w, off.van, at(4, 8));
-    expect(y.latestPickupT).toBe(at(4, 8) + LIVE.windows.pickupHours.firstCome * 60);
+    expect(y.latestPickupT).toBe(at(4, 8) + OFF.windows.pickupHours.firstCome * 60);
     expect(y.windowShift).toBeUndefined();
   });
 
@@ -88,7 +91,7 @@ describe("ruling 21 as amended by §24 (windows.fullOpenDay)", () => {
     expect(x).toMatchObject({ readyT: at(7, 7), latestPickupT: at(7, 19), windowShift: "move" });
     expect(x.latestDeliveryT).toBeCloseTo(at(7, 19) + legal + windowMin, 6);
     expect(x.appointmentT).toBeGreaterThanOrEqual(at(7, 7));
-    const off = loads(LIVE);
+    const off = loads(OFF);
     const hot = windowAt(w, { ...van, hot: 1.5 }, at(4, 18));
     const was = windowAt(off.w, { ...off.van, hot: 1.5 }, at(4, 18));
     expect(hot.latestDeliveryT! - at(7, 7)).toBeCloseTo(was.latestDeliveryT! - at(4, 18), 6);
@@ -98,7 +101,7 @@ describe("ruling 21 as amended by §24 (windows.fullOpenDay)", () => {
 
   it("no minute worth choosing: 06:59 and 07:05 close and deliver alike; mid-week and appointment docks don't change", () => {
     const { w, van, reefer } = loads(ON);
-    const off = loads(LIVE);
+    const off = loads(OFF);
     const early = windowAt(w, van, at(4, 6 + 59 / 60));
     const late = windowAt(w, van, at(4, 7 + 5 / 60));
     expect(early.latestPickupT).toBe(at(4, 19));

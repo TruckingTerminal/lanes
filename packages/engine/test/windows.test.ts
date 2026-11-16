@@ -120,7 +120,17 @@ describe("delivery windows on: posting (test 2)", () => {
       const hours = w.cfg.docks.enabled ? dockHoursAt(w, l, "pickup") : null;
       if (hours) expect(nextOpen(w, readyT, hours)).toBe(readyT);
       const k = w.cfg.windows.pickupHours;
-      expect(latestPickupT - readyT).toBe((dockRule(w, l) === "appointment" ? k.appointment : k.firstCome) * 60);
+      const full = (dockRule(w, l) === "appointment" ? k.appointment : k.firstCome) * 60;
+      // windows.fullOpenDay (the director's §24, when on): 24 or 48 hours, or clipped to the dock's last close
+      // inside them, or moved to its next full open day.
+      if (l.windowShift === undefined) expect(latestPickupT - readyT).toBe(full);
+      else {
+        expect(hours).not.toBeNull();
+        const D = w.cfg.time.gameMinutesPerDay;
+        expect(latestPickupT - Math.floor(latestPickupT / D) * D).toBe(hours!.close * 60); // a dock's close, never a shut hour
+        if (l.windowShift === "clip") expect(latestPickupT).toBeLessThan(readyT + full);
+        else expect(latestPickupT - readyT).toBe((hours!.close - hours!.open) * 60); // the full open day, ready at its opening
+      }
       const legal = transitMinutes(w.cfg, l.routeHours, legalPace);
       expect(l.appointmentT).toBeGreaterThanOrEqual(readyT);
       expect(l.appointmentT).toBeLessThanOrEqual(latestDeliveryT);

@@ -52,7 +52,9 @@ describe("the market's renewal on the page", () => {
     const text = JSON.stringify(econReport(w, null));
     for (const x of w.companies) expect(text.includes(x.name)).toBe(false);
 
-    const off = await TestGame.create(undefined, undefined, 41, GAME_CONFIG);
+    // Off by their own keys (on in the live levers since 0.25.6).
+    const OFF = { ...GAME_CONFIG, brokerRisk: { ...GAME_CONFIG.brokerRisk, windUpDormant: false, entry: { ...GAME_CONFIG.brokerRisk.entry, enabled: false } }, insolvency: { ...GAME_CONFIG.insolvency, windUpNpcFleets: false } };
+    const off = await TestGame.create(undefined, undefined, 41, OFF);
     monthlyEconomy(off.w, dayOf(off.w.t, off.w.cfg));
     expect(off.w.econ!.months.at(-1)!.renewal).toBeUndefined();
     const offRows = econReport(off.w, null)!.sections.flatMap((s) => s.rows.map((r) => r.label));

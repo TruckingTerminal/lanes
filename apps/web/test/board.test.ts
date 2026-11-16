@@ -263,7 +263,10 @@ describe("a hand bid that loses is reported (the trucker's lost bid)", () => {
 
 describe("detention and lateness at a closed dock (the trucker's weekend)", () => {
   it("a closed-dock wait past the free time pays its hours, capped per stop; lateness counts from arrival", async () => {
-    const g = await TestGame.create(undefined, undefined, 20_261_104);
+    // With detention.fromOpening off by its own key: the arithmetic of a paid wait. The director's §26 (live since 0.25.6)
+    // pays nothing for a night at a shut dock: the case below.
+    const { GAME_CONFIG } = await import("../src/game.js");
+    const g = await TestGame.create(undefined, undefined, 20_261_104, { ...GAME_CONFIG, detention: { ...GAME_CONFIG.detention, fromOpening: false } });
     const k = g.w.cfg.detention;
     expect(k.enabled && g.w.cfg.docks.lateFromArrival).toBe(true);
     for (let h = 0; h < 24 * 5; h++) g.stepHour();
@@ -275,5 +278,12 @@ describe("detention and lateness at a closed dock (the trucker's weekend)", () =
       expect(d.pickupH).toBeLessThanOrEqual(k.maxHours);
       expect(d.deliveryH).toBeLessThanOrEqual(k.maxHours);
     }
+  }, 180_000);
+
+  it("the director's §26, live since 0.25.6: a wait at a shut dock is the carrier's, and pays nothing", async () => {
+    const g = await TestGame.create(undefined, undefined, 20_261_104);
+    expect(g.w.cfg.detention.enabled && g.w.cfg.detention.fromOpening).toBe(true);
+    for (let h = 0; h < 24 * 5; h++) g.stepHour();
+    expect([...g.w.loads.values()].filter((l) => l.detention && l.detention.fd > 0)).toEqual([]);
   }, 180_000);
 });

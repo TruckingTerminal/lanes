@@ -40,7 +40,7 @@ describe("the sheet's dock line (ruling 21)", () => {
     expect(morning.l.latestPickupT).toBe(at(4, 19));
     expect(dockShutLine(morning.w, morning.l)).toBe(FIXES.dockShuts(town, "Fri 19:00", "Mon 07:00"));
     expect(FIXES.dockShuts("Xenia", "Fri 19:00", "Mon 07:00")).toBe("Xenia's dock shuts Fri 19:00 until Mon 07:00.");
-    const off = vanAt(LIVE, at(4, 18));
+    const off = vanAt({ ...LIVE, windows: { ...LIVE.windows, fullOpenDay: false } }, at(4, 18)); // off by its own key, whatever live holds
     expect(dockShutLine(off.w, off.l)).toBeNull();
   }, 120_000);
 });
