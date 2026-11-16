@@ -44,3 +44,19 @@ describe("the sheet's dock line (ruling 21)", () => {
     expect(dockShutLine(off.w, off.l)).toBeNull();
   }, 120_000);
 });
+
+describe("the sheet's dock line under §28 (windows.fullOpenDay \"move\")", () => {
+  it("a moved load says it's ready at the opening; a close in shut hours names the stretch; a mid-week close has none", () => {
+    const MOVE: EconomyConfig = { ...LIVE, windows: { ...LIVE.windows, fullOpenDay: "move" } };
+    const fri = vanAt(MOVE, at(4, 18));
+    const town = fri.w.net.places[fri.l.originPlace]!.name;
+    expect(fri.l.windowShift).toBe("move");
+    expect(dockShutLine(fri.w, fri.l)).toBe(FIXES.dockShutsReady(town, "Fri 19:00", "Mon 07:00"));
+    expect(FIXES.dockShutsReady("Xenia", "Fri 19:00", "Mon 07:00")).toBe("Xenia's dock shuts Fri 19:00 until Mon 07:00: ready Mon 07:00.");
+    const morning = vanAt(MOVE, at(4, 8)); // closes Sun 08:00, in the weekend's shut stretch
+    expect(morning.l.windowShift).toBeUndefined();
+    expect(dockShutLine(morning.w, morning.l)).toBe(FIXES.dockShuts(town, "Fri 19:00", "Mon 07:00"));
+    const mid = vanAt(MOVE, at(2, 8)); // closes Fri 08:00, open
+    expect(dockShutLine(mid.w, mid.l)).toBeNull();
+  }, 120_000);
+});

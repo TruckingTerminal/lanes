@@ -85,7 +85,8 @@ export function readyAt(w: World, load: Load, leadDays: number): number {
 
 /** windows.fullOpenDay's dock hours for this load's pickup: null with the rule or the docks off, or at a dock with no hours. */
 function ruledHours(w: World, load: Load): DockHours | null {
-  if (w.cfg.windows?.fullOpenDay !== true || !w.cfg.docks.enabled) return null;
+  const mode = w.cfg.windows?.fullOpenDay;
+  if ((mode !== true && mode !== "move") || !w.cfg.docks.enabled) return null;
   return dockHoursAt(w, load, "pickup");
 }
 
@@ -143,7 +144,18 @@ export function openWindow(w: World, load: Load, leadDays: number): void {
   // from the close, a hot load's deadline and the appointment from the ready time, in both cases.
   if (load.windowShift !== undefined) delete load.windowShift;
   const h = ruledHours(w, load);
-  if (h) {
+  if (h && k.fullOpenDay === "move") {
+    // The director's §28: no loading's hours in the window, so the load is ready at the dock's next opening, and its
+    // window runs from there as any load's posted at that opening does. A loadable window is left as it is.
+    if (!loadableBetween(w, h, readyT, latestPickupT)) {
+      const next = fullOpenDay(w, load, readyT);
+      if (next) {
+        latestPickupT = next.open + (latestPickupT - readyT);
+        readyT = next.open;
+        load.windowShift = "move";
+      }
+    }
+  } else if (h) {
     if (loadableBetween(w, h, readyT, latestPickupT)) {
       const close = lastOpenEnd(w, h, latestPickupT);
       if (close < latestPickupT) {

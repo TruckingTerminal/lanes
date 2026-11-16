@@ -148,6 +148,9 @@ export const FIXES = {
   dockShut: (town: string, days: string, day: string, open: string, close: string) => `${town}'s dock is shut ${days}: loading ${day} ${open}–${close}.`,
   // …and §24's other case: the window clipped where the dock shuts inside it.
   dockShuts: (town: string, shuts: string, opens: string) => `${town}'s dock shuts ${shuts} until ${opens}.`,
+  // Engineering's draft for the writer, the director's §28 (windows.fullOpenDay "move"): a load made ready at the dock's
+  // next opening.
+  dockShutsReady: (town: string, shuts: string, opens: string) => `${town}'s dock shuts ${shuts} until ${opens}: ready ${opens}.`,
   // The director's §26 (detention.fromOpening): under the booking's dock warning, the wait at a shut dock is unpaid.
   dockWaitUnpaid: (freeHours: number) => `The wait is unpaid: detention counts only from when the dock opens, and its first ${freeHours === 1 ? "hour is" : freeHours === 2 ? "two hours are" : `${freeHours} hours are`} free.`,
   // Engineering's placeholders for the writer: the bus home (ruleset 0.25.3, labor.busHome; the director's sprint §9).

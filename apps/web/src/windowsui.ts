@@ -1,5 +1,5 @@
 import { MENUS } from "./copy-menus.js";
-import { dockHoursAt, nextOpen, AHEAD_STATUSES, canMake, clearsWhen, companyAccount, crewed, hubMiles, dayOf, freeOf, lostShare, memoryLift, npcKey, pickupReachT, releaseStopOf, resting, urgent, waitingAtDock, weekdayName, whenLabel, windowsOn, type Company, type Free, type Load, type Reach, type Truck, type World } from "@lanes/engine";
+import { dockHoursAt, lastOpenEnd, nextOpen, AHEAD_STATUSES, canMake, clearsWhen, companyAccount, crewed, hubMiles, dayOf, freeOf, lostShare, memoryLift, npcKey, pickupReachT, releaseStopOf, resting, urgent, waitingAtDock, weekdayName, whenLabel, windowsOn, type Company, type Free, type Load, type Reach, type Truck, type World } from "@lanes/engine";
 import { COMMODITIES } from "@lanes/data";
 import { WINDOWS } from "./copy-windows.js";
 import { FIXES } from "./copy-fixes.js";
@@ -441,6 +441,7 @@ export const homeNoDrive = (w: World, c: Company): boolean => w.cfg.labor.homeNe
  * that day's hours, "Xenia's dock is shut Sat–Sun: loading Mon 07:00–19:00". Null otherwise, or with the rule off.
  */
 export function dockShutLine(w: World, l: Load): string | null {
+  if (w.cfg.windows?.fullOpenDay === "move") return dockShutLineMove(w, l);
   if (!l.windowShift || l.readyT === undefined || l.latestPickupT === undefined) return null;
   const h = dockHoursAt(w, l, "pickup");
   if (!h) return null;
@@ -454,4 +455,23 @@ export function dockShutLine(w: World, l: Load): string | null {
   if (!shut.length) return null; // a weekday evening's move: the card's own times say it
   const days = shut.length === 1 ? weekday(shut[0]!) : `${weekday(shut[0]!)}–${weekday(shut.at(-1)!)}`;
   return FIXES.dockShut(town, days, weekday(loading), hhmm(l.readyT), hhmm(l.latestPickupT));
+}
+
+/**
+ * The director's §28 (windows.fullOpenDay "move"): a moved load says when the dock shut and that it's ready at the opening,
+ * "Xenia's dock shuts Fri 19:00 until Mon 07:00: ready Mon 07:00." A window whose pickup close falls while the dock is shut
+ * says the shut stretch it ends in, "Xenia's dock shuts Fri 19:00 until Mon 07:00", since a truck that arrives in it waits
+ * unpaid (§26). A close inside open hours has no line.
+ */
+function dockShutLineMove(w: World, l: Load): string | null {
+  if (l.readyT === undefined || l.latestPickupT === undefined || !w.cfg.docks.enabled) return null;
+  const h = dockHoursAt(w, l, "pickup");
+  if (!h) return null;
+  const D = w.cfg.time.gameMinutesPerDay;
+  const town = w.net.places[l.originPlace]!.name;
+  const when = (t: number) => `${weekday(Math.floor(t / D))} ${hhmm(t)}`;
+  if (l.windowShift === "move") return FIXES.dockShutsReady(town, when(lastOpenEnd(w, h, l.readyT - 1)), when(l.readyT));
+  const opens = nextOpen(w, l.latestPickupT, h);
+  if (opens === l.latestPickupT) return null; // the close falls while the dock is open
+  return FIXES.dockShuts(town, when(lastOpenEnd(w, h, l.latestPickupT)), when(opens));
 }

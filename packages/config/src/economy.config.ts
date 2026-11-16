@@ -1134,7 +1134,11 @@ export const economyConfig = {
     // that close as before; a hot load's deadline counts from that day's opening when the close moved. A dock with no
     // hours (an appointment dock, a first-come dock round the clock) and a window that already holds a full open day don't
     // change. Off: the ready time plus pickupHours, as before.
-    fullOpenDay: false,
+    // The director's §28 (ruling 21 re-ruled narrow, for 0.25.7's gate): "move" makes only a window with less than a
+    // loading's open hours (dwell.loadMinutes[1]) ready at the dock's next opening; its window, "Deliver by" and any hot
+    // deadline then count from there, as for a load posted at that opening. No clip, no moved close. `true` is §24's
+    // clip-and-move (withdrawn by §28, kept for comparison); false is neither.
+    fullOpenDay: false as boolean | "move",
     // The urgency walk (the director's call 3): flat while more than this many rounds of slack remain before the pickup
     // closes; in these last rounds the ceiling steps as a rollover does (board.rolloverCeilingStep) and book-now walks to
     // it, one step a round, at most this many steps. A player poster's pay never walks. Batch 4: 4 (from 2), the same walk

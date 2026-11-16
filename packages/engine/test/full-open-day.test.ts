@@ -117,3 +117,36 @@ describe("ruling 21 as amended by §24 (windows.fullOpenDay)", () => {
     expect(win(windowAt(w, reefer, at(4, 18)))).toEqual(win(windowAt(off.w, off.reefer, at(4, 18))));
   });
 });
+
+describe("ruling 21 re-ruled narrow by §28 (windows.fullOpenDay \"move\")", () => {
+  const MOVE: EconomyConfig = { ...LIVE, windows: { ...LIVE.windows, fullOpenDay: "move" } };
+  const OFF_: EconomyConfig = { ...LIVE, windows: { ...LIVE.windows, fullOpenDay: false } };
+
+  it("no loading's hours in the window (ready Fri 18:00, or 17:01): ready Mon 07:00, picking up by Wed 07:00, all from there", () => {
+    const { w, van } = loads(MOVE);
+    const legal = transitMinutes(w.cfg, van.routeHours, w.cfg.hos.drivingHoursPerDay);
+    const windowMin = windowHoursOf(w.cfg, van.commodity) * 60;
+    for (const t of [at(4, 18), at(4, 17 + 1 / 60)]) {
+      const x = windowAt(w, van, t);
+      expect(x).toMatchObject({ readyT: at(7, 7), latestPickupT: at(9, 7), windowShift: "move" });
+      expect(x.latestDeliveryT).toBeCloseTo(at(9, 7) + legal + windowMin, 6);
+      expect(x.appointmentT).toBeCloseTo(Math.min(at(7, 7) + windowMin + legal, x.latestDeliveryT!), 6);
+    }
+    // A hot load: its deadline from Monday's opening, the same span as a load posted then.
+    const off = loads(OFF_);
+    const hot = windowAt(w, { ...van, hot: 1.5 }, at(4, 18));
+    const posted = windowAt(off.w, { ...off.van, hot: 1.5 }, at(7, 7));
+    expect(hot.latestDeliveryT).toBeCloseTo(posted.latestDeliveryT!, 6);
+  });
+
+  it("a loadable window is left as it is: no clip (Fri 08:00, Thu 18:00, 17:00, mid-week), and appointment docks untouched", () => {
+    const { w, van, reefer } = loads(MOVE);
+    const off = loads(OFF_);
+    for (const t of [at(4, 8), at(3, 18), at(4, 17), at(2, 8)]) {
+      const x = windowAt(w, van, t);
+      expect(win(x)).toEqual(win(windowAt(off.w, off.van, t)));
+      expect(x.windowShift).toBeUndefined();
+    }
+    expect(win(windowAt(w, reefer, at(4, 18)))).toEqual(win(windowAt(off.w, off.reefer, at(4, 18))));
+  });
+});
