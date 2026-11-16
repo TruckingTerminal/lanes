@@ -1,5 +1,15 @@
 # Decisions (the producer's log for Jeff; newest first)
 
+- 2026-11-15 — Jeff, on the director's §3 and §16 (studio/reviews/director-sprint-2026-11-15.md) with the economy's
+  studies (economy-broker-entry, economy-broker-windup, economy-windup-pair and economy-fleet-entry, all 2026-11-15):
+  "Let's do it for now, but ideally we want players to open brokerages." APPROVED for now: new AI brokerages enter by
+  conditions (brokered freight per trading broker over 1.5× the opening's and the AI brokers' margin over 5%, at most
+  one a week, opening 120 days later; players' brokerages count, so an entrant never arrives where players supply the
+  freight; each entrant's capital about 80,000 FD from the cap's budget, about 3.6M over four years), and an AI broker
+  or NPC fleet that stops trading is wound up and counted once instead of restarting. The aim stands that players
+  open the brokerages: the AI entrants are the market's backstop, and the director rules how entry yields to players
+  and how the game invites them in. Built behind switches, gated by the economy on ten seeds with twins and passed by
+  the red team before it goes live, with a restart of the empty world.
 - 2026-11-13 — the economy's baseline gate on the whole 0.25.0 bundle (windows, the 1% settlement fee, early delivery,
   rules C, H and I and the mid-leg night; ten seeds, cap-off twins), before the red team's fixes: the gate passes 10 of
   10, and the carriers' floor is wider with windows than with the fee alone (worst seed 80% and 79% of the twin
