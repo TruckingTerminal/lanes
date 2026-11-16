@@ -44,7 +44,7 @@ Append a dated line to the state log saying the studio now runs on the Mac Studi
    ten-day digest, `npx tsx apps/sim/src/determinism.ts` (behind the test gate), reads `38d5de7272cd9977` at
    0.25.5-phase0.48 on the Mac Studio's Node; CI's Node reads another value, so no test pins it. Anything new behind a
    switch must leave it unchanged.
-2. The live page is the artifact https://claude.ai/artifact/SRYhczap5Lpcr8AucRf9wy (v58 at 8c71b4f, ruleset
+2. The live page is the artifact https://claude.ai/artifact/SRYhczap5Lpcr8AucRf9wy (v59 at e33e4d0, ruleset
    lanes-live-1/0.25.5-phase0.48, published 2026-11-15; the world restarted on it with v58). With the ArtifactData tool, `get` collection `world` doc `meta`:
    it should read `{v 1, seed 911810758, epochMs 1794574098000, msPerGameHour 900000, ruleset
    "lanes-live-1/0.25.5-phase0.48"}` at version 35. `list` the `players` collection; it was empty on 2026-11-15. Do not
@@ -55,7 +55,7 @@ Append a dated line to the state log saying the studio now runs on the Mac Studi
    (kit.json entries marked live: false, Iuliia's unused breathing loop, the Back Lot's files, the city weather loops
    and city stills stay on the test site only).
 3. The studio board is https://claude.ai/artifact/2kmePVzETFib467bWP2J34.
-4. Build the live page once to prove the recipe, without publishing: `git worktree add ../lanes-live 8c71b4f`, then in
+4. Build the live page once to prove the recipe, without publishing: `git worktree add ../lanes-live e33e4d0`, then in
    it `node apps/web/build.mjs` → `apps/web/dist/lanes.html` (about 4.8 MB). Publishing is the producer's, after QA's
    replay finds no blockers; a restart with players in the world is Jeff's call.
 
