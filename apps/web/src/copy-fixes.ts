@@ -135,6 +135,9 @@ export const FIXES = {
   releaseStanding: (n: number, market: string) => `It also takes ${n === 1 ? "one load" : n === 2 ? "two loads" : `${n} loads`} off your ${market} standing.`,
   // A weekly day named on that day itself means the next one ("next Monday's review").
   nextDay: (day: string) => `next ${day}`,
+  // Engineering's placeholder for the writer: the director's ruling 21 (windows.fullOpenDay). The load sheet's one line when
+  // the pickup window spans days the shipper's dock is shut: the town, the shut days, and the loading day and hours.
+  dockShut: (town: string, days: string, day: string, open: string, close: string) => `${town}'s dock is shut ${days}: loading ${day} ${open}–${close}.`,
   // Engineering's placeholders for the writer: the bus home (ruleset 0.25.3, labor.busHome; the director's sprint §9).
   onBus: (day: string) => `on the bus home · home ${day}`,
   awayBus: (who: string, from: string, hours: number, fd: string, day: string) => `${who} had no truck at ${from} and took the bus home: about ${hours} h and ${fd} FD, home ${day}.`,

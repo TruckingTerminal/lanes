@@ -1,9 +1,9 @@
 import { MENUS } from "./copy-menus.js";
-import { AHEAD_STATUSES, canMake, clearsWhen, companyAccount, crewed, hubMiles, dayOf, freeOf, lostShare, memoryLift, npcKey, pickupReachT, releaseStopOf, resting, urgent, waitingAtDock, weekdayName, whenLabel, windowsOn, type Company, type Free, type Load, type Reach, type Truck, type World } from "@lanes/engine";
+import { dockHoursAt, fullOpenDay, AHEAD_STATUSES, canMake, clearsWhen, companyAccount, crewed, hubMiles, dayOf, freeOf, lostShare, memoryLift, npcKey, pickupReachT, releaseStopOf, resting, urgent, waitingAtDock, weekdayName, whenLabel, windowsOn, type Company, type Free, type Load, type Reach, type Truck, type World } from "@lanes/engine";
 import { COMMODITIES } from "@lanes/data";
 import { WINDOWS } from "./copy-windows.js";
 import { FIXES } from "./copy-fixes.js";
-import { fdFull, hhmm, shortDate } from "./format.js";
+import { fdFull, hhmm, shortDate, weekday } from "./format.js";
 import { deliveryEtaMin, etaMin } from "./rolling.js";
 import { claimCosts, releaseStanding } from "./standingui.js";
 
@@ -433,3 +433,23 @@ export function homeMarketLine(w: World, c: Company, t: Truck): string | null {
  * drives the truck home, so What now?'s due-home answer says so (the words of the old rule said it heads home empty).
  */
 export const homeNoDrive = (w: World, c: Company): boolean => w.cfg.labor.homeNeedsDispatcher && !c.orders.some((o) => o.kind === "bid");
+
+/**
+ * The director's ruling 21 (windows.fullOpenDay): the sheet's one line when a load's pickup window spans whole days its
+ * shipper's dock is shut: the town, the shut days ("Sat–Sun"), and the full open day the window holds, with its hours.
+ * Null with the rule off, at a dock with no hours, or with no shut day inside the window.
+ */
+export function dockShutLine(w: World, l: Load): string | null {
+  if (l.readyT === undefined || l.latestPickupT === undefined) return null;
+  const full = fullOpenDay(w, l, l.readyT);
+  const h = dockHoursAt(w, l, "pickup");
+  if (!full || !h) return null;
+  const D = w.cfg.time.gameMinutesPerDay;
+  const shut: number[] = [];
+  for (let d = Math.ceil(l.readyT / D); (d + 1) * D <= l.latestPickupT; d++) if (!h.days.includes((d + w.cfg.time.weekdayOfDay0) % 7)) shut.push(d);
+  if (!shut.length) return null;
+  const name = (d: number) => weekday(d);
+  const days = shut.length === 1 ? name(shut[0]!) : `${name(shut[0]!)}–${name(shut.at(-1)!)}`;
+  const loading = Math.floor(full.open / D);
+  return FIXES.dockShut(w.net.places[l.originPlace]!.name, days, name(loading), hhmm(full.open), hhmm(full.close));
+}

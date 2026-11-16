@@ -16,7 +16,7 @@ import { deliveryEtaMin, etaMin } from "../../rolling.js";
 import { tabOpen } from "../../tabs.js";
 import { iuliiaFirst, iuliiaOnce, iuliiaOnChange, iuliiaSay, iuliiaSayText } from "../../iuliia.js";
 import { WINDOWS } from "../../copy-windows.js";
-import { aheadable, agreement, agreeShown, boardable, bookBar, busyNextLine, clearsTiming, freeAt, windowLine } from "../../windowsui.js";
+import { aheadable, agreement, agreeShown, boardable, bookBar, busyNextLine, clearsTiming, dockShutLine, freeAt, windowLine } from "../../windowsui.js";
 import { PENDING_RULES } from "../../copy-pending-rules.js";
 import { Btn, Card, Kv } from "../bits.js";
 import { LoadsTable } from "./Loads.js";
@@ -531,6 +531,8 @@ function LoadSheet({ r, truck }: { r: BoardRow; truck: Truck }): JSX.Element {
     ? [
         [WINDOWS.ready, <span class="row"><Fig k="load.window" label={WINDOWS.ready} ctx={fx}>{`${win.ready} · ${op.name}, ${op.state}`}</Fig>{chips.dock ? <span class="chip">{STANDING_UX.dockChip}</span> : null}</span>],
         [WINDOWS.pickupBy, win.pickupBy],
+        // The director's ruling 21: the window spans days the shipper's dock is shut; when it loads, said once.
+        ...(dockShutLine(w, l) ? ([["", <span class="small">{dockShutLine(w, l)}</span>]] as [string, JSX.Element][]) : []),
         // The menu system §2.5: the dock clock beside the deadline, its hands set to it; amber when it's tight.
         [WINDOWS.deliverBy, <span class="row">{`${win.deliverBy} · ${place(l.destPlace)}`}<DockClock at={l.latestDeliveryT!} tight={!!agree?.tight} size={40} /></span>],
       ]

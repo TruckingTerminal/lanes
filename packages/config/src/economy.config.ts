@@ -1118,6 +1118,13 @@ export const economyConfig = {
     // in openWindow, freight.ts's appointment with windows off, the guide's table), to the hour. The table in
     // packages/data commodities.ts stays as it is. 1 reads as today; the gate's arm is 0.25, every commodity alike.
     windowScale: 1,
+    // The director's ruling 21 (director-sprint-2026-11-15.md §21; QA's 0.25.5 replay, item 4): a pickup window always
+    // holds the pickup dock's first full open day. Its close is the later of the ready time plus pickupHours and the end of
+    // the dock's first whole open hours at or after the ready time (docks.hours, docks on), and "Deliver by" counts from
+    // that close as before; a hot load's deadline counts from that day's opening when the close moved. A dock with no
+    // hours (an appointment dock, a first-come dock round the clock) and a window that already holds a full open day don't
+    // change. Off: the ready time plus pickupHours, as before.
+    fullOpenDay: false,
     // The urgency walk (the director's call 3): flat while more than this many rounds of slack remain before the pickup
     // closes; in these last rounds the ceiling steps as a rollover does (board.rolloverCeilingStep) and book-now walks to
     // it, one step a round, at most this many steps. A player poster's pay never walks. Batch 4: 4 (from 2), the same walk

@@ -83,12 +83,37 @@ export function readyAt(w: World, load: Load, leadDays: number): number {
   return hours ? nextOpen(w, t, hours) : t;
 }
 
+/**
+ * windows.fullOpenDay (the director's ruling 21): the pickup dock's first full open day at or after `t`, its opening and its
+ * close; null with the switch or the docks off, or at a dock with no hours (an appointment dock, one round the clock).
+ */
+export function fullOpenDay(w: World, load: Load, t: number): { open: number; close: number } | null {
+  if (w.cfg.windows?.fullOpenDay !== true || !w.cfg.docks.enabled) return null;
+  const h = dockHoursAt(w, load, "pickup");
+  if (!h) return null;
+  const D = w.cfg.time.gameMinutesPerDay;
+  const first = Math.floor(t / D);
+  for (let day = first; day < first + 8; day++) {
+    if (!h.days.includes((day + w.cfg.time.weekdayOfDay0) % 7)) continue;
+    const open = day * D + h.open * 60;
+    if (open >= t) return { open, close: day * D + h.close * 60 };
+  }
+  return null;
+}
+
 /** Sets a just-posted load's window. Its appointment moves with the ready time and sits inside the window. */
 export function openWindow(w: World, load: Load, leadDays: number): void {
   const { cfg } = w;
   const k = cfg.windows!;
   const readyT = readyAt(w, load, leadDays);
-  const latestPickupT = readyT + (dockRule(w, load) === "appointment" ? k.pickupHours.appointment : k.pickupHours.firstCome) * 60;
+  let latestPickupT = readyT + (dockRule(w, load) === "appointment" ? k.pickupHours.appointment : k.pickupHours.firstCome) * 60;
+  // Ruling 21: the window holds the dock's first full open day; a hot load's deadline then counts from that day's opening.
+  let loadsFrom = readyT;
+  const full = fullOpenDay(w, load, readyT);
+  if (full && full.close > latestPickupT) {
+    latestPickupT = full.close;
+    loadsFrom = full.open;
+  }
   const legal = transitMinutes(cfg, load.routeHours, cfg.hos.drivingHoursPerDay);
   const windowMin = windowHoursOf(cfg, load.commodity) * 60;
   let latestDeliveryT = latestPickupT + legal + windowMin;
@@ -99,12 +124,12 @@ export function openWindow(w: World, load: Load, leadDays: number): void {
     const hl = cfg.safety.hotLoads;
     const ops = cfg.equipmentOps;
     const dwell = cfg.dwell.loadMinutes[1] + cfg.dwell.unloadMinutes[1] + (ops.enabled && load.equipment === "flatbed" ? ops.flatbedSecureMinutes[1] + ops.flatbedUntarpMinutes[1] : 0);
-    latestDeliveryT = readyT + transitMinutes(cfg, load.routeHours, hl.hoursPerDay) + dwell + hl.slackMinutes;
+    latestDeliveryT = loadsFrom + transitMinutes(cfg, load.routeHours, hl.hoursPerDay) + dwell + hl.slackMinutes;
   }
   load.readyT = readyT;
   load.latestPickupT = latestPickupT;
   load.latestDeliveryT = latestDeliveryT;
-  load.appointmentT = Math.min(readyT + windowMin + legal, latestDeliveryT);
+  load.appointmentT = Math.min(loadsFrom + windowMin + legal, latestDeliveryT); // ruling 21: from the opening, when the close moved
 }
 
 /** True when a load counts in today's work: no window, windows off, or ready by today's end. */
