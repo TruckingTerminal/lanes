@@ -42,6 +42,9 @@ describe("players first on the page", () => {
     expect(brokerMarketIuliia(w)).toBe(FIXES.iuliiaNewBrokerage);
     reading(w, 1.1, 0.03, []);
     expect(brokerMarketLine(w)).toBe("Brokers' market: freight per broker 1.1× the opening's, margins 3%: no room for a new brokerage.");
+    expect(brokerMarketIuliia(w)).toBeNull(); // the director's §29: quiet under "no room"
+    reading(w, 0.8, -0.11, []);
+    expect(brokerMarketLine(w)).toBe("Brokers' market: freight per broker 0.8× the opening's, margins −11%: no room for a new brokerage.");
     const off = await TestGame.create(undefined, undefined, 41, on({ signal: false }));
     reading(off.w, 1.7, 0.07, []);
     expect(brokerMarketLine(off.w)).toBeNull();

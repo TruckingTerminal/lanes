@@ -154,8 +154,9 @@ export const FIXES = {
   // Engineering's draft for the writer, the director's §28 (windows.fullOpenDay "move"): a load made ready at the dock's
   // next opening.
   dockShutsReady: (town: string, shuts: string, opens: string) => `${town}'s dock shuts ${shuts} until ${opens}: ready ${opens}.`,
-  // The director's §26 (detention.fromOpening): under the booking's dock warning, the wait at a shut dock is unpaid.
-  dockWaitUnpaid: (freeHours: number) => `The wait is unpaid: detention counts only from when the dock opens, and its first ${freeHours === 1 ? "hour is" : freeHours === 2 ? "two hours are" : `${freeHours} hours are`} free.`,
+  // The director's §26 and §29 (detention.fromOpening): under the booking's dock warning, a wait at a shut dock, at the
+  // shipper or the receiver, is the carrier's own time. No pay is promised: every wait the engine sees ends at the opening.
+  dockWaitUnpaid: "Waiting until a dock opens is your own time.",
   // Engineering's placeholders for the writer: the bus home (ruleset 0.25.3, labor.busHome; the director's sprint §9).
   onBus: (day: string) => `on the bus home · home ${day}`,
   awayBus: (who: string, from: string, hours: number, fd: string, day: string) => `${who} had no truck at ${from} and took the bus home: about ${hours} h and ${fd} FD, home ${day}.`,

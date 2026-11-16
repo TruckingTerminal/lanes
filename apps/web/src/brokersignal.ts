@@ -11,7 +11,8 @@ import { fdFull, shortDate } from "./format.js";
 const times = (x: number) => `${x.toFixed(1)}×`;
 /** The director's §25 words: "about 93,000 FD", the figure to the thousand. */
 export const aboutFd = (x: number) => Math.round(x / 1000) * 1000;
-const pctOf = (x: number) => `${Math.round(x * 100)}%`;
+/** A percent with the page's minus sign (QA's 0.25.6 replay: "margins −8%"). */
+const pctOf = (x: number) => `${Math.round(x * 100) < 0 ? "−" : ""}${Math.abs(Math.round(x * 100))}%`;
 
 /** §2: the brokerage screen's line before forming; null with `signal` off or before entry has a reading. */
 export function brokerMarketLine(w: World): string | null {
@@ -24,8 +25,11 @@ export function brokerMarketLine(w: World): string | null {
   return FIXES.brokersMarketOpen(times(r.flowRatio), pctOf(r.margin), pending.length, by === null ? null : shortDate(by));
 }
 
-/** §2: Iuliia's line under it, while the line shows. */
-export const brokerMarketIuliia = (w: World): string | null => (brokerMarketLine(w) ? FIXES.iuliiaNewBrokerage : null);
+/** §2: Iuliia's line under it, while the reading is over the lines; the director's §29: quiet under "no room". */
+export const brokerMarketIuliia = (w: World): string | null => {
+  const r = brokerMarketLine(w) ? brokerEntrySignal(w) : null;
+  return r && readingOver(w, r) ? FIXES.iuliiaNewBrokerage : null;
+};
 
 /** What forming a brokerage takes from the carrier: its bond, its licence and the transfer's fee (brokerage.ts formationCostFd). */
 export const brokerageCostFd = (w: World): number => formationCostFd(w);

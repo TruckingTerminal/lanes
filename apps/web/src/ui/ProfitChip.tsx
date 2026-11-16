@@ -42,11 +42,11 @@ export function DockWarning({ w, t, l, dh }: { w: World; t: Truck; l: Load; dh: 
       {d.pickup ? DOCK.pickup(when(d.pickup.openT), Math.round(d.pickup.waitMin / 60)) : null}
       {d.pickup && d.delivery ? <br /> : null}
       {d.delivery ? DOCK.delivery(when(d.delivery.openT), Math.round(d.delivery.waitMin / 60)) : null}
-      {/* The director's §26 (detention.fromOpening): a wait at a shut dock is the carrier's, unpaid. */}
+      {/* The director's §26 and §29 (detention.fromOpening): a wait at a shut dock is the carrier's own time. */}
       {w.cfg.detention.enabled && w.cfg.detention.fromOpening === true ? (
         <>
           <br />
-          {FIXES.dockWaitUnpaid(w.cfg.detention.freeHours)}
+          {FIXES.dockWaitUnpaid}
         </>
       ) : null}
     </p>

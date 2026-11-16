@@ -84,7 +84,7 @@ export function Economy(): JSX.Element {
           rows={[
             ["Paid out by the game", <Num>{fd(faucets)} FD</Num>],
             ["Taken back", <Num>{fd(sinks)} FD · {faucets > 0 ? pct(sinks / faucets) : "–"} of what was paid out</Num>],
-            ["Burned for good", <Num>{fd(burned)} FD</Num>],
+            ["Gone for good", <Num>{fd(burned)} FD</Num>],
           ]}
         />
         <h4>Where it came from</h4>
@@ -108,12 +108,12 @@ export function Economy(): JSX.Element {
         <Kv
           rows={[
             ["In circulation", <Num>{fd(valuation(w).circulatingFd)} FD (what players hold and trade, the exchange pool included)</Num>],
-            ...(circular ? ([["All FD there is", <Num>{fd(valuation(w).totalSupplyFd)} FD (the cap less what's been burned)</Num>]] as [string, JSX.Element][]) : []),
+            ...(circular ? ([["All FD there is", <Num>{fd(valuation(w).totalSupplyFd)} FD (the cap less what's gone for good)</Num>]] as [string, JSX.Element][]) : []),
             ...(circular
               ? ([
                   ["The reserve", <Num>{fd(w.ledger.reserve())} FD</Num>],
                   ["Still in the genesis allocations", <Num>{fd(w.ledger.allocated())} FD</Num>],
-                  ["Burned since genesis", <Num>{fd(w.ledger.burned())} FD</Num>],
+                  ["Gone for good since genesis", <Num>{fd(w.ledger.burned())} FD</Num>],
                 ] as [string, JSX.Element][])
               : []),
             ...(w.cfg.token.circular.rateStabilizer.enabled ? ([["The balance dial", <Num>NPC rates at {w.stab.rateMult.toFixed(3)}× (it moves toward sinks matching faucets)</Num>]] as [string, JSX.Element][]) : []),
@@ -148,13 +148,13 @@ export function Economy(): JSX.Element {
                   ] as [string, JSX.Element][])
                 : []),
               ["Spend-only FD", <Num>{fd(w.ledger.lockedSupply())} FD (the airdrop until its milestones, carryover, grants)</Num>],
-              ["Airdrop", <Num>{fd(w.token.airdrop.mintedFd)} minted · {fd(w.token.airdrop.forfeitedFd)} forfeited or burned</Num>],
+              ["Airdrop", <Num>{fd(w.token.airdrop.mintedFd)} minted · {fd(w.token.airdrop.forfeitedFd)} forfeited or gone for good</Num>],
               ...(w.cfg.token.bridge.enabled
                 ? ([["The bridge", <Num>{fd(w.companies.reduce((s, c) => s + c.withdrawals.reduce((x, r) => x + r.fd, 0), 0))} FD waiting ({bridgeDelayDays(w, Math.floor(w.t / w.cfg.time.gameMinutesPerDay))} days today) · {fd(w.token.bridge.clearedFd)} cleared since launch · {w.token.bridge.cappedDays} days capped</Num>]] as [string, JSX.Element][])
                 : []),
               ...(w.token.auction ? ([["The opening auction", <Num>{usd(w.token.auction.usd)} from {w.token.auction.bidders} bidders at ${w.token.auction.priceUsd.toFixed(5)} · the pool opened with {usd(w.token.auction.poolUsd)}</Num>]] as [string, JSX.Element][]) : []),
               ...(circular ? ([["The vest", <Num>{fd(w.token.treasury.vestedFd)} FD sold for {usd(w.token.treasury.devUsd)} · {fd(w.ledger.balance(vestAccount(w)))} FD left to vest</Num>]] as [string, JSX.Element][]) : []),
-              ["Burned, last 30 days", <Num>{tally(days, (d) => d.burnByTag).map(([t, v]) => `${name(t)} ${fd(v)}`).join(" · ") || "none"}</Num>],
+              ["Gone for good, last 30 days", <Num>{tally(days, (d) => d.burnByTag).map(([t, v]) => `${name(t)} ${fd(v)}`).join(" · ") || "none"}</Num>],
               ["Minted, last 30 days", <Num>{tally(days, (d) => d.mintByTag).map(([t, v]) => `${name(t)} ${fd(v)}`).join(" · ") || "none"}</Num>],
             ]}
           />

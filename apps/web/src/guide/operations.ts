@@ -2,6 +2,9 @@ import type { EconomyConfig } from "@lanes/config";
 import { type GuidePage, h, n, p, pct, see, table, ul } from "./util.js";
 import { PENDING } from "../copy-pending.js";
 
+/** The director's §29 words: "within two hours". */
+const hoursWord = (h: number) => (h === 1 ? "an hour" : h === 2 ? "two hours" : `${h} hours`);
+
 const S = "Running trucks";
 const hh = (h: number) => `${String(h).padStart(2, "0")}:00`;
 
@@ -61,7 +64,7 @@ export function operationsPages(cfg: EconomyConfig): GuidePage[] {
             : []),
           ...(cfg.detention.enabled
             ? [cfg.detention.fromOpening === true
-                ? `<b>Detention.</b> It counts from when the dock could serve you: its opening at a dock that keeps hours, your slot at an appointment dock. Past ${cfg.detention.freeHours} free hours it earns ${n(cfg.detention.fdPerHour)} FD an hour, up to ${cfg.detention.maxHours} hours a stop, paid by the load's poster with the load. A wait at a shut dock before it opens is your own time and earns none, and neither does waiting for a load that isn't ready.`
+                ? `<b>Detention.</b> Docks here load and unload you within ${hoursWord(Math.max(cfg.dwell.loadMinutes[1], cfg.dwell.unloadMinutes[1]) / 60)} of your slot or their opening, so detention doesn't come up. Arrive before then and the wait is your own time, and so is waiting for a load that isn't ready.`
                 : `<b>Detention.</b> A wait at a closed dock past ${cfg.detention.freeHours} free hours earns ${n(cfg.detention.fdPerHour)} FD an hour, up to ${cfg.detention.maxHours} hours a stop, paid by the load's poster with the load. Waiting for a slot earns none, and neither does waiting for a load that isn't ready.`]
             : []),
           cfg.windows.enabled && cfg.windows.oneDeadline

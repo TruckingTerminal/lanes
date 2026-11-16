@@ -879,7 +879,7 @@ export const FINANCE = {
   unstakeNow: (pct: string) => `Unstake now (${pct} back now, the rest gone for good)`,
   unstakeTitle: "Unstake now?",
   unstakeBack: "You get back",
-  unstakeBurned: "Burned",
+  unstakeBurned: "Gone for good",
   unstakeGo: "Unstake now",
   keepIt: "Keep it",
   later: "Later",
