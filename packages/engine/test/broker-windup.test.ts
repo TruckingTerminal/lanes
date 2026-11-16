@@ -80,5 +80,15 @@ describe("winding up the AI brokers that can no longer trade (brokerRisk.windUpD
     player.b.human = true;
     weeks(player.w, 10);
     expect(player.b.retiredDay).toBeUndefined();
+
+    // A bot carrier's own brokerage (a pair, partnerId set) is a carrier's, not an AI broker: never wound up as one, and
+    // never in the "AI brokerages wound up" count (the economy's 0.25.6 gate).
+    const pair = dormant(raise(LIVE, true));
+    const carrier = pair.w.companies.find((c) => c.role === "carrier" && !c.human)!;
+    pair.b.partnerId = carrier.id;
+    carrier.partnerId = pair.b.id;
+    weeks(pair.w, 10);
+    expect(pair.b.retiredDay).toBeUndefined();
+    expect(pair.w.brokersWoundUp?.some((x) => x.companyId === pair.b.id) ?? false).toBe(false);
   });
 });

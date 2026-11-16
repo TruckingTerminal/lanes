@@ -117,7 +117,9 @@ export function windUpDormantBrokers(w: World): void {
   const staking = w.cfg.token.staking;
   const licence = staking.roles.broker;
   for (const c of w.companies) {
-    if (c.role !== "broker" || c.human || c.retiredDay !== undefined || c.liquidatingSince !== null) continue;
+    // An AI broker only (brokerEntry.ts aiBrokerCo): not a person's, and not a carrier's own brokerage, a bot carrier's pair
+    // included (the economy's 0.25.6 gate: a closed bot pair was counted as an AI broker wound up).
+    if (c.role !== "broker" || c.human || c.partnerId !== undefined || c.retiredDay !== undefined || c.liquidatingSince !== null) continue;
     // staking.ts brokerLicensed, read here (no edge to staking.ts).
     const licensed = !staking.enabled || c.stakedFd + 1e-9 >= licence;
     const dormant = !licensed && c.openBrokerLoads === 0 && !w.receivables.some((r) => r.payer === c.id) && w.ledger.balance(companyAccount(c.id)) < licence - c.stakedFd;
