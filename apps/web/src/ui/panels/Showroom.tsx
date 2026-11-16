@@ -50,6 +50,7 @@ import { fleetCaps } from "../../figures.js";
 import { CAPS, DOOR } from "../../copy.js";
 import { expediteOn } from "@lanes/engine";
 import { partsBeforeOrder, expediteLines, waitSentence } from "../../expediteui.js";
+import { youngRatesLine } from "../../hubcard.js";
 
 const TIERS: TractorTier[] = ["workhorse", "highwayPro", "flagship"];
 const TYPES: Equipment[] = ["van", "reefer", "flatbed"];
@@ -267,6 +268,7 @@ export function Showroom(): JSX.Element {
         <p class="muted">None listed.</p>
       )}
       <h3>Tractors for lease from other carriers</h3>
+      {offers.length && youngRatesLine(w) ? <p class="small">{youngRatesLine(w)}</p> : null}
       {offers.length ? (
         offers.map((o) => {
           const t = w.trucks[o.truckId - 1]!;
@@ -398,6 +400,8 @@ export function Buy({ what, label, verb = "Buy", price, replacing, block, action
               [DEALER.now, <Fig k="loan.cashNow" label={DEALER.now} ctx={{ fd: price, replacing, truck }}>{`${fd(p.loanNowFd ?? 0)} FD`}</Fig>],
             ]}
           />
+          {/* The director's ruling 22: Iuliia, under the weekly payment, while the market is young. */}
+          {youngRatesLine(w) ? <p class="small">{youngRatesLine(w)}</p> : null}
           <p class="warn small">{DEALER.missed(ef.missedToDefault)}</p>
           <div class="row">
             <Btn primary disabled={loanWhy !== null} onClick={(ev) => ask({ ...action, finance: true }, ev)}>

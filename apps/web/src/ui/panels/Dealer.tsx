@@ -15,6 +15,7 @@ import { dealerUsed, firstTruckLine, inFirstMonth, leaseOnRun, listingWhy, truck
 import { FirstTruckVerdictBlock } from "../FirstTruckCard.js";
 import { PENDING } from "../../copy-pending.js";
 import { CapsLine } from "../Caps.js";
+import { youngRatesLine } from "../../hubcard.js";
 
 export function Dealer(): JSX.Element {
   useData();
@@ -113,6 +114,8 @@ export function Dealer(): JSX.Element {
         {/* R7 and R20: the row says what a lease takes; a lease the rules won't give is off, with the binding reason; the
             answer lands under the row. */}
         <p class="muted small">{ANSWER.leaseRow(fdFull(leaseDepositNow(w, "van")), fdFull(leaseWeeklyMin(w, "van")))}. Needs one truck you own. Lessor has {w.lessor.fleet - w.lessor.out} free.</p>
+        {/* The director's ruling 22: Iuliia, under the lease's weekly figure, while the market is young. */}
+        {youngRatesLine(w) ? <p class="small">{youngRatesLine(w)}</p> : null}
         <div class="row">
           {trailers.map((tr) => (
             <Btn key={tr} disabled={!(canLease && w.lessor.out < w.lessor.fleet) || leaseWhy(tr) !== null} onClick={(ev) => confirmAct({ verb: "Lease", item: `a ${TRAILER_NAME[tr].toLowerCase()} truck`, costFd: leaseDepositNow(w, tr), ...leaseTruck(w, tr, leaseDepositNow(w, tr), leaseWeeklyMin(w, tr)), go: `Lease · ${fdFull(leaseDepositNow(w, tr))} FD`, run: () => void lease(tr) }, ev)}>

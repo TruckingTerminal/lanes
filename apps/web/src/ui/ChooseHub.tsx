@@ -7,7 +7,7 @@ import { cls, fd } from "../format.js";
 import { FLEET_START_EXTRA_FD, GAME_CONFIG, type StartKind } from "../game.js";
 import { H } from "../handlers.js";
 import { clearsNear, rateShown } from "../board.js";
-import { hubFacts, moodLine, rankStarters, seasonReading } from "../hubcard.js";
+import { hubFacts, moodLine, youngMarketLine, rankStarters, seasonReading } from "../hubcard.js";
 import { iuliiaFirst } from "../iuliia.js";
 import { bumpData, S, TEST_BUILD, useData, type EntryStage } from "../state.js";
 import { Btn, Card } from "./bits.js";
@@ -99,7 +99,14 @@ function Say({ line, mood = "wave", children }: { line: string; mood?: PortraitM
 /** The country's reading, once under a list of hubs (hubcard.ts moodLine), while it's booming or slumping: the hubs' own lines lead. */
 function MoodLine(): JSX.Element | null {
   const line = moodLine(S.game!.w);
-  return line ? <p class="muted small">{line}</p> : null;
+  // The director's ruling 22: a young market's sentence under the country line, by the world's age.
+  const young = youngMarketLine(S.game!.w);
+  return line || young ? (
+    <>
+      {line ? <p class="muted small">{line}</p> : null}
+      {young ? <p class="muted small">{young}</p> : null}
+    </>
+  ) : null;
 }
 
 function HubRow({ hub }: { hub: number }): JSX.Element {
@@ -188,6 +195,7 @@ function HubCard({ hub }: { hub: number }): JSX.Element {
       <p class="muted">{f.season}</p>
       {/* The country's reading on its own line, after the hub's own (client batch 6). */}
       {f.country ? <p class="muted small">{f.country}</p> : null}
+      {f.young ? <p class="muted small">{f.young}</p> : null}
       {group(HUB_CARD.freightNow, f.freight)}
       {/* No Intel link here (Jeff, 2026-11-04): before a company the sheet is the hub choice and nothing leaves it. */}
       {group(HUB_CARD.whosHere, f.whosHere)}

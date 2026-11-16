@@ -12,6 +12,7 @@ import { Bar, Btn, Card, Kv, Panel } from "../bits.js";
 import { Fig } from "../Explain.js";
 import { CapsLine } from "../Caps.js";
 import { fleetCaps } from "../../figures.js";
+import { youngRatesLine } from "../../hubcard.js";
 
 /** A rate per load, one decimal: "5.9%". */
 const rate1 = (x: number): string => `${(x * 100).toFixed(1)}%`;
@@ -478,6 +479,8 @@ function ConfirmSheet({ sheet, close, orders }: { sheet: NonNullable<Sheet>; clo
             [FINANCE.borrowWeekly, FINANCE.borrowWeeklyValue(fdFull(equipmentWeekly(w, sheet.fd)), ef.termWeeks)],
           ]}
         />
+        {/* The director's ruling 22: Iuliia, under the weekly payment, while the market is young. */}
+        {youngRatesLine(w) ? <p class="small">{youngRatesLine(w)}</p> : null}
         <p class="warn small">{FINANCE.borrowRepo(ef.missedPaymentsToRepossess)}</p>
         {actions("borrow", FINANCE.borrowGo(fdFull(sheet.fd)), { type: "borrow", truckId: sheet.truckId, amountFd: sheet.fd })}
       </Card>

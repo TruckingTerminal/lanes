@@ -4,6 +4,7 @@ import { starterBreakEven } from "./breakeven.js";
 import { FIRST_HUBS } from "./game.js";
 import { HUB_CARD, SEASON, STARTERS, SECURITY } from "./copy.js";
 import { PENDING } from "./copy-pending.js";
+import { FIXES } from "./copy-fixes.js";
 import { fd, pct } from "./format.js";
 
 /**
@@ -14,6 +15,8 @@ import { fd, pct } from "./format.js";
 export interface HubFacts {
   name: string;
   character: string | null;
+  /** The director's ruling 22: the young market's sentence under the country line (youngMarketLine), null from day 42. */
+  young: string | null;
   /** The hub's own season line (seasonLine): its freight against its trucks. It leads, in a list's row and on the hub's page. */
   season: string;
   /**
@@ -126,6 +129,20 @@ export function moodLine(w: World): string | null {
   return m.state === "steady" ? null : m.state === "booming" ? PENDING.countryRatesUp(pct(m.change)) : PENDING.countryRatesDown(pct(-m.change));
 }
 
+/**
+ * The director's ruling 22: a world under this many days old, counted from its day 0 (the same on every page), says it's
+ * young. The trigger is the age alone: the live world until its day 42, a test world for its first 32 days (it opens at
+ * day 10), and never a world that opens past day 42.
+ */
+export const YOUNG_MARKET_DAYS = 42;
+export const youngMarket = (w: World): boolean => dayOf(w.t, w.cfg) < YOUNG_MARKET_DAYS;
+
+/** Ruling 22: the second sentence under the country line, on the hub list and a hub's page; null from day 42. */
+export const youngMarketLine = (w: World): string | null => (youngMarket(w) ? FIXES.youngMarket(dayOf(w.t, w.cfg)) : null);
+
+/** Ruling 22: Iuliia's line on a loan or lease sheet, under "Weekly payment", once a sheet; null from day 42. */
+export const youngRatesLine = (w: World): string | null => (youngMarket(w) ? FIXES.iuliiaYoungRates : null);
+
 const timesWord = (x: number): string => (Math.abs(x - 2) < 0.25 ? "twice" : Math.abs(x - 3) < 0.25 ? "three times" : `${x.toFixed(1)} times`);
 const outWord = (x: number): string => (x >= 1.15 ? "strong" : x <= 0.75 ? "thin" : "even");
 
@@ -154,6 +171,7 @@ export function hubFacts(w: World, hub: number): HubFacts {
     character: STARTERS[h.id]?.character ?? null,
     season: seasonLine(w, hub),
     country: moodLine(w),
+    young: youngMarketLine(w),
     freight: [
       HUB_CARD.posted(posted, posted ? (rateSum / posted).toFixed(2) : "–"),
       HUB_CARD.perTruck(ratio.toFixed(1), ratioWord),

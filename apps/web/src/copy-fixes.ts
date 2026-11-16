@@ -67,6 +67,11 @@ export const FIXES = {
   onBusTo: (town: string, day: string) => `on the bus to ${town} · arriving ${day}`,
   // …and its status chip, in place of "home" (the rider is on the road to the truck, not home).
   busChip: "on the bus",
+  // Engineering's drafts for the writer: the director's ruling 22, a young market says so, by the world's age only (under
+  // 42 days from its day 0). Under the country line, on the hub list and a hub's page; and Iuliia's line, once on each
+  // loan and lease sheet, under "Weekly payment". No figure for how far rates will fall.
+  youngMarket: (days: number) => `This market opened ${days === 0 ? "today" : days === 1 ? "a day ago" : `${days} days ago`}. Opening rates run high while trucks catch up with the freight, and they fall back over the first six weeks.`,
+  iuliiaYoungRates: "Rates are still in the market's opening weeks, and they run high. Check this payment against lower ones.",
   hireAt: (town: string) => `Hire at ${town}`,
   hireRides: (name: string, from: string, time: string, fd: string) => `${name} is at ${from}, so the bus here comes first: ${time} and ${fd} FD, which you pay.`,
   // Engineering's placeholders for the writer: QA's 0.25.3 replay (qa-0253-2026-11-15.md, fix soon and lower).
