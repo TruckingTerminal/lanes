@@ -182,7 +182,7 @@ describe("AI broker entry by conditions (brokerRisk.entry)", () => {
     expect(dueEntrants(w)).toEqual([w.brokerEntry!.entrants[0]]);
     expect(yieldEntrant(w)).toBe(true);
     expect(yieldEntrant(w)).toBe(false);
-    expect(renewalReport(w)!.entrants).toEqual({ founded: 2, opened: 0, withdrawn: 2, failedAgain: 0 });
+    expect(renewalReport(w)!.entrants).toEqual({ founded: 2, opened: 0, withdrawn: 2, yielded: 0, failedAgain: 0 });
   });
 
   it("off: no state, no tender counted, nothing opens, and a three-week world is byte-identical with the keys false and absent", () => {

@@ -18,6 +18,7 @@ export function EconomyReport(): JSX.Element {
   return (
     <Card class="econreport" title={r.title}>
       {r.iuliia ? <p class="small">{r.iuliia}</p> : null}
+      {r.brokers ? <p class="small">{r.brokers}</p> : null}
       <details class="fold">
         <summary>{REPORT.read}</summary>
         {r.sections.map((s) => (

@@ -1,5 +1,6 @@
 import type { Equipment } from "@lanes/config";
-import { brokerEntryOn, type DayMetrics, type EconMonth, type World } from "@lanes/engine";
+import { brokerEntryOn, playersFirst, type DayMetrics, type EconMonth, type World } from "@lanes/engine";
+import { reportBrokersLine } from "./brokersignal.js";
 import { REPORT } from "./copy-report.js";
 import { FIXES } from "./copy-fixes.js";
 import { fdFull, monthName, pct, TRAILER_NAME } from "./format.js";
@@ -28,6 +29,8 @@ export interface EconReport {
   title: string;
   /** Iuliia's one line above it, on this player's freight (null with no figure to read). */
   iuliia: string | null;
+  /** The director's players-first §2 (brokerRisk.entry.playersFirst.signal): the brokers' market in the trade paper's voice; null off. */
+  brokers: string | null;
   sections: ReportSection[];
 }
 
@@ -123,6 +126,9 @@ export function econReport(w: World, trailer: Equipment | null, index?: number):
       row(FIXES.reportOpened, (m) => (brokerEntryOn(w) ? (m.rec.renewal?.opened ?? null) : null), n),
       row(FIXES.reportBrokersWoundUp, (m) => (w.cfg.brokerRisk.windUpDormant ? (m.rec.renewal?.brokersWoundUp ?? null) : null), n),
       row(FIXES.reportFleetsWoundUp, (m) => (w.cfg.insolvency.windUpNpcFleets ? (m.rec.renewal?.fleetsWoundUp ?? null) : null), n),
+      // The director's players-first §2: players' brokerages (a carrier's) counted apart from the AI's.
+      row(FIXES.reportPlayersOpened, (m) => (playersFirst(w).signal ? (m.rec.renewal?.carrierOwnedOpened ?? null) : null), n),
+      row(FIXES.reportPlayersStopped, (m) => (playersFirst(w).signal ? (m.rec.renewal?.carrierOwnedStopped ?? null) : null), n),
     ),
   };
   const work: ReportSection = {
@@ -190,6 +196,7 @@ export function econReport(w: World, trailer: Equipment | null, index?: number):
   return {
     title: REPORT.title(monthName(mid), Math.floor(mid / w.cfg.time.daysPerSeason) + 1),
     iuliia,
+    brokers: reportBrokersLine(w, now.rec),
     sections: [freight, trucks, companies, work, money, wealth, announced].filter((s) => s.rows.length > 0),
   };
 }

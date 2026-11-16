@@ -1070,7 +1070,28 @@ export const economyConfig = {
     // persona, new authority and a new name, no payment history), its capital drawn on the emission cap's budget under
     // faucet:broker_entry. Its loads and card say it's new for newLabelDays. Runs with windUpDormant. Off: no signal is
     // kept and nothing enters.
-    entry: { enabled: false, flowWeeks: 8, refFromWeek: 5, refToWeek: 12, marginWeeks: 13, flowRatio: 1.5, marginMin: 0.05, maxPerWeek: 1, lagDays: 120, newLabelDays: 90 },
+    entry: {
+      enabled: false,
+      flowWeeks: 8,
+      refFromWeek: 5,
+      refToWeek: 12,
+      marginWeeks: 13,
+      flowRatio: 1.5,
+      marginMin: 0.05,
+      maxPerWeek: 1,
+      lagDays: 120,
+      newLabelDays: 90,
+      // The director's players-first ruling (director-broker-players-2026-11-15.md): the AI entrant is the backstop, so it
+      // yields to a player. `yields` (§1): a brokerage formed by a carrier (brokerage.ts formBrokerage) withdraws the newest
+      // brokerage founded and not yet open, one for one (brokerEntry.ts yieldEntrant); its capital was never drawn.
+      // `signal` (§2): the two readings shown to players, on the brokerage screen before forming and in the monthly report
+      // with players' and AI's brokerages counted apart. `hint` (§2): What now?'s opportunity, once, at the lowest tier,
+      // only with the signal over its lines, the layer open, the carrier able to form today and keep its working cash;
+      // off until the economy shows a player brokerage formed at the signal clearing its costs within 90 days. `path`
+      // (§3): before the carrier can afford one, the brokerage screen says what it takes and what the carrier has (with
+      // entry off too). All off until a ruleset.
+      playersFirst: { yields: false, signal: false, hint: false, path: false },
+    },
   },
 
   // Item 4, delivery windows (engineering's proposal engineering-item4-delivery-windows.md; the director's calls, DECISIONS.md

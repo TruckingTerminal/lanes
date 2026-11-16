@@ -110,6 +110,8 @@ export const S = {
   poachResults: [] as { staffId: number; text: string }[],
   /** The next-truck gap as last shown, and what moved it since the player last opened its explanation (row 4). */
   gapSeen: null as null | { scope: string; route: string; weeks: number; why: ("cheapest" | "cushion")[] },
+  /** What now?'s once-only hints taken (the director's players-first §2: "brokerOpening"), this world in this sitting. */
+  hintsSeen: new Set<string>(),
   /** The invoices What now? chose to cash (rule 1's cash lever): Money opens on them. */
   cashPlan: [] as number[],
   /** Invoices cashed early in this page (Cash it now): shown greyed on their rows until the due day. */
@@ -188,7 +190,7 @@ export const PER_WORLD = [
   "boardPoster", "boardSortOnce", "waysOut", "milestone", "confirm", "lastAct", "returnCard", "lastReturn", "poachResults",
   "gapSeen", "cashPlan", "cashed", "brokerSwitch", "lastDriver", "listedCrew", "explain", "whatNow", "iuliiaLine", "intel", "homeNow",
   "delivered", "moneyDot", "invoiceLanes", "following", "result", "selSite", "walkView", "okText", "dealerFocus",
-  "declinedCalls", "handHires", "ladder",
+  "declinedCalls", "handHires", "ladder", "hintsSeen",
 ] as const satisfies readonly (keyof typeof S)[];
 export const KEPT_ACROSS_WORLDS = [
   "platform", "live", "test", "game", "screen", "loadShare", "tab", "layout", "sheet", "ratesEq", "guidePage", "savedTest",

@@ -8,6 +8,7 @@ import { invoices } from "./ledger.js";
 import { walkProgress } from "./walkthrough.js";
 import type { Tab } from "./tabs.js";
 import { windowStates } from "./windowsui.js";
+import { brokerOpening } from "./brokersignal.js";
 
 /**
  * What now? (specs/guidance.md, section 1): an ordered list of rules over the world and the company, first match wins,
@@ -64,6 +65,8 @@ export type NextAction =
   | { rule: 7; kind: "gap"; gapFd: number }
   /** Client batch 6b (the director): a truck ordered to replace the lease is at the dealer; `days` to its due day. */
   | { rule: 7; kind: "ordered"; days: number }
+  /** The director's players-first §2 (brokerRisk.entry.playersFirst.hint): an opening for a brokerage, what it takes from the carrier. */
+  | { rule: 7; kind: "brokerOpening"; costFd: number }
   | { rule: 8; kind: "calm"; event: NextEvent }
   | { rule: -1; kind: "none" };
 
@@ -93,7 +96,7 @@ export interface LostBid {
 }
 
 /** `pageOpen`: the client's tabOpen, so a walkthrough step waits while its page is shut (walkthrough.ts walkProgress). */
-export function nextAction(cfg: EconomyConfig, w: World, c: Company, lost?: LostBid | null, skipped: readonly string[] = [], pageOpen?: (tab: Tab) => boolean): NextAction {
+export function nextAction(cfg: EconomyConfig, w: World, c: Company, lost?: LostBid | null, skipped: readonly string[] = [], pageOpen?: (tab: Tab) => boolean, hintsSeen: ReadonlySet<string> = new Set()): NextAction {
   const perDay = w.cfg.time.gameMinutesPerDay;
   const today = Math.floor(w.t / perDay);
   // Being wound up: what's happening and when the restart comes (W3). Silence unasked; asked, this.
@@ -284,6 +287,10 @@ export function nextAction(cfg: EconomyConfig, w: World, c: Company, lost?: Lost
     const gap = gapToTruck(w, c);
     if (gap.gapFd > 0 && Number.isFinite(gap.gapFd)) cands.push({ a: { rule: 7, kind: "gap", gapFd: gap.gapFd }, key: Infinity });
   }
+  // The director's players-first §2 (brokerRisk.entry.playersFirst.hint): the brokers' market calls for a brokerage and
+  // this carrier can open one and keep its working cash; the lowest tier, after everything else in it, until seen.
+  const opening = hintsSeen.has("brokerOpening") ? null : brokerOpening(w, c);
+  if (opening) cands.push({ a: { rule: 7, kind: "brokerOpening", costFd: opening.costFd }, key: Infinity });
 
   // The highest tier, then the nearest deadline (the key); ties keep the order found.
   const top = cands.reduce<Cand | null>((b, x) => (!b || x.a.rule < b.a.rule || (x.a.rule === b.a.rule && x.key < b.key) ? x : b), null);

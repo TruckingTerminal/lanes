@@ -13,6 +13,7 @@ import { bumpData, isPhone, me, openIntel, order, S, toast, useData } from "../.
 import { layerDay } from "../../tabs.js";
 import { Btn, Card, Kv, Panel } from "../bits.js";
 import { InvoiceRows } from "./CashNow.js";
+import { brokerMarketIuliia, brokerMarketLine, brokeragePathLine } from "../../brokersignal.js";
 
 /**
  * A player's brokerage (specs/brokerage-rule.md, brokerage-ux.md draft 2, the writer's brokerage-strings.md), on the
@@ -200,6 +201,11 @@ function StartBrokerage(): JSX.Element {
     <Panel title={BROKERAGE.startCard}>
       {step <= 3 ? <p class="label">{BROKERAGE.stepCounter(step)}</p> : null}
       {blocked ? <p class="bad small">{startRefusal(w, blocked)}</p> : null}
+      {/* The director's players-first ruling (brokerRisk.entry.playersFirst): §2, the brokers' market as the AI entrants
+          read it, and Iuliia's line under it; §3, what a brokerage takes while the carrier can't yet afford one. */}
+      {brokerMarketLine(w) ? <p class="small">{brokerMarketLine(w)}</p> : null}
+      {brokerMarketIuliia(w) ? <p class="muted small">{brokerMarketIuliia(w)}</p> : null}
+      {brokeragePathLine(w, carrier) ? <p class="small">{brokeragePathLine(w, carrier)}</p> : null}
       {/* QA's 0.24.1 replay, fail 1: each step's card is its own element (keyed), so step 2's funding field never reuses
           step 1's name input (Preact took maxLength={32} off it as 0, and nothing could be typed). */}
       {step === 1 ? (

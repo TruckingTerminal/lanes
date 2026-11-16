@@ -146,4 +146,33 @@ export const FIXES = {
   reportOpened: "AI brokerages opened",
   reportBrokersWoundUp: "AI brokerages wound up",
   reportFleetsWoundUp: "AI fleets wound up",
+  // Engineering's drafts for the writer: the director's players-first ruling (director-broker-players-2026-11-15.md). §2,
+  // the brokerage screen before forming: the readings that found an AI brokerage, over the lines and under them.
+  brokersMarketOpen: (ratio: string, margin: string, pending: number, by: string | null) =>
+    `Brokers' market: freight per broker ${ratio} the opening's, margins ${margin}.${pending > 0 && by ? ` ${pending === 1 ? "One new brokerage is" : `${cap(numberWord(pending))} new brokerages are`} being set up, opening by ${by}.` : ""}`,
+  brokersMarketCrowded: (ratio: string, margin: string) => `Brokers' market: freight per broker ${ratio} the opening's, margins ${margin}: crowded.`,
+  // …and Iuliia's line under it (for her lines when the writer wires it).
+  iuliiaNewBrokerage: "A new brokerage starts small. Shippers send it more as it pays carriers on time.",
+  // §3: before the carrier can afford a brokerage.
+  brokeragePath: (cost: string, bond: string, feePct: string, cash: string) => `Opening a brokerage takes ${cost} FD: the ${bond} bond, the licence and the ${feePct} fee. Your carrier has ${cash}.`,
+  // §2's hint in What now? (the opportunity, the lowest tier).
+  hintBrokerAction: (cost: string) => `You could open a brokerage: ${cost} FD from your carrier.`,
+  hintBrokerReason: "Shippers have more freight than brokers to move it.",
+  hintBrokerButton: "See how",
+  // §2, the monthly report, in the trade paper's voice: the reading at the close, then the brokerages opened, a carrier's
+  // (a player's) counted apart; and its rows.
+  reportBrokersOpen: (up: string, margin: string) => `Shippers have more freight than brokers to move it: freight per broker is up ${up} on the opening, and margins hold at ${margin}.`,
+  reportBrokersCrowded: (ratio: string, margin: string) => `Brokers are well supplied: freight per broker is ${ratio} the opening's, and margins are ${margin}.`,
+  reportBrokersOpened: (n: number, players: number) =>
+    n === 0 ? "No brokerage opened this month." : `${cap(numberWord(n))} ${n === 1 ? "brokerage" : "brokerages"} opened this month${players === 0 ? "" : players === n ? (n === 1 ? ", a player's" : ", all of them players'") : `, ${numberWord(players)} of them players'`}.`,
+  reportPlayersOpened: "Players' brokerages opened",
+  reportPlayersStopped: "Players' brokerages stopped trading",
 };
+
+const NUMBER_WORDS = ["zero", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten"];
+function numberWord(n: number): string {
+  return NUMBER_WORDS[n] ?? String(n);
+}
+function cap(s: string): string {
+  return s.charAt(0).toUpperCase() + s.slice(1);
+}

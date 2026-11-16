@@ -34,7 +34,7 @@ import { askFigures, askLines, homeNoDrive, spanLabel, whenAt } from "../windows
 /** The answer now, fed the last hand bid that lost (rule 2's "a better load beside it"), while its result is up. */
 function currentAction(w: World, c: Company): NextAction {
   const r = S.result;
-  return nextAction(GAME_CONFIG, w, c, r && !r.won ? (r.lost ?? null) : null, skippedSteps(S.onboard.seen, w, c), (tab) => tabOpen(tab, w, c));
+  return nextAction(GAME_CONFIG, w, c, r && !r.won ? (r.lost ?? null) : null, skippedSteps(S.onboard.seen, w, c), (tab) => tabOpen(tab, w, c), S.hintsSeen);
 }
 
 /** Ask What now? (the chip, the "?" key, the explain sheet's foot, the debt milestone). */
@@ -305,6 +305,17 @@ function words(a: NextAction): { action: string; reason: string; button: string;
       return { action: NOW.factoringEndsAction(shortDate(a.untilDay)), reason: NOW.factoringEndsReason(a.days), button: NOW.factoringEndsButton, go: () => setTab("finance") };
     case "cushion":
       return { action: NOW.cushionAction, reason: NOW.cushionReason(a.weeks.toFixed(1)), button: NOW.cushionButton, go: () => setTab("money") };
+    case "brokerOpening":
+      // The director's players-first §2: once; See how opens the brokerage screen, and the hint isn't offered again.
+      return {
+        action: FIXES.hintBrokerAction(fd(a.costFd)),
+        reason: FIXES.hintBrokerReason,
+        button: FIXES.hintBrokerButton,
+        go: () => {
+          S.hintsSeen.add("brokerOpening");
+          setTab("brokerage");
+        },
+      };
     case "gap":
       return { action: (w.trucksByCompany.get(c.id) ?? []).some((t) => t.lease === "owned") ? PENDING.gapActionNext : NOW.gapAction, reason: PENDING.gapReason(fd(a.gapFd)), button: NOW.gapButton, go: () => setTab("market") };
     case "ordered":

@@ -58,7 +58,19 @@ export interface EconMonth {
    * The market's renewal (brokerEntry.ts), with brokerRisk.entry, brokerRisk.windUpDormant or insolvency.windUpNpcFleets
    * on: AI brokerages founded and opened this month, AI brokers wound up, and NPC fleets wound up.
    */
-  renewal?: { founded: number; opened: number; brokersWoundUp: number; fleetsWoundUp: number };
+  renewal?: {
+    founded: number;
+    opened: number;
+    brokersWoundUp: number;
+    fleetsWoundUp: number;
+    /**
+     * With brokerRisk.entry on (the director's players-first §2): the brokerages a carrier owns opened (formed) and
+     * stopped trading this month, and entry's last reading at the close.
+     */
+    carrierOwnedOpened?: number;
+    carrierOwnedStopped?: number;
+    reading?: { flowRatio: number | null; margin: number | null; over: boolean; pending: number } | null;
+  };
 }
 
 export type Segment = "ownerOperator" | "fleet" | "broker";

@@ -21,9 +21,11 @@
  *
  * Off, nothing here runs: no signal is kept, no tender is counted, nothing enters, and no world field is written.
  *
- * The director's seam (how entry yields to players, to be ruled): brokerEntrySignal is the reading a page could show
- * players, and yieldEntrant withdraws a brokerage founded and not yet open, for a rule such as a player's new brokerage
- * cancelling a pending AI entrant. Neither is called by any rule yet.
+ * The director's players-first ruling (director-broker-players-2026-11-15.md; brokerRisk.entry.playersFirst): the AI
+ * entrant is the backstop, so it yields to a player. With `yields` on, a brokerage a carrier forms (brokerage.ts
+ * formBrokerage) withdraws the newest one founded and not yet open (yieldEntrant), one for one; its capital is drawn only
+ * at the opening, so a withdrawn one costs the cap nothing. A carrier's brokerage that stops trading (dormant, lapsed)
+ * stops counting, as tradingBroker reads it. brokerEntrySignal is the reading shown to players (`signal`).
  */
 import { dayOf } from "./clock.js";
 import { noteBudgetDraw } from "./emission.js";
@@ -42,6 +44,22 @@ export const tradingBroker = (w: World, c: Company): boolean => c.role === "brok
 
 /** The brokerages founded and not yet open (nor withdrawn). */
 export const pendingEntrants = (s: BrokerEntryState): number => s.entrants.filter((e) => e.companyId === undefined && e.withdrawn === undefined).length;
+
+/** A brokerage a carrier owns: a player's, or a bot carrier's pair (brokerage.ts formBrokerage). */
+export const carrierOwnedBroker = (c: Company): boolean => c.role === "broker" && c.partnerId !== undefined;
+
+/** The director's players-first switches, each needing entry on (`path` is read on its own, brokerage screen only). */
+export const playersFirst = (w: World): { yields: boolean; signal: boolean; hint: boolean } => {
+  const p = w.cfg.brokerRisk.entry?.playersFirst;
+  const on = brokerEntryOn(w);
+  return { yields: on && p?.yields === true, signal: on && p?.signal === true, hint: on && p?.hint === true };
+};
+
+/** A reading over both lines: the flow over flowRatio × the reference and the margin over marginMin (what founds one). */
+export const readingOver = (w: World, r: BrokerEntryReading | null | undefined): boolean => {
+  const k = w.cfg.brokerRisk.entry;
+  return !!r && r.flowRatio !== null && r.flowRatio > k.flowRatio && r.margin !== null && r.margin > k.marginMin;
+};
 
 function sample(w: World, check: number, tenders: number): BrokerEntryState["weeks"][number] {
   let revenueFd = 0;
@@ -83,6 +101,10 @@ export function weeklyBrokerEntry(w: World): void {
   s.checks++;
   const now = sample(w, s.checks, s.tenders);
   s.weeks.push(now);
+  // Players-first §2 (the monthly report): a carrier's brokerage trading at the last check and not now has stopped.
+  const owned = w.companies.filter((c) => carrierOwnedBroker(c) && tradingBroker(w, c)).map((c) => c.id);
+  for (const id of s.carrierOwned ?? []) if (!owned.includes(id)) (s.carrierOwnedStops ??= []).push({ day, companyId: id });
+  s.carrierOwned = owned;
   // The reference, once: tenders a week per trading broker over the rule's weeks refFromWeek to refToWeek.
   if (s.ref === null && s.checks >= k.refToWeek) {
     const from = at(s, k.refFromWeek - 1);
@@ -106,7 +128,7 @@ export function weeklyBrokerEntry(w: World): void {
   const keep = Math.max(k.flowWeeks, k.marginWeeks);
   if (s.ref !== null) while (s.weeks.length > keep + 1) s.weeks.shift();
   // Founding: both signals over their lines, the reference taken.
-  if (reading.flowRatio !== null && reading.flowRatio > k.flowRatio && margin !== null && margin > k.marginMin) {
+  if (readingOver(w, reading)) {
     for (let i = 0; i < k.maxPerWeek; i++) s.entrants.push({ founded: day, opens: day + k.lagDays });
   }
 }
@@ -159,14 +181,15 @@ export function brokerEntrySignal(w: World): (BrokerEntryReading & { ref: number
 }
 
 /**
- * The director's seam: withdraws the brokerage founded most recently and not yet open (a rule such as a player's new
- * brokerage cancelling a pending AI entrant would call it). True when one was withdrawn. Nothing calls it yet.
+ * Withdraws the brokerage founded most recently and not yet open; `forId`, the brokerage it yields to (players-first §1:
+ * brokerage.ts formBrokerage calls it with `yields` on). True when one was withdrawn.
  */
-export function yieldEntrant(w: World): boolean {
+export function yieldEntrant(w: World, forId?: number): boolean {
   if (!brokerEntryOn(w) || !w.brokerEntry) return false;
   const e = [...w.brokerEntry.entrants].reverse().find((x) => x.companyId === undefined && x.withdrawn === undefined);
   if (!e) return false;
   e.withdrawn = dayOf(w.t, w.cfg);
+  if (forId !== undefined) e.withdrawnFor = forId;
   return true;
 }
 
@@ -178,24 +201,41 @@ export function newEntrant(w: World, c: Company): boolean {
 /** Any of the market's renewal rules on: entry, the brokers' wind-up, the NPC fleets' wind-up (the monthly report's counts). */
 export const renewalOn = (w: World): boolean => brokerEntryOn(w) || w.cfg.brokerRisk.windUpDormant || w.cfg.insolvency.windUpNpcFleets === true;
 
-/** The renewal's counts for days [from, to]: brokerages founded, opened and wound up, and NPC fleets wound up. */
-export function renewalCounts(w: World, from: number, to: number): { founded: number; opened: number; brokersWoundUp: number; fleetsWoundUp: number } {
+/**
+ * The renewal's counts for days [from, to]: AI brokerages founded, opened and wound up, and NPC fleets wound up; with entry
+ * on, the brokerages a carrier owns opened and stopped (players-first §2), and entry's last reading.
+ */
+export function renewalCounts(w: World, from: number, to: number): { founded: number; opened: number; brokersWoundUp: number; fleetsWoundUp: number; carrierOwnedOpened?: number; carrierOwnedStopped?: number; reading?: { flowRatio: number | null; margin: number | null; over: boolean; pending: number } | null } {
   const inside = (d: number | undefined) => d !== undefined && d >= from && d <= to;
   const entrants = w.brokerEntry?.entrants ?? [];
-  return {
+  const counts = {
     founded: entrants.filter((e) => inside(e.founded)).length,
     opened: entrants.filter((e) => inside(e.opened)).length,
     brokersWoundUp: (w.brokersWoundUp ?? []).filter((x) => inside(x.day)).length,
     fleetsWoundUp: (w.fleetsWoundUp ?? []).filter((x) => inside(x.day)).length,
   };
+  if (!brokerEntryOn(w)) return counts;
+  const last = w.brokerEntry?.last ?? null;
+  return {
+    ...counts,
+    carrierOwnedOpened: (w.brokerageLog?.formed ?? []).filter((f) => inside(f.day)).length,
+    carrierOwnedStopped: (w.brokerEntry?.carrierOwnedStops ?? []).filter((x) => inside(x.day)).length,
+    reading: last ? { flowRatio: last.flowRatio, margin: last.margin, over: readingOver(w, last), pending: last.pending } : null,
+  };
 }
 
 /** The run report's renewal section (report.ts), for the economy's gate. */
 export interface RenewalReport {
-  /** By year of the run: AI brokerages founded and opened, AI brokers wound up, NPC fleets wound up. */
-  byYear: { year: number; founded: number; opened: number; brokersWoundUp: number; fleetsWoundUp: number }[];
-  /** The entrants: founded, opened, withdrawn before opening, and those opened that failed again (liquidated or wound up). */
-  entrants: { founded: number; opened: number; withdrawn: number; failedAgain: number };
+  /**
+   * By year of the run: AI brokerages founded and opened, AI brokers wound up, NPC fleets wound up; with entry on, the
+   * brokerages a carrier owns opened and stopped trading (players-first §2).
+   */
+  byYear: { year: number; founded: number; opened: number; brokersWoundUp: number; fleetsWoundUp: number; carrierOwnedOpened?: number; carrierOwnedStopped?: number }[];
+  /**
+   * The entrants: founded, opened, withdrawn before opening (`yielded`: of them, to a carrier's new brokerage, players-first
+   * §1), and those opened that failed again (liquidated or wound up).
+   */
+  entrants: { founded: number; opened: number; withdrawn: number; yielded: number; failedAgain: number };
   /** The entrants' capital drawn on the cap's budget (faucet:broker_entry). */
   capitalFd: number;
   /** Brokers trading at the end: AI brokers, and brokerages a carrier owns (a player's, or a bot carrier's pair, brokerage.ts). */
@@ -210,7 +250,10 @@ export function renewalReport(w: World): RenewalReport | undefined {
   const year = w.cfg.time.daysPerSeason;
   const last = dayOf(w.t, w.cfg);
   const byYear: RenewalReport["byYear"] = [];
-  for (let y = 0; y * year <= last; y++) byYear.push({ year: y + 1, ...renewalCounts(w, y * year, (y + 1) * year - 1) });
+  for (let y = 0; y * year <= last; y++) {
+    const { reading: _r, ...counts } = renewalCounts(w, y * year, (y + 1) * year - 1);
+    byYear.push({ year: y + 1, ...counts });
+  }
   const s = w.brokerEntry;
   const opened = (s?.entrants ?? []).filter((e) => e.companyId !== undefined);
   const failedAgain = opened.filter((e) => {
@@ -222,7 +265,7 @@ export function renewalReport(w: World): RenewalReport | undefined {
   for (const c of w.companies) if (tradingBroker(w, c)) aiBrokerCo(c) ? ai++ : carrierOwned++;
   return {
     byYear,
-    entrants: { founded: s?.entrants.length ?? 0, opened: opened.length, withdrawn: (s?.entrants ?? []).filter((e) => e.withdrawn !== undefined).length, failedAgain },
+    entrants: { founded: s?.entrants.length ?? 0, opened: opened.length, withdrawn: (s?.entrants ?? []).filter((e) => e.withdrawn !== undefined).length, yielded: (s?.entrants ?? []).filter((e) => e.withdrawnFor !== undefined).length, failedAgain },
     capitalFd: s?.capitalFd ?? 0,
     tradingEnd: { ai, carrierOwned },
     ref: s?.ref ?? null,

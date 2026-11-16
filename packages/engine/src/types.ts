@@ -479,7 +479,13 @@ export interface BrokerEntryState {
    * The brokerages founded, oldest first: the day founded and the day it opens; once open, its company and the day; or
    * the day it was withdrawn before opening (yieldEntrant, the director's seam).
    */
-  entrants: { founded: number; opens: number; companyId?: number; opened?: number; withdrawn?: number }[];
+  entrants: { founded: number; opens: number; companyId?: number; opened?: number; withdrawn?: number; withdrawnFor?: number }[];
+  /**
+   * The director's players-first ruling (§2, the monthly report): the brokerages a carrier owns (a player's, or a bot
+   * carrier's pair) trading at the last check, and each that stopped trading since (dormant, lapsed or liquidated).
+   */
+  carrierOwned?: number[];
+  carrierOwnedStops?: { day: number; companyId: number }[];
   /** FD drawn on the emission cap's budget for the entrants' capital (faucet:broker_entry). */
   capitalFd: number;
 }

@@ -45,7 +45,7 @@ describe("the market's renewal on the page", () => {
     w.brokersWoundUp = [{ day, companyId: 2 }];
     w.fleetsWoundUp = [{ day, companyId: 3 }, { day, companyId: 4 }];
     monthlyEconomy(w, day);
-    expect(w.econ!.months.at(-1)!.renewal).toEqual({ founded: 2, opened: 1, brokersWoundUp: 1, fleetsWoundUp: 2 });
+    expect(w.econ!.months.at(-1)!.renewal).toMatchObject({ founded: 2, opened: 1, brokersWoundUp: 1, fleetsWoundUp: 2 }); // with entry on, the players' counts too (players-first §2)
     const rows = econReport(w, null)!.sections.find((s) => s.title === REPORT.secCompanies)!.rows;
     expect(labels.map((l) => rows.find((r) => r.label === l)?.now)).toEqual(["2", "1", "1", "2"]);
     // Aggregates only: no company named.

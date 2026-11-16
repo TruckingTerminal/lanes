@@ -16,6 +16,7 @@
  *   allowance and one airdrop share per person (token.ts).
  */
 import { dayOf } from "./clock.js";
+import { playersFirst, yieldEntrant } from "./brokerEntry.js";
 import { coverPassed } from "./contracts.js";
 import { layerBlock } from "./ladder.js";
 import { companyAccount } from "./ledger.js";
@@ -184,6 +185,9 @@ export function formBrokerage(w: World, carrier: Company, name: string, capitalF
   }
   // The starting capital is the pair's `capitalFd`; later transfers count apart from it.
   brokerageLog(w).formed.find((f) => f.brokerId === b.id)!.toBrokerFd -= capitalFd;
+  // The director's players-first §1 (brokerRisk.entry.playersFirst.yields): the newest AI brokerage founded and not yet
+  // open yields to this one, one for one (brokerEntry.ts).
+  if (playersFirst(w).yields) yieldEntrant(w, b.id);
   return b;
 }
 
