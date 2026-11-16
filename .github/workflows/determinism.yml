@@ -29,6 +29,9 @@ jobs:
       - run: npm ci
       - name: Node 22
         run: node --version && npx tsx apps/sim/src/determinism.ts > node22.txt && cat node22.txt
+      # The world checkpoint (engineering-checkpoint-design-2026-11-16.md §4): its hash each day and after a restore.
+      - name: Node 22, the checkpoint
+        run: npx tsx apps/sim/src/checkpoint-xengine.ts > cp-node22.txt && cat cp-node22.txt
       - uses: actions/setup-node@v4
         with:
           node-version: 24
@@ -42,6 +45,8 @@ jobs:
       - uses: oven-sh/setup-bun@v2
       - name: Bun (JavaScriptCore)
         run: bun --version && bun apps/sim/src/determinism.ts > bun.txt && cat bun.txt
+      - name: Bun (JavaScriptCore), the checkpoint
+        run: bun apps/sim/src/checkpoint-xengine.ts > cp-bun.txt && cat cp-bun.txt
       - name: Compare
         run: |
           status=0
@@ -52,5 +57,10 @@ jobs:
               status=1
             fi
           done
-          [ $status -eq 0 ] && echo "All engines agree: $(tail -1 node22.txt)"
+          if ! diff -q cp-node22.txt cp-bun.txt > /dev/null; then
+            echo "::error::the checkpoint differs between Node 22 and Bun; first difference:"
+            diff cp-node22.txt cp-bun.txt | head -4 || true
+            status=1
+          fi
+          [ $status -eq 0 ] && echo "All engines agree: $(tail -1 node22.txt), checkpoint $(tail -1 cp-node22.txt)"
           exit $status

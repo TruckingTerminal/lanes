@@ -2165,3 +2165,34 @@ function maybeBuyBusiness(w: World, c: Company, p: BotProfile, rng: Rng, today: 
     return;
   }
 }
+
+/**
+ * The world checkpoint (engine checkpoint.ts; engineering-checkpoint-design-2026-11-16.md §2): the bots' state that lives
+ * beside the world, not in it: each bot company's profile (drawn at its founding, then its running figures), the bot
+ * carriers' brokerage pairs, and the adversaries' holders. Keyed by company id, encoded with the world so shared objects
+ * stay shared. `phaseCache` is rebuilt from the world's metrics, so it isn't carried.
+ */
+export interface BotState {
+  profiles: [number, BotProfile][];
+  pairs: [number, { formedDay: number; marks: { day: number; net: number }[]; closed: boolean; unstaked: boolean }][];
+  holders: Map<number, Holder> | null;
+}
+
+export function botState(w: World): BotState {
+  const profilesOut: BotState["profiles"] = [];
+  const pairs: BotState["pairs"] = [];
+  for (const c of w.companies) {
+    const p = profiles.get(c);
+    if (p) profilesOut.push([c.id, p]);
+    const s = pairState.get(c);
+    if (s) pairs.push([c.id, s]);
+  }
+  return { profiles: profilesOut, pairs, holders: holdersOf.get(w) ?? null };
+}
+
+/** A restored world's bots take their state back (after engine decodeWorld). */
+export function restoreBotState(w: World, s: BotState): void {
+  for (const [id, p] of s.profiles) profiles.set(w.companies[id - 1]!, p);
+  for (const [id, st] of s.pairs) pairState.set(w.companies[id - 1]!, st);
+  if (s.holders) holdersOf.set(w, s.holders);
+}

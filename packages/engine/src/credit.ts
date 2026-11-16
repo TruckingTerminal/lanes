@@ -15,7 +15,19 @@ import { reserveHeldFd } from "./cashReserve.js";
 import type { Company } from "./types.js";
 import type { World } from "./world.js";
 
-const cache = new WeakMap<World, { round: number; day: number; scores: Map<number, number>; owed: Map<number, number> }>();
+type CreditCache = { round: number; day: number; scores: Map<number, number>; owed: Map<number, number> };
+const cache = new WeakMap<World, CreditCache>();
+
+/**
+ * The world checkpoint (checkpoint.ts; the red team's checkpoint review, item 1): the round's scores are part of the world's
+ * state. At a day boundary they were read by the 00:00 dispatchers before the night's settlements, and pages keep them until
+ * the next round, so a restored world takes them back rather than computing fresh ones.
+ */
+export const creditCacheState = (w: World): CreditCache | null => cache.get(w) ?? null;
+export function restoreCreditCache(w: World, s: CreditCache | null): void {
+  if (s) cache.set(w, s);
+  else cache.delete(w);
+}
 
 function roundCache(w: World) {
   const day = dayOf(w.t, w.cfg);
