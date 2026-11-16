@@ -1665,6 +1665,10 @@ export const economyConfig = {
       revocationPoints: 20,
       coverageMin: 0.5,
       coveragePoints: 10,
+      // The red team's 0.25.5 low item (redteam-0255-2026-11-15.md): on, the coverage reads the stake plus cash and the
+      // Reserve netted, max(0, cash + Reserve), so an overdraft is set against the Reserve; off, max(0, cash) + Reserve, as
+      // before, and an overdrawn company is scored on its whole Reserve. Off until the economy pairs it.
+      coverageNetsReserve: false,
       strongScore: 80, // no premium at or above this…
       premiumMax: 0.2, // …rising to this at zero: on a carrier's ask, on the factoring discount, on the surety premium
       minForCarriers: 35, // a carrier's default floor: no E paper

@@ -44,9 +44,12 @@ export function creditScore(w: World, c: Company): number {
   score -= k.bankruptcyPoints * c.bankruptcies;
   score -= k.revocationPoints * c.authority.revocations;
   const owed = rc.owed.get(c.id) ?? 0;
-  // The Reserve (cashReserve.ts) counts as capital beside cash.
+  // The Reserve (cashReserve.ts) counts as capital beside cash. token.credit.coverageNetsReserve (the red team's 0.25.5 low
+  // item): on, netted against an overdraft, as the claims cap reads them; off, beside cash floored at zero, as before.
   const reserve = w.cfg.cashReserve.enabled ? reserveHeldFd(w, c.id) : 0;
-  if (owed > 0 && (c.stakedFd + Math.max(0, w.ledger.balance(companyAccount(c.id))) + reserve) / owed < k.coverageMin) score -= k.coveragePoints;
+  const cash = w.ledger.balance(companyAccount(c.id));
+  const capital = k.coverageNetsReserve === true ? Math.max(0, cash + reserve) : Math.max(0, cash) + reserve;
+  if (owed > 0 && (c.stakedFd + capital) / owed < k.coverageMin) score -= k.coveragePoints;
   const s = clamp(score, 0, 100);
   rc.scores.set(c.id, s);
   return s;
