@@ -36,7 +36,7 @@ import { moneyEvents, type MoneyEvent } from "./books.js";
 import { emptyRun } from "./rolling.js";
 import { cushion, debtCountdown, gapToTruck } from "./figures.js";
 import { buyPlan } from "./finance.js";
-import { TRAILER_NAME } from "./format.js";
+import { TRAILER_NAME, weekdayDate } from "./format.js";
 import { claimsAt, clearsTiming, readyAt, urgentFrom, whenAt } from "./windowsui.js";
 import { WINDOWS } from "./copy-windows.js";
 import { reputationRows } from "./reputationui.js";
@@ -366,7 +366,7 @@ const BREAKDOWNS: Record<string, Fn> = {
         { label: "Cash", value: fd(cashFd), key: "money.cash" },
         ...(both ? [{ label: FIXES.explainReserveRow, value: fd(windUpFd(w, c) - cashFd) }, { label: FIXES.explainTogetherRow, value: fd(windUpFd(w, c)) }] : []),
         { label: "The line", value: fd(-w.cfg.insolvency.debtLimitFd) },
-        { label: "Next weekly check", value: `day ${d.nextDay + 1}` },
+        { label: "Next weekly check", value: weekdayDate(d.nextDay) },
       ],
       total: { label: "Weekly checks in debt", value: `${d.n} of ${d.of}` },
     };

@@ -7,6 +7,21 @@ import { type GuidePage, h, n, p, pct, see, table, ul } from "./util.js";
 import { PENDING } from "../copy-pending.js";
 
 const S = "The market";
+
+/**
+ * Broker entry by conditions (brokerRisk.entry, brokerEntry.ts), the wind-up (brokerRisk.windUpDormant) and the
+ * players-first yield (entry.playersFirst.yields), each said only with its switch on. No figure for rates.
+ */
+function newBrokers(cfg: EconomyConfig): string {
+  const e = cfg.brokerRisk.entry!;
+  const pf = e.playersFirst;
+  return [
+    `New brokers come in when the freight calls for them. Each week the market compares the freight shippers offer brokers, per broker at work, with its own opening weeks. When that runs over ${e.flowRatio}× and the AI brokers' margins are over ${pct(e.marginMin)}, a new independent brokerage is founded${e.maxPerWeek === 1 ? " (one a week at most)" : ""}, and it opens ${e.lagDays} days later. Its loads and its card say "New broker" for its first ${e.newLabelDays} days.`,
+    pf?.yields === true ? `Open a brokerage of your own first and it takes the place of the newest one still being set up, which never opens. Yours counts toward the market's reading only while it's at work: one that has posted or taken no load in ${e.flowWeeks} weeks stops counting.` : "",
+    pf?.signal === true ? `The brokerage screen shows the same two readings before you open one, and the monthly report gives them at each month's close.` : "",
+    cfg.brokerRisk.windUpDormant ? `An AI broker that can no longer trade (under its licence stake, holding no loads and too short of cash to restore it) for ${cfg.brokerRisk.dormantWeeks} weekly checks running is wound up.` : "",
+  ].filter(Boolean).join(" ");
+}
 /** The three kinds of dock (docks.ts DockRule), as the guide names them. */
 const DOCK_WORD = { appointment: "appointment", fcfs: "first come", daylight: "daylight" } as const;
 
@@ -205,7 +220,8 @@ export function marketPages(cfg: EconomyConfig): GuidePage[] {
       title: "Brokers and contracts",
       html:
         p(`About ${pct(cfg.freight.npcBrokerOnlyShare)} of NPC freight is tendered to AI brokers at contract rates, which trail the spot market by about ${cfg.brokerRisk.contractLagDays} days. A broker reposts the load at its margin (typically 6–12%) and pays the carrier whatever the shipper does. In a spike, brokers pay carriers more than their contracts bring in; in a slide, the contracts pad their margin.`) +
-        p(`Some shippers don't pay their brokers (about ${pct(cfg.brokerRisk.defaultRate)} of loads, more in a slump). The broker still pays its carrier. Brokers choose which carriers they'll load: see ${see("vetting", "Vetting")}.`),
+        p(`Some shippers don't pay their brokers (about ${pct(cfg.brokerRisk.defaultRate)} of loads, more in a slump). The broker still pays its carrier. Brokers choose which carriers they'll load: see ${see("vetting", "Vetting")}.`) +
+        (cfg.brokerRisk.entry?.enabled === true ? p(newBrokers(cfg)) : ""),
     },
   ];
 }

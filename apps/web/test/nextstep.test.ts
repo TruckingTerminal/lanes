@@ -9,7 +9,7 @@ import { item, itemSaving, usedTruck } from "../src/confirmspecs.js";
 import { confirmAct, confirmSpend } from "../src/ui/Confirm.js";
 import { S } from "../src/state.js";
 import { breakdown } from "../src/explain.js";
-import { dateLabel, fdFull, shortDate } from "../src/format.js";
+import { dateLabel, fdFull, shortDate, weekdayDate } from "../src/format.js";
 import { RESERVE } from "../src/copy-reserve.js";
 import { emptyRun, paidLine } from "../src/rolling.js";
 import { cushion, debtCountdown, fleetCaps, gapToTruck, nextEvent, nextWeeklyCheckDay } from "../src/figures.js";
@@ -444,7 +444,7 @@ describe("the five diaries: a driver's notice and the debt line read the engine"
       expect(w.cfg.insolvency.countReserve).toBe(true);
       const d = debtCountdown(w, c);
       expect(d.shortFd).toBeCloseTo(30_000 - w.cfg.insolvency.debtLimitFd, 6);
-      expect(debt.text).toBe(RESERVE.debtTogether(fdFull(d.shortFd), fdFull(w.cfg.insolvency.debtLimitFd), c.weeksInDebt, w.cfg.insolvency.weeksInDebt, dateLabel(d.nextDay), dateLabel(d.nextDay + 7 * (w.cfg.insolvency.weeksInDebt - c.weeksInDebt - 1))));
+      expect(debt.text).toBe(RESERVE.debtTogether(fdFull(d.shortFd), fdFull(w.cfg.insolvency.debtLimitFd), c.weeksInDebt, w.cfg.insolvency.weeksInDebt, weekdayDate(d.nextDay), weekdayDate(d.nextDay + 7 * (w.cfg.insolvency.weeksInDebt - c.weeksInDebt - 1))));
     } finally {
       S.game = null;
     }

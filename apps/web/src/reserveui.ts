@@ -3,7 +3,7 @@ import { RESERVE } from "./copy-reserve.js";
 import { FIXES } from "./copy-fixes.js";
 import { debtCountdown, cashDipAhead, nextWeeklyCheckDay } from "./figures.js";
 import { loanRows } from "./finance.js";
-import { dateLabel, fdFull, pct, shortDate, weekday } from "./format.js";
+import { dateLabel, fdFull, pct, shortDate, weekday, weekdayDate } from "./format.js";
 import { invoices, weekCosts } from "./ledger.js";
 
 /**
@@ -207,5 +207,5 @@ export function reserveDebtLine(w: World, c: Company): string | null {
   const d = debtCountdown(w, c);
   if (!d.under && c.weeksInDebt === 0) return null;
   const windDay = d.nextDay + 7 * Math.max(0, d.of - d.n - 1);
-  return RESERVE.debtTogether(d.under ? fdFull(d.shortFd) : null, fdFull(w.cfg.insolvency.debtLimitFd), d.n, d.of, dateLabel(d.nextDay), dateLabel(windDay));
+  return RESERVE.debtTogether(d.under ? fdFull(d.shortFd) : null, fdFull(w.cfg.insolvency.debtLimitFd), d.n, d.of, weekdayDate(d.nextDay), weekdayDate(windDay));
 }

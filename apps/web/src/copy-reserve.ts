@@ -22,7 +22,7 @@ export const RESERVE = {
   phaseClose: (date: string) => `It keeps FD from the year-end close, ${date}.`,
   // The room line, only when today's cash is over the free line and the Reserve has room.
   roomHolding: (fd: string, room: string) => `At today's cash this week's holding cost would take ${fd} FD; the Reserve has room for ${room}.`,
-  roomClose: (fd: string, room: string) => `At today's cash the close would burn ${fd} FD; the Reserve has room for ${room}.`,
+  roomClose: (fd: string, room: string) => `At today's cash the close would take ${fd} FD for good; the Reserve has room for ${room}.`,
   settling: (fd: string, day: string) => `Settling ${fd} FD · in cash ${day}`,
   // The foot, every time; the director's §15 line with the winding-up check counting the Reserve; the launch line before launch.
   foot: "Bills are paid from cash only. A withdrawal reaches cash the next day.",
@@ -63,7 +63,7 @@ export const RESERVE = {
   needWithdraw: (fd: string) => `Withdraw ${fd} FD`,
   needAfter: (fd: string, day: string) => `${fd} FD reaches cash ${day}.`,
   // Needs you: the close window (a world with seasons, before launch, once per close).
-  needClose: (date: string, fd: string, room: string) => `The year-end close on ${date} would burn ${fd} FD of today's cash. The Reserve can keep ${room} FD of it.`,
+  needClose: (date: string, fd: string, room: string) => `The year-end close on ${date} would take ${fd} FD of today's cash for good. The Reserve can keep ${room} FD of it.`,
   // The director's §15: the weeks-in-debt warning reads cash and the Reserve together. `under` is how far under the line
   // the two are, null when they're back over it with the count still standing; `next` the next weekly check, `day` the
   // check that would wind the company up (QA's 0.25.5 replay: "week 0 of 4" read like a counter that hadn't started).
@@ -72,8 +72,8 @@ export const RESERVE = {
     if (under === null) return `Cash and the Reserve together are back over ${line}. ${n} of ${of} weekly checks counted them under it; if they stay over, the next check, ${next}, clears the count.`;
     const head = `Cash and the Reserve together are ${under} FD under ${line}.`;
     if (n === 0) return `${head} No weekly check has counted it yet: the first is ${next}, and ${of === 4 ? "four" : of} in a row under the line wind the company up on ${day}.`;
-    if (n >= of - 1) return `${head} ${n} of ${of} weekly checks have counted it. Unless the two together are back over the line by the next check, ${next}, it winds the company up.`;
-    return `${head} ${n} of ${of} weekly checks have counted it; the next is ${next}. Unless the two together are back over the line, the company is wound up on ${day}.`;
+    if (n >= of - 1) return `${head} ${n} of ${of} weekly checks ${n === 1 ? "has" : "have"} counted it. Unless the two together are back over the line by the next check, ${next}, it winds the company up.`;
+    return `${head} ${n} of ${of} weekly checks ${n === 1 ? "has" : "have"} counted it; the next is ${next}. Unless the two together are back over the line, the company is wound up on ${day}.`;
   },
   // Its move, on the Needs you card (What now?'s badge row gives it as a button): moving FD between cash and the Reserve
   // changes nothing, since the check counts both.

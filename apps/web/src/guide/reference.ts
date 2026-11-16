@@ -51,7 +51,7 @@ export function referencePages(cfg: EconomyConfig): GuidePage[] {
               : `What a carrier pays for a spoiled load: ${pct(cfg.commodities.spoilClaimShare)} of its value`,
           ],
           ["Deadhead", "Miles driven empty"],
-          ...(cfg.detention.enabled ? [["Detention", `Pay for waiting at a closed dock: ${n(cfg.detention.fdPerHour)} FD an hour past ${cfg.detention.freeHours} free hours, from the load's poster`]] : []),
+          ...(cfg.detention.enabled ? [["Detention", cfg.detention.fromOpening === true ? `Pay for waiting at a dock once it could serve you (its opening, or your slot): ${n(cfg.detention.fdPerHour)} FD an hour past ${cfg.detention.freeHours} free hours, from the load's poster` : `Pay for waiting at a closed dock: ${n(cfg.detention.fdPerHour)} FD an hour past ${cfg.detention.freeHours} free hours, from the load's poster`]] : []),
           ...(cfg.windows.enabled ? [["Delivery window", "A load's times: when it's ready, when its pickup closes, and the deadline to deliver it"]] : []),
           ["Duty day", "The 24 hours from when a truck first rolls; driving hours reset after it"],
           ...(cfg.token.payment.enabled && cfg.token.payment.factoring.contract.enabled ? [["Factoring", `A contract with an outside company that pays every invoice on delivery and keeps a share (${see("paid", "Getting paid")})`]] : []),

@@ -82,7 +82,7 @@ export const ANSWER = {
   poachStayed: (name: string, from: string) => `${name} declined: stays with ${from}.`,
   poachLow: (name: string, fd: string) => `${name} earns ${fd}/mi now: an offer must beat it.`,
   unstakeDone: (fd: string, date: string) => `Unstaking ${fd} FD: back in your cash on ${date}.`,
-  unstakeNowDone: (back: string, burned: string) => `${back} FD back now. ${burned} FD burned.`,
+  unstakeNowDone: (back: string, burned: string) => `${back} FD back now. ${burned} FD gone for good.`,
   unstakeNone: "Nothing staked to unstake.",
 };
 
@@ -876,7 +876,7 @@ export const FINANCE = {
   stakeField: "FD to stake",
   stake: "Stake",
   unstake: (days: number) => `Unstake (back in ${days === 1 ? "1 day" : `${days} days`})`,
-  unstakeNow: (pct: string) => `Unstake now (${pct} back now, the rest burned)`,
+  unstakeNow: (pct: string) => `Unstake now (${pct} back now, the rest gone for good)`,
   unstakeTitle: "Unstake now?",
   unstakeBack: "You get back",
   unstakeBurned: "Burned",
@@ -1528,7 +1528,7 @@ export const BROKERAGE = {
   rowSurety: (fd: string, band: string) => `Surety · about ${fd} FD a year at credit ${band} · a cost`,
   bondNote: "If you can't pay a carrier, the bond does. You can never owe carriers more than it.",
   graceNote: (days: number) => `Fall under your bond and new loads stop after ${days} days.`,
-  betaNote: "Beta bond: it's burned at the token's launch, like every beta stake. To broker after launch, post it again.",
+  betaNote: "Beta bond: it's gone for good at the token's launch, like every beta stake. To broker after launch, post it again.",
   moving: (carrier: string, fd: string) => `Moving from ${carrier} · ${fd} FD`,
   feeRow: (pct: string, fd: string) => `Fee ${pct} · ${fd} FD`,
   cashAfter: (name: string, fd: string) => `${poss(name)} cash after · ${fd} FD`,

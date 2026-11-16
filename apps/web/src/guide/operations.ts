@@ -60,7 +60,9 @@ export function operationsPages(cfg: EconomyConfig): GuidePage[] {
               ]
             : []),
           ...(cfg.detention.enabled
-            ? [`<b>Detention.</b> A wait at a closed dock past ${cfg.detention.freeHours} free hours earns ${n(cfg.detention.fdPerHour)} FD an hour, up to ${cfg.detention.maxHours} hours a stop, paid by the load's poster with the load. Waiting for a slot earns none, and neither does waiting for a load that isn't ready.`]
+            ? [cfg.detention.fromOpening === true
+                ? `<b>Detention.</b> It counts from when the dock could serve you: its opening at a dock that keeps hours, your slot at an appointment dock. Past ${cfg.detention.freeHours} free hours it earns ${n(cfg.detention.fdPerHour)} FD an hour, up to ${cfg.detention.maxHours} hours a stop, paid by the load's poster with the load. A wait at a shut dock before it opens is your own time and earns none, and neither does waiting for a load that isn't ready.`
+                : `<b>Detention.</b> A wait at a closed dock past ${cfg.detention.freeHours} free hours earns ${n(cfg.detention.fdPerHour)} FD an hour, up to ${cfg.detention.maxHours} hours a stop, paid by the load's poster with the load. Waiting for a slot earns none, and neither does waiting for a load that isn't ready.`]
             : []),
           cfg.windows.enabled && cfg.windows.oneDeadline
             ? `On time means at the receiver by the load's delivery deadline (below), for your record, your Miles and the claim alike; after it is late.`
@@ -76,7 +78,7 @@ export function operationsPages(cfg: EconomyConfig): GuidePage[] {
           ? h("Delivery windows") +
             ul([
               `<b>Ready.</b> About ${pct(cfg.windows.leadDays[0]![2])} of loads are ready the day they're posted; the rest are posted a day or more ahead, up to ${cfg.windows.leadDays[cfg.windows.leadDays.length - 1]![1]} days. A load ready the same day pays ${pct(cfg.windows.sameDayPremium - 1)} more.`,
-              `<b>Pick up by.</b> The pickup closes ${cfg.windows.pickupHours.appointment} hours after the load is ready at a shipper with appointments, ${cfg.windows.pickupHours.firstCome} at a first-come dock. Waiting at the shipper before the load is ready pays no detention.`,
+              `<b>Pick up by.</b> The pickup closes ${cfg.windows.pickupHours.appointment} hours after the load is ready at a shipper with appointments, ${cfg.windows.pickupHours.firstCome} at a first-come dock.${cfg.windows.fullOpenDay && cfg.docks.enabled ? ` At a dock that keeps hours the close never falls while it's shut: it comes back to the end of the last open hours in that time. If the dock can't give a loading's ${cfg.dwell.loadMinutes[1] / 60} hours in that time, the window becomes the dock's next full open day instead, and the load is ready at its opening. The card's pickup times are always ones the dock can meet.` : ""} Waiting at the shipper before the load is ready pays no detention.`,
               `<b>Deliver by.</b> The deadline is the pickup's close, plus the drive at the legal hours, plus the commodity's own hours (${see("commodities", "Places, commodities and appointments")}). A hot load's is counted from when it's ready, at the hot pace.`,
               `<b>The pay in the last days.</b> A load's price holds until the last ${cfg.windows.urgencyRounds / cfg.time.boardRoundHours.length} days before its pickup closes, then climbs each round (not on a player's posted load). Wait too long and someone else books it, or nobody does.`,
               `<b>Claims.</b> Whoever posted the load claims a share of its pay as booked: ${pct(cfg.windows.lateClaimShare)} for a late delivery, ${pct(cfg.windows.noShowClaimShare)} for a no-show (your truck not at the shipper when the pickup closes). Each is a mark on your record too.${cfg.windows.claimsInFull ? " A claim, a release's included, is paid in full like any bill, even if it takes your cash below zero." : ""}`,

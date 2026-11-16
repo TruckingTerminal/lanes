@@ -149,7 +149,7 @@ export const FIXES = {
   // …and §24's other case: the window clipped where the dock shuts inside it.
   dockShuts: (town: string, shuts: string, opens: string) => `${town}'s dock shuts ${shuts} until ${opens}.`,
   // The director's §26 (detention.fromOpening): under the booking's dock warning, the wait at a shut dock is unpaid.
-  dockWaitUnpaid: (freeHours: number) => `The wait is unpaid: detention starts ${freeHours === 1 ? "an hour" : freeHours === 2 ? "two hours" : `${freeHours} hours`} after the dock opens.`,
+  dockWaitUnpaid: (freeHours: number) => `The wait is unpaid: detention counts only from when the dock opens, and its first ${freeHours === 1 ? "hour is" : freeHours === 2 ? "two hours are" : `${freeHours} hours are`} free.`,
   // Engineering's placeholders for the writer: the bus home (ruleset 0.25.3, labor.busHome; the director's sprint §9).
   onBus: (day: string) => `on the bus home · home ${day}`,
   awayBus: (who: string, from: string, hours: number, fd: string, day: string) => `${who} had no truck at ${from} and took the bus home: about ${hours} h and ${fd} FD, home ${day}.`,
@@ -157,19 +157,21 @@ export const FIXES = {
   // and §16). An AI brokerage that entered by conditions, on its loads and its card while it's new; and the monthly
   // report's counts, in its Companies section.
   newBroker: (since: string) => `New broker · since ${since}`,
-  reportFounded: "AI brokerages founded",
-  reportOpened: "AI brokerages opened",
-  reportBrokersWoundUp: "AI brokerages wound up",
+  // The writer: "independent", since a bot carrier's own brokerage is AI too (Intel marks it so) and counts with the
+  // carriers' own rows below, not these.
+  reportFounded: "Independent brokerages founded",
+  reportOpened: "Independent brokerages opened",
+  reportBrokersWoundUp: "Independent brokerages wound up",
   reportFleetsWoundUp: "AI fleets wound up",
   // Engineering's drafts for the writer: the director's players-first ruling (director-broker-players-2026-11-15.md). §2,
   // the brokerage screen before forming: the readings that found an AI brokerage, over the lines and under them.
   brokersMarketOpen: (ratio: string, margin: string, pending: number, by: string | null) =>
     `Brokers' market: freight per broker ${ratio} the opening's, margins ${margin}.${pending > 0 && by ? ` ${pending === 1 ? "One new brokerage is" : `${cap(numberWord(pending))} new brokerages are`} being set up, opening by ${by}.` : ""}`,
-  brokersMarketCrowded: (ratio: string, margin: string) => `Brokers' market: freight per broker ${ratio} the opening's, margins ${margin}: crowded.`,
+  brokersMarketCrowded: (ratio: string, margin: string) => `Brokers' market: freight per broker ${ratio} the opening's, margins ${margin}: no room for a new brokerage.`,
   // …and Iuliia's line under it (for her lines when the writer wires it).
   iuliiaNewBrokerage: "A new brokerage starts small. Shippers send it more as it pays carriers on time.",
   // §3: before the carrier can afford a brokerage.
-  brokeragePath: (cost: string, bond: string, start: string, feePct: string, cash: string) => `Opening a brokerage takes about ${cost} FD: the ${bond} bond, the licence, ${start} to start trading and the ${feePct} fee. Your carrier has ${cash}.`,
+  brokeragePath: (cost: string, bond: string, start: string, feePct: string, cash: string) => `Opening a brokerage takes about ${cost} FD: the ${bond} bond, the licence, ${start} to start trading and the ${feePct} fee. Your carrier has ${cash} FD.`,
   // §2's hint in What now? (the opportunity, the lowest tier).
   hintBrokerAction: (cost: string, start: string) => `You could open a brokerage: about ${cost} FD from your carrier, ${start} of it to start trading.`,
   hintBrokerReason: "Shippers have more freight than brokers to move it.",
@@ -177,11 +179,13 @@ export const FIXES = {
   // §2, the monthly report, in the trade paper's voice: the reading at the close, then the brokerages opened, a carrier's
   // (a player's) counted apart; and its rows.
   reportBrokersOpen: (up: string, margin: string) => `Shippers have more freight than brokers to move it: freight per broker is up ${up} on the opening, and margins hold at ${margin}.`,
-  reportBrokersCrowded: (ratio: string, margin: string) => `Brokers are well supplied: freight per broker is ${ratio} the opening's, and margins are ${margin}.`,
+  reportBrokersCrowded: (ratio: string, margin: string) => `There's no room for another brokerage: freight per broker is ${ratio} the opening's, and margins are ${margin}.`,
   reportBrokersOpened: (n: number, players: number) =>
-    n === 0 ? "No brokerage opened this month." : `${cap(numberWord(n))} ${n === 1 ? "brokerage" : "brokerages"} opened this month${players === 0 ? "" : players === n ? (n === 1 ? ", a player's" : ", all of them players'") : `, ${numberWord(players)} of them players'`}.`,
-  reportPlayersOpened: "Players' brokerages opened",
-  reportPlayersStopped: "Players' brokerages stopped trading",
+    n === 0 ? "No brokerage opened this month." : `${cap(numberWord(n))} ${n === 1 ? "brokerage" : "brokerages"} opened this month${players === 0 ? "" : players === n ? (n === 1 ? ", a carrier's own" : ", all of them carriers' own") : `, ${numberWord(players)} of them carriers' own`}.`,
+  // The writer: the engine counts every carrier's brokerage here, bots' pairs included (§25), so "carriers' own", not
+  // "players'".
+  reportPlayersOpened: "Carriers' own brokerages opened",
+  reportPlayersStopped: "Carriers' own brokerages stopped trading",
 };
 
 const NUMBER_WORDS = ["zero", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten"];

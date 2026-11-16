@@ -87,6 +87,7 @@ export function moneyPages(cfg: EconomyConfig): GuidePage[] {
       html: ul([
         `More than ${n(cfg.insolvency.debtLimitFd)} FD in the red at ${cfg.insolvency.weeksInDebt} weekly checks in a row${cfg.insolvency.countReserve === true && cfg.cashReserve.enabled ? ", counting cash and the Reserve together," : ""} and the company is liquidated: bidding stops, staff are let go, owned trucks are fire-sold (from ${pct(cfg.insolvency.fireSaleStartPctOfValue)} of value, down ${pct(cfg.insolvency.fireSaleStepPctOfValue)} a week), facilities close, and extra leases go back.`,
         `A judgment bigger than the company can pay winds it up the same way.`,
+        ...(cfg.insolvency.windUpNpcFleets === true ? [`An AI fleet that goes broke closes for good. It doesn't start over.`] : []),
         `Then you start over on the NPC lease with whatever is left, no grant. Debts are written off, your reputation starts fresh, and any airdrop not yet unlocked is forfeited.`,
       ]),
     },

@@ -41,7 +41,7 @@ describe("players first on the page", () => {
     expect(brokerMarketLine(w)).toBe(`Brokers' market: freight per broker 1.7× the opening's, margins 7%. Two new brokerages are being set up, opening by ${shortDate(day + 120)}.`);
     expect(brokerMarketIuliia(w)).toBe(FIXES.iuliiaNewBrokerage);
     reading(w, 1.1, 0.03, []);
-    expect(brokerMarketLine(w)).toBe("Brokers' market: freight per broker 1.1× the opening's, margins 3%: crowded.");
+    expect(brokerMarketLine(w)).toBe("Brokers' market: freight per broker 1.1× the opening's, margins 3%: no room for a new brokerage.");
     const off = await TestGame.create(undefined, undefined, 41, on({ signal: false }));
     reading(off.w, 1.7, 0.07, []);
     expect(brokerMarketLine(off.w)).toBeNull();
@@ -57,7 +57,7 @@ describe("players first on the page", () => {
     const cost = brokerageSheetFd(w);
     toCash(w, c.id, 41_000);
     expect(brokeragePathLine(w, c)).toBe(FIXES.brokeragePath("93,000", fdFull(w.cfg.token.staking.roles.broker), "15,000", "3%", fdFull(41_000)));
-    expect(brokeragePathLine(w, c)).toBe("Opening a brokerage takes about 93,000 FD: the 75,000 bond, the licence, 15,000 to start trading and the 3% fee. Your carrier has 41,000.");
+    expect(brokeragePathLine(w, c)).toBe("Opening a brokerage takes about 93,000 FD: the 75,000 bond, the licence, 15,000 to start trading and the 3% fee. Your carrier has 41,000 FD.");
     toCash(w, c.id, cost + 1);
     expect(brokeragePathLine(w, c)).toBeNull();
     const off = await TestGame.create(undefined, undefined, 41, on({ path: false }));
@@ -102,7 +102,7 @@ describe("players first on the page", () => {
   it("§2: the monthly report's line in the trade paper's voice, players' brokerages counted apart", async () => {
     const g = await TestGame.create(undefined, undefined, 41, on({ signal: true }));
     const rec = { renewal: { founded: 0, opened: 1, brokersWoundUp: 0, fleetsWoundUp: 0, carrierOwnedOpened: 3, carrierOwnedStopped: 0, reading: { flowRatio: 1.7, margin: 0.07, over: true, pending: 1 } } } as unknown as EconMonth;
-    expect(reportBrokersLine(g.w, rec)).toBe("Shippers have more freight than brokers to move it: freight per broker is up 70% on the opening, and margins hold at 7%. Four brokerages opened this month, three of them players'.");
+    expect(reportBrokersLine(g.w, rec)).toBe("Shippers have more freight than brokers to move it: freight per broker is up 70% on the opening, and margins hold at 7%. Four brokerages opened this month, three of them carriers' own.");
     const crowded = { renewal: { ...rec.renewal!, opened: 0, carrierOwnedOpened: 0, reading: { flowRatio: 1.1, margin: 0.03, over: false, pending: 0 } } } as EconMonth;
     expect(reportBrokersLine(g.w, crowded)).toBe(`${FIXES.reportBrokersCrowded("1.1×", "3%")} No brokerage opened this month.`);
     const off = await TestGame.create(undefined, undefined, 41, on({ signal: false }));
