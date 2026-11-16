@@ -1,4 +1,6 @@
 import {
+  reserveOn,
+  windUpFd,
   cashNowRate,
   ownerDrawFd,
   companyAccount,
@@ -29,6 +31,7 @@ import { clearsNear, clearsNearSource, profitOver } from "./board.js";
 import { PENDING_RULES } from "./copy-pending-rules.js";
 import { PENDING } from "./copy-pending.js";
 import { EXPLAIN, NEWS } from "./copy.js";
+import { FIXES } from "./copy-fixes.js";
 import { moneyEvents, type MoneyEvent } from "./books.js";
 import { emptyRun } from "./rolling.js";
 import { cushion, debtCountdown, gapToTruck } from "./figures.js";
@@ -354,9 +357,14 @@ const BREAKDOWNS: Record<string, Fn> = {
   },
   "guide.debtCountdown": (w, c) => {
     const d = debtCountdown(w, c);
+    const cashFd = w.ledger.balance(companyAccount(c.id));
+    // The writer's §15 item 4: with insolvency.countReserve (and the Reserve on), the check reads cash and the Reserve
+    // together, and what's settling out of it (solvency.ts windUpFd); the rows say so.
+    const both = w.cfg.insolvency.countReserve === true && reserveOn(w);
     return {
       rows: [
-        { label: "Cash", value: fd(w.ledger.balance(companyAccount(c.id))), key: "money.cash" },
+        { label: "Cash", value: fd(cashFd), key: "money.cash" },
+        ...(both ? [{ label: FIXES.explainReserveRow, value: fd(windUpFd(w, c) - cashFd) }, { label: FIXES.explainTogetherRow, value: fd(windUpFd(w, c)) }] : []),
         { label: "The line", value: fd(-w.cfg.insolvency.debtLimitFd) },
         { label: "Next weekly check", value: `day ${d.nextDay + 1}` },
       ],

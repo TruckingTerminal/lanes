@@ -131,6 +131,9 @@ export const FIXES = {
   // The Deposit sheet: the room chip stops at the cash; an amount over the cash says why DEPOSIT is grey.
   chipAllCash: (fd: string) => `All your cash · ${fd}`,
   depositOverCash: (fd: string) => `That's more than your cash: you have ${fd} FD.`,
+  // Engineering's placeholders for the writer (its §15 item 4): the debt countdown's explain rows with countReserve on.
+  explainReserveRow: "The Reserve, and what's settling out of it",
+  explainTogetherRow: "Cash and the Reserve together",
   // A release Confirm, booked ahead or current: the standing it costs, as the booking sheet's line says it.
   releaseStanding: (n: number, market: string) => `It also takes ${n === 1 ? "one load" : n === 2 ? "two loads" : `${n} loads`} off your ${market} standing.`,
   // A weekly day named on that day itself means the next one ("next Monday's review").

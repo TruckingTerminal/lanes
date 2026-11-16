@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { withLiveLevers, type EconomyConfig } from "@lanes/config";
 import { buildNetwork, hubs, neutralFeeds } from "@lanes/data";
 import { populate } from "@lanes/agents";
-import { applyAction, autoStaff, busRide, companyAccount, createWorld, dailyDrivers, dayOf, heldFor, hubMiles, offerStaff, placeOfHub, releaseStaff, seatBlock, sendBlock, sendByBus, unseatDriver, type Company, type Truck, type World } from "@lanes/engine";
+import { applyAction, autoStaff, busRide, companyAccount, createWorld, dailyDrivers, dayOf, heldFor, hubMiles, offerStaff, placeOfHub, releaseStaff, seatBlock, sendBlock, sendByBus, unseatDriver, weekdayName, fmtInt, type Company, type Staff, type Truck, type World } from "@lanes/engine";
 
 /**
  * The director's sprint §19 and §20 (labor.busToTruck): the bus to a truck, as the bus home mirrored. A driver with no
@@ -79,6 +79,29 @@ describe("the bus to a truck (labor.busToTruck)", () => {
     expect(sendBlock(w, c, s, b)).toBeNull();
     const off = fleet(OFF);
     expect(sendByBus(off.w, off.c, off.s, off.b)).toBe("there's no bus to a truck");
+  });
+
+  it("the ride's notice names the day the seat is taken, and auto-staff's send says so (the writer's §15 item 7)", () => {
+    const said = (w: World) => {
+      const out: string[] = [];
+      w.listener = (e) => {
+        if (e.kind === "notice") out.push(e.text);
+      };
+      return out;
+    };
+    const tail = (w: World, s: Staff, b: Truck) => `to Truck ${b.id} at ${w.net.places[b.place]!.name}, arriving ${weekdayName(s.bus!.arriveDay * DAY, w.cfg).slice(0, 3)}: ${fmtInt(s.bus!.fareFd)} FD.`;
+    const sent = fleet();
+    const heard = said(sent.w);
+    expect(applyAction(sent.w, sent.c.id, { type: "send_driver", staffId: sent.s.id, truckId: sent.b.id })).toEqual({ ok: true });
+    const line = heard.find((x) => x.includes(" takes the bus from "))!;
+    expect(line.endsWith(tail(sent.w, sent.s, sent.b))).toBe(true);
+    expect(line).not.toMatch(/about \d+ h/);
+    const auto = fleet();
+    const told = said(auto.w);
+    autoStaff(auto.w, auto.c);
+    const sentLine = told.find((x) => x.startsWith("Auto-staff sent "))!;
+    expect(sentLine).toContain(" by bus from ");
+    expect(sentLine.endsWith(tail(auto.w, auto.s, auto.b))).toBe(true);
   });
 
   it("auto-staff sends a driver with no truck before it hires, the nearest within maxDays; past it, it hires", () => {

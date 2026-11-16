@@ -614,16 +614,22 @@ export function sendBlock(w: World, c: Company, s: Staff, truck: Truck): string 
   return null;
 }
 
-/** §19: starts the ride to `truck` from where `s` stands, the fare paid by `c` now, the seat held while they ride. */
-function startRide(w: World, c: Company, s: Staff, truck: Truck): void {
+/**
+ * §19: starts the ride to `truck` from where `s` stands, the fare paid by `c` now, the seat held while they ride. The
+ * notice names the day they arrive, the day the seat is taken (the writer's §15 item 7), and says auto-staff sent them
+ * when it did (`by`).
+ */
+function startRide(w: World, c: Company, s: Staff, truck: Truck, by: "player" | "auto" = "player"): void {
   const from = s.lastHub!;
   const r = busRide(w, from, truck.hub);
   w.ledger.post(w.t, companyAccount(c.id), "sink:per_diem", r.fareFd, `bus:${s.id}`);
   c.operating.costFd += r.fareFd;
   s.bus = { from, miles: r.miles, fareFd: r.fareFd, leftT: w.t, arriveDay: dayOf(w.t, w.cfg) + r.arriveDays, to: truck.id, toHub: truck.hub, toPlace: truck.place };
   s.trucklessDays = 0;
-  const who = s.owner ? "You take" : `${label(s)} takes`;
-  notice(w, c.id, `${who} the bus from ${whereOff(w, s)} to Truck ${truck.id} at ${w.net.places[truck.place]!.name}: about ${Math.round(r.days * 24)} h, ${fmtInt(r.fareFd)} FD.`, "info", truck.id);
+  const arriving = weekdayName(s.bus.arriveDay * w.cfg.time.gameMinutesPerDay, w.cfg).slice(0, 3);
+  const ride = `from ${whereOff(w, s)} to Truck ${truck.id} at ${w.net.places[truck.place]!.name}, arriving ${arriving}: ${fmtInt(r.fareFd)} FD.`;
+  const text = by === "auto" ? `Auto-staff sent ${s.owner ? "you" : label(s)} by bus ${ride}` : `${s.owner ? "You take" : `${label(s)} takes`} the bus ${ride}`;
+  notice(w, c.id, text, "info", truck.id);
 }
 
 /** §19: the player's Send (send_driver), or auto-staff's. */
@@ -844,7 +850,7 @@ export function autoStaff(w: World, c: Company, minDriverSkill = 0, minDispatche
           if (days <= w.cfg.labor.busToTruck.maxDays && (!best || days < best.days)) best = { s, days };
         }
         if (!best) continue;
-        startRide(w, c, best.s, t);
+        startRide(w, c, best.s, t, "auto");
         riders.splice(riders.indexOf(best.s), 1);
         empty.splice(empty.indexOf(t), 1);
       }
