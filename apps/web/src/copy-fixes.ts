@@ -3,6 +3,9 @@
  * long runs): the writer words them in one pass. Every figure comes from the engine or the page; these are the frames.
  */
 export const FIXES = {
+  // The shared checkpoint (keeper.ts; the red team's checkpoint review, finding 5): one of the player's own orders reached
+  // the store only after the day's cut had been kept without it, so no page ever carries it out.
+  orderTooLate: (order: string) => `Your order (${order}) reached the world too late and wasn't carried out. Give it again if you still want it.`,
   // The trade-in's Confirm (UX next-screens §3.1): what the truck goes for, where, and that it can't be undone.
   tradeInVerb: "Trade in",
   tradeInDoes: (truck: number, dealer: string, town: string, offer: string, trailer: string | null) => `Trade Truck ${truck} in to ${dealer} at ${town} for ${offer} FD.${trailer ? ` ${trailer}` : ""}`,

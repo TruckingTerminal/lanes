@@ -3,6 +3,7 @@ import { useLayoutEffect, useState } from "preact/hooks";
 import { type Action, type Company, type Truck } from "@lanes/engine";
 import { RULESET, TestGame, type TestLog } from "./game.js";
 import type { DbLike, LiveWorld } from "./live.js";
+import type { AssetsLike } from "./keeper.js";
 import { fd, grammar, hhmm, realUntil, TIER_NAME, TRAILER_NAME, FAC_NAME, usd } from "./format.js";
 import type { LiveAction } from "./live.js";
 import { VETTING_NAMES } from "@lanes/engine";
@@ -32,7 +33,8 @@ export type Layout = "split" | "panel" | "map";
 export type SheetStop = "strip" | "half" | "full";
 /** The first entry, before a company (specs/first-ten-minutes.md, S1): where the hub-choosing sheet stands; `beat` is how far through Julia's intro the welcome stage is. */
 export type EntryStage = "welcome" | "home" | "all" | "card" | "board" | "name";
-export type Platform = { db: DbLike | null; uid: string | null; owner: boolean; local: boolean };
+/** `assets`: the artifact's assets capability, asked for only with the shared checkpoint on (keeper.ts), and null for every viewer but the owner and editors. */
+export type Platform = { db: DbLike | null; uid: string | null; owner: boolean; local: boolean; assets?: AssetsLike | null };
 export type TitleMenu =
   | { kind: "connecting" }
   | { kind: "signin" }

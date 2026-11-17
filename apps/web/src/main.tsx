@@ -32,6 +32,7 @@ import { firstTruckLine } from "./figures.js";
 import { PENDING } from "./copy-pending.js";
 import { panelsMoved } from "./panelclock.js";
 import { idbCuts, LOCAL_CUTS } from "./cuts.js";
+import { assetBodies, Keeper, localBodies, SHARED_CUTS, worldHash, type AssetsLike } from "./keeper.js";
 import { clockAfter, FRAME, panelsMayRedraw } from "./frame.js";
 
 /**
@@ -51,13 +52,19 @@ async function connect(): Promise<typeof S.platform> {
     } catch {
       uid = `dev-${Math.floor(Math.random() * 1e9).toString(36)}`;
     }
-    return { db: new MemoryDb(Date.now, "lanes.devdb.v1"), uid, owner: true, local: true };
+    // Off the artifact every tab is the owner's, as before; `?role=player` makes one a player's, to try the shared
+    // checkpoint (keeper.ts) with several tabs of one browser.
+    return { db: new MemoryDb(Date.now, "lanes.devdb.v1"), uid, owner: !/[?&]role=player\b/.test(location.search), local: true };
   }
   try {
     const [db, user] = await Promise.all([c.use("db"), c.use("user")]);
     const uid: string | null = user ? await user.id() : null;
     const owner = user ? Boolean(await user.isOwner()) : false;
-    return { db: db as DbLike | null, uid, owner, local: false };
+    // The shared checkpoint's bodies (keeper.ts): only the owner's page stores them, so only it asks for the capability,
+    // and only with the switch on. Null when the artifact doesn't declare it or this view isn't given it.
+    let assets: AssetsLike | null = null;
+    if (SHARED_CUTS && owner) assets = ((await c.use("assets").catch(() => null)) as AssetsLike | null) ?? null;
+    return { db: db as DbLike | null, uid, owner, local: false, assets };
   } catch {
     return { db: null, uid: null, owner: false, local: false };
   }
@@ -261,16 +268,41 @@ async function connectLive(): Promise<void> {
   await enterLive(meta);
 }
 
+/** The shared checkpoint's round (keeper.ts), one per live world entered. */
+let keeperTimer: ReturnType<typeof setInterval> | undefined;
+
 async function enterLive(meta: WorldMeta): Promise<void> {
   if (meta.ruleset !== RULESET) return showTitle({ kind: "update", theirs: meta.ruleset });
   // The replay runs behind the title, the button reading "Connecting…" (S0), so the title is the login and nothing else.
   showTitle({ kind: "connecting" });
   // The checkpoint's step 2a: this browser's own local cuts, when the page switch is on (cuts.ts LOCAL_CUTS).
-  const lw = await LiveWorld.open(S.platform.db!, meta, S.platform.uid, { owner: S.platform.owner, ...(LOCAL_CUTS ? { cuts: idbCuts() } : {}) });
+  // Step 3: the shared, trusted checkpoint, when its switch is on (keeper.ts SHARED_CUTS). Off, the page passes nothing
+  // and runs as it did: no document of step 3 is read or written.
+  const bodies = SHARED_CUTS ? (S.platform.local ? localBodies() : assetBodies(S.platform.assets ?? null)) : null;
+  const lw = await LiveWorld.open(S.platform.db!, meta, S.platform.uid, { owner: S.platform.owner, ...(LOCAL_CUTS ? { cuts: idbCuts() } : {}), ...(bodies ? { shared: { bodies, keepText: S.platform.owner } } : {}) });
   S.live = lw;
+  clearInterval(keeperTimer);
+  keeperTimer = undefined;
+  const keeper = bodies ? new Keeper(lw, S.platform.db!, bodies, { owner: S.platform.owner }) : null;
+  if (keeper) {
+    // A round every half minute: this page's day hashes, and on the owner's page the day's cut and the players' reports.
+    keeperTimer = setInterval(() => void keeper.tick(), 30_000);
+    // One of this player's orders reached the store after a kept cut had passed its minute (the red team's finding 5).
+    lw.onLate = (r) => toast(FIXES.orderTooLate(r.a.type.replace(/_/g, " ")), true);
+    // Any page's console, for QA's replays: where this page's replay started, its own day hashes, the kept cuts, and
+    // now(), the hash of its world this instant. Nothing here that the store doesn't already show every viewer.
+    (window as unknown as { lanesCuts?: unknown }).lanesCuts = () => ({ ...keeper.status(), started: { kind: lw.startedKind, minute: lw.startedFrom }, minute: lw.w.t, now: () => worldHash(lw.w) });
+  }
   // The owner's page only (persistence §2, the marker): orders that arrived stamped in the past, read in the console as
   // lanesOwner.earlyStamps(). Never shown to players; each one also logs a console warning as it lands.
-  if (S.platform.owner) (window as unknown as { lanesOwner?: unknown }).lanesOwner = { earlyStamps: () => lw.earlyStamps.slice() };
+  // With the shared checkpoint on: lanesOwner.checkpoints() says where it stands, and ignore(uid, day) and bar(day, hash)
+  // are the owner's two decisions on a report against a cut (keeper.ts).
+  if (S.platform.owner) {
+    (window as unknown as { lanesOwner?: unknown }).lanesOwner = {
+      earlyStamps: () => lw.earlyStamps.slice(),
+      ...(keeper ? { checkpoints: () => keeper.status(), ignore: (uid: string, day: number) => keeper.ignore(uid, day), bar: (day: number, hash: string) => keeper.bar(day, hash) } : {}),
+    };
+  }
   lw.onEvent((e) => onEvent(lw, e));
   lw.onOwnResult = (r, res) => {
     const ok = S.okText.get(r.s);
@@ -561,7 +593,8 @@ async function resync(): Promise<void> {
   const lw = S.live;
   if (!lw || rebuilding) return;
   rebuilding = true;
-  push(lw, "An order reached this page late. Replaying the world so it matches everyone else's.", "warn");
+  // A replay for a newly kept cut of the shared checkpoint (live.ts quietRebuild) is no late order: nothing is said.
+  if (!lw.quietRebuild) push(lw, "An order reached this page late. Replaying the world so it matches everyone else's.", "warn");
   await lw.rebuild();
   rebuilding = false;
   bumpData();
