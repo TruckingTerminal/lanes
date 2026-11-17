@@ -32,7 +32,7 @@ import { firstTruckLine } from "./figures.js";
 import { PENDING } from "./copy-pending.js";
 import { panelsMoved } from "./panelclock.js";
 import { idbCuts, LOCAL_CUTS } from "./cuts.js";
-import { backlogCap, FRAME, panelsMayRedraw } from "./frame.js";
+import { clockAfter, FRAME, panelsMayRedraw } from "./frame.js";
 
 /**
  * Boot, sessions and the game loop. The screen itself is the Preact app in ui/;
@@ -673,9 +673,8 @@ function loop(now: number): void {
   }
   if (t && S.game === t) {
     const hoursPerSec = SPEEDS[S.speed]!.hoursPerSec;
-    acc += (dt / 1000) * hoursPerSec;
-    // FRAME.clockHolds (frame.ts): Paused holds at once, and no more than a real second's hours wait to step.
-    if (FRAME.clockHolds) acc = Math.min(acc, backlogCap(hoursPerSec));
+    // FRAME.clockHolds (frame.ts): Paused holds at once and keeps its part-hour; no more than a real second's whole hours wait.
+    acc = clockAfter(acc, dt, hoursPerSec);
     const budget = now + 10;
     while (acc >= 1 && performance.now() < budget && !t.broken) {
       // Persistence §6: the hour's step wrapped as the live page's is. The engine throwing stops this world's clock for

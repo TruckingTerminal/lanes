@@ -223,10 +223,25 @@ export const SPEEDS: { label: string; title: string; hoursPerSec: number; icon: 
 type Channel = { v: number; subs: Set<() => void> };
 const tick: Channel = { v: 0, subs: new Set() };
 const data: Channel = { v: 0, subs: new Set() };
+/**
+ * When the panels' redraw now being made was first asked for: this task's first data bump. Cleared in a later task, not
+ * after the redraw, so a second redraw in the same task (a line of Julia's bumps the data again) still counts from the
+ * first.
+ */
+let bumpedAt = 0;
 function emit(ch: Channel): void {
   ch.v++;
+  if (ch === data && !bumpedAt) {
+    bumpedAt = performance.now();
+    setTimeout(() => (bumpedAt = 0), 0);
+  }
   for (const s of ch.subs) s();
 }
+/**
+ * When the work behind the redraw under way began (performance.now()): the data bump that asked for it, or now for a
+ * redraw a component's own state asked for. The board's late cards count the task's age from it (latecards.ts).
+ */
+export const redrawBegan = (): number => bumpedAt || performance.now();
 /**
  * A finger or the mouse held on the panel (main.tsx): the screen holds still under it, its changes waiting until it
  * lifts, so a visible button stays where it is and pressable until the player acts (the diaries, 2026-11-09: at Day in

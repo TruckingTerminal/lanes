@@ -2,7 +2,7 @@ import "./seed.js";
 import { describe, expect, it } from "vitest";
 import { chipFd } from "../src/board.js";
 import { fd, fdFull, grouped, usd } from "../src/format.js";
-import { backlogCap, FRAME, panelsMayRedraw } from "../src/frame.js";
+import { clockAfter, FRAME, panelsMayRedraw } from "../src/frame.js";
 import { GAME_CONFIG } from "../src/game.js";
 import { LoopKeep } from "../src/loopkeep.js";
 import { SPEEDS } from "../src/state.js";
@@ -10,14 +10,77 @@ import { walkSteps } from "../src/walkthrough.js";
 
 /** The frame-rate pass (producer-framerate-2026-11-15.md; frame.ts), and QA's 0.25.6 item 3 (loopkeep.ts). */
 describe("the frame-rate pass", () => {
-  it("the test clock: Paused holds at once, and no more than a real second's hours wait at any speed (FRAME.clockHolds)", () => {
-    const cap = (label: string) => backlogCap(SPEEDS.find((s) => s.label === label)!.hoursPerSec);
-    expect(cap("Paused")).toBe(0);
-    expect(cap("Live pace")).toBe(1);
-    expect(cap("Day a minute")).toBe(1);
-    expect(cap("Day in 6 s")).toBe(4);
-    expect(cap("Day in 2 s")).toBe(12);
+  const rate = (label: string) => SPEEDS.find((s) => s.label === label)!.hoursPerSec;
+  /** The page's loop (main.tsx): frames of `frameMs` for `ms` at a speed; each whole hour waiting steps, as many as `perFrame` a frame. */
+  const run = (acc: number, label: string, ms: number, frameMs = 10, perFrame = 99): { acc: number; steps: number; firstStepAt: number | null } => {
+    let steps = 0;
+    let firstStepAt: number | null = null;
+    for (let at = frameMs; at <= ms; at += frameMs) {
+      acc = clockAfter(acc, frameMs, rate(label));
+      for (let n = 0; acc >= 1 && n < perFrame; n++) {
+        acc -= 1;
+        steps++;
+        firstStepAt ??= at;
+      }
+    }
+    return { acc, steps, firstStepAt };
+  };
+
+  it("the test clock: no more than a real second's whole hours wait at any speed, and Paused none (FRAME.clockHolds)", () => {
     expect(FRAME.clockHolds).toBe(true);
+    // A device that can't keep up (a 250 ms frame, one step a frame): the whole hours waiting stay within the speed's cap.
+    for (const [label, cap] of [["Live pace", 1], ["Day a minute", 1], ["Day in 6 s", 4], ["Day in 2 s", 12]] as const) {
+      const slow = run(0, label, 60_000, 250, 1);
+      expect(Math.floor(slow.acc), label).toBeLessThanOrEqual(cap);
+      // A device that keeps up loses nothing: an hour steps every 1 / rate seconds (the last may be a frame away).
+      if (label !== "Live pace") {
+        const hours = Math.round(60 * rate(label));
+        const kept = run(0, label, 60_000).steps;
+        expect(kept === hours || kept === hours - 1, `${label}: ${kept} of ${hours}`).toBe(true);
+      }
+    }
+    // After Day in 2 s on that slow device, with hours still waiting, Paused steps nothing more from its first frame on.
+    const behind = run(0, "Day in 2 s", 10_000, 250, 1);
+    expect(behind.acc).toBeGreaterThanOrEqual(11);
+    expect(run(behind.acc, "Paused", 5_000, 250, 1).steps).toBe(0);
+    // Off, the hours waited as they did (the loop's own 48 caps them after its steps).
+    FRAME.clockHolds = false;
+    try {
+      expect(clockAfter(40, 250, rate("Day in 2 s"))).toBe(43);
+      expect(clockAfter(40, 250, rate("Paused"))).toBe(40);
+    } finally {
+      FRAME.clockHolds = true;
+    }
+  });
+
+  it("Paused keeps the part-hour already run: the hour picks up where it stopped (QA, 2026-11-17)", () => {
+    // Day a minute: an hour every 2.5 s. Two seconds in, Paused for a minute, and on: the hour steps 0.5 s later.
+    const twoIn = run(0, "Day a minute", 2_000);
+    expect(twoIn.steps).toBe(0);
+    expect(twoIn.acc).toBeCloseTo(0.8, 9);
+    const paused = run(twoIn.acc, "Paused", 60_000);
+    expect(paused.steps).toBe(0);
+    expect(paused.acc).toBe(twoIn.acc);
+    // (Half a second, give or take the frame the sum's last bit falls in.)
+    const half = (ms: number | null): boolean => ms !== null && ms >= 490 && ms <= 510;
+    expect(half(run(paused.acc, "Day a minute", 5_000).firstStepAt)).toBe(true);
+    // Without the pause it's the same half second.
+    expect(half(run(twoIn.acc, "Day a minute", 5_000).firstStepAt)).toBe(true);
+    // Live pace: 14 of an hour's 15 real minutes run, Paused, and on: the hour steps a minute later, not fifteen.
+    const late = run(0, "Live pace", 14 * 60_000, 1_000);
+    expect(late.steps).toBe(0);
+    const on = run(run(late.acc, "Paused", 30_000, 1_000).acc, "Live pace", 2 * 60_000, 1_000);
+    expect(on.firstStepAt).toBeGreaterThanOrEqual(59_000);
+    expect(on.firstStepAt).toBeLessThanOrEqual(61_000);
+    // The phone's speed button passes through Paused on its way round: Day in 2 s, Paused, Live pace keeps the part-hour too.
+    const fast = run(0, "Day in 2 s", 1_040); // 12.48 hours: 12 stepped, 0.48 running
+    expect(fast.steps).toBe(12);
+    const round = run(run(fast.acc, "Paused", 300).acc, "Live pace", 10);
+    expect(round.acc).toBeCloseTo(0.48, 4);
+    // Whole hours waiting when Paused comes are dropped, the part-hour kept.
+    expect(clockAfter(7.25, 16, rate("Paused"))).toBeCloseTo(0.25, 9);
+    // A slower speed keeps a second's worth and the part-hour: Day in 2 s with 7.25 waiting, to Live pace.
+    expect(clockAfter(7.25, 0, rate("Live pace"))).toBeCloseTo(1.25, 9);
   });
 
   it("the panels' budget: a moved minute redraws after three times the last redraw's cost; off, at once (FRAME.panelBudget)", () => {

@@ -3,7 +3,7 @@ import { Window } from "../Window.js";
 import { markStamp, Stamp } from "../Stamp.js";
 import { MENUS } from "../../copy-menus.js";
 import type { JSX } from "preact";
-import { useEffect, useState } from "preact/hooks";
+import { useEffect, useLayoutEffect, useRef, useState } from "preact/hooks";
 import { crewed, hubMiles, MANUAL_BID_MAX_DEADHEAD_MI, VETTING_NAMES, windowsOn, type Truck } from "@lanes/engine";
 import { COMMODITIES } from "@lanes/data";
 import { allInRate, bidCeiling, bidRange, blockLine, boardRows, newBrokerLine, typedRate, clampToCeiling, chipCash, chipPair, clearsNear, clearsNearSource, dockWaits, overCeiling, posterOf, profitOver, rateShown, sortRows, type BoardRow, type BoardSort, type ChipPair } from "../../board.js";
@@ -11,8 +11,9 @@ import { DockWarning, ProfitChip } from "../ProfitChip.js";
 import { ANSWER, BOARD, CHIP, DELIVERED, INTEL, LOAD, ROUND, WALL } from "../../copy.js";
 import { cls, fdFull, grouped, hhmm, pct, shortDate, TRAILER_NAME, weekdayDate } from "../../format.js";
 import { FRAME } from "../../frame.js";
+import { boardCards, guardScrolls, type ListEl } from "../../latecards.js";
 import { nextRoundHour, nextRoundLabel, nextRoundWait, reloadLabel, roundProgress, seasonSwing, withDaysOffWarning } from "../../logic.js";
-import { bumpData, isPhone, markVisited, me, myTrucks, openIntel, order, S, selectTruck, setTab, toast, truckNo, useData, visited } from "../../state.js";
+import { bumpData, isPhone, markVisited, me, myTrucks, openIntel, order, redrawBegan, S, selectTruck, setTab, toast, truckNo, useData, visited } from "../../state.js";
 import { deliveryEtaMin, etaMin } from "../../rolling.js";
 import { tabOpen } from "../../tabs.js";
 import { iuliiaFirst, iuliiaOnce, iuliiaOnChange, iuliiaSay, iuliiaSayText } from "../../iuliia.js";
@@ -44,6 +45,15 @@ function wallLineOf(rows: BoardRow[]): JSX.Element | null {
 
 export function Loads(): JSX.Element {
   useData();
+  // FRAME.boardOffscreen (latecards.ts): many new cards at once get their layout in slices, the first of them here.
+  const drawStart = redrawBegan();
+  const cardList = useRef<HTMLDivElement>(null);
+  const cardIds = useRef<number[]>([]);
+  useLayoutEffect(() => {
+    // The list's children are its cards' buttons.
+    if (FRAME.boardOffscreen) boardCards.drawn(cardList.current as ListEl<HTMLElement> | null, cardIds.current, drawStart);
+  });
+  useEffect(() => (FRAME.boardOffscreen ? guardScrolls(boardCards) : undefined), []);
   const [table, setTable] = useState(false);
   // R22's "See the ways out" (until R23) opens the board once on its sort.
   const [sort, setSort] = useState<BoardSort>(() => {
@@ -123,6 +133,8 @@ export function Loads(): JSX.Element {
   if (!rows.some((r) => shown.has(r.l.id))) for (const r of rows) shown.add(r.l.id);
   const waiting = rows.filter((r) => !shown.has(r.l.id)).length;
   const sorted = sortRows(rows, sort, firstVisit).filter((r) => r !== pinned && shown.has(r.l.id) && !(r.l.firstCall?.state === "open" && r.l.firstCall.companyId === me().id));
+  const listed = sorted.slice(0, 60);
+  cardIds.current = listed.map((r) => r.l.id);
   const takeable = rows.filter((r) => !r.block).length;
   if (trucks.some((t) => aheadable(w, t))) queueMicrotask(() => iuliiaOnce("win:busy", WINDOWS.iuliiaFirstBusy(truckNo(trucks.find((t) => aheadable(w, t))!.id))));
   const shownSorts: BoardSort[] = windowsOn(w) ? ["pickup", "nearest", "pay", "hot"] : ["nearest", "pay", "hot"];
@@ -230,9 +242,8 @@ export function Loads(): JSX.Element {
         </button>
       ) : null}
       {sorted.length ? (
-        // FRAME.boardOffscreen (frame.ts): the cards out of view skip layout and paint until scrolled to (page.html).
-        <div class={cls("loadcards", FRAME.boardOffscreen && "offscreen")}>
-          {sorted.slice(0, 60).map((r) => (
+        <div class="loadcards" ref={cardList}>
+          {listed.map((r) => (
             <LoadCard key={r.l.id} r={r} truck={truck} name={name} />
           ))}
         </div>

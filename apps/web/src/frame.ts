@@ -7,9 +7,10 @@
  */
 export const FRAME: {
   /**
-   * The test clock (main.tsx loop): Paused holds at once, and the game hours waiting to step never exceed what one real
-   * second adds at the speed set. Off: up to 48 game hours wait, so after Day in 2 s a slow device kept stepping the world
-   * through Paused and Live pace, one long task per frame (the producer's 412 ms "just after a delivery").
+   * The test clock (main.tsx loop): Paused holds at once, and the whole game hours waiting to step never exceed what one
+   * real second adds at the speed set; the part-hour already run is kept (clockAfter). Off: up to 48 game hours wait, so
+   * after Day in 2 s a slow device kept stepping the world through Paused and Live pace, one long task per frame (the
+   * producer's 412 ms "just after a delivery").
    */
   clockHolds: boolean;
   /**
@@ -24,22 +25,38 @@ export const FRAME: {
    */
   panelBudget: boolean;
   /**
-   * The board's load cards off screen skip layout and paint until scrolled to (CSS content-visibility; page.html).
-   * Off since 2026-11-17 (the producer, on QA's check of 60191cc): a card not yet drawn holds 110 px against a real
-   * 117 to 222 px, so a fresh board's scroll bar shrank and slid as the cards drew (6,493 px of a true 9,928 px) and a
-   * jump to the end landed about 1,200 px short. Back on when a card's placeholder is its real height.
+   * The board's load cards arriving many at once get their layout in slices (latecards.ts): as many as the first task
+   * has time for at once, the rest in tasks of their own straight after, each card held at its measured or likely height
+   * until then. Off: every card is laid out in the task that draws the board (69 to 77 ms at the 6× slowdown for a
+   * board of sixty, against 48 to 52 ms).
+   * The first form (60191cc) left the cards out of view as 110 px placeholders until scrolled to, so a fresh board's
+   * scroll bar shrank and slid as the cards drew (QA: 6,493 px of a true 9,928 px) and a jump to the end landed about
+   * 1,200 px short; the producer turned it off (aee6e54). In this form every card ends laid out.
    */
   boardOffscreen: boolean;
 } = {
   clockHolds: true,
   panelsApart: true,
   panelBudget: true,
-  boardOffscreen: false,
+  boardOffscreen: true,
 };
 
-/** How many game hours may wait to step at `hoursPerSec` with FRAME.clockHolds on: one real second's worth, none while paused. */
+/** How many whole game hours may wait to step at `hoursPerSec` with FRAME.clockHolds on: one real second's worth, none while paused. */
 export function backlogCap(hoursPerSec: number): number {
   return hoursPerSec > 0 ? Math.max(1, hoursPerSec) : 0;
+}
+
+/**
+ * The test clock's game hours waiting to step, `dtMs` on at `hoursPerSec` (main.tsx loop steps one for each whole hour).
+ * With FRAME.clockHolds the whole hours over the speed's cap are dropped and the part-hour is kept: Paused steps nothing
+ * more, and the hour that was running picks up where it stopped. (QA, 2026-11-17: the cap alone zeroed the part-hour
+ * too, so a pause 2.0 s into a 2.5 s hour made the next hour take a whole 2.5 s more; at Live pace, up to 15 real minutes.)
+ */
+export function clockAfter(acc: number, dtMs: number, hoursPerSec: number): number {
+  const next = acc + (dtMs / 1000) * hoursPerSec;
+  if (!FRAME.clockHolds) return next;
+  const cap = backlogCap(hoursPerSec);
+  return next <= cap ? next : cap + (next % 1);
 }
 
 /**
