@@ -23,13 +23,18 @@ export const FRAME: {
    * timer as before. A device that redraws in a few milliseconds still redraws every frame.
    */
   panelBudget: boolean;
-  /** The board's load cards off screen skip layout and paint until scrolled to (CSS content-visibility; page.html). */
+  /**
+   * The board's load cards off screen skip layout and paint until scrolled to (CSS content-visibility; page.html).
+   * Off since 2026-11-17 (the producer, on QA's check of 60191cc): a card not yet drawn holds 110 px against a real
+   * 117 to 222 px, so a fresh board's scroll bar shrank and slid as the cards drew (6,493 px of a true 9,928 px) and a
+   * jump to the end landed about 1,200 px short. Back on when a card's placeholder is its real height.
+   */
   boardOffscreen: boolean;
 } = {
   clockHolds: true,
   panelsApart: true,
   panelBudget: true,
-  boardOffscreen: true,
+  boardOffscreen: false,
 };
 
 /** How many game hours may wait to step at `hoursPerSec` with FRAME.clockHolds on: one real second's worth, none while paused. */
