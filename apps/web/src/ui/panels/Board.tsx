@@ -49,11 +49,12 @@ export function Loads(): JSX.Element {
   const drawStart = redrawBegan();
   const cardList = useRef<HTMLDivElement>(null);
   const cardIds = useRef<number[]>([]);
+  // The scroll guard goes on with the board's first draw, before the first card is held: a layout effect, ahead of the next.
+  useLayoutEffect(() => (FRAME.boardOffscreen ? guardScrolls(boardCards) : undefined), []);
   useLayoutEffect(() => {
     // The list's children are its cards' buttons.
     if (FRAME.boardOffscreen) boardCards.drawn(cardList.current as ListEl<HTMLElement> | null, cardIds.current, drawStart);
   });
-  useEffect(() => (FRAME.boardOffscreen ? guardScrolls(boardCards) : undefined), []);
   const [table, setTable] = useState(false);
   // R22's "See the ways out" (until R23) opens the board once on its sort.
   const [sort, setSort] = useState<BoardSort>(() => {
