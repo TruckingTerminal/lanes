@@ -37,6 +37,21 @@ export const LEAD_MIN = 2;
 const LEASE_TTL_MS = 120_000;
 const KEEP_IN_DOC = 300;
 const ARCHIVE_CHUNK = 200;
+/**
+ * The most chunks a player's log holds. A chunk is 200 orders, each over a game day old, so this is 200,000 orders: 550 a
+ * day for a year. At it a page stops moving orders out of the player's document.
+ */
+export const MAX_ARCHIVE_CHUNKS = 1000;
+
+/**
+ * A player's document says how many chunks its log holds (`archived`). It is read as a count only when it is a whole
+ * number from 0 to MAX_ARCHIVE_CHUNKS; anything else reads as `seen`, the count this page already has.
+ */
+export function archiveCount(raw: unknown, seen: number): number {
+  return typeof raw === "number" && Number.isInteger(raw) && raw >= 0 && raw <= MAX_ARCHIVE_CHUNKS ? raw : seen;
+}
+/** A log chunk's document id: c00000, c00001, … */
+const chunkId = (n: number): string => `c${String(n).padStart(5, "0")}`;
 
 export interface WorldMeta {
   v: 1;
@@ -356,8 +371,17 @@ export class LiveWorld {
   private loaded = false;
   /** Half the round trip of the lease call that set this page's clock, in game minutes; null until it's set. */
   private clockErrMin: number | null = null;
-  /** Per player, the archive chunks this page has read or written (players/<uid>/log/c00000 …). */
-  private archivedSeen = new Map<string, number>();
+  /**
+   * Per player, the log's chunks as this page has them (players/<uid>/log/c00000 …): `read`, how many in a row from the
+   * first it has read or written; `asked`, the highest count from the player's document it has acted on; `want`, the
+   * count a read under way is going to; `busy`, that read. One read at a time per player.
+   */
+  private archives = new Map<string, { read: number; asked: number; want: number; busy: Promise<void> | null }>();
+  private archiveOf(uid: string): { read: number; asked: number; want: number; busy: Promise<void> | null } {
+    let a = this.archives.get(uid);
+    if (!a) this.archives.set(uid, (a = { read: 0, asked: 0, want: 0, busy: null }));
+    return a;
+  }
 
   private constructor(
     readonly meta: WorldMeta,
@@ -938,8 +962,7 @@ export class LiveWorld {
       const acts = parseActs(body.acts);
       this.dropMissing(d.id, acts);
       this.ingest(d.id, acts, true);
-      const archived = Number(body.archived) || 0;
-      if (archived > (this.archivedSeen.get(d.id) ?? 0)) await this.readArchive(d.id, archived);
+      await this.readArchive(d.id, body.archived);
     }
     return true;
   }
@@ -991,7 +1014,7 @@ export class LiveWorld {
       const body = d.data();
       if (!body) continue;
       this.ingest(d.id, parseActs(body.acts));
-      const archived = Number(body.archived) || 0;
+      const archived = archiveCount(body.archived, 0);
       if (archived > 0) archivedOf.push([d.id, archived]);
       if (d.id === this.uid) this.own = { acts: parseActs(body.acts), archived };
     }
@@ -1000,8 +1023,16 @@ export class LiveWorld {
       await Promise.all(
         archivedOf.slice(i, i + 6).map(async ([uid, archived]) => {
           const chunks = await this.db.collection(`players/${uid}/log`).get();
-          for (const c of chunks.docs) this.ingest(uid, parseActs(c.data()?.acts));
-          this.archivedSeen.set(uid, archived);
+          // The chunks the document counts, in a row from the first: the same ones a page already open reads (readArchive).
+          const byId = new Map(chunks.docs.map((c) => [c.id, c]));
+          const a = this.archiveOf(uid);
+          while (a.read < archived) {
+            const c = byId.get(chunkId(a.read));
+            if (!c?.exists) break;
+            this.ingest(uid, parseActs(c.data()?.acts));
+            a.read++;
+          }
+          a.asked = a.want = archived;
         }),
       );
     }
@@ -1025,8 +1056,7 @@ export class LiveWorld {
             if (!cached) this.dropMissing(d.id, acts);
             this.ingest(d.id, acts, true, cached);
             // Chunks archived while this page wasn't hearing (asleep, offline): read before they're missed for good.
-            const archived = Number(body.archived) || 0;
-            if (archived > (this.archivedSeen.get(d.id) ?? 0)) void this.readArchive(d.id, archived).catch((e) => console.error(e));
+            if (archiveCount(body.archived, 0) > this.archiveOf(d.id).want) void this.readArchive(d.id, body.archived).catch((e) => console.error(e));
           }
         }
       },
@@ -1153,28 +1183,54 @@ export class LiveWorld {
   private async rereadOwn(): Promise<void> {
     const snap = await this.db.doc(`players/${this.uid}`).get();
     const body = snap.data();
-    this.own = { acts: parseActs(body?.acts), archived: Number(body?.archived) || 0 };
+    this.own = { acts: parseActs(body?.acts), archived: body ? archiveCount(body.archived, this.own.archived) : 0 };
     await this.readArchive(this.uid!, this.own.archived);
     this.dropMissing(this.uid!, this.own.acts);
     this.ingest(this.uid!, this.own.acts);
   }
 
   /**
-   * A player's archive chunks this page hasn't read, up to `archived` (persistence §1, the archive edge): another device
-   * that wrote more than a chunk while this page slept moved orders this page never saw out of the document. Older
-   * orders, so the page rebuilds (ingest), and never marked early.
+   * A player's archive chunks this page hasn't read, up to the count the player's document gives (persistence §1, the
+   * archive edge): another device that wrote more than a chunk while this page slept moved orders this page never saw out
+   * of the document. Older orders, so the page rebuilds (ingest), and never marked early.
+   *
+   * `archived` is the document's own field (archiveCount). One read at a time per player: a count that asks for nothing
+   * new waits for the read under way, if there is one, and a higher count carries that read further. The read takes the
+   * chunks in a row from the last it has and ends at the count or at the first chunk that isn't there, so it is never
+   * more than MAX_ARCHIVE_CHUNKS reads for a player.
    */
-  private async readArchive(uid: string, archived: number): Promise<void> {
-    const had = this.archivedSeen.get(uid) ?? 0;
-    for (let n = had; n < archived; n++) {
-      const chunk = await this.db.doc(`players/${uid}/log/c${String(n).padStart(5, "0")}`).get();
-      const acts = parseActs(chunk.data()?.acts);
-      // The re-check §8: an honest page archives only records over a game day old; a younger one in a new chunk is marked.
-      const log = this.logs.get(uid);
-      for (const r of acts) if (!log?.has(r.s) && r.at > this.gameMinute() - 24 * 60) this.mark("chunk", uid, r);
-      this.ingest(uid, acts, false);
+  private readArchive(uid: string, archived: unknown): Promise<void> {
+    const a = this.archiveOf(uid);
+    const count = archiveCount(archived, a.asked);
+    if (count > a.want) a.want = count;
+    if (a.want <= a.asked) return a.busy ?? Promise.resolve();
+    a.busy ??= this.readChunks(uid, a).finally(() => {
+      a.busy = null;
+    });
+    return a.busy;
+  }
+
+  private async readChunks(uid: string, a: { read: number; asked: number; want: number }): Promise<void> {
+    try {
+      while (a.asked < a.want) {
+        const want = a.want;
+        while (a.read < want) {
+          const chunk = await this.db.doc(`players/${uid}/log/${chunkId(a.read)}`).get();
+          if (!chunk.exists) break;
+          const acts = parseActs(chunk.data()?.acts);
+          // The re-check §8: an honest page archives only records over a game day old; a younger one in a new chunk is marked.
+          const log = this.logs.get(uid);
+          for (const r of acts) if (!log?.has(r.s) && r.at > this.gameMinute() - 24 * 60) this.mark("chunk", uid, r);
+          this.ingest(uid, acts, false);
+          a.read++;
+        }
+        a.asked = want;
+      }
+    } catch (e) {
+      // A read that failed: the count stays unanswered, and the next document that gives it asks again.
+      a.want = a.asked;
+      throw e;
     }
-    if (archived > (this.archivedSeen.get(uid) ?? 0)) this.archivedSeen.set(uid, archived);
   }
 
   /**
@@ -1190,7 +1246,7 @@ export class LiveWorld {
       const body = snap.exists ? snap.data() : undefined;
       if (body) {
         const stored = parseActs(body.acts);
-        const archived = Number(body.archived) || 0;
+        const archived = archiveCount(body.archived, this.own.archived);
         const mine = new Set(this.own.acts.map((x) => `${x.s}:${JSON.stringify(x)}`));
         const unseen = archived !== this.own.archived || stored.length !== this.own.acts.length || stored.some((x) => !mine.has(`${x.s}:${JSON.stringify(x)}`));
         if (unseen) {
@@ -1209,12 +1265,16 @@ export class LiveWorld {
       let archived = this.own.archived;
       let kept = acts;
       const done = this.w.t - 24 * 60;
-      if (acts.length > KEEP_IN_DOC) {
+      if (acts.length > KEEP_IN_DOC && archived < MAX_ARCHIVE_CHUNKS) {
         const old = acts.filter((x) => x.at < done).slice(0, ARCHIVE_CHUNK);
         if (old.length === ARCHIVE_CHUNK) {
-          await this.db.doc(`players/${uid}/log/c${String(archived).padStart(5, "0")}`).set({ acts: old });
+          await this.db.doc(`players/${uid}/log/${chunkId(archived)}`).set({ acts: old });
           archived++;
-          this.archivedSeen.set(uid, Math.max(this.archivedSeen.get(uid) ?? 0, archived)); // this page has these
+          // This page has these: the chunk it just wrote follows the ones it had read.
+          const a = this.archiveOf(uid);
+          if (a.read === archived - 1) a.read = archived;
+          a.asked = Math.max(a.asked, archived);
+          a.want = Math.max(a.want, archived);
           const moved = new Set(old);
           kept = acts.filter((x) => !moved.has(x));
         }

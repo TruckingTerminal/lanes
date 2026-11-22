@@ -584,6 +584,25 @@ describe("the shared checkpoint (step 3): the owner's page reads the store itsel
   }, 240_000);
 });
 
+describe("the shared checkpoint (step 3): the owner's round and the players' log chunks", () => {
+  it("the round returns and the day's cut is written and kept, with documents in the store whose chunk counts aren't counts, or count chunks that aren't there", async () => {
+    const s = await started();
+    const { st, owner, a, b } = s;
+    for (const [i, archived] of [1e12, 2.5, -4, "9", 1001, null].entries()) await st.db.doc(`players/odd${i}`).set({ v: 1, acts: [], archived });
+    await st.db.doc("players/odd9").set({ v: 1, acts: [], archived: 1000 });
+    await st.settle();
+    await st.round(a, b);
+    const t0 = Date.now();
+    await st.round(owner);
+    expect(parsePointer(await st.doc("world/checkpoint")).bodies.map((x) => x.day)).toEqual([1]);
+    owner.keeper["nextReadAt"] = 0;
+    await st.round(owner);
+    expect((await st.trust(1))!.by).toEqual(["alice", "bob"]);
+    expect(owner.keeper.note).toBe("");
+    expect(Date.now() - t0).toBeLessThan(20_000);
+  }, 120_000);
+});
+
 describe("the shared checkpoint (step 3): a body left in the store (finding 5)", () => {
   it("a body from days ago, with reports that matched it then, is never kept over an order every page has applied since", async () => {
     const s = await started();
