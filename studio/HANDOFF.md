@@ -44,10 +44,10 @@ Append a dated line to the state log saying the studio now runs on the Mac Studi
    ten-day digest, `npx tsx apps/sim/src/determinism.ts` (behind the test gate), reads `86359437681d720f` at
    0.25.6-phase0.49 on the Mac Studio's Node; CI's Node reads another value, so no test pins it. Anything new behind a
    switch must leave it unchanged.
-2. The live page is the artifact https://claude.ai/artifact/SRYhczap5Lpcr8AucRf9wy (v64 at d0c9d1c, ruleset
-   lanes-live-1/0.25.6-phase0.49, published 2026-11-17; the world restarted on it with v60, opening at day 45). With the ArtifactData tool, `get` collection `world` doc `meta`:
+2. The live page is the artifact https://claude.ai/artifact/SRYhczap5Lpcr8AucRf9wy (v65 at 159cd33, ruleset
+   lanes-live-1/0.25.6-phase0.49, published 2026-11-23; the world restarted on it with v60, opening at day 45). With the ArtifactData tool, `get` collection `world` doc `meta`:
    it should read `{v 1, seed 626127904, epochMs 1793840512000, msPerGameHour 900000, ruleset
-   "lanes-live-1/0.25.6-phase0.49"}` at version 36. `list` the `players` collection; it was empty on 2026-11-17. Do not
+   "lanes-live-1/0.25.6-phase0.49"}` at version 36. `list` the `players` collection; it was empty on 2026-11-23. Do not
    write either. The page's db rules (restate all five on any publish that passes capabilities): players read view,
    write owner; players/{self} write interact; reports read admin, write owner; reports/{self} read and write
    interact; world read view, write owner. The live version holds 469 of its 511 files: the page, a filtered
@@ -55,7 +55,7 @@ Append a dated line to the state log saying the studio now runs on the Mac Studi
    (kit.json entries marked live: false, Julia's unused breathing loop, the Back Lot's files, the city weather loops
    and city stills stay on the test site only).
 3. The studio board is https://claude.ai/artifact/2kmePVzETFib467bWP2J34.
-4. Build the live page once to prove the recipe, without publishing: `git worktree add ../lanes-live d0c9d1c`, then in
+4. Build the live page once to prove the recipe, without publishing: `git worktree add ../lanes-live 159cd33`, then in
    it `node apps/web/build.mjs` → `apps/web/dist/lanes.html` (about 4.8 MB). Publishing is the producer's, after QA's
    replay finds no blockers; a restart with players in the world is Jeff's call.
 
