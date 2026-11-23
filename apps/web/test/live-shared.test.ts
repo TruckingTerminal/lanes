@@ -5,7 +5,7 @@ import type { BodyStore, TrustDoc } from "../src/cuts.js";
 import { assetBodies, KEEP, SHARED_CUTS } from "../src/keeper.js";
 import type { CollLike, DbLike, DocLike, LiveAction, SnapLike } from "../src/live.js";
 import { liveDays } from "../../sim/src/liveDays.js";
-import { archived, beat, bidFor, DAY, enc, eventually, G, kept1, ownHash, Stage, started, starters, type Page } from "./shared-stage.js";
+import { archived, beat, bidFor, DAY, enc, eventually, G, kept1, ownHash, rhOf, Stage, started, starters, type Page } from "./shared-stage.js";
 
 /**
  * The checkpoint's step 3 (cuts.ts, live.ts, keeper.ts; engineering-checkpoint-design-2026-11-16.md §4 for this step, and
@@ -15,11 +15,11 @@ import { archived, beat, bidFor, DAY, enc, eventually, G, kept1, ownHash, Stage,
  * applied up to it, and history before the newest one is the archive's on every page.
  */
 describe("the shared checkpoint (step 3): the switch", () => {
-  it("is off, with the red team's grace and two confirmers", () => {
+  it("is off, with the red team's grace and two confirmers, or as many as a smaller world has players", () => {
     expect(SHARED_CUTS).toBe(false);
     expect(KEEP.graceMin).toBe(6 * 60);
     expect(KEEP.confirmers).toBe(2);
-    expect(KEEP.fewPlayers).toBe(false);
+    expect(KEEP.fewPlayers).toBe(true);
   });
 
   it("off, a page reads and writes no document of step 3", async () => {
@@ -62,7 +62,7 @@ describe("the shared checkpoint (step 3): written, kept, and started from", () =
     for (const p of st.pages) await ownHash(p, 1);
     await st.round();
     await st.round();
-    expect(await st.doc("players/alice/x/days")).toBeUndefined();
+    expect(await st.doc("days/alice")).toBeUndefined();
     expect(await st.doc("world/checkpoint")).toBeUndefined();
     expect(st.bodies.bodies.size).toBe(0);
 
@@ -89,9 +89,10 @@ describe("the shared checkpoint (step 3): written, kept, and started from", () =
 
     // The owner's own hash never counts, and one other player's isn't enough.
     await st.round(a);
-    const report = parseDays(await st.doc("players/alice/x/days"))!;
+    const report = parseDays(await st.doc("days/alice"))!;
     expect(report).toMatchObject({ world: owner.lw.worldKey(), build: REPLAY_BUILD });
-    expect(report.days).toEqual([{ day: 1, hash: body.hash, from: "seed" }]);
+    expect(report.days).toEqual([{ day: 1, hash: body.hash, rh: cut.line.rh, from: "seed" }]);
+    expect(body.rh).toBe(cut.line.rh);
     owner.keeper["nextReadAt"] = 0;
     await st.round(owner);
     expect(await st.trust(1)).toBeNull();
@@ -118,7 +119,7 @@ describe("the shared checkpoint (step 3): written, kept, and started from", () =
     for (const p of st.pages) expect(p.lw.needRebuild).toBe(false);
 
     // The day reports are their own documents (finding 9), the alarm was never needed, and world/meta was never rewritten (finding 8).
-    expect(Object.keys((await st.doc("players/alice"))!).sort()).toEqual(["acts", "archived", "v"]);
+    expect(Object.keys((await st.doc("players/alice"))!).sort()).toEqual(["acts", "archived", "next", "v"]);
     expect(await st.doc("world/alarm")).toBeUndefined();
     expect(JSON.stringify(await st.doc("world/meta"))).toBe(meta);
 
@@ -284,14 +285,15 @@ describe("the shared checkpoint (step 3): the late-order rule", () => {
     const b = await st.open("bob");
     await a.lw.submit({ type: "join", name: "Alice Haul", hub: starters[0]! });
     await b.lw.submit({ type: "join", name: "Bob Freight", hub: starters[1]! });
-    // In the store before the boundary: number 10 stamped before it (an order for no company: refused, and applied), number 9 after it.
+    // In the store before the boundary: number 10 stamped before it (an order from an account with no company yet: it
+    // doesn't count), number 9 after it.
     await st.db.doc("players/zed").set({ v: 1, acts: [{ s: 9, at: DAY + G + 90, a: { type: "join", name: "Zed Nine", hub: starters[2]!, look: "m" } }, { s: 10, at: DAY - 200, a: { type: "cancel_bid", truckId: 1 } }], archived: 0 });
     await st.until(DAY + G);
     for (const p of st.pages) await ownHash(p, 1);
     const s = { st, owner, players: [a, b], a, b };
     const trust = await kept1(s);
-    expect(trust.arc.n).toBe(3);
-    expect((await archived(st, 1)).filter((x) => x[0] === "zed").map((x) => x[1].s)).toEqual([10]);
+    expect(trust.arc.n).toBe(2);
+    expect((await archived(st, 1)).filter((x) => x[0] === "zed")).toEqual([]);
     const c = await st.open("carol");
     expect(c.lw.startedKind).toBe("shared");
     const seed = await st.open("dave", { bodies: memoryBodies() });
@@ -501,7 +503,7 @@ describe("the shared checkpoint (step 3): a body left in the store (finding 5)",
     expect(pointer.bodies.map((x) => x.day)).toEqual([3, 1]);
     expect(pointer.bodies[1]!.hash).toBe(body.hash);
     // Two players' reports match day 1's old body, and it is not kept: this page doesn't stand by it.
-    expect(parseDays(await st.doc("players/alice/x/days"))!.days.find((d) => d.day === 1)!.hash).toBe(body.hash);
+    expect(parseDays(await st.doc("days/alice"))!.days.find((d) => d.day === 1)!.hash).toBe(body.hash);
     expect(await st.trust(1)).toBeNull();
     for (const p of st.pages) expect(p.lw.w.companies.some((x) => x.name === "Erin Late"), p.uid).toBe(true);
   }, 240_000);
@@ -509,14 +511,14 @@ describe("the shared checkpoint (step 3): a body left in the store (finding 5)",
 
 describe("the shared checkpoint (step 3): a report that differs, and the alarm (findings 3 and 8)", () => {
   it("one player's differing hash stops the cut being kept; the owner's page computes the day again and stands; ignoring that player keeps it", async () => {
-    const s = await started();
+    const s = await started({ players: ["alice", "bob", "mallory"] });
     const { st, owner, a, b } = s;
     const meta = JSON.stringify(await st.doc("world/meta"));
     const world = owner.lw.worldKey();
-    // Mallory reports another hash for the day, in her own document.
+    // Mallory's page reports another hash for the day, over the same records.
     const lie = "f".repeat(64);
-    await st.db.doc("players/mallory").set({ v: 1, acts: [], archived: 0 });
-    await st.db.doc("players/mallory/x/days").set({ v: 1, world, build: REPLAY_BUILD, days: [{ day: 1, hash: lie, from: "seed" }] });
+    st.close(s.players[2]!);
+    await st.db.doc("days/mallory").set({ v: 1, world, build: REPLAY_BUILD, days: [{ day: 1, hash: lie, rh: rhOf(owner, 1), from: "seed" }] });
     await st.round(a, b);
     await st.round(owner); // the body and its pointer
     const body = parsePointer(await st.doc("world/checkpoint")).bodies[0]!;
@@ -539,50 +541,63 @@ describe("the shared checkpoint (step 3): a report that differs, and the alarm (
     expect(await st.trust(1)).toBeNull();
     const c = await st.open("carol");
     expect(c.lw.startedKind).toBe("seed");
-    // The owner's decision: that player's reports for the day no longer count.
-    await owner.keeper.ignore("mallory", 1);
+    // The owner's decision: that player's reports no longer count, for good.
+    await owner.keeper.ignore("mallory");
     await st.round(owner);
     expect((await st.trust(1))!.by).toEqual(["alice", "bob"]);
     alarm = parseAlarm(await st.doc("world/alarm"), world);
     expect(alarm.open).toEqual([]);
-    expect(alarm.ignored).toEqual([{ uid: "mallory", day: 1 }]);
+    expect(alarm.ignored).toEqual([{ uid: "mallory" }]);
     const d = await st.open("dave");
     expect(d.lw.startedKind).toBe("shared");
     expect(enc(d.lw.w)).toBe(enc(a.lw.w));
-    // Her hash from another replay build would be of another text: it neither confirms nor disputes.
+    expect(enc(b.lw.w)).toBe(enc(a.lw.w));
     expect(JSON.stringify(await st.doc("world/meta"))).toBe(meta);
   }, 240_000);
 
-  it("a report against a kept cut: no page starts from its body while it stands; withdrawn, pages from it start again, over the same records", async () => {
-    const s = await started();
+  it("a report against a kept cut: no page starts from its body until the owner's page has answered; it stood, and pages start from it again; withdrawn, pages from it start again, over the same records", async () => {
+    const s = await started({ players: ["alice", "bob", "mallory"] });
     const { st, owner, a } = s;
-    const trust = await kept1(s);
+    st.close(s.players[2]!);
+    await st.round(a, s.b);
+    await st.round(owner);
+    await st.round(owner);
+    const trust = (await st.trust(1))!;
     const world = owner.lw.worldKey();
     const c = await st.open("carol");
     expect(c.lw.startedKind).toBe("shared");
     // A late record, left out by the kept cut.
     await st.db.doc("players/erin").set({ v: 1, acts: [{ s: 0, at: DAY - 120, a: { type: "join", name: "Erin Late", hub: starters[2]!, look: "m" } }], archived: 0 });
-    // Mallory disputes the kept cut.
-    await st.db.doc("players/mallory").set({ v: 1, acts: [], archived: 0 });
-    await st.db.doc("players/mallory/x/days").set({ v: 1, world, build: REPLAY_BUILD, days: [{ day: 1, hash: "e".repeat(64), from: "seed" }] });
+    // Mallory's page reports another hash for the kept day, over the same records.
+    await st.db.doc("days/mallory").set({ v: 1, world, build: REPLAY_BUILD, days: [{ day: 1, hash: "e".repeat(64), rh: trust.rh, from: "seed" }] });
     owner.keeper["nextReadAt"] = 0;
     await st.round(owner);
     expect(parseAlarm(await st.doc("world/alarm"), world).open.length).toBe(1);
-    // Disputed: a new page doesn't start from the body. It replays from the seed over the archive's records: the same world.
+    // Open and not yet answered: a new page doesn't start from the body. It replays from the seed over the archive's
+    // records: the same world.
     const d = await st.open("dave");
     expect(d.lw.startedKind).toBe("seed");
     expect(d.lw.w.companies.some((x) => x.name === "Erin Late")).toBe(false);
     expect(enc(d.lw.w)).toBe(enc(a.lw.w));
     expect(enc(c.lw.w)).toBe(enc(a.lw.w));
-    // The owner withdraws the cut for good: the page that came from its body starts again, from the seed and the archive.
+    // The owner's page answers: computed again over the archive, the day hashes as it did. The report stays on the list,
+    // and pages start from the body again.
+    await ownHash(owner, 1);
+    await st.round(owner);
+    const alarm = parseAlarm(await st.doc("world/alarm"), world);
+    expect([alarm.stood, alarm.open.map((o) => o.uid)]).toEqual([[{ day: 1, hash: trust.hash }], ["mallory"]]);
+    await st.settle();
+    const g = await st.open("gina");
+    expect(g.lw.startedKind).toBe("shared");
+    expect(enc(g.lw.w)).toBe(enc(a.lw.w));
+    // The owner withdraws the cut for good: the pages that came from its body start again, from the seed and the archive.
     // The day's records stay as the archive has them: the late record stays out, on every page.
-    await st.round(owner); // its own answer first (it stands)
     const before = enc(a.lw.w);
     await owner.keeper.bar(1, trust.hash);
     await st.settle();
     expect(owner.lw.sharedView().kept).toEqual([]);
     expect(owner.lw.sharedView().trust.map((d) => d.day)).toEqual([1]);
-    expect(c.lw.startedKind).toBe("seed");
+    expect([c.lw.startedKind, g.lw.startedKind]).toEqual(["seed", "seed"]);
     for (const p of st.pages) expect(p.lw.w.companies.some((x) => x.name === "Erin Late"), p.uid).toBe(false);
     expect(enc(a.lw.w)).toBe(before);
     expect(enc(c.lw.w)).toBe(before);
@@ -592,31 +607,31 @@ describe("the shared checkpoint (step 3): a report that differs, and the alarm (
   }, 240_000);
 
   it("a page whose own hash of a kept day differs, over the same records, starts again from the body, and its report stands as the alarm", async () => {
-    const s = await started();
+    const s = await started({ players: ["alice", "bob", "dora"] });
     const { st, owner, a, b } = s;
+    const odd = s.players[2]!;
     const world = owner.lw.worldKey();
-    // Dora's page opens after the boundary and replays from the seed, hashing the recent days on the way. Her browser
-    // computes the day differently (stood in for: her own hash of it is another).
-    const odd = await st.open("dora");
-    expect(odd.lw.startedKind).toBe("seed");
-    await ownHash(odd, 1);
-    await odd.lw.submit({ type: "join", name: "Dora Drayage", hub: starters[2]! });
+    // Dora's browser computes the day differently (stood in for: her page's own hash of it is another).
     (odd.lw as unknown as { ownCuts: Map<number, { hash: string | null }> }).ownCuts.get(1)!.hash = "d".repeat(64);
-    const trust = await kept1(s);
+    // Kept by the two others, before her page reports.
+    await st.round(a, b);
+    await st.round(owner);
+    await st.round(owner);
+    const trust = (await st.trust(1))!;
     await st.settle();
-    // Kept by the two others; Dora's page sees its own hash differ over the same marks, and starts again from the body.
+    // Her page sees its own hash differ over the same records, and starts again from the body.
     expect(odd.lw.startedKind).toBe("shared");
     expect(enc(odd.lw.w)).toBe(enc(a.lw.w));
     // Its report of the day stands, and the owner's page raises the alarm on it.
     await st.round(odd);
-    expect(parseDays(await st.doc("players/dora/x/days"))!.days).toEqual([{ day: 1, hash: "d".repeat(64), from: "seed" }]);
+    expect(parseDays(await st.doc("days/dora"))!.days).toEqual([{ day: 1, hash: "d".repeat(64), rh: trust.rh, from: "seed" }]);
     owner.keeper["nextReadAt"] = 0;
     await st.round(owner);
     expect(parseAlarm(await st.doc("world/alarm"), world).open.map((o) => [o.uid, o.hash])).toEqual([["dora", trust.hash]]);
     expect(b.lw.needRebuild).toBe(false);
   }, 240_000);
 
-  it("a page that had applied a record the cut left out replays under the rule and takes its hash back: no alarm stands", async () => {
+  it("a page that had applied a record the cut left out reports the day over other records, which raises no alarm; it starts again from the kept body and takes that day out of its report", async () => {
     const st = new Stage();
     // Bob's page hears the world's documents only when the test lets it.
     let worldHeld = false;
@@ -655,20 +670,22 @@ describe("the shared checkpoint (step 3): a report that differs, and the alarm (
     const bobs = await ownHash(b, 1);
     expect(bobs).not.toBe(trust.hash);
     await st.round(b);
+    expect(parseDays(await st.doc("days/bob"))!.days[0]).toMatchObject({ day: 1, hash: bobs });
+    expect(parseDays(await st.doc("days/bob"))!.days[0]!.rh).not.toBe(trust.rh);
+    // Over other records than the cut's, his report is neither a confirmation nor a report against it.
     owner.keeper["nextReadAt"] = 0;
     await st.round(owner);
-    expect(parseAlarm(await st.doc("world/alarm"), world).open.map((o) => o.uid)).toEqual(["bob"]);
-    // The owner's page answers (it stands). Then Bob's page hears of the kept cut: it replays under the rule.
-    await st.round(owner);
+    expect(parseAlarm(await st.doc("world/alarm"), world).open).toEqual([]);
+    // Then Bob's page hears of the kept cut: its records for the day aren't the archive's, so it starts again, from the
+    // kept body. That day isn't its own computation any more, and leaves its report.
     worldHeld = false;
     for (const f of waiting.splice(0)) f();
     await st.settle();
     expect(b.lw.w.companies.some((x) => x.name === "Erin Late")).toBe(false);
+    expect([b.lw.startedKind, b.lw.startedFrom]).toEqual(["shared", DAY]);
     expect(enc(b.lw.w)).toBe(enc(a.lw.w));
-    // Its hash of the day is the kept one now; its report follows, and the alarm clears itself.
-    expect(await ownHash(b, 1)).toBe(trust.hash);
     await st.round(b);
-    expect(parseDays(await st.doc("players/bob/x/days"))!.days[0]).toMatchObject({ day: 1, hash: trust.hash });
+    expect(parseDays(await st.doc("days/bob"))!.days).toEqual([]);
     owner.keeper["nextReadAt"] = 0;
     await st.round(owner);
     expect(parseAlarm(await st.doc("world/alarm"), world).open).toEqual([]);
@@ -678,9 +695,9 @@ describe("the shared checkpoint (step 3): a report that differs, and the alarm (
 });
 
 describe("the shared checkpoint (step 3): small worlds, a store without the capability, and a body that fails its check", () => {
-  it("no other player, or one: the cut is written and never kept, and pages start as they do today", async () => {
+  it("with the fewPlayers lever off, no other player, or one: the cut is written and never kept, and pages start as they do today", async () => {
     const st = new Stage();
-    const owner = await st.open("olga", { owner: true });
+    const owner = await st.open("olga", { owner: true, keep: { fewPlayers: false } });
     await owner.lw.submit({ type: "join", name: "Olga Lines", hub: starters[0]! });
     await st.until(DAY + G);
     await ownHash(owner, 1);
@@ -688,16 +705,17 @@ describe("the shared checkpoint (step 3): small worlds, a store without the capa
     await st.round(owner);
     expect(parsePointer(await st.doc("world/checkpoint")).bodies.length).toBe(1);
     expect(await st.trust(1)).toBeNull();
-    // A viewer who has given no order says nothing: only a player's page reports.
+    // A page whose account has no company says nothing: only a player's page reports.
     const a = await st.open("alice");
     expect(a.lw.startedKind).toBe("seed");
     await ownHash(a, 1);
     await st.round(a);
-    expect(await st.doc("players/alice/x/days")).toBeUndefined();
-    // One other player, hashing the same day.
+    expect(await st.doc("days/alice")).toBeUndefined();
+    // One other player, hashing the same day (her company came after the cut, so her report of it counts neither way).
     await a.lw.submit({ type: "join", name: "Alice Haul", hub: starters[1]! });
+    await st.run(1);
     await st.round(a);
-    expect(parseDays(await st.doc("players/alice/x/days"))!.days.map((d) => d.day)).toEqual([1]);
+    expect(parseDays(await st.doc("days/alice"))!.days.map((d) => d.day)).toEqual([1]);
     owner.keeper["nextReadAt"] = 0;
     await st.round(owner);
     expect(await st.trust(1)).toBeNull();
@@ -790,7 +808,7 @@ describe("the shared checkpoint (step 3): small worlds, a store without the capa
     expect(await st.trust(1)).toBeNull();
     expect(await st.doc("world/alarm")).toBeUndefined();
     expect(owner.keeper.note).toMatch(/assets capability/);
-    expect(parseDays(await st.doc("players/alice/x/days"))!.days.length).toBe(1);
+    expect(parseDays(await st.doc("days/alice"))!.days.length).toBe(1);
     const c = await st.open("carol", { bodies: none });
     expect(c.lw.startedKind).toBe("seed");
     expect(enc(c.lw.w)).toBe(enc(a.lw.w));
@@ -882,7 +900,8 @@ describe("the shared checkpoint (step 3): small worlds, a store without the capa
     expect(parsePointer({ v: 1, bodies: [{ day: 1, t: DAY, hash: "A".repeat(64), world: "w", build: "b", asset: "x" }] }).bodies).toEqual([]);
     expect(parsePointer({ v: 1, bodies: [{ day: 1, t: DAY, hash: "a".repeat(64), world: "w", build: "b", asset: "../x" }] }).bodies).toEqual([]);
     expect(parsePointer({ v: 2, bodies: [{ day: 1, t: DAY, hash: "a".repeat(64), world: "w", build: "b", asset: "x" }] }).bodies).toEqual([]);
-    expect(parsePointer({ v: 1, bodies: [{ day: 1, t: DAY, hash: "a".repeat(64), world: "w", build: "b", asset: "x" }], gone: ["ok", "../no", 7] })).toMatchObject({ bodies: [{ day: 1 }], gone: ["ok"] });
+    expect(parsePointer({ v: 1, bodies: [{ day: 1, t: DAY, hash: "a".repeat(64), rh: "b".repeat(64), world: "w", build: "b", asset: "x" }], gone: ["ok", "../no", 7] })).toMatchObject({ bodies: [{ day: 1 }], gone: ["ok"] });
+    expect(parsePointer({ v: 1, bodies: [{ day: 1, t: DAY, hash: "a".repeat(64), world: "w", build: "b", asset: "x" }] }).bodies).toEqual([]);
     const arc = { from: 0, to: DAY, hash: "c".repeat(64), parts: 1, n: 3, bytes: 99 };
     const trust = { v: 2, world: "w", build: "b", day: 1, t: DAY, hash: "a".repeat(64), by: ["x", 3], at: 5, rh: "b".repeat(64), arc };
     expect(parseTrust(trust)).toEqual({ world: "w", build: "b", day: 1, t: DAY, hash: "a".repeat(64), by: ["x"], at: 5, rh: "b".repeat(64), arc });
@@ -890,8 +909,9 @@ describe("the shared checkpoint (step 3): small worlds, a store without the capa
     for (const a of [{ to: 2 * DAY }, { from: DAY }, { from: 7 }, { from: -DAY }, { hash: "nope" }, { parts: 0 }, { parts: 1e9 }, { parts: 1.5 }, { n: -1 }]) wrong.push({ arc: { ...arc, ...a } });
     for (const w of wrong) expect(parseTrust({ ...trust, ...w }), JSON.stringify(w)).toBeNull();
     expect(parseAlarm({ v: 1, world: "other", open: [{ day: 1, hash: "a".repeat(64), uid: "u", theirs: "b".repeat(64) }] }, "w")).toEqual(noAlarm());
-    expect(parseAlarm({ v: 1, world: "w", open: [{ day: 1, hash: "a".repeat(64), uid: "u", theirs: "b".repeat(64) }, { day: "1" }], barred: [{ day: 2, hash: "c".repeat(64) }], ignored: [{ uid: "u", day: 3 }] }, "w")).toMatchObject({ open: [{ uid: "u" }], barred: [{ day: 2 }], ignored: [{ uid: "u", day: 3 }] });
-    expect(parseDays({ v: 1, world: "w", build: "b", days: [{ day: 1, hash: "a".repeat(64), from: "seed" }, { day: 2, hash: "nope" }] })!.days).toEqual([{ day: 1, hash: "a".repeat(64), from: "seed" }]);
+    expect(parseAlarm({ v: 1, world: "w", open: [{ day: 1, hash: "a".repeat(64), uid: "u", theirs: "b".repeat(64) }, { day: "1" }], barred: [{ day: 2, hash: "c".repeat(64) }], ignored: [{ uid: "u", day: 3 }, { uid: "v" }, { uid: "w", day: "4" }, { day: 5 }] }, "w")).toMatchObject({ open: [{ uid: "u" }], barred: [{ day: 2 }], ignored: [{ uid: "u", day: 3 }, { uid: "v" }] });
+    expect(parseDays({ v: 1, world: "w", build: "b", days: [{ day: 1, hash: "a".repeat(64), rh: "b".repeat(64), from: "seed" }, { day: 2, hash: "nope", rh: "b".repeat(64) }, { day: 3, hash: "a".repeat(64) }] })!.days).toEqual([{ day: 1, hash: "a".repeat(64), rh: "b".repeat(64), from: "seed" }]);
+    expect(parseDays({ v: 1, world: "w", build: "b", days: Array.from({ length: 40 }, (_, day) => ({ day, hash: "a".repeat(64), rh: "b".repeat(64) })) })!.days.length).toBe(16);
     expect(parseDays({ v: 2 })).toBeNull();
   });
 });
@@ -903,7 +923,7 @@ describe("the shared checkpoint (step 3): the node replay of a copy of the store
     const trust = await kept1(s);
     // A late record, and a player whose report differs: both are in the copy.
     await st.db.doc("players/erin").set({ v: 1, acts: [{ s: 0, at: DAY - 120, a: { type: "join", name: "Erin Late", hub: starters[2]!, look: "m" } }], archived: 0 });
-    await st.db.doc("players/mallory/x/days").set({ v: 1, world: a.lw.worldKey(), build: REPLAY_BUILD, days: [{ day: 1, hash: "f".repeat(64), from: "seed" }] });
+    await st.db.doc("days/mallory").set({ v: 1, world: a.lw.worldKey(), build: REPLAY_BUILD, days: [{ day: 1, hash: "f".repeat(64), rh: trust.rh, from: "seed" }] });
     await st.settle();
     const copy = [...(st.db as unknown as { docs: Map<string, Record<string, unknown>> }).docs];
     const out = await liveDays(copy, st.clock);
@@ -913,7 +933,7 @@ describe("the shared checkpoint (step 3): the node replay of a copy of the store
     expect(day.hash).toBe(trust.hash);
     expect(day.kept).toBe(trust.hash);
     expect(day.body).toBe(trust.hash);
-    expect(day.reports.map((r) => [r.uid, r.hash === day.hash]).sort()).toEqual([["alice", true], ["bob", true], ["mallory", false], ["olga", true]]);
+    expect(day.reports.map((r) => [r.uid, r.hash === day.hash]).sort()).toEqual([["alice", true], ["bob", true], ["mallory", false]]);
     // Without the trust document in the copy the late record counts, and the day hashes otherwise: the copy must carry them.
     const bare = await liveDays(copy.filter(([p]) => !p.startsWith("world/cpm-")), st.clock);
     expect(bare.days[0]!.hash).not.toBe(trust.hash);

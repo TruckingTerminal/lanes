@@ -300,7 +300,7 @@ async function enterLive(meta: WorldMeta): Promise<void> {
   if (S.platform.owner) {
     (window as unknown as { lanesOwner?: unknown }).lanesOwner = {
       earlyStamps: () => lw.earlyStamps.slice(),
-      ...(keeper ? { checkpoints: () => keeper.status(), ignore: (uid: string, day: number) => keeper.ignore(uid, day), bar: (day: number, hash: string) => keeper.bar(day, hash) } : {}),
+      ...(keeper ? { checkpoints: () => keeper.status(), ignore: (uid: string, day?: number) => keeper.ignore(uid, day), bar: (day: number, hash: string) => keeper.bar(day, hash) } : {}),
     };
   }
   lw.onEvent((e) => onEvent(lw, e));
@@ -753,7 +753,8 @@ function loop(now: number): void {
     }
     if (lw?.broken && !brokenShown) {
       brokenShown = true;
-      toast(`The live world stopped at ${hhmm(lw.broken.at)}: ${lw.broken.reason}. The owner has to repair the log.`, true);
+      // A page that couldn't read the world's archive (live.ts replayArcs) says so in its own words: a reload may clear it.
+      toast(lw.broken.reload ? PENDING.liveHistoryUnread(lw.broken.reason) : `The live world stopped at ${hhmm(lw.broken.at)}: ${lw.broken.reason}. The owner has to repair the log.`, true);
     }
   }
   schedule();

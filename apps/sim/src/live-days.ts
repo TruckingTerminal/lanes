@@ -6,7 +6,7 @@
  * <store.json>: the store's documents, as { "<path>": <body>, … } or as [["<path>", <body>], …]: world/meta, every
  * players/<uid> and players/<uid>/log/<chunk>; and, to replay as the pages do and to compare, world/cpm-<day>, every
  * world/arc/d/<…> (the archives the trust documents name: without one the replay stops), world/alarm, world/checkpoint
- * and players/<uid>/x/days. `--at`: the real time of the copy (default: now).
+ * and days/<uid>. `--at`: the real time of the copy (default: now).
  *
  * Run it at the commit the live page was built from: it names its replay build as that page's build does
  * (apps/web/replay-build.mjs), and a hash is only comparable with a page's of the same build (lanesOwner.checkpoints().build).

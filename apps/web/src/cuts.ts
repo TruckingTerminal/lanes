@@ -189,7 +189,7 @@ export function idbCuts(name = "lanes.cuts.v1"): CutStore {
 //     newest trust document's minute is part of history only if the archive holds it, on every page, wherever its replay
 //     starts (trustChain);
 //  8  the alarm is its own document (Alarm, world/alarm), written by the owner's page from the players' own reports;
-//  9  a page's day hashes are their own document (DayReport, players/<uid>/x/days), never the player's orders document;
+//  9  a page's day hashes are their own document (DayReport, days/<uid>), never the player's orders document;
 //  10 a body names its replay build, and a page of another build never starts from it;
 //  11 the body is an asset (packBody: gzip inside JSON, the one text type that fits) and its pointer a document.
 
@@ -326,6 +326,8 @@ export interface BodyRef {
   day: number;
   t: number;
   hash: string;
+  /** The running hash of the records the cut had applied (its line's). */
+  rh: string;
   world: string;
   build: string;
   /** The body store's id (an asset's). */
@@ -345,9 +347,9 @@ export function parsePointer(raw: unknown): Pointer {
   const p = raw as { v?: unknown; bodies?: unknown; gone?: unknown } | undefined;
   if (!p || p.v !== 1) return out;
   for (const b of Array.isArray(p.bodies) ? (p.bodies as Partial<BodyRef>[]) : []) {
-    if (!b || !isInt(b.day) || !isInt(b.t) || b.t !== b.day * 1440 || !isHash(b.hash) || !isText(b.world) || !isText(b.build)) continue;
+    if (!b || !isInt(b.day) || !isInt(b.t) || b.t !== b.day * 1440 || !isHash(b.hash) || !isHash(b.rh) || !isText(b.world) || !isText(b.build)) continue;
     if (typeof b.asset !== "string" || !ASSET_ID.test(b.asset)) continue;
-    out.bodies.push({ day: b.day, t: b.t, hash: b.hash, world: b.world, build: b.build, asset: b.asset, bytes: Number(b.bytes) || 0, at: Number(b.at) || 0 });
+    out.bodies.push({ day: b.day, t: b.t, hash: b.hash, rh: b.rh, world: b.world, build: b.build, asset: b.asset, bytes: Number(b.bytes) || 0, at: Number(b.at) || 0 });
   }
   out.bodies.sort((x, y) => y.t - x.t);
   for (const id of Array.isArray(p.gone) ? (p.gone as unknown[]) : []) if (typeof id === "string" && ASSET_ID.test(id)) out.gone.push(id);
@@ -479,16 +481,17 @@ export function trustChain(trust: readonly TrustDoc[], world: string): TrustDoc[
  * `world/alarm`: the owner's page writes it, never world/meta (the red team's finding 8).
  *  - open: a player whose own hash for a body's day differs from the body's. While one stands, no page starts from that
  *    body (pages take the one before, or their own cut, or the seed).
- *  - stood: the owner's page computed that day again from the cut before and got its own hash again.
+ *  - stood: the owner's page computed that day again from the cut before and got its own hash again. From then on a
+ *    kept body may be started from again, though the report stays open.
  *  - barred: a cut withdrawn for good, by day and hash: its body is never started from and its hash never compared
  *    again. A cut is withdrawn together with every cut kept after it. The records its trust document froze stay frozen.
- *  - ignored: a player's reports for a day that no longer count (shown wrong by the node replay; the owner's decision).
+ *  - ignored: a player's reports that no longer count, for one day or, with no day, for good (the owner's decision).
  */
 export interface Alarm {
   open: { day: number; hash: string; uid: string; theirs: string; at: number }[];
   stood: { day: number; hash: string }[];
   barred: { day: number; hash: string }[];
-  ignored: { uid: string; day: number }[];
+  ignored: { uid: string; day?: number }[];
 }
 export const noAlarm = (): Alarm => ({ open: [], stood: [], barred: [], ignored: [] });
 /** The alarm for `world`: another world's document (one left from before a restart) reads as none. */
@@ -500,26 +503,37 @@ export function parseAlarm(raw: unknown, world: string): Alarm {
   for (const o of list(a.open)) if (isInt(o.day) && isHash(o.hash) && isText(o.uid) && isHash(o.theirs)) out.open.push({ day: o.day, hash: o.hash, uid: o.uid, theirs: o.theirs, at: Number(o.at) || 0 });
   for (const o of list(a.stood)) if (isInt(o.day) && isHash(o.hash)) out.stood.push({ day: o.day, hash: o.hash });
   for (const o of list(a.barred)) if (isInt(o.day) && isHash(o.hash)) out.barred.push({ day: o.day, hash: o.hash });
-  for (const o of list(a.ignored)) if (isInt(o.day) && isText(o.uid)) out.ignored.push({ uid: o.uid, day: o.day });
+  for (const o of list(a.ignored)) {
+    if (isText(o.uid) && isInt(o.day)) out.ignored.push({ uid: o.uid, day: o.day });
+    else if (isText(o.uid) && o.day === undefined) out.ignored.push({ uid: o.uid });
+  }
   return out;
 }
 
+/** Where the pages' day reports are: one collection, a document a player, which the owner's page takes in one read. */
+export const DAYS_PATH = "days";
+/** The most days of a report that are read. */
+const REPORT_DAYS_READ = 16;
+
 /**
- * `players/<uid>/x/days`: a page's own hashes of the last few day boundaries it computed itself, written by the tab that
- * holds the player's lease (the red team's finding 9: never the player's orders document, which a write replaces whole).
- * `from` says where that page's replay started ("seed", "local:<minute>" or "cp:<day>"), for reading a split afterwards.
+ * `days/<uid>`: a page's own hashes of the last few day boundaries it computed itself, written by the tab that holds the
+ * player's lease (the red team's finding 9: never the player's orders document, which a write replaces whole). Each day
+ * comes with the running hash of the records that page had applied, so the owner's page can tell a page that computed
+ * the day over other records (it will compute it again: neither a confirmation nor a report against the cut) from one
+ * that computed another world over the same records. `from` says where that page's replay started ("seed",
+ * "local:<minute>" or "cp:<day>"), for reading a split afterwards.
  */
 export interface DayReport {
   world: string;
   build: string;
-  days: { day: number; hash: string; from: string }[];
+  days: { day: number; hash: string; rh: string; from: string }[];
 }
 export function parseDays(raw: unknown): DayReport | null {
   const d = raw as { v?: unknown; world?: unknown; build?: unknown; days?: unknown } | undefined;
   if (!d || d.v !== 1 || !isText(d.world) || !isText(d.build) || !Array.isArray(d.days)) return null;
   const days: DayReport["days"] = [];
-  for (const x of d.days as { day?: unknown; hash?: unknown; from?: unknown }[]) {
-    if (x && isInt(x.day) && isHash(x.hash)) days.push({ day: x.day, hash: x.hash, from: typeof x.from === "string" ? x.from.slice(0, 40) : "" });
+  for (const x of (d.days as { day?: unknown; hash?: unknown; rh?: unknown; from?: unknown }[]).slice(0, REPORT_DAYS_READ)) {
+    if (x && isInt(x.day) && isHash(x.hash) && isHash(x.rh)) days.push({ day: x.day, hash: x.hash, rh: x.rh, from: typeof x.from === "string" ? x.from.slice(0, 40) : "" });
   }
   return { world: d.world, build: d.build, days };
 }
@@ -541,14 +555,16 @@ export function keptCuts(chain: readonly TrustDoc[], alarm: Alarm): KeptCut[] {
 
 /**
  * The kept cut a page may start from for this body, or null: the body is this world's and this replay build's, a trust
- * document names the same day and hash, and no report against it stands (the red team's finding 3: a disputed checkpoint is
- * never loaded).
+ * document names the same day and hash, and no report against it is open that the owner's page hasn't answered. Once the
+ * owner's page has computed the day again, over the archive's records, and stood by its cut (`stood`), the body may be
+ * started from again: the same records computed twice gave the same world.
  */
 export function adoptable(b: BodyRef, kept: readonly KeptCut[], alarm: Alarm, world: string, build: string): KeptCut | null {
   if (b.world !== world || b.build !== build) return null;
   const cut = kept.find((k) => k.day === b.day && k.hash === b.hash && k.build === build);
-  if (!cut || alarm.open.some((o) => o.day === b.day && o.hash === b.hash)) return null;
-  return cut;
+  if (!cut) return null;
+  const same = (x: { day: number; hash: string }): boolean => x.day === b.day && x.hash === b.hash;
+  return alarm.open.some(same) && !alarm.stood.some(same) ? null : cut;
 }
 
 /** A body's most bytes once unpacked: checked while it unpacks, before anything is parsed. */

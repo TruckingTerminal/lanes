@@ -572,6 +572,11 @@ export const PENDING = withGrammar({
   // An order whose time would land more than a lead past the shared clock (an earlier order was stamped on a wrong clock):
   // refused, shown in the order's error toast.
   liveClockOff: "This order's time is off the shared clock: reload the page and try again.",
+  // The shared checkpoint (keeper.ts SHARED_CUTS; none of these is said with it off). Placeholders for the writer.
+  liveDayFull: "That's as many orders as one company can give in a game day. The next ones will go through after midnight, game time.",
+  liveOrderTooLong: "That order is too long to send. Shorten it and give it again.",
+  liveDocFull: "Your order book is full until the world's next daily checkpoint. This order wasn't sent: give it again later.",
+  liveHistoryUnread: (reason: string) => `This page couldn't read the world's history (${reason}). Reload the page to try again.`,
   // The test page's clock stopped on an engine error in an hour (§6): the save stands at the hour before.
   testBroken: "The world hit an error and stopped here. It takes no more orders; your save holds everything up to the hour before.",
   // A restored world whose replay refused some of the saved orders (§6): they're kept in the save, not lost silently.

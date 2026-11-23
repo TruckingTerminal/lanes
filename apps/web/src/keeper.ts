@@ -4,8 +4,8 @@
  * the store's documents, so a fix here never makes pages replay from the seed.
  *
  *  - Every page whose tab holds its player's lease reports its own hashes of the day boundaries it computed itself
- *    (players/<uid>/x/days), once its clock is G past the boundary (the red team's findings 4, 5 and 9). Only a player's:
- *    a viewer who has given no order has no orders document, the owner's page finds players by those, and a document for
+ *    (days/<uid>), once its clock is G past the boundary (the red team's findings 4, 5 and 9). Only a page whose account
+ *    has a company in its world: a report counts only from an account whose company is in the cut, and a document for
  *    every visitor would fill the store.
  *  - The owner's page, and only it (the store's rules give world/* to the owner): writes the newest such day's cut, the
  *    body first and its pointer last, after reading every player's orders again from the store itself (finding 5); reads
@@ -18,7 +18,7 @@
  * Nothing here runs unless the page switch is on (SHARED_CUTS; main.tsx).
  */
 import { encodeWorld, type World } from "@lanes/engine";
-import { ARC_PART_CHARS, arcDocs, cutExtras, packBody, parseAlarm, parseDays, parsePointer, readArc, REPLAY_BUILD, sha256 } from "./cuts.js";
+import { ARC_PART_CHARS, arcDocPath, arcDocs, cutExtras, DAYS_PATH, packBody, parseAlarm, parseDays, parsePointer, readArc, REPLAY_BUILD, sha256 } from "./cuts.js";
 import type { Alarm, ArcRef, BodyRef, BodyStore, DayReport, KeptCut, Pointer } from "./cuts.js";
 import type { DbLike, LiveWorld, OwnCut } from "./live.js";
 
@@ -33,13 +33,17 @@ export const KEEP = {
   /**
    * A world with fewer other players than `confirmers`: off, a cut still needs `confirmers` (so it never gets them, and
    * pages start as they did); on, it needs as many as there are other players, none in a world with no other player.
+   * A player here is an account whose company is in the cut.
    */
-  fewPlayers: false,
+  fewPlayers: true,
   /** Bodies kept in the store. The newest kept cut's body is never dropped. */
   bodies: 3,
   /** Days in a page's report. */
   days: 4,
-  /** How often the owner's page reads the players' reports: while a body waits for its confirmations, and once all are kept (ms). */
+  /**
+   * How often the owner's page reads the players' reports: while a body waits for its confirmations (twice as long after
+   * each round that changed nothing, up to the other figure), and once all are kept (ms).
+   */
   readWaitingMs: 60_000,
   readKeptMs: 30 * 60_000,
   /** After the store refused a body (no capability for this viewer, or its quota), the owner's page tries again this much later (ms). */
@@ -79,6 +83,8 @@ export class Keeper {
   /** This page's report as the store holds it; null until it's been read once. */
   private reported: string | null = null;
   private nextReadAt = 0;
+  /** The rounds in a row that read the reports and changed nothing. */
+  private idle = 0;
   /** The store refused a body: not asked again before this time, and why. */
   private storeBackAt = 0;
   private storeNote = "";
@@ -131,8 +137,8 @@ export class Keeper {
    */
   private async report(): Promise<void> {
     const lw = this.lw;
-    if (!this.steady() || !lw.players().includes(lw.uid!)) return;
-    const doc = this.db.doc(`players/${lw.uid}/x/days`);
+    if (!this.steady() || !lw.isPlayer(lw.uid!)) return;
+    const doc = this.db.doc(`${DAYS_PATH}/${lw.uid}`);
     if (this.reported === null) {
       const snap = await doc.get();
       if (snap.metadata?.fromCache === true) return;
@@ -141,7 +147,7 @@ export class Keeper {
     }
     const days = this.due()
       .slice(0, this.k.days)
-      .map((c) => ({ day: c.day, hash: c.hash!, from: c.from }));
+      .map((c) => ({ day: c.day, hash: c.hash!, rh: c.rh, from: c.from }));
     const body = { v: 1, world: lw.worldKey(), build: REPLAY_BUILD, days };
     const text = JSON.stringify(body);
     if (text === this.reported || (!days.length && this.reported === "")) return;
@@ -206,7 +212,7 @@ export class Keeper {
       return refused(`the store refused day ${own.day}'s body: ${String((e as { code?: string; message?: string })?.code ?? (e as { message?: string })?.message ?? e)}`);
     }
     if (!put) return refused("this page can't store a body: the artifact's assets capability isn't granted to this viewer");
-    const ref: BodyRef = { day: own.day, t: own.t, hash: own.hash, world: lw.worldKey(), build: REPLAY_BUILD, asset: put.id, bytes: put.bytes, at: this.now() };
+    const ref: BodyRef = { day: own.day, t: own.t, hash: own.hash, rh: own.rh, world: lw.worldKey(), build: REPLAY_BUILD, asset: put.id, bytes: put.bytes, at: this.now() };
     // The pointer last: the body it names is already in the store.
     const { kept } = lw.sharedView();
     const gone = new Set(stored.gone);
@@ -238,6 +244,7 @@ export class Keeper {
     }
     if (left.length !== gone.size) await this.setPointer({ bodies: keep, gone: left });
     this.nextReadAt = 0;
+    this.idle = 0;
   }
 
   /** A document as the store itself holds it: a saved copy stops the round (the next one asks again). */
@@ -251,18 +258,17 @@ export class Keeper {
     return this.db.doc("world/checkpoint").set({ v: 1, bodies: p.bodies.map((b) => ({ ...b })), gone: p.gone });
   }
 
+  /** Every page's report, in one read of their collection: this world's, and not this page's own. */
   private async readReports(): Promise<Map<string, DayReport>> {
     const lw = this.lw;
     const world = lw.worldKey();
-    const uids = lw.players().filter((u) => u !== lw.uid);
+    const snap = await this.db.collection(DAYS_PATH).get();
+    // A saved copy of the reports says nothing: one may since have been taken back.
+    if (snap.metadata?.fromCache === true) throw new Error("the store's answer for the pages' reports was a saved copy");
     const out = new Map<string, DayReport>();
-    for (let i = 0; i < uids.length; i += 6) {
-      const got = await Promise.all(uids.slice(i, i + 6).map((u) => this.db.doc(`players/${u}/x/days`).get()));
-      got.forEach((snap, j) => {
-        // A saved copy of a report says nothing: it may be one the player's page has since taken back.
-        const r = snap.exists && snap.metadata?.fromCache !== true ? parseDays(snap.data()) : null;
-        if (r && r.world === world) out.set(uids[i + j]!, r);
-      });
+    for (const d of snap.docs) {
+      const r = d.id !== lw.uid ? parseDays(d.data()) : null;
+      if (r && r.world === world) out.set(d.id, r);
     }
     return out;
   }
@@ -288,6 +294,12 @@ export class Keeper {
       return null;
     }
     const a = lw.arcText(own.t, own.rh);
+    if (a === "days") {
+      // This page's replay started after the frozen minute: it computes the days since again, from the cut there.
+      this.note = `computing the days up to day ${own.day} again, from the frozen minute`;
+      lw.recompute(lw.sharedView().trust.reduce((t, d) => Math.max(t, d.t), 0) + 1);
+      return null;
+    }
     if (!a) {
       this.note = `waiting: day ${own.day}'s records on this page changed, or it is behind the frozen minute`;
       return null;
@@ -296,25 +308,33 @@ export class Keeper {
     const stored = async (): Promise<boolean> => (await readArc(this.db, ref).catch(() => null)) === a.text;
     if (await stored()) return ref;
     for (const [path, body] of docs) await this.db.doc(path).set(body);
+    // An earlier attempt at this archive, never named, may have had more parts: they are taken out of the store.
+    for (let i = ref.parts; ; i++) {
+      const part = this.db.doc(arcDocPath(ref.from, i));
+      if (!part.delete || !(await part.get()).exists) break;
+      await part.delete();
+    }
     if (await stored()) return ref;
     this.note = `day ${own.day}'s archive didn't read back from the store as it was written`;
     return null;
   }
 
   /**
-   * Reads the players' reports against each body in the store: the trust document for a body with enough matching and
+   * Reads the pages' reports against each body in the store: the trust document for a body with enough matching and
    * none differing; the alarm for one a player's own hash differs from; and this page's own answer to such a report, once.
+   * A report counts, either way, only from an account whose company is in the cut, only over the same records as the
+   * cut (one running hash), and only for the last few days up to the newest body's.
    */
   private async judge(): Promise<void> {
     const lw = this.lw;
     const world = lw.worldKey();
     const now = this.now();
     const reports = await this.readReports();
-    const others = lw.players().filter((u) => u !== lw.uid).length;
     const pointer = parsePointer(await this.read("world/checkpoint"));
     const alarm = parseAlarm(await this.read("world/alarm"), world);
     const { trust, kept } = lw.sharedView();
     const frozen = trust.length ? trust[trust.length - 1]!.t : 0;
+    const newest = pointer.bodies.reduce((day, b) => (b.world === world ? Math.max(day, b.day) : day), 0);
     const open: Alarm["open"] = [];
     let waiting = false;
     let ask: BodyRef | null = null;
@@ -323,7 +343,7 @@ export class Keeper {
     // One trust document a round: it moves the frozen minute, and the next one's archive begins there.
     let wrote = false;
     for (const b of pointer.bodies) {
-      if (b.world !== world) continue;
+      if (b.world !== world || b.day <= newest - this.k.days) continue;
       const barred = alarm.barred.some((x) => dayKey(x) === dayKey(b));
       const isKept = kept.some((k: KeptCut) => k.day === b.day && k.hash === b.hash);
       // A body may be kept when its day is past the frozen minute; or when its day has a trust document whose cut was
@@ -332,13 +352,18 @@ export class Keeper {
       // A body behind the frozen minute with no cut of its own: its day's records are inside a later cut's archive, it is
       // never kept, and no report is read against it.
       if (!isKept && !keepable) continue;
+      // The accounts whose company the cut holds: the only ones whose reports count. This page can't say for a cut from
+      // before its own replay started, and reads no report against that one.
+      const players = lw.companiesAt(b.t);
+      if (!players) continue;
       const match: string[] = [];
       let differs = false;
       for (const [uid, r] of reports) {
         // Another replay build's hash is of another text: it neither confirms nor disputes.
-        if (r.build !== b.build || alarm.ignored.some((x) => x.uid === uid && x.day === b.day)) continue;
+        if (!players.has(uid) || r.build !== b.build || alarm.ignored.some((x) => x.uid === uid && (x.day === undefined || x.day === b.day))) continue;
         const d = r.days.find((x) => x.day === b.day);
-        if (!d) continue;
+        // Over other records than the cut's, that page computed another day: it will compute this one again.
+        if (!d || d.rh !== b.rh) continue;
         if (d.hash === b.hash) match.push(uid);
         else {
           differs = true;
@@ -350,6 +375,7 @@ export class Keeper {
         // Kept only while this page itself stands by that cut now, after the store's own answer: a body left in the store
         // from days ago, with reports that matched it then, is never kept over an order every page has applied since.
         const mine = (): OwnCut | undefined => (b.build === REPLAY_BUILD ? lw.ownDays().find((x) => x.day === b.day && x.hash === b.hash) : undefined);
+        const others = [...players].filter((u) => u !== lw.uid).length;
         if (!wrote && !differs && match.length >= this.need(others) && mine()) {
           heard ??= await lw.reread();
           const own = heard && !lw.needRebuild ? mine() : undefined;
@@ -368,8 +394,11 @@ export class Keeper {
     }
     const days = new Set(pointer.bodies.map((b) => b.day));
     const next: Alarm = { open, stood: alarm.stood.filter((x) => days.has(x.day)), barred: alarm.barred, ignored: alarm.ignored };
+    const changed = wrote || ask !== null || JSON.stringify(alarm) !== JSON.stringify(next);
     await this.setAlarm(alarm, next);
-    this.nextReadAt = now + (waiting || open.length ? this.k.readWaitingMs : this.k.readKeptMs);
+    // While a body waits, the reports are read again a minute on, then twice as long after each round that changed nothing.
+    this.idle = changed ? 0 : this.idle + 1;
+    this.nextReadAt = now + (waiting || open.length ? Math.min(this.k.readWaitingMs * 2 ** Math.min(Math.max(this.idle - 1, 0), 16), this.k.readKeptMs) : this.k.readKeptMs);
     // A report against a body: this page computes that day again, from the cut before it, after the store's own answer.
     if (ask && (await lw.reread())) {
       this.recomputed.add(dayKey(ask));
@@ -423,12 +452,14 @@ export class Keeper {
 
   // --- The owner's own decisions (the console: lanesOwner) ----------------------------------------------------------
 
-  /** A player's reports for a day no longer count (the node replay showed that page wrong). */
-  async ignore(uid: string, day: number): Promise<void> {
+  /** A player's reports no longer count: for one day, or with no day given, for good (the owner's decision). */
+  async ignore(uid: string, day?: number): Promise<void> {
     const world = this.lw.worldKey();
     const alarm = parseAlarm(await this.read("world/alarm"), world);
-    if (alarm.ignored.some((x) => x.uid === uid && x.day === day)) return;
-    await this.setAlarm(alarm, { ...alarm, ignored: [...alarm.ignored, { uid, day }] });
+    if (alarm.ignored.some((x) => x.uid === uid && (x.day === undefined || x.day === day))) return;
+    // For good takes the place of that player's single days.
+    const ignored = day === undefined ? [...alarm.ignored.filter((x) => x.uid !== uid), { uid }] : [...alarm.ignored, { uid, day }];
+    await this.setAlarm(alarm, { ...alarm, ignored });
     this.nextReadAt = 0;
   }
 

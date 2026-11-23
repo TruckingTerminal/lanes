@@ -42,7 +42,7 @@ export async function liveDays(docs: [string, Record<string, unknown>][], atMs: 
   const world = lw.worldKey();
   const pointer = parsePointer(docs.find(([p]) => p === "world/checkpoint")?.[1]);
   const trust = docs.filter(([p]) => /^world\/cpm-\d+$/.test(p)).map(([, b]) => parseTrust(b));
-  const reports = docs.filter(([p]) => /^players\/[^/]+\/x\/days$/.test(p)).map(([p, b]) => ({ uid: p.split("/")[1]!, r: parseDays(b) }));
+  const reports = docs.filter(([p]) => /^days\/[^/]+$/.test(p)).map(([p, b]) => ({ uid: p.split("/")[1]!, r: parseDays(b) }));
   const days = lw
     .ownDays()
     .sort((a, b) => a.day - b.day)
