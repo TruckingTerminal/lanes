@@ -1,8 +1,9 @@
 /**
  * The live world's day hashes from a copy of its store (the checkpoint's step 3; the red team's checkpoint review, finding
  * 3: when the owner's page and a player's page disagree about a day, "engineering's node replay of the exported store
- * decides"). The store's documents go into a store in memory, a page with no player replays them from the seed, under
- * the kept cuts as every page does, and hashes every day boundary on the way. live-days.ts is its command line.
+ * decides"). The store's documents go into a store in memory, a page with no player replays them from the seed, taking
+ * the records before the newest trust document from the archives as every page does, and hashes every day boundary on the
+ * way. live-days.ts is its command line.
  */
 import { memoryBodies, parseDays, parsePointer, parseTrust, REPLAY_BUILD } from "../../web/src/cuts.js";
 import { LiveWorld, readMeta } from "../../web/src/live.js";

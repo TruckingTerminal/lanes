@@ -10,18 +10,16 @@
  * Off unless the page passes a store (LiveOptions.cuts; main.tsx with LOCAL_CUTS).
  *
  * Step 3, the shared, trusted checkpoint, is the second half of this file: what a cut is as one text every page can hash
- * (cutText), the store's documents that carry one (the body's pointer, the trust document with the marks, the alarm), and
- * the late-order rule's test (countsUnder). What a page does with them is in live.ts; what a page writes (its day hashes,
- * and the owner's checkpoint) is keeper.ts, outside the replay build.
+ * (cutText), the running hash of the records a world has applied (rollHash), the store's documents that carry a cut (the
+ * body's pointer, the trust document, the alarm) and the archive of the records before one (arcDocs, readArc). What a page
+ * does with them is in live.ts; what a page writes (its day hashes, and the owner's checkpoint) is keeper.ts, outside the
+ * replay build.
  */
 
 import { botState, restoreBotState, type BotState } from "@lanes/agents";
 import type { World } from "@lanes/engine";
 import { booksState, watchBooks, type BooksState } from "./books.js";
 import { restoreTruckNos, truckNosState, type TruckNosState } from "./trucknos.js";
-
-/** Per player, the records a world had applied before a minute: the highest sequence number and how many, sorted by uid. */
-export type Marks = [uid: string, maxS: number, count: number][];
 
 /** Whether the live page keeps local cuts (a page switch; off until the producer turns it on). */
 export const LOCAL_CUTS = false;
@@ -43,13 +41,15 @@ export interface CutHead {
   t: number;
   digest: string;
   /**
-   * Step 3, on a page with the shared checkpoint on: the cut's hash as every page computes it (cutText), the records it
-   * had applied as marks, and the trusted body its world came from (the records before that one's minute are settled, and
-   * the digest covers only the ones since).
+   * Step 3, on a page with the shared checkpoint on: the cut's hash as every page computes it (cutText); the running hash
+   * of the records it had applied (rollHash); the trusted body its world came from, if it came from one; and the minute
+   * history was frozen to when it was made, with the running hash there (the digest covers the records since that minute:
+   * the ones before it are the archive's).
    */
   hash?: string;
-  marks?: Marks;
+  rh?: string;
   since?: { t: number; hash: string };
+  under?: { t: number; rh: string };
 }
 export interface Cut extends CutHead {
   /** The world's encoding (engine encodeWorld, with cutExtras). */
@@ -178,14 +178,16 @@ export function idbCuts(name = "lanes.cuts.v1"): CutStore {
 
 // --- Step 3: the shared, trusted checkpoint ------------------------------------------------------------------------
 //
-// The red team's checkpoint review (redteam-checkpoint-2026-11-16.md), by finding:
+// The red team's checkpoint reviews (redteam-checkpoint-2026-11-16.md, and the nine rules of 2026-11-22), by finding:
 //  3  a page starts from a body only once two other players' pages have reported its hash and none disputes it
 //     (adoptable); a hash is compared whole, all 64 hex;
 //  4  the hash is of the whole cut (cutText): the world, the bots' state, the credit cache and the page's own records the
-//     replay builds, and with them the world's key, the replay build, the minute, the marks and the players' companies;
-//  6  a record counts by its stamp alone (countsUnder): before a kept cut, only what that cut had applied;
-//  7  every kept cut's marks stay in the store for good (TrustDoc, world/cpm-<day>), so a page replaying from the seed,
-//     from its own cut or from an older body applies the same records as a page that started from the newest body;
+//     replay builds, and with them the world's key, the replay build, the minute, the running hash of the records applied
+//     (rollHash) and the players' companies;
+//  6, 7  a kept cut comes with the archive of the records applied up to it (arcDocs, world/arc/d/<first minute>), named by
+//     its trust document (TrustDoc, world/cpm-<day>), and both stay in the store for good. A record stamped before the
+//     newest trust document's minute is part of history only if the archive holds it, on every page, wherever its replay
+//     starts (trustChain);
 //  8  the alarm is its own document (Alarm, world/alarm), written by the owner's page from the players' own reports;
 //  9  a page's day hashes are their own document (DayReport, players/<uid>/x/days), never the player's orders document;
 //  10 a body names its replay build, and a page of another build never starts from it;
@@ -193,13 +195,14 @@ export function idbCuts(name = "lanes.cuts.v1"): CutStore {
 
 /** What a cut is of, before the world's encoding: the first line of its text. */
 export interface CutLine {
-  v: 1;
+  v: 2;
   /** The world: seed, epoch and ruleset (live.ts worldKey). */
   world: string;
   build: string;
   /** The game minute, a day boundary: after hour 23's step and before any order stamped at that minute. */
   t: number;
-  marks: Marks;
+  /** The running hash of every record the world had applied (rollHash). */
+  rh: string;
   /** The players' companies: uid and carrier id, in the order they joined. */
   companies: [string, number][];
 }
@@ -209,32 +212,13 @@ export interface CutLine {
  * report and compare, and the body the owner's page uploads is exactly this text.
  */
 export function cutText(line: Omit<CutLine, "v">, encoding: string): string {
-  const head: CutLine = { v: 1, world: line.world, build: line.build, t: line.t, marks: line.marks, companies: line.companies };
+  const head: CutLine = { v: 2, world: line.world, build: line.build, t: line.t, rh: line.rh, companies: line.companies };
   return `${JSON.stringify(head)}\n${encoding}`;
 }
 
 const isInt = (x: unknown): x is number => typeof x === "number" && Number.isInteger(x);
 const isHash = (x: unknown): x is string => typeof x === "string" && /^[0-9a-f]{64}$/.test(x);
 const isText = (x: unknown, max = 200): x is string => typeof x === "string" && x.length > 0 && x.length <= max;
-
-/**
- * Marks from a cut's line ([uid, highest, count]) or from a store document ({ u, s, n }: a document holds no array inside
- * an array on every store): every entry well formed, one per uid, sorted by uid. Null when it isn't such a list.
- */
-export function parseMarks(raw: unknown): Marks | null {
-  if (!Array.isArray(raw)) return null;
-  const by = new Map<string, [number, number]>();
-  for (const x of raw as unknown[]) {
-    const o = x as { u?: unknown; s?: unknown; n?: unknown } | null;
-    const m: unknown[] | null = Array.isArray(x) ? x : o && typeof o === "object" ? [o.u, o.s, o.n] : null;
-    if (!m || !isText(m[0]) || !isInt(m[1]) || !isInt(m[2]) || m[1] < 0 || m[2] < 1) return null;
-    if (by.has(m[0])) return null;
-    by.set(m[0], [m[1], m[2]]);
-  }
-  return marksOf(by);
-}
-/** Marks as a store document holds them. */
-export const marksDoc = (m: Marks): { u: string; s: number; n: number }[] => m.map(([u, s, n]) => ({ u, s, n }));
 
 /** A cut's text taken apart again; null when its line isn't one. */
 export function readCut(text: string): { line: CutLine; encoding: string } | null {
@@ -246,22 +230,96 @@ export function readCut(text: string): { line: CutLine; encoding: string } | nul
   } catch {
     return null;
   }
-  const marks = parseMarks(raw?.marks);
-  if (!raw || raw.v !== 1 || !isText(raw.world) || !isText(raw.build) || !isInt(raw.t) || !marks || !Array.isArray(raw.companies)) return null;
+  if (!raw || raw.v !== 2 || !isText(raw.world) || !isText(raw.build) || !isInt(raw.t) || !isHash(raw.rh) || !Array.isArray(raw.companies)) return null;
   const companies: [string, number][] = [];
   for (const c of raw.companies as unknown[]) {
     if (!Array.isArray(c) || !isText(c[0]) || !isInt(c[1])) return null;
     companies.push([c[0], c[1]]);
   }
-  return { line: { v: 1, world: raw.world, build: raw.build, t: raw.t, marks, companies }, encoding: text.slice(nl + 1) };
+  return { line: { v: 2, world: raw.world, build: raw.build, t: raw.t, rh: raw.rh, companies }, encoding: text.slice(nl + 1) };
 }
 
-/** The marks of a page's applied records (uid to highest sequence number and count), in their one order. */
-export function marksOf(applied: ReadonlyMap<string, readonly [number, number]>): Marks {
-  return [...applied].map(([uid, m]): Marks[number] => [uid, m[0], m[1]]).sort((a, b) => (a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : 0));
+// --- The records a world has applied: their text, and its running hash ---
+
+const K256 = new Int32Array([
+  0x428a2f98, 0x71374491, 0xb5c0fbcf, 0xe9b5dba5, 0x3956c25b, 0x59f111f1, 0x923f82a4, 0xab1c5ed5, 0xd807aa98, 0x12835b01, 0x243185be, 0x550c7dc3, 0x72be5d74, 0x80deb1fe, 0x9bdc06a7, 0xc19bf174,
+  0xe49b69c1, 0xefbe4786, 0x0fc19dc6, 0x240ca1cc, 0x2de92c6f, 0x4a7484aa, 0x5cb0a9dc, 0x76f988da, 0x983e5152, 0xa831c66d, 0xb00327c8, 0xbf597fc7, 0xc6e00bf3, 0xd5a79147, 0x06ca6351, 0x14292967,
+  0x27b70a85, 0x2e1b2138, 0x4d2c6dfc, 0x53380d13, 0x650a7354, 0x766a0abb, 0x81c2c92e, 0x92722c85, 0xa2bfe8a1, 0xa81a664b, 0xc24b8b70, 0xc76c51a3, 0xd192e819, 0xd6990624, 0xf40e3585, 0x106aa070,
+  0x19a4c116, 0x1e376c08, 0x2748774c, 0x34b0bcb5, 0x391c0cb3, 0x4ed8aa4a, 0x5b9cca4f, 0x682e6ff3, 0x748f82ee, 0x78a5636f, 0x84c87814, 0x8cc70208, 0x90befffa, 0xa4506ceb, 0xbef9a3f7, 0xc67178f2,
+]);
+
+/**
+ * SHA-256 of a text, as 64 hex, computed here and now: the same value as sha256, without the wait. The replay takes the
+ * running hash of its records inside its loop, at each day boundary, where it can't wait for the browser's own. Whole-number
+ * arithmetic only, so every engine gives the same answer.
+ */
+export function hashNow(text: string): string {
+  const data = new TextEncoder().encode(text);
+  const n = data.length;
+  const total = ((n + 9 + 63) >> 6) << 6;
+  const buf = new Uint8Array(total);
+  buf.set(data);
+  buf[n] = 0x80;
+  const view = new DataView(buf.buffer);
+  view.setUint32(total - 8, Math.floor(n / 0x20000000));
+  view.setUint32(total - 4, (n << 3) >>> 0);
+  const h = new Int32Array([0x6a09e667, 0xbb67ae85, 0x3c6ef372, 0xa54ff53a, 0x510e527f, 0x9b05688c, 0x1f83d9ab, 0x5be0cd19]);
+  const w = new Int32Array(64);
+  for (let off = 0; off < total; off += 64) {
+    for (let i = 0; i < 16; i++) w[i] = view.getInt32(off + i * 4);
+    for (let i = 16; i < 64; i++) {
+      const x = w[i - 15]!;
+      const y = w[i - 2]!;
+      const s0 = ((x >>> 7) | (x << 25)) ^ ((x >>> 18) | (x << 14)) ^ (x >>> 3);
+      const s1 = ((y >>> 17) | (y << 15)) ^ ((y >>> 19) | (y << 13)) ^ (y >>> 10);
+      w[i] = (w[i - 16]! + s0 + w[i - 7]! + s1) | 0;
+    }
+    let a = h[0]!;
+    let b = h[1]!;
+    let c = h[2]!;
+    let d = h[3]!;
+    let e = h[4]!;
+    let f = h[5]!;
+    let g = h[6]!;
+    let k = h[7]!;
+    for (let i = 0; i < 64; i++) {
+      const s1 = ((e >>> 6) | (e << 26)) ^ ((e >>> 11) | (e << 21)) ^ ((e >>> 25) | (e << 7));
+      const t1 = (k + s1 + ((e & f) ^ (~e & g)) + K256[i]! + w[i]!) | 0;
+      const s0 = ((a >>> 2) | (a << 30)) ^ ((a >>> 13) | (a << 19)) ^ ((a >>> 22) | (a << 10));
+      const t2 = (s0 + ((a & b) ^ (a & c) ^ (b & c))) | 0;
+      k = g;
+      g = f;
+      f = e;
+      e = (d + t1) | 0;
+      d = c;
+      c = b;
+      b = a;
+      a = (t1 + t2) | 0;
+    }
+    h[0] = (h[0]! + a) | 0;
+    h[1] = (h[1]! + b) | 0;
+    h[2] = (h[2]! + c) | 0;
+    h[3] = (h[3]! + d) | 0;
+    h[4] = (h[4]! + e) | 0;
+    h[5] = (h[5]! + f) | 0;
+    h[6] = (h[6]! + g) | 0;
+    h[7] = (h[7]! + k) | 0;
+  }
+  return Array.from(h, (x) => (x >>> 0).toString(16).padStart(8, "0")).join("");
 }
-/** Marks as one text, to compare two pages' applied records by. */
-export const marksKey = (m: Marks): string => JSON.stringify(m);
+
+/** A record as one line of text: the player, then the record as live.ts parseActs shaped it. */
+export const recLine = (uid: string, r: unknown): string => JSON.stringify([uid, r]);
+
+/** The running hash before any record. */
+export const RH0 = "";
+
+/**
+ * The running hash of the records a world has applied, moved on by one game day: the hash before the day and the day's
+ * lines (recLine), in the order the world applied them (minute, player, number). Two worlds with the same running hash at a
+ * day boundary had applied the same records up to it, a refused order included.
+ */
+export const rollHash = (prev: string, lines: readonly string[]): string => hashNow(`${prev}\n${lines.join("\n")}`);
 
 /** `world/checkpoint`, one body: where the cut of a day is, and what its text must hash to. */
 export interface BodyRef {
@@ -296,10 +354,87 @@ export function parsePointer(raw: unknown): Pointer {
   return out;
 }
 
+// --- The archive: the records applied before a kept cut, in the store for good ---
+
 /**
- * `world/cpm-<day>`: the owner's page writes one when a day's cut has its confirmations, and it stays for good. It is the
- * trust itself (a page starts from a body only with this beside it) and the cut's marks, which every page keeps to from then
- * on (countsUnder), wherever its replay starts.
+ * Where the archive's documents are: one level below the world's own, so a read of the `world` collection (every page reads
+ * it whole, at its load and on each change) doesn't bring them. The store's rule for `world` covers the path.
+ */
+export const ARC_PATH = "world/arc/d";
+/** An archive's documents: the head at its first minute, and the further parts of one too large for a single document. */
+export const arcDocPath = (from: number, part = 0): string => `${ARC_PATH}/${from}${part ? `p${part}` : ""}`;
+/** The most characters of a packed archive in one document (the store takes 256 KiB a document). */
+export const ARC_PART_CHARS = 240_000;
+/** The most parts a trust document may name, and an archive's most bytes once unpacked (checked while it unpacks). */
+export const ARC_MAX_PARTS = 2048;
+export const ARC_MAX_BYTES = 256 * 1024 * 1024;
+
+/** An archive as its trust document names it. */
+export interface ArcRef {
+  /** The game minutes it covers: from `from` up to, not including, `to`. `from` is where the archive before it ended. */
+  from: number;
+  to: number;
+  /** The SHA-256 of its text: one line a record (recLine), in the order the world applied them. */
+  hash: string;
+  /** How many documents carry it, how many records it holds, and its size packed (characters). */
+  parts: number;
+  n: number;
+  bytes: number;
+}
+function parseArc(raw: unknown, t: number): ArcRef | null {
+  const a = raw as Partial<ArcRef> | undefined;
+  if (!a || typeof a !== "object" || !isInt(a.from) || a.from < 0 || a.from % 1440 !== 0 || a.from >= t || a.to !== t || !isHash(a.hash)) return null;
+  if (!isInt(a.parts) || a.parts < 1 || a.parts > ARC_MAX_PARTS || !isInt(a.n) || a.n < 0) return null;
+  return { from: a.from, to: t, hash: a.hash, parts: a.parts, n: a.n, bytes: Number(a.bytes) || 0 };
+}
+
+/**
+ * An archive's text as the documents that carry it, in the order they are written: the further parts, then the head. The
+ * text is packed as a body is (gzip, then base64) and cut into pieces of at most `partChars`; the head holds the first
+ * piece, so an archive that fits one document is one document, and one read.
+ */
+export async function arcDocs(world: string, from: number, to: number, text: string, n: number, partChars = ARC_PART_CHARS): Promise<{ ref: ArcRef; docs: [string, Record<string, unknown>][] }> {
+  const z = await gzip64(text);
+  const pieces: string[] = [];
+  for (let i = 0; i === 0 || i < z.length; i += partChars) pieces.push(z.slice(i, i + partChars));
+  const ref: ArcRef = { from, to, hash: await sha256(text), parts: pieces.length, n, bytes: z.length };
+  const docs: [string, Record<string, unknown>][] = [];
+  for (let i = pieces.length - 1; i >= 1; i--) docs.push([arcDocPath(from, i), { v: 1, world, from, i, z: pieces[i]! }]);
+  docs.push([arcDocPath(from), { v: 1, world, from, to, n, hash: ref.hash, parts: ref.parts, bytes: ref.bytes, z: pieces[0]! }]);
+  return { ref, docs };
+}
+
+/** The part of the store an archive is read through. */
+export interface ArcReader {
+  doc(path: string): { get(): Promise<{ exists: boolean; data(): Record<string, unknown> | undefined; metadata?: { fromCache?: boolean } }> };
+}
+
+/**
+ * An archive's text from the store, six documents at a time, checked against `ref` before it is returned: it unpacks within
+ * its size cap and hashes to the trust document's hash, whole. Null: the store doesn't hold that text (a document missing,
+ * or another text's). It throws when the store's answer was a saved copy: that says nothing either way.
+ */
+export async function readArc(db: ArcReader, ref: ArcRef): Promise<string | null> {
+  let z = "";
+  for (let i = 0; i < ref.parts; i += 6) {
+    const got = await Promise.all(Array.from({ length: Math.min(6, ref.parts - i) }, (_, j) => db.doc(arcDocPath(ref.from, i + j)).get()));
+    for (const snap of got) {
+      if (snap.metadata?.fromCache === true) throw new Error(`the store's answer for the archive at minute ${ref.from} was a saved copy`);
+      const piece = snap.exists ? snap.data()?.z : undefined;
+      if (typeof piece !== "string") return null;
+      z += piece;
+    }
+  }
+  const text = await gunzip64(z, ARC_MAX_BYTES);
+  return text !== null && (await sha256(text)) === ref.hash ? text : null;
+}
+
+/**
+ * `world/cpm-<day>`: the owner's page writes one when a day's cut has its confirmations, and it stays for good. It is two
+ * things. The trust in the cut: a page starts from a body only with this beside it, and compares its own hash of the day
+ * with this one. And the records' freeze: it names the archive of the records applied since the trust document before it,
+ * and from then on those minutes' records are the archive's on every page. A cut can be withdrawn (the alarm's `barred`);
+ * the archive its trust document names never is.
  */
 export interface TrustDoc {
   world: string;
@@ -310,15 +445,34 @@ export interface TrustDoc {
   /** The players whose own hashes matched (not the owner's). */
   by: string[];
   at: number;
-  marks: Marks;
+  /** The running hash of every record applied before `t` (the cut's line carries the same). */
+  rh: string;
+  arc: ArcRef;
 }
 export function parseTrust(raw: unknown): TrustDoc | null {
   const d = raw as (Partial<TrustDoc> & { v?: unknown }) | undefined;
-  if (!d || d.v !== 1 || !isText(d.world) || !isText(d.build) || !isInt(d.day) || !isInt(d.t) || d.t !== d.day * 1440 || !isHash(d.hash)) return null;
-  const marks = parseMarks(d.marks);
-  if (!marks) return null;
+  if (!d || d.v !== 2 || !isText(d.world) || !isText(d.build) || !isInt(d.day) || d.day < 1 || !isInt(d.t) || d.t !== d.day * 1440 || !isHash(d.hash) || !isHash(d.rh)) return null;
+  const arc = parseArc(d.arc, d.t);
+  if (!arc) return null;
   const by = Array.isArray(d.by) ? (d.by as unknown[]).filter((u): u is string => isText(u)) : [];
-  return { world: d.world, build: d.build, day: d.day, t: d.t, hash: d.hash, by, at: Number(d.at) || 0, marks };
+  return { world: d.world, build: d.build, day: d.day, t: d.t, hash: d.hash, by, at: Number(d.at) || 0, rh: d.rh, arc };
+}
+
+/**
+ * A world's trust documents in order, oldest first, as far as their archives join: the first from minute 0, each next from
+ * the minute the one before ended. So every minute before the last one's is covered by exactly one archive, a day whose own
+ * cut was never kept included (the next kept cut's archive begins where the last one ended, however many days back). A
+ * document that doesn't join, and any after it, is left out.
+ */
+export function trustChain(trust: readonly TrustDoc[], world: string): TrustDoc[] {
+  const out: TrustDoc[] = [];
+  let at = 0;
+  for (const d of trust.filter((x) => x.world === world).sort((x, y) => x.t - y.t)) {
+    if (d.arc.from !== at) break;
+    out.push(d);
+    at = d.t;
+  }
+  return out;
 }
 
 /**
@@ -326,7 +480,8 @@ export function parseTrust(raw: unknown): TrustDoc | null {
  *  - open: a player whose own hash for a body's day differs from the body's. While one stands, no page starts from that
  *    body (pages take the one before, or their own cut, or the seed).
  *  - stood: the owner's page computed that day again from the cut before and got its own hash again.
- *  - barred: a cut withdrawn for good, by day and hash: its trust document and its body are never used again.
+ *  - barred: a cut withdrawn for good, by day and hash: its body is never started from and its hash never compared
+ *    again. A cut is withdrawn together with every cut kept after it. The records its trust document froze stay frozen.
  *  - ignored: a player's reports for a day that no longer count (shown wrong by the node replay; the owner's decision).
  */
 export interface Alarm {
@@ -369,42 +524,19 @@ export function parseDays(raw: unknown): DayReport | null {
   return { world: d.world, build: d.build, days };
 }
 
-/** A cut pages keep to: a trust document's, its marks ready to look up. */
+/** A cut pages keep to: a trust document's whose cut stands. */
 export interface KeptCut {
   day: number;
   t: number;
   hash: string;
   build: string;
   by: string[];
-  /** Per player, the highest sequence number the cut had applied. */
-  marks: Map<string, number>;
-  /** The marks whole, as one text (marksKey). */
-  marksKey: string;
+  /** The running hash of the records applied before it. */
+  rh: string;
 }
-/** A world's kept cuts from its trust documents, oldest first: this world's only, and none the alarm bars. */
-export function keptCuts(trust: readonly TrustDoc[], alarm: Alarm, world: string): KeptCut[] {
-  return trust
-    .filter((d) => d.world === world && !alarm.barred.some((b) => b.day === d.day && b.hash === d.hash))
-    .map((d) => ({ day: d.day, t: d.t, hash: d.hash, build: d.build, by: d.by, marks: new Map(d.marks.map((m) => [m[0], m[1]])), marksKey: marksKey(d.marks) }))
-    .sort((x, y) => x.t - y.t);
-}
-
-/**
- * The late-order rule, the same on every page (the red team's findings 6 and 7): a record stamped before a kept cut is
- * part of history only if that cut had applied it, by its sequence number against the cut's mark for its player. Which cut:
- * the first kept one after the record's minute, so a record an earlier cut left out stays out however far the player's
- * mark moves on. A record stamped at or after the newest kept cut always counts.
- */
-export function countsUnder(kept: readonly KeptCut[], uid: string, s: number, at: number): boolean {
-  let lo = 0;
-  let hi = kept.length;
-  while (lo < hi) {
-    const mid = (lo + hi) >> 1;
-    if (kept[mid]!.t > at) hi = mid;
-    else lo = mid + 1;
-  }
-  const cut = kept[lo];
-  return !cut || s <= (cut.marks.get(uid) ?? -1);
+/** The cuts that stand, oldest first: those of a world's trust documents (trustChain) that the alarm doesn't bar. */
+export function keptCuts(chain: readonly TrustDoc[], alarm: Alarm): KeptCut[] {
+  return chain.filter((d) => !alarm.barred.some((b) => b.day === d.day && b.hash === d.hash)).map((d) => ({ day: d.day, t: d.t, hash: d.hash, build: d.build, by: d.by, rh: d.rh }));
 }
 
 /**
@@ -423,22 +555,17 @@ export function adoptable(b: BodyRef, kept: readonly KeptCut[], alarm: Alarm, wo
 export const BODY_MAX_BYTES = 128 * 1024 * 1024;
 
 const B64 = 0x8000;
-/**
- * A cut's text packed for the body store: gzipped (about 6:1), then base64 inside JSON, since the artifact's assets take
- * no gzip type and a text type must be valid UTF-8 (the red team's finding 11).
- */
-export async function packBody(text: string): Promise<string> {
+/** A text gzipped (about 6:1), then base64: what a store's text field or a text file can carry. */
+async function gzip64(text: string): Promise<string> {
   const bytes = new Uint8Array(await new Response(new Blob([text]).stream().pipeThrough(new CompressionStream("gzip"))).arrayBuffer());
   let s = "";
   for (let i = 0; i < bytes.length; i += B64) s += String.fromCharCode(...bytes.subarray(i, i + B64));
-  return JSON.stringify({ v: 1, gz: btoa(s) });
+  return btoa(s);
 }
-/** The text back, or null: not a packed body, or over `maxBytes` unpacked (it stops there, never holding more). */
-export async function unpackBody(packed: string, maxBytes = BODY_MAX_BYTES): Promise<string | null> {
+/** The text back, or null: not gzip in base64, or over `maxBytes` unpacked (it stops there, never holding more). */
+async function gunzip64(packed: string, maxBytes: number): Promise<string | null> {
   try {
-    const doc = JSON.parse(packed) as { v?: unknown; gz?: unknown };
-    if (!doc || doc.v !== 1 || typeof doc.gz !== "string") return null;
-    const bin = atob(doc.gz);
+    const bin = atob(packed);
     const gz = new Uint8Array(bin.length);
     for (let i = 0; i < bin.length; i++) gz[i] = bin.charCodeAt(i);
     const reader = new Blob([gz]).stream().pipeThrough(new DecompressionStream("gzip")).getReader();
@@ -455,6 +582,24 @@ export async function unpackBody(packed: string, maxBytes = BODY_MAX_BYTES): Pro
       parts.push(value);
     }
     return await new Blob(parts as Uint8Array<ArrayBuffer>[]).text();
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * A cut's text packed for the body store: gzipped, then base64 inside JSON, since the artifact's assets take no gzip type
+ * and a text type must be valid UTF-8 (the red team's finding 11).
+ */
+export async function packBody(text: string): Promise<string> {
+  return JSON.stringify({ v: 1, gz: await gzip64(text) });
+}
+/** The text back, or null: not a packed body, or over `maxBytes` unpacked. */
+export async function unpackBody(packed: string, maxBytes = BODY_MAX_BYTES): Promise<string | null> {
+  try {
+    const doc = JSON.parse(packed) as { v?: unknown; gz?: unknown };
+    if (!doc || doc.v !== 1 || typeof doc.gz !== "string") return null;
+    return await gunzip64(doc.gz, maxBytes);
   } catch {
     return null;
   }

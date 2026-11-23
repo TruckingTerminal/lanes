@@ -2,8 +2,8 @@ import { ruleBotHook } from "@lanes/agents";
 import { applyAction, decodeWorld, encodeWorld, stepHour, type Action, type ActionResult, type Company, type GameEvent, type World } from "@lanes/engine";
 import { joinCompany, newWorld, RULESET } from "./game.js";
 import { booksAfterHour } from "./books.js";
-import { adoptable, countsUnder, cutExtras, cutText, CUTS_KEPT, keptCuts, marksKey, marksOf, noAlarm, parseAlarm, parsePointer, parseTrust, readCut, REPLAY_BUILD, restoreCutExtras, sha256, unpackBody } from "./cuts.js";
-import type { Alarm, BodyRef, BodyStore, CutExtras, CutHead, CutStore, KeptCut, Marks, Pointer, TrustDoc } from "./cuts.js";
+import { adoptable, cutExtras, cutText, CUTS_KEPT, keptCuts, noAlarm, parseAlarm, parsePointer, parseTrust, readArc, readCut, recLine, REPLAY_BUILD, restoreCutExtras, RH0, rollHash, sha256, trustChain, unpackBody } from "./cuts.js";
+import type { Alarm, BodyRef, BodyStore, CutExtras, CutHead, CutStore, KeptCut, Pointer, TrustDoc } from "./cuts.js";
 import { PENDING } from "./copy-pending.js";
 
 /**
@@ -25,7 +25,8 @@ import { PENDING } from "./copy-pending.js";
  *
  * With the shared checkpoint on (step 3; cuts.ts, keeper.ts), and never read or written with it off:
  *   world/checkpoint           where the day cuts' bodies are (owner only)
- *   world/cpm-<day>            a cut every page keeps to: its hash, who confirmed it, its marks (owner only; kept for good)
+ *   world/cpm-<day>            a cut every page keeps to: its hash, who confirmed it, the archive it names (owner only; kept for good)
+ *   world/arc/d/<minute>       the archive: the records applied from that minute up to a kept cut (owner only; kept for good)
  *   world/alarm                reports against a body, and cuts withdrawn (owner only)
  *   players/<uid>/x/days       that player's page's own hashes of the last few day boundaries (that player only)
  */
@@ -206,8 +207,8 @@ export interface OwnCut {
   t: number;
   /** The cut's hash (cuts.ts cutText); null until the text is hashed. */
   hash: string | null;
-  /** The records it had applied, as marks in one text (cuts.ts marksKey). */
-  marks: string;
+  /** The running hash of the records it had applied (cuts.ts rollHash). */
+  rh: string;
   /** Where the replay that computed it started: "seed", "local:<minute>" or "cp:<day>". */
   from: string;
   /** The cut's text, on a page that keeps it (SharedOptions.keepText). */
@@ -220,8 +221,8 @@ interface Base {
   t: number;
   w: World;
   companies: [string, number][];
-  /** Step 3: the records applied before it, as marks; the trusted body its world came from; its own hash, when known. */
-  marks: Marks | null;
+  /** Step 3: the running hash of the records applied before it; the trusted body its world came from; its own hash, when known. */
+  rh: string;
   since: { t: number; hash: string } | null;
   hash: string | null;
   /** A local cut's encoding (to make the cut's text again). */
@@ -333,19 +334,35 @@ export class LiveWorld {
 
   // --- Step 3: the shared checkpoint (cuts.ts). All of it is idle when `shared` is null. ---
   private readonly shared: SharedOptions | null;
-  /** The store's world documents as last read whole: where the bodies are, the alarm, the cuts pages keep to (oldest first). */
+  /**
+   * The store's world documents as last read whole: where the bodies are, the alarm, the trust documents in order (cuts.ts
+   * trustChain), and the cuts of them that stand (oldest first).
+   */
   private pointer: Pointer = { bodies: [], gone: [] };
   private alarm: Alarm = noAlarm();
+  private trust: TrustDoc[] = [];
   private kept: KeptCut[] = [];
-  /** The trusted body this page's world came from: the records before its minute are settled, never read again. */
-  private since: { t: number; hash: string } | null = null;
-  private get settled(): number {
-    return this.since ? this.since.t : -Infinity;
+  /**
+   * The minute history is frozen to: the newest trust document's. A record stamped before it is part of history only if
+   * the archive holds it; the players' documents are read for the records stamped at or after it.
+   */
+  private get frozen(): number {
+    const top = this.trust[this.trust.length - 1];
+    return top ? top.t : -Infinity;
   }
-  /** Where the last replay started: its minute, and the records applied before it as marks. */
-  private base: { t: number; marks: Marks } = { t: -Infinity, marks: [] };
-  /** Per player, the records this world has applied: the highest sequence number, and how many. */
-  private applied = new Map<string, [number, number]>();
+  /** The archives this page has read and checked against their trust documents, by first minute. */
+  private arcs = new Map<number, { hash: string; recs: Entry[] }>();
+  /** The trusted body this page's world came from, if it came from one. */
+  private since: { t: number; hash: string } | null = null;
+  /** Where the last replay started: its minute, and the running hash of the records applied before it. */
+  private base: { t: number; rh: string } = { t: -Infinity, rh: RH0 };
+  /**
+   * The running hash of the records this world has applied (cuts.ts rollHash): its value at the last day boundary, the
+   * lines of the records applied since, and its value at each boundary this replay passed (and at its start).
+   */
+  private rh = RH0;
+  private dayLines: string[] = [];
+  private rhAt = new Map<number, string>();
   /** The day boundaries this page computed itself, by day. */
   private ownCuts = new Map<number, OwnCut>();
   /** Where the replay in force started, as own cuts say it. */
@@ -359,10 +376,10 @@ export class LiveWorld {
   /** The next replay starts before this minute (recompute), and hashes every boundary from it. */
   private rebaseBefore = Infinity;
   private recapFrom = Infinity;
-  /** The orders this page sent, and the ones it has said were too late (by sequence number). */
+  /** The orders this page sent that it hasn't yet placed against the archive (by sequence number). */
   private sent = new Set<number>();
-  private lateTold = new Set<number>();
   private unsubWorld: (() => void) | null = null;
+  private closed = false;
   /** The rebuild pending came from a change in the kept cuts, not from an order that arrived late. */
   quietRebuild = false;
   /** One of this page's own orders reached the store after a kept cut had passed its minute: it is never carried out. */
@@ -469,6 +486,8 @@ export class LiveWorld {
       }
       // The screen's read of the hour, apart from the engine's try: a page's own error never marks the world broken.
       booksAfterHour(this.w);
+      // Step 3: at every day boundary the running hash of the records moves on by the day's.
+      if (this.shared && this.w.t % (24 * 60) === 0) this.closeDay();
       // Step 2a: a recent day boundary, before any order stamped at its minute applies, becomes a local cut (cuts.ts).
       // Step 3: the same boundary, hashed as every page hashes it (the owner's recompute and the node replay take older ones too).
       if ((this.cuts || this.shared) && this.w.t % (24 * 60) === 0 && !this.needRebuild && (this.w.t >= now - CUT_WINDOW_MIN || this.w.t >= this.recapFrom || this.shared?.everyDay === true)) this.captureCut();
@@ -510,15 +529,24 @@ export class LiveWorld {
     if (this.shared) this.rebased(cut);
     // The records the cut had applied are behind it (the last of them, for the late check); the rest are to apply.
     const from = cut ? cut.t : -Infinity;
+    // Step 3: the archives of the frozen minutes this replay computes, read before a record is applied.
+    if (this.shared && !(await this.takeArcs(from))) {
+      this.replaying = false;
+      onProgress?.(1);
+      return;
+    }
     const all: Entry[] = [];
-    for (const [uid, log] of this.logs) for (const r of log.values()) all.push({ uid, r });
+    for (const [uid, log] of this.logs) {
+      for (const r of log.values()) {
+        // Step 3: a record stamped before the frozen minute is never taken from a player's document.
+        if (this.shared && this.inert(uid, r)) this.late(uid, r);
+        else all.push({ uid, r });
+      }
+    }
+    // Those minutes' records are the archive's.
+    if (this.shared) for (const e of this.archived(from)) all.push(e);
     all.sort(before);
     for (const e of all) {
-      // Step 3, the late-order rule: a settled record, or one a kept cut left out, is never applied.
-      if (this.shared && this.inert(e.uid, e.r)) {
-        this.late(e.uid, e.r);
-        continue;
-      }
       if (e.r.at < from) this.last = e;
       else this.queue.push(e);
     }
@@ -566,6 +594,7 @@ export class LiveWorld {
   }
 
   close(): void {
+    this.closed = true;
     this.unsub?.();
     this.unsubWorld?.();
     if (this.leaseTimer) clearInterval(this.leaseTimer);
@@ -585,20 +614,20 @@ export class LiveWorld {
   }
 
   /**
-   * Every record stamped before `t`, in the order the world applies them, as one text: what a cut at `t` had applied. With
-   * the shared checkpoint on, only the records that count under the kept cuts, and only those since `from` (the trusted body
-   * the cut's world came from: what is before it is settled, and may be rewritten in the store without a page caring).
+   * Every record of the players' documents stamped before `t`, in the order the world applies them, as one text: what a cut
+   * at `t` had applied. With the shared checkpoint on, only those since `from`, the minute history is frozen to (what is
+   * before it is the archive's, and may be rewritten in a player's document without a page caring).
    */
   private recordsBefore(t: number, from = -Infinity): string {
     const out: Entry[] = [];
-    for (const [uid, log] of this.logs) for (const r of log.values()) if (r.at < t && r.at >= from && (!this.shared || countsUnder(this.kept, uid, r.s, r.at))) out.push({ uid, r });
+    for (const [uid, log] of this.logs) for (const r of log.values()) if (r.at < t && r.at >= from) out.push({ uid, r });
     out.sort(before);
     return out.map((e) => `${e.uid}\u0000${JSON.stringify(e.r)}`).join("\n");
   }
 
   /**
    * The world now, at a day boundary: saved as a local cut with the digest of what it applied, the oldest pruned (step 2a);
-   * and hashed as every page hashes it, with the records applied as marks, for this page to report (step 3).
+   * and hashed as every page hashes it, with the running hash of the records applied, for this page to report (step 3).
    */
   private captureCut(): void {
     const t = this.w.t;
@@ -611,12 +640,11 @@ export class LiveWorld {
     }
     const companies = [...this.companies];
     const world = this.worldKey();
-    let marks: Marks | null = null;
+    const rh = this.rh;
     let hashed: Promise<string | null> = Promise.resolve(null);
     if (this.shared) {
-      marks = marksOf(this.applied);
-      const full = cutText({ world, build: REPLAY_BUILD, t, marks, companies }, text);
-      const own: OwnCut = { day: t / (24 * 60), t, hash: null, marks: marksKey(marks), from: this.from, text: this.shared.keepText ? full : null };
+      const full = cutText({ world, build: REPLAY_BUILD, t, rh, companies }, text);
+      const own: OwnCut = { day: t / (24 * 60), t, hash: null, rh, from: this.from, text: this.shared.keepText ? full : null };
       this.noteOwn(own);
       hashed = sha256(full).then(
         (h) => {
@@ -635,15 +663,18 @@ export class LiveWorld {
     }
     if (!this.cuts) return;
     const since = this.since;
-    const list = this.recordsBefore(t, this.shared ? this.settled : -Infinity);
+    const top = this.trust[this.trust.length - 1];
+    const list = this.recordsBefore(t, top ? top.t : -Infinity);
+    const shared = this.shared !== null;
     const cuts = this.cuts;
     void (async () => {
       const digest = await sha256(list);
       const hash = await hashed;
       const head: CutHead = { key: `${world}|${REPLAY_BUILD}|${t}`, world, build: REPLAY_BUILD, t, digest };
-      if (marks) head.marks = marks;
+      if (shared) head.rh = rh;
       if (hash) head.hash = hash;
       if (since) head.since = since;
+      if (top) head.under = { t: top.t, rh: top.rh };
       await cuts.put({ ...head, text, companies });
       const mine = (await cuts.list(world)).sort((a, b) => b.t - a.t);
       for (const old of mine.slice(CUTS_KEPT)) await cuts.delete(old.key);
@@ -683,31 +714,48 @@ export class LiveWorld {
     return null;
   }
 
-  /** This browser's own cut, if its applied records are still exactly the store's (and, step 3, it isn't of a world this page left). */
+  /**
+   * This browser's own cut, if its applied records are still exactly the ones a replay would apply. With the shared
+   * checkpoint on, the records before the frozen minute are the archive's, so the cut is placed against the trust
+   * documents by its running hash, and only the players' records since the frozen minute are compared (its digest).
+   */
   private async fromLocal(h: CutHead): Promise<Base | null> {
     if (!this.cuts) return null;
-    let since = h.since ?? null;
+    const since = this.shared ? (h.since ?? null) : null;
+    let from = -Infinity;
+    // A trust document of the cut's own minute: with one running hash, the cut's records are the archive's, whole.
+    let whole = false;
     if (this.shared) {
       // A cut that disagrees with the kept one of its minute, one from a body no longer kept, or one this page made
       // after it parted from a kept day: passed over.
-      const at = this.kept.find((k) => k.t === h.t && k.build === REPLAY_BUILD);
-      if (at && h.hash && h.hash !== at.hash) return null;
-      if (since && !this.kept.some((k) => k.t === since!.t && k.hash === since!.hash)) return null;
-      if (h.t >= this.offAt && !(since && since.t >= this.offAt) && !(at && h.hash === at.hash)) return null;
-    } else since = null;
-    const from = since ? since.t : -Infinity;
-    const list = this.recordsBefore(h.t, from);
-    if ((await sha256(list)) !== h.digest) return null; // a late, rewritten or erased record before it
+      const keptAt = this.kept.find((k) => k.t === h.t && k.build === REPLAY_BUILD);
+      if (keptAt && h.hash && h.hash !== keptAt.hash) return null;
+      if (since && !this.kept.some((k) => k.t === since.t && k.hash === since.hash)) return null;
+      if (h.t >= this.offAt && !(since && since.t >= this.offAt) && !(keptAt && h.hash === keptAt.hash)) return null;
+      const at = this.trust.find((d) => d.t === h.t);
+      const top = this.trust[this.trust.length - 1];
+      if (at) {
+        if (h.rh !== at.rh) return null;
+        whole = true;
+      } else if (top) {
+        // After the frozen minute: made over the same frozen records. Inside a later archive's minutes: it can't be
+        // placed without reading that archive, and is passed over.
+        if (top.t > h.t || h.rh === undefined || !h.under || h.under.t !== top.t || h.under.rh !== top.rh) return null;
+        from = top.t;
+      } else if (h.under) return null;
+    }
+    const list = whole ? "" : this.recordsBefore(h.t, from);
+    if (!whole && (await sha256(list)) !== h.digest) return null; // a late, rewritten or erased record before it
     const cut = await this.cuts.get(h.key).catch(() => null);
     if (!cut || cut.digest !== h.digest) return null;
-    if (this.recordsBefore(h.t, from) !== list) return null; // a record came in while the cut was read
+    if (!whole && this.recordsBefore(h.t, from) !== list) return null; // a record came in while the cut was read
     try {
       const fresh = newWorld(this.meta.seed);
       const { w, extras } = decodeWorld(cut.text, { cfg: fresh.cfg, net: fresh.net, feeds: fresh.feeds });
       restoreCutExtras(w, extras as CutExtras);
-      // Byte for byte the kept cut of its minute: everything before it is settled, as from that cut's body.
-      if (this.shared && h.hash && this.kept.some((k) => k.t === h.t && k.hash === h.hash && k.build === REPLAY_BUILD)) since = { t: h.t, hash: h.hash };
-      return { kind: "local", t: h.t, w: this.attach(w), companies: cut.companies, marks: h.marks ?? null, since, hash: h.hash ?? null, text: cut.text };
+      // A cut from before the shared checkpoint was on carries no running hash: it is that of the records its digest covered.
+      const rh = this.shared ? (h.rh ?? this.rollLogs(RH0, 0, h.t).rh) : RH0;
+      return { kind: "local", t: h.t, w: this.attach(w), companies: cut.companies, rh, since, hash: h.hash ?? null, text: cut.text };
     } catch (e) {
       console.error(e);
       return null;
@@ -719,7 +767,7 @@ export class LiveWorld {
   /**
    * A shared body a page may start from (cuts.ts adoptable): read, unpacked within its size cap, and checked before
    * anything is decoded: its text hashes to the pointer's hash, whole, and its line names this world, this replay build,
-   * the pointer's minute and the kept cut's marks. One that fails is never tried again; one that can't be read is.
+   * the pointer's minute and the kept cut's running hash. One that fails is never tried again; one that can't be read is.
    */
   private async fromBody(b: BodyRef, kept: KeptCut): Promise<Base | null> {
     const packed = await this.shared!.bodies.get(b.asset).catch(() => null);
@@ -733,33 +781,32 @@ export class LiveWorld {
     if (text === null) return bad("it doesn't unpack");
     if ((await sha256(text)) !== b.hash) return bad("its hash isn't its pointer's");
     const cut = readCut(text);
-    if (!cut || cut.line.world !== this.worldKey() || cut.line.build !== REPLAY_BUILD || cut.line.t !== b.t || marksKey(cut.line.marks) !== kept.marksKey) return bad("its first line isn't its pointer's");
+    if (!cut || cut.line.world !== this.worldKey() || cut.line.build !== REPLAY_BUILD || cut.line.t !== b.t || cut.line.rh !== kept.rh) return bad("its first line isn't its pointer's");
     try {
       const fresh = newWorld(this.meta.seed);
       const { w, extras } = decodeWorld(cut.encoding, { cfg: fresh.cfg, net: fresh.net, feeds: fresh.feeds });
       restoreCutExtras(w, extras as CutExtras);
-      return { kind: "shared", t: b.t, w: this.attach(w), companies: cut.line.companies, marks: cut.line.marks, since: { t: b.t, hash: b.hash }, hash: b.hash, text: null };
+      return { kind: "shared", t: b.t, w: this.attach(w), companies: cut.line.companies, rh: cut.line.rh, since: { t: b.t, hash: b.hash }, hash: b.hash, text: null };
     } catch (e) {
       return bad(String((e as { message?: string })?.message ?? e));
     }
   }
 
-  /** A replay's start is chosen (null: the seed): what's settled, the marks so far, and which own cuts still stand. */
+  /** A replay's start is chosen (null: the seed): the body it comes from, the running hash so far, and which own cuts still stand. */
   private rebased(cut: Base | null): void {
     this.since = cut ? cut.since : null;
     const t = cut ? cut.t : -Infinity;
-    // A local cut from before the switch-on carries no marks: they are those of the records before it, which its digest
-    // covered (counted from the seed, so from an empty start).
-    this.base = { t: -Infinity, marks: [] };
-    if (cut) this.base = { t, marks: cut.marks ?? this.marksBefore(t) };
-    this.applied = new Map(this.base.marks.map((m) => [m[0], [m[1], m[2]]]));
+    this.base = { t, rh: cut ? cut.rh : RH0 };
+    this.rh = this.base.rh;
+    this.dayLines = [];
+    this.rhAt = new Map(cut ? [[t, this.base.rh]] : []);
     this.from = !cut ? "seed" : cut.kind === "shared" ? `cp:${cut.t / (24 * 60)}` : `local:${cut.t}`;
     // The days after the start are computed again on the way (the recent ones); the days before it stand as they were.
-    for (const [day, c] of [...this.ownCuts]) if (c.t > t || (c.t === t && c.marks !== marksKey(this.base.marks))) this.ownCuts.delete(day);
+    for (const [day, c] of [...this.ownCuts]) if (c.t > t || (c.t === t && c.rh !== this.base.rh)) this.ownCuts.delete(day);
     // Started from this browser's own cut: that day is its own computation still, to report (and, the owner's, to upload).
-    if (cut?.kind === "local" && cut.hash && cut.marks && !this.ownCuts.has(t / (24 * 60))) {
-      const full = this.shared!.keepText && cut.text !== null ? cutText({ world: this.worldKey(), build: REPLAY_BUILD, t, marks: cut.marks, companies: cut.companies }, cut.text) : null;
-      this.noteOwn({ day: t / (24 * 60), t, hash: cut.hash, marks: marksKey(cut.marks), from: this.from, text: full });
+    if (cut?.kind === "local" && cut.hash && !this.ownCuts.has(t / (24 * 60))) {
+      const full = this.shared!.keepText && cut.text !== null ? cutText({ world: this.worldKey(), build: REPLAY_BUILD, t, rh: cut.rh, companies: cut.companies }, cut.text) : null;
+      this.noteOwn({ day: t / (24 * 60), t, hash: cut.hash, rh: cut.rh, from: this.from, text: full });
     }
   }
 
@@ -774,50 +821,165 @@ export class LiveWorld {
     }
   }
 
-  /**
-   * The late-order rule on this page (cuts.ts countsUnder; the red team's findings 6 and 7): a record is inert when it is
-   * stamped before the trusted body this page's world came from (it is in that body, or it was left out for good), or when
-   * a kept cut after its minute hadn't applied it. An inert record is never applied and never makes this page replay.
-   */
-  private inert(uid: string, r: ActRecord): boolean {
-    return r.at < this.settled || !countsUnder(this.kept, uid, r.s, r.at);
+  /** A day boundary: the running hash moves on by the lines of the records applied since the last one. */
+  private closeDay(): void {
+    this.rh = rollHash(this.rh, this.dayLines);
+    this.dayLines = [];
+    this.rhAt.set(this.w.t, this.rh);
   }
 
-  /** One of this page's own orders, sent from here, that a kept cut left out: said once (finding 5). */
-  private late(uid: string, r: ActRecord): void {
-    if (uid !== this.uid || !this.sent.has(r.s) || this.lateTold.has(r.s) || countsUnder(this.kept, uid, r.s, r.at)) return;
-    this.lateTold.add(r.s);
-    try {
-      this.onLate?.(r);
-    } catch (e) {
-      console.error(e);
+  /**
+   * The players' records stamped from minute `from` up to day boundary `to`, as lines in the order the world applies
+   * them, and their running hash at `to`, continued from `rh` at `from`.
+   */
+  private rollLogs(rh: string, from: number, to: number): { rh: string; lines: string[] } {
+    const es: Entry[] = [];
+    for (const [uid, log] of this.logs) for (const r of log.values()) if (r.at >= from && r.at < to) es.push({ uid, r });
+    es.sort(before);
+    const lines = es.map((e) => recLine(e.uid, e.r));
+    let i = 0;
+    for (let end = from + 24 * 60; end <= to; end += 24 * 60) {
+      const day: string[] = [];
+      while (i < es.length && es[i]!.r.at < end) day.push(lines[i++]!);
+      rh = rollHash(rh, day);
     }
+    return { rh, lines };
   }
 
   /**
-   * The marks of the records this world has applied before `t` (a minute at or after the replay's start), under `kept`:
-   * the start's marks and every record since that counts. With no replay pending, what `applied` held at `t`.
+   * History before the frozen minute is the archive's (the red team's findings 6 and 7, and the archive's rule 4): a
+   * record of a player's document stamped before it is inert. It is never applied from there and never makes this page
+   * replay, whether the archive holds it (then the world has it from the archive, or from a cut made over the archive) or
+   * not (then it came too late, for good).
    */
-  private marksBefore(t: number, kept: readonly KeptCut[] = this.kept): Marks {
-    const m = new Map<string, [number, number]>(this.base.marks.map((x) => [x[0], [x[1], x[2]]]));
-    for (const [uid, log] of this.logs) {
-      for (const r of log.values()) {
-        if (r.at < this.base.t || r.at >= t || r.at < this.settled || !countsUnder(kept, uid, r.s, r.at)) continue;
-        const e = m.get(uid);
-        if (!e) m.set(uid, [r.s, 1]);
-        else {
-          if (r.s > e[0]) e[0] = r.s;
-          e[1]++;
-        }
+  private inert(_uid: string, r: ActRecord): boolean {
+    return r.at < this.frozen;
+  }
+
+  /**
+   * One of this page's own orders, sent from here and stamped before the frozen minute: looked up in the archive of its
+   * minute, once, and said when the archive doesn't hold it (finding 5).
+   */
+  private late(uid: string, r: ActRecord): void {
+    if (uid !== this.uid || !this.sent.has(r.s)) return;
+    const d = this.trust.find((x) => r.at < x.t);
+    if (!d) return;
+    this.sent.delete(r.s);
+    const text = JSON.stringify(r);
+    void this.arcRecs(d).then((got) => {
+      if (typeof got === "string" || got.some((e) => e.uid === uid && e.r.s === r.s && JSON.stringify(e.r) === text)) return;
+      try {
+        this.onLate?.(r);
+      } catch (e) {
+        console.error(e);
+      }
+    });
+  }
+
+  /** The trust document of a minute, if there is one. */
+  trustAt(t: number): TrustDoc | null {
+    return this.trust.find((d) => d.t === t) ?? null;
+  }
+
+  /**
+   * A trust document's archive as records, read once and kept: its text checked against the document's hash (cuts.ts
+   * readArc), every line a record of its minutes as parseActs shapes one, in the order the world applies them and none
+   * twice, and the lines' running hash, continued from the trust document before, the document's own. A read that fails is
+   * tried once more after a moment. Otherwise why not, as a text.
+   */
+  private async arcRecs(d: TrustDoc): Promise<Entry[] | string> {
+    const had = this.arcs.get(d.arc.from);
+    if (had && had.hash === d.arc.hash) return had.recs;
+    const span = `the archive of minutes ${d.arc.from} to ${d.t}`;
+    let text: string | null = null;
+    for (let tries = 0; ; tries++) {
+      try {
+        text = await readArc(this.db, d.arc);
+        break;
+      } catch {
+        if (tries >= 1 || this.closed) return `${span} couldn't be read`;
+        await new Promise((r) => setTimeout(r, 1500));
       }
     }
-    return marksOf(m);
+    if (text === null) return `${span} isn't in the store as its trust document names it`;
+    const before0 = this.trust.find((x) => x.t === d.arc.from);
+    if (d.arc.from !== 0 && !before0) return `${span} no longer joins the ones before it`;
+    const lines = text === "" ? [] : text.split("\n");
+    const bad = `${span} isn't a list of that span's records`;
+    if (lines.length !== d.arc.n) return bad;
+    const recs: Entry[] = [];
+    let rh = before0 ? before0.rh : RH0;
+    let day: string[] = [];
+    let end = d.arc.from + 24 * 60;
+    for (const line of lines) {
+      let e: Entry | null = null;
+      try {
+        const [uid, raw] = JSON.parse(line) as [unknown, unknown];
+        const r = typeof uid === "string" ? parseActs([raw])[0] : undefined;
+        if (r && recLine(uid as string, r) === line) e = { uid: uid as string, r };
+      } catch {
+        /* not a record's line */
+      }
+      const last = recs[recs.length - 1];
+      if (!e || e.r.at < d.arc.from || e.r.at >= d.t || (last && before(last, e) >= 0)) return bad;
+      for (; e.r.at >= end; end += 24 * 60) {
+        rh = rollHash(rh, day);
+        day = [];
+      }
+      day.push(line);
+      recs.push(e);
+    }
+    for (; end <= d.t; end += 24 * 60) {
+      rh = rollHash(rh, day);
+      day = [];
+    }
+    if (rh !== d.rh) return `${span} doesn't hash to its trust document's running hash`;
+    // Kept only while that trust document is still the store's.
+    if (this.names(d)) this.arcs.set(d.arc.from, { hash: d.arc.hash, recs });
+    return recs;
+  }
+
+  /** Whether the store's trust documents, as last read, still hold this one's freeze: the same minutes, records and archive. */
+  private names(d: TrustDoc): boolean {
+    return this.trust.some((x) => x.t === d.t && x.rh === d.rh && x.arc.from === d.arc.from && x.arc.hash === d.arc.hash);
   }
 
   /**
-   * The store's world documents, read whole (never a saved copy): where the bodies are, the alarm, and the cuts pages keep
-   * to. A cut newly kept, or one withdrawn, changes which records count; unless this page's world had applied exactly the
-   * new cut's records before it, the page replays under the rule.
+   * The archives a replay from minute `from` needs: those of every trust document whose minutes end after it, six at a
+   * time, each checked before a record of it is used (arcRecs). False when one can't be had: the world is marked stopped
+   * rather than computed from any other records.
+   */
+  private async takeArcs(from: number): Promise<boolean> {
+    for (;;) {
+      const need = this.trust.filter((d) => d.t > from && this.arcs.get(d.arc.from)?.hash !== d.arc.hash).slice(0, 6);
+      if (!need.length) return true;
+      const got = await Promise.all(need.map((d) => this.arcRecs(d)));
+      if (this.closed) return false;
+      for (const [i, why] of got.entries()) {
+        // A trust document replaced while its archive was read is asked for again as it is now.
+        if (typeof why !== "string" || !this.names(need[i]!)) continue;
+        this.broken = { at: this.w.t, reason: `${why}; reload to try again` };
+        console.error(`[checkpoint] ${why}`);
+        return false;
+      }
+    }
+  }
+
+  /** The archives' records from minute `from` on (takeArcs has read them), in the trust documents' order. */
+  private archived(from: number): Entry[] {
+    const out: Entry[] = [];
+    for (const d of this.trust) {
+      if (d.t <= from) continue;
+      for (const e of this.arcs.get(d.arc.from)?.recs ?? []) if (e.r.at >= from) out.push(e);
+    }
+    return out;
+  }
+
+  /**
+   * The store's world documents, read whole (never a saved copy): where the bodies are, the alarm, the trust documents
+   * and the cuts of them that stand. A new trust document freezes the records up to its minute; this page's world stands
+   * if the running hash of what it applied up to that minute is the document's, and otherwise it replays from the cut's
+   * body or from the archive. A cut withdrawn changes no record: only a page whose world came from its body starts again.
    */
   private worldDocs(docs: SnapLike[]): void {
     const world = this.worldKey();
@@ -834,21 +996,24 @@ export class LiveWorld {
         if (t && d.id === `cpm-${t.day}`) trust.push(t);
       }
     }
-    const was = this.kept;
+    const was = this.trust;
     this.pointer = pointer;
     this.alarm = parseAlarm(alarmRaw, world);
-    this.kept = keptCuts(trust, this.alarm, world);
-    const key = (k: KeptCut): string => `${k.t}:${k.hash}`;
-    const had = new Set(was.map(key));
-    const has = new Set(this.kept.map(key));
+    // What a trust document freezes: its minutes, their records' running hash, and the archive that holds them.
+    const frozenAs = (d: TrustDoc): string => `${d.t}:${d.rh}:${d.arc.from}:${d.arc.hash}:${d.arc.parts}:${d.arc.n}`;
+    this.trust = trustChain(trust, world);
+    this.kept = keptCuts(this.trust, this.alarm);
+    for (const [from, a] of [...this.arcs]) if (!this.trust.some((d) => d.arc.from === from && d.arc.hash === a.hash)) this.arcs.delete(from);
     // This world came from a body that is no longer kept (withdrawn): it starts again without it.
-    let redo = this.since !== null && !has.has(`${this.since.t}:${this.since.hash}`);
-    for (const k of this.kept) {
-      if (had.has(key(k)) || k.t <= this.settled) continue;
-      if (this.replaying || k.t > this.w.t || k.t < this.base.t || marksKey(this.marksBefore(k.t, was)) !== k.marksKey) redo = true;
+    let redo = this.since !== null && !this.kept.some((k) => k.t === this.since!.t && k.hash === this.since!.hash);
+    const top = this.trust[this.trust.length - 1];
+    if (was.some((d, i) => !this.trust[i] || frozenAs(this.trust[i]!) !== frozenAs(d))) {
+      // The frozen records are no longer the ones this page counted on (never in a store whose trust documents stay).
+      redo = true;
+    } else if (top && this.trust.length > was.length && (this.replaying || top.t > this.w.t || this.rhAt.get(top.t) !== top.rh)) {
+      // Frozen further: this world hadn't applied exactly those records up to that minute, or hasn't reached it.
+      redo = true;
     }
-    // A cut withdrawn: what it left out may count again.
-    for (const k of was) if (!has.has(key(k)) && k.t > this.settled) redo = true;
     if (redo && !this.needRebuild) {
       this.needRebuild = true;
       this.quietRebuild = true;
@@ -857,28 +1022,20 @@ export class LiveWorld {
   }
 
   /**
-   * This page against the newest kept cut of its replay build that it computed itself (and still stands by):
-   *  - the same hash: its world at that minute IS the kept cut, byte for byte, so the records before it are settled here
-   *    too, exactly as on a page that started from the cut's body (a rewrite or an erasure of one never replays it);
-   *  - another hash, over the same records: its world isn't the one pages keep to. It starts again from that cut's body,
-   *    when one may be started from, and its own cuts from that minute on are passed over. Its report of the day stands
-   *    (keeper.ts): that is the disagreement the alarm is for.
+   * This page against the newest kept cut of its replay build that it computed itself, over the same records (one running
+   * hash): with another hash its world isn't the one pages keep to. It starts again from that cut's body, when one may be
+   * started from, and its own cuts from that minute on are passed over. Its report of the day stands (keeper.ts): the
+   * same records and another world is the disagreement the alarm is for.
    */
   private checkOff(): void {
     if (!this.shared) return;
-    let mine: OwnCut[] | null = null;
     for (let i = this.kept.length - 1; i >= 0; i--) {
       const k = this.kept[i]!;
-      if (k.t <= this.settled) return; // this world already comes from a kept cut at or after it
+      if (this.since && k.t <= this.since.t) return; // this world already comes from a kept cut at or after it
       if (k.build !== REPLAY_BUILD || k.t > this.w.t) continue;
-      const own = (mine ??= this.ownDays()).find((c) => c.day === k.day);
-      if (!own || own.marks !== k.marksKey) continue;
-      if (own.hash === k.hash) {
-        if (this.needRebuild) return;
-        this.since = { t: k.t, hash: k.hash };
-        this.base = { t: k.t, marks: JSON.parse(k.marksKey) as Marks };
-        return;
-      }
+      const own = this.ownCuts.get(k.day);
+      if (!own || !own.hash || own.rh !== k.rh) continue;
+      if (own.hash === k.hash) return;
       const body = this.pointer.bodies.find((b) => b.day === k.day && b.hash === k.hash);
       if (!body || this.avoid.has(body.asset) || !adoptable(body, this.kept, this.alarm, this.worldKey(), REPLAY_BUILD)) continue;
       if (this.offTried.has(`${k.t}:${k.hash}`)) return;
@@ -915,26 +1072,52 @@ export class LiveWorld {
     return [...this.logs.keys()];
   }
 
-  /** The store's world documents as this page last read them. */
-  sharedView(): { pointer: Pointer; alarm: Alarm; kept: readonly KeptCut[] } {
-    return { pointer: this.pointer, alarm: this.alarm, kept: this.kept };
+  /** The store's world documents as this page last read them: `trust` in order, `kept` the cuts of them that stand. */
+  sharedView(): { pointer: Pointer; alarm: Alarm; trust: readonly TrustDoc[]; kept: readonly KeptCut[] } {
+    return { pointer: this.pointer, alarm: this.alarm, trust: this.trust, kept: this.kept };
+  }
+
+  /**
+   * The store's world documents read again, the store's own answer (the owner's page, before it writes an archive or
+   * withdraws a cut). False when the answer was a saved copy.
+   */
+  async rereadWorld(): Promise<boolean> {
+    const snap = await this.db.collection("world").get();
+    if (snap.metadata?.fromCache === true) return false;
+    this.worldDocs(snap.docs);
+    return true;
   }
 
   /**
    * The day boundaries this page computed itself and stands by now, newest first: hashed; over the same records as the
-   * kept cut of that day, where there is one (a page that had applied a record the cut left out doesn't dispute it: it
-   * computes the day again under the rule); and, for the days this replay computed, its records unchanged since.
+   * trust document of that day, where there is one (a page whose records for a frozen day aren't the archive's doesn't
+   * dispute the cut: it computes the day again from the archive); and with no replay pending.
    */
   ownDays(): OwnCut[] {
     const out: OwnCut[] = [];
+    if (this.needRebuild) return out;
     for (const c of this.ownCuts.values()) {
       if (!c.hash) continue;
-      const k = this.kept.find((x) => x.t === c.t);
-      if (k && k.marksKey !== c.marks) continue;
-      if (c.t >= this.base.t && c.marks !== marksKey(this.marksBefore(c.t))) continue;
+      const d = this.trust.find((x) => x.t === c.t);
+      if (d && d.rh !== c.rh) continue;
       out.push(c);
     }
     return out.sort((a, b) => b.t - a.t);
+  }
+
+  /**
+   * The records this world applied from the frozen minute up to day boundary `t`, as an archive's text (one line a record,
+   * in the order applied), for the owner's page to store with that day's cut. Null unless they are exactly this world's
+   * and that cut's: no replay pending, and their running hash, continued from the frozen minute's, both the one this world
+   * had at `t` and `rh`, the cut's own.
+   */
+  arcText(t: number, rh: string): { from: number; to: number; text: string; n: number } | null {
+    const top = this.trust[this.trust.length - 1];
+    const from = top ? top.t : 0;
+    if (!this.shared || this.needRebuild || this.replaying || t % (24 * 60) !== 0 || t <= from || t > this.w.t) return null;
+    const { rh: mine, lines } = this.rollLogs(top ? top.rh : RH0, from, t);
+    if (mine !== rh || this.rhAt.get(t) !== rh) return null;
+    return { from, to: t, text: lines.join("\n"), n: lines.length };
   }
 
   /**
@@ -1264,7 +1447,8 @@ export class LiveWorld {
       const acts = [...this.own.acts, r];
       let archived = this.own.archived;
       let kept = acts;
-      const done = this.w.t - 24 * 60;
+      // Step 3: only records before the frozen minute, which no page reads from this document again.
+      const done = this.shared ? Math.min(this.w.t - 24 * 60, this.frozen) : this.w.t - 24 * 60;
       if (acts.length > KEEP_IN_DOC && archived < MAX_ARCHIVE_CHUNKS) {
         const old = acts.filter((x) => x.at < done).slice(0, ARCHIVE_CHUNK);
         if (old.length === ARCHIVE_CHUNK) {
@@ -1369,15 +1553,15 @@ export class LiveWorld {
       if (seen) {
         // The same sequence number with a different body: the document was rewritten. Take the store's version, like a late joiner would.
         if (JSON.stringify(seen) === JSON.stringify(r)) continue;
-        // Step 3: an inert record rewritten into another inert one changes nothing this page computes (history before a
-        // kept cut is frozen: the red team's finding 7).
+        // Step 3: an inert record rewritten into another inert one changes nothing this page computes (history before the
+        // frozen minute is the archive's: the red team's finding 7).
         if (!(this.shared && this.inert(uid, seen) && this.inert(uid, r))) this.needRebuild = true;
         if (fresh) this.mark("rewrite", uid, r); // the re-check §8
       }
       log.set(r.s, r);
       if (seen) continue;
       if (fresh) this.markEarly(uid, r);
-      // Step 3, the late-order rule: never applied, and never a replay.
+      // Step 3: stamped before the frozen minute, it is never applied from here, and never a replay.
       if (this.shared && this.inert(uid, r)) {
         this.late(uid, r);
         continue;
@@ -1397,15 +1581,8 @@ export class LiveWorld {
   private apply(e: Entry): void {
     this.last = e;
     const { uid, r } = e;
-    if (this.shared) {
-      // Step 3: the marks of what this world has applied (a refused order moves them too: finding 4).
-      const m = this.applied.get(uid);
-      if (!m) this.applied.set(uid, [r.s, 1]);
-      else {
-        if (r.s > m[0]) m[0] = r.s;
-        m[1]++;
-      }
-    }
+    // Step 3: the line of every record this world applies, for the day's running hash (a refused order's too: finding 4).
+    if (this.shared) this.dayLines.push(recLine(uid, r));
     if (r.a.type === "join") {
       if (this.companies.has(uid)) return;
       let c: ReturnType<typeof joinCompany>;

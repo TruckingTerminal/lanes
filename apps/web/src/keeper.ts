@@ -9,14 +9,17 @@
  *    every visitor would fill the store.
  *  - The owner's page, and only it (the store's rules give world/* to the owner): writes the newest such day's cut, the
  *    body first and its pointer last, after reading every player's orders again from the store itself (finding 5); reads
- *    the players' reports; writes the trust document when enough match and none differs (finding 3), and the alarm when
- *    one differs (finding 8); answers a report against its cut by computing the day again from the cut before.
+ *    the players' reports; when enough match and none differs (finding 3), reads the orders again, stores the archive of
+ *    the records applied since the frozen minute (its parts, then its head, then read back whole) and last the trust
+ *    document, which names it; writes the alarm when a report differs (finding 8), and answers such a report by computing
+ *    the day again from the cut before, over the archive's records. A cut it withdraws goes with every cut kept after
+ *    it; an archive is never withdrawn or replaced once a trust document names it.
  *
  * Nothing here runs unless the page switch is on (SHARED_CUTS; main.tsx).
  */
 import { encodeWorld, type World } from "@lanes/engine";
-import { cutExtras, marksDoc, packBody, parseAlarm, parseDays, parseMarks, parsePointer, REPLAY_BUILD, sha256 } from "./cuts.js";
-import type { Alarm, BodyRef, BodyStore, DayReport, KeptCut, Marks, Pointer } from "./cuts.js";
+import { ARC_PART_CHARS, arcDocs, cutExtras, packBody, parseAlarm, parseDays, parsePointer, readArc, REPLAY_BUILD, sha256 } from "./cuts.js";
+import type { Alarm, ArcRef, BodyRef, BodyStore, DayReport, KeptCut, Pointer } from "./cuts.js";
 import type { DbLike, LiveWorld, OwnCut } from "./live.js";
 
 /** The page switch, the producer's: off, the page reads and writes nothing of step 3 and runs as it did. */
@@ -43,6 +46,8 @@ export const KEEP = {
   retryStoreMs: 10 * 60_000,
   /** A body's most bytes packed: under the assets' 20 MiB a file. */
   maxPacked: 19 * 1024 * 1024,
+  /** The most characters of a packed archive in one document: under the store's 256 KiB a document. */
+  arcPartChars: ARC_PART_CHARS,
 };
 
 export interface KeeperOptions extends Partial<typeof KEEP> {
@@ -60,6 +65,8 @@ export interface KeeperStatus {
   own: { day: number; hash: string; from: string }[];
   bodies: { day: number; hash: string; build: string; bytes: number; kept: boolean; disputed: boolean }[];
   kept: { day: number; hash: string; by: string[] }[];
+  /** The archives the trust documents name: their minutes, records, documents and size packed. */
+  archive: { from: number; to: number; records: number; parts: number; bytes: number }[];
   alarm: Alarm;
 }
 
@@ -157,10 +164,12 @@ export class Keeper {
     if (this.awaiting) return this.answer();
     const lw = this.lw;
     const world = lw.worldKey();
-    const { pointer, alarm, kept } = lw.sharedView();
-    // The newest day this page stands by: its cut in the store, unless pages already keep to a cut of that day.
+    const { pointer, alarm, trust, kept } = lw.sharedView();
+    // The newest day this page stands by: its cut in the store, unless pages already keep to a cut of that day. Never a
+    // day behind the frozen minute: its records are inside a later cut's archive, and it gets no cut of its own.
     const own = this.due()[0];
-    if (own?.text && this.now() >= this.storeBackAt) {
+    const frozen = trust.length ? trust[trust.length - 1]!.t : 0;
+    if (own?.text && own.t >= frozen && this.now() >= this.storeBackAt) {
       const there = pointer.bodies.find((b) => b.day === own.day && b.world === world);
       const isKept = kept.some((k) => k.day === own.day);
       const barred = alarm.barred.some((b) => b.day === own.day && b.hash === own.hash);
@@ -259,6 +268,40 @@ export class Keeper {
   }
 
   /**
+   * The archive for a day's cut, in the store as this page's records, and how the trust document will name it. The records
+   * are the ones this world applied from the frozen minute up to the cut's (live.ts arcText). They are read back from the
+   * store as a page reads them (cuts.ts readArc), and written when the store doesn't hold exactly that text: the further
+   * parts, then the head, then read back once more. A day that already has a trust document has its archive for good: it
+   * is named again and never written. Null, with a note, when this page's records for the day aren't the ones to store.
+   */
+  private async archive(own: OwnCut): Promise<ArcRef | null> {
+    const lw = this.lw;
+    // The store's own trust documents first: the frozen minute is where this archive begins.
+    if (!(await lw.rereadWorld())) {
+      this.note = "waiting: the store's answer about the world's documents was a saved copy";
+      return null;
+    }
+    const had = lw.trustAt(own.t);
+    if (had) {
+      if (had.rh === own.rh) return had.arc;
+      this.note = `day ${own.day}'s records on this page aren't its archive's`;
+      return null;
+    }
+    const a = lw.arcText(own.t, own.rh);
+    if (!a) {
+      this.note = `waiting: day ${own.day}'s records on this page changed, or it is behind the frozen minute`;
+      return null;
+    }
+    const { ref, docs } = await arcDocs(lw.worldKey(), a.from, a.to, a.text, a.n, this.k.arcPartChars);
+    const stored = async (): Promise<boolean> => (await readArc(this.db, ref).catch(() => null)) === a.text;
+    if (await stored()) return ref;
+    for (const [path, body] of docs) await this.db.doc(path).set(body);
+    if (await stored()) return ref;
+    this.note = `day ${own.day}'s archive didn't read back from the store as it was written`;
+    return null;
+  }
+
+  /**
    * Reads the players' reports against each body in the store: the trust document for a body with enough matching and
    * none differing; the alarm for one a player's own hash differs from; and this page's own answer to such a report, once.
    */
@@ -270,14 +313,25 @@ export class Keeper {
     const others = lw.players().filter((u) => u !== lw.uid).length;
     const pointer = parsePointer(await this.read("world/checkpoint"));
     const alarm = parseAlarm(await this.read("world/alarm"), world);
-    const { kept } = lw.sharedView();
+    const { trust, kept } = lw.sharedView();
+    const frozen = trust.length ? trust[trust.length - 1]!.t : 0;
     const open: Alarm["open"] = [];
     let waiting = false;
     let ask: BodyRef | null = null;
     // Asked once a round, before the first trust document: the store's own answer about every player's orders.
     let heard: boolean | null = null;
+    // One trust document a round: it moves the frozen minute, and the next one's archive begins there.
+    let wrote = false;
     for (const b of pointer.bodies) {
       if (b.world !== world) continue;
+      const barred = alarm.barred.some((x) => dayKey(x) === dayKey(b));
+      const isKept = kept.some((k: KeptCut) => k.day === b.day && k.hash === b.hash);
+      // A body may be kept when its day is past the frozen minute; or when its day has a trust document whose cut was
+      // withdrawn (the records stay as they are, and another cut of them may be kept).
+      const keepable = !isKept && !barred && (b.t > frozen || (lw.trustAt(b.t) !== null && !kept.some((k) => k.day === b.day)));
+      // A body behind the frozen minute with no cut of its own: its day's records are inside a later cut's archive, it is
+      // never kept, and no report is read against it.
+      if (!isKept && !keepable) continue;
       const match: string[] = [];
       let differs = false;
       for (const [uid, r] of reports) {
@@ -292,21 +346,21 @@ export class Keeper {
           open.push({ day: b.day, hash: b.hash, uid, theirs: d.hash, at: was ? was.at : now });
         }
       }
-      const barred = alarm.barred.some((x) => dayKey(x) === dayKey(b));
-      const isKept = kept.some((k: KeptCut) => k.day === b.day && k.hash === b.hash);
-      if (!isKept && !barred) {
+      if (keepable) {
         // Kept only while this page itself stands by that cut now, after the store's own answer: a body left in the store
         // from days ago, with reports that matched it then, is never kept over an order every page has applied since.
-        // Its marks are this page's own cut's: the same hash is the same text, and the text's first line carries them.
-        const mine = (): Marks | null => {
-          const c = b.build === REPLAY_BUILD ? lw.ownDays().find((x) => x.day === b.day && x.hash === b.hash) : undefined;
-          return c ? parseMarks(JSON.parse(c.marks)) : null;
-        };
-        if (!differs && match.length >= this.need(others) && mine()) {
+        const mine = (): OwnCut | undefined => (b.build === REPLAY_BUILD ? lw.ownDays().find((x) => x.day === b.day && x.hash === b.hash) : undefined);
+        if (!wrote && !differs && match.length >= this.need(others) && mine()) {
           heard ??= await lw.reread();
-          const marks = heard && !lw.needRebuild ? mine() : null;
-          if (marks) {
-            await this.db.doc(`world/cpm-${b.day}`).set({ v: 1, world, build: b.build, day: b.day, t: b.t, hash: b.hash, by: match.sort().slice(0, Math.max(2, this.k.confirmers)), at: now, marks: marksDoc(marks) });
+          const own = heard && !lw.needRebuild ? mine() : undefined;
+          // The archive is in the store, whole, before the trust document that names it. Reading it took the store's own
+          // trust documents: a cut they already hold is not written again.
+          const arc = own ? await this.archive(own) : null;
+          if (own && arc && !lw.needRebuild && mine() === own) {
+            if (!lw.sharedView().kept.some((k) => k.day === b.day && k.hash === b.hash)) {
+              await this.db.doc(`world/cpm-${b.day}`).set({ v: 2, world, build: b.build, day: b.day, t: b.t, hash: b.hash, by: match.sort().slice(0, Math.max(2, this.k.confirmers)), at: now, rh: own.rh, arc: { ...arc } });
+            }
+            wrote = true;
           } else waiting = true;
         } else waiting = true;
       }
@@ -325,9 +379,10 @@ export class Keeper {
   }
 
   /**
-   * The day computed again: the same hash, and this page stands by its cut (the report stays open, and no page starts from
-   * that body until the owner rules: the node replay decides); another hash, and the cut is withdrawn for good, its
-   * replacement written on the next round.
+   * The day computed again, from the cut before it and over the archive's records where history is frozen: the same hash,
+   * and this page stands by its cut (the report stays open, and no page starts from that body until the owner rules: the
+   * node replay decides); another hash, and the cut is withdrawn for good with every cut kept after it, its replacement
+   * written on a later round.
    */
   private async answer(): Promise<void> {
     const a = this.awaiting!;
@@ -337,15 +392,28 @@ export class Keeper {
       if (++a.rounds > 10) this.awaiting = null;
       return;
     }
+    if (again.hash !== a.hash && !(await this.lw.rereadWorld())) return;
     this.awaiting = null;
     const world = this.lw.worldKey();
     const alarm = parseAlarm(await this.read("world/alarm"), world);
-    const next: Alarm = { ...alarm, stood: [...alarm.stood], barred: [...alarm.barred] };
+    let next: Alarm = { ...alarm, stood: [...alarm.stood] };
     if (again.hash === a.hash) {
       if (!next.stood.some((x) => dayKey(x) === dayKey(a))) next.stood.push({ day: a.day, hash: a.hash });
-    } else if (!next.barred.some((x) => dayKey(x) === dayKey(a))) next.barred.push({ day: a.day, hash: a.hash });
+    } else next = this.withdrawn(next, a.day, a.hash);
     await this.setAlarm(alarm, next);
     this.nextReadAt = 0;
+  }
+
+  /**
+   * The alarm with a cut barred and, with it, every cut that stands after its day (each was computed on top of it): one
+   * document, so one write. No archive is touched.
+   */
+  private withdrawn(alarm: Alarm, day: number, hash: string): Alarm {
+    const barred = [...alarm.barred];
+    for (const x of [{ day, hash }, ...this.lw.sharedView().kept.filter((k) => k.day > day)]) {
+      if (!barred.some((y) => dayKey(y) === dayKey(x))) barred.push({ day: x.day, hash: x.hash });
+    }
+    return { ...alarm, barred };
   }
 
   private async setAlarm(was: Alarm, next: Alarm): Promise<void> {
@@ -364,17 +432,20 @@ export class Keeper {
     this.nextReadAt = 0;
   }
 
-  /** A cut is withdrawn for good, by day and hash: its trust document and its body are never used again. */
+  /**
+   * A cut is withdrawn for good, by day and hash, and with it every cut kept after it, in one write: its body is never
+   * started from again and its hash never compared. The records its trust document froze stay frozen.
+   */
   async bar(day: number, hash: string): Promise<void> {
     const world = this.lw.worldKey();
+    if (!(await this.lw.rereadWorld())) throw new Error("the store's answer for the world's documents was a saved copy");
     const alarm = parseAlarm(await this.read("world/alarm"), world);
-    if (alarm.barred.some((x) => x.day === day && x.hash === hash)) return;
-    await this.setAlarm(alarm, { ...alarm, barred: [...alarm.barred, { day, hash }] });
+    await this.setAlarm(alarm, this.withdrawn(alarm, day, hash));
     this.nextReadAt = 0;
   }
 
   status(): KeeperStatus {
-    const { pointer, alarm, kept } = this.lw.sharedView();
+    const { pointer, alarm, trust, kept } = this.lw.sharedView();
     return {
       on: true,
       build: REPLAY_BUILD,
@@ -382,6 +453,7 @@ export class Keeper {
       own: this.lw.ownDays().map((c) => ({ day: c.day, hash: c.hash!, from: c.from })),
       bodies: pointer.bodies.map((b) => ({ day: b.day, hash: b.hash, build: b.build, bytes: b.bytes, kept: kept.some((k) => k.day === b.day && k.hash === b.hash), disputed: alarm.open.some((o) => dayKey(o) === dayKey(b)) })),
       kept: kept.map((k) => ({ day: k.day, hash: k.hash, by: k.by })),
+      archive: trust.map((d) => ({ from: d.arc.from, to: d.arc.to, records: d.arc.n, parts: d.arc.parts, bytes: d.arc.bytes })),
       alarm,
     };
   }

@@ -1,164 +1,19 @@
 import "./seed.js";
 import { describe, expect, it } from "vitest";
-import { hubs } from "@lanes/data";
-import { encodeWorld, hubMiles, type Action, type World } from "@lanes/engine";
-import { BODY_MAX_BYTES, countsUnder, cutExtras, cutText, keptCuts, marksDoc, marksKey, memoryBodies, memoryCuts, noAlarm, packBody, parseAlarm, parseDays, parseMarks, parsePointer, parseTrust, readCut, REPLAY_BUILD, sha256, unpackBody } from "../src/cuts.js";
-import type { BodyStore, CutStore, Marks, TrustDoc } from "../src/cuts.js";
-import { RULESET } from "../src/game.js";
-import { assetBodies, KEEP, Keeper, SHARED_CUTS } from "../src/keeper.js";
-import { LiveWorld, MS_PER_GAME_HOUR, type CollLike, type DbLike, type DocLike, type LiveAction, type SnapLike, type WorldMeta } from "../src/live.js";
-import { MemoryDb } from "../src/memdb.js";
+import { arcDocPath, BODY_MAX_BYTES, cutText, hashNow, keptCuts, memoryBodies, memoryCuts, noAlarm, packBody, parseAlarm, parseDays, parsePointer, parseTrust, readCut, recLine, REPLAY_BUILD, RH0, rollHash, sha256, trustChain, unpackBody } from "../src/cuts.js";
+import type { BodyStore, TrustDoc } from "../src/cuts.js";
+import { assetBodies, KEEP, SHARED_CUTS } from "../src/keeper.js";
+import type { CollLike, DbLike, DocLike, LiveAction, SnapLike } from "../src/live.js";
 import { liveDays } from "../../sim/src/liveDays.js";
+import { archived, beat, bidFor, DAY, enc, eventually, G, kept1, ownHash, Stage, started, starters, type Page } from "./shared-stage.js";
 
 /**
  * The checkpoint's step 3 (cuts.ts, live.ts, keeper.ts; engineering-checkpoint-design-2026-11-16.md §4 for this step, and
  * the red team's checkpoint review): the owner's page writes a day's cut, two other players' own hashes make it kept, a page
  * starts from its body and computes the same world as a page from the seed; a record stamped before a kept cut and not in
- * it is never applied, on any page, wherever its replay starts.
+ * it is never applied, on any page, wherever its replay starts. Step 3b: a kept cut comes with the archive of the records
+ * applied up to it, and history before the newest one is the archive's on every page.
  */
-const MIN = MS_PER_GAME_HOUR / 60;
-const DAY = 24 * 60;
-const G = KEEP.graceMin;
-const starters = hubs.filter((h) => h.isStarter).map((h) => h.id);
-const beat = () => new Promise((r) => setTimeout(r, 0));
-/** The world and what a cut carries beside it (the bots' state, the month books, the truck numbers). */
-const enc = (w: World) => encodeWorld(w, cutExtras(w));
-
-interface Page {
-  uid: string;
-  lw: LiveWorld;
-  keeper: Keeper;
-}
-interface OpenOptions {
-  owner?: boolean;
-  /** false: a page with the shared checkpoint off (as the live page is today). */
-  shared?: boolean;
-  cuts?: CutStore;
-  bodies?: BodyStore;
-  db?: DbLike;
-  keep?: Partial<typeof KEEP>;
-}
-
-/** One store, one clock, and the pages open on them. */
-class Stage {
-  clock = 6 * MS_PER_GAME_HOUR;
-  readonly now = () => this.clock;
-  readonly db = new MemoryDb(this.now);
-  readonly bodies = memoryBodies();
-  readonly meta: WorldMeta;
-  pages: Page[] = [];
-  private tabs = 0;
-  /** The store holds world/meta, as the live one does (no page of these writes it: the owner's opened the world long ago). */
-  private readonly opened: Promise<void>;
-  constructor(seed = 4242) {
-    this.meta = { v: 1, seed, epochMs: 0, msPerGameHour: MS_PER_GAME_HOUR, ruleset: RULESET };
-    this.opened = this.db.doc("world/meta").set({ ...this.meta });
-  }
-  minute(): number {
-    return this.clock / MIN;
-  }
-  async open(uid: string, o: OpenOptions = {}): Promise<Page> {
-    await this.opened;
-    const db = o.db ?? this.db;
-    const bodies = o.bodies ?? this.bodies;
-    const owner = o.owner === true;
-    const lw = await LiveWorld.open(db, this.meta, uid, { now: this.now, mono: this.now, holder: `tab-${uid}-${this.tabs++}`, manualRenewal: true, owner, ...(o.cuts ? { cuts: o.cuts } : {}), ...(o.shared === false ? {} : { shared: { bodies, keepText: owner } }) });
-    await lw.rebuild();
-    const p: Page = { uid, lw, keeper: new Keeper(lw, db, bodies, { owner, now: this.now, ...o.keep }) };
-    this.pages.push(p);
-    return p;
-  }
-  close(p: Page): void {
-    p.lw.close();
-    this.pages = this.pages.filter((x) => x !== p);
-  }
-  /** Every page hears what the store has to tell it, replays if it must, and keeps up with the clock. */
-  async settle(): Promise<void> {
-    for (let i = 0; i < 4; i++) {
-      await beat();
-      for (const p of this.pages) {
-        if (p.lw.needRebuild) await p.lw.rebuild();
-        p.lw.advance(1e9);
-      }
-    }
-  }
-  /** The clock moves on `hours` game hours. */
-  async run(hours: number, each?: (hour: number) => Promise<void>): Promise<void> {
-    for (let h = 0; h < hours; h++) {
-      this.clock += 60 * MIN;
-      await this.settle();
-      if (each) await each(h);
-    }
-  }
-  /** To a game minute. */
-  async until(minute: number): Promise<void> {
-    await this.run(Math.round((minute - this.minute()) / 60));
-  }
-  /** A keeper's round on each page given (all, with none given): the lease renewed first, since this clock moves an hour at a time. */
-  async round(...pages: Page[]): Promise<void> {
-    for (const p of pages.length ? pages : this.pages) {
-      await p.lw.renewLease();
-      await p.keeper.tick();
-      await this.settle();
-    }
-  }
-  async doc(path: string): Promise<Record<string, unknown> | undefined> {
-    return (await this.db.doc(path).get()).data();
-  }
-  async trust(day: number): Promise<TrustDoc | null> {
-    return parseTrust(await this.doc(`world/cpm-${day}`));
-  }
-}
-
-/** A page's own hash of a day, once hashed. */
-async function ownHash(p: Page, day: number): Promise<string> {
-  for (let i = 0; i < 400; i++) {
-    const c = p.lw.ownDays().find((x) => x.day === day);
-    if (c?.hash) return c.hash;
-    await new Promise((r) => setTimeout(r, 5));
-  }
-  throw new Error(`${p.uid} has no hash of day ${day}`);
-}
-
-/** A plausible bid for one of this player's idle trucks, read off that player's own world. */
-function bidFor(lw: LiveWorld): Action | null {
-  const w = lw.w;
-  for (const t of w.trucksByCompany.get(lw.player!.id) ?? []) {
-    if (t.status !== "idle") continue;
-    for (const l of w.loads.values()) if (l.status === "open" && l.equipment === t.trailer && hubMiles(w, t.hub, l.origin) <= 300) return { type: "place_bid", truckId: t.id, loadId: l.id, rate: l.refRate * 0.97 };
-  }
-  return null;
-}
-
-/**
- * The usual start: the owner's page and two players' pages, both joined, run to six game hours past the first day boundary,
- * every page having hashed that day. Nothing is reported or written yet.
- */
-async function started(o: { seed?: number; ownerOptions?: OpenOptions; players?: string[] } = {}) {
-  const st = new Stage(o.seed);
-  const owner = await st.open("olga", { owner: true, ...o.ownerOptions });
-  const names = o.players ?? ["alice", "bob"];
-  const players: Page[] = [];
-  for (const [i, uid] of names.entries()) {
-    const p = await st.open(uid);
-    await p.lw.submit({ type: "join", name: `${uid} Haul`, hub: starters[i % starters.length]! });
-    players.push(p);
-  }
-  await st.until(DAY + G);
-  for (const p of st.pages) await ownHash(p, 1);
-  return { st, owner, players, a: players[0]!, b: players[1]! };
-}
-
-/** The owner's page writes day 1's cut and, with the two players' reports in, keeps it. */
-async function kept1(s: Awaited<ReturnType<typeof started>>): Promise<TrustDoc> {
-  await s.st.round(...s.players);
-  await s.st.round(s.owner); // the body, then its pointer
-  await s.st.round(s.owner); // the reports read: the trust document
-  const t = await s.st.trust(1);
-  expect(t).not.toBeNull();
-  return t!;
-}
-
 describe("the shared checkpoint (step 3): the switch", () => {
   it("is off, with the red team's grace and two confirmers", () => {
     expect(SHARED_CUTS).toBe(false);
@@ -226,8 +81,10 @@ describe("the shared checkpoint (step 3): written, kept, and started from", () =
     const text = (await unpackBody(st.bodies.bodies.get(body.asset)!))!;
     expect(await sha256(text)).toBe(body.hash);
     const cut = readCut(text)!;
-    expect(cut.line).toMatchObject({ v: 1, world: owner.lw.worldKey(), build: REPLAY_BUILD, t: DAY });
-    expect(cut.line.marks).toEqual([["alice", 0, 1], ["bob", 0, 1]]);
+    expect(cut.line).toMatchObject({ v: 2, world: owner.lw.worldKey(), build: REPLAY_BUILD, t: DAY });
+    expect(cut.line.rh).toMatch(/^[0-9a-f]{64}$/);
+    // No archive is in the store before the cut is kept.
+    expect(await st.doc(arcDocPath(0))).toBeUndefined();
     expect(cut.line.companies.map((c) => c[0]).sort()).toEqual(["alice", "bob"]);
 
     // The owner's own hash never counts, and one other player's isn't enough.
@@ -249,9 +106,14 @@ describe("the shared checkpoint (step 3): written, kept, and started from", () =
     await st.round(owner);
     const trust = (await st.trust(1))!;
     expect(trust).toMatchObject({ day: 1, t: DAY, hash: body.hash, build: REPLAY_BUILD, by: ["alice", "bob"] });
-    expect(trust.marks).toEqual(cut.line.marks);
-    // In the store a trust document's marks are objects, never an array inside an array.
-    expect(((await st.doc("world/cpm-1")) as { marks: unknown[] }).marks).toEqual([{ u: "alice", s: 0, n: 1 }, { u: "bob", s: 0, n: 1 }]);
+    // The trust document carries the cut's running hash and names the archive of the records applied up to it, one
+    // document from minute 0: the two joins, in the order the world applied them.
+    expect(trust.rh).toBe(cut.line.rh);
+    expect(trust.arc).toMatchObject({ from: 0, to: DAY, parts: 1, n: 2 });
+    expect(await st.doc(arcDocPath(0))).toMatchObject({ v: 1, world: owner.lw.worldKey(), from: 0, to: DAY, n: 2, parts: 1, hash: trust.arc.hash });
+    const records = await archived(st, 1);
+    expect(records.map((x) => [x[0], x[1].s, x[1].a.type])).toEqual([["alice", 0, "join"], ["bob", 0, "join"]]);
+    expect(rollHash(RH0, records.map((x) => recLine(x[0], x[1])))).toBe(trust.rh);
     // No page replayed for it: each had applied exactly its records.
     for (const p of st.pages) expect(p.lw.needRebuild).toBe(false);
 
@@ -289,13 +151,15 @@ describe("the shared checkpoint (step 3): written, kept, and started from", () =
     expect(c.lw.ownDays().some((x) => x.day === 1)).toBe(false);
   }, 240_000);
 
-  it("the hash is of the whole cut: the same world with other marks, another minute, build, world or companies is another hash", async () => {
-    const marks: Marks = [["alice", 3, 4], ["bob", 0, 1]];
-    const line = { world: "1:0:r", build: "b1", t: DAY, marks, companies: [["alice", 7]] as [string, number][] };
+  it("the hash is of the whole cut: the same world over other records, at another minute, of another build, world or companies is another hash", async () => {
+    const order = (n: number) => recLine("alice", { s: n, at: 5, a: { type: "wait" } });
+    const rh = rollHash(RH0, [order(0)]);
+    const line = { world: "1:0:r", build: "b1", t: DAY, rh, companies: [["alice", 7]] as [string, number][] };
     const h = await sha256(cutText(line, "{}"));
     const others = [
-      { ...line, marks: [["alice", 4, 5], ["bob", 0, 1]] as Marks }, // a refused order moved a mark: the same world
-      { ...line, marks: [["alice", 3, 3], ["bob", 0, 1]] as Marks },
+      { ...line, rh: rollHash(RH0, [order(0), order(1)]) }, // a refused order is a record too: the same world
+      { ...line, rh: rollHash(RH0, [order(1)]) },
+      { ...line, rh: rollHash(rh, []) }, // a day later, with no record since
       { ...line, t: 2 * DAY },
       { ...line, build: "b2" },
       { ...line, world: "1:0:r2" },
@@ -306,14 +170,27 @@ describe("the shared checkpoint (step 3): written, kept, and started from", () =
     expect(await sha256(cutText({ ...line }, "{}"))).toBe(h);
     // And a cut's text comes apart again as it went in.
     const back = readCut(cutText(line, '{"a":"x\\ny"}'))!;
-    expect(back.line).toEqual({ v: 1, ...line });
+    expect(back.line).toEqual({ v: 2, ...line });
     expect(back.encoding).toBe('{"a":"x\\ny"}');
     expect(readCut("no line")).toBeNull();
-    expect(readCut('{"v":2}\n{}')).toBeNull();
+    expect(readCut('{"v":1}\n{}')).toBeNull();
+    expect(readCut(cutText({ ...line, rh: "" }, "{}"))).toBeNull();
+  });
+
+  it("the running hash is the browser's own SHA-256, taken without a wait, over the day's records in order", async () => {
+    for (const text of ["", "abc", "é\u0000\n\ud83d\ude9a", "x".repeat(55), "x".repeat(56), "x".repeat(64), "y".repeat(100_000)]) expect(hashNow(text), `${text.length} characters`).toBe(await sha256(text));
+    const a = recLine("alice", { s: 0, at: 5, a: { type: "wait" } });
+    const b = recLine("bob", { s: 0, at: 5, a: { type: "wait" } });
+    expect(a).toBe('["alice",{"s":0,"at":5,"a":{"type":"wait"}}]');
+    expect(rollHash(RH0, [a, b])).toBe(await sha256(`\n${a}\n${b}`));
+    expect(rollHash(RH0, [a, b])).not.toBe(rollHash(RH0, [b, a]));
+    // The same records split over two days are another history than in one.
+    expect(rollHash(rollHash(RH0, [a]), [b])).not.toBe(rollHash(RH0, [a, b]));
+    expect(rollHash(rollHash(RH0, [a, b]), [])).not.toBe(rollHash(RH0, [a, b]));
   });
 
   it("a body packs to JSON and back exactly, and never unpacks past its cap", async () => {
-    const text = cutText({ world: "w", build: "b", t: DAY, marks: [], companies: [] }, JSON.stringify({ big: "x".repeat(200_000), odd: "é\u0000\n" }));
+    const text = cutText({ world: "w", build: "b", t: DAY, rh: "0".repeat(64), companies: [] }, JSON.stringify({ big: "x".repeat(200_000), odd: "é\u0000\n" }));
     const packed = await packBody(text);
     expect(JSON.parse(packed)).toMatchObject({ v: 1 });
     expect(packed.length).toBeLessThan(text.length / 20);
@@ -326,25 +203,17 @@ describe("the shared checkpoint (step 3): written, kept, and started from", () =
 });
 
 describe("the shared checkpoint (step 3): the late-order rule", () => {
-  it("countsUnder: before a kept cut, only what that cut had applied; a record an earlier cut left out stays out", () => {
-    const doc = (day: number, marks: Marks): TrustDoc => ({ world: "w", build: "b", day, t: day * DAY, hash: `${day}`.padStart(64, "0"), by: ["x", "y"], at: 0, marks });
-    const kept = keptCuts([doc(2, [["alice", 9, 10], ["bob", 1, 2]]), doc(1, [["alice", 4, 5]])], noAlarm(), "w");
-    expect(kept.map((k) => k.day)).toEqual([1, 2]);
-    // Before day 1's cut: alice's first five.
-    expect(countsUnder(kept, "alice", 4, DAY - 1)).toBe(true);
-    expect(countsUnder(kept, "alice", 5, DAY - 1)).toBe(false); // late then, and out for good though her mark is 9 a day on
-    expect(countsUnder(kept, "bob", 0, 100)).toBe(false); // bob had nothing in day 1's cut
-    // Between the two cuts: day 2's marks.
-    expect(countsUnder(kept, "alice", 9, DAY)).toBe(true); // stamped at the boundary itself: after the cut
-    expect(countsUnder(kept, "alice", 10, 2 * DAY - 1)).toBe(false);
-    expect(countsUnder(kept, "bob", 1, DAY + 5)).toBe(true);
-    // At or after the newest kept cut: always, whatever the sequence number (finding 6).
-    expect(countsUnder(kept, "carol", 0, 2 * DAY)).toBe(true);
-    expect(countsUnder(kept, "alice", 2, 2 * DAY + 500)).toBe(true);
-    expect(countsUnder([], "anyone", 99, 0)).toBe(true);
-    // Another world's trust document, and a barred cut, keep nothing.
-    expect(keptCuts([doc(1, [])], noAlarm(), "another")).toEqual([]);
-    expect(keptCuts([doc(1, [])], { ...noAlarm(), barred: [{ day: 1, hash: "1".padStart(64, "0") }] }, "w")).toEqual([]);
+  it("the trust documents in order: each archive begins where the one before ended, from minute 0; a withdrawn cut no longer stands and its trust document still freezes its records", () => {
+    const h = (c: string) => c.repeat(64);
+    const doc = (day: number, from: number, world = "w"): TrustDoc => ({ world, build: "b", day, t: day * DAY, hash: h(`${day}`), by: ["x", "y"], at: 0, rh: h("a"), arc: { from, to: day * DAY, hash: h("c"), parts: 1, n: 0, bytes: 0 } });
+    // Day 4's archive covers days 2 to 4, whose own cuts were never kept. Day 9's doesn't begin where day 4's ended.
+    const chain = trustChain([doc(4, DAY), doc(1, 0), doc(9, 5 * DAY), doc(2, 0, "another")], "w");
+    expect(chain.map((d) => [d.day, d.arc.from])).toEqual([[1, 0], [4, DAY]]);
+    expect(trustChain([doc(2, DAY)], "w")).toEqual([]);
+    expect(trustChain([doc(1, 0)], "another")).toEqual([]);
+    expect(keptCuts(chain, noAlarm()).map((k) => k.day)).toEqual([1, 4]);
+    expect(keptCuts(chain, { ...noAlarm(), barred: [{ day: 1, hash: h("1") }] }).map((k) => k.day)).toEqual([4]);
+    expect(keptCuts(chain, { ...noAlarm(), barred: [{ day: 1, hash: h("2") }] }).map((k) => k.day)).toEqual([1, 4]);
   });
 
   it("a record stamped before a kept cut and not in it is never applied and never replays a page: on pages that ran through it, a page from the body, and a page from the seed", async () => {
@@ -371,7 +240,7 @@ describe("the shared checkpoint (step 3): the late-order rule", () => {
       expect(p.lw.w.companies.some((x) => x.name === "Erin Late")).toBe(false);
       expect(enc(p.lw.w)).toBe(before);
     }
-    // A page that can't read the body replays from the seed, under the kept cut's marks (finding 7): the same world.
+    // A page that can't read the body replays from the seed, over the archive's records (finding 7): the same world.
     const noBodies = memoryBodies();
     const fromSeed = await st.open("frank", { bodies: noBodies });
     expect(fromSeed.lw.startedKind).toBe("seed");
@@ -390,7 +259,7 @@ describe("the shared checkpoint (step 3): the late-order rule", () => {
     expect(enc(c.lw.w)).toBe(enc(a.lw.w));
     expect(enc(fromSeed.lw.w)).toBe(enc(a.lw.w));
     expect(enc(owner.lw.w)).toBe(enc(b.lw.w));
-    // The next day's cut carries the late record's absence: erin's mark is her second order's, with one applied.
+    // The next day's cut carries the late record's absence: its archive holds Erin's second order, and neither her first.
     await st.until(2 * DAY + G);
     const day2 = await ownHash(a, 2);
     for (const p of [owner, b, c, fromSeed]) expect(await ownHash(p, 2), p.uid).toBe(day2);
@@ -398,9 +267,10 @@ describe("the shared checkpoint (step 3): the late-order rule", () => {
     await st.round(owner);
     owner.keeper["nextReadAt"] = 0;
     await st.round(owner);
-    const t2 = (await st.trust(2))!;
-    expect(t2.marks.find((m) => m[0] === "erin")).toEqual(["erin", 1, 1]);
-    // A page from the seed now reads both kept cuts: the first leaves Erin's first order out though her mark has passed it.
+    expect((await st.trust(2))!.arc).toMatchObject({ from: DAY, to: 2 * DAY });
+    expect((await archived(st, 1)).some((x) => x[0] === "erin")).toBe(false);
+    expect((await archived(st, 2)).filter((x) => x[0] === "erin").map((x) => x[1].s)).toEqual([1]);
+    // A page from the seed now reads both archives: neither holds Erin's first order, though her numbers have passed it.
     const later = await st.open("hana", { bodies: noBodies });
     expect(later.lw.startedKind).toBe("seed");
     expect(later.lw.w.companies.some((x) => x.name === "Erin Late")).toBe(false);
@@ -420,7 +290,8 @@ describe("the shared checkpoint (step 3): the late-order rule", () => {
     for (const p of st.pages) await ownHash(p, 1);
     const s = { st, owner, players: [a, b], a, b };
     const trust = await kept1(s);
-    expect(trust.marks.find((m) => m[0] === "zed")).toEqual(["zed", 10, 1]);
+    expect(trust.arc.n).toBe(3);
+    expect((await archived(st, 1)).filter((x) => x[0] === "zed").map((x) => x[1].s)).toEqual([10]);
     const c = await st.open("carol");
     expect(c.lw.startedKind).toBe("shared");
     const seed = await st.open("dave", { bodies: memoryBodies() });
@@ -495,7 +366,7 @@ describe("the shared checkpoint (step 3): the late-order rule", () => {
     await st.round(owner);
     const trust = (await st.trust(1))!;
     expect(trust.by).toEqual(["bob", "carol"]);
-    expect(trust.marks.find((m) => m[0] === "alice")).toEqual(["alice", 0, 1]);
+    expect((await archived(st, 1)).filter((x) => x[0] === "alice").map((x) => x[1].s)).toEqual([0]);
     // The write lands, stamped an hour before the boundary.
     const release = held;
     held = null;
@@ -503,6 +374,8 @@ describe("the shared checkpoint (step 3): the late-order rule", () => {
     const sent = await sending;
     expect(sent.at).toBeLessThan(DAY);
     await st.settle();
+    // Her page looks the order up in the archive of its minute, and says it isn't there.
+    await eventually(() => told.length > 0);
     expect(told).toEqual([sent.s]);
     for (const p of st.pages) expect(p.lw.needRebuild, p.uid).toBe(false);
     expect(enc(a.lw.w)).toBe(enc(b.lw.w));
@@ -550,7 +423,7 @@ describe("the shared checkpoint (step 3): the owner's page reads the store itsel
     await st.round(owner);
     const trust = (await st.trust(1))!;
     expect(trust.hash).toBe(theirs);
-    expect(trust.marks.find((m) => m[0] === "bob")).toEqual(["bob", order.s, order.s + 1]);
+    expect((await archived(st, 1)).filter((x) => x[0] === "bob").map((x) => x[1].s)).toEqual(Array.from({ length: order.s + 1 }, (_, i) => i));
   }, 240_000);
 
   it("a saved copy of the players' orders isn't an answer: nothing is written until the store itself answers", async () => {
@@ -680,7 +553,7 @@ describe("the shared checkpoint (step 3): a report that differs, and the alarm (
     expect(JSON.stringify(await st.doc("world/meta"))).toBe(meta);
   }, 240_000);
 
-  it("a report against a kept cut: no page starts from its body while it stands; the rule's line stays; barred, pages from it start again", async () => {
+  it("a report against a kept cut: no page starts from its body while it stands; withdrawn, pages from it start again, over the same records", async () => {
     const s = await started();
     const { st, owner, a } = s;
     const trust = await kept1(s);
@@ -695,21 +568,27 @@ describe("the shared checkpoint (step 3): a report that differs, and the alarm (
     owner.keeper["nextReadAt"] = 0;
     await st.round(owner);
     expect(parseAlarm(await st.doc("world/alarm"), world).open.length).toBe(1);
-    // Disputed: a new page doesn't start from the body. It replays from the seed under the kept cut's marks: the same world.
+    // Disputed: a new page doesn't start from the body. It replays from the seed over the archive's records: the same world.
     const d = await st.open("dave");
     expect(d.lw.startedKind).toBe("seed");
     expect(d.lw.w.companies.some((x) => x.name === "Erin Late")).toBe(false);
     expect(enc(d.lw.w)).toBe(enc(a.lw.w));
     expect(enc(c.lw.w)).toBe(enc(a.lw.w));
-    // The owner withdraws the cut for good: the page that came from its body starts again, and the late record counts again.
+    // The owner withdraws the cut for good: the page that came from its body starts again, from the seed and the archive.
+    // The day's records stay as the archive has them: the late record stays out, on every page.
     await st.round(owner); // its own answer first (it stands)
+    const before = enc(a.lw.w);
     await owner.keeper.bar(1, trust.hash);
     await st.settle();
+    expect(owner.lw.sharedView().kept).toEqual([]);
+    expect(owner.lw.sharedView().trust.map((d) => d.day)).toEqual([1]);
     expect(c.lw.startedKind).toBe("seed");
-    for (const p of st.pages) expect(p.lw.w.companies.some((x) => x.name === "Erin Late"), p.uid).toBe(true);
-    expect(enc(c.lw.w)).toBe(enc(a.lw.w));
+    for (const p of st.pages) expect(p.lw.w.companies.some((x) => x.name === "Erin Late"), p.uid).toBe(false);
+    expect(enc(a.lw.w)).toBe(before);
+    expect(enc(c.lw.w)).toBe(before);
     const e = await st.open("frank");
     expect(e.lw.startedKind).toBe("seed");
+    expect(enc(e.lw.w)).toBe(before);
   }, 240_000);
 
   it("a page whose own hash of a kept day differs, over the same records, starts again from the body, and its report stands as the alarm", async () => {
@@ -941,13 +820,13 @@ describe("the shared checkpoint (step 3): small worlds, a store without the capa
     expect((await st.open("dave")).lw.startedKind).toBe("seed");
     st.bodies.bodies.set(body.asset, good);
     expect((await st.open("erin")).lw.startedKind).toBe("shared");
-    // The pointer says another replay build wrote it: not this page's to start from, though the cut's marks still hold.
+    // The pointer says another replay build wrote it: not this page's to start from, though the archive still holds.
     await st.db.doc("world/checkpoint").set({ v: 1, bodies: [{ ...body, build: "another-build" }], gone: [] });
     await st.settle();
     expect((await st.open("frank")).lw.startedKind).toBe("seed");
     // A trust document for another world (left from before a restart) keeps nothing.
     await st.db.doc("world/checkpoint").set({ v: 1, bodies: [body], gone: [] });
-    await st.db.doc("world/cpm-1").set({ v: 1, ...trust, marks: marksDoc(trust.marks), world: "1:0:another" });
+    await st.db.doc("world/cpm-1").set({ v: 2, ...trust, world: "1:0:another" });
     await st.settle();
     expect((await st.open("gina")).lw.startedKind).toBe("seed");
     expect(owner.lw.sharedView().kept).toEqual([]);
@@ -971,7 +850,7 @@ describe("the shared checkpoint (step 3): small worlds, a store without the capa
     };
     let reads = 0;
     const store = assetBodies(assets, async (id) => (++reads === 1 ? null : `body of ${id}`));
-    const packed = await packBody(cutText({ world: "w", build: "b", t: DAY, marks: [], companies: [] }, "{}"));
+    const packed = await packBody(cutText({ world: "w", build: "b", t: DAY, rh: "0".repeat(64), companies: [] }, "{}"));
     expect(await store.put(packed)).toEqual({ id: "a".repeat(32), bytes: packed.length });
     expect(up).toEqual([{ type: "application/json|application/json", text: packed }]);
     // A busy store: once more, and it lands.
@@ -1004,14 +883,12 @@ describe("the shared checkpoint (step 3): small worlds, a store without the capa
     expect(parsePointer({ v: 1, bodies: [{ day: 1, t: DAY, hash: "a".repeat(64), world: "w", build: "b", asset: "../x" }] }).bodies).toEqual([]);
     expect(parsePointer({ v: 2, bodies: [{ day: 1, t: DAY, hash: "a".repeat(64), world: "w", build: "b", asset: "x" }] }).bodies).toEqual([]);
     expect(parsePointer({ v: 1, bodies: [{ day: 1, t: DAY, hash: "a".repeat(64), world: "w", build: "b", asset: "x" }], gone: ["ok", "../no", 7] })).toMatchObject({ bodies: [{ day: 1 }], gone: ["ok"] });
-    expect(parseTrust({ v: 1, world: "w", build: "b", day: 1, t: DAY, hash: "a".repeat(63), by: [], marks: [] })).toBeNull();
-    expect(parseTrust({ v: 1, world: "w", build: "b", day: 1, t: DAY, hash: "a".repeat(64), by: ["x", 3], marks: [["u", 2, 3]] })).toMatchObject({ by: ["x"], marks: [["u", 2, 3]] });
-    expect(parseTrust({ v: 1, world: "w", build: "b", day: 1, t: DAY, hash: "a".repeat(64), by: [], marks: [{ u: "v", s: 0, n: 1 }, { u: "u", s: 2, n: 3 }] })!.marks).toEqual([["u", 2, 3], ["v", 0, 1]]);
-    expect(parseTrust({ v: 1, world: "w", build: "b", day: 1, t: DAY, hash: "a".repeat(64), by: [], marks: [{ u: "v", s: 0 }] })).toBeNull();
-    expect(parseMarks([["u", 2, 3], ["u", 4, 5]])).toBeNull();
-    expect(parseMarks([["b", 0, 1], ["a", 2, 3]])).toEqual([["a", 2, 3], ["b", 0, 1]]);
-    expect(marksKey(parseMarks([["b", 0, 1], ["a", 2, 3]])!)).toBe('[["a",2,3],["b",0,1]]');
-    expect(parseMarks([["u", -1, 1]])).toBeNull();
+    const arc = { from: 0, to: DAY, hash: "c".repeat(64), parts: 1, n: 3, bytes: 99 };
+    const trust = { v: 2, world: "w", build: "b", day: 1, t: DAY, hash: "a".repeat(64), by: ["x", 3], at: 5, rh: "b".repeat(64), arc };
+    expect(parseTrust(trust)).toEqual({ world: "w", build: "b", day: 1, t: DAY, hash: "a".repeat(64), by: ["x"], at: 5, rh: "b".repeat(64), arc });
+    const wrong: Record<string, unknown>[] = [{ v: 1 }, { hash: "a".repeat(63) }, { rh: "" }, { rh: undefined }, { arc: undefined }, { arc: [] }, { day: 0, t: 0 }, { t: DAY + 1 }];
+    for (const a of [{ to: 2 * DAY }, { from: DAY }, { from: 7 }, { from: -DAY }, { hash: "nope" }, { parts: 0 }, { parts: 1e9 }, { parts: 1.5 }, { n: -1 }]) wrong.push({ arc: { ...arc, ...a } });
+    for (const w of wrong) expect(parseTrust({ ...trust, ...w }), JSON.stringify(w)).toBeNull();
     expect(parseAlarm({ v: 1, world: "other", open: [{ day: 1, hash: "a".repeat(64), uid: "u", theirs: "b".repeat(64) }] }, "w")).toEqual(noAlarm());
     expect(parseAlarm({ v: 1, world: "w", open: [{ day: 1, hash: "a".repeat(64), uid: "u", theirs: "b".repeat(64) }, { day: "1" }], barred: [{ day: 2, hash: "c".repeat(64) }], ignored: [{ uid: "u", day: 3 }] }, "w")).toMatchObject({ open: [{ uid: "u" }], barred: [{ day: 2 }], ignored: [{ uid: "u", day: 3 }] });
     expect(parseDays({ v: 1, world: "w", build: "b", days: [{ day: 1, hash: "a".repeat(64), from: "seed" }, { day: 2, hash: "nope" }] })!.days).toEqual([{ day: 1, hash: "a".repeat(64), from: "seed" }]);
@@ -1058,7 +935,7 @@ describe("the shared checkpoint (step 3): with this browser's own cuts (step 2a)
     const trust = await kept1({ st, owner, players: [a, b], a, b });
     const local = [...store.cuts.values()].find((c) => c.t === DAY)!;
     expect(local.hash).toBe(trust.hash);
-    expect(local.marks).toEqual(trust.marks);
+    expect(local.rh).toBe(trust.rh);
     // Alice's page reloads: its own cut, no fetch.
     st.close(a);
     let fetched = 0;
