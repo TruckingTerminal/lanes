@@ -266,3 +266,180 @@ describe("a player's log chunks: the count and the read", () => {
     }
   }, 120_000);
 });
+
+describe("a player's log chunks: a saved copy is no answer, and a refused chunk costs no order", () => {
+  const DAY_MS = 24 * MS_PER_GAME_HOUR;
+  const rec = (s: number, at: number, a: unknown = orders(0)) => ({ s, at, a });
+  const missingCopy = (): SnapLike => ({ id: "", exists: false, data: () => undefined, metadata: { fromCache: true } });
+
+  it("a chunk a saved copy doesn't hold is asked for again by the next delivery, though its player's document is the same", async () => {
+    const clock = 6 * MS_PER_GAME_HOUR;
+    const db = new MemoryDb(() => clock);
+    let copy = true;
+    const store: DbLike = {
+      collection: (p) => db.collection(p),
+      doc: (p) => (/\/log\//.test(p) ? { ...db.doc(p), get: async () => (copy ? missingCopy() : db.doc(p).get()) } : db.doc(p)),
+    };
+    const page = await LiveWorld.open(store, meta, "watcher", { now: () => clock, holder: "W", manualRenewal: true });
+    await page.rebuild();
+    await db.doc("players/pat/log/c00000").set({ acts: [rec(0, 362, join("Pat Co"))] });
+    await db.doc("players/pat").set({ v: 1, acts: [rec(1, 363)], archived: 1 });
+    await settle();
+    expect(held(page, "pat")).toEqual([1]);
+    copy = false;
+    await db.doc("players/quinn").set({ v: 1, acts: [], archived: 0 });
+    await settle();
+    expect(held(page, "pat")).toEqual([0, 1]);
+    page.close();
+  });
+
+  it("a page opening on a saved copy of a log that lacks a chunk reads that chunk by name: at the next delivery for another player's, at its next order for its own", async () => {
+    // (The first delivery is the subscription's own, as the page opens.)
+    const clock = 6 * MS_PER_GAME_HOUR;
+    const db = new MemoryDb(() => clock);
+    for (const uid of ["pat", "quinn"]) {
+      await db.doc(`players/${uid}/log/c00000`).set({ acts: [rec(0, 100, join(`${uid} Co`))] });
+      await db.doc(`players/${uid}/log/c00001`).set({ acts: [rec(1, 101)] });
+      await db.doc(`players/${uid}`).set({ v: 1, acts: [rec(2, 102)], archived: 2 });
+    }
+    // The log collections answer from a saved copy that holds the first chunk only.
+    const store: DbLike = {
+      doc: (p) => db.doc(p),
+      collection: (p) => {
+        const c = db.collection(p);
+        return /\/log$/.test(p) ? { ...c, get: async () => ({ docs: (await c.get()).docs.slice(0, 1), metadata: { fromCache: true } }) } : c;
+      },
+    };
+    const page = await LiveWorld.open(store, meta, "pat", { now: () => clock, holder: "P", manualRenewal: true });
+    await settle();
+    expect([held(page, "pat"), held(page, "quinn")]).toEqual([[0, 2], [0, 1, 2]]);
+    await page.rebuild();
+    await page.submit(orders(0));
+    expect(held(page, "pat")).toEqual([0, 1, 2, 3]);
+    expect((await db.doc("players/pat").get()).data()).toMatchObject({ archived: 2 });
+    page.close();
+  });
+
+  it("a page opening on a saved copy of the players' documents reads its own again once it holds the lease", async () => {
+    const clock = 6 * MS_PER_GAME_HOUR;
+    const db = new MemoryDb(() => clock);
+    await db.doc("players/pat").set({ v: 1, acts: [rec(0, 362, join("Pat Co")), rec(1, 363)], archived: 0 });
+    // The saved copy holds her document as it was one order ago.
+    const older: SnapLike = { id: "pat", exists: true, data: () => ({ v: 1, acts: [rec(0, 362, join("Pat Co"))], archived: 0 }) };
+    const store: DbLike = {
+      doc: (p) => db.doc(p),
+      collection: (p) => (p === "players" ? { ...db.collection(p), get: async () => ({ docs: [older], metadata: { fromCache: true } }) } : db.collection(p)),
+    };
+    const page = await LiveWorld.open(store, meta, "pat", { now: () => clock, holder: "P", manualRenewal: true });
+    expect(held(page, "pat")).toEqual([0, 1]);
+    page.close();
+  });
+
+  it("a tab's own chunks that can't be read leave its count where its chunks are: the next order asks again", async () => {
+    let clock = 6 * MS_PER_GAME_HOUR;
+    const db = new MemoryDb(() => clock);
+    await db.doc("players/pat").set({ v: 1, acts: [rec(0, 100, join("Pat Co"))], archived: 0 });
+    let down = false;
+    const store: DbLike = {
+      collection: (p) => db.collection(p),
+      doc: (p) => (/\/log\//.test(p) ? { ...db.doc(p), get: async () => (down ? Promise.reject(new Error("no network")) : db.doc(p).get()) } : db.doc(p)),
+    };
+    const page = await LiveWorld.open(store, meta, "pat", { now: () => clock, holder: "P", manualRenewal: true });
+    await page.rebuild();
+    // Another device moved her first orders into a chunk; this tab takes its lease again while that chunk can't be read.
+    await db.doc("players/pat/log/c00000").set({ acts: [rec(0, 100, join("Pat Co")), rec(1, 101)] });
+    await db.doc("players/pat").set({ v: 1, acts: [rec(2, 102)], archived: 1 });
+    clock += 10 * 60_000;
+    down = true;
+    await expect(page.retakeLease()).rejects.toThrow(/no network/);
+    expect(held(page, "pat")).toEqual([0]);
+    down = false;
+    await page.submit(orders(0));
+    expect(held(page, "pat")).toEqual([0, 1, 2, 3]);
+    expect(((await db.doc("players/pat").get()).data() as { acts: { s: number }[] }).acts.map((r) => r.s)).toEqual([2, 3]);
+    page.close();
+  });
+
+  it("a chunk the store refuses doesn't cost the order: the document is written with those orders still in it, and the chunk is tried again later", async () => {
+    let clock = 2 * DAY_MS;
+    const db = new MemoryDb(() => clock);
+    await db.doc("players/pat").set({ v: 1, acts: [rec(0, 362, join("Pat Co")), ...Array.from({ length: 304 }, (_, i) => rec(i + 1, 363 + i))], archived: 0 });
+    let full = true;
+    const tries: string[] = [];
+    const store: DbLike = {
+      collection: (p) => db.collection(p),
+      doc: (p) =>
+        /\/log\//.test(p)
+          ? {
+              ...db.doc(p),
+              set: async (data) => {
+                tries.push(p);
+                if (full) throw Object.assign(new Error("the store is full"), { code: "quota_exceeded" });
+                return db.doc(p).set(data);
+              },
+            }
+          : db.doc(p),
+    };
+    const page = await LiveWorld.open(store, meta, "pat", { now: () => clock, holder: "P", manualRenewal: true });
+    await page.rebuild();
+    const stored = async () => (await db.doc("players/pat").get()).data() as { acts: unknown[]; archived: number };
+    const first = await page.submit(orders(0));
+    expect(first.s).toBe(305);
+    expect([(await stored()).acts.length, (await stored()).archived, tries.length]).toEqual([306, 0, 1]);
+    // Not tried again at once.
+    await page.submit(orders(1));
+    expect([(await stored()).acts.length, (await stored()).archived, tries.length]).toEqual([307, 0, 1]);
+    // Later, with room in the store, the chunk is written and the document holds the rest.
+    clock += 11 * 60_000;
+    full = false;
+    await page.submit(orders(0));
+    expect([(await stored()).acts.length, (await stored()).archived, tries]).toEqual([108, 1, ["players/pat/log/c00000", "players/pat/log/c00000"]]);
+    expect(held(page, "pat").length).toBe(308);
+    page.close();
+  }, 120_000);
+
+  it("a player's document that didn't change is not parsed again at the next delivery; one first taken from a saved copy is, once, when the store itself answers", async () => {
+    const clock = 6 * MS_PER_GAME_HOUR;
+    const db = new MemoryDb(() => clock);
+    const parsed: Record<string, number> = {};
+    let copy = false;
+    // Each snapshot's data, with a count of how often its orders are read.
+    const wraps = new WeakMap<SnapLike, SnapLike>();
+    const wrap = (d: SnapLike): SnapLike => {
+      let w = wraps.get(d);
+      if (!w) {
+        w = { ...d, data: () => new Proxy(d.data()!, { get: (t, k, r) => (k === "acts" && (parsed[d.id] = (parsed[d.id] ?? 0) + 1), Reflect.get(t, k, r) as unknown) }) };
+        wraps.set(d, w);
+      }
+      return w;
+    };
+    const store: DbLike = {
+      doc: (p) => db.doc(p),
+      collection: (p) => {
+        const c = db.collection(p);
+        return p === "players" ? { ...c, onSnapshot: (next, err) => c.onSnapshot((snap) => next({ docs: snap.docs.map(wrap), ...(copy ? { metadata: { fromCache: true } } : {}) }), err) } : c;
+      },
+    };
+    const page = await LiveWorld.open(store, meta, "watcher", { now: () => clock, holder: "W", manualRenewal: true });
+    await page.rebuild();
+    await db.doc("players/alice").set({ v: 1, acts: [rec(0, 362, join("Alice Co"))], archived: 0 });
+    await settle();
+    for (let i = 0; i < 4; i++) {
+      await db.doc("players/bob").set({ v: 1, acts: Array.from({ length: i + 1 }, (_, s) => rec(s, 362 + s, s ? orders(0) : join("Bob Co"))), archived: 0 });
+      await settle();
+    }
+    expect(parsed).toEqual({ alice: 1, bob: 4 });
+    expect([held(page, "alice"), held(page, "bob")]).toEqual([[0], [0, 1, 2, 3]]);
+    // Carol's document comes first in a saved copy, then, the same object, in the store's own answer: taken twice, no more.
+    copy = true;
+    await db.doc("players/carol").set({ v: 1, acts: [rec(0, 362, join("Carol Co"))], archived: 0 });
+    await settle();
+    copy = false;
+    for (let i = 0; i < 3; i++) {
+      await db.doc("players/dan").set({ v: 1, acts: [rec(0, 362 + i, join("Dan Co"))], archived: 0 });
+      await settle();
+    }
+    expect(parsed).toEqual({ alice: 1, bob: 4, carol: 2, dan: 3 });
+    page.close();
+  });
+});

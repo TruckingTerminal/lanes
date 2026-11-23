@@ -10,6 +10,8 @@ export class MemoryDb implements DbLike {
   private leases = new Map<string, { holder: string; until: number }>();
   private subs = new Set<{ coll: string; next: (s: { docs: SnapLike[] }) => void }>();
   private held: (() => void)[] = [];
+  /** A document's snapshot, the same object until the document is written again (as the artifact store hands them back). */
+  private snaps = new Map<string, { body: Record<string, unknown>; snap: SnapLike }>();
   /** When true, subscribers only hear about writes on `flush()`. */
   hold = false;
 
@@ -77,7 +79,12 @@ export class MemoryDb implements DbLike {
   private snap(path: string): SnapLike {
     const body = this.docs.get(path);
     const id = path.slice(path.lastIndexOf("/") + 1);
-    return { id, exists: body !== undefined, data: () => (body ? (JSON.parse(JSON.stringify(body)) as Record<string, unknown>) : undefined) };
+    const had = this.snaps.get(path);
+    if (body && had?.body === body) return had.snap;
+    const snap: SnapLike = { id, exists: body !== undefined, data: () => (body ? (JSON.parse(JSON.stringify(body)) as Record<string, unknown>) : undefined) };
+    if (body) this.snaps.set(path, { body, snap });
+    else this.snaps.delete(path);
+    return snap;
   }
 
   private list(coll: string): SnapLike[] {

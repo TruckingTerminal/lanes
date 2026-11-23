@@ -43,6 +43,8 @@ const ARCHIVE_CHUNK = 200;
  * day for a year. At it a page stops moving orders out of the player's document.
  */
 export const MAX_ARCHIVE_CHUNKS = 1000;
+/** After the store refused a log chunk, a tab leaves its orders in its document this long before it tries again (ms). */
+const CHUNK_RETRY_MS = 10 * 60_000;
 
 /**
  * A player's document says how many chunks its log holds (`archived`). It is read as a count only when it is a whole
@@ -394,6 +396,15 @@ export class LiveWorld {
    * count a read under way is going to; `busy`, that read. One read at a time per player.
    */
   private archives = new Map<string, { read: number; asked: number; want: number; busy: Promise<void> | null }>();
+  /**
+   * Per player, the document the subscription last took in, and whether from the store's own answer: the store hands back
+   * the same object for a document that didn't change, and such a one is not parsed again.
+   */
+  private taken = new Map<string, { snap: SnapLike; own: boolean }>();
+  /** The store refused a log chunk: this tab doesn't try to move orders out of its document again before this time. */
+  private chunkBackAt = 0;
+  /** The players' documents at this page's load were a saved copy: the tab's own is read again once it holds the lease. */
+  private loadedCopy = false;
   private archiveOf(uid: string): { read: number; asked: number; want: number; busy: Promise<void> | null } {
     let a = this.archives.get(uid);
     if (!a) this.archives.set(uid, (a = { read: 0, asked: 0, want: 0, busy: null }));
@@ -432,7 +443,8 @@ export class LiveWorld {
     const lw = new LiveWorld(meta, db, uid, o);
     await lw.load();
     lw.loaded = true;
-    if (uid) await lw.takeLease();
+    const leased = uid ? await lw.takeLease() : false;
+    if (leased && lw.loadedCopy) await lw.chained(() => lw.rereadOwn()).catch((e) => console.error(e));
     lw.subscribe();
     return lw;
   }
@@ -1192,6 +1204,7 @@ export class LiveWorld {
       if (world.metadata?.fromCache !== true) this.worldDocs(world.docs);
     }
     const players = await this.db.collection("players").get();
+    this.loadedCopy = players.metadata?.fromCache === true;
     const archivedOf: [string, number][] = [];
     for (const d of players.docs) {
       const body = d.data();
@@ -1215,7 +1228,11 @@ export class LiveWorld {
             this.ingest(uid, parseActs(c.data()?.acts));
             a.read++;
           }
-          a.asked = a.want = archived;
+          // A saved copy that lacks a chunk the count names says nothing about it: the count stays unanswered there, and
+          // the next document that gives it asks for that chunk by name (for this tab's own log, its next order).
+          const answered = a.read >= archived || chunks.metadata?.fromCache !== true;
+          a.asked = a.want = answered ? archived : a.read;
+          if (!answered && uid === this.uid) this.own.archived = a.read;
         }),
       );
     }
@@ -1235,9 +1252,15 @@ export class LiveWorld {
           if (d.id === this.uid && this.writer) continue; // this tab writes that log itself
           const body = d.data();
           if (body) {
-            const acts = parseActs(body.acts);
-            if (!cached) this.dropMissing(d.id, acts);
-            this.ingest(d.id, acts, true, cached);
+            // The same object as last time is the same document (section 4.3): its orders are in already. From a saved
+            // copy last time and from the store itself now, it is taken once more, since only that answer drops or rewrites.
+            const had = this.taken.get(d.id);
+            if (had?.snap !== d || (!cached && !had?.own)) {
+              this.taken.set(d.id, { snap: d, own: !cached });
+              const acts = parseActs(body.acts);
+              if (!cached) this.dropMissing(d.id, acts);
+              this.ingest(d.id, acts, true, cached);
+            }
             // Chunks archived while this page wasn't hearing (asleep, offline): read before they're missed for good.
             if (archiveCount(body.archived, 0) > this.archiveOf(d.id).want) void this.readArchive(d.id, body.archived).catch((e) => console.error(e));
           }
@@ -1366,8 +1389,10 @@ export class LiveWorld {
   private async rereadOwn(): Promise<void> {
     const snap = await this.db.doc(`players/${this.uid}`).get();
     const body = snap.data();
-    this.own = { acts: parseActs(body?.acts), archived: body ? archiveCount(body.archived, this.own.archived) : 0 };
-    await this.readArchive(this.uid!, this.own.archived);
+    const own = { acts: parseActs(body?.acts), archived: body ? archiveCount(body.archived, this.own.archived) : 0 };
+    // The chunks first, the count after: a read that fails leaves this tab's count where its chunks are.
+    await this.readArchive(this.uid!, own.archived);
+    this.own = own;
     this.dropMissing(this.uid!, this.own.acts);
     this.ingest(this.uid!, this.own.acts);
   }
@@ -1399,6 +1424,8 @@ export class LiveWorld {
         const want = a.want;
         while (a.read < want) {
           const chunk = await this.db.doc(`players/${uid}/log/${chunkId(a.read)}`).get();
+          // Not there, by the store's own answer: the read ends. Not there in a saved copy: a failed read, asked again.
+          if (!chunk.exists && chunk.metadata?.fromCache === true) throw new Error("the store's answer for a log chunk was a saved copy");
           if (!chunk.exists) break;
           const acts = parseActs(chunk.data()?.acts);
           // The re-check §8: an honest page archives only records over a game day old; a younger one in a new chunk is marked.
@@ -1433,8 +1460,8 @@ export class LiveWorld {
         const mine = new Set(this.own.acts.map((x) => `${x.s}:${JSON.stringify(x)}`));
         const unseen = archived !== this.own.archived || stored.length !== this.own.acts.length || stored.some((x) => !mine.has(`${x.s}:${JSON.stringify(x)}`));
         if (unseen) {
-          this.own = { acts: stored, archived };
           await this.readArchive(uid, archived);
+          this.own = { acts: stored, archived };
           this.dropMissing(uid, stored);
           this.ingest(uid, stored);
         }
@@ -1449,10 +1476,19 @@ export class LiveWorld {
       let kept = acts;
       // Step 3: only records before the frozen minute, which no page reads from this document again.
       const done = this.shared ? Math.min(this.w.t - 24 * 60, this.frozen) : this.w.t - 24 * 60;
-      if (acts.length > KEEP_IN_DOC && archived < MAX_ARCHIVE_CHUNKS) {
+      if (acts.length > KEEP_IN_DOC && archived < MAX_ARCHIVE_CHUNKS && this.now() >= this.chunkBackAt) {
         const old = acts.filter((x) => x.at < done).slice(0, ARCHIVE_CHUNK);
-        if (old.length === ARCHIVE_CHUNK) {
-          await this.db.doc(`players/${uid}/log/${chunkId(archived)}`).set({ acts: old });
+        // A chunk the store refuses doesn't cost the order (section 4.1): the document is written with those orders still
+        // in it, and the chunk is tried again a while later.
+        const wrote = old.length === ARCHIVE_CHUNK && (await this.db.doc(`players/${uid}/log/${chunkId(archived)}`).set({ acts: old }).then(
+          () => true,
+          (e) => {
+            console.error(e);
+            this.chunkBackAt = this.now() + CHUNK_RETRY_MS;
+            return false;
+          },
+        ));
+        if (wrote) {
           archived++;
           // This page has these: the chunk it just wrote follows the ones it had read.
           const a = this.archiveOf(uid);
