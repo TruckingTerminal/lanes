@@ -1,6 +1,6 @@
 import "./seed.js";
 import { describe, expect, it } from "vitest";
-import { arcDocPath, BODY_MAX_BYTES, cutText, hashNow, keptCuts, memoryBodies, memoryCuts, noAlarm, packBody, parseAlarm, parseDays, parsePointer, parseTrust, readCut, recLine, REPLAY_BUILD, RH0, rollHash, sha256, trustChain, unpackBody } from "../src/cuts.js";
+import { ARC_PATH, arcDocPath, BODY_MAX_BYTES, cutText, hashNow, keptCuts, memoryBodies, memoryCuts, noAlarm, packBody, parseAlarm, parseDays, parsePointer, parseTrust, readCut, recLine, REPLAY_BUILD, RH0, rollHash, sha256, trustChain, unpackBody } from "../src/cuts.js";
 import type { BodyStore, TrustDoc } from "../src/cuts.js";
 import { assetBodies, KEEP, SHARED_CUTS } from "../src/keeper.js";
 import type { CollLike, DbLike, DocLike, LiveAction, SnapLike } from "../src/live.js";
@@ -84,7 +84,7 @@ describe("the shared checkpoint (step 3): written, kept, and started from", () =
     expect(cut.line).toMatchObject({ v: 2, world: owner.lw.worldKey(), build: REPLAY_BUILD, t: DAY });
     expect(cut.line.rh).toMatch(/^[0-9a-f]{64}$/);
     // No archive is in the store before the cut is kept.
-    expect(await st.doc(arcDocPath(0))).toBeUndefined();
+    expect((await st.db.collection(ARC_PATH).get()).docs).toEqual([]);
     expect(cut.line.companies.map((c) => c[0]).sort()).toEqual(["alice", "bob"]);
 
     // The owner's own hash never counts, and one other player's isn't enough.
@@ -111,7 +111,7 @@ describe("the shared checkpoint (step 3): written, kept, and started from", () =
     // document from minute 0: the two joins, in the order the world applied them.
     expect(trust.rh).toBe(cut.line.rh);
     expect(trust.arc).toMatchObject({ from: 0, to: DAY, parts: 1, n: 2 });
-    expect(await st.doc(arcDocPath(0))).toMatchObject({ v: 1, world: owner.lw.worldKey(), from: 0, to: DAY, n: 2, parts: 1, hash: trust.arc.hash });
+    expect(await st.doc(arcDocPath(trust.arc))).toMatchObject({ v: 1, world: owner.lw.worldKey(), from: 0, to: DAY, n: 2, parts: 1, hash: trust.arc.hash });
     const records = await archived(st, 1);
     expect(records.map((x) => [x[0], x[1].s, x[1].a.type])).toEqual([["alice", 0, "join"], ["bob", 0, "join"]]);
     expect(rollHash(RH0, records.map((x) => recLine(x[0], x[1])))).toBe(trust.rh);
@@ -695,9 +695,9 @@ describe("the shared checkpoint (step 3): a report that differs, and the alarm (
 });
 
 describe("the shared checkpoint (step 3): small worlds, a store without the capability, and a body that fails its check", () => {
-  it("with the fewPlayers lever off, no other player, or one: the cut is written and never kept, and pages start as they do today", async () => {
+  it("with the fewPlayers lever off and the wait off, no other player, or one: the cut is written and never kept, and pages start as they do today", async () => {
     const st = new Stage();
-    const owner = await st.open("olga", { owner: true, keep: { fewPlayers: false } });
+    const owner = await st.open("olga", { owner: true, keep: { fewPlayers: false, waitMin: Infinity } });
     await owner.lw.submit({ type: "join", name: "Olga Lines", hub: starters[0]! });
     await st.until(DAY + G);
     await ownHash(owner, 1);
@@ -740,7 +740,8 @@ describe("the shared checkpoint (step 3): small worlds, a store without the capa
 
   it("the store keeps the newest bodies and the newest kept one, and deletes a body it drops", async () => {
     const st = new Stage();
-    const owner = await st.open("olga", { owner: true, keep: { bodies: 2 } });
+    // (The wait is off here, so that a day nobody reports on stays without a kept cut.)
+    const owner = await st.open("olga", { owner: true, keep: { bodies: 2, waitMin: Infinity } });
     const a = await st.open("alice");
     const b = await st.open("bob");
     await a.lw.submit({ type: "join", name: "Alice Haul", hub: starters[0]! });

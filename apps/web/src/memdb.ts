@@ -44,12 +44,6 @@ export class MemoryDb implements DbLike {
         const coll = path.slice(0, path.lastIndexOf("/"));
         for (const s of this.subs) if (s.coll === coll) this.deliver(() => this.notify(s));
       },
-      delete: async () => {
-        if (!this.docs.delete(path)) return;
-        this.persist();
-        const coll = path.slice(0, path.lastIndexOf("/"));
-        for (const s of this.subs) if (s.coll === coll) this.deliver(() => this.notify(s));
-      },
       acquire: async ({ holder, ttlMs = 30_000 }) => {
         const t = this.now();
         const cur = this.leases.get(path);

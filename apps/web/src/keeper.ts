@@ -9,16 +9,17 @@
  *    every visitor would fill the store.
  *  - The owner's page, and only it (the store's rules give world/* to the owner): writes the newest such day's cut, the
  *    body first and its pointer last, after reading every player's orders again from the store itself (finding 5); reads
- *    the players' reports; when enough match and none differs (finding 3), reads the orders again, stores the archive of
- *    the records applied since the frozen minute (its parts, then its head, then read back whole) and last the trust
- *    document, which names it; writes the alarm when a report differs (finding 8), and answers such a report by computing
- *    the day again from the cut before, over the archive's records. A cut it withdraws goes with every cut kept after
- *    it; an archive is never withdrawn or replaced once a trust document names it.
+ *    the players' reports; when enough match and none differs (finding 3), or none has differed for the wait (KEEP.waitMin),
+ *    reads the orders again, stores the archive of the records applied since the frozen minute (its parts, then its head,
+ *    then read back whole) and last the trust document, which names it; writes the alarm when a report differs (finding
+ *    8), and answers such a report by computing the day again from the cut before, over the archive's records. A cut it
+ *    withdraws goes with every cut kept after it; an archive's documents are named by its text, and none is ever written
+ *    over with another text, withdrawn or deleted.
  *
  * Nothing here runs unless the page switch is on (SHARED_CUTS; main.tsx).
  */
 import { encodeWorld, type World } from "@lanes/engine";
-import { ARC_PART_CHARS, arcDocPath, arcDocs, cutExtras, DAYS_PATH, packBody, parseAlarm, parseDays, parsePointer, readArc, REPLAY_BUILD, sha256 } from "./cuts.js";
+import { ARC_PART_CHARS, arcDocs, cutExtras, DAYS_PATH, packBody, parseAlarm, parseDays, parsePointer, parseTrust, readArc, REPLAY_BUILD, sha256 } from "./cuts.js";
 import type { Alarm, ArcRef, BodyRef, BodyStore, DayReport, KeptCut, Pointer } from "./cuts.js";
 import type { DbLike, LiveWorld, OwnCut } from "./live.js";
 
@@ -31,11 +32,18 @@ export const KEEP = {
   /** How many other players' matching reports a cut needs before pages keep to it and start from its body. */
   confirmers: 2,
   /**
-   * A world with fewer other players than `confirmers`: off, a cut still needs `confirmers` (so it never gets them, and
-   * pages start as they did); on, it needs as many as there are other players, none in a world with no other player.
+   * A world with fewer other players than `confirmers`: off, a cut still needs `confirmers` (so it is kept only once the
+   * wait below has passed); on, it needs as many as there are other players, none in a world with no other player.
    * A player here is an account whose company is in the cut.
    */
   fewPlayers: true,
+  /**
+   * The wait: game minutes after a day boundary from which a cut that no report differs from is kept with the matching
+   * reports it has, however few (a player who is away sends none). Until then a cut needs its confirmations; a report
+   * that differs stops it at any time. The grace and one game day, which is inside the days a page reports (`days`) and
+   * the bodies the store keeps (`bodies`). Infinity: a cut is kept on its confirmations only.
+   */
+  waitMin: 6 * 60 + 24 * 60,
   /** Bodies kept in the store. The newest kept cut's body is never dropped. */
   bodies: 3,
   /** Days in a page's report. */
@@ -277,8 +285,9 @@ export class Keeper {
    * The archive for a day's cut, in the store as this page's records, and how the trust document will name it. The records
    * are the ones this world applied from the frozen minute up to the cut's (live.ts arcText). They are read back from the
    * store as a page reads them (cuts.ts readArc), and written when the store doesn't hold exactly that text: the further
-   * parts, then the head, then read back once more. A day that already has a trust document has its archive for good: it
-   * is named again and never written. Null, with a note, when this page's records for the day aren't the ones to store.
+   * parts, then the head, then read back once more. No document of another text is touched, and none is deleted. A day
+   * that already has a trust document has its archive for good: it is named again and never written. Null, with a note,
+   * when this page's records for the day aren't the ones to store.
    */
   private async archive(own: OwnCut): Promise<ArcRef | null> {
     const lw = this.lw;
@@ -305,23 +314,20 @@ export class Keeper {
       return null;
     }
     const { ref, docs } = await arcDocs(lw.worldKey(), a.from, a.to, a.text, a.n, this.k.arcPartChars);
+    // The documents are named by the text (cuts.ts arcDocPath): another text for these minutes, an earlier attempt's or
+    // another page's, is in other documents, and stays as it is.
     const stored = async (): Promise<boolean> => (await readArc(this.db, ref).catch(() => null)) === a.text;
     if (await stored()) return ref;
     for (const [path, body] of docs) await this.db.doc(path).set(body);
-    // An earlier attempt at this archive, never named, may have had more parts: they are taken out of the store.
-    for (let i = ref.parts; ; i++) {
-      const part = this.db.doc(arcDocPath(ref.from, i));
-      if (!part.delete || !(await part.get()).exists) break;
-      await part.delete();
-    }
     if (await stored()) return ref;
     this.note = `day ${own.day}'s archive didn't read back from the store as it was written`;
     return null;
   }
 
   /**
-   * Reads the pages' reports against each body in the store: the trust document for a body with enough matching and
-   * none differing; the alarm for one a player's own hash differs from; and this page's own answer to such a report, once.
+   * Reads the pages' reports against each body in the store: the trust document for a body with none differing and
+   * enough matching, or as many as it has once the wait has passed (KEEP.waitMin); the alarm for one a player's own hash
+   * differs from; and this page's own answer to such a report, once.
    * A report counts, either way, only from an account whose company is in the cut, only over the same records as the
    * cut (one running hash), and only for the last few days up to the newest body's.
    */
@@ -329,6 +335,7 @@ export class Keeper {
     const lw = this.lw;
     const world = lw.worldKey();
     const now = this.now();
+    const clock = lw.gameMinute();
     const reports = await this.readReports();
     const pointer = parsePointer(await this.read("world/checkpoint"));
     const alarm = parseAlarm(await this.read("world/alarm"), world);
@@ -342,6 +349,8 @@ export class Keeper {
     let heard: boolean | null = null;
     // One trust document a round: it moves the frozen minute, and the next one's archive begins there.
     let wrote = false;
+    // The real time the earliest wait of a body short of its confirmations ends.
+    let waitEnds = Infinity;
     for (const b of pointer.bodies) {
       if (b.world !== world || b.day <= newest - this.k.days) continue;
       const barred = alarm.barred.some((x) => dayKey(x) === dayKey(b));
@@ -372,21 +381,26 @@ export class Keeper {
         }
       }
       if (keepable) {
-        // Kept only while this page itself stands by that cut now, after the store's own answer: a body left in the store
-        // from days ago, with reports that matched it then, is never kept over an order every page has applied since.
-        const mine = (): OwnCut | undefined => (b.build === REPLAY_BUILD ? lw.ownDays().find((x) => x.day === b.day && x.hash === b.hash) : undefined);
+        // Kept only while this page itself stands by that cut now, over the body's own records, after the store's own
+        // answer: a body left in the store from days ago, with reports that matched it then, is never kept over an order
+        // every page has applied since.
+        const mine = (): OwnCut | undefined => (b.build === REPLAY_BUILD ? lw.ownDays().find((x) => x.day === b.day && x.hash === b.hash && x.rh === b.rh) : undefined);
         const others = [...players].filter((u) => u !== lw.uid).length;
-        if (!wrote && !differs && match.length >= this.need(others) && mine()) {
+        // Enough matching reports; or, the wait past, the ones it has: a page that says nothing is not a report against it.
+        const enough = match.length >= this.need(others) || clock >= b.t + this.k.waitMin;
+        if (!differs && !enough) waitEnds = Math.min(waitEnds, now + lw.msUntil(b.t + this.k.waitMin));
+        if (!wrote && !differs && enough && mine()) {
           heard ??= await lw.reread();
           const own = heard && !lw.needRebuild ? mine() : undefined;
           // The archive is in the store, whole, before the trust document that names it. Reading it took the store's own
           // trust documents: a cut they already hold is not written again.
           const arc = own ? await this.archive(own) : null;
           if (own && arc && !lw.needRebuild && mine() === own) {
-            if (!lw.sharedView().kept.some((k) => k.day === b.day && k.hash === b.hash)) {
+            if (lw.sharedView().kept.some((k) => k.day === b.day && k.hash === b.hash)) wrote = true;
+            else if (await this.unfrozen(b, own, arc, alarm)) {
               await this.db.doc(`world/cpm-${b.day}`).set({ v: 2, world, build: b.build, day: b.day, t: b.t, hash: b.hash, by: match.sort().slice(0, Math.max(2, this.k.confirmers)), at: now, rh: own.rh, arc: { ...arc } });
-            }
-            wrote = true;
+              wrote = true;
+            } else waiting = true;
           } else waiting = true;
         } else waiting = true;
       }
@@ -399,12 +413,29 @@ export class Keeper {
     // While a body waits, the reports are read again a minute on, then twice as long after each round that changed nothing.
     this.idle = changed ? 0 : this.idle + 1;
     this.nextReadAt = now + (waiting || open.length ? Math.min(this.k.readWaitingMs * 2 ** Math.min(Math.max(this.idle - 1, 0), 16), this.k.readKeptMs) : this.k.readKeptMs);
+    // And no later than the end of a body's wait.
+    if (waitEnds > now) this.nextReadAt = Math.min(this.nextReadAt, waitEnds);
     // A report against a body: this page computes that day again, from the cut before it, after the store's own answer.
     if (ask && (await lw.reread())) {
       this.recomputed.add(dayKey(ask));
       this.awaiting = { day: ask.day, hash: ask.hash, rounds: 0 };
       lw.recompute(ask.t);
     }
+  }
+
+  /**
+   * Just before a day's trust document is written, whether it may be: this tab still holds its lease, and the store
+   * itself holds no trust document of this world for the day, or holds one over the same records whose cut was withdrawn
+   * (another cut of those records takes its place). A day's records are frozen once, and another of the owner's pages may
+   * have written the day's trust document since this round read the world's.
+   */
+  private async unfrozen(b: BodyRef, own: OwnCut, arc: ArcRef, alarm: Alarm): Promise<boolean> {
+    const there = parseTrust(await this.read(`world/cpm-${b.day}`));
+    const none = !there || there.world !== b.world;
+    const withdrawn = !none && there.rh === own.rh && there.arc.hash === arc.hash && alarm.barred.some((x) => x.day === there.day && x.hash === there.hash);
+    if (this.lw.leaseFresh() && (none || withdrawn)) return true;
+    this.note = `waiting: day ${b.day} has a trust document already, or this tab no longer holds the owner's lease`;
+    return false;
   }
 
   /**

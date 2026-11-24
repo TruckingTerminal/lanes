@@ -184,7 +184,7 @@ export function idbCuts(name = "lanes.cuts.v1"): CutStore {
 //  4  the hash is of the whole cut (cutText): the world, the bots' state, the credit cache and the page's own records the
 //     replay builds, and with them the world's key, the replay build, the minute, the running hash of the records applied
 //     (rollHash) and the players' companies;
-//  6, 7  a kept cut comes with the archive of the records applied up to it (arcDocs, world/arc/d/<first minute>), named by
+//  6, 7  a kept cut comes with the archive of the records applied up to it (arcDocs, world/arc/d/<its name>), named by
 //     its trust document (TrustDoc, world/cpm-<day>), and both stay in the store for good. A record stamped before the
 //     newest trust document's minute is part of history only if the archive holds it, on every page, wherever its replay
 //     starts (trustChain);
@@ -363,8 +363,13 @@ export function parsePointer(raw: unknown): Pointer {
  * it whole, at its load and on each change) doesn't bring them. The store's rule for `world` covers the path.
  */
 export const ARC_PATH = "world/arc/d";
-/** An archive's documents: the head at its first minute, and the further parts of one too large for a single document. */
-export const arcDocPath = (from: number, part = 0): string => `${ARC_PATH}/${from}${part ? `p${part}` : ""}`;
+/**
+ * An archive's documents. The head is named by the archive's first minute and its text's hash (the first 32 hex), so two
+ * texts for one span are two sets of documents, and neither is written over the other. The further parts of an archive too
+ * large for one document are named by the head's name, the hash of the packed text they are pieces of (`key`, its first
+ * 16 hex, which the head carries) and their number: one text packed by two browsers never has its pieces mixed.
+ */
+export const arcDocPath = (ref: { from: number; hash: string }, part = 0, key = ""): string => `${ARC_PATH}/${ref.from}-${ref.hash.slice(0, 32)}${part ? `-${key}p${part}` : ""}`;
 /** The most characters of a packed archive in one document (the store takes 256 KiB a document). */
 export const ARC_PART_CHARS = 240_000;
 /** The most parts a trust document may name, and an archive's most bytes once unpacked (checked while it unpacks). */
@@ -378,7 +383,10 @@ export interface ArcRef {
   to: number;
   /** The SHA-256 of its text: one line a record (recLine), in the order the world applied them. */
   hash: string;
-  /** How many documents carry it, how many records it holds, and its size packed (characters). */
+  /**
+   * How many records it holds; and how many documents carried it, and its size packed (characters), as the page that
+   * wrote the trust document packed it. A reader takes the number of documents from the archive's head.
+   */
   parts: number;
   n: number;
   bytes: number;
@@ -393,16 +401,18 @@ function parseArc(raw: unknown, t: number): ArcRef | null {
 /**
  * An archive's text as the documents that carry it, in the order they are written: the further parts, then the head. The
  * text is packed as a body is (gzip, then base64) and cut into pieces of at most `partChars`; the head holds the first
- * piece, so an archive that fits one document is one document, and one read.
+ * piece, so an archive that fits one document is one document, and one read. The head says how many documents there are
+ * and which packing its further parts are of (arcDocPath).
  */
 export async function arcDocs(world: string, from: number, to: number, text: string, n: number, partChars = ARC_PART_CHARS): Promise<{ ref: ArcRef; docs: [string, Record<string, unknown>][] }> {
   const z = await gzip64(text);
   const pieces: string[] = [];
   for (let i = 0; i === 0 || i < z.length; i += partChars) pieces.push(z.slice(i, i + partChars));
   const ref: ArcRef = { from, to, hash: await sha256(text), parts: pieces.length, n, bytes: z.length };
+  const key = (await sha256(z)).slice(0, 16);
   const docs: [string, Record<string, unknown>][] = [];
-  for (let i = pieces.length - 1; i >= 1; i--) docs.push([arcDocPath(from, i), { v: 1, world, from, i, z: pieces[i]! }]);
-  docs.push([arcDocPath(from), { v: 1, world, from, to, n, hash: ref.hash, parts: ref.parts, bytes: ref.bytes, z: pieces[0]! }]);
+  for (let i = pieces.length - 1; i >= 1; i--) docs.push([arcDocPath(ref, i, key), { v: 1, world, from, i, z: pieces[i]! }]);
+  docs.push([arcDocPath(ref), { v: 1, world, from, to, n, hash: ref.hash, parts: ref.parts, bytes: ref.bytes, key, z: pieces[0]! }]);
   return { ref, docs };
 }
 
@@ -412,19 +422,29 @@ export interface ArcReader {
 }
 
 /**
- * An archive's text from the store, six documents at a time, checked against `ref` before it is returned: it unpacks within
- * its size cap and hashes to the trust document's hash, whole. Null: the store doesn't hold that text (a document missing,
- * or another text's). It throws when the store's answer was a saved copy: that says nothing either way.
+ * An archive's text from the store: the head its trust document's `ref` names, then the further parts the head names, six
+ * documents at a time. It is checked against `ref` before it is returned: it unpacks within its size cap and hashes to the
+ * trust document's hash, whole. Null: the store doesn't hold that text (a document missing, or another text's). It throws
+ * when the store's answer was a saved copy: that says nothing either way.
  */
 export async function readArc(db: ArcReader, ref: ArcRef): Promise<string | null> {
-  let z = "";
-  for (let i = 0; i < ref.parts; i += 6) {
-    const got = await Promise.all(Array.from({ length: Math.min(6, ref.parts - i) }, (_, j) => db.doc(arcDocPath(ref.from, i + j)).get()));
-    for (const snap of got) {
-      if (snap.metadata?.fromCache === true) throw new Error(`the store's answer for the archive at minute ${ref.from} was a saved copy`);
-      const piece = snap.exists ? snap.data()?.z : undefined;
-      if (typeof piece !== "string") return null;
-      z += piece;
+  const piece = async (path: string): Promise<Record<string, unknown> | undefined> => {
+    const snap = await db.doc(path).get();
+    if (snap.metadata?.fromCache === true) throw new Error(`the store's answer for the archive at minute ${ref.from} was a saved copy`);
+    const body = snap.exists ? snap.data() : undefined;
+    return typeof body?.z === "string" ? body : undefined;
+  };
+  const head = await piece(arcDocPath(ref));
+  if (!head) return null;
+  const parts = head.parts;
+  const key = head.key;
+  if (!isInt(parts) || parts < 1 || parts > ARC_MAX_PARTS || (parts > 1 && (typeof key !== "string" || !/^[0-9a-f]{16}$/.test(key)))) return null;
+  let z = head.z as string;
+  for (let i = 1; i < parts; i += 6) {
+    const got = await Promise.all(Array.from({ length: Math.min(6, parts - i) }, (_, j) => piece(arcDocPath(ref, i + j, key as string))));
+    for (const body of got) {
+      if (!body) return null;
+      z += body.z as string;
     }
   }
   const text = await gunzip64(z, ARC_MAX_BYTES);

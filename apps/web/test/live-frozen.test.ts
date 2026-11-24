@@ -8,7 +8,7 @@ import { archived, DAY, enc, eventually, G, kept1, oneWorld, ownHash, Stage, sta
 
 /**
  * The checkpoint's step 3b, part A (cuts.ts, live.ts, keeper.ts): a kept cut comes with the archive of the records applied
- * up to it (world/arc/d/<first minute>), named by its trust document; a record stamped before the newest trust document's
+ * up to it (world/arc/d/<first minute>-<its text's hash>), named by its trust document; a record stamped before the newest trust document's
  * minute is part of history only if the archive holds it, on every page, wherever its replay starts; a cut is withdrawn
  * together with every cut kept after it, and an archive never is.
  */
@@ -91,7 +91,7 @@ describe("the shared checkpoint (step 3b): a kept day's records are the archive'
     const w = watched(st.db);
     const frank = await st.open("frank", { bodies: memoryBodies(), db: w.db });
     expect(frank.lw.startedKind).toBe("seed");
-    expect(archiveReads(w.seen)).toEqual([arcDocPath(0)]);
+    expect(archiveReads(w.seen)).toEqual([arcDocPath(trust.arc)]);
     expect(enc(frank.lw.w)).toBe(before);
     await frank.lw.submit({ type: "join", name: "Frank Freight", hub: starters[0]! });
     await st.run(1);
@@ -226,7 +226,8 @@ describe("the shared checkpoint (step 3b): a cut withdrawn", () => {
     const x = await st.open("xena");
     expect([x.lw.startedKind, x.lw.startedFrom]).toEqual(["shared", 2 * DAY]);
     const before = enc(a.lw.w);
-    const archives = [await st.doc(arcDocPath(0)), await st.doc(arcDocPath(DAY))];
+    const archives = [await st.doc(arcDocPath(t1.arc)), await st.doc(arcDocPath(t2.arc))];
+    expect(archives.every((x) => x !== undefined)).toBe(true);
     expect(alarmWrites).toBe(0);
     await owner.keeper.bar(1, t1.hash);
     expect(alarmWrites).toBe(1);
@@ -235,13 +236,13 @@ describe("the shared checkpoint (step 3b): a cut withdrawn", () => {
     // No cut stands; both trust documents still freeze their records, and their archives are as they were.
     expect(owner.lw.sharedView().kept).toEqual([]);
     expect(owner.lw.sharedView().trust.map((d) => d.day)).toEqual([1, 2]);
-    expect([await st.doc(arcDocPath(0)), await st.doc(arcDocPath(DAY))]).toEqual(archives);
+    expect([await st.doc(arcDocPath(t1.arc)), await st.doc(arcDocPath(t2.arc))]).toEqual(archives);
     expect(x.lw.startedKind).toBe("seed");
     const y = await st.open("yuri");
     const w = watched(st.db);
     const z = await st.open("zoe", { bodies: memoryBodies(), db: w.db });
     expect([y.lw.startedKind, z.lw.startedKind]).toEqual(["seed", "seed"]);
-    expect(archiveReads(w.seen)).toEqual([arcDocPath(0), arcDocPath(DAY)]);
+    expect(archiveReads(w.seen)).toEqual([arcDocPath(t1.arc), arcDocPath(t2.arc)]);
     oneWorld(st, before);
     for (const p of st.pages) expect(named(p, /Erin/), p.uid).toEqual(["Erin Again"]);
     // The owner's page writes no cut of a withdrawn day again with the hash it withdrew.
@@ -303,7 +304,8 @@ describe("the shared checkpoint (step 3b): a cut withdrawn", () => {
     await st.round(owner);
     const t1 = (await st.trust(1))!;
     expect(t1.hash).toBe(first);
-    const head = JSON.stringify(await st.doc(arcDocPath(0)));
+    const head = JSON.stringify(await st.doc(arcDocPath(t1.arc)));
+    expect(head).toMatch(/"z"/);
     await owner.keeper.bar(1, first);
     await st.settle();
     expect(owner.lw.sharedView().kept).toEqual([]);
@@ -319,7 +321,7 @@ describe("the shared checkpoint (step 3b): a cut withdrawn", () => {
     const t2 = (await st.trust(1))!;
     expect(t2.hash).toBe(other);
     expect([t2.rh, t2.arc]).toEqual([t1.rh, t1.arc]);
-    expect(JSON.stringify(await st.doc(arcDocPath(0)))).toBe(head);
+    expect(JSON.stringify(await st.doc(arcDocPath(t1.arc)))).toBe(head);
     expect(writes.filter((p) => p.startsWith(ARC_PATH))).toEqual([]);
     expect(owner.lw.sharedView().kept.map((k) => [k.day, k.hash])).toEqual([[1, other]]);
     expect(owner.lw.sharedView().trust.length).toBe(1);
@@ -328,9 +330,10 @@ describe("the shared checkpoint (step 3b): a cut withdrawn", () => {
 
 describe("the shared checkpoint (step 3b): the archive in the store", () => {
   it("days with no kept cut, then a kept one: its archive covers them all, in one document read by a page from the seed and none by a page from the body; an order of an unkept day is as frozen as any; the node replay of a copy gives the kept hashes", async () => {
-    const s = await started();
+    // (The wait is off here, so that a day nobody reports on stays without a kept cut.)
+    const s = await started({ ownerOptions: { keep: { waitMin: Infinity } } });
     const { st, owner, a, b } = s;
-    await kept1(s);
+    const t1 = await kept1(s);
     // Days 2 and 3: the owner's page writes each day's cut, the players' pages don't report, and neither is kept.
     await st.until(DAY + 20 * 60);
     await st.db.doc("players/ivan").set({ v: 1, acts: [join(0, Math.ceil(st.minute()) + 5, "Ivan Day Two")], archived: 0 });
@@ -342,14 +345,15 @@ describe("the shared checkpoint (step 3b): the archive in the store", () => {
       await st.round(owner);
       expect(await st.trust(day)).toBeNull();
     }
-    expect(await st.doc(arcDocPath(DAY))).toBeUndefined();
+    expect((await st.db.collection(ARC_PATH).get()).docs.length).toBe(1);
     await st.until(4 * DAY + G);
     await keepDay(s, 4);
     const t4 = (await st.trust(4))!;
     expect(t4.arc).toMatchObject({ from: DAY, to: 4 * DAY, parts: 1 });
     // The archives are a level below the world's own documents: a read of that collection doesn't bring them.
     expect((await st.db.collection("world").get()).docs.map((d) => d.id).sort()).toEqual(["checkpoint", "cpm-1", "cpm-4", "meta"]);
-    expect((await st.db.collection(ARC_PATH).get()).docs.map((d) => d.id).sort()).toEqual(["0", "1440"]);
+    expect((await st.db.collection(ARC_PATH).get()).docs.map((d) => `${ARC_PATH}/${d.id}`).sort()).toEqual([arcDocPath(t1.arc), arcDocPath(t4.arc)].sort());
+    expect(arcDocPath(t4.arc)).toBe(`${ARC_PATH}/${DAY}-${t4.arc.hash.slice(0, 32)}`);
     expect((await archived(st, 4)).filter((x) => x[0] === "ivan").length).toBe(1);
     // The bodies of days 2 and 3 are behind the frozen minute now: never kept, whatever is reported for them.
     await st.round(a, b);
@@ -368,7 +372,7 @@ describe("the shared checkpoint (step 3b): the archive in the store", () => {
     const fromSeed = await st.open("dave", { bodies: memoryBodies(), db: ws.db });
     const fromBody = await st.open("carol", { db: wb.db });
     expect([fromSeed.lw.startedKind, fromBody.lw.startedKind, fromBody.lw.startedFrom]).toEqual(["seed", "shared", 4 * DAY]);
-    expect(archiveReads(ws.seen)).toEqual([arcDocPath(0), arcDocPath(DAY)]);
+    expect(archiveReads(ws.seen)).toEqual([arcDocPath(t1.arc), arcDocPath(t4.arc)]);
     expect(archiveReads(wb.seen)).toEqual([]);
     oneWorld(st, before);
     for (const p of st.pages) expect(named(p, /Ivan/), p.uid).toEqual(["Ivan Day Two"]);
@@ -382,7 +386,7 @@ describe("the shared checkpoint (step 3b): the archive in the store", () => {
 
   it("an archive half written is used by no page: its parts without its head, then whole without its trust document; an order that arrives meanwhile is in the archive the trust document names", async () => {
     const st = new Stage();
-    let fail: string | null = null;
+    let fail: RegExp | null = null;
     const writes: string[] = [];
     const flaky: DbLike = {
       collection: (p) => st.db.collection(p),
@@ -391,7 +395,7 @@ describe("the shared checkpoint (step 3b): the archive in the store", () => {
         return {
           ...d,
           set: async (data) => {
-            if (p === fail) {
+            if (fail?.test(p)) {
               fail = null;
               throw new Error("the tab closed");
             }
@@ -407,19 +411,27 @@ describe("the shared checkpoint (step 3b): the archive in the store", () => {
     await st.round(a, b);
     await st.round(owner);
     // The head's write fails: further parts in the store, no head, no trust document.
-    fail = arcDocPath(0);
+    const inStore = async () => (await st.db.collection(ARC_PATH).get()).docs.map((d) => d.id);
+    const aHead = /^0-[0-9a-f]{32}$/;
+    fail = new RegExp(`^${ARC_PATH}/0-[0-9a-f]{32}$`);
     owner.keeper["nextReadAt"] = 0;
     await st.round(owner);
     expect(owner.keeper.note).toMatch(/the tab closed/);
-    expect(await st.doc(arcDocPath(0, 1))).toBeDefined();
-    expect([await st.doc(arcDocPath(0)), await st.doc("world/cpm-1")]).toEqual([undefined, undefined]);
+    expect((await inStore()).length).toBeGreaterThan(1);
+    expect((await inStore()).filter((id) => aHead.test(id))).toEqual([]);
+    expect(await st.doc("world/cpm-1")).toBeUndefined();
     // Then the archive whole, and the trust document's write fails.
-    fail = "world/cpm-1";
+    fail = /^world\/cpm-1$/;
     await st.round(owner);
-    const head = (await st.doc(arcDocPath(0))) as { parts: number; n: number };
+    const first = await inStore();
+    expect(first.filter((id) => aHead.test(id)).length).toBe(1);
+    const head = (await st.doc(`${ARC_PATH}/${first.find((id) => aHead.test(id))!}`)) as { parts: number; n: number };
     expect(head.parts).toBeGreaterThan(2);
+    expect(head.parts).toBe(first.length);
     expect(head.n).toBe(2);
     expect(await st.doc("world/cpm-1")).toBeUndefined();
+    const unnamed = async () => JSON.stringify(await Promise.all(first.map((id) => st.doc(`${ARC_PATH}/${id}`))));
+    const was = await unnamed();
     const w = watched(st.db);
     const c = await st.open("carol", { db: w.db });
     expect(c.lw.startedKind).toBe("seed");
@@ -428,7 +440,8 @@ describe("the shared checkpoint (step 3b): the archive in the store", () => {
     await st.db.doc("players/erin").set({ v: 1, acts: [join(0, DAY - 120, "Erin Late")], archived: 0 });
     await st.settle();
     for (const p of st.pages) expect(named(p, /Erin/), p.uid).toEqual(["Erin Late"]);
-    // The day computed again: its body and its archive are replaced, and the trust document names the archive with her order.
+    // The day computed again: its body is replaced, and the trust document names the archive with her order. That is
+    // another text, in documents of its own; the ones written before, which no trust document names, are as they were.
     await keepDay(s, 1);
     const trust = (await st.trust(1))!;
     expect(trust.arc.n).toBe(3);
@@ -437,7 +450,10 @@ describe("the shared checkpoint (step 3b): the archive in the store", () => {
     // The order of the owner's writes: the pointer (its body is in the store by then); later the archive's further parts,
     // its head, and last the trust document.
     const last = writes.lastIndexOf("world/cpm-1");
-    expect(writes.slice(last - trust.arc.parts)).toEqual([...Array.from({ length: trust.arc.parts - 1 }, (_, i) => arcDocPath(0, trust.arc.parts - 1 - i)), arcDocPath(0), "world/cpm-1"]);
+    const key = ((await st.doc(arcDocPath(trust.arc))) as { key: string }).key;
+    expect(writes.slice(last - trust.arc.parts)).toEqual([...Array.from({ length: trust.arc.parts - 1 }, (_, i) => arcDocPath(trust.arc, trust.arc.parts - 1 - i, key)), arcDocPath(trust.arc), "world/cpm-1"]);
+    expect((await inStore()).length).toBe(first.length + trust.arc.parts);
+    expect(await unnamed()).toBe(was);
     expect(writes.lastIndexOf("world/checkpoint")).toBeLessThan(last - trust.arc.parts);
     expect(writes.lastIndexOf("world/checkpoint")).toBeGreaterThanOrEqual(0);
     const fromSeed = await st.open("dave", { bodies: memoryBodies(), db: w.db });
@@ -456,7 +472,9 @@ describe("the shared checkpoint (step 3b): the archive in the store", () => {
     expect(ref.parts).toBeGreaterThan(1);
     expect(ref).toMatchObject({ from: 0, to: DAY, n: 4000 });
     expect(docs.length).toBe(ref.parts);
-    expect(docs[docs.length - 1]![0]).toBe(arcDocPath(0));
+    expect(docs[docs.length - 1]![0]).toBe(arcDocPath(ref));
+    const part1 = docs.find(([p]) => p.endsWith("p1"))![0];
+    expect(part1.startsWith(`${arcDocPath(ref)}-`)).toBe(true);
     for (const [path, body] of docs) {
       expect((body.z as string).length).toBeLessThanOrEqual(ARC_PART_CHARS);
       expect(JSON.stringify(body).length).toBeLessThan(256 * 1024);
@@ -465,12 +483,12 @@ describe("the shared checkpoint (step 3b): the archive in the store", () => {
     expect(await readArc(db, ref)).toBe(text);
     // Another text's hash, a part gone, a part changed.
     expect(await readArc(db, { ...ref, hash: "0".repeat(64) })).toBeNull();
-    const part = (await db.doc(arcDocPath(0, 1)).get()).data()!;
-    await db.doc(arcDocPath(0, 1)).set({ ...part, z: `${(part.z as string).slice(0, -8)}AAAAAAAA` });
+    const part = (await db.doc(part1).get()).data()!;
+    await db.doc(part1).set({ ...part, z: `${(part.z as string).slice(0, -8)}AAAAAAAA` });
     expect(await readArc(db, ref)).toBeNull();
-    await db.doc(arcDocPath(0, 1)).set({ v: 1 });
+    await db.doc(part1).set({ v: 1 });
     expect(await readArc(db, ref)).toBeNull();
-    await db.doc(arcDocPath(0, 1)).set(part);
+    await db.doc(part1).set(part);
     expect(await readArc(db, ref)).toBe(text);
     const cached = { doc: (p: string) => ({ get: async (): Promise<SnapLike> => ({ ...(await db.doc(p).get()), metadata: { fromCache: true } }) }) };
     await expect(readArc(cached, ref)).rejects.toThrow(/saved copy/);
@@ -484,16 +502,16 @@ describe("the shared checkpoint (step 3b): the archive in the store", () => {
   it("an archive that isn't its trust document's stops the page rather than have it compute other records", async () => {
     const s = await started();
     const { st } = s;
-    await kept1(s);
-    const head = (await st.doc(arcDocPath(0)))!;
+    const trust = await kept1(s);
+    const head = (await st.doc(arcDocPath(trust.arc)))!;
     // The archive's document gone from the store.
-    erase(st, arcDocPath(0));
+    erase(st, arcDocPath(trust.arc));
     const gone = await st.open("dave", { bodies: memoryBodies() });
     expect(gone.lw.broken?.reason).toMatch(/archive of minutes 0 to 1440/);
     st.close(gone);
     // Another day's records under its name: a text that isn't the trust document's.
     const other = await arcDocs(s.owner.lw.worldKey(), 0, DAY, JSON.stringify(["zed", cancel(0, 500)]), 1);
-    await st.db.doc(arcDocPath(0)).set(other.docs[0]![1]);
+    await st.db.doc(arcDocPath(trust.arc)).set(other.docs[0]![1]);
     const wrong = await st.open("erin", { bodies: memoryBodies() });
     expect(wrong.lw.broken?.reason).toMatch(/archive of minutes 0 to 1440/);
     st.close(wrong);
@@ -501,7 +519,7 @@ describe("the shared checkpoint (step 3b): the archive in the store", () => {
     const fromBody = await st.open("carol");
     expect([fromBody.lw.startedKind, fromBody.lw.broken]).toEqual(["shared", null]);
     // Back as it was, a page from the seed computes the kept world.
-    await st.db.doc(arcDocPath(0)).set(head);
+    await st.db.doc(arcDocPath(trust.arc)).set(head);
     const back = await st.open("frank", { bodies: memoryBodies() });
     expect(back.lw.broken).toBeNull();
     oneWorld(st);

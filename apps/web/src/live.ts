@@ -26,7 +26,7 @@ import { PENDING } from "./copy-pending.js";
  * With the shared checkpoint on (step 3; cuts.ts, keeper.ts), and never read or written with it off:
  *   world/checkpoint           where the day cuts' bodies are (owner only)
  *   world/cpm-<day>            a cut every page keeps to: its hash, who confirmed it, the archive it names (owner only; kept for good)
- *   world/arc/d/<minute>       the archive: the records applied from that minute up to a kept cut (owner only; kept for good)
+ *   world/arc/d/<minute>-<hash> the archive: the records applied from that minute up to a kept cut, named by its text's hash (owner only; kept for good)
  *   world/alarm                reports against a body, and cuts withdrawn (owner only)
  *   days/<uid>                 that player's page's own hashes of the last few day boundaries (that player only)
  * and, from the first trust document on, no page reads players/<uid>/log and no tab writes there: a tab's document lets go
@@ -106,8 +106,6 @@ export interface SnapLike {
 export interface DocLike {
   get(): Promise<SnapLike>;
   set(data: Record<string, unknown>): Promise<void>;
-  /** Deletes the document (the artifact store's; only the shared checkpoint's keeper calls it). */
-  delete?(): Promise<void>;
   acquire(o: { holder: string; ttlMs?: number }): Promise<{ acquired: boolean; expiresAt?: string }>;
 }
 export interface CollLike {
@@ -143,11 +141,12 @@ const MAX_ACTION_CHARS = 8_192;
  * The budget of the shared checkpoint (the archive's rule 8), the same on every page and so the same in the archive:
  *  - an order's text is at most `chars` characters, and a list of standing orders at most `standing` (the engine takes
  *    twenty of them);
- *  - of an account's records stamped in one game day, the first `perDay` by minute and number count;
- *  - from an account with no company, only a join counts.
+ *  - of an account's records stamped in one game day, the first `perDay` by minute and number count; among them, at most
+ *    `lists` lists of standing orders;
+ *  - from an account with no company, only a join counts, and at most `joins` of them a game day.
  * A record that doesn't count is never applied and is in no archive. A tab sends nothing past its own budget.
  */
-export const BUDGET = { perDay: 1000, chars: 512, standing: 4096 };
+export const BUDGET = { perDay: 1000, chars: 512, standing: 4096, lists: 100, joins: 3 };
 /** With the shared checkpoint on, the most bytes a tab lets its own document grow to: under the store's 256 KiB. */
 const DOC_MAX_BYTES = 240_000;
 /** The waits between the tries of an archive read that fails (ms): three tries in all. */
@@ -390,8 +389,8 @@ export class LiveWorld {
   private rhAt = new Map<number, string>();
   /** The owner's page: each day's lines, by the boundary that ended it, for the days since the frozen minute (arcText). */
   private daysLines = new Map<number, string[]>();
-  /** The budget: per account, the records that counted so far in the game day being computed. */
-  private dayCount = new Map<string, number>();
+  /** The budget: per account, the records that counted so far in the game day being computed, and of them the lists of standing orders and the joins with no company. */
+  private dayCount = new Map<string, { all: number; lists: number; joins: number }>();
   /** Per account with a company, the minute its join was applied (minus infinity: it came with the replay's start). */
   private joinedAt = new Map<string, number>();
   /** The day boundaries this page computed itself, by day. */
@@ -409,6 +408,15 @@ export class LiveWorld {
   private recapFrom = Infinity;
   /** The orders this page sent that it hasn't yet placed against the archive (by sequence number). */
   private sent = new Set<number>();
+  /** Of those, the ones stamped before a trust document's minute and waiting for the one read of its archive (by that minute). */
+  private lateOf = new Map<number, ActRecord[]>();
+  /** The replay under way (rebuild), for as long as it runs. */
+  private replayJob: Promise<void> | null = null;
+  /**
+   * While a replay is on its archives: the minute it started from. The queue then holds the archives' records only, and
+   * nothing of the players' documents is applied but what the replay's start carries (the records stamped before this).
+   */
+  private arcsFrom: number | null = null;
   private unsubWorld: (() => void) | null = null;
   private worldTimer: ReturnType<typeof setTimeout> | null = null;
   private closed = false;
@@ -517,11 +525,17 @@ export class LiveWorld {
    * Runs the world up to the clock, within a time budget. Returns true once it has
    * caught up. Actions apply at their minute; the hour steps when the clock passes it.
    */
-  advance(budgetMs: number, until = Infinity): boolean {
+  advance(budgetMs: number): boolean {
+    // Step 3: while a replay runs, only the replay moves the world.
+    if (this.replayJob) return false;
+    return this.run(budgetMs);
+  }
+
+  /** The world run on, to the clock or to `until`: a replay's stop short of it (step 3: the minutes whose archives it holds so far). */
+  private run(budgetMs: number, until = Infinity): boolean {
     if (this.broken) return true;
     const end = performance.now() + budgetMs;
     const now = this.gameMinute();
-    // `until`: a replay's stop short of the clock (step 3: the minutes whose archives it holds so far).
     const stop = Math.min(now, until);
     while (performance.now() < end) {
       const hourEnd = this.w.t + 60;
@@ -556,9 +570,30 @@ export class LiveWorld {
 
   /**
    * Replays the log, a slice at a time: from this browser's newest local cut whose records still match the store's (step
-   * 2a, cuts.ts), else from the seed.
+   * 2a, cuts.ts), else from the seed. With the shared checkpoint on (step 3) one replay runs at a time, and it is started
+   * again from inside for as long as one is due (a trust document, a withdrawn cut or a late record that came meanwhile):
+   * it ends only with the world at the clock, or with the page closed or stopped. A call during it waits for the same end.
    */
   async rebuild(onProgress?: (share: number) => void): Promise<void> {
+    if (!this.shared) {
+      await this.replay(onProgress);
+      return;
+    }
+    this.replayJob ??= (async () => {
+      try {
+        while (!(await this.replay(onProgress)) && !this.closed && !this.broken) await new Promise((r) => setTimeout(r, 0));
+      } finally {
+        this.replayJob = null;
+      }
+    })();
+    return this.replayJob;
+  }
+
+  /**
+   * One replay. With the shared checkpoint on: false when it has to start again, given up as soon as that is known and
+   * with the world wherever it had got to; true once the world is at the clock, or the page is closed or stopped.
+   */
+  private async replay(onProgress?: (share: number) => void): Promise<boolean> {
     this.needRebuild = false;
     this.quietRebuild = false;
     this.replaying = true;
@@ -566,7 +601,14 @@ export class LiveWorld {
     this.startedKind = "seed";
     const startBefore = this.rebaseBefore;
     this.rebaseBefore = Infinity;
+    // Step 3: a replay given up is due again, from before the same minute (recompute).
+    const again = (): boolean => {
+      this.rebaseBefore = Math.min(this.rebaseBefore, startBefore);
+      return this.closed;
+    };
     const cut = await this.bestCut(startBefore);
+    // Step 3: the start is chosen again when, while it was read, a replay became due or its cut was withdrawn.
+    if (this.shared && (this.closed || this.needRebuild || (cut?.since && !this.kept.some((k) => k.t === cut.since!.t && k.hash === cut.since!.hash)))) return again();
     this.player = null;
     this.companies.clear();
     this.last = null;
@@ -586,8 +628,18 @@ export class LiveWorld {
     // The records the cut had applied are behind it (the last of them, for the late check); the rest are to apply.
     const from = cut ? cut.t : -Infinity;
     const target = Math.max(1, this.gameMinute());
-    // Step 3: the frozen minutes this replay computes come first, replayed from their archives.
-    if (this.shared && !(await this.replayArcs(from, target, onProgress))) return;
+    if (this.shared) {
+      // Step 3: the frozen minutes this replay computes come first, replayed from their archives. Until that is done the
+      // players' records wait in `logs`, whatever arrives meanwhile (ingest), and are queued below, all at once.
+      this.arcsFrom = from;
+      let done = false;
+      try {
+        done = await this.replayArcs(from, target, onProgress);
+      } finally {
+        if (!done) this.arcsFrom = null;
+      }
+      if (!done) return this.broken ? true : again();
+    }
     const all: Entry[] = [];
     // (Step 3: a record stamped before the frozen minute is never taken from a player's document.)
     for (const [uid, log] of this.logs) for (const r of log.values()) if (!(this.shared && this.inert(uid, r))) all.push({ uid, r });
@@ -596,11 +648,14 @@ export class LiveWorld {
       if (e.r.at < from) this.last = e;
       else this.queue.push(e);
     }
-    while (!this.advance(30)) {
+    this.arcsFrom = null;
+    while (!this.run(30)) {
       onProgress?.(Math.min(1, this.w.t / target));
       await new Promise((r) => setTimeout(r, 0));
+      if (this.shared && (this.closed || this.needRebuild)) return again();
     }
     onProgress?.(1);
+    return !(this.shared && this.needRebuild) || again();
   }
 
   /** Sends one of this player's actions. It takes effect at the returned game minute. */
@@ -633,8 +688,12 @@ export class LiveWorld {
       // The third re-check, finding 1: widened by the lease's life, so a lease request a stall held and then let through
       // (its upper bound pushed later by half the stall) never refuses an honest player's next orders.
       if (at > now + 2 * LEAD_MIN + LEASE_TTL_MS / MS_PER_GAME_MIN) throw new Error(PENDING.liveClockOff);
-      // Step 3, the budget: a tab sends nothing past its own day's count.
-      if (this.shared && own.acts.filter((x) => Math.floor(x.at / (24 * 60)) === Math.floor(at / (24 * 60))).length >= BUDGET.perDay) throw new Error(PENDING.liveDayFull);
+      // Step 3, the budget: a tab sends nothing past its own day's count, nor past its day's count of lists of standing orders.
+      if (this.shared) {
+        const today = own.acts.filter((x) => Math.floor(x.at / (24 * 60)) === Math.floor(at / (24 * 60)));
+        if (today.length >= BUDGET.perDay) throw new Error(PENDING.liveDayFull);
+        if (a.type === "set_standing_orders" && today.filter((x) => x.a.type === "set_standing_orders").length >= BUDGET.lists) throw new Error(PENDING.liveListsFull);
+      }
       return as === "brokerage" ? { s: nextS, at, a, as } : { s: nextS, at, a };
     });
     if (this.shared) this.sent.add(r.s);
@@ -902,20 +961,34 @@ export class LiveWorld {
 
   /**
    * One of this page's own orders, sent from here and stamped before the frozen minute: looked up in the archive of its
-   * minute, once, and said when the archive doesn't hold it (finding 5).
+   * minute, once, and said when the archive doesn't hold it (finding 5). One read of an archive serves every such order
+   * it covers: the ones found while the read is on its way wait for it together.
    */
   private late(uid: string, r: ActRecord): void {
     if (uid !== this.uid || !this.sent.has(r.s)) return;
     const d = this.trust.find((x) => r.at < x.t);
     if (!d) return;
     this.sent.delete(r.s);
-    const text = JSON.stringify(r);
-    void this.arcRecs(d).then((got) => {
-      if (typeof got === "string" || got.some((e) => e.uid === uid && e.r.s === r.s && JSON.stringify(e.r) === text)) return;
-      try {
-        this.onLate?.(r);
-      } catch (e) {
-        console.error(e);
+    const waiting = this.lateOf.get(d.t);
+    if (waiting) {
+      waiting.push(r);
+      return;
+    }
+    const mine = [r];
+    this.lateOf.set(d.t, mine);
+    const read = this.arcRecs(d).catch((e) => String(e));
+    void read.then((got) => {
+      this.lateOf.delete(d.t);
+      if (typeof got === "string") return;
+      const held = new Set<string>();
+      for (const e of got) if (e.uid === uid) held.add(JSON.stringify(e.r));
+      for (const x of mine) {
+        if (held.has(JSON.stringify(x))) continue;
+        try {
+          this.onLate?.(x);
+        } catch (e) {
+          console.error(e);
+        }
       }
     });
   }
@@ -986,8 +1059,8 @@ export class LiveWorld {
    * order, each checked before a record of it is used (arcRecs), the world run to the end of their minutes, and their
    * records let go before the next six are read. So a page from the seed never holds more than a few days' records of
    * the archive, however old the world. False when the replay can't go on from here: an archive can't be had (the world is
-   * marked stopped rather than computed from any other records), the trust documents or a record changed meanwhile (the
-   * replay starts again), or the page closed.
+   * marked stopped rather than computed from any other records), a replay became due meanwhile (the trust documents
+   * changed, say: this one is given up and started again), or the page closed.
    */
   private async replayArcs(from: number, target: number, onProgress?: (share: number) => void): Promise<boolean> {
     let at = from;
@@ -1007,10 +1080,10 @@ export class LiveWorld {
         for (const e of recs) if (e.r.at >= from) this.queue.push(e);
       }
       at = need[need.length - 1]!.t;
-      while (!this.advance(30, at)) {
+      while (!this.run(30, at)) {
         onProgress?.(Math.min(1, this.w.t / target));
         await new Promise((r) => setTimeout(r, 0));
-        if (this.closed) return false;
+        if (this.closed || this.needRebuild) return false;
       }
       if (this.broken) return false;
     }
@@ -1041,8 +1114,8 @@ export class LiveWorld {
     const frozen0 = this.frozen;
     this.pointer = pointer;
     this.alarm = parseAlarm(alarmRaw, world);
-    // What a trust document freezes: its minutes, their records' running hash, and the archive that holds them.
-    const frozenAs = (d: TrustDoc): string => `${d.t}:${d.rh}:${d.arc.from}:${d.arc.hash}:${d.arc.parts}:${d.arc.n}`;
+    // What a trust document freezes: its minutes, their records' running hash, and the text of the archive that holds them.
+    const frozenAs = (d: TrustDoc): string => `${d.t}:${d.rh}:${d.arc.from}:${d.arc.hash}:${d.arc.n}`;
     this.trust = trustChain(trust, world);
     this.kept = keptCuts(this.trust, this.alarm);
     const frozen = this.frozen;
@@ -1594,7 +1667,7 @@ export class LiveWorld {
       for (const [n, r] of [...log]) {
         if (stored.has(n)) continue;
         this.mark("drop", uid, r);
-        this.needRebuild = true;
+        this.touched(r.at);
         log.delete(n);
       }
       return;
@@ -1613,7 +1686,7 @@ export class LiveWorld {
       if (s <= lo || s >= hi || stored.has(s)) continue;
       this.mark("drop", uid, log.get(s)!);
       // Step 3: an inert record gone from the store changes nothing this page computes.
-      if (!(this.shared && this.inert(uid, log.get(s)!))) this.needRebuild = true;
+      if (!(this.shared && this.inert(uid, log.get(s)!))) this.touched(log.get(s)!.at);
       log.delete(s);
     }
     // The re-check §5: an erasure always comes with a rewritten entry (the erasing write's own record lands on a number
@@ -1625,7 +1698,7 @@ export class LiveWorld {
     for (const s of [...log.keys()]) {
       if (s < first || held.has(s)) continue;
       this.mark("drop", uid, log.get(s)!);
-      if (!(this.shared && this.inert(uid, log.get(s)!))) this.needRebuild = true;
+      if (!(this.shared && this.inert(uid, log.get(s)!))) this.touched(log.get(s)!.at);
       log.delete(s);
     }
   }
@@ -1661,6 +1734,15 @@ export class LiveWorld {
     console.warn(`[owner] player ${uid}'s order #${r.s} ${what}`, e);
   }
 
+  /**
+   * A record this page held changed or went, or one arrived for a minute already computed: the page replays. While a
+   * replay is on its archives (arcsFrom) no record of a player's document is applied yet but those its start carries, so
+   * only one stamped before that start makes the replay start again; the rest are queued when the archives are done.
+   */
+  private touched(at: number): void {
+    if (this.arcsFrom === null || at < this.arcsFrom) this.needRebuild = true;
+  }
+
   /** `fresh`: the records came from a player's document as it is now, not from an archive chunk (only those can be early). */
   private ingest(uid: string, acts: ActRecord[], fresh = true, onlyNew = false): void {
     let log = this.logs.get(uid);
@@ -1673,7 +1755,7 @@ export class LiveWorld {
         // here, never a replay. A held order of that number is one the document no longer has.
         if (seen) {
           log.delete(r.s);
-          this.needRebuild = true;
+          this.touched(seen.at);
           if (fresh) this.mark("rewrite", uid, r);
         } else this.late(uid, r);
         continue;
@@ -1681,12 +1763,17 @@ export class LiveWorld {
       if (seen) {
         // The same sequence number with a different body: the document was rewritten. Take the store's version, like a late joiner would.
         if (JSON.stringify(seen) === JSON.stringify(r)) continue;
-        this.needRebuild = true;
+        this.touched(Math.min(seen.at, r.at));
         if (fresh) this.mark("rewrite", uid, r); // the re-check §8
       }
       log.set(r.s, r);
       if (seen) continue;
       if (fresh) this.markEarly(uid, r);
+      // Step 3: a replay on its archives queues the players' records once they are done, this one with them.
+      if (this.arcsFrom !== null) {
+        this.touched(r.at);
+        continue;
+      }
       const e: Entry = { uid, r };
       // Too late for a moment already computed: the page rebuilds so it agrees with everyone else.
       if (r.at < this.w.t || (this.last && before(e, this.last) < 0)) {
@@ -1705,9 +1792,14 @@ export class LiveWorld {
     if (this.shared) {
       // Step 3, the budget: from an account with no company only a join counts, and of an account's records in a game
       // day, the first so many. What doesn't count is not applied and has no line.
-      const n = this.dayCount.get(uid) ?? 0;
-      if ((r.a.type !== "join" && !this.companies.has(uid)) || n >= BUDGET.perDay) return;
-      this.dayCount.set(uid, n + 1);
+      // Among the day's, so many lists of standing orders; and from an account with no company, so many joins.
+      const has = this.companies.has(uid);
+      const n = this.dayCount.get(uid) ?? { all: 0, lists: 0, joins: 0 };
+      const kind = r.a.type === "set_standing_orders" ? "lists" : r.a.type === "join" && !has ? "joins" : null;
+      if ((r.a.type !== "join" && !has) || n.all >= BUDGET.perDay || (kind && n[kind] >= BUDGET[kind])) return;
+      n.all++;
+      if (kind) n[kind]++;
+      this.dayCount.set(uid, n);
       // The line of every record this world applies, for the day's running hash (a refused order's too: finding 4).
       this.dayLines.push(recLine(uid, r));
     }

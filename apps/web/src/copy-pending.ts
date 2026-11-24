@@ -575,6 +575,7 @@ export const PENDING = withGrammar({
   // The shared checkpoint (keeper.ts SHARED_CUTS; none of these is said with it off). Placeholders for the writer.
   liveDayFull: "That's as many orders as one company can give in a game day. The next ones will go through after midnight, game time.",
   liveOrderTooLong: "That order is too long to send. Shorten it and give it again.",
+  liveListsFull: "That's as many changes to your standing orders as one company can make in a game day. The next ones will go through after midnight, game time.",
   liveDocFull: "Your order book is full until the world's next daily checkpoint. This order wasn't sent: give it again later.",
   liveHistoryUnread: (reason: string) => `This page couldn't read the world's history (${reason}). Reload the page to try again.`,
   // The test page's clock stopped on an engine error in an hour (§6): the save stands at the hour before.

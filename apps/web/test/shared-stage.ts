@@ -36,6 +36,8 @@ export interface OpenOptions {
   keep?: Partial<typeof KEEP>;
   /** The waits between the tries of an archive read that fails (ms); a few milliseconds unless given. */
   retryMs?: number[];
+  /** The page's first replay, run by the test itself (to act while it runs) in place of one awaited call. */
+  replay?: (lw: LiveWorld) => Promise<void>;
 }
 
 /** One store, one clock, and the pages open on them. */
@@ -62,7 +64,7 @@ export class Stage {
     const bodies = o.bodies ?? this.bodies;
     const owner = o.owner === true;
     const lw = await LiveWorld.open(db, this.meta, uid, { now: this.now, mono: this.now, holder: `tab-${uid}-${this.tabs++}`, manualRenewal: true, owner, ...(o.cuts ? { cuts: o.cuts } : {}), ...(o.shared === false ? {} : { shared: { bodies, keepText: owner, retryMs: o.retryMs ?? [5, 5] } }) });
-    await lw.rebuild();
+    await (o.replay ? o.replay(lw) : lw.rebuild());
     const p: Page = { uid, lw, keeper: new Keeper(lw, db, bodies, { owner, now: this.now, ...o.keep }) };
     this.pages.push(p);
     return p;

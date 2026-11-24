@@ -1,6 +1,7 @@
 import "./seed.js";
+import { gzipSync } from "node:zlib";
 import { describe, expect, it, vi } from "vitest";
-import { ARC_PATH, arcDocPath, arcDocs, DAYS_PATH, memoryBodies, memoryCuts, parseAlarm, parsePointer, recLine, REPLAY_BUILD, RH0, rollHash } from "../src/cuts.js";
+import { ARC_PATH, arcDocPath, arcDocs, DAYS_PATH, memoryBodies, memoryCuts, parseAlarm, parsePointer, readArc, recLine, REPLAY_BUILD, RH0, rollHash } from "../src/cuts.js";
 import { PENDING } from "../src/copy-pending.js";
 import { RULESET } from "../src/game.js";
 import { BUDGET, LiveWorld, MS_PER_GAME_HOUR, parseActs, type DbLike, type WorldMeta } from "../src/live.js";
@@ -10,7 +11,8 @@ import { archived, DAY, enc, G, kept1, MIN, oneWorld, ownHash, rhOf, Stage, star
 /**
  * The checkpoint's step 3b, part B (live.ts, keeper.ts, cuts.ts), all of it with the shared checkpoint on: the budget (which
  * of an account's records count, the same on every page and so in the archive); the pages' reports in one collection, and
- * which of them count; the archive read's tries; and what a page from the seed holds of the archives.
+ * which of them count; the archive read's tries; and what a page from the seed holds of the archives. And of part C: the
+ * day's counts of lists of standing orders and of joins with no company, and how an archive's documents are named.
  */
 const cancel = (n: number, at: number, extra: Record<string, unknown> = {}) => ({ s: n, at, a: { type: "cancel_bid", truckId: n, ...extra } });
 const join = (n: number, at: number, name: string, hub = 2) => ({ s: n, at, a: { type: "join", name, hub: starters[hub]!, look: "m" } });
@@ -88,6 +90,75 @@ describe("the shared checkpoint (step 3b): the budget", () => {
     await expect(a.lw.submit({ type: "cancel_bid", truckId: 3, pad: pad(BUDGET.chars) } as never)).rejects.toThrow(PENDING.liveOrderTooLong);
     expect((await a.lw.submit({ type: "cancel_bid", truckId: 4 })).s).toBe(BUDGET.perDay);
     expect(await stored("alice")).toBe(BUDGET.perDay + 1);
+    await st.run(1);
+    oneWorld(st);
+  }, 240_000);
+
+  it("of an account's records in a game day so many lists of standing orders count, and from an account with no company so many joins: an open page, a page from the body and a page from the seed compute one world, and the archive holds what counted", async () => {
+    const s = await started();
+    const { st, owner, a, b } = s;
+    const list = (n: number, at: number) => ({ s: n, at, a: { type: "set_standing_orders", orders: [] } });
+    const nowhere = (n: number, at: number) => ({ s: n, at, a: { type: "join", name: "Mort Nowhere", hub: "no such hub", look: "m" } });
+    const inOrder = <T extends { s: number; at: number }>(acts: T[]): T[] => [...acts].sort((x, y) => x.at - y.at || x.s - y.s);
+    // Lena: a join, more lists than a day's count, their minutes not in the order of their numbers, and an order after them.
+    const lena = [join(0, 380, "Lena Lists"), ...Array.from({ length: BUDGET.lists + 4 }, (_, i) => list(i + 1, 400 + ((i * 7) % 50))), cancel(900, 700)];
+    await st.db.doc("players/lena").set({ v: 1, acts: [...lena].reverse(), archived: 0 });
+    // Mort: joins that give no company (no such hub), more than a day's count of them, then one that would give one.
+    const mort = [...Array.from({ length: BUDGET.joins + 2 }, (_, i) => nowhere(i, 400 + i)), join(50, 600, "Mort Too Many", 1)];
+    await st.db.doc("players/mort").set({ v: 1, acts: mort, archived: 0 });
+    // Nora: a join that gives a company, then as many more: from an account with a company they count as its other orders do.
+    const nora = [join(0, 390, "Nora First", 0), ...Array.from({ length: BUDGET.joins + 2 }, (_, i) => join(i + 1, 500 + i, "Nora Again", 0))];
+    await st.db.doc("players/nora").set({ v: 1, acts: nora, archived: 0 });
+    await st.settle();
+    for (const p of st.pages) await ownHash(p, 1);
+    const trust = await kept1(s);
+    const records = await archived(st, 1);
+    const of = (uid: string) => records.filter((x) => x[0] === uid).map((x) => x[1].s);
+    let lists = 0;
+    expect(of("lena")).toEqual(inOrder(lena).filter((r) => r.a.type !== "set_standing_orders" || lists++ < BUDGET.lists).map((r) => r.s));
+    expect(of("lena").length).toBe(BUDGET.lists + 2);
+    expect(of("mort")).toEqual(Array.from({ length: BUDGET.joins }, (_, i) => i));
+    expect(of("nora")).toEqual(nora.map((r) => r.s));
+    expect(trust.arc.n).toBe(2 + BUDGET.lists + 2 + BUDGET.joins + nora.length);
+    const before = enc(a.lw.w);
+    const fromSeed = await st.open("dave", { bodies: memoryBodies() });
+    const fromBody = await st.open("carol");
+    expect([fromSeed.lw.startedKind, fromBody.lw.startedKind]).toEqual(["seed", "shared"]);
+    oneWorld(st, before);
+    const theirs = (p: { lw: LiveWorld }) => p.lw.w.companies.filter((x) => /^(Lena|Mort|Nora) /.test(x.name)).map((x) => x.name).sort();
+    for (const p of st.pages) expect(theirs(p), p.uid).toEqual(["Lena Lists", "Nora First"]);
+    // The next game day both counts start again: Mort's join gives him a company, and Lena's next list is a record of day 2.
+    const at = Math.ceil(st.minute()) + 5;
+    await st.db.doc("players/mort").set({ v: 1, acts: [...mort, join(60, at, "Mort Next Day", 1)], archived: 0 });
+    await st.db.doc("players/lena").set({ v: 1, acts: [...lena, list(2000, at)], archived: 0 });
+    await st.until(2 * DAY + G);
+    const day2 = await ownHash(a, 2);
+    for (const p of st.pages) expect(await ownHash(p, 2), p.uid).toBe(day2);
+    await st.round(a, b);
+    await st.round(owner);
+    owner.keeper["nextReadAt"] = 0;
+    await st.round(owner);
+    const next = await archived(st, 2);
+    expect(next.filter((x) => x[0] === "mort" || x[0] === "lena").map((x) => [x[0], x[1].s])).toEqual([["lena", 2000], ["mort", 60]]);
+    for (const p of st.pages) expect(theirs(p), p.uid).toEqual(["Lena Lists", "Mort Next Day", "Nora First"]);
+    oneWorld(st);
+  }, 360_000);
+
+  it("a tab sends no more lists of standing orders in a game day than count, and says why; its other orders go through, and after midnight its lists do", async () => {
+    const st = new Stage();
+    await st.open("olga", { owner: true });
+    const at = Math.ceil(st.minute()) + 3;
+    const list = { type: "set_standing_orders", orders: [] } as const;
+    await st.db.doc("players/alice").set({ v: 1, acts: [join(0, at - 2, "Alice Haul", 0), ...Array.from({ length: BUDGET.lists - 1 }, (_, i) => ({ s: i + 1, at, a: list }))], archived: 0, next: BUDGET.lists });
+    const a = await st.open("alice");
+    await st.run(1);
+    const stored = async () => ((await st.doc("players/alice")) as { acts: unknown[] }).acts.length;
+    expect((await a.lw.submit({ ...list, orders: [] })).s).toBe(BUDGET.lists);
+    await expect(a.lw.submit({ ...list, orders: [] })).rejects.toThrow(PENDING.liveListsFull);
+    expect(await stored()).toBe(BUDGET.lists + 1);
+    expect((await a.lw.submit({ type: "cancel_bid", truckId: 1 })).s).toBe(BUDGET.lists + 1);
+    await st.until(DAY + 60);
+    expect((await a.lw.submit({ ...list, orders: [] })).s).toBe(BUDGET.lists + 2);
     await st.run(1);
     oneWorld(st);
   }, 240_000);
@@ -220,17 +291,50 @@ describe("the shared checkpoint (step 3b): reading the archives", () => {
     lw.close();
   }, 120_000);
 
-  it("an archive written in fewer documents than an earlier attempt leaves none of that attempt's in the store", async () => {
+  it("an archive's documents are named by its text, and its further parts by its packing: the same text packed otherwise, already in the store, is read and not written again; this page's own packing written beside it, the archive reads whole; another text for the same minutes shares no document with it", async () => {
     const s = await started({ ownerOptions: { keep: { arcPartChars: 60 } } });
     const { st, owner } = s;
-    for (let i = 1; i <= 12; i++) await st.db.doc(arcDocPath(0, i)).set({ v: 1, world: owner.lw.worldKey(), from: 0, i, z: "an earlier attempt" });
+    const world = owner.lw.worldKey();
+    const arc = owner.lw.arcText(DAY, rhOf(owner, 1));
+    if (!arc || arc === "days") throw new Error("the owner's page doesn't hold day 1's records");
+    // The day's archive as the owner's page will pack it, and packed another way (not compressed), in more parts.
+    const { ref, docs } = await arcDocs(world, 0, DAY, arc.text, arc.n, 60);
+    const z = gzipSync(arc.text, { level: 0 }).toString("base64");
+    const pieces = z.match(/.{1,60}/g)!;
+    const key = "0123456789abcdef";
+    expect(pieces.length).toBeGreaterThan(ref.parts);
+    expect(ref.parts).toBeGreaterThan(2);
+    for (let i = pieces.length - 1; i >= 1; i--) await st.db.doc(arcDocPath(ref, i, key)).set({ v: 1, world, from: 0, i, z: pieces[i]! });
+    await st.db.doc(arcDocPath(ref)).set({ v: 1, world, from: 0, to: DAY, n: arc.n, hash: ref.hash, parts: pieces.length, bytes: z.length, key, z: pieces[0]! });
+    const ids = async () => (await st.db.collection(ARC_PATH).get()).docs.map((d) => `${ARC_PATH}/${d.id}`).sort();
+    const other = await ids();
+    expect(other.length).toBe(pieces.length);
+    const writes: string[] = [];
+    const real = st.db.doc.bind(st.db);
+    st.db.doc = (p) => ({ ...real(p), set: (data) => (writes.push(p), real(p).set(data)) });
     const trust = await kept1(s);
-    expect(trust.arc.parts).toBeGreaterThan(2);
-    expect(trust.arc.parts).toBeLessThan(12);
-    expect((await st.db.collection(ARC_PATH).get()).docs.map((d) => d.id).sort()).toEqual(["0", ...Array.from({ length: trust.arc.parts - 1 }, (_, i) => `0p${i + 1}`)].sort());
+    expect(trust.arc.hash).toBe(ref.hash);
+    expect(writes.filter((p) => p.startsWith(ARC_PATH))).toEqual([]);
+    expect(await ids()).toEqual(other);
     const fromSeed = await st.open("dave", { bodies: memoryBodies() });
-    expect(fromSeed.lw.startedKind).toBe("seed");
+    expect([fromSeed.lw.startedKind, fromSeed.lw.broken]).toEqual(["seed", null]);
     oneWorld(st);
+    // This page's own packing beside it: the head names its own parts now, and the other packing's are as they were.
+    for (const [path, body] of docs) await st.db.doc(path).set(body);
+    expect((await ids()).length).toBe(pieces.length + ref.parts - 1);
+    expect(docs.map((d) => d[0]).filter((p) => other.includes(p))).toEqual([arcDocPath(ref)]);
+    expect(await readArc(st.db, trust.arc)).toBe(arc.text);
+    const again = await st.open("erin", { bodies: memoryBodies() });
+    expect([again.lw.startedKind, again.lw.broken]).toEqual(["seed", null]);
+    oneWorld(st);
+    // Another text for the same minutes: no document of it is one of these.
+    const text2 = JSON.stringify(["zed", cancel(0, 500)]);
+    const two = await arcDocs(world, 0, DAY, text2, 1, 60);
+    const here = await ids();
+    expect(two.docs.map((d) => d[0]).filter((p) => here.includes(p))).toEqual([]);
+    for (const [path, body] of two.docs) await st.db.doc(path).set(body);
+    expect(await readArc(st.db, trust.arc)).toBe(arc.text);
+    expect(await readArc(st.db, two.ref)).toBe(text2);
   }, 240_000);
 });
 
@@ -265,7 +369,7 @@ describe("the shared checkpoint (step 3b): a page's own housekeeping", () => {
   it("off, a page reads no report and no archive, writes no next number, and sends an order of any length it did", async () => {
     const st = new Stage();
     await st.db.doc(`${DAYS_PATH}/zed`).set({ v: 1, world: "w", build: "b", days: [] });
-    await st.db.doc(arcDocPath(0)).set({ v: 1, z: "" });
+    await st.db.doc(arcDocPath({ from: 0, hash: "a".repeat(64) })).set({ v: 1, z: "" });
     const w = watched(st.db);
     const a = await st.open("alice", { shared: false, db: w.db });
     await a.lw.submit({ type: "join", name: "Alice Haul", hub: starters[0]! });
