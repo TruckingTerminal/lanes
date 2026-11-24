@@ -201,6 +201,7 @@ table.mini td:first-child { font-family: inherit; }
 .townhead .townpic { image-rendering: pixelated; flex: none; }
 .townhead h2 { margin: 0 0 4px; font-size: 20px; }
 .townhead .towntitle > div { margin-bottom: 6px; }
+.townhead .towntitle { flex: 1 1 200px; min-width: 0; overflow-wrap: anywhere; }
 @keyframes city-drift { from { transform: scale(1); } to { transform: scale(1.06) translate(-1.2%, -1%); } }
 @keyframes city-fade { from { opacity: 0; } }
 /* Calm and Still: loops show their first frame, no drift, no gleam (the menu system §2.6). */
@@ -398,7 +399,7 @@ html[data-motion="calm"] .stamp.landing { animation: stamp-fade 120ms ease-out b
 .window.crop::after { display: none; }
 .atlascell { width: 100%; background-repeat: no-repeat; image-rendering: pixelated; border-radius: var(--radius); }
 .heroscrim { position: fixed; inset: 0; z-index: 70; display: grid; place-items: center; padding: 16px; background: rgba(10, 6, 14, 0.6); animation: hero-in 300ms var(--ease-out) both; }
-.herocard { width: min(640px, 100%); display: grid; gap: 10px; padding: 12px; background: var(--bg-panel); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: 0 24px 60px rgba(0, 0, 0, 0.55); }
+.herocard { width: min(640px, 100%); display: grid; grid-template-columns: minmax(0, 1fr); gap: 10px; padding: 12px; background: var(--bg-panel); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: 0 24px 60px rgba(0, 0, 0, 0.55); }
 html[data-kit] .herocard { image-rendering: pixelated; border-color: transparent; border-image: var(--frame-dialog) var(--frame-dialog-slice) / var(--frame-dialog-width) / 4px stretch; }
 @keyframes hero-in { from { opacity: 0; } }
 /* The Motion setting in the ≡ menu (the menu system §2.6): a label, three segments, a line of help. */
@@ -472,6 +473,16 @@ html[data-kit] .herocard { image-rendering: pixelated; border-color: transparent
 .returncard > .stack { flex: 1 1 200px; min-width: 0; gap: 4px; }
 .returncard > .stack > .small { flex: none; }
 .poachrow { gap: 4px; padding: 8px 0; border-top: 1px solid var(--border); min-width: 0; }
+/* Staff's hire tables at every width (the gamer's diary at 375; the player round of 2026-11-24 at 1024, where the table ran
+   wider than its panel): each person a wrapping row, so Hire and its pay stay inside the panel. */
+.pooltable, .pooltable tbody { display: block; width: 100%; }
+.pooltable thead { display: none; }
+.pooltable tr { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; padding: 6px 0; border-bottom: 1px solid var(--border); min-width: 0; }
+.pooltable td { border: 0; padding: 0; min-width: 0; overflow-wrap: anywhere; }
+.pooltable td:last-child { flex: 1 1 100%; }
+.pooltable select, .poachrow select { max-width: 100%; min-width: 0; }
+.payin { width: 72px; }
+.poachrow > .row > span:first-child { min-width: 0; overflow-wrap: anywhere; }
 .poachrow select { max-width: 100%; }
 .switchrow { gap: 10px; min-height: 44px; cursor: pointer; flex-wrap: nowrap; }
 .switchrow input { flex: none; width: 40px; height: 22px; accent-color: var(--accent); }
@@ -588,6 +599,10 @@ html[data-motion="full"] .reservesettle { animation: reserve-in 160ms ease-out 1
 /* §1.6: the fx glint once at the badge's corner (Full only), and the paper's lines under the title. */
 .heroglint { position: absolute; left: calc(50% + 24px); top: -6px; width: 64px; height: 64px; background-repeat: no-repeat; background-position: var(--glint-x) var(--glint-y); image-rendering: pixelated; pointer-events: none; animation: hero-glint 750ms steps(9) 450ms 1 both; }
 @keyframes hero-glint { from { background-position-x: var(--glint-x); } to { background-position-x: var(--glint-run); } }
+/* A city's picture on a hero card (the lane of your own; the player round of 2026-11-24): the canvas at the card's width, not
+   its 688 px drawing size, which ran the card off a phone's right edge. */
+.herocard > canvas.pic { width: 100%; height: auto; display: block; image-rendering: pixelated; }
+.namecount { display: block; text-align: right; }
 .heropaper { margin: 0; padding: 8px 10px; background: var(--paper); color: var(--ink); border-radius: var(--radius); }
 .heropaper p { margin: 0; }
 .heropaper p + p { margin-top: 4px; }
@@ -669,12 +684,11 @@ ul.timeline .linkish { background: none; border: 0; padding: 6px 0; min-height: 
 /* Phones (Jeff, 2026-11-01: "not optimized for mobile at all"): one column, the panel first and the map one tap away,
    bigger type and targets, the page scrolling instead of boxes inside it, tab labels back. */
 @media (max-width: 899px) {
-  /* Staff's hire tables at phone width: each person a wrapping row, so Hire and its pay stay on screen (the gamer's diary). */
-  .pooltable thead { display: none; }
-  .pooltable tr { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; padding: 6px 0; border-bottom: 1px solid var(--border); }
-  .pooltable td { border: 0; padding: 0; }
-  .pooltable td:last-child { flex: 1 1 100%; }
-  .payin { width: 72px; }
+  /* Phone width (the player round of 2026-11-24): the Rates tables' cells may break inside a word, so a table never runs
+     past its card; a town's card puts its title under the picture when they don't fit side by side. */
+  table.mini th, table.mini td { overflow-wrap: anywhere; }
+  .townhead { flex-wrap: wrap; }
+  .townhead .townpic { max-width: 100%; height: auto; }
   /* Naming's pinned Start row never covers the last field (the gamer: START sat over "How you start"): room under it to scroll past. */
   .namingform { padding-bottom: 72px; }
   html { -webkit-text-size-adjust: 100%; }

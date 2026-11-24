@@ -13,6 +13,7 @@ import { bumpData, S, TEST_BUILD, useData, type EntryStage } from "../state.js";
 import { Btn, Card } from "./bits.js";
 import { Julia, IuliiaLine } from "./Walkthrough.js";
 import { Portrait } from "./Loop.js";
+import { NameField, nameOf } from "./fields.js";
 import type { PortraitMood } from "../portrait.js";
 
 /**
@@ -256,18 +257,23 @@ export const blankName = (typed: string | null): boolean => typed !== null && ty
 
 function Naming({ hub }: { hub: number }): JSX.Element {
   const h = S.game!.w.net.hubs[hub]!;
-  const [typed, setTyped] = useState<string | null>(null);
+  // The player round of 2026-11-24: the box starts empty with the suggestion as its placeholder, so the first key starts the
+  // name (typing added to the suggestion, and the browser's limit cut the result unseen).
+  const [typed, setTyped] = useState("");
   const [blank, setBlank] = useState(false);
   const [start, setStart] = useState<StartKind>("oo");
   // The owner's look: none picked until the player taps one; without a pick the owner keeps the man's portrait.
   const [look, setLook] = useState<"m" | "f" | null>(null);
   // The writer's name for the hub, or "{city} Freight" for a starter the writer hasn't named yet.
-  const name = typed ?? (defaultName(h.id) || `${h.name} Freight`);
+  const suggestion = defaultName(h.id) || `${h.name} Freight`;
+  const field = nameOf(typed, suggestion);
   const submit = (ev: Event) => {
     ev.preventDefault();
     // Client batch 8b item 9: only spaces is refused as an empty name is, never replaced without a word.
-    if (blankName(typed)) return setBlank(true);
-    H.choose((name.trim() || defaultName(h.id) || `${h.name} Freight`).slice(0, 32), h.id, TEST_BUILD ? start : "oo", look ?? "m");
+    if (blankName(typed === "" ? null : typed)) return setBlank(true);
+    // Past the limit the count under the box is red, and nothing is cut.
+    if (field.over) return;
+    H.choose(field.name, h.id, TEST_BUILD ? start : "oo", look ?? "m");
   };
   return (
     <form class="stack namingform" onSubmit={submit}>
@@ -279,16 +285,14 @@ function Naming({ hub }: { hub: number }): JSX.Element {
         <label class="label" for="cname">
           {NAMING.field}
         </label>
-        <input
-          type="text"
+        <NameField
           id="cname"
-          maxLength={32}
-          value={name}
-          onInput={(e) => {
-            setTyped((e.target as HTMLInputElement).value);
+          typed={typed}
+          suggestion={suggestion}
+          onTyped={(text) => {
+            setTyped(text);
             setBlank(false);
           }}
-          required
         />
         {blank ? <p class="bad small">{PENDING.nameBlank}</p> : null}
       </div>

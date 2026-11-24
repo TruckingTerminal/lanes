@@ -13,6 +13,7 @@ import { bumpData, isPhone, me, openIntel, order, S, toast, useData } from "../.
 import { layerDay } from "../../tabs.js";
 import { Btn, Card, Kv, Panel } from "../bits.js";
 import { InvoiceRows } from "./CashNow.js";
+import { NAME_MAX, NameField, nameOf } from "../fields.js";
 import { brokerMarketIuliia, brokerMarketLine, brokeragePathLine } from "../../brokersignal.js";
 
 /**
@@ -134,6 +135,20 @@ export function fitName(name: string, max: number): string {
   return (cut > 0 ? name.slice(0, cut) : name.slice(0, max)).trim();
 }
 
+/**
+ * The brokerage's suggested name: the carrier's name with the template's word (BROKERAGE.defaultName), the carrier's part cut
+ * at a word so the template's word stays. Cutting the whole at the limit could cut the word off and leave the carrier's
+ * own name (the broker's round of 2026-11-24: a 32-character carrier name made the suggestion the carrier's, and step 2's
+ * two "cash after" lines named the carrier twice).
+ */
+export function brokerageSuggestion(carrier: string, max = NAME_MAX): string {
+  const whole = BROKERAGE.defaultName(carrier);
+  if (whole.length <= max) return whole;
+  const room = max - (whole.length - carrier.length);
+  const part = room > 0 ? fitName(carrier, room) : "";
+  return part ? BROKERAGE.defaultName(part) : fitName(whole, max);
+}
+
 /** Starting a brokerage (brokerage-ux.md section 3): three steps, the costs and the funding on one sheet before the button. */
 function StartBrokerage(): JSX.Element {
   const g = S.game!;
@@ -145,8 +160,12 @@ function StartBrokerage(): JSX.Element {
   const surety = newSurety(w);
   const feePct = k.brokerage.transferFeePct;
   const [step, setStep] = useState(1);
-  // Client batch 8b item 34: the prefilled name whole, cut at a word inside the limit (it was cut mid-word).
-  const [name, setName] = useState(fitName(BROKERAGE.defaultName(carrier.name), 32));
+  // Client batch 8b item 34: the suggestion whole, cut at a word inside the limit. The player round of 2026-11-24: it is the
+  // box's placeholder, so the first key starts the name (a suggestion at the limit took no keys, and the brokerage was
+  // started under it); nothing typed, the suggestion is the name.
+  const suggestion = brokerageSuggestion(carrier.name);
+  const [typed, setTyped] = useState("");
+  const { name, over: nameOver } = nameOf(typed, suggestion);
   // Prefilled with the engine's figure: the bond, the licence and brokerage.startCashFd of working cash (formationCostFd
   // adds the fee on top). Step 3 starts from the first order formBrokerage sets, and only a change is sent.
   const [capital, setCapital] = useState(bond + licence + k.brokerage.startCashFd); // with the fee, brokersignal.ts brokerageSheetFd: What now?'s hint quotes it
@@ -183,7 +202,7 @@ function StartBrokerage(): JSX.Element {
   );
   const start = async () => {
     setNote(null);
-    const r = await order({ type: "form_brokerage", name: name.trim() || BROKERAGE.defaultName(carrier.name), capitalFd: capital }, BROKERAGE.switched(name), "carrier");
+    const r = await order({ type: "form_brokerage", name, capitalFd: capital }, BROKERAGE.switched(name), "carrier");
     if (!r.ok) return setNote(startRefusal(w, r.reason.charAt(0).toLowerCase() + r.reason.slice(1)));
     // formBrokerage sets its first order and vetting from config; the terms are sent, as the brokerage, only if changed.
     if (margin !== k.brokerage.defaultMarginPct || open !== k.brokerage.defaultOpenLoads) await order({ type: "set_standing_orders", orders: [{ kind: "broker", marginPct: margin, maxOpenLoads: open }] }, BROKERAGE.save, "brokerage");
@@ -212,9 +231,9 @@ function StartBrokerage(): JSX.Element {
         <Card key="step1" title={BROKERAGE.step1}>
           <label class="field">
             <span class="label">{BROKERAGE.nameField}</span>
-            <input key="name" type="text" maxLength={32} value={name} onInput={(e) => setName((e.currentTarget as HTMLInputElement).value)} />
+            <NameField id="bname" typed={typed} suggestion={suggestion} onTyped={setTyped} />
           </label>
-          <p class="muted small">{PENDING.nameLimit(32)}</p>
+          <p class={nameOver ? "bad small" : "muted small"}>{PENDING.nameLimit(NAME_MAX)}</p>
           <p class="small">{BROKERAGE.homeHub(hub)}</p>
           <p class="muted small">{BROKERAGE.homeFixed}</p>
         </Card>
@@ -267,7 +286,7 @@ function StartBrokerage(): JSX.Element {
           </Btn>
         ) : null}
         {step < 4 ? (
-          <Btn sm primary disabled={blocked !== null || (step === 2 && (short > 0.5 || tooSmall || capWhy !== null))} onClick={() => setStep(step + 1)}>
+          <Btn sm primary disabled={blocked !== null || (step === 1 && nameOver) || (step === 2 && (short > 0.5 || tooSmall || capWhy !== null))} onClick={() => setStep(step + 1)}>
             {BROKERAGE.next}
           </Btn>
         ) : null}

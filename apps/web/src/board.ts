@@ -167,6 +167,19 @@ export function typedRate(text: string): { kind: "empty" } | { kind: "rate"; rat
 export const clampToCeiling = (l: Load, rate: number): number => (rate > bidCeiling(l) && rate <= bidCeiling(l) + 0.01 + 1e-9 ? bidCeiling(l) : rate);
 
 /**
+ * Why the sheet's BID is shut by its field (the player round of 2026-11-24: BID greyed with no reason), or null when the
+ * field doesn't shut it. BID takes the typed rate when it's one it would place (a rate, not over the ceiling), else the
+ * bid the field started from; with neither it is shut: by what's typed ("bad", not a rate; "ceiling", over it), or by
+ * nothing typed and no bid to start from ("empty").
+ */
+export function bidFieldWhy(l: Load, text: string | null, bid: number | null): "bad" | "ceiling" | "empty" | null {
+  const read = text !== null ? typedRate(text) : null;
+  if (read?.kind === "rate" && !overCeiling(l, read.rate)) return null;
+  if (bid !== null) return null;
+  return read?.kind === "bad" ? "bad" : read?.kind === "rate" ? "ceiling" : "empty";
+}
+
+/**
  * Client batch 8a item 61 (the director's G; the stubborn specialist's 2.32 floor above the 2.28 that won): the stepper's
  * floor is break-even itself, to the cent; a bid typed under it is allowed, with the loss said.
  */

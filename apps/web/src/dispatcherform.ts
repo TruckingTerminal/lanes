@@ -71,3 +71,18 @@ export function ordersFrom(f: DispatcherForm, bidding: boolean, prior: readonly 
   list.push({ kind: "homeTime", afterDays: Math.min(365, Math.max(1, Math.round(f.homeAfter) || 21)), restDays: hm?.restDays ?? def("homeTime")?.restDays ?? 5 });
   return list;
 }
+
+/** True when two sets of orders read the same in the form. */
+export const sameForm = (a: readonly StandingOrder[], b: readonly StandingOrder[]): boolean => {
+  const fa = formOf(a);
+  const fb = formOf(b);
+  return (Object.keys(fa) as (keyof DispatcherForm)[]).every((k) => fa[k] === fb[k]);
+};
+
+/**
+ * The orders the form is shown from: those last written from it (`sent`) until the saved ones read the same in the form,
+ * then the saved ones. Live, an order takes effect at a later game minute, so right after a save the saved orders are
+ * still the old ones.
+ */
+export const formOrders = (saved: readonly StandingOrder[], sent?: readonly StandingOrder[]): readonly StandingOrder[] =>
+  sent && !sameForm(sent, saved) ? sent : saved;

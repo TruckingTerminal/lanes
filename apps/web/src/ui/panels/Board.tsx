@@ -6,7 +6,7 @@ import type { JSX } from "preact";
 import { useEffect, useLayoutEffect, useRef, useState } from "preact/hooks";
 import { crewed, hubMiles, MANUAL_BID_MAX_DEADHEAD_MI, VETTING_NAMES, windowsOn, type Truck } from "@lanes/engine";
 import { COMMODITIES } from "@lanes/data";
-import { allInRate, bidCeiling, bidRange, blockLine, boardRows, newBrokerLine, typedRate, clampToCeiling, chipCash, chipPair, clearsNear, clearsNearSource, dockWaits, overCeiling, posterOf, profitOver, rateShown, sortRows, type BoardRow, type BoardSort, type ChipPair } from "../../board.js";
+import { allInRate, bidCeiling, bidFieldWhy, bidRange, blockLine, boardRows, newBrokerLine, typedRate, clampToCeiling, chipCash, chipPair, clearsNear, clearsNearSource, dockWaits, overCeiling, posterOf, profitOver, rateShown, sortRows, type BoardRow, type BoardSort, type ChipPair } from "../../board.js";
 import { DockWarning, ProfitChip } from "../ProfitChip.js";
 import { ANSWER, BOARD, CHIP, DELIVERED, INTEL, LOAD, ROUND, WALL } from "../../copy.js";
 import { cls, fdFull, grouped, hhmm, pct, shortDate, TRAILER_NAME, weekdayDate } from "../../format.js";
@@ -29,6 +29,7 @@ import { FirstCallCards, FirstCallLine, SheetStandingLine } from "../Standing.js
 import { perkChips, wonLine } from "../../standingui.js";
 import { STANDING_UX } from "../../copy-standing.js";
 import { FIXES } from "../../copy-fixes.js";
+import { selectOnFocus } from "../fields.js";
 
 /**
  * The board (specs/first-ten-minutes.md, S2–S5): load cards with the profit chip, three sorts and a filter, blocked
@@ -446,6 +447,9 @@ function LoadSheet({ r, truck }: { r: BoardRow; truck: Truck }): JSX.Element {
   const typedNow = bidText !== null ? typedRate(bidText) : null;
   const liveBid = typedNow?.kind === "rate" && typedNow.rate > 0 && !overCeiling(l, typedNow.rate) ? Math.round(Math.min(hi, clampToCeiling(l, typedNow.rate)) * 100) / 100 : bid;
   const bidProfit = liveBid === null ? 0 : profitOver(w, truck, liveBid, r.be, l.miles);
+  // The player round of 2026-11-24: a BID the field shuts says why, under the field (the words the press would have said).
+  const fieldWhy = bidFieldWhy(l, bidText, bid);
+  const bidWhy = fieldWhy === "bad" ? PENDING.bidNotARate : fieldWhy === "ceiling" ? ANSWER.ceiling(bidCeiling(l).toFixed(2)) : fieldWhy === "empty" ? PENDING.bidEmpty : null;
   // The bid's controls: shut with the load's wall, open through a locals-first hold's last round (filed for the opening).
   const bidShut = !!r.block && !r.files;
   // The engine's reach for a bid by hand is market to market (actions.ts place_bid, hubMiles), where Book now's is the
@@ -640,6 +644,7 @@ function LoadSheet({ r, truck }: { r: BoardRow; truck: Truck }): JSX.Element {
       {!r.files && !r.block ? <DockWarning w={w} t={truck} l={l} dh={r.dh} /> : null}
       {betLine && !bidShut ? <p class="small muted betline">{betLine}</p> : null}
       {bidOut && !bidShut ? <p class="small muted">{PENDING.bidReach(MANUAL_BID_MAX_DEADHEAD_MI)}</p> : null}
+      {bidWhy && !bidShut && !bidOut && note?.text !== bidWhy ? <p class={cls("small", fieldWhy === "empty" ? "muted" : "bad")}>{bidWhy}</p> : null}
       <div class="actions pinned">
         {/* leverage.localHoldHandBids: the hold's last round files a bid for the opening instead of the first-call wall. */}
         {r.files ? <p class="small">{PENDING_RULES.bidFilesFor(nextRoundHour())}</p> : r.block ? <p class="bad small">{blockLine(r.block)}</p> : null}
@@ -662,8 +667,12 @@ function LoadSheet({ r, truck }: { r: BoardRow; truck: Truck }): JSX.Element {
             aria-label={PENDING.bidFieldLabel}
             disabled={bidShut}
             value={bidText ?? (bid === null ? "" : bid.toFixed(2))}
+            // The player round of 2026-11-24 ("5.5.3030"): focused, the field selects its figure, so typing replaces it.
+            onFocus={selectOnFocus.onFocus}
+            onMouseUp={selectOnFocus.onMouseUp}
             onInput={(e) => setBidText((e.currentTarget as HTMLInputElement).value)}
-            onBlur={() => {
+            onBlur={(e) => {
+              selectOnFocus.onBlur(e);
               const read = typedRate(bidText ?? "");
               if (read.kind === "bad") setNote({ text: PENDING.bidNotARate, bad: true });
               const v = read.kind === "rate" ? read.rate : NaN;

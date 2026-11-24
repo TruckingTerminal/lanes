@@ -430,6 +430,9 @@ export const PENDING = withGrammar({
   // Client batch 8b item 34 (the middleman: the brokerage's name was prefilled cut mid-word and is fixed for life): under
   // the brokerage's name field, the limit and that it stays.
   nameLimit: (n: number) => `Up to ${n} characters. The name stays for the life of the brokerage.`,
+  // The player round of 2026-11-24 (engineering's placeholder, for the writer): under the dispatcher's form while it holds
+  // changes not yet saved. They are kept while the player is on another tab; Save writes them.
+  dispatcherUnsaved: "Not saved yet: Save puts these rules to work.",
   // Client batch 8a item 57 (the director's ruling A): the first-truck card's one verdict, on the Dealer's card (the Dealer
   // opens on it), its teaser under More, Julia's page and What now?. The name says what it prices; the verdict is one of
   // three; the figures sit under "Why" (whyLabel), never beside the verdict; "See it" brings the truck's row into view.

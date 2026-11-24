@@ -16,6 +16,7 @@ import { MILES_PER_MONTH } from "../../finance.js";
 import { PENDING } from "../../copy-pending.js";
 import { FIXES } from "../../copy-fixes.js";
 import { busRowLine, rideWords, riderLine, ridingToSeat, seatHeld, sendTargets } from "../../busui.js";
+import { useHeldRows } from "../fields.js";
 
 const num = (id: string): number => Number((document.getElementById(id) as HTMLInputElement | null)?.value);
 const sel = (id: string): string | undefined => (document.getElementById(id) as HTMLSelectElement | null)?.value;
@@ -67,15 +68,25 @@ export function Staff(): JSX.Element {
   const teamSeat = (t: Truck) => crewed(t) && t.coDriverId === 0 && atHub(t);
   const seatsOpen = trucks.some(openSeat);
   const value = (s: StaffT) => askingPay(w, s) - (s.kind === "driver" ? 0.35 * s.skill : 0);
-  const poolDrivers = poolOf(w, "driver").sort((a, b) => value(a) - value(b) || a.id - b.id).slice(0, 10);
+  // The player round of 2026-11-24: the hire lists hold their rows still while the pointer or the focus is in them (rows
+  // moved under the pointer as the pool changed); a row whose person has gone stays, and Hire gets the engine's refusal.
+  const driversHeld = useHeldRows();
+  const poachHeld = useHeldRows();
+  const byIds = (ids: readonly number[]): StaffT[] => ids.map((id) => w.staff[id - 1]).filter((x): x is StaffT => x !== undefined);
+  const poolDrivers = byIds(driversHeld.rows(poolOf(w, "driver").sort((a, b) => value(a) - value(b) || a.id - b.id).slice(0, 10).map((x) => x.id)));
   const poolDispatchers = poolOf(w, "dispatcher").sort((a, b) => askingPay(w, a) / spanOf(w, a) - askingPay(w, b) / spanOf(w, b) || a.id - b.id).slice(0, 6);
   const managersOn = w.cfg.labor.managers.enabled;
   const poolManagers = (kind: "opsManager" | "maintManager") => poolOf(w, kind).sort((a, b) => askingPay(w, a) * (1 - 0.4 * a.skill) - askingPay(w, b) * (1 - 0.4 * b.skill) || a.id - b.id).slice(0, 4);
   const kindLabel = (k: StaffT["kind"]) => (k === "driver" ? "Driver" : k === "dispatcher" ? "Dispatcher" : k === "opsManager" ? "Operations manager" : "Maintenance manager");
-  const poachable = w.staff
-    .filter((s) => s.status === "employed" && !s.owner && s.companyId !== c.id && s.skill >= 0.55 && !s.offer)
-    .sort((a, b) => b.skill - a.skill || a.id - b.id)
-    .slice(0, 8);
+  const poachable = byIds(
+    poachHeld.rows(
+      w.staff
+        .filter((s) => s.status === "employed" && !s.owner && s.companyId !== c.id && s.skill >= 0.55 && !s.offer)
+        .sort((a, b) => b.skill - a.skill || a.id - b.id)
+        .slice(0, 8)
+        .map((x) => x.id),
+    ),
+  );
 
   const offerLine = (s: StaffT) => {
     if (!s.offer) return null;
@@ -377,7 +388,7 @@ export function Staff(): JSX.Element {
       {hired.length ? hired.map((s) => <Fragment key={s.id}>{PersonCard({ s })}</Fragment>) : <p class="muted">Nobody on the payroll yet. You drive your own truck and dispatch it yourself.</p>}
       <Card title="Hire a driver">
         <p class="muted small">Market pay rises with skill (wage index {w.labor.wageIndex.toFixed(2)}). Drivers improve with every mile, and expect a raise as they do.</p>
-        <table class="pooltable">
+        <table class="pooltable" {...driversHeld.on}>
           <thead>
             <tr>
               <th>Name</th>
@@ -441,7 +452,7 @@ export function Staff(): JSX.Element {
       ) : null}
       <Card title="Hire away from other companies">
         <p class="muted small">Their employer gets {w.cfg.labor.morale.noticeDays} days to match. Unhappy people come cheaper.</p>
-        <div class="stack poachrows">
+        <div class="stack poachrows" {...poachHeld.on}>
           {poachable.map((s) => (
             <Fragment key={s.id}>{PoachRow({ s })}</Fragment>
           ))}
